@@ -3,14 +3,15 @@ import hyperfiddle.hx.Meta;
 using Lambda;
 using hyperfiddle.hx.Meta.X;
 
+@:expose("Origin")
 @:publicFields class Origin {
   static var main : Flow;
-  static function get() return if(main != null) main else main = new Flow();
-  static function all(f) get().all(f);
+  static function get() return if(main != null) main else main = new Flow();  // Singleton
+  static function all(f) get().all(f);  // Flow.all
 
   static var onError : Error -> Void = (error) -> trace(error);
 
-  static function input<A>(?f) {
+  static function input<A>(?f) {  // f is double function f(). First invocation is for start, second for end
     return new Input<A>(get(), new Push(From({
       var end = null;
       { on: () -> if(f != null) end = f(),
@@ -31,34 +32,51 @@ using hyperfiddle.hx.Meta.X;
       })
     );
   }
+
+  static function reduce<A, B>(v : View<Dynamic>, initial : Dynamic, f : (A, A) -> B) {
+    var node: Push<Dynamic> = new Push([v.node], Reduce(f));
+    node.last = initial;
+    return new View(get(), node);
+  }
+
+  static function filter<A>(v : View<Dynamic>, f : A -> Bool) {
+    return new View(get(), new Push([v.node], Filter(f)));
+  }
 }
 
+@:expose("View")
 @:publicFields class View<A> {
   var F : Flow;
   var node : Push<A>;
   function new(f, n) {F = f; node = n;}
 }
 
+@:expose("Input")
 @:publicFields class Input<A> extends View<A> {
   function put(a : A) {F.put(node, Val(a));}
   function end() {F.put(node, End);}
 }
 
+@:expose("Output")
 @:publicFields class Output<A> extends View<A> {
   function init() {F.update(node);}
   function off() {F.put(node, End);}
 }
 
+@:expose("NodeDef")
 enum NodeDef<T> {
   From<A>(s : {on : () -> Void, off : () -> Void}) : NodeDef<A>;
   Into<A>(f : A -> Void);
+  Reduce<A,B>(f : (A, A) -> B) : NodeDef<B>;
+  Filter<A>(f : A -> Bool) : NodeDef<A>;
   Apply<A, B>(f : A -> B) : NodeDef<B>;
   Apply2<A, B, C>(f : (A, B) -> C) : NodeDef<C>;
   Apply3<A, B, C, D>(f : (A, B, C) -> D) : NodeDef<D>;
 }
 
+@:expose("Action")
 enum Action<A> {
-  Val(a : A);
+  Val(a : Null<A>);
   Error(e : Error);
   End;
 }
@@ -66,6 +84,7 @@ enum Action<A> {
 typedef Frame = Int;
 typedef Rank = Int;
 
+@:expose("Flow")
 @:nullSafety(Loose)
 @:publicFields class Flow {
   static var count = 0;
@@ -194,6 +213,7 @@ typedef Rank = Int;
   }
 }
 
+@:expose("Push")
 @:nullSafety(Loose)
 @:publicFields class Push<A> {
   var def : NodeDef<A>;
@@ -208,6 +228,7 @@ typedef Rank = Int;
   var val : Null<A>;
   var error : Null<Dynamic>;
   var ended : Bool = false;
+  var last : Null<A>;
 
   var next : Null<Push<Dynamic>>;
   var prev : Null<Push<Dynamic>>;
@@ -231,11 +252,18 @@ typedef Rank = Int;
 
     try switch(def) {
       case From(_):  {}
-      case Into(_), Apply(_), Apply2(_), Apply3(_):
+      case Into(_), Apply(_), Apply2(_), Apply3(_), Reduce(_), Filter(_):
         if(on.ok() && on.foreach(n -> n.ok()))
           switch(def) {
             case Into(f):   F.into(this, cast f, cast on[0].val);
-            case Apply(f):  put(Val((cast f)(on[0].val)));
+            case Reduce(f): put(Val((cast f)(last, on[0].val)));
+            case Filter(f): if ((cast f)(on[0].val)) put(Val(on[0].val));
+            case Apply(f): put(Val((cast f)(on[0].val)));
+            // {
+            //   var arr : Dynamic = new Array();
+            //   for (x in on.opt()) arr.push(x.val);
+            //   Reflect.callMethod(this, f, arr);
+            // }
             case Apply2(f): put(Val((cast f)(on[0].val, on[1].val)));
             case Apply3(f): put(Val((cast f)(on[0].val, on[1].val, on[2].val)));
             default:        {}
@@ -251,7 +279,7 @@ typedef Rank = Int;
 
   function put(a : Action<A>) {
     switch(a) {
-      case Val(v):   val = v;
+      case Val(v):   val = v; last = v;
       case Error(e): error = e;
       case End:      ended = true;
     }
