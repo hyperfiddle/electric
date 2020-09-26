@@ -19,7 +19,15 @@ using hyperfiddle.hx.Meta.X;
   }
 
   static function on<A>(v : View<A>, f : A -> Void) {
-    return new Output(get(), new Push([v.node], Into(f))).init();
+    var output = new Output(get(), new Push([v.node], Into(f)));
+    output.init();
+    return output;
+  }
+
+  static function pure<A>(a : A) {
+    var output = new Output(get(), new Push([], Constant(a)));
+    output.init();
+    return output;
   }
 
   static function apply(ns : Array<View<Dynamic>>, f : Dynamic) {
@@ -28,6 +36,8 @@ using hyperfiddle.hx.Meta.X;
         case 1: Apply(f);
         case 2: Apply2(f);
         case 3: Apply3(f);
+        case 4: Apply4(f);
+        case 5: Apply5(f);
         default: throw new Error('can\'t apply $ns');
       })
     );
@@ -48,23 +58,23 @@ using hyperfiddle.hx.Meta.X;
 @:publicFields class View<A> {
   var F : Flow;
   var node : Push<A>;
+  function end() {F.put(node, End);}
   function new(f, n) {F = f; node = n;}
 }
 
 @:expose("Input")
 @:publicFields class Input<A> extends View<A> {
   function put(a : A) {F.put(node, Val(a));}
-  function end() {F.put(node, End);}
 }
 
 @:expose("Output")
 @:publicFields class Output<A> extends View<A> {
   function init() {F.update(node);}
-  function off() {F.put(node, End);}
 }
 
 @:expose("NodeDef")
 enum NodeDef<T> {
+  Constant<A>(a : A) : NodeDef<A>;
   From<A>(s : {on : () -> Void, off : () -> Void}) : NodeDef<A>;
   Into<A>(f : A -> Void);
   Reduce<A,B>(f : (A, A) -> B) : NodeDef<B>;
@@ -72,6 +82,8 @@ enum NodeDef<T> {
   Apply<A, B>(f : A -> B) : NodeDef<B>;
   Apply2<A, B, C>(f : (A, B) -> C) : NodeDef<C>;
   Apply3<A, B, C, D>(f : (A, B, C) -> D) : NodeDef<D>;
+  Apply4<A, B, C, D, E>(f : (A, B, C, D) -> E) : NodeDef<C>;
+  Apply5<A, B, C, D, E, F>(f : (A, B, C, D, E) -> F) : NodeDef<D>;
 }
 
 @:expose("Action")
@@ -167,13 +179,18 @@ typedef Rank = Int;
   }
 
   function clear(n : Push<Dynamic>) {
-    if(!n.queued) return;
-    n.queued = false;
+    switch(n.def) {
+      case Constant(_):
 
-    if(!n.to.opt().exists(x -> x.joins()))
-      n.val = null;
+      default:
+        if(!n.queued) return;
+        n.queued = false;
 
-    for(x in n.on.opt()) clear(x);
+        if(!n.to.opt().exists(x -> x.joins()))
+          n.val = null;
+
+        for(x in n.on.opt()) clear(x);
+    }
   }
 
   function update(a : Push<Dynamic>) {
@@ -235,6 +252,13 @@ typedef Rank = Int;
 
   function new(?ns : Array<Push<Dynamic>>, d) {
     def = d;
+    switch (def) {
+      case Constant(x):
+        queued = true;
+        val = x;
+        last = x;
+      default:
+    }
     if(ns != null) on = ns.copy();
   }
 
@@ -251,8 +275,9 @@ typedef Rank = Int;
     if(!active()) return;
 
     try switch(def) {
-      case From(_):  {}
-      case Into(_), Apply(_), Apply2(_), Apply3(_), Reduce(_), Filter(_):
+      case From(_), Constant(_):  {}
+      case Into(_), Apply(_), Apply2(_), Apply3(_), Apply4(_), Apply5(_),
+           Reduce(_), Filter(_):
         if(on.ok() && on.foreach(n -> n.ok()))
           switch(def) {
             case Into(f):   F.into(this, cast f, cast on[0].val);
@@ -266,6 +291,8 @@ typedef Rank = Int;
             // }
             case Apply2(f): put(Val((cast f)(on[0].val, on[1].val)));
             case Apply3(f): put(Val((cast f)(on[0].val, on[1].val, on[2].val)));
+            case Apply4(f): put(Val((cast f)(on[0].val, on[1].val, on[2].val, on[3].val)));
+            case Apply5(f): put(Val((cast f)(on[0].val, on[1].val, on[2].val, on[3].val, on[4].val)));
             default:        {}
           }
         else if(on.opt().exists(n -> n.ended))

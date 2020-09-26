@@ -4,11 +4,9 @@
 
   --each
     --next
-    --java out
-    --debug
-    -D jvm
+    --java out/DF
 
 
     --next
-    -js resources/js/DF.js
+    -js ../assets/DF.js
     -D nodejs
