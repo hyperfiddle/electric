@@ -116,21 +116,21 @@ typedef Rank = Int;
 
       while(rank < queue.length) {
         for(node in queue[rank])
-          node.run(this);                   // ? prep phase? calls put -> push -> link
+          node.run(this);                   // compute the node and plan what happens next
 
-        for(node in queue[rank]) {
-          var node = node.unlink();         // next; already ran above
-          while(node != null) {             // The linked list is all downstream edges, once-and-only-once
-            if(node.rank == rank)
-              node.run(this);               // compute the fapply and put
-            else if(node.rank > rank)
-              add(node);                    // not yet, next rank
+        for(node in queue[rank]) {          // execute the plan we just planned
+          var node = node.unlink();         // already computed this one
+          while(node != null) {             // the plan is a linked list
+            if(node.rank == rank)           //
+              node.run(this);               // compute the node and propogate forward
+            else if(node.rank > rank)       // not quite yet
+              add(node);                    // queue it for when this rank runs
             node = node.unlink();           // done this node, continue next
           }
         }
 
         for(node in queue[rank])
-          clear(node);
+          clear(node);                      // mark join nodes as not-ok, but why?
 
         queue[rank].resize(0);              // empty this layer of queue
 
@@ -155,10 +155,10 @@ typedef Rank = Int;
     if(!n.queued) return;                           // ?
     n.queued = false;
 
-    if(!n.to.opt().exists(x -> x.joins()))
-      n.val = null;                                 // invalidate joins which recompute each time - why?
+    if(!n.to.opt().exists(x -> x.joins()))          // join nodes only
+      n.val = null;                                 // mark not ok, but why?
 
-    for(x in n.on.opt()) clear(x);                  // propogate clear backwards
+    for(x in n.on.opt()) clear(x);                  // propogate backwards
   }
 
   function update(a : Push<Dynamic>) {              // rename "init" ?
