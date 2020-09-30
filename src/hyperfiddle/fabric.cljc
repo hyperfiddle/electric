@@ -82,3 +82,21 @@
   @seen
   => [[101 100]]
   )
+
+(defn fapply [>f & >as]
+  (apply fmap (fn [f a b] (f a b)) >f >as))
+
+(tests
+  (do
+    (def seen (atom nil))
+    (def >f (input))
+    (def >a (input))
+    (def >b (input))
+    (on (fapply >f >a >b) (partial reset! seen))
+    (put >f +)
+    (put >a 1)
+    (put >b 2)) => nil
+  @seen => 3
+  (put >f -) => nil
+  @seen => -1
+  )
