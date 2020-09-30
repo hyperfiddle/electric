@@ -5,7 +5,7 @@
      (:import
        haxe.lang.VarArgsBase
        haxe.root.Array
-       hyperfiddle.hx.Origin)))
+       hyperfiddle.Origin)))
 
 
 (defmulti clj->hx (fn [any]
@@ -17,9 +17,7 @@
   #?(:cljs (fn [& args] (apply cljf (seq args)))
      :clj  (proxy [haxe.lang.VarArgsBase] [-1 -1]           ; constructor params
              (__hx_invokeDynamic [args]
-               (try
-                 (apply cljf (seq args))
-                 (catch Exception e (.printStackTrace e)))))))
+               (apply cljf (seq args))))))
 
 (defmethod clj->hx :default [any] any)
 
@@ -38,10 +36,9 @@
                (.push o s))
              o)))
 
-(defn input [& [?f]] (Origin/input ?f))
+(defn input [& [lifecycle-fn]] (Origin/input lifecycle-fn))
 
-(defn on [>v f]
-  #?(:clj (Origin/on >v (clj->hx f))))
+(defn on [>v f] (Origin/on >v (clj->hx f)))
 
 (defn put [>a v] (.put >a v))
 

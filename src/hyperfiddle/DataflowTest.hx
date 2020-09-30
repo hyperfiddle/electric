@@ -1,7 +1,7 @@
-package hyperfiddle.hx.test;
-import hyperfiddle.hx.DF;
+package hyperfiddle;
+import hyperfiddle.Dataflow;
 
-class DFTest {
+class DataflowTest {
   static function main() {
     var a = Origin.input();
     var b = Origin.input();

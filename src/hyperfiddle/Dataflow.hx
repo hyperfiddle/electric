@@ -1,7 +1,10 @@
-package hyperfiddle.hx;
-import hyperfiddle.hx.Meta;
+package hyperfiddle;
+import hyperfiddle.Meta;
+// import haxe.macro.Expr;
+// import haxe.macro.Context;
+// import haxe.macro.Compiler;
 using Lambda;
-using hyperfiddle.hx.Meta.X;
+using hyperfiddle.Meta.X;
 
 @:publicFields class Origin {                       // public API singleton
   static var main : Flow;
