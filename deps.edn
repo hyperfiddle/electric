@@ -1,0 +1,9 @@
+{:paths ["src"]
+ :deps {hx {:local/root "out/DF/DF.jar"}
+        hyperfiddle/minitest {:local/root "./vendor/minitest"}
+        org.clojure/clojure {:mvn/version "1.10.0"}
+        org.clojure/clojurescript {:mvn/version "1.10.597"}
+        thheller/shadow-cljs {:mvn/version "2.8.83"}}
+ :aliases {:test-clj {:main-opts ["-m" "contrib.test-runner" "clj"]}
+           :test-cljs {:extra-deps    {olical/cljs-test-runner {:mvn/version "3.7.0"}}
+                       :main-opts     ["-m" "contrib.test-runner" "cljs"]}}}

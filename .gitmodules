@@ -1,0 +1,3 @@
+[submodule "vendor/minitest"]
+	path = vendor/minitest
+	url = git@github.com:hyperfiddle/minitest.git
