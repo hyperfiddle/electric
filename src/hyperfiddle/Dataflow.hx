@@ -26,14 +26,7 @@ using hyperfiddle.Meta.X;
   }
 
   static function apply(ns : Array<View<Dynamic>>, f : Dynamic) {
-    return new View(get(), new Push([for(x in ns) x.node],          // set the inbound edges
-      switch(ns.length) {
-        case 1: Apply(f);
-        case 2: Apply2(f);
-        case 3: Apply3(f);
-        default: throw new Error('can\'t apply $ns');
-      })
-    );
+    return new View(get(), new Push([for(n in ns) n.node], ApplyN(f))); // set the inbound edges
   }
 }
 
@@ -56,9 +49,7 @@ using hyperfiddle.Meta.X;
 enum NodeDef<T> {       // GT the NodeDef values essentially define a live AST of what should be done
   From<A>(source : {on : () -> Void, off : () -> Void}) : NodeDef<A>;
   Into<A>(f : A -> Void);                                   // terminal node
-  Apply<A, B>(f : A -> B) : NodeDef<B>;
-  Apply2<A, B, C>(f : (A, B) -> C) : NodeDef<C>;
-  Apply3<A, B, C, D>(f : (A, B, C) -> D) : NodeDef<D>;
+  ApplyN<A>(f : Array<Dynamic> -> A) : NodeDef<A>;
 }
 
 enum Action<A> {
@@ -236,13 +227,11 @@ typedef Rank = Int;
 
     try switch(def) {
       case From(_):  {}
-      case Into(_), Apply(_), Apply2(_), Apply3(_):
+      case Into(_), ApplyN(_):
         if(on.ok() && on.foreach(n -> n.ok()))      // all dependencies are already propagated, check for ends
           switch(def) {
             case Into(f):   F.into(this, cast f, cast on[0].val);
-            case Apply(f):  put(Val((cast f)(on[0].val)));
-            case Apply2(f): put(Val((cast f)(on[0].val, on[1].val)));
-            case Apply3(f): put(Val((cast f)(on[0].val, on[1].val, on[2].val)));
+            case ApplyN(f): put(Val((cast f)([for(n in on) n.val])));
             default:        {}
           }
         else if(on.opt().exists(n -> n.ended))      // if my inbound edges are ended, end me
