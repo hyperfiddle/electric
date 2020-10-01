@@ -1,6 +1,7 @@
 (ns hyperfiddle.fabric
   (:require
-    [minitest :refer [tests]])
+    [minitest :refer [tests]]
+    [hyperfiddle.via :refer [via* Do-via]])
   #?(:clj
      (:import
        haxe.lang.VarArgsBase
@@ -130,4 +131,30 @@
     (put >b 2)
     @s) => 3
   (do (put >f -) @s) => -1
+  )
+
+(tests
+  ; applicative interpreter
+
+  (deftype Fabric []
+    Do-via
+    (resolver-for [R]
+      {:Do.fmap   (fn [[_ f mv]] (fmap f mv))               ; varargs?
+       :Do.pure   (fn [[_ v]] (doto (input) (.put v)))      ; does the effect happen to soon?
+       :Do.fapply (fn [[_ af & avs]] (apply fapply af avs))
+       :Do.bind   (fn [[_ mv mf]] (assert false))
+       }))
+
+  (do
+    (def >a (input))
+    (def >z (via* (->Fabric)
+              (let [>b (inc ~>a)
+                    >c (dec ~>a)]
+                (vector ~>b ~>c :x))))
+
+    (def s (atom []))
+    (on >z #(swap! s conj %))
+    (->> (iterate inc 0) (map #(put >a %)) (take 3) doall)
+    @s) => [[1 -1 :x] [2 0 :x] [3 1 :x]]
+
   )

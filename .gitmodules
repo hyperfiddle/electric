@@ -1,3 +1,6 @@
 [submodule "vendor/minitest"]
 	path = vendor/minitest
 	url = git@github.com:hyperfiddle/minitest.git
+[submodule "vendor/via"]
+	path = vendor/via
+	url = git@github.com:hyperfiddle/via.git
