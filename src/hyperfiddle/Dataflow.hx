@@ -13,56 +13,47 @@ using hyperfiddle.Meta.X;
 
   static var onError : Error -> Void = (error) -> trace(error);
 
-  static function input<A>(?f) {                                    // f is the lifecycle fn
-    return new Input<A>(get(), new Push(From({
+  static function input(?f) {                                       // f is the lifecycle fn
+    return new Input(get(), new Push(From({
       var end = null;
       { on: () -> if(f != null) end = f(),                          // f can return end continuation
         off: () -> if(end != null) {end(); end = null;} } })));     // lifecycle state
   }
 
-  static function on<A>(v : View<A>, f : A -> Void) {               // terminal node
+  static function on(v : View, f : Dynamic -> Void) {               // terminal node
     // f is an effect callback
     return new Output(get(), new Push([v.node], Into(f))).init();   // propogate that someone is listening
   }
 
-  static function apply(ns : Array<View<Dynamic>>, f : Dynamic) {
-    return new View(get(), new Push([for(x in ns) x.node],          // set the inbound edges
-      switch(ns.length) {
-        case 1: Apply(f);
-        case 2: Apply2(f);
-        case 3: Apply3(f);
-        default: throw new Error('can\'t apply $ns');
-      })
-    );
+  static function apply(ns : Array<View>, f : Dynamic) {
+    return new View(get(), new Push([for(n in ns) n.node], ApplyN(f))); // set the inbound edges
   }
 }
 
-@:publicFields class View<A> {
+@:publicFields class View {
   var F : Flow;
-  var node : Push<A>;
+  var node : Push;
   function new(f, n) {F = f; node = n;}
 }
 
-@:publicFields class Input<A> extends View<A> {
-  function put(a : A) {F.put(node, Val(a));}
+@:publicFields class Input extends View {
+  function put(a : Dynamic) {F.put(node, Val(a));}
   function end() {F.put(node, End);}
 }
 
-@:publicFields class Output<A> extends View<A> {
+@:publicFields class Output extends View {
   function init() {F.update(node);}                 // Indicate someone is listening
   function off() {F.put(node, End);}                // Indicate stopped listening
 }
 
-enum NodeDef<T> {       // GT the NodeDef values essentially define a live AST of what should be done
-  From<A>(source : {on : () -> Void, off : () -> Void}) : NodeDef<A>;
-  Into<A>(f : A -> Void);                                   // terminal node
-  Apply<A, B>(f : A -> B) : NodeDef<B>;
-  Apply2<A, B, C>(f : (A, B) -> C) : NodeDef<C>;
-  Apply3<A, B, C, D>(f : (A, B, C) -> D) : NodeDef<D>;
+enum NodeDef {       // GT the NodeDef values essentially define a live AST of what should be done
+  From(source : {on : () -> Void, off : () -> Void}) : NodeDef;
+  Into(f : Dynamic -> Void);                               // terminal node
+  ApplyN(f : Array<Dynamic> -> Dynamic) : NodeDef;
 }
 
-enum Action<A> {
-  Val(a : A);
+enum Action {
+  Val(a : Dynamic);
   Error(e : Error);
   End;
 }
@@ -77,11 +68,11 @@ typedef Rank = Int;
 
   var lock : Bool = false;
   var frame : Frame = 0;                                    // ?
-  var queue : Array<Array<Push<Dynamic>>> = [];             // Many pushes, grouped by rank
+  var queue : Array<Array<Push>> = [];                      // Many pushes, grouped by rank
 
   function new() {}
 
-  function put<A>(node : Push<A>, a : Action<A>) {          // end goes backwards, val goes forwards
+  function put(node : Push, a : Action) {                   // end goes backwards, val goes forwards
     node.put(a);                                            // plan it
     var node = node.unlink();                               // remove from old order (do it now)
     if(node != null) add(node);                             // do it now
@@ -97,7 +88,7 @@ typedef Rank = Int;
     onError(e);
   }
 
-  function add(node : Push<Dynamic>) {      // queue
+  function add(node : Push) {      // queue
     if(node.queued) return;
     while(queue.length <= node.rank) queue.push([]);
     queue[node.rank].push(node);
@@ -142,7 +133,7 @@ typedef Rank = Int;
     onError(e);
   }
 
-  function into<A>(n : Push<A>, f : A -> Void, val : A) {
+  function into(n : Push, f : Dynamic -> Void, val : Dynamic) {
     f(val);
   }
 
@@ -151,7 +142,7 @@ typedef Rank = Int;
       Origin.onError(e);
   }
 
-  function clear(n : Push<Dynamic>) {
+  function clear(n : Push) {
     if(!n.queued) return;                           // ?
     n.queued = false;
 
@@ -161,7 +152,7 @@ typedef Rank = Int;
     for(x in n.on.opt()) clear(x);                  // propogate backwards
   }
 
-  function update(a : Push<Dynamic>) {              // rename "init" ?
+  function update(a : Push) {                       // rename "init" ?
     if(!a.active()) return;                         // it could be an Into i guess?
     a.rank = 0;
     for(x in a.on.opt()) {                          // inbound edges
@@ -171,7 +162,7 @@ typedef Rank = Int;
     if(a.joins()) a.rank++;                         // run after all dependencies
   }
 
-  function attach(a : Push<Dynamic>, b : Push<Dynamic>) { // set reverse links
+  function attach(a : Push, b : Push) {             // set reverse links
     // Reverse links aren't set until someone is listening ... which is now
     if(a.to == null) {                              // first listener
       a.to = [b];                                   // set the first backlink
@@ -186,7 +177,7 @@ typedef Rank = Int;
     update(a);
   }
 
-  function detach(a : Push<Dynamic>, b : Push<Dynamic>) {
+  function detach(a : Push, b : Push) {
     if(a.to.ok() && a.to.remove(b)) {
       if(a.to.nil())                                // no more left
         switch(a.def) {
@@ -200,24 +191,24 @@ typedef Rank = Int;
 }
 
 @:nullSafety(Loose)
-@:publicFields class Push<A> {
-  var def : NodeDef<A>;
-  var on : Null<Array<Push<Dynamic>>>;
-  var to : Null<Array<Push<Dynamic>>>;
+@:publicFields class Push {
+  var def : NodeDef;
+  var on : Null<Array<Push>>;
+  var to : Null<Array<Push>>;
 
   var id : Int = Flow.id();
   var rank : Rank = 0;
   var frame : Frame = 0;              // due to join, nodes can be at different frames?
   var queued : Bool = false;
 
-  var val : Null<A>;
+  var val : Null<Dynamic>;
   var error : Null<Dynamic>;
   var ended : Bool = false;
 
-  var next : Null<Push<Dynamic>>;
-  var prev : Null<Push<Dynamic>>;
+  var next : Null<Push>;
+  var prev : Null<Push>;
 
-  function new(?ns : Array<Push<Dynamic>>, d) {
+  function new(?ns : Array<Push>, d) {
     def = d;
     if(ns != null) on = ns.copy();
   }
@@ -236,13 +227,11 @@ typedef Rank = Int;
 
     try switch(def) {
       case From(_):  {}
-      case Into(_), Apply(_), Apply2(_), Apply3(_):
+      case Into(_), ApplyN(_):
         if(on.ok() && on.foreach(n -> n.ok()))      // all dependencies are already propagated, check for ends
           switch(def) {
             case Into(f):   F.into(this, cast f, cast on[0].val);
-            case Apply(f):  put(Val((cast f)(on[0].val)));
-            case Apply2(f): put(Val((cast f)(on[0].val, on[1].val)));
-            case Apply3(f): put(Val((cast f)(on[0].val, on[1].val, on[2].val)));
+            case ApplyN(f): put(Val((cast f)([for(n in on) n.val])));
             default:        {}
           }
         else if(on.opt().exists(n -> n.ended))      // if my inbound edges are ended, end me
@@ -254,7 +243,7 @@ typedef Rank = Int;
       put(Error(e));
   }
 
-  function put(a : Action<A>) {
+  function put(a : Action) {
     switch(a) {
       case Val(v):   val = v;                       // memory
       case Error(e): error = e;
@@ -265,15 +254,13 @@ typedef Rank = Int;
 
   function push() {                                 // Plan out the order of the computation
     if(to == null) return;
-    var n : Push<Dynamic> = this;                   // cast away A
     for(x in to) {                                  // outgoing edges run after this runs
       if(x.queued) continue;                        // ?
-      n.link(x);                                    // link each node as part of propagation ?
-      n = x;                                        // this happens in a deterministic order
+      this.link(x);                                 // link each node as part of propagation ?
     }
   }
 
-  function link(n : Push<Dynamic>) {                // Order this node next (splice here)
+  function link(n : Push) {                         // Order this node next (splice here)
     if(n == next) return;                           // already in the right place
     n.unlink();                                     // remove it from its current order so we can put it sooner
     n.next = next;                                  //   e.g. a diamond

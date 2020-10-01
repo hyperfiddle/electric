@@ -36,6 +36,13 @@
                (.push o s))
              o)))
 
+(defn hx-array->vec [hx-arr]
+  (let [it (.iterator hx-arr)]
+    (loop [vs []]
+      (if (.hasNext it)
+        (recur (conj vs (.next it)))
+        vs))))
+
 (defn input [& [lifecycle-fn]] (Origin/input lifecycle-fn))
 
 (defn on [>v f] (Origin/on >v (clj->hx f)))
@@ -43,7 +50,7 @@
 (defn put [>a v] (.put >a v))
 
 (tests
-  (def >a (input)) => nil
+  (def >a (input)) => #'hyperfiddle.fabric/>a
   (put >a 1) => nil                                         ; no listener
   (-> >a .-node .-val) => 1                                 ; last value retained
   (def seen (atom {})) => #'hyperfiddle.fabric/seen
@@ -62,14 +69,20 @@
   => [2 3]
   )
 
-(defn fmap [f & >as] (Origin/apply (hx-array >as) (clj->hx f)))
+(defn fmap [f & >as]
+  (Origin/apply (hx-array >as)
+    (clj->hx (fn [hx-args]
+               #_(println 'YO (hx-array->vec hx-args))
+               (apply f (hx-array->vec hx-args))))))
 
 (tests
+  ; fmap single arity
   (do
     (def >b (input))
     (def >bm (fmap inc >b))
-    (on >bm (partial cap :b))
-    (put >b 50)) => nil                                     ; second cap
+    (on >bm println #_(partial cap :b))
+    (put >b 50))
+  => nil                                     ; second cap
   (:b @seen) => [51]
 
   (do
@@ -83,6 +96,18 @@
   => [[101 100]]
   )
 
+(tests
+  ; fmap variable arity
+  (do
+    (def seen (atom nil))
+    (def >ss (take 10 (repeatedly input)))
+    (on (apply fmap vector >ss) (partial reset! seen))
+    (doseq [>s >ss] (put >s ::foo))
+    (count @seen))
+  => 10
+  )
+
+
 (defn fapply [>f & >as]
   (apply fmap (fn [f a b] (f a b)) >f >as))
 
@@ -95,8 +120,8 @@
     (on (fapply >f >a >b) (partial reset! seen))
     (put >f +)
     (put >a 1)
-    (put >b 2)) => nil
-  @seen => 3
-  (put >f -) => nil
-  @seen => -1
+    (put >b 2)
+    @seen)
+  => 3
+  (do (put >f -) @seen) => -1
   )
