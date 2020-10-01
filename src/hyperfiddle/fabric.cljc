@@ -8,44 +8,61 @@
        hyperfiddle.Origin)))
 
 
-(defmulti clj->hx (fn [any]
-                    (cond
-                      (ifn? any) ::fn
-                      () (type any))))
+(defn -primary-predicate [v]                                ; this is really bad
+  (cond                                                     ; order matters, they overlap
+    ;(nil? v) nil?
+    ;(keyword? v) keyword?
+    ;(symbol? v) symbol?
+    (seqable? v) seqable?
+    ;(map? v) map?
+    ;(set? v) set?
+    ;(sequential? v) sequential?
+    (fn? v) fn?
+    () :default))
 
-(defmethod clj->hx ::fn [f]
+(defmulti clj->hx -primary-predicate)
+(defmulti hx->clj type)                                     ; e.g. haxe.root.Array
+
+(defmethod clj->hx :default [v] v)
+;(defmethod hx->clj :default [v] v)
+
+(defmethod clj->hx fn? [f]
   #?(:cljs (fn [& args] (apply f (seq args)))
      :clj  (proxy [haxe.lang.VarArgsBase] [-1 -1]           ; constructor params
              (__hx_invokeDynamic [args]
                (apply f (seq args))))))
 
-(defmethod clj->hx :default [any] any)
-
-(tests
-  (clj->hx 1) => 1
-  (ifn? identity) => true
-  (ifn? (clj->hx identity)) => false
-  )
-
-(set! (. Origin -onError) (clj->hx #(throw %)))
-
-(defn hx-array [seq]
-  #?(:cljs (object-array seq)
+(defmethod clj->hx seqable? [xs]
+  #?(:cljs (object-array xs)
      :clj  (let [o (haxe.root.Array.)]
-             (doseq [s seq]
+             (doseq [s xs]                                  ; (seq xs) internally
                (.push o s))
              o)))
 
-(defn from-hx-array [hx-arr]
-  (let [it (.iterator hx-arr)]
+(tests
+  (clj->hx 1) => 1
+  (type (clj->hx (seq '(a)))) => haxe.root.Array
+  (type (clj->hx ['a])) => haxe.root.Array
+  ;(extends? haxe.lang.Function (clj->hx identity)) ; how to test this?
+  )
+
+(defmethod hx->clj haxe.root.Array [v!]
+  (let [it (.iterator v!)]
     (iterator-seq
       (reify #?(:clj java.util.Iterator)
         (hasNext [this] (.hasNext it))
         (next [this] (.next it))))))
 
+(tests
+  (hx->clj (clj->hx '(a))) => '(a)
+  (hx->clj (clj->hx [:a])) => '(:a)                         ; !
+  )
+
+(set! (. Origin -onError) (clj->hx #(throw %)))
+
 (defn input [& [lifecycle-fn]] (Origin/input lifecycle-fn))
 
-(defn on [>v f] (Origin/on >v (clj->hx f)))
+(defn on [>a f] (Origin/on >a (clj->hx f)))
 
 (defn put [>a v] (.put >a v))
 
@@ -63,9 +80,9 @@
   (do (put >a 3) @seen) => 3)
 
 (defn fmap [f & >as]
-  (Origin/apply (hx-array >as)
+  (Origin/apply (clj->hx >as)
     (clj->hx (fn [hx-args]
-               (apply f (from-hx-array hx-args))))))
+               (apply f (hx->clj hx-args))))))
 
 (tests
   ; fmap a stream
