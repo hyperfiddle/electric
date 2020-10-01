@@ -10,14 +10,14 @@
 
 (defmulti clj->hx (fn [any]
                     (cond
-                      (ifn? any) #?(:clj clojure.lang.IFn :cljs ::fn)
-                      :else (type any))))
+                      (ifn? any) ::fn
+                      () (type any))))
 
-(defmethod clj->hx #?(:clj clojure.lang.IFn :cljs ::fn) [cljf]
-  #?(:cljs (fn [& args] (apply cljf (seq args)))
+(defmethod clj->hx ::fn [f]
+  #?(:cljs (fn [& args] (apply f (seq args)))
      :clj  (proxy [haxe.lang.VarArgsBase] [-1 -1]           ; constructor params
              (__hx_invokeDynamic [args]
-               (apply cljf (seq args))))))
+               (apply f (seq args))))))
 
 (defmethod clj->hx :default [any] any)
 
@@ -36,12 +36,12 @@
                (.push o s))
              o)))
 
-(defn hx-array->vec [hx-arr]
+(defn from-hx-array [hx-arr]
   (let [it (.iterator hx-arr)]
-    (loop [vs []]
-      (if (.hasNext it)
-        (recur (conj vs (.next it)))
-        vs))))
+    (iterator-seq
+      (reify #?(:clj java.util.Iterator)
+        (hasNext [this] (.hasNext it))
+        (next [this] (.next it))))))
 
 (defn input [& [lifecycle-fn]] (Origin/input lifecycle-fn))
 
@@ -50,78 +50,67 @@
 (defn put [>a v] (.put >a v))
 
 (tests
-  (def >a (input)) => #'hyperfiddle.fabric/>a
-  (put >a 1) => nil                                         ; no listener
-  (-> >a .-node .-val) => 1                                 ; last value retained
-  (def seen (atom {})) => #'hyperfiddle.fabric/seen
-  (defn cap [k v]
-    (println 'seen k v)
-    (swap! seen update k (fnil conj []) v))                 ; tests accumulate state
-  => #'hyperfiddle.fabric/cap
-
-  (on >a (partial cap :a))
+  (do
+    (def >a (input))
+    (put >a 1)                                              ; no listener yet, will not propagate
+    (-> >a .-node .-val)                                    ; last value retained
+    (def seen (atom nil))
+    ;(add-watch seen 'k (fn [k r o n] (println 'seen n)))
+    (on >a #(reset! seen %))
+    @seen)
   => nil
-  (put >a 2)
-  => nil
-  (put >a 3)
-  => nil
-  (:a @seen)
-  => [2 3]
-  )
+  (do (put >a 2) @seen) => 2
+  (do (put >a 3) @seen) => 3)
 
 (defn fmap [f & >as]
   (Origin/apply (hx-array >as)
     (clj->hx (fn [hx-args]
-               #_(println 'YO (hx-array->vec hx-args))
-               (apply f (hx-array->vec hx-args))))))
+               (apply f (from-hx-array hx-args))))))
 
 (tests
-  ; fmap single arity
+  ; fmap a stream
   (do
+    (def s (atom nil))
     (def >b (input))
-    (def >bm (fmap inc >b))
-    (on >bm println #_(partial cap :b))
-    (put >b 50))
-  => nil                                     ; second cap
-  (:b @seen) => [51]
+    (def >b' (fmap inc >b))
+    (on >b' #(reset! s %))
+    (put >b 50)
+    @s)
+  => 51
 
+  ; join two streams
   (do
-    (def >c (fmap vector >a >bm))
-    (on >c (partial cap :c))
-    (put >a 100)) => nil
-  (:c @seen)
-  => nil                                                    ; no :c, awaiting :b
-  (put >b 100) => nil
-  @seen
-  => [[101 100]]
-  )
+    (def s (atom nil))
+    (def >a (input))
+    (def >b (input))
+    (def >c (fmap vector >a >b))
+    (on >c #(reset! s %))
+    (put >a :a)
+    @s) => nil                                              ; awaiting b
+  (do (put >b :b) @s) => [:a :b]                            ; now b
 
-(tests
-  ; fmap variable arity
+  ; join N streams
   (do
-    (def seen (atom nil))
-    (def >ss (take 10 (repeatedly input)))
-    (on (apply fmap vector >ss) (partial reset! seen))
+    (def N 100)
+    (def s (atom nil))
+    (def >ss (take N (repeatedly input)))
+    (on (apply fmap vector >ss) #(reset! s %))
     (doseq [>s >ss] (put >s ::foo))
-    (count @seen))
-  => 10
+    (count @s)) => N
   )
 
-
-(defn fapply [>f & >as]
-  (apply fmap (fn [f a b] (f a b)) >f >as))
+(defn fapply [>f & >as] (apply fmap #(apply % %&) >f >as))
 
 (tests
   (do
-    (def seen (atom nil))
+    (def s (atom nil))
     (def >f (input))
     (def >a (input))
     (def >b (input))
-    (on (fapply >f >a >b) (partial reset! seen))
+    (on (fapply >f >a >b) #(reset! s %))
     (put >f +)
     (put >a 1)
     (put >b 2)
-    @seen)
-  => 3
-  (do (put >f -) @seen) => -1
+    @s) => 3
+  (do (put >f -) @s) => -1
   )
