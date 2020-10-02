@@ -136,16 +136,16 @@
 (tests
   ; applicative interpreter
 
-  (deftype Fabric []
-    Do-via
-    (resolver-for [R]
-      {:Do.fmap   (fn [[_ f mv]] (fmap f mv))               ; varargs?
-       :Do.pure   (fn [[_ v]] (doto (input) (.put v)))      ; does the effect happen to soon?
-       :Do.fapply (fn [[_ af & avs]] (apply fapply af avs))
-       :Do.bind   (fn [[_ mv mf]] (assert false))
-       }))
-
   (do
+    (deftype Fabric []
+      Do-via
+      (resolver-for [R]
+        {:Do.fmap   (fn [f mv] (fmap f mv))               ; varargs?
+         :Do.pure   (fn [v] (doto (input) (.put v)))      ; does the effect happen to soon?
+         :Do.fapply (fn [af & avs] (apply fapply af avs))
+         :Do.bind   (fn [mv mf] (assert false))
+         }))
+
     (def >a (input))
     (def >z (via* (->Fabric)
               (let [>b (inc ~>a)
