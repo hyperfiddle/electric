@@ -1,7 +1,7 @@
 (ns hyperfiddle.fabric
   (:require
     [minitest :refer [tests]]
-    [hyperfiddle.via :refer [via* Do-via]])
+    [hyperfiddle.via :refer [via Do-via]])
   #?(:clj
      (:import
        haxe.lang.VarArgsBase
@@ -67,7 +67,7 @@
 
 (defn on [>a f] (Origin/on >a (clj->hx f)))
 
-(defn put [>a v] (.put >a v))
+(defn put [>a v] (.put >a v) nil)
 
 (tests
   (do
@@ -86,6 +86,8 @@
   (Origin/apply (clj->hx >as)
     (clj->hx (fn [hx-args]
                (apply f (hx->clj hx-args))))))
+
+(defn fapply [>f & >as] (apply fmap #(apply % %&) >f >as))
 
 (tests
   ; fmap a stream
@@ -119,8 +121,6 @@
     (count @s)) => N
   )
 
-(defn fapply [>f & >as] (apply fmap #(apply % %&) >f >as))
-
 (tests
   (do
     (def s (atom nil))
@@ -149,7 +149,7 @@
          }))
 
     (def >a (input))
-    (def >z (via* (->Fabric)
+    (def >z (via (->Fabric)
               (let [>b (inc ~>a)
                     >c (dec ~>a)]
                 (vector ~>b ~>c :x))))
