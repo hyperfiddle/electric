@@ -44,7 +44,9 @@
   (clj->hx 1) => 1
   (type (clj->hx (seq '(a)))) => haxe.root.Array
   (type (clj->hx ['a])) => haxe.root.Array
-  ;(extends? haxe.lang.Function (clj->hx identity)) ; how to test this?
+  (isa? (class (clj->hx identity)) haxe.lang.Function) => true
+  (isa? (class (clj->hx identity)) haxe.lang.VarArgsBase) => true
+  #_(bases (class (clj->hx identity)))
   )
 
 (defmethod hx->clj haxe.root.Array [v!]
