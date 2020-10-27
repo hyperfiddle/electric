@@ -3,12 +3,9 @@
   (:refer-clojure :exclude [eval])
   (:require
     [clojure.walk :refer [walk prewalk postwalk]]
-    [contrib.do :refer [via* Do-via *this !]]
-    [datomic.api :as d]
     [dustin.fiddle :refer :all]
     [dustin.hf-nav :refer :all]
-    [dustin.monad-scope :refer [runRW pure bind fmap]]
-    [hyperfiddle.api :as hf]
+    [dustin.monad-scope :refer [runScope pure bind fmap]]
     [meander.epsilon :as m :refer [match rewrite]]
     [minitest :refer [tests]]))
 
