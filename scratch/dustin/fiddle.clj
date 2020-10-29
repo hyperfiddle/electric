@@ -54,11 +54,20 @@
          :where
          [?e :dustingetz/email ?email]
          [(dustin.fiddle/needle-match ?email ?needle)]]
-    *$* needle))
+       *$* needle))
+
+(defn submissionS [needle]
+  (d/q '[:find [?e ...]
+         :in $ ?needle
+         :where
+         [?e :dustingetz/email ?email]
+         [(dustin.fiddle/needle-match ?email ?needle)]]
+       *$* needle))
 
 (tests
   (submission "bob") => 17592186045429
   (submission "ali") => 17592186045428
+  (submissionS "example")  => [17592186045428 17592186045429 17592186045430]
   )
 
 ;(def ast0 '[{(submission >needle) [{:dustingetz/gender

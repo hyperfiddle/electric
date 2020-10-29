@@ -1,35 +1,33 @@
-(ns geoffrey.hfql15
+(ns geoffrey.hfql16
   "macro wrapper for syntax"
   (:refer-clojure :exclude [eval])
-  (:require
-   [dustin.fiddle :refer :all]
-   [dustin.hf-nav :refer :all]
-   [dustin.monad-scope :refer [runScope pure bind fmap sequence]]
-   [meander.epsilon :as m :refer [match rewrite]]
-   [minitest :refer [tests]]))
-
+  (:require [dustin.fiddle :refer :all]
+            [dustin.hf-nav :refer :all]
+            [dustin.monad-scope :refer [bind fmap pure runScope sequence]]
+            [meander.epsilon :as m :refer [match]]
+            [minitest :refer [tests]]))
 
 (defn hf-edge->sym [edge]
   (if (keyword? edge) (symbol edge) edge))
 
+(defn list-fmap [f mv]
+  (if (vector? mv)
+    (mapv f mv)
+    (f mv)))
+
 (defn hf-apply [edge a scope]
   (cond
-    (keyword? edge) (hf-nav edge a #_(get scope '%))
+    (keyword? edge) (hf-nav edge a)
     (= '* edge)     (touch1 a)
     (seq? edge)     (let [[f & args] edge]
                       (clojure.core/apply (clojure.core/resolve f) (replace scope args)))
     ()              (println "hf-eval unmatched edge: " edge)))
 
-(defn hf-eval [edge a]                                      ; name?
+(defn hf-eval [edge a]
   (fn [scope]
     (let [b (hf-apply edge a scope)]
       [{(hf-edge->sym edge) b, '% b}
        b])))
-
-(defn hf-eval* [scope edge a]                                      ; name?
-  (let [b (hf-apply edge a scope)]
-    [{(hf-edge->sym edge) b, '% b}
-     b]))
 
 (defn hf-pull' [pat ma]
   (match pat
@@ -38,12 +36,14 @@
     (->> !pats
          (mapv (fn [pat] (hf-pull' pat ma)))
          (sequence)
-         (fmap (fn [mas] (apply merge mas))))                             ; parallel descent (same env) ;; TODO optimize
+         (fmap (fn [mas] (apply merge mas))))
 
     {& (m/seqable [?edge ?pat])}
     (as-> ma ma
       (bind ma (partial hf-eval ?edge))
-      (hf-pull' ?pat ma)                                    ; recursive bind
+      (bind ma (fn [a] (if (vector? a)
+                        (sequence (mapv #(hf-pull' ?pat (pure %)) a))
+                        (hf-pull' ?pat (pure a)))))
       (fmap (fn [a] {?edge a}) ma))
 
     ?leaf
@@ -57,7 +57,7 @@
     v))
 
 (defmacro hf-pull [pat v & [scope]]
-  `(hf-pull! (quote ~pat) ~v #_(quote) ~(or scope {})))
+  `(hf-pull! (quote ~pat) ~v ~(or scope {})))
 
 (tests
 
@@ -67,9 +67,9 @@
 
  (runScope (hf-pull' :db/ident ma) {})
  => '[{} #:db{:ident :dustingetz/male}]
-; why do we see the ident in scope here
 
-; Tests use hf-pull! runner to test what matters, the result, as I de-bug the scope monad
+
+
 
  (macroexpand '(hf-pull (hf-nav :db/ident %) :dustingetz/male {% :dustingetz/male}))
  (hf-pull (hf-nav :db/ident %) :dustingetz/male {'% :dustingetz/male})
@@ -81,9 +81,6 @@
  (hf-pull :dustingetz/gender 17592186045429)
  => '#:dustingetz{:gender :dustingetz/male}
 
-;(hf-pull '(:dustingetz/gender %) {'% 17592186045441})
-;=> {(:dustingetz/gender %) (:dustingetz/gender 17592186045441)} ; ClassCastException
-
  (hf-pull [{:dustingetz/gender [:db/ident]}] 17592186045429)
  => '#:dustingetz{:gender #:db{:ident :dustingetz/male}}
 
@@ -91,37 +88,40 @@
  (hf-pull (gender $) nil {'$ dustin.dev/*$*})
  => '{(gender $) 17592186045418}
 
- (hf-pull (submission needle) nil {'needle "alic"})
- => '{(submission needle) 17592186045428}
+ (hf-pull (submissionS needle) nil {'needle "example"})
+ => '{(submissionS needle) [17592186045428 17592186045429 17592186045430]}
 
- (hf-pull {(submission needle) [:dustingetz/gender]}  nil {'needle "alic"})
- => '{(submission needle) #:dustingetz{:gender :dustingetz/female}}
+ (hf-pull {(submissionS needle) [:dustingetz/gender]}  nil {'needle "example"})
+ => '{(submissionS needle) [#:dustingetz{:gender :dustingetz/female}
+                            #:dustingetz{:gender :dustingetz/male}
+                            #:dustingetz{:gender :dustingetz/male}]}
 
- (hf-pull {(submission needle) [:dustingetz/gender]} nil {'needle "alic"})
- => '{(submission needle) #:dustingetz{:gender :dustingetz/female}}
+ (hf-pull {(submissionS needle) [{:dustingetz/gender [:db/ident]}]} nil {'needle "example"})
+ => '{(submissionS needle) [#:dustingetz{:gender #:db{:ident :dustingetz/female}}
+                            #:dustingetz{:gender #:db{:ident :dustingetz/male}}
+                            #:dustingetz{:gender #:db{:ident :dustingetz/male}}]}
 
- (hf-pull {(submission needle) [{:dustingetz/gender [:db/ident]}]} nil {'needle "alic"})
- => '{(submission needle) #:dustingetz{:gender #:db{:ident :dustingetz/female}}}
+ (hf-pull {(submissionS needle) {:dustingetz/gender (shirt-size dustingetz/gender)}} nil {'needle "example"})
+ => '{(submissionS needle) [#:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045425}}
+                            #:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045421}}
+                            #:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045421}}]}
 
- (hf-pull {(submission needle) {:dustingetz/gender (shirt-size dustingetz/gender)}} nil {'needle "alic"})
- => '{(submission needle) #:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045425}}}
-
- #_(runScope (hf-pull '{(submission needle) {:dustingetz/gender (shirt-size dustingetz/gender)}} (pure nil)) {'needle "alic"})
- (hf-pull {(submission needle) [{:dustingetz/gender [{(shirt-size dustingetz/gender) [:db/id]}]}]} nil {'needle "alic"})
- => '{(submission needle) #:dustingetz{:gender {(shirt-size dustingetz/gender) {:db/id 17592186045425}}}}
+ (hf-pull {(submissionS needle) [{:dustingetz/gender [{(shirt-size dustingetz/gender) [:db/id]}]}]} nil {'needle "example"})
+ => '{(submissionS needle) [#:dustingetz{:gender {(shirt-size dustingetz/gender)#:db{:id 17592186045425}}}
+                            #:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:id 17592186045421}}}
+                            #:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:id 17592186045421}}}]}
 
  (hf-pull
-  {(submission needle) ; query
+  {(submissionS needle)
    [{:dustingetz/gender
      [{(shirt-size dustingetz/gender)
        [:db/ident]}]}]}
   nil
-  {'needle "alic"})                                      ; scope
+  {'needle "example"})
 
- => '{(submission needle) ; result
-      {:dustingetz/gender
-       {(shirt-size dustingetz/gender)
-        {:db/ident :dustingetz/womens-medium}}}}
+ => '{(submissionS needle) [#:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:ident :dustingetz/womens-medium}}}
+                            #:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:ident :dustingetz/mens-small}}}
+                            #:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:ident :dustingetz/mens-small}}}]}
 
  (hf-pull [{:db/ident [:db/id]}] 17592186045418)
  => #:db{:ident #:db{:id 17592186045418}}
@@ -138,9 +138,8 @@
  (hf-pull [{:dustingetz/gender [{:db/id [:db/id]}]}] 17592186045421)
  => #:dustingetz{:gender #:db{:id #:db{:id 17592186045418}}}
 
-; :db/id is a self reference so this actually is coherent
+
  (hf-pull [{:dustingetz/gender [{:db/id [{:db/id [{:db/id [:db/id]}]}]}]}] 17592186045421)
  => #:dustingetz{:gender #:db{:id #:db{:id #:db{:id #:db{:id 17592186045418}}}}}
 
  )
-
