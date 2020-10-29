@@ -8,6 +8,9 @@
 (defn hf-nav [kf ref]
   (kf (d/entity *$* ref)))  ; emits smart refs
 
+(defn touch1 [ref]
+  (d/pull *$* '[*] ref))
+
 (tests
 
   (hf-nav identity 17592186045429) => #:db{:id 17592186045429}

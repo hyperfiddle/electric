@@ -37,12 +37,31 @@
 
   )
 
-(defn fmap [f ma]                                           ; mv :: scope -> a; f :: a -> b
+(defn fmap [f & mas]                                           ; mv :: scope -> a; f :: a -> b
   (fn [scope]                                               ; *this
-    (let [[scope' a] (ma scope)
-          b (f a)]                                          ; fmap neither reads nor writes
-      [scope' #_(assoc scope' '% b)                                  ; auto-set % ?
-       b])))
+    (let [as (map (fn [ma] (second (ma scope))) mas)
+          b  (apply f as)]                                          ; fmap neither reads nor writes
+      [scope b])))
+
+(tests
+ (runScope (fmap inc (pure 1)) {}) => [{} 2]
+ (runScope (fmap + (pure 1) (pure 2)) {}) => [{} 3]
+ (runScope (fmap vector (pure 1) (pure 2)) {}) => [{} [1 2]])
+
+(defn sequence "[mv] -> m [v]" [mvs]
+  (when mvs
+    (apply fmap vector mvs)))
+
+(tests
+ (runScope (sequence []) {}) => [{} []]
+ (runScope (sequence [(pure 1) (pure 2)]) {}) => [{} [1 2]])
+
+;; (defn fmap [f ma]                                           ; mv :: scope -> a; f :: a -> b
+;;   (fn [scope]                                               ; *this
+;;     (let [[scope' a] (ma scope)
+;;           b (f a)]                                          ; fmap neither reads nor writes
+;;       [scope' #_(assoc scope' '% b)                                  ; auto-set % ?
+;;        b])))
 
 (tests
   (runScope (fmap inc ma) {'x 99})
