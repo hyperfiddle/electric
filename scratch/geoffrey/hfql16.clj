@@ -1,6 +1,5 @@
 (ns geoffrey.hfql16
   "macro wrapper for syntax"
-  (:refer-clojure :exclude [eval])
   (:require [dustin.fiddle :refer :all]
             [dustin.hf-nav :refer :all]
             [dustin.monad-scope :refer [bind fmap pure runScope sequence]]
@@ -9,11 +8,6 @@
 
 (defn hf-edge->sym [edge]
   (if (keyword? edge) (symbol edge) edge))
-
-(defn list-fmap [f mv]
-  (if (vector? mv)
-    (mapv f mv)
-    (f mv)))
 
 (defn hf-apply [edge a scope]
   (cond
@@ -49,8 +43,7 @@
     ?leaf
     (as-> ma ma
       (bind ma (partial hf-eval ?leaf))
-      (fmap (fn [a] {?leaf a}) ma))
-    ))
+      (fmap (fn [a] {?leaf a}) ma))))
 
 (defn hf-pull! [pat v scope]
   (let [[_ v] (runScope (hf-pull' pat (pure v)) scope)]
@@ -88,6 +81,10 @@
  (hf-pull (gender $) nil {'$ dustin.dev/*$*})
  => '{(gender $) 17592186045418}
 
+
+ (hf-pull :dustingetz/tags 17592186045428 {})
+ => #:dustingetz{:tags #{:c :b :a}}
+
  (hf-pull (submissionS needle) nil {'needle "example"})
  => '{(submissionS needle) [17592186045428 17592186045429 17592186045430]}
 
@@ -107,7 +104,7 @@
                             #:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045421}}]}
 
  (hf-pull {(submissionS needle) [{:dustingetz/gender [{(shirt-size dustingetz/gender) [:db/id]}]}]} nil {'needle "example"})
- => '{(submissionS needle) [#:dustingetz{:gender {(shirt-size dustingetz/gender)#:db{:id 17592186045425}}}
+ => '{(submissionS needle) [#:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:id 17592186045425}}}
                             #:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:id 17592186045421}}}
                             #:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:id 17592186045421}}}]}
 
