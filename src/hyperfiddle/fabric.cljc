@@ -1,7 +1,8 @@
 (ns hyperfiddle.fabric
   (:require
     [minitest :refer [tests]]
-    [hyperfiddle.via :refer [via Do-via]])
+    [hyperfiddle.via :refer [via Do-via]]
+    [promesa.core :as p])
   #?(:clj
      (:import
        haxe.lang.VarArgsBase
@@ -56,6 +57,10 @@
         (hasNext [this] (.hasNext it))
         (next [this] (.next it))))))
 
+(defmethod hx->clj haxe.lang.Function [hxf]
+  (fn hx-call-proxy [& args]
+    (.__hx_invokeDynamic hxf (into-array Object args))))
+
 (tests
   (hx->clj (clj->hx '(a))) => '(a)
   (hx->clj (clj->hx [:a])) => '(:a)                         ; !
@@ -87,6 +92,14 @@
     (clj->hx (fn [hx-args]
                (apply f (hx->clj hx-args))))))
 
+(defn- fmap-async [f & >as]
+  (Origin/applyAsync (clj->hx >as)
+                     (clj->hx (fn [hx-args, hx-cont]
+                                (let [cont (hx->clj hx-cont)]
+                                  (-> (p/future (apply f (hx->clj hx-args)))
+                                      (p/then (fn [val] (cont true val)))
+                                      (p/catch (fn [err] (cont false err)))))))))
+
 (defn fapply [>f & >as] (apply fmap #(apply % %&) >f >as))
 
 (tests
@@ -99,6 +112,21 @@
     (put >b 50)
     @s)
   => 51
+
+  ; fmap async
+  (do
+    (def s (atom nil))
+    (def >b (input))
+    (def >b' (fmap-async (fn [x]
+                           (Thread/sleep 500)
+                           (inc x))
+                         >b))
+    (on >b' #(reset! s %))
+    (put >b 50)
+    @s)
+  => nil
+
+  (do (Thread/sleep 1000) @s) => 51
 
   ; join two streams
   (do

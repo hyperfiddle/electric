@@ -28,6 +28,10 @@ using hyperfiddle.Meta.X;
   static function apply(ns : Array<View<Dynamic>>, f : Dynamic) {
     return new View(get(), new Push([for(n in ns) n.node], ApplyN(f))); // set the inbound edges
   }
+
+  static function applyAsync(ns : Array<View<Dynamic>>, f : Dynamic) {
+    return new View(get(), new Push([for(n in ns) n.node], ApplyAsync(f))); // set the inbound edges
+  }
 }
 
 @:publicFields class View<A> {
@@ -50,6 +54,7 @@ enum NodeDef<T> {       // GT the NodeDef values essentially define a live AST o
   From<A>(source : {on : () -> Void, off : () -> Void}) : NodeDef<A>;
   Into<A>(f : A -> Void);                                   // terminal node
   ApplyN<A>(f : Array<Dynamic> -> A) : NodeDef<A>;
+  ApplyAsync<A>(f : Array<Dynamic> -> (A -> Void) -> Void) : NodeDef<A>;
 }
 
 enum Action<A> {
@@ -227,11 +232,18 @@ typedef Rank = Int;
 
     try switch(def) {
       case From(_):  {}
-      case Into(_), ApplyN(_):
+        case Into(_), ApplyN(_), ApplyAsync(_):
         if(on.ok() && on.foreach(n -> n.ok()))      // all dependencies are already propagated, check for ends
           switch(def) {
             case Into(f):   F.into(this, cast f, cast on[0].val);
             case ApplyN(f): put(Val((cast f)([for(n in on) n.val])));
+            case ApplyAsync(f): (cast f)([for(n in on) n.val], (success, v) -> {
+                                  if (success){
+                                    F.put(this, Val(v));
+                                  } else {
+                                    error = v;
+                                  }
+                                });
             default:        {}
           }
         else if(on.opt().exists(n -> n.ended))      // if my inbound edges are ended, end me
