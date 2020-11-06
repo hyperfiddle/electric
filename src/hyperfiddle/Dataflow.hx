@@ -59,7 +59,7 @@ enum NodeDef<T> {       // GT the NodeDef values essentially define a live AST o
 
 enum Action<A> {
   Val(a : A);
-  Error(e : Error);
+  Error(e : A);
   End;
 }
 
@@ -241,7 +241,7 @@ typedef Rank = Int;
                                   if (success){
                                     F.put(this, Val(v));
                                   } else {
-                                    error = v;
+                                    throw v;
                                   }
                                 });
             default:        {}
@@ -251,8 +251,9 @@ typedef Rank = Int;
         for(x in on.opt()) if(x.error != null)
           throw x.error;
     }
-    catch(e : Error)
-      put(Error(e));
+    catch(v : Dynamic){
+      put(Error(v));
+    }
   }
 
   function put(a : Action<A>) {
