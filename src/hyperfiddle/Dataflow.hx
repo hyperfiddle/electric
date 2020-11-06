@@ -65,6 +65,11 @@ enum Action<A> {
   End;
 }
 
+enum Maybe<A> {
+  Just(a : A);
+  Nothing;
+}
+
 typedef Frame = Int;
 typedef Rank = Int;
 
@@ -140,7 +145,7 @@ typedef Rank = Int;
     onError(e);
   }
 
-  function into<A>(n : Push<A>, f : A -> Void, val : A) {
+  function into<A>(n : Push<A>, f : Null<A> -> Void, val : Null<A>) {
     f(val);
   }
 
@@ -154,7 +159,7 @@ typedef Rank = Int;
     n.queued = false;
 
     if(!n.to.opt().exists(x -> x.joins()))          // join nodes only
-      n.val = null;                                 // mark not ok, but why?
+      n.val = Nothing;                                // mark not ok, but why?
 
     for(x in n.on.opt()) clear(x);                  // propogate backwards
   }
@@ -208,7 +213,7 @@ typedef Rank = Int;
   var frame : Frame = 0;              // due to join, nodes can be at different frames?
   var queued : Bool = false;
 
-  var val : Null<A>;
+  var val : Maybe<A> = Nothing;
   var error : Null<Dynamic>;
   var ended : Bool = false;
 
@@ -222,9 +227,16 @@ typedef Rank = Int;
 
   function toString() return 'Push($id, $rank, $def)';
 
-  function ok()     return val != null && !ended;
+  function ok()     return val != Nothing && !ended;
   function active() return !ended && (to != null || def.match(Into(_)));
   function joins()  return on.ok() && on.length > 1;
+
+  function extract(a : Maybe<A>) : Null<A>{
+    return switch(a){
+      case Just(a) : a;
+      case Nothing : null;
+    }
+  }
 
   function run(F : Flow) {                          // run this layer of the applicative functor and push effect forward
     if(frame == F.frame) return;                    // already ran this node?
@@ -260,7 +272,7 @@ typedef Rank = Int;
 
   function put(a : Action<A>) {
     switch(a) {
-      case Val(v):   val = v;                       // memory
+      case Val(v):   val = Just(v);                 // memory
       case Error(e): error = e;
       case End:      ended = true;
     }
