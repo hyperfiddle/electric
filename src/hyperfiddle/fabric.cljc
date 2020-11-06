@@ -71,6 +71,7 @@
 (defn input [& [lifecycle-fn]] (Origin/input lifecycle-fn))
 
 (defn on [>a f] (Origin/on >a (clj->hx f)))
+(defn off [output] (.off output))
 
 (defn put [>a v] (.put >a v) nil)
 
@@ -92,13 +93,16 @@
     (clj->hx (fn [hx-args]
                (apply f (hx->clj hx-args))))))
 
-(defn- fmap-async [f & >as]
+(defn fmap-async [f & >as]
   (Origin/applyAsync (clj->hx >as)
-                     (clj->hx (fn [hx-args, hx-cont]
-                                (let [cont (hx->clj hx-cont)]
-                                  (-> (p/future (apply f (hx->clj hx-args)))
-                                      (p/then (fn [val] (cont true val)))
-                                      (p/catch (fn [err] (cont false err)))))))))
+                     (clj->hx (fn [hx-args, hx-reject, hx-resolve]
+                                (let [reject (hx->clj hx-reject)]
+                                  (try
+                                    (-> (apply f (hx->clj hx-args))
+                                        (p/then (hx->clj hx-resolve))
+                                        (p/catch reject))
+                                    (catch Throwable t
+                                      (reject t))))))))
 
 (defn fapply [>f & >as] (apply fmap #(apply % %&) >f >as))
 
