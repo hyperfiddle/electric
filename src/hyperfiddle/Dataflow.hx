@@ -56,7 +56,7 @@ enum NodeDef<T> {       // GT the NodeDef values essentially define a live AST o
   From<A>(source : {on : () -> Void, off : () -> Void}) : NodeDef<A>;
   Into<A>(f : A -> Void);                                   // terminal node
   ApplyN<A>(f : Array<Dynamic> -> A) : NodeDef<A>;
-  ApplyAsync<A>(f : Array<Dynamic> -> (A -> Void) -> Void) : NodeDef<A>;
+  ApplyAsync<A>(f : Array<Dynamic> -> (A -> Void) -> (A -> Void) -> Void) : NodeDef<A>;
 }
 
 enum Action<A> {
@@ -244,30 +244,35 @@ typedef Rank = Int;
 
     if(!active()) return;                           // Skip the work, nobody is listening
 
-    try switch(def) {
+    switch(def) {
       case From(_):  {}
         case Into(_), ApplyN(_), ApplyAsync(_):
         if(on.ok() && on.foreach(n -> n.ok()))      // all dependencies are already propagated, check for ends
           switch(def) {
-            case Into(f):   F.into(this, cast f, cast on[0].val);
-            case ApplyN(f): put(Val((cast f)([for(n in on) n.val])));
-            case ApplyAsync(f): (cast f)([for(n in on) n.val], (success, v) -> {
-                                  if (success){
-                                    F.put(this, Val(v));
-                                  } else {
-                                    throw v;
-                                  }
-                                });
-            default:        {}
+            case Into(f):   F.into(this, cast f, extract(cast on[0].val));
+            case ApplyN(f):
+              try{
+                put(Val((cast f)([for(n in on) extract(cast n.val)])));
+              } catch (e : Dynamic) {
+                put(Error(e));
+              }
+            case ApplyAsync(f):
+              (cast f)([for(n in on) extract(cast n.val)],
+                       err -> F.put(this, Error(err)),
+                       v   -> F.put(this, Val(v))
+                       );
+            default: {}
           }
         else if(on.opt().exists(n -> n.ended))      // if my inbound edges are ended, end me
           put(End);
-        for(x in on.opt()) if(x.error != null)
-          throw x.error;
-    }
-    catch(v : Dynamic){
-      put(Error(v));
-    }
+        try{
+          for(x in on.opt()) if(x.error != null)
+             throw x.error; // break
+        }
+        catch(e : Dynamic){
+          put(Error(e));
+        }
+     }
   }
 
   function put(a : Action<A>) {
