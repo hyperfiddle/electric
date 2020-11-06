@@ -22,7 +22,9 @@ using hyperfiddle.Meta.X;
 
   static function on<A>(v : View<A>, f : A -> Void) {               // terminal node
     // f is an effect callback
-    return new Output(get(), new Push([v.node], Into(f))).init();   // propogate that someone is listening
+    var out =  new Output(get(), new Push([v.node], Into(f)));
+    out.init();   // propogate that someone is listening
+    return out;
   }
 
   static function apply(ns : Array<View<Dynamic>>, f : Dynamic) {
