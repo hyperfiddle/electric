@@ -1,5 +1,7 @@
 # Fabric
 
+    $ git submodule update --init --recursive
+
     $ haxe build.hxml
 
     $ clj
