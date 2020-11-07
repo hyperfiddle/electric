@@ -39,3 +39,10 @@
   (alter-var-root #'*$* (constantly $)))
 
 (init)
+
+(comment
+  (d/touch (d/entity *$* [:dustingetz/email "alice@example.com"]))
+  (d/touch (d/entity *$* 17592186045428))
+  (d/touch (d/entity *$* :dustingetz/female))
+
+  )
