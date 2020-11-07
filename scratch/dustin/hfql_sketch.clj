@@ -59,3 +59,14 @@
       `(genders $)               ~(genders ~$ [*])} #_(->> (genders) (d/pull-many ['*])))
 
   )
+
+; Monad stuff
+; ~ is "await", for example promises, these are all equivalent (untested)
+; Functor laws let us rewrite (f ~(g ~x)) to ((comp f g) ~x)
+(-> record (p/then :dustingetz/gender) (p/then :db/ident) (p/then shirt-sizes))
+(-> record (p/then (comp :dustingetz/gender :db/ident shirt-sizes)))
+(fmap shirt-sizes (fmap :db/ident (fmap :dustingetz/gender record)))
+(fmap shirt-sizes (fmap (comp :db/ident :dustingetz/gender) record))
+(shirt-sizes ~((comp :db/ident :dustingetz/gender) ~gender))
+(shirt-sizes ~(:db/ident ~(:dustingetz/gender ~gender)))
+(shirt-sizes ~((comp :db/ident :dustingetz/gender) ~gender))
