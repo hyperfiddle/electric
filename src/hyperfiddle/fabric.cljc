@@ -122,8 +122,9 @@
     (def s (atom nil))
     (def >b (input))
     (def >b' (fmap-async (fn [x]
-                           (Thread/sleep 500)
-                           (inc x))
+                           (p/future
+                             (Thread/sleep 100)
+                             (inc x)))
                          >b))
     (on >b' #(reset! s %))
     (put >b 50)
