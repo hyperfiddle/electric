@@ -17,7 +17,7 @@
                                               {(shirt-sizes $ gender needle12) [*]}]}]}
            {(genders $ needle2) [*]}])
 
-(defn ^::hf/fiddle foo [>$ >needle]
+(defn ^:hyperfiddle.api/fiddle foo [>$ >needle]
   (via (Stream.)
     (hfql ast ~{'$ ~>$ 'needle ~>needle})))
 

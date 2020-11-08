@@ -7,7 +7,7 @@
    :basis-t *latest*}
 
   ; Which routes to an "endpoint" (just a fn) like this
-  (defn ^::hf/fiddle submission-masterlist [needle]
+  (defn ^:hyperfiddle.api/fiddle submission-masterlist [needle]
     (hf-eval hf/*$*
       ; Hyperfiddle DSL has reactive points, it is enhanced Datomic pull
       ; and returns a trace of the evaluation, a map of AST to evaluated AST

@@ -1,10 +1,10 @@
-(ns user.dustin.hfql-submissions)
+(ns dustin.hfql-submissions)
 
 (defn genders [])
 (defn shirt-sizes [gender])
 (defn submissions [needle1 needle2])
 
-(defn ^::hf/fiddle submission-master [needle]
+(defn ^:hyperfiddle.api/fiddle submission-master [needle]
   [{`(submissions ~needle) [:dustingetz/email
                             {:dustingetz/gender [:db/ident
                                                  ;`(shirt-sizes)
