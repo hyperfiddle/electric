@@ -1,4 +1,5 @@
 (ns dustin.monad-scope
+  (:refer-clojure :exclude [sequence])
   (:require
     [minitest :refer [tests]]))
 
@@ -12,13 +13,10 @@
   => [{} 42]
   )
 
-(defn bind [ma mf]
-  ; https://kseo.github.io/posts/2017-01-21-writer-monad.html
-  ; (Scope is not quite a writer as the state unwinds)
+(defn bind [ma mf]                                          ; https://kseo.github.io/posts/2017-01-21-writer-monad.html
   (fn [scope]
-    (let [[log-a a] (runScope ma scope)
-          scope' (merge scope log-a #_{'% a})]                ; accumulate new vars that shadow old vars
-      (runScope (mf a) scope'))))                              ; pass scope forward only (into the continuation)
+    (let [[log-a a] (runScope ma scope)]
+      (runScope (mf a) (merge scope log-a)))))
 
 (tests
   (do (def ma (pure 42)) nil) => nil

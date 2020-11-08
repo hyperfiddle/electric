@@ -29,18 +29,23 @@
       [?e :dustingetz/gender ?gender]]
     *$* gender))
 
-(defn shirt-size [gender]
+(defn shirt-size [gender & [needle]]
   (d/q
-    '[:in $ ?gender
+    '[:in $ ?gender ?needle
       :find ?e .
       :where
       [?e :dustingetz/type :dustingetz/shirt-size]
-      [?e :dustingetz/gender ?gender]]
-    *$* gender))
+      [?e :dustingetz/gender ?gender]
+      [?e :db/ident ?ident]
+      [(dustin.fiddle/needle-match ?ident ?needle)]]
+    *$* gender (or needle "")))
 
 (tests
   (shirt-sizes :dustingetz/male) => [17592186045421 17592186045422 17592186045423]
   (shirt-size :dustingetz/male) => 17592186045421
+  (shirt-size :dustingetz/male "med") => 17592186045422
+  (shirt-size :dustingetz/male "sm") => 17592186045421
+  (d/touch (d/entity *$* 17592186045422))
   )
 
 (defn needle-match [v needle]

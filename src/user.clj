@@ -1,5 +1,6 @@
 (ns user
-  (:require [repl :refer [refresh! refresh-all!]]))
+  (:require [repl :refer [refresh! refresh-all!]]
+            [dustin.dev]))
 
 (comment
   (refresh!)
