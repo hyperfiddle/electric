@@ -4,7 +4,7 @@
             [dustin.hf-nav :refer :all]
             [meander.epsilon :as m :refer [match]]
             [minitest :refer [tests]]
-            [promesa.core :as p]))
+            [promesa.core :as p :refer [then resolved rejected]]))
 
 
 (defn pureSR [a]
@@ -15,76 +15,87 @@
 
 (defn bindSR [SRa f]
   (fn [s]
-    (p/then (runS SRa s)
+    (then (runS SRa s)
       (fn [[s' a]]
-        (runS (f a) (merge s s'))))))
+        (runS (f a) s' #_(merge s s'))))))
 
 (tests
   ;(runStateT (pureSR 1) {}) => (p/resolved [{} 1]) ; fails
-  @(runS (pureSR 1) {}) => @(p/resolved [{} 1])
+  @(runS (pureSR 1) {}) => @(resolved [{} 1])
 
   @(runS
      (bindSR (pureSR 1)
        (fn [a]
          (fn [s]
-           (p/resolved
+           (resolved
              [s (+ a (get s 'C))]))))
      {'C 42})
-  => @(p/resolved [{'C 42} 43])
+  => @(resolved [{'C 42} 43])
   )
 
-(defn fmapSR [f SRa]
+(defn fmapSR [f & SRas]
   (fn [s]
-    (p/map
-      (fn [[s' a]]
-        [s (f a)])
-      (runS SRa s))))
-
-;(defn fmap [f & Sas]
-;  (fn [s]
-;    (let [as (->> Sas
-;               (map (fn [Sa]
-;                      (let [[s' a] (run Sa s)]
-;                        a))))]
-;      [s (apply f as)])))
+    (let [Ras (->> SRas
+               (map (fn [SRa]
+                      (->> (runS SRa s)
+                        (p/map (fn [[s' a]]
+                                 a))))))]
+      (then (p/all Ras)
+        (fn [as]
+          [s (apply f as)])))))
 
 (tests
-  @(runS (fmapSR inc (pureSR 1)) {})
-  => @(p/resolved [{} 2])
+  @(runS (fmapSR + (pureSR 1) (pureSR 2)) {})
+  => @(resolved [{} 3])
 
-  ;(runS (pureSR 1) {}) => [{} 1]
-  ;(runS (fmapSR + (pureSR 1) (pureSR 2)) {}) => [{} 3]
+  @(runS (fmapSR vector (pureSR 1) (pureSR 2)) {})
+  => [{} [1 2]]
 
+  @(runS (fmapSR apply (pureSR +) (pureSR [1 2])) {})
+  => [{} 3]
   )
 
-;(defn sequenceSR [mas]
-;  (apply fmapSR vector mas))
+(defn sequenceSR [mas]
+  (apply fmapSR vector mas))
 
-;(tests
-;  (run (sequence []) {}) => [{} []]
-;  (run (sequence [(pure 1) (pure 2)]) {}) => [{} [1 2]]
-;  )
+(tests
+  @(runS (sequenceSR []) {})
+  => [{} []]
+  @(runS (sequenceSR [(pureSR 1) (pureSR 2)]) {})
+  => [{} [1 2]]
+  @(runS (fmapSR apply (pureSR +) (sequenceSR [(pureSR 1) (pureSR 2)])) {})
+  => [{} 3]
+  ;@(runS (apply fmapSR apply [(pureSR +) (pureSR 1) (pureSR 2)]) {})
+  )
 
 ; ---
 
 (defn hf-edge->sym [edge]
   (if (keyword? edge) (symbol edge) edge))
 
-(defn hf-apply [edge a scope]
+(defn askSR [k]
+  (fn [scope]
+    (let [>v (or (get scope k)
+               (if-let [v (clojure.core/resolve k)] (resolved v))
+               (rejected k))]
+      (then >v
+        (fn [v] [scope v])))))
+
+;(defn setSR [k v]
+;  (fn [s] (resolved [(assoc s k v) nil])))
+
+(defn hf-apply [edge a]
   (cond
-    (keyword? edge) (hf-nav edge a)
+    (keyword? edge) (pureSR (hf-nav edge a))
     (seq? edge) (let [[f & args] edge]
-                  (apply (clojure.core/resolve f) (replace scope args)))
-    () (println "hf-eval unmatched edge: " edge)))
+                  (fmapSR apply (askSR f) (sequenceSR (map askSR args))))
+    () (do (println "hf-eval unmatched edge: " edge)
+           (pureSR nil))))
 
 (defn hf-eval [edge SRa]
-  (fn [s]
-    (p/map
-      (fn [[s' a]]
-        (let [b (hf-apply edge a (merge s s'))]
-          [(merge s {(hf-edge->sym edge) b})
-           b]))
-      (runS SRa s))))
+  (bindSR SRa (fn [a]
+  (bindSR (hf-apply edge a) (fn [b]
+  (fn [s] (resolved [(assoc s (hf-edge->sym edge) (resolved b)) b])))))))
 
 (defn hf-pull-SR [pat SRa]
   (match pat
@@ -127,8 +138,8 @@
 (tests
   @(runS (pureSR 17592186045421) {}) => [{} 17592186045421]
 
-  @(runS (hf-eval :dustingetz/gender (pureSR 17592186045421)) {})
-  => @(p/resolved ['{dustingetz/gender :dustingetz/male} :dustingetz/male])
+  (second @(runS (hf-eval :dustingetz/gender (pureSR 17592186045421)) {}))
+  => (second @(p/resolved ['{dustingetz/gender :dustingetz/male} :dustingetz/male]))
 
   @(runS (hf-pull-SR :dustingetz/gender (pureSR 17592186045421)) {})
   => [{} #:dustingetz{:gender :dustingetz/male}]
@@ -143,7 +154,7 @@
   => #:dustingetz{:gender #:db{:ident :dustingetz/male}}
 
   @(hf-pull '(shirt-size dustingetz/gender) (p/resolved nil)
-     {'dustingetz/gender :dustingetz/male})
+     {'dustingetz/gender (resolved :dustingetz/male)})
   => {'(shirt-size dustingetz/gender) 17592186045421}
 
   @(hf-pull '{:dustingetz/gender (shirt-size dustingetz/gender)}
@@ -152,13 +163,13 @@
 
   @(hf-pull
      '{:dustingetz/gender
-       {(shirt-size dustingetz/gender)
+       {(shirt-size dustingetz/gender >needle)
         :db/ident}}
      (p/resolved 17592186045421)
-     {})
+     {'>needle (resolved "large")})
   => @(p/resolved
         {:dustingetz/gender
-         {'(shirt-size dustingetz/gender)
-          {:db/ident :dustingetz/mens-small}}})
+         {'(shirt-size dustingetz/gender >needle)
+          {:db/ident :dustingetz/mens-large}}})
 
   )
