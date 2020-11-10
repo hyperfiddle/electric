@@ -71,22 +71,29 @@
 (defn input [& [lifecycle-fn]] (Origin/input lifecycle-fn))
 
 (defn on [>a f] (Origin/on >a (clj->hx f)))
+
 (defn off [output] (.off output))
 
 (defn put [>a v] (.put >a v) nil)
 
+(defn cap
+  "Stateful stream terminator that remembers the most recent value. But, what
+  are the pros and cons of this compared to exposing the equivalent private
+    node state?"
+  [>x]
+  (let [s (atom nil)]
+    (on >x #(reset! s %))
+    s))
+
 (tests
-  (do
+  !! (do
     (def >a (input))
     (put >a 1)                                              ; no listener yet, will not propagate
     (-> >a .-node .-val)                                    ; last value retained
-    (def seen (atom nil))
-    ;(add-watch seen 'k (fn [k r o n] (println 'seen n)))
-    (on >a #(reset! seen %))
-    @seen)
-  => nil
-  (do (put >a 2) @seen) => 2
-  (do (put >a 3) @seen) => 3)
+    (def s (cap >a)))
+  @s => nil
+  !! (put >a 2) @s => 2
+  !! (put >a 3) @s => 3)
 
 (defn fmap [f & >as]
   (Origin/apply (clj->hx >as)
@@ -109,24 +116,22 @@
 (tests
   ; fmap a stream
   (do
-    (def s (atom nil))
     (def >b (input))
     (def >b' (fmap inc >b))
-    (on >b' #(reset! s %))
+    (def s (cap >b'))
     (put >b 50)
     @s)
   => 51
 
   ; fmap async
   (do
-    (def s (atom nil))
     (def >b (input))
     (def >b' (fmap-async (fn [x]
                            (p/future
                              (Thread/sleep 100)
                              (inc x)))
                          >b))
-    (on >b' #(reset! s %))
+    (def s (cap >b'))
     (put >b 50)
     @s)
   => nil
@@ -135,11 +140,10 @@
 
   ; join two streams
   (do
-    (def s (atom nil))
     (def >a (input))
     (def >b (input))
     (def >c (fmap vector >a >b))
-    (on >c #(reset! s %))
+    (def s (cap >c))
     (put >a :a)
     @s) => nil                                              ; awaiting b
   (do (put >b :b) @s) => [:a :b]                            ; now b
@@ -147,9 +151,8 @@
   ; join N streams
   (do
     (def N 100)
-    (def s (atom nil))
     (def >ss (take N (repeatedly input)))
-    (on (apply fmap vector >ss) #(reset! s %))
+    (def s (cap (apply fmap vector >ss)))
     (doseq [>s >ss] (put >s ::foo))
     (count @s)) => N
   )
@@ -167,6 +170,11 @@
     @s) => 3
   (do (put >f -) @s) => -1
   )
+
+(defn history [>x]
+  (let [s (atom [])]
+    (on >x #(swap! s conj %))
+    s))
 
 (tests
   ; applicative interpreter
@@ -187,8 +195,8 @@
                     >c (dec ~>a)]
                 (vector ~>b ~>c :x))))
 
-    (def s (atom []))
-    (on >z #(swap! s conj %))
+    (def s (history >z))
+
     (->> (iterate inc 0) (map #(put >a %)) (take 3) doall)
     @s) => [[1 -1 :x] [2 0 :x] [3 1 :x]]
 
