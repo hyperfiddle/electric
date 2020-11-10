@@ -128,15 +128,15 @@
     (def >b (input))
     (def >b' (fmap-async (fn [x]
                            (p/future
-                             (Thread/sleep 100)
+                             (Thread/sleep 1)
                              (inc x)))
                          >b))
     (def s (cap >b'))
     (put >b 50)
     @s)
   => nil
-
-  (do (Thread/sleep 1000) @s) => 51
+  !! (Thread/sleep 10)
+  @s => 51
 
   ; join two streams
   (do
