@@ -179,10 +179,10 @@ typedef Rank = Int;
     if(a.joins()) a.rank++;                         // run after all dependencies
   }
 
-  function attach(a : Push<Dynamic>, b : Push<Dynamic>) { // set reverse links
+  function attach(a : Push<Dynamic>, b : Push<Dynamic>) { // set reverse links ... attach this/a/from/upstream to that/b/to/downstream
     // Reverse links aren't set until someone is listening ... which is now
     if(a.to == null) {                              // first listener
-      a.to = [b];                                   // set the first backlink
+      a.to = [b];                                   // set the first backlink .. a' must point to b' because x fires on a
       switch(a.def) {
         case From(source):                          // if it is the origin
           if(source.on != null) source.on();        // fire lifecycle at the origin
@@ -267,8 +267,7 @@ typedef Rank = Int;
             case ApplyAsync(f):
               (cast f)([for(n in on) extract(cast n.val)],
                        err -> F.put(this, Error(err)),
-                       v   -> F.put(this, Val(v))
-                       );
+                       v   -> F.put(this, Val(v)));
             default: {}
           }
         else if(on.opt().exists(n -> n.ended))      // if my inbound edges are ended, end me
