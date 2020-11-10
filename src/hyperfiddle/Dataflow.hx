@@ -34,6 +34,10 @@ using hyperfiddle.Meta.X;
   static function applyAsync(ns : Array<View<Dynamic>>, f : Dynamic) {
     return new View(get(), new Push([for(n in ns) n.node], ApplyAsync(f))); // set the inbound edges
   }
+
+  static function pure<A>(a: A) {
+    return new View(get(), new Push(Const(a)));
+  }
 }
 
 @:publicFields class View<A> {
@@ -53,6 +57,7 @@ using hyperfiddle.Meta.X;
 }
 
 enum NodeDef<T> {       // GT the NodeDef values essentially define a live AST of what should be done
+  Const<A>(a: A) : NodeDef<A>;
   From<A>(source : {on : () -> Void, off : () -> Void}) : NodeDef<A>;
   Into<A>(f : A -> Void);                                   // terminal node
   ApplyN<A>(f : Array<Dynamic> -> A) : NodeDef<A>;
@@ -181,6 +186,8 @@ typedef Rank = Int;
       switch(a.def) {
         case From(source):                          // if it is the origin
           if(source.on != null) source.on();        // fire lifecycle at the origin
+        case Const(x):
+          put(a, Val(x));
         default:
       }
     }
@@ -246,10 +253,11 @@ typedef Rank = Int;
 
     switch(def) {
       case From(_):  {}
-        case Into(_), ApplyN(_), ApplyAsync(_):
+      case Into(_), ApplyN(_), ApplyAsync(_), Const(_):
         if(on.ok() && on.foreach(n -> n.ok()))      // all dependencies are already propagated, check for ends
           switch(def) {
             case Into(f):   F.into(this, cast f, extract(cast on[0].val));
+            case Const(x): put(Val(x));
             case ApplyN(f):
               try{
                 put(Val((cast f)([for(n in on) extract(cast n.val)])));

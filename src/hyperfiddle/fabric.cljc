@@ -111,8 +111,6 @@
                                     (catch Throwable t
                                       (reject t))))))))
 
-(defn fapply [>f & >as] (apply fmap #(apply % %&) >f >as))
-
 (tests
   ; fmap a stream
   (do
@@ -157,18 +155,42 @@
     (count @s)) => N
   )
 
+(defn pure [c] (Origin/pure c))
+
 (tests
+  @(cap (pure 1)) => 1
+  @(cap (fmap inc (pure 1))) => 2
+
   (do
-    (def s (atom nil))
+    (def >ui (input))
+    (def >a (pure 1))
+    (def >b (fmap inc >a))                               ; View with current state even if no listeners
+    (def >c (fmap vector >b >ui))
+    (def s (cap >c))
+    (put >ui "ui")
+    @s) => [2 "ui"]
+
+  @(cap (fmap vector (pure 1) (pure 2))) => [1 2]
+
+  (do
     (def >f (input))
     (def >a (input))
-    (def >b (input))
-    (on (fapply >f >a >b) #(reset! s %))
+    (def s (cap (fmap #(apply % %&) >f >a >a)))
     (put >f +)
     (put >a 1)
-    (put >b 2)
-    @s) => 3
-  (do (put >f -) @s) => -1
+    @s) => 2
+  !! (put >f -) @s => 0
+
+  @(cap (fmap #(apply % %&) (pure +) (pure 1) (pure 1))) => 2
+  @(cap (let [>C (pure 1)] (fmap #(apply % %&) (pure +) >C >C))) => 2
+  )
+
+(defn fapply "Provided for completeness, prefer varadic fmap"
+  [>f & >as]
+  (apply fmap #(apply % %&) >f >as))
+
+(tests
+  @(cap (fapply (pure +) (pure 1) (pure 2))) => 3
   )
 
 (defn history [>x]
@@ -185,7 +207,7 @@
       (resolver-for [R]
         {:Do.fmap   (fn [f mv] (fmap f mv))               ; varargs?
          :Do.pure   (fn [v] (doto (input) (.put v)))      ; does the effect happen to soon?
-         :Do.fapply (fn [af & avs] (apply fapply af avs))
+         :Do.fapply (fn [af & avs] (apply fmap #(apply % %&) af avs))
          :Do.bind   (fn [mv mf] (assert false))
          }))
 
