@@ -113,11 +113,18 @@
 
 (defn hf-pull-SR [pat SRa]
   (match pat
-    {& (m/seqable [?edge ?pat])}                            ; one
+    [!pats ...]
+    (as-> SRa SRa
+      (sequenceSR (map (fn [pat] (hf-pull-SR pat SRa)) !pats))
+      (fmapSR (fn [as] (apply merge as)) SRa))
+
+    {& (m/seqable [?edge ?pat])}
     (as-> SRa SRa
       (hf-eval ?edge SRa)
-      (hf-pull-SR ?pat SRa)
-      #_(bindSR SRa (fn [a] (hf-pull-SR ?pat a)))
+      (bindSR SRa (fn [a]
+                    (if (vector? a)                         ; :db.cardinality/many
+                      (sequenceSR (->> a (map #(hf-pull-SR ?pat (pureSR %)))))
+                      (hf-pull-SR ?pat (pureSR a)))))
       (fmapSR (fn [a] {?edge a}) SRa))
 
     ?leaf
@@ -164,27 +171,38 @@
   @(hf-pull :db/ident (p/resolved 17592186045421))
   => #:db{:ident :dustingetz/mens-small}
 
-  @(hf-pull '{:dustingetz/gender :db/ident} (p/resolved 17592186045421))
-  => #:dustingetz{:gender #:db{:ident :dustingetz/male}}
+  @(hf-pull [:db/ident] (p/resolved 17592186045421))
+  => #:db{:ident :dustingetz/mens-small}
 
-  @(hf-pull '(shirt-size dustingetz/gender) (p/resolved nil)
+  @(hf-pull [:db/ident :db/id] (p/resolved 17592186045421))
+  => #:db{:ident :dustingetz/mens-small :id 17592186045421}
+
+  @(hf-pull '[{:dustingetz/gender [:db/ident :db/id]}] (p/resolved 17592186045421))
+  => #:dustingetz{:gender #:db{:ident :dustingetz/male :id 17592186045418}}
+
+  @(hf-pull '[(shirt-size dustingetz/gender)] (p/resolved nil)
      {'dustingetz/gender (resolved :dustingetz/male)})
   => {'(shirt-size dustingetz/gender) 17592186045421}
 
-  @(hf-pull '{:dustingetz/gender (shirt-size dustingetz/gender)}
+  @(hf-pull '[{:dustingetz/gender [(shirt-size dustingetz/gender)]}]
      (p/resolved 17592186045421))
   => #:dustingetz{:gender {'(shirt-size dustingetz/gender) 17592186045421}}
 
   @(hf-pull
-     '{:dustingetz/gender
-       {(shirt-size dustingetz/gender >needle)
-        :db/ident}}
+     '[:db/id
+       :dustingetz/type
+       {:dustingetz/gender
+        [{(shirt-size dustingetz/gender >needle)
+          [:db/ident
+           :db/id]}]}]
      (p/resolved 17592186045421)
      {'>needle (resolved "large")})
   => @(p/resolved
-        {:dustingetz/gender
-         {'(shirt-size dustingetz/gender >needle)
-          {:db/ident :dustingetz/mens-large}}})
+        '{:db/id 17592186045421,
+          :dustingetz/type :dustingetz/shirt-size,
+          :dustingetz/gender {(shirt-size dustingetz/gender >needle)
+                              #:db{:ident :dustingetz/mens-large,
+                                   :id 17592186045423}}})
 
   ;@(hf-pull
   ;   '{:dustingetz/gender
