@@ -7,31 +7,42 @@
             [promesa.core :as p :refer [then resolved rejected]]))
 
 
+; Monad m => StateT s m b
+; newtype SR = StateT (Map Sym Promise a) Promise b
 (defn pureSR [a]
-  (fn [s] (p/resolved [s a])))
+  (fn [s] (resolved [s a])))
 
 (defn runS [SMa s]
   (SMa s))
 
 (defn bindSR [SRa f]
   (fn [s]
-    (then (runS SRa s)
-      (fn [[s' a]]
-        (runS (f a) s' #_(merge s s'))))))
+    (then (runS SRa s) (fn [[s' a]]
+      (runS (f a) s')))))
 
 (tests
   ;(runStateT (pureSR 1) {}) => (p/resolved [{} 1]) ; fails
   @(runS (pureSR 1) {}) => @(resolved [{} 1])
 
-  @(runS
-     (bindSR (pureSR 1)
-       (fn [a]
-         (fn [s]
-           (resolved
-             [s (+ a (get s 'C))]))))
-     {'C 42})
-  => @(resolved [{'C 42} 43])
+  (->
+    (runS
+      (bindSR (pureSR 1) (fn [a]
+        (fn [s]
+          (then (get s '>c) (fn [c]
+            (let [b (+ a c)]
+              [s b]))))))
+      {'>c (resolved 2)})
+    deref second)
+  => 3
   )
+
+;(defn fmapS [f & Sas]
+;  (fn [s]
+;    (let [as (->> Sas
+;               (map (fn [Sa]
+;                      (let [[s' a] (runS Sa s)]
+;                        a))))]
+;      [s (apply f as)])))
 
 (defn fmapSR [f & SRas]
   (fn [s]
@@ -40,9 +51,10 @@
                       (->> (runS SRa s)
                         (p/map (fn [[s' a]]
                                  a))))))]
-      (then (p/all Ras)
+      (p/map
         (fn [as]
-          [s (apply f as)])))))
+          [s (apply f as)])
+        (p/all Ras)))))
 
 (tests
   @(runS (fmapSR + (pureSR 1) (pureSR 2)) {})
@@ -63,9 +75,10 @@
   => [{} []]
   @(runS (sequenceSR [(pureSR 1) (pureSR 2)]) {})
   => [{} [1 2]]
+
   @(runS (fmapSR apply (pureSR +) (sequenceSR [(pureSR 1) (pureSR 2)])) {})
+  => @(runS (fmapSR #(apply % %&) (pureSR +) (pureSR 1) (pureSR 2)) {}) ; same thing
   => [{} 3]
-  ;@(runS (apply fmapSR apply [(pureSR +) (pureSR 1) (pureSR 2)]) {})
   )
 
 ; ---
@@ -171,5 +184,23 @@
         {:dustingetz/gender
          {'(shirt-size dustingetz/gender >needle)
           {:db/ident :dustingetz/mens-large}}})
+
+  ;@(hf-pull
+  ;   '{:dustingetz/gender
+  ;     {(p/map (fn [needle]                                 ; fused effect
+  ;               (shirt-size dustingetz/gender needle))
+  ;        >needle)
+  ;      :db/ident}}
+  ;   (p/resolved 17592186045421)
+  ;   {'>needle (resolved "large")})
+
+  ;(p/map (fn [needle]                                       ; Wrong, too loose reaction
+  ;         @(hf-pull
+  ;            '{:dustingetz/gender
+  ;              {(shirt-size dustingetz/gender needle)
+  ;               :db/ident}}
+  ;            (p/resolved 17592186045421)
+  ;            {'needle needle}))
+  ;  (resolved "large"))
 
   )
