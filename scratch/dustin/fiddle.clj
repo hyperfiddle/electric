@@ -20,14 +20,16 @@
   (gender) => 17592186045418
   )
 
-(defn shirt-sizes [gender]
+(defn shirt-sizes [gender & [needle]]
   (d/q
-    '[:in $ ?gender
+    '[:in $ ?gender ?needle
       :find [?e ...]
       :where
       [?e :dustingetz/type :dustingetz/shirt-size]
-      [?e :dustingetz/gender ?gender]]
-    *$* gender))
+      [?e :dustingetz/gender ?gender]
+      [?e :db/ident ?ident]
+      [(dustin.fiddle/needle-match ?ident ?needle)]]
+    *$* gender (or needle "")))
 
 (defn shirt-size [gender & [needle]]
   (d/q
@@ -61,13 +63,15 @@
          [(dustin.fiddle/needle-match ?email ?needle)]]
        *$* needle))
 
-(defn submissionS [needle]
+(defn submissions [& [needle]]
   (d/q '[:find [?e ...]
          :in $ ?needle
          :where
          [?e :dustingetz/email ?email]
          [(dustin.fiddle/needle-match ?email ?needle)]]
-       *$* needle))
+       *$* (or needle "")))
+
+(def submissionS submissions)
 
 (tests
   (submission "bob") => 17592186045429

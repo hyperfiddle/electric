@@ -188,21 +188,82 @@
      (p/resolved 17592186045421))
   => #:dustingetz{:gender {'(shirt-size dustingetz/gender) 17592186045421}}
 
+  @(hf-pull '[{:dustingetz/gender
+               [{(shirt-sizes dustingetz/gender) [:db/ident]}]}]
+     (p/resolved 17592186045421))
+  => '#:dustingetz{:gender {(shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
+                                                             #:db{:ident :dustingetz/mens-medium}
+                                                             #:db{:ident :dustingetz/mens-large}]}}
+
   @(hf-pull
      '[:db/id
        :dustingetz/type
        {:dustingetz/gender
-        [{(shirt-size dustingetz/gender >needle)
+        [{(shirt-sizes dustingetz/gender >needle)
           [:db/ident
            :db/id]}]}]
      (p/resolved 17592186045421)
-     {'>needle (resolved "large")})
+     {'>needle (resolved "")})
   => @(p/resolved
         '{:db/id 17592186045421,
           :dustingetz/type :dustingetz/shirt-size,
-          :dustingetz/gender {(shirt-size dustingetz/gender >needle)
-                              #:db{:ident :dustingetz/mens-large,
-                                   :id 17592186045423}}})
+          :dustingetz/gender
+          {(shirt-sizes dustingetz/gender >needle)
+           [#:db{:ident :dustingetz/mens-small, :id 17592186045421}
+            #:db{:ident :dustingetz/mens-medium, :id 17592186045422}
+            #:db{:ident :dustingetz/mens-large, :id 17592186045423}]}})
+
+  @(hf-pull
+     '[{(submissions)
+        [:dustingetz/email]}]
+     (p/resolved nil)
+     {'needle (resolved "")})
+  => '{(submissions) [#:dustingetz{:email "alice@example.com"}
+                      #:dustingetz{:email "bob@example.com"}
+                      #:dustingetz{:email "charlie@example.com"}]}
+
+  @(hf-pull
+     '[{(submissions needle)
+        [:dustingetz/email]}]
+     (p/resolved nil)
+     {'needle (resolved "bob")})
+  => '{(submissions needle) [#:dustingetz{:email "bob@example.com"}]}
+
+  @(hf-pull
+     '[{(submissions needle)
+        [:dustingetz/email
+         {:dustingetz/gender
+          [:db/ident
+           :db/id
+           {(shirt-sizes dustingetz/gender needle2)
+            [:db/ident]}]}
+         :db/id]}
+       {(genders)
+        [:db/ident :db/id]}]
+
+     (p/resolved nil)
+
+     {'needle (resolved "e@example.com")
+      'needle2 (resolved "")})
+
+  => '{(submissions needle) [{:dustingetz/email  "alice@example.com",
+                              :dustingetz/gender {:db/ident :dustingetz/female,
+                                                  :db/id    17592186045419,
+                                                  (shirt-sizes dustingetz/gender needle2)
+                                                            [#:db{:ident :dustingetz/womens-medium}
+                                                             #:db{:ident :dustingetz/womens-large}
+                                                             #:db{:ident :dustingetz/womens-small}]},
+                              :db/id             17592186045428}
+                             {:dustingetz/email  "charlie@example.com",
+                              :dustingetz/gender {:db/ident :dustingetz/male,
+                                                  :db/id    17592186045418,
+                                                  (shirt-sizes dustingetz/gender needle2)
+                                                            [#:db{:ident :dustingetz/mens-small}
+                                                             #:db{:ident :dustingetz/mens-medium}
+                                                             #:db{:ident :dustingetz/mens-large}]},
+                              :db/id             17592186045430}],
+       (genders)            [#:db{:ident :dustingetz/male, :id 17592186045418}
+                             #:db{:ident :dustingetz/female, :id 17592186045419}]}
 
   ;@(hf-pull
   ;   '{:dustingetz/gender
