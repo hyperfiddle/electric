@@ -68,7 +68,11 @@
 
 (set! (. Origin -onError) (clj->hx #(throw %)))
 
-(defn input [& [lifecycle-fn]] (Origin/input lifecycle-fn))
+(defn input [& [on-fn]]
+  (Origin/input (when on-fn
+                  (clj->hx (fn []
+                             (when-let [off-fn (on-fn)]
+                               (clj->hx off-fn)))))))
 
 (defn on [>a f] (Origin/on >a (clj->hx f)))
 
