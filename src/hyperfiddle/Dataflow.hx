@@ -13,16 +13,15 @@ using hyperfiddle.Meta.X;
 
   static var onError : Error -> Void = (error) -> trace(error);
 
-  static function input<A>(?f) {                                    // f is the lifecycle fn
+  static function input<A>(?on, ?off) {
     return new Input<A>(get(), new Push(From({
-      var end = null;
-      { on: () -> if(f != null) end = f(),                          // f can return end continuation
-        off: () -> if(end != null) {end(); end = null;} } })));     // lifecycle state
+      { on: () -> if(on != null) on(),
+        off: () -> if(off != null) off() } })));
   }
 
-  static function on<A>(v : View<A>, f : A -> Void) {               // terminal node
+  static function on<A>(n : View<A>, f : A -> Void) {               // terminal node
     // f is an effect callback
-    var out =  new Output(get(), new Push([v.node], Into(f)));
+    var out =  new Output(get(), new Push([n.node], Into(f)));
     out.init();   // propogate that someone is listening
     return out;
   }
@@ -37,6 +36,10 @@ using hyperfiddle.Meta.X;
 
   static function pure<A>(a: A) {
     return new View(get(), new Push(Const(a)));
+  }
+
+  static function bind<A>(n: View<Dynamic>, f: Dynamic -> View<A>) {
+    return new View(get(), new Push([n.node], Bind(f)));
   }
 }
 
@@ -62,6 +65,7 @@ enum NodeDef<T> {       // GT the NodeDef values essentially define a live AST o
   Into<A>(f : A -> Void);                                   // terminal node
   ApplyN<A>(f : Array<Dynamic> -> A) : NodeDef<A>;
   ApplyAsync<A>(f : Array<Dynamic> -> (A -> Void) -> (A -> Void) -> Void) : NodeDef<A>;
+  Bind<A>(f : Dynamic -> View<A>) : NodeDef<A>;
 }
 
 enum Action<A> {
@@ -113,7 +117,7 @@ typedef Rank = Int;
   }
 
   function run() {                          // Run queue until empty
-    if(lock) return;
+    if(lock) { trace("Flow.run lock=true"); return; }
     lock = true;
 
     frame++;
@@ -169,7 +173,9 @@ typedef Rank = Int;
     for(x in n.on.opt()) clear(x);                  // propogate backwards
   }
 
+  // update is backwards
   function update(a : Push<Dynamic>) {              // rename "init" ?
+    //trace("update ", a.def);
     if(!a.active()) return;                         // it could be an Into i guess?
     a.rank = 0;
     for(x in a.on.opt()) {                          // inbound edges
@@ -179,7 +185,10 @@ typedef Rank = Int;
     if(a.joins()) a.rank++;                         // run after all dependencies
   }
 
+  // a is dependency
+  // b is upstream
   function attach(a : Push<Dynamic>, b : Push<Dynamic>) { // set reverse links ... attach this/a/from/upstream to that/b/to/downstream
+    //trace("attach ", a.def, b.def);
     // Reverse links aren't set until someone is listening ... which is now
     if(a.to == null) {                              // first listener
       a.to = [b];                                   // set the first backlink .. a' must point to b' because x fires on a
@@ -197,12 +206,14 @@ typedef Rank = Int;
   }
 
   function detach(a : Push<Dynamic>, b : Push<Dynamic>) {
+    //trace("detach ", a.def, b.def);
     if(a.to.ok() && a.to.remove(b)) {
       if(a.to.nil())                                // no more left
         switch(a.def) {
           case From(source):
             if(source.off != null) source.off();    // lifecycle
           default:                                  // traverse backwards until we find the source
+            // check
             for (x in a.on.opt()) detach(x, a); // ...
         }
     }
@@ -212,8 +223,11 @@ typedef Rank = Int;
 @:nullSafety(Loose)
 @:publicFields class Push<A> {
   var def : NodeDef<A>;
-  var on : Null<Array<Push<Dynamic>>>;
-  var to : Null<Array<Push<Dynamic>>>;
+  var on : Null<Array<Push<Dynamic>>>; // upstream lookup (value dependencies)
+  var to : Null<Array<Push<Dynamic>>>; // downstream push (if active)
+
+  var bridge : Null<Output<Dynamic>>; // for binds
+  //var bound : Null<Push<Dynamic>>; // for cleanup lifecycle when detaching nodes from a stale bind
 
   var id : Int = Flow.id();
   var rank : Rank = 0;
@@ -229,7 +243,7 @@ typedef Rank = Int;
 
   function new(?ns : Array<Push<Dynamic>>, d) {
     def = d;
-    if(ns != null) on = ns.copy();
+    if(ns != null) on = ns.copy(); // weakref?
   }
 
   function toString() return 'Push($id, $rank, $def)';
@@ -250,17 +264,20 @@ typedef Rank = Int;
     frame = F.frame;                                // Mark ran
 
     if(!active()) return;                           // Skip the work, nobody is listening
+    trace("run ", def);
 
     switch(def) {
       case From(_):  {}
-      case Into(_), ApplyN(_), ApplyAsync(_), Const(_):
+      case Into(_), ApplyN(_), ApplyAsync(_), Const(_), Bind(_):
         if(on.ok() && on.foreach(n -> n.ok()))      // all dependencies are already propagated, check for ends
           switch(def) {
             case Into(f):   F.into(this, cast f, extract(cast on[0].val));
             case Const(x): put(Val(x));
             case ApplyN(f):
               try{
-                put(Val((cast f)([for(n in on) extract(cast n.val)])));
+                var as = [for(n in on) extract(cast n.val)]; //trace(as);
+                var b = (cast f)(as); //trace(b);
+                put(Val(b));
               } catch (e : Dynamic) {
                 put(Error(e));
               }
@@ -268,6 +285,35 @@ typedef Rank = Int;
               (cast f)([for(n in on) extract(cast n.val)],
                        err -> F.put(this, Error(err)),
                        v   -> F.put(this, Val(v)));
+
+            case Bind(f): {
+              // Rewire the graph by redirecting future mb pushes to our outputs
+              // and detaching the old mb
+              if (to == null) trace("?? inactive bind");
+
+              if (bridge != null) {
+                for (n in bridge.node.on.assume())
+                  F.detach(n, bridge.node); // flipped arg order?
+              }
+
+              var a : Dynamic = cast extract(cast on[0].val);
+              var mb : View<Dynamic> = (cast f)(a);
+              trace("bridging ", mb.node.def);
+
+              // this approach activates too soon? no, see above assert
+              bridge = Origin.on(mb, b -> {
+                trace("bridge ", b, def);
+                //F.lock = false;
+                //F.put(this, Val(b));
+                F.put(this, Val(b));
+                //put(Val(b));
+                //run(F);
+              });
+
+              //bridge.node.run(F);
+              //bridge.node.push();
+            }
+
             default: {}
           }
         else if(on.opt().exists(n -> n.ended))      // if my inbound edges are ended, end me
@@ -283,6 +329,7 @@ typedef Rank = Int;
   }
 
   function put(a : Action<A>) {
+    trace("put ", a, def);
     switch(a) {
       case Val(v):   val = Just(v);                 // memory
       case Error(e): error = e;
@@ -292,6 +339,7 @@ typedef Rank = Int;
   }
 
   function push() {                                 // Plan out the order of the computation
+    //trace("push ", def, to);
     if(to == null) return;
     var n : Push<Dynamic> = this;                   // cast away A
     for(x in to) {                                  // outgoing edges run after this runs

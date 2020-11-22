@@ -7,7 +7,9 @@
      (:import
        haxe.lang.VarArgsBase
        haxe.root.Array
-       hyperfiddle.Origin)))
+       hyperfiddle.Flow
+       hyperfiddle.Origin
+       )))
 
 
 (defn -primary-predicate [v]                                ; this is really bad
@@ -68,7 +70,10 @@
 
 (set! (. Origin -onError) (clj->hx #(throw %)))
 
-(defn input [& [lifecycle-fn]] (Origin/input lifecycle-fn))
+(defn input [& [on off]]
+  (Origin/input
+    (some-> on clj->hx)
+    (some-> off clj->hx)))
 
 (defn on [>a f] (Origin/on >a (clj->hx f)))
 
@@ -80,17 +85,27 @@
   "Stateful stream terminator that remembers the most recent value. But, what
   are the pros and cons of this compared to exposing the equivalent private
     node state?"
-  [>x]
+  [>x & [f]]
   (let [s (atom nil)]
-    (on >x #(reset! s %))
+    (on >x (fn [%]
+             (reset! s %)
+             (if f (f %))))
+    s))
+
+(defn history
+  "like cap but with history"
+  [>x & [f]]
+  (let [s (atom [])]
+    (on >x (fn [%]
+             (swap! s conj %)
+             (if f (f %))))
     s))
 
 (tests
-  !! (do
-    (def >a (input))
-    (put >a 1)                                              ; no listener yet, will not propagate
-    (-> >a .-node .-val)                                    ; last value retained
-    (def s (cap >a)))
+  !! (def >a (input))
+  !! (put >a 1)                                             ; no listener yet, will not propagate
+  (type (-> >a .-node .-val)) => hyperfiddle.Maybe          ; last value retained
+  !! (def s (cap >a #_println))
   @s => nil
   !! (put >a 2) @s => 2
   !! (put >a 3) @s => 3)
@@ -193,10 +208,220 @@
   @(cap (fapply (pure +) (pure 1) (pure 2))) => 3
   )
 
-(defn history [>x]
-  (let [s (atom [])]
-    (on >x #(swap! s conj %))
-    s))
+(tests
+  "lifecycle"
+  !! (def >s (input))
+  !! (def s (history >s))
+
+  !! (def >a (input #(put >s :on) #(put >s :off)))
+  !! (def >out (on >a #()))
+  !! (off >out)
+  @s => [:on :off]
+
+  ;!! (def s2 (cap (fmap identity >a)))
+  ;!! (put >a 1)
+  ;@s2 => 1
+
+  )
+
+;(tests
+;  !! (def >a (input #(println "a on")))
+;  !! (def >b (input #(println "b on")))
+;  !! (def >control (input #(println "control on")))
+;  !! (def >out1 (fmap identity >a))
+;  !! (def >out2 (fmap vector >a >b))
+;
+;  !! (def s1 (history >out1 println))
+;  !! (def s2 (history >out2 println))
+;
+;
+;  !! (put >a 1)
+;  @s1 => [1]
+;  !! (put >b 2)
+;  @s1 => [1]
+;  @s2 => [1]
+;
+;  )
+
+(defn bindR [>a f] (Origin/bind >a (clj->hx f)))
+
+(tests
+  ;@(cap (bindR (pure 1) (fn [a] (pure a))))
+  ;=> 1
+
+  ;@(cap (bindR (pure 1) identity))        ; breaks and leaves invalid state
+
+  !! (def >a (input #(println "a on")))
+  !! (def >b (input #(println "b on")))
+  !! (def >control (input #(println "control on")))
+  !! (def >cross (bindR >control (fn [c] (case c :a >a :b >b))))
+  !! (def >x (fmap vector >a >b >cross))
+  !! (def s (history >x println))
+
+  !! (do (put >control :b) (put >a 1) (put >b 2))
+  !! (println 'yo)
+  !! (.. >cross -node -bridge -node (run (hyperfiddle.Origin/get)))
+
+  @s => [[1 2 2]]
+
+  )
+
+(comment
+
+
+  (.. >control -node -val)
+  (.. >a -node -val)
+  (.. >b -node -val)
+  (.. >cross -node -val)
+  ;(.. >cross -node -bridge -node -val)
+  (.. >x -node -val)                                        ; state cleared
+
+  #_(.. >b -node (run (hyperfiddle.Origin/get)))
+  #_(.. >cross -node (run (hyperfiddle.Origin/get)))
+  #_(.. >control -node (run (hyperfiddle.Origin/get)))
+  (.. >cross -node -bridge -node (run (hyperfiddle.Origin/get)))
+  (.. >x -node (run (hyperfiddle.Origin/get)))
+
+  (.. >control -node active)
+  (.. >a -node active)
+  (.. >b -node active)
+  (.. >x -node active)
+  (.. >cross -node active)
+
+  (.. >cross -node -val)
+  (.. >cross -node on)
+  (.. >cross -node to)
+  (.. >cross -node active)
+  (.. >cross -node joins)
+  (.. >cross -node ok)
+  (.. >cross -node -bridge -node)
+
+  (.. >cross -node -bridge -node -on)
+  (.. >cross -node -bridge -node -to)
+  (.. >b -node -to)
+  (.. >cross -node -bridge -node)
+  (.. >x -node -val)
+
+
+
+
+  )
+
+(comment
+  "laws"
+  ; Left identity: return a >>= f ≡ f a
+  ; Right identity: m >>= return ≡ m
+  ; Associativity: (m >>= f) >>= g ≡ m >>= (\x -> f x >>= g)
+  )
+
+(comment
+
+
+
+  (def >x (input))
+  (def >y (input))
+
+  (def >a (input))
+  (def >b (bindR >a (fn [a] (if a >x >y))))
+  (def s (cap >b))
+  (put >a true)
+  (put >x 1)
+  @s => 1
+
+  ;(bindR >a (fn [a] (if a (put >x a) (put >y a))))
+
+
+  (def >b
+    (bindR >a (fn [a] (case a
+                        1 >x
+                        2 >y
+                        3 >z
+                        ...))))
+  (fmap >b identity)
+
+
+
+  ; 1: io/watch-file
+
+  (defn watch-file [filename]
+    (let [>x (df/input)]
+      (watch-file path (fn [path] (df/put >x path)))
+      >x))
+
+  (def >config-filename (input))
+  (def >config-contents (bind #(watch-file %) >config-filename))
+  (history >config-contents)
+  (put >config-filename "hyperfiddle.edn")
+
+  ; 2: table/row ui
+  (def >records (server ...))
+  ;(fmap count >records)
+  (bind (fn [records]
+          (sequence
+            (for [[k >r] (spread-rows records)]
+              (render-row> >r))))
+    >records)
+
+  )
+
+
+(comment
+
+  ; bind can be used to switch between topologies
+  ; or implement loops
+  ; continuation
+
+  (do
+    (def >a (input))
+    (def >b (bindR >a (fn [a] ...)))
+    (def s (cap >b))
+    (put >a 2)
+    @s) => 2
+
+  (do
+    (def >a (input))
+    #_(def >b (bindR >a (fn [a]
+                          (doto (input) (put a)))))
+    (def >b (bindR >a (fn []
+                        (let [>b (input)]
+                          (fn [a]
+                            (put >b a))))))
+    (def >b (bindR >a (fn [a]
+                        (let [>b (if a (input) (input))]
+                          (fn []
+                            (put >b a))))))
+    (def >b (bindR >a (fn [a]
+                        (fn [put]
+                          (let [>b (if a (input) (input))]
+                            (put >b a))))))
+
+    (def s (cap >b))
+    (put >a 3)
+    @s) => 3
+
+  (do
+    (def >a (input))
+    (def >b (bind >a (fn [a]
+                       (let [>b (input)
+                             >c (fmap inc >b)]
+                         (put >b a)
+                         >c))))
+    (def s (cap >b))
+    (put >a 4)
+    @s)
+  => 3
+
+
+  (def >c (Origin/bind (pure 1) (clj->hx identity)))
+  @(cap >c)
+
+
+
+  (.-node >a)
+  (.-node >b)
+  (.-node >c)
+
+  )
 
 (tests
   ; applicative interpreter
