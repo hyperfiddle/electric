@@ -9,6 +9,7 @@
        haxe.root.Array
        hyperfiddle.Origin)))
 
+(def Graph (new hyperfiddle.Origin))
 
 (defn -primary-predicate [v]                                ; this is really bad
   (cond                                                     ; order matters, they overlap
@@ -66,15 +67,15 @@
   (hx->clj (clj->hx [:a])) => '(:a)                         ; !
   )
 
-(set! (. Origin -onError) (clj->hx #(throw %)))
+;; (set! (. Graph -onError) (clj->hx #(throw %)))
 
 (defn input [& [on-fn]]
-  (Origin/input (when on-fn
+  (.input Graph (when on-fn
                   (clj->hx (fn []
                              (when-let [off-fn (on-fn)]
                                (clj->hx off-fn)))))))
 
-(defn on [>a f] (Origin/on >a (clj->hx f)))
+(defn on [>a f] (.on Graph >a (clj->hx f)))
 
 (defn off [output] (.off output))
 
@@ -100,12 +101,12 @@
   !! (put >a 3) @s => 3)
 
 (defn fmap [f & >as]
-  (Origin/apply (clj->hx >as)
+  (.apply Graph (clj->hx >as)
     (clj->hx (fn [hx-args]
                (apply f (hx->clj hx-args))))))
 
 (defn fmap-async [f & >as]
-  (Origin/applyAsync (clj->hx >as)
+  (.applyAsync Graph (clj->hx >as)
                      (clj->hx (fn [hx-args, hx-reject, hx-resolve]
                                 (let [reject (hx->clj hx-reject)]
                                   (try
@@ -159,7 +160,7 @@
     (count @s)) => N
   )
 
-(defn pure [c] (Origin/pure c))
+(defn pure [c] (.pure Graph c))
 
 (tests
   @(cap (pure 1)) => 1
