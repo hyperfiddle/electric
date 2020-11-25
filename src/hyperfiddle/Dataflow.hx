@@ -1,8 +1,5 @@
 package hyperfiddle;
 import hyperfiddle.Meta;
-// import haxe.macro.Expr;
-// import haxe.macro.Context;
-// import haxe.macro.Compiler;
 using Lambda;
 using hyperfiddle.Meta.X;
 
@@ -55,7 +52,7 @@ using hyperfiddle.Meta.X;
 }
 
 @:publicFields class Output<A> extends View<A> {
-  function init() {F.update(node);}                 // Indicate someone is listening
+  function init() {F.activate(node);}                 // Indicate someone is listening
   function off() {F.put(node, End);}                // Indicate stopped listening
 }
 
@@ -79,25 +76,22 @@ enum Maybe<A> {
   Nothing;
 }
 
-typedef Frame = Int;
-typedef Rank = Int;
-
 @:nullSafety(Loose)
 @:publicFields class Flow {                                 // singleton
   static var count = 0;
   static function id() {return ++count;}
 
   var lock : Bool = false;
-  var frame : Frame = 0;                                    // ?
+  var frame : Int = 0;                                    // ?
   var queue : Array<Array<Push<Dynamic>>> = [];             // Many pushes, grouped by rank
 
   function new() {}
 
-  function put<A>(node : Push<A>, a : Action<A>) {          // end goes backwards, val goes forwards
-    node.put(a);                                            // plan it
-    var node = node.unlink();                               // remove from old order (do it now)
-    if(node != null) add(node);                             // do it now
-    run();                                                  // now
+  function put<A>(node : Push<A>, a : Action<A>) {
+    node.put(a);
+    var node = node.shift();
+    if(node != null) add(node);
+    run();
   }
 
   function all(f : Void -> Void) {                          // batch put in one frame
@@ -128,16 +122,18 @@ typedef Rank = Int;
 
       while(rank < queue.length) {
         for(node in queue[rank])
+          // can node.run return its plan?
           node.run(this);                   // compute the node and plan what happens next
 
+        // loop through the new plan, either queing or running now
         for(node in queue[rank]) {          // execute the plan we just planned
-          var node = node.unlink();         // already computed this one
+          var node = node.shift();         // already computed this one
           while(node != null) {             // the plan is a linked list
             if(node.rank == rank)           //
               node.run(this);               // compute the node and propogate forward
             else if(node.rank > rank)       // not quite yet
               add(node);                    // queue it for when this rank runs
-            node = node.unlink();           // done this node, continue next
+            node = node.shift();           // done this node, continue next
           }
         }
 
@@ -163,58 +159,55 @@ typedef Rank = Int;
       Origin.onError(e);
   }
 
-  function clear(n : Push<Dynamic>) {
-    if(!n.queued) return;                           // ?
-    n.queued = false;
+  function clear(b : Push<Dynamic>) {
+    if(!b.queued) return;                           // ?
+    b.queued = false;
 
-    if(!n.to.opt().exists(x -> x.joins()))          // join nodes only
-      n.val = Nothing;                                // mark not ok, but why?
+    if(!b.to.opt().exists(c -> c.joins()))
+      b.val = Nothing;                                // mark not ok, but why?
 
-    for(x in n.on.opt()) clear(x);                  // propogate backwards
+    for(a in b.on.opt()) clear(a);                  // propogate backwards
   }
 
-  // update is backwards
-  function update(a : Push<Dynamic>) {              // rename "init" ?
-    //trace("update ", a.def);
-    if(!a.active()) return;                         // it could be an Into i guess?
-    a.rank = 0;
-    for(x in a.on.opt()) {                          // inbound edges
-      attach(x, a);                                 // setup reverse links
-      if(x.rank > a.rank) a.rank = x.rank;
+  function activate(b : Push<Dynamic>) {
+    //trace("activate ", b.def);
+    if(!b.active()) return;
+    b.rank = 0;
+    for(a in b.on.opt()) {
+      attach(a, b);
+      if(a.rank > b.rank) b.rank = a.rank; // greatest dependency
     }
-    if(a.joins()) a.rank++;                         // run after all dependencies
+    //b.rank = [for(a in b.on.opt()) a.rank].fold(Math.max, 0);
+    if(b.joins()) b.rank++;
   }
 
-  // a is dependency
-  // b is upstream
-  function attach(a : Push<Dynamic>, b : Push<Dynamic>) { // set reverse links ... attach this/a/from/upstream to that/b/to/downstream
+  function attach(a : Push<Dynamic>, b : Push<Dynamic>) {
     //trace("attach ", a.def, b.def);
-    // Reverse links aren't set until someone is listening ... which is now
-    if(a.to == null) {                              // first listener
-      a.to = [b];                                   // set the first backlink .. a' must point to b' because x fires on a
+    if(a.to == null) {
+      a.to = [b];
       switch(a.def) {
-        case From(source):                          // if it is the origin
-          if(source.on != null) source.on();        // fire lifecycle at the origin
-        case Const(x):
-          put(a, Val(x));
+        case From(source):
+          if(source.on != null) source.on();
+          //put(a, a.val) // forceUpdate
+        case Const(v):
+          put(a, Val(v));
         default:
       }
     }
-    else if(!a.to.has(b))                           // its a set
+    else if(!a.to.has(b))
       a.to.push(b);
-    update(a);
+    activate(a);
   }
 
-  function detach(a : Push<Dynamic>, b : Push<Dynamic>) {
-    //trace("detach ", a.def, b.def);
-    if(a.to.ok() && a.to.remove(b)) {
-      if(a.to.nil())                                // no more left
-        switch(a.def) {
+  function detach(b : Push<Dynamic>, c : Push<Dynamic>) {
+    //trace("detach ", b.def, c.def);
+    if(b.to.ok() && b.to.remove(c)) {
+      if(b.to.nil())
+        switch(b.def) {
           case From(source):
-            if(source.off != null) source.off();    // lifecycle
-          default:                                  // traverse backwards until we find the source
-            // check
-            for (x in a.on.opt()) detach(x, a); // ...
+            if(source.off != null) source.off();
+          default:
+            for (a in b.on.opt()) detach(a, b); // traverse backwards until we find the source
         }
     }
   }
@@ -230,8 +223,8 @@ typedef Rank = Int;
   //var bound : Null<Push<Dynamic>>; // for cleanup lifecycle when detaching nodes from a stale bind
 
   var id : Int = Flow.id();
-  var rank : Rank = 0;
-  var frame : Frame = 0;              // due to join, nodes can be at different frames?
+  var rank : Int = 0;
+  var frame : Int = 0;
   var queued : Bool = false;
 
   var val : Maybe<A> = Nothing;
@@ -259,12 +252,12 @@ typedef Rank = Int;
     }
   }
 
-  function run(F : Flow) {                          // run this layer of the applicative functor and push effect forward
+  function run(F : Flow) {
     if(frame == F.frame) return;                    // already ran this node?
     frame = F.frame;                                // Mark ran
 
     if(!active()) return;                           // Skip the work, nobody is listening
-    trace("run ", def);
+    //trace("run ", [for (n in on.opt()) n.ok()], def);
 
     switch(def) {
       case From(_):  {}
@@ -275,7 +268,7 @@ typedef Rank = Int;
             case Const(x): put(Val(x));
             case ApplyN(f):
               try{
-                var as = [for(n in on) extract(cast n.val)]; //trace(as);
+                var as = [for(a in on) extract(cast a.val)]; //trace(as);
                 var b = (cast f)(as); //trace(b);
                 put(Val(b));
               } catch (e : Dynamic) {
@@ -329,40 +322,40 @@ typedef Rank = Int;
   }
 
   function put(a : Action<A>) {
-    trace("put ", a, def);
+    //trace("put ", a, def);
     switch(a) {
-      case Val(v):   val = Just(v);                 // memory
+      case Val(v):   val = Just(v);
       case Error(e): error = e;
       case End:      ended = true;
     }
-    push();             // Plan this node's outbound edges (they will be run at Flow.put level)
+    plan();
   }
 
-  function push() {                                 // Plan out the order of the computation
-    //trace("push ", def, to);
+  function plan() {
+    //trace("plan ", def, to);
     if(to == null) return;
-    var n : Push<Dynamic> = this;                   // cast away A
     to.sort((a, b) -> a.rank - b.rank);
-    for(x in to) {                                  // outgoing edges run after this runs
-      if(x.queued) continue;                        // ?
-      n.link(x);                                    // link each node as part of propagation ?
-      n = x;                                        // this happens in a deterministic order
+    var a : Push<Dynamic> = this;
+    for(b in to) {
+      if(b.queued) continue;
+      a.link(b);
+      a = b;
     }
   }
 
-  function link(n : Push<Dynamic>) {                // Order this node next (splice here)
-    if(n == next) return;                           // already in the right place
-    n.unlink();                                     // remove it from its current order so we can put it sooner
-    n.next = next;                                  //   e.g. a diamond
-    n.prev = this;
-    next = n;
+  function link(a : Push<Dynamic>) {
+    if(a == next) return;
+    a.shift();
+    a.next = next;
+    a.prev = this;
+    next = a;
   }
 
-  function unlink() {
+  function shift() {
     if(prev != null) prev.next = next;
     if(next != null) next.prev = prev;
-    var n = next;
+    var b = next;
     prev = null; next = null;
-    return n;
+    return b;
   }
 }
