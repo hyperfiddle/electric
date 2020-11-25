@@ -291,27 +291,27 @@ typedef Rank = Int;
               // and detaching the old mb
               if (to == null) trace("?? inactive bind");
 
+              var a : Dynamic = cast extract(cast on[0].val);
+              var mb : View<Dynamic> = (cast f)(a);
+              //trace("bridging ", mb.node.def);
+
               if (bridge != null) {
                 for (n in bridge.node.on.assume())
                   F.detach(n, bridge.node); // flipped arg order?
               }
 
-              var a : Dynamic = cast extract(cast on[0].val);
-              var mb : View<Dynamic> = (cast f)(a);
-              trace("bridging ", mb.node.def);
-
-              // this approach activates too soon? no, see above assert
-              bridge = Origin.on(mb, b -> {
-                trace("bridge ", b, def);
-                //F.lock = false;
-                //F.put(this, Val(b));
+              // this approach is dumber, but easier to reason about non-trivial dags
+              bridge = Origin.on(mb, b -> { // activates too soon? no, see above assert
+                //trace("bridge ", b, def);
                 F.put(this, Val(b));
-                //put(Val(b));
-                //run(F);
               });
 
-              //bridge.node.run(F);
-              //bridge.node.push();
+              // sophisticated approach:
+              //   cross on control (lookat)
+              //   x on cross, a, b
+              //   bind ties cross to b
+              //     reading cross reads b (need val getter)
+              //     pushing b pushes cross (b.to.append(cross.to))
             }
 
             default: {}

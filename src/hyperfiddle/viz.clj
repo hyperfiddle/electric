@@ -2,7 +2,7 @@
   (:require [clojure.java.shell :as io]
             [dorothy.core :as dot]
             [dorothy.jvm :refer [save!]]
-            [hyperfiddle.fabric :as f])
+            [hyperfiddle.hxclj :refer [hx->clj]])
   (:import hyperfiddle.View))
 
 (defn- node-type [node]
@@ -24,7 +24,7 @@
   [node]
   (when node
     (cond-> (node-data node)
-      (.-on node) (assoc :on (mapv datafy (f/hx->clj (.-on node)))))))
+      (.-on node) (assoc :on (mapv datafy (hx->clj (.-on node)))))))
 
 (defn- nodes [ast]
   (->> (tree-seq :on :on ast)

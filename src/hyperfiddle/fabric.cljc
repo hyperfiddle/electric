@@ -2,71 +2,15 @@
   (:require
     [minitest :refer [tests]]
     [hyperfiddle.via :refer [via Do-via]]
-    [promesa.core :as p])
+    [promesa.core :as p]
+    [hyperfiddle.hxclj :refer [hx->clj clj->hx]]
+    [hyperfiddle.viz :refer [animation]])
   #?(:clj
      (:import
-       haxe.lang.VarArgsBase
-       haxe.root.Array
        hyperfiddle.Flow
        hyperfiddle.Origin
        )))
 
-
-(defn -primary-predicate [v]                                ; this is really bad
-  (cond                                                     ; order matters, they overlap
-    ;(nil? v) nil?
-    ;(keyword? v) keyword?
-    ;(symbol? v) symbol?
-    (seqable? v) seqable?
-    ;(map? v) map?
-    ;(set? v) set?
-    ;(sequential? v) sequential?
-    (fn? v) fn?
-    () :default))
-
-(defmulti clj->hx -primary-predicate)
-(defmulti hx->clj type)                                     ; e.g. haxe.root.Array
-
-(defmethod clj->hx :default [v] v)
-;(defmethod hx->clj :default [v] v)
-
-(defmethod clj->hx fn? [f]
-  #?(:cljs (fn [& args] (apply f (seq args)))
-     :clj  (proxy [haxe.lang.VarArgsBase] [-1 -1]           ; constructor params
-             (__hx_invokeDynamic [args]
-               (apply f (seq args))))))
-
-(defmethod clj->hx seqable? [xs]
-  #?(:cljs (object-array xs)
-     :clj  (let [o (haxe.root.Array.)]
-             (doseq [s xs]                                  ; (seq xs) internally
-               (.push o s))
-             o)))
-
-(tests
-  (clj->hx 1) => 1
-  (type (clj->hx (seq '(a)))) => haxe.root.Array
-  (type (clj->hx ['a])) => haxe.root.Array
-  (isa? (class (clj->hx identity)) haxe.lang.Function) => true
-  (isa? (class (clj->hx identity)) haxe.lang.VarArgsBase) => true
-  #_(bases (class (clj->hx identity)))
-  )
-
-(defmethod hx->clj haxe.root.Array [v!]
-  (let [it (.iterator v!)]
-    (iterator-seq
-      (reify #?(:clj java.util.Iterator)
-        (hasNext [this] (.hasNext it))
-        (next [this] (.next it))))))
-
-(defmethod hx->clj haxe.lang.Function [hxf]
-  (fn hx-call-proxy [& args]
-    (.__hx_invokeDynamic hxf (into-array Object args))))
-
-(tests
-  (hx->clj (clj->hx '(a))) => '(a)
-  (hx->clj (clj->hx [:a])) => '(:a)                         ; !
-  )
 
 (set! (. Origin -onError) (clj->hx #(throw %)))
 
@@ -152,20 +96,24 @@
   @s => 51
 
   ; join two streams
-  (do
-    (def >a (input))
-    (def >b (input))
-    (def >c (fmap vector >a >b))
-    (def s (cap >c))
-    (put >a :a)
-    @s) => nil                                              ; awaiting b
-  (do (put >b :b) @s) => [:a :b]                            ; now b
+  (tests
+
+    !! (def >a (input))
+    !! (def >b (input))
+    !! (def >c (fmap vector >a >b))
+    !! (def s (cap >c))
+    !! (put >a :a)
+    @s => nil                                               ; awaiting b
+    !! (put >b :b)
+    @s => [:a :b]                                           ; now b
+    )
 
   ; join N streams
   (do
     (def N 100)
     (def >ss (take N (repeatedly input)))
-    (def s (cap (apply fmap vector >ss)))
+    (def >z (apply fmap vector >ss))
+    (def s (cap >z))
     (doseq [>s >ss] (put >s ::foo))
     (count @s)) => N
   )
@@ -224,84 +172,46 @@
 
   )
 
-;(tests
-;  !! (def >a (input #(println "a on")))
-;  !! (def >b (input #(println "b on")))
-;  !! (def >control (input #(println "control on")))
-;  !! (def >out1 (fmap identity >a))
-;  !! (def >out2 (fmap vector >a >b))
-;
-;  !! (def s1 (history >out1 println))
-;  !! (def s2 (history >out2 println))
-;
-;
-;  !! (put >a 1)
-;  @s1 => [1]
-;  !! (put >b 2)
-;  @s1 => [1]
-;  @s2 => [1]
-;
-;  )
+(tests
+  "diamond"
+
+  !!                                                        ; broken
+  (do
+    (def >a (input))
+    (def >b (fmap inc >a))
+    (def >z (fmap vector >a >b))
+    (def s (cap >z))
+    (put >a 1)
+    @s)
+  => [1 2]
+
+  !!
+  (do
+    (def >a (input))
+    (def s1 (cap (fmap vector >a (fmap inc >a))))
+    (def s2 (cap (fmap vector (fmap inc >a) >a)))
+    (put >a 1)
+    [@s1 @s2])
+  => [[1 2] [2 1]]
+
+  )
 
 (defn bindR [>a f] (Origin/bind >a (clj->hx f)))
 
 (tests
-  ;@(cap (bindR (pure 1) (fn [a] (pure a))))
-  ;=> 1
+  @(cap (bindR (pure 1) (fn [a] (pure a))))
+  => 1
 
   ;@(cap (bindR (pure 1) identity))        ; breaks and leaves invalid state
 
-  !! (def >a (input #(println "a on")))
-  !! (def >b (input #(println "b on")))
-  !! (def >control (input #(println "control on")))
+  !! (def >a (input #_#(print "a on")))
+  !! (def >b (input #_#(print "b on")))
+  !! (def >control (input #_#(print "control on")))
   !! (def >cross (bindR >control (fn [c] (case c :a >a :b >b))))
   !! (def >x (fmap vector >a >b >cross))
-  !! (def s (history >x println))
-
+  !! (def s (history >x #_print))
   !! (do (put >control :b) (put >a 1) (put >b 2))
-
   @s => [[1 2 2]]
-
-  )
-
-(comment
-
-
-  (.. >control -node -val)
-  (.. >a -node -val)
-  (.. >b -node -val)
-  (.. >cross -node -val)
-  ;(.. >cross -node -bridge -node -val)
-  (.. >x -node -val)                                        ; state cleared
-
-  #_(.. >b -node (run (hyperfiddle.Origin/get)))
-  #_(.. >cross -node (run (hyperfiddle.Origin/get)))
-  #_(.. >control -node (run (hyperfiddle.Origin/get)))
-  (.. >cross -node -bridge -node (run (hyperfiddle.Origin/get)))
-  (.. >x -node (run (hyperfiddle.Origin/get)))
-
-  (.. >control -node active)
-  (.. >a -node active)
-  (.. >b -node active)
-  (.. >x -node active)
-  (.. >cross -node active)
-
-  (.. >cross -node -val)
-  (.. >cross -node on)
-  (.. >cross -node to)
-  (.. >cross -node active)
-  (.. >cross -node joins)
-  (.. >cross -node ok)
-  (.. >cross -node -bridge -node)
-
-  (.. >cross -node -bridge -node -on)
-  (.. >cross -node -bridge -node -to)
-  (.. >b -node -to)
-  (.. >cross -node -bridge -node)
-  (.. >x -node -val)
-
-
-
 
   )
 
@@ -362,64 +272,6 @@
 
   )
 
-
-(comment
-
-  ; bind can be used to switch between topologies
-  ; or implement loops
-  ; continuation
-
-  (do
-    (def >a (input))
-    (def >b (bindR >a (fn [a] ...)))
-    (def s (cap >b))
-    (put >a 2)
-    @s) => 2
-
-  (do
-    (def >a (input))
-    #_(def >b (bindR >a (fn [a]
-                          (doto (input) (put a)))))
-    (def >b (bindR >a (fn []
-                        (let [>b (input)]
-                          (fn [a]
-                            (put >b a))))))
-    (def >b (bindR >a (fn [a]
-                        (let [>b (if a (input) (input))]
-                          (fn []
-                            (put >b a))))))
-    (def >b (bindR >a (fn [a]
-                        (fn [put]
-                          (let [>b (if a (input) (input))]
-                            (put >b a))))))
-
-    (def s (cap >b))
-    (put >a 3)
-    @s) => 3
-
-  (do
-    (def >a (input))
-    (def >b (bind >a (fn [a]
-                       (let [>b (input)
-                             >c (fmap inc >b)]
-                         (put >b a)
-                         >c))))
-    (def s (cap >b))
-    (put >a 4)
-    @s)
-  => 3
-
-
-  (def >c (Origin/bind (pure 1) (clj->hx identity)))
-  @(cap >c)
-
-
-
-  (.-node >a)
-  (.-node >b)
-  (.-node >c)
-
-  )
 
 (tests
   ; applicative interpreter
