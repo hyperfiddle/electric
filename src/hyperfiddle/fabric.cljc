@@ -259,8 +259,6 @@
   !! (def s (history >x println))
 
   !! (do (put >control :b) (put >a 1) (put >b 2))
-  !! (println 'yo)
-  !! (.. >cross -node -bridge -node (run (hyperfiddle.Origin/get)))
 
   @s => [[1 2 2]]
 

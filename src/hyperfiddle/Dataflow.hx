@@ -342,6 +342,7 @@ typedef Rank = Int;
     //trace("push ", def, to);
     if(to == null) return;
     var n : Push<Dynamic> = this;                   // cast away A
+    to.sort((a, b) -> a.rank - b.rank);
     for(x in to) {                                  // outgoing edges run after this runs
       if(x.queued) continue;                        // ?
       n.link(x);                                    // link each node as part of propagation ?
