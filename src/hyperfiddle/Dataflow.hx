@@ -47,13 +47,13 @@ using hyperfiddle.Meta.X;
 }
 
 @:publicFields class Input<A> extends View<A> {
-  function put(a : A) {F.put(node, Val(a));}
-  function end() {F.put(node, End);}
+  function put(a : A) {F.resume(node, Val(a));}
+  function end() {F.resume(node, End);}
 }
 
 @:publicFields class Output<A> extends View<A> {
   function init() {F.activate(node);}                 // Indicate someone is listening
-  function off() {F.put(node, End);}                // Indicate stopped listening
+  function off() {F.resume(node, End);}                // Indicate stopped listening
 }
 
 enum NodeDef<T> {       // GT the NodeDef values essentially define a live AST of what should be done
@@ -87,8 +87,8 @@ enum Maybe<A> {
 
   function new() {}
 
-  function put<A>(node : Push<A>, a : Action<A>) {
-    node.put(a);
+  function resume<A>(node : Push<A>, a : Action<A>) {
+    node.resume(a);
     var node = node.shift();
     if(node != null) add(node);
     run();
@@ -190,7 +190,7 @@ enum Maybe<A> {
           if(source.on != null) source.on();
           //put(a, a.val) // forceUpdate
         case Const(v):
-          put(a, Val(v));
+          resume(a, Val(v));
         default:
       }
     }
@@ -265,19 +265,19 @@ enum Maybe<A> {
         if(on.ok() && on.foreach(n -> n.ok()))      // all dependencies are already propagated, check for ends
           switch(def) {
             case Into(f):   F.into(this, cast f, extract(cast on[0].val));
-            case Const(x): put(Val(x));
+            case Const(x): resume(Val(x));
             case ApplyN(f):
               try{
                 var as = [for(a in on) extract(cast a.val)]; //trace(as);
                 var b = (cast f)(as); //trace(b);
-                put(Val(b));
+                resume(Val(b));
               } catch (e : Dynamic) {
-                put(Error(e));
+                resume(Error(e));
               }
             case ApplyAsync(f):
               (cast f)([for(n in on) extract(cast n.val)],
-                       err -> F.put(this, Error(err)),
-                       v   -> F.put(this, Val(v)));
+                       err -> F.resume(this, Error(err)),
+                       v   -> F.resume(this, Val(v)));
 
             case Bind(f): {
               // Rewire the graph by redirecting future mb pushes to our outputs
@@ -296,7 +296,7 @@ enum Maybe<A> {
               // this approach is dumber, but easier to reason about non-trivial dags
               bridge = Origin.on(mb, b -> { // activates too soon? no, see above assert
                 //trace("bridge ", b, def);
-                F.put(this, Val(b));
+                F.resume(this, Val(b));
               });
 
               // sophisticated approach:
@@ -310,19 +310,19 @@ enum Maybe<A> {
             default: {}
           }
         else if(on.opt().exists(n -> n.ended))      // if my inbound edges are ended, end me
-          put(End);
+          resume(End);
         try{
           for(x in on.opt()) if(x.error != null)
              throw x.error; // break
         }
         catch(e : Dynamic){
-          put(Error(e));
+          resume(Error(e));
         }
      }
   }
 
-  function put(a : Action<A>) {
-    //trace("put ", a, def);
+  function resume(a : Action<A>) {
+    //trace("resume ", a, def);
     switch(a) {
       case Val(v):   val = Just(v);
       case Error(e): error = e;
