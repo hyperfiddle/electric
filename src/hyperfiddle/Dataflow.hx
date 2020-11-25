@@ -9,6 +9,7 @@ using hyperfiddle.Meta.X;
   static function all(f) get().all(f);
 
   static var onError : Error -> Void = (error) -> trace(error);
+  static var executor : Dynamic;
 
   static function input<A>(?name, ?f) {
     return new Input<A>(get(), new Push(name, From({
@@ -105,6 +106,7 @@ enum Maybe<A> {
   }
 
   function add(node : Push<Dynamic>) {      // queue
+    trace("Add "+ node.id + " rank " +node.rank);
     if(node.queued) return;
     while(queue.length <= node.rank) queue.push([]);
     queue[node.rank].push(node);
@@ -152,6 +154,7 @@ enum Maybe<A> {
   }
 
   function into<A>(n : Push<A>, f : Null<A> -> Void, val : Null<A>) {
+    if(val != null) n.val = Just(val);
     f(val);
   }
 
@@ -272,13 +275,13 @@ enum Maybe<A> {
             case ApplyN(f):
               try{
                 var as = [for(a in on) extract(cast a.val)]; //trace(as);
-                var b = (cast f)(as); //trace(b);
+                var b = (cast Origin.executor)(name, f, as); //trace(b);
                 resume(Val(b));
               } catch (e : Dynamic) {
                 resume(Error(e));
               }
             case ApplyAsync(f):
-              (cast f)([for(n in on) extract(cast n.val)],
+              (cast Origin.executor)(name, f, [for(n in on) extract(cast n.val)],
                        err -> F.resume(this, Error(err)),
                        v   -> F.resume(this, Val(v)));
 
@@ -288,7 +291,7 @@ enum Maybe<A> {
               if (to == null) trace("?? inactive bind");
 
               var a : Dynamic = cast extract(cast on[0].val);
-              var mb : View<Dynamic> = (cast f)(a);
+              var mb : View<Dynamic> = (cast Origin.executor)(name, f, a);
               //trace("bridging ", mb.node.def);
 
               if (bridge != null) {

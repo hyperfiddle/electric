@@ -11,13 +11,33 @@
        hyperfiddle.Origin
        )))
 
+(defn compute-executor ; default
+  [& [_id f & args]]
+  (apply (hx->clj f) args))
+
+(defn tracing-executor [writef]
+  (fn [& [_id f & args]]
+    (let [result (apply (hx->clj f) args)]
+      (writef [_id result])
+      result)))
+
+(defn cache-or-compute-executor [cachef]
+  (fn [& [id f & args]]
+    (or (get (cachef) id)
+        (apply compute-executor id f args))))
+
+(defn set-executor! [f]
+  (set! (. Origin -executor) (clj->hx f)))
+
+(set-executor! compute-executor)
 
 (set! (. Origin -onError) (clj->hx #(throw %)))
 
 (def ^:private ^:dynamic *node-name* nil)
 
 (defmacro defnode [name & body]
-  `(binding [*node-name* '~name]
+  `(binding [*node-name* '~name] ;; BROKEN: might create many nodes with the
+                                 ;; same name. Instead use `(doto ~@body (.setName name))`
      (def ~name ~@body)))
 
 (defn input [& [on off]]
