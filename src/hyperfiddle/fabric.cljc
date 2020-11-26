@@ -1,10 +1,10 @@
 (ns hyperfiddle.fabric
+  {:clj-kondo/config '{:lint-as {hyperfiddle.fabric/defnode clojure.core/def}}}
   (:require
     [minitest :refer [tests]]
     [hyperfiddle.via :refer [via Do-via]]
     [promesa.core :as p]
-    [hyperfiddle.hxclj :refer [hx->clj clj->hx]]
-    [hyperfiddle.viz :refer [animation]])
+    [hyperfiddle.hxclj :refer [hx->clj clj->hx]])
   #?(:clj
      (:import
        hyperfiddle.Flow
@@ -14,13 +14,20 @@
 
 (set! (. Origin -onError) (clj->hx #(throw %)))
 
+(def ^:private ^:dynamic *node-name* nil)
+
+(defmacro defnode [name & body]
+  `(binding [*node-name* '~name]
+     (def ~name ~@body)))
+
 (defn input [& [on off]]
-  (Origin/input (when on
+  (Origin/input *node-name*
+                (when on
                   (clj->hx (fn []
                              (on)
                              (when off (clj->hx off)))))))
 
-(defn on [>a f] (Origin/on >a (clj->hx f)))
+(defn on [>a f] (Origin/on *node-name* >a (clj->hx f)))
 
 (defn off [output] (.off output))
 
@@ -56,12 +63,13 @@
   !! (put >a 3) @s => 3)
 
 (defn fmap [f & >as]
-  (Origin/apply (clj->hx >as)
+  (Origin/apply *node-name* (clj->hx >as)
     (clj->hx (fn [hx-args]
                (apply f (hx->clj hx-args))))))
 
 (defn fmap-async [f & >as]
-  (Origin/applyAsync (clj->hx >as)
+  (Origin/applyAsync *node-name*
+                     (clj->hx >as)
                      (clj->hx (fn [hx-args, hx-reject, hx-resolve]
                                 (let [reject (hx->clj hx-reject)]
                                   (try
@@ -119,7 +127,7 @@
     (count @s)) => N
   )
 
-(defn pure [c] (Origin/pure c))
+(defn pure [c] (Origin/pure *node-name* c))
 
 (tests
   @(cap (pure 1)) => 1
@@ -197,7 +205,7 @@
 
   )
 
-(defn bindR [>a f] (Origin/bind >a (clj->hx f)))
+(defn bindR [>a f] (Origin/bind *node-name* >a (clj->hx f)))
 
 (tests
   @(cap (bindR (pure 1) (fn [a] (pure a))))

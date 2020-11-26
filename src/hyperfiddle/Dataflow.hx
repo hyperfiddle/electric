@@ -10,34 +10,34 @@ using hyperfiddle.Meta.X;
 
   static var onError : Error -> Void = (error) -> trace(error);
 
-  static function input<A>(?f) {
-    return new Input<A>(get(), new Push(From({
+  static function input<A>(?name, ?f) {
+    return new Input<A>(get(), new Push(name, From({
       var end = null;
       { on: () -> if(f != null) end = f(),
         off: () -> if(end != null) {end(); end = null;} } })));
   }
 
-  static function on<A>(n : View<A>, f : A -> Void) {               // terminal node
+  static function on<A>(?name, v : View<A>, f : A -> Void) {               // terminal node
     // f is an effect callback
-    var out =  new Output(get(), new Push([n.node], Into(f)));
+    var out =  new Output(get(), new Push(name, [v.node], Into(f)));
     out.init();   // propogate that someone is listening
     return out;
   }
 
-  static function apply(ns : Array<View<Dynamic>>, f : Dynamic) {
-    return new View(get(), new Push([for(n in ns) n.node], ApplyN(f))); // set the inbound edges
+  static function apply(?name, ns : Array<View<Dynamic>>, f : Dynamic) {
+    return new View(get(), new Push(name, [for(n in ns) n.node], ApplyN(f))); // set the inbound edges
   }
 
-  static function applyAsync(ns : Array<View<Dynamic>>, f : Dynamic) {
-    return new View(get(), new Push([for(n in ns) n.node], ApplyAsync(f))); // set the inbound edges
+  static function applyAsync(?name, ns : Array<View<Dynamic>>, f : Dynamic) {
+    return new View(get(), new Push(name, [for(n in ns) n.node], ApplyAsync(f))); // set the inbound edges
   }
 
-  static function pure<A>(a: A) {
-    return new View(get(), new Push(Const(a)));
+  static function pure<A>(?name, a: A) {
+    return new View(get(), new Push(name, Const(a)));
   }
 
-  static function bind<A>(n: View<Dynamic>, f: Dynamic -> View<A>) {
-    return new View(get(), new Push([n.node], Bind(f)));
+  static function bind<A>(?name, n: View<Dynamic>, f: Dynamic -> View<A>) {
+    return new View(get(), new Push(name, [n.node], Bind(f)));
   }
 }
 
@@ -224,6 +224,7 @@ enum Maybe<A> {
   //var bound : Null<Push<Dynamic>>; // for cleanup lifecycle when detaching nodes from a stale bind
 
   var id : Int = Flow.id();
+  var name : Null<Dynamic>;
   var rank : Int = 0;
   var frame : Int = 0;
   var queued : Bool = false;
@@ -235,9 +236,10 @@ enum Maybe<A> {
   var next : Null<Push<Dynamic>>;
   var prev : Null<Push<Dynamic>>;
 
-  function new(?ns : Array<Push<Dynamic>>, d) {
+  function new(?name, ?ns : Array<Push<Dynamic>>, d) {
     def = d;
     if(ns != null) on = ns.copy(); // weakref?
+    if(name != null) this.name = name;
   }
 
   function toString() return 'Push($id, $rank, $def)';
@@ -295,7 +297,7 @@ enum Maybe<A> {
               }
 
               // this approach is dumber, but easier to reason about non-trivial dags
-              bridge = Origin.on(mb, b -> { // activates too soon? no, see above assert
+              bridge = Origin.on(null, mb, b -> { // activates too soon? no, see above assert
                 //trace("bridge ", b, def);
                 F.resume(this, Val(b));
               });
