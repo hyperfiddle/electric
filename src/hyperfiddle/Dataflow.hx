@@ -164,8 +164,8 @@ enum Maybe<A> {
     if(!b.queued) return;                           // ?
     b.queued = false;
 
-    if(!b.to.opt().exists(c -> c.joins()))
-      b.val = Nothing;                                // mark not ok, but why?
+//    if(!b.to.opt().exists(c -> c.joins()))
+//      b.val = Nothing;                                // mark not ok, but why?
 
     for(a in b.on.opt()) clear(a);                  // propogate backwards
   }
