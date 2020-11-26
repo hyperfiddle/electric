@@ -10,10 +10,11 @@ using hyperfiddle.Meta.X;
 
   static var onError : Error -> Void = (error) -> trace(error);
 
-  static function input<A>(?on, ?off) {
+  static function input<A>(?f) {
     return new Input<A>(get(), new Push(From({
-      { on: () -> if(on != null) on(),
-        off: () -> if(off != null) off() } })));
+      var end = null;
+      { on: () -> if(f != null) end = f(),
+        off: () -> if(end != null) {end(); end = null;} } })));
   }
 
   static function on<A>(n : View<A>, f : A -> Void) {               // terminal node

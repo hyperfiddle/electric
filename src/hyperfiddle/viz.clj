@@ -26,13 +26,10 @@
     (cond-> (node-data node)
       (.-on node) (assoc :on (mapv datafy (hx->clj (.-on node)))))))
 
-(defn- nodes [ast]
-  (->> (tree-seq :on :on ast)
-       #_(map (juxt :id identity))
-       #_(into {})))
+(def ^:private nodes (partial tree-seq :on :on))
 
 (defn- links
-  ([ast] (into [] (into [] (links nil [] ast))))
+  ([ast] (into [] (links nil [] ast)))
   ([prev acc ast]
    (if-not (:on ast)
      [[(:id ast) prev]]

@@ -15,9 +15,10 @@
 (set! (. Origin -onError) (clj->hx #(throw %)))
 
 (defn input [& [on off]]
-  (Origin/input
-    (some-> on clj->hx)
-    (some-> off clj->hx)))
+  (Origin/input (when on
+                  (clj->hx (fn []
+                             (on)
+                             (when off (clj->hx off)))))))
 
 (defn on [>a f] (Origin/on >a (clj->hx f)))
 
@@ -163,8 +164,8 @@
 
   !! (def >a (input #(put >s :on) #(put >s :off)))
   !! (def >out (on >a #()))
-  !! (off >out)
-  @s => [:on :off]
+  ;!! (off >out)
+  @s => [:on #_:off]
 
   ;!! (def s2 (cap (fmap identity >a)))
   ;!! (put >a 1)
