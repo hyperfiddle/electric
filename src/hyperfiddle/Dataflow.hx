@@ -7,38 +7,36 @@ using Lambda;
 using hyperfiddle.Meta.X;
 
 @:publicFields class Origin {                       // public API singleton
-  var flow : Flow;
+  static var main : Flow;
+  static function get() return if(main != null) main else main = new Flow();
+  static function all(f) get().all(f);
 
-  function new() {
-    this.flow = new Flow();
-  }
+  static var onError : Error -> Void = (error) -> trace(error);
 
-  function all(f) this.flow.all(f);
-
-  function input<A>(?f) {                                    // f is the lifecycle fn
-    return new Input<A>(this.flow, new Push(this.flow.id(), From({
+  static function input<A>(?f) {                                    // f is the lifecycle fn
+    return new Input<A>(get(), new Push(From({
       var end = null;
       { on: () -> if(f != null) end = f(),                          // f can return end continuation
         off: () -> if(end != null) {end(); end = null;} } })));     // lifecycle state
   }
 
-  function on<A>(v : View<A>, f : A -> Void) {               // terminal node
+  static function on<A>(v : View<A>, f : A -> Void) {               // terminal node
     // f is an effect callback
-    var out =  new Output(this.flow, new Push(this.flow.id(), [v.node], Into(f)));
+    var out =  new Output(get(), new Push([v.node], Into(f)));
     out.init();   // propogate that someone is listening
     return out;
   }
 
-  function apply(ns : Array<View<Dynamic>>, f : Dynamic) {
-    return new View(this.flow, new Push(this.flow.id(), [for(n in ns) n.node], ApplyN(f))); // set the inbound edges
+  static function apply(ns : Array<View<Dynamic>>, f : Dynamic) {
+    return new View(get(), new Push([for(n in ns) n.node], ApplyN(f))); // set the inbound edges
   }
 
-  function applyAsync(ns : Array<View<Dynamic>>, f : Dynamic) {
-    return new View(this.flow, new Push(this.flow.id(), [for(n in ns) n.node], ApplyAsync(f))); // set the inbound edges
+  static function applyAsync(ns : Array<View<Dynamic>>, f : Dynamic) {
+    return new View(get(), new Push([for(n in ns) n.node], ApplyAsync(f))); // set the inbound edges
   }
 
-  function pure<A>(a: A) {
-    return new View(this.flow, new Push(this.flow.id(), Const(a)));
+  static function pure<A>(a: A) {
+    return new View(get(), new Push(Const(a)));
   }
 }
 
@@ -82,8 +80,8 @@ typedef Rank = Int;
 
 @:nullSafety(Loose)
 @:publicFields class Flow {                                 // singleton
-  var count = 0;
-  function id() {return ++count;}
+  static var count = 0;
+  static function id() {return ++count;}
 
   var lock : Bool = false;
   var frame : Frame = 0;                                    // ?
@@ -158,7 +156,7 @@ typedef Rank = Int;
 
   function onError(?e) {
     if(e != null)
-      trace(e);
+      Origin.onError(e);
   }
 
   function clear(n : Push<Dynamic>) {
@@ -217,7 +215,7 @@ typedef Rank = Int;
   var on : Null<Array<Push<Dynamic>>>;
   var to : Null<Array<Push<Dynamic>>>;
 
-  var id : Int;
+  var id : Int = Flow.id();
   var rank : Rank = 0;
   var frame : Frame = 0;              // due to join, nodes can be at different frames?
   var queued : Bool = false;
@@ -229,9 +227,8 @@ typedef Rank = Int;
   var next : Null<Push<Dynamic>>;
   var prev : Null<Push<Dynamic>>;
 
-  function new(id: Int, ?ns : Array<Push<Dynamic>>, d) {
+  function new(?ns : Array<Push<Dynamic>>, d) {
     def = d;
-    this.id = id;
     if(ns != null) on = ns.copy();
   }
 
