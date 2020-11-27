@@ -6,27 +6,24 @@
             [hyperfiddle.viz :as v]
             [minitest :refer [tests]]))
 
-(let [[step end] (v/animation "/tmp/bag")]
+(do
   (defnode >a (f/input))
   (defnode >b (f/fmap identity >a))
   (defnode >c (f/fmap identity >a))
   (defnode >d (f/fmap vector >a >b >c))
-  ;; (defnode >a' (f/input))
-  ;; (defnode >b' (f/fmap identity >a'))
-  ;; (defnode >c' (f/fmap identity >a'))
-  ;; (defnode >d' (f/fmap vector >a' >b' >c'))
-  ;; (defnode >a'' (f/input))
-  (defnode >e (f/fmap vector #_>a' >d #_>a'' >a  #_>d'))
+  (defnode >a' (f/input))
+  (defnode >b' (f/fmap identity >a'))
+  (defnode >c' (f/fmap identity >a'))
+  (defnode >d' (f/fmap vector >a' >b' >c'))
+  (defnode >a'' (f/input))
+  (defnode >e (f/fmap vector >a' >d >a'' >a >d'))
   ;; (defnode >e (f/fmap vector >a >d))
   (defnode >f (f/on >e prn))
-  (step >f)
-  (f/put >a 1)
-  (step >f)
-  (f/put >a' 1)
-  (step >f)
-  (f/put >a'' 1)
-  (step >f)
-  (end))
+  (v/capture-gif "/tmp/bag" >f
+                 (f/put >a 1)
+                 (f/put >a' 1)
+                 (f/put >a'' 1))
+  (trace/trace >f))
 
 (tests
  (do
