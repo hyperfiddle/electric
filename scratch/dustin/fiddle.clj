@@ -20,6 +20,11 @@
   (gender) => 17592186045418
   )
 
+(defn needle-match [v needle]
+  (clojure.string/includes?
+    (.toLowerCase (or (str v) ""))
+    (.toLowerCase (or (str needle) ""))))
+
 (defn shirt-sizes [gender & [needle]]
   (d/q
     '[:in $ ?gender ?needle
@@ -49,11 +54,6 @@
   (shirt-size :dustingetz/male "sm") => 17592186045421
   (d/touch (d/entity *$* 17592186045422))
   )
-
-(defn needle-match [v needle]
-  (clojure.string/includes?
-    (.toLowerCase (or (str v) ""))
-    (.toLowerCase (or (str needle) ""))))
 
 (defn submission [needle]
   (d/q '[:find ?e . #_[?e ...]
