@@ -30,8 +30,9 @@
       (bindSR (pureSR 1) (fn [a]
                            (fn [s]
                              (then (get s '>c) (fn [c]
-                                                 (let [b (+ a c)]
-                                                   [s b]))))))
+                               (p/resolved
+                                 (let [b (+ a c)]
+                                   [s b])))))))
       {'>c (resolved 2)})
     deref second)
   => 3
