@@ -30,7 +30,7 @@
    (defnode >control (f/input))
    (defnode >a (f/input))
    (defnode >b (f/input))
-   (defnode >cross (f/bindR >control (fn [c] (case c :a >a :b >b))))
+   (defnode >cross (f/bind >control (fn [c] (case c :a >a :b >b))))
    (defnode >x (f/fmap vector >cross))
    (f/on >x prn)
 

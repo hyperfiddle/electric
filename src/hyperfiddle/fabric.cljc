@@ -226,23 +226,26 @@
 
   )
 
-(defn bindR [>a f] (Origin/bind *node-name* >a (clj->hx f)))
+(defn bind [>a f] (Origin/bind *node-name* >a (clj->hx f)))
 
 (tests
-  @(cap (bindR (pure 1) (fn [a] (pure a))))
+  @(cap (bind (pure 1) (fn [a] (pure a))))
   => 1
-
-  ;@(cap (bindR (pure 1) identity))        ; breaks and leaves invalid state
 
   !! (def >a (input #_#(print "a on")))
   !! (def >b (input #_#(print "b on")))
   !! (def >control (input #_#(print "control on")))
-  !! (def >cross (bindR >control (fn [c] (case c :a >a :b >b))))
+  !! (def >cross (bind >control (fn [c] (case c :a >a :b >b))))
   !! (def >x (fmap vector >a >b >cross))
   !! (def s (history >x #_print))
   !! (do (put >control :b) (put >a 1) (put >b 2))
   @s => [[1 2 2]]
-)
+  
+  @(cap (fmap identity (pure 1))) => 1
+  @(cap (bind (pure 1) pure)) => 1
+  @(cap (bind (fmap identity (pure 1)) pure)) => 1
+  
+  )
 
 (tests
   "error recovery (don't corrupt flow state on error)"
@@ -274,7 +277,7 @@
   (def >y (input))
 
   (def >a (input))
-  (def >b (bindR >a (fn [a] (if a >x >y))))
+  (def >b (bind >a (fn [a] (if a >x >y))))
   (def s (cap >b))
   (put >a true)
   (put >x 1)
@@ -284,7 +287,7 @@
 
 
   (def >b
-    (bindR >a (fn [a] (case a
+    (bind >a (fn [a] (case a
                         1 >x
                         2 >y
                         3 >z
