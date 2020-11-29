@@ -91,9 +91,9 @@ enum Maybe<A> {
 
   function resume<A>(node : Push<A>, a : Action<A>) {
     node.resume(a);
-    var node = node.shift();
-    if(node != null) add(node);
-    run();
+    var next = node.unlink();
+    if(next != null) add(next);
+    pump();
   }
 
   function all(f : Void -> Void) {                          // batch put in one frame
@@ -101,7 +101,7 @@ enum Maybe<A> {
     var e : Null<Error> = null;
     try f() catch(x : Error) e = x;
     lock = false;
-    run();
+    pump();
     onError(e);
   }
 
@@ -113,8 +113,8 @@ enum Maybe<A> {
     node.queued = true;
   }
 
-  function run() {                          // Run queue until empty
-    if(lock) { trace("Flow.run lock=true"); return; }
+  function pump() {                          // Run queue until empty
+    if(lock) { trace("pump lock=true"); return; }
     lock = true;
 
     frame++;
@@ -129,14 +129,14 @@ enum Maybe<A> {
           node.run(this);                   // compute the node and plan what happens next
 
         // loop through the new plan, either queing or running now
-        for(node in queue[rank]) {          // execute the plan we just planned
-          var node = node.shift();         // already computed this one
-          while(node != null) {             // the plan is a linked list
-            if(node.rank == rank)           //
-              node.run(this);               // compute the node and propogate forward
-            else if(node.rank > rank)       // not quite yet
-              add(node);                    // queue it for when this rank runs
-            node = node.shift();           // done this node, continue next
+        for(node in queue[rank]) {
+          var next = node.unlink();
+          while(next != null) {
+            if(next.rank == rank)
+              next.run(this);
+            else if(next.rank > rank)
+              add(next);
+            next = next.unlink();
           }
         }
 
@@ -295,8 +295,8 @@ enum Maybe<A> {
               var a : Dynamic = cast extract(cast on[0].val);
 
               if (bridge != null) {
-                for (n in bridge.node.on.assume())
-                  F.detach(n, bridge.node); // flipped arg order?
+                for (a in bridge.node.on.assume())
+                  F.detach(a, bridge.node); // flipped arg order?
               }
 
               try {
@@ -363,13 +363,14 @@ enum Maybe<A> {
 
   function link(a : Push<Dynamic>) {
     if(a == next) return;
-    a.shift();
+    a.unlink();
     a.next = next;
     a.prev = this;
     next = a;
   }
 
-  function shift() {
+  function unlink() {
+    // Awkwardly shifts the list, but returning next node not removed node
     if(prev != null) prev.next = next;
     if(next != null) next.prev = prev;
     var b = next;
