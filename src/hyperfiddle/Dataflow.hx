@@ -159,8 +159,10 @@ enum Maybe<A> {
   }
 
   function onError(?e) {
-    if(e != null)
+    if(e != null) {
+      queue.resize(0); // Reset to clean state so user can recover
       Origin.onError(e);
+    }
   }
 
   function clear(b : Push<Dynamic>) {
@@ -217,7 +219,7 @@ enum Maybe<A> {
   }
 }
 
-@:nullSafety(Loose)
+@:nullSafety(Off)
 @:publicFields class Push<A> {
   var def : NodeDef<A>;
   var on : Null<Array<Push<Dynamic>>>; // upstream lookup (value dependencies)
@@ -291,19 +293,29 @@ enum Maybe<A> {
               if (to == null) trace("?? inactive bind");
 
               var a : Dynamic = cast extract(cast on[0].val);
-              var mb : View<Dynamic> = (cast Origin.executor)(name, f, a);
-              //trace("bridging ", mb.node.def);
 
               if (bridge != null) {
                 for (n in bridge.node.on.assume())
                   F.detach(n, bridge.node); // flipped arg order?
               }
 
-              // this approach is dumber, but easier to reason about non-trivial dags
-              bridge = Origin.on(null, mb, b -> { // activates too soon? no, see above assert
-                //trace("bridge ", b, def);
-                F.resume(this, Val(b));
-              });
+              try {
+                var mb : Dynamic = (cast Origin.executor)(name, f, a); // user crash
+                var mb : View<Dynamic> = cast mb; // user type error
+
+                // this approach is dumber, but easier to reason about non-trivial dags
+                // activates too soon? no, see above assert
+                trace("bridging ", mb.node.def);
+                bridge = Origin.on(null, mb, b -> {
+                  //trace("bridge ", b, def);
+                  F.resume(this, Val(b));
+                });
+              }
+              catch (e : Dynamic) {
+                trace("bind user crash or type error ", e);
+                // Must recover, otherwise the nodes are still queued & flow is corrupt
+                F.resume(this, Error(e)); // also must clear queue on error
+              }
 
               // sophisticated approach:
               //   cross on control (lookat)
@@ -330,7 +342,7 @@ enum Maybe<A> {
   function resume(a : Action<A>) {
     //trace("resume ", a, def);
     switch(a) {
-      case Val(v):   val = Just(v);
+      case Val(v):   {val = Just(v); error = null;} // allow recovery e.g. at REPL
       case Error(e): error = e;
       case End:      ended = true;
     }

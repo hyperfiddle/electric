@@ -242,6 +242,20 @@
   !! (do (put >control :b) (put >a 1) (put >b 2))
   @s => [[1 2 2]]
 
+
+(tests
+  "error recovery (don't corrupt flow state on error)"
+  !! (def >a (input))
+  !! (def s (cap (fmap (fn [a] (assert false)) >a)))
+  !! (put >a 1)        ; why is exception not re-thrown? todo
+  @s => nil
+  @(cap (pure 1)) => 1 ; recovered
+
+  "error recovery from bind type error"
+  (class (try @(cap (bind (pure 1) identity)) (catch Throwable e e)))
+  => nil #_haxe.Exception
+  @(cap (pure 1)) => 1 ; recovered
+
   )
 
 (comment
