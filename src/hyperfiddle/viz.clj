@@ -61,11 +61,12 @@
      (fn end []
        (let [end-path (str file-path ".gif")]
          (when (.exists (io/file end-path)) (io/delete-file end-path))
-         (shell/sh "convert" "-delay" "200" "-loop" "0" (str file-path "/*") end-path)))]))
+         (shell/sh "convert" "-dispose" "previous" "-delay" "250" "-loop" "0" "-resize" "800x800" (str file-path "/*") end-path)))]))
 
 (defmacro capture-gif [file-path >out & puts]
-  (let [step (gensym "step")
-        body (interleave puts (repeat `(~step ~>out)) )]
-    `(let [[~step end#] (v/animation ~file-path)]
+  (let [step-sym (gensym "step")
+        stepf    `(~step-sym ~>out)
+        body     (cons stepf (interleave puts (repeat stepf)))]
+    `(let [[~step-sym end#] (animation ~file-path)]
        ~@body
        (end#))))
