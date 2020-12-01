@@ -74,6 +74,7 @@
     s))
 
 (tests
+  (declare >a)
   !! (def >a (input))
   !! (put >a 1)                                             ; no listener yet, will not propagate
   (type (-> >a .-node .-val)) => hyperfiddle.Maybe          ; last value retained
@@ -241,7 +242,7 @@
   !! (def s (history >x #_print))
   !! (do (put >control :b) (put >a 1) (put >b 2))
   @s => [[1 2 2]]
-
+)
 
 (tests
   "error recovery (don't corrupt flow state on error)"
@@ -252,7 +253,7 @@
   @(cap (pure 1)) => 1 ; recovered
 
   "error recovery from bind type error"
-  (class (try @(cap (bind (pure 1) identity)) (catch Throwable e e)))
+  (class (try @(cap (bindR (pure 1) identity)) (catch Throwable e e)))
   => nil #_haxe.Exception
   @(cap (pure 1)) => 1 ; recovered
 
