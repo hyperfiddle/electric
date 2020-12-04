@@ -232,13 +232,16 @@
   @(cap (bind (pure 1) (fn [a] (pure a))))
   => 1
 
-  !! (def >a (input #_#(print "a on")))
-  !! (def >b (input #_#(print "b on")))
-  !! (def >control (input #_#(print "control on")))
-  !! (def >cross (bind >control (fn [c] (case c :a >a :b >b))))
-  !! (def >x (fmap vector >a >b >cross))
-  !! (def s (history >x #_print))
-  !! (do (put >control :b) (put >a 1) (put >b 2))
+  !! (def >p (input #_#(print "p!")))
+  !! (def >q (input #_#(print "q!")))
+  !! (def >control (input #_#(print "control!")))
+  !! (def >cross (bind >control (fn [c]
+                                  (case c
+                                    :p >p
+                                    :q >q))))
+  !! (def >z (fmap vector >p >q >cross))
+  !! (def s (history >z #_print))
+  !! (do (put >control :q) (put >p 1) (put >q 2))
   @s => [[1 2 2]]
   
   @(cap (fmap identity (pure 1))) => 1
