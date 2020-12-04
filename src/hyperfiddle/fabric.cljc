@@ -229,8 +229,9 @@
 (defn bind [>a f] (Origin/bind *node-name* >a (clj->hx f)))
 
 (tests
-  @(cap (bind (pure 1) (fn [a] (pure a))))
-  => 1
+  @(cap (bind (pure 1) (fn [a]
+                         (pure (inc a)))))
+  => 2
 
   !! (def >p (input #_#(print "p!")))
   !! (def >q (input #_#(print "q!")))

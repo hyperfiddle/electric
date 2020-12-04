@@ -106,7 +106,7 @@ enum Maybe<A> {
   }
 
   function add(node : Push<Dynamic>) {      // queue
-    trace("Add "+ node.id + " rank " +node.rank);
+    trace("add "+ node.id + " rank " +node.rank);
     if(node.queued) return;
     while(queue.length <= node.rank) queue.push([]);
     queue[node.rank].push(node);
@@ -191,26 +191,31 @@ enum Maybe<A> {
   function attach(a : Push<Dynamic>, b : Push<Dynamic>) {
     trace("attach ", a.def, b.def);
     var firstTime = a.outputs.length > 0;
+
+    if (!a.def.match(Bind(_))) {
+      b.inputs.push(a);
+      if(!a.outputs.has(b)) a.outputs.push(b);
+    }
+
     switch (a.def) {
       case Bind(_): {
-        //var cross = a;
-        a.z = cast b; // save output node for rewiring once q is known
-        //activate(a); // on next control push, cross will activate q
+        var cross = a;
+        cross.z = cast b; // save output node for rewiring once q is known
+        //activate(cross); // on next control push, cross will activate q
         // no inputs/outputs
+        // var aa = a.ups[0]
       }
-      default:
-        if(!b.inputs.has(a)) { b.inputs.push(a); a.outputs.push(b); }
-    }
-    // if we're in an on, flow the first time?
-    // if we're in a push, don't interrupt?
-    switch (a.def) {
-      case Const(v):
+      case Const(v): {
+        // if we're in an on, flow the first time?
+        // if we're in a push, don't interrupt?
         /*if (!firstTime)*/ resume(a, Val(v)); // the lock does the right thing here
+      }
       case From(source):
         if (!firstTime) if(source.on != null) source.on();
       default:
     }
-    activate(a); // effect sooner?
+
+    activate(a); // activate before resume ???
   }
 
   function detach(b : Push<Dynamic>, c : Push<Dynamic>) {
@@ -261,7 +266,7 @@ enum Maybe<A> {
   function toString() return 'Push($id, $rank, $def)';
 
   function ok()     return val != Nothing && !ended; // ready
-  function active() return !ended && (outputs.length > 0 || def.match(Into(_)));
+  function active() return !ended && (outputs.length > 0 || z != null || def.match(Into(_)));
   function joins()  return inputs.length > 1;
 
   function extract(a : Maybe<A>) : Null<A>{
@@ -276,7 +281,7 @@ enum Maybe<A> {
     frame = F.frame;                                // Mark ran
 
     if(!active()) return;                           // Skip the work, nobody is listening
-    trace("run ", [for (a in inputs.opt()) a.ok()], def);
+    trace("run ", [for (a in inputs) a.ok()], def);
 
     switch(def) {
       case From(_):  {}
@@ -309,10 +314,12 @@ enum Maybe<A> {
               var cross : Push<Dynamic> = this;
               if (q != null) F.detach(q, z); // todo skip if same
               var a : Dynamic = cast extract(cast inputs[0].val); // control
+              trace("bind a", a);
               try {
                 var mb : Dynamic = (cast Origin.executor)(name, f, a); // user crash
                 var mb : View<Dynamic> = cast mb; // user type error
                 q = mb.node;
+                trace("bind q", q);
                 F.attach(q, z);
               }
               catch (e : Dynamic) {
@@ -341,7 +348,7 @@ enum Maybe<A> {
   }
 
   function resume(a : Action<A>) {
-    //trace("resume ", a, def);
+    trace("resume ", a, def);
     switch(a) {
       case Val(v):   {val = Just(v); error = null;} // allow recovery e.g. at REPL
       case Error(e): error = e;
@@ -351,7 +358,7 @@ enum Maybe<A> {
   }
 
   function plan() {
-    //trace("plan ", def, outputs);
+    trace("plan ", def, outputs);
     if(outputs.length == 0) return;
     outputs.sort((a, b) -> a.rank - b.rank);
     var a : Push<Dynamic> = this;
