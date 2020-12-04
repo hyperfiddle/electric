@@ -195,7 +195,7 @@ enum Maybe<A> {
       case Bind(_): {
         //var cross = a;
         a.z = cast b; // save output node for rewiring once q is known
-        activate(a); // on next control push, cross will activate q
+        //activate(a); // on next control push, cross will activate q
         // no inputs/outputs
       }
       default:
