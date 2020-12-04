@@ -179,13 +179,9 @@ enum Maybe<A> {
   function activate(b : Push<Dynamic>) {
     trace("activate ", b.def);
     if(!b.active()) return;
-    b.rank = 0;
     for(a in b.ups) {
       attach(a, b);
-      if(a.rank > b.rank) b.rank = a.rank; // greatest dependency
     }
-    //b.rank = [for(a in b.ups) a.rank].fold(Math.max, 0);
-    if(b.joins()) b.rank++;
   }
 
   function attach(a : Push<Dynamic>, b : Push<Dynamic>) {
@@ -196,6 +192,8 @@ enum Maybe<A> {
       b.inputs.push(a);
       if(!a.outputs.has(b)) a.outputs.push(b);
     }
+
+    computeRank(a);
 
     switch (a.def) {
       case Bind(_): {
@@ -216,6 +214,14 @@ enum Maybe<A> {
     }
 
     activate(a); // activate before resume ???
+  }
+
+  function computeRank(b : Push<Dynamic>){
+    b.rank = [for(a in b.inputs) a.rank].fold((a : Int, b :Int) -> cast (Math.max(a + 0., b + 0.)), b.rank);
+    if(b.joins()) b.rank++;
+    for(c in b.outputs){
+      computeRank(c);
+    }
   }
 
   function detach(b : Push<Dynamic>, c : Push<Dynamic>) {
@@ -320,6 +326,7 @@ enum Maybe<A> {
                 var mb : View<Dynamic> = cast mb; // user type error
                 q = mb.node;
                 trace("bind q", q);
+                q.rank = rank+1; // second DAG starts at next rank
                 F.attach(q, z);
               }
               catch (e : Dynamic) {
