@@ -6,7 +6,7 @@ using hyperfiddle.Meta.X;
 @:publicFields class Origin {                       // public API singleton
   static var main : Flow;
   static function get() return if(main != null) main else main = new Flow();
-  static function all(f) get().all(f);
+  static function batch(f) get().batch(f);
 
   static var onError : Error -> Void = (error) -> trace(error);
   static var executor : Dynamic;
@@ -37,7 +37,6 @@ using hyperfiddle.Meta.X;
   }
 
   static function bind<A>(?name, a: View<Dynamic>, f: Dynamic -> View<A>) {
-    // track push.z
     return new View(get(), new Push(name, [a.node], Bind(f)));
   }
 }
@@ -79,24 +78,24 @@ enum Maybe<A> {
 }
 
 @:nullSafety(Loose)
-@:publicFields class Flow {                                 // singleton
+@:publicFields class Flow {
   static var count = 0;
   static function id() {return ++count;}
 
   var lock : Bool = false;
-  var frame : Int = 0;                                    // ?
+  var frame : Int = 0;
   var queue : Array<Array<Push<Dynamic>>> = [];             // Many pushes, grouped by rank
 
   function new() {}
 
-  function resume<A>(node : Push<A>, a : Action<A>) {
-    node.resume(a);
+  function resume<A>(node : Push<A>, v : Action<A>) {
+    node.resume(v);
     var next = node.unlink();
-    if(next != null) add(next);
+    if(next != null) enqueue(next);
     pump();
   }
 
-  function all(f : Void -> Void) {                          // batch put in one frame
+  function batch(f : Void -> Void) {
     lock = true;
     var e : Null<Error> = null;
     try f() catch(x : Error) e = x;
@@ -105,7 +104,7 @@ enum Maybe<A> {
     onError(e);
   }
 
-  function add(node : Push<Dynamic>) {      // queue
+  function enqueue(node : Push<Dynamic>) {
     trace("add "+ node.id + " rank " +node.rank);
     if(node.queued) return;
     while(queue.length <= node.rank) queue.push([]);
@@ -136,13 +135,13 @@ enum Maybe<A> {
             if(next.rank == rank)
               next.run(this);
             else if(next.rank > rank)
-              add(next);
+              enqueue(next);
             next = next.unlink();
           }
         }
 
         for(node in queue[rank])
-          clear(node);                      // mark join nodes as not-ok, but why?
+          clear(node);
 
         queue[rank].resize(0);              // empty this layer of queue
 
@@ -178,7 +177,7 @@ enum Maybe<A> {
 
   function activate(b : Push<Dynamic>) {
     trace("activate ", b.def);
-    if(!b.active()) return;
+    if(!b.alive()) return;
     for(a in b.ups) {
       attach(a, b);
     }
@@ -244,7 +243,7 @@ enum Maybe<A> {
 
   var ups     : Array<Push<Dynamic>> = []; // points towards a static source, possibly off
   var inputs  : Array<Push<Dynamic>> = []; // dynamic value back-refs for when node runs
-  var outputs : Array<Push<Dynamic>> = []; // dynamic value forward-refs for push when active
+  var outputs : Array<Push<Dynamic>> = []; // dynamic value forward-refs for push when alive
 
   // bind-only state, needed for dynamic rewiring
   var q : Null<Push<Dynamic>>; // bind's choice
@@ -271,8 +270,8 @@ enum Maybe<A> {
 
   function toString() return 'Push($id, $rank, $def)';
 
-  function ok()     return val != Nothing && !ended; // ready
-  function active() return !ended && (outputs.length > 0 || z != null || def.match(Into(_)));
+  function ready() return val != Nothing && !ended;
+  function alive() return !ended && (outputs.length > 0 || z != null || def.match(Into(_)));
   function joins()  return inputs.length > 1;
 
   function extract(a : Maybe<A>) : Null<A>{
@@ -286,14 +285,14 @@ enum Maybe<A> {
     if(frame == F.frame) return;                    // already ran this node?
     frame = F.frame;                                // Mark ran
 
-    if(!active()) return;                           // Skip the work, nobody is listening
-    trace("run ", [for (a in inputs) a.ok()], def);
+    if(!alive()) return;                           // Skip the work, nobody is listening
+    trace("run ", [for (a in inputs) a.ready()], def);
 
     switch(def) {
       case From(_):  {}
       case Into(_), ApplyN(_), ApplyAsync(_), Const(_), Bind(_):
         // bind changes the ready rules. check on2 not on on what circumstance?
-        if(inputs.foreach(a -> a.ok())) // .ready
+        if(inputs.foreach(a -> a.ready()))
           switch(def) {
             case Into(f): {
               var a : Dynamic = inputs[0].val;
@@ -387,8 +386,7 @@ enum Maybe<A> {
   function unlink() { // Awkwardly shifts the list, but returning next node not removed node
     if(prev != null) prev.next = next;
     if(next != null) next.prev = prev;
-    var b = next;
-    prev = null; next = null;
+    var b = next; prev = null; next = null;
     return b;
   }
 }

@@ -15,7 +15,7 @@
    :queued (.-queued node)
    :rank   (.-rank node)
    :val    (.-val node)
-   :ok     (.ok node)})
+   :ok     (.ready node)})
 
 (defn datafy
   "Given a Dataflow View node (like `(.-node >v)`), return a map description.
@@ -23,7 +23,7 @@
   [node]
   (when node
     (cond-> (node-data node)
-      (.-on node) (assoc :on (mapv datafy (hx/hx->clj (.-on node)))))))
+      (.-ups node) (assoc :on (mapv datafy (hx/hx->clj (.-ups node)))))))
 
 (def nodes (partial tree-seq :on :on))
 
