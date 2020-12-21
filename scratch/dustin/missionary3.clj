@@ -170,8 +170,7 @@
 
   )
 
-(defn bind [>a f]
-  (ap (?? (f (?! >a)))))
+(defn bind [>a f] (ap (?! (f (?! >a)))))
 
 (tests
   "discrete bind: use a >control signal to toggle between signals >p and >q at runtime"
@@ -202,6 +201,8 @@
 (tests
   "discrete bind: harder version"
 
+  !! (defn bind [>a f] (ap (?! (f (?! >a)))))
+
   !! (def !p (atom 1))
   !! (def !q (atom 2))
   !! (def !control (atom :p))
@@ -211,7 +212,7 @@
   !! (def >control (m/watch !control))
   !! (def >cross (bind >control (fn [c]
                                   (case c :p >p :q >q))))
-  !! (def >z (m/zip vector >p >q >cross))
+  !! (def >z (m/latest vector >p >q >cross))
 
   !! (def !z (>z #(println :ready) #(println :done)))
 
@@ -225,34 +226,48 @@
 
   )
 
+
 (tests
-  "Continuous bind"
+  "Continuous bind, emulated with discrete bind"
 
-  (def !p (atom nil))
-  (def !q (atom nil))
-  (def !control (atom nil))
+  !! (defn bind' [>a f] (m/relieve {} (ap (?! (f (?! >a))))))
 
-  (def >p (m/watch !p))
-  (def >q (m/watch !q))
-  (def >cross (bind (fn [c]
-                      (case c :p >p :q >q))))
-  (def >z (m/latest vector >p >q >cross))
+  !! (def !p (atom 1))
+  !! (def !q (atom 2))
+  !! (def !control (atom :p))
 
-  (def !z (>z #(println :ready) #(println :done)))
+  !! (def >p (m/watch !p))
+  !! (def >q (m/watch !q))
+  !! (def >control (m/watch !control))
+  !! (def >cross (bind' >control (fn [c]
+                                  (case c :p >p :q >q))))
+  !! (def >z (m/latest vector >cross >p >q))
 
-  (reset! !control :q)
-  (reset! !p 1)
-  (reset! !q 2)
+  !! (def !z (>z #(println :ready) #(println :done)))
 
-  @!z => [1 2 2]
+  @!z => [1 1 2]
+
+  !! (reset! !control :q)
+  @!z => [2 1 2]
+
+  !! (reset! !control :p)
+  @!z => [1 1 2]
 
   )
 
-(tests
+
+(comment
 
   (->> (iterate inc 0) (take 3) (run! #(reset! !a %)))
   @z!
-
   ;=> [[1 -1 :x] [2 0 :x] [3 1 :x]]
+  )
+
+(tests
+  "bug in watch?"
+
+  !! (def >z (m/watch (atom 1)))
+  !! (def !z (>z #(println :ready) #(println :done)))
+  @!z => 1
 
   )
