@@ -70,7 +70,7 @@
      (shirt-sizes $ '[*] (:gender (submissions $ '[{:gender [:db/ident]}] needle)))
      (genders $ '[*])})
 
-refactor=>
+refactor:=
 
 '#{(shirt-sizes $ '[*] (:gender (submissions $ '[{:gender [:db/ident]}] needle)))
    (genders $ '[*])}
@@ -84,14 +84,14 @@ refactor=>
 '[{(submission >$ >needle) [{:gender [:db/ident
                                       {(shirt-size >$ gender) [*]}]}]}]
 
-=>
+:=
 ; One stream-fmap is enough therefore there is only one partition here
 (stream/fmap (fn [$ needle]
                '[{(submission $ needle) [{:gender [:db/ident {(shirt-size $ gender) [*]}]}]}])
   >$ >needle)
 ; But we still had to trace the evaluation to resolve 'gender
 
-=>
+:=
 ; The single partition, a# form elided for clarity
 '{a# #:scratch{:email  "alice@example.com",
                :gender {:db/ident  :female,
@@ -101,14 +101,14 @@ refactor=>
 ; Note I have removed the cardinality, and marked the stream inputs vs the traced inputs
 '[{(submission >needle) [{:gender [:db/ident {(shirt-size gender) [*]}]}]}]
 
-=>
+:=
 ; One stream-fmap is enough therefore there is only one partition here
 (stream/fmap (fn [needle]
                '[{(submissio needle) [{:gender [:db/ident {(shirt-size gender) [*]}]}]}])
   >needle)
 ; But we still had to trace the evaluation to resolve 'gender
 
-=>
+:=
 ; The single partition, a# form elided for clarity
 '{a# #:scratch{:email  "alice@example.com",
                :gender {:db/ident  :female,
@@ -116,9 +116,9 @@ refactor=>
 
 
 ((hfql '[{(submission >needle) [{:gender [:db/ident {(shirt-size gender) [*]}]}]}]) env)
-=> (via (stream)
+:= (via (stream)
      (hf-pull [{(submission ~>needle) [{:gender [:db/ident {(shirt-size gender) [*]}]}]}]))
-=> (stream/fmap
+:= (stream/fmap
      (fn [needle]
        (hf-pull [{(submission needle) [{:gender [:db/ident {(shirt-size gender) [*]}]}]}]))
      >needle)

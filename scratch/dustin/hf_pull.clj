@@ -16,7 +16,7 @@
 
   (tests
     (hfql '{})
-    => {'a >a
+    := {'a >a
         'b >b}
     )
   )
@@ -34,7 +34,7 @@
   (hf-pull [:scratch/email
             {:scratch/gender [:db/ident {(shirt-size gender) [*]}]}] ; sexpr = just a keyword (but on steroids)
     (submission "alice"))
-  => #:scratch{:email  "alice@example.com",
+  := #:scratch{:email  "alice@example.com",
                :gender {:db/ident  :female,
                         shirt-size #:db{:ident :scratch/womens-medium}}}
 
@@ -43,7 +43,7 @@
     ((hfql ~[~{~(submission ~>needle) [:scratch/email {:scratch/gender [:db/ident {(shirt-size gender) [*]}]}]}])
      {}))                                                   ; empty env. is >needle in env?
   ; What are the partition keys?
-  => {(hf-pull (submission needle) [:scratch/email {:scratch/gender [:db/ident {(shirt-size gender) [*]}]}])
+  := {(hf-pull (submission needle) [:scratch/email {:scratch/gender [:db/ident {(shirt-size gender) [*]}]}])
       #:scratch{:email  "alice@example.com",
                 :gender {:db/ident  :female,
                          shirt-size #:db{:ident :scratch/womens-medium}}}}
@@ -80,7 +80,7 @@
   (hf-pull '{(submission needle) [:scratch/gender :scratch/email]}
     nil
     {:needle "alice"})
-  => '{submission #:scratch{:gender nil, :email nil}}
+  := '{submission #:scratch{:gender nil, :email nil}}
 
 
   '{submission #:scratch{:gender {shirt-size #:db{:ident :scratch/womens-medium}

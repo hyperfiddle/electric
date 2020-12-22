@@ -14,31 +14,31 @@
   (def data {:foo 1 :bar 2})
 
   (get-foo data)
-  => 1
+  := 1
 
   (set-foo data inc)
-  => {:foo 2 :bar 2}
+  := {:foo 2 :bar 2}
 
   (def foo-lens (lens get-foo set-foo))
   (focus foo-lens data)
-  => 1
+  := 1
 
   (over foo-lens inc data)
-  => {:foo 2 :bar 2}
+  := {:foo 2 :bar 2}
 
   (def mylens (key :foo))
   (focus mylens data)
-  => 1
+  := 1
 
   (focus (key :foo) data)
-  => 1
+  := 1
 
   (def l (lens
            (fn [s] (get s :foo))
            (fn [s f] (update s :foo f))))
 
   (focus l data)
-  => 1
+  := 1
 
   ; (focus :foo data)
   ; NPE

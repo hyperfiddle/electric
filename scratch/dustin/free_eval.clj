@@ -15,8 +15,8 @@
     hf/*$* needle))
 
 (tests
-  (submission "bob") => [117592186045441 ...]
-  (submission "ali") => 17592186045440
+  (submission "bob") := [117592186045441 ...]
+  (submission "ali") := 17592186045440
   )
 
 (defn shirt-sizes [gender #_needle]
@@ -39,10 +39,10 @@
       {(genders) [*]}]
     )
 
-  => '{(submission needle) #:dustingetz{:gender #:db{:id 17592186045430}, :email "charlie@example.com"}
+  := '{(submission needle) #:dustingetz{:gender #:db{:id 17592186045430}, :email "charlie@example.com"}
        (genders) {}}
 
-  *this => {0 Stream
+  *this := {0 Stream
             1 Stream
             2 Stream}
 
@@ -102,15 +102,15 @@
     (let [a (eval (doto '1 println))
           b (eval (doto '(+ a 2) println))]
       (inc (eval (doto '(inc (eval (doto 'b println))) println)))))
-  => 5
-  *this => [{a 1} {(+ a 2) 3} {b 3} {(inc 3) 4} {(inc 4) 5}]
+  := 5
+  *this := [{a 1} {(+ a 2) 3} {b 3} {(inc 3) 4} {(inc 4) 5}]
 
   (via (writer)
     (let [a ~1
           b ~(~+ ~a ~2)]
       (~inc ~(~inc ~b))))
-  => 5
-  *this => (bind* {a 1} {(+ a 2) 3} {b 3} {(inc 3) 4} {(inc 4) 5})
+  := 5
+  *this := (bind* {a 1} {(+ a 2) 3} {b 3} {(inc 3) 4} {(inc 4) 5})
 
   (via (writer)
     '(let [a 1
@@ -180,12 +180,12 @@
     (let [a 1
           b (+ a 2)]
       (inc (inc b))))
-  => 5
-  *this=> ...
+  := 5
+  *this:= ...
 
   ; lift every sexp into a monad
   ; by adding an await at every possible slot
-  =>
+  :=
   (via (eval-identity)
     (let [a ~(pure 1)
           b ~(~+ ~a ~(pure 2))]
@@ -214,8 +214,8 @@
                         (+ ~>a 2)])]
       (via (TracingStream *this)
         (inc ~(inc ~>b)))))
-  => (pure 5)
-  *this => [{a 1} {(+ a 2) 3} {b 3} {(inc 3) 4} {(inc 4) 5}]           ; Trace is returned out of band
+  := (pure 5)
+  *this := [{a 1} {(+ a 2) 3} {b 3} {(inc 3) 4} {(inc 4) 5}]           ; Trace is returned out of band
 
 
 
@@ -229,8 +229,8 @@
       (via (eval-stream)
         (let [b (+ a 2)]
           (inc (inc b))))))
-  => View
-  *this => ...                                              ; trace doesn't see into eval-stream as we switched monads
+  := View
+  *this := ...                                              ; trace doesn't see into eval-stream as we switched monads
 
   ; Finally, we can combine layers
   ; "await" is the primitive for crossing layers, which is why you need to mark things
@@ -280,16 +280,16 @@
                                              {(shirt-sizes >$ gender) [*]}]}]}
         {(genders >$) [*]}]
       ))
-  => View
+  := View
 
   (run >x {'>needle (input)
            '>$ (input)})
-  partitons => {1 View
+  partitons := {1 View
                 2 View
                 3 View}
 
 
-  => '{(submission needle) #:dustingetz{:gender #:db{:id 17592186045430}, :email "charlie@example.com"}}
-  *this => partitions
+  := '{(submission needle) #:dustingetz{:gender #:db{:id 17592186045430}, :email "charlie@example.com"}}
+  *this := partitions
 
   )

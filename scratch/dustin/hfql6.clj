@@ -27,22 +27,22 @@
 (comment
 
   {:dustingetz/gender :db/ident}
-  (-> % :dustingetz/gender :db/ident) => :male
-  ((comp :db/ident :dustingetz/gender) %) => :male
+  (-> % :dustingetz/gender :db/ident) := :male
+  ((comp :db/ident :dustingetz/gender) %) := :male
 
-  ((partial hf-nav :dustingetz/gender) 17592186045440) => ::female
+  ((partial hf-nav :dustingetz/gender) 17592186045440) := ::female
 
   (fmap :dustingetz/gender 17592186045440)
-  => #:dustingetz{:gender :dustingetz/female}
+  := #:dustingetz{:gender :dustingetz/female}
 
     (fmap :db/ident (fmap :dustingetz/gender 17592186045440))
-  => {:dustingetz/gender {:db/ident :male}}
+  := {:dustingetz/gender {:db/ident :male}}
 
   (fmap :db/ident %)
-  => {:db/ident :male}
+  := {:db/ident :male}
 
   )
-; rewrite :asdf => ((hf-nav :asdf %))
+; rewrite :asdf := ((hf-nav :asdf %))
 
 ; This is supposed to be a functor?
 ; What is the Functor type?

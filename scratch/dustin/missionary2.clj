@@ -9,7 +9,7 @@
 (tests
   "Task monad"
 
-  !! (deftype Task []
+  (deftype Task []
       Do-via
       (resolver-for [R]
         {:Do.fmap   (fn [f >a] (sp (f (? >a))))
@@ -18,14 +18,14 @@
          ;:Do.bind   (fn [>a f] (sp (? (f (? >a)))))
          }))
 
-  !! (def >a (m/sleep 1000 1))
-  !! (def >z (via (->Task)
+  (def >a (m/sleep 1000 1))
+  (def >z (via (->Task)
                (let [>b (inc ~>a)
                      >c (dec ~>a)]
                  (vector ~>b ~>c :x))))
 
   (? >z)
-  => [2 0 :x]
+  := [2 0 :x]
 
   )
 
@@ -35,26 +35,26 @@
 (tests
   "zip flows"
 
-  !! (def >a (enumerate (range 3)))
-  !! (def >z (m/zip vector >a >a))
+  (def >a (enumerate (range 3)))
+  (def >z (m/zip vector >a >a))
   (? (aggregate conj >z))
-  => [[0 0] [1 1] [2 2]]
+  := [[0 0] [1 1] [2 2]]
 
   ;(? (aggregate conj (m/zip vector (ap (inc (?? >a))) (ap (dec (?? >a))) :x))) ; crash
 
   (? (aggregate conj (m/zip vector (ap (inc (?? >a))) (ap (dec (?? >a))) (ap :x))))
   ; truncated to shortest flow
-  => [[1 -1 :x]]
+  := [[1 -1 :x]]
 
   (? (aggregate conj (m/sample vector (m/watch (atom :x)) >a)))
-  => [[:x 0] [:x 1] [:x 2]]
+  := [[:x 0] [:x 1] [:x 2]]
 
   (? (aggregate conj
        (m/sample vector
          (m/watch (atom :x))
          (enumerate (range 3))
        )))
-  => [[:x 0] [:x 1] [:x 2]]
+  := [[:x 0] [:x 1] [:x 2]]
 
   (? (aggregate conj
        (m/sample vector
@@ -68,7 +68,7 @@
 
          (enumerate (range 3))
          )))
-  => [[2 0] [2 1] [2 2]]
+  := [[2 0] [2 1] [2 2]]
 
 
   (? (aggregate conj
@@ -78,7 +78,7 @@
          (m/gather)
          (enumerate (range 3))
          )))
-  => [[2 0] [2 1] [2 2]]
+  := [[2 0] [2 1] [2 2]]
 
 
   ; hyperfiddle inputs are refs, is the whole thing continuous?
@@ -90,9 +90,9 @@
 (tests
   "Flow monad"
 
-  !! (defn skip [a b] b)
+  (defn skip [a b] b)
 
-  !! (deftype Flow []
+  (deftype Flow []
        Do-via
        (resolver-for [R]
          {:Do.fmap   (fn [f >a] (ap (f (?? >a))))
@@ -123,18 +123,18 @@
 
 
   (? (aggregate conj (via (->Flow) (inc ~>a))))
-  => [1 2 3]
+  := [1 2 3]
 
   (? (aggregate conj (via (->Flow) (vector ~>a))))
-  => [[0] [1] [2]]
+  := [[0] [1] [2]]
 
   (? (aggregate conj (via (->Flow) (vector ~>a))))
 
   (? (aggregate conj (via (->Flow)
                        (vector ~(inc ~>a) ~(dec ~>a)))))
-  => [2 0 :x]
+  := [2 0 :x]
 
-  !! (def >z (via (->Flow)
+  (def >z (via (->Flow)
                (let [>b (inc ~>a)
                      >c (dec ~>a)]
                  (vector ~>b ~>c :x))))
@@ -142,7 +142,7 @@
   (>z prn prn)
 
   (? (aggregate conj >z))
-  => [2 0 :x]
+  := [2 0 :x]
 
 
   ; Flow monad
@@ -159,31 +159,31 @@
 (comment
   "missionary bind tests"
 
-  (? (aggregate conj (ap 1))) => [1]
-  (? (aggregate conj (bind (pure 1) pure))) => [1]
-  (? (aggregate conj (bind (pure 1) (fn [a] (pure (inc a)))))) => [2]
+  (? (aggregate conj (ap 1))) := [1]
+  (? (aggregate conj (bind (pure 1) pure))) := [1]
+  (? (aggregate conj (bind (pure 1) (fn [a] (pure (inc a)))))) := [2]
 
 
-  (? (aggregate conj (atom 1))) => [1]
+  (? (aggregate conj (atom 1))) := [1]
 
 
-  (? (aggregate conj (bind (pure 1) (fn [a] (pure (inc a)))))) => [2]
+  (? (aggregate conj (bind (pure 1) (fn [a] (pure (inc a)))))) := [2]
 
 
 
-  !! (def >p (atom nil))
-  !! (def >q (atom nil))
-  !! (def >control (atom nil))
-  !! (def >cross (bind >control (fn [c]
+  (def >p (atom nil))
+  (def >q (atom nil))
+  (def >control (atom nil))
+  (def >cross (bind >control (fn [c]
                                   (case c
                                     :p >p
                                     :q >q))))
-  !! (def >z (fmap vector >p >q >cross))
-  !! (def s (history >z #_print))
-  !! (do (put >control :q) (put >p 1) (put >q 2))
-  @s => [[1 2 2]]
+  (def >z (fmap vector >p >q >cross))
+  (def s (history >z #_print))
+  (do (put >control :q) (put >p 1) (put >q 2))
+  @s := [[1 2 2]]
 
-  @(cap (fmap inc (pure 1))) => 2
-  @(cap (bind (fmap inc (pure 1)) (comp pure inc))) => 3
+  @(cap (fmap inc (pure 1))) := 2
+  @(cap (bind (fmap inc (pure 1)) (comp pure inc))) := 3
 
   )

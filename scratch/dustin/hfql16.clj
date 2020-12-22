@@ -20,8 +20,8 @@
         (runS (f a) (merge s s'))))))
 
 (tests
-  ;(runStateT (pureSR 1) {}) => (p/resolved [{} 1]) ; fails
-  @(runS (pureSR 1) {}) => @(p/resolved [{} 1])
+  ;(runStateT (pureSR 1) {}) := (p/resolved [{} 1]) ; fails
+  @(runS (pureSR 1) {}) := @(p/resolved [{} 1])
 
   @(runS
      (bindSR (pureSR 1)
@@ -30,7 +30,7 @@
            (p/resolved
              [s (+ a (get s 'C))]))))
      {'C 42})
-  => @(p/resolved [{'C 42} 43])
+  := @(p/resolved [{'C 42} 43])
   )
 
 (defn fmapSR [f SRa]
@@ -50,10 +50,10 @@
 
 (tests
   @(runS (fmapSR inc (pureSR 1)) {})
-  => @(p/resolved [{} 2])
+  := @(p/resolved [{} 2])
 
-  ;(runS (pureSR 1) {}) => [{} 1]
-  ;(runS (fmapSR + (pureSR 1) (pureSR 2)) {}) => [{} 3]
+  ;(runS (pureSR 1) {}) := [{} 1]
+  ;(runS (fmapSR + (pureSR 1) (pureSR 2)) {}) := [{} 3]
 
   )
 
@@ -61,8 +61,8 @@
 ;  (apply fmapSR vector mas))
 
 ;(tests
-;  (run (sequence []) {}) => [{} []]
-;  (run (sequence [(pure 1) (pure 2)]) {}) => [{} [1 2]]
+;  (run (sequence []) {}) := [{} []]
+;  (run (sequence [(pure 1) (pure 2)]) {}) := [{} [1 2]]
 ;  )
 
 ; ---
@@ -112,11 +112,11 @@
       Ra)))
 
 (tests
-  ;(Ra->SRa (p/resolved 1)) => (fn [s] (p/resolved [s 1]))
+  ;(Ra->SRa (p/resolved 1)) := (fn [s] (p/resolved [s 1]))
   @(runS (Ra->SRa (p/resolved 1)) {})
-  => @(runS (fn [s] (p/resolved [s 1])) {})
-  => @(p/resolved [{} 1])
-  => [{} 1]
+  := @(runS (fn [s] (p/resolved [s 1])) {})
+  := @(p/resolved [{} 1])
+  := [{} 1]
   )
 
 (defn hf-pull [pat Ra & [s]]
@@ -125,37 +125,37 @@
     (runS (hf-pull-SR pat (Ra->SRa Ra)) (or s {}))))
 
 (tests
-  @(runS (pureSR 17592186045421) {}) => [{} 17592186045421]
+  @(runS (pureSR 17592186045421) {}) := [{} 17592186045421]
 
   @(runS (hf-eval :dustingetz/gender (pureSR 17592186045421)) {})
-  => @(p/resolved ['{dustingetz/gender :dustingetz/male} :dustingetz/male])
+  := @(p/resolved ['{dustingetz/gender :dustingetz/male} :dustingetz/male])
 
   @(runS (hf-pull-SR :dustingetz/gender (pureSR 17592186045421)) {})
-  => [{} #:dustingetz{:gender :dustingetz/male}]
+  := [{} #:dustingetz{:gender :dustingetz/male}]
 
   @(hf-pull :dustingetz/gender (p/resolved 17592186045421))
-  => #:dustingetz{:gender :dustingetz/male}
+  := #:dustingetz{:gender :dustingetz/male}
 
   @(hf-pull :db/ident (p/resolved 17592186045421))
-  => #:db{:ident :dustingetz/mens-small}
+  := #:db{:ident :dustingetz/mens-small}
 
   @(hf-pull '{:dustingetz/gender :db/ident} (p/resolved 17592186045421))
-  => #:dustingetz{:gender #:db{:ident :dustingetz/male}}
+  := #:dustingetz{:gender #:db{:ident :dustingetz/male}}
 
   @(hf-pull '(shirt-size dustingetz/gender) (p/resolved nil)
      {'dustingetz/gender :dustingetz/male})
-  => {'(shirt-size dustingetz/gender) 17592186045421}
+  := {'(shirt-size dustingetz/gender) 17592186045421}
 
   @(hf-pull '{:dustingetz/gender (shirt-size dustingetz/gender)}
      (p/resolved 17592186045421))
-  => #:dustingetz{:gender {'(shirt-size dustingetz/gender) 17592186045421}}
+  := #:dustingetz{:gender {'(shirt-size dustingetz/gender) 17592186045421}}
 
   @(hf-pull
      '{:dustingetz/gender
        {(shirt-size dustingetz/gender)
         :db/ident}}
      (p/resolved 17592186045421))
-  => @(p/resolved
+  := @(p/resolved
         {:dustingetz/gender
          {'(shirt-size dustingetz/gender)
           {:db/ident :dustingetz/mens-small}}})

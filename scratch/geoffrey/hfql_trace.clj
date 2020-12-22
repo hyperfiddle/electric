@@ -79,66 +79,66 @@
 
 (tests
 
- (do (def ma (pure :dustingetz/male)) nil) => nil
+ (do (def ma (pure :dustingetz/male)) nil) := nil
  (runScope ma {})
- => [{} :dustingetz/male]
+ := [{} :dustingetz/male]
 
  (runScope (hf-pull' :db/ident ma) {})
- => '[{} #:db{:ident :dustingetz/male}]
+ := '[{} #:db{:ident :dustingetz/male}]
 
 
  (partitions
   (trace
    (hf-pull (hf-nav :db/ident %) :dustingetz/male {'% :dustingetz/male})))
- => {'(hf-nav :db/ident :dustingetz/male) :dustingetz/male}
+ := {'(hf-nav :db/ident :dustingetz/male) :dustingetz/male}
 
  (partitions
   (trace
    (hf-pull (identity %) :dustingetz/male {'% :dustingetz/male})))
- => '{(identity :dustingetz/male) :dustingetz/male}
+ := '{(identity :dustingetz/male) :dustingetz/male}
 
  (hf-pull :dustingetz/gender 17592186045429)
- => '#:dustingetz{:gender :dustingetz/male}
+ := '#:dustingetz{:gender :dustingetz/male}
 
  (hf-pull [{:dustingetz/gender [:db/ident]}] 17592186045429)
- => '#:dustingetz{:gender #:db{:ident :dustingetz/male}}
+ := '#:dustingetz{:gender #:db{:ident :dustingetz/male}}
 
 
  (partitions
   (trace
    (hf-pull (gender $) nil {'$ dustin.dev/*$*})))
- => '{(gender $) 17592186045418}
+ := '{(gender $) 17592186045418}
 
 
  (partitions
   (trace
    (hf-pull :dustingetz/tags 17592186045428 {})))
- => {}
+ := {}
 
  ;; TAG
  (partitions
   (trace
    (hf-pull (submissionS needle) nil {'needle "example"})))
- => '{(submissionS "example") [17592186045428 17592186045429 17592186045430]}
+ := '{(submissionS "example") [17592186045428 17592186045429 17592186045430]}
 
  (partitions
   (trace
    (hf-pull {(submissionS needle) [:dustingetz/gender]}  nil {'needle "example"})))
- => '{(submissionS "example") [#:dustingetz{:gender :dustingetz/female}
+ := '{(submissionS "example") [#:dustingetz{:gender :dustingetz/female}
                                #:dustingetz{:gender :dustingetz/male}
                                #:dustingetz{:gender :dustingetz/male}]}
 
  (partitions
   (trace
    (hf-pull {(submissionS needle) [{:dustingetz/gender [:db/ident]}]} nil {'needle "example"})))
- => '{(submissionS "example") [#:dustingetz{:gender #:db{:ident :dustingetz/female}}
+ := '{(submissionS "example") [#:dustingetz{:gender #:db{:ident :dustingetz/female}}
                                #:dustingetz{:gender #:db{:ident :dustingetz/male}}
                                #:dustingetz{:gender #:db{:ident :dustingetz/male}}]}
 
  (partitions
   (trace
    (hf-pull {(submissionS needle) {:dustingetz/gender (shirt-size dustingetz/gender)}} nil {'needle "example"})))
- => '{(submissionS "example")         [#:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045425}}
+ := '{(submissionS "example")         [#:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045425}}
                                        #:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045421}}
                                        #:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045421}}],
       (shirt-size :dustingetz/female) 17592186045425,
@@ -147,7 +147,7 @@
  (partitions
   (trace
    (hf-pull {(submissionS needle) [{:dustingetz/gender [{(shirt-size dustingetz/gender) [:db/id]}]}]} nil {'needle "example"})))
- => '{(submissionS "example")         [#:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:id 17592186045425}}}
+ := '{(submissionS "example")         [#:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:id 17592186045425}}}
                                        #:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:id 17592186045421}}}
                                        #:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:id 17592186045421}}}],
       (shirt-size :dustingetz/female) #:db{:id 17592186045425},
@@ -163,7 +163,7 @@
     nil
     {'needle "example"})))
 
- => '{(submissionS "example")         [#:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:ident :dustingetz/womens-medium}}}
+ := '{(submissionS "example")         [#:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:ident :dustingetz/womens-medium}}}
                                        #:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:ident :dustingetz/mens-small}}}
                                        #:dustingetz{:gender {(shirt-size dustingetz/gender) #:db{:ident :dustingetz/mens-small}}}],
       (shirt-size :dustingetz/female) #:db{:ident :dustingetz/womens-medium},
@@ -177,7 +177,7 @@
              {(genders) [:db/ident]}]
             nil
             {'needle "example"})))
- =>
+ :=
  '{(submissionS "example")          [#:dustingetz{:gender {:db/ident                       :dustingetz/female,
                                                            (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/womens-medium}
                                                                                             #:db{:ident :dustingetz/womens-large}
@@ -200,21 +200,21 @@
                                      #:db{:ident :dustingetz/female}]}
 
  (hf-pull [{:db/ident [:db/id]}] 17592186045418)
- => #:db{:ident #:db{:id 17592186045418}}
+ := #:db{:ident #:db{:id 17592186045418}}
 
  (hf-pull [{:dustingetz/gender [{:db/ident [:db/id]}]}] 17592186045421)
- => #:dustingetz{:gender #:db{:ident #:db{:id 17592186045418}}}
+ := #:dustingetz{:gender #:db{:ident #:db{:id 17592186045418}}}
 
  (hf-pull [{:dustingetz/gender [{:db/ident [{:db/ident [:db/ident]}]}]}] 17592186045421)
- => #:dustingetz{:gender #:db{:ident #:db{:ident #:db{:ident :dustingetz/male}}}}
+ := #:dustingetz{:gender #:db{:ident #:db{:ident #:db{:ident :dustingetz/male}}}}
 
  (hf-pull [{:dustingetz/gender [:db/id]}] 17592186045421)
- => #:dustingetz{:gender #:db{:id 17592186045418}}
+ := #:dustingetz{:gender #:db{:id 17592186045418}}
 
  (hf-pull [{:dustingetz/gender [{:db/id [:db/id]}]}] 17592186045421)
- => #:dustingetz{:gender #:db{:id #:db{:id 17592186045418}}}
+ := #:dustingetz{:gender #:db{:id #:db{:id 17592186045418}}}
 
 
  (hf-pull [{:dustingetz/gender [{:db/id [{:db/id [{:db/id [:db/id]}]}]}]}] 17592186045421)
- => #:dustingetz{:gender #:db{:id #:db{:id #:db{:id #:db{:id 17592186045418}}}}}
+ := #:dustingetz{:gender #:db{:id #:db{:id #:db{:id #:db{:id 17592186045418}}}}}
  )

@@ -10,7 +10,7 @@
 
 (tests
   (runScope (pure 42) {})
-  => [{} 42]
+  := [{} 42]
   )
 
 (defn bind [ma mf]                                          ; https://kseo.github.io/posts/2017-01-21-writer-monad.html
@@ -19,19 +19,19 @@
       (runScope (mf a) (merge scope log-a)))))
 
 (tests
-  (do (def ma (pure 42)) nil) => nil
+  (do (def ma (pure 42)) nil) := nil
 
   (runScope (bind ma pure) {})
-  => [{} 42]
+  := [{} 42]
 
   (runScope (bind ma (fn [a] (fn [scope] [{'a a} (inc a)]))) {})
-  => '[{a 42} 43]
+  := '[{a 42} 43]
 
   (runScope (bind ma (fn [a] (fn [scope] [scope (inc (get scope 'z))]))) {'z 0})
-  => '[{z 0} 1]
+  := '[{z 0} 1]
 
   (runScope (bind ma (fn [a] (fn [scope] [{'z 1} (inc (get scope 'z))]))) {'z 0})
-  => '[{z 1} 1]
+  := '[{z 1} 1]
 
   )
 
@@ -42,17 +42,17 @@
       [scope b])))
 
 (tests
- (runScope (fmap inc (pure 1)) {}) => [{} 2]
- (runScope (fmap + (pure 1) (pure 2)) {}) => [{} 3]
- (runScope (fmap vector (pure 1) (pure 2)) {}) => [{} [1 2]])
+ (runScope (fmap inc (pure 1)) {}) := [{} 2]
+ (runScope (fmap + (pure 1) (pure 2)) {}) := [{} 3]
+ (runScope (fmap vector (pure 1) (pure 2)) {}) := [{} [1 2]])
 
 (defn sequence "[mv] -> m [v]" [mvs]
   (when mvs
     (apply fmap vector mvs)))
 
 (tests
- (runScope (sequence []) {}) => [{} []]
- (runScope (sequence [(pure 1) (pure 2)]) {}) => [{} [1 2]])
+ (runScope (sequence []) {}) := [{} []]
+ (runScope (sequence [(pure 1) (pure 2)]) {}) := [{} [1 2]])
 
 ;; (defn fmap [f ma]                                           ; mv :: scope -> a; f :: a -> b
 ;;   (fn [scope]                                               ; *this
@@ -63,8 +63,8 @@
 
 (tests
   (runScope (fmap inc ma) {'x 99})
-  => [{'x 99} 43]
+  := [{'x 99} 43]
 
   (runScope (fmap inc (fmap inc ma)) {'x 99})
-  => [{'x 99} 44]
+  := [{'x 99} 44]
   )

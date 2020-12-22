@@ -54,7 +54,7 @@
        [:db/ident]}]
     nil
     {'needle "example.com"})
-  => '{(submissions needle)
+  := '{(submissions needle)
        [{:dustingetz/email "alice@example.com",
          :gender           {:db/ident :dustingetz/female,
                             (shirt-sizes dustingetz/gender)

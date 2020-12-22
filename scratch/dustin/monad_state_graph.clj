@@ -32,11 +32,11 @@
   (via* (hf/get-db "$")
     (-> (! :Graph.entity alice)
       :dustingetz/email))
-  => "alice@example.com"
+  := "alice@example.com"
 
   (via* (hf/get-db "$")
     (flip-gender alice))
-  => [:dustingetz/email "alice@example.com"]
+  := [:dustingetz/email "alice@example.com"]
 
   (via* (hf/get-db "$")
     (->> alice
@@ -45,7 +45,7 @@
       (! :Graph.pull [:db/id :dustingetz/email
                       {:dustingetz/gender [:db/ident]}
                       {:dustingetz/shirt-size [:db/ident]}])))
-  => {:db/id                 17592186045428,
+  := {:db/id                 17592186045428,
       :dustingetz/email      "alice@example.com",
       :dustingetz/gender     {:db/ident :dustingetz/female},
       :dustingetz/shirt-size {:db/ident :dustingetz/womens-large}}
@@ -79,5 +79,5 @@
       (field (! :Entity.pull [:html/class
                               :html/id]))))
 
-  => [:input {:class "a b", :id "foo"}]
+  := [:input {:class "a b", :id "foo"}]
   )

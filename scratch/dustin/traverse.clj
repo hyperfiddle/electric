@@ -44,29 +44,29 @@
           {k v}))))
 
   (pull {:dustingetz/gender :db/ident} 17592186045440)
-  =>
+  :=
 
   (pull :dustingetz/gender 17592186045440)
-  => {:dustingetz/gender :male}
+  := {:dustingetz/gender :male}
 
   (traverse
     (fn [n] (fn [v] {n (hf-nav n v)}))
     identity
     :dustingetz/gender)
   (*1 17592186045440)
-  => {:dustingetz/gender :dustingetz/female}
+  := {:dustingetz/gender :dustingetz/female}
 
   (traverse
     (fn [n] (fn [v] (with-meta (hf-nav n v) {:sym n})))     ; cant meta keyword
     (fn [n] (fn [v] {(:sym (meta n)) (n v)}))               ; cross k across
     :dustingetz/gender)
   (*1 17592186045440)
-  => {:dustingetz/gender :dustingetz/female}
+  := {:dustingetz/gender :dustingetz/female}
 
   (def ast {:dustingetz/gender :db/ident})
   (walk inner outer ast)
   (walk #(doto % println) identity ast0)
-  => #:dustingetz{:gender :db/ident}
+  := #:dustingetz{:gender :db/ident}
   ; [:dustingetz/gender :db/ident]
 
   (prewalk #(doto % println) ast)
@@ -157,7 +157,7 @@
     identity
     {:dustingetz/gender :db/ident})
   (*1 17592186045440)
-  => {:dustingetz/gender {:db/ident :dustingetz/female}}
+  := {:dustingetz/gender {:db/ident :dustingetz/female}}
 
   (:dustingetz/gender (:db/ident %))
   (:db/ident (:dustingetz/gender %))

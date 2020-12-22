@@ -43,31 +43,31 @@
 
   (def >a (input))
   (runScope (pure >a) {'>b (input)})
-  => [{'>b ...} >a]
+  := [{'>b ...} >a]
   (put >a 42)
 
 
   (runScope (pure 42) {})
-  => [{} 42]
+  := [{} 42]
 
   (def ma (pure 42))
   (runScope (bind ma pure) {})
-  => [{} 42]
+  := [{} 42]
 
   (runScope (bind ma (fn [a] (fn [scope] [{'a a} (inc a)]))) {})
-  => '[{a 42} 43]
+  := '[{a 42} 43]
 
   (runScope (bind ma (fn [a] (fn [scope] [scope (inc (get scope 'z))]))) {'z 0})
-  => '[{z 0} 1]
+  := '[{z 0} 1]
 
   (runScope (bind ma (fn [a] (fn [scope] [{'z 1} (inc (get scope 'z))]))) {'z 0})
-  => '[{z 1} 1]
+  := '[{z 1} 1]
 
   (runScope (fmap inc ma) {'x 99})
-  => [{'x 99} 43]
+  := [{'x 99} 43]
 
   (runScope (fmap inc (fmap inc ma)) {'x 99})
-  => [{'x 99} 44]
+  := [{'x 99} 44]
   )
 
 
@@ -116,51 +116,51 @@
 
   (def m (pure :dustingetz/male))
   (runScope m {})
-  => [{} :dustingetz/male]
+  := [{} :dustingetz/male]
   (runScope (hf-pull' :db/ident m) {})
-  => '[{db/ident :dustingetz/male, % :dustingetz/male} #:db{:ident :dustingetz/male}]
+  := '[{db/ident :dustingetz/male, % :dustingetz/male} #:db{:ident :dustingetz/male}]
   ; why do we see the ident in scope here
 
   ; Tests use hf-pull! runner to test what matters, the result, as I de-bug the scope monad
 
   (macroexpand '(hf-pull (hf-nav :db/ident %) :dustingetz/male {% :dustingetz/male}))
   (hf-pull (hf-nav :db/ident %) :dustingetz/male {'% :dustingetz/male})
-  => {'(hf-nav :db/ident %) :dustingetz/male}
+  := {'(hf-nav :db/ident %) :dustingetz/male}
 
   (hf-pull (identity %) :dustingetz/male {'% :dustingetz/male})
-  => '{(identity %) :dustingetz/male}
+  := '{(identity %) :dustingetz/male}
 
   (hf-pull :dustingetz/gender 17592186045441)
-  => '#:dustingetz{:gender :dustingetz/male}
+  := '#:dustingetz{:gender :dustingetz/male}
 
   ;(hf-pull '(:dustingetz/gender %) {'% 17592186045441})
-  ;=> {(:dustingetz/gender %) (:dustingetz/gender 17592186045441)} ; ClassCastException
+  ;:= {(:dustingetz/gender %) (:dustingetz/gender 17592186045441)} ; ClassCastException
 
   (hf-pull {:dustingetz/gender :db/ident} 17592186045441)
-  => '#:dustingetz{:gender #:db{:ident :dustingetz/male}}
+  := '#:dustingetz{:gender #:db{:ident :dustingetz/male}}
 
 
   (hf-pull (gender) nil)
-  => '{(gender) 17592186045430}
+  := '{(gender) 17592186045430}
 
   (hf-pull (submission needle) nil {'needle "alic"})
-  => '{(submission needle) 17592186045440}
+  := '{(submission needle) 17592186045440}
 
   (hf-pull {(submission needle) :dustingetz/gender}  nil {'needle "alic"})
-  => '{(submission needle) #:dustingetz{:gender :dustingetz/female}}
+  := '{(submission needle) #:dustingetz{:gender :dustingetz/female}}
 
   (hf-pull {(submission needle) :dustingetz/gender} nil {'needle "alic"})
-  => '{(submission needle) #:dustingetz{:gender :dustingetz/female}}
+  := '{(submission needle) #:dustingetz{:gender :dustingetz/female}}
 
   (hf-pull {(submission needle) {:dustingetz/gender :db/ident}} nil {'needle "alic"})
-  => '{(submission needle) #:dustingetz{:gender #:db{:ident :dustingetz/female}}}
+  := '{(submission needle) #:dustingetz{:gender #:db{:ident :dustingetz/female}}}
 
   (hf-pull {(submission needle) {:dustingetz/gender (shirt-size dustingetz/gender)}} nil {'needle "alic"})
-  => '{(submission needle) #:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045436}}}
+  := '{(submission needle) #:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045436}}}
 
   #_(runScope (hf-pull '{(submission needle) {:dustingetz/gender (shirt-size dustingetz/gender)}} (pure nil)) {'needle "alic"})
   (hf-pull {(submission needle) {:dustingetz/gender (shirt-size dustingetz/gender)}} nil {'needle "alic"})
-  => '{(submission needle) #:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045436}}}
+  := '{(submission needle) #:dustingetz{:gender {(shirt-size dustingetz/gender) 17592186045436}}}
 
   (hf-pull
     {(submission needle)                                   ; query
@@ -170,29 +170,29 @@
     nil
     {'needle "alic"})                                       ; scope
 
-  => '{(submission needle)                                  ; result
+  := '{(submission needle)                                  ; result
        {:dustingetz/gender
         {(shirt-size dustingetz/gender)
          {:db/ident :dustingetz/womens-small}}}}
 
   (hf-pull {:db/ident :db/id} 17592186045430)
-  => #:db{:ident #:db{:id 17592186045430}}
+  := #:db{:ident #:db{:id 17592186045430}}
 
   (hf-pull {:dustingetz/gender {:db/ident :db/id}} 17592186045441)
-  => #:dustingetz{:gender #:db{:ident #:db{:id 17592186045430}}}
+  := #:dustingetz{:gender #:db{:ident #:db{:id 17592186045430}}}
 
   (hf-pull {:dustingetz/gender {:db/ident {:db/ident :db/ident}}} 17592186045441)
-  => #:dustingetz{:gender #:db{:ident #:db{:ident #:db{:ident :dustingetz/male}}}}
+  := #:dustingetz{:gender #:db{:ident #:db{:ident #:db{:ident :dustingetz/male}}}}
 
   (hf-pull {:dustingetz/gender :db/id} 17592186045441)
-  => #:dustingetz{:gender #:db{:id 17592186045430}}
+  := #:dustingetz{:gender #:db{:id 17592186045430}}
 
   (hf-pull {:dustingetz/gender {:db/id :db/id}} 17592186045441)
-  => #:dustingetz{:gender #:db{:id #:db{:id 17592186045430}}}
+  := #:dustingetz{:gender #:db{:id #:db{:id 17592186045430}}}
 
   ; :db/id is a self reference so this actually is coherent
   (hf-pull {:dustingetz/gender {:db/id {:db/id {:db/id :db/id}}}} 17592186045441)
-  => #:dustingetz{:gender #:db{:id #:db{:id #:db{:id #:db{:id 17592186045430}}}}}
+  := #:dustingetz{:gender #:db{:id #:db{:id #:db{:id #:db{:id 17592186045430}}}}}
 
   )
 

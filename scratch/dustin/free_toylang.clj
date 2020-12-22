@@ -24,14 +24,14 @@
             b (+ a 2)]
         (dec (inc b))))
    {'c 42})
-  =>
+  :=
 
 
   (macroexpand (via (IdentityM.)
                  (let [a 1
                        b (+ a 2)]
                    (dec (inc b)))))
-  =>
+  :=
   (bind 1         (fn [a]
                     (bind (+ a 2)   (fn [b]
                                       (return (dec (inc b)))))))
@@ -68,7 +68,7 @@
              {::gender
               [::a
                :db/ident]}] 12345)
-  => {::name "dustin"
+  := {::name "dustin"
       ::gender {::a nil
                 :db/ident ::male}}
 
@@ -81,9 +81,9 @@
        shirt-size
        #_(shirt-size gender)]}])
 
-  (-> (d/entity 12345) ::gender shirt-size) => ::male
-  (-> (d/entity 12345) ::name) => "dustin"
-  (-> (d/entity 12345) ::gender ::a) => nil
+  (-> (d/entity 12345) ::gender shirt-size) := ::male
+  (-> (d/entity 12345) ::name) := "dustin"
+  (-> (d/entity 12345) ::gender ::a) := nil
 
 
 

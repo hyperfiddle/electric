@@ -43,32 +43,32 @@
 
   ; red herring base case? why would this produce a map
   (hf-pull :db/ident {'% :dustingetz/male})
-  => #:db{:ident :dustingetz/male}
+  := #:db{:ident :dustingetz/male}
   ; make pointfree, inject scope later
   (hf-pull :dustingetz/gender {'% 17592186045441})
-  => #:dustingetz{:gender :dustingetz/male}
+  := #:dustingetz{:gender :dustingetz/male}
 
   ; the map determines the descent
   (hf-pull {:dustingetz/gender :db/ident} {'% 17592186045441})
-  => #:dustingetz{:gender #:db{:ident :dustingetz/male}}
+  := #:dustingetz{:gender #:db{:ident :dustingetz/male}}
 
   (hf-pull {:db/ident :db/id} {'% 17592186045430})
-  => #:db{:ident #:db{:id 17592186045430}}
+  := #:db{:ident #:db{:id 17592186045430}}
 
   (hf-pull {:dustingetz/gender {:db/ident :db/id}} {'% 17592186045441})
-  => #:dustingetz{:gender #:db{:ident #:db{:id 17592186045430}}}
+  := #:dustingetz{:gender #:db{:ident #:db{:id 17592186045430}}}
 
   (hf-pull {:dustingetz/gender {:db/ident {:db/ident :db/ident}}} {'% 17592186045441})
-  => #:dustingetz{:gender #:db{:ident #:db{:ident #:db{:ident :dustingetz/male}}}}
+  := #:dustingetz{:gender #:db{:ident #:db{:ident #:db{:ident :dustingetz/male}}}}
 
   (hf-pull {:dustingetz/gender :db/id} {'% 17592186045441})
-  => #:dustingetz{:gender #:db{:id 17592186045430}}
+  := #:dustingetz{:gender #:db{:id 17592186045430}}
 
   (hf-pull {:dustingetz/gender {:db/id :db/id}} {'% 17592186045441})
-  => #:dustingetz{:gender #:db{:id #:db{:id 17592186045430}}}
+  := #:dustingetz{:gender #:db{:id #:db{:id 17592186045430}}}
 
   ; :db/id is a self reference so this actually is coherent
   (hf-pull {:dustingetz/gender {:db/id {:db/id {:db/id :db/id}}}} {'% 17592186045441})
-  => #:dustingetz{:gender #:db{:id #:db{:id #:db{:id #:db{:id 17592186045430}}}}}
+  := #:dustingetz{:gender #:db{:id #:db{:id #:db{:id #:db{:id 17592186045430}}}}}
 
   )

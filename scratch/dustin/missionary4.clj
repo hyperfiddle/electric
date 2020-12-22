@@ -18,20 +18,20 @@
 (tests
   "applicative interpreter"
 
-  !! (def !a (atom nil))
-  !! (def >a (m/watch !a))
-  !! (def >z (via (->Fabric)
+  (def !a (atom nil))
+  (def >a (m/watch !a))
+  (def >z (via (->Fabric)
                (let [>b (inc ~>a)
                      >c (dec ~>a)]
                  (vector ~>b ~>c :x))))
 
-  !! (def !z (>z #(println :ready) #(println :done)))
+  (def !z (>z #(println :ready) #(println :done)))
 
-  !! (reset! !a 1)
-  @!z => [2 0 :x]
-  !! (reset! !a 2)
-  !! (reset! !a 3)
-  @!z => [4 2 :x]
+  (reset! !a 1)
+  @!z := [2 0 :x]
+  (reset! !a 2)
+  (reset! !a 3)
+  @!z := [4 2 :x]
 
   )
 

@@ -113,13 +113,13 @@
   (let [x 1 y 2 f inc g inc]
     (do* (g ~(f ~x ~y))))
 
-  => (bind*
+  := (bind*
        x y [x' y']
        (f x' y') [f']
        (g f'))
 
   ; flipped to be more like mlet
-  => (bind*
+  := (bind*
        [x' y'] x y                                          ; apply level
        [f'] (f x' y')                                       ; apply level
        (g f'))

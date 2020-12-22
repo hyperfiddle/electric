@@ -51,40 +51,40 @@
 (tests
 
   (hf-pull {:dustingetz/gender [:db/ident]} 17592186045441 {})
-  => #:dustingetz{:gender #:db{:ident :dustingetz/male}}
+  := #:dustingetz{:gender #:db{:ident :dustingetz/male}}
 
   (hf-pull {:dustingetz/gender [:db/ident :db/id]} 17592186045441 {})
-  => #:dustingetz{:gender #:db{:ident :dustingetz/male, :id 17592186045430}}
+  := #:dustingetz{:gender #:db{:ident :dustingetz/male, :id 17592186045430}}
 
   ;(hf-pull {:dustingetz/gender [:db/ident :db/id '(identity ident)]} 17592186045441 {})
 
   (d/pull hf/*$* [:dustingetz/gender] 17592186045441)
-  => #:dustingetz{:gender #:db{:id 17592186045430}}
+  := #:dustingetz{:gender #:db{:id 17592186045430}}
 
   (hf-pull :dustingetz/gender 17592186045441 {})
-  => #:dustingetz{:gender #:db{:id 17592186045430}}
+  := #:dustingetz{:gender #:db{:id 17592186045430}}
 
   (hf-pull [:dustingetz/gender] 17592186045441 {})
-  => #:dustingetz{:gender :dustingetz/male}                 ; !
-  ;=> #:dustingetz{:gender #:db{:id 17592186045430}}
+  := #:dustingetz{:gender :dustingetz/male}                 ; !
+  ;:= #:dustingetz{:gender #:db{:id 17592186045430}}
 
   (hf-pull '{(submission needle) [:dustingetz/gender :dustingetz/email]} nil {'needle "alic"})
-  => '{(submission needle) #:dustingetz{:gender :dustingetz/female, :email "alice@example.com"}}
-  ;=> '{(submission needle) #:dustingetz{:gender #:db{:id 17592186045431}, :email "alice@example.com"}}
+  := '{(submission needle) #:dustingetz{:gender :dustingetz/female, :email "alice@example.com"}}
+  ;:= '{(submission needle) #:dustingetz{:gender #:db{:id 17592186045431}, :email "alice@example.com"}}
 
   (hf-pull '{(submission needle) [{:dustingetz/gender [:db/id :db/ident]}
                                   {(identity needle) []}
                                   :dustingetz/email]}
     nil {'needle "alic"})
-  => '{(submission needle) #:dustingetz{:gender #:db{:id 17592186045431, :ident :dustingetz/female},
+  := '{(submission needle) #:dustingetz{:gender #:db{:id 17592186045431, :ident :dustingetz/female},
                                         :email "alice@example.com"}}
 
   (hf-pull '{(submission needle) [:dustingetz/gender :dustingetz/email]} nil {'needle "ch"})
-  => '{(submission needle) #:dustingetz{:gender #:db{:id 17592186045430}, :email "charlie@example.com"}}
+  := '{(submission needle) #:dustingetz{:gender #:db{:id 17592186045430}, :email "charlie@example.com"}}
 
   (hf-pull '{(submission needle) [{:dustingetz/gender [:db/ident]} :dustingetz/email]} nil {'needle "alic"})
-  => '{(submission needle) #:dustingetz{:gender #:db{:ident nil}, :email "alice@example.com"}}
-  ;=> '{(submission needle) #:dustingetz{:gender [:db/ident], :email "alice@example.com"}}
+  := '{(submission needle) #:dustingetz{:gender #:db{:ident nil}, :email "alice@example.com"}}
+  ;:= '{(submission needle) #:dustingetz{:gender [:db/ident], :email "alice@example.com"}}
 
 
   ;(hf-pull '[{(submission needle) [{:dustingetz/gender
@@ -93,7 +93,7 @@
   ;           (genders)]
   ;  nil {'needle "alic"
   ;       'needle2 "large"})
-  ;=> nil
+  ;:= nil
   ; Produce a reactive result at the end, the env is reactive too but internal state
   ; Question is how to bridge this over network so (shirt-size ... "foo") reloads efficiently
   ; That means the intermediate streams have to be available

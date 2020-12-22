@@ -8,7 +8,7 @@
             [promesa.core :as p :refer [then resolved rejected]]))
 
 
-; Monad m => StateT s m b
+; Monad m := StateT s m b
 ; newtype SR = StateT (Map Sym Promise a) Promise b
 (defn pureSR [a]
   (fn [s] (resolved [s a])))
@@ -22,8 +22,8 @@
                          (runS (f a) s')))))
 
 (tests
-  ;(runStateT (pureSR 1) {}) => (p/resolved [{} 1]) ; fails
-  @(runS (pureSR 1) {}) => @(resolved [{} 1])
+  ;(runStateT (pureSR 1) {}) := (p/resolved [{} 1]) ; fails
+  @(runS (pureSR 1) {}) := @(resolved [{} 1])
 
   (->
     (runS
@@ -35,7 +35,7 @@
                                    [s b])))))))
       {'>c (resolved 2)})
     deref second)
-  => 3
+  := 3
   )
 
 ;(defn fmapS [f & Sas]
@@ -60,13 +60,13 @@
 
 (tests
   @(runS (fmapSR + (pureSR 1) (pureSR 2)) {})
-  => @(resolved [{} 3])
+  := @(resolved [{} 3])
 
   @(runS (fmapSR vector (pureSR 1) (pureSR 2)) {})
-  => [{} [1 2]]
+  := [{} [1 2]]
 
   @(runS (fmapSR apply (pureSR +) (pureSR [1 2])) {})
-  => [{} 3]
+  := [{} 3]
   )
 
 (defn sequenceSR [mas]
@@ -74,13 +74,13 @@
 
 (tests
   @(runS (sequenceSR []) {})
-  => [{} []]
+  := [{} []]
   @(runS (sequenceSR [(pureSR 1) (pureSR 2)]) {})
-  => [{} [1 2]]
+  := [{} [1 2]]
 
   @(runS (fmapSR apply (pureSR +) (sequenceSR [(pureSR 1) (pureSR 2)])) {})
-  => @(runS (fmapSR #(apply % %&) (pureSR +) (pureSR 1) (pureSR 2)) {}) ; same thing
-  => [{} 3]
+  ;:= @(runS (fmapSR #(apply % %&) (pureSR +) (pureSR 1) (pureSR 2)) {}) ; same thing
+  := [{} 3]
   )
 
 ; ---
@@ -145,11 +145,11 @@
       Ra)))
 
 (tests
-  ;(Ra->SRa (p/resolved 1)) => (fn [s] (p/resolved [s 1]))
+  ;(Ra->SRa (p/resolved 1)) := (fn [s] (p/resolved [s 1]))
   @(runS (Ra->SRa (p/resolved 1)) {})
-  => @(runS (fn [s] (p/resolved [s 1])) {})
-  => @(p/resolved [{} 1])
-  => [{} 1]
+  ;:= @(runS (fn [s] (p/resolved [s 1])) {})
+  ;:= @(p/resolved [{} 1])
+  := [{} 1]
   )
 
 (defn hf-pull [pat Ra & [s]]
@@ -158,41 +158,41 @@
     (runS (hf-pull-SR pat (Ra->SRa Ra)) (or s {}))))
 
 (tests
-  @(runS (pureSR 17592186045421) {}) => [{} 17592186045421]
+  @(runS (pureSR 17592186045421) {}) := [{} 17592186045421]
 
   (second @(runS (hf-eval :dustingetz/gender (pureSR 17592186045421)) {}))
-  => (second @(p/resolved ['{dustingetz/gender :dustingetz/male} :dustingetz/male]))
+  := (second @(p/resolved ['{dustingetz/gender :dustingetz/male} :dustingetz/male]))
 
   @(runS (hf-pull-SR :dustingetz/gender (pureSR 17592186045421)) {})
-  => [{} #:dustingetz{:gender :dustingetz/male}]
+  := [{} #:dustingetz{:gender :dustingetz/male}]
 
   @(hf-pull :dustingetz/gender (p/resolved 17592186045421))
-  => #:dustingetz{:gender :dustingetz/male}
+  := #:dustingetz{:gender :dustingetz/male}
 
   @(hf-pull :db/ident (p/resolved 17592186045421))
-  => #:db{:ident :dustingetz/mens-small}
+  := #:db{:ident :dustingetz/mens-small}
 
   @(hf-pull [:db/ident] (p/resolved 17592186045421))
-  => #:db{:ident :dustingetz/mens-small}
+  := #:db{:ident :dustingetz/mens-small}
 
   @(hf-pull [:db/ident :db/id] (p/resolved 17592186045421))
-  => #:db{:ident :dustingetz/mens-small :id 17592186045421}
+  := #:db{:ident :dustingetz/mens-small :id 17592186045421}
 
   @(hf-pull '[{:dustingetz/gender [:db/ident :db/id]}] (p/resolved 17592186045421))
-  => #:dustingetz{:gender #:db{:ident :dustingetz/male :id 17592186045418}}
+  := #:dustingetz{:gender #:db{:ident :dustingetz/male :id 17592186045418}}
 
   @(hf-pull '[(shirt-size dustingetz/gender)] (p/resolved nil)
      {'dustingetz/gender (resolved :dustingetz/male)})
-  => {'(shirt-size dustingetz/gender) 17592186045421}
+  := {'(shirt-size dustingetz/gender) 17592186045421}
 
   @(hf-pull '[{:dustingetz/gender [(shirt-size dustingetz/gender)]}]
      (p/resolved 17592186045421))
-  => #:dustingetz{:gender {'(shirt-size dustingetz/gender) 17592186045421}}
+  := #:dustingetz{:gender {'(shirt-size dustingetz/gender) 17592186045421}}
 
   @(hf-pull '[{:dustingetz/gender
                [{(shirt-sizes dustingetz/gender) [:db/ident]}]}]
      (p/resolved 17592186045421))
-  => '#:dustingetz{:gender {(shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
+  := '#:dustingetz{:gender {(shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
                                                              #:db{:ident :dustingetz/mens-medium}
                                                              #:db{:ident :dustingetz/mens-large}]}}
 
@@ -205,7 +205,7 @@
            :db/id]}]}]
      (p/resolved 17592186045421)
      {'>needle (resolved "")})
-  => @(p/resolved
+  := @(p/resolved
         '{:db/id 17592186045421,
           :dustingetz/type :dustingetz/shirt-size,
           :dustingetz/gender
@@ -219,7 +219,7 @@
         [:dustingetz/email]}]
      (p/resolved nil)
      {'needle (resolved "")})
-  => '{(submissions) [#:dustingetz{:email "alice@example.com"}
+  := '{(submissions) [#:dustingetz{:email "alice@example.com"}
                       #:dustingetz{:email "bob@example.com"}
                       #:dustingetz{:email "charlie@example.com"}]}
 
@@ -228,7 +228,7 @@
         [:dustingetz/email]}]
      (p/resolved nil)
      {'needle (resolved "bob")})
-  => '{(submissions needle) [#:dustingetz{:email "bob@example.com"}]}
+  := '{(submissions needle) [#:dustingetz{:email "bob@example.com"}]}
 
   @(hf-pull
      '[{(submissions needle)
@@ -247,7 +247,7 @@
      {'needle (resolved "e@example.com")
       'needle2 (resolved "")})
 
-  => '{(submissions needle) [{:dustingetz/email  "alice@example.com",
+  := '{(submissions needle) [{:dustingetz/email  "alice@example.com",
                               :dustingetz/gender {:db/ident :dustingetz/female,
                                                   :db/id    17592186045419,
                                                   (shirt-sizes dustingetz/gender needle2)

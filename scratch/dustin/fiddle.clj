@@ -16,8 +16,8 @@
     *$*))
 
 (tests
-  (genders) => [17592186045418 17592186045419]
-  (gender) => 17592186045418
+  (genders) := [17592186045418 17592186045419]
+  (gender) := 17592186045418
   )
 
 (defn needle-match [v needle]
@@ -48,10 +48,10 @@
     *$* gender (or needle "")))
 
 (tests
-  (shirt-sizes :dustingetz/male) => [17592186045421 17592186045422 17592186045423]
-  (shirt-size :dustingetz/male) => 17592186045421
-  (shirt-size :dustingetz/male "med") => 17592186045422
-  (shirt-size :dustingetz/male "sm") => 17592186045421
+  (shirt-sizes :dustingetz/male) := [17592186045421 17592186045422 17592186045423]
+  (shirt-size :dustingetz/male) := 17592186045421
+  (shirt-size :dustingetz/male "med") := 17592186045422
+  (shirt-size :dustingetz/male "sm") := 17592186045421
   (d/touch (d/entity *$* 17592186045422))
   )
 
@@ -74,9 +74,9 @@
 (def submissionS submissions)
 
 (tests
-  (submission "bob") => 17592186045429
-  (submission "ali") => 17592186045428
-  (submissionS "example")  => [17592186045428 17592186045429 17592186045430]
+  (submission "bob") := 17592186045429
+  (submission "ali") := 17592186045428
+  (submissionS "example")  := [17592186045428 17592186045429 17592186045430]
   )
 
 ;(def ast0 '[{(submission >needle) [{:dustingetz/gender

@@ -13,7 +13,7 @@
 (defn pureI [a] (watch (atom a)))
 (defn fmapI [f & >as] (apply latest f >as))
 
-; Monad m => StateT s m b
+; Monad m := StateT s m b
 ; newtype SR = StateT (Map Sym Promise a) Promise b
 (defn pureF [a]
   (fn [s] (pureI [s a])))
@@ -29,12 +29,12 @@
       (runS (f a) s')))))
 
 (tests
-  !! (def >z (runS (pureF 1) {}))
-  !! (def !z (>z #(println :ready) #(println :done)))
-  @!z => [{} 1]
+  (def >z (runS (pureF 1) {}))
+  (def !z (>z #(println :ready) #(println :done)))
+  @!z := [{} 1]
 
   @((runS (pureF 1) {}) #() #())
-  => [{} 1]
+  := [{} 1]
 
   (let [>z (runS
              (bindF (pureF 1) (fn [a]
@@ -46,8 +46,8 @@
              {'>c (pureI 2)})]
 
     (second @(>z #() #())))
-  ;=> [{'>c _} 3]
-  => 3
+  ;:= [{'>c _} 3]
+  := 3
   )
 
 (defn fmapF [f & SIas]
@@ -64,13 +64,13 @@
 
 (tests
   @((runS (fmapF + (pureF 1) (pureF 2)) {}) #() #())
-  => [{} 3]
+  := [{} 3]
 
   @((runS (fmapF vector (pureF 1) (pureF 2)) {}) #() #())
-  => [{} [1 2]]
+  := [{} [1 2]]
 
   @((runS (fmapF apply (pureF +) (pureF [1 2])) {}) #() #())
-  => [{} 3]
+  := [{} 3]
 
   ;@(R/cap (runS (fmapF identity (pureF 17592186045421)) {}))
   )
@@ -80,13 +80,13 @@
 
 (tests
   @((runS (sequenceF []) {}) #() #())
-  => [{} []]
+  := [{} []]
   @((runS (sequenceF [(pureF 1) (pureF 2)]) {}) #() #())
-  => [{} [1 2]]
+  := [{} [1 2]]
 
   @((runS (fmapF apply (pureF +) (sequenceF [(pureF 1) (pureF 2)])) {}) #() #())
-  => @((runS (fmapF #(apply % %&) (pureF +) (pureF 1) (pureF 2)) {}) #() #())
-  => [{} 3]
+  ;:= @((runS (fmapF #(apply % %&) (pureF +) (pureF 1) (pureF 2)) {}) #() #())
+  := [{} 3]
   )
 
 ; ---
@@ -95,8 +95,8 @@
   (if (keyword? edge) (symbol edge) edge))
 
 (tests
-  (hf-edge->sym :dustingetz/gender) => 'dustingetz/gender
-  (hf-edge->sym '>a) => '>a
+  (hf-edge->sym :dustingetz/gender) := 'dustingetz/gender
+  (hf-edge->sym '>a) := '>a
   )
 
 (defn askF [k]
@@ -112,16 +112,16 @@
 
 (tests
   (second @((runS (askF '>a) {'>a (pureI 1)}) #() #()))
-  => 1
+  := 1
 
   (second @((runS (askF '>a) {'>a (fmapI identity (pureI 1))}) #() #()))
-  => 1
+  := 1
 
   ;@(R/cap (R/bind (R/fmap identity (R/pure 1)) R/pure))
   ;@(R/cap (R/bind (R/pure 1) R/pure))
 
   (second @((runS (askF '>a) {}) #() #()))
-  => [::no-def-for '>a]
+  := [::no-def-for '>a]
   )
 
 ;(defn setSR [k v]
@@ -136,21 +136,21 @@
            (pureF [::unmatched-edge edge]))))
 
 (tests
-  (hf-nav :dustingetz/gender 17592186045421) => :dustingetz/male
+  (hf-nav :dustingetz/gender 17592186045421) := :dustingetz/male
 
   @((runS (hf-apply :dustingetz/gender 17592186045421) {}) #() #())
-  => [{} :dustingetz/male]
+  := [{} :dustingetz/male]
 
   ;@(R/cap (runS (hf-apply (:dustingetz/gender '>b) 17592186045421) {'>b (R/pure 17592186045421)}))
-  ;=> [{} :dustingetz/male]
+  ;:= [{} :dustingetz/male]
 
   (second @((runS (hf-apply '(inc >a) 17592186045421) {'>a (pureI 1)}) #() #()))
-  => 2
+  := 2
 
   (second @((runS (hf-apply '(inc >a) 17592186045421) {'>a (fmapI identity (pureI 1))}) #() #()))
-  => 2
+  := 2
 
-  @((fmapI identity (pureI 1)) #() #()) => 1)
+  @((fmapI identity (pureI 1)) #() #()) := 1)
 
 (defn hf-eval [edge Fa]
   (bindF Fa (fn [a]
@@ -159,8 +159,8 @@
 
 (tests
   (second @((runS (hf-eval :dustingetz/gender (pureF 17592186045421)) {}) #() #()))
-  => :dustingetz/male
-  => (second @((runS (hf-eval :dustingetz/gender (fmapF identity (pureF 17592186045421))) {}) #() #()))
+  := :dustingetz/male
+  ;:= (second @((runS (hf-eval :dustingetz/gender (fmapF identity (pureF 17592186045421))) {}) #() #()))
   )
 
 (defn hf-pull-F [pat Fa]
@@ -196,14 +196,14 @@
       Ra)))
 
 (tests
-  ;(Ra->SRa (p/resolved 1)) => (fn [s] (p/resolved [s 1]))
+  ;(Ra->SRa (p/resolved 1)) := (fn [s] (p/resolved [s 1]))
   @((runS (I->F (pureI 1)) {}) #() #())
-  => @((runS (fn [s] (pureI [s 1])) {}) #() #())
-  => @((pureI [{} 1]) #() #())
-  => [{} 1]
+  ;:= @((runS (fn [s] (pureI [s 1])) {}) #() #())
+  ;:= @((pureI [{} 1]) #() #())
+  := [{} 1]
 
   @((runS (I->F (pureI 17592186045421)) {}) #() #())
-  => @((runS (pureF 17592186045421) {}) #() #())
+  := @((runS (pureF 17592186045421) {}) #() #())
   )
 
 (defn hf-pull [pat & [Ia s]]
@@ -218,35 +218,35 @@
             #_(pureF 17592186045421)
             (fmapF identity (pureF 17592186045421))
             #_(I->F (R/pure 17592186045421))) {}) #() #())
-  => [{} #:dustingetz{:gender :dustingetz/male}]
+  := [{} #:dustingetz{:gender :dustingetz/male}]
 
   @((hf-pull :dustingetz/gender (pureI 17592186045421)) #() #())
-  => #:dustingetz{:gender :dustingetz/male}
+  := #:dustingetz{:gender :dustingetz/male}
 
   @((hf-pull :db/ident (pureI 17592186045421)) #() #())
-  => #:db{:ident :dustingetz/mens-small}
+  := #:db{:ident :dustingetz/mens-small}
 
   @((hf-pull [:db/ident] (pureI 17592186045421)) #() #())
-  => #:db{:ident :dustingetz/mens-small}
+  := #:db{:ident :dustingetz/mens-small}
 
   @((hf-pull [:db/ident :db/id] (pureI 17592186045421)) #() #())
-  => #:db{:ident :dustingetz/mens-small :id 17592186045421}
+  := #:db{:ident :dustingetz/mens-small :id 17592186045421}
 
   @((hf-pull [{:dustingetz/gender [:db/ident :db/id]}] (pureI 17592186045421)) #() #())
-  => #:dustingetz{:gender #:db{:ident :dustingetz/male, :id 17592186045418}}
+  := #:dustingetz{:gender #:db{:ident :dustingetz/male, :id 17592186045418}}
 
   @((hf-pull '[(shirt-size dustingetz/gender)] (pureI nil)
       {'dustingetz/gender (pureI :dustingetz/male)}) #() #())
-  => {'(shirt-size dustingetz/gender) 17592186045421}
+  := {'(shirt-size dustingetz/gender) 17592186045421}
 
   @((hf-pull '[{:dustingetz/gender [(shirt-size dustingetz/gender)]}]
       (pureI 17592186045421)) #() #())
-  => #:dustingetz{:gender {'(shirt-size dustingetz/gender) 17592186045421}}
+  := #:dustingetz{:gender {'(shirt-size dustingetz/gender) 17592186045421}}
 
   @((hf-pull '[{:dustingetz/gender
                 [{(shirt-sizes dustingetz/gender) [:db/ident]}]}]
       (pureI 17592186045421)) #() #())
-  => '#:dustingetz{:gender {(shirt-sizes dustingetz/gender)
+  := '#:dustingetz{:gender {(shirt-sizes dustingetz/gender)
                             [#:db{:ident :dustingetz/mens-small}
                              #:db{:ident :dustingetz/mens-medium}
                              #:db{:ident :dustingetz/mens-large}]}}
@@ -260,7 +260,7 @@
             :db/id]}]}]
       (pureI 17592186045421)
       {'>needle (pureI "")}) #() #())
-  => @((pureI
+  := @((pureI
          '{:db/id           17592186045421,
            :dustingetz/type :dustingetz/shirt-size,
            :dustingetz/gender
@@ -275,29 +275,29 @@
          [:dustingetz/email]}]
       (pureI nil)
       {'needle (pureI "")}) #() #())
-  => '{(submissions) [#:dustingetz{:email "alice@example.com"}
+  := '{(submissions) [#:dustingetz{:email "alice@example.com"}
                       #:dustingetz{:email "bob@example.com"}
                       #:dustingetz{:email "charlie@example.com"}]}
 
-  !! (def !needle (atom nil))
-  !! (def >z (hf-pull
+  (def !needle (atom nil))
+  (def >z (hf-pull
                '[{(submissions needle)
                   [:dustingetz/email]}]
                (pureI nil)
                {'needle (watch !needle)}))
 
-  !! (def !z (>z #(println :ready) #(println :done)))
-  @!z => '{(submissions needle) [#:dustingetz{:email "alice@example.com"}
+  (def !z (>z #(println :ready) #(println :done)))
+  @!z := '{(submissions needle) [#:dustingetz{:email "alice@example.com"}
                                  #:dustingetz{:email "bob@example.com"}
                                  #:dustingetz{:email "charlie@example.com"}]}
 
-  !! (reset! !needle "alice")
-  @!z => '{(submissions needle) [#:dustingetz{:email "alice@example.com"}]}
+  (reset! !needle "alice")
+  @!z := '{(submissions needle) [#:dustingetz{:email "alice@example.com"}]}
 
-  !! (reset! !needle "bob")
-  !! (reset! !needle "zetta")
-  !! (reset! !needle "e@example.com")
-  @!z => '{(submissions needle) [#:dustingetz{:email "alice@example.com"}
+  (reset! !needle "bob")
+  (reset! !needle "zetta")
+  (reset! !needle "e@example.com")
+  @!z := '{(submissions needle) [#:dustingetz{:email "alice@example.com"}
                                  #:dustingetz{:email "charlie@example.com"}]}
 
 
@@ -317,7 +317,7 @@
       {'needle (pureI "e@")})
     #() #())
 
-  => '{(submissions needle) [{:dustingetz/email  "alice@example.com",
+  := '{(submissions needle) [{:dustingetz/email  "alice@example.com",
                               :dustingetz/gender {:db/ident :dustingetz/female,
                                                   :db/id    17592186045419,
                                                   (shirt-sizes dustingetz/gender)

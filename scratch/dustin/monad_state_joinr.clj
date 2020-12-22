@@ -41,11 +41,11 @@
 
 (comment
   (demo {:a 10 :b 20} :a :b)
-  => [{:a 7, :b 23} {:transferred 3, :from :a, :to :b}]
+  := [{:a 7, :b 23} {:transferred 3, :from :a, :to :b}]
   (demo {:a 10 :b 20} :a :b)
-  => [{:a 8, :b 22} {:transferred 2, :from :a, :to :b}]
+  := [{:a 8, :b 22} {:transferred 2, :from :a, :to :b}]
   (demo {:a 10 :b 20} :a :b)
-  => [{:a 10, :b 20} {:transferred 0, :from :a, :to :b}]
+  := [{:a 10, :b 20} {:transferred 0, :from :a, :to :b}]
   (demo {:a 10 :b 20} :a :b)
-  => [{:a 10, :b 20} {:transferred 0, :from :a, :to :b}]
+  := [{:a 10, :b 20} {:transferred 0, :from :a, :to :b}]
   )

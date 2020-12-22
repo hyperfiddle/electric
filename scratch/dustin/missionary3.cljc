@@ -72,7 +72,7 @@
   (def !z (>z #(println :ready) #(println :done)))
   (reset! !a 1)
   (reset! !a 2)
-  @!z := 2
+  @!z := 3
   ; you can mix continuous and discrete, but the discrete parts will be run eagerly
   ; you can only be fully lazy if you have continuous operators all the way down, watch latest signal!, ie the good old spreadsheet model
   )

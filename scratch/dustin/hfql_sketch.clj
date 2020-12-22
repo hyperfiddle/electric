@@ -18,7 +18,7 @@
 
   ; It evaluates to something like this
   ; Each entry is a reactive seam in the overall fabric of the computation
-  =>
+  :=
   '{`$                               {:tempids ... :schema ...}
     `$'                              {:tempids ... :schema ...}
 

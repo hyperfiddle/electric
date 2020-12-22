@@ -40,7 +40,7 @@
 {(f) {(g) {(h) (j)}}}
 '{(submissions needle) {:gender {(shirt-sizes gender) :db/id}}}
 
-=>
+:=
 (mlet [v (f)
        v (g v)
        v (h v)                                              ; decend twice

@@ -10,9 +10,9 @@
   (def e [:dustingetz/email "alice@example.com"])
   (d/pull hf/*$* [:dustingetz/gender] e)
 
-  (select-keys {:dustingetz/email "a"} [:dustingetz/email]) => #:dustingetz{:email "a"}
-  (get {:dustingetz/email "a"} :dustingetz/email) => "a"
-  (:dustingetz/email {:dustingetz/email "a"}) => "a"
+  (select-keys {:dustingetz/email "a"} [:dustingetz/email]) := #:dustingetz{:email "a"}
+  (get {:dustingetz/email "a"} :dustingetz/email) := "a"
+  (:dustingetz/email {:dustingetz/email "a"}) := "a"
 
   (d/q '[:find (pull ?e [*])
          :where [?e :dustingetz/email]] hf/*$*)
@@ -39,38 +39,38 @@
 (tests
   ; No reactions here
 
-  (hf-pull ':dustingetz/gender e) => #:db{:id 17592186045431}
-  (hf-pull '[:dustingetz/gender] e) => #:dustingetz{:gender #:db{:id 17592186045431}}
-  (hf-pull '{:dustingetz/gender [:db/ident]} e) =>
-  (hf-pull '[{:dustingetz/gender [:db/ident]}] e) => #:dustingetz{:gender #:db{:ident :dustingetz/female}}
+  (hf-pull ':dustingetz/gender e) := #:db{:id 17592186045431}
+  (hf-pull '[:dustingetz/gender] e) := #:dustingetz{:gender #:db{:id 17592186045431}}
+  (hf-pull '{:dustingetz/gender [:db/ident]} e) :=
+  (hf-pull '[{:dustingetz/gender [:db/ident]}] e) := #:dustingetz{:gender #:db{:ident :dustingetz/female}}
 
-  (hf-pull '(gender) e) => #:db{:ident :dustin.hfql3/male}
-  (hf-pull '[(gender)] e) => '{(gender) #:db{:ident :dustin.hfql3/male}}
-  (hf-pull '{(gender) [:db/ident]} e) =>
-  (hf-pull '[{(gender) [:db/ident]}] e) =>
+  (hf-pull '(gender) e) := #:db{:ident :dustin.hfql3/male}
+  (hf-pull '[(gender)] e) := '{(gender) #:db{:ident :dustin.hfql3/male}}
+  (hf-pull '{(gender) [:db/ident]} e) :=
+  (hf-pull '[{(gender) [:db/ident]}] e) :=
 
-  (hf-pull '{(gender) [*]} e) =>
-  (hf-pull '{(submission needle) [:dustingetz/gender]} e) =>
-  (hf-pull '{(submission needle) [:dustingetz/gender]} e) =>
+  (hf-pull '{(gender) [*]} e) :=
+  (hf-pull '{(submission needle) [:dustingetz/gender]} e) :=
+  (hf-pull '{(submission needle) [:dustingetz/gender]} e) :=
 
-  (hf-pull '[{(gender) [*]}] e) =>
+  (hf-pull '[{(gender) [*]}] e) :=
 
   (hf-pull '[{(gender) [*]}
-             {(submission needle) [:dustingetz/gender]}] e) =>
+             {(submission needle) [:dustingetz/gender]}] e) :=
 
   (hf-pull '[{(gender)            [*]
-              (submission needle) [:dustingetz/gender]}] e) =>
+              (submission needle) [:dustingetz/gender]}] e) :=
 
-  (hf-pull '{:dustingetz/gender [:db/ident]} e) =>
-  (hf-pull '[{:dustingetz/gender [:db/ident]}] e) =>
-  (hf-pull '{(shirt-size gender needle2) [*]} e) =>
+  (hf-pull '{:dustingetz/gender [:db/ident]} e) :=
+  (hf-pull '[{:dustingetz/gender [:db/ident]}] e) :=
+  (hf-pull '{(shirt-size gender needle2) [*]} e) :=
 
   (hf-pull '[{:dustingetz/gender
               [:db/ident
-               {(shirt-size gender needle2) [*]}]}] e) =>
+               {(shirt-size gender needle2) [*]}]}] e) :=
   (hf-pull '{(submission needle) [{:dustingetz/gender
                                    [:db/ident
-                                    {(shirt-size gender needle2) [*]}]}]} e) =>
+                                    {(shirt-size gender needle2) [*]}]}]} e) :=
 
   )
 
@@ -88,7 +88,7 @@
   (hfql '{(submission needle) [{:dustingetz/gender
                                 [:db/ident
                                  {(shirt-size gender needle2) [*]}]}]} e)
-  => {'(submission needle) ...
+  := {'(submission needle) ...
       '(shirt-size gender needle2) ...}
   )
 
@@ -100,19 +100,19 @@
     ;(hfql ~>needle1 ~>needle2)
     )
 
-  => (fapply (pure hfql) >needle1 >needle2)
+  := (fapply (pure hfql) >needle1 >needle2)
 
 
 
-  (hfql ':dustingetz/gender e) => #:db{:id 17592186045431}
-  (hfql '[:dustingetz/gender] e) => #:dustingetz{:gender #:db{:id 17592186045431}}
-  (hfql '{:dustingetz/gender [:db/ident]} e) =>
-  (hfql '[{:dustingetz/gender [:db/ident]}] e) => #:dustingetz{:gender #:db{:ident :dustingetz/female}}
+  (hfql ':dustingetz/gender e) := #:db{:id 17592186045431}
+  (hfql '[:dustingetz/gender] e) := #:dustingetz{:gender #:db{:id 17592186045431}}
+  (hfql '{:dustingetz/gender [:db/ident]} e) :=
+  (hfql '[{:dustingetz/gender [:db/ident]}] e) := #:dustingetz{:gender #:db{:ident :dustingetz/female}}
 
-  (hfql '(gender) e) => #:db{:ident :dustin.hfql3/male}
-  (hfql '[(gender)] e) => '{(gender) #:db{:ident :dustin.hfql3/male}}
-  (hfql '{(gender) [:db/ident]} e) =>
-  (hfql '[{(gender) [:db/ident]}] e) =>
+  (hfql '(gender) e) := #:db{:ident :dustin.hfql3/male}
+  (hfql '[(gender)] e) := '{(gender) #:db{:ident :dustin.hfql3/male}}
+  (hfql '{(gender) [:db/ident]} e) :=
+  (hfql '[{(gender) [:db/ident]}] e) :=
   (hfql '{(submission :needle) [{:dustingetz/gender
                                  [:db/ident
                                   {(shirt-size ~:dustingetz/gender ~>needle2) [*]}]}]} e)

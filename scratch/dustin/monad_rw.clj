@@ -16,7 +16,7 @@
 
 (tests
   (runRW (pure 42) {})
-  => [{} 42]
+  := [{} 42]
   )
 
 (defn bind [ma mf]                                          ; this is not RW, this is Scope monad
@@ -31,16 +31,16 @@
   (def ma (pure 42))
 
   (runRW (bind ma pure) {})
-  => [{} 42]
+  := [{} 42]
 
   (runRW (bind ma (fn [a] (fn [scope] [{'a a} (inc a)]))) {})
-  => '[{a 42} 43]
+  := '[{a 42} 43]
 
   (runRW (bind ma (fn [a] (fn [scope] [scope (inc (get scope 'z))]))) {'z 0})
-  => '[{z 0} 1]
+  := '[{z 0} 1]
 
   (runRW (bind ma (fn [a] (fn [scope] [{'z 1} (inc (get scope 'z))]))) {'z 0})
-  => '[{z 1} 1]
+  := '[{z 1} 1]
 
   )
 
@@ -53,10 +53,10 @@
 
 (tests
   (runRW (fmap inc ma) {'x 99})
-  => [{'x 99} 43]
+  := [{'x 99} 43]
 
   (runRW (fmap inc (fmap inc ma)) {'x 99})
-  => [{'x 99} 44]
+  := [{'x 99} 44]
   )
 
 (defn discardW [ma]
@@ -66,6 +66,6 @@
 
 (tests
   (runRW (discardW (fmap inc ma)) {'x 99})
-  => [{} 43]
+  := [{} 43]
 
   )
