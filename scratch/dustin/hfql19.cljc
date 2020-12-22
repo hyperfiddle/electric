@@ -1,10 +1,12 @@
 (ns dustin.hfql19
   "missionary"
   (:refer-clojure :exclude [sequence])
-  (:require [dustin.fiddle :refer :all]
+  #?(:cljs (:require-macros [minitest :refer [test]]))
+  (:require #?(:clj [minitest :refer [tests]])
+            #?(:cljs [minitest])
+            [dustin.fiddle :refer :all]
             [dustin.hf-nav :refer :all]
             [meander.epsilon :as m]
-            [minitest :refer [tests]]
             [missionary.core :refer [latest relieve watch ap ?!]]))
 
 (defn bindI [>a f] (relieve {} (ap (?! (f (?! >a))))))
