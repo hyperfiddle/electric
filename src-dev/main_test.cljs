@@ -1,13 +1,6 @@
 (ns main-test
-  (:require-macros [minitest :refer [tests]])
   (:require
-    ; runs the tests
     #_[dustin.hfql19]
-    [minitest]))
+    dustin.missionary3
+    ))
 
-(tests
-  1 := 1
-  1 := 2
-  )
-
-(println "done")

@@ -1,10 +1,10 @@
-{:deps     true
+{:deps     {:aliases [:dev]}
  :nrepl    {:port 9001}
  :dev-http {8000 "out"}
  :builds   {:app {:target           :browser
                   :devtools         {:preloads [minitest]
                                      :hud      #{:progress :errors}}
-                  :modules          {:main {:entries [main_test]}}
+                  :modules          {:main {:entries [main-test]}}
                   :compiler-options {:infer-externs :auto
                                      :js-options    {:variable-renaming :off}}
                   :output-dir       "out"}}}
