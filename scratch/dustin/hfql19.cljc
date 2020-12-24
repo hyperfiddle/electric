@@ -309,28 +309,6 @@
                       #:dustingetz{:email "bob@example.com"}
                       #:dustingetz{:email "charlie@example.com"}]}
 
-  (def !needle (atom nil))
-  (def >z1 (hf-pull
-               '[{(submissions needle)
-                  [:dustingetz/email]}]
-               (pureI nil)
-               {'needle (watch !needle)
-                'submissions (pureI dustin.fiddle/submissions)}))
-
-  (def !z1 (>z1 #(println :ready) #(println :done)))
-  @!z1 := '{(submissions needle) [#:dustingetz{:email "alice@example.com"}
-                                 #:dustingetz{:email "bob@example.com"}
-                                 #:dustingetz{:email "charlie@example.com"}]}
-
-  (reset! !needle "alice")
-  @!z1 := '{(submissions needle) [#:dustingetz{:email "alice@example.com"}]}
-
-  (reset! !needle "bob")
-  (reset! !needle "zetta")
-  (reset! !needle "e@example.com")
-  @!z1 := '{(submissions needle) [#:dustingetz{:email "alice@example.com"}
-                                 #:dustingetz{:email "charlie@example.com"}]}
-
   @((hf-pull
       '[{(submissions needle)
          [:dustingetz/email
@@ -340,9 +318,11 @@
              [:db/ident]}]}]}
         {(genders)
          [:db/ident]}]
-
       (pureI nil)
-      {'needle (pureI "e@")})
+      {'needle      (pureI "e@")
+       'submissions (pureI submissions)
+       'shirt-sizes (pureI shirt-sizes)
+       'genders     (pureI genders)})
     #() #())
 
   := '{(submissions needle) [{:dustingetz/email  "alice@example.com",
@@ -359,5 +339,61 @@
                                                                 #:db{:ident :dustingetz/mens-large}]}}],
           (genders)            [#:db{:ident :dustingetz/male}
                                 #:db{:ident :dustingetz/female}]}
+
+  (def !needle (atom nil))
+  (def >z1 (hf-pull
+             '[{(submissions needle)
+                [:dustingetz/email
+                 {:dustingetz/gender
+                  [:db/ident
+                   {(shirt-sizes dustingetz/gender #_needle:submission)
+                    [:db/ident]}]}]}
+               {(genders) [:db/ident]}]
+             (pureI nil)
+             {'needle (watch !needle)
+              'submissions (pureI submissions)
+              'shirt-sizes (pureI shirt-sizes)
+              'genders     (pureI genders)}))
+
+  (def !z1 (>z1 #(println :ready) #(println :done)))
+  @!z1 := '{(submissions needle) [#:dustingetz{:email "alice@example.com",
+                                               :gender {:db/ident :dustingetz/female,
+                                                        (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/womens-small}
+                                                                                         #:db{:ident :dustingetz/womens-medium}
+                                                                                         #:db{:ident :dustingetz/womens-large}]}}
+                                  #:dustingetz{:email "bob@example.com",
+                                               :gender {:db/ident :dustingetz/male,
+                                                        (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
+                                                                                         #:db{:ident :dustingetz/mens-medium}
+                                                                                         #:db{:ident :dustingetz/mens-large}]}}
+                                  #:dustingetz{:email "charlie@example.com",
+                                               :gender {:db/ident :dustingetz/male,
+                                                        (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
+                                                                                         #:db{:ident :dustingetz/mens-medium}
+                                                                                         #:db{:ident :dustingetz/mens-large}]}}],
+            (genders) [#:db{:ident :dustingetz/male} #:db{:ident :dustingetz/female}]}
+
+  (reset! !needle "alice")
+  @!z1 := '{(submissions needle) [#:dustingetz{:email "alice@example.com",
+                                               :gender {:db/ident :dustingetz/female,
+                                                        (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/womens-small}
+                                                                                         #:db{:ident :dustingetz/womens-medium}
+                                                                                         #:db{:ident :dustingetz/womens-large}]}}],
+            (genders) [#:db{:ident :dustingetz/male} #:db{:ident :dustingetz/female}]}
+
+  (reset! !needle "bob")
+  (reset! !needle "zetta")
+  (reset! !needle "e@example.com")
+  @!z1 := '{(submissions needle) [#:dustingetz{:email "alice@example.com",
+                                               :gender {:db/ident :dustingetz/female,
+                                                        (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/womens-small}
+                                                                                         #:db{:ident :dustingetz/womens-medium}
+                                                                                         #:db{:ident :dustingetz/womens-large}]}}
+                                  #:dustingetz{:email "charlie@example.com",
+                                               :gender {:db/ident :dustingetz/male,
+                                                        (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
+                                                                                         #:db{:ident :dustingetz/mens-medium}
+                                                                                         #:db{:ident :dustingetz/mens-large}]}}],
+            (genders) [#:db{:ident :dustingetz/male} #:db{:ident :dustingetz/female}]}
 
   )
