@@ -196,7 +196,7 @@
 ; instance MonadTrans (StateT s) where
 ;   lift c = StateT $ \s -> c >>= (\x -> return (x,s))
 
-(defn I->F
+(defn liftIF
   "lift base monad value into transformed monad value"
   [Ra]
   (fn [s]
@@ -206,12 +206,12 @@
 
 (tests
   ;(Ra->SRa (p/resolved 1)) := (fn [s] (p/resolved [s 1]))
-  @((runS (I->F (pureI 1)) {}) #() #())
+  @((runS (liftIF (pureI 1)) {}) #() #())
   ;:= @((runS (fn [s] (pureI [s 1])) {}) #() #())
   ;:= @((pureI [{} 1]) #() #())
   := [{} 1]
 
-  @((runS (I->F (pureI alice)) {}) #() #())
+  @((runS (liftIF (pureI alice)) {}) #() #())
   := @((runS (pureF alice) {}) #() #())
   )
 
@@ -220,12 +220,12 @@
         Ia (or Ia (pureI nil))]
     (fmapI
       (fn [[s' b]] #_(pureI) b)                             ; extract
-      (runS (hf-pull-F pat (I->F Ia)) s))))
+      (runS (hf-pull-F pat (liftIF Ia)) s))))
 
 (tests
   @((runS (hf-pull-F :dustingetz/gender
             #_(pureF bob) (fmapF identity (pureF bob))
-            #_(I->F (pureI alice))) {}) #() #())
+            #_(liftIF (pureI alice))) {}) #() #())
   := [{} #:dustingetz{:gender :dustingetz/male}]
 
   @((hf-pull :dustingetz/gender (pureI bob)) #() #())
