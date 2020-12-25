@@ -2,6 +2,7 @@
   (:require
     ;#?(:clj [datomic.api :as d])
     [datascript.core :as d]
+    [hyperfiddle.api :refer [*$*]]
     [minitest :refer [tests]]))
 
 
@@ -48,8 +49,9 @@
      :dustingetz/type       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
      :dustingetz/tags       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
      :db/ident              {:db/unique :db.unique/identity}})
-  (def ^:dynamic *$* (-> (d/create-conn schema) d/db fixtures))
-  #_(alter-var-root #'*$* (constantly $)))
+  (let [$ (-> (d/create-conn schema) d/db fixtures)]
+    #?(:clj (alter-var-root #'*$* (constantly $))
+       :cljs (set! *$* $))))
 
 ;#?(:clj (init-datomic)
 ;   :cljs (init-datascript))
