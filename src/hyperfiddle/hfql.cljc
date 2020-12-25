@@ -420,7 +420,11 @@
                                                                                          #:db{:ident :dustingetz/womens-large}]}}],
             (genders)            [#:db{:ident :dustingetz/male} #:db{:ident :dustingetz/female}]}
 
+  ; these should not perform any work, but currently do (add a println in shirt-sizes to see)
+  ; due to emulation of continuous bind with discrete primitives
+  (reset! !needle "alice")
   (reset! !needle "bob")
+  (reset! !needle "charlie")
   (reset! !needle "zetta")
   (reset! !needle "e@example.com")
   @!z1 := '{(submissions needle) [#:dustingetz{:email  "alice@example.com",
