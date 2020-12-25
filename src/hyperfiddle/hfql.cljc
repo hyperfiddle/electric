@@ -1,15 +1,16 @@
-(ns dustin.hfql19
-  "missionary"
+(ns hyperfiddle.hfql
   (:refer-clojure :exclude [sequence])
   #?(:cljs (:require-macros [minitest :refer [tests]]))
-  (:require #?(:clj [minitest :refer [tests]])
-            #?(:cljs [minitest])
-            [dustin.fiddle :refer [genders shirt-sizes submissions
-                                   gender shirt-size submission]]
-            [dustin.hf-nav :refer [hf-nav]]
-            [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
-            [meander.epsilon :as m]
-            [missionary.core :refer [latest relieve watch ap ?!]]))
+  (:require
+    [datascript.core :as d] #_#?(:clj [datomic.api :as d])
+    [hyperfiddle.api :refer [*$*]]
+    [minitest #?@(:clj [:refer [tests]])]
+    [meander.epsilon :as m]
+    [missionary.core :refer [latest relieve watch ap ?!]]
+
+    ; For inline tests, todo improve this
+    [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
+    [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]))
 
 (defn bindI [>a f] (relieve {} (ap (?! (f (?! >a))))))
 (defn pureI [a] (watch (atom a)))
@@ -28,7 +29,7 @@
 (defn bindF [SIa f]
   (fn [s]
     (bindI (runS SIa s) (fn [[s' a]]
-      (runS (f a) s')))))
+                          (runS (f a) s')))))
 
 (tests
   (def >z (runS (pureF 1) {}))
@@ -40,11 +41,11 @@
 
   (let [>z (runS
              (bindF (pureF 1) (fn [a]
-               (fn [s]
-                 #_(R/pure [s a])
-                 (bindI (get s '>c) (fn [c]
-                   (let [b (+ a c)]
-                     (pureI [s b])))))))
+                                (fn [s]
+                                  #_(R/pure [s a])
+                                  (bindI (get s '>c) (fn [c]
+                                                       (let [b (+ a c)]
+                                                         (pureI [s b])))))))
              {'>c (pureI 2)})]
 
     (second @(>z #() #())))
@@ -58,7 +59,7 @@
                 (map (fn [SIa]
                        (->> (runS SIa s)
                          (fmapI (fn [[s' a]]
-                                   a))))))]
+                                  a))))))]
       (apply fmapI
         (fn [& as]
           [s (apply f as)])
@@ -101,15 +102,37 @@
   (hf-edge->sym '>a) := '>a
   )
 
+(defn parse-scoped-sym [k]
+  (m/match (mapv symbol (clojure.string/split (str k) #":"))
+    [?k] ?k
+    [!ks ...] !ks))
+
+(tests
+  (parse-scoped-sym 'needle) := 'needle
+  (parse-scoped-sym 'needle:dustingetz/email) := '[needle dustingetz/email])
+
+(defn get-scope [scope k]
+  (m/match (parse-scoped-sym k)
+    [!ks ...] (let [[k & ks] !ks]
+                (get scope (cons k (mapv #(get-scope scope %) ks))))
+    ?k (get scope ?k)))
+
+(tests
+  (get-scope {'needle 1} 'needle) := 1
+  (get-scope {'needle 1} 'foo) := nil
+  (get-scope {'name "alice" ['needle "alice"] 42} 'needle:name) := 42
+  (get-scope {'foo/name "alice" ['needle "alice"] 42} 'needle:foo/name) := 42
+  )
+
 (defn resolve' [k]
-  #?(:clj (resolve k)
+  #?(:clj  (resolve k)
      :cljs nil))
 
 (defn askF [k]
   (fn [scope]
-    (let [>v (or (get scope k)
+    (let [>v (or (get-scope scope k)
                (if-let [v (resolve' k)] (pureI v))
-               (pureI [::no-def-for k]))]                   ; allocate an input ?!
+               (pureI [::no-def-for k]))]                   ; allocate atom ?
       (bindI >v (fn [v]
                   #_(println 'askF k v)
                   ; if not error ?
@@ -131,6 +154,20 @@
 
 ;(defn setSR [k v]
 ;  (fn [s] (resolved [(assoc s k v) nil])))
+
+(defn hf-nav [kf ref]
+  #_(println 'hf-nav kf ref)
+  ; emits smart refs
+  (kf (d/entity hyperfiddle.api/*$* ref)))
+
+(tests
+  "datascript"
+  (hf-nav :db/ident 3) := :dustingetz/mens-small
+  (hf-nav :db/id 3) := 3
+  (hf-nav identity [:dustingetz/email "alice@example.com"]) := #:db{:id 9}
+  (hf-nav :db/id [:dustingetz/email "alice@example.com"]) := 9
+  (hf-nav :dustingetz/gender [:dustingetz/email "alice@example.com"]) := :dustingetz/female
+  )
 
 (defn hf-apply [edge a]
   #_(println 'hf-apply edge a)
@@ -154,7 +191,7 @@
                                               'inc (pureI inc)}) #() #()))
   := 2
 
-  (second @((runS (hf-apply '(inc >a) alice) {'>a (fmapI identity (pureI 1))
+  (second @((runS (hf-apply '(inc >a) alice) {'>a  (fmapI identity (pureI 1))
                                               'inc (pureI inc)}) #() #()))
   := 2
 
@@ -162,8 +199,8 @@
 
 (defn hf-eval [edge Fa]
   (bindF Fa (fn [a] #_(println 'hf-eval edge a)
-  (bindF (hf-apply edge a) (fn [b] #_(println 'hf-eval edge a := b)
-  (fn [s] (pureI [(assoc s (hf-edge->sym edge) (pureI b)) b])))))))
+              (bindF (hf-apply edge a) (fn [b] #_(println 'hf-eval edge a := b)
+                                         (fn [s] (pureI [(assoc s (hf-edge->sym edge) (pureI b)) b])))))))
 
 (tests
   (second @((runS (hf-eval :dustingetz/gender (pureF bob)) {}) #() #()))
@@ -174,7 +211,7 @@
 (defn hf-pull-F [pat Fa]
   #_(println 'hf-pull-F pat)
   (m/match pat
-    [!pats ...]
+    [!pats ...]                                             ; TODO distinguish [:a [:x :as x] :b]
     (as-> Fa Fa
       (sequenceF (map (fn [pat] (hf-pull-F pat Fa)) !pats))
       (fmapF (fn [as] (apply merge as)) Fa))
@@ -183,9 +220,9 @@
     (as-> Fa Fa
       (hf-eval ?edge Fa)
       (bindF Fa (fn [a]
-                    (if (sequential? a)   ; :db.cardinality/many - [] or ()
-                      (sequenceF (->> a (map #(hf-pull-F ?pat (pureF %)))))
-                      (hf-pull-F ?pat (pureF a)))))
+                  (if (sequential? a)                       ; :db.cardinality/many - [] or ()
+                    (sequenceF (->> a (map #(hf-pull-F ?pat (pureF %)))))
+                    (hf-pull-F ?pat (pureF a)))))
       (fmapF (fn [a] {?edge a}) Fa))
 
     ?leaf
@@ -292,7 +329,7 @@
            [:db/ident
             :db/id]}]}]
       (pureI bob)
-      {'>needle (pureI "")
+      {'>needle     (pureI "")
        'shirt-sizes (pureI shirt-sizes)}) #() #())
   := {:db/id             bob,
       :dustingetz/type   :dustingetz/shirt-size,            ; !!!
@@ -303,7 +340,7 @@
 
   @((hf-pull '[{(submissions) [:dustingetz/email]}]
       (pureI nil)
-      {'needle (pureI "")
+      {'needle      (pureI "")
        'submissions (pureI submissions)}) #() #())
   := '{(submissions) [#:dustingetz{:email "alice@example.com"}
                       #:dustingetz{:email "bob@example.com"}
@@ -314,7 +351,7 @@
          [:dustingetz/email
           {:dustingetz/gender
            [:db/ident
-            {(shirt-sizes dustingetz/gender #_needle:submission) ; TODO
+            {(shirt-sizes dustingetz/gender needle:email)
              [:db/ident]}]}]}
         {(genders)
          [:db/ident]}]
@@ -326,19 +363,19 @@
     #() #())
 
   := '{(submissions needle) [{:dustingetz/email  "alice@example.com",
-                                 :dustingetz/gender {:db/ident :dustingetz/female,
-                                                     (shirt-sizes dustingetz/gender)
-                                                               [#:db{:ident :dustingetz/womens-small}
-                                                                #:db{:ident :dustingetz/womens-medium}
-                                                                #:db{:ident :dustingetz/womens-large}]}}
-                                {:dustingetz/email  "charlie@example.com",
-                                 :dustingetz/gender {:db/ident :dustingetz/male,
-                                                     (shirt-sizes dustingetz/gender)
-                                                               [#:db{:ident :dustingetz/mens-small}
-                                                                #:db{:ident :dustingetz/mens-medium}
-                                                                #:db{:ident :dustingetz/mens-large}]}}],
-          (genders)            [#:db{:ident :dustingetz/male}
-                                #:db{:ident :dustingetz/female}]}
+                              :dustingetz/gender {:db/ident :dustingetz/female,
+                                                  (shirt-sizes dustingetz/gender)
+                                                            [#:db{:ident :dustingetz/womens-small}
+                                                             #:db{:ident :dustingetz/womens-medium}
+                                                             #:db{:ident :dustingetz/womens-large}]}}
+                             {:dustingetz/email  "charlie@example.com",
+                              :dustingetz/gender {:db/ident :dustingetz/male,
+                                                  (shirt-sizes dustingetz/gender)
+                                                            [#:db{:ident :dustingetz/mens-small}
+                                                             #:db{:ident :dustingetz/mens-medium}
+                                                             #:db{:ident :dustingetz/mens-large}]}}],
+       (genders)            [#:db{:ident :dustingetz/male}
+                             #:db{:ident :dustingetz/female}]}
 
   (def !needle (atom nil))
   (def >z1 (hf-pull
@@ -350,50 +387,50 @@
                     [:db/ident]}]}]}
                {(genders) [:db/ident]}]
              (pureI nil)
-             {'needle (watch !needle)
+             {'needle      (watch !needle)
               'submissions (pureI submissions)
               'shirt-sizes (pureI shirt-sizes)
               'genders     (pureI genders)}))
 
   (def !z1 (>z1 #(println :ready) #(println :done)))
-  @!z1 := '{(submissions needle) [#:dustingetz{:email "alice@example.com",
-                                               :gender {:db/ident :dustingetz/female,
+  @!z1 := '{(submissions needle) [#:dustingetz{:email  "alice@example.com",
+                                               :gender {:db/ident                       :dustingetz/female,
                                                         (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/womens-small}
                                                                                          #:db{:ident :dustingetz/womens-medium}
                                                                                          #:db{:ident :dustingetz/womens-large}]}}
-                                  #:dustingetz{:email "bob@example.com",
-                                               :gender {:db/ident :dustingetz/male,
+                                  #:dustingetz{:email  "bob@example.com",
+                                               :gender {:db/ident                       :dustingetz/male,
                                                         (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
                                                                                          #:db{:ident :dustingetz/mens-medium}
                                                                                          #:db{:ident :dustingetz/mens-large}]}}
-                                  #:dustingetz{:email "charlie@example.com",
-                                               :gender {:db/ident :dustingetz/male,
+                                  #:dustingetz{:email  "charlie@example.com",
+                                               :gender {:db/ident                       :dustingetz/male,
                                                         (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
                                                                                          #:db{:ident :dustingetz/mens-medium}
                                                                                          #:db{:ident :dustingetz/mens-large}]}}],
-            (genders) [#:db{:ident :dustingetz/male} #:db{:ident :dustingetz/female}]}
+            (genders)            [#:db{:ident :dustingetz/male} #:db{:ident :dustingetz/female}]}
 
   (reset! !needle "alice")
-  @!z1 := '{(submissions needle) [#:dustingetz{:email "alice@example.com",
-                                               :gender {:db/ident :dustingetz/female,
+  @!z1 := '{(submissions needle) [#:dustingetz{:email  "alice@example.com",
+                                               :gender {:db/ident                       :dustingetz/female,
                                                         (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/womens-small}
                                                                                          #:db{:ident :dustingetz/womens-medium}
                                                                                          #:db{:ident :dustingetz/womens-large}]}}],
-            (genders) [#:db{:ident :dustingetz/male} #:db{:ident :dustingetz/female}]}
+            (genders)            [#:db{:ident :dustingetz/male} #:db{:ident :dustingetz/female}]}
 
   (reset! !needle "bob")
   (reset! !needle "zetta")
   (reset! !needle "e@example.com")
-  @!z1 := '{(submissions needle) [#:dustingetz{:email "alice@example.com",
-                                               :gender {:db/ident :dustingetz/female,
+  @!z1 := '{(submissions needle) [#:dustingetz{:email  "alice@example.com",
+                                               :gender {:db/ident                       :dustingetz/female,
                                                         (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/womens-small}
                                                                                          #:db{:ident :dustingetz/womens-medium}
                                                                                          #:db{:ident :dustingetz/womens-large}]}}
-                                  #:dustingetz{:email "charlie@example.com",
-                                               :gender {:db/ident :dustingetz/male,
+                                  #:dustingetz{:email  "charlie@example.com",
+                                               :gender {:db/ident                       :dustingetz/male,
                                                         (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
                                                                                          #:db{:ident :dustingetz/mens-medium}
                                                                                          #:db{:ident :dustingetz/mens-large}]}}],
-            (genders) [#:db{:ident :dustingetz/male} #:db{:ident :dustingetz/female}]}
+            (genders)            [#:db{:ident :dustingetz/male} #:db{:ident :dustingetz/female}]}
 
   )

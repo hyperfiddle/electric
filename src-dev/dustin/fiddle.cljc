@@ -2,8 +2,8 @@
   (:require
     [datascript.core :as d]
     ;#?(:clj [datomic.api :as d] :cljs [datascript.core :as d])
-    [dustin.dev :refer [*$* male female m-sm m-md m-lg w-sm w-md w-lg
-                        alice bob charlie]]
+    [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
+    [hyperfiddle.api :refer [*$*]]
     [minitest :refer [tests]]))
 
 
