@@ -52,6 +52,7 @@
      [(clojure.string/includes? ?v' ?needle')]]])
 
 (defn shirt-sizes [gender & [needle]]
+  #_(println `(shirt-sizes ~gender ~needle))
   (sort
     (d/q
       '[:in $ % ?gender ?needle
