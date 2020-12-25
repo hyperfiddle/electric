@@ -12,12 +12,14 @@
     [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
     [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]))
 
+; monad instance for Incremental values
 (defn bindI [>a f] (relieve {} (ap (?! (f (?! >a))))))
 (defn pureI [a] (watch (atom a)))
 (defn fmapI [f & >as] (apply latest f >as))
 
-; Monad m := StateT s m b
-; newtype SR = StateT (Map Sym Promise a) Promise b
+; monad instance for Fabric values, which stack monads State and Incremental
+; newtype Fabric = StateT (Map Sym Incremental a) Incremental b
+; Monad m => StateT s m b
 (defn pureF [a]
   (fn [s] (pureI [s a])))
 
