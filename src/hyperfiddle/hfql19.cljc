@@ -1,4 +1,4 @@
-(ns hyperfiddle.hfql
+(ns hyperfiddle.hfql19
   #?(:cljs (:require-macros [minitest :refer [tests]]))
   (:require
     [datascript.core :as d] #_#?(:clj [datomic.api :as d])
