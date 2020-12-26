@@ -1,7 +1,8 @@
 (ns dustin.hfql20
   #?(:cljs (:require-macros [minitest :refer [tests]]))
   (:require
-    [hyperfiddle.hfql :refer [sequenceI bindI pureI fmapI capI]]
+    [hyperfiddle.hfql19 :refer [sequenceI bindI pureI fmapI capI
+                                hf-nav]]
     [meander.epsilon :as m]
     [minitest #?@(:clj [:refer [tests]])]
     [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
@@ -94,9 +95,14 @@
        ~(compile-hfql* ?cont))
 
     ?form
-    (let [[f & args] ?form]
-      #_`{'~?form (fmapI ~f ~@args)}
-      `(fmapI ~f ~@args))))
+    (cond
+      (keyword? ?form)
+      `(fmapI (partial hf-nav ~?form) ~'%)
+
+      (seq? ?form)
+      (let [[f & args] ?form]
+        #_`{'~?form (fmapI ~f ~@args)}
+        `(fmapI ~f ~@args)))))
 
 (tests
   (def >needle (pureI 1))
@@ -124,6 +130,24 @@
   (eval *1)
   (capI *1) := 3
 
+  (def % (pureI bob))
+  (compile-hfql* ':dustingetz/gender)
+  (eval *1)
+  (capI *1) := :dustingetz/male
+
+  (compile-hfql* [:dustingetz/gender :db/id])
+  (eval *1)
+  (sequenceI *1)
+  (capI *1) :=  [:dustingetz/male 10]
+
+  (compile-hfql* {:dustingetz/gender [:db/id :db/ident]})
+  (eval *1)
+  (capI (sequenceI *1)) := [1 :dustingetz/male]
+
+  ;broken
+  (compile-hfql* '{(:dustingetz/gender %) [(:db/id %) (:db/ident %)]})
+  (eval *1)
+  (capI (sequenceI *1))
   )
 
 (defmacro compile-hfql [form]
