@@ -85,27 +85,40 @@
   [form]
   (m/match form
 
+    [!pats ...]
+    #_(apply merge) (mapv compile-hfql* !pats)
+
     {& (m/seqable [?edge ?cont])}
-    `(let [~'% ~(compile-hfql* ?edge)]
+    `(let [~'% #_(get '~?edge) ~(compile-hfql* ?edge)]
+       #_{~?edge ~(compile-hfql* ?cont)}
        ~(compile-hfql* ?cont))
 
     ?form
-    (let [[f & args] form]
+    (let [[f & args] ?form]
+      #_`{'~?form (fmapI ~f ~@args)}
       `(fmapI ~f ~@args))))
 
 (tests
   (def >needle (pureI 1))
   (capI (eval (compile-hfql* '(identity >needle)))) := 1
+  #_{(identity >needle) >as...}
 
-  (compile-hfql* '{(identity >needle) (identity %)})
-  := '(clojure.core/let [% (hyperfiddle.hfql/fmapI identity >needle)]
-        (hyperfiddle.hfql/fmapI identity %))
-  
-  (capI (eval (compile-hfql* '{(identity >needle) (identity %)}))) := 1
+  (compile-hfql*
+    '{(identity >needle)
+      (inc %)})
+  := '(clojure.core/let [% (hyperfiddle.hfql19/fmapI identity >needle)]
+        (hyperfiddle.hfql19/fmapI inc %))
+
+  (compile-hfql*
+    '{(identity >needle)
+      [(dec %)
+       (inc %)]})
+  (eval *1)
+  (capI *1) := 1
 
   (compile-hfql* '{(inc >needle) (inc %)})
-  := '(clojure.core/let [% (hyperfiddle.hfql/fmapI inc >needle)]
-        (hyperfiddle.hfql/fmapI inc %))
+  := '(clojure.core/let [% (hyperfiddle.hfql19/fmapI inc >needle)]
+        (hyperfiddle.hfql19/fmapI inc %))
 
   (compile-hfql* '{(inc >needle) (inc %)})
   (eval *1)
