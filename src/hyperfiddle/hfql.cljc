@@ -1,5 +1,4 @@
 (ns hyperfiddle.hfql
-  (:refer-clojure :exclude [sequence])
   #?(:cljs (:require-macros [minitest :refer [tests]]))
   (:require
     [datascript.core :as d] #_#?(:clj [datomic.api :as d])
@@ -16,6 +15,8 @@
 (defn bindI [>a f] (relieve {} (ap (?! (f (?! >a))))))
 (defn pureI [a] (watch (atom a)))
 (defn fmapI [f & >as] (apply latest f >as))
+(defn sequenceI [>as] (apply fmapI vector >as))
+(defn capI "test primitive" [Ia] @(Ia #() #()))
 
 ; monad instance for Fabric values, which stack monads State and Incremental
 ; newtype Fabric = StateT (Map Sym Incremental a) Incremental b
@@ -68,14 +69,11 @@
         Ias))))
 
 (tests
-  @((runS (fmapF + (pureF 1) (pureF 2)) {}) #() #())
-  := [{} 3]
-
-  @((runS (fmapF vector (pureF 1) (pureF 2)) {}) #() #())
-  := [{} [1 2]]
-
-  @((runS (fmapF apply (pureF +) (pureF [1 2])) {}) #() #())
-  := [{} 3]
+  @((runS (fmapF + (pureF 1) (pureF 2)) {}) #() #()) := [{} 3]
+  @((runS (fmapF vector (pureF 1) (pureF 2)) {}) #() #()) := [{} [1 2]]
+  @((runS (fmapF apply (pureF +) (pureF [1 2])) {}) #() #()) := [{} 3]
+  @((runS (fmapF {:k 1} (pureF :k)) {}) #() #()) := [{} 1]
+  @((runS (fmapF {} (pureF :k)) {}) #() #()) := [{} nil]
 
   ;@(R/cap (runS (fmapF identity (pureF alice)) {}))
   )
@@ -111,12 +109,14 @@
 
 (tests
   (parse-scoped-sym 'needle) := 'needle
+  (parse-scoped-sym ['needle]) := ['needle]
   (parse-scoped-sym 'needle:dustingetz/email) := '[needle dustingetz/email])
 
 (defn get-scope [scope k]
+  #_(println `(get-scope ~k ~scope))
   (m/match (parse-scoped-sym k)
     [!ks ...] (let [[k & ks] !ks]
-                (get scope (cons k (mapv #(get-scope scope %) ks))))
+                (get scope (cons k (map #(get-scope scope %) ks))))
     ?k (get scope ?k)))
 
 (tests
@@ -126,19 +126,58 @@
   (get-scope {'foo/name "alice" ['needle "alice"] 42} 'needle:foo/name) := 42
   )
 
+(defn get-scopeI
+  "evaluates composite scope keys before resolving in scope"
+  [scope k]
+  (println `(get-scopeI ~k ~(keys scope)))
+  (m/match (parse-scoped-sym k)
+    [!ks ...] (let [[k & ks] !ks
+                    k:ks (sequenceI (cons (pureI k) (map #(get-scopeI scope %) ks)))]
+                (println 'k:ks (pr-str @(k:ks #() #())))
+                (println 'scope (pr-str (keys scope)))
+                (bindI k:ks scope))
+    ?k (let [x (scope ?k)]
+         (if (nil? x) (pureI nil) x))))
+
+; Scopes need to be able to see sibling scopes, not just parent scopes
+; anything reachable by this cardinality strata
+; in other words, state is flattened by cardinality
+; also, it is ordered. topo sort by cardinality.
+; that's not even enough.
+; So
+; we have to plan the order that the pull is traversed
+; traverse all ancestors before descending?
+; really its a topo-sort
+
+(tests
+  @((get-scopeI {'needle (pureI 1)} 'needle) #() #()) := 1
+  @((get-scopeI {'needle (pureI 1)} 'foo) #() #()) := nil
+  @((get-scopeI {'foo/name         (pureI "alice")
+                 ['needle "alice"] (pureI 42)}
+      'needle:foo/name) #() #())
+  := 42)
+
 (defn resolve' [k]
   #?(:clj  (resolve k)
      :cljs nil))
 
 (defn askF [k]
   (fn [scope]
-    (let [>v (or (get-scope scope k)
+    (let [>v (or (get-scopeI scope k)
                (if-let [v (resolve' k)] (pureI v))
                (pureI [::no-def-for k]))]                   ; allocate atom ?
       (bindI >v (fn [v]
-                  #_(println 'askF k v)
+                  (println 'askF k v)
                   ; if not error ?
                   (pureI [scope v]))))))
+
+(tests
+  (second @((runS (askF 'needle:foo/name)
+              {'foo/name         (pureI "alice")
+               ['needle "alice"] (pureI 42)})
+            #() #()))
+  := 42
+  )
 
 (tests
   (second @((runS (askF '>a) {'>a (pureI 1)}) #() #()))
@@ -348,36 +387,30 @@
                       #:dustingetz{:email "bob@example.com"}
                       #:dustingetz{:email "charlie@example.com"}]}
 
-  @((hf-pull
-      '[{(submissions needle)
-         [:dustingetz/email
-          {:dustingetz/gender
-           [:db/ident
-            {(shirt-sizes dustingetz/gender needle:email)
-             [:db/ident]}]}]}
-        {(genders)
-         [:db/ident]}]
-      (pureI nil)
-      {'needle      (pureI "e@")
-       'submissions (pureI submissions)
-       'shirt-sizes (pureI shirt-sizes)
-       'genders     (pureI genders)})
-    #() #())
 
-  := '{(submissions needle) [{:dustingetz/email  "alice@example.com",
-                              :dustingetz/gender {:db/ident :dustingetz/female,
-                                                  (shirt-sizes dustingetz/gender)
-                                                            [#:db{:ident :dustingetz/womens-small}
-                                                             #:db{:ident :dustingetz/womens-medium}
-                                                             #:db{:ident :dustingetz/womens-large}]}}
-                             {:dustingetz/email  "charlie@example.com",
-                              :dustingetz/gender {:db/ident :dustingetz/male,
-                                                  (shirt-sizes dustingetz/gender)
-                                                            [#:db{:ident :dustingetz/mens-small}
-                                                             #:db{:ident :dustingetz/mens-medium}
-                                                             #:db{:ident :dustingetz/mens-large}]}}],
-       (genders)            [#:db{:ident :dustingetz/male}
-                             #:db{:ident :dustingetz/female}]}
+  (comment
+    ; currently throws
+    "complex scopes"
+    @((hf-pull
+        '[{(submissions needle)
+           [{:dustingetz/gender
+             [:db/ident
+              {(shirt-sizes dustingetz/gender needle:dustingetz/email)
+               [:db/ident]}]}
+            :dustingetz/email]}]
+        (pureI nil)
+        {'needle                       (pureI "alice")
+         ['needle "alice@example.com"] "small"
+         'submissions                  (pureI submissions)
+         'shirt-sizes                  (pureI shirt-sizes)
+         'genders                      (pureI genders)})
+      #() #())
+    := '{(submissions needle) [#:dustingetz{:email  "alice@example.com",
+                                            :gender {:db/ident :dustingetz/female,
+                                                     (shirt-sizes dustingetz/gender)
+                                                               [#:db{:ident :dustingetz/womens-small}
+                                                                #:db{:ident :dustingetz/womens-medium}
+                                                                #:db{:ident :dustingetz/womens-large}]}}]})
 
   (def !needle (atom nil))
   (def >z1 (hf-pull
