@@ -116,50 +116,47 @@
     `{'~?form ~(compile-leaf* ?form)}))
 
 (tests
-  (def >needle (pureI 1))
-  (capI (eval (compile-hfql* '(identity >needle)))) := 1
-  #_{(identity >needle) >as...}
+  (compile-hfql* '(identity a))
+  := '{(quote (identity a)) (fmapI identity a)}
+  (let [a (pureI 1)] (lexical-eval *1)) := '{(identity >needle) _}
+  (-> *1 (get '(identity a)) capI) := 1
 
   (compile-hfql* '{(identity >needle) (inc %)})
   := '(let [% (fmapI identity >needle) % %]
         {(quote (identity >needle)) (fmapI inc %)})
 
   (compile-hfql*
-    '{(identity >needle)
+    '{(identity a)
       [(dec %)
        (inc %)]})
-  (eval *1)
+  (lexical-eval {'a (pureI 1)} *1)
   := '{(identity >needle) {(dec %) '...,
                            (inc %) '...}}
   ; R2D2 traverse structure, click on links
   ;(capI *1) := 1
 
-  (compile-hfql* '{(inc >needle) (inc %)})
-  := '(let [% (fmapI inc >needle) % %]
-        {(quote (inc >needle)) (fmapI inc %)})
+  (compile-hfql* '{(inc a) (inc %)})
+  := '(let [% (fmapI inc a) % %]
+        {(quote (inc a)) (fmapI inc %)})
+  (lexical-eval {'a (pureI 1)} *1)
+  (-> *1 (get '(inc a)) (get '(inc %)) capI) := 3
 
-  (def % (pureI bob))
+  (hf-nav :dustingetz/gender bob) := :dustingetz/male
   (compile-hfql* :dustingetz/gender)
   := '#:dustingetz{:gender (fmapI (partial hf-nav :dustingetz/gender) %)}
-  (eval *1) := '{:dustingetz/gender _}
+  (lexical-eval {'% (pureI bob)} *1) := '{:dustingetz/gender _}
   (capI (:dustingetz/gender *1)) := :dustingetz/male
 
-  (def % (pureI :dustingetz/male))
+  (shirt-size :dustingetz/male) := 3
   (compile-hfql* '(shirt-size %))
-  := '{(shirt-size %) (fmapI shirt-size %)}
-
-  (let [% (pureI :dustingetz/male)]
-    (eval *1)) := '{(shirt-size %) ...}
-  ;(def x *1)
-  ;(capI (get x '(shirt-size %)))
-  ;(capI (get *1 '(shirt-size %)))
-  ;(shirt-size :dustingetz/male)
+  := '{(quote (shirt-size %)) (fmapI shirt-size %)}
+  (let [% (pureI :dustingetz/male)] (lexical-eval *1)) := '{(shirt-size %) _}
+  (-> *1 (get '(shirt-size %)) capI) := 3
 
   (compile-hfql* [:dustingetz/gender :db/id])
   := '{(quote :dustingetz/gender) (fmapI (partial hf-nav :dustingetz/gender) %),
-       (quote :db/id) (fmapI (partial hf-nav :db/id) %)}
-  (eval *1) := {:dustingetz/gender '...,
-                :db/id '...}
+       (quote :db/id)             (fmapI (partial hf-nav :db/id) %)}
+  (lexical-eval {'% (pureI bob)} *1) := '{:dustingetz/gender _, :db/id _}
   (capI (:dustingetz/gender *1)) := :dustingetz/male
 
   (compile-hfql* {:dustingetz/gender [:db/id :db/ident]})
@@ -168,11 +165,8 @@
         {(quote :dustingetz/gender)
          {(quote :db/id)    (fmapI (partial hf-nav :db/id) %),
           (quote :db/ident) (fmapI (partial hf-nav :db/ident) %)}})
-  (eval *1) := #:dustingetz{:gender #:db{:id '...,
-                                         :ident '...}}
-  (capI (sequenceI (vals (select-keys (:dustingetz/gender *1)
-                           [:db/ident :db/id]))))
-  := [:dustingetz/male 1]
+  (lexical-eval {'% (pureI bob)} *1) := '#:dustingetz{:gender #:db{:id _, :ident _}}
+  (capI (sequenceI (vals (select-keys (:dustingetz/gender *1) [:db/ident :db/id])))) := [:dustingetz/male 1]
 
   (compile-hfql* [{:dustingetz/gender [:db/id :db/ident]}])
   := '(let [% (fmapI (partial hf-nav :dustingetz/gender) %)
@@ -180,11 +174,8 @@
         {(quote :dustingetz/gender)
          #:db{:id (fmapI (partial hf-nav :db/id) %),
               :ident (fmapI (partial hf-nav :db/ident) %)}})
-  (eval *1)
-  := #:dustingetz{:gender #:db{:id '..., :ident '...}}
-  (capI (sequenceI (vals (select-keys (:dustingetz/gender *1)
-                           [:db/ident :db/id]))))
-  := [:dustingetz/male 1]
+  (lexical-eval {'% (pureI bob)} *1) := '#:dustingetz{:gender #:db{:id _, :ident _}}
+  (capI (sequenceI (vals (select-keys (:dustingetz/gender *1) [:db/ident :db/id])))) := [:dustingetz/male 1]
 
   (compile-hfql* '[{:dustingetz/gender [{(shirt-size gender) [:db/id :db/ident]}]}])
   := '(let [% (fmapI (partial hf-nav :dustingetz/gender) %)
@@ -194,10 +185,11 @@
            {(quote (shirt-size gender))
             #:db{:id    (fmapI (partial hf-nav :db/id) %),
                  :ident (fmapI (partial hf-nav :db/ident) %)}})})
-  (eval *1)
+  (lexical-eval {'% (pureI bob)} *1)
   := '#:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}
+  (capI (sequenceI (vals (select-keys (-> *1 :dustingetz/gender (get '(shirt-size gender))) [:db/ident :db/id]))))
+  := [:dustingetz/mens-small 3]
 
-  (def needle (pureI ""))
   (compile-hfql* '[{(submission needle)
                     [{:dustingetz/gender
                       [{(shirt-size gender)
@@ -210,10 +202,9 @@
               {(quote (shirt-size gender))
                #:db{:id    (fmapI (partial hf-nav :db/id) %),
                     :ident (fmapI (partial hf-nav :db/ident) %)}})})})
-  (eval *1) := '{(submission needle) #:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}}
+  (lexical-eval {'needle (pureI "alice")} *1) := '{(submission needle) #:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}}
   (-> *1 (get '(submission needle)) :dustingetz/gender
-    (get '(shirt-size gender)) :db/ident capI)
-  := :dustingetz/womens-small
+    (get '(shirt-size gender)) :db/ident capI) := :dustingetz/womens-small
 
   ; if something is wrapped in a stream
   ; R2D2 needs to resolve it
