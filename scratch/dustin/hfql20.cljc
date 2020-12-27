@@ -1,12 +1,13 @@
 (ns dustin.hfql20
   #?(:cljs (:require-macros [minitest :refer [tests]]))
   (:require
-    [hyperfiddle.hfql19 :refer [sequenceI bindI pureI fmapI capI
+    [hyperfiddle.hfql19 :refer [sequenceI bindI pureI fmapI capI joinI
                                 hf-nav]]
     [meander.epsilon :as m]
     [minitest #?@(:clj [:refer [tests]])]
     [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
-    [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]))
+    [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]
+    #?(:clj [lexikon.core :refer [lexical-eval]])))
 
 (tests
   (def >needle (pureI ""))
@@ -64,13 +65,13 @@
 
   ; compiler macro produces this, given static cardinalities:
   (bindI (unsequenceI (fmapI submissions >needle)) (fn [>as]
-    (->> >as (map (fn [>a]
-      (let [>dustingetz/email (fmapI :dustingetz/email >a)
-            >dustingetz/gender (fmapI :dustingetz/gender >a)
-            >db/ident (fmapI :db/ident >dustingetz/gender)]
-        (bindI (unsequenceI (fmapI shirt-sizes >dustingetz/gender >dustingetz/email)) (fn [>as]
-          (->> >as (map (fn [>a]
-            (let [>db/ident (fmapI :db/ident >a)]))))))))))))
+                                                     (->> >as (map (fn [>a]
+                                                                     (let [>dustingetz/email (fmapI :dustingetz/email >a)
+                                                                           >dustingetz/gender (fmapI :dustingetz/gender >a)
+                                                                           >db/ident (fmapI :db/ident >dustingetz/gender)]
+                                                                       (bindI (unsequenceI (fmapI shirt-sizes >dustingetz/gender >dustingetz/email)) (fn [>as]
+                                                                                                                                                       (->> >as (map (fn [>a]
+                                                                                                                                                                       (let [>db/ident (fmapI :db/ident >a)]))))))))))))
 
   ; bind ... unsequence ... map
   ; is the essence of IncrementalSeq ?
@@ -78,8 +79,29 @@
 
 ; write the hfql compiler
 
-(def cardinality {`submissions :db.cardinality/many
-                  `shirt-sizes :db.cardinality/many})
+(def cardinality* {'submissions :db.cardinality/many
+                   'shirt-sizes :db.cardinality/many})
+
+(defn cardinality [form]
+  (cond
+    (symbol? form) (get cardinality* form)
+    (keyword? form) (get cardinality* form)
+    (seq? form) (let [[f & args] form]
+                  (get cardinality* f)
+                  #_(:db/cardinality (meta f)))))
+
+(tests
+  ;(cardinality `(shirt-sizes _ _)) := nil
+  (cardinality `shirt-sizes) := :db.cardinality/many)
+
+(defn many? [form] (= :db.cardinality/many (cardinality form)))
+
+(tests
+  (many? :dustingetz/gender) := false
+  (many? 'shirt-sizes) := true
+  (many? '(shirt-sizes a)) := true
+  (many? '(shirt-size a)) := true
+  (many? 'shirt-size) := false)
 
 (defn hf-edge->sym [edge]
   (if (keyword? edge) (symbol (name edge)) #_edge '%))
@@ -102,18 +124,41 @@
     (apply merge (mapv compile-hfql* !pats))
 
     {& (m/seqable [?edge ?cont])}
-    `(~'let [~'% ~(compile-leaf* ?edge)
-             ~(hf-edge->sym ?edge) ~'%]
-       {'~?edge
-        ~(if (many? ?edge)
-          nil
-          (compile-hfql* ?cont))})
-    #_`(~'let [~'% ~(compile-leaf* ?edge)
-             ~(hf-edge->sym ?edge) ~'%]
-       {'~?edge ~(compile-hfql* ?cont)})
+    (let [edge* (compile-leaf* ?edge)]
+      (if (many? ?edge)                                     ; thus % is sequential, (pureI [1 2 3])
+        `{'~?edge
+          (~'fmapI (~'fn [~'>as]
+                     (~'for [~'% ~'>as]
+                       (~'let [~(hf-edge->sym ?edge) ~'%]
+                         ~(compile-hfql* ?cont))))
+            (~'unsequenceI ~edge*))}                        ; extend monad
+        `{'~?edge
+          (~'let [~'% ~edge*]
+            (~'let [~(hf-edge->sym ?edge) ~'%]
+              ~(compile-hfql* ?cont)))}))
 
     ?form
     `{'~?form ~(compile-leaf* ?form)}))
+
+(tests
+  "cardinality many"
+  (shirt-sizes :dustingetz/male) := [3 4 5]
+  (many? '(shirt-sizes a)) := true
+
+  (compile-hfql* '[{(shirt-size a) [:db/ident]}])
+  (compile-hfql* '[{(shirt-sizes a) [:db/ident]}])
+  (lexical-eval {'a (pureI :dustingetz/male)} *1)
+  (-> *1 (get '(shirt-sizes a)))
+  (capI *1) := '[{:db/ident _}
+                 {:db/ident _}
+                 {:db/ident _}]
+  (map :db/ident *1)
+  (sequenceI *1)
+  (capI *1) := [:dustingetz/mens-small :dustingetz/mens-medium :dustingetz/mens-large]
+
+  ;(capI (unsequenceI (pureI [1 2 3])))
+  ;(capI (sequenceI *1))
+  )
 
 (tests
   (compile-hfql* '(identity a))
@@ -172,7 +217,7 @@
   := '(let [% (fmapI (partial hf-nav :dustingetz/gender) %)
             gender %]
         {(quote :dustingetz/gender)
-         #:db{:id (fmapI (partial hf-nav :db/id) %),
+         #:db{:id    (fmapI (partial hf-nav :db/id) %),
               :ident (fmapI (partial hf-nav :db/ident) %)}})
   (lexical-eval {'% (pureI bob)} *1) := '#:dustingetz{:gender #:db{:id _, :ident _}}
   (capI (sequenceI (vals (select-keys (:dustingetz/gender *1) [:db/ident :db/id])))) := [:dustingetz/male 1]
@@ -222,13 +267,13 @@
   (compile-hfql* '{:dustingetz/gender [:db/id (:db/ident %)]})
   := '(let [% (fmapI (partial hf-nav :dustingetz/gender) %) gender %]
         {(quote :dustingetz/gender)
-         {:db/id (fmapI (partial hf-nav :db/id) %),
+         {:db/id        (fmapI (partial hf-nav :db/id) %),
           (:db/ident %) (fmapI :db/ident %)}})
 
   (compile-hfql* '{(:dustingetz/gender %) [(:db/id %) (:db/ident %)]})
   := '(let [% (fmapI :dustingetz/gender %) % %]
         {(quote (:dustingetz/gender %))
-         {(:db/id %) (fmapI :db/id %),
+         {(:db/id %)    (fmapI :db/id %),
           (:db/ident %) (fmapI :db/ident %)}})
 
   )
