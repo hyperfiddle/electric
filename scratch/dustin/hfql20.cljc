@@ -104,6 +104,12 @@
     {& (m/seqable [?edge ?cont])}
     `(~'let [~'% ~(compile-leaf* ?edge)
              ~(hf-edge->sym ?edge) ~'%]
+       {'~?edge
+        ~(if (many? ?edge)
+          nil
+          (compile-hfql* ?cont))})
+    #_`(~'let [~'% ~(compile-leaf* ?edge)
+             ~(hf-edge->sym ?edge) ~'%]
        {'~?edge ~(compile-hfql* ?cont)})
 
     ?form
