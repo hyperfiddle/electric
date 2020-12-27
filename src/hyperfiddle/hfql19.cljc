@@ -12,11 +12,20 @@
     [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]))
 
 ; monad instance for Incremental values
-(defn bindI [>a f] (relieve {} (ap (?! (f (?! >a))))))
 (defn pureI [a] (watch (atom a)))
 (defn fmapI [f & >as] (apply latest f >as))
+(defn bindI [>a f] (relieve {} (ap (?! (f (?! >a))))))
+(defn joinI [>>a] (bindI >>a identity))
 (defn sequenceI [>as] (apply fmapI vector >as))
 (defn capI "test primitive" [Ia] @(Ia #() #()))
+
+(tests
+  (capI (fmapI inc (pureI 1))) := 2
+  (def >>a (pureI (pureI 1)))
+  (capI (bindI >>a identity)) := 1
+  (capI (joinI >>a)) := 1
+  ; type error (capI (joinI (pureI 1)))
+  (capI (sequenceI [(pureI 1) (pureI 2)])) := [1 2])
 
 ; monad instance for Fabric values, which stack monads State and Incremental
 ; newtype Fabric = StateT (Map Sym Incremental a) Incremental b
