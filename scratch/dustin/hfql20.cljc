@@ -81,28 +81,31 @@
 (def cardinality {`submissions :db.cardinality/many
                   `shirt-sizes :db.cardinality/many})
 
+(defn hf-edge->sym [edge]
+  (if (keyword? edge) (symbol (name edge)) #_edge '%))
+
 (defn compile-hfql*
   "compile HFQL form to s-expressions in Incremental"
   [form]
   (m/match form
 
     [!pats ...]
-    #_(apply merge) (mapv compile-hfql* !pats)
+    (apply merge (mapv compile-hfql* !pats))
 
     {& (m/seqable [?edge ?cont])}
-    `(let [~'% #_(get '~?edge) ~(compile-hfql* ?edge)]
-       #_{~?edge ~(compile-hfql* ?cont)}
-       ~(compile-hfql* ?cont))
+    ; let is for in cardinality many
+    `(~'let [~'% ~(get (compile-hfql* ?edge) ?edge)
+           ~(hf-edge->sym ?edge) ~'%]
+       {'~?edge ~(compile-hfql* ?cont)})
 
     ?form
     (cond
       (keyword? ?form)
-      `(fmapI (partial hf-nav ~?form) ~'%)
+      `{~?form (~'fmapI (~'partial ~'hf-nav ~?form) ~'%)}
 
       (seq? ?form)
       (let [[f & args] ?form]
-        #_`{'~?form (fmapI ~f ~@args)}
-        `(fmapI ~f ~@args)))))
+        `{~?form (~'fmapI ~f ~@args)}))))
 
 (tests
   (def >needle (pureI 1))
@@ -137,12 +140,54 @@
 
   (compile-hfql* [:dustingetz/gender :db/id])
   (eval *1)
-  (sequenceI *1)
-  (capI *1) :=  [:dustingetz/male 10]
+  (capI (sequenceI (vals *1))) :=  [:dustingetz/male 10]
 
   (compile-hfql* {:dustingetz/gender [:db/id :db/ident]})
   (eval *1)
   (capI (sequenceI *1)) := [1 :dustingetz/male]
+  ;:= #:dustingetz{:gender #:db{:ident :dustingetz/male, :id male}}
+  (def needle (pureI ""))
+
+  (compile-hfql* '[{(submission needle)
+                    [{:dustingetz/gender
+                      [{(shirt-size gender)
+                        [:db/id :db/ident]}]}]}])
+
+  := (let [% (fmapI submission needle) % %]
+       {(quote (submission needle))
+        (let [% (fmapI (partial hf-nav :dustingetz/gender) %) gender %]
+          {(quote :dustingetz/gender)
+           (let [% (fmapI shirt-size gender) % %]
+             {(quote (shirt-size gender))
+              #:db{:id (fmapI (partial hf-nav :db/id) %),
+                   :ident (fmapI (partial hf-nav :db/ident) %)}})})})
+
+  (eval *1)
+  := '{(submission needle)
+       #:dustingetz{:gender
+                    {(shirt-size gender)
+                     #:db{:id '..., :ident '...}}}}
+  (def x *1)
+  (-> x
+    (get '(submission needle))
+    :dustingetz/gender
+    (get '(shirt-size gender))
+    :db/ident
+    capI)
+  := :dustingetz/womens-small
+
+  ; if something is wrapped in a stream
+  ; R2D2 needs to resolve it
+  ; he can choose not to resolve it
+  ; this is link following ... binding to a stream is link traversal
+  ; the client is in control of this
+  ; the client adjusts the computation
+  ; the server just says, these streams are available
+
+  ; cardinality will push the structure harder
+  ; "how many shirt-sizes" is inside an I
+  ; unclear how to join the streams nicely into final result
+  ; but do we even need final result?
 
   ;broken
   (compile-hfql* '{(:dustingetz/gender %) [(:db/id %) (:db/ident %)]})
