@@ -12,6 +12,7 @@
         dorothy/dorothy {:mvn/version "0.0.7"}
         missionary/missionary {:mvn/version "b.17"}
         datascript/datascript {:mvn/version "1.0.3"}
+        lexikon/lexikon {:mvn/version "0.2.1"}
         }
  :aliases {:dev {:extra-paths ["src-dev"
                                "scratch"]                   ; for clj command
