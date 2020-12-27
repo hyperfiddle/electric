@@ -84,6 +84,15 @@
 (defn hf-edge->sym [edge]
   (if (keyword? edge) (symbol (name edge)) #_edge '%))
 
+(defn compile-leaf* [?form]
+  (cond
+    (keyword? ?form)
+    `(~'fmapI (~'partial ~'hf-nav ~?form) ~'%)
+
+    (seq? ?form)
+    (let [[f & args] ?form]
+      `(~'fmapI ~f ~@args))))
+
 (defn compile-hfql*
   "compile HFQL form to s-expressions in Incremental"
   [form]
@@ -93,87 +102,111 @@
     (apply merge (mapv compile-hfql* !pats))
 
     {& (m/seqable [?edge ?cont])}
-    ; let is for in cardinality many
-    `(~'let [~'% ~(get (compile-hfql* ?edge) ?edge)
-           ~(hf-edge->sym ?edge) ~'%]
+    `(~'let [~'% ~(compile-leaf* ?edge)
+             ~(hf-edge->sym ?edge) ~'%]
        {'~?edge ~(compile-hfql* ?cont)})
 
     ?form
-    (cond
-      (keyword? ?form)
-      `{~?form (~'fmapI (~'partial ~'hf-nav ~?form) ~'%)}
-
-      (seq? ?form)
-      (let [[f & args] ?form]
-        `{~?form (~'fmapI ~f ~@args)}))))
+    `{'~?form ~(compile-leaf* ?form)}))
 
 (tests
   (def >needle (pureI 1))
   (capI (eval (compile-hfql* '(identity >needle)))) := 1
   #_{(identity >needle) >as...}
 
-  (compile-hfql*
-    '{(identity >needle)
-      (inc %)})
-  := '(clojure.core/let [% (hyperfiddle.hfql19/fmapI identity >needle)]
-        (hyperfiddle.hfql19/fmapI inc %))
+  (compile-hfql* '{(identity >needle) (inc %)})
+  := '(let [% (fmapI identity >needle) % %]
+        {(quote (identity >needle)) (fmapI inc %)})
 
   (compile-hfql*
     '{(identity >needle)
       [(dec %)
        (inc %)]})
   (eval *1)
-  (capI *1) := 1
+  := '{(identity >needle) {(dec %) '...,
+                           (inc %) '...}}
+  ; R2D2 traverse structure, click on links
+  ;(capI *1) := 1
 
   (compile-hfql* '{(inc >needle) (inc %)})
-  := '(clojure.core/let [% (hyperfiddle.hfql19/fmapI inc >needle)]
-        (hyperfiddle.hfql19/fmapI inc %))
-
-  (compile-hfql* '{(inc >needle) (inc %)})
-  (eval *1)
-  (capI *1) := 3
+  := '(let [% (fmapI inc >needle) % %]
+        {(quote (inc >needle)) (fmapI inc %)})
 
   (def % (pureI bob))
-  (compile-hfql* ':dustingetz/gender)
-  (eval *1)
-  (capI *1) := :dustingetz/male
+  (compile-hfql* :dustingetz/gender)
+  := '#:dustingetz{:gender (fmapI (partial hf-nav :dustingetz/gender) %)}
+  (eval *1) := '{:dustingetz/gender _}
+  (capI (:dustingetz/gender *1)) := :dustingetz/male
+
+  (def % (pureI :dustingetz/male))
+  (compile-hfql* '(shirt-size %))
+  := '{(shirt-size %) (fmapI shirt-size %)}
+
+  (let [% (pureI :dustingetz/male)]
+    (eval *1)) := '{(shirt-size %) ...}
+  ;(def x *1)
+  ;(capI (get x '(shirt-size %)))
+  ;(capI (get *1 '(shirt-size %)))
+  ;(shirt-size :dustingetz/male)
 
   (compile-hfql* [:dustingetz/gender :db/id])
-  (eval *1)
-  (capI (sequenceI (vals *1))) :=  [:dustingetz/male 10]
+  := '{(quote :dustingetz/gender) (fmapI (partial hf-nav :dustingetz/gender) %),
+       (quote :db/id) (fmapI (partial hf-nav :db/id) %)}
+  (eval *1) := {:dustingetz/gender '...,
+                :db/id '...}
+  (capI (:dustingetz/gender *1)) := :dustingetz/male
 
   (compile-hfql* {:dustingetz/gender [:db/id :db/ident]})
-  (eval *1)
-  (capI (sequenceI *1)) := [1 :dustingetz/male]
-  ;:= #:dustingetz{:gender #:db{:ident :dustingetz/male, :id male}}
-  (def needle (pureI ""))
+  := '(let [% (fmapI (partial hf-nav :dustingetz/gender) %)
+            gender %]
+        {(quote :dustingetz/gender)
+         {(quote :db/id)    (fmapI (partial hf-nav :db/id) %),
+          (quote :db/ident) (fmapI (partial hf-nav :db/ident) %)}})
+  (eval *1) := #:dustingetz{:gender #:db{:id '...,
+                                         :ident '...}}
+  (capI (sequenceI (vals (select-keys (:dustingetz/gender *1)
+                           [:db/ident :db/id]))))
+  := [:dustingetz/male 1]
 
+  (compile-hfql* [{:dustingetz/gender [:db/id :db/ident]}])
+  := '(let [% (fmapI (partial hf-nav :dustingetz/gender) %)
+            gender %]
+        {(quote :dustingetz/gender)
+         #:db{:id (fmapI (partial hf-nav :db/id) %),
+              :ident (fmapI (partial hf-nav :db/ident) %)}})
+  (eval *1)
+  := #:dustingetz{:gender #:db{:id '..., :ident '...}}
+  (capI (sequenceI (vals (select-keys (:dustingetz/gender *1)
+                           [:db/ident :db/id]))))
+  := [:dustingetz/male 1]
+
+  (compile-hfql* '[{:dustingetz/gender [{(shirt-size gender) [:db/id :db/ident]}]}])
+  := '(let [% (fmapI (partial hf-nav :dustingetz/gender) %)
+            gender %]
+        {(quote :dustingetz/gender)
+         (let [% (fmapI shirt-size gender) % %]
+           {(quote (shirt-size gender))
+            #:db{:id    (fmapI (partial hf-nav :db/id) %),
+                 :ident (fmapI (partial hf-nav :db/ident) %)}})})
+  (eval *1)
+  := '#:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}
+
+  (def needle (pureI ""))
   (compile-hfql* '[{(submission needle)
                     [{:dustingetz/gender
                       [{(shirt-size gender)
                         [:db/id :db/ident]}]}]}])
-
-  := (let [% (fmapI submission needle) % %]
-       {(quote (submission needle))
-        (let [% (fmapI (partial hf-nav :dustingetz/gender) %) gender %]
-          {(quote :dustingetz/gender)
-           (let [% (fmapI shirt-size gender) % %]
-             {(quote (shirt-size gender))
-              #:db{:id (fmapI (partial hf-nav :db/id) %),
-                   :ident (fmapI (partial hf-nav :db/ident) %)}})})})
-
-  (eval *1)
-  := '{(submission needle)
-       #:dustingetz{:gender
-                    {(shirt-size gender)
-                     #:db{:id '..., :ident '...}}}}
-  (def x *1)
-  (-> x
-    (get '(submission needle))
-    :dustingetz/gender
-    (get '(shirt-size gender))
-    :db/ident
-    capI)
+  := '(let [% (fmapI submission needle) % %]
+        {(quote (submission needle))
+         (let [% (fmapI (partial hf-nav :dustingetz/gender) %) gender %]
+           {(quote :dustingetz/gender)
+            (let [% (fmapI shirt-size gender) % %]
+              {(quote (shirt-size gender))
+               #:db{:id    (fmapI (partial hf-nav :db/id) %),
+                    :ident (fmapI (partial hf-nav :db/ident) %)}})})})
+  (eval *1) := '{(submission needle) #:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}}
+  (-> *1 (get '(submission needle)) :dustingetz/gender
+    (get '(shirt-size gender)) :db/ident capI)
   := :dustingetz/womens-small
 
   ; if something is wrapped in a stream
@@ -189,10 +222,18 @@
   ; unclear how to join the streams nicely into final result
   ; but do we even need final result?
 
-  ;broken
+  (compile-hfql* '{:dustingetz/gender [:db/id (:db/ident %)]})
+  := '(let [% (fmapI (partial hf-nav :dustingetz/gender) %) gender %]
+        {(quote :dustingetz/gender)
+         {:db/id (fmapI (partial hf-nav :db/id) %),
+          (:db/ident %) (fmapI :db/ident %)}})
+
   (compile-hfql* '{(:dustingetz/gender %) [(:db/id %) (:db/ident %)]})
-  (eval *1)
-  (capI (sequenceI *1))
+  := '(let [% (fmapI :dustingetz/gender %) % %]
+        {(quote (:dustingetz/gender %))
+         {(:db/id %) (fmapI :db/id %),
+          (:db/ident %) (fmapI :db/ident %)}})
+
   )
 
 (defmacro compile-hfql [form]
