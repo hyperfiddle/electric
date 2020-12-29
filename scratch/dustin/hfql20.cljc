@@ -1,7 +1,7 @@
 (ns dustin.hfql20
   #?(:cljs (:require-macros [minitest :refer [tests]]))
   (:require
-    [hyperfiddle.hfql19 :refer [sequenceI bindI pureI fmapI capI joinI
+    [hyperfiddle.hfql19 :refer [sequenceI sequenceMapI bindI pureI fmapI capI joinI
                                 hf-nav]]
     [meander.epsilon :as m]
     [minitest #?@(:clj [:refer [tests]])]
@@ -149,15 +149,40 @@
   (compile-hfql* '[{(shirt-sizes a) [:db/ident]}])
   (lexical-eval {'a (pureI :dustingetz/male)} *1)
   (-> *1 (get '(shirt-sizes a)))
-  (capI *1) := '[{:db/ident _}
-                 {:db/ident _}
-                 {:db/ident _}]
-  (map :db/ident *1)
-  (sequenceI *1)
-  (capI *1) := [:dustingetz/mens-small :dustingetz/mens-medium :dustingetz/mens-large]
+  ; each cardinality strata in the pull extends the dimension by 1
+  ; we must joinI for each extension here
+  (capI (joinI (fmapI sequenceI (fmapI #(map :db/ident %) *1))))
+  := [:dustingetz/mens-small
+      :dustingetz/mens-medium
+      :dustingetz/mens-large]
+  ; the goal of above is to produce the identity structure, no streams
+  ; without removing levels of the map
 
   ;(capI (unsequenceI (pureI [1 2 3])))
   ;(capI (sequenceI *1))
+
+  (compile-hfql* '[{(submissions a)
+                    [{:dustingetz/gender
+                      [{(shirt-sizes gender)
+                        [:db/id :db/ident]}]}]}])
+  (lexical-eval {'a (pureI "")} *1)
+  (def x *1)
+  (-> x
+    (get '(submissions a))
+    (->> (fmapI (fn [a]
+                  (println a)
+                  (sequenceI
+                    (map
+                      (comp
+                        sequenceMapI
+                        #(get % '(shirt-sizes gender))
+                        :dustingetz/gender)
+                      a))))
+      joinI)
+    capI
+    #_sequenceMapI
+    #_capI
+    )
   )
 
 (tests
