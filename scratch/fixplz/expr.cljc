@@ -1,8 +1,9 @@
 (ns fixplz.expr
+  #?(:cljs (:require-macros [fixplz.expr]
+                            [minitest :refer [tests]]))
   (:require
     [clojure.spec.alpha :as s]
-    [minitest :refer [tests]])
-  #?(:cljs (:require-macros [contrib.expr] [minitest])))
+    #?(:clj [minitest :refer [tests]])))
 
 (defn read-spec [spec input]
   ; Convenience for (do (s/assert spec x) (s/conform spec x))
@@ -101,12 +102,12 @@
 
 (tests
   (one [1]) := 1
-  (try (one []) (catch Exception _ :fail)) := :fail
-  (try (one '(1 2)) (catch Exception _ :fail)) := :fail
+  (try (one []) (catch #?(:clj Exception :cljs :default) _ :fail)) := :fail
+  (try (one '(1 2)) (catch #?(:clj Exception :cljs :default) _ :fail)) := :fail
 
   ; questionable cases
   (one {:a 1}) := [:a 1]
-  (try (one {:a 1 :b 2}) (catch Exception _ :fail)) := :fail)
+  (try (one {:a 1 :b 2}) (catch #?(:clj Exception :cljs :default) _ :fail)) := :fail)
 
 (defn traverse-expr [f x & {:keys [when-fn]}]
   (cond ((or when-fn expr?) x)
@@ -125,41 +126,45 @@
     x
     args))
 
-(tests
-  (traverse-expr-rec
-    (fn [x] (if (symbol? x) (symbol (resolve x)) x))
-    '(inc (dec 1)))
-  := '(clojure.core/inc (clojure.core/dec 1)))
+#?(:clj
+   (tests
+     (traverse-expr-rec
+       (fn [x] (if (symbol? x) (symbol #?(:clj (resolve x))) x))
+       '(inc (dec 1)))
+     := '(clojure.core/inc (clojure.core/dec 1))))
 
-(defn unquote-via* [form f]
-  (cond
-    (symbol? form) `'~form
-    ;(symbol? form) `'~(resolve form)
-    (unquote? form) `'~(f (eval (unquote-via* (second form) f)))
-    (unquote-splicing? form) (throw (Exception. "splice not in list"))
-    (record? form) `'~form
-    (coll? form)
-    (let [xs (if (map? form) (apply concat form) form)
-          parts (for [x xs]
-                  (if (unquote-splicing? x)
-                    (f (eval (unquote-via* (second form) f)))
-                    [(unquote-via* x f)]))
-          cat (doall `(concat ~@parts))]
-      (cond
-        (vector? form) `(vec ~cat)
-        (map? form) `(apply hash-map ~cat)
-        (set? form) `(set ~cat)
-        (seq? form) `(apply list ~cat)
-        :else (throw (Exception. "Unknown collection type"))))
-    :else `'~form))
+#?(:clj
+   (defn unquote-via* [form f]
+     (cond
+       (symbol? form) `'~form
+       ;(symbol? form) `'~(resolve form)
+       (unquote? form) `'~(f (eval (unquote-via* (second form) f)))
+       (unquote-splicing? form) (throw (Exception. "splice not in list"))
+       (record? form) `'~form
+       (coll? form)
+       (let [xs (if (map? form) (apply concat form) form)
+             parts (for [x xs]
+                     (if (unquote-splicing? x)
+                       (f (eval (unquote-via* (second form) f)))
+                       [(unquote-via* x f)]))
+             cat (doall `(concat ~@parts))]
+         (cond
+           (vector? form) `(vec ~cat)
+           (map? form) `(apply hash-map ~cat)
+           (set? form) `(set ~cat)
+           (seq? form) `(apply list ~cat)
+           :else (throw (Exception. "Unknown collection type"))))
+       :else `'~form)))
 
-(defn unquote-via [form f]
-  (eval (unquote-via* form f)))
+#?(:clj
+   (defn unquote-via [form f]
+     (eval (unquote-via* form f))))
 
-(tests
-  (eval (unquote-via* '(println ~(inc 1)) identity)) := '(println (inc 1))
-  (unquote-via '(println ~(inc 1)) identity) := '(println (inc 1))
-  (unquote-via '(println ~(inc 1)) eval) := '(println 2)
-  (unquote-via '[::find ~a] {'a 10}) := [::find 10]
-  (def a 42)
-  (unquote-via '{z ~a} eval) := '{z 42})
+#?(:clj
+   (tests
+     (eval (unquote-via* '(println ~(inc 1)) identity)) := '(println (inc 1))
+     (unquote-via '(println ~(inc 1)) identity) := '(println (inc 1))
+     (unquote-via '(println ~(inc 1)) eval) := '(println 2)
+     (unquote-via '[::find ~a] {'a 10}) := [::find 10]
+     (def a 42)
+     (unquote-via '{z ~a} eval) := '{z 42}))
