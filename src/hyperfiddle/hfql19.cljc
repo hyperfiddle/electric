@@ -17,7 +17,7 @@
 (defn bindI [>a f] (relieve {} (ap (?! (f (?! >a))))))
 (defn joinI [>>a] (bindI >>a identity))
 (defn sequenceI [>as] (apply fmapI vector >as))
-(defn sequenceMapI [k>vs] (apply fmapI #(zipmap (keys k>vs) %&) (vals k>vs)))
+(defn sequence-mapI [k>vs] (apply fmapI #(zipmap (keys k>vs) %&) (vals k>vs)))
 (defn capI "test primitive" [Ia] @(Ia #() #()))
 
 (tests
@@ -27,8 +27,8 @@
   (capI (joinI >>a)) := 1
   ; type error (capI (joinI (pureI 1)))
   (capI (sequenceI [(pureI 1) (pureI 2)])) := [1 2]
-  (capI (sequenceMapI {:a (pureI 1) :b (pureI 2)})) := {:a 1 :b 2}
-  (sequenceI (map sequenceMapI [{:a (pureI 1) :b (pureI 2)}
+  (capI (sequence-mapI {:a (pureI 1) :b (pureI 2)})) := {:a 1 :b 2}
+  (sequenceI (map sequence-mapI [{:a (pureI 1) :b (pureI 2)}
                                 {:a (pureI 1) :b (pureI 2)}]))
   (capI *1) := [{:a 1, :b 2} {:a 1, :b 2}]
   )
