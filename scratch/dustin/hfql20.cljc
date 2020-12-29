@@ -1,7 +1,7 @@
 (ns dustin.hfql20
   #?(:cljs (:require-macros [minitest :refer [tests]]))
   (:require
-    [hyperfiddle.hfql19 :refer [sequenceI sequenceMapI bindI pureI fmapI capI joinI
+    [hyperfiddle.hfql19 :refer [sequenceI sequence-mapI bindI pureI fmapI capI joinI
                                 hf-nav]]
     [meander.epsilon :as m]
     [minitest #?@(:clj [:refer [tests]])]
@@ -174,7 +174,7 @@
                   (sequenceI
                     (map
                       (comp
-                        sequenceMapI
+                        sequence-mapI
                         #(get % '(shirt-sizes gender))
                         :dustingetz/gender)
                       a))))
