@@ -1,7 +1,8 @@
 (ns fixplz.expr
   (:require
-    [clojure.spec.alpha :as s])
-  #?(:cljs (:require-macros [contrib.expr])))
+    [clojure.spec.alpha :as s]
+    [minitest :refer [tests]])
+  #?(:cljs (:require-macros [contrib.expr] [minitest])))
 
 (defn read-spec [spec input]
   ; Convenience for (do (s/assert spec x) (s/conform spec x))
@@ -35,12 +36,17 @@
 (defn map-spec [f spec]
   (s/and spec (s/conformer f)))
 
-(defn over [x f]
+(defn over "traverse one layer" [x f]
   (cond (seq? x) (map f x)
         (sequential? x) (into (empty x) (map f x))
         (map? x) (into (empty x) (map (fn [[k v]] (f [k v])) x))
         ;(map? x) (into (empty x) (map (fn [[k v]] [(f k) (f v)]) x))
         () (throw (ex-info "cannot traverse" {:type (type x) :val  x}))))
+
+(tests
+  (over {:a 1 :b 2} (fn [[k v]] [k (inc v)])) := {:a 2, :b 3}
+  (over (range 3) inc) := [1 2 3]
+  )
 
 (defn unquote? [form]
   (and (seq? form) (= (first form) 'clojure.core/unquote)))
@@ -52,11 +58,27 @@
   (and (seq? x) ; yep, i bet you're surprised
     (not (empty? x))))
 
+(tests
+  (form? '(list)) := true
+  (form? '#()) := true
+  (form? '()) := false
+  (form? 1) := false
+  (form? {}) := false
+  (form? []) := false)
+
 (defn expr? [x]
   (or (symbol? x)
     (form? x)
     (and (coll? x)
       (not (empty? x)))))
+
+(tests
+  ; Not sure what GT's intent was here?
+  (expr? 'a) := true
+  (expr? 1) := false
+  (expr? '(+ 1 1)) := true
+  (expr? []) := false
+  (expr? [1]) := true)
 
 ;(defn stmt? [x]
 ;  (and (form? x)
@@ -77,6 +99,15 @@
     (assert (= 1 (count v)))
     (first v)))
 
+(tests
+  (one [1]) := 1
+  (try (one []) (catch Exception _ :fail)) := :fail
+  (try (one '(1 2)) (catch Exception _ :fail)) := :fail
+
+  ; questionable cases
+  (one {:a 1}) := [:a 1]
+  (try (one {:a 1 :b 2}) (catch Exception _ :fail)) := :fail)
+
 (defn traverse-expr [f x & {:keys [when-fn]}]
   (cond ((or when-fn expr?) x)
         (cond (symbol? x) (f x)
@@ -94,19 +125,25 @@
     x
     args))
 
-(defn unquote-via [form f]
+(tests
+  (traverse-expr-rec
+    (fn [x] (if (symbol? x) (symbol (resolve x)) x))
+    '(inc (dec 1)))
+  := '(clojure.core/inc (clojure.core/dec 1)))
+
+(defn unquote-via* [form f]
   (cond
     (symbol? form) `'~form
     ;(symbol? form) `'~(resolve form)
-    (unquote? form) `'~(f (eval (unquote-via (second form) f)))
+    (unquote? form) `'~(f (eval (unquote-via* (second form) f)))
     (unquote-splicing? form) (throw (Exception. "splice not in list"))
     (record? form) `'~form
     (coll? form)
     (let [xs (if (map? form) (apply concat form) form)
           parts (for [x xs]
                   (if (unquote-splicing? x)
-                    (f (eval (unquote-via (second form) f)))
-                    [(unquote-via x f)]))
+                    (f (eval (unquote-via* (second form) f)))
+                    [(unquote-via* x f)]))
           cat (doall `(concat ~@parts))]
       (cond
         (vector? form) `(vec ~cat)
@@ -116,20 +153,13 @@
         :else (throw (Exception. "Unknown collection type"))))
     :else `'~form))
 
-(comment
+(defn unquote-via [form f]
+  (eval (unquote-via* form f)))
 
-  (eval (unquote-via '(println ~(inc 1)) identity))
-  => (println (inc 1))
-
-  (eval (unquote-via '(println ~(inc 1)) eval))
-  => (println 2)
-
-  (def scope {'a 10})
-  (eval (unquote-via '[::find ~a] (fn [x] (get scope x))))
-  => [::find 10]
-
+(tests
+  (eval (unquote-via* '(println ~(inc 1)) identity)) := '(println (inc 1))
+  (unquote-via '(println ~(inc 1)) identity) := '(println (inc 1))
+  (unquote-via '(println ~(inc 1)) eval) := '(println 2)
+  (unquote-via '[::find ~a] {'a 10}) := [::find 10]
   (def a 42)
-  (eval (unquote-via '{z ~a} eval))
-  => {z 42}
-
-  )
+  (unquote-via '{z ~a} eval) := '{z 42})
