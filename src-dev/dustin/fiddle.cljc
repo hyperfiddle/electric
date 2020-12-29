@@ -1,5 +1,6 @@
 (ns dustin.fiddle
   (:require
+    [clojure.spec.alpha :as s]
     [datascript.core :as d]
     ;#?(:clj [datomic.api :as d] :cljs [datascript.core :as d])
     [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
@@ -51,7 +52,8 @@
      #_[(clojure.string/includes? ?v' ?needle')]
      [(clojure.string/includes? ?v' ?needle')]]])
 
-(defn shirt-sizes [gender & [needle]]
+(defn ^{:db/cardinality :db.cardinality/many}
+  shirt-sizes [gender & [needle]]
   #_(println `(shirt-sizes ~gender ~needle))
   (sort
     (d/q
@@ -65,13 +67,18 @@
         #_[(dustin.fiddle/needle-match ?ident ?needle)]]
       *$* needle-rule gender (or needle ""))))
 
+(s/fdef shirt-sizes :ret sequential?)
+
 (tests
   (shirt-sizes :dustingetz/male) := [m-sm m-md m-lg]
   (shirt-sizes :dustingetz/male "med") := [m-md]
   (shirt-sizes :dustingetz/male "sm") := [m-sm])
 
-(defn shirt-size [gender]
+(defn ^{:db/cardinality :db.cardinality/one}
+  shirt-size [gender]
   (first (shirt-sizes gender)))
+
+(s/fdef shirt-size :ret (complement sequential?))
 
 (tests
   (shirt-size :dustingetz/male) := m-sm
