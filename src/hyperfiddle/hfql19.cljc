@@ -3,6 +3,7 @@
   (:require
     [datascript.core :as d] #_#?(:clj [datomic.api :as d])
     [hyperfiddle.api :refer [*$*]]
+    [hyperfiddle.incremental :refer [pureI fmapI bindI joinI sequenceI sequence-mapI capI]]
     [minitest #?@(:clj [:refer [tests]])]
     [meander.epsilon :as m]
     [missionary.core :refer [latest relieve watch ap ?!]]
@@ -10,28 +11,6 @@
     ; For inline tests, todo improve this
     [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
     [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]))
-
-; monad instance for Incremental values
-(defn pureI [a] (watch (atom a)))
-(defn fmapI [f & >as] (apply latest f >as))
-(defn bindI [>a f] (relieve {} (ap (?! (f (?! >a))))))
-(defn joinI [>>a] (bindI >>a identity))
-(defn sequenceI [>as] (apply fmapI vector >as))
-(defn sequence-mapI [k>vs] (apply fmapI #(zipmap (keys k>vs) %&) (vals k>vs)))
-(defn capI "test primitive" [Ia] @(Ia #() #()))
-
-(tests
-  (capI (fmapI inc (pureI 1))) := 2
-  (def >>a (pureI (pureI 1)))
-  (capI (bindI >>a identity)) := 1
-  (capI (joinI >>a)) := 1
-  ; type error (capI (joinI (pureI 1)))
-  (capI (sequenceI [(pureI 1) (pureI 2)])) := [1 2]
-  (capI (sequence-mapI {:a (pureI 1) :b (pureI 2)})) := {:a 1 :b 2}
-  (sequenceI (map sequence-mapI [{:a (pureI 1) :b (pureI 2)}
-                                {:a (pureI 1) :b (pureI 2)}]))
-  (capI *1) := [{:a 1, :b 2} {:a 1, :b 2}]
-  )
 
 ; monad instance for Fabric values, which stack monads State and Incremental
 ; newtype Fabric = StateT (Map Sym Incremental a) Incremental b
