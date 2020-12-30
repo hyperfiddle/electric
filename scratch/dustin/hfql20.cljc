@@ -1,6 +1,6 @@
 (ns dustin.hfql20
   #?(:cljs (:require-macros [minitest :refer [tests]]
-                            [dustin.hfql20 :refer [compile-hfql]]))
+                            [dustin.hfql20 :refer [hfql]]))
   (:require
     [hyperfiddle.hfql19 :refer [hf-nav]]
     [hyperfiddle.incremental :refer
@@ -48,7 +48,7 @@
 (defn compile-leaf* [?form]
   (cond
     (keyword? ?form)
-    `(~'fmapI (~'partial ~'hf-nav ~?form) ~'%)
+    `(~'fmapI (~'partial hf-nav ~?form) ~'%)
 
     (seq? ?form)
     (let [[f & args] ?form]
@@ -70,31 +70,29 @@
 
        {& (m/seqable [?edge ?cont])}
        (let [edge* (compile-leaf* ?edge)]
-         (if (many? ?edge)                                  ; thus % is sequential, (pureI [1 2 3])
-           (unquote-via
-             '{'~?edge
-               (fmapI (fn [>as]
-                        (for [% >as]
-                          (let [~(hf-edge->sym ?edge) %]
-                            ~(compile-hfql* ?cont))))
-                 (extend-seqI ~edge*))}
-             (partial lexical-eval' {'?edge ?edge 'edge* edge* '?cont ?cont}))
-           (unquote-via
-             '{'~?edge (let [% ~edge*]
-                         (let [~(hf-edge->sym ?edge) %]
-                           ~(compile-hfql* ?cont)))}
-             (partial lexical-eval' {'?edge ?edge 'edge* edge* '?cont ?cont}))))
+         (if (many? ?edge)                                     ; thus % is sequential, (pureI [1 2 3])
+           `{'~?edge
+             (~'fmapI (~'fn [~'>as]
+                        (~'vec                              ; emit associative structures, for path-centric manipulation
+                          (~'for [~'% ~'>as]
+                            (~'let [~(hf-edge->sym ?edge) ~'%]
+                              ~(compile-hfql* ?cont)))))
+               (~'extend-seqI ~edge*))}                        ; extend monad
+           `{'~?edge
+             (~'let [~'% ~edge*]
+               (~'let [~(hf-edge->sym ?edge) ~'%]
+                 ~(compile-hfql* ?cont)))}))
 
        ?form
        `{'~?form ~(compile-leaf* ?form)})))
 
 #?(:clj
-   (defmacro compile-hfql [form]
+   (defmacro hfql [form]
      (compile-hfql* form)))
 
 (tests
   (let [a :dustingetz/male]
-    (compile-hfql [{(shirt-sizes a) [:db/ident]}]))
+    (hfql [{(shirt-sizes a) [:db/ident]}]))
   := '{(shirt-sizes a) _}
   )
 
@@ -105,8 +103,9 @@
      (many? '(shirt-sizes a)) := true
 
      ;(compile-hfql* '[{(shirt-sizes a) [:db/ident]}])
-     (set! *1 (macroexpand-1 '(compile-hfql [{(shirt-sizes a) [:db/ident]}])))
-     (set! *1 (lexical-eval {'a (pureI :dustingetz/male)} *1))
+     (set! *1 (macroexpand-1 '(hfql [{(shirt-sizes a) [:db/ident]}])))
+     (set! *1 (let [a (pureI :dustingetz/male)]
+                (hfql [{(shirt-sizes a) [:db/ident]}])))
      (set! *1 (-> *1 (get '(shirt-sizes a))))
      (capI (joinI (fmapI sequenceI (fmapI #(map :db/ident %) *1))))
      := [:dustingetz/mens-small
@@ -147,22 +146,22 @@
   )
 
 (tests
-  (macroexpand-1 '(compile-hfql (identity a)))
+  (macroexpand-1 '(hfql (identity a)))
   := '{(quote (identity a)) (fmapI identity a)}
-  (set! *1 (let [a (pureI 1)] (compile-hfql (identity a)))) := '{(identity a) _}
+  (set! *1 (let [a (pureI 1)] (hfql (identity a)))) := '{(identity a) _}
   (-> *1 (get '(identity a)) capI) := 1
 
-  (macroexpand-1 '(compile-hfql {(identity >needle) (inc %)}))
+  (macroexpand-1 '(hfql {(identity >needle) (inc %)}))
   := '{(quote (identity >needle))
        (let [% (fmapI identity >needle)]
          (let [% %]
            {(quote (inc %)) (fmapI inc %)}))}
   (let [a (pureI 1)]
-    (compile-hfql {(identity a) (inc %)}))
+    (hfql {(identity a) (inc %)}))
   := '{(identity a) {(inc %) _}}
 
   (let [a (pureI 1)]
-    (compile-hfql
+    (hfql
       {(identity a)
        [(dec %)
         (inc %)]}))
@@ -173,51 +172,51 @@
 
   (set! *1
     (let [a (pureI 1)]
-      (compile-hfql {(inc a) (inc %)})))
+      (hfql {(inc a) (inc %)})))
   := '{(inc a) {(inc %) _}}
   (-> *1 (get '(inc a)) (get '(inc %)) capI) := 3
 
   (hf-nav :dustingetz/gender bob) := :dustingetz/male
-  (macroexpand-1 '(compile-hfql :dustingetz/gender))
+  (macroexpand-1 '(hfql :dustingetz/gender))
   := '#:dustingetz{:gender (fmapI (partial hf-nav :dustingetz/gender) %)}
-  (set! *1 (let [% (pureI bob)] (compile-hfql :dustingetz/gender)))
+  (set! *1 (let [% (pureI bob)] (hfql :dustingetz/gender)))
   (capI (:dustingetz/gender *1)) := :dustingetz/male
 
   (shirt-size :dustingetz/male) := 3
-  (macroexpand-1 '(compile-hfql (shirt-size %)))
+  (macroexpand-1 '(hfql (shirt-size %)))
   := '{(quote (shirt-size %)) (fmapI shirt-size %)}
-  (set! *1 (let [% (pureI :dustingetz/male)] (compile-hfql (shirt-size %)))) := '{(shirt-size %) _}
+  (set! *1 (let [% (pureI :dustingetz/male)] (hfql (shirt-size %)))) := '{(shirt-size %) _}
   (-> *1 (get '(shirt-size %)) capI) := 3
 
-  (macroexpand-1 '(compile-hfql [:dustingetz/gender :db/id]))
+  (macroexpand-1 '(hfql [:dustingetz/gender :db/id]))
   := '{(quote :dustingetz/gender) (fmapI (partial hf-nav :dustingetz/gender) %),
        (quote :db/id)             (fmapI (partial hf-nav :db/id) %)}
-  (set! *1 (let [% (pureI bob)] (compile-hfql [:dustingetz/gender :db/id]))) := '{:dustingetz/gender _, :db/id _}
+  (set! *1 (let [% (pureI bob)] (hfql [:dustingetz/gender :db/id]))) := '{:dustingetz/gender _, :db/id _}
   (capI (:dustingetz/gender *1)) := :dustingetz/male
 
-  (macroexpand-1 '(compile-hfql {:dustingetz/gender [:db/id :db/ident]}))
+  (macroexpand-1 '(hfql {:dustingetz/gender [:db/id :db/ident]}))
   := '{(quote :dustingetz/gender)
        (let [% (fmapI (partial hf-nav :dustingetz/gender) %)]
          (let [gender %]
            {(quote :db/id)    (fmapI (partial hf-nav :db/id) %),
             (quote :db/ident) (fmapI (partial hf-nav :db/ident) %)}))}
 
-  (set! *1 (let [% (pureI bob)] (compile-hfql {:dustingetz/gender [:db/id :db/ident]})))
+  (set! *1 (let [% (pureI bob)] (hfql {:dustingetz/gender [:db/id :db/ident]})))
   := '#:dustingetz{:gender #:db{:id _, :ident _}}
   (capI (sequenceI (vals (select-keys (:dustingetz/gender *1) [:db/ident :db/id])))) := [:dustingetz/male 1]
 
-  (macroexpand-1 '(compile-hfql [{:dustingetz/gender [:db/id :db/ident]}]))
+  (macroexpand-1 '(hfql [{:dustingetz/gender [:db/id :db/ident]}]))
   := '{(quote :dustingetz/gender)
        (let [% (fmapI (partial hf-nav :dustingetz/gender) %)]
          (let [gender %]
            {(quote :db/id)    (fmapI (partial hf-nav :db/id) %),
             (quote :db/ident) (fmapI (partial hf-nav :db/ident) %)}))}
 
-  (set! *1 (let [% (pureI bob)] (compile-hfql [{:dustingetz/gender [:db/id :db/ident]}])))
+  (set! *1 (let [% (pureI bob)] (hfql [{:dustingetz/gender [:db/id :db/ident]}])))
   := '#:dustingetz{:gender #:db{:id _, :ident _}}
   (capI (sequenceI (vals (select-keys (:dustingetz/gender *1) [:db/ident :db/id])))) := [:dustingetz/male 1]
 
-  (macroexpand-1 '(compile-hfql [{:dustingetz/gender [{(shirt-size gender) [:db/id :db/ident]}]}]))
+  (macroexpand-1 '(hfql [{:dustingetz/gender [{(shirt-size gender) [:db/id :db/ident]}]}]))
   := '(let [% (fmapI (partial hf-nav :dustingetz/gender) %)
             gender %]
         {(quote :dustingetz/gender)
@@ -226,12 +225,12 @@
             #:db{:id    (fmapI (partial hf-nav :db/id) %),
                  :ident (fmapI (partial hf-nav :db/ident) %)}})})
 
-  (set! *1 (let [% (pureI bob)] (compile-hfql [{:dustingetz/gender [{(shirt-size gender) [:db/id :db/ident]}]}])))
+  (set! *1 (let [% (pureI bob)] (hfql [{:dustingetz/gender [{(shirt-size gender) [:db/id :db/ident]}]}])))
   := '#:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}
   (capI (sequenceI (vals (select-keys (-> *1 :dustingetz/gender (get '(shirt-size gender))) [:db/ident :db/id]))))
   := [:dustingetz/mens-small 3]
 
-  (macroexpand-1 '(compile-hfql [{(submission needle)
+  (macroexpand-1 '(hfql [{(submission needle)
                                   [{:dustingetz/gender
                                     [{(shirt-size gender)
                                       [:db/id :db/ident]}]}]}]))
@@ -248,7 +247,7 @@
                       (quote :db/ident) (fmapI (partial hf-nav :db/ident) %)}))}))}))}
 
   (set! *1 (let [needle (pureI "alice")]
-             (compile-hfql [{(submission needle)
+             (hfql [{(submission needle)
                              [{:dustingetz/gender
                                [{(shirt-size gender)
                                  [:db/id :db/ident]}]}]}])))
@@ -256,14 +255,14 @@
   (-> *1 (get '(submission needle)) :dustingetz/gender
     (get '(shirt-size gender)) :db/ident capI) := :dustingetz/womens-small
 
-  (macroexpand-1 '(compile-hfql {:dustingetz/gender [:db/id (:db/ident %)]}))
+  (macroexpand-1 '(hfql {:dustingetz/gender [:db/id (:db/ident %)]}))
   := '{(quote :dustingetz/gender)
        (let [% (fmapI (partial hf-nav :dustingetz/gender) %)]
          (let [gender %]
            {(quote (:db/ident %)) (fmapI :db/ident %),
             (quote :db/id) (fmapI (partial hf-nav :db/id) %)}))}
 
-  (macroexpand-1 '(compile-hfql {(:dustingetz/gender %) [(:db/id %) (:db/ident %)]}))
+  (macroexpand-1 '(hfql {(:dustingetz/gender %) [(:db/id %) (:db/ident %)]}))
   := '{(quote (:dustingetz/gender %))
        (let [% (fmapI :dustingetz/gender %)]
          (let [% %]
