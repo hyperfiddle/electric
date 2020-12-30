@@ -11,6 +11,7 @@
                   >cross (bindI >control (fn foo [c]
                                            (case c :p >p :q >q)))
                   >z (fmapI vector #_#_>p >q >cross)]))
+  ; the purpose of an input node is to connect the env to the flow
 
   ; server
   (def flow (->Flow ast))
