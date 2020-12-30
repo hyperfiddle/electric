@@ -54,3 +54,85 @@
                       (fmapI identity #_:dustingetz/email >a)))))))
   ;(capI (bindI *1 sequenceI)) := [9 10 11]
   )
+
+(defn incr? [x] (fn? x))
+
+(tests
+  (incr? (pureI 1)) := true
+  (fn? (pureI 1)) := true
+  (incr? {}) := false
+  (incr? []) := false
+  (incr? :x) := false
+  (incr? #{}) := false
+
+  ;(type (pureI 1)) := 'missionary.core$watch$fn__12137
+  ;(class (pureI 1)) := 'missionary.core$watch$fn__12137
+  )
+
+;(tests
+;  (prewalk #(if (= :a %) :A %) [:a :b]) := [:A :b])
+
+(defn pathwalk
+  ([f e] (pathwalk f [] e))
+  ([f path e]
+   (let [e' (f path e)]
+     (cond
+       (map? e') (->> e'
+                   (map (fn [[k x]] [k (pathwalk f (conj path k) x)]))
+                   (into (empty e')))
+       (coll? e') (->> e'
+                    (map-indexed (fn [i x] (pathwalk f (conj path i) x)))
+                    (into (empty e')))
+       :else e'))))
+
+(tests
+  (pathwalk
+    (fn [path v] (println path v) (if (= :a v) :A v))
+    [{:cat "Garfield", :dog "DogeCoin"} [:a :b {:site "so"}]])
+  := [{:cat "Garfield", :dog "DogeCoin"} [:A :b {:site "so"}]])
+
+(defn scan [f? tree]
+  (let [!a (atom [])]
+    (pathwalk
+      (fn [path v]
+        (if (f? v)
+          (swap! !a conj path))
+        v)
+      tree)
+    @!a))
+
+(tests
+  (scan #(= % '_)
+    '[{:dustingetz/gender {:db/id _, :db/ident _}}
+      {:dustingetz/gender {:db/id _, :db/ident _}}])
+  := [[0 :dustingetz/gender :db/id]
+      [0 :dustingetz/gender :db/ident]
+      [1 :dustingetz/gender :db/id]
+      [1 :dustingetz/gender :db/ident]])
+
+(defn sequence-some [tree]
+  (let [paths (scan incr? tree)]
+    (apply fmapI
+      (fn [& vs]
+        (reduce (fn [acc [path v]]
+                  (assoc-in acc path v))
+          tree (map vector paths vs)))
+      (map #(get-in tree %) paths))))
+
+(defn sequence-some [tree]
+  (let [paths (scan incr? tree)
+        >as (sequenceI (map #(get-in tree %) paths))]
+    (fmapI (fn [as]
+             (reduce (fn [acc [path a]]
+                       (assoc-in acc path a))
+               tree
+               (map vector paths as)))
+      >as)))
+
+(tests
+  (capI (sequence-some
+          {:a (pureI :A)
+           :b (pureI :B)}))
+  := {:a :A, :b :B}
+
+  )
