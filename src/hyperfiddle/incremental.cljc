@@ -119,15 +119,15 @@
           tree (map vector paths vs)))
       (map #(get-in tree %) paths))))
 
-(defn sequence-some [tree]
-  (let [paths (scan incr? tree)
-        >as (sequenceI (map #(get-in tree %) paths))]
-    (fmapI (fn [as]
-             (reduce (fn [acc [path a]]
-                       (assoc-in acc path a))
-               tree
-               (map vector paths as)))
-      >as)))
+;(defn sequence-some [tree]
+;  (let [paths (scan incr? tree)
+;        >as (sequenceI (map #(get-in tree %) paths))]
+;    (fmapI (fn [as]
+;             (reduce (fn [acc [path a]]
+;                       (assoc-in acc path a))
+;               tree
+;               (map vector paths as)))
+;      >as)))
 
 (tests
   (capI (sequence-some
