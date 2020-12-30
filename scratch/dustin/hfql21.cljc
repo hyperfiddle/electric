@@ -51,16 +51,31 @@
   (set! *1
     (let [needle (pureI "")]
       (hfql
-        [{(submission needle)
+        [{(submissions needle)
           [{:dustingetz/gender
             [{(shirt-sizes gender)
               [:db/id :db/ident]}]}]}])))
 
-  (-> *1 I/sequence-some (bindI I/sequence-some) capI)
-  := '{(submission needle)
-       #:dustingetz{:gender {(shirt-sizes gender)
-                             [#:db{:id 6, :ident :dustingetz/womens-small}
-                              #:db{:id 7, :ident :dustingetz/womens-medium}
-                              #:db{:id 8, :ident :dustingetz/womens-large}]}}}
+  (-> *1
+    I/sequence-some
+    (bindI I/sequence-some)
+    (bindI I/sequence-some)
+    capI)
+  := '{(submissions needle)
+       [{:dustingetz/gender
+         {(shirt-sizes gender)
+          [#:db{:id 6, :ident :dustingetz/womens-small}
+           #:db{:id 7, :ident :dustingetz/womens-medium}
+           #:db{:id 8, :ident :dustingetz/womens-large}]}}
+        {:dustingetz/gender
+         {(shirt-sizes gender)
+          [#:db{:id 3, :ident :dustingetz/mens-small}
+           #:db{:id 4, :ident :dustingetz/mens-medium}
+           #:db{:id 5, :ident :dustingetz/mens-large}]}}
+        {:dustingetz/gender
+         {(shirt-sizes gender)
+          [#:db{:id 3, :ident :dustingetz/mens-small}
+           #:db{:id 4, :ident :dustingetz/mens-medium}
+           #:db{:id 5, :ident :dustingetz/mens-large}]}}]}
 
   )
