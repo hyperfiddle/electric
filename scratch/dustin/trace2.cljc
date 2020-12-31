@@ -5,7 +5,9 @@
 (deftype Flow [ast])
 
 (tests
-  (def ast '(let [>p (nodeI)                                ; no inputs, one output edge, can still resume a value
+  ; dataflow ast. There is no stack
+  (def ast '(let [#_#_a 42                                  ; illegal, use pureI
+                  >p (nodeI)                                ; no inputs, one output edge, can still resume a value
                   >q (nodeI)
                   >control (nodeI)
                   >cross (bindI >control (fn foo [c]
@@ -14,7 +16,7 @@
   ; the purpose of an input node is to connect the env to the flow
 
   ; server
-  (def flow (->Flow ast))
+  (def flow (->Flow ast))                                   ; flow seems iso with ast ?
   (def !log (atom []))
   (add-watch flow #(swap! !log conj))
 
@@ -32,10 +34,17 @@
             '(pulse >q 2)
             '(pulse >z [2])]
   (def dag @flow)
-  (viz dag) := '{:edges ...
-                 :ast   ...
-                 :binds ...
-                 :vals  ...}
+  (viz dag) := '{:ast   ...
+                 :registry ... ;  registry/types = internal parse of the ast. Redundant with ast
+
+                 ; binds and vals are both water through pipes
+                 ; bind/vals are same thing IF registry includes type info
+                 ; D/G agree that these are the same. registry can have polymorphic types
+                 :state {:binds ...
+                         :vals  ...}}
+
+  ; binds and vals overlap with registry-types
+  ; registry & types are derived from ast
 
   ; client
   (def !log ['(pulse >control :q)
