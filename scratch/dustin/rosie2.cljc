@@ -1,115 +1,102 @@
-(ns dustin.rosie2)
+(ns dustin.rosie2
+  (:require
+    [minitest :refer [tests]]))
 
+(declare match hfql sub _ ... *)
 
-(comment
+; 1. Graph substrate (schema, relations, queries)
+; 2. Application-specific data-sync (page routing, hfql)
+; 3. View progressive enhancement (link/iframe/button)
+; Which points are page-routable?
 
-  (def route `(sub-requests [:sub/id ...] nil nil nil))
-  (def route `(sub-display [:sub/id ...]))
+; Default routes?
+; Client in charge of link traversal, or not?
+; GraphQL request?
 
-  (def Rosie
-    '{(sub-display sub/id)
-      [:sub/id
-       {(suber-name-kv sub/id) [:db/id]}
-       {(rosie-entity-history sub/id)
-        (fn [%]
-          [*
-           :db/id
-           (match (rosie-type %)
-             ::admin [:admin/name
-                      :admin/id
-                      {(admin-display admin/id) ...}]
-             ::sub [:sub/name
-                    :sub/id
-                    (sub-display sub/id)]
-             _ nil)])}
-       {(all-locations sub/id) [:db/ident]}
-       {(sub-requests sub/id since ?status ?school)
-        [:sub-req.index/start
-         :sub-req.index/end
-         :school/name
-         :sub-req/id
-         {(sub-request sub-req/id)
-          [:sub-req/grade
-           :sub-req/subject
-           :sub-req/memo
-           {:sub-req/status [:db/ident]}
-           :sub/id
-           {(sub-display sub/id) ...}]}]}]})
+; edges
+(defn suber-name-kv [sub])
+(defn sub-locations-kv [sub])
+(defn sub-quals-kv [sub])
+(defn sub-metrics-kv [sub])
 
-  (def route `(sub-requests sub))
-  (def route `{(sub-display [:sub/id ...]) [...]})
+; pages (special edges)
+(defn sub-display [sub])
+(defn sub-blocked-list [sub])
+(defn sub-requests [sub])
+(defn sub-request [sub])
+(defn rosie-entity-history [e before attr])
+(defn sub-rename [sub])
+(defn school-requested-block [school])
+(defn district-requested-block [district])
+(defn alias-to [e])
+(defn admin-display [admin])
 
+; options queries (special edges)
+(defn all-locations [])
+(defn esub-region-masterlist [])
+(defn all-subs [])
 
-  (def Rosie2-fiddle-registry
-    '{(sub-display sub/id)          [:sub/id
-                                     (suber-name-kv sub/id)
-                                     (rosie-entity-history sub/id)
-                                     (all-locations sub/id)
-                                     (sub-requests sub/id since ?status ?school)]
-      (sub-requests sub/id)         [:sub-req.index/start
-                                     :sub-req.index/end
-                                     :school/name
-                                     :sub-req/id
-                                     (sub-request sub-req/id)]
-      (sub-request sub-req/id)      [:sub-req/grade
-                                     :sub-req/subject
-                                     :sub-req/memo
-                                     {:sub-req/status [:db/ident]}
-                                     :sub/id
-                                     (sub-display sub/id)]
-      (suber-name-kv sub/id)        [:db/id]
-      (all-locations sub/id)        [:db/ident]
-      (rosie-entity-history sub/id) (fn [%]
-                                      [*
-                                       :db/id
-                                       (match (rosie-type %)
-                                         ::admin [:admin/name
-                                                  :admin/id
-                                                  {(admin-display admin/id) ...}]
-                                         ::sub [:sub/name
-                                                :sub/id
-                                                (sub-display sub/id)]
-                                         _ nil)])
-      })
+; helpers (edge too!)
+(defn rosie-type [e])
 
-  ;(def hfql-result (M (M (M x))))
+; What is a route?
+(def route `(sub-requests sub))
+(def route `{(sub-display [:sub/id ...]) [...]})
+; To render that point, you need the specs to fill in the URL if not already
+; If you route to an attribute, we prompt for an entity (boring)
+; If you route to a function, we prompt for the params
+;     What if the fn appears in the graph at many points?
+; By default we will use the default pull/page structure (whitelisted access pattern)
+; The client maybe can override this
+; are the specs the things that are routable?
 
-  (def route `(sub-requests sub))
+; The graph substrate is infinite comonad, you can just keep
+; applying arbitrary functions (queries).
+(def Suber-graph)                                           ; nothing to do
 
-  (def >route (input))
-  (def >result (hf-pull >route))                            ; server and client shared
-
-  (loop (join (recur)))
-
-  (def >view
-    (fmap
-      (join (sequence (join >result)))
-      (fn [v] [:pre (js/pprint-str v)])))
-
-  (on >view reactRomRender)
-  (put >route `(sub-requests sub))
-  (put >route `{(sub-requests sub) [:sub/id
-                                    {(sub-display sub/id) [...]}]})
-
-  (defn sub-display [sub]
-    (d/entity hf/*$* sub))
-
-  (defn rosie-entity-history [e before attr]
-
-    )
-
-  (defn suber-name-kv []
-    {::rosie/name (suber-name e)})
-
-  (defn all-locations []
-    (d/q '[:find [?tag ...]
-           :in $ ?needle
-           :where
-           [_ :sub/tags ?tag]
-
-           [(namespace ?tag) ?ns] [(= ?ns "location")]
-
-           [(name ?tag) ?name] [(swinged.norby2/needle-match ?name ?needle)]]
-      hf/*$* needle))
-
-  )
+(def Rosie
+  ; default structure and pull depth?
+  ; routable points in graph?
+  {`sub-display          [:sub/id
+                          :cognito/email
+                          :google/email
+                          :sub/phone
+                          :sub/phone-confirmed
+                          :sub/about
+                          :sub/photo
+                          {:esub/region [:region/id]}
+                          {:sub/priority [:sub-priority/id]}
+                          {:sub/experience ['*]}
+                          :sub.index/cancel-rate
+                          ; if they produce scalars, render as pulledtree
+                          ; if they produce identity, render as link bc no pull?
+                          suber-name-kv
+                          sub-locations-kv
+                          sub-quals-kv
+                          {sub-metrics-kv [:sub.metrics/feedback-score
+                                           :sub.metrics/reliability-score]}]
+   `sub-requests         [:sub-req.index/start
+                          :sub-req.index/end
+                          :school/name
+                          :sub-req/id
+                          sub-request]
+   `sub-request          [:sub-req/grade
+                          :sub-req/subject
+                          :sub-req/memo
+                          {:sub-req/status [:db/ident]}
+                          :sub/id
+                          ~sub-display]
+   `all-locations        [:db/ident]
+   `rosie-entity-history (fn [e before attr]
+                           `['*
+                             :db/id
+                             ~@(match (rosie-type e)
+                                 ::admin [:admin/name
+                                          :admin/id
+                                          {admin-display [...]}]
+                                 ::sub [:sub/name
+                                        :sub/id
+                                        sub-display]
+                                 _ nil)])
+   `admin-display        ['*]
+   })
