@@ -11,15 +11,14 @@
            >q (atom nil)
            >control (atom nil)
            >cross (case >control :p >p :q >q)
-           ?z (vector >cross)]))
-
+           >z (vector >cross)]))
 
   (def ast
     '(let [>p (atom nil)
            >q (atom nil)
            >control ~(atom nil)
            >cross ~(case >control :p >p :q >q)
-           ?z ~(vector ~>cross)]))
+           >z ~(vector ~>cross)]))
 
   (def >p (atom nil))
   (def >q (atom nil))

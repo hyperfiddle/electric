@@ -1,7 +1,8 @@
 (ns dustin.trace4
-  (:require [minitest :refer [tests]]))
+  (:require [minitest :refer [tests]]
+            [hyperfiddle.incremental :as I :refer [incr?]]))
 
-(declare directive! replay!)
+(declare directive! replay! compile-incr)
 
 (deftype Flow [ast inbound-edges registry]
   ILookup
@@ -13,8 +14,9 @@
       (eval (compile-incr ast))
       *registry*)))
 
-(compile-incr '(fmap identity >a)) := '(fmapI '>a identity >a) ; concrete monad and retain symbolic names
-(eval *1) := <missionary>
+(tests
+  (compile-incr '(fmap identity >a)) := '(fmapI '>a identity >a) ; concrete monad and retain symbolic names
+  (eval *1) :? incr?)
 
 (tests
 
