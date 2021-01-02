@@ -4,8 +4,8 @@
                             [dustin.hfql20 :refer [hfql]]))
   (:require
     [hyperfiddle.hfql19 :refer [hf-nav]]
-    [hyperfiddle.incremental :refer
-     [sequenceI sequence-mapI bindI pureI fmapI capI joinI extend-seqI]]
+    [hyperfiddle.incremental :as I :refer
+     [sequenceI sequence-mapI bindI pureI fmapI capI joinI extend-seq]]
     #?(:clj [fixplz.expr :refer [unquote-via]])
     [meander.epsilon :as m]
     [minitest #?@(:clj [:refer [tests]])]
@@ -73,7 +73,7 @@
                           (~'for [~'% ~'>as]
                             (~'let [~(hf-edge->sym ?edge) ~'%]
                               ~(compile-hfql* ?cont)))))
-               (~'extend-seqI ~edge*))}                     ; extend monad
+               (~'extend-seq ~edge*))}
            `{'~?edge
              (~'let [~'% ~edge*]
                (~'let [~(hf-edge->sym ?edge) ~'%]

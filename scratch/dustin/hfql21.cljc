@@ -5,7 +5,7 @@
     [minitest #?@(:clj [:refer [tests]])]
     #?(:clj [dustin.hfql20 :refer [hfql]])
     [hyperfiddle.incremental :as I
-     :refer [sequenceI sequence-mapI extend-seqI
+     :refer [sequenceI sequence-mapI extend-seq
              bindI pureI fmapI capI joinI incr?]]
     [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
     [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]])
@@ -49,9 +49,9 @@
                         #:db{:ident :dustingetz/mens-large}]}
 
   (set! *1
-    (let [needle (pureI "")]
+    (let [a (pureI "")]
       (hfql
-        [{(submissions needle)
+        [{(submissions a)
           [{:dustingetz/gender
             [{(shirt-sizes gender)
               [:db/id :db/ident]}]}]}])))
@@ -61,7 +61,7 @@
     (bindI I/sequence-some)
     (bindI I/sequence-some)
     capI)
-  := '{(submissions needle)
+  := '{(submissions a)
        [{:dustingetz/gender
          {(shirt-sizes gender)
           [#:db{:id 6, :ident :dustingetz/womens-small}
@@ -77,5 +77,33 @@
           [#:db{:id 3, :ident :dustingetz/mens-small}
            #:db{:id 4, :ident :dustingetz/mens-medium}
            #:db{:id 5, :ident :dustingetz/mens-large}]}}]}
+
+  (def r (let [a (pureI "")]
+           (hfql [{(submissions a)
+                   [{:dustingetz/gender
+                     [{(shirt-sizes gender)
+                       [:db/id :db/ident]}]}
+                    :dustingetz/email]}])))
+  := '{(submissions a) _}
+
+  (as-> r %
+    (I/sequence-at % [['(submissions a)]])
+    (bindI % #(I/sequence-at % [['(submissions a) 0 :dustingetz/email]
+                                ['(submissions a) 0 :dustingetz/gender '(shirt-sizes gender)]
+                                ['(submissions a) 1 :dustingetz/email]
+                                ['(submissions a) 1 :dustingetz/gender '(shirt-sizes gender)]]))
+    (bindI % #(I/sequence-at % [['(submissions a) 0 :dustingetz/gender '(shirt-sizes gender) 0 :db/id]
+                                ['(submissions a) 0 :dustingetz/gender '(shirt-sizes gender) 0 :db/ident]
+                                ['(submissions a) 0 :dustingetz/gender '(shirt-sizes gender) 1 :db/id]
+                                ['(submissions a) 0 :dustingetz/gender '(shirt-sizes gender) 1 :db/ident]
+                                ['(submissions a) 0 :dustingetz/gender '(shirt-sizes gender) 2 :db/id]
+                                ['(submissions a) 0 :dustingetz/gender '(shirt-sizes gender) 2 :db/ident]
+                                ['(submissions a) 1 :dustingetz/gender '(shirt-sizes gender) 0 :db/id]
+                                ['(submissions a) 1 :dustingetz/gender '(shirt-sizes gender) 0 :db/ident]
+                                ['(submissions a) 1 :dustingetz/gender '(shirt-sizes gender) 1 :db/id]
+                                ['(submissions a) 1 :dustingetz/gender '(shirt-sizes gender) 1 :db/ident]
+                                ['(submissions a) 1 :dustingetz/gender '(shirt-sizes gender) 2 :db/id]
+                                ['(submissions a) 1 :dustingetz/gender '(shirt-sizes gender) 2 :db/ident]]))
+    (capI %))
 
   )
