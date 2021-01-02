@@ -29,7 +29,7 @@
   )
 
 ; extend-seqI :: I Seq a -> I Seq I a -- reactive list with reactive elements
-(defn extend-seqI
+(defn extend-seq
   "this is not quite the opposide of sequence, it extends a layer"
   [>as]
   (->> >as
@@ -37,15 +37,15 @@
              ; allocate inputs and introduce layer
              (map pureI as)))))
 
-(def unsequenceI extend-seqI)
+(def unsequenceI extend-seq)
 
 (tests
-  (def >>as (extend-seqI (pureI [9 10 11])))
+  (def >>as (extend-seq (pureI [9 10 11])))
   (map capI (capI >>as)) := [9 10 11]
   (capI (bindI >>as sequenceI)) := [9 10 11]
 
-  (capI (bindI (extend-seqI (pureI [1 2 3])) sequenceI)) := [1 2 3]
-  (capI (capI (fmapI sequenceI (extend-seqI (pureI [1 2 3]))))) := [1 2 3]
+  (capI (bindI (extend-seq (pureI [1 2 3])) sequenceI)) := [1 2 3]
+  (capI (capI (fmapI sequenceI (extend-seq (pureI [1 2 3]))))) := [1 2 3]
 
   (->> >>as
     (fmapI (fn [>as]
@@ -86,10 +86,13 @@
        :else e'))))
 
 (tests
+  (def !paths (atom []))
   (pathwalk
-    (fn [path v] (println path v) (if (= :a v) :A v))
+    (fn [path v] (swap! !paths conj path) (if (= :a v) :A v))
     [{:cat "Garfield", :dog "DogeCoin"} [:a :b {:site "so"}]])
-  := [{:cat "Garfield", :dog "DogeCoin"} [:A :b {:site "so"}]])
+  := [{:cat "Garfield", :dog "DogeCoin"} [:A :b {:site "so"}]]
+  @!paths := [[] [0] [0 :cat] [0 :dog] [1] [1 0] [1 1] [1 2] [1 2 :site]])
+
 
 (defn scan [f? tree]
   (let [!a (atom [])]
@@ -110,14 +113,20 @@
       [1 :dustingetz/gender :db/id]
       [1 :dustingetz/gender :db/ident]])
 
-(defn sequence-some [tree]
-  (let [paths (scan incr? tree)]
-    (apply fmapI
-      (fn [& vs]
-        (reduce (fn [acc [path v]]
-                  (assoc-in acc path v))
-          tree (map vector paths vs)))
-      (map #(get-in tree %) paths))))
+(defn sequence-at
+  "Sequence a tree with some leaf flows, at particular points (as if clicked on)"
+  [tree paths]
+  (apply fmapI
+    (fn [& vs]
+      (reduce (fn [acc [path v]]
+                (assoc-in acc path v))
+        tree (map vector paths vs)))
+    (map #(get-in tree %) paths)))
+
+(defn sequence-some
+  "Sequence a tree with some leaf flows"
+  [tree]
+  (sequence-at tree (scan incr? tree)))
 
 ;(defn sequence-some [tree]
 ;  (let [paths (scan incr? tree)
