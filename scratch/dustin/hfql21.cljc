@@ -30,31 +30,28 @@
   (capI (I/sequence-some r))
   := '#:dustingetz{:gender #:db{:id 1, :ident :dustingetz/male}}
 
-  (set! *1
-    (let [a (pureI :dustingetz/male)]
-      (hfql
-        [{(shirt-sizes a) [:db/ident]}])))
+  (let [a (pureI :dustingetz/male)]
+    (hfql
+      [{(shirt-sizes a) [:db/ident]}]))
   (-> *1 I/sequence-some capI I/sequence-some capI)
   := '{(shirt-sizes a) [#:db{:ident :dustingetz/mens-small}
                         #:db{:ident :dustingetz/mens-medium}
                         #:db{:ident :dustingetz/mens-large}]}
 
-  (set! *1
-    (let [a (pureI :dustingetz/male)]
-      (hfql
-        [{(shirt-sizes a) [:db/ident]}])))
+  (let [a (pureI :dustingetz/male)]
+    (hfql
+      [{(shirt-sizes a) [:db/ident]}]))
   (-> *1 I/sequence-some (bindI I/sequence-some) capI)
   := '{(shirt-sizes a) [#:db{:ident :dustingetz/mens-small}
                         #:db{:ident :dustingetz/mens-medium}
                         #:db{:ident :dustingetz/mens-large}]}
 
-  (set! *1
-    (let [a (pureI "")]
-      (hfql
-        [{(submissions a)
-          [{:dustingetz/gender
-            [{(shirt-sizes gender)
-              [:db/id :db/ident]}]}]}])))
+  (let [a (pureI "")]
+    (hfql
+      [{(submissions a)
+        [{:dustingetz/gender
+          [{(shirt-sizes gender)
+            [:db/id :db/ident]}]}]}]))
 
   (-> *1
     I/sequence-some
@@ -78,15 +75,15 @@
            #:db{:id 4, :ident :dustingetz/mens-medium}
            #:db{:id 5, :ident :dustingetz/mens-large}]}}]}
 
-  (def r (let [a (pureI "")]
-           (hfql [{(submissions a)
-                   [{:dustingetz/gender
-                     [{(shirt-sizes gender)
-                       [:db/id :db/ident]}]}
-                    :dustingetz/email]}])))
+  (let [a (pureI "")]
+    (hfql [{(submissions a)
+            [{:dustingetz/gender
+              [{(shirt-sizes gender)
+                [:db/id :db/ident]}]}
+             :dustingetz/email]}]))
   := '{(submissions a) _}
 
-  (as-> r %
+  (as-> *1 %
     (I/sequence-at % [['(submissions a)]])
     (bindI % #(I/sequence-at % [['(submissions a) 0 :dustingetz/email]
                                 ['(submissions a) 0 :dustingetz/gender '(shirt-sizes gender)]
