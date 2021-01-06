@@ -1,11 +1,10 @@
-(ns dustin.hfql20
+(ns hyperfiddle.hfql20
   #?(:cljs (:require-macros [minitest :refer [tests]]
-                            [dustin.hfql20 :refer [hfql]]))
+                            [hyperfiddle.hfql20 :refer [hfql]]))
   (:require
-    [hyperfiddle.hfql19 :refer [hf-nav]]
+    [datascript.core :as d] #_#?(:clj [datomic.api :as d])
     [hyperfiddle.incremental :refer
      [sequenceI sequence-mapI bindI pureI fmapI capI joinI extend-seq]]
-    #?(:clj [fixplz.expr :refer [unquote-via]])
     [meander.epsilon :as m]
     [minitest #?@(:clj [:refer [tests]])]
     [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
@@ -44,6 +43,17 @@
 
 (defn hf-edge->sym [edge]
   (if (keyword? edge) (symbol (name edge)) #_edge '%))
+
+(defn hf-nav [kf ref]
+  ; emits smart refs
+  (kf (d/entity hyperfiddle.api/*$* ref)))
+
+(tests
+  (hf-nav :db/ident 3) := :dustingetz/mens-small
+  (hf-nav :db/id 3) := 3
+  (hf-nav identity [:dustingetz/email "alice@example.com"]) ;:= #:db{:id 9}
+  (hf-nav :db/id [:dustingetz/email "alice@example.com"]) := 9
+  (hf-nav :dustingetz/gender [:dustingetz/email "alice@example.com"]) := :dustingetz/female)
 
 (defn compile-leaf* [?form]
   (cond
@@ -93,7 +103,8 @@
 (tests
   (let [a :dustingetz/male]
     (hfql [{(shirt-sizes a) [:db/ident]}]))
-  := '{(shirt-sizes a) _})
+  ;:= '{(shirt-sizes a) _}
+  )
 
 #?(:clj
    (tests
@@ -147,7 +158,8 @@
 (tests
   (macroexpand-1 '(hfql (identity a)))
   := '{(quote (identity a)) (fmapI identity a)}
-  (let [a (pureI 1)] (hfql (identity a))) := '{(identity a) _}
+  (let [a (pureI 1)] (hfql (identity a)))
+  ;:= '{(identity a) _}
   (-> *1 (get '(identity a)) capI) := 1
 
   (macroexpand-1 '(hfql {(identity >needle) (inc %)}))
@@ -157,109 +169,113 @@
            {(quote (inc %)) (fmapI inc %)}))}
   (let [a (pureI 1)]
     (hfql {(identity a) (inc %)}))
-  := '{(identity a) {(inc %) _}}
+  ;:= '{(identity a) {(inc %) _}}
 
   (let [a (pureI 1)]
     (hfql
       {(identity a)
        [(dec %)
         (inc %)]}))
-  := '{(identity a) {(dec %) _,
-                     (inc %) _}}
+  ;:= '{(identity a) {(dec %) _, (inc %) _}}
   ; R2D2 traverse structure, click on links
   ;(capI *1) := 1
 
   (let [a (pureI 1)]
     (hfql {(inc a) (inc %)}))
-  := '{(inc a) {(inc %) _}}
+  ;:= '{(inc a) {(inc %) _}}
   (-> *1 (get '(inc a)) (get '(inc %)) capI) := 3
 
   (hf-nav :dustingetz/gender bob) := :dustingetz/male
   (macroexpand-1 '(hfql :dustingetz/gender))
-  := '#:dustingetz{:gender (fmapI (partial hf-nav :dustingetz/gender) %)}
+  := '{(quote :dustingetz/gender) (fmapI (partial hyperfiddle.hfql20/hf-nav :dustingetz/gender) %)}
   (let [% (pureI bob)] (hfql :dustingetz/gender))
   (capI (:dustingetz/gender *1)) := :dustingetz/male
 
   (shirt-size :dustingetz/male) := 3
   (macroexpand-1 '(hfql (shirt-size %)))
   := '{(quote (shirt-size %)) (fmapI shirt-size %)}
-  (let [% (pureI :dustingetz/male)] (hfql (shirt-size %))) := '{(shirt-size %) _}
+  (let [% (pureI :dustingetz/male)] (hfql (shirt-size %)))
+  ;:= '{(shirt-size %) _}
   (-> *1 (get '(shirt-size %)) capI) := 3
 
   (macroexpand-1 '(hfql [:dustingetz/gender :db/id]))
-  := '{(quote :dustingetz/gender) (fmapI (partial hf-nav :dustingetz/gender) %),
-       (quote :db/id)             (fmapI (partial hf-nav :db/id) %)}
-  (let [% (pureI bob)] (hfql [:dustingetz/gender :db/id])) := '{:dustingetz/gender _, :db/id _}
+  := '{(quote :dustingetz/gender) (fmapI (partial hyperfiddle.hfql20/hf-nav :dustingetz/gender) %),
+       (quote :db/id)             (fmapI (partial hyperfiddle.hfql20/hf-nav :db/id) %)}
+  (let [% (pureI bob)] (hfql [:dustingetz/gender :db/id]))
+  ;:= '{:dustingetz/gender _, :db/id _}
   (capI (:dustingetz/gender *1)) := :dustingetz/male
 
   (macroexpand-1 '(hfql {:dustingetz/gender [:db/id :db/ident]}))
   := '{(quote :dustingetz/gender)
-       (let [% (fmapI (partial hf-nav :dustingetz/gender) %)]
+       (let [% (fmapI (partial hyperfiddle.hfql20/hf-nav :dustingetz/gender) %)]
          (let [gender %]
-           {(quote :db/id)    (fmapI (partial hf-nav :db/id) %),
-            (quote :db/ident) (fmapI (partial hf-nav :db/ident) %)}))}
+           {(quote :db/id)    (fmapI (partial hyperfiddle.hfql20/hf-nav :db/id) %),
+            (quote :db/ident) (fmapI (partial hyperfiddle.hfql20/hf-nav :db/ident) %)}))}
 
   (let [% (pureI bob)] (hfql {:dustingetz/gender [:db/id :db/ident]}))
-  := '#:dustingetz{:gender #:db{:id _, :ident _}}
+  ;:= '#:dustingetz{:gender #:db{:id _, :ident _}}
   (capI (sequenceI (vals (select-keys (:dustingetz/gender *1) [:db/ident :db/id]))))
   := [:dustingetz/male 1]
 
   (macroexpand-1 '(hfql [{:dustingetz/gender [:db/id :db/ident]}]))
   := '{(quote :dustingetz/gender)
-       (let [% (fmapI (partial hf-nav :dustingetz/gender) %)]
+       (let [% (fmapI (partial hyperfiddle.hfql20/hf-nav :dustingetz/gender) %)]
          (let [gender %]
-           {(quote :db/id)    (fmapI (partial hf-nav :db/id) %),
-            (quote :db/ident) (fmapI (partial hf-nav :db/ident) %)}))}
+           {(quote :db/id)    (fmapI (partial hyperfiddle.hfql20/hf-nav :db/id) %),
+            (quote :db/ident) (fmapI (partial hyperfiddle.hfql20/hf-nav :db/ident) %)}))}
 
   (let [% (pureI bob)] (hfql [{:dustingetz/gender [:db/id :db/ident]}]))
-  := '#:dustingetz{:gender #:db{:id _, :ident _}}
+  ;:= '#:dustingetz{:gender #:db{:id _, :ident _}}
   (capI (sequenceI (vals (select-keys (:dustingetz/gender *1) [:db/ident :db/id])))) := [:dustingetz/male 1]
 
   (macroexpand-1 '(hfql [{:dustingetz/gender [{(shirt-size gender) [:db/id :db/ident]}]}]))
-  := '(let [% (fmapI (partial hf-nav :dustingetz/gender) %)
-            gender %]
-        {(quote :dustingetz/gender)
-         (let [% (fmapI shirt-size gender) % %]
+  := '{(quote :dustingetz/gender)
+       (let [% (fmapI (partial hyperfiddle.hfql20/hf-nav :dustingetz/gender) %)]
+         (let [gender %]
            {(quote (shirt-size gender))
-            #:db{:id    (fmapI (partial hf-nav :db/id) %),
-                 :ident (fmapI (partial hf-nav :db/ident) %)}})})
+            (let [% (fmapI shirt-size gender)]
+              (let [% %]
+                {(quote :db/id)    (fmapI (partial hyperfiddle.hfql20/hf-nav :db/id) %),
+                 (quote :db/ident) (fmapI (partial hyperfiddle.hfql20/hf-nav :db/ident) %)}))}))}
 
   (let [% (pureI bob)] (hfql [{:dustingetz/gender [{(shirt-size gender) [:db/id :db/ident]}]}]))
-  := '#:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}
+  ;:= '#:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}
   (capI (sequenceI (vals (select-keys (-> *1 :dustingetz/gender (get '(shirt-size gender))) [:db/ident :db/id]))))
   := [:dustingetz/mens-small 3]
 
-  (macroexpand-1 '(hfql [{(submission needle)
-                                  [{:dustingetz/gender
-                                    [{(shirt-size gender)
-                                      [:db/id :db/ident]}]}]}]))
+  (macroexpand-1
+    '(hfql
+       [{(submission needle)
+         [{:dustingetz/gender
+           [{(shirt-size gender)
+             [:db/id :db/ident]}]}]}]))
   := '{(quote (submission needle))
        (let [% (fmapI submission needle)]
          (let [% %]
            {(quote :dustingetz/gender)
-            (let [% (fmapI (partial hf-nav :dustingetz/gender) %)]
+            (let [% (fmapI (partial hyperfiddle.hfql20/hf-nav :dustingetz/gender) %)]
               (let [gender %]
                 {(quote (shirt-size gender))
                  (let [% (fmapI shirt-size gender)]
                    (let [% %]
-                     {(quote :db/id) (fmapI (partial hf-nav :db/id) %),
-                      (quote :db/ident) (fmapI (partial hf-nav :db/ident) %)}))}))}))}
+                     {(quote :db/id) (fmapI (partial hyperfiddle.hfql20/hf-nav :db/id) %),
+                      (quote :db/ident) (fmapI (partial hyperfiddle.hfql20/hf-nav :db/ident) %)}))}))}))}
 
   (let [needle (pureI "alice")]
     (hfql [{(submission needle)
             [{:dustingetz/gender
               [{(shirt-size gender)
                 [:db/id :db/ident]}]}]}]))
-  := '{(submission needle) #:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}}
+  ;:= '{(submission needle) #:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}}
   (-> *1 (get '(submission needle)) :dustingetz/gender
     (get '(shirt-size gender)) :db/ident capI) := :dustingetz/womens-small
 
   (macroexpand-1 '(hfql {:dustingetz/gender [:db/id (:db/ident %)]}))
   := '{(quote :dustingetz/gender)
-       (let [% (fmapI (partial hf-nav :dustingetz/gender) %)]
+       (let [% (fmapI (partial hyperfiddle.hfql20/hf-nav :dustingetz/gender) %)]
          (let [gender %]
            {(quote (:db/ident %)) (fmapI :db/ident %),
-            (quote :db/id) (fmapI (partial hf-nav :db/id) %)}))}
+            (quote :db/id) (fmapI (partial hyperfiddle.hfql20/hf-nav :db/id) %)}))}
 
   (macroexpand-1 '(hfql {(:dustingetz/gender %) [(:db/id %) (:db/ident %)]}))
   := '{(quote (:dustingetz/gender %))
