@@ -82,16 +82,32 @@
   (defn submission-detail [] ...)
   (defn shirt-sizes [gender] ...)
 
+  ; api
+  (def route1 '(user.hello-world/submission-detail
+                 [:dustingetz/email "alice@example.com"]
+                 1 4))
+
+  ; native database reads
+  (fn r2d2-brain []
+    (hfql {(user.hello-world/submission-detail
+             [:dustingetz/email "alice@example.com"]) [*]}))
+
+  (-> (hf-resolve route2)
+    I/sequence-some
+    (bindI I/sequence-some)
+    #_(bindI I/sequence-some)
+    capI)
+
   (def App
-    {`submission-master [{(submissions "alice" 1 2) :as submission-id
-                                                    [:dustingetz/email ::hf/anchor '(submission-detail submission-id)
-                                                     {:dustingetz/shirt-size [:db/ident]}
-                                                     {:dustingetz/gender [:db/ident #_(:db/ident %)
-                                                                          shirt-sizes #_(shirt-sizes %) #_(shirt-sizes dustingetz/gender)]}
-                                                     #_{:dustingetz/gender
-                                                        [:db/ident
-                                                         {(shirt-sizes dustingetz/gender)
-                                                          [:db/ident]}]}]}
+    {`submission-master [{(submissions *$* "alice" 1 2)
+                          [:dustingetz/email ::hf/anchor '(submission-detail submission-id)
+                           {:dustingetz/shirt-size [:db/ident]}
+                           {:dustingetz/gender [:db/ident #_(:db/ident %)
+                                                shirt-sizes #_(shirt-sizes %) #_(shirt-sizes dustingetz/gender)]}
+                           #_{:dustingetz/gender
+                              [:db/ident
+                               {(shirt-sizes dustingetz/gender)
+                                [:db/ident]}]}]}
                          {(genders) [:db/ident]}]
      `submission-detail [:db/id
                          :dustingetz/email
