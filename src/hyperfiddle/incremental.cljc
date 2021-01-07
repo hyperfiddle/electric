@@ -125,8 +125,9 @@
 
 (defn sequence-some
   "Sequence a tree with some leaf flows"
-  [tree]
-  (sequence-at tree (scan incr? tree)))
+  ([tree] (sequence-some tree incr?))
+  ([tree f?]
+   (sequence-at tree (scan f? tree))))
 
 ;(defn sequence-some [tree]
 ;  (let [paths (scan incr? tree)

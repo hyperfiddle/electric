@@ -3,7 +3,7 @@
   (:require
     [clojure.walk :refer [postwalk prewalk]]
     [minitest #?@(:clj [:refer [tests]])]
-    #?(:clj [dustin.hfql20 :refer [hfql]])
+    #?(:clj [hyperfiddle.hfql20 :refer [hfql]])
     [hyperfiddle.incremental :as I
      :refer [sequenceI sequence-mapI extend-seq
              bindI pureI fmapI capI joinI incr?]]
@@ -27,7 +27,7 @@
   (I/scan incr? r)
   := [[:dustingetz/gender :db/id] [:dustingetz/gender :db/ident]]
 
-  (capI (I/sequence-some r))
+  (capI (I/sequence-some r incr?))
   := '#:dustingetz{:gender #:db{:id 1, :ident :dustingetz/male}}
 
   (let [a (pureI :dustingetz/male)]
