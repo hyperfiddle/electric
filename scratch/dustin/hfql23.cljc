@@ -180,13 +180,13 @@
 
 (tests
 
-  (hf-pull [:dustingetz/gender] bob) := #:dustingetz{:gender :dustingetz/male}
-  (hf-pull [:dustingetz/gender :db/id] bob) := {:dustingetz/gender :dustingetz/male :db/id 10}
+  (hf-pull [:dustingetz/gender] {} bob) := #:dustingetz{:gender :dustingetz/male}
+  (hf-pull [:dustingetz/gender :db/id] {} bob) := {:dustingetz/gender :dustingetz/male :db/id 10}
   ;(hf-pull [{:dustingetz/gender [:dustingetz/type]}] bob) ; datascript issue?
-  (hf-pull [{:dustingetz/gender [:db/id]}] bob) := {:dustingetz/gender {:db/id 1}}
-  (hf-pull [{:dustingetz/gender [:db/ident]}] bob) := #:dustingetz{:gender #:db{:ident :dustingetz/male}}
-  (hf-pull [{:dustingetz/gender [:db/ident :db/id]}] bob) := #:dustingetz{:gender #:db{:ident :dustingetz/male, :id 1}}
-  (hf-pull [{:dustingetz/gender [:dustingetz/type]}] bob)
+  (hf-pull [{:dustingetz/gender [:db/id]}] {} bob) := {:dustingetz/gender {:db/id 1}}
+  (hf-pull [{:dustingetz/gender [:db/ident]}] {} bob) := #:dustingetz{:gender #:db{:ident :dustingetz/male}}
+  (hf-pull [{:dustingetz/gender [:db/ident :db/id]}] {} bob) := #:dustingetz{:gender #:db{:ident :dustingetz/male, :id 1}}
+  (hf-pull [{:dustingetz/gender [:dustingetz/type]}] {} bob)
 
   := #:dustingetz{:gender #:dustingetz{:type :dustingetz/gender}}
 
@@ -194,7 +194,7 @@
 
                                  :db/ident
 
-                                 :dustingetz/type]}] bob)
+                                 :dustingetz/type]}] {} bob)
 
   := #:dustingetz{:gender {:db/id           1,
 
@@ -229,4 +229,3 @@
 ;(hf-pull [:dustingetz/gender :db/id] bob) := [1]
 ;(hf-pull {:dustingetz/gender [:db/id]} bob) :=
 ;(hf-pull [{:dustingetz/gender [:db/id]}] bob) :=
-
