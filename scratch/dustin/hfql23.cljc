@@ -6,7 +6,8 @@
     [hyperfiddle.api :refer [*$*]]
     [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
     [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]
-    [hyperfiddle.hfql20 :refer [many?]]))
+    [hyperfiddle.hfql20 :refer [many?]]
+    [missionary.core :refer [watch latest]]))
 
 (tests
   (many? 'submissions) := true
@@ -71,13 +72,15 @@
   ([edge env] (hf-apply edge env nil))
   ([edge env a]
    (cond
-     (keyword? edge) (hf-nav edge a)
-     (seq? edge) (let [[f & args] edge]
+     (keyword? edge) (latest (partial hf-nav edge) a)
+
+     (seq? edge) (let [[f & args] edge
+                       f (resolve f)]
                    (->> args
                         (map (fn [arg]
                                (if (symbol? arg)
                                  (resolve-symbol env arg) arg)))
-                        (apply (resolve f))))
+                        (apply latest f)))
      () (do (println "hf-eval unmatched edge: " edge)
             [::unmatched-edge edge]))))
 
@@ -116,7 +119,8 @@
                               env (if-some [s (form->sym form)]
                                     (assoc env s v) env)]
                           (if (many? form)
-                            {form (into [] (map (partial hf-pull pat env)) v)}
+                            {form (latest (fn [vs]
+                                            (into [] (map (fn [v] (hf-pull pat env (watch (atom v))))) vs)) v)}
                             {form (hf-pull pat env v)}))))
                  (apply merge))
 
@@ -229,3 +233,47 @@
 ;(hf-pull [:dustingetz/gender :db/id] bob) := [1]
 ;(hf-pull {:dustingetz/gender [:db/id]} bob) :=
 ;(hf-pull [{:dustingetz/gender [:db/id]}] bob) :=
+
+(tests
+  (def target (atom bob))
+  (def res (hf-pull [:dustingetz/gender] {} (watch target)))
+  (def it ((:dustingetz/gender res) #(prn :ready) #(prn :done)))
+  @it := :dustingetz/male
+  (reset! target bob)
+  @it := :dustingetz/female
+
+
+  (def address (atom "bob"))
+  (def res (hf-pull '[{(submission needle)
+                       [{:dustingetz/gender
+                         [{(shirt-size gender)
+                           [:db/id :db/ident]}]}]}]
+                    {'needle (watch address)}))
+
+  (def flow (get-in res '[(submission needle) :dustingetz/gender (shirt-size gender) :db/ident]))
+  (def it (flow #(prn :ready) #(prn :done)))
+
+  (reset! address "")
+  @it
+
+
+
+  (def res (hf-pull '[{(submissions needle)
+                       [{:dustingetz/gender
+                         [{(shirt-sizes gender)
+                           [:db/id :db/ident]}]}]}]
+                    {'needle (watch address)}))
+  res
+  (def flow (get res '(submissions needle)))
+  (def it (flow #(prn :ready) #(prn :done)))
+  (def current @it)
+  current
+  (def nested (get-in current '[0 :dustingetz/gender (shirt-sizes gender)]))
+  nested
+  (def it2 (nested #(prn :ready) #(prn :done)))
+  (def nested-nested @it2)
+  nested-nested
+  (def it3 ((get-in nested-nested [0 :db/ident]) #(prn :ready) #(prn :done)))
+  @it3
+
+  )
