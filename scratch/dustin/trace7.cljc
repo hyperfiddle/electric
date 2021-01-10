@@ -20,9 +20,33 @@
                    #_#_>control (identity ~>control)]))
   ; inputs and outputs must be reachable
 
+
   (def ast2 '(let [>cross ~(case ~>control :p >p :q >q)
                    >z (vector ~>cross)
                    >z (identity ~>z)]))                     ; shadow
+
+
+  ; THe language of the trace and the language of the reactor
+  ; encodes all possible dynamic choices
+  (def ast2 '(let [>cross (signal! (?! (case (?! >control) :p >p :q >q)))
+                   >z (vector (?! >cross))
+                   >z (identity (?! >z))]))
+
+  (def ast2 '(let [>cross (signal! (?! (case (?! >control) :p >p :q >q)))
+                   >z (vector (?! >cross))
+                   >z (identity (?! >z))]))
+
+  ; Topology
+  ; The Reactor maintains a graph and the topology of the graph is dynamic
+  ; In reaction to any event, you can register a new node,
+  ; a running node can subscribe to another node (that will create an edge)
+  ; A node can cancel one of its subscription (remove an edge)
+  ; a node can terminate (remove the node and all its downstream edges)
+  ; A node can crash, this is almost like a termination
+  ; A node can be cancelled from the outside
+  ; A node that is cancelled is not subscribe-able anymore. If you try, the subscription will fail
+  ; What is dynamic?
+  ; Stream is like signal, for discrete flows.
 
   (def !flow1 (Flow ast1 {})) #_#_(def !flow1 (atom [])) (add-watch flow1 ::flow1 #(swap! !flow1 conj))
 

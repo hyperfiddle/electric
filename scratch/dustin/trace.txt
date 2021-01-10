@@ -1,0 +1,25 @@
+2020 Dec 16, Dustin/Geoffrey notes about dataflow trace
+
+* we agreed that the AST = Flow
+* we agree the nodes in a flow can be assigned stable names deterministically
+* bind nodes are like embedding a flow into a new flow
+* so nodes under a bind reset the name sequence under their bind parent
+* e.g. 1 2 3 4 5; 31 32 33
+* trace is log of async effects; an effect is a user interaction or an async result fired
+* names are assigned in order of the lisp ast
+* we agree the trace does not produce a flow
+* if the client replays the same effects as the server says happened, the client/server agree on what the flow state (= dag) is
+* "flow" is the river bed; "flow state" is the water today
+
+* trace is not helpful alone
+* if the nodes in the trace have AST-assigned IDs, and the client does not have the AST, the client does not understand the IDs in the trace and thus the trace is not valuable for any purpose at all
+* it's true that the server can send a trace to the client without the client having the AST, its just not useful
+* the client would have to "reverse engineer" it (like a hacker reverse engineering an operating system memory dump)
+* We agree the architecture is equivalent to a debugger
+* we discussed dataflow continuations vs real lexical continuations
+* Lexical continuations are call stack as a value
+* Dataflow continuations are explicit, not lexical, and don't have a callstack
+* https://twitter.com/dustingetz/status/1338628893364924417
+* therefore it is clear that the client needs both the continuation-call-stack-value AND the source code
+* the client will set the callstack state, set the instruction pointer, set the source code, then press play
+* Do we need to mark nodes client/server? Is the venn diagram essential?
