@@ -101,6 +101,11 @@
   (form->sym '(identity 1)) := nil
   )
 
+(defn new-ref [id-fn v]
+  ^{:react-key (id-fn v)} (atom v))
+; we have a new list of react keys and a prior list of react keys
+; resulting in a set of additions and removals
+
 (defn hf-pull
   ([pat] (hf-pull pat {}))
   ([pat env] (hf-pull pat env nil))
@@ -119,8 +124,9 @@
                               env (if-some [s (form->sym form)]
                                     (assoc env s v) env)]
                           (if (many? form)
+                            ; produce reactive list of reactive elements
                             {form (latest (fn [vs]
-                                            (into [] (map (fn [v] (hf-pull pat env (watch (atom v))))) vs)) v)}
+                                            (into [] (map (fn [v] (hf-pull pat env (watch (new-ref :db/id v))))) vs)) v)}
                             {form (hf-pull pat env v)}))))
                  (apply merge))
 
