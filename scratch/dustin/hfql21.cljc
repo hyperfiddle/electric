@@ -12,7 +12,7 @@
   #?(:cljs
      (:require-macros
        [minitest :refer [tests]]
-       [dustin.hfql20 :refer [hfql]])))
+       [hyperfiddle.hfql20 :refer [hfql]])))
 
 ; The server serves an infinite dag.
 ; The served response is a continuous flow, extended infinite layers.
@@ -81,7 +81,7 @@
               [{(shirt-sizes gender)
                 [:db/id :db/ident]}]}
              :dustingetz/email]}]))
-  := '{(submissions a) _}
+  ;:= '{(submissions a) _}
 
   (as-> *1 %
     (I/sequence-at % [['(submissions a)]])
