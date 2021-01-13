@@ -19,7 +19,7 @@
 (defn Reactor [ast connections]
   (reactor
     (let [!log (atom [])
-          _ (eval-incr ast)
+          _ (eval-ast-to-self-adjusting-graph ast)
           reactor-input ...]
       (subscribe-to-connections (keys connections))
       (m/stream!
@@ -32,6 +32,7 @@
         (directive! [o])                                    ; send inputs to reactor
         (subscribe! [o])
         (log [o] @!log)
+        (replay! [o log])
         ))))                                                ; emit effects that reactor propogates
 
 (tests
@@ -66,6 +67,11 @@
                    >cross ~(case ~>control' :p >p' :q >q')
                    >z (vector ~>cross)
                    >z (identity ~>z)]))                     ; shadow
+
+  (def ast2' '(let [>simple (vector (?! >control'))
+                    >cross (?! (case (?! >control') :p >p' :q >q'))
+                    >z (vector (?! >cross))
+                    >z (identity (?! >z))]))
 
   (def !client-reactor (->Reactor ast2 {!server-reactor '{>p'       >p
                                                           >q'       >q
