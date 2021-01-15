@@ -26,19 +26,6 @@
 ;;   - [X] Is there a way for a more complex Applicative dag to invalidate our
 ;;     model?
 ;;   - [X] Make =!replay-entrypoint= discrete (15)
-;;   - [ ] Pipe client to server      (16)
-;;   - [ ] Pipe server back to client (16)
-;;   - [ ] bind
-;;   - [ ] sequence/unsequence
-;;   - [ ] expand AST to DAG definition
-;;     #+begin_src clojure
-;;     (expand
-;;      (let [>a (input)
-;;            >b (vector ~>a)]))
-;;     :=
-;;     (let [>a (m/signal! (m/watch (get @inputs '>a)))
-;;           >b (m/signal! (m/latest vector >a))])
-;;     #+end_src
 
 
 (def ast '(let [>input1  (input)
