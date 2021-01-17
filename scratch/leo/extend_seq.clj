@@ -99,7 +99,7 @@
            (rf r (d p x))))))))
 
 (tests
-  (sequence (diffp - -1) (range 10))
+  (sequence (diffp - 0) (range 1 10))
   := (list -1 -1 -1 -1 -1 -1 -1 -1 -1 -1)
 
   (sequence (diffp (partial diff-by identity) #{}) [#{0 1 2} #{1 2} #{1 2 3}])
@@ -150,75 +150,39 @@
      [#{} #{1}]
      [#{4} #{2}]])
 
-  (list
-    {0 ?x, 1 ?y, 2 ?z}
-    {0 ?x, 2 ?z}
-    {0 ?x, 4 ?_})
-
+  := (list
+       {0 ?x, 1 ?y, 2 ?z}
+       {0 ?x, 2 ?z}
+       {0 ?x, 4 ?_})
 
   )
 
 (defn extend-seq [kf flow]
   (->> flow (m/transform (comp (diffp (partial diff-by kf) #{}) (active-flows kf flow)))))
 
-(defn capI [f] @(f #() #()))
-
 (tests
   (def !xs (atom #{{:db/id 1}
                    {:db/id 2}
                    {:db/id 3}}))
   (def >>xs (extend-seq :db/id (m/watch !xs)))
-  (capI >>xs)
-  ;:= '[_ _ _]
+  ;(capI >>xs) := '[_ _ _]
 
   (def !flattened
     ((->> (m/ap (let [xs (m/?! >>xs)]
                   (m/?! (apply m/latest (fn [& vs] (zipmap (keys xs) vs)) (vals xs)))))
        (m/relieve {}))
      #(prn :ready) #(prn :done)))
-  @!flattened
+  @!flattened := {1 #:db{:id 1}, 3 #:db{:id 3}, 2 #:db{:id 2}}
 
   (reset! !xs #{{:db/id 1 :email "alice"}
                 {:db/id 2}
                 {:db/id 3}
                 {:db/id 4}})
 
+  @!flattened := {1 {:db/id 1, :email "alice"}, 3 #:db{:id 3}, 2 #:db{:id 2}, 4 #:db{:id 4}}
+
   )
-
-
-
-
 
 ;; discrete extend-seq ? what is the use case ? give it another name
 
 
-#_
-(tests
-  (def tree
-    (atom '#{#:dustingetz{:email  "alice@example.com",
-                          :gender {:db/ident                       :dustingetz/female,
-                                   (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/womens-small}
-                                                                    #:db{:ident :dustingetz/womens-medium}
-                                                                    #:db{:ident :dustingetz/womens-large}]}}
-             #:dustingetz{:email  "bob@example.com",
-                          :gender {:db/ident                       :dustingetz/male,
-                                   (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
-                                                                    #:db{:ident :dustingetz/mens-medium}
-                                                                    #:db{:ident :dustingetz/mens-large}]}}
-             #:dustingetz{:email  "charlie@example.com",
-                          :gender {:db/ident                       :dustingetz/male,
-                                   (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
-                                                                    #:db{:ident :dustingetz/mens-medium}
-                                                                    #:db{:ident :dustingetz/mens-large}]}}},
-      ))
-
-  (def nested-item (->> (extend-seq :dustingetz/email (m/watch tree))
-                     (comment TODO)))
-
-  (def !nested-item (nested-item #(prn :ready) #(prn :done)))
-
-  (reset! tree (comment TODO update nested item))
-
-  @!nested-item := (comment updated-value)
-
-  )
