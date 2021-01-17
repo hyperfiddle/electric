@@ -1,7 +1,7 @@
 (ns hyperfiddle.hfql20
   #?(:cljs (:require-macros [hyperfiddle.hfql20 :refer [hfql]]))
   (:require
-    [datascript.core :as d] #_#?(:clj [datomic.api :as d])
+    [datascript.core :as d]                                 ;#?(:clj [datomic.api :as d])
     [hyperfiddle.incremental :refer
      [sequenceI sequence-mapI bindI pureI fmapI capI joinI extend-seq]]
     [meander.epsilon :as m]
