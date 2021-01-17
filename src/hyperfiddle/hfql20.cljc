@@ -1,21 +1,13 @@
 (ns hyperfiddle.hfql20
-  #?(:cljs (:require-macros [minitest :refer [tests]]
-                            [hyperfiddle.hfql20 :refer [hfql]]))
+  #?(:cljs (:require-macros [hyperfiddle.hfql20 :refer [hfql]]))
   (:require
     [datascript.core :as d] #_#?(:clj [datomic.api :as d])
     [hyperfiddle.incremental :refer
      [sequenceI sequence-mapI bindI pureI fmapI capI joinI extend-seq]]
     [meander.epsilon :as m]
-    [minitest #?@(:clj [:refer [tests]])]
+    [minitest :refer [tests]]
     [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
-    [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]
-    #?(:clj [lexikon.core :refer [lexical-eval]])))
-
-(tests
-  (def >needle (pureI ""))
-  (capI (fmapI submissions >needle)) := [9 10 11]
-  (capI (sequenceI [(pureI 9) (pureI 10) (pureI 11)])) := [9 10 11]
-  (capI (bindI (fmapI submissions >needle) pureI)) := [9 10 11])
+    [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]))
 
 (def cardinality* {'submissions :db.cardinality/many
                    'shirt-sizes :db.cardinality/many})
@@ -65,11 +57,6 @@
       `(~'fmapI ~f ~@args))))
 
 #?(:clj
-   (defn lexical-eval'
-     ([form] (lexical-eval {} form))
-     ([m form] (lexical-eval m form))))
-
-#?(:clj
    (defn compile-hfql*
      "compile HFQL form to s-expressions in Incremental"
      [form]
@@ -113,10 +100,10 @@
      (many? '(shirt-sizes a)) := true
 
      ;(compile-hfql* '[{(shirt-sizes a) [:db/ident]}])
-     (set! *1 (macroexpand-1 '(hfql [{(shirt-sizes a) [:db/ident]}])))
-     (set! *1 (let [a (pureI :dustingetz/male)]
-                (hfql [{(shirt-sizes a) [:db/ident]}])))
-     (set! *1 (-> *1 (get '(shirt-sizes a))))
+     (macroexpand-1 '(hfql [{(shirt-sizes a) [:db/ident]}]))
+     (let [a (pureI :dustingetz/male)]
+                 (hfql [{(shirt-sizes a) [:db/ident]}]))
+     (-> *1 (get '(shirt-sizes a)))
      (capI (joinI (fmapI sequenceI (fmapI #(map :db/ident %) *1))))
      := [:dustingetz/mens-small
          :dustingetz/mens-medium

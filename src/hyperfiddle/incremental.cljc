@@ -1,10 +1,7 @@
 (ns hyperfiddle.incremental
   (:require
     [missionary.core :refer [latest relieve watch ap ?!]]
-    [minitest #?@(:clj [:refer [tests]])])
-  #?(:cljs (:require-macros [minitest :refer [tests]]))
-  )
-
+    [minitest :refer [tests]]))
 
 ; monad instance for Incremental values
 (defn pureI [a] (watch (atom a)))
@@ -19,6 +16,8 @@
   (capI (fmapI inc (pureI 1))) := 2
   (def >>a (pureI (pureI 1)))
   (capI (bindI >>a identity)) := 1
+  *1 := 1
+  ;(println '*1 *1)
   (capI (joinI >>a)) := 1
   ; type error (capI (joinI (pureI 1)))
   (capI (sequenceI [(pureI 1) (pureI 2)])) := [1 2]
