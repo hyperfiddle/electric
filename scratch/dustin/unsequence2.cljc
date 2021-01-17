@@ -16,6 +16,9 @@
                >xs))))
     >xs))
 
+; Monad m => join :: m (m a) -> m a
+; Comonad m => extend :: m a -> m (m a)
+
 (tests
   (def >>xs (extend-seq :db/id (m/watch (atom [{:db/id 1}
                                                {:db/id 2}
@@ -76,3 +79,8 @@
   :=  [:div [:h1 "title"] [:table [:<> [:span 2] [[:tr "a"] [:tr "b"]]]]]
 
   )
+
+; next steps
+; implement extend-seq against missionary correctly (hard), Leo will think
+; possibly continue with a bad impl
+; trace this database/table dag (`table` in different reactor than`submission`)
