@@ -7,8 +7,8 @@
                 >q       (input)
                 >cross   (bind >control (fn [control]
                                           (case control
-                                            :p '>p
-                                            :q '>q)))
+                                            :p >p
+                                            :q >q)))
                 >z       (fmap vector >cross)]))
 
 (defmacro amb= [& forms]
@@ -30,7 +30,8 @@
                                                {'>q (m/?? >q)}
                                                {'>cross (m/?? >cross)}
                                                {'>z (m/?? >z)}))))]
-    (m/stream! (m/ap (tracef (m/?? >effects))))))
+    (m/stream! (m/ap (tracef (m/?? >effects))))
+    nil))
 
 
 (defprotocol IDirective ;; TODO rename
