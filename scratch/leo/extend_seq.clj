@@ -100,7 +100,7 @@
 
 (tests
   (sequence (diffp - 0) (range 1 10))
-  := (list -1 -1 -1 -1 -1 -1 -1 -1 -1 -1)
+  := (list -1 -1 -1 -1 -1 -1 -1 -1 -1)
 
   (sequence (diffp (partial diff-by identity) #{}) [#{0 1 2} #{1 2} #{1 2 3}])
   := (list [#{0 1 2} #{}] [#{} #{0}] [#{3} #{}])
