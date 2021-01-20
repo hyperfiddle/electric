@@ -2,21 +2,9 @@
   (:require [missionary.core :as m]
             [minitest :refer [tests]]))
 
-;; TODO [2/5]
+;; TODO [2/2]
 ;; - [X] Pipe client to server      (16)
 ;; - [X] Pipe server back to client (16)
-;; - [ ] bind
-;; - [ ] sequence/unsequence
-;; - [ ] expand AST to DAG definition
-;;   #+begin_src clojure
-;;   (expand
-;;    (let [>a (input)
-;;          >b (vector ~>a)]))
-;;   :=
-;;   (let [>a (m/signal! (m/watch (get @inputs '>a)))
-;;         >b (m/signal! (m/latest vector >a))])
-;;   #+end_src
-;;
 
 (def ast '(let [>input1  (input)
                 >input2  (input)
