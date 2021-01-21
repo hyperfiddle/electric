@@ -4,10 +4,9 @@
             [dustin.trace17 :as trace]
             [leo.extend-seq :refer [extend-seq focus-entity diffp diff-by]]))
 
-;; * TODO replay dynamic trace
-;;   - State "TODO"       from              [2021-01-20 Wed 10:42]
-;;
-;;   Loop -> interpret
+;;;;;;;;;;;;
+;; CLIENT ;;
+;;;;;;;;;;;;
 
 (defn from-trace! [id >trace]
   (->> >trace
@@ -43,29 +42,27 @@
        (m/signal!)))
 
 (defn init-client [inputs !replayers tracef]
-  (let [>replayer (m/stream! (m/observe (fn [cb]
-                                            (swap! !replayers conj cb)
-                                            (fn []
-                                              (swap! !replayers disj cb)))))
-        >control  (from-trace! '>control >replayer)
-        >p        (from-trace! '>p >replayer)
-        >q        (from-trace! '>q >replayer)
-        >cross    (from-trace-factory! '>cross >replayer) ;; Signal {:id Signal}
+  (let [>replayer   (m/stream! (m/observe (fn [cb]
+                                          (swap! !replayers conj cb)
+                                          (fn []
+                                            (swap! !replayers disj cb)))))
+        >control    (from-trace! '>control >replayer)
+        >p          (from-trace! '>p >replayer)
+        >q          (from-trace! '>q >replayer)
+        >cross      (from-trace-factory! '>cross >replayer) ;; Signal {:id Signal}
         >cross-diff (from-trace! '[>cross] >replayer)       #_ (m/stream! (diff-seq identity >cross))
-        >effects  (m/stream! (m/relieve merge (m/ap
-                                                 (trace/amb=
-                                                  {'>control (m/?? >control)}
-                                                  {'>p (m/?? >p)}
-                                                  {'>q (m/?? >q)}
-                                                  {'[>cross] (m/?? >cross-diff)}
-                                                  (let [[k v] (m/?= (m/enumerate (m/?? >cross)))]
-                                                    {['>cross k] (m/?? v)})
-                                                  ))))]
+        >effects    (m/stream! (m/relieve merge (m/ap
+                                               (trace/amb=
+                                                {'>control (m/?? >control)}
+                                                {'>p (m/?? >p)}
+                                                {'>q (m/?? >q)}
+                                                {'[>cross] (m/?? >cross-diff)}
+                                                (let [[k v] (m/?= (m/enumerate (m/?? >cross)))]
+                                                  {['>cross k] (m/?? v)})
+                                                ))))]
     (m/stream! (m/ap (tracef (m/?? >effects))))))
 
-
 ;; (trace! (replay reactor t)) = t
-
 
 (tests
 
@@ -107,3 +104,10 @@
 ;;      `from-trace-factory!` re-uses the same logic as `reactive-for` and
 ;;      reconstruct the registry from the diff.
 ;;
+
+;; (diff '(1 2 3) '(1 2 3 4)) ;; => '(... 4)
+;; (diff '(2 3) '(1 2 3 4)) ;; => '(1 ... 4)
+;; (diff '(2 3) '(1 2 42 3 4)) ;; => '(1 ... @1 42 ... @1 4)
+
+;; Diff => O(|coll|)
+;; Patch => O(|patch|)
