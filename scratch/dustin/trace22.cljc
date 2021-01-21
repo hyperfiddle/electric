@@ -91,6 +91,7 @@
 
  (trace/directive! r '[>p 4])
 
+ ;; FIXME This fails because the second frame get all child nodes
  @!trace := '[{>p         3
                [>cross]   [#{0 1 2} #{}]
                [>cross 0] 0
@@ -100,10 +101,10 @@
                [>cross]   [#{3} #{}]
                [>cross 3] 3}]
 
-
-
  )
 
+;; #+TODO: TODO(t!) POSTPONED(p@/!) STARTED(s!) VERIFY(v!) | DONE(!) CANCELED(@/!)
+;;
 ;; * We did learn:
 ;;
 ;; - In order to produce a diff-tracing server, we need to split up
@@ -118,11 +119,15 @@
 ;;   - `>node-out` final result of reactive-for (as a sequence). We don’t have
 ;;     to trace it.
 ;;
-;; * TODO Next [0/5]
+;; * TODO Next [0/6]
 ;;
-;; ** TODO [#A] multiple levels of nesting
+;; ** POSTPONED [#A] multiple levels of nesting
 ;;    SCHEDULED: <2021-01-21 Thu>
 ;;
+;;    - State "POSTPONED"  from "STARTED"    [2021-01-21 Thu 16:07] \\
+;;      We are struggling to picture the issue in our mind. We’ll retry tomorrow morning
+;;      and move to something else in the meantime.
+;;    - State "STARTED"    from "TODO"       [2021-01-21 Thu 15:30]
 ;;    Nesting ids [>cross 0 1]. What about nested binds? Could we make bind
 ;;    stable? What does it even mean?
 ;;
@@ -130,17 +135,30 @@
 ;;    because we throw everything. Diff only helps for local optimization.
 ;;
 ;;
-;; ** TODO [#B] Handle #{rets} from diff
+;; ** STARTED [#B] Handle #{rets} from diff
 ;;    SCHEDULED: <2021-01-21 Thu>
 ;;
+;;    - State "STARTED"    from "TODO"       [2021-01-21 Thu 16:05]
 ;;    Focused flows are removed form the registry but don’t terminate. We must
 ;;    terminate them manually to avoid memory leaks.
 ;;
+;;    We already trace retracted nodes, be we do nothing with this information
+;;    ATM. We need to make the reactor act on it.
+;;
+;;
+;; ** TODO Don’t re-trace child nodes at every diff change
+;;
+;;    - State "TODO"       from              [2021-01-21 Thu 16:27]
+;;
+;;    [[file:~/Desktop/fabric/scratch/dustin/trace22.cljc::;; FIXME This fails because the second frame get all child nodes][Test case]]
+;;
 ;; ** TODO [#B] Ordered diff
 ;;
+;;    #+begin_src clojure
 ;;    (diff '(1 2 3) '(1 2 3 4)) ;; => '(... 4)
 ;;    (diff '(2 3) '(1 2 3 4)) ;; => '(1 ... 4)
 ;;    (diff '(2 3) '(1 2 42 3 4)) ;; => '(1 ... @1 42 ... @1 4)
+;;    #+end_src
 ;;    Diff => O(|coll|)
 ;;    Patch => O(|patch|)
 ;;
@@ -149,8 +167,8 @@
 ;;    Producing real-world HFQL examples is annoying.
 ;;
 ;; ** TODO [#C] recursivity/loops
+;;    SCHEDULED: <2021-01-23 Sat>
 ;;    Is it an HFQL only concern?
 ;;    We need to understand the AST and the compiler first.
 ;;    Does our new PL have a call stack | loops | recursion?
-;;
 ;;
