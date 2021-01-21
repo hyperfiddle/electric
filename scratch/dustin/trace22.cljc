@@ -8,7 +8,9 @@
 ;; SERVER ;;
 ;;;;;;;;;;;;
 
-(defn diff-seq [kf flow]
+(defn diff-seq
+  "Takes a flow of seqs and returns a flow of diffs (by `kf`)"
+  [kf flow]
   (m/transform (diffp (partial diff-by kf) #{}) flow))
 
 (defn active-flows [factoryf]
@@ -57,6 +59,7 @@
                                                       {'>p (m/?? >p)}
                                                       {'>q (m/?? >q)}
                                                       {'[>cross] (m/?? >cross-diff)}
+                                                      ;; TODO trace according to diff
                                                       (let [[k >v] (m/?= (m/enumerate (m/?? >cross-registry)))]
                                                         {['>cross k] (m/?? >v)})
                                                       ))))]
@@ -83,7 +86,23 @@
                [>cross]   [#{0 1 2} #{}]
                [>cross 0] 0
                [>cross 1] 1
-               [>cross 2] 2}])
+               [>cross 2] 2}]
+
+
+ (trace/directive! r '[>p 4])
+
+ @!trace := '[{>p         3
+               [>cross]   [#{0 1 2} #{}]
+               [>cross 0] 0
+               [>cross 1] 1
+               [>cross 2] 2}
+              {>p         4
+               [>cross]   [#{3} #{}]
+               [>cross 3] 3}]
+
+
+
+ )
 
 ;; * We did learn:
 ;;
@@ -102,16 +121,36 @@
 ;; * TODO Next [0/5]
 ;;
 ;; ** TODO [#A] multiple levels of nesting
+;;    SCHEDULED: <2021-01-21 Thu>
+;;
+;;    Nesting ids [>cross 0 1]. What about nested binds? Could we make bind
+;;    stable? What does it even mean?
+;;
+;;    If a bind causes a coll to terminate, it implies diffing don’t matter
+;;    because we throw everything. Diff only helps for local optimization.
+;;
 ;;
 ;; ** TODO [#B] Handle #{rets} from diff
+;;    SCHEDULED: <2021-01-21 Thu>
 ;;
 ;;    Focused flows are removed form the registry but don’t terminate. We must
 ;;    terminate them manually to avoid memory leaks.
 ;;
 ;; ** TODO [#B] Ordered diff
 ;;
-;; ** TODO [#C] hfql recursivity/loops
-;;    Is it an HFQL only concern?
+;;    (diff '(1 2 3) '(1 2 3 4)) ;; => '(... 4)
+;;    (diff '(2 3) '(1 2 3 4)) ;; => '(1 ... 4)
+;;    (diff '(2 3) '(1 2 42 3 4)) ;; => '(1 ... @1 42 ... @1 4)
+;;    Diff => O(|coll|)
+;;    Patch => O(|patch|)
 ;;
 ;; ** TODO [#C] dataflow compiler
+;;    SCHEDULED: <2021-01-23 Sat>
+;;    Producing real-world HFQL examples is annoying.
+;;
+;; ** TODO [#C] recursivity/loops
+;;    Is it an HFQL only concern?
+;;    We need to understand the AST and the compiler first.
+;;    Does our new PL have a call stack | loops | recursion?
+;;
 ;;

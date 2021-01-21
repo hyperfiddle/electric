@@ -2,11 +2,21 @@
   (:require [missionary.core :as m]
             [minitest :refer [tests]]
             [dustin.trace17 :as trace]
-            [leo.extend-seq :refer [extend-seq focus-entity diffp diff-by]]))
+            [leo.extend-seq :refer [diffp diff-by]]))
 
 ;;;;;;;;;;;;
 ;; CLIENT ;;
 ;;;;;;;;;;;;
+
+(def ast '(let [>control (input)
+                >p       (input)
+                >q       (input)
+                >cross   (bind >control (fn [control]
+                                          (reactive-for identity
+                                                        (fmap range (case control
+                                                                      :p >p
+                                                                      :q >q))
+                                                        identity)))]))
 
 (defn from-trace! [id >trace]
   (->> >trace
@@ -71,13 +81,13 @@
  (def !trace (trace/log! r))
 
  (trace/replay! r '{>p         3
-                    [>cross]   [#{0 1 2} #{}]
+                    [>cross]   [#{0 1 2} #{}] ;; this is a diff
                     [>cross 0] 0
                     [>cross 1] 1
                     [>cross 2] 2})
 
  @!trace := '[{>p         3
-               [>cross]   [#{0 1 2} #{}]
+               [>cross]   [#{0 1 2} #{}] ;; this is a diff
                [>cross 0] 0
                [>cross 1] 1
                [>cross 2] 2}])
@@ -89,7 +99,7 @@
 ;;   - its registry (eg. `{0 _, 1 _}`) because we *don’t* get it from the trace.
 ;;
 ;;
-;; - Steps to trace and replay an `reactive-for` node:
+;; - Steps to trace and replay a `reactive-for` node:
 ;;   1. Don’t trace its value under its own name, so this line `{>node []}` do
 ;;      not appear in the trace. *In a trace*, reactive-for nodes don’t have
 ;;      values.
@@ -105,9 +115,3 @@
 ;;      reconstruct the registry from the diff.
 ;;
 
-;; (diff '(1 2 3) '(1 2 3 4)) ;; => '(... 4)
-;; (diff '(2 3) '(1 2 3 4)) ;; => '(1 ... 4)
-;; (diff '(2 3) '(1 2 42 3 4)) ;; => '(1 ... @1 42 ... @1 4)
-
-;; Diff => O(|coll|)
-;; Patch => O(|patch|)
