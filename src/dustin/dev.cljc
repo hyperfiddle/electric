@@ -2,8 +2,7 @@
   (:require
     ;#?(:clj [datomic.api :as d])
     [datascript.core :as d]
-    [hyperfiddle.api :refer [*$*]]
-    [minitest :refer [tests]]))
+    [hyperfiddle.api :refer [*$*]]))
 
 
 (defn fixtures [$]

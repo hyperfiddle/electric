@@ -1,7 +1,8 @@
 (ns hyperfiddle.incremental
+  #?(:cljs (:require-macros [minitest :refer [tests]]))
   (:require
     [missionary.core :refer [latest relieve watch ap ?!]]
-    [minitest :refer [tests]]))
+    #?(:clj [minitest :refer [tests]])))
 
 ; monad instance for Incremental values
 (defn pureI [a] (watch (atom a)))
@@ -113,6 +114,7 @@
       [1 :dustingetz/gender :db/ident]])
 
 (defn sequence-at
+  ; needs vectors
   "Sequence a tree with some leaf flows, at particular points (as if clicked on)"
   [tree paths]
   (apply fmapI
