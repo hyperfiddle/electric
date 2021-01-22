@@ -119,7 +119,7 @@
 ;;   - `>node-out` final result of reactive-for (as a sequence). We don’t have
 ;;     to trace it.
 ;;
-;; * TODO Next [0/6]
+;; * TODO Next [1/6]
 ;;
 ;; ** POSTPONED [#A] multiple levels of nesting
 ;;    SCHEDULED: <2021-01-21 Thu>
@@ -135,15 +135,19 @@
 ;;    because we throw everything. Diff only helps for local optimization.
 ;;
 ;;
-;; ** STARTED [#B] Handle #{rets} from diff
-;;    SCHEDULED: <2021-01-21 Thu>
+;; ** DONE [#B] Handle #{rets} from diff
+;;    CLOSED: [2021-01-22 Fri 11:08] SCHEDULED: <2021-01-21 Thu>
 ;;
+;;    - State "DONE"       from "STARTED"    [2021-01-22 Fri 11:08]
 ;;    - State "STARTED"    from "TODO"       [2021-01-21 Thu 16:05]
 ;;    Focused flows are removed form the registry but don’t terminate. We must
 ;;    terminate them manually to avoid memory leaks.
 ;;
 ;;    We already trace retracted nodes, be we do nothing with this information
 ;;    ATM. We need to make the reactor act on it.
+;;
+;;    Solution: `take-while` in `from-trace!` until the trace retracts this
+;;    node.
 ;;
 ;;
 ;; ** TODO Don’t re-trace child nodes at every diff change
