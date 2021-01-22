@@ -4,6 +4,10 @@
             [dustin.trace17 :as trace]
             [minitest :refer [tests]]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Don’t retrace children again for every diff ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defn diff-seq
   "Takes a flow of seqs and returns a flow of diffs (by `kf`)"
   [kf flow]

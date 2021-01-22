@@ -134,6 +134,8 @@
 ;;    If a bind causes a coll to terminate, it implies diffing don’t matter
 ;;    because we throw everything. Diff only helps for local optimization.
 ;;
+;;    We need a better example like `(for [a >as, b (range a)])` where b depends
+;;    on a. Our current example has two top-level inputs.
 ;;
 ;; ** DONE [#B] Handle #{rets} from diff
 ;;    CLOSED: [2021-01-22 Fri 11:08] SCHEDULED: <2021-01-21 Thu>
@@ -153,6 +155,8 @@
 ;; ** TODO Don’t re-trace child nodes at every diff change
 ;;
 ;;    - State "TODO"       from              [2021-01-21 Thu 16:27]
+;;
+;;    Problem with sample, hacked with latest.
 ;;
 ;;    [[file:~/Desktop/fabric/scratch/dustin/trace22.cljc::;; FIXME This fails because the second frame get all child nodes][Test case]]
 ;;
