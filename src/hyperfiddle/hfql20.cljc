@@ -1,5 +1,6 @@
 (ns hyperfiddle.hfql20
-  #?(:cljs (:require-macros [hyperfiddle.hfql20 :refer [hfql]]))
+  #?(:cljs (:require-macros [hyperfiddle.hfql20 :refer [hfql]]
+                            [minitest :refer [tests]]))
   (:require
     [datascript.core :as d]                                 ;#?(:clj [datomic.api :as d])
     [hyperfiddle.incremental :refer
@@ -43,7 +44,7 @@
 (tests
   (hf-nav :db/ident 3) := :dustingetz/mens-small
   (hf-nav :db/id 3) := 3
-  (hf-nav identity [:dustingetz/email "alice@example.com"]) ;:= #:db{:id 9}
+  ;(hf-nav identity [:dustingetz/email "alice@example.com"]) := #:db{:id 9}
   (hf-nav :db/id [:dustingetz/email "alice@example.com"]) := 9
   (hf-nav :dustingetz/gender [:dustingetz/email "alice@example.com"]) := :dustingetz/female)
 
@@ -90,7 +91,7 @@
 (tests
   (let [a :dustingetz/male]
     (hfql [{(shirt-sizes a) [:db/ident]}]))
-  ;:= '{(shirt-sizes a) _}
+  := '{(shirt-sizes a) _}
   )
 
 #?(:clj
@@ -146,7 +147,7 @@
   (macroexpand-1 '(hfql (identity a)))
   := '{(quote (identity a)) (fmapI identity a)}
   (let [a (pureI 1)] (hfql (identity a)))
-  ;:= '{(identity a) _}
+  := '{(identity a) _}
   (-> *1 (get '(identity a)) capI) := 1
 
   (macroexpand-1 '(hfql {(identity >needle) (inc %)}))
@@ -156,20 +157,19 @@
            {(quote (inc %)) (fmapI inc %)}))}
   (let [a (pureI 1)]
     (hfql {(identity a) (inc %)}))
-  ;:= '{(identity a) {(inc %) _}}
+  := '{(identity a) {(inc %) _}}
 
   (let [a (pureI 1)]
     (hfql
       {(identity a)
        [(dec %)
         (inc %)]}))
-  ;:= '{(identity a) {(dec %) _, (inc %) _}}
+  := '{(identity a) {(dec %) _, (inc %) _}}
   ; R2D2 traverse structure, click on links
-  ;(capI *1) := 1
 
   (let [a (pureI 1)]
     (hfql {(inc a) (inc %)}))
-  ;:= '{(inc a) {(inc %) _}}
+  := '{(inc a) {(inc %) _}}
   (-> *1 (get '(inc a)) (get '(inc %)) capI) := 3
 
   (hf-nav :dustingetz/gender bob) := :dustingetz/male
@@ -182,14 +182,14 @@
   (macroexpand-1 '(hfql (shirt-size %)))
   := '{(quote (shirt-size %)) (fmapI shirt-size %)}
   (let [% (pureI :dustingetz/male)] (hfql (shirt-size %)))
-  ;:= '{(shirt-size %) _}
+  := '{(shirt-size %) _}
   (-> *1 (get '(shirt-size %)) capI) := 3
 
   (macroexpand-1 '(hfql [:dustingetz/gender :db/id]))
   := '{(quote :dustingetz/gender) (fmapI (partial hyperfiddle.hfql20/hf-nav :dustingetz/gender) %),
        (quote :db/id)             (fmapI (partial hyperfiddle.hfql20/hf-nav :db/id) %)}
   (let [% (pureI bob)] (hfql [:dustingetz/gender :db/id]))
-  ;:= '{:dustingetz/gender _, :db/id _}
+  := '{:dustingetz/gender _, :db/id _}
   (capI (:dustingetz/gender *1)) := :dustingetz/male
 
   (macroexpand-1 '(hfql {:dustingetz/gender [:db/id :db/ident]}))
@@ -200,7 +200,7 @@
             (quote :db/ident) (fmapI (partial hyperfiddle.hfql20/hf-nav :db/ident) %)}))}
 
   (let [% (pureI bob)] (hfql {:dustingetz/gender [:db/id :db/ident]}))
-  ;:= '#:dustingetz{:gender #:db{:id _, :ident _}}
+  := '#:dustingetz{:gender #:db{:id _, :ident _}}
   (capI (sequenceI (vals (select-keys (:dustingetz/gender *1) [:db/ident :db/id]))))
   := [:dustingetz/male 1]
 
@@ -212,7 +212,7 @@
             (quote :db/ident) (fmapI (partial hyperfiddle.hfql20/hf-nav :db/ident) %)}))}
 
   (let [% (pureI bob)] (hfql [{:dustingetz/gender [:db/id :db/ident]}]))
-  ;:= '#:dustingetz{:gender #:db{:id _, :ident _}}
+  := '#:dustingetz{:gender #:db{:id _, :ident _}}
   (capI (sequenceI (vals (select-keys (:dustingetz/gender *1) [:db/ident :db/id])))) := [:dustingetz/male 1]
 
   (macroexpand-1 '(hfql [{:dustingetz/gender [{(shirt-size gender) [:db/id :db/ident]}]}]))
@@ -226,7 +226,7 @@
                  (quote :db/ident) (fmapI (partial hyperfiddle.hfql20/hf-nav :db/ident) %)}))}))}
 
   (let [% (pureI bob)] (hfql [{:dustingetz/gender [{(shirt-size gender) [:db/id :db/ident]}]}]))
-  ;:= '#:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}
+  := '#:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}
   (capI (sequenceI (vals (select-keys (-> *1 :dustingetz/gender (get '(shirt-size gender))) [:db/ident :db/id]))))
   := [:dustingetz/mens-small 3]
 
@@ -253,7 +253,7 @@
             [{:dustingetz/gender
               [{(shirt-size gender)
                 [:db/id :db/ident]}]}]}]))
-  ;:= '{(submission needle) #:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}}
+  := '{(submission needle) #:dustingetz{:gender {(shirt-size gender) #:db{:id _, :ident _}}}}
   (-> *1 (get '(submission needle)) :dustingetz/gender
     (get '(shirt-size gender)) :db/ident capI) := :dustingetz/womens-small
 
