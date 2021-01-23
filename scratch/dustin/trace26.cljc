@@ -51,6 +51,7 @@
                                                         ;; termination notice for reference
                                                         (trace/amb=
                                                          {['>cross k] (m/?? >v)}
+                                                         ;; For test purposes only, to see that the right thing happened
                                                          {[::terminated '>cross k] (m/? (m/aggregate (constantly nil) >v))}))
                                                       ))))]
     (m/stream! (m/ap (tracef (m/?? >effects))))))
@@ -87,6 +88,6 @@
                [>cross]                [#{} #{2}]
                [>cross 0]              0   ;; FIXME don’t retrace this one
                [>cross 1]              1   ;; FIXME don’t retrace this one
-               [::terminated >cross 2] nil ;; For test case only
+               [::terminated >cross 2] nil ;; For test purposes only
                }]
  )

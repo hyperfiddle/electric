@@ -152,8 +152,9 @@
 ;;    node.
 ;;
 ;;
-;; ** TODO Don’t re-trace child nodes at every diff change
+;; ** STARTED Don’t re-trace child nodes at every diff change
 ;;
+;;    - State "STARTED"    from "TODO"       [2021-01-22 Fri 15:15]
 ;;    - State "TODO"       from              [2021-01-21 Thu 16:27]
 ;;
 ;;    Problem with sample, hacked with latest.
