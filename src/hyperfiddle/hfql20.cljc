@@ -8,7 +8,8 @@
     [meander.epsilon :as m]
     [minitest :refer [tests]]
     [dustin.dev :refer [male female m-sm m-md m-lg w-sm w-md w-lg alice bob charlie]]
-    [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]))
+    [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]
+    [hyperfiddle.incremental :as I]))
 
 (def cardinality* {'submissions :db.cardinality/many
                    'shirt-sizes :db.cardinality/many})
@@ -138,10 +139,6 @@
      ;  #_sequenceMapI
      ;  #_capI)
      ))
-
-(tests
-  ; plan ahead the entire cardinality strata
-  )
 
 (tests
   (macroexpand-1 '(hfql (identity a)))

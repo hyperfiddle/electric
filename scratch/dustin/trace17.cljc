@@ -97,7 +97,7 @@
  (directive! r '[>p 1])
 
  @!trace := '[{>p     1
-               >cross 1
+               >cross 1                                     ; changed in trace18
                >z     [1]}]
 
  (directive! r '[>q 2])
