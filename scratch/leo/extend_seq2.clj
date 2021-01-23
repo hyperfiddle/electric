@@ -19,7 +19,7 @@
 
 ; UI glues together the tracing with extend-seq
 
-(defn table [>tree]
+(defn table [>tree]                                         ; :: Incr Incr Incr ...
   (let [>submissions (fmap #(get-in % ['(submissions needle)]) >tree)
         >submissions (extend-seq :db/id >submissions)]
     (->> >submissions
