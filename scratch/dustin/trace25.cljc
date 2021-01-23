@@ -1,7 +1,5 @@
 (ns dustin.trace25
   (:require [dustin.trace17 :as trace]
-            [dustin.trace22 :refer [diff-seq]]
-            [leo.extend-seq :refer [focus-entity]]
             [minitest :refer [tests]]
             [missionary.core :as m]))
 
@@ -9,9 +7,9 @@
 ;; CLIENT: Terminate retracted nodes ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn from-trace! [node-path >trace]
-  (let [diff-path (pop node-path)
-        node-id   (peek node-path)]
+(defn from-trace! [node-path >trace] ;; ['>cross 2]
+  (let [diff-path (pop node-path) ;;  ['>cross]
+        node-id   (peek node-path)] ;; 2
     (->> >trace
          (m/transform (comp (take-while (fn [frame]
                                           ;; If we’ve got a diff in this frame

@@ -62,24 +62,24 @@
         >cross-diff     (m/stream! (diff-seq identity >cross-in))
         >cross-registry (m/signal! (m/transform (active-flows (fn [child-id]
                                                                 (focus-entity identity child-id >cross-in)))
-                                     >cross-diff))
+                                                >cross-diff))
         >cross-out      (m/signal! (m/latest (fn [k>a] (into {}
-                                                         (for [[k >v] k>a]
-                                                           [k (fmap str >v)])))
-                                     >cross-registry))
+                                                            (for [[k >v] k>a]
+                                                              [k (fmap str >v)])))
+                                             >cross-registry))
         ;; --------------------------------------------------------------------
         >effects        (m/stream! (m/relieve merge (m/ap
-                                                      (trace/amb=
-                                                        {'>control (m/?? >control)}
-                                                        {'>p (m/?? >p)}
-                                                        {'>q (m/?? >q)}
-                                                        {'[>cross] (m/?? >cross-diff)}
-                                                        ;; TODO latest should be sample, but it crashes. Investigate
-                                                        (let [[k >v] (m/?= (m/enumerate (m/?? (m/latest (fn [r [ids _]]
-                                                                                                          (select-keys r ids))
-                                                                                                >cross-registry >cross-diff))))]
-                                                          {['>cross k] (m/?? >v)})
-                                                        ))))]
+                                                     (trace/amb=
+                                                      {'>control (m/?? >control)}
+                                                      {'>p (m/?? >p)}
+                                                      {'>q (m/?? >q)}
+                                                      {'[>cross] (m/?? >cross-diff)}
+                                                      ;; TODO latest should be sample, but it crashes. Investigate
+                                                      (let [[k >v] (m/?= (m/enumerate (m/?? (m/sample (fn [r [ids _]]
+                                                                                                        (select-keys r ids))
+                                                                                                      >cross-registry >cross-diff))))]
+                                                        {['>cross k] (m/?? >v)})
+                                                      ))))]
     (m/stream! (m/ap (tracef (m/?? >effects))))))
 
 ;; (trace! (replay reactor t)) = t

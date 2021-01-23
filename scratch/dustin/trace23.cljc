@@ -88,6 +88,25 @@
                [>product 27 "John"]  [27 "John"]}])
 
 
+;; (def ast '(let [>input (input)]
+;;             (rfor [a identity >input
+;;                    b identity (range a)]
+;;                   [a b])))
+;; (for [a (range 3)
+;;       b (range a)]
+;;   [a b])
+;; ;; => ([1 0] [2 0] [2 1])
+
+;; '[{>input   3 ["Alice" "Bob" "John"]
+;;    [>a]     [#{0 1 2} #{}]
+;;    [>a 0]   [#{} #{}]
+;;    [>a 1]   [#{0} #{}]
+;;    [>a 2]   [#{0 1} #{}]
+;;    [>a 1 0] [1 0]
+;;    [>a 2 0] [2 0]
+;;    [>a 2 1] [2 1]}]
+
+
 ;; * We did learn
 ;;
 ;;   - In order to trace nested `reactive-for` (cartesian product), the compiler
