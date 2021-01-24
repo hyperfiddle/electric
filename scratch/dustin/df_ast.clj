@@ -4,11 +4,11 @@
 (comment
 
   ; dataflow ast
-  (def yyy :x)
-  (via ()
-    [[>a -> inc -> >b]
-     [>a -> dec -> >c]
-     [[>b >c] -> #(vector %1 %2 yyy) -> out]])
+  (let [yyy :x]
+    (via (->StaticDag)
+      @{[>a -> inc -> >b]
+        [>a -> dec -> >c]
+        [>b, >c -> #(vector %1 %2 yyy) -> out]}))
 
   (def >out
     (via ()
