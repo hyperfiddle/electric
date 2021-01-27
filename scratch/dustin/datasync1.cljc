@@ -5,7 +5,8 @@
     [minitest :refer [tests]]
     [missionary.core :as m]
     [datascript.core :as d]
-    [dustin.fiddle :refer [submissions]]))
+    [dustin.fiddle :as f]
+    [dustin.compiler1 :refer [dataflow log!]]))
 
 (declare something-else)
 
@@ -21,26 +22,54 @@
 (tests
   (render []) := [:table [:tr []]])
 
+(defn submissions [$ needle]
+  (binding [hf/*$* $]
+    (f/submissions needle)))
+
 (defn query-route [>$ [f & args :as route]]
   (case f
 
     dustin.fiddle/submissions
     (let [[needle] args]
-      (fmapI #(binding [hf/*$* %]
-                (submissions needle))
-        >$))
+      (fmapI #(submissions % needle) >$))
 
-    something-else
-    nil))
+    404))
 
 (defn router [>$ >route]
   (fmapI render (bindI >route #(query-route >$ %))))
 
+(defn source-index [ast form]
+  (.indexOf (tree-seq coll? identity ast) form))
+
 (tests
-  (def !route (atom ['dustin.fiddle/submissions "alice"]))
+  (def !route (atom nil))
   (def !$ (atom hf/*$*))
   (def >route (m/watch !route))
   (def >$ (m/watch !$))
+  (def qr (partial query-route >$))
+  (def ast '(fmap render (bind >route qr)))
+  (source-index ast '>route) := 5
+  (source-index ast '(bind >route qr)) := 3
+
+  (def d (dataflow (fmap render (bind >route qr))))
+  (def !trace (log! d))
+
+  (reset! !route ['dustin.fiddle/submissions "alice"])
+  (subs hf/*$* "alice")
+
+  @!trace :=
+  [{[5] ['dustin.fiddle/submissions "alice"]
+    [3] '(9)
+    [0] [:table [:tr '(9)]]}]
+
+  ;; TODO
+  ;; * make test above pass
+  ;; * split across client & server
+  
+  )
+
+
+(comment
 
   (query-route >$ ['dustin.fiddle/submissions "alice"])
   (capI *1) := [9]
@@ -57,6 +86,5 @@
   (router >$ >route)
   (capI *1) := [:table [:tr [9]]]
 
+
   )
-
-
