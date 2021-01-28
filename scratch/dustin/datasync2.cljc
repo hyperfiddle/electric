@@ -1,4 +1,4 @@
-(ns dustin.datasync1
+(ns dustin.datasync2
   (:require
     [hyperfiddle.api :as hf]
     [hyperfiddle.incremental :refer [fmapI capI bindI]]
@@ -6,7 +6,7 @@
     [missionary.core :as m]
     [datascript.core :as d]
     [dustin.fiddle :as f]
-    [dustin.compiler2 :refer [dataflow log! source-map replay!]]))
+    [dustin.compiler3 :refer [dataflow dataflow* log! source-map replay!]]))
 
 (declare something-else)
 
@@ -90,9 +90,8 @@
 
  @!trace :=
  [{[2] ['dustin.fiddle/submissions "alice"]}
-  {[1] '(9)
-   [0] [:table [:tr '(9)]]}]
-
+  ;; [1] is passive so it isn't traced
+  {[0] [:table [:tr '(9)]]}]
  )
 
 ;;;;;;;;;;;;
@@ -116,28 +115,8 @@
  (replay! d {[2] ['dustin.fiddle/submissions "alice"]})
 
  @!trace :=
- [{[2] ['dustin.fiddle/submissions "alice"]
-   [1] '(9)}]
+ ;; [2] is passive, so not traced. [0] is client-side only (passive as well) It
+ ;; should not be part of the server ast. ASTs should compose.
+ [{[1] '(9)}]
 
  )
-
-
-(comment
-
-  (query-route >$ ['dustin.fiddle/submissions "alice"])
-  (capI *1) := [9]
-
-  (router >$ >route)
-  (capI *1) := [:table [:tr [9]]]
-
-  (do
-    (reset! !$
-      (:db-after (d/with @!$ [{:dustingetz/email      "don@example.com"
-                               :dustingetz/gender     :dustingetz/male
-                               :dustingetz/shirt-size :dustingetz/mens-large}])))
-    nil)
-  (router >$ >route)
-  (capI *1) := [:table [:tr [9]]]
-
-
-  )
