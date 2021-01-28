@@ -6,7 +6,7 @@
     [missionary.core :as m]
     [datascript.core :as d]
     [dustin.fiddle :as f]
-    [dustin.compiler1 :refer [dataflow log!]]))
+    [dustin.compiler1 :refer [dataflow log! source-map]]))
 
 (declare something-else)
 
@@ -33,13 +33,10 @@
     (let [[needle] args]
       (fmapI #(submissions % needle) >$))
 
-    404))
+    (m/watch (atom 404))))
 
 (defn router [>$ >route]
   (fmapI render (bindI >route #(query-route >$ %))))
-
-(defn source-index [ast form]
-  (.indexOf (tree-seq coll? identity ast) form))
 
 (tests
   (def !route (atom nil))
@@ -48,24 +45,24 @@
   (def >$ (m/watch !$))
   (def qr (partial query-route >$))
   (def ast '(fmap render (bind >route qr)))
-  (source-index ast '>route) := 5
-  (source-index ast '(bind >route qr)) := 3
+  (def sm (source-map ast))
+  (first (sm '>route)) := 2
+  (first (sm '(bind >route qr))) := 1
 
   (def d (dataflow (fmap render (bind >route qr))))
   (def !trace (log! d))
 
   (reset! !route ['dustin.fiddle/submissions "alice"])
-  (subs hf/*$* "alice")
+  (submissions hf/*$* "alice") := '(9)
 
   @!trace :=
-  [{[5] ['dustin.fiddle/submissions "alice"]
-    [3] '(9)
+  [{[2] ['dustin.fiddle/submissions "alice"]
+    [1] '(9)
     [0] [:table [:tr '(9)]]}]
 
   ;; TODO
-  ;; * make test above pass
   ;; * split across client & server
-  
+
   )
 
 
