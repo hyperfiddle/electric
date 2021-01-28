@@ -3,12 +3,8 @@
             [missionary.core :as m]
             [dustin.trace25 :refer [from-trace!]]))
 
-(def iterate-ast (partial tree-seq coll? identity))
-(defn form-type [t form] (and (coll? form) (= t (first form))))
-(def fmap? (partial form-type 'fmap))
-(def bind? (partial form-type 'bind))
-
 (def conjv (fnil conj []))
+(def conjs (fnil conj #{}))
 
 (defn parenting [acc parent child]
   (-> acc
@@ -46,7 +42,7 @@
   (analyze-form [] form))
 
 (defn source-map [form]
-  (mapv :form (analyze form)))
+  (reduce-kv (fn [r i x] (update r (:form x) conjs i)) {} (analyze form)))
 
 (tests
   (analyze '(fmap + >a >b))
@@ -55,7 +51,28 @@
     {:type user, :form >a, :parent 0}
     {:type user, :form >b, :parent 0}]
 
+  (source-map '(fmap + >a >b)) :=
+  '{(fmap + >a >b) #{0},
+    >a #{1},
+    >b #{2}}
+
   )
+
+;;;;;;;;;;;;;
+;; RUNTIME ;;
+;;;;;;;;;;;;;
+
+(defmacro amb= [& forms]
+  `(case (m/?= (m/enumerate (range ~(count forms))))
+     ~@(interleave (range) forms)))
+
+(defn bind [m f]
+  (m/relieve {} (m/ap (m/?! (f (m/?! m))))))
+
+(defn trace! [tracef >effects]
+  (m/stream! (m/ap (tracef (m/?? >effects)))))
+
+
 
 ;;;;;;;;;;;;;
 ;; EMITTER ;;
@@ -63,10 +80,6 @@
 
 (defn prefixer [prefix index]
   (symbol (str prefix "_" index)))
-
-(defmacro amb= [& forms]
-  `(case (m/?= (m/enumerate (range ~(count forms))))
-     ~@(interleave (range) forms)))
 
 (defn gen-trace-pairs [prefixf analyzed-ast]
   (map-indexed (fn [idx _] `{[~idx] (m/?? ~(prefixf idx))}) analyzed-ast))
@@ -78,15 +91,9 @@
   := [{[0] `(m/?? ~'>node_0)}
       {[1] `(m/?? ~'>node_1)}])
 
-(defn trace! [tracef >effects]
-  (m/stream! (m/ap (tracef (m/?? >effects)))))
-
 (defn gen-trace [prefixf analyzed-ast]
   `(trace! ~(prefixf 'tracef)
      (m/stream! (m/relieve merge (m/ap (amb= ~@(gen-trace-pairs prefixf analyzed-ast)))))))
-
-(defn bind [m f]
-  `(m/latest {} (m/ap (m/?! (~f (m/?! ~m))))))
 
 (defn emit-bindings [prefixf analyzed-ast passives]
   (reverse
