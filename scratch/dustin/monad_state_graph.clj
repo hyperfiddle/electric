@@ -1,9 +1,9 @@
 (ns dustin.monad-state-graph
   (:require
-    [contrib.do :as do :refer [! via* *this Do-via]]
+    [contrib.do :refer [! via* *this Do-via]]
     [datomic.api :as d]
     [hyperfiddle.api :as hf]
-    [user.dustin.mintest2 :refer [tests]]
+    [minitest :refer [tests]]
     [user.scratch])
   (:import
     (datomic.db Db)))
