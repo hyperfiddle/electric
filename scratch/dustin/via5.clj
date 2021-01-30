@@ -61,31 +61,27 @@
     [:table
      [:tr xs]]))
 
-(fn [s]
-  [ 42 (assoc s 'x 10)])
-
-(defn inc-with-state-effect [x]
-  (set! *state)
-  (inc x))
-
-'(inc-with-state-effect (inc-with-state-effect 1))
-
 (defn query-route [#_>$ [f & args :as route]]               ; :: Incr a
-  (traced-reactor!
-    (first route)
-    (case f
+  #_(traced-reactor! (first route))                           ; prefix
+  (case f
 
-      dustin.fiddle/submissions
-      (let [[needle] args]
-        (submissions ~>$ needle) #_(fmapI #(submissions % needle) >$))
+    dustin.fiddle/submissions
+    (let [[needle] args]
+      (submissions ~>$ needle) #_(fmapI #(submissions % needle) >$))
 
-      (m/watch (atom 404)))))
+    (m/watch (atom 404))))
 
 (defmacro via [& body]
   `(binding [*reactor* ...]
      ~@body))
 
-(via (render ~(let [>x ~>route] (qr route))))
+(via (render ~(let [>x ~>route] (query-route route))))
+
+'(let [[fiddle needle] ~>route]
+   [~(render-table (fiddle needle))
+    (case ~>popover-open
+      true ~(render-table (fiddle "tempid"))
+      false ::nothing)])
 
 
 ; via for
