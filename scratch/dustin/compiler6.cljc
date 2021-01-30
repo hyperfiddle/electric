@@ -22,16 +22,16 @@
                                    {(quote :db/id)    (fmapI (partial hyperfiddle.hfql20/hf-nav :db/id) %),
                                     (quote :db/ident) (fmapI (partial hyperfiddle.hfql20/hf-nav :db/ident) %)}))}))}))})
 
-`{'(submission needle)
-  (let [needle#     (<- >needle)
-        submission# (submission needle#)]
+`{(quote (submission needle))
+  (let [needle# (<- >needle)
+        %# (submission needle#)]
     {(quote :dustingetz/gender)
-     (let [gender# (hf-nav :dustingetz/gender submission#)]
+     (let [%# (hf-nav :dustingetz/gender %#)
+           gender# %#]
        {(quote (shirt-size gender#))
-        (let [shirt-size# (shirt-size gender#)]
-          {(quote :db/id)    (hf-nav :db/id shirt-size#),
-           (quote :db/ident) (hf-nav :db/ident shirt-size#)})})})}
-
+        (let [%# (shirt-size gender#)]
+          {(quote :db/id)    (hf-nav :db/id %#),
+           (quote :db/ident) (hf-nav :db/ident %#)})})})}
 
 ;; Cardinality many
 
