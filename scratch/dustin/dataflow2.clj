@@ -66,18 +66,49 @@
 
   ;(def r1 (dataflow ast2))
   ;(def r2 (dataflow ast2))
-
-
-
-
-
   )
 
+(defn foo []
+  ; runtime code generation
+  (eval `(~(if true inc dec) 1)))
 
+'[(def submissions>
+    (fn [>needle a]
+      (via (eval `(~(if true inc dec) (? (f >x)))))))
 
+  (defn submissions> [>needle a]
+    (via _ (inc ~>x)))
+
+  (defn submissions [>needle]
+    (via (->ContinuousFlow *trace*)
+      (inc ~>x)))
+
+  (defn query-page [>$ >first >open]
+    (via (->ContinuousFlow)
+      '[(submissions> (<- >first))
+        (if (<- open)
+          ((fn2 [e]
+             (via (->ContinuousFlow)
+               (submission-detail e (<- open)))) "tempid")
+          (submission-detail "tempid"))]))
+
+  (analyze-ast-transitive 'query-page)
+  := '{query-page   [(submissions> (<- >first))
+                     (if (<- open)
+                       ((fn2 [e]
+                          (via (->ContinuousFlow)
+                            (submission-detail e (<- open)))) "tempid")
+                       (submission-detail "tempid"))]
+       submissions> (inc ~>x)
+       }
+  ]
 
 (comment
 
+  ; behavior <> reactor
+  (via maybe (inc ~(via maybe (inc ~(pure 1)))))
+
+  := #:Maybe{:just 3}
 
   (def >$ (atom ...))
   (def >first (atom ""))
@@ -85,24 +116,21 @@
 
   (deftype R [])
 
-
-  (defn submissions []
+  (defn submissions [>needle]
     (via (->ContinuousFlow *trace*)
-      .
-      ))
+      '(inc ~>x)))
+
+  (deflow submissions2 [>needle]
+    ...)
 
   (defn query-page [>$ >first >open]
     (via (->ContinuousFlow)
-      [(submissions (<- >first))
-       (if (<- open)
-         (submission-detail "tempid"))]))
-
-  ;(defn query-page [>$ >first >open]
-  ;  (binding [*r* (dataflow
-  ;                  [(submissions (<- >first))
-  ;                   (if (<- open)
-  ;                     (submission-detail "tempid"))])]
-  ;    (get *r* 0)))
+      '[(submissions (<- >first))
+        (if (<- open)
+          ((fn2 [e]
+             (via (->ContinuousFlow)
+               (submission-detail e (<- open)))) "tempid")
+          (submission-detail "tempid"))]))
 
   (binding [*trace* (->Trace)]
     (query-page >$ >first >open))
