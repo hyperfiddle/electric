@@ -111,20 +111,23 @@
 
   )
 
+(def ^:dynamic *monadic-scope* nil)
+
 (defmacro via [m body]
-  `(let [m# ~m
-         ~'bind (m# :bind)
-         ~'fmap (m# :fmap)
-         ~'fapply (m# :fapply)
-         ~'pure (m# :pure)]
-     ~(rewrite-await body)))
+  `(binding [*monadic-scope* ~m]
+     (let [m# ~m
+           ~'bind (m# :bind)
+           ~'fmap (m# :fmap)
+           ~'fapply (m# :fapply)
+           ~'pure (m# :pure)]
+       ~(rewrite-await body))))
 
 (def maybe {:pure (fn [a] {:Maybe/just a})
             :fmap (fn [f & as]
                     (let [vs (map :Maybe/just as)]
                       (if (every? identity vs)
                         {:Maybe/just (apply f vs)})))
-            :fapply (fn [& as] (apply (resolve 'fmap) #(apply % %&) as))
+            :fapply (fn [& as] (apply (:fmap *monadic-scope*) #(apply % %&) as))
             :bind  (fn [{v :Maybe/just} f] (if v (f v)))})
 
 (tests
