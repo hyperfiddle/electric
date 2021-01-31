@@ -132,16 +132,11 @@
 
 (tests
 
-  (macroexpand '(via maybe 1))
-
   (via maybe (inc ~(pure 1)))
   := #:Maybe{:just 2}
 
-  (macroexpand '(via maybe
-                 (let [f (pure +)
-                       a (pure 1)
-                       b ~(~f 10 ~a)]
-                   (pure (inc b)))))
+  (via maybe (inc ~(via maybe (inc ~(pure 1)))))
+  := #:Maybe{:just 3}
 
   (via maybe
     (let [f (pure +)
@@ -149,16 +144,24 @@
           b ~(~f 10 ~a)]
       (pure (inc b))))
   := #:Maybe{:just 12}
-  
-  ;(let* [m__28150__auto__ maybe
-  ;       bind (m__28150__auto__ :bind)
-  ;       fmap (m__28150__auto__ :fmap)
-  ;       fapply (m__28150__auto__ :fapply)
-  ;       pure (m__28150__auto__ :pure)]
-  ;  (bind (pure (pure +)) (clojure.core/fn [f]
-  ;  (bind (pure (pure 1)) (clojure.core/fn [a]
-  ;  (bind (fapply f (pure 10) a) (clojure.core/fn [b]
-  ;    (pure (inc b)))))))))
+
+  #_(macroexpand '(via maybe 1))
+
+  #_#_#_
+  (macroexpand '(via maybe
+                  (let [f (pure +)
+                        a (pure 1)
+                        b ~(~f 10 ~a)]
+                    (pure (inc b)))))
+  := '(let* [m__28150__auto__ maybe
+           bind (m__28150__auto__ :bind)
+           fmap (m__28150__auto__ :fmap)
+           fapply (m__28150__auto__ :fapply)
+           pure (m__28150__auto__ :pure)]
+      (bind (pure (pure +)) (clojure.core/fn [f]
+      (bind (pure (pure 1)) (clojure.core/fn [a]
+      (bind (fapply f (pure 10) a) (clojure.core/fn [b]
+        (pure (inc b)))))))))
 
 
   )
