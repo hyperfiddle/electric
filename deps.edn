@@ -14,6 +14,7 @@
         datascript/datascript {:mvn/version "1.0.3"}
         lexikon/lexikon {:mvn/version "0.2.1"}
         cloroutine/cloroutine {:local/root "./vendor/cloroutine"}
+        org.clojure/tools.analyzer.jvm {:mvn/version "1.1.0"}
         }
  :aliases {:dev {:extra-paths ["src-dev"
                                "scratch"]                   ; for clj command
