@@ -1,0 +1,123 @@
+* Simple composition across network
+  #+begin_src clojure :eval never
+  (let [db (datomic.api/db ~conn)
+        xs (datomic.api/q '[:find (pull ?e [::email :db/id])] db)
+        el (js/document (.getElementById "#root") (.-innerHTML))]
+    (set! el (str "pre" (pr-str %))))
+  #+end_src
+
+  need deflow for external fns
+  dynamic composition across network, including lambdas
+  note nested bind (`fmap . join` is bind)
+
+  #+begin_src clojure
+  (require '[minitest :refer [tests]])
+
+  (tests
+   ;; Dustin's lang
+   (bindI >route (fn [[fiddle needle]]
+                   (fmapI vector
+                          (render-table ((resolve fiddle) needle))
+                          (joinI (fmapI (fn [open]
+                                          (case open
+                                            true  (render-table ((resolve fiddle) "tempid"))
+                                            false (pureI ::nothing)))
+                                        >open)))))
+
+   (capI *1) := [[:table [9]] [:table []]]
+
+
+   ;; Leo's version
+
+   (let [[fiddle needle] (<- >route)]
+     (vector (<- (render-table ((resolve fiddle) needle)))
+             (if (<- >open)
+               (<- (render-table ((resolve fiddle) "tempid")))
+               ::nothing)))
+
+   (capI *1) := [[:table [9]] [:table []]]
+
+   )
+  #+end_src
+
+  (This can be implemnented in leo-lang without fns , just let and if etc) (So
+  if we don't need to trace external fn calls we dont even need deflow) if we
+  have to inline the bind closures to make this work with tracing, that's fine,
+  because there aren't very many dynamic points in hyperfiddle datasync just
+  cardinality many queries, nested cardinality, routes and popovers. thats it
+  once wwe have inline-bind, we can implement HFQL and simple hf ui with tracing
+  (with high confidence)
+
+
+  *The risky part is:*
+  - can we implement bind (distributed process) without inlining?
+  - what is the cost of developer experience with inlining? (REPL, vars)
+    (working with macros not functions) (no external fns but you get inline fns
+    ?)
+  - which notation for the traced PL? (reagent trampoline, sexpr templates
+    trampoline, via evaluator, deflow)
+
+  *Goal*: Validate these hypotheses asap with lots of tests we can revisit
+  dynamic-bind (vs inline-bind) after we validate the above is correct with tests
+
+
+
+* TODO Tasks
+
+** TODO Léo : Léo's language
+
+   #+begin_src clojure
+   (require '[minitest :refer [tests]])
+
+   ;; Dumb implementations, not interesting
+   (defn render-table [xs]
+      (into [:table] xs))
+
+   (defn fiddle [needle]
+     (let [db {"alice" 9}]
+       (if-let [dbid (get db needle)]
+         [dbid]
+         [[]])))
+
+   ;; -------------------------------------
+
+   (comment
+     (def <- identity)
+     (def >route [`fiddle "alice"])
+     (def >open true))
+
+   (tests
+
+    (let [[fiddle needle] (<- >route)]
+      (vector (render-table ((resolve fiddle) needle))
+              (if (<- >open)
+                (render-table ((resolve fiddle) "tempid"))
+                ::nothing)))
+
+    ,,, ;; reactor, dataflow …
+
+    (capI *1) := [[:table [9]] [:table []]])
+   #+end_src
+
+*** TODO Analyser
+
+    No fragments here, no resolve, no need for defflow
+
+    `<-` is a special form
+
+*** TODO Emitter
+
+    Emit missionary code, as in trace[22..].
+
+
+** TODO Geoffrey: tools.analyser stuff
+
+*** TODO Look at [[https://github.com/clojure/tools.analyzer][tools.analyzer]]
+
+*** TODO unalias to unquote syms
+
+   [[file:02-03-2021.org::*pre-analyse body to expand aliases][pre-analyse body to expand aliases]]
+
+   Might need tools.analyser.
+
+*** TODO Fragment inlining

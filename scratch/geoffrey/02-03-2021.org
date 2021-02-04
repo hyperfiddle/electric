@@ -1,0 +1,187 @@
+* Namespace resolve
+** Prototype
+** [X] Clojure NS mechanism
+** Preanalyse, code must preserve external sym (aliases)
+   -> expention phase
+
+* Closure ret type
+
+  #+begin_src clojure :eval never
+  (if (<- open)
+    ((fn [e]
+       (leolang (submission-detail e (<- open)))) "tempid")
+    (submission-detail "tempid"))
+  #+end_src
+
+  ???
+  #+begin_src haskell :eval never
+  leolang :: m a -> m b
+  leolang :: Reactor a -> Reactor b
+  submissions-detail :: String -> Reactor 
+  #+end_src
+
+* Flagging fns as client-only or server only
+
+  #+begin_src clojure
+  (defn ^:client render-table []
+    )
+  #+end_src
+
+** List potential solutions
+
+
+* Resolving
+
+** Inputs
+   
+  #+begin_src clojure :eval never
+   (def ast
+     ;; >first and >open are inputs
+     '{popover (fn2 [>open]
+                    (if (<- >open)
+                      (submission "alice")
+                      #_(popover >open)                         ; !
+                      nil))
+
+       query-page
+       (fn2 [>a]
+            (render-react!
+             [:html
+              (render-table (submissions (<- >first))) ;; >first defined where?
+              (render-popover (popover >open)) ;; >open defined where?
+              ]))
+       })
+
+
+   (def >result (dataflow
+                 ,*reactor
+                 ast                                        ; program
+                 '#{render-table render-popover}            ; passives
+                 '#{}
+                 '(query-page >first >open) ;; main, where does >first and >open resolve from?
+                 ))
+   #+end_src
+
+
+* Syntax quoting (bad idea)
+
+  Pros: auto resolve, supported by language
+  Cons: cryptic syntax, heavy boilerplate (forced gensym, forced unquotes)
+  
+  #+begin_src clojure
+  (def fragment `(let [a# (inc >foo)]))
+  (defn fragmentf [a] `(let [b# (inc ~a)]))
+  (def import-fragment `(let [c# (inc ~(fragmentf 1))])) ;; Can't reference gensymed in unquoted form
+  #+end_src
+
+* defflow macro
+
+  See [[file:~/Documents/fabric/scratch/leo/composition.clj::(ns leo.composition][leo.composition]]  
+  
+  The defflow macro does a pre-analyse phase to expand ns aliases.
+
+  1. We've got a specific macro to import a fragment.
+  2. Object defined by defflow is a macro itself, must be re-entrant
+
+#+begin_src clojure
+(defflow foo [args] body)
+
+;; Phase 1 : macroexpand defflow foo, happens when compiling NS.
+;; Phase 2 : macroexpand foo, happens at the reactor build time.
+
+;; Both are triggered by the compiler.
+;; Clojure deals with top-level objects via macros. It seems reasonable to leverage it.
+#+end_src
+     
+  
+  #+begin_src clojure
+  (defmacro defflow […] …)
+  #+end_src
+
+  Takes a fragment and resolves symbol
+
+** TODO
+   
+*** defflow phase 1
+
+    Should not be much more than syntax quote
+
+**** pre-analyse body to expand aliases
+
+     `unalias` is syntax quote without gensym
+     #+begin_src clojure
+     (ns foo
+       (:require [minitest :refer [tests]]))
+
+     (defn unalias [ns form]
+       )
+
+     (tests
+      (unalias '(inc >foo)) := '(clojure.core/inc foo/>foo)
+      (unalias '(inc >foo)) := `(inc >foo)
+      (unalias '(let [a 1] (inc a))) := '(clojure.core/let [a 1] (clojure.core/inc a))
+      )
+   #+end_src
+
+     
+**** ?
+
+*** defflow phase 2
+
+    Phase 2 is macroexpansion of the macro produced by defflow
+
+    #+begin_src clojure
+    (require '[minitest :refer [tests]])
+    (ns foo)
+
+    ;; TODO
+    (tests
+     (macroexpand-1 '(defflow plus [a] (+ a b)))
+     :=
+     `(defmacro bar [a]
+        `(clojure.core/+ ~a foo/b)))
+    #+end_src
+
+**** fragments "inlining"
+
+     Is recursivity allowed? Intuition: no, but not sure.
+
+     #+begin_src clojure
+     (defmacro recursive [x]
+       `(recursive x))
+
+     (macroexpand '(recursive 1)) ;; StackOverflow
+     #+end_src
+
+     
+* Passive nodes
+
+** Using metas ^:client, ^:server
+
+** Explicit set of passive symbols passed to dataflow
+
+
+* Dataflow macro
+
+  #+begin_src clojure
+    (dataflow
+     ,*reactor
+     ast                                       ; program. If we are using def, redundant with main
+     #{render-table render-popover}            ; passives
+     #{}                                       ; which function are effectful and cannot be lazy sampled
+     (query-page >first >open)                 ; main
+     )
+    #+end_src
+
+
+    We can't shadow fully qualified names, so we can list passive nodes by name
+    and not by path, even if there's no bijection in the source map.
+    GG, LN: Seems a good idea.
+
+* what does loop recur mean in reactive context?
+
+  Feedback loop
+
+  #+begin_src 
+  #+end_src
+  
