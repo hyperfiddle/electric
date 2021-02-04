@@ -4,3 +4,6 @@
 [submodule "vendor/via"]
 	path = vendor/via
 	url = git@github.com:hyperfiddle/via.git
+[submodule "vendor/cloroutine"]
+	path = vendor/cloroutine
+	url = git@github.com:leonoel/cloroutine.git
