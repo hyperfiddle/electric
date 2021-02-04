@@ -1,19 +1,33 @@
+#+PROPERTY: header-args :noweb yes :exports both
+#+PROPERTY: header-args:clojure :tangle 02_04_2021.cljc :comments both
+#+PROPERTY: header-args:dot :exports result
+#+EXCLUDE_TAGS: noexport
+#+OPTIONS: toc:nil
+
+#+begin_src clojure :results none
+(ns geoffrey.02-04-2021
+  (:require [minitest :refer [tests]]))
+#+end_src
+
 * Simple composition across network
-  #+begin_src clojure :eval never
-  (let [db (datomic.api/db ~conn)
-        xs (datomic.api/q '[:find (pull ?e [::email :db/id])] db)
-        el (js/document (.getElementById "#root") (.-innerHTML))]
-    (set! el (str "pre" (pr-str %))))
+
+  #+begin_src clojure
+  (comment
+    (let [db (datomic.api/db ~conn)
+          xs (datomic.api/q '[:find (pull ?e [::email :db/id])] db)
+          el (js/document (.getElementById "#root") (.-innerHTML))]
+      (set! el (str "pre" (pr-str %)))))
   #+end_src
+
+  #+RESULTS:
 
   need deflow for external fns
   dynamic composition across network, including lambdas
   note nested bind (`fmap . join` is bind)
 
   #+begin_src clojure
-  (require '[minitest :refer [tests]])
 
-  (tests
+  (comment
    ;; Dustin's lang
    (bindI >route (fn [[fiddle needle]]
                    (fmapI vector
@@ -36,9 +50,10 @@
                ::nothing)))
 
    (capI *1) := [[:table [9]] [:table []]]
-
    )
   #+end_src
+
+  #+RESULTS:
 
   (This can be implemnented in leo-lang without fns , just let and if etc) (So
   if we don't need to trace external fn calls we dont even need deflow) if we
@@ -66,8 +81,7 @@
 
 ** TODO Léo : Léo's language
 
-   #+begin_src clojure
-   (require '[minitest :refer [tests]])
+   #+begin_src clojure :eval never
 
    ;; Dumb implementations, not interesting
    (defn render-table [xs]
@@ -86,7 +100,7 @@
      (def >route [`fiddle "alice"])
      (def >open true))
 
-   (tests
+   (comment
 
     (let [[fiddle needle] (<- >route)]
       (vector (render-table ((resolve fiddle) needle))
@@ -98,6 +112,8 @@
 
     (capI *1) := [[:table [9]] [:table []]])
    #+end_src
+
+   #+RESULTS:
 
 *** TODO Analyser
 
@@ -112,12 +128,256 @@
 
 ** TODO Geoffrey: tools.analyser stuff
 
-*** TODO Look at [[https://github.com/clojure/tools.analyzer][tools.analyzer]]
+*** DONE Look at [[https://github.com/clojure/tools.analyzer][tools.analyzer]]
+    CLOSED: [2021-02-04 jeu. 14:02] SCHEDULED: <2021-02-04 jeu.>
+    :LOGBOOK:
+    CLOCK: [2021-02-04 jeu. 10:47]--[2021-02-04 jeu. 12:08] =>  1:21
+    CLOCK: [2021-02-04 jeu. 13:43]--[2021-02-04 jeu. 14:02] =>  0:19
+    :END:
 
-*** TODO unalias to unquote syms
+
+**** Example from readme
+
+     #+begin_src clojure :results output vector
+     (require '[clojure.tools.analyzer.jvm :as ana.jvm])
+     (require '[clojure.tools.analyzer.passes.jvm.emit-form :as e])
+
+     (tests
+      (e/emit-form (ana.jvm/analyze '(let [a 1] a)))
+      := '(let* [a 1] a)
+      ;; Note that the output will be fully macroexpanded. You can also get an
+      ;; hygienic form back, using the emit-hygienic-form pass:
+
+      (e/emit-hygienic-form (ana.jvm/analyze '(let [a 1 a a] a)))
+      := '(let* [a__#0 1 a__#1 a__#0] a__#1)
+      )
+       #+end_src
+
+     #+RESULTS:
+     : ✅ (e/emit-form (ana.jvm/analyze (quote (let [a 1] a)))) := (let* [a 1] a)
+     : ✅ (e/emit-hygienic-form (ana.jvm/analyze (quote (let [a 1 a a] a)))) := (let* [a__#0 1 a__#1 a__#0] a__#1)
+     :
+
+
+**** TODO Questions
+
+     - [X] Will T.A expand the AST too much and discard original source?
+
+       A: No, it preserves it and expand properly. NOTE: T.A does gensym local
+       symbols (let bindings) deterministically. This is a good thing.
+
+     #+begin_src clojure :results output code
+     (declare <- >route >open)
+
+     (defn render-table [_])
+
+     (tests
+      ;; T.A preserves the form as-is (raw).
+      (-> '(let [[fiddle needle] (<- >route)]
+             (vector (render-table ((resolve fiddle) needle))
+                     (if (<- >open)
+                       (render-table ((resolve fiddle) "tempid"))
+                       ::nothing)))
+          (ana.jvm/analyze)
+          (:raw-forms)
+          (first))
+      :=
+      '(let [[fiddle needle] (<- >route)]
+         (vector (render-table ((resolve fiddle) needle))
+                 (if (<- >open)
+                   (render-table ((resolve fiddle) "tempid"))
+                   ::nothing)))
+
+      ;; No destructuring for deterministic tests (destructuring causes gensym)
+      ;; NOTE: T.A does gensym local symbols (let bindings) deterministically. This is a
+      ;; good thing.
+      (-> '(let [route  (<- >route)
+                 fiddle (nth route 0)
+                 needle (nth route 1)]
+             (vector (render-table ((resolve fiddle) needle))
+                     (if (<- >open)
+                       (render-table ((resolve fiddle) "tempid"))
+                       ::nothing)))
+          (ana.jvm/analyze)
+          (e/emit-hygienic-form))
+      :=
+      '(let* [route__#0 (<- >route)
+              fiddle__#0 (clojure.lang.RT/nth route__#0 0)
+              needle__#0 (clojure.lang.RT/nth route__#0 1)]
+         (vector (render-table ((resolve fiddle__#0) needle__#0))
+                 (if (<- >open)
+                   (render-table ((resolve fiddle__#0) "tempid"))
+                   ::nothing))))
+     #+end_src
+
+     #+RESULTS:
+     #+begin_src clojure
+     ✅ (->  '(let
+         [[fiddle needle] (<- >route)]
+         (vector
+          (render-table ((resolve fiddle) needle))
+          (if
+           (<- >open)
+           (render-table ((resolve fiddle) "tempid"))
+           :geoffrey.02-04-2021/nothing)))
+       (ana.jvm/analyze)
+       (:raw-forms)
+       (first))
+        :=  (let       [[fiddle needle] (<- >route)]
+            (vector
+             (render-table ((resolve fiddle) needle))
+             (if
+              (<- >open)
+              (render-table ((resolve fiddle) "tempid"))
+              :geoffrey.02-04-2021/nothing)))
+     ✅ (->  '(let
+         [route (<- >route) fiddle (nth route 0) needle (nth route 1)]
+         (vector
+          (render-table ((resolve fiddle) needle))
+          (if
+           (<- >open)
+           (render-table ((resolve fiddle) "tempid"))
+           :geoffrey.02-04-2021/nothing)))
+       (ana.jvm/analyze)
+       (e/emit-hygienic-form))
+        :=  (let*       [route__#0
+             (<- >route)
+             fiddle__#0
+             (clojure.lang.RT/nth route__#0 0)
+             needle__#0
+             (clojure.lang.RT/nth route__#0 1)]
+            (vector
+             (render-table ((resolve fiddle__#0) needle__#0))
+             (if
+              (<- >open)
+              (render-table ((resolve fiddle__#0) "tempid"))
+              :geoffrey.02-04-2021/nothing)))
+
+
+
+     #+end_src
+
+*** DONE unalias to unquote syms
+    CLOSED: [2021-02-04 jeu. 15:44] SCHEDULED: <2021-02-04 jeu.>
+    :LOGBOOK:
+    CLOCK: [2021-02-04 jeu. 14:05]--[2021-02-04 jeu. 14:58] =>  0:53
+    :END:
 
    [[file:02-03-2021.org::*pre-analyse body to expand aliases][pre-analyse body to expand aliases]]
 
-   Might need tools.analyser.
+   *Goal*: Craft a function that transforms an AST like syntax-quote does,
+   fully-qualifying symbols, but does not gensym local symbols.
+
+   #+begin_src clojure :results output code
+   (require '[clojure.tools.analyzer :as ana])
+   (require '[clojure.tools.analyzer.ast :as ast])
+
+   (defn qualify-node [{:keys [op var] :as node}]
+     (if (= :var op)
+       (assoc node :form (symbol var))
+       node))
+
+   (defn quasiquote [form]
+     (-> (ana.jvm/analyze form)
+         (ast/prewalk qualify-node)
+         (e/emit-form)))
+
+   (declare foo a b)
+
+   (tests
+    (quasiquote 'foo) := `foo
+    (quasiquote '(foo a)) := `(foo a)
+    (quasiquote '(let [a 1] (foo a b))) := `(let* [~'a 1] (foo ~'a b))
+    (quasiquote '(+ 1 2)) := `(+ 1 2)
+    )
+   #+end_src
+
+   #+RESULTS:
+   #+begin_src clojure
+   ✅ (quasiquote (quote foo)) := geoffrey.02-04-2021/foo
+   ✅ (quasiquote (quote (foo a))) := (geoffrey.02-04-2021/foo geoffrey.02-04-2021/a)
+   ✅ (quasiquote (quote (let [a 1] (foo a b)))) := (let* [a 1] (geoffrey.02-04-2021/foo a geoffrey.02-04-2021/b))
+   ❌ (quasiquote (quote (+ 1 2))) := (clojure.core/+ 1 2)
+   Actual: (clojure.lang.Numbers/add 1 2)
+
+
+
+   #+end_src
+
+   #+RESULTS:
+
+   NOTE: =(+ 1 2)= expands to =(clojure.lang.Numbers/add 1 2)= because
+   =clojure.tools.analyzer/macroexpand-1= does function inlining.
+
+
+*** TODO Decide if we want/need function inlining
+    SCHEDULED: <2021-02-04 jeu.>
+
+**** Examples of inlining
+
+     #+begin_src clojure :results output code
+     ;; clojure.core/+
+     '(defn +
+        "Returns the sum of nums. (+) returns 0. Does not auto-promote
+       longs, will throw on overflow. See also: +'"
+        {:inline (nary-inline 'add 'unchecked_add)
+         :inline-arities >1?
+         :added "1.2"}
+        ([] 0)
+        ([x] (cast Number x))
+        ([x y] (. clojure.lang.Numbers (add x y)))
+        ([x y & more]
+         (reduce1 + (+ x y) more)))
+
+     ;; Inlining is triggered by the `:inline` meta
+     ;; It's triggered only if `:inline-arities` predicate matches
+
+     (tests
+      (quasiquote '+)           := `+                                ; not inlined
+      (quasiquote '(+ 1))       := `(+ 1)                            ; not inlined
+      (quasiquote '(+ 1 2))     := `(clojure.lang.Numbers/add 1 2)   ; matches >1?
+      (quasiquote '(+ 1 2 3 4)) := `(clojure.lang.Numbers/add
+                                     (clojure.lang.Numbers/add
+                                      (clojure.lang.Numbers/add 1 2) 3) 4))
+
+     (tests
+      (quasiquote '+)           := 'clojure.core/+
+      (quasiquote '(+ 1))       := '(clojure.core/+ 1)
+      (quasiquote '(+ 1 2))     := '(clojure.core/+ 1 2)
+      (quasiquote '(+ 1 2 3 4)) := '(clojure.core/+ 1 2 3 4))
+
+     (tests
+      ;; bad (macroexpand + inlining)
+      (quasiquote '(let [a 1] (+ a 2))) := '(let* [a 1] (clojure.lang.Numbers/add a 2))
+      ;; good (macroexpand but no inlining)
+      (quasiquote '(let [a 1] (+ a 2))) := '(let* [a 1] (+ a 2)))
+     #+end_src
+
+     #+RESULTS:
+     #+begin_src clojure
+     ✅ (quasiquote (quote +)) := clojure.core/+
+     ✅ (quasiquote (quote (+ 1))) := (clojure.core/+ 1)
+     ✅ (quasiquote (quote (+ 1 2))) := (clojure.lang.Numbers/add 1 2)
+     ✅ (quasiquote '(+ 1 2 3 4))
+        :=  (clojure.lang.Numbers/add       (clojure.lang.Numbers/add (clojure.lang.Numbers/add 1 2) 3)
+            4)
+
+     ✅ (quasiquote (quote +)) := clojure.core/+
+     ✅ (quasiquote (quote (+ 1))) := (clojure.core/+ 1)
+     ❌ (quasiquote (quote (+ 1 2))) := (clojure.core/+ 1 2)
+     Actual: (clojure.lang.Numbers/add 1 2)
+     ❌ (quasiquote (quote (+ 1 2 3 4))) := (clojure.core/+ 1 2 3 4)
+     Actual: (clojure.lang.Numbers/add
+       (clojure.lang.Numbers/add (clojure.lang.Numbers/add 1 2) 3)
+       4)
+
+     ✅ (quasiquote (quote (let [a 1] (+ a 2)))) := (let* [a 1] (clojure.lang.Numbers/add a 2))
+     ❌ (quasiquote (quote (let [a 1] (+ a 2)))) := (let* [a 1] (+ a 2))
+     Actual: (let* [a 1] (clojure.lang.Numbers/add a 2))
+
+
+
+     #+end_src
 
 *** TODO Fragment inlining
+    SCHEDULED: <2021-02-05 ven.>
