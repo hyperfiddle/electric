@@ -4,14 +4,14 @@
 #+EXCLUDE_TAGS: noexport
 #+OPTIONS: toc:nil
 
-#+begin_src clojure :results none
+#+begin_src clojure :results none :exports both
 (ns geoffrey.02-04-2021
   (:require [minitest :refer [tests]]))
 #+end_src
 
 * Simple composition across network
 
-  #+begin_src clojure
+  #+begin_src clojure :exports both
   (comment
     (let [db (datomic.api/db ~conn)
           xs (datomic.api/q '[:find (pull ?e [::email :db/id])] db)
@@ -25,7 +25,7 @@
   dynamic composition across network, including lambdas
   note nested bind (`fmap . join` is bind)
 
-  #+begin_src clojure
+  #+begin_src clojure :exports both
 
   (comment
    ;; Dustin's lang
@@ -81,7 +81,7 @@
 
 ** TODO Léo : Léo's language
 
-   #+begin_src clojure :eval never
+   #+begin_src clojure :eval never :exports both
 
    ;; Dumb implementations, not interesting
    (defn render-table [xs]
@@ -113,8 +113,6 @@
     (capI *1) := [[:table [9]] [:table []]])
    #+end_src
 
-   #+RESULTS:
-
 *** TODO Analyser
 
     No fragments here, no resolve, no need for defflow
@@ -138,7 +136,7 @@
 
 **** Example from readme
 
-     #+begin_src clojure :results output vector
+     #+begin_src clojure :results output :exports both
      (require '[clojure.tools.analyzer.jvm :as ana.jvm])
      (require '[clojure.tools.analyzer.passes.jvm.emit-form :as e])
 
@@ -153,10 +151,10 @@
       )
        #+end_src
 
-     #+RESULTS:
-     : ✅ (e/emit-form (ana.jvm/analyze (quote (let [a 1] a)))) := (let* [a 1] a)
-     : ✅ (e/emit-hygienic-form (ana.jvm/analyze (quote (let [a 1 a a] a)))) := (let* [a__#0 1 a__#1 a__#0] a__#1)
-     :
+       #+RESULTS:
+       : ✅ (e/emit-form (ana.jvm/analyze (quote (let [a 1] a)))) := (let* [a 1] a)
+       : ✅ (e/emit-hygienic-form (ana.jvm/analyze (quote (let [a 1 a a] a)))) := (let* [a__#0 1 a__#1 a__#0] a__#1)
+       :
 
 
 **** TODO Questions
@@ -166,7 +164,7 @@
        A: No, it preserves it and expand properly. NOTE: T.A does gensym local
        symbols (let bindings) deterministically. This is a good thing.
 
-     #+begin_src clojure :results output code
+     #+begin_src clojure :results output :exports both
      (declare <- >route >open)
 
      (defn render-table [_])
@@ -211,7 +209,7 @@
      #+end_src
 
      #+RESULTS:
-     #+begin_src clojure
+     #+begin_example
      ✅ (->  '(let
          [[fiddle needle] (<- >route)]
          (vector
@@ -253,9 +251,7 @@
               (render-table ((resolve fiddle__#0) "tempid"))
               :geoffrey.02-04-2021/nothing)))
 
-
-
-     #+end_src
+     #+end_example
 
 *** DONE unalias to unquote syms
     CLOSED: [2021-02-04 jeu. 15:44] SCHEDULED: <2021-02-04 jeu.>
@@ -268,7 +264,7 @@
    *Goal*: Craft a function that transforms an AST like syntax-quote does,
    fully-qualifying symbols, but does not gensym local symbols.
 
-   #+begin_src clojure :results output code
+   #+begin_src clojure :results output :exports both
    (require '[clojure.tools.analyzer :as ana])
    (require '[clojure.tools.analyzer.ast :as ast])
 
@@ -293,18 +289,12 @@
    #+end_src
 
    #+RESULTS:
-   #+begin_src clojure
-   ✅ (quasiquote (quote foo)) := geoffrey.02-04-2021/foo
-   ✅ (quasiquote (quote (foo a))) := (geoffrey.02-04-2021/foo geoffrey.02-04-2021/a)
-   ✅ (quasiquote (quote (let [a 1] (foo a b)))) := (let* [a 1] (geoffrey.02-04-2021/foo a geoffrey.02-04-2021/b))
-   ❌ (quasiquote (quote (+ 1 2))) := (clojure.core/+ 1 2)
-   Actual: (clojure.lang.Numbers/add 1 2)
-
-
-
-   #+end_src
-
-   #+RESULTS:
+   : ✅ (quasiquote (quote foo)) := geoffrey.02-04-2021/foo
+   : ✅ (quasiquote (quote (foo a))) := (geoffrey.02-04-2021/foo geoffrey.02-04-2021/a)
+   : ✅ (quasiquote (quote (let [a 1] (foo a b)))) := (let* [a 1] (geoffrey.02-04-2021/foo a geoffrey.02-04-2021/b))
+   : ❌ (quasiquote (quote (+ 1 2))) := (clojure.core/+ 1 2)
+   : Actual: (clojure.lang.Numbers/add 1 2)
+   :
 
    NOTE: =(+ 1 2)= expands to =(clojure.lang.Numbers/add 1 2)= because
    =clojure.tools.analyzer/macroexpand-1= does function inlining.
@@ -315,7 +305,7 @@
 
 **** Examples of inlining
 
-     #+begin_src clojure :results output code
+     #+begin_src clojure :results output pp :exports both
      ;; clojure.core/+
      '(defn +
         "Returns the sum of nums. (+) returns 0. Does not auto-promote
@@ -354,7 +344,7 @@
      #+end_src
 
      #+RESULTS:
-     #+begin_src clojure
+     #+begin_example
      ✅ (quasiquote (quote +)) := clojure.core/+
      ✅ (quasiquote (quote (+ 1))) := (clojure.core/+ 1)
      ✅ (quasiquote (quote (+ 1 2))) := (clojure.lang.Numbers/add 1 2)
@@ -377,7 +367,41 @@
 
 
 
-     #+end_src
+     #+end_example
+
+
+     We need to macroexpand and inline but we must be sure that the share AST is
+     the same. So platform-agnostic macroes and inlining are allows,
+     platform-specific macroes and inlining must be blackboxed in some way
+     (function call).
+
+     A macro that creates nodes is problematic, but all macros that just alter
+     the AST, not the reactive DAG.
+
+     dataflow could contain a call to hfql, so hfql will create nodes. *We have
+     to annotate path after macroexpansion*.
+
+     We can analyse for both platform on the JVM and throw if the two DAG
+     definitions are not the same.
+
+     We need to figure out which points can be passive:
+     - macroes can't,
+     - inlined can't,
+     - function can,
+     - var references can.
 
 *** TODO Fragment inlining
     SCHEDULED: <2021-02-05 ven.>
+
+    We can't macroexpand or inline at fragment definition time because we need
+    to expand at the include site. We need to retain the fragment *ns*. If the
+    fragment is top level, no need to retain the *env*. We need to analyse and
+    macroexpand while including the fragment in place. Static Linking.
+
+    #+begin_src clojure :exports both
+    (def fragments '{a (fn [a] a)
+                     b (inc a)})
+    #+end_src
+
+    #+RESULTS:
+    : #'geoffrey.02-04-2021/fragments
