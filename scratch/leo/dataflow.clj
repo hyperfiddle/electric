@@ -3,7 +3,8 @@
   (:require [clojure.tools.analyzer.jvm :as clj]
             [cljs.analyzer.api :as cljs]
             [minitest :refer [tests]]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [dustin.fiddle :as f])
   (:import (clojure.lang Compiler$LocalBinding)))
 
 ;; RUNTIME
@@ -160,7 +161,7 @@
 
   ;; f: x -> task[y], cont flow
   (defn map-task [f >x]
-    (m/ap (prn (m/? (f (m/?! >x))))))
+    (m/ap (m/? (f (m/?! >x)))))
 
   (deflow db-query [needle]
     (let [>needle (extend needle)]
@@ -202,14 +203,34 @@
   (deflow effect-async [f x]
     (<- (map-task #(m/via m/blk (f %)) (extend x))))
 
-  (macroexpand
+  (defn render-table [query-result]
+    (prn :render-table query-result)
+    [:table (map (partial vector :tr) query-result)])
+
+  (defn query [needle]
+    (m/via m/cpu (f/submissions needle)))
+
+  (def !route (atom ["alice"]))
+  (def >route (m/watch !route))
+  (def !open (atom false))
+  (def >open (m/watch >open))
+  (def effects (atom []))
+
+  (def app
     (dataflow
-      '(let [[fiddle needle] (<- >route)]
-         (effect-async prn
-           (vector (<- (render-table (effect-async query [fiddle needle])))
-             (if (<- >open)
-               (<- (render-table (effect-async query [fiddle "tempid"])))
-               ::nothing))))))
+      (let [[needle] (<- >route)]
+        (effect-async (partial swap! effects conj)
+          (vector (render-table (<- (map-task query (extend needle))))
+            (if (<- >open)
+              (render-table (map-task query (extend "alice")))
+              ::nothing))))))
+  (def cancel (app prn prn))
+  (reset! >route ["bob"])
+  (reset! >open true)
+  @effects :=
+  [[[:table [:tr 9]] ::nothing]
+   [[:table [:tr 10]] ::nothing]
+   [[:table [:tr 10]] [:table [:tr 9]]]]
 
   )
 
