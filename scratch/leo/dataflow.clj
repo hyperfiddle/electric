@@ -1,5 +1,5 @@
 (ns leo.dataflow
-  (:refer-clojure :exclude [compile])
+  (:refer-clojure :exclude [compile extend])
   (:require [clojure.tools.analyzer.jvm :as clj]
             [cljs.analyzer.api :as cljs]
             [minitest :refer [tests]]
@@ -9,6 +9,7 @@
 
 ;; RUNTIME
 (defn <- [flow] (throw (ex-info "Can't call <- outside of dataflow." {:flow flow})))
+(defn extend [flow] (throw (ex-info "Can't call extend outside of dataflow." {:flow flow})))
 
 (defn if! [test then else]
   (m/signal! (m/relieve {} (m/ap (m/?! (if (m/?! test) then else))))))
@@ -44,7 +45,12 @@
             (clj/analyze form)))))))
 
 (def normalize-ast
-  (let [join? (every-pred (comp #{:var} :op) (comp #{`<-} symbol :var))
+  (let [special? (fn [ast]
+                   (and (= :var (:op ast))
+                     (case (symbol (:var ast))
+                       leo.dataflow/<- :join
+                       leo.dataflow/extend :extend
+                       nil)))
         syms (fn [p n] (into [] (map (comp symbol (partial str p))) (range n)))]
     (partial
       (fn walk [env {:keys [op] :as ast}]
@@ -70,14 +76,15 @@
                      (map (partial walk env) (:args ast)))})
 
           (:invoke)
-          (if (join? (:fn ast))
-            {:type :join
+          (if-some [special (special? (:fn ast))]
+            {:type special
              :deps (map (partial walk env) (:args ast))}
             {:type :apply
              :deps (map (partial walk env) (cons (:fn ast) (:args ast)))})
 
+
           (:do)
-          (walk env (:ret ast))                       ;; fantasyland, discard statements
+          (walk env (:ret ast))                       ;; TODO track statements
 
           (:let)
           (walk (reduce (fn [env {:keys [name init]}]
@@ -124,7 +131,8 @@
                   :input (list `input! (:form node))
                   :apply (cons `apply! (map sym (:deps node)))
                   :if (cons `if! (map sym (:deps node)))
-                  :join (cons `join! (map sym (:deps node))))))))
+                  :join (cons `join! (map sym (:deps node)))
+                  :extend (cons `input! (map sym (:deps node))))))))
         (list `let)))))
 
 (defn compile [main env prefix]
@@ -231,54 +239,5 @@
   [[[:table [:tr 9]] ::nothing]
    [[:table [:tr 10]] ::nothing]
    [[:table [:tr 10]] [:table [:tr 9]]]]
-
-  )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-(comment
-
-
-  (defn fib! [x]
-    (m/!)
-    (cond
-      (= x 0) 1
-      (= x 1) 1
-      () (+ (fib! (dec x))
-           (fib! (dec (dec x))))))
-
-  (defn fib [x] (m/via m/blk (fib! x)))
-
-  (defn stream-fib [>x]
-    (->> (m/ap (m/? (fib (m/?! >x))))
-      (m/relieve {})))
-
-  (macroexpand
-    '(dataflow
-       (-> (m/watch !input)
-         (<|) (inc)
-         (|>) (stream-fib) (<|)
-
-         )
-
-
-       )
-
-    )
-
 
   )
