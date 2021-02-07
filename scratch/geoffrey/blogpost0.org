@@ -1,0 +1,640 @@
+#+PROPERTY: header-args :noweb yes :exports both
+#+PROPERTY: header-args:clojure :tangle blogpost0.cljc :comments both
+#+PROPERTY: header-args:dot :exports result
+#+EXCLUDE_TAGS: noexport
+# #+OPTIONS: toc:nil
+
+#+TITLE: Missionary by example
+
+~miss·io·narry~
+
+#+begin_src clojure :results none
+(ns blogpost0
+  "Missionary by example"
+  (:require [minitest :refer [tests]]
+            [missionary.core :as m :refer [? sp ap]]))
+#+end_src
+
+# ?! ~ fork-concat
+
+* Tasks
+
+  A task is a value, wrapping a computation. Running a task is "asking" for a
+  value, running the wrapped computation and returning the computed value. Tasks
+  are assumed to be referencially transparent.
+
+  #+begin_src clojure :results none
+  (def my-task (m/sleep 1000)) ; a simple non-blocking sleep task.
+
+  (m/? my-task) ; run or "ask" the task for it's effect. `?` (ask) will block the
+                ; current process until a value is available. It is sequential,
+                ; like `deref` on `future`.
+  #+end_src
+
+  NOTE: Blocking here is just a REPL convenience. You don't need to block in a
+  correctly written program.
+
+** Task abstraction
+
+   You can also run a task by calling it as a function, in which case it takes
+   two arguments ~(my-task success-callback error-callback)~, where:
+   - ~success-callback~ is a one-argument function receiving the produced value
+     when the task succeeds,
+   - ~error-callback~ is a one-argument function receiving the error object
+     (exception) when the task fails.
+
+   #+begin_src clojure :results none
+   (my-task (fn [val] (prn :success val))
+            (fn [err] (prn :failure err)))
+   #+end_src
+
+   ~Task~ is a protocol (convention), it's not a concrete type. The example
+   above is quite similar to what the JS promise constructor expects.
+
+** Canceling a task
+
+   Calling ~my-task~ as a function returns a 0-arg control function. Calling it will cancel the task:
+
+   #+begin_src clojure :results none :exports both
+   (def my-task (m/sleep 100000)) ; a long task
+   (def cancel (my-task (partial prn :success) (partial prn :failure)))
+   ;; wait a bit
+   (cancel) ; prints ":failure …"
+   #+end_src
+
+   Canceling ~my-task~ prints ~:failure …~ because that's how ~m/sleep~ works.
+
+* Sequential composition
+
+  Sequential composition means effects compose by running in order. We could
+  describe it as an alternative to monadic composition in [[https://en.wikibooks.org/wiki/Haskell/Understanding_monads/IO][IO]]. It has the same
+  exception short-circuit behavior and is the same kind of construct.
+
+  # Task is the same kind of object as haskell's IO except Task doesn't have a
+  # type because we are in lisp task :: (v -> IO) -> (err -> IO) -> (-> IO)
+
+  The ~m/sp~ macro stands for Sequential Process. It composes effects
+  sequentially and returns a task value:
+
+  #+begin_src clojure :results none
+  (def task (m/sp (let [x (m/? (m/sleep 1000 :x))]
+                    (println x)
+                    x)))
+  #+end_src
+
+  If ask (~?~) is used inside an ~sp~ block, it is desugared to a continuation
+  and do not block the current thread [fn:1].
+
+  #+begin_src clojure :results none
+  (? task) ; can run the task
+  (? task) ; can run again, it's reusable value
+  #+end_src
+
+
+* Monad-like composition
+
+  Let's have a simple ~sleep ms value~ tasks which waits for ~ms~ milliseconds,
+  print ~value~ and return it:
+
+  #+begin_src clojure :results none
+  (defn sleep' [delay v]
+    (sp (let [x (? (m/sleep delay v))]
+          (println x)
+          x)))
+  #+end_src
+
+  #+begin_src clojure :exports both
+  (sleep' 1000 :x)
+  #+end_src
+
+  #+RESULTS:
+  : #function[clojure.core/partial/fn--5824]
+
+  The s-expression is gone, it's wrapped in a thunk.
+
+  We can now compose sequentially, with dynamic continuations:
+
+  #+begin_src clojure :results none
+  (sp (let [a (? (sleep' 1000 42))]
+        (? (if (odd? a)
+             (sleep' 1000 a)
+             (sleep' 1000 (inc a))))))
+  #+end_src
+
+  These sleeps are sequential and thus take two seconds! This is really a
+  Clojure problem, could just use two ~Thread/sleeps~ for this:
+  #+begin_src clojure :results none
+  (sp (vector
+       (? (m/sleep 1000 :a))   ; ? will park
+       (? (m/sleep 1000 :b))))
+  #+end_src
+
+* Parallelism
+
+  The naive approach is to parallelize the sleeps. There's an operator for that:
+
+  #+begin_src clojure :results none
+  (def task
+    (m/join vector         ; runs in 1 seconds
+            (m/sleep 1000 :a)
+            (m/sleep 1000 :b)))
+  #+end_src
+
+  We don't need the ~sp~ macro here because ~m/join~ expects tasks. Also, the
+  ~sp~ macro is about sequential composition and this is now parallel. This is
+  no longer a purely sequential process.
+
+  #+begin_src clojure :exports both :results value verbatim
+  (? task)
+  ;; delay one second
+  #+end_src
+
+  #+RESULTS:
+  : [:a :b]
+
+  This approach is naive because ~m/sleep~ is a referencially transparent
+  operation, so in the following example ~join~ can't know these are the same
+  task. A task should run once and the result should be reused.
+
+  #+begin_src clojure :eval never :results none
+  (let [x-task (m/sleep 1000 :x)]
+        (m/join vector x-task x-task)) ; x-task runs twice, in parallel.
+  #+end_src
+
+  Let's say we have a complex task computing an expensive value:
+  #+begin_src clojure :results none
+  (defn fib [x] ; a slow implementation of Fibonacci
+    (cond
+      (= x 0) 1
+      (= x 1) 1
+      () (+ (fib (dec x))
+            (fib (dec (dec x))))))
+  #+end_src
+
+  #+begin_src clojure :results value verbatim :exports both
+  (map fib (range 10))
+  #+end_src
+
+  #+RESULTS:
+  : (1 1 2 3 5 8 13 21 34 55)
+
+  #+begin_src clojure :results output :exports both
+  (time (fib 37))
+  #+end_src
+
+  #+RESULTS:
+  : "Elapsed time: 890.82347 msecs"
+
+
+  We can improve our fibonacci by parallelizing it using ~via~. ~via~ turns a blocking
+  operation into an async operation via an executor. ~m/cpu~ is a fixed threadpool
+  bound to number of cpus available.
+
+  #+begin_src clojure :results none
+  (defn fib-async [n]
+    (m/via m/cpu
+           (println 'effect)
+           (fib n)))
+  #+end_src
+  We could also provide a custom executor:
+  #+begin_src clojure :results none
+  (let [e (java.util.concurrent.Executors/newSingleThreadExecutor)]
+    (defn fib-single-thread [n]
+      (m/via e (fib n))))
+  #+end_src
+
+  But we still face the referential transparency issue: tasks do not share identities. This is not a DAG (Directed Acyclic Graph):
+
+  #+begin_src clojure :results output :exports both
+  (time (? (m/timeout 3000 (m/join vector (fib-async 37) (fib-async 37)))))
+  #+end_src
+
+  #+RESULTS:
+  : effect
+  : effect
+  : "Elapsed time: 948.132023 msecs"
+
+  Even if we factor out ~(fib-async 37)~, we still don't have a DAG:
+
+  #+begin_src clojure :eval never :results none
+  (time (? (m/timeout 3000
+                      (let [x-task (fib-async 37)]
+                        (m/join vector x-task x-task)))))
+  ;; Still not a dag!
+  #+end_src
+
+  We can cheat by only computing the result once:
+  #+begin_src clojure :eval never :results none
+  (def task
+    (sp (let [x (? (fib-async 37))]                         ; compute once
+          (? (m/join vector                                 ; join is parallelism
+                     (m/sleep 100 x)                        ; parallel sleep
+                     (m/sleep 101 x))))))
+  #+end_src
+
+  - we create a dag, for the fib;
+  - then that finishes, we create a new dag (join vector sleep sleep);
+  - then that finishes, those processes terminate with result and are GC'ed;
+  - all dags are GC'ed now;
+
+  But here the DAG is actually always a tree, because of referential
+  transparency! In other words there is not a single point in time where a
+  process has more than one parent. We have a tree for which the topology varies
+  over time, but it's always a tree.
+
+  We will try to make it a real DAG and discover we can't. But before that we
+  need to talk about flows.
+
+* Discrete Flows
+
+  A task is a program that eventually produces *one* value, while a flow is a
+  program that eventually produces *multiple* values. Value production is always
+  asynchronous. Being backed by IO, we don't know when the values are produced.
+
+  If you think "Reactive Streams", you can have a look at the [[https://github.com/leonoel/flow][Flow spec]].
+
+  Just like ~sp~ is for sequential composition, ~ap~ is for flow composition.
+  ~ap~ means Ambiguous Process.
+
+  #+begin_src clojure :results none
+  (ap 42) ;; A flow that will produce `42`, once, then terminate.
+  (ap (println (?! (m/enumerate [1 2 3])))) ;; will print `1`, then `2`, then `3`, then terminate.
+  #+end_src
+
+  NOTE: ~?!~ is pronounced =fork-switch=.
+  # because we can consider ~ap~ to be an asynchronous List monad, backed by IO instead of computations.
+
+  Ambiguous Processes can combine tasks and flows:
+
+  #+begin_src clojure :eval never :results none
+  (defn emit-sleep [delays]
+    ;; flow
+    (ap (let [x (?! (m/enumerate delays))]
+          ;; task
+          (? (m/sleep x :slept)))))
+  #+end_src
+
+  They composes dynamically like tasks:
+  #+begin_src clojure :eval never :results none
+  (ap (let [a (?? (emit-sleep [301 302 303]))]
+        (?? (if (odd? a)
+              (emit-sleep [a])
+              (emit-sleep [(inc a)])))))
+  #+end_src
+
+  Ambiguous Processes are sequential computations lifted into a list because
+  each form can have more than one result. AP is still sequential unless you use
+  ~?=~ (~fork-gather~ [fn:2]) operator which introduces parallelism. The
+  resulting flow is sequential, all parallel branches are gathered. They are
+  racing for the final ordering in the result flow. We can think of AP as an
+  asynchronous List monad, backed by IO instead of computations.
+
+* Continuous Flows
+
+  #+begin_comment
+  (tests
+    "discrete flows"
+
+
+    ; the thesis of continuous flows is that some computations are RT (other than
+    ; compute resources consumed) and we just want to incrementally maintain them to make
+    ; them update faster as an optimization
+    ; this is wrong, you can have eager incremental maintenance
+    ;
+    ; examples: reactjs, spreadsheets, database queries
+    ;
+    ; Leo says this is technically true but not sure how it helps
+    ;
+    ; Leo's words:
+    ; you want to sample lazily because you don't know in advance when (at which point in time)
+    ; the value will actually be needed
+    ; the computation of the dag should be triggered by the consumer
+
+    ; Is incremental a properly defined word? or just Jane Street? I dont know
+    ;
+    ;  continuous flows make sense if each new value invalidates the previous one
+    ; no history sensitivity
+    ; no
+
+    ; try again
+    ; the thesis of continuous flows is that it is a special optimzation case of discrete flows
+    ; where each new value invalidates the previous one (e.g. there is no history sensitivity).
+    ; that means you can defer computation until the value is asked for.
+    ;    reactjs is discrete, but could actually be faster if continuous?
+    ;    it depends how you use it ... this is the confusion
+
+    ; ReactDOM.render()
+    ; this attaches a reactor to the document and runs forever ... its all about effects
+    ; manage the effect of the dom patches
+    ; manage the effects of computation of HTML view values
+    ;    incremental maintenance with prevProps memoization
+    ; feeding the dom events into user logic
+    ; reactjs has a component lifecycle
+
+    ; React is using an unclear approach
+    ; shouldComponentUpdate
+    ; this is made mandatory by the impedance mismatch between FP and Javascript
+
+    ; therefore we learn that Reactjs has a lot in common with continuous flows
+    ; This is why FRP failed to gain traction in frontend dev -
+    ; discrete FRP is not what you want for frontend dom rendering
+
+    ; the value prop of react is to provide functional programming interface to the dom
+    ;
+    ;
+
+    ; so twitter is history sensitive as it counts the number of like commands,
+    ; so it must be discrete
+
+
+    ; RX latest same thing as missionary latest ... runs fn each time an input changes
+    ; but it's fully eager because underlying is eager so it produces glitches.
+    ; you can't represent the scenario where
+    ;     two values change at the same time so the fn should only be run once
+    ; ^ that's the glitch we want to avoid.
+
+
+    ; if SP composes sequentially like IO monad
+    ; how does AP compose?
+    ; it's an async list monad, backed by IO instead of computations
+    (ap (println (?! (m/enumerate [1 2 3]))))
+    (for [x (m/enumerate [1 2 3])] (println x))               ; pseudocode (not async)
+    (mapcat println (m/enumerate [1 2 3]))                    ; pseudocode (not async)
+
+    ; This is one way to think about flows
+    ; Leo: it is better to first explain what a flow is
+    ; and then how to compose them.
+
+    )
+  #+end_comment
+
+* WIP - Process Hierarchy                                          :noexport:
+
+  There is a hierarchy to the process the hierarchy reflects the hierarchy in
+  the AST A very important property as it gives natural way to flow for
+  exceptions and cancellation here, Sleep is parented at join, and join is
+  parented at sp, thus if sleep terminates (e.g. exception), it will signal
+  upward. It's bi-directional – if sp cancels externally, it will signal down to
+  sleep.
+
+  # Operating system has program, process and effects, termination and cancellation
+  # A dag is different than a hierarchy
+  # cancellation
+
+* Source                                                           :noexport:
+  #+begin_comment clojure :eval never :exports none
+  (tests
+
+    ; Effect was run only once (which is not parallelism, we cheated)
+    ; With tasks we can usually cheat in this way, but with flows
+    ; it becomes much more complicated
+    ; usually or always? Not sure
+
+
+
+    ; The real answer to fib is to define a SP that computes the fib result
+    ; and only after that call the join
+    ; the missionary answer is to arrange expensive computations by hand
+    ; our use our dataflow macro to assume the computation is RT and thus incrementally maintain
+
+
+
+
+    ; Another (heavy) solution to this problem is "Reactor"
+    ; There are simpler ways to fix this than reactor
+    ; for more complex use cases, reactor makes sense
+
+    ; Note can always turn a task into a flow with ap
+    ; tasks are strictly more powerful
+    )
+
+  ; Two kinds of flows, discrete and continuous
+
+  ;; # HERE
+  ; Aggregate also is not a primitive we use in real world. Just for testing
+
+  (tests
+    "flow diamond case is interesting"
+    ; illustrate the motivator for reactor
+
+    ; we need a reactive computation where some branches are expensive
+
+
+
+    (def >needle (m/watch !needle)) (def !needle (atom "alice"))
+    (def >open (m/watch !open)) (def !open (atom true))
+
+    (def flow
+      (ap
+        (println                                              ;need effect for this to make sense
+          (let [needle (?! >needle)]
+            (vector
+              (?! (submissions needle))
+              (if (?! >open)
+                (?! (submissions-detail "tempid"))
+                ::nothing))))))
+
+    ; ap has no parallelism
+    ; m/latest is the operator that introduces parallelism
+    ; because flows are RT, intermediate computations are not reused
+    ;   (bc this requires internal state shared across calls)
+    ; this is the same problem as with tasks
+
+    ; without reactors, at runtime the computation will always be a tree
+
+    (let [e (java.util.concurrent.Executors/newSingleThreadExecutor)]
+      (defn submissions' [n]
+        ; via turns a blocking op into an async op via an executor
+        ; cpu is a fixed threadpool bound to number of cpus available
+        ; make it async, returns a task value
+        (m/via e
+          #_m/cpu
+          (datomic.api/q ...))))
+    ; same as ap basically
+
+    (defn submissions! [needle] (d/q ... needle))
+    (defn submissions [needle] (m/via _ (d/q ... needle)))
+    ; does this do the effect or return a value that performs the effect
+    (defn submissions-detail! [needle] (d/q ... needle))
+    (defn submissions-detail [needle] (m/via _ (d/q ... needle)))
+
+    (def flow
+      (m/reactor
+        (ap
+          (println
+            (let []                        ; fork
+              (m/latest vector
+                ; side effects in ap blocks must not block thread! prinln is ok. fib is bad!
+                ; missionary assumes ops are nonblocking
+                #_(ap (submissions! (?! >needle)))              ; blocks thread for everyone
+                #_(ap (submissions! (?! >needle)))              ; blocks thread for everyone
+                (ap (? (submissions (?! >needle))))           ; parallel execution
+                (ap (? (submissions (?! >needle))))           ; parallel execution
+
+
+
+                (ap
+                  (let [open (?! >open)]
+                    (? (m/via _ (if open
+                                  (submissions-detail! needle)
+                                  ::nothing)))))
+
+                (ap
+                  (if (?! >open)
+                    (?! (submissions-detail "tempid"))
+                    ::nothing))))))))
+
+    (def flow
+      (m/latest (comp println vector)
+        (ap (? (submissions (?! >needle))))
+        (ap (if-let [open (?! >open)]
+              (? (submissions-detail open))
+              ::nothing))))
+
+    ; cant do this, it doesn't make sense
+    ; -- (? flow)
+    ; because flows are something that produce multiple values
+    ; and this notation suggests we are waiting on a single value
+
+    ; So all flows are started like this:
+    (def !out (flow #(prn :notify) #(prn :terminate)))
+    ; :notify
+    ; the flow is now running
+
+    @!out := _
+
+    (reset !needle "charlie")
+    ; :notify
+    @!out := _
+
+    (reset !open false)
+    ; :notify
+    @!out := _
+
+    ; SO this is fast without reactor
+    ; so we need a new example to add reactor
+
+
+
+    (def flow
+      (dataflow
+        (println                                              ;need effect for this to make sense
+          (let [needle (<- >needle)
+                open (<- >open)]
+            (vector
+              (submissions needle)
+              (if open
+                (<- (submissions-detail "tempid"))
+                ::nothing))))))
+
+    (reset! >open false)
+    ; reset will restart the continuation/fiber from the point
+    ; where we listen to the atom
+
+    (reset! >needle "bob")
+    ; this will restart the fiber from (?! >needle) and compose sequentially from here
+    ; thus recomputing the popover as well even though the popover did not change.
+
+    ; this does not optimize because the parallelism is not explicit
+
+    ; reactor is the difference between sequential and incremental
+    ; the reactor
+    ; adds internal state to the flow (across input changes over time) so that past values of nodes can be reused
+    ; you assign identities to nodes so as to not recompute the whole chain
+
+
+    ; create a diamond shape
+    (ap
+      (let [x (?! (m/enumerate (range 3)))]
+        (vector (inc x) (dec x)))
+
+      )
+
+
+
+
+    ; This is an IO recipe for a async stream
+    ; If you were to run it you get the effect
+    ; but no internal state is shared between runs! It is RT
+
+    ; the reactor lets you share state across runs to incrementally maintain
+
+
+    (reset! >open false)
+    ; This is composition has no parallelism
+    ; without a reactor
+    ; we need to name the reuse points and create a DAG
+
+
+    ; reactive fib
+    (defn fib [x]
+      (m/!)
+      (cond
+        (= x 0) 1
+        (= x 1) 1
+        () (+ (fib (dec x))
+             (fib (dec (dec x))))))
+
+
+
+    (let [e (java.util.concurrent.Executors/newSingleThreadExecutor)]
+      (defn fib-async [n]
+        ; via turns a blocking op into an async op via an executor
+        ; cpu is a fixed threadpool bound to number of cpus available
+        (m/via e
+          #_m/cpu
+          (println 'effect)
+          (fib n))))
+
+    )
+
+
+
+
+
+
+
+
+  (tests
+    "Reactor"
+    ; Reactor is about reusing processes and assigning
+    ; an identity to a process in order to reuse it
+
+    ; It doesn't make much sense in tasks ?
+    (m/reactor
+      )
+
+    )
+
+
+
+  (tests
+    "reactor"
+
+    ; Why do we need a reactor?
+    ; If you only have flows, you can only represent hierarchical processes
+    ; The topology is a hierarchy because that's how function composition works
+    ; With only flows you can't have DAG topologies
+
+    (vector ~x ~x)                                            ; simplest dag
+    ; This is not a dag because the two branches of vector are not run in parallel
+
+
+
+    (ap
+
+
+      (let [x (?? (emit-sleep [1 2 3]))]
+        (?)))
+
+    )
+
+  (tests
+    "continuous flows")
+#+end_comment
+
+* Footnotes
+
+[fn:1] This is a design choice, =core.async= made a different choice by providing =<!= and =<!!= for non-blocking and blocking operations, respectively.
+
+[fn:2] In RX, it would be called ~flatMap~.
