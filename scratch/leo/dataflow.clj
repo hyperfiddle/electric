@@ -139,6 +139,8 @@
   (def !input (atom 0))
   (def !input2 (atom 0))
 
+  (def !output (atom 0))
+
   (macroexpand '(dataflow (+ 1 2)))
   (macroexpand '(dataflow (let [a 1] (+ a a))))
   (macroexpand '(dataflow (let [i (m/watch !input)]
@@ -150,5 +152,112 @@
          (vector
            (if (odd? i) (inc i) i)
            (* (m/watch !input2) 2)))))
+
+  (def input
+    (->>
+      (m/ap (doto (m/? (m/sleep 1000 (m/?? (m/enumerate (range 10))))) prn))
+      (m/relieve {})))
+
+  ;; f: x -> task[y], cont flow
+  (defn map-task [f >x]
+    (m/ap (prn (m/? (f (m/?! >x))))))
+
+  (deflow db-query [needle]
+    (let [>needle (extend needle)]
+      (<- (map-task #(m/via m/cpu (d/q %)) >needle))))
+
+  (defn lift-task [f]
+    (fn [>x] (map-task f >x)))
+
+  (def db (lift-task db-query))
+
+  (defn input-text-values [id]
+    (m/observe
+      (fn [!] (.addListener (.getElementById js/document id) !)
+        #(.removeListener (.getElementById js/document id) !))))
+
+  (deflow async [f x]
+    (<- (map-task f (extend x))))
+
+  (deflow db-query2 [x]
+    (async db-query x))
+
+  (macroexpand
+    '(dataflow
+       (let [i (<- (input-text-values))]
+         (db-query (+ i i)))
+
+       )
+    )
+
+  (deflow effect-sync [f x]
+    (<- (m/latest f (extend x))))
+
+  (deflow effect-async [f x]
+    (let [>x (extend x)]
+      (<-
+        (m/ap (m/? (let [x (m/?! >x)]
+                     (m/via m/blk (f x))))))))
+
+  (deflow effect-async [f x]
+    (<- (map-task #(m/via m/blk (f %)) (extend x))))
+
+  (macroexpand
+    (dataflow
+      '(let [[fiddle needle] (<- >route)]
+         (effect-async prn
+           (vector (<- (render-table (effect-async query [fiddle needle])))
+             (if (<- >open)
+               (<- (render-table (effect-async query [fiddle "tempid"])))
+               ::nothing))))))
+
+  )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(comment
+
+
+  (defn fib! [x]
+    (m/!)
+    (cond
+      (= x 0) 1
+      (= x 1) 1
+      () (+ (fib! (dec x))
+           (fib! (dec (dec x))))))
+
+  (defn fib [x] (m/via m/blk (fib! x)))
+
+  (defn stream-fib [>x]
+    (->> (m/ap (m/? (fib (m/?! >x))))
+      (m/relieve {})))
+
+  (macroexpand
+    '(dataflow
+       (-> (m/watch !input)
+         (<|) (inc)
+         (|>) (stream-fib) (<|)
+
+         )
+
+
+       )
+
+    )
+
 
   )
