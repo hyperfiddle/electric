@@ -1,6 +1,6 @@
 #+PROPERTY: header-args :noweb yes :exports both
-#+PROPERTY: header-args:clojure :tangle blogpost0.cljc :comments both
-#+PROPERTY: header-args:dot :exports result
+#+PROPERTY: header-args:clojure :eval never :tangle blogpost0.cljc :comments both
+#+PROPERTY: header-args:dot :exports none
 #+EXCLUDE_TAGS: noexport
 # #+OPTIONS: toc:nil
 
@@ -167,8 +167,8 @@
     (cond
       (= x 0) 1
       (= x 1) 1
-      () (+ (fib (dec x))
-            (fib (dec (dec x))))))
+      :else   (+ (fib (dec x))
+                 (fib (dec (dec x))))))
   #+end_src
 
   #+begin_src clojure :results value verbatim :exports both
@@ -289,8 +289,14 @@
   racing for the final ordering in the result flow. We can think of AP as an
   asynchronous List monad, backed by IO instead of computations.
 
-* Continuous Flows
+* WIP - Continuous Flows
 
+   The thesis of continuous flows is that it is a special optimzation case of
+   discrete flows where each new value invalidates the previous one (e.g. there
+   is no history sensitivity). that means you can defer computation until the
+   value is asked for.
+
+  
   #+begin_comment
   (tests
     "discrete flows"
@@ -368,7 +374,178 @@
     )
   #+end_comment
 
-* WIP - Process Hierarchy                                          :noexport:
+* Diamonds and Glitches
+
+  In reactive streams, a diamond glitch happens when a node receives
+  intermediate state as input. Here is an example of a glitch, where node ~d~
+  receives the value of ~b~ while ~c~ is not computed yet.
+  
+  #+begin_src dot :file ./blogpost0/diamond_broken_0.png :exports none :results none
+  digraph d{
+      a [label="a\nø"]
+      b [label="b\n(inc a)\nø"]
+      c [label="c\n(dec a)\nø"]
+      d [label="d\n(vector b c)\nø"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+
+  #+begin_src dot :file ./blogpost0/diamond_broken_1.png :exports none :results none
+  digraph d{
+      a [label="a\n0"]
+      b [label="b\n(inc a)\nø"]
+      c [label="c\n(dec a)\nø"]
+      d [label="d\n(vector b c)\nø"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+
+  #+begin_src dot :file ./blogpost0/diamond_broken_2.png :exports none :results none
+  digraph d{
+      a [label="a\n0"]
+      b [label="b\n(inc a)\n1"]
+      c [label="c\n(dec a)\nø"]
+      d [label="d\n(vector b c)\nø"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+
+  #+begin_src dot :file ./blogpost0/diamond_broken_3.png :exports none :results none
+  digraph d{
+      a [label="a\n0"]
+      b [label="b\n(inc a)\n1"]
+      c [label="c\n(dec a)\nø"]
+      d [label="d\n(vector b c)\n[1 ø]"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+  
+  #+begin_src dot :file ./blogpost0/diamond_broken_4.png :exports none :results none
+  digraph d{
+      a [label="a\n0"]
+      b [label="b\n(inc a)\n1"]
+      c [label="c\n(dec a)\n-1"]
+      d [label="d\n(vector b c)\n[1 ø]"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+
+
+  #+begin_src dot :file ./blogpost0/diamond_broken_5.png :exports none :results none
+  digraph d{
+      a [label="a\n0"]
+      b [label="b\n(inc a)\n1"]
+      c [label="c\n(dec a)\n-1"]
+      d [label="d\n(vector b c)\n[1 -1]"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+  
+  #+begin_src shell :results output :exports none
+  convert -dispose previous -delay 250 -loop 0 ./blogpost0/diamond_broken_* ./blogpost0/diamond_broken.gif
+  #+end_src
+
+  #+RESULTS:
+
+  [[file:./blogpost0/diamond_broken.gif]]
+
+  ~d~ being a join node, it should wait for all of it's input to be in a ready
+  state. We call this a Propagation Cycle or a Propagation Frame. Here is our same diamond without glitch:
+
+  #+begin_src dot :file ./blogpost0/diamond_ok_0.png :exports none :results none
+  digraph d{
+      a [label="a\nø"]
+      b [label="b\n(inc a)\nø"]
+      c [label="c\n(dec a)\nø"]
+      d [label="d\n(vector b c)\nø"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+
+  #+begin_src dot :file ./blogpost0/diamond_ok_1.png :exports none :results none
+  digraph d{
+      a [label="a\n0"]
+      b [label="b\n(inc a)\nø"]
+      c [label="c\n(dec a)\nø"]
+      d [label="d\n(vector b c)\nø"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+
+  #+begin_src dot :file ./blogpost0/diamond_ok_2.png :exports none :results none
+  digraph d{
+      a [label="a\n0"]
+      b [label="b\n(inc a)\n1"]
+      c [label="c\n(dec a)\nø"]
+      d [label="d\n(vector b c)\nø"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+
+  #+begin_src dot :file ./blogpost0/diamond_ok_3.png :exports none :results none
+  digraph d{
+      a [label="a\n0"]
+      b [label="b\n(inc a)\n1"]
+      c [label="c\n(dec a)\n-1"]
+      d [label="d\n(vector b c)\nø"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+  
+  #+begin_src dot :file ./blogpost0/diamond_ok_4.png :exports none :results none
+  digraph d{
+      a [label="a\n0"]
+      b [label="b\n(inc a)\n1"]
+      c [label="c\n(dec a)\n-1"]
+      d [label="d\n(vector b c)\n[1 -1]"]
+      a -> b
+      a -> c
+      b -> d
+      c -> d
+  }
+  #+end_src
+
+  #+begin_src shell :results output :exports none
+  convert -dispose previous -delay 250 -loop 0 ./blogpost0/diamond_ok_* ./blogpost0/diamond_ok.gif
+  #+end_src
+
+  #+RESULTS:
+
+  [[file:./blogpost0/diamond_ok.gif]]
+
+* WIP - Reactor
+  
+* WIP - Processes Hierarchy                                        :noexport:
 
   There is a hierarchy to the process the hierarchy reflects the hierarchy in
   the AST A very important property as it gives natural way to flow for
@@ -390,15 +567,10 @@
     ; it becomes much more complicated
     ; usually or always? Not sure
 
-
-
     ; The real answer to fib is to define a SP that computes the fib result
     ; and only after that call the join
     ; the missionary answer is to arrange expensive computations by hand
     ; our use our dataflow macro to assume the computation is RT and thus incrementally maintain
-
-
-
 
     ; Another (heavy) solution to this problem is "Reactor"
     ; There are simpler ways to fix this than reactor
