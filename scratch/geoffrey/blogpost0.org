@@ -220,8 +220,44 @@
   (time (? (m/timeout 3000
                       (let [x-task (fib-async 37)]
                         (m/join vector x-task x-task)))))
-  ;; Still not a dag!
   #+end_src
+
+  #+begin_src dot :file ./blogpost0/tree_not_dag_actual.png :exports results
+  digraph d{
+      ask [label="?"];
+      timeout [label="timeout 3000"];
+      join [label="join vector"];
+      a [label="fib-async 37"];
+      b [label="fib-async 37"];
+
+      ask -> timeout;
+      timeout -> join;
+      join -> a;
+      join -> b;
+  }
+  #+end_src
+
+  #+RESULTS:
+  [[file:./blogpost0/tree_not_dag_actual.png]]
+
+  Instead it should look like this:
+
+  #+begin_src dot :file ./blogpost0/tree_not_dag_expected.png :exports results
+  digraph d{
+      ask [label="?"];
+      timeout [label="timeout 3000"];
+      join [label="join vector"];
+      a [label="fib-async 37"];
+
+      ask -> timeout;
+      timeout -> join;
+      join -> a;
+      join -> a;
+  }
+  #+end_src
+
+  #+RESULTS:
+  [[file:./blogpost0/tree_not_dag_expected.png]]
 
   We can cheat by only computing the result once:
   #+begin_src clojure :eval never :results none
@@ -233,7 +269,7 @@
   #+end_src
 
   - we create a dag, for the fib;
-  - then that finishes, we create a new dag (join vector sleep sleep);
+  - then that finishes, we create a new dag ~(join vector sleep sleep)~;
   - then that finishes, those processes terminate with result and are GC'ed;
   - all dags are GC'ed now;
 
@@ -244,6 +280,361 @@
 
   We will try to make it a real DAG and discover we can't. But before that we
   need to talk about flows.
+
+* Plumbing vs Process Building
+
+  =core.async=, =manifold=, and the simpler =BlockingQueue= differs
+  fundamentally from RX streams and =missionary=: in the former streams have
+  identities while in the later composition is referencially transparent. It
+  appears quite clearly with the ~map~ operation:
+
+  #+begin_src clojure :eval never
+  (doc 'clojure.core.async/map)
+  #+end_src
+
+  #+begin_quote
+  "Takes a function and a collection of source channels, and *returns a channel*
+  which contains the values produced by applying f to the set of first items taken
+  from each source channel […]
+  #+end_quote
+
+  ~clojure.core.async/map~ does plumbing. Once values flow in those pipes,
+  nothing can prevent a new pipe to be attached upstream or downstream.
+
+  RX and missionary instead composes functional values to build a process. No
+  value flows until the process is started. While channels have identities, RX
+  streams are referencially transparent. In Clojure, both have a functional
+  interface but only RX streams are functional constructs.
+
+  Functional constructs follows functional composition rules, as one comes after
+  (~∘~) the other. This process steps ordering and separation of build time vs
+  run time gives us supervision for free.
+
+** Processes Hierarchy
+
+   Supervision is the best benefit from the referentially transparent
+   (functional) approach. A crashing process can forward an exception to its
+   parent, or interrupt its children.
+
+   Example: ~join~ must terminate all children if one of them crashes, then
+   notifies its parent. Crashing signals upwards, canceling signals downwards.
+
+   #+begin_src clojure :eval never :results none
+   (m/join vector           ; parent task
+           crashing-task    ; will crash, so the parent will crash
+           regular-task     ; should be canceled because the parent is crashed
+           )
+   #+end_src
+
+   This is trivial in a tree (hierarchical) topology, but in a DAG there might
+   be multiple parents, and none are preferred.
+
+   Earlier we had to cheat with parallelizing and we now discover a tree
+   topology introduces signaling ambiguities. The need of a real DAG is getting
+   clearer.
+
+** Diamonds and Glitches
+
+   In reactive streams, a diamond glitch happens when a node receives
+   intermediate state as input. Here is an example of a glitch, where node ~d~
+   receives the value of ~b~ while ~c~ is not computed yet.
+
+   #+begin_src dot :file ./blogpost0/diamond_broken_0.png :exports none :results none
+   digraph d{
+       a [label="a\nø"]
+       b [label="b\n(inc a)\nø"]
+       c [label="c\n(dec a)\nø"]
+       d [label="d\n(vector b c)\nø"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_broken_1.png :exports none :results none
+   digraph d{
+       a [label="a\n0"]
+       b [label="b\n(inc a)\nø"]
+       c [label="c\n(dec a)\nø"]
+       d [label="d\n(vector b c)\nø"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_broken_2.png :exports none :results none
+   digraph d{
+       a [label="a\n0"]
+       b [label="b\n(inc a)\n1"]
+       c [label="c\n(dec a)\nø"]
+       d [label="d\n(vector b c)\nø"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_broken_3.png :exports none :results none
+   digraph d{
+       a [label="a\n0"]
+       b [label="b\n(inc a)\n1"]
+       c [label="c\n(dec a)\nø"]
+       d [label="d\n(vector b c)\n[1 ø]"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_broken_4.png :exports none :results none
+   digraph d{
+       a [label="a\n0"]
+       b [label="b\n(inc a)\n1"]
+       c [label="c\n(dec a)\n-1"]
+       d [label="d\n(vector b c)\n[1 ø]"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+
+   #+begin_src dot :file ./blogpost0/diamond_broken_5.png :exports none :results none
+   digraph d{
+       a [label="a\n0"]
+       b [label="b\n(inc a)\n1"]
+       c [label="c\n(dec a)\n-1"]
+       d [label="d\n(vector b c)\n[1 -1]"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+   #+begin_src shell :results output :exports none
+   convert -dispose previous -delay 250 -loop 0 ./blogpost0/diamond_broken_* ./blogpost0/diamond_broken.gif
+   #+end_src
+
+   #+RESULTS:
+
+   [[file:./blogpost0/diamond_broken.gif]]
+
+   This happens when nodes are autonomous. Plumbing channels together or using a
+   classic Observable/Observer pattern produces glitches as soon as a diamond
+   happens.
+
+   ~d~ being a join node, it should wait for all of it's input to be in a ready
+   state. We call this a Propagation Cycle or a Propagation Frame. Here is our
+   same diamond without glitch:
+
+   #+begin_src dot :file ./blogpost0/diamond_ok_0.png :exports none :results none
+   digraph d{
+       a [label="a\nø"]
+       b [label="b\n(inc a)\nø"]
+       c [label="c\n(dec a)\nø"]
+       d [label="d\n(vector b c)\nø"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_ok_1.png :exports none :results none
+   digraph d{
+       a [label="a\n0"]
+       b [label="b\n(inc a)\nø"]
+       c [label="c\n(dec a)\nø"]
+       d [label="d\n(vector b c)\nø"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_ok_2.png :exports none :results none
+   digraph d{
+       a [label="a\n0"]
+       b [label="b\n(inc a)\n1"]
+       c [label="c\n(dec a)\nø"]
+       d [label="d\n(vector b c)\nø"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_ok_3.png :exports none :results none
+   digraph d{
+       a [label="a\n0"]
+       b [label="b\n(inc a)\n1"]
+       c [label="c\n(dec a)\n-1"]
+       d [label="d\n(vector b c)\nø"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_ok_4.png :exports none :results none
+   digraph d{
+       a [label="a\n0"]
+       b [label="b\n(inc a)\n1"]
+       c [label="c\n(dec a)\n-1"]
+       d [label="d\n(vector b c)\n[1 -1]"]
+       a -> b
+       a -> c
+       b -> d
+       c -> d
+   }
+   #+end_src
+
+   #+begin_src shell :results output :exports none
+   convert -dispose previous -delay 250 -loop 0 ./blogpost0/diamond_ok_* ./blogpost0/diamond_ok.gif
+   #+end_src
+
+   #+RESULTS:
+
+   [[file:./blogpost0/diamond_ok.gif]]
+
+
+* Reactor
+
+  We've seen that:
+  - parallelizing tasks in a hierarchical topology requires a real DAG;
+  - in a DAG, nodes might have multiple parents in which case none are preferred
+    to be the supervisor;
+  - a diamond case might introduce glitches if nodes don't run in the "right"
+    order.
+
+  A reactor addresses all these concerns.
+
+** Supervising n-parents nodes
+
+   A reactor is a top-level supervisor, supervising all nodes under its context.
+   When a node ~n~ got more than one parents (DAG case) then none of them are
+   preferred to be the supervisor. So if ~n~ crashes, the reactor is signaled
+   and will crash in turn, canceling all nodes underneath it.
+
+** Solving glitches
+
+   Our functional constructs composes in order. We therefore know a node will
+   always run *after* its dependencies. The diamond case remains problematic,
+   but knowing all nodes underneath it, the reactor can plan them to run in
+   topological order.
+
+   #+begin_src dot :file ./blogpost0/diamond_reactor_0.png :exports none :results none
+   digraph d{
+       subgraph cluster_reactor{
+           label = "Reactor";
+           style = filled;
+           color = "lightgray";
+           node [style = filled; color = "white"];
+           a [label="a\nø"; xlabel="1"];
+           b [label="b\n(inc a)\nø"; xlabel="2"];
+           c [label="c\n(dec a)\nø"; xlabel="3"];
+           d [label="d\n(vector b c)\nø"; xlabel="4"];
+           a -> b;
+           a -> c;
+           b -> d;
+           c -> d;
+       }
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_reactor_1.png :exports none :results none
+   digraph d{
+    subgraph cluster_reactor{
+       label = "Reactor";
+       style = filled;
+       color = "lightgray";
+       node [style = filled; color = "white"];
+       a [label="a\n0"; xlabel="1"];
+       b [label="b\n(inc a)\nø"; xlabel="2"];
+       c [label="c\n(dec a)\nø"; xlabel="3"];
+       d [label="d\n(vector b c)\nø"; xlabel="4"];
+       a -> b;
+       a -> c;
+       b -> d;
+       c -> d;
+    }
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_reactor_2.png :exports none :results none
+   digraph d{
+    subgraph cluster_reactor{
+       label = "Reactor";
+       style = filled;
+       color = "lightgray";
+       node [style = filled; color = "white"];
+       a [label="a\n0"; xlabel="1"];
+       b [label="b\n(inc a)\n1"; xlabel="2"];
+       c [label="c\n(dec a)\nø"; xlabel="3"];
+       d [label="d\n(vector b c)\nø"; xlabel="4"];
+       a -> b;
+       a -> c;
+       b -> d;
+       c -> d;
+    }
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_reactor_3.png :exports none :results none
+   digraph d{
+    subgraph cluster_reactor{
+       label = "Reactor";
+       style = filled;
+       color = "lightgray";
+       node [style = filled; color = "white"];
+       a [label="a\n0"; xlabel="1"];
+       b [label="b\n(inc a)\n1"; xlabel="2"];
+       c [label="c\n(dec a)\n-1"; xlabel="3"];
+       d [label="d\n(vector b c)\nø"; xlabel="4"];
+       a -> b;
+       a -> c;
+       b -> d;
+       c -> d;
+    }
+   }
+   #+end_src
+
+   #+begin_src dot :file ./blogpost0/diamond_reactor_4.png :exports none :results none
+   digraph d{
+    subgraph cluster_reactor{
+       label = "Reactor";
+       style = filled;
+       color = "lightgray";
+       node [style = filled; color = "white"];
+       a [label="a\n0"; xlabel="1"];
+       b [label="b\n(inc a)\n1"; xlabel="2"];
+       c [label="c\n(dec a)\n-1"; xlabel="3"];
+       d [label="d\n(vector b c)\n[1 -1]"; xlabel="4"];
+       a -> b;
+       a -> c;
+       b -> d;
+       c -> d;
+    }
+   }
+   #+end_src
+
+   #+begin_src shell :results output :exports none
+   convert -dispose previous -delay 250 -loop 0 ./blogpost0/diamond_reactor_* ./blogpost0/diamond_reactor.gif
+   #+end_src
+
+   #+RESULTS:
+
+   [[file:./blogpost0/diamond_reactor.gif]]
 
 * Discrete Flows
 
@@ -271,7 +662,7 @@
     ;; flow
     (ap (let [x (?! (m/enumerate delays))]
           ;; task
-          (? (m/sleep x :slept)))))
+          (? (m/sleep x x)))))
   #+end_src
 
   They composes dynamically like tasks:
@@ -296,7 +687,7 @@
    is no history sensitivity). that means you can defer computation until the
    value is asked for.
 
-  
+
   #+begin_comment
   (tests
     "discrete flows"
@@ -373,190 +764,6 @@
 
     )
   #+end_comment
-
-* Diamonds and Glitches
-
-  In reactive streams, a diamond glitch happens when a node receives
-  intermediate state as input. Here is an example of a glitch, where node ~d~
-  receives the value of ~b~ while ~c~ is not computed yet.
-  
-  #+begin_src dot :file ./blogpost0/diamond_broken_0.png :exports none :results none
-  digraph d{
-      a [label="a\nø"]
-      b [label="b\n(inc a)\nø"]
-      c [label="c\n(dec a)\nø"]
-      d [label="d\n(vector b c)\nø"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-
-  #+begin_src dot :file ./blogpost0/diamond_broken_1.png :exports none :results none
-  digraph d{
-      a [label="a\n0"]
-      b [label="b\n(inc a)\nø"]
-      c [label="c\n(dec a)\nø"]
-      d [label="d\n(vector b c)\nø"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-
-  #+begin_src dot :file ./blogpost0/diamond_broken_2.png :exports none :results none
-  digraph d{
-      a [label="a\n0"]
-      b [label="b\n(inc a)\n1"]
-      c [label="c\n(dec a)\nø"]
-      d [label="d\n(vector b c)\nø"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-
-  #+begin_src dot :file ./blogpost0/diamond_broken_3.png :exports none :results none
-  digraph d{
-      a [label="a\n0"]
-      b [label="b\n(inc a)\n1"]
-      c [label="c\n(dec a)\nø"]
-      d [label="d\n(vector b c)\n[1 ø]"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-  
-  #+begin_src dot :file ./blogpost0/diamond_broken_4.png :exports none :results none
-  digraph d{
-      a [label="a\n0"]
-      b [label="b\n(inc a)\n1"]
-      c [label="c\n(dec a)\n-1"]
-      d [label="d\n(vector b c)\n[1 ø]"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-
-
-  #+begin_src dot :file ./blogpost0/diamond_broken_5.png :exports none :results none
-  digraph d{
-      a [label="a\n0"]
-      b [label="b\n(inc a)\n1"]
-      c [label="c\n(dec a)\n-1"]
-      d [label="d\n(vector b c)\n[1 -1]"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-  
-  #+begin_src shell :results output :exports none
-  convert -dispose previous -delay 250 -loop 0 ./blogpost0/diamond_broken_* ./blogpost0/diamond_broken.gif
-  #+end_src
-
-  #+RESULTS:
-
-  [[file:./blogpost0/diamond_broken.gif]]
-
-  ~d~ being a join node, it should wait for all of it's input to be in a ready
-  state. We call this a Propagation Cycle or a Propagation Frame. Here is our same diamond without glitch:
-
-  #+begin_src dot :file ./blogpost0/diamond_ok_0.png :exports none :results none
-  digraph d{
-      a [label="a\nø"]
-      b [label="b\n(inc a)\nø"]
-      c [label="c\n(dec a)\nø"]
-      d [label="d\n(vector b c)\nø"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-
-  #+begin_src dot :file ./blogpost0/diamond_ok_1.png :exports none :results none
-  digraph d{
-      a [label="a\n0"]
-      b [label="b\n(inc a)\nø"]
-      c [label="c\n(dec a)\nø"]
-      d [label="d\n(vector b c)\nø"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-
-  #+begin_src dot :file ./blogpost0/diamond_ok_2.png :exports none :results none
-  digraph d{
-      a [label="a\n0"]
-      b [label="b\n(inc a)\n1"]
-      c [label="c\n(dec a)\nø"]
-      d [label="d\n(vector b c)\nø"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-
-  #+begin_src dot :file ./blogpost0/diamond_ok_3.png :exports none :results none
-  digraph d{
-      a [label="a\n0"]
-      b [label="b\n(inc a)\n1"]
-      c [label="c\n(dec a)\n-1"]
-      d [label="d\n(vector b c)\nø"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-  
-  #+begin_src dot :file ./blogpost0/diamond_ok_4.png :exports none :results none
-  digraph d{
-      a [label="a\n0"]
-      b [label="b\n(inc a)\n1"]
-      c [label="c\n(dec a)\n-1"]
-      d [label="d\n(vector b c)\n[1 -1]"]
-      a -> b
-      a -> c
-      b -> d
-      c -> d
-  }
-  #+end_src
-
-  #+begin_src shell :results output :exports none
-  convert -dispose previous -delay 250 -loop 0 ./blogpost0/diamond_ok_* ./blogpost0/diamond_ok.gif
-  #+end_src
-
-  #+RESULTS:
-
-  [[file:./blogpost0/diamond_ok.gif]]
-
-* WIP - Reactor
-  
-* WIP - Processes Hierarchy                                        :noexport:
-
-  There is a hierarchy to the process the hierarchy reflects the hierarchy in
-  the AST A very important property as it gives natural way to flow for
-  exceptions and cancellation here, Sleep is parented at join, and join is
-  parented at sp, thus if sleep terminates (e.g. exception), it will signal
-  upward. It's bi-directional – if sp cancels externally, it will signal down to
-  sleep.
-
-  # Operating system has program, process and effects, termination and cancellation
-  # A dag is different than a hierarchy
-  # cancellation
 
 * Source                                                           :noexport:
   #+begin_comment clojure :eval never :exports none
