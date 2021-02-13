@@ -22,7 +22,7 @@
 (def apply! (comp m/signal! (partial m/latest (fn [f & args] (apply f args)))))
 
 ;; COMPILATION
-(def specials `{<- :join extend :extend})
+(def specials `{<- :join extend :extend if :if})
 
 (def analyze-clj
   (let [scope-bindings
@@ -286,7 +286,10 @@
                          (let [nodes (reduce walk nodes (next node))]
                            (->> (next node)
                              (map nodes)
-                             (apply (case s :join join! :extends input!))
+                             (apply (case s
+                                      :join join!
+                                      :extends input!
+                                      :if if!))
                              (assoc nodes node)))
                          (let [nodes (reduce walk nodes node)]
                            (->> node
@@ -342,7 +345,52 @@
   (def rdv (m/rdv))
   (m/? (m/join vector (rdv 3) rdv)) := [nil 3]
 
+  )
+
+(comment
+  (let [[needle] (<- >route)]
+    (effect-async (partial swap! effects conj)
+      (vector (render-table (query needle))
+        (if (<- >open)
+          (render-table (query "alice"))
+          ::nothing)))))
+
+(comment
+  (vector (render-table (query (first (<- >route))))
+    (if (<- >open)
+      (render-table (query "alice"))
+      ::nothing)))
+
+(comment
+
   (def client->server (m/rdv))
   (def server->client (m/rdv))
 
+  (def !route (atom ["charlie"]))
+  (def >route (m/watch !route))
+
+  (defn log [x] (m/sp (prn x)))
+
+  (defn render-table [query-result]
+    (prn :render-table query-result)
+    [:table (map (partial vector :tr) query-result)])
+
+  (def client-reactor
+    (-> {`(first (<- >route)) {client->server 'needle}
+         `(vector
+            (render-table ~'query-needle)
+            (if (<- >open)
+              (render-table ~'query-alice)
+              ::nothing)) {}}
+      (trace #{server->client})))
+
+  (def server-reactor
+    (-> {`(query ~'needle) {server->client 'query-needle}
+         `(query "alice") {server->client 'query-alice}}
+      (trace #{client->server})))
+
+  (def cancel-client (client-reactor prn prn))
+  (def cancel-server (server-reactor prn prn))
+
+  ;; TODO debug this shit
   )
