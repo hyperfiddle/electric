@@ -22,6 +22,8 @@
 (def apply! (comp m/signal! (partial m/latest (fn [f & args] (apply f args)))))
 
 ;; COMPILATION
+(def specials `{<- :join extend :extend})
+
 (def analyze-clj
   (let [scope-bindings
         (partial reduce-kv
@@ -45,12 +47,7 @@
             (clj/analyze form)))))))
 
 (def normalize-ast
-  (let [special? (fn [ast]
-                   (and (= :var (:op ast))
-                     (case (symbol (:var ast))
-                       leo.dataflow/<- :join
-                       leo.dataflow/extend :extend
-                       nil)))
+  (let [special? (fn [ast] (and (= :var (:op ast)) (specials (symbol (:var ast)))))
         syms (fn [p n] (into [] (map (comp symbol (partial str p))) (range n)))]
     (partial
       (fn walk [env {:keys [op] :as ast}]
@@ -133,7 +130,8 @@
                   :if (cons `if! (map sym (:deps node)))
                   :join (cons `join! (map sym (:deps node)))
                   :extend (cons `input! (map sym (:deps node))))))))
-        (list `let)))))
+        (list `let)
+        (list `m/reactor)))))
 
 (defn compile [main env prefix]
   (->> main
@@ -143,6 +141,16 @@
 
 (defmacro dataflow [main]
   (compile main &env (gensym "df")))
+
+(defn dataflow! [node]
+  ((fn walk [sort node]
+     (if (contains? sort node)
+       sort (let [sort (reduce walk sort (:deps node))]
+              (assoc sort node
+                          (case (:type node)
+                            :input (input! (:form node))
+                            :apply (apply! (map sort (:deps node)))))))) {} node))
+
 
 (comment
   (def !input (atom 0))
@@ -239,5 +247,102 @@
   [[[:table [:tr 9]] ::nothing]
    [[:table [:tr 10]] ::nothing]
    [[:table [:tr 10]] [:table [:tr 9]]]]
+
+  )
+
+(defn trace-input! [symbol trace-in]
+  (->> trace-in
+    (m/transform (comp
+                   (map #(get % symbol ::unchanged))
+                   (remove #{::unchanged})
+                   (dedupe)))
+    (m/relieve {})
+    (m/signal!)))
+
+(defn trace-output! [nodes]
+  (m/stream! (m/relieve merge (m/ap (let [[k v] (m/?= (m/enumerate nodes))]
+                                      {k (m/?? v)})))))
+
+(defn foreach! [f i]
+  (m/stream! (m/ap (m/? (f (m/?? i))))))
+
+(defn debug [nodes port]
+  (into [] (map (fn [node]
+                  (comment TODO)
+                  node)) nodes))
+
+(defn trace
+  ([dag inputs] (trace dag inputs resolve))
+  ([dag inputs resolve]
+   (m/reactor
+     (let [trace-in (m/stream! (m/ap (m/? (m/?? (m/enumerate (repeat (m/?= (m/enumerate inputs))))))))]
+       (->> (keys dag)
+         (reduce
+           (fn walk [nodes node]
+             (if (contains? nodes node)
+               nodes (cond
+                       (seq? node)
+                       (if-some [s (specials (first node))]
+                         (let [nodes (reduce walk nodes (next node))]
+                           (->> (next node)
+                             (map nodes)
+                             (apply (case s :join join! :extends input!))
+                             (assoc nodes node)))
+                         (let [nodes (reduce walk nodes node)]
+                           (->> node
+                             (map nodes)
+                             (apply apply!)
+                             (assoc nodes node))))
+
+                       (symbol? node)
+                       (assoc nodes node (if (namespace node)
+                                           (input! (resolve node))
+                                           (trace-input! node trace-in)))
+
+                       ()
+                       (assoc nodes node (input! node)))))
+           {})
+         (reduce-kv (fn [out->nodes node sig]
+                      (reduce-kv (fn [out->nodes out sym]
+                                   (update out->nodes out assoc sym sig))
+                        out->nodes (dag node))) {})
+         (run! (fn [[out sym->sig]] (foreach! out (trace-output! sym->sig)))))))))
+
+(comment
+  (def client-app
+    (dataflow
+      (let [[needle] (<- >route)]
+        (effect-async (partial swap! effects conj)
+          (vector (render-table (query-pink needle))
+            (if (<- >open)
+              (render-table (query-purple "alice"))
+              ::nothing))))))
+
+  ;; program requested by client to server
+
+  (defn query [x]
+    (prn :query x) x)
+
+  (def in (m/mbx))
+  (defn out-pink [x] (m/via m/blk (prn :out x)))
+  (defn out-purple [x] (m/via m/blk (prn :out x)))
+
+  (def server-pink
+    (-> {`(query ~'needle) {out-pink 'query-needle}}
+      (trace #{in} {`query query})))
+
+  (def server-purple
+    (-> {`(query "alice") {out-purple 'query-alice}}
+      (trace #{in} {`query query})))
+
+  (def c (server prn prn))
+
+  (in '{needle "charlie"})
+
+  (def rdv (m/rdv))
+  (m/? (m/join vector (rdv 3) rdv)) := [nil 3]
+
+  (def client->server (m/rdv))
+  (def server->client (m/rdv))
 
   )
