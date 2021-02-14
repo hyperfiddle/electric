@@ -299,7 +299,8 @@
 
                        (symbol? node)
                        (assoc nodes node (if (namespace node)
-                                           (input! (resolve node))
+                                           (input! (doto (resolve node)
+                                                     (when-not (throw (ex-info "Resolution failure." {:symbol node})))))
                                            (trace-input! node trace-in)))
 
                        ()
@@ -369,11 +370,15 @@
   (def !route (atom ["charlie"]))
   (def >route (m/watch !route))
 
+  (def !open (atom false))
+  (def >open (m/watch !open))
+
   (defn log [x] (m/sp (prn x)))
 
   (defn render-table [query-result]
-    (prn :render-table query-result)
     [:table (map (partial vector :tr) query-result)])
+
+  (defn query [x] [x])
 
   (def client-reactor
     (-> {`(first (<- >route)) {client->server 'needle}
@@ -381,16 +386,16 @@
             (render-table ~'query-needle)
             (if (<- >open)
               (render-table ~'query-alice)
-              ::nothing)) {}}
+              ::nothing)) {log 'view}}
       (trace #{server->client})))
+  (def cancel-client (client-reactor prn prn))
 
   (def server-reactor
     (-> {`(query ~'needle) {server->client 'query-needle}
          `(query "alice") {server->client 'query-alice}}
       (trace #{client->server})))
-
-  (def cancel-client (client-reactor prn prn))
   (def cancel-server (server-reactor prn prn))
 
-  ;; TODO debug this shit
+  (swap! !open not)
+  (reset! !route ["bob"])
   )
