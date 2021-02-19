@@ -8,49 +8,72 @@
 (def analyse dataflow/analyze-clj)
 (def normalize dataflow/normalize-ast)
 
-(def gen-name (comp keyword gensym))
+(def gen-name (comp str hash))
 
-;; TODO replace with meander
+(defn clean-fn [[f args body]]
+  (case (first body)
+    . (clean-fn (list f args (rest body)))
+    (if (= (count (rest body)) (count args))
+      (first body)
+      body)))
+
+;; TODO use meander
 (defn clean-form [form]
   (if (seq? form)
     (case (first form)
-      clojure.core/fn (clean-form (nth form 2))
+      clojure.core/fn (clean-fn form)
       .               (clean-form (rest form))
-      (cond
-        (str/starts-with? (namespace (first form)) "clojure.lang")
-        ,, (cons (symbol (name (first form))) (rest form))
-
-        :else form))
+      (first form))
     form))
+
+(defn is-join? [{:keys [type deps] :as ast}]
+  (and (= :apply type)
+       (= `clojure.core/deref (-> deps first :form))))
 
 (defn emit
   ([ast] (cons [:node {:shape "none"}]
-               (emit () (atom {}) ast)))
-  ([r !registry {:keys [type deps form] :as ast}]
-   (case type
-     ;; We jump over apply nodes
-     :apply (let [r' (emit r !registry (first deps))]
-              (mapcat #(emit r' !registry %) (rest deps)))
-     ;; else
-     (if (empty? deps) ; leaf
-       (let [name (or (get @!registry form) (gen-name))]
-         (swap! !registry assoc form name) ; unify nodes by form, for RT
-         (->> r
-              (cons [name {:label (str (clean-form form))}]) ; leaf node
-              (cons [name (ffirst r)])))                     ; link to parent
-       (let [name (gen-name)
-             r'   (cons [name {:label (str (clean-form form))}] r)]
-         (->> (mapcat #(emit r' !registry %) deps)
-              (cons [name (ffirst r)]) ; link to parent
-              ))))))
+               (emit (list ["out" {:label ""}]) false 0 ast)))
+  ([r join? position {:keys [type deps form] :as ast}]
+   (if (empty? deps) ; leaf
+     ;; input
+     (let [name (gen-name ast)]
+       (cond->> r
+         true       (cons [name {:label (str "<b>" (clean-form form) "</b>")}]) ; leaf node
+         (ffirst r) (cons [name (ffirst r) (cond-> {}
+                                             position (assoc :headlabel position)
+                                             join?    (assoc :label " join" :penwidth 2))]))) ; link to parent
+     ;; apply
+     (if (is-join? ast)
+       (emit r join? position (-> ast (assoc :type :join) (update :deps rest)))
+       (case type
+         :join (emit r true position (first deps))
+         :if () ;; TODO
+         :apply
+         (let [name (gen-name ast)
+               r'   (cons [name {:label "apply"}] r)]
+           (cond->> deps
+             true      (map-indexed (fn [idx ast]
+                                      (emit r' false idx ast)))
+             true      (mapcat identity)
+             ;; link to parent, if it exists
+             (first r) (cons [name (ffirst r) (cond-> {:headlabel position}
+                                                join? (assoc :label " join" :penwidth 2))]))))))))
 
 (def emit-dot (comp emit normalize analyse))
 
 (def viz! (comp djvm/show! dot/dot))
 
 (comment
+  (declare input0 input1 input2)
   (viz! [[:a :b]])
-  (viz! (emit-dot {} '(+ (inc 0) (dec 0)))))
+  (viz! (emit-dot {} '(+ (inc 0) @(dec 0))))
+  (viz! (emit-dot {} '@input1))
+  (viz! (emit-dot {} '@(inc input1)))
+  (viz! (emit-dot {} '(+ @(missionary.core/watch input1)
+                         @(missionary.core/watch input2))))
+  (viz! (emit-dot {} '@(if (odd? @(missionary.core/watch input0))
+                         (missionary.core/watch input1)
+                         (missionary.core/watch input2)))))
 
 (tests
  ;; Simple let
@@ -59,22 +82,22 @@
                   a (inc z)
                   b (dec z)]
      (+ a b)))
- := (viz! [[:node {:shape "none"}]
-          [:z0 {:label "0\n#{z}"}]
-          [:a0 {:label "(inc arg0)\n#{a}"}]
-          [:b0 {:label "(dec arg0)\n#{b}"}]
-          [:z0 :a0]
-          [:z0 :b0]
-          [:% {:label "(+ arg1 arg2)"}]
-          [:a0 :% {:headlabel "1"}]
-          [:b0 :% {:headlabel "2"}]]))
+ := [[:node {:shape "none"}]
+     [:z0 {:label "0\n#{z}"}]
+     [:a0 {:label "(inc arg0)\n#{a}"}]
+     [:b0 {:label "(dec arg0)\n#{b}"}]
+     [:z0 :a0]
+     [:z0 :b0]
+     [:% {:label "(+ arg1 arg2)"}]
+     [:a0 :% {:headlabel "1"}]
+     [:b0 :% {:headlabel "2"}]])
 
 
 (tests
  ;; Arrow
  (emit-dot {}
-  '(+ (<- (m/watch input1))
-      (<- (m/watch input2))))
+  '(+ @(m/watch input1)
+      @(m/watch input2)))
  := [[:node {:shape "none"}]
      [:branch_0 {:label "(m/watch input1)"}]
      [:branch_1 {:label "(m/watch input2)"}]
@@ -85,9 +108,9 @@
 (tests
  ;; Conditionals
  (emit-dot {}
-  '(<- (if (odd? (<- (m/watch input)))
-         (m/watch branchA)
-         (m/watch branchB))))
+  '@(if (odd? @(m/watch input))
+      (m/watch branchA)
+      (m/watch branchB)))
  := [[:node {:shape "none"}]
      [:branch_0 {:label "(m/watch input)"}]
      [:branch_1 {:label "(odd? %)"}]
