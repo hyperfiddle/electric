@@ -26,38 +26,54 @@
       (first form))
     form))
 
-(defn is-join? [{:keys [type deps] :as ast}]
+(defn join? [{:keys [type deps] :as ast}]
   (and (= :apply type)
        (= `clojure.core/deref (-> deps first :form))))
 
+(defn leaf? [ast]
+  (empty? (:deps ast)))
+
+(defn has-parent? [r]
+  (ffirst r))
+
+(defn node [nom props r]
+  (cons [nom props] r))
+
+(defn parent-name [r props]
+  (let [nom (ffirst r)]
+    (if-let [port-pos (:port-pos props)]
+      (str nom port-pos)
+      nom)))
+
+(defn backlink [nom props r r']
+  (cons [nom (parent-name r props) props] r'))
+
 (defn emit
   ([ast] (cons [:node {:shape "none"}]
-               (emit (list ["out" {:label ""}]) false 0 ast)))
-  ([r join? position {:keys [type deps form] :as ast}]
-   (if (empty? deps) ; leaf
-     ;; input
-     (let [name (gen-name ast)]
-       (cond->> r
-         true       (cons [name {:label (str "<b>" (clean-form form) "</b>")}]) ; leaf node
-         (ffirst r) (cons [name (ffirst r) (cond-> {}
-                                             position (assoc :headlabel position)
-                                             join?    (assoc :label " join" :penwidth 2))]))) ; link to parent
-     ;; apply
-     (if (is-join? ast)
-       (emit r join? position (-> ast (assoc :type :join) (update :deps rest)))
-       (case type
-         :join (emit r true position (first deps))
-         :if () ;; TODO
-         :apply
-         (let [name (gen-name ast)
-               r'   (cons [name {:label "apply"}] r)]
-           (cond->> deps
-             true      (map-indexed (fn [idx ast]
-                                      (emit r' false idx ast)))
-             true      (mapcat identity)
-             ;; link to parent, if it exists
-             (first r) (cons [name (ffirst r) (cond-> {:headlabel position}
-                                                join? (assoc :label " join" :penwidth 2))]))))))))
+               (emit (list ["out" {:label ""}]) {} ast)))
+  ([r props {:keys [type deps form] :as ast}]
+   (let [nom (gen-name ast)]
+     (cond
+       (leaf? ast)     (cond->> (node nom {:label (str "<b>" (clean-form form) "</b>")} r)
+                         (has-parent? r) (backlink nom props r))
+       (join? ast)     (emit r {:label " join" :penwidth 2} (second deps))
+       (= :if type)    (let [r' (node nom {:label "", :shape "diamond"} r)]
+                         (cond->> (mapcat  (fn [label port-pos ast]
+                                             (emit r' {:headlabel (str label)
+                                                       :port-pos  port-pos}
+                                                   ast))
+                                           [:test #{true} #{nil false}]
+                                           [:w :n :e]
+                                           deps)
+                           ;; link to parent, if it exists
+                           (has-parent? r) (backlink nom props r)))
+       (= :apply type) (let [r' (node nom {:label "apply"} r)]  ; make current node
+                         (cond->> (mapcat (fn [idx ast] ; recur on each child branch
+                                            (emit r' {:headlabel idx} ast))
+                                          (range (count deps))
+                                          deps)
+                           ;; link to parent, if it exists
+                           (has-parent? r) (backlink nom props r)))))))
 
 (def emit-dot (comp emit normalize analyse))
 
@@ -66,7 +82,7 @@
 (comment
   (declare input0 input1 input2)
   (viz! [[:a :b]])
-  (viz! (emit-dot {} '(+ (inc 0) @(dec 0))))
+  (viz! (emit-dot {} '(+ (inc 0) (dec 0))))
   (viz! (emit-dot {} '@input1))
   (viz! (emit-dot {} '@(inc input1)))
   (viz! (emit-dot {} '(+ @(missionary.core/watch input1)
