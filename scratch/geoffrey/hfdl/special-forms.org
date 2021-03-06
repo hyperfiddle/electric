@@ -1,0 +1,62 @@
+
+#+begin_src clojure
+(let [a (m/watch! input1)
+      b (m/watch! input2)]
+  (+ a b))
+#+end_src
+
+#+begin_src dot :file ./gen/let.png
+digraph g {
+  node [shape=none];
+  z [label="0\n#{z}"];
+  a [label="(inc %)\n#{a}"];
+  b [label="(dec %)\n#{b}"];
+  z -> a;
+  z -> b;
+  out [label="(+ %1 %2)"];
+  a -> out [headlabel="1  "];
+  b -> out [headlabel="2"];
+}
+#+end_src
+
+#+RESULTS:
+[[file:./gen/let.png]]
+
+#+begin_src dot :file ./gen/arrow.png
+digraph g {
+  node [shape=none];
+  branch_0 [label="(m/watch input1)"];
+  branch_1 [label="(m/watch input2)"];
+  out [label="(+ %1 %2)"];
+  branch_0 -> out [label="join", headlabel="1   "];
+  branch_1 -> out [label="join", headlabel="2"];
+}
+#+end_src
+
+#+RESULTS:
+[[file:./gen/arrow.png]]
+
+
+#+begin_src dot :file ./gen/if.png
+digraph g {
+    node [shape=none];
+    odd [label="(odd? %)"];
+    if [shape=diamond, label=""];
+
+    watch_input [label="(m/watch input)"];
+    watch_branchA [label="(m/watch branchA)"];
+    watch_branchB [label="(m/watch branchB)"];
+
+    watch_input -> odd [label="join"];
+    odd -> if:w [headlabel=":test"];
+
+    watch_branchA -> if [headlabel="#{true}"];
+    watch_branchB -> if:e [headlabel=":default"];
+
+    out [shape=none, label=""];
+    if -> out [label="join"];
+}
+#+end_src
+
+#+RESULTS:
+[[file:./gen/if.png]]
