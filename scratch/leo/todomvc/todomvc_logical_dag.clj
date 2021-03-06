@@ -2,81 +2,63 @@
   (:require [leo.hfdl :refer [ifn $]]
             [missionary.core :as m]))
 
-(defn row [])
-
-(defn checkbox []
-  (doto (.createElement js/document "input")
-    (.setAttribute "type" "checkbox")))
-
-(defn label []
-  (.createElement js/document "span"))
-
-(defn input-text []
-  (doto (.createElement js/document "input")
-    (.setAttribute "type" "text")))
-
 (def button
-  (ifn [parent]))
-
-(defn mount [item parent]
-  (m/observe
-    (fn [_]
-      (.appendChild parent item)
-      #(.removeChild parent item))))
-
-(defn events [item type]
-  (m/observe
-    (fn [!]
-      (.addEventListener item type !)
-      #(.addEventListener item type !))))
-
-(defn set-attr [item k v]
-  (->> v
-    (m/latest (fn [x] (.setAttribute item k x)))
-    (m/relieve {})))
-
-(defn get-attr [item k]
-
-  )
+  (ifn [done]
+    [:button]))
 
 (def editable-text
-  (ifn [parent text]
+  (ifn [text]
     (let [!editing? (atom false)
-          e @(m/watch !editing?)
-          l (label)
-          i (input-text)]
-      @(mount l (when-not e parent))
-      @(mount i (when e parent))
-      @(->> (events l "dblclick")
-         (m/relieve (fn [_ _] (swap! !editing? not))))
-      @(set-attr l "text" text)
-      @(->> (events i "keydown")
-         (m/transform (filter enter?))
-         (m/integrate {} nil)
-         (m/sample (fn [x _] (swap! !editing? not) x) (get-attr i "value"))
-         (m/relieve {})))))
+          editing> (m/watch !editing?)
+          #_#_editing? (mutable! false)]
+      ; on click of the span, toggle editing
+      (if @editing>
+        [:input {:type "text" :value text}]
+        [:span text]))))
 
 (def todo-item
-  (ifn [parent {:keys [id done description]}]
-    (let [r (row)]
-      @(mount r parent)
-      {:done?       (let [cb (checkbox)]
-                      @(mount cb r)
-                      @(set-attr cb "value" (extend done))
-                      @(get-attr cb "value"))
-       :description ($ editable-text r description)
-       :removed?    ($ button r)}
-      )))
+  (ifn [{:keys [id done description]}]
+    [:li
+     [:checkbox]
+     ($ editable-text description)
+     ($ button done)
+     ]))
 
 (def todo-list
-  (ifn [parent todos]
-    (let [t (table)]
-      @(mount t parent)
-      (rfor [todo :db/id todos]
-        ($ todo-item t todo)))))
+  (ifn [todos]
+    [:ul
+     (rfor [todo :db/id todos]
+       ($ todo-item todo))]))
 
-(defn main []
-  (let [!state (atom [])]
-    (run-dag
-      (let [todos ($ todo-list (.-body js/document) @(m/watch !state))]
-        (reset! !state todos)))))
+(defn main [!log !todos]
+  (run-dag
+    (let [vdom ($ todo-list @(m/watch !todos))]
+      (swap! !log conj vdom))))
+
+(tests
+
+  (def !log (atom []))
+  (def !todos (atom []))
+  (def process (main !log !todos))
+  (process (partial prn :success) (partial prn :failure))
+
+  ;(replay! reactor [[]])
+  ; the programmer can decide if state is part of the domain
+  ; or local to the component.
+  ; In both cases they are addressable externally
+
+  (reset !state
+    {#_#_
+     :todos-enriched [{:id 1 :ui/editing true}
+                      {:id 2 :ui/editing false}]
+     :todos
+     [{:id 1 :done false :description "a" #_#_::ui/editing true}
+      {:id 2 :done true :description "b"}]})
+  @!log := [:ul
+            [:li [:checkbox {:checked false}]
+             [:span "a"]
+             [:button]]
+            [:li [:checkbox {:checked true}]
+             [:input {:type "text" :value "b"}]
+             [:button]]]
+  )
