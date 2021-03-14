@@ -8,7 +8,6 @@
   (:import (clojure.lang Compiler$LocalBinding)))
 
 ;; RUNTIME
-(defn <- [flow] (throw (ex-info "Can't call <- outside of dataflow." {:flow flow})))
 (defn extend [flow] (throw (ex-info "Can't call extend outside of dataflow." {:flow flow})))
 
 (defn if! [test then else]
@@ -22,7 +21,7 @@
 (def apply! (comp m/signal! (partial m/latest (fn [f & args] (apply f args)))))
 
 ;; COMPILATION
-(def specials `{<- :join extend :extend if :if})
+(def specials `{deref :join extend :extend if :if unquote :unquote})
 
 (def analyze-clj
   (let [scope-bindings
@@ -165,7 +164,7 @@
 
   (macroexpand
     '(dataflow
-       (let [i (<- (m/watch !input))]
+       (let [i @(m/watch !input)]
          (vector
            (if (odd? i) (inc i) i)
            (* (m/watch !input2) 2)))))
@@ -181,7 +180,7 @@
 
   (deflow db-query [needle]
     (let [>needle (extend needle)]
-      (<- (map-task #(m/via m/cpu (d/q %)) >needle))))
+      @(map-task #(m/via m/cpu (d/q %)) >needle)))
 
   (defn lift-task [f]
     (fn [>x] (map-task f >x)))
@@ -194,30 +193,29 @@
         #(.removeListener (.getElementById js/document id) !))))
 
   (deflow async [f x]
-    (<- (map-task f (extend x))))
+    @(map-task f (extend x)))
 
   (deflow db-query2 [x]
     (async db-query x))
 
   (macroexpand
     '(dataflow
-       (let [i (<- (input-text-values))]
+       (let [i @(input-text-values)]
          (db-query (+ i i)))
 
        )
     )
 
   (deflow effect-sync [f x]
-    (<- (m/latest f (extend x))))
+    @(m/latest f (extend x)))
 
   (deflow effect-async [f x]
     (let [>x (extend x)]
-      (<-
-        (m/ap (m/? (let [x (m/?! >x)]
-                     (m/via m/blk (f x))))))))
+      @(m/ap (m/? (let [x (m/?! >x)]
+                    (m/via m/blk (f x)))))))
 
   (deflow effect-async [f x]
-    (<- (map-task #(m/via m/blk (f %)) (extend x))))
+    @(map-task #(m/via m/blk (f %)) (extend x)))
 
   (defn render-table [query-result]
     (prn :render-table query-result)
@@ -234,10 +232,10 @@
 
   (def app
     (dataflow
-      (let [[needle] (<- >route)]
+      (let [[needle] @>route]
         (effect-async (partial swap! effects conj)
-          (vector (render-table (<- (map-task query (extend needle))))
-            (if (<- >open)
+          (vector (render-table @(map-task query (extend needle)))
+            (if @>open
               (render-table (map-task query (extend "alice")))
               ::nothing))))))
   (def cancel (app prn prn))
@@ -315,10 +313,10 @@
 (comment
   (def client-app
     (dataflow
-      (let [[needle] (<- >route)]
+      (let [[needle] @>route]
         (effect-async (partial swap! effects conj)
           (vector (render-table (query-pink needle))
-            (if (<- >open)
+            (if @>open
               (render-table (query-purple "alice"))
               ::nothing))))))
 
@@ -349,16 +347,16 @@
   )
 
 (comment
-  (let [[needle] (<- >route)]
+  (let [[needle] @>route]
     (effect-async (partial swap! effects conj)
       (vector (render-table (query needle))
-        (if (<- >open)
+        (if @>open
           (render-table (query "alice"))
           ::nothing)))))
 
 (comment
-  (vector (render-table (query (first (<- >route))))
-    (if (<- >open)
+  (vector (render-table (query (first @>route)))
+    (if @>open
       (render-table (query "alice"))
       ::nothing)))
 
@@ -381,10 +379,10 @@
   (defn query [x] [x])
 
   (def client-reactor
-    (-> {`(first (<- >route)) {client->server 'needle}
+    (-> {`(first @>route) {client->server 'needle}
          `(vector
             (render-table ~'query-needle)
-            (if (<- >open)
+            (if @>open
               (render-table ~'query-alice)
               ::nothing)) {log 'view}}
       (trace #{server->client})))
