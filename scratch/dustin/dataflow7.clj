@@ -231,3 +231,22 @@
   ; ... its useful debug info ... how do I know that a given slot frame matches a specific point in the AST
 
   )
+
+(comment
+
+  "Destructuring"
+  (def pair [:a 1])
+
+  (macroexpand '(let [[a b] pair]))
+
+  (let* [vec__10831 pair
+         a (clojure.core/nth vec__10831 0 nil)
+         b (clojure.core/nth vec__10831 1 nil)]
+    )
+
+  (let [_1 (m/signal! pair)
+        _2 (m/signal! (m/latest #(nth % 0) _1))
+        _3 (m/signal! (m/latest #(nth % 1) _1))]
+    )
+
+  )

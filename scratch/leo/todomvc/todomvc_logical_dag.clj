@@ -24,15 +24,21 @@
      ($ button done)
      ]))
 
+(defn query-todos [db]
+  (datomic.api/q
+    '[:find [(pull ?e [:db/id :description :done]) ...] :where [?e :todo/id]]
+    db))
+
 (def todo-list
-  (ifn [todos]
+  (ifn [db]
     [:ul
-     (rfor [todo :db/id todos]
-       ($ todo-item todo))]))
+     ; put the network transfer inside the rfor body
+     (>> ($ todo-item `(identity (<< :db/id (query-todos db)))))
+     #_(rfor [% :db/id (query-todos db)] ($ todo-item `(identity %)))]))
 
 (defn main [!log !todos]
   (run-dag
-    (let [vdom ($ todo-list @(m/watch !todos))]
+    (let [vdom ($ todo-list db)]
       (swap! !log conj vdom))))
 
 (tests
@@ -62,3 +68,6 @@
              [:input {:type "text" :value "b"}]
              [:button]]]
   )
+
+(ifn [db]
+  (datomic.api/with db [:db/add [:db/id 2] ::ui/editing true]))
