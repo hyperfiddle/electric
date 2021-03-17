@@ -226,17 +226,103 @@
                :signal-heap {'a 1
                              'b 0}}
 
+  (comment
+    "Diamond" ; Waiting for "Let introduces a signal" to be cleared up
+    (def !a (atom 0))
+    (def a (m/watch !a))
+    (def program (dataflow (let [b @a
+                                 c (inc b)
+                                 d (dec c)]
+                             [c d])))
+    (def process (debug! program))
+    @process := {:state :running
+                 :vars  {'a 0
+                         'b 0
+                         'c 1
+                         'd -1}})
 
-  ;"Diamond"
-  ;(def !a (atom 0))
-  ;(def a (m/watch !a))
-  ;
-  ;
-  ;; What is let? let is a way for the programmer to name a expression component
-  ;(def program (dataflow (let [b @a
-  ;                             c (inc b)
-  ;                             d (dec c)]
-  ;                         (vector c d))))
+
+  "`if` picks one branch or the other"
+  (def !a (atom 0)) (def a (m/watch !a))
+  (def !b (atom :b)) (def b (m/watch !a))
+  (def !c (atom :c)) (def c (m/watch !a))
+
+  (def program (dataflow (if (odd? a) b c)))
+  (def process (debug! program))
+
+  @process := {:state :running
+               :vars  {'a 0
+                       '% :b}}
+
+  (swap! !a inc)
+  @process := {:state :running
+               :vars  {'a 1
+                       '% :c}}
+
+  (reset! !c :c-updated)
+  @process := {:state :running
+               :vars  {'a 1
+                       '% :c-updated}}
+
+  "`case` dispatch statically to one branch"
+  (def !a (atom 0)) (def a (m/watch !a))
+  (def !b (atom :b)) (def b (m/watch !b))
+  (def !c (atom :c)) (def c (m/watch !c))
+  (def !d (atom :d)) (def d (m/watch !d))
+
+  (def program (dataflow (case a
+                           0 b
+                           1 c
+                           d)))
+  (def process (debug! program))
+
+  @process := {:state :running
+               :vars  {'a 0
+                       '% :b}}
+
+  (swap! !a inc)
+  @process := {:state :running
+               :vars  {'a 1
+                       '% :c}}
+
+  (swap! !a inc)
+  @process := {:state :running
+               :vars  {'a 2
+                       '% :d}}
+
+  (reset! !d :d-updated)
+  @process := {:state :running
+               :vars  {'a 2
+                       '% :d-updated}}
+
+
+
+  "Destructuring"
+
+  (def !pair [:a 1]) (def pair (m/watch !pair))
+  (def program (let [[a b] @pair]
+                 [a b]))
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {'pair [:a 1]
+                       '%    [:a 1]}}
+
+  (comment
+    ;; A destructuring example, for record
+    (def pair [:a 1])
+
+    (macroexpand '(let [[a b] pair]))
+    :=
+    (let* [vec__10831 pair
+           a (clojure.core/nth vec__10831 0 nil)
+           b (clojure.core/nth vec__10831 1 nil)])
+
+    (macroexpand-dataflow '(let [[a b] pair]))
+    :=
+    (let [_1 (m/signal! pair)
+          _2 (m/signal! (m/latest #(nth % 0) _1))
+          _3 (m/signal! (m/latest #(nth % 1) _1))]))
+
   ;
   ;:= ((fn [a] (vector (inc a) (dec a))) @a)
   ;
@@ -276,21 +362,4 @@
 
   )
 
-(comment
 
-  "Destructuring"
-  (def pair [:a 1])
-
-  (macroexpand '(let [[a b] pair]))
-
-  (let* [vec__10831 pair
-         a (clojure.core/nth vec__10831 0 nil)
-         b (clojure.core/nth vec__10831 1 nil)]
-    )
-
-  (let [_1 (m/signal! pair)
-        _2 (m/signal! (m/latest #(nth % 0) _1))
-        _3 (m/signal! (m/latest #(nth % 1) _1))]
-    )
-
-  )
