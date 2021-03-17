@@ -1,5 +1,6 @@
-(ns hfdl.lang)
-
+(ns hfdl.lang
+  (:require [hfdl.impl.compiler :as c]
+            [hfdl.impl.runtime :as r]))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; SPECIAL FORMS ;;
@@ -10,11 +11,15 @@
 (defn |> "Captures variability of given expression and returns the flow of its successive values." [expr])
 
 
-;;;;;;;;;;;;;;;;;
-;; ENTRY POINT ;;
-;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;
+;; ENTRY POINTS ;;
+;;;;;;;;;;;;;;;;;;
 
 (defmacro dataflow
   "Defines a dataflow program from given HFDL expressions, in an implicit `do`."
   [& body]
-  (comment TODO))
+  (c/dataflow &env (cons `do body)))
+
+(defn debug!
+  "Runs given dataflow program in debug mode and returns a process instance."
+  [program] (r/debug! program))
