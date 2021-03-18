@@ -104,25 +104,23 @@
     (:spawn :constant :variable) #{(first args)}
     (:local :global) #{}))
 
-(defn inst-emitter [node->id]
-  (fn [inst]
-    (case (first inst)
-      :apply (-> inst
-               (update 1 node->id)
-               (update 2 (partial mapv node->id)))
-      (:spawn :constant :variable) (update inst 1 node->id)
-      :global (update inst 1 (partial list `quote))
-      :local inst)))
-
 (defn topsort [sort node]
   (if (contains? sort node)
-    sort (reduce topsort (assoc sort node (count sort)) (deps node))))
+    sort (let [sort (reduce topsort sort (deps node))]
+           (assoc sort node (count sort)))))
 
-(defn emit-frame [{:keys [result effects]}]
-  (let [t (reduce topsort (topsort {} result) effects)]
-    (into []
-      (map (comp (inst-emitter (comp (partial - (dec (count t))) t)) key))
-      (sort-by (comp - val) t))))
+(defn emit-frame [dag]
+  (let [slots (reduce topsort {} (ignore-result dag))]
+    (conj (->> slots
+            (sort-by val)
+            (mapv (comp (fn [inst]
+                          (case (first inst)
+                            :apply (-> inst
+                                     (update 1 slots)
+                                     (update 2 (partial mapv slots)))
+                            (:spawn :constant :variable) (update inst 1 slots)
+                            :global (update inst 1 (partial list `quote))
+                            :local inst)) key))) (slots (:result dag)))))
 
 (defn dataflow [env form]
   (->> form
