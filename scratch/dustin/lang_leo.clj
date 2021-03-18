@@ -54,14 +54,14 @@
                :vars   {}}
 
   "clojure foreign interop to a variable"
+  "deref adds a signal at the callsite. Not watch"
   ; variable is not overloaded in clojure so we can take that word
   (def !a (atom 1))
   (def a (m/watch !a))                                      ; HFDL variable (missionary flow)
   (def program (dataflow @a))                               ; clojure interop with a HFDL variable
   (def process (debug! program))
   @process := {:state :running                              ; maintain result forever
-               :vars  {'a 1}}                               ; ??? should inbound signals show up in the heap?
-                                                            ; GG: thinks yes, the deref call on `a` shows up in the heap.
+               :vars  {'a 1}}                               ; @ introduced a signal
 
   "maintain result in response to variable changes"
   (swap ! !a inc)
@@ -72,84 +72,45 @@
   (def !a (atom 0))
   (def a (->> (m/watch !a)
               (m/transform (take-while even?))))
-  ​
+
   (def program (dataflow @a))
   (def process (debug! program))
-  ​
-  @process := {:state       :running
-               :signal-heap {'a 0}}
-  ​
+
+  @process := {:state :running
+               :vars  {'a 0}}
+
   (reset! !a 2)
-  ​
-  @process := {:state       :running
-               :signal-heap {'a 0}}
-  ​
+  @process := {:state :running
+               :vars  {'a 2}}
+
   (reset! !a 1)
-  ​
-  @process := {:state       :terminated
-               :result      1
-               :signal-heap {}}
+  @process := {:state  :terminated                          ; terminate process because the underlying discrete flow terminated
+               :result 1                                    ; termination GCs the vars and produces a stack value
+               :vars   {}}
 
   "clojure foreign fn call"
   (def f inc)
   (def program (dataflow (f 1)))
   (def process (debug! program))
-  @process := {:state  :terminated
+  @process := {:state  :terminated                          ; terminate because there are no alive signals
                :result 2
                :vars   {}}
 
-  "composition with variables, no signals"
-  (def !a (atom 1)) (def a (m/watch !a))
-  (def !b (atom 2)) (def b (m/watch !b))
-  (def program (dataflow (+ @a (inc @b))))                  ; ??? can you auto add signals? What are the rules
-  (def process (debug! program))
-  @process := {:state  :running
-               :vars   {'a 1                                ; the watches are in the heap
-                        'b 2}}                              ; but no incremental maintenance. Slow!
-  ; TODO draw viz, it has one node
-  ; it fused, like this: ((fn [a b] (+ a (inc b))) @a @b)
-
-  (swap! !b inc)
-  @process := {:state  :running
-               :vars   {'a 1 'b 2}}
-
-  "composition with variables, with signals"
-  (def !a (atom 1)) (def a (m/watch !a))
-  (def !b (atom 2)) (def b (m/watch !b))
-  (def program (dataflow (let [a2 @a                        ; explicit signals
-                               b2 @b]
-                           (+ a2 (inc b2)))))
-  (def process (debug! program))
-  @process := {:state :running
-               :vars  {'a2 1 'b2 2} #_{'a 1 'b 2}}          ; ??? Does let introduces signals? Deref?
-
-  (swap! !b inc)
-  @process := {:state :running
-               :vars  {'a2 1 'b2 3} #_{'a 1 'b 2}}
-
-  "composition with no variables"
-  (def program (dataflow (+ 1 (inc 2))))                    ; still static
+  "clojure foreign fn call, composed"
+  (def f inc)
+  (def program (dataflow (f (f 1))))                        ; still no alive signals
   (def process (debug! program))
   @process := {:state  :terminated
                :result 3
                :vars   {}}
-  ; ??? Draw the viz, there are no signals in this static program
 
   "clojure foreign fn call in response to variability"
-  (def !a (atom 1))
-  (def a (m/watch !a))
+  (def !a (atom 1)) (def a (m/watch !a))
   (def f inc)
   (def program (dataflow (f @a)))
   (def process (debug! program))
   @process := {:state  :running
-               #_#_:result 2                                ; ??? Result would be different then 'a, do we want to track it?
                :vars   {'a 1}}
-
-  "incrementally maintain result in response to variable change"
-  (swap ! !a inc)
-  @process := {:state  :running
-               #_#_:result 3                                ; ??? Result would be different then 'a, do we want to track it?
-               :vars   {'a 2}}
 
   "dataflow apply (reactive fn)"
   (def !f (atom +)) (def f (m/watch !f))
@@ -157,55 +118,75 @@
   (def program (dataflow (@f @a 2)))                        ; variable function in fncall position
   (def process (debug! program))
   @process := {:state  :running
-               #_#_:result 3
-               :vars   {'f +
-                        'a 1}}
-  (reset! !a 11)
-  @process := {:state  :running
-               #_#_:result 13
-               :vars   {'f +
-                        'a 11}}
+               :vars   {'f + 'a 1}}
   (reset! !f -)
   @process := {:state  :running
-               #_#_:result 9
-               :vars   {'f -
-                        'a 11}}
+               :vars   {'f - 'a 1}}
+
+  "clojure ASTs do not introduce intermediate signals"
+  (def !a (atom 1)) (def a (m/watch !a))
+  (def !b (atom 2)) (def b (m/watch !b))
+  (def program (dataflow (+ @a (inc @b))))                  ; does '(inc @b) get a signal?
+  (def process (debug! program))
+  @process := {:state  :running
+               :vars   {'a 1
+                        'b 2
+                        #_#_'(inc @b) 3}}                   ; no
+
+  ; Dag is something like this: ((fn [a b] (+ a (inc b))) @a @b)
+  (swap! !b inc)
+  @process := {:state  :running
+               :vars   {'a 1 'b 2}}
+
+  "does let introduce signals"
+  (def !a (atom 1)) (def a (m/watch !a))
+  (def !b (atom 2)) (def b (m/watch !b))
+  (def program (dataflow (let [a2 @a
+                               b2 @b]
+                           (+ a2 (inc b2)))))
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {'a 1 'b 2                            ; deref signals
+                       #_#_#_#_'a2 1 'b2 2}}                ; let does not allocate
+
+  (swap! !b inc)
+  @process := {:state :running :vars  {'a 1 'b 3}}
 
   "simplest diamond, no let"
   (def !a (atom 1)) (def a (m/watch !a))
-  (def program (dataflow (+ @a @a)))                        ; ??? how many times does @ appear in the viz?
+  (def program (dataflow (+ @a @a)))                        ; two @
   (def process (debug! program))
   @process := {:state  :running
-               #_#_:result 2
-               :vars   {'a 1}}
+               :vars   {'a 1}}                              ; one signal! reused twice
 
-  ; Dustin opinion:
-  ; the ast should match the viz
-  ; two @ in ast -> two triangles in viz
-  ; There are no test cases above this point about optimizers so we cannot talk about that
+  ; This test implies the AST (two @) does not match the Viz (one @)
+  ; this happens without an optimizer?
+  ; what is an optimizer?
 
   "same thing with let?"
   (def !a (atom 1)) (def a (m/watch !a))
   (def program (dataflow
                  (let [b @a]
                    (+ b b))))                             ; this is just clojure, 100% foreign call
-  ; feels like reagent? (not a bad thing)
   (def process (debug! program))
-  @process := {:state  :running
-               :vars   {'a 1       ;; ??? Not introduced by let (meaningful?)
-                        #_#_'b 1}} ;; ??? Introduced by let     (meaningful?)
+  @process := {:state :running
+               :vars  {'a 1                                 ; from @
+                       #_#_'b 1}}                           ; let does not introduce signal
 
-  "combined example - incremental maintain clojure computation with variable"
-  (def !a (atom 1))
-  (def a (m/watch !a))
-  (def program (m/cp (println (dataflow (+ @a 2)))))        ; ??? How to bridge RT dataflow exprs to OS effects
-  (def process (debug! program))
-  @process := {:state       :running
-               :result      3
-               :vars {'a 1}}
-
-  ; Same heap, same result, different program, same flowchart viz (?)
+  ; Same heap, same result, different program... same flowchart viz!
   ; Why are there two ways to represent the same dataflow structure?
+  ; Because leo-lang priorities clojure interop over visualization, viz is a non-goal
+
+  "does dataflow compose with missionary"
+  (def !a (atom 1)) (def a (m/watch !a))
+  (def program (m/cp (println (dataflow (+ @a 2)))))        ; not well-typed
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {'a 1}}
+
+  ; what is "shell pipe"
+
+
 
 
   ; different programs with same value, same result
@@ -360,6 +341,8 @@
   ; ...the point is it's not mutable so it doesn't have to be in deref but it should be exposed anyways
   ; ... its useful debug info ... how do I know that a given slot frame matches a specific point in the AST
 
+  ; what is effect fusion
+  ; JIT detects two signals can be one
   )
 
 
