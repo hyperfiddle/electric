@@ -29,7 +29,8 @@
   ; observe -> orient -> decide -> act ->
 
 
-  (:require [hfdl :refer [dataflow]]
+  (:require [hfdl.lang :refer [dataflow spawn <|]]
+            [hfdl.lib :refer [ifn $] ]
             [minitest :refer [tests]]
             [missionary.core :as m]))
 
@@ -61,12 +62,14 @@
   (def program (dataflow @a))                               ; clojure interop with a HFDL variable
   (def process (debug! program))
   @process := {:state :running                              ; maintain result forever
-               :vars  {'a 1}}                               ; @ introduced a signal
+               :vars  {'a  _
+                       '@a 1}}                               ; @ introduced a signal
 
   "maintain result in response to variable changes"
-  (swap ! !a inc)
+  (swap! !a inc)
   @process := {:state :running
-               :vars  {'a 2}}
+               :vars  {'a  _
+                       '@a 2}}
 
   "Transition between running and terminated state"
   (def !a (atom 0))
@@ -77,11 +80,13 @@
   (def process (debug! program))
 
   @process := {:state :running
-               :vars  {'a 0}}
+               :vars  {'a  _
+                       '@a 0}}
 
   (reset! !a 2)
   @process := {:state :running
-               :vars  {'a 2}}
+               :vars  {'a  _
+                       '@a 2}}
 
   (reset! !a 1)
   @process := {:state  :terminated                          ; terminate process because the underlying discrete flow terminated
@@ -110,7 +115,10 @@
   (def program (dataflow (f @a)))
   (def process (debug! program))
   @process := {:state  :running
-               :vars   {'a 1}}
+               :vars   {'a      _
+                        '@a     1
+                        'f      clojure.core/inc
+                        '(f @a) 2}}
 
   "dataflow apply (reactive fn)"
   (def !f (atom +)) (def f (m/watch !f))
@@ -118,10 +126,21 @@
   (def program (dataflow (@f @a 2)))                        ; variable function in fncall position
   (def process (debug! program))
   @process := {:state  :running
-               :vars   {'f + 'a 1}}
+               :vars   {'f         _
+                        '@f        clojure.core/+
+                        'a         _
+                        '@a        1
+                        2          2
+                        '(@f @a 2) 3}}
+
   (reset! !f -)
   @process := {:state  :running
-               :vars   {'f - 'a 1}}
+               :vars   {'f         _
+                        '@f        clojure.core/-
+                        'a         _
+                        '@a        1
+                        2          2
+                        '(@f @a 2) -1}}
 
   "clojure ASTs do not introduce intermediate signals"
   (def !a (atom 1)) (def a (m/watch !a))
@@ -129,14 +148,26 @@
   (def program (dataflow (+ @a (inc @b))))                  ; does '(inc @b) get a signal?
   (def process (debug! program))
   @process := {:state  :running
-               :vars   {'a 1
-                        'b 2
-                        #_#_'(inc @b) 3}}                   ; no
+               :vars   {'a               _
+                        '@a              1
+                        'b               _
+                        '@b              2
+                        'inc             clojure.core/inc
+                        '+               clojure.core/+
+                        '(inc @b)        3
+                        '(+ @a (inc @b)) 4}}
 
   ; Dag is something like this: ((fn [a b] (+ a (inc b))) @a @b)
   (swap! !b inc)
   @process := {:state  :running
-               :vars   {'a 1 'b 2}}
+               :vars   {'a               _
+                        '@a              1
+                        'b               _
+                        '@b              3
+                        'inc             clojure.core/inc
+                        '+               clojure.core/+
+                        '(inc @b)        4
+                        '(+ @a (inc @b)) 5}}
 
   "does let introduce signals"
   (def !a (atom 1)) (def a (m/watch !a))
@@ -146,8 +177,14 @@
                            (+ a2 (inc b2)))))
   (def process (debug! program))
   @process := {:state :running
-               :vars  {'a 1 'b 2                            ; deref signals
-                       #_#_#_#_'a2 1 'b2 2}}                ; let does not allocate
+               :vars  {'a               _
+                       '@a              1
+                       'b               _
+                       '@b              2
+                       'inc             clojure.core/inc
+                       '+               clojure.core/+
+                       '(inc @b)        3
+                       '(+ @a (inc @b)) 4}}                ; let does not allocate
 
   (swap! !b inc)
   @process := {:state :running :vars  {'a 1 'b 3}}
@@ -157,7 +194,10 @@
   (def program (dataflow (+ @a @a)))                        ; two @
   (def process (debug! program))
   @process := {:state  :running
-               :vars   {'a 1}}                              ; one signal! reused twice
+               :vars   {'a         _
+                        '@a        1
+                        '+         clojure.core/+
+                        '(+ @a @a) 2}}                              ; one signal! reused twice
 
   ; This test implies the AST (two @) does not match the Viz (one @)
   ; this happens without an optimizer?
@@ -170,24 +210,14 @@
                    (+ b b))))                             ; this is just clojure, 100% foreign call
   (def process (debug! program))
   @process := {:state :running
-               :vars  {'a 1                                 ; from @
-                       #_#_'b 1}}                           ; let does not introduce signal
+               :vars  {'a         _
+                       '@a        1
+                       '+         clojure.core/+
+                       '(+ @a @a) 2}}                           ; let does not introduce signal
 
   ; Same heap, same result, different program... same flowchart viz!
   ; Why are there two ways to represent the same dataflow structure?
   ; Because leo-lang priorities clojure interop over visualization, viz is a non-goal
-
-  "does dataflow compose with missionary"
-  (def !a (atom 1)) (def a (m/watch !a))
-  (def program (m/cp (println (dataflow (+ @a 2)))))        ; not well-typed
-  (def process (debug! program))
-  @process := {:state :running
-               :vars  {'a 1}}
-
-  ; what is "shell pipe"
-
-
-
 
   ; different programs with same value, same result
   ; different heap
@@ -199,28 +229,47 @@
   ; Dustin/Geoffrey cutoff point, todo go through this
 
   ;; GG: Nonsense, seems to indicate let don't introduces signals, `@` does.
-  "Let introduces a signal on constrants"
+  "Let introduces a signal on constants"
   (def !b (atom 0)) (def b (m/watch !b))
   (def program (dataflow (let [a 1]
                            [a @b])))
-  @process := {:state       :running
-               :signal-heap {'a 1
-                             'b 0}}
+  @process := {:state :running
+               :vars  {1       1
+                       'b      _
+                       '@b     0
+                       '[1 @b] [1 0]}}
 
   (comment
-    "Diamond" ; Waiting for "Let introduces a signal" to be cleared up
-    (def !a (atom 0))
-    (def a (m/watch !a))
-    (def program (dataflow (let [b @a
-                                 c (inc b)
-                                 d (dec c)]
-                             [c d])))
+    "Naming slots by their AST symbol is ambiguous"
+    (def !a (atom 0)) (def a (m/watch !b))
+    (def program (dataflow
+                  @a
+                  [(let [a 1] a)
+                   (let [a 2] a)]))
     (def process (debug! program))
     @process := {:state :running
-                 :vars  {'a 0
-                         'b 0
-                         'c 1
-                         'd -1}})
+                 :syms  '{a #{1 2}}
+                 :expr  '[1 2]
+                 :vars  {'a    _
+                         '@a   0
+                         1     1
+                         2     2
+                         [1 2] [1 2]}})
+
+  "Diamond"
+  (def !a (atom 0))
+  (def a (m/watch !a))
+  (def program (dataflow (let [b @a
+                               c (inc b)
+                               d (dec b)]
+                           [c d])))
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {'a                   _
+                       '@a                  0
+                       '(inc @a)            1
+                       '(dec @a)            -1
+                       '[(inc @a) (dec @a)] [1 -1]}}
 
 
   "`if` picks one branch or the other"
@@ -228,22 +277,40 @@
   (def !b (atom :b)) (def b (m/watch !a))
   (def !c (atom :c)) (def c (m/watch !a))
 
-  (def program (dataflow (if (odd? a) b c)))
+  (def program (dataflow @(if (odd? @a) b c)))
   (def process (debug! program))
 
   @process := {:state :running
-               :vars  {'a 0
-                       '% :b}}
+               :vars  {'a                  _
+                       '@a                 0
+                       'odd?               clojure.core/odd?
+                       'b                  _
+                       'c                  _
+                       '(odd? @a)          true
+                       '(if (odd? a) b c)  _
+                       '@(if (odd? a) b c) :b}}
 
   (swap! !a inc)
   @process := {:state :running
-               :vars  {'a 1
-                       '% :c}}
+               :vars  {'a                  _
+                       '@a                 1
+                       'odd?               clojure.core/odd?
+                       'b                  _
+                       'c                  _
+                       '(odd? @a)          true
+                       '(if (odd? a) b c)  _
+                       '@(if (odd? a) b c) :c}}
 
   (reset! !c :c-updated)
   @process := {:state :running
-               :vars  {'a 1
-                       '% :c-updated}}
+               :vars  {'a                  _
+                       '@a                 1
+                       'odd?               clojure.core/odd?
+                       'b                  _
+                       'c                  _
+                       '(odd? @a)          true
+                       '(if (odd? a) b c)  _
+                       '@(if (odd? a) b c) :c-updated}}
 
   "`case` dispatch statically to one branch"
   (def !a (atom 0)) (def a (m/watch !a))
@@ -251,15 +318,22 @@
   (def !c (atom :c)) (def c (m/watch !c))
   (def !d (atom :d)) (def d (m/watch !d))
 
-  (def program (dataflow (case a
+  (def program (dataflow @(case @a
                            0 b
                            1 c
                            d)))
   (def process (debug! program))
 
   @process := {:state :running
-               :vars  {'a 0
-                       '% :b}}
+               :vars  {'a                    _
+                       '@a                   0
+                       0                     0
+                       1                     1
+                       'b                    _
+                       'c                    _
+                       'd                    _
+                       '(case @a 0 b 1 c d)  _
+                       '@(case @a 0 b 1 c d) :b}}
 
   (swap! !a inc)
   @process := {:state :running
@@ -276,17 +350,18 @@
                :vars  {'a 2
                        '% :d-updated}}
 
-
-
   "Destructuring"
 
   (def !pair [:a 1]) (def pair (m/watch !pair))
-  (def program (let [[a b] @pair]
-                 [a b]))
+  (def program (dataflow (let [[a b] @pair]
+                           [a b])))
   (def process (debug! program))
   @process := {:state :running
-               :vars  {'pair [:a 1]
-                       '%    [:a 1]}}
+               :vars  {'pair                                  _
+                       '@pair                                 [:a 1]
+                       '(nth @pair 0 nil)                     :a
+                       '(nth @pair 1 nil)                     1
+                       '[(nth @pair 0 nil) (nth @pair 1 nil)] [:a 1]}}
 
   (comment
     ;; A destructuring example, for record
@@ -303,6 +378,171 @@
     (let [_1 (m/signal! pair)
           _2 (m/signal! (m/latest #(nth % 0) _1))
           _3 (m/signal! (m/latest #(nth % 1) _1))]))
+
+
+  "does dataflow compose with missionary"
+  (def !a (atom 1)) (def a (m/watch !a))
+  (def program (dataflow (+ @a 2)))        ; not well-typed
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {'a        _
+                       '@a       1
+                       '+        +
+                       2         2
+                       '(+ @a 2) 3}}
+
+  (m/cp (println process))                 ; compose processes?
+  ;; Defered until we talk about spawn
+
+  "Spawn is to dataflow what deref is to flow."
+
+  (def !a (atom 1)) (def a (m/watch !a))
+  (def program1 (dataflow @a))
+  (def program2 (dataflow (spawn program1)))
+  (def process (debug! program2))
+  @process := {:state :running
+               :vars  {'program1         {'a _, '@a 1}
+                       '(spawn program1) 1}}
+
+  "Spawning twice is allowed by RT"
+  (def !a (atom 1)) (def a (m/watch !a))
+  (def program1 (dataflow @a))
+  (def program2 (dataflow [(spawn program1) (spawn program1)]))
+  (def process (debug! program2))
+  @process := {:state :running
+               :vars  {'program1         {'a _, '@a 1}
+                       '(spawn program1) 1
+                       '[(spawn program1) (spawn program1)] [1 1]}}
+
+  ;; (ifn [x] (inc x)) ;; => (fn [>x] (dataflow (let [x @>x] (inc x))))
+  ;; (ifn [x] (inc x)) ;; => (fn [>x] (dataflow (inc @x)))
+
+  ;; (dataflow ((fn [>x] (inc @>x)) (extend 1)))
+
+  ;; (declare plus-one)
+  ;; ($ plus-one 1)    ;; => (spawn (plus-one (extend 1)))
+
+
+  ;; |> extend
+  ;; <| deref
+
+  (def program (dataflow (spawn (inc 1))))
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {'(inc 1)         {1        1
+                                         'inc     inc
+                                         '(inc 1) 2}
+                       '(spawn (inc 1)) 2}}
+
+  "Ifn"
+  (def plus-one (ifn [x] (inc x)))
+  (def program (dataflow ($ plus-one 1)))
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {1                              1
+                       '(extend 1)                    _
+                       'plus-one                      plus-one
+                       '(plus-one (extend 1))         {'x        _
+                                                       '@x       1
+                                                       '(inc @x) 2}
+                       '(spawn (plus-one (extend 1))) 2}}
+
+  "Composed ifn calls"
+  (def plus-one (ifn [x] (inc x)))
+  (def minus-one (ifn [x] (dec x)))
+  (def program (dataflow ($ minus-one ($ plus-one x))))
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {1                                                  1
+                       '(extend 1)                                        _
+                       'plus-one                                          plus-one
+                       'minus-one                                         minus-one
+                       '(plus-one (extend 1))                             {'x        _
+                                                                           '@x       1
+                                                                           '(inc @x) 2}
+                       '(spawn (plus-one (extend 1)))                     2
+                       '(minus-one (spawn (plus-one (extend 1))))         {'x        _
+                                                                           '@x       2
+                                                                           '(dec @x) 1}
+                       '(spawn (minus-one (spawn (plus-one (extend 1))))) 1}}
+
+  "Nested ifn calls"
+  (def inner (ifn [x] (inc x)))
+  (def outer (ifn [x] ($ inner x)))
+  (def program (dataflow ($ outer 1)))
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {1                           1
+                       '(extend 1)                 _
+                       'inner                      inner
+                       'outer                      outer
+                       '(outer (extend 1))         {'x                          _
+                                                    '@x                         1
+                                                    '(inner (extend 1))         {'x        _
+                                                                                 '@x       1
+                                                                                 '(inc @x) 2}
+                                                    '(spawn (inner (extend 1))) 2}
+                       '(spawn (outer (extend 1))) 2}}
+
+  "Don't use spawn"
+  (def program (dataflow (plus-one (extend 1))))
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {1                              1
+                       '(extend 1)                    _
+                       'plus-one                      plus-one
+                       '(plus-one (extend 1))         _   ; opaque flow
+                       }}
+
+
+  "Manual join"
+  (def join <|)
+  (def program (dataflow (join (plus-one (extend 1)))))
+  (def process (debug! program))
+  @process := {:state :running
+               :vars  {1                              1
+                       '(extend 1)                    _
+                       'plus-one                      plus-one
+                       '(plus-one (extend 1))         _   ; opaque flow
+                       '(join (plus-one (extend 1)))  2
+                       }}
+
+  ;; The purpose of debug is to get a technically accurate description of the
+  ;; state of the system. It could be used as an input to a viz or for test
+  ;; cases. Test cases would catch a change in the memory representation. It's
+  ;; better for it to be accurate then pretty.
+  ;; L: Keys could be integers + source maps.
+  ;; D: Symbols are accurate, it's fine to use them. Integers makes
+  ;;    it hard to understand the test case.
+
+  (comment ;; WIP, don't rely on it.
+    "Reactive for"
+    (def !a (atom [1 2 3])) (def a (m/watch !a))
+    (def program (dataflow (rfor [x identity @a] (inc x))))
+    ;; (rfor [x identity @a] (inc x)) ;; => (|> ($ (map #(inc %)) (<| @a)))
+    (def process (debug! program))
+    @process := {:state :running
+                 :vars  {'a                              _
+                         '@a                             [1 2 3]
+                         'identity                       identity
+                         '(extend @a)                    _
+                         '(#(map inc %)1)                {'%       _
+                                                          '@%      1
+                                                          '(inc %) 2}
+                         '(#(map inc %)2)                {'%       _
+                                                          '@%      2
+                                                          '(inc %) 3}
+                         '(#(map inc %)3)                {'%       _
+                                                          '@%      3
+                                                          '(inc %) 4}
+                         '(spawn (#(map inc %) 1))       2
+                         '(spawn (#(map inc %) 2))       3
+                         '(spawn (#(map inc %) 3))       4
+                         '(join (spawn #(map inc 3)))
+                         (rfor [x identity @a] (inc x))  _
+                         @(rfor [x identity @a] (inc x)) '(_ _ _)}}
+    )
+
 
   ;
   ;:= ((fn [a] (vector (inc a) (dec a))) @a)
@@ -344,5 +584,3 @@
   ; what is effect fusion
   ; JIT detects two signals can be one
   )
-
-
