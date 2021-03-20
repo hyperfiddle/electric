@@ -32,7 +32,7 @@ Turns a continuous flow of continuous flows into a continuous flow running succe
 outer flow and producing samplings of the latest inner flow. Inner flows must be ready to transfer immediately on start.
 Resulting flow becomes ready to transfer when either the outer flow or the current inner flow becomes ready to transfer.
 When the outer flow becomes ready to transfer, the inner flow currently running is cancelled. When the resulting flow is
-cancelled, the outer flow is cancelled as long as the final inner flow when the outer flow terminates.
+cancelled, the outer flow is cancelled along with the final inner flow when the outer flow terminates.
 
 Implementation :
 1. `state` : transfer state.
