@@ -36,13 +36,23 @@
 
 (tests
 
+  ; on termination, must produce explicit termination frame?
+  ; (The GC operation must be traced)
+  ; Or, just free all signals
+  ; Same with :state :running – if there are signals not freed, it's running.
+
+
   "programs without variability terminate immediately"
   (def program (dataflow 1))
   (def process (debug! program))                            ; (trace!) ?
   @process := {:state  :terminated ; Because the program is entirely static
                :result 1           ; ??? it terminated with 1
+               :trace  [{1 1}]
+               ; where is the {1 ::free}, or is this program still running?
                :vars   {}}
   ;; Terminated -> nothing to visualize
+  ; Dustin March 20 - this is a running program producing constantly 1
+  ;   (unless the optimizer flattens the constants)
 
   ; how does shell user ask the entrypoint for the result of a program that maybe terminated?
   ; need a "shell" - C-z, C-c, print result eventually
@@ -53,6 +63,7 @@
   (def process (debug! program))
   @process := {:state  :terminated
                :result 1
+               :trace  [{a 1}]
                :vars   {}}
   ;; Terminated -> nothing to visualize
 
@@ -64,12 +75,14 @@
   (def program (dataflow @a))                               ; clojure interop with a HFDL variable
   (def process (debug! program))
   @process := {:state :running ; maintain result forever
-               :vars  {'a  _
-                       '@a 1}}                               ; @ introduced a signal
+               :trace [{'a _ '@a 1}]
+               :vars  {'a  _ '@a 1}}                               ; @ introduced a signal
 
   "maintain result in response to variable changes"
   (swap! !a inc)
   @process := {:state :running
+               :trace [{'a _ '@a 1}
+                       {'@a 2}]
                :vars  {'a  _
                        '@a 2}}
 
@@ -82,17 +95,21 @@
   (def process (debug! program))
 
   @process := {:state :running
-               :vars  {'a  _
-                       '@a 0}}
+               :trace [{'a _ '@a 0}]
+               :vars  {'a  _ '@a 0}}
 
   (reset! !a 2)
   @process := {:state :running
-               :vars  {'a  _
-                       '@a 2}}
+               :trace [{'a _ '@a 0}
+                       {'@a 2}]
+               :vars  {'a  _ '@a 2}}
 
   (reset! !a 1)
   @process := {:state  :terminated ; terminate process because the underlying discrete flow terminated
                :result 1           ; termination GCs the vars and produces a stack value
+               :trace [{'a _ '@a 0}
+                       {'@a 2}
+                       {'@a ::hfdl/free}]
                :vars   {}}
 
   "clojure foreign fn call"
@@ -101,6 +118,9 @@
   (def process (debug! program))
   @process := {:state  :terminated ; terminate because there are no alive signals
                :result 2
+               :trace  [{1 1
+                         'f f
+                         '(f 1) 2}]
                :vars   {}}
 
   "clojure foreign fn call, composed"
@@ -109,6 +129,10 @@
   (def process (debug! program))
   @process := {:state  :terminated
                :result 3
+               :trace  [{1 1
+                         'f f
+                         '(f 1) 2
+                         '(f (f 1)) 3}]
                :vars   {}}
 
   "clojure foreign fn call in response to variability"
@@ -117,59 +141,50 @@
   (def program (dataflow (f @a)))
   (def process (debug! program))
   @process := {:state :running
-               :vars  {'a      _
-                       '@a     1
-                       'f      clojure.core/inc
-                       '(f @a) 2}}
+               :trace [{'a      _
+                        '@a     1
+                        'f      f
+                        '(f @a) 2}]
+               :vars  {'a  _
+                       '@a 1
+                       'f  f
+                       #_#_'(f @a) 2}}                      ; only in the trace! signal is a different color
 
   "dataflow apply (reactive fn)"
   (def !f (atom +)) (def f (m/watch !f))
   (def !a (atom 1)) (def a (m/watch !a))
   (def program (dataflow (@f @a 2)))                        ; variable function in fncall position
   (def process (debug! program))
-  @process := {:state :running
-               :vars  {'f         _
-                       '@f        clojure.core/+
-                       'a         _
-                       '@a        1
-                       2          2
-                       '(@f @a 2) 3}}
-
   (reset! !f -)
   @process := {:state :running
-               :vars  {'f         _
-                       '@f        clojure.core/-
-                       'a         _
-                       '@a        1
-                       2          2
-                       '(@f @a 2) -1}}
+               :trace [{'f         _
+                        '@f        clojure.core/+
+                        'a         _
+                        '@a        1
+                        2          2
+                        '(@f @a 2) 3}
+                       {'@f        clojure.core/-
+                        '(@f @a 2) -1}]}
 
   "clojure ASTs do not introduce intermediate signals"
   (def !a (atom 1)) (def a (m/watch !a))
   (def !b (atom 2)) (def b (m/watch !b))
   (def program (dataflow (+ @a (inc @b))))                  ; does '(inc @b) get a signal?
-  (def process (debug! program))
-  @process := {:state :running
-               :vars  {'a               _
-                       '@a              1
-                       'b               _
-                       '@b              2
-                       'inc             clojure.core/inc
-                       '+               clojure.core/+
-                       '(inc @b)        3
-                       '(+ @a (inc @b)) 4}}
-
   ; Dag is something like this: ((fn [a b] (+ a (inc b))) @a @b)
+  (def process (debug! program))
   (swap! !b inc)
   @process := {:state :running
-               :vars  {'a               _
-                       '@a              1
-                       'b               _
-                       '@b              3
-                       'inc             clojure.core/inc
-                       '+               clojure.core/+
-                       '(inc @b)        4
-                       '(+ @a (inc @b)) 5}}
+               :trace [{'a               _
+                        '@a              1
+                        'b               _
+                        '@b              2
+                        'inc             clojure.core/inc
+                        '+               clojure.core/+
+                        '(inc @b)        3
+                        '(+ @a (inc @b)) 4}
+                       {'@b 3
+                        '(inc @b)        4
+                        '(+ @a (inc @b)) 5}]}
 
   "does let introduce signals"
   (def !a (atom 1)) (def a (m/watch !a))
@@ -178,28 +193,30 @@
                                b2 @b]
                            (+ a2 (inc b2)))))
   (def process (debug! program))
-  @process := {:state :running
-               :vars  {'a               _
-                       '@a              1
-                       'b               _
-                       '@b              2
-                       'inc             clojure.core/inc
-                       '+               clojure.core/+
-                       '(inc @b)        3
-                       '(+ @a (inc @b)) 4}}                ; let does not allocate
-
   (swap! !b inc)
-  @process := {:state :running :vars {'a 1 'b 3}}
+  @process := {:state :running
+               :trace [{'a               _
+                        '@a              1
+                        'b               _
+                        '@b              2
+                        'inc             clojure.core/inc
+                        '+               clojure.core/+
+                        '(inc @b)        3
+                        '(+ @a (inc @b)) 4}
+                       ; let does not allocate
+                       {'@b 3
+                        '(inc @b)        4
+                        '(+ @a (inc @b)) 5}]}
 
   "simplest diamond, no let"
   (def !a (atom 1)) (def a (m/watch !a))
   (def program (dataflow (+ @a @a)))                        ; two @
   (def process (debug! program))
   @process := {:state :running
-               :vars  {'a         _
-                       '@a        1
-                       '+         clojure.core/+
-                       '(+ @a @a) 2}}                              ; one signal! reused twice
+               :trace [{'a         _
+                        '@a        1
+                        '+         clojure.core/+
+                        '(+ @a @a) 2}]}                     ; one signal! reused twice
 
   ; This test implies the AST (two @) does not match the Viz (one @)
   ; this happens without an optimizer?
@@ -212,10 +229,10 @@
                    (+ b b))))                             ; this is just clojure, 100% foreign call
   (def process (debug! program))
   @process := {:state :running
-               :vars  {'a         _
-                       '@a        1
-                       '+         clojure.core/+
-                       '(+ @a @a) 2}}                           ; let does not introduce signal
+               :trace [{'a         _
+                        '@a        1
+                        '+         clojure.core/+
+                        '(+ @a @a) 2}]}                     ; let does not introduce signal
 
   ; Same heap, same result, different program... same flowchart viz!
   ; Why are there two ways to represent the same dataflow structure?
@@ -236,10 +253,10 @@
   (def program (dataflow (let [a 1]
                            [a @b])))
   @process := {:state :running
-               :vars  {1       1
-                       'b      _
-                       '@b     0
-                       '[1 @b] [1 0]}}
+               :trace [{1       1
+                        'b      _
+                        '@b     0
+                        '[1 @b] [1 0]}]}
 
   (comment
     "Naming slots by their AST symbol is ambiguous"
@@ -267,52 +284,37 @@
                            [c d])))
   (def process (debug! program))
   @process := {:state :running
-               :vars  {'a                   _
-                       '@a                  0
-                       '(inc @a)            1
-                       '(dec @a)            -1
-                       '[(inc @a) (dec @a)] [1 -1]}}
+               :trace [{'a                   _
+                        '@a                  0
+                        '(inc @a)            1
+                        '(dec @a)            -1
+                        '[(inc @a) (dec @a)] [1 -1]}]}
 
 
   "`if` picks one branch or the other"
-  (def !a (atom 0)) (def a (m/watch !a))
+  (def !a (atom 1)) (def a (m/watch !a))
   (def !b (atom :b)) (def b (m/watch !a))
   (def !c (atom :c)) (def c (m/watch !a))
 
   (def program (dataflow @(if (odd? @a) b c)))
+  ;(def program (dataflow (if (odd? @a) @b @c)))
   (def process (debug! program))
 
-  @process := {:state :running
-               :vars  {'a                  _
-                       '@a                 0
-                       'odd?               clojure.core/odd?
-                       'b                  _
-                       'c                  _
-                       '(odd? @a)          true
-                       '(if (odd? a) b c)  _
-                       '@(if (odd? a) b c) :b}}
-
   (swap! !a inc)
-  @process := {:state :running
-               :vars  {'a                  _
-                       '@a                 1
-                       'odd?               clojure.core/odd?
-                       'b                  _
-                       'c                  _
-                       '(odd? @a)          true
-                       '(if (odd? a) b c)  _
-                       '@(if (odd? a) b c) :c}}
-
   (reset! !c :c-updated)
   @process := {:state :running
-               :vars  {'a                  _
-                       '@a                 1
-                       'odd?               clojure.core/odd?
-                       'b                  _
-                       'c                  _
-                       '(odd? @a)          true
-                       '(if (odd? a) b c)  _
-                       '@(if (odd? a) b c) :c-updated}}
+               :trace [{'a                  _
+                        '@a                 1
+                        'odd?               clojure.core/odd?
+                        'b                  _
+                        'c                  _
+                        '(odd? @a)          true
+                        '(if (odd? a) b c)  _
+                        '@(if (odd? a) b c) :b}
+                       {'@a                 2
+                        '(odd? @a)          false
+                        '@(if (odd? a) b c) :c}
+                       {'@(if (odd? a) b c) :c-updated}]}
 
   "`case` dispatch statically to one branch"
   (def !a (atom 0)) (def a (m/watch !a))
@@ -485,6 +487,8 @@
                                                                                  '(inc @x) 2}
                                                     '(spawn (inner (extend 1))) 2}
                        '(spawn (outer (extend 1))) 2}}
+
+  ; What are the requirements of debug?
 
   ;; TODO: Preserve last heap dump when terminating. GC the heap, just keep the last snapshot.
   "Don't use spawn"
