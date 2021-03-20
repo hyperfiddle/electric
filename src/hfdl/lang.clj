@@ -23,3 +23,14 @@
 (defn debug!
   "Runs given dataflow program in debug mode and returns a process instance."
   [program] (r/debug! program))
+
+(comment
+  (require '[missionary.core :as m])
+  (def !input (atom "a"))
+  (def >input (m/watch !input))
+  (def program (dataflow (str @>input @>input)))
+  (def p (debug! program))
+  @p
+  (reset! !input "b")
+
+  )

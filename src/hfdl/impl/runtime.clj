@@ -92,30 +92,46 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
                          (do (swap-token! token i) (.set state i) i))))))))))))
 
 (defn spawn [x]
-  (comment TODO))
+  (throw (UnsupportedOperationException.)))
 
-(defn build! [frame]
-  (reduce-kv
-    (fn [arr idx [op & args]]
-      (let [flow (case op
-                   :spawn
-                   (spawn (aget arr (first args)))
-                   :apply
-                   (apply m/latest call (aget arr (first args)) (map (partial aget arr) (second args)))
-                   :local
-                   (pure (first args))
-                   :global
-                   (pure (resolve (first args)))
-                   :constant
-                   (pure (aget arr (first args)))
-                   :variable
-                   (join (aget arr (first args))))]
-        (doto arr (aset idx (m/signal! flow)))))
-    (object-array (count frame)) frame))
+(defn node! [frame idx [op & args]]
+  (let [flow (case op
+               :spawn
+               (spawn (aget frame (first args)))
+               :apply
+               (apply m/latest call (aget frame (first args)) (map (partial aget frame) (second args)))
+               :local
+               (pure (first args))
+               :global
+               (pure (resolve (first args)))
+               :constant
+               (pure (aget frame (first args)))
+               :variable
+               (join (aget frame (first args))))]
+    (doto frame (aset idx (m/signal! flow)))))
 
-(defn debug! [{:keys [frame]}]
+(defn frame! [graph]
+  (reduce-kv node! (object-array (count graph)) graph))
+
+(defn trace! [frame]
+  (m/stream!
+    (m/relieve merge
+      (m/ap
+        (let [i (m/?= (m/enumerate (range (alength frame))))]
+          {i (m/?! (aget frame i))})))))
+
+(defn foreach [f input]
+  (m/ap (m/? (f (m/?? input)))))
+
+(defn process [graph out]
+  (m/reactor (m/stream! (foreach out (trace! (frame! graph))))))
+
+(def merge-vec (partial reduce-kv assoc))
+
+(defn debug! [{:keys [graph]}]
   (let [vols (doto (AtomicReferenceArray. 2)
-               (.set 0 {:status :running})
+               (.set 0 {:status :running
+                        :slots (vec (repeat (count graph) ::uninitialized))})
                (.set 1 {}))
         vars (doto (object-array 1))
         public (reify
@@ -142,12 +158,10 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
                  (let [x (.get vols 0)
                        y (apply f x args)]
                    (.set vols 0 y)
-                   (reduce-kv (fn [_ k cb] (cb public k x y))
+                   (reduce-kv (fn [_ k cb] (cb k public x y))
                      nil (.get vols 1))))]
     (aset vars 0
-      ((m/reactor
-         (comment TODO)
-         (build! frame))
+      ((process graph #(m/sp (event! update :slots merge-vec %)))
        (fn [_] (event! assoc :status :terminated))
        (fn [e] (event! assoc :status :crashed :error e))))
     public))

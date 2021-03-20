@@ -109,18 +109,21 @@
     sort (let [sort (reduce topsort sort (deps node))]
            (assoc sort node (count sort)))))
 
+(defrecord Dataflow [graph result])
+
 (defn emit-frame [dag]
   (let [slots (reduce topsort {} (ignore-result dag))]
-    (conj (->> slots
-            (sort-by val)
-            (mapv (comp (fn [inst]
-                          (case (first inst)
-                            :apply (-> inst
-                                     (update 1 slots)
-                                     (update 2 (partial mapv slots)))
-                            (:spawn :constant :variable) (update inst 1 slots)
-                            :global (update inst 1 (partial list `quote))
-                            :local inst)) key))) (slots (:result dag)))))
+    (list `->Dataflow
+      (->> slots
+        (sort-by val)
+        (mapv (comp (fn [inst]
+                      (case (first inst)
+                        :apply (-> inst
+                                 (update 1 slots)
+                                 (update 2 (partial mapv slots)))
+                        (:spawn :constant :variable) (update inst 1 slots)
+                        :global (update inst 1 (partial list `quote))
+                        :local inst)) key))) (slots (:result dag)))))
 
 (defn dataflow [env form]
   (->> form
