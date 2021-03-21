@@ -1,12 +1,12 @@
 (ns hfdl.lib
-  (:require [hfdl.lang :refer [spawn <| |> dataflow]]
+  (:require [hfdl.lang :refer [spawn dataflow]]
             [missionary.core :as m]))
 
 (defmacro $ [f & args]
-  `(spawn (~f ~@(map (partial list `|>) args))))
+  `(spawn (~f ~@(map (partial list `unquote) args))))
 
 (defmacro ifn [args & body]
-  `(fn ~args (dataflow (let [~@(mapcat (juxt identity (partial list `<|)) args)] ~@body))))
+  `(fn ~args (dataflow (let [~@(mapcat (juxt identity (partial list `deref)) args)] ~@body))))
 
 (defn place! "
 Defines a new identity representing a variable initialized with given value and usable both :
