@@ -29,7 +29,7 @@
   ; observe -> orient -> decide -> act ->
 
 
-  (:require [hfdl.lang :refer [dataflow spawn <|]]
+  (:require [hfdl.lang :refer [dataflow spawn debug!]]
             [hfdl.lib :refer [ifn $] ]
             [minitest :refer [tests]]
             [missionary.core :as m]))
@@ -281,7 +281,7 @@
   (def program (dataflow (let [b @a
                                c (inc b)
                                d (dec b)]
-                           [c d])))
+                           (vector c d))))
   (def process (debug! program))
   @process := {:state :running
                :trace [{'a                   _
@@ -293,8 +293,8 @@
 
   "`if` picks one branch or the other"
   (def !a (atom 1)) (def a (m/watch !a))
-  (def !b (atom :b)) (def b (m/watch !a))
-  (def !c (atom :c)) (def c (m/watch !a))
+  (def !b (atom :b)) (def b (m/watch !b))
+  (def !c (atom :c)) (def c (m/watch !c))
 
   (def program (dataflow @(if (odd? @a) b c)))
   ;(def program (dataflow (if (odd? @a) @b @c)))
@@ -356,9 +356,9 @@
 
   "Destructuring"
 
-  (def !pair [:a 1]) (def pair (m/watch !pair))
+  (def !pair (atom [:a 1])) (def pair (m/watch !pair))
   (def program (dataflow (let [[a b] @pair]
-                           [a b])))
+                           (vector a b))))
   (def process (debug! program))
   @process := {:state :running
                :vars  {'pair                                  _
@@ -490,53 +490,41 @@
 
   ; What are the requirements of debug?
 
-  ;; TODO: Preserve last heap dump when terminating. GC the heap, just keep the last snapshot.
-  "Don't use spawn"
-  (def plus-one (ifn [x] (inc x)) )
-  (def program (dataflow (plus-one (extend 1))))
-  (def process (debug! program))
-  @process := {:state :running
-               :vars  {1                      1
-                       '(extend 1)            _
-                       'plus-one              plus-one
-                       '(plus-one (extend 1)) '[[:local _ #_#function[dustin.lang-leo/eval26418/fn--26419/fn--26420]]
-                                                [:global hfdl.lang/<|]
-                                                [:local _ #_#function[hfdl.impl.runtime/pure/fn--16995]]
-                                                [:apply 1 [2]]
-                                                [:apply 0 [3]]]}}
-
-  (comment  ;; Trash
-    "Manual join/deref"
-    (def join <|)
-    (def program (dataflow (join (plus-one (extend 1)))))
+  (comment
+    ;; TODO: Preserve last heap dump when terminating. GC the heap, just keep the last snapshot.
+    "Don't use spawn"
+    (def plus-one (ifn [x] (inc x)) )
+    (def program (dataflow (plus-one (extend 1))))
     (def process (debug! program))
     @process := {:state :running
-                 :vars  {1                             1
-                         '(extend 1)                   _
-                         'plus-one                     plus-one
-                         '(plus-one (extend 1))        _ ; opaque flow
-                         '(join (plus-one (extend 1))) 2
-                         }})
+                 :vars  {1                      1
+                         '(extend 1)            _
+                         'plus-one              plus-one
+                         '(plus-one (extend 1)) '[[:local _ #_#function[dustin.lang-leo/eval26418/fn--26419/fn--26420]]
+                                                  [:global hfdl.lang/<|]
+                                                  [:local _ #_#function[hfdl.impl.runtime/pure/fn--16995]]
+                                                  [:apply 1 [2]]
+                                                  [:apply 0 [3]]]}})
 
-  "Join extend is identity"
-  (def program (dataflow (join (extend 1))))
+  "deref after unquote is identity"
+  (def program (dataflow (deref (unquote 1))))
   (def process (debug! program))
   @process := {:state :running
                :vars  {1                  1
-                       '(extend 1)        _
-                       '(join (extend 1)) 1}}
+                       '(unquote 1)        _
+                       '(deref (unquote 1)) 1}}
 
-  "extend after join is identity"
+  "unquote after deref is identity"
   ;; This test can't pass without an optimization phase canceling out join after
   ;; extend or extend after join.
 
-  (def program (dataflow (extend (join (extend 1)))))
+  (def program (dataflow (unquote (deref (unquote 1)))))
   (def process (debug! program))
   @process := {:state :running
-               :vars  {1                           1
-                       '(extend 1)                 ?a
-                       '(join (extend 1))          1
-                       '(extend (join (extend 1))) ?a}}
+               :vars  {1                              1
+                       '(unquote 1)                   ?a
+                       '(deref (unquote 1))           1
+                       '(unquote (deref (unquote 1))) ?a}}
 
   ;; The purpose of debug is to get a technically accurate description of the
   ;; state of the system. It could be used as an input to a viz or for test
