@@ -87,13 +87,13 @@
 
   (macroexpand-1 '(hfql [{(submissions needle) [:dustingetz/email :db/id]}]))
   := '{(quote (submissions needle))
-       (fmapI (fn [>as]
-                (vec
-                  (for [% >as]
-                    (let [% %]
-                      {(quote :dustingetz/email) (fmapI (partial hyperfiddle.hfql20/hf-nav :dustingetz/email) %),
-                       (quote :db/id)            (fmapI (partial hyperfiddle.hfql20/hf-nav :db/id) %)}))))
-         (hyperfiddle.incremental/extend-seq (fmapI submissions needle)))}
+       (bindI (hyperfiddle.incremental/extend-seq (fmapI submissions needle))
+         (fn [>as]
+           (vec
+             (for [% >as]
+               (let [% %]
+                 {(quote :dustingetz/email) (fmapI (partial hyperfiddle.hfql20/hf-nav :dustingetz/email) %),
+                  (quote :db/id)            (fmapI (partial hyperfiddle.hfql20/hf-nav :db/id) %)})))))}
 
   (def !needle (atom ""))
   (def >needle (m/watch !needle))

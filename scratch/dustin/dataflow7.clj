@@ -4,7 +4,7 @@
             [minitest :refer [tests]]
             [missionary.core :as m]))
 
-(test
+(tests
 
   "programs without variability terminate immediately"
   (def program (dataflow 1))

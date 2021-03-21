@@ -49,6 +49,8 @@ main = do { x1 <- or True False;
             x2 <- or x1 False;
             x2 }
 
+-- (eval {'or ...} '<-(or <-(or true false) false) )
+
 
 ast :: Free Nondet Int                      -- (Or 1 2)
 ast = Con (Or (Var 1) (Var 2))              -- Con $ fmap Var (Or 1 2)

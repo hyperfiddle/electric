@@ -52,8 +52,9 @@
   ;submissions
   ;(fn2 [>x] (inc (<- >x)))
 
+  ; >first and >open are inputs
+
   (def ast
-    ; >first and >open are inputs
     '{popover (fn2 [>open]
                 (if (<- >open)
                   (submission "alice")
@@ -67,13 +68,6 @@
                    (render-table (submissions (<- >first)))
                    (render-popover (popover >open))]))
       })
-
-  (def sm (zipmap (vec (tree-seq coll? identity ast)) (range)))
-
-  (sm '>first) := 27
-  ; This does not work because symbolic names can be duplicated
-  ; e.g. shadowing
-
 
   (def ^:dynamic *reactor)
   (def >result (dataflow
@@ -129,4 +123,16 @@
       (fn [as] [:table [:span (count as)]])
       (fn [a] [:tr (:dustingetz/email a)])
       >as))
+
+
+  (def !needle (atom ""))                                   ; from dom <input>
+  (def >db ...)                                             ; stream of db vals
+  (via
+    (let [xs (datomic.api/q '[:find (pull ?e [::email :db/id])
+                              :where [?e ::email ?needle]]
+               ~>db ~(m/watch !needle))
+          el (js/document (.getElementById "#root") (.-innerHTML))]
+      (set! el (str "pre" (pr-str xs)))))
+
   )
+
