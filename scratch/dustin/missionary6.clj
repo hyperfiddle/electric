@@ -12,6 +12,7 @@
   ; tasks are a value
   (def task (m/sleep 1000))
   ; they are RT
+  ; https://github.com/leonoel/task
 
   ; run or "ask" the task
   ; for it's effect

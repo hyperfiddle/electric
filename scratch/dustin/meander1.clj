@@ -23,3 +23,11 @@
   (f [#:dustingetz{:gender [:db/id]}])
   (f [{:dustingetz/gender [:db/ident :db/id]}])
   )
+
+(comment
+  (m/rewrite [:a 1 2 3 :b 4 5 :c 6 7 8 9]
+    [] [] ; The base case for no values left
+    [(m/pred keyword? ?x) . (m/pred int? !ys) ... & ?more]
+    {& [[?x [!ys ...]] & (m/cata ?more)]})
+
+  )

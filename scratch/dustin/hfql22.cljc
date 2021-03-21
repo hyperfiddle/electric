@@ -1,7 +1,7 @@
 (ns dustin.hfql22
   "cardinality strata"
   #?(:cljs (:require-macros [minitest :refer [tests]]
-                            [dustin.hfql20 :refer [hfql]]))
+                            [hyperfiddle.hfql20 :refer [hfql]]))
   (:require
     [hyperfiddle.hfql19 :refer [hf-nav]]
     [hyperfiddle.incremental :as I :refer

@@ -27,14 +27,34 @@
 ​
 (tests
  (normalize
-  '{five (lambda 5)
-    plus (lambda a b (+ a b))
-    times (lambda a b (* a b))
-    func (lambda a b (plus a (times b b)))}
+  '{five  (lambda 5)
+    plus  (lambda-applicative a b (+ a b))
+    times (lambda-bind a b (m/reactor (if (odd? a) (* a b) (/ a b))))
+    func  (lambda a b (plus a (times b b)))}
   '(func >input3 (plus >input1 >input2)))
- :=
- '(+ >input3 (* (+ >input1 >input2) (+ >input1 >input2)))
+
+ :=1 '((lambda a b (plus a (times b b))) >input3 ((lambda a b (+ a b)) >input1 >input2))
+ :=2 '((plus >input3 (times ((lambda a b (+ a b)) >input1 >input2) ((lambda a b (+ a b)) >input1 >input2))) >input3)
+ :=3 '(((lambda a b (+ a b)) >input3 ((lambda a b (* a b)) ((lambda a b (+ a b)) >input1 >input2) ((lambda a b (+ a b)) >input1 >input2))) >input3)
+ :=4 '(((+ >input3 ((lambda a b (* a b)) ((+ >input1 >input2)) ((+ >input1 >input2))))) >input3)
+ :=5 '(((+ >input3 ((lambda a b (* a b)) ((+ >input1 >input2)) ((+ >input1 >input2))))) >input3)
+
+ := '(+ >input3 (* (+ >input1 >input2)
+                   (+ >input1 >input2)))                    ; this can be optimized into one node
+
+ := '(func >input3 (plus >input1 >input2))
  )
+
+
+"too much dynamism"
+
+'(func >input3 (plus >input1 >input2))
+'(mlet [:let [x (+ >input1 >input2)]]
+   (+ >input3 (* x x)))
+
+'(>+ >input3 (if (odd? x) (>* >x >x) (>** >x >x)))
+'(>+ >input3 ((fn [x] ...) >x))
+
 
 
 (def conjv (fnil conj []))
