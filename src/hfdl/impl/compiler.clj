@@ -4,7 +4,32 @@
             [clojure.tools.analyzer.jvm :as clj]
             [minitest :refer [tests]]
             [missionary.core :as m])
-  (:import clojure.lang.Compiler$LocalBinding))
+  (:import clojure.lang.Compiler$LocalBinding
+           (clojure.lang IFn IDeref)))
+
+(def context (ThreadLocal.))
+
+(defmacro get-ctx []
+  `(.get ~(with-meta `context {:tag `ThreadLocal})))
+
+(defmacro set-ctx [c]
+  `(.set ~(with-meta `context {:tag `ThreadLocal}) ~c))
+
+(defmacro with-ctx [ctx & body]
+  `(let [ctx# (get-ctx)]
+     (set-ctx ~ctx)
+     (try ~@body (finally (set-ctx ctx#)))))
+
+(defrecord Dataflow [graph result]
+  IFn (invoke [d n t]
+        (if-some [c (get-ctx)]
+          (c d n t)
+          (do (n)
+              (reify
+                IFn (invoke [_])
+                IDeref (deref [_] (t)
+                         (throw (ex-info "Unable to find dafaflow context"
+                                  {:dataflow d}))))))))
 
 (def analyze-clj
   (let [scope-bindings
@@ -153,8 +178,6 @@
   (if (contains? sort node)
     sort (let [sort (reduce topsort sort (deps node))]
            (assoc sort node (count sort)))))
-
-(defrecord Dataflow [graph result])
 
 (defn emit-frame [dag]
   (let [slots (reduce topsort {} (ignore-result dag))]

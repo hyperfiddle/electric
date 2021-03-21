@@ -2,17 +2,6 @@
   (:require [hfdl.impl.compiler :as c]
             [hfdl.impl.runtime :as r]))
 
-;;;;;;;;;;;;;;;;;;;
-;; SPECIAL FORMS ;;
-;;;;;;;;;;;;;;;;;;;
-
-(defn spawn "Runs given HFDL program as a nested frame and returns its successive values." [program])
-
-
-;;;;;;;;;;;;;;;;;;
-;; ENTRY POINTS ;;
-;;;;;;;;;;;;;;;;;;
-
 (defmacro dataflow
   "Defines a dataflow program from given HFDL expressions, in an implicit `do`."
   [& body]
@@ -26,9 +15,10 @@
   (require '[missionary.core :as m])
   (def !input (atom "a"))
   (def >input (m/watch !input))
-  (def program (dataflow (str @>input @>input)))
-  (def p (debug! program))
+  (def child (dataflow (str @>input @>input)))
+  (def parent (dataflow [@child]))
+  (def p (debug! parent))
   @p
   (reset! !input "b")
 
-  )
+ )
