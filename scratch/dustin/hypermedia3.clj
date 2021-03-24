@@ -1,4 +1,4 @@
-(ns dustin.rosie3)
+(ns dustin.hypermedia3)
 
 
 (defn ^::hf/fiddle admin-requests [admin since] (d/q ...))

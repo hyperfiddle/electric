@@ -7,13 +7,14 @@ function GuestGreeting(props) {
     return <h1>Please sign up.</h1>;
 }
 
+    let Greeting = props => {
+        <Wrapper>
+            <div><PromptButtonLogo isLoggedIn={props.isLoggedIn}/></div>
+            {isLoggedIn ? <UserGreeting props={props}/> : <GuestGreeting props={props}/>}
+        </Wrapper>;}
+
 function Greeting(props) {
-    const isLoggedIn = props.isLoggedIn;
-    if (isLoggedIn) {
-        return <UserGreeting />;
-    }
-    return <GuestGreeting />;
-}
+    return ()}
 
 ReactDOM.render(
     // Try changing to isLoggedIn={true}:

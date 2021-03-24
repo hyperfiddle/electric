@@ -1,4 +1,4 @@
-(ns dustin.rosie1)
+(ns dustin.hypermedia1)
 
 
 (comment

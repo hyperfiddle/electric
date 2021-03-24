@@ -1,4 +1,4 @@
-(ns dustin.adt)
+(ns dustin.church-adt)
 
 
 ; data Boolean = True | False

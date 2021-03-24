@@ -11,11 +11,9 @@
 (defn Wrapper [& children] ...)
 (defn PromptBrandLogo [isLoggedIn] ...)
 
-(defn Greeting [{:keys [isLoggedIn]}]
-  [Wrapper
-   [:div
-    [PromptBrandLogo isLoggedIn]]
-   (if isLoggedIn [UserGreeting {}] [GuestGreeting {}])])
+    (defn Greeting [{:keys [isLoggedIn]}]
+      [Wrapper [:div [PromptBrandLogo isLoggedIn]]
+       (if isLoggedIn [UserGreeting {}] [GuestGreeting {}])])
 
 (reagent.dom/render
   [Greeting {:isLoggedIn false}]
@@ -36,13 +34,9 @@
   (println "done")
   `~x)
 
-(defn Greeting [{:keys [isLoggedIn]}]                       ; Bool -> Ast Vdom
-  `(Wrapper.
-     (div. (PromptBrandLogo. ~isLoggedIn))                        ; a -> m b
-     (fib. 40)
-     ~(if isLoggedIn
-        `(UserGreeting. ~{})
-        `(GuestGreeting. ~{}))))
+    (defn Greeting [{:keys [isLoggedIn]}]
+      `(Wrapper [:div (PromptBrandLogo ~isLoggedIn)]
+         ~(if isLoggedIn `(UserGreeting ~{}) `(GuestGreeting ~{}))))
 
 
 

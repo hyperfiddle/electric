@@ -1,4 +1,4 @@
-(ns dustin.hfroutes1)
+(ns dustin.hypermedia)
 
 (in-ns 'user.hello-world)
 
