@@ -61,6 +61,16 @@
        [:local false] [:constant else]]]
      test [:constant then]]]])
 
+(defn node-case [test default & pairs]
+  [:variable
+   [:apply [:global `get]
+    [[:apply [:global `hash-map]
+      (->> pairs
+           (partition 2)
+           (mapcat (fn [[k v]] [k [:constant v]])))]
+     test
+     [:constant default]]]])
+
 (declare normalize-ast)
 
 (defn litteral-as-function
@@ -112,7 +122,23 @@
       (update (normalize-ast env (:body ast)) :effects set/union effects))
 
     (:if)
-    (normalize-par env node-if (:test ast) (:then ast) (:else ast))))
+    (normalize-par env node-if (:test ast) (:then ast) (:else ast))
+
+    (:case)
+    (apply normalize-par env node-case (:test ast)
+           (analyze-clj env nil) #_(:default ast) ; TODO requires :throw and :new to throw an exception in
+                                                  ; default case
+           (interleave (:tests ast)
+                       (:thens ast)))
+    (:case-test)
+    (normalize-ast env (:test ast))
+
+    (:case-then)
+    (normalize-ast env (:then ast))
+
+    ;; (:throw) ;; TODO
+    ;; (:new) ;; TODO
+    ))
 
 (defn deps [[op & args]]
   (case op
