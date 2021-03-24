@@ -1,8 +1,10 @@
 (ns hfdl.impl.compiler
   (:require [cljs.analyzer.api :as cljs]
+            [clojure.set :as set]
             [clojure.tools.analyzer.jvm :as clj]
-            [clojure.set :as set])
-  (:import (clojure.lang Compiler$LocalBinding)))
+            [minitest :refer [tests]]
+            [missionary.core :as m])
+  (:import clojure.lang.Compiler$LocalBinding))
 
 (def analyze-clj
   (let [scope-bindings
@@ -126,7 +128,7 @@
 
     (:case)
     (apply normalize-par env node-case (:test ast)
-           (analyze-clj env nil) #_(:default ast) ; TODO requires :throw and :new to throw an exception in
+           (analyze-clj {} nil) #_(:default ast) ; TODO requires :throw and :new to throw an exception in
                                                   ; default case
            (interleave (:tests ast)
                        (:thens ast)))
@@ -172,3 +174,206 @@
     (analyze-clj env)
     (normalize-ast {})
     (emit-frame)))
+
+(tests
+ "Constants"
+ (dataflow {} 1) := `(->Dataflow [[:local 1]] 0)
+ (dataflow {} [1 2]) := `(->Dataflow [[:local [1 2]]] 0)
+ (dataflow {} {:a 1}) := `(->Dataflow [[:local {:a 1}]] 0)
+ (dataflow {} #{:foo :bar}) := `(->Dataflow [[:local #{:foo :bar}]] 0))
+
+(tests
+ "Locals"
+ (def a 1)
+ (dataflow {} `a) := `(->Dataflow [[:global `a]] 0))
+
+(tests
+ "Variables"
+ (def !a (atom 0))
+ (def a (m/watch !a))
+ (dataflow {} `@a) := `(->Dataflow [[:global 'a] [:variable 0]] 1))
+
+(tests
+ "Vectors"
+ (def !a (atom 0))
+ (def a (m/watch !a))
+ (dataflow {} [1 `@a])
+ :=
+ `(->Dataflow [[:global 'clojure.core/vector]
+               [:global 'hfdl.impl.compiler/a]
+               [:variable 1]
+               [:local 1]
+               [:apply 0 [3 2]]]
+              4))
+
+(tests
+ "Unification"
+ (def !a (atom 0))
+ (def a (m/watch !a))
+ (dataflow {} `[@a @a])
+ :=
+ `(->Dataflow [[:global 'clojure.core/vector]
+               [:global 'hfdl.impl.compiler/a] ; single signal for a.
+               [:variable 1]                   ; single deref for a.
+               [:apply 0 [2 2]]]
+              3))
+
+(tests
+ "Maps"
+ (def !a (atom 0))
+ (def a (m/watch !a))
+ (dataflow {} {:k `@a})
+ :=
+ `(->Dataflow [[:global 'clojure.core/hash-map]
+               [:global 'hfdl.impl.compiler/a]
+               [:variable 1]
+               [:local :k]
+               [:apply 0 [3 2]]]
+              4)
+
+ (dataflow {} {`@a :v})
+ :=
+ `(->Dataflow [[:global 'clojure.core/hash-map]
+               [:global 'hfdl.impl.compiler/a]
+               [:variable 1]
+               [:local :v]
+               [:apply 0 [2 3]]]
+              4))
+
+(tests
+ "Sets"
+ (def !a (atom 0))
+ (def a (m/watch !a))
+ (dataflow {} #{1 `@a})
+ :=
+ `(->Dataflow [[:global 'clojure.core/hash-set]
+               [:global 'hfdl.impl.compiler/a]
+               [:variable 1]
+               [:local 1]
+               [:apply 0 [3 2]]]
+                                        4))
+
+(tests
+ "Static calls"
+ (dataflow {} '(java.lang.Math/sqrt 4))
+ := '(hfdl.impl.compiler/->Dataflow
+      [[:local 4]
+       [:local (clojure.core/fn [arg0] (java.lang.Math/sqrt arg0))]
+       [:apply 1 [0]]]
+      2))
+
+(tests
+ "Invoke"
+ (dataflow {} `(str 1))
+ :=
+ `(->Dataflow
+   [[:local 1]
+    [:global 'clojure.core/str]
+    [:apply 1 [0]]]
+   2))
+
+(tests
+ "Invoke inlined function"
+ (dataflow {} `(inc 1))
+ :=
+ '(hfdl.impl.compiler/->Dataflow
+   [[:local 1]
+    [:local (clojure.core/fn [arg0] (clojure.lang.Numbers/inc arg0))]
+    [:apply 1 [0]]]
+   2))
+
+(tests
+ "Composition"
+ (dataflow {} `(str (str 1)))
+ :=
+ `(->Dataflow [[:local 1]
+               [:global 'clojure.core/str] ; unified
+               [:apply 1 [0]]
+               [:apply 1 [2]]]
+              3))
+
+(tests
+ "Do"
+ (dataflow {} '(do 1 2)) := `(->Dataflow [[:local 2]] 0) ; no effect on 1, skipped.
+
+ (dataflow {} '(do (println 1) 2))
+ :=
+ `(->Dataflow [[:local 1]                                ; effect on 1, retained.
+               [:global 'clojure.core/println]
+               [:apply 1 [0]]
+               [:local 2]]
+              3))
+
+(tests
+ "Let is transparent"
+ (dataflow {} '(let [a 1] a)) := `(->Dataflow [[:local 1]] 0))
+
+(tests
+ "Let is not sequential"
+ (dataflow {} '(let [a 1
+                     b 2
+                     c 3]
+                 c))
+ :=
+ `(->Dataflow [[:local 3] [:local 1] [:local 2]] 0))
+
+(tests
+ "Referential transparency unifies bindings"
+ (dataflow {} '(let [a 1
+                     c (str a)
+                     b (str a)]
+                 [c b]))
+ :=
+ `(->Dataflow [[:local 1]
+               [:global 'clojure.core/str]
+               [:apply 1 [0]]
+               [:global 'clojure.core/vector]
+               [:apply 3 [2 2]]]
+              4))
+
+(tests
+ "If"
+ (dataflow {} '(if (odd? 1) :odd :even))
+ :=
+ `(->Dataflow
+  [[:global 'clojure.core/hash-map]
+   [:local false]
+   [:local :even]
+   [:constant 2]
+   [:local nil]
+   [:apply 0 [4 3 1 3]]
+   [:global 'clojure.core/get]
+   [:local :odd]
+   [:constant 7]
+   [:global 'clojure.core/odd?]
+   [:local 1]
+   [:apply 9 [10]]
+   [:apply 6 [5 11 8]]
+   [:variable 12]]
+  13))
+
+(tests
+ "Case"
+ (dataflow {} '(case 1
+                 (1 3) :odd
+                 2     :even
+                 4     :even
+                 :default))
+ :=
+ `(->Dataflow
+   [[:global 'clojure.core/get]
+    [:local 1]
+    [:local :default] ; broken here, waiting for :default/throw handling
+    [:constant 2]
+    [:global 'clojure.core/hash-map]
+    [:local :even]
+    [:constant 5]
+    [:local 3]
+    [:local 4]
+    [:local 2]
+    [:local :odd]
+    [:constant 10]
+    [:apply 4 [1 11 9 6 7 11 8 6]]
+    [:apply 0 [12 1 3]]
+    [:variable 13]]
+   14))
