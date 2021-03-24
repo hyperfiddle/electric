@@ -61,6 +61,19 @@
        [:local false] [:constant else]]]
      test [:constant then]]]])
 
+(declare normalize-ast)
+
+(defn litteral-as-function
+  "Rewrite a literal to its equivalent function call form:
+  - {:a 1}  => (hash-map :a 1)
+  - [:a 1]  => (vector :a 1)
+  - #{:a 1} => (hash-set :a 1)"
+  [env {:keys [op] :as ast}]
+  (case op
+    :vector (apply normalize-par env (partial node-apply [:global `vector])   (:items ast))
+    :set    (apply normalize-par env (partial node-apply [:global `hash-set]) (:items ast))
+    :map    (apply normalize-par env (partial node-apply [:global `hash-map]) (interleave (:keys ast) (:vals ast)))))
+
 (defn normalize-ast [env {:keys [op] :as ast}]
   (case op
     (:const)
@@ -68,6 +81,9 @@
 
     (:local)
     {:result (env (:name ast) [:local (:name ast)])}
+
+    (:map :vector :set)
+    (litteral-as-function env ast)
 
     (:var)
     {:result [:global (symbol (:var ast))]}
