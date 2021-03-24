@@ -1,4 +1,4 @@
-(ns dustin.emitter1
+(ns leo.emitter1
   (:require [missionary.core :as m]
             [minitest :refer [tests]]
             [dustin.trace28 :refer [amb= trace! from-trace! let-bindings gen-from-trace gen-fmap]]

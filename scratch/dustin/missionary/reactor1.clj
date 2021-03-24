@@ -1,4 +1,4 @@
-(ns dustin.evaluator2
+(ns dustin.reactor1
   (:require
     [minitest :refer [tests]]
     [missionary.core :as m :refer [? ?? ?! ap]]))

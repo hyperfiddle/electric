@@ -1,4 +1,4 @@
-(ns dustin.rosie2
+(ns dustin.hypermedia2
   (:require
     [clojure.spec.alpha :as s]
     [minitest :refer [tests]]))
