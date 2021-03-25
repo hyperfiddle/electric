@@ -127,11 +127,12 @@
     (normalize-par env node-if (:test ast) (:then ast) (:else ast))
 
     (:case)
-    (apply normalize-par env node-case (:test ast)
-           (analyze-clj {} nil) #_(:default ast) ; TODO requires :throw and :new to throw an exception in
-                                                  ; default case
-           (interleave (:tests ast)
-                       (:thens ast)))
+    (if (= :throw (get-in ast [:default :op]))
+      (throw (new IllegalArgumentException "Please provide a default for `case`. The `throw` special form is not supported yet."))
+      (apply normalize-par env node-case (:test ast)
+             (:default ast)
+             (interleave (:tests ast)
+                         (:thens ast))))
     (:case-test)
     (normalize-ast env (:test ast))
 
