@@ -65,7 +65,7 @@
 (defn fan-out [>in]
   (m/transform (comp (diff diff-map {}) stabilizer) >in))
 
-;; (F[A] -> F[B]) -> F[Pair[K, F[A]]] -> F[Pair[K, F[B]]]
+;; (A -> B) -> F[A] -> F[B]
 (defn map-flow [f >v]
   (m/ap (f (m/?? >v))))
 
