@@ -69,6 +69,13 @@
   (swap! !x inc)
   @!z := 103)
 
+(defmacro run-incr [effects ast]
+  `((m/reactor
+      (m/signal!
+        (interpret eval-flow ~effects ~ast)))
+    (fn [_#] (println :process :finished))
+    (fn [e#] (println :process :crashed e#))))
+
 (tests
   "reactor"
 
@@ -84,12 +91,8 @@
           (with-out-str
             (print '! x))))))
 
-  ((m/reactor
-     (m/signal!
-       (interpret eval-flow {'println println!}
-         (println. ~(+ ~(inc ~x) 100)))))
-   (fn [_] (println :process :finished))
-   (fn [e] (println :process :crashed e)))
+  (run-incr {'println println!}
+    (println. ~(+ ~(inc ~x) 100)))
 
   (swap! !x inc)
   (swap! !x inc)
