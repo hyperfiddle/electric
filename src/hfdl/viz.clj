@@ -37,8 +37,8 @@
                           close)))))
 
 (defn node-type
-  ([node]             (first node))
-  ([program instr-id] (node-type (get program instr-id))))
+  ([node]       (first node))
+  ([program ip] (node-type (get program ip))))
 
 (defn label [idx [type & args]]
   (case type
@@ -52,87 +52,121 @@
   [sep coll]
   (concat (interleave (repeat sep) coll) (list sep)))
 
-(defn render-cell [program instr-id child-idx child-id]
-  (str "<" instr-id "_" child-idx "> " (label child-id (get program child-id))))
+(defn render-cell [program ip child-idx child-ip]
+  (str "<" ip "_" child-idx "> " (label child-ip (get program child-ip))))
 
-(defn render-hash-map-keys [program instr-id args]
-  (map (fn [child-idx child-id] (render-cell program instr-id (inc child-idx) child-id))
-       (range 0 (count args) 2)
-       (take-nth 2 (next args))))
+(defn render-hash-map-keys [program ip]
+  (let [[_ _ args] (get program ip)]
+    (map (fn [child-idx child-id] (render-cell program ip child-idx child-id))
+         (range 0 (count args) 2)
+         (take-nth 2 args))))
 
-(defn render-hash-map-vals [program instr-id args]
-  (map (fn [child-idx child-id] (render-cell program instr-id (inc child-idx) child-id))
-       (range 1 (count args) 2)
-       (take-nth 2 (nnext args))) )
+(defn render-hash-map-vals [program ip]
+  (let [[_ _ args] (get program ip)]
+    (map (fn [child-idx child-id] (render-cell program ip child-idx child-id))
+         (range 1 (count args) 2)
+         (take-nth 2 (next args)))) )
 
-(defn render-hash-map [program instr-id args]
-  [instr-id {:label    (str (pretty-arg instr-id)
-                            "|"
-                            (record `hash-map (interpose "|" (render-hash-map-keys program instr-id args)))
-                            "|"
-                            (record `hash-map (interpose "|" (render-hash-map-vals program instr-id args))))
-             :shape    :record
-             :penwidth 0.2}])
+(defn value? [program ip]
+  (#{:local :global} (node-type program ip)))
 
-(defn apply-node [program instr-id [function-id function-args-ids]]
-  (let [[_ function-sym] (get program function-id)
-        fapply-args      (into [function-id] function-args-ids)
-        links            (->> (map (fn [child-idx parent-id child-id]
-                                     (when-not (#{:local :global} (node-type program parent-id))
-                                       [parent-id child-id {:labelfloat  :true ; move labels so they don't overlap
-                                                            :headport    (str instr-id "_" child-idx (if (= `hash-map function-sym)
-                                                                                                       (if (odd? child-idx) ":w" ":e") ; key or val
-                                                                                                       ":n"))
-                                                            :tailport    "s"
-                                                            :concentrate :true
-                                                            :arrowhead   :odot}]))
-                                   (range (count fapply-args)) ; to mimic map-indexed
-                                   fapply-args
-                                   (repeat (count fapply-args) instr-id) ; fixed child-id
-                                   )
-                              (filter identity))
-        node             (if (= `hash-map function-sym)
-                           (render-hash-map program instr-id fapply-args)
-                           (let [coll?       (collection? function-sym)
-                                 record-type (if coll? function-sym :sexp)
-                                 fapply-args (map-indexed (fn [child-idx parent-id]
-                                                            (render-cell program instr-id (if coll? (inc child-idx) child-idx) parent-id))
-                                                          (if coll? (next fapply-args) fapply-args))]
-                             [instr-id {:label    (record record-type (pretty-arg instr-id) (intersperse "|" fapply-args))
-                                        :shape    :record
-                                        :penwidth 0}]))]
-    (into [node] links)))
+(def default-link-props {:tailport  "s"
+                         :arrowhead :odot
+                         :dir       :forward})
+(declare render-node)
 
-(defn instruction->node
-  "Transform an HFIL instruction at `instr-id` in HFIL `program` into a set
-  of dot nodes and links."
-  [program instr-id]
-  (let [[type & args] (get program instr-id)]
-    (case type
-      :apply                (apply-node program instr-id args)
-      (:variable :constant) (let [[parent-id] args
-                                  node        [instr-id {:shape (case type :variable :invtriangle, :constant :triangle)
-                                                         :label (pretty-arg instr-id)}]
-                                  link        [parent-id instr-id {:concentrate :true, :arrowtail :odot}]]
-                              (cond-> [node link]
-                                (#{:local :global} (node-type program parent-id))
-                                ,, (conj [parent-id {:label  (str (pretty-arg parent-id) " " (label parent-id (get program parent-id)))
-                                                     :shape  :none}])))
-      (:local :global)      [] ; skip. Will be rendered by dependents.
-      )))
+(defn render-hash-map [visited? program ip]
+  (let [[_ _ args :as instr] (get program ip)]
+    (concat
+     ;; child nodes
+     (mapcat (fn [child-ip] (when-not (value? program child-ip) (render-node visited? program child-ip))) args)
+     ;; current node
+     [[ip (cond-> {:label    (str (pretty-arg ip)
+                                  "|"
+                                  (record `hash-map (interpose "|" (render-hash-map-keys program ip)))
+                                  "|"
+                                  (record `hash-map (interpose "|" (render-hash-map-vals program ip))))
+                   :shape    :record
+                   :penwidth 0.2}
+            (:source (meta instr)) (assoc :cluster (:source (meta instr))))]]
+     ;; links
+     (map-indexed (fn [idx child-ip]
+                    (when-not (value? program child-ip)
+                      [child-ip ip (assoc default-link-props :headport (str ip "_" idx (if (even? idx) ":w" ":e")))]))
+                  args))))
+
+(defn render-form [visited? program ip]
+  (let [[_ f-ip args-ip :as instr] (get program ip)
+        [_ f-sym]                  (get program f-ip)
+        f-sym                      (if (collection? f-sym) f-sym :sexp)
+        args-ip                    (if (collection? f-sym) args-ip (into [f-ip] args-ip))]
+    (concat
+     ;; child nodes
+     (mapcat (fn [arg-ip]
+               (when-not (value? program arg-ip)
+                 (render-node visited? program arg-ip)))
+             args-ip)
+     ;; current node
+     [[ip (cond-> {:label    (->> (map-indexed (fn [child-idx child-ip]
+                                                 (render-cell program ip child-idx child-ip))
+                                               args-ip)
+                                  (intersperse "|")
+                                  (record f-sym (pretty-arg ip)))
+                   :shape    :record
+                   :penwidth 0}
+            (:source (meta instr)) (assoc :cluster (:source (meta instr))))]]
+     ;; links
+     (map-indexed (fn [child-idx child-ip]
+                    (when-not (value? program child-ip)
+                      [child-ip ip (assoc default-link-props :headport (str ip "_" child-idx ":n"))]))
+                  args-ip))))
+
+(defn render-apply-node [visited? program ip]
+  (let [[_ f-ip _] (get program ip)
+        [_ f-sym]  (get program f-ip)]
+    (case f-sym
+      clojure.core/hash-map (render-hash-map visited? program ip)
+      (render-form visited? program ip))))
+
+
+(defn render-node [visited? program ip]
+  (when-not (@visited? ip)
+    (swap! visited? conj ip)
+    (let [[type & args :as instr] (get program ip)]
+      (case type
+        (:local :global)      [[ip {:label (str (pretty-arg ip) " " (label ip instr)), :shape :none}]]
+        (:variable :constant) (let [[child-ip] args]
+                                (concat [[ip (cond-> {:shape (case type :variable :invtriangle, :constant :triangle)
+                                                      :label (pretty-arg ip)}
+                                               (:source (meta instr)) (assoc :cluster (:source (meta instr))))]]
+                                        (render-node visited? program child-ip)
+                                        [[child-ip ip {:concentrate :true, :arrowtail :odot}]]))
+        :apply                (render-apply-node visited? program ip)))))
+
+(defn node? [node] (= 2 (count node)))
+(defn props [[_id props]] props)
+(defn cluster [node] (:cluster (props node)))
+
+(defn clusters [nodes]
+  (->> (filter node? nodes)
+       (filter cluster)
+       (group-by cluster)
+       (map (fn [[cluster-id nodes]]
+              (dot/subgraph (str "cluster_" cluster-id)
+                            (cons {:label cluster-id}
+                                  (map (fn [[id _]] [id])
+                                       nodes)))))))
 
 (defn dot "Transform an HFIL `program` into dot representation"
   [program]
-  (->> (range (count program))
-       (map #(instruction->node program %))
-       (mapcat identity)
-       (into [])))
+  (let [graph (filter identity (render-node (atom #{}) program (dec (count program))))]
+    (concat (clusters graph) graph)))
 
-(do
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; VISUAL TESTS ZONE ;;
 ;;;;;;;;;;;;;;;;;;;;;;;
 
+(do
   (defmacro ^:private hfil [& body] ; for convenience
     `(:graph (dataflow ~@body)))
 
@@ -171,7 +205,7 @@
                                              :vector [@a [:b] :c :d]
                                              :list   (list :a @b :c)}}}))
 
-    (viz! #_"/tmp/fizzbuz.png"
+    (save! "/tmp/fizzbuz.png"
           (hfil (let [n @n]
                   (cond
 		                (zero? (mod n 15)) "FizzBuzz"
