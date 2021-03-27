@@ -16,9 +16,9 @@
 
 (def eval-flow
   (reify Interpreter
-    (fapply [_ mf ma] (m/latest call mf ma))
-    (fapply [_ mf ma mb] (m/latest call mf ma mb))
-    (join [_ mma] (m/relieve {} (m/ap (m/?! (m/?! mma)))))
+    (fapply [_ mf ma] (m/signal! (m/latest call mf ma)))
+    (fapply [_ mf ma mb] (m/signal! (m/latest call mf ma mb)))
+    (join [_ mma] (m/signal! (m/relieve {} (m/ap (m/?! (m/?! mma))))))
     (pure [_ c] (m/relieve {} (m/ap c)))))
 
 (tests
@@ -59,6 +59,47 @@
 
 (tests
   "flow hello world"
+  (def !x (atom 0))
+  (def x (m/watch !x))
+  (def z (interpret eval-flow effects
+           (+ ~(boom!. ~(inc ~x)) 100)))
+  (def !z (z #(println :ready) #(println :done)))
+  ;ready
+  (swap! !x inc)
+  (swap! !x inc)
+  @!z := 103)
+
+(tests
+  "reactor"
+
+  (def !x (atom 0))
+  (def x (m/watch !x))
+
+  (def !result (atom []))
+
+  (defn println! [x & args]
+    (m/relieve {}
+      (m/ap
+        (swap! !result conj
+          (with-out-str
+            (print '! x))))))
+
+  ((m/reactor
+     (m/signal!
+       (interpret eval-flow {'println println!}
+         (println. ~(+ ~(inc ~x) 100)))))
+   (fn [_] (println :process :finished))
+   (fn [e] (println :process :crashed e)))
+
+  (swap! !x inc)
+  (swap! !x inc)
+  @!result := ["! 101" "! 102" "! 103"]
+
+  )
+
+#_
+(tests
+  "fib in parallel"
   (def !x (atom 0))
   (def x (m/watch !x))
   (def z (interpret eval-flow effects
