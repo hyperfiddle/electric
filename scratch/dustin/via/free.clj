@@ -104,7 +104,7 @@
                 (map #(lift-and-resolve interpreter {} %) args))
         ;_ (println 'run-apply-mas mas)
         mb (apply fapply interpreter mas)] ; args are not effects
-    (if (bind-form? f) (join interpreter mb) mb)))
+    (if (bind-form? form) (join interpreter mb) mb)))
 
 (tests
   (run-apply eval-id {} '(inc x)) := 43
@@ -118,7 +118,7 @@
   ;(println 'interpret-1 x)
   (m/match x
 
-    (`unquote ?x) ?x ; leave in place to be interpreted during application
+    (`unquote ?x) x ; leave in place to be interpreted during application
 
     (!xs ...) (run-apply interpreter effects x)
 
