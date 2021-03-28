@@ -126,14 +126,26 @@
   (swap! !x inc)
   @!result := [:even :odd :even])
 
+(tests
+  (def !x (atom 0)) (def x (m/watch !x))
+  (def !c (atom :odd)) (def c (m/watch !c))
+  (def !d (atom :even)) (def d (m/watch !d))
+
+  (def !result (atom []))
   (defn println! [x & args]
     (m/ap (swap! !result conj x)))
 
+  (defn if2 [test >x >y]
+    (m/ap (m/?! (if test >x >y))))
+
   (run-incr {'println println!
-             'foo foo}
-    (println. ~(foo. ~(+ ~x 97)) 1000))
+             'if if2}
+    (println.
+      ~(if. ~(odd? ~x)
+         (identity ~c)
+         (identity ~d))))
 
   (swap! !x inc)
   (swap! !x inc)
-  @!result := [[0 :odd] [1 :even] [2 :odd]])
+  @!result := [:even :odd :even])
 
