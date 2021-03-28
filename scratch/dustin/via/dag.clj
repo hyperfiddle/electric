@@ -5,8 +5,6 @@
     [minitest :refer [tests]]
     [missionary.core :as m]))
 
-(defn call [f & args] (apply f args))
-
 (tests
   "identity monad, managed effect"
   (interpret eval-id
@@ -15,10 +13,11 @@
   ; boom!
   := 3)
 
+(defn call [f & args] (apply f args))
+
 (def eval-flow
   (reify Interpreter
-    (fapply [_ mf ma] (m/latest call mf ma))
-    (fapply [_ mf ma mb] (m/latest call mf ma mb))
+    (fapply [_ ms] (apply m/latest call ms))
     (join [_ mma] (m/relieve {} (m/ap (m/?! (m/?! mma)))))
     (pure [_ c] (m/ap c))))
 
@@ -77,8 +76,7 @@
 
 (def eval-incr
   (reify Interpreter
-    (fapply [_ mf ma] (m/signal! (m/latest call mf ma)))
-    (fapply [_ mf ma mb] (m/signal! (m/latest call mf ma mb)))
+    (fapply [_ ms] (m/signal! (apply m/latest call ms)))
     (join [_ mma] (m/signal! (m/relieve {} (m/ap (m/?! (m/?! mma))))))
     (pure [_ c] (m/ap c))))
 
@@ -107,16 +105,26 @@
   @!result := ["101" "102" "103"])
 
 (tests
-
   (def !x (atom 0)) (def x (m/watch !x))
-  (def !result (atom []))
   (def !c (atom :odd)) (def c (m/watch !c))
   (def !d (atom :even)) (def d (m/watch !d))
 
+  (def !result (atom []))
+  (defn println! [x & args]
+    (m/ap (swap! !result conj x)))
+
   (defn foo [x]
     (if (odd? x)
-      (m/signal! (interpret eval-incr effects (vector ~x ~c)))
-      (m/signal! (interpret eval-incr effects (vector ~x ~d)))))
+      (interpret eval-incr effects (identity ~c))
+      (interpret eval-incr effects (identity ~d))))
+
+  (run-incr {'println println!
+             'foo foo}
+    (println. ~(foo. ~x)))
+
+  (swap! !x inc)
+  (swap! !x inc)
+  @!result := [:even :odd :even])
 
   (defn println! [x & args]
     (m/ap (swap! !result conj x)))

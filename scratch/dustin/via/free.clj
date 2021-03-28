@@ -27,26 +27,24 @@
     (not (empty? x))))
 
 (defprotocol Interpreter
-  (fapply [_ mf ma] [_ mf ma mb])
-  ;(apply-id [_ f a] [_ f a b])
+  (apply-id [_ as])
+  (fapply [_ ms])
   (join [_ mma])
   (pure [_ c]))                ; not actually needed
 
 (def eval-id
   (reify Interpreter
-    (fapply [_ mf ma] (mf ma))
-    (fapply [_ mf ma mb] (mf ma mb))
-    ;(apply-id [_ f a] (f a))
-    ;(apply-id [_ f a b] (f a b))
+    (apply-id [_ as] (apply (first as) (rest as)))
+    (fapply [_ ms] (apply (first ms) (rest ms)))
     (join [_ mma] mma)
     (pure [_ c] c)))
 
 (tests
   "Identity monad"
-  (fapply eval-id inc 1) := 2
-  (fapply eval-id + 1 2) := 3
-  ;(apply-id eval-id inc 1) := 2
-  ;(apply-id eval-id + 1 2) := 31
+  (fapply eval-id [inc 1]) := 2
+  (fapply eval-id [+ 1 2]) := 3
+  (apply-id eval-id [inc 1]) := 2
+  (apply-id eval-id [+ 1 2]) := 3
   (join eval-id 1) := 1
   (pure eval-id 1) := 1)
 
@@ -98,12 +96,12 @@
   (bind-form? '(~f x)) := false
   (bind-form? '(~f. x)) := true)
 
-(defn run-apply [interpreter effects [f & [a b :as args] :as form]]
+(defn run-apply [interpreter effects [f & args :as form]]
   ;(println 'run-apply form)
   (let [mas (cons (lift-and-resolve interpreter effects f)
-                (map #(lift-and-resolve interpreter {} %) args))
+                (map #(lift-and-resolve interpreter {} %) args)) ; args are not effects
         ;_ (println 'run-apply-mas mas)
-        mb (apply fapply interpreter mas)] ; args are not effects
+        mb (fapply interpreter mas)]
     (if (bind-form? form) (join interpreter mb) mb)))
 
 (tests
