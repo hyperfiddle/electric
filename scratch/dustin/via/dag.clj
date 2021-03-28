@@ -96,19 +96,6 @@
 
   (swap! !x inc)
   (swap! !x inc)
-  @!result := ["! 101" "! 102" "! 103"]
-
-  )
-
-#_
-(tests
-  "fib in parallel"
-  (def !x (atom 0))
-  (def x (m/watch !x))
-  (def z (interpret eval-flow effects
-           (+ ~(boom!. ~(inc ~x)) 100)))
-  (def !z (z #(println :ready) #(println :done)))
-  ;ready
-  (swap! !x inc)
-  (swap! !x inc)
-  @!z := 103)
+  @!result := ["! 101"
+               "! 102"
+               "! 103"])
