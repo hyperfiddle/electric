@@ -8,8 +8,8 @@
 ; The Free Monad is an abstract DAG which is evaluated for effect
 ; by providing at runtime an interpreter for it.
 ;
-; (~f. ~a ~b 3)
-; ~ marks wrapped values
+; (@f. @a @b 3)
+; @ marks wrapped values
 ; . marks join nodes
 
 (defn bind-symbol? [s]
@@ -65,36 +65,36 @@
   (my-resolve effects 'println.) := (effects 'println))
 
 (defn lift-and-resolve [interpreter effects x]
-  ; ~f. -> (unquote f.)
-  ; x is like 'a or '(clojure.core/unquote a)
+  ; @f. -> (deref f.)
+  ; x is like 'a or '(clojure.core/deref a)
   (m/match x
-    (`unquote ?a) (if (symbol? ?a) (my-resolve effects ?a) ?a)
+    (`deref ?a) (if (symbol? ?a) (my-resolve effects ?a) ?a)
     ?a (pure interpreter (if (symbol? ?a) (my-resolve effects ?a) ?a))))
 
 (tests
-  (lift-and-resolve eval-id effects '~println.) := (effects 'println)
+  (lift-and-resolve eval-id effects '@println.) := (effects 'println)
   (lift-and-resolve eval-id effects 'println.) := (effects 'println)
-  (lift-and-resolve eval-id effects '~println) := println   ; foreign
+  (lift-and-resolve eval-id effects '@println) := println   ; foreign
   (lift-and-resolve eval-id effects '1) := 1
-  (lift-and-resolve eval-id effects '~1) := 1
+  (lift-and-resolve eval-id effects '@1) := 1
   (lift-and-resolve eval-id effects 1) := 1                 ; fyi
   )
 
-; form is a quoted apply node, like '(~f. a ~b 1)
+; form is a quoted apply node, like '(@f. a @b 1)
 ; resolve symbols during apply
 ; either resolve the effect or resolve the foreign fn
 
 (defn bind-form? [x]
   (m/match x
-    ((`unquote (m/pred bind-symbol? ?s)) & _) true
+    ((`deref (m/pred bind-symbol? ?s)) & _) true
     ((m/pred bind-symbol? ?s) & _) true
     _ false))
 
 (tests
   (bind-form? '(f x)) := false
   (bind-form? '(f. x)) := true
-  (bind-form? '(~f x)) := false
-  (bind-form? '(~f. x)) := true)
+  (bind-form? '(@f x)) := false
+  (bind-form? '(@f. x)) := true)
 
 (defn run-apply [interpreter effects [f & args :as form]]
   ;(println 'run-apply form)
@@ -106,17 +106,17 @@
 
 (tests
   (run-apply eval-id {} '(inc x)) := 43
-  (run-apply eval-id {} '(inc ~x)) := 43
-  (run-apply eval-id {} '(~inc ~x)) := 43
-  (run-apply eval-id {'inc dec} '(inc. ~x)) := 41
-  (run-apply eval-id {'println println} '(~println. ~x)) := nil
-  (try (run-apply eval-id {'inc inc} '(undef. ~x)) (catch Throwable _ :crash)) := :crash)
+  (run-apply eval-id {} '(inc @x)) := 43
+  (run-apply eval-id {} '(@inc @x)) := 43
+  (run-apply eval-id {'inc dec} '(inc. @x)) := 41
+  (run-apply eval-id {'println println} '(@println. @x)) := nil
+  (try (run-apply eval-id {'inc inc} '(undef. @x)) (catch Throwable _ :crash)) := :crash)
 
 (defn interpret-1 [interpreter effects x]
   ;(println 'interpret-1 x)
   (m/match x
 
-    (`unquote ?x) x ; leave in place to be interpreted during application
+    (`deref ?x) x ; leave in place to be interpreted during application
 
     (!xs ...) (run-apply interpreter effects x)
 
@@ -126,9 +126,9 @@
   "smoke screen"
   (interpret-1 eval-id {} 'x) := 'x                         ; delayed eval
   (interpret-1 eval-id {} '(inc x)) := 43
-  (interpret-1 eval-id {} '(inc ~x)) := 43
-  (interpret-1 eval-id {} '(~inc ~x)) := 43
-  (interpret-1 eval-id {'inc dec} '(~inc. ~x)) := 41
+  (interpret-1 eval-id {} '(inc @x)) := 43
+  (interpret-1 eval-id {} '(@inc @x)) := 43
+  (interpret-1 eval-id {'inc dec} '(@inc. @x)) := 41
   (interpret-1 eval-id {} '(inc 1)) := 2)
 
 (tests
@@ -149,39 +149,39 @@
   ; 42 -- side effects aren't intercepted
 
   "apply"
-  (interpret-1 eval-id effects '(inc ~1)) := 2
-  (interpret-1 eval-id effects '(~inc ~1)) := 2
-  (interpret-1 eval-id effects '(~inc 1)) := 2
-  (interpret-1 eval-id effects '(+ ~1 ~2)) := 3
-  (interpret-1 eval-id effects '(+ ~1 2)) := 3
-  (interpret-1 eval-id effects '(~+ ~1 2)) := 3
-  (interpret-1 eval-id effects '(~+ 1 ~2)) := 3
-  (try (interpret-1 eval-id effects '(~X ~1 2)) (catch Throwable _ :crash)) := :crash
+  (interpret-1 eval-id effects '(inc @1)) := 2
+  (interpret-1 eval-id effects '(@inc @1)) := 2
+  (interpret-1 eval-id effects '(@inc 1)) := 2
+  (interpret-1 eval-id effects '(+ @1 @2)) := 3
+  (interpret-1 eval-id effects '(+ @1 2)) := 3
+  (interpret-1 eval-id effects '(@+ @1 2)) := 3
+  (interpret-1 eval-id effects '(@+ 1 @2)) := 3
+  (try (interpret-1 eval-id effects '(@X @1 2)) (catch Throwable _ :crash)) := :crash
 
   "effects"
-  (interpret-1 eval-id effects '(println ~1)) := nil
+  (interpret-1 eval-id effects '(println @1)) := nil
   ; 1 -- unmanaged
-  (interpret-1 eval-id effects '(println ~1 2)) := nil
+  (interpret-1 eval-id effects '(println @1 2)) := nil
   ; 1 2 -- unmanaged
-  (interpret-1 eval-id effects '(println. ~1)) := nil
+  (interpret-1 eval-id effects '(println. @1)) := nil
   ; (clojure.core/println 1)                               ; supervised effect
 
   "clojure interop"
   (defn g [x y] (let [a x b a] (+ y b 100)))
-  (interpret-1 eval-id effects '(~g ~1 2)) := 103                           ; not clojure
-  (try (interpret-1 eval-id effects '(let [] (~g ~1 2))) (catch Throwable _ :UnsupportedOperation)) := :UnsupportedOperation
+  (interpret-1 eval-id effects '(@g @1 2)) := 103                           ; not clojure
+  (try (interpret-1 eval-id effects '(let [] (@g @1 2))) (catch Throwable _ :UnsupportedOperation)) := :UnsupportedOperation
   ; -- Wrong number of args (2) passed to: clojure.core/let
   ; Can this be fixed with tools.analyser?
 
   "AST traversals"
-  (postwalk #(doto % println) '(println. ~1)) := '(println. (clojure.core/unquote 1))
-  (postwalk #(interpret-1 eval-id effects %) '(println. ~1))
+  (postwalk #(doto % println) '(println. @1)) := '(println. (clojure.core/deref 1))
+  (postwalk #(interpret-1 eval-id effects %) '(println. @1))
   ;! (clojure.core/println 1)
   := nil
-  (postwalk #(interpret-1 eval-id effects %) '(println. ~(+ (inc 1) (inc 2))))
+  (postwalk #(interpret-1 eval-id effects %) '(println. @(+ (inc 1) (inc 2))))
   ;! (clojure.core/println 5)
   := nil
-  (postwalk #(interpret-1 eval-id effects %) '(pr-str ~(println. ~(inc 1))))
+  (postwalk #(interpret-1 eval-id effects %) '(pr-str @(println. @(inc 1))))
   ;! (clojure.core/println 2)
   := "nil"
 
@@ -201,6 +201,6 @@
 (tests
   (interpret eval-id {} (inc x)) := 43
   (interpret eval-id {} (inc 1)) := 2
-  (interpret eval-id {} (~inc ~(inc ~x))) := 44
-  (interpret eval-id effects (println. ~1)) := nil
-  (interpret eval-id effects (pr-str ~(println. ~(inc 1)))) := "nil")
+  (interpret eval-id {} (@inc @(inc @x))) := 44
+  (interpret eval-id effects (println. @1)) := nil
+  (interpret eval-id effects (pr-str @(println. @(inc 1)))) := "nil")
