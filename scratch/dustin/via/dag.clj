@@ -9,7 +9,7 @@
   "identity monad, managed effect"
   (interpret eval-id
     {'boom! (fn [x & args] (println 'boom!) x)}
-    (inc ~(boom!. ~(inc 1))))
+    (inc @(boom!. @(inc 1))))
   ; boom!
   := 3)
 
@@ -25,7 +25,7 @@
   "flow apply"
   (def !x (atom 0))
   (def x (m/watch !x))
-  (def z (interpret-1 eval-flow {} '(inc ~x)))
+  (def z (interpret-1 eval-flow {} '(inc @x)))
   (def !z (z #(println :ready) #(println :done)))
   (swap! !x inc)
   (swap! !x inc)
@@ -37,7 +37,7 @@
   (def !x (atom 0))
   (def x (m/watch !x))
   (def z (interpret eval-flow {}
-           (inc ~x)))
+           (inc @x)))
   (def !z (z #(println :ready) #(println :done)))
   (swap! !x inc)
   (swap! !x inc)
@@ -49,7 +49,7 @@
   (def !x (atom 0))
   (def x (m/watch !x))
   (def z (interpret eval-flow {}
-           (+ ~(inc ~x) 1)))
+           (+ @(inc @x) 1)))
   (def !z (z #(println :ready) #(println :done)))
   ;ready
   (swap! !x inc)
@@ -67,7 +67,7 @@
   (def !x (atom 0))
   (def x (m/watch !x))
   (def z (interpret eval-flow effects
-           (+ ~(boom!. ~(inc ~x)) 100)))
+           (+ @(boom!. @(inc @x)) 100)))
   (def !z (z #(println :ready) #(println :done)))
   ;ready
   (swap! !x inc)
@@ -93,12 +93,11 @@
   (def x (m/watch !x))
 
   (def !result (atom []))
-
   (defn println! [x & args]
     (m/ap (swap! !result conj (with-out-str (print x)))))
 
   (run-incr {'println println!}
-    (println. ~(+ ~(inc ~x) 100)))
+    (println. @(+ @(inc @x) 100)))
 
   (swap! !x inc)
   (swap! !x inc)
@@ -115,12 +114,12 @@
 
   (defn foo [x]
     (if (odd? x)
-      (interpret eval-incr effects (identity ~c))
-      (interpret eval-incr effects (identity ~d))))
+      (interpret eval-incr effects (identity @c))
+      (interpret eval-incr effects (identity @d))))
 
   (run-incr {'println println!
              'foo foo}
-    (println. ~(foo. ~x)))
+    (println. @(foo. @x)))
 
   (swap! !x inc)
   (swap! !x inc)
@@ -141,9 +140,9 @@
   (run-incr {'println println!
              'if if2}
     (println.
-      ~(if. ~(odd? ~x)
-         (identity ~c)
-         (identity ~d))))
+      @(if. @(odd? @x)
+         (identity @c)
+         (identity @d))))
 
   (swap! !x inc)
   (swap! !x inc)
