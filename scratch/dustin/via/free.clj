@@ -99,7 +99,7 @@
   (bind-form? '(~f. x)) := true)
 
 (defn run-apply [interpreter effects [f & [a b :as args] :as form]]
-  (println 'run-apply form)
+  ;(println 'run-apply form)
   (let [mas (cons (lift-and-resolve interpreter effects f)
                 (map #(lift-and-resolve interpreter {} %) args))
         ;_ (println 'run-apply-mas mas)
