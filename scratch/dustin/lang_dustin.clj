@@ -1,10 +1,9 @@
 (ns dustin.lang-dustin
   "tests to communicate about leo lang"
-  (:require [hfdl :refer [dataflow]]
-            [minitest :refer [tests]]
+  (:require [minitest :refer [tests]]
             [missionary.core :as m]))
 
-(declare dustin-lang debug! pure lift cp)
+(declare via debug! pure lift cp)
 
 (tests
 
@@ -12,18 +11,67 @@
   isomorphism between textual/visual representation as bind-nodes, apply-nodes and fmap-nodes
   are explicit in the AST:
 
-    fmap    (inc ~x)
-    fapply  (~f ~x)
-    bind    (f. ~x)
+    fmap        (f ~x)
+    fapply      (~f ~x)
+    bind        (f. ~x)
+    leave alone (f x)
+
+
+  This is a variation on a lispy free monad, which is when any symbolic AST gets a monad
+  'for free'.
 
   I don't know if this approach can be made good. The programmer must know which symbols are variable
   and which functions return variables. However the lang does not need ifn."
 
-  "the environment is reactive (pre-lifted)"
-  (def !a (atom 1)) (def a (m/watch !a))
-  (def program (dustin-lang ~a))
-  (def process (debug! program))
-  @process := {:state :running :vars {'a 1}}                ; vars named by sourcemap, 'a is the output node
+  "free monad - lisp asts compile for free to monad ops"
+  (macroexpand-1 '(via (f ~a))) := '(fmap f a)              ; fmap is not yet defined
+
+  "fapply"
+  (macroexpand-1 '(via (~f ~a ~b))) := '(fapply f a b)
+
+  "just clojure (leave alone)"
+  (macroexpand-1 '(via (f a b))) := '(f a b)
+
+  "no no-op lifts"
+  (macroexpand-1 '(via (f ~a b)))
+  ;:= '(fmap f a (pure b))   ; WRONG
+  := '(fmap #(f % b) a)
+
+  "composition"
+  (macroexpand-1 '(via (inc ~(inc ~(f b)))))  := '(fmap inc (fmap inc (f b)))
+  (macroexpand-1 '(via (inc ~(inc ~(f ~b))))) := '(fmap inc (fmap inc (fmap f b)))
+  ; red blue problem
+  ; type inferencer doesn't help unify it can only check
+
+  ;a -> b
+  ;a -> m b
+  ;
+  ; blue fn - regular
+  ; red fn - async
+  ;
+  ; blue can call blue
+  ; red can call red
+  ; red can call blue
+
+
+  "bind"
+  (macroexpand-1 '(via (f. ~a))) := '(bind a f)
+  ;(macroexpand-1 '(via (f. ~a))) := '(join (fmap f a))
+
+  "join"
+  (macroexpand-1 '(via (inc ~(f ~a)))) := '(fmap inc (fmap f a))
+  (macroexpand-1 '(via (inc ~~(http! ~a)))) := '(fmap inc (join (fmap http! a)))
+
+  "do-notation (sequencing continuations)"
+  (macroexpand-1 '(via (let [a ~a] ...))) := '(bind a (fn [a] ...))
+  (macroexpand-1 '(via (let [a ~(f ~a)] ...))) := '(bind (fmap f a) (fn [a] ...))
+  (macroexpand-1 '(via (let [a (f. ~a)] ...))) := '(let [a (bind a f)] ...)
+
+  "applicative let (topo sort) is fine"
+
+
+  )
+
   (swap! !a inc)
   @process := {:state :running :vars {'a 2}}
 
