@@ -126,6 +126,7 @@
   @!result := [:even :odd :even])
 
 (tests
+  "if"
   (def !x (atom 0)) (def x (m/watch !x))
   (def !c (atom :odd)) (def c (m/watch !c))
   (def !d (atom :even)) (def d (m/watch !d))
@@ -135,7 +136,7 @@
     (m/ap (swap! !result conj x)))
 
   (defn if2 [test >x >y]
-    (m/ap (m/?! (if test >x >y))))
+    (if test >x >y))
 
   (run-incr {'println println!
              'if if2}
