@@ -1,9 +1,9 @@
 (ns hfdl.lib
-  (:require [hfdl.lang :refer [spawn dataflow]]
+  (:require [hfdl.lang :refer [dataflow]]
             [missionary.core :as m]))
 
 (defmacro $ [f & args]
-  `(spawn (~f ~@(map (partial list `unquote) args))))
+  `(deref (~f ~@(map (partial list `unquote) args))))
 
 (defmacro ifn [args & body]
   `(fn ~args (dataflow (let [~@(mapcat (juxt identity (partial list `deref)) args)] ~@body))))
