@@ -1,5 +1,5 @@
 (ns hfdl.sourcemap
-  (:require [hfdl.lang :refer [dataflow debug!]]
+  (:require [hfdl.lang :refer [dataflow debug! heap-dump]]
             [minitest :refer [tests]]
             [missionary.core :as m]))
 
@@ -40,9 +40,6 @@
  (locate program `(str a)) := 2
  (locate program `f) := 3
  (locate program `(f (str a) (str a))) := 4)
-
-(defn heap-dump [process]
-  (reduce merge (:log process)))
 
 (defn humanize
   "Correlate a heap dump with the original program."

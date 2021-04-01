@@ -11,6 +11,9 @@
   "Runs given dataflow program in debug mode and returns a process instance."
   [program] (r/debug! program))
 
+(defn heap-dump [process]
+  (reduce merge (:log process)))
+
 (comment
   (require '[missionary.core :as m])
   (def !input (atom "a"))
