@@ -30,7 +30,7 @@
   (apply-id [_ as])
   (fapply [_ ms])
   (join [_ mma])
-  (pure [_ c]))                ; not actually needed
+  (pure [_ c]))
 
 (def eval-id
   (reify Interpreter
@@ -183,16 +183,7 @@
   := nil
   (postwalk #(interpret-1 eval-id effects %) '(pr-str @(println. @(inc 1))))
   ;! (clojure.core/println 2)
-  := "nil"
-
-  ; sequence :: (Traversable t, Monad m) => t (m a) -> m (t a)
-  ; sequence :: Map (Flow a) -> Flow (Map a)
-
-  ; traverse :: (Traversable t, Applicative m) => (a -> m b) -> t a -> m (t b)
-  ; traverse :: (a -> Flow b) -> Map a -> Flow (Map b)
-  )
-
-;(defn interpret [interpreter effects ast])
+  := "nil")
 
 (defmacro interpret [interpreter effects ast]
   `(postwalk (partial interpret-1 ~interpreter ~effects)
@@ -204,3 +195,43 @@
   (interpret eval-id {} (@inc @(inc @x))) := 44
   (interpret eval-id effects (println. @1)) := nil
   (interpret eval-id effects (pr-str @(println. @(inc 1)))) := "nil")
+
+; Special forms and utilities for special forms
+; (do not call from userland)
+
+(defn if2 [test ma mb]
+  (if test ma mb))
+
+(defn bind [M ma eff]
+  (join M (fapply M [(pure M #_kf eff) ma])))
+
+;(defn bind-list [M seq-m-a eff] ; only used in foreach?
+;  (map (fn [ma] (bind M ma eff)) seq-m-a))
+
+;(defn extend-seq [M kf xs] ; List a -> List m a , but stabilized
+;  ; request reactor reuse existing signal with same id
+;  (map #(pure M (kf %) %) xs)
+;  #_(map (fn [x] (m/signal! (kf x) (m/ap x))) xs))
+
+(defn sequence' [M mas] ; list (m a) -> m (list a)
+  (fapply M (cons (pure M list) mas))
+  #_(m/signal! (apply m/latest list mas)))
+
+;(defn foreach [M list-a eff]
+;  (let [list-m-a (extend-seq M kf list-a)
+;        list-m-b (map #(bind M % eff) list-m-a)
+;        m-list-b (sequence M list-m-b)]
+;    m-list-b))
+
+; traverse :: (Traversable t, Applicative m) => (a -> m b) -> t a -> m (t b)
+(defn foreach [M list-a eff]
+  (sequence' M (map eff list-a)))
+
+; sequence :: (Traversable t, Monad m) => t (m a) -> m (t a)
+; sequence :: Map (Flow a) -> Flow (Map a)
+;
+; traverse :: (Traversable t, Applicative m) => (a -> m b) -> t a -> m (t b)
+; traverse :: (a -> Flow b) -> Map a -> Flow (Map b)
+;
+; unsequence :: (Comonad w, Monad m) => w [a] -> [m a]
+; unsequence = map return . extract
