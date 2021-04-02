@@ -132,7 +132,7 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
                :local
                (pure (first args))
                :global
-               (pure (resolve (first args)))
+               (pure @(resolve (first args)))
                :constant
                (pure (aget ar (first args)))
                :variable
