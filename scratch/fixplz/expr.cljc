@@ -47,6 +47,7 @@
 (tests
   (over {:a 1 :b 2} (fn [[k v]] [k (inc v)])) := {:a 2, :b 3}
   (over (range 3) inc) := [1 2 3]
+  (over '(1 2 (3 4)) println)
   )
 
 (defn unquote? [form]
@@ -115,6 +116,10 @@
               () (over x f))
         () x))
 
+(comment
+  (traverse-expr println '(x 2 (y 3 4)))
+  )
+
 (defn traverse-expr-rec [f x & args]
   (apply
     traverse-expr
@@ -125,6 +130,13 @@
            v)))
     x
     args))
+
+(comment
+  (traverse-expr-rec inc (range 10))
+  (traverse-expr-rec println '(x 2 (y 3 4)))
+  (clojure.walk/postwalk identity '(1 2 (3 4)))
+
+  )
 
 #?(:clj
    (tests
