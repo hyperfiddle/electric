@@ -53,3 +53,54 @@
   (swap! !x inc)
   @!result := [100 101]
   )
+
+(defn h1 [& children] `(h1 ~@children))
+(defn div [& children] `(div ~@children))
+(defn table [& children] `(table ~@children))
+(defn span [& children] `(span ~@children))
+(defn tr [& children] `(tr ~@children))
+(defn email [& children] `(email ~@children))
+
+(tests
+  "render-table"
+  (def !result (atom []))
+  (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
+
+  ; Each component has a reactor signal for its past value
+  ; Since they are not called from rfor – they are static calls –
+  ; the react keys are not needed
+
+  (defn render-table [xs]
+    `@(div. @(h1. "title")
+       @(table.
+         @(span. (count xs))
+         @(foreach. xs ~(fn :id [x]
+                          `(tr. (email. ~x)))))))
+
+  (run-react {'log (partial log! !result)
+              'render-table render-table}
+    `(log. (render-table. @~xs)))
+
+  (swap! !xs assoc-in [0 :name] "alice2")
+  @!result := _)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
