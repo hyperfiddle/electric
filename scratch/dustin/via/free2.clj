@@ -61,10 +61,13 @@
 (defn tr [& children] `(tr ~@children))
 (defn email [& children] `(email ~@children))
 
-(tests
+;(defn fix [x & args] `(fix ~x ~@args))
+;(def h1 (partial fix :h1))
+
+(comment
   "render-table"
   (def !result (atom []))
-  (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
+  (def !xs (atom [{:id 100 :name "alice"} {:id 101 :name "bob"}]))
 
   ; Each component has a reactor signal for its past value
   ; Since they are not called from rfor – they are static calls –
@@ -73,9 +76,10 @@
   (defn render-table [xs]
     `@(div. @(h1. "title")
        @(table.
-         @(span. (count xs))
-         @(foreach. xs ~(fn :id [x]
-                          `(tr. (email. ~x)))))))
+         @(span. ~(count xs))
+         @(for [x :id xs] `(tr. @(email. ~x)))
+         @(foreach. xs :id ~(fn [x]                         ; unquote here?
+                              `(tr. @(email. ~x)))))))
 
   (run-react {'log (partial log! !result)
               'render-table render-table}
@@ -84,23 +88,34 @@
   (swap! !xs assoc-in [0 :name] "alice2")
   @!result := _)
 
+(defn map-by [f xs]
+  (into {} (map (juxt f identity)) xs))
 
+(tests
+  (map-by :id [{:id 100 :name "alice"} {:id 101 :name "bob"}])
+  := {100 {:id 100, :name "alice"},
+      101 {:id 101, :name "bob"}})
 
+;(defn entity [xs kf k]
+;  (let [index (map-by kf xs)]
+;    (m/signal! k (index k))))
 
+(comment
 
+  (defn render-table [xs]
+    `@(div. @(h1. "title")
+        @(table.
+           @(span. ! ~(count xs))
+           @(tr. ! @(email. @(entity. ~xs :id 100)))
+           @(tr. ! @(email. @(entity. ~xs :id 101))))))
 
+  xs := [100 101]
+  db := {100 {'render-table {:id 100 :name "alice"}}
+         101 {'render-table {:id 101 :name "bob"}}}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  (defn render-table [xs]
+    `@(div. @(h1. "title")
+        @(table.
+           @(span. ~(count xs))
+           @(tr. @(email. @(entity. ~db :id 100)))
+           @(tr. @(email. @(entity. ~db :id 101)))))))
