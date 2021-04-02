@@ -29,43 +29,33 @@
   ; observe -> orient -> decide -> act ->
 
 
-  (:require [hfdl.lang :refer [dataflow spawn debug!]]
+  (:require [hfdl.lang :refer [dataflow debug! heap-dump]]
             [hfdl.lib :refer [ifn $] ]
             [minitest :refer [tests]]
-            [missionary.core :as m]))
+            [missionary.core :as m]
+            [hfdl.sourcemap :refer [humanize]]
+            [hfdl.viz :refer [show! show!* dot differential-dot]]))
 
 (tests
 
-  ; on termination, must produce explicit termination frame?
-  ; (The GC operation must be traced)
-  ; Or, just free all signals
-  ; Same with :state :running – if there are signals not freed, it's running.
-
+  ;; TODO indicate ::free in the log
 
   "programs without variability terminate immediately"
   (def program (dataflow 1))
-  (def process (debug! program))                            ; (trace!) ?
-  @process := {:state  :terminated ; Because the program is entirely static
-               :result 1           ; ??? it terminated with 1
-               :trace  [{1 1}]
-               ; where is the {1 ::free}, or is this program still running?
-               :vars   {}}
-  ;; Terminated -> nothing to visualize
-  ; Dustin March 20 - this is a running program producing constantly 1
-  ;   (unless the optimizer flattens the constants)
-
-  ; how does shell user ask the entrypoint for the result of a program that maybe terminated?
-  ; need a "shell" - C-z, C-c, print result eventually
+  (def process (debug! program))
+  (humanize program (heap-dump @process)) := {1 1}
+  @process := {:status :terminated
+               :log    [{[0] 1}]}
+  ;; (show! (dot program))
 
   "clojure foreign interop with a value"
   (def a 1)                                                 ; value
   (def program (dataflow a))                                ; clojure interop with a value
   (def process (debug! program))
-  @process := {:state  :terminated
-               :result 1
-               :trace  [{a 1}]
-               :vars   {}}
-  ;; Terminated -> nothing to visualize
+  (humanize program (heap-dump @process)) := {`a 1}
+  @process := {:status :terminated
+               :log    [{[0] 1}]}
+  ;; (show! (dot program (heap-dump @process)))
 
   "clojure foreign interop to a variable"
   "deref adds a signal at the callsite. Not watch"
@@ -74,17 +64,18 @@
   (def a (m/watch !a))                                      ; HFDL variable (missionary flow)
   (def program (dataflow @a))                               ; clojure interop with a HFDL variable
   (def process (debug! program))
-  @process := {:state :running ; maintain result forever
-               :trace [{'a _ '@a 1}]
-               :vars  {'a  _ '@a 1}}                               ; @ introduced a signal
+  (humanize program (heap-dump @process)) := {`a _, `@a 1}
+  @process := {:status :running                             ; maintain result forever
+               :log [{[0] _, [1] 1}]}                       ; @ introduced a signal
+  ;; (show! (dot program (heap-dump @process)))
 
   "maintain result in response to variable changes"
   (swap! !a inc)
-  @process := {:state :running
-               :trace [{'a _ '@a 1}
-                       {'@a 2}]
-               :vars  {'a  _
-                       '@a 2}}
+  @process := {:status :running
+               :log    [{'a _ '@a 1}
+                        {'@a 2}]}
+  (humanize program (heap-dump @process)) := {`a _, `@a 2}
+  ;; (show! (dot program (heap-dump @process)))
 
   "Transition between running and terminated state"
   (def !a (atom 0))
@@ -94,97 +85,120 @@
   (def program (dataflow @a))
   (def process (debug! program))
 
-  @process := {:state :running
-               :trace [{'a _ '@a 0}]
-               :vars  {'a  _ '@a 0}}
+  @process := {:status :running
+               :log    [{[0] _, [1] 0}]}
 
   (reset! !a 2)
-  @process := {:state :running
-               :trace [{'a _ '@a 0}
-                       {'@a 2}]
-               :vars  {'a  _ '@a 2}}
+  @process := {:status :running
+               :log    [{[0] _, [1] 0}
+                        {[1] 2}]}
 
   (reset! !a 1)
-  @process := {:state  :terminated ; terminate process because the underlying discrete flow terminated
-               :result 1           ; termination GCs the vars and produces a stack value
-               :trace [{'a _ '@a 0}
-                       {'@a 2}
-                       {'@a ::hfdl/free}]
-               :vars   {}}
+  @process := {:status :terminated ; terminate process because the underlying discrete flow terminated
+               :log    [{[0] _, [1] 0}
+                        {[1] 2}
+                        {[1] ::hfdl/free}]}
+
+  ;; (show! (dot program (heap-dump @process)))
 
   "clojure foreign fn call"
   (def f inc)
   (def program (dataflow (f 1)))
   (def process (debug! program))
-  @process := {:state  :terminated ; terminate because there are no alive signals
-               :result 2
-               :trace  [{1 1
-                         'f f
-                         '(f 1) 2}]
-               :vars   {}}
+  @process := {:status :terminated ; terminate because there are no alive signals
+               :log    [{[0] inc
+                         [1] 1
+                         [2] 2}]}
+  (humanize program (heap-dump @process)) := {`f     inc
+                                              1      1
+                                              `(f 1) 2}
+
+  ;; (show! (dot program))
+  ;; (show! (dot program (heap-dump @process)))
 
   "clojure foreign fn call, composed"
   (def f inc)
   (def program (dataflow (f (f 1))))                        ; still no alive signals
   (def process (debug! program))
-  @process := {:state  :terminated
-               :result 3
-               :trace  [{1 1
-                         'f f
-                         '(f 1) 2
-                         '(f (f 1)) 3}]
-               :vars   {}}
+  @process := {:status  :terminated
+               :log  [{[0] inc
+                       [1] 1
+                       [2] 2
+                       [3] 3}]}
+
+  (humanize program (heap-dump @process)) := {1          1
+                                              `f         inc
+                                              `(f 1)     2
+                                              `(f (f 1)) 3}
+  ;; (show! (dot program (heap-dump @process)))
 
   "clojure foreign fn call in response to variability"
   (def !a (atom 1)) (def a (m/watch !a))
   (def f inc)
   (def program (dataflow (f @a)))
   (def process (debug! program))
-  @process := {:state :running
-               :trace [{'a      _
-                        '@a     1
-                        'f      f
-                        '(f @a) 2}]
-               :vars  {'a  _
-                       '@a 1
-                       'f  f
-                       #_#_'(f @a) 2}}                      ; only in the trace! signal is a different color
+  @process := {:status :running
+               :log    [{[0] inc
+                         [1] _
+                         [2] 1
+                         [3] 2}]}
+
+  (humanize program (heap-dump @process)) := {`a      _
+                                              `f      inc
+                                              `@a     1
+                                              `(f @a) 2}
+  ;; (show! (dot program (heap-dump @process)))
 
   "dataflow apply (reactive fn)"
   (def !f (atom +)) (def f (m/watch !f))
   (def !a (atom 1)) (def a (m/watch !a))
   (def program (dataflow (@f @a 2)))                        ; variable function in fncall position
   (def process (debug! program))
-  (reset! !f -)
-  @process := {:state :running
-               :trace [{'f         _
-                        '@f        clojure.core/+
-                        'a         _
-                        '@a        1
-                        2          2
-                        '(@f @a 2) 3}
-                       {'@f        clojure.core/-
-                        '(@f @a 2) -1}]}
+  (def render (differential-dot program))
+  @process := {:status :running
+               :log    [{[0] f
+                         [1] +
+                         [2] 2
+                         [3] a
+                         [4] 1
+                         [5] 3}]}
 
-  "clojure ASTs do not introduce intermediate signals"
+  ;; (show! (render (heap-dump @process)))
+
+  (reset! !f -)
+  @process := {:status :running
+               :log    [{[0] f
+                         [1] +
+                         [2] 2
+                         [3] a
+                         [4] 1
+                         [5] 3}
+                        {[1] -
+                         [5] -1}]}
+
+  ;; (show! (render (heap-dump @process)))
+
+  "Clojure ASTs do introduce intermediate signals"
+  ;; but this may be optimized (by a JIT or a compiler)
+  ;; DAG could be something like `((fn [a b] (+ a (inc b))) @a @b)`
   (def !a (atom 1)) (def a (m/watch !a))
   (def !b (atom 2)) (def b (m/watch !b))
-  (def program (dataflow (+ @a (inc @b))))                  ; does '(inc @b) get a signal?
-  ; Dag is something like this: ((fn [a b] (+ a (inc b))) @a @b)
+  (def program (dataflow (+ @a (inc @b))))
   (def process (debug! program))
+  (def render (differential-dot program))
+  ;; (show! (render (heap-dump @process)))
   (swap! !b inc)
-  @process := {:state :running
-               :trace [{'a               _
-                        '@a              1
-                        'b               _
-                        '@b              2
-                        'inc             clojure.core/inc
-                        '+               clojure.core/+
-                        '(inc @b)        3
-                        '(+ @a (inc @b)) 4}
-                       {'@b 3
-                        '(inc @b)        4
-                        '(+ @a (inc @b)) 5}]}
+  ;; (show! (render (heap-dump @process)))
+  @process := {:status :running
+               :log    [{[0] b,
+                         [1] 2,
+                         [2] inc,
+                         [3] 3,
+                         [4] +,
+                         [5] a,
+                         [6] 1,
+                         [7] 4}
+                        {[1] 3, [3] 4, [7] 5}]}
 
   "does let introduce signals"
   (def !a (atom 1)) (def a (m/watch !a))
@@ -192,35 +206,50 @@
   (def program (dataflow (let [a2 @a
                                b2 @b]
                            (+ a2 (inc b2)))))
+  ;; TODO this program = program above
+  ;; TODO this process log = process log above
   (def process (debug! program))
+  (def render (differential-dot program))
+  ;; (show! (render (heap-dump @process)))
   (swap! !b inc)
-  @process := {:state :running
-               :trace [{'a               _
-                        '@a              1
-                        'b               _
-                        '@b              2
-                        'inc             clojure.core/inc
-                        '+               clojure.core/+
-                        '(inc @b)        3
-                        '(+ @a (inc @b)) 4}
-                       ; let does not allocate
-                       {'@b 3
-                        '(inc @b)        4
-                        '(+ @a (inc @b)) 5}]}
+  ;; (show! (render (heap-dump @process)))
+  @process := {:status :running
+               :log [{[0] b,
+                      [1] 2,
+                      [2] inc,
+                      [3] 3,
+                      [4] +,
+                      [5] a,
+                      [6] 1,
+                      [7] 4}
+                     {[1] 3, [3] 4, [7] 5}]}
 
   "simplest diamond, no let"
   (def !a (atom 1)) (def a (m/watch !a))
-  (def program (dataflow (+ @a @a)))                        ; two @
+  (def program (dataflow (+ (inc @a) (dec @a))))                        ; two @
   (def process (debug! program))
-  @process := {:state :running
-               :trace [{'a         _
-                        '@a        1
-                        '+         clojure.core/+
-                        '(+ @a @a) 2}]}                     ; one signal! reused twice
+  @process ;; => {:status :running, :log []}
+  (show! (dot program (heap-dump @process)))
+  @process := {:status :running
+               :log [{'a         _
+                      '@a        1
+                      '+         clojure.core/+
+                      '(+ @a @a) 2}]}                     ; one signal! reused twice
 
-  ; This test implies the AST (two @) does not match the Viz (one @)
-  ; this happens without an optimizer?
-  ; what is an optimizer?
+  "simplest diamond, no let"
+  ;; This test implies the AST (two (inc @)) does not match the Viz (one (inc @))
+  ;; this happens without an optimizer? Consequence of RT
+  ;; what is an optimizer?
+  (def !a (atom 1)) (def a (m/watch !a))
+  (def program (dataflow (+ (inc @a) (inc @a))))          ; two (inc @)
+  (def process (debug! program))
+  @process ;; => {:status :running, :log []}
+  (show! (dot program (heap-dump @process)))
+  @process := {:status :running
+               :log [{'a         _
+                      '@a        1
+                      '+         clojure.core/+
+                      '(+ @a @a) 2}]}
 
   "same thing with let?"
   (def !a (atom 1)) (def a (m/watch !a))
@@ -228,8 +257,8 @@
                 (let [b @a]
                    (+ b b))))                             ; this is just clojure, 100% foreign call
   (def process (debug! program))
-  @process := {:state :running
-               :trace [{'a         _
+  @process := {:status :running
+               :log [{'a         _
                         '@a        1
                         '+         clojure.core/+
                         '(+ @a @a) 2}]}                     ; let does not introduce signal
@@ -252,8 +281,8 @@
   (def !b (atom 0)) (def b (m/watch !b))
   (def program (dataflow (let [a 1]
                            [a @b])))
-  @process := {:state :running
-               :trace [{1       1
+  @process := {:status :running
+               :log [{1       1
                         'b      _
                         '@b     0
                         '[1 @b] [1 0]}]}
@@ -266,7 +295,7 @@
                   [(let [a 1] a)
                    (let [a 2] a)]))
     (def process (debug! program))
-    @process := {:state :running
+    @process := {:status :running
                  :syms  '{a #{1 2}}
                  :expr  '[1 2]
                  :vars  {'a    _
@@ -283,8 +312,8 @@
                                d (dec b)]
                            (vector c d))))
   (def process (debug! program))
-  @process := {:state :running
-               :trace [{'a                   _
+  @process := {:status :running
+               :log [{'a                   _
                         '@a                  0
                         '(inc @a)            1
                         '(dec @a)            -1
@@ -297,24 +326,53 @@
   (def !c (atom :c)) (def c (m/watch !c))
 
   (def program (dataflow @(if (odd? @a) b c)))
-  ;(def program (dataflow (if (odd? @a) @b @c)))
   (def process (debug! program))
 
+  (def render (differential-dot program))
+
+  ;; (show! (render (heap-dump @process)))
+
+  (humanize program (heap-dump @process))
+  :=
+  {nil                                                    nil,
+   `@a                                                    1,
+   `get                                                   get,
+   `(get (hash-map nil ~'~c false ~'~c) (odd? @a) b)      _,
+   `c                                                     c,
+   `@(get (hash-map nil ~'~c false ~'~c) (odd? @a) ~'~b)  b,
+   `b                                                     b,
+   `~'~b                                                  _,
+   `odd?                                                  odd?,
+   `@@(get (hash-map nil ~'~c false ~'~c) (odd? @a) ~'~b) :b,
+   false                                                  false,
+   `hash-map                                              hash-map,
+   `a                                                     a,
+   `(odd? @a)                                             true,
+   `(hash-map nil ~'~c false ~'~c)                        {nil   _,
+                                                           false _},
+   ~'~c                                                   _}
+
   (swap! !a inc)
-  (reset! !c :c-updated)
-  @process := {:state :running
-               :trace [{'a                  _
-                        '@a                 1
-                        'odd?               clojure.core/odd?
-                        'b                  _
-                        'c                  _
-                        '(odd? @a)          true
-                        '(if (odd? a) b c)  _
-                        '@(if (odd? a) b c) :b}
-                       {'@a                 2
-                        '(odd? @a)          false
-                        '@(if (odd? a) b c) :c}
-                       {'@(if (odd? a) b c) :c-updated}]}
+
+  ;; (show! (render (heap-dump @process)))
+
+  (reset! !c :c-updated2)
+
+  ;; (show! (render (heap-dump @process)))
+
+  ;; @process := {:status :running
+  ;;              :log [{'a                  _
+  ;;                       '@a                 1
+  ;;                       'odd?               clojure.core/odd?
+  ;;                       'b                  _
+  ;;                       'c                  _
+  ;;                       '(odd? @a)          true
+  ;;                       '(if (odd? a) b c)  _
+  ;;                       '@(if (odd? a) b c) :b}
+  ;;                      {'@a                 2
+  ;;                       '(odd? @a)          false
+  ;;                       '@(if (odd? a) b c) :c}
+  ;;                      {'@(if (odd? a) b c) :c-updated}]}
 
   "`case` dispatch statically to one branch"
   (def !a (atom 0)) (def a (m/watch !a))
@@ -328,7 +386,7 @@
                             d)))
   (def process (debug! program))
 
-  @process := {:state :running
+  @process := {:status :running
                :vars  {'a                    _
                        '@a                   0
                        0                     0
@@ -340,17 +398,17 @@
                        '@(case @a 0 b 1 c d) :b}}
 
   (swap! !a inc)
-  @process := {:state :running
+  @process := {:status :running
                :vars  {'a 1
                        '% :c}}
 
   (swap! !a inc)
-  @process := {:state :running
+  @process := {:status :running
                :vars  {'a 2
                        '% :d}}
 
   (reset! !d :d-updated)
-  @process := {:state :running
+  @process := {:status :running
                :vars  {'a 2
                        '% :d-updated}}
 
@@ -360,7 +418,7 @@
   (def program (dataflow (let [[a b] @pair]
                            (vector a b))))
   (def process (debug! program))
-  @process := {:state :running
+  @process := {:status :running
                :vars  {'pair                                  _
                        '@pair                                 [:a 1]
                        '(nth @pair 0 nil)                     :a
@@ -384,27 +442,29 @@
           _3 (m/signal! (m/latest #(nth % 1) _1))]))
 
 
-  "does dataflow compose with missionary"
+  "does dataflow compose with missionary"  ; yes
   (def !a (atom 1)) (def a (m/watch !a))
-  (def program (dataflow (+ @a 2)))        ; not well-typed
+  (def program (dataflow (+ @a 2)))        ; well-typed
   (def process (debug! program))
-  @process := {:state :running
+  @process := {:status :running
                :vars  {'a        _
                        '@a       1
                        '+        +
                        2         2
                        '(+ @a 2) 3}}
 
-  (m/cp (println process))                 ; compose processes?
+  (m/cp (println (m/? program)))                 ; compose processes?
   ;; Defered until we talk about spawn
 
   "Spawn is to dataflow what deref is to flow."
 
   (def !a (atom 1)) (def a (m/watch !a))
-  (def program1 (dataflow @a))
-  (def program2 (dataflow (spawn program1)))
+  (defn program1 [a b] (dataflow (+ @a b)))
+  (def program2 (dataflow [@(program1 a 1) @(program1 a 2)]))
   (def process (debug! program2))
-  @process := {:state :running
+  (show! (dot program2 (heap-dump @process)))
+  (humanize program (heap-dump @process))
+  @process := {:status :running
                :vars  {'program1         {'a _, '@a 1}
                        '(spawn program1) 1}}
 
@@ -413,7 +473,7 @@
   (def program1 (dataflow @a))
   (def program2 (dataflow [(spawn program1) (spawn program1)]))
   (def process (debug! program2))
-  @process := {:state :running
+  @process := {:status :running
                :vars  {'program1                            {'a _, '@a 1}
                        '(spawn program1)                    1
                        '[(spawn program1) (spawn program1)] [1 1]}}
@@ -432,7 +492,7 @@
 
   (def program (dataflow (spawn (inc 1))))
   (def process (debug! program))
-  @process := {:state :running
+  @process := {:status :running
                :vars  {'(inc 1)         {1        1
                                          'inc     inc
                                          '(inc 1) 2}
@@ -442,7 +502,7 @@
   (def plus-one (ifn [x] (inc x)))
   (def program (dataflow ($ plus-one 1)))
   (def process (debug! program))
-  @process := {:state :running
+  @process := {:status :running
                :vars  {1                              1
                        '(extend 1)                    _
                        'plus-one                      plus-one
@@ -456,7 +516,7 @@
   (def minus-one (ifn [x] (dec x)))
   (def program (dataflow ($ minus-one ($ plus-one 1))))
   (def process (debug! program))
-  @process := {:state :running
+  @process := {:status :running
                :vars  {1                                                  1
                        '(extend 1)                                        _
                        'plus-one                                          plus-one
@@ -475,7 +535,7 @@
   (def outer (ifn [x] ($ inner x)))
   (def program (dataflow ($ outer 1)))
   (def process (debug! program))
-  @process := {:state :running
+  @process := {:status :running
                :vars  {1                           1
                        '(extend 1)                 _
                        'inner                      inner
@@ -496,7 +556,7 @@
     (def plus-one (ifn [x] (inc x)) )
     (def program (dataflow (plus-one (extend 1))))
     (def process (debug! program))
-    @process := {:state :running
+    @process := {:status :running
                  :vars  {1                      1
                          '(extend 1)            _
                          'plus-one              plus-one
@@ -509,9 +569,9 @@
   "deref after unquote is identity"
   (def program (dataflow (deref (unquote 1))))
   (def process (debug! program))
-  @process := {:state :running
-               :vars  {1                  1
-                       '(unquote 1)        _
+  @process := {:status :running
+               :vars  {1                    1
+                       '(unquote 1)         _
                        '(deref (unquote 1)) 1}}
 
   "unquote after deref is identity"
@@ -520,7 +580,7 @@
 
   (def program (dataflow (unquote (deref (unquote 1)))))
   (def process (debug! program))
-  @process := {:state :running
+  @process := {:status :running
                :vars  {1                              1
                        '(unquote 1)                   ?a
                        '(deref (unquote 1))           1
@@ -548,7 +608,7 @@
     (def !a (atom [1 2 3])) (def a (m/watch !a))
     (def program (dataflow (rfor [x identity @a] (inc x))))
     (def process (debug! program))
-    @process := {:state :running
+    @process := {:status :running
                  :vars  {'a                    _
                          'identity             identity
                          '(mystère identity a) [_ _ _]
@@ -576,7 +636,7 @@
   ;;'(vector (fib @a) (fib @a))
   ;
   ;(def process (debug! program))
-  ;@process := {:state :running
+  ;@process := {:status :running
   ;             :heap  {'a 0                                 ; inputs appear in the heap
   ;                     'b 0
   ;                     'c _
