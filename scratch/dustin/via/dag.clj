@@ -1,17 +1,10 @@
 (ns dustin.via.dag
+  "dataflow"
   (:require
-    [dustin.via.free :refer [Interpreter interpret interpret-1 eval-id]]
-    [clojure.walk :refer [postwalk]]
+    [dustin.via.free :refer [Interpreter interpret interpret-1 eval-id
+                             fapply join pure bind if2]]
     [minitest :refer [tests]]
     [missionary.core :as m]))
-
-(tests
-  "identity monad, managed effect"
-  (interpret eval-id
-    {'boom! (fn [x & args] (println 'boom!) x)}
-    (inc @(boom!. @(inc 1))))
-  ; boom!
-  := 3)
 
 (defn call [f & args] (apply f args))
 
@@ -86,17 +79,16 @@
     (fn [_#] (println :process :finished))
     (fn [e#] (println :process :crashed e#))))
 
+(defn println! [!result x]
+  (m/ap (swap! !result conj (with-out-str (print x)))))
+
 (tests
   "managed incremental eval"
-
+  (def !result (atom []))
   (def !x (atom 0))
   (def x (m/watch !x))
 
-  (def !result (atom []))
-  (defn println! [x & args]
-    (m/ap (swap! !result conj (with-out-str (print x)))))
-
-  (run-incr {'println println!}
+  (run-incr {'println (partial println! !result)}
     (println. @(+ @(inc @x) 100)))
 
   (swap! !x inc)
@@ -104,43 +96,36 @@
   @!result := ["101" "102" "103"])
 
 (tests
+  (def !result (atom []))
   (def !x (atom 0)) (def x (m/watch !x))
   (def !c (atom :odd)) (def c (m/watch !c))
   (def !d (atom :even)) (def d (m/watch !d))
-
-  (def !result (atom []))
-  (defn println! [x & args]
-    (m/ap (swap! !result conj x)))
 
   (defn foo [x]
     (if (odd? x)
       (interpret eval-incr effects (identity @c))
       (interpret eval-incr effects (identity @d))))
 
-  (run-incr {'println println!
+  (run-incr {'println (partial println! !result)
              'foo foo}
     (println. @(foo. @x)))
 
   (swap! !x inc)
   (swap! !x inc)
-  @!result := [:even :odd :even])
+  @!result := [":even" ":odd" ":even"])
+
+(defn log! [!result x] (m/ap (swap! !result conj x)))
 
 (tests
   "if"
+  (def !result (atom []))
   (def !x (atom 0)) (def x (m/watch !x))
   (def !c (atom :odd)) (def c (m/watch !c))
   (def !d (atom :even)) (def d (m/watch !d))
 
-  (def !result (atom []))
-  (defn println! [x & args]
-    (m/ap (swap! !result conj x)))
-
-  (defn if2 [test >x >y]
-    (if test >x >y))
-
-  (run-incr {'println println!
-             'if if2}
-    (println.
+  (run-incr {'log (partial log! !result)
+             'if  if2}
+    (log.
       @(if. @(odd? @x)
          (identity @c)
          (identity @d))))
@@ -149,3 +134,23 @@
   (swap! !x inc)
   @!result := [:even :odd :even])
 
+; foreach2 :: Flow List a -> (a -> Flow b) -> Flow Flow List b
+;(defn foreach2 [>xs eff] (m/ap (foreach (m/?! >xs) eff)))
+
+;(tests
+;  "foreach"
+;  (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
+;  (def xs (m/watch !xs))
+;
+;  (def !result (atom []))
+;  (run-incr {'println (partial println! !result)
+;             'foreach foreach}
+;    (foreach. @xs println.)
+;    (foreach. @xs (fn [x] (println. x)))
+;    (for [x @xs] (inc x))                                   ; for macro lifts result
+;    (for [>x @xs] (inc @>x))
+;    )
+;
+;  (swap! !x inc)
+;  (swap! !x inc)
+;  @!result := [:even :odd :even])
