@@ -456,203 +456,121 @@
   (m/cp (println (m/? program)))                 ; compose processes?
   ;; Defered until we talk about spawn
 
-  "Spawn is to dataflow what deref is to flow."
 
+  "dataflow composes like flow"
   (def !a (atom 1)) (def a (m/watch !a))
+
+
   (defn program1 [a b] (dataflow (+ @a b)))
   (def program2 (dataflow [@(program1 a 1) @(program1 a 2)]))
+
+  ; main goal of compiler phase in the IL is to free the interpreter from macroexpansion
+  ; which requires a full clojure evaluator. We don't want to require the client to have
+  ; full eval capabilities (too expensive).
+
   (def process (debug! program2))
   (show! (dot program2 (heap-dump @process)))
-  (humanize program (heap-dump @process))
+  (humanize program2 (heap-dump @process))
   @process := {:status :running
-               :vars  {'program1         {'a _, '@a 1}
-                       '(spawn program1) 1}}
+               :log    [{
+                         ;nil                 2,       ; ?
+                         1                   1,
+                         2                   2,
+                         'a                  a
 
-  "Spawning twice is allowed by RT"
+                         'program1           program1
+
+                         '(program1 a 1)     {'a  a
+                                              '@a 1
+                                              '+  +
+                                              1   1}
+                         '@(program1 a 1)    2,
+
+                         '(program1 a 2)     {'a  a
+                                              '@a 1
+                                              '+  +
+                                              2   2}
+                         '@(program1 a 2)    3,
+
+                         'vector             vector
+                         '(vector
+                            @(program1 a 1)
+                            @(program1 a 2)) [2 3]}]}
+
+  "Like flows, dataflows are RT and run once when linked twice"
   (def !a (atom 1)) (def a (m/watch !a))
   (def program1 (dataflow @a))
-  (def program2 (dataflow [(spawn program1) (spawn program1)]))
+  (def program2 (dataflow [@program1 @program1]))
   (def process (debug! program2))
   @process := {:status :running
-               :vars  {'program1                            {'a _, '@a 1}
-                       '(spawn program1)                    1
-                       '[(spawn program1) (spawn program1)] [1 1]}}
+               :log    [{'program1              {'a a '@a 1}
+                         '@program1             1
+                         '[@program1 @program1] [1 1]}]}
 
-  ;; (ifn [x] (inc x)) ;; => (fn [>x] (dataflow (let [x @>x] (inc x))))
-  ;; (ifn [x] (inc x)) ;; => (fn [>x] (dataflow (inc @x)))
-
-  ;; (dataflow ((fn [>x] (inc @>x)) (extend 1)))
-
-  ;; (declare plus-one)
-  ;; ($ plus-one 1)    ;; => (spawn (plus-one (extend 1)))
-
-
-  ;; |> extend
-  ;; <| deref
-
-  (def program (dataflow (spawn (inc 1))))
+  "X"
+  (def program (dataflow @(dataflow (str 1))))
   (def process (debug! program))
+  ;(select-keys (:log @process) []) :=
   @process := {:status :running
-               :vars  {'(inc 1)         {1        1
-                                         'inc     inc
-                                         '(inc 1) 2}
-                       '(spawn (inc 1)) 2}}
+               :log    [{'(dataflow (str 1))  {1        1   ; [4 0 0]
+                                               'str     str ; [4 0 1
+                                               '(str 1) "1"} ; [4 0 2]
+                         '@(dataflow (str 1)) "1"}]}        ; [4]
 
   "Ifn"
-  (def plus-one (ifn [x] (inc x)))
-  (def program (dataflow ($ plus-one 1)))
+  (def plus-one (fn [x] (dataflow (inc @x))))
+  (def program (dataflow @(plus-one ~1)))
   (def process (debug! program))
   @process := {:status :running
-               :vars  {1                              1
-                       '(extend 1)                    _
-                       'plus-one                      plus-one
-                       '(plus-one (extend 1))         {'x        _
-                                                       '@x       1
-                                                       '(inc @x) 2}
-                       '(spawn (plus-one (extend 1))) 2}}
+               :log    {1               1                   ; [0]
+                        ~1              _                   ; [1]
+                        'plus-one       plus-one            ; [2]
+                        '(plus-one ~1)  _                   ; [3]
+                        '@(plus-one ~1) 2                   ; [4]
+                        _               {'inc      _        ; [4 0 0] -- compiled inc
+                                         'x        _        ; [4 0 1]
+                                         '@x       1        ; [4 0 2]
+                                         '(inc @x) 2        ; [4 0 3]
+                                         }}}
 
   "Composed ifn calls"
-  (def plus-one (ifn [x] (inc x)))
-  (def minus-one (ifn [x] (dec x)))
-  (def program (dataflow ($ minus-one ($ plus-one 1))))
+  (def plus-one (fn [x] (dataflow (inc @x))))
+  (def minus-one (fn [x] (dataflow (dec @x))))
+  (def program (dataflow @(minus-one (plus-one ~1))))
   (def process (debug! program))
   @process := {:status :running
-               :vars  {1                                                  1
-                       '(extend 1)                                        _
-                       'plus-one                                          plus-one
-                       'minus-one                                         minus-one
-                       '(plus-one (extend 1))                             {'x        _
-                                                                           '@x       1
-                                                                           '(inc @x) 2}
-                       '(spawn (plus-one (extend 1)))                     2
-                       '(minus-one (spawn (plus-one (extend 1))))         {'x        _
-                                                                           '@x       2
-                                                                           '(dec @x) 1}
-                       '(spawn (minus-one (spawn (plus-one (extend 1))))) 1}}
-
-  "Nested ifn calls"
-  (def inner (ifn [x] (inc x)))
-  (def outer (ifn [x] ($ inner x)))
-  (def program (dataflow ($ outer 1)))
-  (def process (debug! program))
-  @process := {:status :running
-               :vars  {1                           1
-                       '(extend 1)                 _
-                       'inner                      inner
-                       'outer                      outer
-                       '(outer (extend 1))         {'x                          _
-                                                    '@x                         1
-                                                    '(inner (extend @x))        {'x        _
-                                                                                 '@x       1
-                                                                                 '(inc @x) 2}
-                                                    '(spawn (inner (extend 1))) 2}
-                       '(spawn (outer (extend 1))) 2}}
-
-  ; What are the requirements of debug?
-
-  (comment
-    ;; TODO: Preserve last heap dump when terminating. GC the heap, just keep the last snapshot.
-    "Don't use spawn"
-    (def plus-one (ifn [x] (inc x)) )
-    (def program (dataflow (plus-one (extend 1))))
-    (def process (debug! program))
-    @process := {:status :running
-                 :vars  {1                      1
-                         '(extend 1)            _
-                         'plus-one              plus-one
-                         '(plus-one (extend 1)) '[[:local _ #_#function[dustin.lang-leo/eval26418/fn--26419/fn--26420]]
-                                                  [:global hfdl.lang/<|]
-                                                  [:local _ #_#function[hfdl.impl.runtime/pure/fn--16995]]
-                                                  [:apply 1 [2]]
-                                                  [:apply 0 [3]]]}})
+               :log    [{1                           1      ; [1]
+                         ~1                          _      ; [1]
+                         'plus-one                   plus-one ; [2]
+                         '(plus-one ~1)              ?ZZ    ; [3] -- dataflow
+                         'minus-one                  minus-one ; [4]
+                         '(minus-one (plus-one ~1))  _      ; [5] -- dataflow
+                         '@(minus-one (plus-one ~1)) {'dec      _ ; [6 0 0]
+                                                      'x        ?ZZ ; [6 0 1]
+                                                      '@x       {'inc      _ ; [6 0 2 0 0]
+                                                                 'x        _ ; [6 0 2 0 1]
+                                                                 '@x       1 ; [6 0 2 0 2]
+                                                                 '(inc @x) 2} ; [6 0 2 0 3]
+                                                      '(dec @x) 1} ; [6 0 3]
+                         '@(minus-one (plus-one ~1)) 1}]}   ; [6]
 
   "deref after unquote is identity"
-  (def program (dataflow (deref (unquote 1))))
+  (def program (dataflow @~1))
   (def process (debug! program))
-  @process := {:status :running
-               :vars  {1                    1
-                       '(unquote 1)         _
-                       '(deref (unquote 1)) 1}}
+  @process := {:status :terminated
+               :logs   [{1    1
+                         '~1  _
+                         '@~1 1}]}
 
   "unquote after deref is identity"
   ;; This test can't pass without an optimization phase canceling out join after
   ;; extend or extend after join.
 
-  (def program (dataflow (unquote (deref (unquote 1)))))
+  (def program (dataflow ~(deref ~1)))                      ; careful ~@ is unquote-splice
   (def process (debug! program))
   @process := {:status :running
-               :vars  {1                              1
-                       '(unquote 1)                   ?a
-                       '(deref (unquote 1))           1
-                       '(unquote (deref (unquote 1))) ?a}}
-
-  ;; The purpose of debug is to get a technically accurate description of the
-  ;; state of the system. It could be used as an input to a viz or for test
-  ;; cases. Test cases would catch a change in the memory representation. It's
-  ;; better for it to be accurate then pretty.
-  ;; L: Keys could be integers + source maps.
-  ;; D: Symbols are accurate, it's fine to use them. Integers makes
-  ;;    it hard to understand the test case.
-
-
-  extend-seq :: (a -> k) -> Flow [a] -> Flow [a]
-  reactive-for :: (Flow a -> Dataflow b) -> (a -> k) -> Flow [a] -> Dataflow [b]
-
-  (macroexpand-1 '(rfor [x identity @xs] (inc x)))
-  := (dataflow (sequence (map (fn [>x] (spawn (dataflow (inc @>x))) (extend-seq identity >xs)))))
-
-  ;; Heap
-
-  (comment ;; WIP, don't rely on it.
-    "Reactive for"
-    (def !a (atom [1 2 3])) (def a (m/watch !a))
-    (def program (dataflow (rfor [x identity @a] (inc x))))
-    (def process (debug! program))
-    @process := {:status :running
-                 :vars  {'a                    _
-                         'identity             identity
-                         '(mystère identity a) [_ _ _]
-                         '(fn [>x] (dataflow (inc @>x)))}}
-    )
-
-
-  ;
-  ;:= ((fn [a] (vector (inc a) (dec a))) @a)
-  ;
-  ;(let [b (inc a)
-  ;      c (inc a)
-  ;      d (inc a)]
-  ;  )
-  ;
-  ;(fn ^:ifn [a :! Flow]
-  ;  (let [a! (m/signal 'a (inc a))
-  ;        b! (m/signal 'b (inc b))
-  ;        c! (m/signal 'c (inc c))]
-  ;    ...))
-  ;
-  ;;(let [% (inc (inc (inc a)))] ...)
-  ;
-  ;;'(let [x (fib @a)] (vector x x))
-  ;;'(vector (fib @a) (fib @a))
-  ;
-  ;(def process (debug! program))
-  ;@process := {:status :running
-  ;             :heap  {'a 0                                 ; inputs appear in the heap
-  ;                     'b 0
-  ;                     'c _
-  ;                     'd _
-  ;                     '% [1 -1]}}
-  ;; Leo likes this test case, no promises. Keys of the heap should be technical IDs and binding in separate slot
-  ;; what's a binding? The names of the let
-  ;
-  ;(-> @process :heap count) := 5                            ; Leo thinks this is OK
-
-  ; Leo insight triggered by "inputs appear in heap":
-  ; Deref in process returns snapshot of variable state ..maybe the bindings with
-  ; the original AST could be exposed with dedicated methods of the process type
-  ; ...the point is it's not mutable so it doesn't have to be in deref but it should be exposed anyways
-  ; ... its useful debug info ... how do I know that a given slot frame matches a specific point in the AST
-
-  ; what is effect fusion
-  ; JIT detects two signals can be one
+               :log    [{1            1
+                         '~1          ?a
+                         '@~1         1
+                         '~(deref ~1) ?a}]}
   )
