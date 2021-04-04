@@ -148,11 +148,10 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
 (defn foreach [f input]
   (m/ap (m/? (f (m/?? input)))))
 
-(defn slot-changes [frames]
+(defn slot-changes [slots]
   (m/ap
-    (let [[path ar] (m/?= frames)
-          i (m/?= (m/enumerate (range (alength ar))))]
-      {(conj path i) (m/?? (aget ar i))})))
+    (let [[path slot] (m/?= (m/enumerate (m/?= slots)))]
+      {path (m/?? slot)})))
 
 (defn debug! [dataflow]
   (let [state (AtomicReference. {:status :running :log []})
@@ -186,8 +185,15 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
                      nil (.get watches))))]
     (set! (.-val reactor)
       ((m/reactor
-         (->> (fn [!] (frame! (comp ! vector) [] (:graph dataflow)) nop)
+         (->> (fn [!] (frame! (fn [path frame]
+                                (! (into {}
+                                     (map (juxt
+                                            (partial conj path)
+                                            (partial aget frame)))
+                                     (range (alength frame)))))
+                        [] (:graph dataflow)) nop)
            (m/observe)
+           (m/relieve merge)
            (slot-changes)
            (m/relieve merge)
            (m/stream!)
