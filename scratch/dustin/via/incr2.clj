@@ -1,8 +1,8 @@
-(ns dustin.via.dag
-  "dataflow"
+(ns dustin.via.incr2
+  "dataflow monad"
   (:require
-    [dustin.via.free :refer [Interpreter interpret interpret-1 eval-id
-                             fapply join pure bind if2]]
+    [dustin.via.free3 :refer [Interpreter interpret interpret-1 eval-id
+                              fapply join pure bind if2]]
     [minitest :refer [tests]]
     [missionary.core :as m]))
 
