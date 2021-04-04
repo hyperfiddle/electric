@@ -74,22 +74,24 @@
   [program heap]
   (let [decompiled (decompile program)]
     (reduce-kv (fn [r k v]
-                 (if (instance? Dataflow v)
-                   r ; skip Dataflow instances
-                   (let [[type & args] (get-in (:graph program) k)
-                         source-form   (get-in decompiled k)]
-                     (case type
-                       :variable (let [k⁻¹ [(first args)]
-                                       v⁻¹ (get heap k⁻¹)]
-                                   (if (instance? Dataflow v⁻¹)
-                                     (let [r' (->> (focus heap k)
-                                                   (reduce-kv (fn [r fork-id nested-heap] (assoc r fork-id (humanize v⁻¹ nested-heap)))
-                                                              {})
-                                                   (assoc r (get-in decompiled k⁻¹)))]
-                                       (assoc r' source-form v))
-                                     (assoc r source-form v)))
-                       (assoc r source-form v))
-                     )))
+                 (let [source-form (get-in decompiled k)]
+                   (if (instance? Dataflow v)
+                     (if-not (contains? r source-form)
+                       (assoc r source-form v) ; will be overwritten later if variable
+                       r)
+                     (let [[type & args] (get-in (:graph program) k)
+                           source-form   (get-in decompiled k)]
+                       (case type
+                         :variable (let [k⁻¹ [(first args)]
+                                         v⁻¹ (get heap k⁻¹)]
+                                     (if (instance? Dataflow v⁻¹)
+                                       (let [r' (->> (focus heap k)
+                                                     (reduce-kv (fn [r fork-id nested-heap] (assoc r fork-id (humanize v⁻¹ nested-heap)))
+                                                                {})
+                                                     (assoc r (get-in decompiled k⁻¹)))]
+                                         (assoc r' source-form v))
+                                       (assoc r source-form v)))
+                         (assoc r source-form v))))))
                {}
                (top-frame heap))))
 
@@ -151,18 +153,56 @@
           [2 0 2 0 3] "0"}
 
  (def humanized (humanize program heap))
- (def expected {`child                  {0 {`grandchild                    {0 {`a        a
-                                                                               `@a       0
+ (def expected {`vector                 vector,
+                `child                  {0 {`str                           str
+                                            `grandchild                    {0 {`a        a,
+                                                                               `@a       0,
                                                                                `str      str
-                                                                               `(str @a) "0"}}
-                                            `@grandchild                   "0"
-                                            `str                           str
-                                            `(str @grandchild @grandchild) "00"
-                                            }}
+                                                                               `(str @a) "0",}},
+                                            `@grandchild                   "0",
+                                            `(str @grandchild @grandchild) "00"}},
                 `@child                 "00"
-                `vector                 vector
                 `(vector @child @child) ["00" "00"]})
  humanized := expected
  (diff humanized expected) := [nil nil expected] ; convenient to diagnose
+ )
+
+(tests ; manually merging streams
+ (def !a (atom 0))
+ (def a (m/watch !a))
+ (def grandchild (dataflow (str @a)))
+ (def child (dataflow (str @grandchild)))
+ (def program (dataflow @(m/latest vector child grandchild)))
+ (def process (debug! program))
+
+ (def heap (heap-dump @process))
+
+ heap := {[0]         vector,
+          [1]         _ ;grandchild. Minitest error => Can't create empty: Dataflow
+          [2]         _ ;child.      Minitest error => Can't create empty: Dataflow
+          [3]         m/latest,
+          [4]         _
+          [5]         ["0" "0"]
+          [5 0 0]     str,
+          [5 0 1]     _ ;grandchild. Minitest error => Can't create empty: Dataflow
+          [5 0 2]     "0",
+          [5 0 3]     "0",
+          [5 1 0]     a
+          [5 1 1]     0
+          [5 1 2]     str
+          [5 1 3]     "0"
+          [5 0 2 0 0] a
+          [5 0 2 0 1] 0
+          [5 0 2 0 2] str
+          [5 0 2 0 3] "0"}
+
+ (def humanized (humanize program heap))
+
+ humanized := {`child                               _ ;child.      Minitest error => Can't create empty: Dataflow
+               `grandchild                          _ ;grandchild. Minitest error => Can't create empty: Dataflow
+               `vector                              vector
+               `m/latest                            m/latest
+               `(m/latest vector child grandchild)  _
+               `@(m/latest vector child grandchild) ["0" "0"]}
  )
 
