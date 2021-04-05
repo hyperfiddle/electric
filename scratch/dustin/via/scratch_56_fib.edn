@@ -1,0 +1,66 @@
+
+(tests
+  "nested frames"
+
+  (def !p (atom 0))
+  (def !q (atom 0))
+  (def !control (atom :p))
+  (def >p (m/watch !p))
+  (def >q (m/watch !q))
+  (def >control (m/watch !control))
+
+  (defn if! [control >x >y] (m/ap (if control ~>x ~>y)))
+
+  (defn foo [control]
+    (interpret eval-flow {}
+      (case control :p >p :q >q)))
+
+  (run-incr {'println println! 'foo foo}
+    (println. (vector ~(foo. ~>control) ~>p ~>q)))
+
+  )
+
+(defn fib [x]                                             ; something slow
+  (m/!)
+  (cond
+    ;(Thread/interrupted) (throw (ex-info {}))
+    (= x 0) 1
+    (= x 1) 1
+    () (+ (fib (dec x))
+         (fib (dec (dec x))))))
+
+(comment
+  (map fib (range 10)) := '(1 1 2 3 5 8 13 21 34 55)
+  (time (fib 37))
+  ; "Elapsed time: 1283.496526 msecs"
+  := 39088169
+
+  (time (do (fib 37) (fib 37)))
+  ; "Elapsed time: 2509.133151 msecs"
+  := 39088169)
+
+(let [e (java.util.concurrent.Executors/newSingleThreadExecutor)]
+  (defn fib! [n]
+    ; via turns a blocking op into an async op via an executor
+    ; cpu is a fixed threadpool bound to number of cpus available
+    (m/via e #_m/cpu
+      (println 'fib!)
+      (fib n))))
+
+(comment
+  (time (m/? (m/timeout 2000 (fib! 37))))
+  ; "Elapsed time: 1472.227089 msecs"
+  := 39088169)
+
+(tests
+  "fib in parallel"
+  (def !x (atom 0))
+  (def x (m/watch !x))
+  (def !result (atom []))
+
+  (run-incr {'println println! 'fib fib!}
+    (println. ~(fib. 37) ~(fib. 37)))
+
+  (swap! !x inc)
+  (swap! !x inc)
+  @!z := 103)
