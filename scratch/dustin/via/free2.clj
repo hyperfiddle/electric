@@ -99,23 +99,3 @@
 ;(defn entity [xs kf k]
 ;  (let [index (map-by kf xs)]
 ;    (m/signal! k (index k))))
-
-(comment
-
-  (defn render-table [xs]
-    `@(div. @(h1. "title")
-        @(table.
-           @(span. ! ~(count xs))
-           @(tr. ! @(email. @(entity. ~xs :id 100)))
-           @(tr. ! @(email. @(entity. ~xs :id 101))))))
-
-  xs := [100 101]
-  db := {100 {'render-table {:id 100 :name "alice"}}
-         101 {'render-table {:id 101 :name "bob"}}}
-
-  (defn render-table [xs]
-    `@(div. @(h1. "title")
-        @(table.
-           @(span. ~(count xs))
-           @(tr. @(email. @(entity. ~db :id 100)))
-           @(tr. @(email. @(entity. ~db :id 101)))))))

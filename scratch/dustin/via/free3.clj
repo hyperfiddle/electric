@@ -1,202 +1,162 @@
 (ns dustin.via.free3
   "reverse polarity, no .
-Effects are resolved from separate namespace?"
+Effects are resolved from separate namespace? Nah"
   (:require
     [clojure.walk :refer [postwalk]]
-    [meander.epsilon :as m]
+    [meander.epsilon :refer [match]]
     [meander.strategy.epsilon :as r]
-    [minitest :refer [tests]]))
-
-; The Free Monad is an abstract DAG which is evaluated for effect
-; by providing at runtime an interpreter for it.
-;
-; (@f. @a @b 3)
-; @ marks wrapped values
-; . marks join nodes
-
-(defn bind-symbol? [s]
-  (and (symbol? s)
-    (= \. (last (name s)))))
-
-(tests
-  (bind-symbol? 'foo.) := true
-  (bind-symbol? 'foo) := false
-  (bind-symbol? []) := false
-  (bind-symbol? 1) := false)
-
-(defn form? [x]
-  (and (seq? x) ; yep, i bet you're surprised
-    (not (empty? x))))
+    [minitest :refer [tests]]
+    [missionary.core :as m]))
 
 (defprotocol Interpreter
-  (apply-id [_ as])
+  ;(apply-id [_ as])
   (fapply [_ ms])
   (join [_ mma])
-  (pure [_ c]))
+  (pure [_ c])
+  (inject [M form])                                    ; inject
+  (run [M ast])                                             ; traverse?
+  (boot [M ast resolve! reject!] [M ast]))
 
-(def eval-id
-  (reify Interpreter
-    (apply-id [_ as] (apply (first as) (rest as)))
-    (fapply [_ ms] (apply (first ms) (rest ms)))
-    (join [_ mma] mma)
-    (pure [_ c] c)))
+(defn resolve' [M env x]
+  {:post [(doto % (assert "unresolved symbol"))]}
+  (assert (symbol? x) (str "resolve error, x: " (pr-str x) " is not a symbol"))
+  (if (contains? env x)
+    (pure M (env x)) (some-> (resolve x) deref)))
+
+(defn lift-and-resolve [M effects x] #_(println 'lift-and-resolve x)
+  (match x
+    ('quote ?a) (pure M (lift-and-resolve M effects ?a))
+    'quote      x
+    ?a          (if (symbol? ?a) (resolve' M effects ?a) ?a)))
+
+(deftype Eval-id [effects]
+  Interpreter
+  (fapply [_ ms] (apply (first ms) (rest ms)))
+  (join [_ mma] mma)
+  (pure [_ c] c)
+  (inject [M x] (println 'inject x)
+    (match x
+      (`deref ?x) (join M ?x)
+      (!xs ...) (let [mas (map #(lift-and-resolve M effects %) !xs)
+                      mmb (fapply M mas)] (join M mmb))
+      _ x))
+
+  (run [M ast] (postwalk #(inject M %) ast))
+
+  (boot [M ast resolve! reject!]
+    ((m/reactor (run M ast)) resolve! reject!))
+
+  (boot [M ast] (boot M ast #(println ::finished %) #(println ::crashed %))))
+
+(def m-id (new Eval-id {}))
 
 (tests
   "Identity monad"
-  (fapply eval-id [inc 1]) := 2
-  (fapply eval-id [+ 1 2]) := 3
-  (apply-id eval-id [inc 1]) := 2
-  (apply-id eval-id [+ 1 2]) := 3
-  (join eval-id 1) := 1
-  (pure eval-id 1) := 1)
-
-(defn my-resolve [effects s]
-  {:post [%]}             ; unresolved effect
-  (if (bind-symbol? s)
-    (effects (symbol (apply str (butlast (name s)))))       ; managed
-    (some-> (resolve s) deref)))                            ; foreign
+  (fapply m-id [inc 1]) := 2
+  (fapply m-id [+ 1 2]) := 3
+  (join m-id 1) := 1
+  (pure m-id 1) := 1)
 
 (tests
   (def x 42)
   (def effects {'println (fn [& args] (println '! `(println ~@args)))})
-  (my-resolve {} 'inc) := inc
-  (my-resolve {} 'x) := 42
-  (try (my-resolve {} 'undef) (catch AssertionError _ :crash)) := :crash
-  (my-resolve {} 'println) := clojure.core/println
-  (try (my-resolve {} 'println.) (catch AssertionError _ :crash)) := :crash
-  (my-resolve effects 'println.) := (effects 'println))
 
-(defn lift-and-resolve [interpreter effects x]
-  ; @f. -> (deref f.)
-  ; x is like 'a or '(clojure.core/deref a)
-  (m/match x
-    (`deref ?a) (if (symbol? ?a) (my-resolve effects ?a) ?a)
-    ?a (pure interpreter (if (symbol? ?a) (my-resolve effects ?a) ?a))))
+  (tests "resolve"
+    (resolve' {} 'inc) := inc
+    (resolve' {} 'x) := 42
+    (try (resolve' {} 'undef) (catch AssertionError _ :crash)) := :crash
+    (resolve' {} 'println) := clojure.core/println)
 
-(tests
-  (lift-and-resolve eval-id effects '@println.) := (effects 'println)
-  (lift-and-resolve eval-id effects 'println.) := (effects 'println)
-  (lift-and-resolve eval-id effects '@println) := println   ; foreign
-  (lift-and-resolve eval-id effects '1) := 1
-  (lift-and-resolve eval-id effects '@1) := 1
-  (lift-and-resolve eval-id effects 1) := 1                 ; fyi
+  (tests "lift-and-resolve"
+    (lift-and-resolve m-id {} 'println) := println
+    (lift-and-resolve m-id {} ''println) := (pure m-id println)
+    (lift-and-resolve m-id {} '1) := 1
+    (lift-and-resolve m-id {} ''1) := (pure m-id 1)
+    (lift-and-resolve m-id {} 1) := 1)                         ; fyi
+
+  (tests
+    (inject m-id '(inc x)) := 43
+    (inject m-id '(inc 'x)) := 43
+    ;(inject m-id '(@inc @x)) := 43
+    ;(inject m-id '(inc. @x)) := 41
+    ;(inject m-id '(@println. @x)) := nil
+    (try (inject m-id '(undef x)) (catch Throwable _ :crash)) := :crash)
+
+  (tests
+    "smoke screen"
+    (inject m-id x) := 42
+    (inject m-id 'x) := 'x                             ; delayed eval
+    (inject m-id '(inc x)) := 43
+    (inject m-id '(inc x)) := 43
+    ;(inject m-id '(@inc @x)) := 43
+    ;(inject m-id '(@inc. @x)) := 41
+    (inject m-id '(inc 1)) := 2
+    (inject m-id '1) := 1)
+
+  (tests
+    "Watch out! Symbols are resolved during application!"
+    (inject m-id 'x) := 'x #_42         ; !!!         ; values resolved in place
+    (inject m-id 'inc) := 'inc          ; effect not resolved yet
+    (inject m-id 'println) := 'println)
+
+  (tests
+    "Symbols resolved during application"
+    (inject m-id '(inc x)) := 43
+    (inject m-id '(inc 1)) := 2
+    (inject m-id '(println x)) := nil   ; foreign side effect, not kosher
+    ; 42 -- side effects aren't intercepted
+    )
+
+  ;(tests
+  ;  "apply"
+  ;  (inject m-id '(inc @1)) := 2
+  ;  (inject m-id '(@inc @1)) := 2
+  ;  (inject m-id '(@inc 1)) := 2
+  ;  (inject m-id '(+ @1 @2)) := 3
+  ;  (inject m-id '(+ @1 2)) := 3
+  ;  (inject m-id '(@+ @1 2)) := 3
+  ;  (inject m-id '(@+ 1 @2)) := 3
+  ;  (try (inject m-id '(@X @1 2)) (catch Throwable _ :crash)) := :crash)
+
+  ;(tests
+  ;  "effects"
+  ;  (inject m-id '(println 1)) := nil
+  ;  ; 1 -- unmanaged
+  ;  (inject m-id '(println 1 2)) := nil
+  ;  ; 1 2 -- unmanaged
+  ;  (inject m-id '(println 1)) := nil
+  ;  ; (clojure.core 1)                               ; supervised effect
+  ;  )
+
+  ;(tests
+  ;  "clojure interop"
+  ;  (defn g [x y] (let [a x b a] (+ y b 100)))
+  ;  (inject m-id '(@g @1 2)) := 103                           ; not clojure
+  ;  (try (inject m-id '(let [] (@g @1 2))) (catch Throwable _ :UnsupportedOperation)) := :UnsupportedOperation
+  ;  ; -- Wrong number of args (2) passed to: clojure.core/let
+  ;  ; Can this be fixed with tools.analyser?
+  ;  )
+
+  ;(tests
+  ;  "AST traversals"
+  ;  (postwalk #(doto % println) '(println. @1)) := '(println. (clojure.core/deref 1))
+  ;  (postwalk #(inject m-id %) '(println. @1))
+  ;  ;! (clojure.core/println 1)
+  ;  := nil
+  ;  (postwalk #(inject m-id %) '(println. @(+ (inc 1) (inc 2))))
+  ;  ;! (clojure.core/println 5)
+  ;  := nil
+  ;  (postwalk #(inject m-id %) '(pr-str @(println. @(inc 1))))
+  ;  ;! (clojure.core/println 2)
+  ;  := "nil")
   )
 
-; form is a quoted apply node, like '(@f. a @b 1)
-; resolve symbols during apply
-; either resolve the effect or resolve the foreign fn
-
-(defn bind-form? [x]
-  (m/match x
-    ((`deref (m/pred bind-symbol? ?s)) & _) true
-    ((m/pred bind-symbol? ?s) & _) true
-    _ false))
-
 (tests
-  (bind-form? '(f x)) := false
-  (bind-form? '(f. x)) := true
-  (bind-form? '(@f x)) := false
-  (bind-form? '(@f. x)) := true)
-
-(defn run-apply [interpreter effects [f & args :as form]]
-  ;(println 'run-apply form)
-  (let [mas (cons (lift-and-resolve interpreter effects f)
-              (map #(lift-and-resolve interpreter {} %) args)) ; args are not effects
-        ;_ (println 'run-apply-mas mas)
-        mb (fapply interpreter mas)]
-    (if (bind-form? form) (join interpreter mb) mb)))
-
-(tests
-  (run-apply eval-id {} '(inc x)) := 43
-  (run-apply eval-id {} '(inc @x)) := 43
-  (run-apply eval-id {} '(@inc @x)) := 43
-  (run-apply eval-id {'inc dec} '(inc. @x)) := 41
-  (run-apply eval-id {'println println} '(@println. @x)) := nil
-  (try (run-apply eval-id {'inc inc} '(undef. @x)) (catch Throwable _ :crash)) := :crash)
-
-(defn interpret-1 [interpreter effects x]
-  ;(println 'interpret-1 x)
-  (m/match x
-
-    (`deref ?x) x ; leave in place to be interpreted during application
-
-    (!xs ...) (run-apply interpreter effects x)
-
-    _ x))
-
-(tests
-  "smoke screen"
-  (interpret-1 eval-id {} 'x) := 'x                         ; delayed eval
-  (interpret-1 eval-id {} '(inc x)) := 43
-  (interpret-1 eval-id {} '(inc @x)) := 43
-  (interpret-1 eval-id {} '(@inc @x)) := 43
-  (interpret-1 eval-id {'inc dec} '(@inc. @x)) := 41
-  (interpret-1 eval-id {} '(inc 1)) := 2)
-
-(tests
-  ;(defn env [k] (get {'x 42} k k #_@(resolve k)))           ;
-  ; symbols are foreign?
-
-  (interpret-1 eval-id effects '1) := 1
-
-  "Watch out! Symbols are resolved during application!"
-  (interpret-1 eval-id effects 'x) := 'x #_42         ; !!!         ; values resolved in place
-  (interpret-1 eval-id effects 'inc) := 'inc          ; effect not resolved yet
-  (interpret-1 eval-id effects 'println) := 'println
-
-  "Symbols resolved during application"
-  (interpret-1 eval-id effects '(inc x)) := 43
-  (interpret-1 eval-id effects '(inc 1)) := 2
-  (interpret-1 eval-id effects '(println x)) := nil   ; foreign side effect, not kosher
-  ; 42 -- side effects aren't intercepted
-
-  "apply"
-  (interpret-1 eval-id effects '(inc @1)) := 2
-  (interpret-1 eval-id effects '(@inc @1)) := 2
-  (interpret-1 eval-id effects '(@inc 1)) := 2
-  (interpret-1 eval-id effects '(+ @1 @2)) := 3
-  (interpret-1 eval-id effects '(+ @1 2)) := 3
-  (interpret-1 eval-id effects '(@+ @1 2)) := 3
-  (interpret-1 eval-id effects '(@+ 1 @2)) := 3
-  (try (interpret-1 eval-id effects '(@X @1 2)) (catch Throwable _ :crash)) := :crash
-
-  "effects"
-  (interpret-1 eval-id effects '(println @1)) := nil
-  ; 1 -- unmanaged
-  (interpret-1 eval-id effects '(println @1 2)) := nil
-  ; 1 2 -- unmanaged
-  (interpret-1 eval-id effects '(println. @1)) := nil
-  ; (clojure.core/println 1)                               ; supervised effect
-
-  "clojure interop"
-  (defn g [x y] (let [a x b a] (+ y b 100)))
-  (interpret-1 eval-id effects '(@g @1 2)) := 103                           ; not clojure
-  (try (interpret-1 eval-id effects '(let [] (@g @1 2))) (catch Throwable _ :UnsupportedOperation)) := :UnsupportedOperation
-  ; -- Wrong number of args (2) passed to: clojure.core/let
-  ; Can this be fixed with tools.analyser?
-
-  "AST traversals"
-  (postwalk #(doto % println) '(println. @1)) := '(println. (clojure.core/deref 1))
-  (postwalk #(interpret-1 eval-id effects %) '(println. @1))
-  ;! (clojure.core/println 1)
-  := nil
-  (postwalk #(interpret-1 eval-id effects %) '(println. @(+ (inc 1) (inc 2))))
-  ;! (clojure.core/println 5)
-  := nil
-  (postwalk #(interpret-1 eval-id effects %) '(pr-str @(println. @(inc 1))))
-  ;! (clojure.core/println 2)
-  := "nil")
-
-(defmacro interpret [interpreter effects ast]
-  `(postwalk (partial interpret-1 ~interpreter ~effects)
-     (quote ~ast)))
-
-(tests
-  (interpret eval-id {} (inc x)) := 43
-  (interpret eval-id {} (inc 1)) := 2
-  (interpret eval-id {} (@inc @(inc @x))) := 44
-  (interpret eval-id effects (println. @1)) := nil
-  (interpret eval-id effects (pr-str @(println. @(inc 1)))) := "nil")
+  (run m-id `~(inc x)) := 43
+  (run m-id `~(inc 1)) := 2
+  (run m-id (inc (inc x))) := 44
+  (run m-id `(println ~1)) := nil
+  (run m-id `(pr-str (println (inc 1)))) := "nil")
 
 ; Special forms and utilities for special forms
 ; (do not call from userland)

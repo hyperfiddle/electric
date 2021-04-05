@@ -31,3 +31,12 @@
     {& [[?x [!ys ...]] & (m/cata ?more)]})
 
   )
+
+(comment
+  (def x `('z))
+  (m/match x
+    (quote ?s) :a
+    ('quote ?s) :b
+    ('quote & _ ) :bs
+    _ :z)
+  )

@@ -1,118 +1,130 @@
 (ns dustin.via.incr2
   "dataflow monad"
   (:require
-    [dustin.via.free3 :refer [Interpreter interpret interpret-1 eval-id
-                              fapply join pure bind if2]]
+    [clojure.walk :refer [postwalk]]
+    [dustin.via.free3 :as free :refer [fapply join pure inject run boot bind if2
+                                       lift-and-resolve]]
+    [meander.epsilon :refer [match]]
+    [meander.strategy.epsilon :as r]
     [minitest :refer [tests]]
     [missionary.core :as m]))
 
-(defn call [f & args] (apply f args))
+(defn Eval-incr [effects]
+  (reify
+    free/Interpreter
+    (fapply [M ms] #_(println 'fapply ms)
+      (m/signal! (apply m/latest #(apply % %&) ms)))
+    (join [M mma] #_(println 'join mma)
+      (m/signal! (m/relieve {} (m/ap (m/?! (run M (m/?! mma)))))))
+    (pure [M c] (m/ap c))
+    (inject [M x] (println 'inject x)
+      (match x
+        (`deref ?x) (join M ?x)
+        ('quote _) x
+        (!xs ...) (let [mas (doall (map #(lift-and-resolve M effects %) !xs))
+                        mmb (fapply M mas)] (join M mmb))
+        _ x))
 
-(def eval-flow
-  (reify Interpreter
-    (fapply [_ ms] (apply m/latest call ms))
-    (join [_ mma] (m/relieve {} (m/ap (m/?! (m/?! mma)))))
-    (pure [_ c] (m/ap c))))
+    (run [M ast] #_(println 'run ast)
+      (postwalk #(inject M %) ast))
 
-(tests
-  "flow apply"
-  (def !x (atom 0))
-  (def x (m/watch !x))
-  (def z (interpret-1 eval-flow {} '(inc @x)))
-  (def !z (z #(println :ready) #(println :done)))
-  (swap! !x inc)
-  (swap! !x inc)
-  ;ready
-  @!z := 3)
+    (boot [M ast resolve! reject!]
+      ((m/reactor (run M ast)) resolve! reject!))
 
-(tests
-  "flow eval"
-  (def !x (atom 0))
-  (def x (m/watch !x))
-  (def z (interpret eval-flow {}
-           (inc @x)))
-  (def !z (z #(println :ready) #(println :done)))
-  (swap! !x inc)
-  (swap! !x inc)
-  ;ready
-  @!z := 3)
+    (boot [M ast]
+      (boot M ast #(println ::finished %) #(println ::crashed %)))))
+
+(defn println! [!result x] #_(println 'println! !result x)
+  `~(m/ap (swap! !result conj (with-out-str (print x)))))
 
 (tests
-  "flow composition"
-  (def !x (atom 0))
-  (def x (m/watch !x))
-  (def z (interpret eval-flow {}
-           (+ @(inc @x) 1)))
-  (def !z (z #(println :ready) #(println :done)))
-  ;ready
-  (swap! !x inc)
-  (swap! !x inc)
-  @!z := 4)
+  (tests
+    (def M (Eval-incr {}))
+    (def c 42)
+    (pure M c) := _
+    (lift-and-resolve M {} `'1)
+    (lift-and-resolve M {} `'c)
+    (lift-and-resolve M {} `~c) := 42                       ; resolved in clojure
+    (lift-and-resolve M {} `c) := 42                        ; resolved by flow
+    (lift-and-resolve M {} `'c) := _                        ; (pure M 42)
 
-(def effects {'boom! (fn [x & args]
-                       (m/ap
-                         #_(m/? (m/sleep 1000))
-                         (println 'boom!)
-                         x))})
+    (free/resolve' M {'x 11} 'x) := _                       ; pure
+    )
 
-(tests
-  "flow hello world"
-  (def !x (atom 0))
-  (def x (m/watch !x))
-  (def z (interpret eval-flow effects
-           (+ @(boom!. @(inc @x)) 100)))
-  (def !z (z #(println :ready) #(println :done)))
-  ;ready
-  (swap! !x inc)
-  (swap! !x inc)
-  @!z := 103)
+  (tests
+    "flow apply"
+    (def !result (atom []))
+    (def !x (atom 0)) (def x (m/watch !x))
+    (def eff (partial println! !result))
+    (boot M `('eff x))
+    (swap! !x inc)
+    @!result := ["0" "1"])
 
-(def eval-incr
-  (reify Interpreter
-    (fapply [_ ms] (m/signal! (apply m/latest call ms)))
-    (join [_ mma] (m/signal! (m/relieve {} (m/ap (m/?! (m/?! mma))))))
-    (pure [_ c] (m/ap c))))
+  (tests
+    "flow eval not sure what actually"
+    (def !result (atom []))
+    (def !x (atom 0)) (def x (m/watch !x))
+    (boot (Eval-incr {`eff (partial println! !result)})
+      `(eff x))
+    (swap! !x inc)
+    @!result := ["0" "1"])
 
-(defmacro run-incr [effects ast]
-  `((m/reactor
-      (interpret eval-incr ~effects ~ast))
-    (fn [_#] (println :process :finished))
-    (fn [e#] (println :process :crashed e#))))
+  ; Do effects need to be resolved at runtime?
+  ; they can be fixed
+  ; it's a lang for user effects tho
 
-(defn println! [!result x]
-  (m/ap (swap! !result conj (with-out-str (print x)))))
+  (tests
+    "flow composition"
+    (def !z (atom []))
+    (def !x (atom 0)) (def x (m/watch !x))
+    (boot (Eval-incr {`println (partial println! !z)
+                      `+       #(m/ap (+ % %2))})
+      `(println (+ ~(m/ap (inc (m/?! x))) '100)))
+    (swap! !x inc)
+    @!z := ["101" "102"])
 
-(tests
-  "managed incremental eval"
-  (def !result (atom []))
-  (def !x (atom 0))
-  (def x (m/watch !x))
+  (tests
+    "flow composition"
+    (def !z (atom []))
+    (def !x (atom 0)) (def x (m/watch !x))
+    (boot (Eval-incr {`println (partial println! !z)
+                      `slow!   #(m/ap #_(m/? (m/sleep 1000)) %)}) ; don't sample too soon in tests
+      `(println (slow! x)))
+    (swap! !x inc)
+    @!z := ["0" "1"])
 
-  (run-incr {'println (partial println! !result)}
-    (println. @(+ @(inc @x) 100)))
+  (tests
+    "effect composition"
+    (def !z (atom []))
+    (def !x (atom 0)) (def x (m/watch !x))
 
-  (swap! !x inc)
-  (swap! !x inc)
-  @!result := ["101" "102" "103"])
+    (defn pr [x] (println! !z x))
+    (defn slow! [x] (m/ap (m/? (m/sleep 100)) x))
+    (defn bro [x1]
+      ; even odd even - should work
+      `('slow! ~x1))
 
-(tests
-  (def !result (atom []))
-  (def !x (atom 0)) (def x (m/watch !x))
-  (def !c (atom :odd)) (def c (m/watch !c))
-  (def !d (atom :even)) (def d (m/watch !d))
+    (boot (Eval-incr {})
+      `('pr ('bro x)))                                      ; not working ?
 
-  (defn foo [x]
-    (if (odd? x)
-      (interpret eval-incr effects (identity @c))
-      (interpret eval-incr effects (identity @d))))
+    (swap! !x inc)
+    @!z := ["0" "1"])
 
-  (run-incr {'println (partial println! !result)
-             'foo foo}
-    (println. @(foo. @x)))
+  #_(tests
+    "composition"
+    (def !z (atom []))
+    (def !x (atom 0)) (def x (m/watch !x))
+    (def !c (atom :odd)) (def c (m/watch !c))
+    (def !d (atom :even)) (def d (m/watch !d))
 
-  (swap! !x inc)
-  (swap! !x inc)
-  @!result := [":even" ":odd" ":even"])
+    (boot (Eval-incr {})
+      `(println ('foo x)))
+
+    (swap! !x inc)
+    (swap! !x inc)
+    @!z := [":even" ":odd" ":even"])
+
+  )
 
 (defn log! [!result x] (m/ap (swap! !result conj x)))
 
@@ -123,12 +135,51 @@
   (def !c (atom :odd)) (def c (m/watch !c))
   (def !d (atom :even)) (def d (m/watch !d))
 
-  (run-incr {'log (partial log! !result)
-             'if  if2}
-    (log.
-      @(if. @(odd? @x)
-         (identity @c)
-         (identity @d))))
+  (boot (Eval-incr {`log (partial log! !result)
+                    `if  if2})
+    `(log
+       (if ~(m/ap (odd? (m/?! x)))
+         'c 'd)))
+
+  (swap! !x inc)
+  (swap! !x inc)
+  @!result := [:even :odd :even])
+
+(tests
+  "if take 2"
+  (do
+    (def !result (atom []))
+    (def !x (atom 0)) (def x (m/watch !x))
+    (def !c (atom :odd)) (def c (m/watch !c))
+    (def !d (atom :even)) (def d (m/watch !d)))
+
+  (defn odd?2 [x] (m/ap (odd? x)))
+
+  (boot (Eval-incr {`log (partial log! !result)
+                    `if  if2})
+    `(log (if ('odd?2 x)
+            'c 'd)))
+
+  (swap! !x inc)
+  (swap! !x inc)
+  @!result := [:even :odd :even])
+
+(defn lift [f]
+  (m/ap
+    (fn [& args]
+      (m/ap (apply f args)))))
+
+(tests
+  "if take 3"
+  (do
+    (def !result (atom []))
+    (def !x (atom 0)) (def x (m/watch !x))
+    (def !c (atom :odd)) (def c (m/watch !c))
+    (def !d (atom :even)) (def d (m/watch !d)))
+
+  (boot (Eval-incr {`log (partial log! !result)
+                    `if  if2})
+    `(log (if (~(lift odd?) x) 'c 'd)))
 
   (swap! !x inc)
   (swap! !x inc)

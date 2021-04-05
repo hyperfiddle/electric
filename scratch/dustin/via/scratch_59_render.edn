@@ -1,0 +1,153 @@
+(defmethod hf/render-fiddle `display-district [_ ctx props]
+  #?(:cljs
+     [:div.container-fluid props
+      [:h1 "District: " (:district/name (hf/data ctx))]
+      (let [ctx-schools (hypercrud.browser.context/attribute ctx :district/schools)
+            v (hf/data ctx-schools)]
+        [:<>
+         [:h1 "Schools in this district"]
+         (for [[k ctx-school] (hypercrud.browser.context/spread-rows ctx-schools)]
+           ^{:key k} [hyperfiddle.ui/form (hf/data ctx-school) ctx-school props]
+           )])]))
+
+
+
+
+(defn Foo [xs]
+  (for [[k x] (spread-rows xs)]
+    ^{:key k} [form x props]))
+
+(defn spread-rows [xs]
+  (map (fn [x]
+         [(:db/id x) x]) xs))
+
+(defn Foo [xs]
+  (for [[k x] (spread-rows xs)]
+    ^{:key k} `(form ~x ~props)))
+
+(defn Form [x]
+  ^{:key x} [:div x])
+
+(defn Foo [xs]
+  (for [x xs] `(Form ~x ~props)))
+
+(let [[_ x] (spread-row x)]
+  `(form ~x ~props))
+
+(tests
+  (def !result (atom []))
+  (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
+  (def xs (m/watch !xs))
+
+  (run-incr {foreach foreach}
+
+    #_
+    (for [[k x] (spread-rows xs)]
+      ^{:key k} `(form ~x ~props))
+
+    (foreach. @xs println.)
+    ))
+
+
+
+
+(comment
+
+  (defn render-table [xs]
+    `@(div. @(h1. "title")
+        @(table.
+           @(span. ! ~(count xs))
+           @(tr. ! @(email. @(entity. ~xs :id 100)))
+           @(tr. ! @(email. @(entity. ~xs :id 101))))))
+
+  xs := [100 101]
+  db := {100 {'render-table {:id 100 :name "alice"}}
+         101 {'render-table {:id 101 :name "bob"}}}
+
+  (defn render-table [xs]
+    `@(div. @(h1. "title")
+        @(table.
+           @(span. ~(count xs))
+           @(tr. @(email. @(entity. ~db :id 100)))
+           @(tr. @(email. @(entity. ~db :id 101)))))))
+
+(comment
+  "reverse polarity, no .
+  Effects are resolved from separate namespace?"
+
+  ; diffing should happen as close to the database as possible
+  ; so more of the system can be incremental
+  ; thus the diffing is inside d/entity-incr
+  ; trace/transfer lets us embed database queries in the views, removing accidental transformations
+  ;   (log -> entity -> record -> tr)
+  ;   (log -> entity -> tr)
+
+  ; Bind the UI directly to the database
+
+  ; literals are lifted
+  (defn render-table [xs]
+    `(div {:key 0} (h1 ~"title")
+       (table {:key 0}
+         (span {:key 0} ~(count xs))
+         (for [[x y] xs] {:key [[100 101] 0 0]}
+           (tr ! [(:user/email (d/entity-incr >db :id x))
+                  (:user/email (d/entity-incr >db :id y))])))))
+
+  `(render-table ~[100 101])
+
+  (def subscription (m/signal! (d/entity >db :id x)))
+
+
+  `(render-table ~[{:id 100 :name "alice"} {:id 101 :name "bob"}])
+
+
+  (defn render-table [xs]
+    `(div {:key 0} (h1 ~"title")
+       (table {:key 0}
+         (span {:key 0} ~(count xs))
+         (for [x :id xs] (tr (email x))))))
+
+
+  [:tr (:user/email (d/entity $ 101))]
+
+  [:tr (:user/email (d/pull [:user/email :db/id ... :user/name] 101))]
+
+
+  (defn query-incr []
+    (ap (diff (d/q))))
+
+  (defn entity-incr [>db k]
+    (m/signal! k
+      (ap (diff (d/entity (m/?! >db) k)))))
+
+
+
+
+
+
+  `(span ~x)
+
+  ; join args at apply, or join result after apply?
+  ; At apply. Quote to cancel it. fn returns MB and the next node
+  ; will sample.
+
+  (defn http [a]
+    `~(m/ap a))
+
+  `(println (http ~""))
+
+  `(if2 true '(http ~"") 'b)                                 ; extend
+  ; if if is a special form, could be automatic
+  ; like macros
+
+  `(for [x xs] (http ~""))
+  `(foreach xs ~(fn [x] `(http ~"")))
+
+  `(span x)
+  `(span 'x)
+  `(div (h1 ~"title")
+     (table (span ~(count xs))))
+
+
+
+  )

@@ -1,0 +1,24 @@
+(defn render-table [xs]
+  `(div {:key 0} (h1 ~"title")
+     (table {:key 0}
+       (span {:key 0} ~(count xs))
+       (for [x :id xs] (tr (email x))))))
+
+(defn render-table [xs]
+  `(div {:key 0} (h1 ~"title")
+     (table {:key 0}
+       (span {:key 0} ~(let [] (count xs)))
+       (for [x xs] (tr (email x))))))
+
+(defn render-table-reagent [xs]
+  [div {:key 0} (h1 "title")
+   [table {:key 0}
+    [span {:key 0} [let [{:keys []} x] [count @xs]]]
+    [for [x xs]
+     [tr {:class (if (odd? x) "bg-red")} [email x]]]]])
+
+(defn render-table [xs]
+  (if (odd? (first @xs))
+    (let [z @xs]
+      (dataflow))))
+

@@ -1,0 +1,52 @@
+
+
+; foreach :: List a -> (a -> m b) -> m List b
+(defn foreach [xs eff] (sequence (map eff xs)))
+
+; foreach2 :: m List a -> (a -> m b) -> m List b
+(defn foreach2 [>xs eff]
+  (let [kf ...
+        >m (m/transform (map (juxt kf identity)) >xs)]
+    (imap eff >m)))
+
+; traverse :: (Applicative m, Traversable t) => t a -> (a -> m b) -> m t b
+
+(defn foreach [M list-a eff]
+  (let [list-m-a (extend-seq M kf list-a)
+        m-list-m-b (map #(fmap M % eff) list-m-a)
+        list-m-b (join m-list-m-b)
+        m-list-b (sequence M list-m-b)]
+    m-list-b))
+
+(defn foreach [M list-a eff]
+  (let [list-m-a (extend-seq M kf list-a)
+        list-m-b (map #(bind M % eff) list-m-a)
+        m-list-b (sequence M list-m-b)]
+    m-list-b))
+
+(defn println! [!result x]
+  (m/signal! (identity x) (m/ap (swap! !result conj (with-out-str (print x))))))
+
+(tests
+  "foreach, Dustin's way"
+  (def !result (atom []))
+  (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
+  (def xs (m/watch !xs))
+
+  (run-incr {#_#_'println  (partial println! !result)
+             'foreach  foreach
+             'foreach2 foreach2}
+
+    (defn println! [a]                              ; a -> m b
+      (m/signal! (identity a) (http! a))
+      #_(m/signal! (m/ap (swap! !result conj (with-out-str (print x)))))
+      )
+
+    (foreach. @xs println.)
+    (foreach2. xs println.)
+    (traverse. @xs (stabilize :db/id println.))
+
+    (defn stabilize [kf eff]
+      (fn [x]
+        {(kf x) (m/signal! (eff x))}))
+    ))
