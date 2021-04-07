@@ -1,7 +1,10 @@
 (ns hfdl.impl.compiler
   (:require [cljs.analyzer.api :as cljs]
             [clojure.set :as set]
+            [clojure.tools.analyzer :as ana]
+            [clojure.tools.analyzer.env :as env]
             [clojure.tools.analyzer.jvm :as clj]
+            [clojure.tools.analyzer.utils :as utils]
             [minitest :refer [tests]]
             [missionary.core :as m])
   (:import clojure.lang.Compiler$LocalBinding
@@ -31,6 +34,32 @@
                          (throw (ex-info "Unable to find dafaflow context"
                                   {:dataflow d}))))))))
 
+;; GG: This is a copy/paste from `clojure.tools.analyser.jvm/macroexpand-1`, without inlining.
+(defn macroexpand-1'
+  "If form represents a macro form,returns its expansion, else returns form."
+  ([form] (macroexpand-1' form (clj/empty-env)))
+  ([form env]
+   (env/ensure (clj/global-env)
+               (cond
+                 (seq? form)    (let [[op & _args] form]
+                                  (if (clj/specials op)
+                                    form
+                                    (let [v      (utils/resolve-sym op env)
+                                          m      (meta v)
+                                          local? (-> env :locals (get op))
+                                          macro? (and (not local?) (:macro m)) ;; locals shadow macros
+                                          ]
+                                      (if macro?
+                                        (let [res (apply v form (:locals env) (rest form))] ; (m &form &env & args)
+                                          (when-not (clj/ns-safe-macro v)
+                                            (clj/update-ns-map!))
+                                          (if (utils/obj? res)
+                                            (vary-meta res merge (meta form))
+                                            res))
+                                        (clj/desugar-host-expr form env)))))
+                 (symbol? form) (clj/desugar-symbol form env)
+                 :else          form))))
+
 (def analyze-clj
   (let [scope-bindings
         (partial reduce-kv
@@ -48,10 +77,11 @@
       (if (:js-globals env)
         (cljs/analyze env form)
         (binding [clj/run-passes clj/scheduled-default-passes]
-          (->> env
-            (scope-bindings)
-            (update (clj/empty-env) :locals merge)
-            (clj/analyze form)))))))
+          (clj/analyze form
+                       (->> env
+                            (scope-bindings)
+                            (update (clj/empty-env) :locals merge))
+                       {:bindings {#'ana/macroexpand-1 macroexpand-1'}}))))))
 
 (defn special [ast]
   (when (= :var (:op ast))
@@ -296,7 +326,8 @@
     [:apply 1 [0]]]
    2))
 
-(tests
+;; Inlining is disabled for now
+#_(tests
  "Invoke inlined function"
  (dataflow {} `(inc 1))
  :=
