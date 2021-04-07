@@ -1,8 +1,4 @@
 (ns hfdl.sourcemap
-  (:require [clojure.data :refer [diff]]
-            [hfdl.lang :refer [dataflow debug! heap-dump]]
-            [minitest :refer [tests]]
-            [missionary.core :as m])
   (:import (hfdl.impl.compiler Dataflow)))
 
 (defn decompile [program]
@@ -16,7 +12,13 @@
           []
           (:graph program)))
 
-(tests
+#_(tests
+ (require '[hfdl.lang :refer [dataflow debug! heap-dump]]
+          '[clojure.data :refer [diff]]
+          '[minitest :refer [tests]]
+          '[missionary.core :as m]))
+
+#_(tests
  (defmacro recover [ast]
    `(decompile (dataflow ~ast)))
 
@@ -36,7 +38,7 @@
        (filter (fn [[_idx form']] (= form form'))) ; .indexOf
        (ffirst)))
 
-(tests
+#_(tests
  (declare a f)
  (def program (dataflow (f (str a) (str a))))
 
@@ -68,6 +70,8 @@
 
 (defn top-frame [heap]
   (into {} (filter (fn [[k _v]] (= 1 (count k))) heap)))
+
+(declare humanize)
 
 (defn- humanize* [intermediate-lang decompiled heap]
   (reduce-kv (fn [r k v]
@@ -101,7 +105,7 @@
   ([program heap]
    (humanize* (:graph program) (decompile program) heap)))
 
-(tests
+#_(tests
  (def !a (atom 0))
  (def a (m/watch !a))
  (def plus-1 inc) ; prevent inlining
@@ -136,7 +140,7 @@
  (diff humanized expected) := [nil nil expected] ; useful to diagnose inlining
  )
 
-(tests ; nested frames
+#_(tests ; nested frames
  (def !a (atom 0))
  (def a (m/watch !a))
  (def grandchild (dataflow (str @a)))
@@ -173,7 +177,7 @@
  (diff humanized expected) := [nil nil expected] ; convenient to diagnose
  )
 
-(tests ; manually merging streams
+#_(tests ; manually merging streams
  (def !a (atom 0))
  (def a (m/watch !a))
  (def grandchild (dataflow (str @a)))
