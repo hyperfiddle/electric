@@ -1,6 +1,7 @@
 (ns hfdl.impl.runtime
   (:require [missionary.core :as m]
-            [hfdl.impl.compiler :refer [with-ctx]])
+            [hfdl.impl.compiler :refer [with-ctx]]
+            [hfdl.sourcemap :as sm])
   (:import (java.util.concurrent.atomic AtomicInteger AtomicReference)
            (clojure.lang IFn IDeref IRef Box)))
 
@@ -153,7 +154,7 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
     (let [[path slot] (m/?= (m/enumerate (m/?= slots)))]
       {path (m/?? slot)})))
 
-(defn debug! [dataflow]
+(defn debug! [dataflow {:keys [:source-mapped] :or {source-mapped false}}]
   (let [state (AtomicReference. {:status :running :log []})
         watches (AtomicReference. {})
         reactor (Box. nil)
@@ -182,7 +183,8 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
                        y (apply f x args)]
                    (.set state y)
                    (reduce-kv (fn [_ k cb] (cb k public x y))
-                     nil (.get watches))))]
+                     nil (.get watches))))
+        humanizef (sm/humanize dataflow)]
     (set! (.-val reactor)
       ((m/reactor
          (->> (fn [!] (frame! (fn [path frame]
@@ -197,7 +199,7 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
            (slot-changes)
            (m/relieve merge)
            (m/stream!)
-           (foreach #(m/sp (event! update :log conj %)))
+           (foreach #(m/sp (event! update :log conj (if source-mapped (humanizef %) %))))
            (m/stream!)))
        (fn [_] (event! assoc :status :terminated))
        (fn [e] (event! assoc :status :crashed :error e))))

@@ -7,9 +7,17 @@
   [& body]
   (c/dataflow &env (cons `do body)))
 
+(defn dbg! ;; Follow the pr/print and  prn/println clojure.core idiom.
+  "Runs given dataflow program in debug mode and returns a process instance.
+  `dbg!` is for machines, use `debug!` for a human-friendly representation."
+  ([program]      (dbg! program {}))
+  ([program opts] (r/debug! program opts)))
+
 (defn debug!
-  "Runs given dataflow program in debug mode and returns a process instance."
-  [program] (r/debug! program))
+  "Runs given dataflow program in debug mode and returns a human-readable process
+  instance."
+  [program]
+  (dbg! program {:source-mapped true}))
 
 (defn heap-dump [process]
   (reduce merge (:log process)))
