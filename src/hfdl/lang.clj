@@ -20,7 +20,7 @@
   (dbg! program {:source-mapped true}))
 
 (defn heap-dump [process]
-  (reduce merge (:log process)))
+  (reduce merge (map meta (:log process))))
 
 (comment
   (require '[missionary.core :as m])
