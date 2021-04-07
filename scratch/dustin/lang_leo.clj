@@ -32,7 +32,8 @@
   (:require [hfdl.lang :refer [dataflow debug! heap-dump] :as hfdl]
             [minitest :refer [tests]]
             [missionary.core :as m]
-            [hfdl.viz :refer [show! dot differential-dot]]))
+            [hfdl.viz :refer [show! dot differential-dot]]
+            [clojure.data :refer [diff]]))
 
 ;; TODO indicate ::free in the log
 
@@ -64,7 +65,7 @@
  (def program (dataflow @a))                               ; clojure interop with a HFDL variable
  (def process (debug! program))
  @process := {:status :running ; maintain result forever
-              :log    [{`a a, `@a 1}]}                        ; @ introduced a signal
+              :log    [{`a a, `@a 1}]}                     ; @ introduced a signal
  ;; (show! (dot program (heap-dump @process)))
 
  "maintain result in response to variable changes"
@@ -103,13 +104,12 @@
 
 (tests
  "clojure foreign fn call"
- (def f inc)
- (def program (dataflow (f 1)))
+ (def program (dataflow (inc 1)))
  (def process (debug! program))
  @process := {:status :terminated ; terminate because there are no alive signals
-              :log    [{`f     inc
-                        1      1
-                        `(f 1) 2}]}
+              :log    [{`inc     inc
+                        1        1
+                        `(inc 1) 2}]}
 
  ;; (show! (dot program))
  ;; (show! (dot program (heap-dump @process)))
@@ -117,14 +117,13 @@
 
 (tests
  "clojure foreign fn call, composed"
- (def f inc)
- (def program (dataflow (f (f 1))))                        ; still no alive signals
+ (def program (dataflow (inc (inc 1)))) ; still no alive signals
  (def process (debug! program))
  @process := {:status :terminated
-              :log    [{1          1
-                        `f         inc
-                        `(f 1)     2
-                        `(f (f 1)) 3}]}
+              :log    [{1              1
+                        `inc           inc
+                        `(inc 1)       2
+                        `(inc (inc 1)) 3}]}
 
  ;; (show! (dot program (heap-dump @process)))
  )
@@ -132,14 +131,13 @@
 (tests
  "clojure foreign fn call in response to variability"
  (def !a (atom 1)) (def a (m/watch !a))
- (def f inc)
- (def program (dataflow (f @a)))
+ (def program (dataflow (inc @a)))
  (def process (debug! program))
  @process := {:status :running
               :log    [{`a      a
-                        `f      inc
+                        `inc      inc
                         `@a     1
-                        `(f @a) 2}]}
+                        `(inc @a) 2}]}
 
  ;; (show! (dot program (heap-dump @process)))
  )
@@ -245,7 +243,7 @@
                         `inc                   inc
                         `(inc @a)              2
                         `+                     +
-                        '(+ (inc @a) (dec @a)) 2}]})                     ; one signal! reused twice
+                        `(+ (inc @a) (dec @a)) 2}]})                     ; one signal! reused twice
 
 (tests
  "same thing with let?"
@@ -303,23 +301,23 @@
  @process
  :=
  {:status :running
-  :log    [{nil                                                    nil,
-            `@a                                                    1,
-            `get                                                   get,
-            `(get (hash-map nil ~'~c false ~'~c) (odd? @a) b)      _,
-            `c                                                     c,
-            `@(get (hash-map nil ~'~c false ~'~c) (odd? @a) ~'~b)  b,
-            `b                                                     b,
-            `~'~b                                                  _,
-            `odd?                                                  odd?,
-            `@@(get (hash-map nil ~'~c false ~'~c) (odd? @a) ~'~b) :b,
-            false                                                  false,
-            `hash-map                                              hash-map,
-            `a                                                     a,
-            `(odd? @a)                                             true,
-            `(hash-map nil ~'~c false ~'~c)                        {nil   _,
-                                                                    false _},
-            ~'~c                                                   _}]}
+  :log    [{nil                                                                         nil,
+            `@a                                                                         1,
+            `get                                                                        get,
+            `(get (hash-map nil (unquote c) false (unquote c)) (odd? @a) (unquote b))   _,
+            `c                                                                          c,
+            `@(get (hash-map nil (unquote c) false (unquote c)) (odd? @a) (unquote b))  b,
+            `b                                                                          b,
+            `(unquote b)                                                                _,
+            `odd?                                                                       odd?,
+            `@@(get (hash-map nil (unquote c) false (unquote c)) (odd? @a) (unquote b)) :b,
+            false                                                                       false,
+            `hash-map                                                                   hash-map,
+            `a                                                                          a,
+            `(odd? @a)                                                                  true,
+            `(hash-map nil (unquote c) false (unquote c))                               {nil   _,
+                                                                                         false _},
+            `(unquote c)                                                                _}]}
 
  (swap! !a inc)
  @process
@@ -328,9 +326,9 @@
   :log    [_
            {`@a                                                    2
             `(odd? @a)                                             false
-            `(get (hash-map nil ~'~c false ~'~c) (odd? @a) b)      _
-            `@(get (hash-map nil ~'~c false ~'~c) (odd? @a) ~'~b)  c
-            `@@(get (hash-map nil ~'~c false ~'~c) (odd? @a) ~'~b) :c}]}
+            `(get (hash-map nil (unquote c) false (unquote c)) (odd? @a) (unquote b))   _
+            `@(get (hash-map nil (unquote c) false (unquote c)) (odd? @a) (unquote b))  c
+            `@@(get (hash-map nil (unquote c) false (unquote c)) (odd? @a) (unquote b)) :c}]}
 
  ;; (show! (render (heap-dump @process)))
 
@@ -341,7 +339,7 @@
  {:status :running
   :log    [_
            _
-           {`@@(get (hash-map nil ~'~c false ~'~c) (odd? @a) ~'~b) :c-updated2}]})
+           {`@@(get (hash-map nil (unquote c) false (unquote c)) (odd? @a) (unquote b)) :c-updated2}]})
 
 ;; (show! (render (heap-dump @process)))
 
@@ -411,14 +409,16 @@
                           (vector a b))))
  (def process (debug! program))
  @process := {:status :running
-              :vars   {`pair                                         pair
-                       `@pair                                        [:a 1]
-                       nil                                           nil
-                       0                                             0
-                       1                                             1
-                       `(nth @pair 0 nil)                            :a
-                       '(nth @pair 1 nil)                            1
-                       '(vector (nth @pair 0 nil) (nth @pair 1 nil)) [:a 1]}})
+              :log [{nil                                           nil
+                     0                                             0
+                     1                                             1
+                     `vector                                       vector
+                     `nth                                          nth
+                     `pair                                         pair
+                     `@pair                                        [:a 1]
+                     `(nth @pair 0 nil)                            :a
+                     `(nth @pair 1 nil)                            1
+                     `(vector (nth @pair 0 nil) (nth @pair 1 nil)) [:a 1]}]})
 
 (comment
   ;; A destructuring example, for record
@@ -442,11 +442,11 @@
  (def program (dataflow (+ @a 2)))        ; well-typed
  (def process (debug! program))
  @process := {:status :running
-              :vars   {'a        _
-                       '@a       1
-                       '+        +
-                       2         2
-                       '(+ @a 2) 3}})
+              :log [{`a        a
+                     `@a       1
+                     `+        +
+                     2         2
+                     `(+ @a 2) 3}]})
 
 ;; (m/cp (println (m/? program)))                 ; compose processes?
 ;; TODO Defered until we talk about spawn
@@ -470,16 +470,16 @@
                         `a                                        a
                         `program1                                 program1
                         `vector                                   vector
-                        `(program1 a 1)                           {0 {1         1
-                                                                      `a        a
-                                                                      `@a       1
-                                                                      `+        +
-                                                                      `(+ @a 1) 2}}
-                        `(program1 a 2)                           {0 {2         2
-                                                                      `a        a
-                                                                      `@a       1
-                                                                      `+        +
-                                                                      `(+ @a 2) 3
+                        `(program1 a 1)                           {0 {1          1
+                                                                      a          a
+                                                                      `@~a       1
+                                                                      `+         +
+                                                                      `(+ @~a 1) 2}}
+                        `(program1 a 2)                           {0 {2          2
+                                                                      a          a
+                                                                      `@~a       1
+                                                                      `+         +
+                                                                      `(+ @~a 2) 3
                                                                       }}
                         `@(program1 a 1)                          2
                         `@(program1 a 2)                          3
@@ -514,14 +514,15 @@
  (def program (dataflow @(plus-one ~1)))
  (def process (debug! program))
  @process := {:status :running
-              :log    [{1               1
-                        ~1              _
-                        `plus-one       plus-one
-                        `(plus-one ~1)  {`inc        inc
-                                         'x          _
-                                         `@~'x       1
-                                         `(inc @~'x) 2}
-                        `@(plus-one ~1) 2
+              :log    [{1                        1
+                        `(unquote 1)             _
+                        `plus-one                plus-one
+                        ;; TODO minitest missing unification
+                        #_#_`(plus-one (unquote 1))  {`inc                  inc
+                                                  ?x                    ?x
+                                                  `@(unquote ~?x)       1
+                                                  `(inc @(unquote ~?x)) 2}
+                        `@(plus-one (unquote 1)) 2
                         }]})
 
 (tests
@@ -551,9 +552,9 @@
  (def program (dataflow @~1))
  (def process (debug! program))
  @process := {:status :terminated
-              :logs   [{1    1
-                        '~1  _
-                        '@~1 1}]})
+              :log    [{1             1
+                        `(unquote 1)  _
+                        `@(unquote 1) 1}]})
 
 (tests
  "unquote after deref is identity"
@@ -563,8 +564,8 @@
  (def program (dataflow ~(deref ~1)))                      ; careful ~@ is unquote-splice
  (def process (debug! program))
  @process := {:status :running
-              :log    [{1            1
-                        '~1          _ ; ?a
-                        '@~1         1
-                        '~(deref ~1) _ ; ?a
+              :log    [{1                              1
+                        `(unquote 1)                   _ ; ?a
+                        `@(unquote 1)                  1
+                        `(unquote (deref (unquote 1))) _ ; ?a
                         }]})
