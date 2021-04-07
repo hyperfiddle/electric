@@ -69,31 +69,37 @@
 (defn top-frame [heap]
   (into {} (filter (fn [[k _v]] (= 1 (count k))) heap)))
 
+(defn- humanize* [intermediate-lang decompiled heap]
+  (reduce-kv (fn [r k v]
+               (let [source-form (get-in decompiled k)]
+                 (if (instance? Dataflow v)
+                   (if-not (contains? r source-form)
+                     (assoc r source-form v) ; will be overwritten later if variable
+                     r)
+                   (let [[type & args] (get-in intermediate-lang k)
+                         source-form   (get-in decompiled k)]
+                     (case type
+                       :variable (let [k⁻¹ [(first args)]
+                                       v⁻¹ (get heap k⁻¹)]
+                                   (if (instance? Dataflow v⁻¹)
+                                     (let [r' (->> (focus heap k)
+                                                   (reduce-kv (fn [r fork-id nested-heap] (assoc r fork-id (humanize v⁻¹ nested-heap)))
+                                                              {})
+                                                   (assoc r (get-in decompiled k⁻¹)))]
+                                       (assoc r' source-form v))
+                                     (assoc r source-form v)))
+                       (assoc r source-form v))))))
+             {}
+             (top-frame heap)) )
+
 (defn humanize
   "Correlate a heap dump with the original program."
-  [program heap]
-  (let [decompiled (decompile program)]
-    (reduce-kv (fn [r k v]
-                 (let [source-form (get-in decompiled k)]
-                   (if (instance? Dataflow v)
-                     (if-not (contains? r source-form)
-                       (assoc r source-form v) ; will be overwritten later if variable
-                       r)
-                     (let [[type & args] (get-in (:graph program) k)
-                           source-form   (get-in decompiled k)]
-                       (case type
-                         :variable (let [k⁻¹ [(first args)]
-                                         v⁻¹ (get heap k⁻¹)]
-                                     (if (instance? Dataflow v⁻¹)
-                                       (let [r' (->> (focus heap k)
-                                                     (reduce-kv (fn [r fork-id nested-heap] (assoc r fork-id (humanize v⁻¹ nested-heap)))
-                                                                {})
-                                                     (assoc r (get-in decompiled k⁻¹)))]
-                                         (assoc r' source-form v))
-                                       (assoc r source-form v)))
-                         (assoc r source-form v))))))
-               {}
-               (top-frame heap))))
+  ([program] (let [intermediate-lang (:graph program)
+                   decompiled        (decompile program)]
+               (fn [heap]
+                 (humanize* intermediate-lang decompiled heap))))
+  ([program heap]
+   (humanize* (:graph program) (decompile program) heap)))
 
 (tests
  (def !a (atom 0))
