@@ -199,7 +199,9 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
            (slot-changes)
            (m/relieve merge)
            (m/stream!)
-           (foreach #(m/sp (event! update :log conj (if source-mapped (humanizef %) %))))
+           (foreach #(m/sp (event! update :log conj (if source-mapped
+                                                      (with-meta (humanizef %) %)
+                                                      %))))
            (m/stream!)))
        (fn [_] (event! assoc :status :terminated))
        (fn [e] (event! assoc :status :crashed :error e))))
