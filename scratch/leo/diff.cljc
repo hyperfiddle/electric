@@ -1,7 +1,9 @@
 (ns leo.diff
-  (:require [missionary.core :as m]))
+  (:require [missionary.core :as m]
+            [minitest :refer [tests]]))
 
 (defn diff-map [curr prev]
+  "Diff two maps. Return `[{new-kvs}, {changed-kvs}, #{deleted-ks}]`."
   (reduce-kv
     (fn [[created changed removed] k v]
       (if-some [[_ w] (find created k)]
@@ -11,26 +13,42 @@
         [created changed (conj removed k)]))
     [curr {} #{}] prev))
 
-(defn patch-map [m [created changed removed]]
+(tests
+ (diff-map {:a 2, :c 1} {:a 1, :b 1}) := [{:c 1} {:a 2} #{:b}])
+
+(defn patch-map
+  "Given a diff produced by `diff-map`, patch the given map."
+  [m [created changed removed]]
   (reduce dissoc (merge m created changed) removed))
 
-(comment
-  (diff-map
-    {:a 1
-     :b 2}
-    {:a 2
-     :c 5})
-  )
+(tests
+ (def old-version {:a 1, :b 1})
+ (def new-version {:a 2, :c 1})
+ (patch-map old-version (diff-map new-version old-version)) := new-version)
 
-(defn diff [- init]
+(defn diff
+  "Given a delta/difference function `-` and an `init` state, produces a diffing
+  transducer."
+  [- init]
   (fn [rf]
     (let [p (volatile! init)]
       (fn
-        ([] (rf))
+        ([]  (rf))
         ([r] (rf r))
         ([r x]
          (let [r (rf r (- x @p))]
            (vreset! p x) r))))))
+
+(tests
+ (def maps-over-time [{:a 1} {:a 1, :b 2} {:a 2, :b 2} {:a 2}])
+ (def diffs-over-time (into [] (diff diff-map {}) maps-over-time))
+ diffs-over-time
+ := [[{:a 1} {}     #{}  ]
+     [{:b 2} {}     #{}  ]
+     [{}     {:a 2} #{}  ]
+     [{}     {}     #{:b}]]
+ (reduce patch-map (first maps-over-time) diffs-over-time) := (last maps-over-time)
+ )
 
 (def pick! (partial reduce-kv (fn [m k v] ((m k) v) m)))
 (def done! (partial reduce (fn [m k] ((m k)) (dissoc m k))))
@@ -66,10 +84,12 @@
   (m/transform (comp (diff diff-map {}) stabilizer) >in))
 
 ;; (A -> B) -> F[A] -> F[B]
+;; GG: fmap for flows
 (defn map-flow [f >v]
   (m/ap (f (m/?? >v))))
 
 ;; (A -> B) -> Pair[K,A] -> Pair[K,B]
+;; GG: inner part of fmap for maps. Maps are functors.
 (defn map-second [f [k v]]
   [k (f v)])
 
