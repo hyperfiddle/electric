@@ -68,27 +68,6 @@
   (->> (apply m/latest d/q >query >inputs)
        (diff-set)))
 
-(def xf-entities
-  (fn [rf]
-    (let [p (volatile! {})]
-      (fn
-        ([] (rf))
-        ([r] (rf r))
-        ([r [db [adds rets]]]
-         (let [p' (as-> @p p
-                    (reduce dissoc p rets)
-                    (reduce (fn [r eid]
-                              (assoc r eid (d/entity db eid)))
-                            p
-                            adds))
-               r  (rf r (set (vals p')))]
-           (vreset! p p')
-           r))))))
-
-(defn entities [>db >q'-diff]
-  (->> (m/latest vector >db >q'-diff)
-       (m/transform xf-entities)))
-
 (tests
  (init-datascript) := :ok)
 
@@ -110,25 +89,6 @@
  (reset! !needle "bob@example.com")
 
  @it := [#{10} #{9}]
- )
-
-(comment
- (do
-   (def !db (atom *$*)) (def >db (m/watch !db))
-   (def !needle (atom "alice@example.com")) (def >needle (m/watch !needle))
-   (def !q (atom '[:in $ ?needle
-                   :find [?e ...]
-                   :where [?e :dustingetz/email ?needle]]))
-   (def >q (m/watch !q))
-
-   (def qq (entities >db (q' >q >db >needle)))
-   (def it (qq #(prn :ready) #(prn :done)))
-   (def entities @it))
- entities := #{#:db{:id 9}} ;; Break minitest¹
-
- (reset! !needle "bob@example.com")
- (def entities @it)
- entities := #{#:db{:id 10}}
  )
 
 (tests
