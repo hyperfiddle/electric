@@ -54,18 +54,18 @@
 
 (defn diff-set [>xs]
   (m/transform (diff (fn [x y]
-                       [(set/difference x y)
-                        (set/difference y x)])
+                       (let [x (set x)
+                             y (set y)]
+                         [(set/difference x y)
+                          (set/difference y x)]))
                      #{}) >xs))
 
-(defn entity-get [>db >eid >k]
-  (m/latest (fn [db eid k] (k (d/entity db eid))) >db >eid >k))
+(defn entity-ks' [>db eid]
+  (->> (m/latest (fn [db] (keys (d/entity db eid))) >db)
+       (diff-set)))
 
-(defn entity-ks [>db >eid]
-  (m/latest (fn [db eid] (set (keys (d/entity db eid)))) >db >eid))
-
-(defn q' [>query >db & >inputs]
-  (->> (apply m/latest (fn [query & inputs] (set (apply d/q query inputs))) >query >db >inputs)
+(defn q' [>query & >inputs]
+  (->> (apply m/latest d/q >query >inputs)
        (diff-set)))
 
 (def xf-entities
@@ -93,7 +93,7 @@
  (init-datascript) := :ok)
 
 (comment
-  (d/q '[:find [?e ...] :where [?e]] *$*))
+  (d/q '[:find [?e ...] :where [?e :dustingetz/email]] *$*))
 
 (tests
  (def !db (atom *$*)) (def >db (m/watch !db))
@@ -112,7 +112,6 @@
  @it := [#{10} #{9}]
  )
 
-
 (comment
  (do
    (def !db (atom *$*)) (def >db (m/watch !db))
@@ -125,37 +124,145 @@
    (def qq (entities >db (q' >q >db >needle)))
    (def it (qq #(prn :ready) #(prn :done)))
    (def entities @it))
- entities := #{#:db{:id 9}} ;; Break minitest¹ (:dustingetz/email (first entities)) := "alice@example.com"
+ entities := #{#:db{:id 9}} ;; Break minitest¹
 
  (reset! !needle "bob@example.com")
  (def entities @it)
  entities := #{#:db{:id 10}}
  )
 
+(tests
+  (do
+    (def !db (atom *$*)) (def >db (m/watch !db))
+
+    (def qq (entity-ks' >db 9))
+    (def it (qq #(prn :ready) #(prn :done))))
+  @it := [#{:dustingetz/gender :dustingetz/email :dustingetz/shirt-size :dustingetz/tags} #{}]
+
+  (reset! !db (:db-after (d/with *$* [[:db/add 9 :tests/extra-attr true]])))
+
+  @it := [#{:tests/extra-attr} #{}]
+
+  (reset! !db (:db-after (d/with *$* [[:db/retract 9 :tests/extra-attr true]])))
+
+  @it := [#{} #{:tests/extra-attr}]
+  )
+
+(defn cardinality [db attr]
+  (get-in db [:schema attr :db/cardinality]))
+
+(def xf-diff-value
+  (fn [rf]
+    (let [p (volatile! #{})]
+      (fn
+        ([] (rf))
+        ([r] (rf r))
+        ([r [db k v]]
+         (let [card        (cardinality db k)
+               [adds rets] (case card
+                             :db.cardinality/one  [#{v} @p]
+                             :db.cardinality/many (let [x (set v)
+                                                        y @p]
+                                                    [(set/difference x y)
+                                                     (set/difference y x)]))
+               r           (rf r [adds rets])]
+               (vreset! p (case card
+                            :db.cardinality/one  #{v}
+                            :db.cardinality/many v))
+               r))))))
+
+(defn entity-get' [>db eid k]
+  (->> (m/latest (fn [db] [db k (k (d/entity db eid))]) >db)
+       (m/transform xf-diff-value)))
+
+(defn patch-set
+  "Given a diff produced by `diff-map`, patch the given map."
+  ([] (patch-set #{}))
+  ([s] (let [prev (volatile! s)]
+         (fn [[adds rets]]
+           (let [next (reduce disj (into @prev adds) rets)]
+             (vreset! prev next)
+             next)))))
+
+(defn patch-value
+  [[adds _]]
+  (first adds))
 
 (comment
   (do
     (def !db (atom *$*)) (def >db (m/watch !db))
-    (def !needle (atom "alice@example.com")) (def >needle (m/watch !needle))
-    (def !q (atom '[:in $ ?needle
-                    :find [?e ...]
-                    :where [?e :dustingetz/email ?needle]]))
-    (def >q (m/watch !q))
 
-    (def qq (->> (entities >db (q' >q >db >needle))
-                 (m/latest first)
-                 (m/latest :db/id)
-                 (entity-ks >db)))
+    (def qq (entity-get' >db 9 :dustingetz/gender))
     (def it (qq #(prn :ready) #(prn :done)))
-    (def entities @it))
-  entities := #{:dustingetz/gender :dustingetz/email :dustingetz/shirt-size :dustingetz/tags}
+    )
 
-  (reset! !db (:db-after (d/with *$* [{:dustingetz/email "alice@example.com"
-                                       :tests/extra-attr true}])))
+  @it := [#{:dustingetz/female} #{}]
 
-  @it := #{:dustingetz/gender :dustingetz/email :dustingetz/shirt-size :dustingetz/tags :tests/extra-attr}
+  (reset! !db (:db-after (d/with *$* [[:db/add 9 :dustingetz/gender :dustingetz/male]])))
+
+  @it := [#{:dustingetz/male} #{:dustingetz/female}]
+
+  (reset! !db (:db-after (d/with *$* [[:db/retract 9 :dustingetz/gender]])))
+
+  @it := [#{nil} #{:dustingetz/male}]
   )
 
+(comment
+  (do
+    (def !db (atom *$*)) (def >db (m/watch !db))
+    (def qq (entity-get' >db 9 :dustingetz/tags))
+    (def it (qq #(prn :ready) #(prn :done)))
+    )
+
+  @it := [#{:a :b :c} #{}]
+
+  (reset! !db (:db-after (d/with *$* [[:db/add 9 :dustingetz/tags :d]])))
+
+  @it := [#{:d} #{}]
+
+  (reset! !db (:db-after (d/with *$* [[:db/retract 9 :dustingetz/tags :d]])))
+
+  @it := [#{} #{:d}]
+
+  )
+
+(comment
+  (do
+    (def !db (atom *$*)) (def >db (m/watch !db))
+
+    (def qq (->> (entity-get' >db 9 :dustingetz/gender)
+                 (m/latest patch-value)))
+    (def it (qq #(prn :ready) #(prn :done)))
+    )
+
+  @it := :dustingetz/female
+
+  (reset! !db (:db-after (d/with *$* [[:db/add 9 :dustingetz/gender :dustingetz/male]])))
+
+  @it := :dustingetz/male
+
+  (reset! !db (:db-after (d/with *$* [[:db/retract 9 :dustingetz/gender]])))
+
+  @it := nil
+  )
+
+(comment
+  (do
+    (def !db (atom *$*)) (def >db (m/watch !db))
+    (def qq (m/latest (patch-set) (entity-get' >db 9 :dustingetz/tags)))
+    (def it (qq #(prn :ready) #(prn :done)))
+    )
+
+  @it := #{:a :b :c}
+
+  (reset! !db (:db-after (d/with *$* [[:db/add 9 :dustingetz/tags :d]])))
+
+  @it := #{:a :b :c :d}
+
+  (reset! !db (:db-after (d/with *$* [[:db/retract 9 :dustingetz/tags :d]])))
+
+  @it := #{:a :b :c}
+  )
 
 ;; ¹ (UnsupportedOperationException) at datascript.impl.entity.Entity/empty
 ;; (entity.cljc:47)
