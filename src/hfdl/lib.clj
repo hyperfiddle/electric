@@ -171,3 +171,63 @@ as input.
   @p
 
   )
+
+(comment
+  (require '[geoffrey.diff :refer [*$*]])
+  (require '[datascript.core :as d])
+  (geoffrey.diff/init-datascript)
+
+  (def !db (atom *$*))
+  (def >db (m/watch !db))
+
+  ;(defn q [>db]
+  ;  (m/latest #(datomic.api/q '[:find ?e :where [?e :dustingetz/email]] %) >db))
+
+  (def query-users '[:find [?e ...] :where [?e :dustingetz/email]])
+  (defn q [>db]
+    (dataflow (sort (d/q query-users @>db))))
+
+  (comment
+    (sort (d/q query-users @!db)) := [9 10 11 12]
+    )
+
+  (defn entity-ks [>db x]
+    (dataflow (keys (d/touch (d/entity @>db x)))))
+
+  (keys (d/touch (d/entity @!db 10)))
+
+  (defn entity-get [>db x kf]
+    (dataflow (kf (d/entity @>db x))))
+
+  (defn get-column [x k]
+    (dataflow [:pre (pr-str @(entity-get >db x k))]))
+
+  (defn get-row [x]
+    (prn :get-row x)
+    (dataflow
+      #_(pr-str x)
+      [:pre (pr-str @(entity-get >db x :dustingetz/email))]
+      #_(let [#_#_db2 (:db-after (d/with @>db [{:dustingetz/email "dan@example.com"}]))
+            ks @(entity-ks @>db x)]
+        @(reactive-for (partial get-column x) ~ks))))
+
+  (def app
+    (dataflow
+      (let [xs @(q >db)]
+        [:div
+         [:pre (pr-str xs)]
+         @(reactive-for get-row ~xs)])))
+
+  (require '[hfdl.lang :refer [debug!]])
+  (def p (debug! app))
+
+  (swap! !db #(:db-after (d/with % [{:dustingetz/email "dan@example.com"}])))
+
+  (swap! !db #(:db-after
+                (d/with %
+                  [[:db/add 12 :dustingetz/email "dan2@example.com"]
+                   [:db/retractEntity 11]])))
+
+  @p
+
+  )
