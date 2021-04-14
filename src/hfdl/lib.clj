@@ -35,15 +35,16 @@ Defines a new identity representing a variable initialized with given value and 
 ;; TODO error handling + cancellation
 (def ^{:arglists '([f in])
        :doc "
-Turns a continuous flow of sets into a flow calling given function for each item added to the set. The function must
-return another flow that will be run in parallel and cancelled when the item is removed from the input set. Returns a
-continuous flow of sets of current values of inner flows.
+Turns a continuous flow of collections of distinct items into a flow calling given function for each item added to the
+collection. The function must return another flow that will be run in parallel and cancelled when the item is removed
+from the input collection. Returns a continuous flow of collections of current values of inner flows, in the same order
+as input.
 "} reactive-for
-  (let [identity (int 0)
+  (let [position (int 0)
         iterator (int 1)
         previous (int 2)
         length (int 3)]
-    (letfn [(spawn! [queue notifier terminator flow]
+    (letfn [(spawn! [queue notifier terminator flow pos]
               (let [this (object-array length)
                     it (flow #(if (nil? (aget this iterator))
                                 (aset this iterator this)
@@ -55,33 +56,21 @@ continuous flow of sets of current values of inner flows.
                          terminator)]
                 (when (nil? (aget this iterator))
                   (throw (ex-info "Fan-in failure : flow has no initial value." {})))
-                (doto this (aset iterator it))))]
+                (doto this
+                  (aset position pos)
+                  (aset iterator it))))]
       (fn [f in]
         (fn [n t]
-          (let [queue (AtomicReference. nil)
+          (let [store (Box. {})
+                state (Box. nil)
+                queue (AtomicReference. nil)
                 alive (AtomicInteger. 1)
                 done! #(when (zero? (.decrementAndGet alive)) (t))
-                store (Box. {})
-                state (Box. {})
-                check (fn [adds id iter]
-                        (let [adds-id (disj adds id)]
-                          (when (= adds-id adds)
-                            (set! (.-val state) (dissoc (.-val state) id))
-                            (set! (.-val store) (dissoc (.-val store) id))
-                            (iter)) adds-id))
-                inner (fn [prev id]
-                        (.incrementAndGet alive)
-                        (doto (spawn! queue n done! (f id))
-                          (aset identity id)
-                          (aset previous prev)
-                          (->
-                            (aget iterator)
-                            (->>
-                              (assoc (.-val store) id)
-                              (set! (.-val store))))))]
-            (.set queue
-              (doto (spawn! queue n done! in)
-                (aset identity spawn!))) (n)
+                kill! (fn [_ id item]
+                        ((aget item iterator))
+                        (set! (.-val store)
+                          (dissoc (.-val store) id)))]
+            (.set queue (spawn! queue n done! in -1)) (n)
             (reify
               IFn
               (invoke [_]
@@ -90,41 +79,56 @@ continuous flow of sets of current values of inner flows.
               (deref [_]
                 (loop []
                   (loop [head (.getAndSet queue queue)]
-                    (let [id   (aget head identity)
+                    (let [pos  (aget head position)
                           prev (aget head previous)
                           iter (aget head iterator)]
                       (aset head previous nil)
-                      (let [head (if (identical? id spawn!)
-                                   (->> (.-val store)
-                                     (reduce-kv check @iter)
-                                     (reduce inner prev))
-                                   (do (set! (.-val state)
-                                         (assoc (.-val state)
-                                           id @iter)) prev))]
-                        (when-not (nil? head) (recur head)))))
+                      (if (neg? pos)
+                        (let [s (.-val state)]
+                          (set! (.-val state) [])
+                          (->> @iter
+                            (reduce
+                              (fn [rets id]
+                                (let [pos (count (.-val state))]
+                                  (if-some [item (get (.-val store) id)]
+                                    (do (set! (.-val state)
+                                          (conj (.-val state)
+                                            (nth s (aget item position))))
+                                        (aset item position pos)
+                                        (dissoc rets id))
+                                    (let [item (spawn! queue n done! (f id) pos)]
+                                      (.incrementAndGet alive)
+                                      (set! (.-val state) (conj (.-val state) @(aget item iterator)))
+                                      (set! (.-val store) (assoc (.-val store) id item)) rets))))
+                              (.-val store))
+                            (reduce-kv kill! nil)))
+                        (set! (.-val state) (assoc (.-val state) pos @iter)))
+                      (when-not (nil? prev) (recur prev))))
                   (if (.compareAndSet queue queue nil)
-                    (set (vals (.-val state))) (recur)))))))))))
+                    (.-val state) (recur)))))))))))
 
 (comment
-  (def >input (atom #{1 2 3}))
+  (def >input (atom (vec (range 5))))
   (def ats (vec (repeatedly 10 #(atom 0))))
 
-  ;; (A -> Flow[B]) -> Flow[Set[A]] -> Flow[Set[B]]
-  (def it ((reactive-for (fn [id] (m/watch (nth ats id))) (m/watch >input))
+  ;; (A -> Flow[B]) -> Flow[Traversable[A]] -> Flow[Traversable[B]]
+  (def it ((reactive-for (fn [id] (prn :branch id) (m/watch (nth ats id))) (m/watch >input))
            #(prn :ready) #(prn :done)))
 
-  (swap! >input conj 4)
-  (swap! >input disj 2)
+  (swap! >input conj 5)
+  (swap! >input pop)
 
   (swap! (nth ats 1) inc)
   (swap! (nth ats 2) + 2)
+
+  (reset! >input [0 2 1 3 4 5])
 
   @it
 
   )
 
 (comment
-  (def !db (atom #{1}))
+  (def !db (atom [1]))
   (def >db (m/watch !db))
 
   (defn q [query >db]
@@ -146,10 +150,9 @@ continuous flow of sets of current values of inner flows.
     (prn :get-row x)
     (dataflow
       (pr-str x)
-      #_
       (let [ks @(entity-ks >db x)]
         [:pre (pr-str @(entity-get >db x :person/name))]
-        @(reactive-for (partial get-column >x) ~ks))))
+        @(reactive-for (partial get-column x) ~ks))))
 
   (def query '[:select])
 
