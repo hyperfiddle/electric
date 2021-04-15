@@ -143,7 +143,7 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
           (m/signal!)
           (aset ar idx)))
       nil graph)
-    (on-frame path ar)
+    (on-frame path graph ar)
     ar))
 
 (defn foreach [f input]
@@ -187,8 +187,8 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
         humanizef (sm/humanize dataflow)]
     (set! (.-val reactor)
       ((m/reactor
-         (->> (fn [!] (frame! (fn [path frame]
-                                (! (into {}
+         (->> (fn [!] (frame! (fn [path graph frame]
+                                (! (into {path (pure graph)}
                                      (map (juxt
                                             (partial conj path)
                                             (partial aget frame)))
