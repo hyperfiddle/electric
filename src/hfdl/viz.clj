@@ -49,7 +49,9 @@
   [& args]
   (apply str (replace {nil "nil"} args)))
 
-(defn escape-str [s] (-> s (str/replace #"\{" "\\\\{") (str/replace #"\}" "\\\\}")))
+(defn escape-str [s] (-> (str/replace s #"\{" "\\\\{")
+                         (str/replace #"\}" "\\\\}")
+                         (str/replace #"/>" "/\\\\>")))
 
 (defn record "Render a collection to a record node"
   ([type coll] (record type nil coll))
@@ -72,13 +74,15 @@
     (instance? Dataflow value)                                                       (gen-name! "Dataflow" value)
     (str/starts-with? (str (class value)) "class missionary.core$watch$")            (gen-name! "Watch" value)
     (str/starts-with? (str (class value)) "class missionary.impl.Reactor$Publisher") (gen-name! "Constant" value)
-    :else                                                                            (pr-str value)))
+    :else                                                                            (-> (str value)
+                                                                                         (str/replace #"\"\\\"" "\"")
+                                                                                         (str/replace #"\\\"\"" "\""))))
 
 (defn label [program heap ip idx]
   (let [[type & args] (get program ip)
         value         (get-in heap [:heap [ip]])]
     (case type
-      (:local :global)             (str' (first args))
+      (:local :global)             (escape-str (str' (first args)))
       (:constant :variable :apply) (str (pretty idx) " = " (render-value value)))))
 
 (defn intersperse
@@ -198,14 +202,17 @@
                   :else     n)))
         nodes))
 
+(defn reactive-for? [program idx]
+  (= `hfdl.lib/reactive-for (second (get program idx))))
+
 (defn render-nested-frame [path program {:keys [heap changes]} ip]
   (let [[_ child-ip]  (get program ip)
-        [type & args] (get program child-ip)
-        program       (:graph (get heap [child-ip]))
-        last-ip       (dec (count program))]
+        [type & args] (get program child-ip)]
     (mapcat identity
             (for [[fork frame] (focus-frame heap [ip])]
               (let [path'         (conj path ip fork)
+                    program       (get frame [])
+                    last-ip       (dec (count program))
                     nodes         (->> (binding [*visited?* (atom #{})]
                                          (render-node path'
                                                       program
@@ -420,6 +427,12 @@
 
   ;; viz.clj:  180  hfdl.viz/render-nested-frame
 
+
+(comment
+  (require '[hfdl.lib :refer [app]])
+  (def p (debug! app))
+  (show! (dot app @p) )
+  (save! "/home/geoffrey/Downloads/reactive-for-2.png" (dot app @p) ))
 
 ;;;;;;;;;;;;;
 ;; SCRATCH ;;

@@ -172,7 +172,7 @@ as input.
 
   )
 
-(comment
+(do
   (require '[geoffrey.diff :refer [*$*]])
   (require '[datascript.core :as d])
   (geoffrey.diff/init-datascript)
@@ -185,7 +185,7 @@ as input.
 
   (def query-users '[:find [?e ...] :where [?e :dustingetz/email]])
   (defn q [>db]
-    (dataflow (sort (d/q query-users @>db))))
+    (dataflow (take 2 (sort (d/q query-users @>db)))))
 
   (comment
     (sort (d/q query-users @!db)) := [9 10 11 12]
@@ -215,19 +215,20 @@ as input.
     (dataflow
       (let [xs @(q >db)]
         [:div
-         [:pre (pr-str xs)]
+         #_[:pre (pr-str xs)]
          @(reactive-for get-row ~xs)])))
 
   (require '[hfdl.lang :refer [debug!]])
   (def p (debug! app))
 
-  (swap! !db #(:db-after (d/with % [{:dustingetz/email "dan@example.com"}])))
+ #_ (swap! !db #(:db-after (d/with % [{:dustingetz/email "dan@example.com"}])))
 
-  (swap! !db #(:db-after
+  #_(swap! !db #(:db-after
                 (d/with %
                   [[:db/add 12 :dustingetz/email "dan2@example.com"]
                    [:db/retractEntity 11]])))
 
   @p
+  ;; (hfdl.sourcemap/humanize app (hfdl.lang/heap-dump @p))
 
   )
