@@ -2,6 +2,7 @@
   (:require [differ.core :refer [diff patch]]
             [minitest :refer [tests]]))
 
+;;; differ/differ {:mvn/version "0.3.3"}
 
 ;;; Differ is a fast¹ but constrained diffing library.
 ;;; It provides two functions:
