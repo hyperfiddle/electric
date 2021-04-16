@@ -1,9 +1,8 @@
 (ns hfdl.lib
   (:require [hfdl.lang :refer [dataflow]]
-            [missionary.core :as m]
-            [clojure.set :as set])
-  (:import (clojure.lang IFn Box IDeref)
-           (java.util.concurrent.atomic AtomicReference AtomicInteger)))
+            [hfdl.impl.rfor :as rfor]
+            [missionary.core :as m])
+  (:import (clojure.lang Box)))
 
 (defmacro $ [f & args]
   `(deref (~f ~@(map (partial list `unquote) args))))
@@ -32,80 +31,13 @@ Defines a new identity representing a variable initialized with given value and 
          (let [r (rf r (- x (.-val p)))]
            (set! (.-val p) x) r))))))
 
-;; TODO error handling + cancellation
-(def ^{:arglists '([f in])
-       :doc "
+;; TODO error handling
+(defn reactive-for "
 Turns a continuous flow of collections of distinct items into a flow calling given function for each item added to the
 collection. The function must return another flow that will be run in parallel and cancelled when the item is removed
 from the input collection. Returns a continuous flow of collections of current values of inner flows, in the same order
 as input.
-"} reactive-for
-  (let [position (int 0)
-        iterator (int 1)
-        previous (int 2)
-        length (int 3)]
-    (letfn [(spawn! [queue notifier terminator flow pos]
-              (let [this (object-array length)
-                    it (flow #(if (nil? (aget this iterator))
-                                (aset this iterator this)
-                                (let [q (.get queue)]
-                                  (aset this previous
-                                    (if (identical? q queue) nil q))
-                                  (if (.compareAndSet queue q this)
-                                    (when (nil? q) (notifier)) (recur))))
-                         terminator)]
-                (when (nil? (aget this iterator))
-                  (throw (ex-info "Fan-in failure : flow has no initial value." {})))
-                (doto this
-                  (aset position pos)
-                  (aset iterator it))))]
-      (fn [f in]
-        (fn [n t]
-          (let [store (Box. {})
-                state (Box. nil)
-                queue (AtomicReference. nil)
-                alive (AtomicInteger. 1)
-                done! #(when (zero? (.decrementAndGet alive)) (t))
-                kill! (fn [_ id item]
-                        ((aget item iterator))
-                        (set! (.-val store)
-                          (dissoc (.-val store) id)))]
-            (.set queue (spawn! queue n done! in -1)) (n)
-            (reify
-              IFn
-              (invoke [_]
-                (comment TODO))
-              IDeref
-              (deref [_]
-                (loop []
-                  (loop [head (.getAndSet queue queue)]
-                    (let [pos  (aget head position)
-                          prev (aget head previous)
-                          iter (aget head iterator)]
-                      (aset head previous nil)
-                      (if (neg? pos)
-                        (let [s (.-val state)]
-                          (set! (.-val state) [])
-                          (->> @iter
-                            (reduce
-                              (fn [rets id]
-                                (let [pos (count (.-val state))]
-                                  (if-some [item (get (.-val store) id)]
-                                    (do (set! (.-val state)
-                                          (conj (.-val state)
-                                            (nth s (aget item position))))
-                                        (aset item position pos)
-                                        (dissoc rets id))
-                                    (let [item (spawn! queue n done! (f id) pos)]
-                                      (.incrementAndGet alive)
-                                      (set! (.-val state) (conj (.-val state) @(aget item iterator)))
-                                      (set! (.-val store) (assoc (.-val store) id item)) rets))))
-                              (.-val store))
-                            (reduce-kv kill! nil)))
-                        (set! (.-val state) (assoc (.-val state) pos @iter)))
-                      (when-not (nil? prev) (recur prev))))
-                  (if (.compareAndSet queue queue nil)
-                    (.-val state) (recur)))))))))))
+" [f in] (fn [n t] (rfor/spawn f in n t)))
 
 (comment
   (def >input (atom (vec (range 5))))
@@ -147,7 +79,6 @@ as input.
     (dataflow (pr-str @(entity-get >db x k))))
 
   (defn get-row [x]
-    (prn :get-row x)
     (dataflow
       (pr-str x)
       (let [ks @(entity-ks >db x)]
@@ -172,13 +103,10 @@ as input.
 
   )
 
-(do
+(comment
   (require '[geoffrey.diff :refer [*$*]])
   (require '[datascript.core :as d])
   (geoffrey.diff/init-datascript)
-
-  (def !db (atom *$*))
-  (def >db (m/watch !db))
 
   ;(defn q [>db]
   ;  (m/latest #(datomic.api/q '[:find ?e :where [?e :dustingetz/email]] %) >db))
@@ -187,46 +115,41 @@ as input.
   (defn q [>db]
     (dataflow (take 2 (sort (d/q query-users @>db)))))
 
-  (comment
-    (sort (d/q query-users @!db)) := [9 10 11 12]
-    )
-
   (defn entity-ks [>db x]
     (dataflow (keys (d/touch (d/entity @>db x)))))
-
-  (keys (d/touch (d/entity @!db 10)))
 
   (defn entity-get [>db x kf]
     (dataflow (kf (d/entity @>db x))))
 
-  (defn get-column [x k]
+  (defn get-column [>db x k]
     (dataflow [:pre (pr-str @(entity-get >db x k))]))
 
-  (defn get-row [x]
-    (prn :get-row x)
+  (defn get-row [>db x]
     (dataflow
-      #_(pr-str x)
       [:pre (pr-str @(entity-get >db x :dustingetz/email))]
-      #_(let [#_#_db2 (:db-after (d/with @>db [{:dustingetz/email "dan@example.com"}]))
-            ks @(entity-ks @>db x)]
-        @(reactive-for (partial get-column x) ~ks))))
+      (let [#_#_db2 (:db-after (d/with @>db [{:dustingetz/email "dan@example.com"}]))
+            ks @(entity-ks >db x)]
+        @(reactive-for (partial get-column >db x) ~ks))))
+
+  (def !db (atom *$*))
 
   (def app
     (dataflow
-      (let [xs @(q >db)]
+      (let [db @(m/watch !db)
+            xs @(q ~db)]
         [:div
-         #_[:pre (pr-str xs)]
-         @(reactive-for get-row ~xs)])))
+         [:pre (pr-str xs)]
+         @(reactive-for (partial get-row ~db) ~xs)])))
 
   (require '[hfdl.lang :refer [debug!]])
   (def p (debug! app))
 
- #_ (swap! !db #(:db-after (d/with % [{:dustingetz/email "dan@example.com"}])))
+  (swap! !db #(:db-after (d/with % [{:dustingetz/email "dan@example.com"}])))
 
   #_(swap! !db #(:db-after
-                (d/with %
-                  [[:db/add 12 :dustingetz/email "dan2@example.com"]
-                   [:db/retractEntity 11]])))
+                  (d/with %
+                    [[:db/add 12 :dustingetz/email "dan2@example.com"]
+                     [:db/retractEntity 11]])))
 
   @p
   ;; (hfdl.sourcemap/humanize app (hfdl.lang/heap-dump @p))
