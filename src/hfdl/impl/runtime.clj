@@ -1,5 +1,6 @@
 (ns hfdl.impl.runtime
   (:require [missionary.core :as m]
+            [hfdl.impl.util :as u]
             [hfdl.impl.compiler :refer [with-ctx]]
             [hfdl.sourcemap :as sm])
   (:import (java.util.concurrent.atomic AtomicInteger AtomicReference)
@@ -19,14 +20,6 @@
           (invoke [_])
           IDeref
           (deref [_] (t) x))))
-
-(defn nop [])
-
-(defn swap-token! [^AtomicReference r t]
-  (loop []
-    (if-some [x (.get r)]
-      (if (.compareAndSet r x t)
-        (do) (recur)) (t))))
 
 (defn bind-context [ctx flow]
   (fn [n t]
@@ -78,8 +71,8 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
 3. `alive` : the number of non-terminated iterators (outer + inners).
 " [input]
   (fn [n t]
-    (let [state (AtomicReference. nop)
-          token (AtomicReference. nop)
+    (let [state (AtomicReference. u/nop)
+          token (u/token)
           alive (AtomicInteger. 1)
           done! #(when (zero? (.decrementAndGet alive)) (t))
           outer (input
@@ -89,17 +82,14 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
                      (if (.compareAndSet state nil state) (do) (recur)))
                   #(do (loop []
                          (if-some [s (.get state)]
-                           (swap-token! token (if (instance? Box s) (.-val ^Box s) s))
+                           (u/swap-token! token (if (instance? Box s) (.-val ^Box s) s))
                            (if (.compareAndSet state nil token)
                              (do) (recur)))) (done!)))]
       (.set token outer)
       (reify
         IFn
         (invoke [_]
-          (loop []
-            (when-some [t (.get token)]
-              (if (.compareAndSet token t nil)
-                (t) (recur)))))
+          (u/burn-token! token))
         IDeref
         (deref [_]
           @(loop []
@@ -121,7 +111,7 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
                    (if (.compareAndSet state nil i)
                      i (if (.compareAndSet state state nil)
                          (do (i) (try @i (catch Throwable _)) (recur))
-                         (do (swap-token! token i) (.set state i) i))))))))))))
+                         (do (u/swap-token! token i) (.set state i) i))))))))))))
 
 (defn frame! [on-frame path graph]
   (let [ar (object-array (count graph))]
@@ -193,7 +183,7 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
                                             (partial conj path)
                                             (partial aget frame)))
                                      (range (alength frame)))))
-                        [] (:graph dataflow)) nop)
+                        [] (:graph dataflow)) u/nop)
            (m/observe)
            (m/relieve merge)
            (slot-changes)
