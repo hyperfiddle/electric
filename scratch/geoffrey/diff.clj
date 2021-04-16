@@ -91,22 +91,23 @@
  @it := [#{10} #{9}]
  )
 
-(tests
-  (do
-    (def !db (atom *$*)) (def >db (m/watch !db))
+(comment
+  (tests
+   (do
+     (def !db (atom *$*)) (def >db (m/watch !db))
 
-    (def qq (entity-ks' >db 9))
-    (def it (qq #(prn :ready) #(prn :done))))
-  @it := [#{:dustingetz/gender :dustingetz/email :dustingetz/shirt-size :dustingetz/tags} #{}]
+     (def qq (entity-ks' >db 9))
+     (def it (qq #(prn :ready) #(prn :done))))
+   @it := [#{:dustingetz/gender :dustingetz/email :dustingetz/shirt-size :dustingetz/tags} #{}]
 
-  (reset! !db (:db-after (d/with *$* [[:db/add 9 :tests/extra-attr true]])))
+   (reset! !db (:db-after (d/with *$* [[:db/add 9 :tests/extra-attr true]])))
 
-  @it := [#{:tests/extra-attr} #{}]
+   @it := [#{:tests/extra-attr} #{}]
 
-  (reset! !db (:db-after (d/with *$* [[:db/retract 9 :tests/extra-attr true]])))
+   (reset! !db (:db-after (d/with *$* [[:db/retract 9 :tests/extra-attr true]])))
 
-  @it := [#{} #{:tests/extra-attr}]
-  )
+   @it := [#{} #{:tests/extra-attr}]
+   ))
 
 (defn cardinality [db attr]
   (get-in db [:schema attr :db/cardinality]))
