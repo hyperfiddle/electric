@@ -142,7 +142,7 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
 (defn slot-changes [slots]
   (m/ap
     (let [[path slot] (m/?= (m/enumerate (m/?= slots)))]
-      {path (m/?? slot)})))
+      {path (try (m/?? slot) (catch Throwable _ ::cancelled))})))
 
 (defn debug! [dataflow {:keys [:source-mapped] :or {source-mapped false}}]
   (let [state (AtomicReference. {:status :running :log []})
