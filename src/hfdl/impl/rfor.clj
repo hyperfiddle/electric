@@ -31,9 +31,8 @@
         kill! (fn [item]
                 (when-some [it (aget item iterator)] (it)))
         tear! (fn [store id item]
-                (kill! item)
                 (aset item position nil)
-                (dissoc store id))]
+                (kill! item) (dissoc store id))]
     (fn [f in n t]
       (let [state (AtomicReference. 1)
             outer (object-array outer-length)
@@ -68,9 +67,11 @@
                                                            (dissoc diff id))
                                                        (let [inner (object-array inner-length)
                                                              it ((f id)
-                                                                 #(if (nil? (aget inner iterator))
-                                                                    (aset inner iterator inner)
-                                                                    (mark! state inner n))
+                                                                 #(if-some [it (aget inner iterator)]
+                                                                    (if (nil? (aget inner position))
+                                                                      (try @it (catch Throwable _))
+                                                                      (mark! state inner n))
+                                                                    (aset inner iterator inner))
                                                                  #(done! state inner t))]
                                                          (when (nil? (aget inner iterator))
                                                            (prn "TODO reactive-for failure : inner flow has no initial value."))
