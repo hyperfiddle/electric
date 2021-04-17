@@ -53,7 +53,7 @@
     (let [db @>db]
       @(todo-list-view ~db))))
 
-(comment
+(tests
   (init-datascript)
   (def !db (atom *$*))
   (def dag (app (m/watch !db)))
@@ -65,23 +65,17 @@
        [:input {:type "checkbox", :checked true}]]
       [:li
        [:input {:value "feed baby", :type "text"}]
-       [:input {:type "checkbox", :checked nil}]]
+       [:input {:type "checkbox", :checked false}]]
       [:li
        [:input {:value "do laundry", :type "text"}]
-       [:input {:type "checkbox", :checked nil}]]]
+       [:input {:type "checkbox", :checked false}]]]
 
   (reset! !db (:db-after (d/with *$* [[:db/add "four" :task/name "code"]
                                       [:db/add "four" :task/completed true]
-                                      #_[:db/retractEntity 2]])))
-
-  (result dag @p)
-  ;:= [:ul
-  ;    [:li [:input {:value "buy milk", :type "text"}] [:input {:type "checkbox", :checked true}]]
-  ;    [:li [:input {:value "feed baby", :type "text"}] [:input {:type "checkbox", :checked nil}]]
-  ;    [:li [:input {:value "do laundry", :type "text"}] [:input {:type "checkbox", :checked nil}]]
-  ;    [:li [:input {:value "code", :type "text"}] [:input {:type "checkbox", :checked true}]]]
-
-  (reset! !db (:db-after (d/with *$* [#_[:db/add "five" :task/name "five"]
                                       [:db/retractEntity 2]])))
 
-  )
+  (result dag @p)
+  := [:ul
+      [:li [:input {:value "buy milk", :type "text"}] [:input {:type "checkbox", :checked true}]]
+      [:li [:input {:value "do laundry", :type "text"}] [:input {:type "checkbox", :checked false}]]
+      [:li [:input {:value "code", :type "text"}] [:input {:type "checkbox", :checked true}]]])
