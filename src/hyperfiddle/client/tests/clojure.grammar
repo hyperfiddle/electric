@@ -1,0 +1,155 @@
+@external prop prefixColl from "./props"
+@external prop coll from "./props"
+@external prop prefixEdge from "./props"
+@external prop sameEdge from "./props"
+@external prop prefixContainer from "./props"
+
+@top Program { expression* }
+
+@skip { whitespace | LineComment | Discard }
+expression { Constructor | Boolean | Nil | Deref | Quote | SyntaxQuote | Unquote | UnquoteSplice | Symbol | Number | Keyword | List | Vector | Map | String | Character | Set | NamespacedMap | RegExp | Var | ReaderConditional | DataLiteral | SymbolicValue | AnonymousFunction | Meta<expression> }
+Discard { "#_" expression }
+@precedence { docString @left, operator @left, meta @right, prefixLiteral @right }
+
+listContents {
+   defList { defLikeWithMeta varNameWithMeta (DocString expression+ | expression+)? } |
+   anyList { operatorWithMeta? expression* }
+ }
+
+DocString { !docString String }
+List[coll] { "(" listContents ")" }
+Vector[coll] { "[" expression* "]" }
+Map[coll] { "{" expression* "}" }
+VarName { Symbol }
+
+coll[@isGroup=Coll] {
+  List | Vector | Map
+}
+prefixColl[@isGroup=PrefixColl] {
+  Set |
+  AnonymousFunction |
+  NamespacedMap |
+  Constructor |
+  ReaderConditional |
+  ReaderMetadata |
+  Metadata |
+  Deref |
+  Quote |
+  SyntaxQuote |
+  Unquote |
+  UnquoteSplice
+}
+
+prefixEdge[@isGroup=PrefixEdge] {
+ KeywordPrefix |
+ ConstructorPrefix |
+ "#" |
+ "##" |
+ "#'" |
+ "#?" |
+ "#^" |
+ "#_" |
+ "'" |
+ "`" |
+ "~" |
+ "~@" |
+ "^" |
+ "@"
+}
+
+@skip {} {
+  dataLiteral { "#" ident }
+  DataLiteral { dataLiteral }
+  SymbolicValue { "##" ident }
+  Set[prefixColl] { "#" Map }
+  AnonymousFunction[prefixColl] { "#" List }
+
+  KeywordPrefix[prefixEdge] { "#" keyword }
+  NamespacedMap[prefixColl] { KeywordPrefix Map }
+
+  ConstructorPrefix[prefixEdge] { !prefixLiteral  dataLiteral }
+  Constructor[prefixColl] { ConstructorPrefix (Vector | Map) }
+
+  RegExp[prefixColl] { "#" String }
+  Var[prefixColl] { "#'" Symbol }
+  ReaderConditional[prefixColl] { "#?" (List | Deref) }
+  ReaderMetadata[prefixColl] { "#^" expression }
+  Metadata[prefixColl] { "^" expression }
+  String { '"' StringContent? '"' }
+}
+
+Meta[prefixContainer]<t> { (Metadata | ReaderMetadata) !meta t }
+
+Deref[prefixColl] { "@" expression }
+Quote[prefixColl] { "'" expression }
+SyntaxQuote[prefixColl] { "`" expression }
+Unquote[prefixColl] { "~" expression }
+UnquoteSplice[prefixColl] { "~@" expression }
+operatorWithMeta { Operator | Meta<operatorWithMeta> }
+defLikeWithMeta { DefLike | Meta<defLikeWithMeta> }
+varNameWithMeta { VarName | Meta<varNameWithMeta> }
+
+Operator { !operator Symbol }
+
+@tokens {
+
+
+  "["
+  "{"
+  "("
+
+  "#"[prefixEdge]
+  "##"[prefixEdge]
+  "#'"[prefixEdge]
+  "#?"[prefixEdge]
+  "#^"[prefixEdge]
+  "#_"[prefixEdge]
+
+  '"'[sameEdge, closedBy='"', openedBy='"']
+  "'"[prefixEdge]
+  "`"[prefixEdge]
+  "~"[prefixEdge]
+  "~@"[prefixEdge]
+  "^"[prefixEdge]
+  "@"[prefixEdge]
+
+
+  "]"
+  "}"
+  ")"
+
+  whitespace { (std.whitespace | ",")+ }
+
+  LineComment { ";" ![\n]* }
+
+  identStart { std.asciiLetter | $[<>&%._=?!*+\-$\u{a1}-\u{10ff}/] }
+  identChar { identStart | std.digit | ":" | "'" | "#" | "/"}
+  ident { identStart identChar* }
+  Symbol { ident }
+
+  keyword { ":" ":"? ident? } // the invalid token :: can also be considered as a keyword
+  Keyword { keyword }
+
+  Number {
+    ("+" | "-")? (std.digit+ ("." std.digit* "M"?)? | "." std.digit+) (("e" | "E") ("+" | "-")? std.digit+ "M"?)? |
+    ("+" | "-")? std.digit+ ("M" | "N") |
+    ("+" | "-")? std.digit+ "/" std.digit+ |
+    ("+" | "-")? "0x" (std.digit | $[a-fA-F])+ |
+    "0b" $[01]+ |
+    "0o" $[0-7]+
+  }
+  @precedence { Number, Symbol }
+
+  StringContent {
+    (!["] | "\\" _)+
+  }
+
+  Character { "\\" (std.asciiLetter | std.digit | "@")+ }
+
+}
+
+Boolean { @specialize<Symbol, "true" | "false"> }
+Nil { @specialize<Symbol, "nil"> }
+DefLike[@dynamicPrecedence=1] { @extend<Symbol, "def" | "defn" | "defn-" | "defmacro" | "definline" | "defonce" | "deftest" | "defcard"> }
+
+@detectDelim

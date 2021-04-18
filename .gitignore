@@ -3,3 +3,9 @@
 /out
 /.nrepl-port
 .shadow-cljs
+/resources/public/edn_view/js/cljs-runtime
+/resources/public/edn_view/js/main.js
+/resources/public/edn_view/js/manifest.edn
+node_modules
+tsconfig.tsbuildinfo
+src/**/*.js

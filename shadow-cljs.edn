@@ -1,10 +1,12 @@
 {:deps     {:aliases [:dev]}
+ :dev-http {8000 "resources/public"}
  :nrepl    {:port 9001}
- :dev-http {8000 "out"}
- :builds   {:app {:target           :browser
-                  :devtools         {:preloads [minitest]
-                                     :hud      #{:progress :errors}}
-                  :modules          {:main {:entries [main-test]}}
-                  :compiler-options {:infer-externs :auto
-                                     :js-options    {:variable-renaming :off}}
-                  :output-dir       "out"}}}
+ :builds   {:edn-view {
+                       :target           :browser
+                       :compiler-options {:output-feature-set    :es8
+                                          :infer-externs         :auto
+                                          :js-options            {:variable-renaming :off}
+                                          :anon-fn-naming-policy :unmapped}
+                       :output-dir       "resources/public/edn_view/js"
+                       :asset-path       "js"
+                       :modules          {:main {:entries [hyperfiddle.client.edn-view]}}}}}
