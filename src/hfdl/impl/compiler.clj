@@ -1,12 +1,12 @@
 (ns hfdl.impl.compiler
   (:require [cljs.analyzer.api :as cljs]
-            [clojure.set :as set]
             [clojure.tools.analyzer :as ana]
             [clojure.tools.analyzer.env :as env]
             [clojure.tools.analyzer.jvm :as clj]
             [clojure.tools.analyzer.utils :as utils]
             [minitest :refer [tests]]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [hfdl.impl.util :as u])
   (:import clojure.lang.Compiler$LocalBinding
            (clojure.lang IFn IDeref)))
 
@@ -23,16 +23,25 @@
      (set-ctx ~ctx)
      (try ~@body (finally (set-ctx ctx#)))))
 
-(defrecord Dataflow [graph result]
-  IFn (invoke [d n t]
-        (if-some [c (get-ctx)]
-          (c d n t)
-          (do (n)
-              (reify
-                IFn (invoke [_])
-                IDeref (deref [_] (t)
-                         (throw (ex-info "Unable to find dafaflow context"
-                                  {:dataflow d}))))))))
+(defn bind-context [ctx flow]
+  (fn [n t]
+    (let [it (flow n t)]
+      (reify
+        IFn
+        (invoke [_] (it))
+        IDeref
+        (deref [_] (with-ctx ctx @it))))))
+
+(defn failer [n t e]
+  (n) (reify
+        IFn (invoke [_])
+        IDeref (deref [_] (t) (throw e))))
+
+(defn no-context [d n t]
+  (failer n t (ex-info "Unable to find dafaflow context" {:dataflow d})))
+
+(defrecord Dataflow [result graph]
+  IFn (invoke [d n t] ((or (get-ctx) no-context) d n t)))
 
 ;; GG: This is a copy/paste from `clojure.tools.analyser.jvm/macroexpand-1`, without inlining.
 (defn macroexpand-1'
@@ -83,49 +92,92 @@
                             (update (clj/empty-env) :locals merge))
                        {:bindings {#'ana/macroexpand-1 macroexpand-1'}}))))))
 
+(defn remote [_])
+
 (defn special [ast]
   (when (= :var (:op ast))
     (case (symbol (:var ast))
       clojure.core/deref :variable
       clojure.core/unquote :constant
+      hfdl.impl.compiler/remote :remote
       nil)))
 
 (declare normalize-ast)
 
-(defn ignore-result [{:keys [result effects]}]
-  (set/union effects #{result}))
+(defn deps [[op & args]]
+  (case op
+    :apply (cons (first args) (second args))
+    (:remote :constant :variable) (list (first args))
+    (:local :global) ()))
+
+(def graphs (u/monoid u/map-into [#{} #{}]))
+
+(defn result [node]
+  (->Dataflow node
+    ((fn walk [graph node]
+       (if (contains? (first graph) node)
+         graph (let [[op & args] node]
+                 (update (case op
+                           :remote (-> graph u/swap (walk (second node)) u/swap)
+                           (case op
+                             :apply (reduce walk (walk graph (first args)) (second args))
+                             (:constant :variable) (walk graph (first args))
+                             (:local :global) graph))
+                   0 conj node))))
+     (graphs) node)))
+
+(defn discard [x & ys]
+  (->> ys
+    (map :graph)
+    (apply update x :graph graphs)))
 
 (defn normalize-binding [r {:keys [name init]}]
   (let [s (normalize-ast (:env r) init)]
     (-> r
-      (update :env assoc name (:result s))
-      (update :effects set/union (ignore-result s)))))
+      (update :env update 0 assoc name (:result s))
+      (discard s))))
 
 (defn normalize-par [env ctor & deps]
   (let [dags (map (partial normalize-ast env) deps)]
-    {:result (apply ctor (map :result dags))
-     :effects (apply set/union (map :effects dags))}))
+    (apply discard (result (apply ctor (map :result dags))) dags)))
 
 (defn node-apply [f & args]
-  [:apply f args])
+  [:apply f (vec args)])
+
+(defn node-local [x]
+  [:local x])
+
+(defn node-global [s]
+  [:global s])
+
+(defn node-variable [n]
+  [:variable n])
+
+(defn node-constant [n]
+  [:constant n])
+
+(defn node-remote [n]
+  [:remote n])
 
 (defn node-if [test then else]
-  [:variable
-   [:apply [:global `get]
-    [[:apply [:global `hash-map]
-      [[:local nil]   [:constant else]
-       [:local false] [:constant else]]]
-     test [:constant then]]]])
+  (node-variable
+    (node-apply
+      (node-global `get)
+      (node-apply
+        (node-global `hash-map)
+        (node-local nil) [:constant else]
+        (node-local false) [:constant else])
+      test [:constant then])))
 
 (defn node-case [test default & pairs]
-  [:variable
-   [:apply [:global `get]
-    [[:apply [:global `hash-map]
+  (node-variable
+    (node-apply
+      (node-global `get)
       (->> pairs
-           (partition 2)
-           (mapcat (fn [[k v]] [k [:constant v]])))]
-     test
-     [:constant default]]]])
+        (partition 2)
+        (mapcat (fn [[k v]] [k [:constant v]]))
+        (apply node-apply (node-global `hash-map)))
+      test [:constant default])))
 
 (declare normalize-ast)
 
@@ -136,10 +188,10 @@
   - #{:a 1} => (hash-set :a 1)"
   [env {:keys [op] :as ast}]
   (case op
-    :vector (apply normalize-par env (partial node-apply [:global `vector])   (:items ast))
-    :set    (apply normalize-par env (partial node-apply [:global `hash-set]) (:items ast))
-    :map    (apply normalize-par env (partial node-apply [:global `hash-map]) (interleave (:keys ast) (:vals ast)))
-    :with-meta (apply normalize-par env (partial node-apply [:global `with-meta]) [(:expr ast) (:meta ast)])))
+    :vector (apply normalize-par env (partial node-apply (node-global `vector))   (:items ast))
+    :set    (apply normalize-par env (partial node-apply (node-global `hash-set)) (:items ast))
+    :map    (apply normalize-par env (partial node-apply (node-global `hash-map)) (interleave (:keys ast) (:vals ast)))
+    :with-meta (apply normalize-par env (partial node-apply (node-global `with-meta)) [(:expr ast) (:meta ast)])))
 
 (defn free [env ast]
   (case (:op ast)
@@ -172,45 +224,56 @@
                    (if local (cons local params) params)) body)))
     (apply merge)))
 
+(def empty-env [{} {}])
+
+(defn resolve-local [[l r] s]
+  (if-some [n (l s)]
+    n (if-some [n (r s)]
+        [:remote n])))
+
 (defn normalize-ast [env {:keys [op] :as ast}]
   (case op
     (:const)
-    {:result [:local (:val ast)]}
+    (result (node-local (:val ast)))
 
     (:quote)
-    {:result [:local (:form ast)]}
+    (result (node-local (:form ast)))
 
     (:local)
-    {:result (env (:name ast) [:local (:name ast)])}
+    (result (or (resolve-local env (:name ast)) (node-local (:name ast))))
 
     (:map :vector :set :with-meta)
     (litteral-as-function env ast)
 
     (:var)
-    {:result [:global (symbol (:var ast))]}
+    (result (node-global (symbol (:var ast))))
 
     (:static-call)
     (let [{:keys [class method args]} ast
           arg-syms (into [] (map (comp symbol (partial str "arg"))) (range (count args)))]
       (apply normalize-par env
         (partial node-apply
-          [:local (->> arg-syms
-                    (cons (symbol (.getName ^Class class) (name method)))
-                    (list `fn arg-syms))]) args))
+          (->> arg-syms
+            (cons (symbol (.getName ^Class class) (name method)))
+            (list `fn arg-syms)
+            (node-local))) args))
 
     (:invoke)
-    (if-some [special (special (:fn ast))]
-      (apply normalize-par env (partial vector special) (:args ast))
-      (apply normalize-par env node-apply (:fn ast) (:args ast)))
+    (let [{:keys [fn args]} ast]
+      (case (special fn)
+        :remote (let [df (normalize-ast (u/swap env) (first args))]
+                  (discard (result (node-remote (:result df))) (update df :graph u/swap)))
+        :constant (normalize-par env node-constant (first args))
+        :variable (normalize-par env node-variable (first args))
+        (apply normalize-par env node-apply fn args)))
 
     (:do)
-    (->> (:statements ast)
-      (map (comp ignore-result (partial normalize-ast env)))
-      (apply update (normalize-ast env (:ret ast)) :effects set/union))
+    (apply discard (normalize-ast env (:ret ast))
+      (map (partial normalize-ast env) (:statements ast)))
 
     (:let)
-    (let [{:keys [env effects]} (reduce normalize-binding {:env env} (:bindings ast))]
-      (update (normalize-ast env (:body ast)) :effects set/union effects))
+    (let [b (reduce normalize-binding {:env env :graph (graphs)} (:bindings ast))]
+      (discard (normalize-ast (:env b) (:body ast)) b))
 
     (:if)
     (normalize-par env node-if (:test ast) (:then ast) (:else ast))
@@ -230,141 +293,130 @@
 
     (:fn)
     (let [{:keys [form local methods]} ast
-          syms (into [] (filter (comp env key)) (free-variables local methods))]
-      {:result [:apply [:local `(fn ~(mapv val syms) ~form)]
-                (into [] (map (comp env key)) syms)]})
+          n->s (reduce-kv (fn [m l s]
+                            (if-some [n (resolve-local env l)]
+                              (assoc m n s) m)) {} (free-variables local methods))]
+      (result (apply node-apply (node-local `(fn [~@(vals n->s)] ~form)) (keys n->s))))
 
     ;; (:throw) ;; TODO
     ;; (:new) ;; TODO
     ))
 
-(defn deps [[op & args]]
-  (case op
-    :apply (into #{(first args)} (second args))
-    (:spawn :constant :variable) #{(first args)}
-    (:local :global) #{}))
+(defn assoc-count [m k]
+  (assoc m k (count m)))
 
 (defn topsort [sort node]
   (if (contains? sort node)
-    sort (let [sort (reduce topsort sort (deps node))]
-           (assoc sort node (count sort)))))
+    sort (assoc-count (reduce topsort sort (deps node)) node)))
 
 (defn emit-frame [dag]
-  (let [slots (reduce topsort {} (ignore-result dag))]
+  (let [slots (reduce topsort {} (:graph dag))]
     (list `->Dataflow
       (->> slots
         (sort-by val)
-        (mapv (comp (fn [inst]
-                      (case (first inst)
-                        :apply (-> inst
-                                 (update 1 slots)
-                                 (update 2 (partial mapv slots)))
-                        (:spawn :constant :variable) (update inst 1 slots)
-                        :global (update inst 1 (partial list `quote))
-                        :local inst)) key))) (slots (:result dag)))))
+        (mapv (comp (fn [[op & args]]
+                      (cons op
+                        (case op
+                          :apply [(slots (first args)) (mapv slots (second args))]
+                          (:remote :constant :variable) [(slots (first args))]
+                          (:local :global) args))) key))) (slots (:result dag)))))
 
-(defn dataflow [env form]
+(defn df [env form]
   (->> form
     (analyze-clj env)
-    (normalize-ast {})
-    (emit-frame)))
+    (normalize-ast empty-env)))
 
 (tests
- "Constants"
- (dataflow {} 1) := `(->Dataflow [[:local 1]] 0)
- (dataflow {} [1 2]) := `(->Dataflow [[:local [1 2]]] 0)
- (dataflow {} {:a 1}) := `(->Dataflow [[:local {:a 1}]] 0)
- (dataflow {} #{:foo :bar}) := `(->Dataflow [[:local #{:foo :bar}]] 0))
+  "Constants"
+  (df {} 1) := (result (node-local 1))
+  (df {} [1 2]) := (result (node-local [1 2]))
+  (df {} {:a 1}) := (result (node-local {:a 1}))
+  (df {} #{:foo :bar}) := (result (node-local #{:bar :foo})))
 
 (tests
- "Locals"
- (def a 1)
- (dataflow {} `a) := `(->Dataflow [[:global `a]] 0))
+  "Locals"
+  (def a 1)
+  (df {} `a) := (result (node-global `a)))
 
 (tests
- "Variables"
- (def !a (atom 0))
- (def a (m/watch !a))
- (dataflow {} `@a) := `(->Dataflow [[:global 'a] [:variable 0]] 1))
+  "Variables"
+  (def !a (atom 0))
+  (def a (m/watch !a))
+  (df {} `@a) := (result (node-variable (node-global `a))))
 
 (tests
- "Vectors"
- (def !a (atom 0))
- (def a (m/watch !a))
- (dataflow {} [1 `@a])
- :=
- `(->Dataflow [[:global 'clojure.core/vector]
-               [:global 'hfdl.impl.compiler/a]
-               [:variable 1]
-               [:local 1]
-               [:apply 0 [3 2]]]
-              4))
+  "Vectors"
+  (def !a (atom 0))
+  (def a (m/watch !a))
+  (df {} [1 `@a])
+  :=
+  (result
+    (node-apply
+      (node-global `vector)
+      (node-local 1)
+      (node-variable (node-global `a)))))
 
 (tests
- "Unification"
- (def !a (atom 0))
- (def a (m/watch !a))
- (dataflow {} `[@a @a])
- :=
- `(->Dataflow [[:global 'clojure.core/vector]
-               [:global 'hfdl.impl.compiler/a] ; single signal for a.
-               [:variable 1]                   ; single deref for a.
-               [:apply 0 [2 2]]]
-              3))
+  "Unification"
+  (def !a (atom 0))
+  (def a (m/watch !a))
+  (df {} `[@a @a])
+  :=
+  (result
+    (node-apply
+      (node-global `vector)
+      (node-variable (node-global `a))
+      (node-variable (node-global `a)))))
 
 (tests
- "Maps"
- (def !a (atom 0))
- (def a (m/watch !a))
- (dataflow {} {:k `@a})
- :=
- `(->Dataflow [[:global 'clojure.core/hash-map]
-               [:global 'hfdl.impl.compiler/a]
-               [:variable 1]
-               [:local :k]
-               [:apply 0 [3 2]]]
-              4)
+  "Maps"
+  (def !a (atom 0))
+  (def a (m/watch !a))
+  (df {} {:k `@a})
+  :=
+  (result
+    (node-apply
+      (node-global `hash-map)
+      (node-local :k)
+      (node-variable (node-global `a))))
 
- (dataflow {} {`@a :v})
- :=
- `(->Dataflow [[:global 'clojure.core/hash-map]
-               [:global 'hfdl.impl.compiler/a]
-               [:variable 1]
-               [:local :v]
-               [:apply 0 [2 3]]]
-              4))
+  (df {} {`@a :v})
+  :=
+  (result
+    (node-apply
+      (node-global `hash-map)
+      (node-variable (node-global `a))
+      (node-local :v))))
 
 (tests
- "Sets"
- (def !a (atom 0))
- (def a (m/watch !a))
- (dataflow {} #{1 `@a})
- :=
- `(->Dataflow [[:global 'clojure.core/hash-set]
-               [:global 'hfdl.impl.compiler/a]
-               [:variable 1]
-               [:local 1]
-               [:apply 0 [3 2]]]
-                                        4))
+  "Sets"
+  (def !a (atom 0))
+  (def a (m/watch !a))
+  (df {} #{1 `@a})
+  :=
+  (result
+    (node-apply
+      (node-global `hash-set)
+      (node-local 1)
+      (node-variable (node-global `a)))))
 
 (tests
- "Static calls"
- (dataflow {} '(java.lang.Math/sqrt 4))
- := '(hfdl.impl.compiler/->Dataflow
-      [[:local 4]
-       [:local (clojure.core/fn [arg0] (java.lang.Math/sqrt arg0))]
-       [:apply 1 [0]]]
-      2))
+  "Static calls"
+  (df {} '(java.lang.Math/sqrt 4))
+  :=
+  (result
+    (node-apply
+      (node-local '(clojure.core/fn [arg0] (java.lang.Math/sqrt arg0)))
+      (node-local 4))))
 
 (tests
- "Invoke"
- (dataflow {} `(str 1))
- :=
- `(->Dataflow
-   [[:local 1]
-    [:global 'clojure.core/str]
-    [:apply 1 [0]]]
-   2))
+  "Invoke"
+  (df {} `(str 1))
+  :=
+  (result
+    (node-apply
+      (node-global `str)
+      (node-local 1))))
 
 ;; Inlining is disabled for now
 #_(tests
@@ -378,115 +430,114 @@
    2))
 
 (tests
- "Composition"
- (dataflow {} `(str (str 1)))
- :=
- `(->Dataflow [[:local 1]
-               [:global 'clojure.core/str] ; unified
-               [:apply 1 [0]]
-               [:apply 1 [2]]]
-              3))
+  "Composition"
+  (df {} `(str (str 1)))
+  :=
+  (result
+    (node-apply
+      (node-global `str)
+      (node-apply
+        (node-global `str)
+        (node-local 1)))))
 
 (tests
- "Do"
- (dataflow {} '(do 1 2)) := `(->Dataflow [[:local 2]] 0) ; no effect on 1, skipped.
+  "Do"
+  (df {} '(do 1 2))
+  :=
+  (result (node-local 2)) ; no effect on 1, skipped.
 
- (dataflow {} '(do (println 1) 2))
- :=
- `(->Dataflow [[:local 1]                                ; effect on 1, retained.
-               [:global 'clojure.core/println]
-               [:apply 1 [0]]
-               [:local 2]]
-              3))
+  (df {} '(do (println 1) 2))
+  :=
+  (discard (result (node-local 2)) (result (node-apply (node-global `println) (node-local 1)))))
 
 (tests
- "Let is transparent"
- (dataflow {} '(let [a 1] a)) := `(->Dataflow [[:local 1]] 0))
+  "Let is transparent"
+  (df {} '(let [a 1] a))
+  :=
+  (result (node-local 1)))
 
 (tests
- "Let is not sequential"
- (dataflow {} '(let [a 1
-                     b 2
-                     c 3]
-                 c))
- :=
- `(->Dataflow [[:local 3] [:local 1] [:local 2]] 0))
+  "Let is not sequential"
+  (df {} '(let [a 1 b 2 c 3] c))
+  :=
+  (discard (result (node-local 3)) (result (node-local 1)) (result (node-local 2))))
 
 (tests
- "Referential transparency unifies bindings"
- (dataflow {} '(let [a 1
-                     c (str a)
-                     b (str a)]
-                 [c b]))
- :=
- `(->Dataflow [[:local 1]
-               [:global 'clojure.core/str]
-               [:apply 1 [0]]
-               [:global 'clojure.core/vector]
-               [:apply 3 [2 2]]]
-              4))
+  "Referential transparency unifies bindings"
+  (df {} '(let [a 1
+                c (str a)
+                b (str a)]
+            [c b]))
+  :=
+  (result
+    (node-apply
+      (node-global `vector)
+      (node-apply (node-global `str) (node-local 1))
+      (node-apply (node-global `str) (node-local 1)))))
 
 (tests
- "If"
- (dataflow {} '(if (odd? 1) :odd :even))
- :=
- `(->Dataflow
-  [[:global 'clojure.core/hash-map]
-   [:local false]
-   [:local :even]
-   [:constant 2]
-   [:local nil]
-   [:apply 0 [4 3 1 3]]
-   [:global 'clojure.core/get]
-   [:local :odd]
-   [:constant 7]
-   [:global 'clojure.core/odd?]
-   [:local 1]
-   [:apply 9 [10]]
-   [:apply 6 [5 11 8]]
-   [:variable 12]]
-  13))
+  "If"
+  (df {} '(if (odd? 1) :odd :even))
+  :=
+  (result
+    (node-variable
+      (node-apply
+        (node-global `get)
+        (node-apply
+          (node-global `hash-map)
+          (node-local nil)
+          (node-constant (node-local :even))
+          (node-local false)
+          (node-constant (node-local :even)))
+        (node-apply
+          (node-global `odd?)
+          (node-local 1))
+        (node-constant (node-local :odd))))))
 
 (tests
- "Case"
- (dataflow {} '(case 1
-                 (1 3) :odd
-                 2     :even
-                 4     :even
-                 :default))
- :=
- `(->Dataflow
-   [[:global 'clojure.core/get]
-    [:local 1]
-    [:local :default] ; broken here, waiting for :default/throw handling
-    [:constant 2]
-    [:global 'clojure.core/hash-map]
-    [:local :even]
-    [:constant 5]
-    [:local 3]
-    [:local 4]
-    [:local 2]
-    [:local :odd]
-    [:constant 10]
-    [:apply 4 [1 11 9 6 7 11 8 6]]
-    [:apply 0 [12 1 3]]
-    [:variable 13]]
-   14))
+  "Case"
+  (:result (df {} '(case 1
+                     (1 3) :odd
+                     2 :even
+                     4 :even
+                     :default)))
+  :=
+  (node-variable
+    (node-apply (node-global `get)
+      (node-apply (node-global `hash-map)
+        (node-local 1) (node-constant (node-local :odd))
+        (node-local 2) (node-constant (node-local :even))
+        (node-local 3) (node-constant (node-local :odd))
+        (node-local 4) (node-constant (node-local :even)))
+      (node-local 1)
+      (node-constant (node-local :default)))))
 
 (tests
   "fn"
-  (dataflow {} '(fn [] 1))
+  (df {} '(fn [] 1))
   :=
-  `(->Dataflow
-     [[:local (fn [] (fn* ([] 1)))]
-      [:apply 0 []]]
-     1)
+  (result
+    (node-apply (node-local '(clojure.core/fn [] (fn* ([] 1))))))
 
-  (dataflow {} '(let [a 1] (fn [] (let [f inc] (f a)))))
+  (:result (df {} '(let [a 1] (fn [] (let [f inc] (f a))))))
   :=
-  `(->Dataflow
-    [[:local 1]
-     [:local (fn [~'a] (fn* ([] (~'let [~'f ~'inc] (~'f ~'a)))))]
-     [:apply 1 [0]]]
-    2))
+  (node-apply (node-local '(clojure.core/fn [a] (fn* ([] (let [f inc] (f a))))))
+    (node-local 1)))
 
+(tests
+  (defn form-input [])
+  (defn query [_])
+  (defn render-table [_])
+  (:result (df {}
+             '(let [needle @(form-input)
+                    results (remote @(query needle))]
+                @(render-table results))))
+  :=
+  (node-variable
+    (node-apply (node-global `render-table)
+      (node-remote
+        (node-variable
+          (node-apply (node-global `query)
+            (node-remote
+              (node-variable
+                (node-apply (node-global `form-input))))))))))
