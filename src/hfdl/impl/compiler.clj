@@ -138,11 +138,12 @@
   (case op
     :vector (apply normalize-par env (partial node-apply [:global `vector])   (:items ast))
     :set    (apply normalize-par env (partial node-apply [:global `hash-set]) (:items ast))
-    :map    (apply normalize-par env (partial node-apply [:global `hash-map]) (interleave (:keys ast) (:vals ast)))))
+    :map    (apply normalize-par env (partial node-apply [:global `hash-map]) (interleave (:keys ast) (:vals ast)))
+    :with-meta (apply normalize-par env (partial node-apply [:global `with-meta]) [(:expr ast) (:meta ast)])))
 
 (defn free [env ast]
   (case (:op ast)
-    (:const :var)
+    (:const :var :vector)
     {}
 
     (:local)
@@ -176,10 +177,13 @@
     (:const)
     {:result [:local (:val ast)]}
 
+    (:quote)
+    {:result [:local (:form ast)]}
+
     (:local)
     {:result (env (:name ast) [:local (:name ast)])}
 
-    (:map :vector :set)
+    (:map :vector :set :with-meta)
     (litteral-as-function env ast)
 
     (:var)
