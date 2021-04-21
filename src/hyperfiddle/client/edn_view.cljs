@@ -9,8 +9,8 @@
             [clojure.edn :as edn]
             [clojure.pprint :refer [pprint]]
             [clojure.string :as str]
-            [hyperfiddle.client.tests]
-            [hyperfiddle.client.tests.edn-diff :refer [patch!]]
+            [hyperfiddle.client.edn-view.linter :refer [Linter]]
+            [hyperfiddle.client.edn-view.diff :refer [patcher]]
             [missionary.core :as m]
             [nextjournal.clojure-mode :as cm-clj]))
 
@@ -52,7 +52,10 @@
 (defonce >edn (m/watch !edn))
 
 (defn ^:export set-edn! [str]
-  (reset! !edn (edn/read-string str)))
+  (try
+    (reset! !edn (edn/read-string str))
+    (catch js/Error e
+      (js/console.warn (ex-message e) (clj->js (ex-data e))))))
 
 (defonce ^js extensions #js[theme
                             (history)
@@ -69,8 +72,12 @@
                             cm-clj/default-extensions
                             (.of view/keymap cm-clj/complete-keymap)
                             (.of view/keymap historyKeymap)
-                            wordHover
-                            ])
+                            ;; wordHover
+                            (.. EditorView -updateListener (of (fn [^js view]
+                                                                 (js/setTimeout #(set-edn! (.. view -state -doc (toString)))
+                                                                                1)
+                                                                 true)))
+                            Linter])
 
 (defn make-state [^js extensions, ^string doc]
   (let [[doc ranges] (->> (re-seq #"\||<[^>]*?>|[^<>|]+" doc)
@@ -102,13 +109,12 @@
 (defn edn-view! [dom-element, >edn]
   (let [^js view (new EditorView #js{:state  (make-state #js[extensions] "")
                                      :parent dom-element})
-        prev     (atom nil)]
+        patch!   (patcher)]
     ;; TODO call (.destroy editor) when >edn is done, if ever.
     (->> >edn
          (m/latest (fn [edn]
-                     (patch! view @prev edn)
-                     (reset! prev edn)
-                     ))
+                     (patch! view edn)
+                     edn))
          (m/relieve {}))))
 
 (defn ^:export render []

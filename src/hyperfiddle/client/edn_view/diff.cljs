@@ -1,14 +1,15 @@
-(ns hyperfiddle.client.tests.edn-diff
+(ns hyperfiddle.client.edn-view.diff
   (:require ["@codemirror/state" :refer [EditorState ChangeSet]]
             ["@codemirror/view" :as view :refer [EditorView]]
             ["lezer-generator" :as lg]
+            [clojure.edn :as edn]
             [clojure.pprint :refer [pprint]]
+            [clojure.string :as str]
             [editscript.core :as editscript]
             [editscript.edit :as e]
             [nextjournal.clojure-mode :as cm-clj]
             [nextjournal.clojure-mode.node :as n]
-            [shadow.resource :as rc]
-            [clojure.string :as str]))
+            [shadow.resource :as rc]))
 
 ;; Dev only!
 (def parser (lg/buildParser (rc/inline "./clojure.grammar")
@@ -17,22 +18,22 @@
 (defn diff [a b]
   (e/get-edits (editscript/diff a b)))
 
-(def a {:a {:b 2
-            :c 3}})
-
-(def b {:a {:b 3
-            :c 4}})
-
 (defn pprint-str [x] (str/trim (with-out-str (pprint x))))
 
-(comment 
+(comment
+
+  (def a {:a {:b 2
+              :c 3}})
+
+  (def b {:a {:b 3
+              :c 4}})
+
   (def view (new EditorView #js{:state  (.create EditorState
                                                  #js{:doc        (pprint-str a)
                                                      :selection  js/undefined
                                                      :extensions #js[cm-clj/default-extensions]})
-                                :parent (js/document.getElementById "hf-edn-test-view")})))
+                                :parent (js/document.getElementById "hf-edn-test-view")}))
 
-(comment
   (diff a b) ;; => [[[:a :b] :r 3] [[:a :c] :r 4]]
 
   (tree-seq coll? identity a)
@@ -109,8 +110,21 @@
 
 (defn patch! [^js view, a, b]
   (let [changes       (diffs->changes (.. view -state -tree) a (diff a b))
-        #_#_atomic-change (compose (.. view -state -doc) changes)]
-    (.dispatch view #js{:changes (into-array changes)})))
+        atomic-change (compose (.. view -state -doc) changes)]
+    (.dispatch view #js{:changes atomic-change})))
+
+(defn patcher []
+  (let [next (volatile! nil)]
+    (fn [^js view, new-val]
+      (try
+        (let [current (edn/read-string (.. view -state -doc (toString)))]
+          (if (= current new-val)
+            (when-let [next-val @next]
+              (vreset! next nil)
+              (patch! view current next-val))
+            (patch! view current new-val)))
+        (catch :default _
+          (vreset! next new-val))))))
 
 (comment
   (-> view .-state .-doc (.sliceString 0))
