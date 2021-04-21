@@ -1,0 +1,34 @@
+(user.hello-world/submission-masterlist "alice" nil nil)
+
+
+
+
+
+{(submissions {::needle ""})
+ [#:dustingetz{:db/id  9
+               :email  "alice@example.com",
+               :gender {:db/ident :dustingetz/female}
+               :shirt-size {:db/ident :dustingetz/womens-large}
+               (shirt-sizes dustingetz/gender needle)
+                       [#:db{:id 6, :ident :dustingetz/womens-small}
+                        #:db{:id 7, :ident :dustingetz/womens-medium}
+                        #:db{:id 8, :ident :dustingetz/womens-large}]}
+  #:dustingetz{:db/id  10
+               :email  "bob@example.com",
+               :gender {:db/ident :dustingetz/male}
+               :shirt-size {:db/ident :dustingetz/mens-small}
+               (shirt-sizes dustingetz/gender needle)
+                       [#:db{:id 3, :ident :dustingetz/mens-small}
+                        #:db{:id 4, :ident :dustingetz/mens-medium}
+                        #:db{:id 5, :ident :dustingetz/mens-large}]}
+  #:dustingetz{:db/id  11
+               :email  "charlie@example.com",
+               :gender {:db/ident :dustingetz/male}
+               :shirt-size {:db/ident :dustingetz/mens-large}
+               (shirt-sizes dustingetz/gender needle)
+                       [#:db{:id 3, :ident :dustingetz/mens-small}
+                        #:db{:id 4, :ident :dustingetz/mens-medium}
+                        #:db{:id 5, :ident :dustingetz/mens-large}]}]
+
+ (genders) [{:db/ident :dustingetz/male}
+            {:db/ident :dustingetz/female}]}

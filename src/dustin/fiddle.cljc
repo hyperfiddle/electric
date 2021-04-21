@@ -83,6 +83,7 @@
 
 (tests
   (shirt-size :dustingetz/male) := m-sm
+  (shirt-size :dustingetz/female) := w-sm
   ;(shirt-size male) := m-sm ; datascript issue?
   )
 
