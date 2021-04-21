@@ -88,7 +88,6 @@
     (case (symbol (:var ast))
       clojure.core/deref :variable
       clojure.core/unquote :constant
-      hfdl.lang/spawn :spawn
       nil)))
 
 (declare normalize-ast)
@@ -140,6 +139,37 @@
     :vector (apply normalize-par env (partial node-apply [:global `vector])   (:items ast))
     :set    (apply normalize-par env (partial node-apply [:global `hash-set]) (:items ast))
     :map    (apply normalize-par env (partial node-apply [:global `hash-map]) (interleave (:keys ast) (:vals ast)))))
+
+(defn free [env ast]
+  (case (:op ast)
+    (:const :var)
+    {}
+
+    (:local)
+    (if (contains? env (:name ast))
+      {} {(:name ast) (:form ast)})
+
+    (:let :loop)
+    (let [{:keys [bindings body]} ast]
+      ((fn rec [env bindings]
+         (if-some [[binding & bindings] bindings]
+           (merge (free env (:init binding))
+             (rec (assoc env (:name binding) (:form binding)) bindings))
+           (free env body))) env (seq bindings)))
+
+    (:invoke)
+    (->> (cons (:fn ast) (:args ast))
+      (map (partial free env))
+      (apply merge))
+
+    ))
+
+(defn free-variables [local methods]
+  (->> methods
+    (map (fn [{:keys [params body]}]
+           (free (into {} (map (juxt :name :form))
+                   (if local (cons local params) params)) body)))
+    (apply merge)))
 
 (defn normalize-ast [env {:keys [op] :as ast}]
   (case op
@@ -193,6 +223,12 @@
 
     (:case-then)
     (normalize-ast env (:then ast))
+
+    (:fn)
+    (let [{:keys [form local methods]} ast
+          syms (into [] (filter (comp env key)) (free-variables local methods))]
+      {:result [:apply [:local `(fn ~(mapv val syms) ~form)]
+                (into [] (map (comp env key)) syms)]})
 
     ;; (:throw) ;; TODO
     ;; (:new) ;; TODO
@@ -432,3 +468,22 @@
     [:apply 0 [12 1 3]]
     [:variable 13]]
    14))
+
+(comment
+  "fn"
+  (dataflow {} '(fn [] 1))
+  :=
+  `(->Dataflow
+     [[:local (fn [] (fn* ([] 1)))]
+      [:apply 0]]
+     1)
+
+  (dataflow {} '(let [a 1] (fn [] (inc a))))
+  :=
+  (->Dataflow
+    [[:local (fn [a] (fn [] (let [f inc] (f a))))]
+     [:local 1]
+     [:apply 0 [1]]]
+    2)
+
+  )
