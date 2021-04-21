@@ -1,0 +1,51 @@
+(user.hello-world/submission-masterlist "alice" nil nil)
+
+
+(s/def ::needle string?)
+
+(s/fdef submissions (s/keys :req [::needle]))
+(s/fdef genders (s/keys :req [::needle]))
+(s/fdef shirt-sizes (s/keys :req [::needle]))
+
+
+(let [needle ...
+      [_ e] '(user.hello-world/submission-masterlist
+               {needle ""
+                needle:9 ""
+                needle:10 "large"                           ; dom input
+                needle:11 ""
+                })]
+  ;(dataflow)
+  (hfql
+    [{(submissions needle)                                  ; card++
+      [:db/id
+       :dustingetz/email
+       {:dustingetz/gender [:db/ident]}
+       {:dustingetz/shirtsize [:db/ident]}
+       {(shirt-sizes dustingetz/gender needle:id) [:db/id :db/ident]}]
+      (genders)
+      [:db/ident]}])
+  := [
+      {needle (atom)
+       needle:9 (atom)
+       needle:10 (atom)                                     ; dom
+       needle:11 (atom)
+       }]
+  )
+
+
+
+(let [
+      needle (m/signal )
+      needle:9 (m/signal ['needle 9])
+      needle:10 (m/signal ['needle 10])
+      needle:11 (m/signal ['needle 11])
+      ])
+
+(defn shirt-sizes [>needle:id]
+
+  )
+
+
+(def !x (m/signal ['needle 10]))
+(reset! !x "lar")
