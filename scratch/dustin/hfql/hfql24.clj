@@ -78,7 +78,7 @@
     (let [edge* (compile-leaf* ?edge)]
       (if (many? ?edge)                                     ; thus % is sequential, (pureI [1 2 3])
         `{'~?edge
-          @(~'reactive-for (~'fn [~'%]
+          @(reactive-for (~'fn [~'%]
                             (dataflow
                              (~'let [~(hf-edge->sym ?edge) ~'%]
                               ~(compile-hfql* ?cont))))
@@ -97,7 +97,7 @@
 (tests
  (macroexpand-1 '(hfql {(dustin.fiddle/genders) [:db/ident]}))
  := '{'(dustin.fiddle/genders)
-      @(reactive-for
+      @(hfdl.lib/reactive-for
         (fn [%] (hfdl.lang/dataflow
                 (let [% %] {':db/ident (dustin.hfql.hfql24/hf-nav :db/ident %)})))
         (unquote (dustin.fiddle/genders)))})
@@ -112,10 +112,11 @@
 (tests
  (def !gender (atom :dustingetz/male))
  (def >gender (m/watch !gender))
- (def program (dataflow (hfql {(dustin.fiddle/shirt-size @>gender) [:db/id :db/ident]})))
+ (def program (dataflow (let [gender @>gender]
+                          (hfql {(dustin.fiddle/shirt-size gender) [:db/id :db/ident]}))))
  (def process (debug! program))
 
- (result program @process) := '{(dustin.fiddle/shirt-size @>gender) {:db/id 3 :db/ident :dustingetz/mens-small}}
+ (result program @process) := '{(dustin.fiddle/shirt-size gender) {:db/id 3 :db/ident :dustingetz/mens-small}}
 
  )
 
@@ -123,18 +124,20 @@
 
  (def !needle (atom ""))
  (def >needle (m/watch !needle))
- (def program (dataflow (hfql [{(dustin.fiddle/submissions @>needle)
-                                [:dustingetz/email
-                                 {:dustingetz/gender
-                                  [:db/ident
-                                   {(dustin.fiddle/shirt-sizes dustingetz__gender) [:db/ident]}]}]}
-                               {(dustin.fiddle/genders) [:db/ident]}])))
+ (def program (dataflow
+               (let [needle @>needle]
+                 (hfql [{(dustin.fiddle/submissions needle)
+                         [:dustingetz/email
+                          {:dustingetz/gender
+                           [:db/ident
+                            {(dustin.fiddle/shirt-sizes dustingetz__gender) [:db/ident]}]}]}
+                        {(dustin.fiddle/genders) [:db/ident]}]))))
 
  (def process (debug! program))
 
  (result program @process)
  :=
- '{(dustin.fiddle/submissions @>needle)
+ '{(dustin.fiddle/submissions needle)
    [#:dustingetz{:email "alice@example.com"
                  :gender
                  {(dustin.fiddle/shirt-sizes dustingetz__gender)
@@ -164,7 +167,7 @@
 
  (result program @process)
  :=
- '{(dustin.fiddle/submissions @>needle)
+ '{(dustin.fiddle/submissions needle)
    [#:dustingetz{:email "alice@example.com"
                  :gender
                  {:db/ident :dustingetz/female
