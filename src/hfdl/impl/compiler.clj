@@ -143,9 +143,6 @@
 
 (defn free [env ast]
   (case (:op ast)
-    (:const :var :vector)
-    {}
-
     (:local)
     (if (contains? env (:name ast))
       {} {(:name ast) (:form ast)})
@@ -155,14 +152,17 @@
       ((fn rec [env bindings]
          (if-some [[binding & bindings] bindings]
            (merge (free env (:init binding))
-             (rec (assoc env (:name binding) (:form binding)) bindings))
+                  (rec (assoc env (:name binding) (:form binding)) bindings))
            (free env body))) env (seq bindings)))
 
     (:invoke)
     (->> (cons (:fn ast) (:args ast))
-      (map (partial free env))
-      (apply merge))
+         (map (partial free env))
+         (apply merge))
 
+    (->> (map ast (:children ast))
+         (map (partial free env))
+         (apply merge))
     ))
 
 (defn free-variables [local methods]
@@ -473,21 +473,20 @@
     [:variable 13]]
    14))
 
-(comment
+(tests
   "fn"
   (dataflow {} '(fn [] 1))
   :=
   `(->Dataflow
      [[:local (fn [] (fn* ([] 1)))]
-      [:apply 0]]
+      [:apply 0 []]]
      1)
 
-  (dataflow {} '(let [a 1] (fn [] (inc a))))
+  (dataflow {} '(let [a 1] (fn [] (let [f inc] (f a)))))
   :=
-  (->Dataflow
-    [[:local (fn [a] (fn [] (let [f inc] (f a))))]
-     [:local 1]
-     [:apply 0 [1]]]
-    2)
+  `(->Dataflow
+    [[:local 1]
+     [:local (fn [~'a] (fn* ([] (~'let [~'f ~'inc] (~'f ~'a)))))]
+     [:apply 1 [0]]]
+    2))
 
-  )
