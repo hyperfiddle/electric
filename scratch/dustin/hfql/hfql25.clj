@@ -69,12 +69,15 @@
 
 ; HFQL
 
+(defn drop-slash [kw-sym]
+  (symbol (str (namespace kw-sym) "__" (name kw-sym))))
+
 (defn hf-edge->sym! [env edge]
   (if-let [sym (get env edge)]
     sym
     (if (keyword? edge)
       (if (namespace edge)
-        (let [sym (symbol (str (namespace edge) "__" (name edge)))]
+        (let [sym (drop-slash edge)]
           [(assoc env (symbol edge) sym) sym])
         [env (symbol (name edge))])
       [env '%])))
