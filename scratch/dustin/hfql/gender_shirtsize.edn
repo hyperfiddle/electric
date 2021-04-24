@@ -1,0 +1,133 @@
+(ns user.hello-world
+  (:require
+    #?(:clj [backtick :refer [template]])
+    [contrib.do :refer [do-result from-result]]
+    #?(:clj [datomic.api])                                  ; Native Datomic works, can also use HF facade
+    #?(:clj [contrib.datomic :refer [tempid?]])
+    [hyperfiddle.spec.datomic :as sd]
+    [hyperfiddle.api :as hf]
+    [hyperfiddle.def :as hf-def]
+    #?(:cljs [hyperfiddle.ui :refer [result]])
+    #?(:cljs [hyperfiddle.ui.select :refer [table-picker checkbox-picker search picklist]])
+    #?(:cljs hyperfiddle.spec.ui)
+    #?@(:clj
+        [hyperfiddle.config
+         hyperfiddle.io.datomic.core
+         [datomic.api :as d]])
+    [clojure.spec.alpha :as s]))
+
+
+#?(:clj
+   (do
+
+     (def ^:dynamic *conn*)
+
+     (defn with [$ tx]                                      ; Can flip between d/transact and d/with
+       @(datomic.api/transact *conn* tx)
+       (datomic.api/db *conn*)
+       #_(:db-after (d/with $ {:tx-data tx})))
+
+     (defn load-fixtures! [domain]
+       (binding [*conn* (hf/connect domain "$")]
+         (def $
+           (-> (datomic.api/db *conn*)
+             (with [{:db/ident :dustingetz/email :db/valueType :db.type/string :db/cardinality :db.cardinality/one :db/unique :db.unique/identity}
+                    {:db/ident :dustingetz/gender :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+                    {:db/ident :dustingetz/shirt-size :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+                    {:db/ident :dustingetz/type :db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}])
+             (with [{:dustingetz/type :dustingetz/gender :db/ident :dustingetz/male}
+                    {:dustingetz/type :dustingetz/gender :db/ident :dustingetz/female}])
+             (with [{:dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/mens-small :dustingetz/gender :dustingetz/male}
+                    {:dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/mens-medium :dustingetz/gender :dustingetz/male}
+                    {:dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/mens-large :dustingetz/gender :dustingetz/male}
+                    {:dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/womens-small :dustingetz/gender :dustingetz/female}
+                    {:dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/womens-medium :dustingetz/gender :dustingetz/female}
+                    {:dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/womens-large :dustingetz/gender :dustingetz/female}])
+             (with [{:dustingetz/email "alice@example.com" :dustingetz/gender :dustingetz/female :dustingetz/shirt-size :dustingetz/womens-large}
+                    {:dustingetz/email "bob@example.com" :dustingetz/gender :dustingetz/male :dustingetz/shirt-size :dustingetz/mens-large}
+                    {:dustingetz/email "charlie@example.com" :dustingetz/gender :dustingetz/male :dustingetz/shirt-size :dustingetz/mens-medium}]))))
+       (assert (= 3 (datomic.api/q '[:find (count ?e) . :where [?e :dustingetz/email]] $)))
+       )))
+
+
+; alice@example.com
+; https://www.hfmaster.xyz/user.hello-world!submission-detail/
+; (:dustingetz!email,'alice@example.com')
+
+(s/fdef page-submission-master :args (s/cat :first string? :second (s/nilable string?) :last (s/? number?)))
+(s/fdef page-submission-detail :args (s/cat :e (s/and some? ref?)))
+(s/fdef submissions :args (s/cat :first string? :second (s/nilable string?) :last (s/? number?)))
+(s/fdef genders :args (s/cat :needle string?))
+(s/fdef shirt-sizes :args (s/cat :gender (s/and some? ref?) :needle string?))
+
+(defn page-submission-master [needle]
+  '[{(submissions needle _ _)
+     ['page-submission-detail
+      :db/id
+      :dustingetz/email
+      {(:dustingetz/gender ::hf/options (genders needle2)) [:db/ident]}
+      {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender _)) [:db/ident]}]}
+    ('(page-submission-detail "a") ::hf/tx (new-submission-tx #_gender)) ;'{"a" [...]}
+    ])
+
+(defn page-submission-detail [e]                            ; page means routable, no surrounding context
+  {e
+   [:db/id
+    :dustingetz/email
+    {(:dustingetz/gender ::hf/options (genders)) [:db/id :db/ident :dustingetz/type]}
+    {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender _)) [:db/ident]}
+    '*]})
+
+(defn new-submission-tx [[e a v] props]
+  #?(:cljs
+     [`(f ~v)]))
+
+(defmethod hf/invalid-msg ::needle [_ _] "Needle is required")
+; todo  -defaults , view-defaults
+
+;(defmethod hf/render ['(submissions needle nil nil) :dustingetz/gender] [v props]
+;  #?(:cljs
+;     [table-picker v props]))
+;
+;(defmethod hf/render ['(submissions needle nil nil) :dustingetz/shirt-size] [v props]
+;  [#?(:cljs picklist) v (merge props {::hf/option-label name})])
+
+(defn submissions [needle second last]
+  #?(:clj
+     (->>
+       (d/q '[:in $ ?needle
+              :find [?e ...]
+              :where
+              [?e :dustingetz/email]
+              [(get-else $ ?e :dustingetz/email "") ?email]
+              [(.toLowerCase ?email) ?email2]
+              [(.toLowerCase ?needle) ?needle2]
+              [(clojure.string/includes? ?email2 ?needle2)]]
+         (hf/get-db "$") (or needle ""))
+       (map #(assoc % :dustingetz/email1 "foo"))
+       (sort-by :dustingetz/email)
+       (take 10)
+       (doall))))
+
+(defn genders []
+  #?(:clj
+     (d/q '[:find ?g :where [?g :dustingetz/type :dustingetz/gender]] (hf/get-db "$"))))
+
+(defn shirt-sizes [e needle]
+  #?(:clj
+     (if e
+       (doall
+         (d/q '[:in $ ?gender ?needle-todo
+                :find [?e ...]
+                :where
+                [?e :dustingetz/type :dustingetz/shirt-size]
+                [?e :dustingetz/gender ?gender]]
+           (hf/get-db "$") e needle))
+       ())))
+
+(defn f [e]
+  #?(:clj
+     (let [$users (hf/with-db (hf/connect hf/*domain* "$users"))
+           user (datomic.api/entity $users [:user/user-id hf/*subject*])]
+       [[:db/add e :dustingetz/shirt-size :dustingetz/mens-medium]
+        [:db/add e :db/doc (str "Transacted by " (:user/name user))]])))
