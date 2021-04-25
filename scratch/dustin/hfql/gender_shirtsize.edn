@@ -49,34 +49,55 @@
        (assert (= 3 (datomic.api/q '[:find (count ?e) . :where [?e :dustingetz/email]] $)))
        )))
 
-
-; alice@example.com
-; https://www.hfmaster.xyz/user.hello-world!submission-detail/
-; (:dustingetz!email,'alice@example.com')
-
-(s/fdef page-submission-master :args (s/cat :first string? :second (s/nilable string?) :last (s/? number?)))
+(s/fdef page-submission-master :args (s/cat :needle string?))
 (s/fdef page-submission-detail :args (s/cat :e (s/and some? ref?)))
 (s/fdef submissions :args (s/cat :first string? :second (s/nilable string?) :last (s/? number?)))
 (s/fdef genders :args (s/cat :needle string?))
 (s/fdef shirt-sizes :args (s/cat :gender (s/and some? ref?) :needle string?))
 
-(defn page-submission-master [needle]
-  '[{(submissions needle _ _)
-     ['page-submission-detail
-      :db/id
-      :dustingetz/email
-      {(:dustingetz/gender ::hf/options (genders needle2)) [:db/ident]}
-      {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender _)) [:db/ident]}]}
-    ('(page-submission-detail "a") ::hf/tx (new-submission-tx #_gender)) ;'{"a" [...]}
-    ])
+(comment
+  ; https://www.hfmaster.xyz/user.hello-world!page-submission-masterl/(:dustingetz!email,'alice@example.com')
+  `(page-submission-master "")
+  ; https://www.hfmaster.xyz/user.hello-world!submission-detail/(:dustingetz!email,'alice@example.com')
+  `(page-submission-detail [:dustingetz/email "alice@example.com"])
+  )
+
+(defn page-submission-master [>needle]
+  (dataflow
+    (hfql
+      [{(submissions >needle)
+        [(:db/id ::hf/a (page-submission-detail %))
+         :dustingetz/email
+         {(:dustingetz/gender ::hf/options (genders) ::hf/render table-picker ::hf/option-label name)
+          [:db/ident]}
+         {(:dustingetz/shirt-size #_#_::hf/render shirtsize-picklist
+            ::hf/option-query (shirt-sizes gender _))
+          [:db/ident]}]}
+       ((page-submission-detail "a") ::hf/tx (new-submission-tx %% %)) #_'{"a" [...]}])))
+
+(defn picklist [v {:keys [::hf/option-query :gender] :as props}]
+  (dataflow
+    (let [!needle (atom nil)
+          >needle (m/watch !needle)
+          >options (remote (eval (template option-query {_ >needle})))
+          #_#_>options (remote (shirt-size gender >needle))]
+      [:<>
+       [:input {:type        "text"
+                :on-change   #(reset! !needle (-> % .-target .-value))
+                :value       @!needle
+                :invalid-msg ...}]
+       [:select
+        (reactive-for [>x @>options]
+          [:option (pr-str @>x)])]])))
 
 (defn page-submission-detail [e]                            ; page means routable, no surrounding context
-  {e
-   [:db/id
-    :dustingetz/email
-    {(:dustingetz/gender ::hf/options (genders)) [:db/id :db/ident :dustingetz/type]}
-    {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender _)) [:db/ident]}
-    '*]})
+  (hfql
+    {e
+     [:db/id
+      :dustingetz/email
+      {(:dustingetz/gender ::hf/options (genders)) [:db/id :db/ident :dustingetz/type]}
+      {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender _)) [:db/ident]}
+      *]}))
 
 (defn new-submission-tx [[e a v] props]
   #?(:cljs
@@ -84,13 +105,6 @@
 
 (defmethod hf/invalid-msg ::needle [_ _] "Needle is required")
 ; todo  -defaults , view-defaults
-
-;(defmethod hf/render ['(submissions needle nil nil) :dustingetz/gender] [v props]
-;  #?(:cljs
-;     [table-picker v props]))
-;
-;(defmethod hf/render ['(submissions needle nil nil) :dustingetz/shirt-size] [v props]
-;  [#?(:cljs picklist) v (merge props {::hf/option-label name})])
 
 (defn submissions [needle second last]
   #?(:clj
@@ -109,9 +123,7 @@
        (take 10)
        (doall))))
 
-(defn genders []
-  #?(:clj
-     (d/q '[:find ?g :where [?g :dustingetz/type :dustingetz/gender]] (hf/get-db "$"))))
+(defn genders [] #?(:clj (d/q '[:find ?g :where [?g :dustingetz/type :dustingetz/gender]] hf/*$*)))
 
 (defn shirt-sizes [e needle]
   #?(:clj
