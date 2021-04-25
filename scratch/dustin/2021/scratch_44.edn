@@ -1,0 +1,25 @@
+
+
+
+
+(rfor [a identity (range 10)
+       b identity (range a)]
+  (inc b))
+
+(->> (range 10)
+  (mapcat (ifn identity [a] (range a)))
+  (mapcat (ifn identity [b] [(inc b)])))
+
+
+(defmacro rfor [[s kf xs] & body]
+  `($ imap (ifn [~s] ~@body) kf xs))
+
+(defmacro >> [& body] `(reset ~@body))
+(defmacro << [kf xs] `(shift imap ~kf ~xs))
+(>> (inc (<< :db/id (range 10))))
+
+
+
+[:table xs (>> ($ f> (<< kf (query needle))))]
+; if f> was not a dag, why would we stabilize it?
+; The $ is implied

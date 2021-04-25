@@ -1,0 +1,22 @@
+    (= (fn [& args] x) (fn [& args] x)) ; closure
+    => false       ; bc closures are reference types
+
+This messes with React render tree memoization
+
+    ; different f each render, will never memoize
+    [:div {:f (fn [] 42)}]
+
+Reagent compares that prop check with cljs.core/= which is extensible with IEquiv, so there are a couple paths to hack it:
+1. Make a fake closure as a value object with IFn (defrecord F [x] IFn (-invoke [& args] 42)) (= (->F 42) (->F 42)) ; equal records are equal
+2. Name the function with a var and reuse the var e.g. (defn f [] 42) (= f f) ; obviously true
+
+What all have in common is they all have an extrinsic stable name. Anonymous closure is forbidden, you can never write (fn []), it is not recoverable
+
+More instances of the same problem:
+
+(= (partial identity 42) (partial identity 2)) ; false
+(= (constantly 42) (constantly 42)) ; false
+(= (comp inc inc) (comp inc inc)) ; false
+
+reagent.core/partial is a stabilized analog of cljs.core/partial using the record technique
+r/constantly and r/comp can be implemented the same record technique (Reagent doesn't provide this, but imo should)

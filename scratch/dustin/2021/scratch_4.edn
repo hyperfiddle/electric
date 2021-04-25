@@ -1,0 +1,73 @@
+
+(comment
+
+  !! (def >p (input '>p))
+  !! (def >q (input '>q))
+  !! (def >control (input '>control))
+  !! (def >cross (bind '>cross >control (fn [c] (case c :p >p :q >q))))
+  !! (def >z (fmap '>z vector >p >q >cross))
+  !! (def s (history >z #_print))
+  !! (do (put >control :q) (put >p 1) (put >q 2))           ; server
+
+
+
+  (defn foo [>control >p >q]
+    (bind '>cross >control (fn [c] ^{:key c} (case c :p >p :q >q)))
+    (fmap '>z vector >p >q >cross))
+
+  ; *flow* is two concerns
+  ;   topology
+  ;   values
+
+  (defn topology1 []
+    (bindings [*flow* empty-flow]
+      (node '>p) #_(def >p (input))
+      (node '>q)
+      (node '>control)
+      (foo '>control '>p '>q)
+      *flow*))
+
+  (defn f1 (topology1))
+  (do (put (node f1 '>control) :q)
+      (put (node f1 '>p) 1)
+      (put (node f1 '>q) 2))
+
+  (defn f2 (topology1))
+  (on (node f2 '>q) println)
+  (on (node f2 '>p) println)
+
+  (hydrate! f2 {'>z [1 2 :q]})
+  ;(hydrate! f2 {'>control :q '>p 1 '>q 2})
+  (node f2 '>z) => [1 2 :q]
+
+  (fmap vector (node f2 '>z) (node f2 '>p))                 ; client only deep ref
+
+  (defmethod hf/render [>a]
+    [:div ~>a])
+
+
+  )
+
+; 1. instantiate flow from trace
+; 2. reconcile flow instance from partial trace
+
+(tests
+  (def trace2 {'>control :q '>p 1 '>q 2
+               '>cross #ref '>q
+               '>z [1 2 :q]})
+  (def flow2 (new-flow-from-trace trace1))
+  (on (node *flow* '>z) prn)
+  )
+
+(tests
+  ;; Node is queued AFTER value arrives
+  !! (def aqueue (atom {}))
+  !! (def atrace (atom {}))
+  !! (def >n0 (f/input))
+  !! (def >n1 (f/fmap inc >n0))
+  !! (def >out (f/cap >n1))
+  !! (deliver-trace-element! aqueue atrace [1 1]) ;; [id value]
+  !! (f/with-executor (remote-executor aqueue atrace noop)
+       (f/put >n0 0))
+  @>out => 1
+  @atrace => {0 0, 1 1})

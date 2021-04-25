@@ -1,0 +1,78 @@
+; three cases
+; parallel application
+; sequential evaluation
+; reactive for
+
+(defn submissions> [needle]
+  (pure (dustin.fiddle/submissions needle)))
+
+(defmacro dataflow [& body] ...)
+
+(comment
+
+  (def >a (m/watch !a))
+  (def >b (m/watch !b))
+
+  ; explicit parallelism
+
+  (dataflow
+    (+ (inc (<- >a)) (dec (<- >b))))
+
+  #{[>a -> inc -> +]
+    [>b -> dec -> +]}
+
+  ; implicit parallelism by topo sort
+  (dataflow
+    (let [a (<- >a)
+          b (<- >b)]
+      (+ (inc a) (dec b))))
+
+  ; this produces a joint
+
+
+  ; sequential is the base case
+
+  (defn cross> [control p q]
+    `(case (<- control)
+       :p p :q q)
+    )
+
+  (defn f [a]
+    [:table
+     (for [x @a]
+       [:tr x])])
+
+  [:div (f 1)] := [:div 2]
+  [:div [f 1]]
+
+
+  (dataflow
+    (let [a (<- >a)
+          c (<- (submissions> a))]
+      (+ (inc a) (dec c))))
+
+
+  `(let [a (<- >a)
+        c (<- ~(submissions> a))]
+    (+ (inc a) (dec c)))
+
+
+  ; a couple ways to encode reactive list pattern
+  (dataflow
+    (let [subs (<- (submissions> a))]
+      (into
+        [:table]
+        (for [sub (<< :db/id subs)
+              sub2 (<< :db/id (repeat sub))]
+          [:tr sub sub2])
+
+        (mfor [sub :db/id subs
+               sub2 :db/id (repeat sub)]
+          [:tr sub sub2])
+
+        (>> (let [sub (<< :db/id subs)
+                  sub2 (<< :db/id (repeat sub))]
+              [:tr sub sub2]))
+
+        )))
+  )

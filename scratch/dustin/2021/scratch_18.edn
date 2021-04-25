@@ -1,0 +1,164 @@
+(ns dustin.trace8
+  (:require [minitest :refer [tests]]
+    [hyperfiddle.incremental :refer [fmapI pureI capI]]
+    [missionary.core :refer [watch]]))
+
+;; `clojure.core/memoize` memoize on all args, we want to memoize on a single argument.
+
+(defn memoize-n
+  "The memoized version of the function keeps a cache of the mapping from the `n`
+  first arguments to results."
+  [n f]
+  (let [mem (atom {})]
+    (fn [& args]
+      (let [mem-args (take n args)] ;; take n args instead of all args
+        (if-let [e (find @mem mem-args)]
+          (val e)
+          (let [ret (apply f args)]
+            (swap! mem assoc mem-args ret)
+            ret))))))
+
+(tests
+  (def plus-mem-1 (memoize-n 1 (fn [x y] (+ x y))))
+  (plus-mem-1 1 2) := 3 ; initial compute
+  (plus-mem-1 1 3) := 3 ; cached by first arg (1)
+  )
+
+;; React keys are locally unique ids used for reconciliation.
+
+(defn react-key [>a] (:react-key (meta >a)))
+
+(defn with-key [k v] (vary-meta v assoc :react-key k))
+
+;; A react key is local, it is always memoized in relationship with the parent.
+;; Pure nodes don’t have parents, so the key is random.
+
+(defn pureK [a] (with-key (gensym) (pureI a)))
+
+(defn concatv [& vs] (reduce into [] vs))
+
+(tests
+  (concatv [1] nil [3]) := [1 3])
+
+
+(defn fmapK* ; keyed fmap, relative to parent
+  [key f & >as]
+  (with-key (conj (apply concatv (map react-key >as)) key)
+    (apply fmapI f >as)))
+
+(tests
+  (react-key (fmapI inc (pureI 1))) := nil
+  (last (react-key (fmapK* 42 inc (pureK 1)))) := 42
+  (react-key (fmapK* 1 nil (fmapK* 2 nil))) := [2 1])
+
+
+;; Keyed fmap should be memoized by react key (first arg).
+;; broken! `f` closes over it’s env. Memoization at this layer
+;; might not be possible.
+(def fmapK (memoize-n 1 fmapK*))
+
+(defn map-by [f xs]
+  (into {} (map (juxt f identity)) xs))
+
+(defn extend-seq
+  [kf >as]
+  (fmapI (fn [as]
+           (let [grouped (map-by kf as)]
+             (map (fn [a] (fmapK (kf a) #(get grouped (kf a)) >as)) as)))
+    >as))
+
+(defn key= [as bs]
+  (cond
+    (and (coll? as)
+      (coll? bs)) (reduce (fn [acc a]
+                            (if (seq (filter #(key= a %) bs))
+                              true
+                              (reduced false)))
+                    as)
+    :else            (= (react-key as) (react-key bs))))
+
+(def put! reset!)
+
+(do
+  (def values     [{:db/id 1, :counter 0}
+                   {:db/id 2, :counter 0}])
+  (def >control   (atom <))
+  (def >records   (atom nil))
+  (def >sorted    (fmapI #(sort-by :db/id %1 %2) (watch >control) (watch >records)))
+  (def >>extended (extend-seq :db/id >sorted))
+  
+  (put! >records values)
+  (put! >control >)
+  
+  (def >zs  (capI >>extended))
+  
+  (put! >control <)
+  (def >zs2  (capI >>extended))
+  
+  (set >zs) := (set >zs2)  ;; will fail for now because of pureI
+  (key= (set >zs) (set >zs2)) := true
+  (= >zs >zs2) := false
+  (key= >zs >zs2) := false
+  (assert (key= >zs >zs2))
+  (assert (key= (set >zs) (set >zs2)))
+  
+  (def z1 (first (filter #(= 1 (:db/id (capI %))) (capI >>extended))))
+  (def z2 (first (filter #(= 2 (:db/id (capI %))) (capI >>extended))))
+  
+  (:counter (capI z1)) := 0
+  (:counter (capI z2)) := 1
+  
+  (put! >control <)
+  
+  (:counter (capI z1)) := 0
+  (:counter (capI z2)) := 1
+  
+  (put! >records [{:db/id 1, :counter 0}
+                  {:db/id 2, :counter 10}])
+  
+  (:counter (capI z1)) := 0
+  (:counter (capI z2)) := 10 ;; actually returns 1
+  
+  )
+
+;; We did learn:
+;; - we don’t need a reactive list for this use case (stable sort)
+;; - we’ve got to add a layer
+;; - adding/removing is stable but not interesting
+;; - because nodes are local, pure need a random react key.
+;; - pure doesn’t need a *user-provided* react key, fmap does
+;; - kf has to be injective or you'll get inconsistent behavior (if not broken)
+;; - kf needs to be pure for the client and server to agree
+;; - we will take care of error handling/warnings later
+
+;; - nodes memoization need to happen at the dataflow level because fmap f might
+;;   close over the lexical env and would need to be force-setted to the new
+;;   version.
+
+;; we still need to figure out how this works with tracing
+
+
+(tests
+  (def ast '(let [>items     (inputI)
+                  >>extended (unsequence :db/id >items)]))
+  (def flow (->Flow ast))
+  
+  (directive! flow '(put >items [{:db/id 1} {:db/id 2}]))
+  
+  (viz @flow) := {:ast   ast
+                  :nodes {'>items     {:type '?    :val [{:db/id 1} {:db/id 2}]}
+                          #uuid "…00" {:type 'fmap :val {:db/id 1}}
+                          #uuid "…01" {:type 'fmap :val {:db/id 2}}
+                          '>>extended {:type 'fmap :val [#ref #uuid "…00", #ref #uuid "…01"]}}}
+  
+  (trace-of @flow) := [{'>items     [{:db/id 1} {:db/id 2}]}
+                       {#uuid "…00" {:db/id 1}
+                        #uuid "…01" {:db/id 2}}
+                       {'>>extended [#ref #uuid "…00", #ref #uuid "…01"]}])
+
+
+
+;; We need to encode the value type (val or ref to node)
+
+;; extended and joined nodes are never a user concern. They are internal details
+;; of bind and unsequence.

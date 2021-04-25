@@ -1,0 +1,73 @@
+
+(deflow render-row [])
+(defn render-row []
+  (cp ...))
+
+(defn render-row [xs] [:tr xs])                             ; type error
+
+(via {'q      (lift datomic.api/q)
+      'render (lift ReactDOM/render)}
+  @(render (>> @(render-row ~(<< :db/id @(q ...))))))
+
+(eval1 '(let [a 1 b 2] (+ (inc a) b)))
+(eval2 '(let [a 1 b 2] (+ (inc a) b)))
+
+
+(render (>> (render-row ~(<< :db/id (q ...)))))
+
+@(render (>> @(render-row ~(<< :db/id @(q ...)))))
+
+@(render (for [% :db/id @(q ...)] @(render-row ~%)))
+
+
+
+(->>
+
+  (<< :db/id @(q ...))
+  ~
+  @(render-row)
+  >>
+  @render
+  )
+
+
+
+
+
+; How will we drive progress?
+; 1) Write down the HFDL spec
+; n) viz the static dags and add to doc - first pass today/tomorrow
+;      - what does the analyzer produce (be certain about the input to the graphviz) - Leo/G together
+;      - produce test cases – together
+;      - the graphviz part is easy - G solo
+; 2) implement splitting
+; 3) implement reactive-for (how to vizualize)
+; n) vizualize dynamic dag (if-nodes)
+
+; 1) what to add to spec
+; lambda
+; ~ and splitting in general
+; deflow
+
+
+
+
+; Show a dataflow program and show the graphical DAG beside it
+; write a simple generator that takes a dataflow program and makes a graphviz for it?
+; (Just the easy static part for now)
+
+; how to use the lang, how to compile, how to interpret; deflow is about that
+; lifting - not part of the lang itself, just standard tooling
+
+
+; what if everything was an IO?
+; it would run eagerly and lose lazy sampling
+
+; in HFDL, each s-expression introduces parallelism
+
+(let {a (m/watch !input)
+      b (m/watch !input)}
+  (let [c 1
+        d (println a)]
+    (reduce (fn [r x] (assoc r x (+ a b))) {} [:x :y])))
+

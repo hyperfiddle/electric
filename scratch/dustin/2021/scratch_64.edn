@@ -1,0 +1,20 @@
+(ns dustin.diff)
+
+
+(defn app [>db]
+  (dataflow
+    (let [xs' (diff-set (d/q ~'[:find ?e :where [?e :dustingetz/email]] @>db))])
+    [:div
+     [:pre (pr-str @(m/integrate patch ~xs'))]
+     (rfor [x xs']
+       (let [ks' @(entity-ks >db x)]
+         [:pre (pr-str @(entity-get >db ~x ~:person/name))]
+         (rfor [k ks']
+           (pr-str @(entity-get >db ~x ~k)))))]))
+
+
+(let [>xs' (d/q'. '[:in $ :find ?e :where [?e :person/name]] '>db)]
+  (pre. (pr-str @(m/integrate ... >xs'))))
+
+(let [xs' (d/q' ~'[:find ?e :where [?e :dustingetz/email]] @>db)]
+  [:pre (pr-str @(m/integrate ... ~xs'))])
