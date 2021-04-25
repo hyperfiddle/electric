@@ -1,0 +1,55 @@
+(ns dustin.via.scratch-64-render
+  (:require
+    [clojure.walk :refer [postwalk]]
+    [dustin.via.free3 :as free :refer [fapply join pure inject run boot bind if2
+                                       lift-and-resolve]]
+    [meander.epsilon :refer [match]]
+    [meander.strategy.epsilon :as r]
+    [minitest :refer [tests]]
+    [missionary.core :as m]))
+
+
+; Goal is to figure out reactive rendering with dynamic control flow (not templates)
+
+(declare entity-incr table span tr div Eval-incr)
+
+(defmacro dag "capture lexical &env; resolve vars in correct scope" [body] body)
+
+(tests
+  (def !result (atom []))
+  (def !db (atom [])) (def >db (m/watch !db))
+  (def !xs (atom [0 1 2])) (def >xs (m/watch !xs))
+  (def !c (atom :odd)) (def >c (m/watch !c))
+  (def !d (atom :even)) (def >d (m/watch !d))
+
+  "Free Monad AST with native dynamic control flow, interpreted incrementally"
+  ; (>foo. >a >b) indicates a dsl bind with variable arity (lazy monadic effects)
+  ; (foo a b) indicates a host call with variable arity (eager side effects)
+  ; host evaluation must interop with monadic types and therefore fuses effects with cloroutine
+  (defn App [>db >xs]
+    (dag
+      (table.                                               ; dsl apply
+        (for. [>x >xs]                                      ; new frames in parallel, x in each frame
+          ; @ is for dsl->host interop (all interop goes through cloroutine)
+          (tr. (if. (true? (odd? (inc @(entity-get. >db >e :user/age))))
+                 (div. id >c (count xs) (span. >c))         ; ' is for host->dsl interop (lifting)
+                 (div. id >d (count xs) (span. >d)))
+            (let. [>ks (entity-keys. >db >x)]               ; >e conj's bound identity stack
+              (pre.
+                (pr-str @(hfql. [:user/age] >db >x))
+                (pr-str @(sequence (map. '(fn [k]           ; !! this lambda needs a reactor call
+                                            (dag (entity-get. x k))) >ks)))))))
+        (let [{n :count} {:count (count xs)}]               ; host let, host apply
+          (span. 'n)))))                                    ; host -> dsl interop
+
+  ; if >db gets rebuilt, passing new value,
+  ; the AST needs to get rebuilt
+  ; how can we stabilize so not too much recomputes?
+  ; (entity. db x) must stabilize the output signal even if db changes quickly
+
+  (boot (Eval-incr {`log (partial log! !result)
+                    `table (pure table) ; incremental env must be lifted
+                    `div (pure div)
+                    ... ...})
+    (dag (log. (App. '>db '>xs))))
+  )

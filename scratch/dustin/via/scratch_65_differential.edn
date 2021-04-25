@@ -1,0 +1,118 @@
+(def alice 1000)
+(def bob 1001)
+
+(def >txlog (m/enumerate [[:db/add alice :person/name "alice"]
+                          [:db/add bob :person/name "bob"]]))
+
+(def >db (m/relieve {} (m/integrate merge txlog)))
+
+(def foo (hf/q '>db bob))
+
+(d/q '[:find ?e :where [?e :person/name] :in $] >db bob) := [1000 1001]
+
+
+; choice between regular dataflow and differential dataflow
+(defprotocol IncrementalQuery
+  (q [query db args])                                       ; [[101 102 103 104] [101 102 104] [101 102 104 106]]
+  (entity-ks [>db >e]))
+
+(defprotocol DifferentialQuery
+  (q' [query db args])                                      ; [[:db/add 101] [:db/add 102] [:db/add 103] [:db/add 104]] [[:db/retract 103]] [[:db/add 106]]
+  (entity-ks' [db e])
+  (entity-get' [db e k]))
+
+(defn pre. [& children] `(pre. ~@children))
+
+(tests
+  (def !result (atom []))
+  (def !db (atom [])) (def >db (m/watch !db))
+  (def !xs (atom [0 1 2])) (def >xs (m/watch !xs))
+
+  (defn App [>db]
+    `(div.
+       ; take the derivative of the query over time
+       (let [>xs' (d/q' (quote [:in $ :find ?e :where [?e :person/name]]) '>db)] ; [ 1 {:id 2 :a "a"} 3 ] -> [1 3 {:id 2 :a "aa"}]
+         (pre. (pr-str @(m/integrate ... >xs')))            ; [101 102 104 106]
+         (for. [>id >xs']                                   ; differential for
+           (pre.
+             (pr-str @(entity-get' >db >id ':person/tags))
+             (for. [>k (entity-ks' >db >id)]
+               (pr-str @(entity-get' >db >id >k))))))))
+
+  (boot (Eval-incr {}) $el
+    `(println. (App. '>db)))
+  )
+
+
+(comment
+  (defn submission [db needle]
+    (diff
+      (m/ap (d/q '[:in $ ?needle :find ?e :where [?e :person/name ?needle]]
+              db needle))))
+
+  (hfql [{(submission needle)
+          [{:dustingetz/gender
+            [{(shirt-sizes gender)
+              [:db/id :db/ident]}]}]}])
+
+  )
+
+
+
+[
+ [{:db/id 100 :person/name ""} {:db/id 200}]
+ [{:db/id 101} {:db/id 200}]
+ [{:db/id 102} {:db/id 201}]
+ [{:db/id 103} {:db/id 201}]
+ [{:db/id 104} {:db/id 200}]
+ [{:db/id 105} {:db/id 201}]]
+
+
+[[100 200]                                                  ;identity
+ [101 200]
+ [102 201]
+ [103 201]
+ [104 200]
+ [105 201]]
+
+; values
+; variables - symbolic/identity/reference
+
+
+
+
+(tests
+  (def !result (atom []))
+  (def !db (atom [])) (def >db (m/watch !db))
+  (def !xs (atom [0 1 2])) (def >xs (m/watch !xs))
+
+  (defn App [>db]
+    `(div.
+       (let [>xs' (d/q' (quote [:in $
+                                 :find ?e ?f
+                                 :where [?e :person/name] [?f ...]]) '>db)]
+         (for. [>id >xs']
+           (pre. (pr-str @(entity-get >db >id ::email)))))))
+
+  (boot (Eval-incr {}) $el
+    `(println. (App. '>db)))
+  )
+
+
+
+(defn App [>db]
+  [:div
+   (let [>xs' (d/q' (quote [:in $
+                            :find ?e ?f
+                            :where [?e :person/name] [?f ...]]) '>db)]
+     [:for' [>id >xs']
+      [:pre (pr-str @(entity-get >db >id ::email))]])])
+
+(hfql [{(submission needle)
+        [{:dustingetz/gender
+          [{(shirt-sizes gender)
+            [:db/id :db/ident]}]}]}])
+
+
+(defmethod hf/render []
+  )
