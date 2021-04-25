@@ -104,6 +104,11 @@
                     x))
                 form))
 
+(tests
+  (qualify {'a 1} (ns-map *ns*) 'submissions) := `submissions
+  (qualify {'a 1} (ns-map *ns*) 'a) := 'a
+  )
+
 (defn compile-hfql*
   "compile HFQL form to s-expressions in Incremental"
   [env& ns-map env' form]
