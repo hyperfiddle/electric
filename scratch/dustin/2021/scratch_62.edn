@@ -1,0 +1,46 @@
+[{[4]         #object[dustin.lang_leo$minus_one 0x7cbfb15f "dustin.lang_leo$minus_one@7cbfb15f"],
+  [6 0 2 0 0] #object[dustin.lang_leo$plus_one$fn__18266 0x1cf8ef94 "dustin.lang_leo$plus_one$fn__18266@1cf8ef94"],
+  [6 0 3]     1,
+  [6 0 2]     2,
+  [6]         1,
+  [6 0 0]     #object[dustin.lang_leo$minus_one$fn__18271 0x2161077e "dustin.lang_leo$minus_one$fn__18271@2161077e"],
+  [6 0 2 0 2] 1,
+  [3]         #hfdl.impl.compiler.Dataflow{:graph  [[:local
+                                                     #object[dustin.lang_leo$plus_one$fn__18266
+                                                             0x1cf8ef94
+                                                             "dustin.lang_leo$plus_one$fn__18266@1cf8ef94"]]
+                                                    [:local #object[missionary.impl.Reactor$Publisher 0x2fbc8e70]]
+                                                    [:variable 1]
+                                                    [:apply 0 [2]]],
+                                           :result 3},
+  [0]         1,
+  [5]         #hfdl.impl.compiler.Dataflow{:graph  [[:local
+                                                     #object[dustin.lang_leo$minus_one$fn__18271
+                                                             0x2161077e
+                                                             "dustin.lang_leo$minus_one$fn__18271@2161077e"]]
+                                                    [:local
+                                                     #hfdl.impl.compiler.Dataflow{:graph  [[:local
+                                                                                            #object[dustin.lang_leo$plus_one$fn__18266
+                                                                                                    0x1cf8ef94
+                                                                                                    "dustin.lang_leo$plus_one$fn__18266@1cf8ef94"]]
+                                                                                           [:local
+                                                                                            #object[missionary.impl.Reactor$Publisher
+                                                                                                    0x2fbc8e70]]
+                                                                                           [:variable 1]
+                                                                                           [:apply 0 [2]]],
+                                                                                  :result 3}]
+                                                    [:variable 1]
+                                                    [:apply 0 [2]]],
+                                           :result 3},
+  [6 0 2 0 1] #object[missionary.impl.Reactor$Publisher 0x2fbc8e70],
+  [2]         #object[dustin.lang_leo$plus_one 0x2e08e791 "dustin.lang_leo$plus_one@2e08e791"],
+  [6 0 1]     #hfdl.impl.compiler.Dataflow{:graph  [[:local
+                                                     #object[dustin.lang_leo$plus_one$fn__18266
+                                                             0x1cf8ef94
+                                                             "dustin.lang_leo$plus_one$fn__18266@1cf8ef94"]]
+                                                    [:local #object[missionary.impl.Reactor$Publisher 0x2fbc8e70]]
+                                                    [:variable 1]
+                                                    [:apply 0 [2]]],
+                                           :result 3},
+  [1]         #object[missionary.impl.Reactor$Publisher 0x2fbc8e70],
+  [6 0 2 0 3] 2}]

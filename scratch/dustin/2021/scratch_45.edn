@@ -1,0 +1,90 @@
+(comment)
+
+
+; situated program (runs forever until you stop it)
+; a dataflow program is run for effects
+; a good test case should intercept the effects, perform some input changes, check the effects
+
+(tests
+
+  ; lift clojure apply into signal context
+  (macroexpand '(dataflow (+ a b))) := '(m/latest + a b)
+  (macroexpand '(dataflow (ifn [] (+ a b)))) := _
+
+  ; What is a dataflow program?
+  ; Does it make sense to run a dataflow program that has no effects?
+  ; What is the API of dataflow's return type?
+  ; ... How do you actually run a dataflow program?
+  ; In practice why should you need the return value of dataflow macro?
+
+
+  '(dataflow (+ a b)) := '(m/latest + a b)
+  '(+ a b)
+
+  '(dataflow (fn [] (+ a b)))
+  '(fn [] (+ a b))
+
+  (let [+ (fn [a b] (clojure.core/+ a b))]
+    (dataflow (fn [a b] (+ a b))))
+
+  run-dag
+  ; Leo idea:
+  ; two macros, ifn and dataflow
+  ; ifn we understand
+  ; dataflow is like ifn but with no arguments and returns a task. entrypoint, only call once
+
+  (dataflow-compile '(+ a b))
+  := ?
+
+  (dataflow-compile '(ifn [a b] (+ a b)))
+  := '(fn [a b] (m/signal! (m/latest + a b)))
+
+  )
+
+(tests
+
+  ; like reactor entrypoint but for HFDL
+  (def task (traced-dataflow-main
+
+
+              ))
+  )
+
+
+(tests
+  (def !a (atom 1))
+  (def !b (atom 2))
+
+  (def a (m/watch !a))
+  (def b (m/watch !b))
+  (def z (dataflow (+ a b)))
+
+  (def !z (z (partial prn :notify) (partial prn :terminate)))
+  @!z := 3
+
+  (swap! !a inc)
+  @!z := 4
+
+  )
+
+
+
+
+
+
+; 1. define a component - ifn
+;    ... the exact type doesn't really matter, what matters is $-calls are compliant with it
+; 2. define a full program - singleton
+;
+; Leo does not want to unify these, we are in agreement
+
+(comment
+  (reactor
+    (let [c1 (m/signal! (dataflow (+ a b)))                 ; program
+          ; (dataflow)
+          f (fn []
+              (m/signal! (m/latest inc c1)))
+          c2 (m/signal! (dataflow (f.)))]                ; second program
+      (m/signal! (m/latest + c1 c2))))
+
+  )

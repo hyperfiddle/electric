@@ -1,0 +1,51 @@
+(def !input (atom 0))
+
+(def shapes :: Bool -> m Str
+  {true (ifn [a] (str ($ render-table a) (dec a)))                     ;1002
+   false (ifn [a] (str ($ render-table a) a))})                        ;1001
+
+(run-dag
+  (let [n @(m/watch !input)]
+    ($ (shapes (< n 10)) n)))
+
+(swap! !input inc)
+
+
+
+
+
+(def shapes
+  {true  (ifn 'render-table [a] ($ render-table a))
+   false (ifn 'render-table [a] ($ render-table a))
+   ::nil (ifn 'zero [a] )})
+
+; the reactor memoizes values, not nodes
+a -> m b
+
+; dag definition
+; recipe to construct a set of signals - absolute first order value of dag (set of signals)
+; ; OR equivlaently, as an integral, [:rets :adds] - second order delta - change in set of signals
+; set of signals
+
+(map identity SetA) difference (map identity SetB) := constructors
+(map identity SetB) difference (map identity SetA) := destructors
+
+; is there a difference?
+; the set of signals is a reified thing,
+; the result of the construction
+
+
+; declarative syntax = declare what you want the dag to be, NOT the imperative operations needed to get there
+; Dustin proposes this is merely syntax
+
+; Why does it matter?
+; differential version gives us destructors which is what we lack today
+
+
+; Leo: We don't lack it , what we lack is how to decide when to destruct and when to reuse
+
+
+; When does the reactor run destructors/constructors? It must do this as the pulse propogates
+
+; Frame / Propogation Frame
+; Can discard a frame and rebuild again if we detect nested frames that can be reused

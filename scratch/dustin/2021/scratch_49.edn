@@ -1,0 +1,193 @@
+; Teach Dustin HFDL
+
+(require '[hfdl :refer [dataflow]])
+
+
+(tests
+  (macroexpand '(dataflow (+ a b)))
+  ; opaque like a lambda
+  := _)
+
+(test
+  ; these must be defined statically
+  "variability"
+  "incremental computation"
+  (def !a (atom 1))
+  (def a (m/watch !a))                                      ; returns flow
+  (def program (dataflow (+ @a 2)))                         ; deref turns flow into HFDL variable
+  (def process (debug! program))                            ; Process is running for effect like an OS process
+  @process := {:state :running :singal-heap {'% 3 'a _}}    ; just a heap dump
+
+  "dataflow apply"
+  (def !f (atom +))
+  (def f (m/watch !f))
+  (def program (dataflow (@f @a 2)))                        ; variable function in fncall position
+  (def process (debug! program))
+  @process := {:state :running :singal-heap {'% 3 'a _}}
+
+  (reset! !f -)
+  @process := {:state :running :singal-heap {'% -1 'a _}}
+
+  "diamond"
+  (def !a (atom 0))
+  (def a (m/watch !a))
+
+
+  ; What is let? let is a way for the programmer to name a expression component
+  (def program (dataflow (let [b @a
+                               c (inc b)
+                               d (dec c)]
+                           (vector c d))))
+
+  := ((fn [a] (vector (inc a) (dec a))) @a)
+
+  (let [b (inc a)
+        c (inc a)
+        d (inc a)]
+    )
+
+  (fn ^:ifn [a :! Flow]
+    (let [a! (m/signal 'a (inc a))
+          b! (m/signal 'b (inc b))
+          c! (m/signal 'c (inc c))]
+      ...))
+
+  ;(let [% (inc (inc (inc a)))] ...)
+
+  ;'(let [x (fib @a)] (vector x x))
+  ;'(vector (fib @a) (fib @a))
+
+  (def process (debug! program))
+  @process := {:state :running
+               :heap  {'a 0
+                       'b 0
+                       'c _
+                       'd _
+                       '% [1 -1]}}
+  ; Leo likes this test case, no promises. Keys of the heap should be technical IDs and binding in separate slot
+  ; what's a binding? The names of the let
+
+  (-> @process :heap count) := 5                            ; Leo thinks this is OK
+
+  ; optimized/naive instead of correct/incorrect
+  ; a "correct" program is defined by the value it produces,
+  ; not by how long it takes or memory consumed
+  ; a "naive" program takes too much resources and can be optimized
+
+  ; Dustin suggests optimized -> canonical
+  ; opposite of canonical is unsanctioned "lacking effective or authoritative approval or consent"
+
+  ; Viz should show what's actually happening.
+  ; If HFDL optimizes, then the viz should show after the optimization.
+
+  ; Are optimizations disabled in debug mode?
+  ; Leo says optimizations have value even for viz
+
+
+
+  ; rabbit hole below
+
+  ; The right question is
+  ; can we inline without changing the meaning
+
+
+
+  ; Does let impact the flowchart?
+  ; can you introduce let to improve code readability without impacting the flowchart?
+
+
+  ; Leo: let does not change the meaning of the program
+  ; (let meaning, Explicitly naming an expression that is used later)
+
+  ; Leo: the viz should mention the names of expressions that are in let bindings
+  ;    but it's just information for the developer.
+
+
+  ; Leo another way to frame the q:
+  ;   What is the benefit for the user to have full control about how nodes match to exprs?
+
+  ; D rotate question: Should the user see effect fusion in the viz?
+
+  ; idea: let compiles into m/signal!
+  '(let [a @a
+         b (inc a)
+         c (dec a)]
+     (vector b c))
+
+  (def foo (fn [a] (vector (inc a) (dec a))))
+  := (foo @a)
+
+  := ((fn [a] (vector (inc a) (dec a))) @a)
+
+  (defn f [a] (vector (inc a) (dec a)))
+
+  '(let [a @a b (inc a)] (vector b (dec a)))
+  '(let [a @a] (f a))
+  '(f @a)
+
+  ;(<< :db/id ...)
+  (for [a :db/id xs])
+  (let [a x])
+
+
+  (def program (dataflow (let [a @a
+                               b (inc a)]
+                           (vector b (dec a)))))
+
+
+  (def program (dataflow (let [a @a
+                               b (inc a)
+                               c (dec a)]
+                           (vector b c))))
+
+
+  (def process (debug! program))
+  @process := {:state :running
+               :heap  {'a 0
+                       '% [1 -1]}}
+
+  (reset! a 5)
+  @process := {:state :running
+               :heap  {'a 5
+                       'b 6
+                       'c 4
+                       '% [6 4]}}
+
+  )
+
+(tests
+
+  )
+
+; (inc (inc (inc @a))) -- too boring to bother
+
+
+(def program (dataflow))
+
+
+
+; Questions:
+; Does HFDL let the user call missionary functions
+; missionary is a Clojure lib, not an HFDL lib
+
+; Leo: Missionary is not part of HFDL.
+; HFDL includes the Flow protocol and Missionary is a tool to compose flows
+; (you don't have to use it)
+; You can use another lib that is compliant with the flow protocol.
+
+; Inside a dataflow block do we need m/watch?
+; Leo: We can use it outside, or HFDL can provide a wrapper around watch
+; Leo: What is required is we use deref operator to turn a flow into a HFDL variable
+
+
+
+
+
+
+
+@process := {:state :terminated :heap {'% 3}}
+
+
+
+
+; Next test uses @

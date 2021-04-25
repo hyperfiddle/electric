@@ -1,0 +1,15 @@
+(defn ^:ifn imap [f> >as]
+  (m/signal! nil
+    (m/cp
+      (let [bs> (map (fn [x]
+                       (f> (m/cp x)))
+                  (m/?! >as))]
+        (m/?! (apply m/latest seq bs>))))))
+
+(run-dag
+  ($ imap
+    ; identity kf
+    (ifn identity [x] (* x @(m/watch !factor)))
+    ; HFDL compiler will use (identity x) as the
+    ; m/signal!'s external identity
+    @(m/watch !inputs)))

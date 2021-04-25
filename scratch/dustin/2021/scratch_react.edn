@@ -1,0 +1,86 @@
+
+
+
+
+(defn App [>db]
+  `(div.
+     ; take the derivative of the query over time
+     (let [>xs' (d/q' (quote [:in $ :find ?e :where [?e :person/name]]) '>db)]
+       (pre. (pr-str @(m/integrate ... >xs')))            ; [101 102 104 106]
+       (for. [>id >xs']                                   ; differential for
+         (pre.
+           (pr-str @(entity-get' >db >id ':person/tags))
+           (for. [>k (entity-ks' >db >id)]
+             (pr-str @(entity-get' >db >id >k))))))))
+
+(defn f [text]
+  `(h1. ~text))
+
+(defn Greeting [props]
+  `(f. "please sign up"))
+
+
+; the dom is already incremental
+; ... only a computation can be incremental
+; ... dom rendering is incremental
+; the dom is imperative
+; the dom is an object, you change it with side effects
+; the virtual dom is a value, you change it by reconciling with a new value produced by pure functions
+
+; ReactComponent/render :: a -> JSX b
+; React/internalEvaluate :: JSX a -> Tree a
+
+; ReactDom/reconcile :: Flow Tree a -> IO ()
+
+; immediate mode vs retained mode
+; ... retained - state is retained across frames
+; ... immediate - state is cleared and redrawn each frame
+
+; define incremental
+; in hfdl, the AST is an incremental computation
+; in the browser, the dom is an incremental compuation? Wrong - the dom is an object
+; Reactjs vdom rendering is incremental
+; document.appendChild is imperative
+; work-skipping
+(defn Greeting [props]
+  `(if ~(:test props) (React/createElement ~"div" ~{:className (:comment props)} ~"Hello World!") nil))
+
+(defn Greeting [props]
+  (for [x (:xs props)]
+    [:div {:className (:comment props)} "Hello world!"])
+
+  #_(if props.test `(React/createElement ~"div" ~{:className (:comment props)} ~"Hello World!") nil)
+
+  #_`(div. ~{:className (:comment props)} "Hello world!")
+  #_[:div {:className (:comment props)} "Hello world!"])
+
+(Greeting {:xs (range 3)})
+
+
+
+
+
+
+
+(def !state (atom {:xs [1 2 3]}))
+(def >state (m/watch !state))
+
+(m/ap (patch-real-dom! !dom-root (m/?! (m/transform diff (interpret-jsx (render-view (m/?! >state)))))))
+
+(defn Foo [& children] `[:ol ~@children])
+
+(defn render-view [{:keys [xs] :as state-val}]
+  [Foo
+   (for [x xs]
+     [:li x])])
+(tests
+  (render-view {:xs [1 2 3]}) := [:ol [:li 1] [:li 2] [:li 3]]
+  ; retractEntity 3
+  (diff
+    [:ol [:li 1] [:li 2] [:li 3]]
+    [:ol [:li 1] [:li 2]])
+  := ???
+  )
+
+(defn patch-real-dom! [!el diff]
+  )

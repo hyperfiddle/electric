@@ -1,0 +1,28 @@
+(s/fdef page-submission-master :args (s/cat :first string? :second (s/nilable string?) :last (s/? number?)))
+(s/fdef page-submission-detail :args (s/cat :e (s/and some? ref?)))
+(s/fdef submissions :args (s/cat :first string? :second (s/nilable string?) :last (s/? number?)))
+(s/fdef genders :args (s/cat :needle string?))
+(s/fdef shirt-sizes :args (s/cat :gender (s/and some? ref?) :needle string?))
+
+(defn page-submission-master [needle]
+  (hfql
+    [{(submissions needle _ _)
+      ['page-submission-detail
+       :db/id
+       :dustingetz/email
+       {(:dustingetz/gender ::hf/options (genders)) [:db/ident]}
+       {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender _)) [:db/ident]}]}
+     ('(page-submission-detail "a") ::hf/tx (new-submission-tx #_gender)) ;'{"a" [...]}
+     ]))
+
+; hf/options can be implemented in a hf/render-lifecycle integrated into the hfql
+; hf/render :default can handle the hf/options like in hyperfiddle.ui
+
+(defn page-submission-detail [e]                            ; page means routable, no surrounding context
+  (hfql
+    {e
+     [:db/id
+      :dustingetz/email
+      {(:dustingetz/gender ::hf/options (genders)) [:db/id :db/ident :dustingetz/type]}
+      {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender _)) [:db/ident]}
+      *]}))

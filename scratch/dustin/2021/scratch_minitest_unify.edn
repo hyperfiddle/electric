@@ -1,0 +1,30 @@
+(mlet [control >control
+       cross (cond
+               (odd? control) ^{:key :P} >p
+               () ^{:key :Q} >q)])
+
+(reset! !control 1)
+(reset! !control 2)
+(reset! !control 3)                                         ; triggers diffing
+
+
+(defmacro test-unify [expr := expectation]
+  `(tests
+    ~expr
+    (unify *1 ~expectation) := true))
+
+(test-unify {:a 1 :b 1} := {:a ?x :b ?x})
+
+(defmacro test-wildcard [expr := expectation]
+  `(tests
+    ~expr
+    (unify *1 ~expectation) := true))
+
+(test-unify {:a 1 :b 1} := {:a _ :b _})
+
+(defmacro unify [expr expectation]
+  `(tests
+    (unify ~expr expectation) :? not-empty?))
+
+(tests
+  (unify {:a 1 :b 1} {:a _ :b _}))

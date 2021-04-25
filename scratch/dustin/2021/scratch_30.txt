@@ -1,0 +1,41 @@
+; Simple composition across network
+
+(let [db (datomic.api/db ~conn)
+      xs (datomic.api/q '[:find (pull ?e [::email :db/id])] db)
+      el (js/document (.getElementById "#root") (.-innerHTML))]
+  (set! el (str "pre" (pr-str %))))
+
+
+; need deflow for external fns
+; dynamic composition across network, including lambdas
+; note nested bind (fmap . join is bind)
+(bindI >route (fn [[fiddle needle]]
+                (fmapI vector
+                  (render-table ((resolve fiddle) needle))
+                  (joinI (fmapI (fn [open]
+                                  (case open
+                                    true (render-table ((resolve fiddle) "tempid"))
+                                    false (pureI ::nothing)))
+                           >open)))))
+(capI *1) := [[:table [9]] [:table []]]
+; (This can be implemnented in leo-lang without fns , just let and if etc)
+; (So if we don't need to trace external fn calls we dont even need deflow)
+
+; if we have to inline the bind closures to make this work with tracing,
+; that's fine, because there aren't very many dynamic points in hyperfiddle datasync
+; just cardinality many queries, nested cardinality, routes and popovers. thats it
+
+
+; once wwe have inline-bind, we can implement HFQL and simple hf ui with tracing
+; (with high confidence)
+
+; The risky part is:
+; can we implement bind (distributed process) without inlining?
+; what is the cost of developer experience with inlining? (REPL, vars)
+;    (working with macros not functions) (no external fns but you get inline fns ?)
+; which notation for the traced PL? (reagent trampoline, sexpr templates trampoline, via evaluator, deflow)
+;
+
+
+; Goal: Validate these hypotheses asap with lots of tests
+; we can revisit dynamic-bind (vs inline-bind) after we validate the above is correct with tests
