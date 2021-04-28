@@ -97,6 +97,9 @@
            #_[(dustin.fiddle/needle-match ?email ?needle)]]
       *$* needle-rule (or needle ""))))
 
+(defn submission-details [eid]
+  eid)
+
 (tests
   (submissions) := [alice bob charlie]
   (submissions "example") := [alice bob charlie]
