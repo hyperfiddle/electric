@@ -1,17 +1,9 @@
 (ns hyperfiddle.server.entrypoint
-  (:require [hyperfiddle.common.links :as links]
+  (:require [hyperfiddle.server.routes :as routes]
             [hfdl.lang :refer [debug!]]))
 
-;; TODO should either come from config or reflected from metas.
-(def whitelist `#{dustin.fiddle-pages/page-submissions})
-
-;; TODO: use a real parser like edamame to be able to diagnose what's wrong with
-;; a link. This is primitive routing, just parse sexp.
-(defn route [link]
-  (links/link->sexp link))
-
 (defn resolve* [f]
-  (if (contains? whitelist f)
+  (if (contains? routes/WHITELIST f)
     (fn [& args]
       (if-let [var (resolve f)]
         (apply var args)
