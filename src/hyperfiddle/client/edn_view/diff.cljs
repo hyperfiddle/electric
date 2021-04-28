@@ -47,23 +47,30 @@
   (when (.next cursor)
     (loop [cursor cursor]
       (case (.. cursor -type -name)
-        ("(" ")" "{" "}" "[" "]") (when (.next cursor)
-                                    (recur cursor))
+        ("(" ")" "{" "}" "[" "]" "Operator" "\"")
+        (when (.next cursor)
+          (recur cursor))
         cursor))))
 
 (defn find-node [^js ast, a, path]
   (let [^js cursor (.cursor ast)]
-    (loop [[x & xs] (tree-seq coll? identity a)
-           path     path]
-      (if (empty? path)
+    (loop [[x & xs]          (tree-seq coll? identity a)
+           [y & ys :as path] path]
+      (if (nil? y)
         (jump-nodes cursor)
-        (if (= x (first path))
+        (cond
+          (= x y)
           (when (jump-nodes cursor)
-            (recur xs (rest path)))
-          (cond
-            (map-entry? x) (recur xs path) ;; Map Entries are not syntactic
-            :else          (when (jump-nodes cursor)
-                             (recur xs path))))))))
+            (recur xs ys))
+
+          (and (sequential? x) (number? y))
+          (do (dotimes [_ (inc y)]
+                (jump-nodes cursor))
+              (recur xs ys))
+
+          (map-entry? x) (recur xs path) ;; Map Entries are not syntactic
+          :else          (when (jump-nodes cursor)
+                           (recur xs path)))))))
 
 (defn- get-text [^js view, ^js node]
   (.. view -state -doc (sliceString (.-from node) (.-to node))))

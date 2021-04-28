@@ -1,12 +1,15 @@
 (ns hyperfiddle.server.websockets
   "@see http://pedestal.io/api/pedestal.jetty/io.pedestal.http.jetty.websockets.html
   @see https://github.com/pedestal/pedestal/blob/09dd88c4ce7f89c7fbb7a398077eb970b3785d2d/samples/jetty-web-sockets/src/jetty_web_sockets/service.clj"
-  (:require [clojure.core.async :as a]
-            ;; [hypercrud.transit :as hc-t] ;; TODO restore
+  (:require ;; [hypercrud.transit :as hc-t] ;; TODO restore
             ;; [hyperfiddle.service.auth :as auth] ;; TODO restore
             [io.pedestal.http.jetty.websockets :as ws]
+            [clojure.core.async :as a]
             ;; [promesa.core :as p] ;; TODO drop
             [clojure.edn :as edn]
+            [hfdl.lang :as hfdl]
+            [hyperfiddle.server.entrypoint :as entrypoint]
+            [missionary.core :as m]
             [taoensso.timbre :as log])
   (:import javax.servlet.Servlet
            [org.eclipse.jetty.servlet ServletContextHandler ServletHolder]
@@ -23,20 +26,15 @@
 (defn- build-context [context session chan]
   (update context :ws assoc :session session, :chan chan))
 
-(defn- handle! [context {:keys [id type data]}]
+(defn- handle! [{:keys [!route process] :as context} {:keys [id type data]}]
   (try
     (case type
-      :ping               (send! context {:id id, :type :pong})                    ; heartbeat
-      :goodbye            (send! context {:id id, :type :goodbye} true)            ; graceful shutdown
-      #_#_:hyperfiddle-action (-> (p/future (handlers/dispatch-ws context data))       ; main action
-                              (p/then (fn [{:keys [response] :as context}]
-                                        (send! context (assoc response :id id))))
-                              (p/catch (fn [err]
-                                         (log/error err)
-                                         (send! context {:type   :error,
-                                                         :status 500
-                                                         :id     id,
-                                                         :body   err})))))
+      :ping       (send! context {:id id, :type :pong})         ; heartbeat
+      :goodbye    (send! context {:id id, :type :goodbye} true) ; graceful shutdown
+      :set-route! (do (reset! !route data)
+                      (send! context {:id   id
+                                      :type :result
+                                      :data (hfdl/result @process)})))
     (catch Throwable t
       (log/error t)
       (send! context {:id id, :type :error, :message (ex-message t)}))))
@@ -85,9 +83,12 @@
        (on-connect-fn context ws-session send-ch)))))
 
 (defn build-ws-context [{:keys [config request]}]
-  (let [request (bean request)]
+  (let [request (bean request)
+        !route  (atom nil)]
     {:config  config
      :request request
+     :!route  !route
+     :process (entrypoint/eval-fiddle! (m/watch !route))
      ;; :auth    (auth/build-auth-context config request) ;; TODO restore
      :ws      {:session nil
                :chan    nil}}))
