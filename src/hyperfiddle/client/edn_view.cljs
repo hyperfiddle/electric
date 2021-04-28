@@ -1,5 +1,5 @@
 (ns hyperfiddle.client.edn-view
-  (:require ["./hoverTooltip" :refer [wordHover]]
+  (:require #_["./hoverTooltip" :refer [wordHover]]
             ["@codemirror/fold" :as fold]
             ["@codemirror/gutter" :refer [lineNumbers]]
             ["@codemirror/highlight" :as highlight]
@@ -12,7 +12,9 @@
             [hyperfiddle.client.edn-view.linter :refer [Linter]]
             [hyperfiddle.client.edn-view.diff :refer [patcher]]
             [missionary.core :as m]
-            [nextjournal.clojure-mode :as cm-clj]))
+            [nextjournal.clojure-mode :as cm-clj]
+            [hyperfiddle.client.ws :as ws]
+            [promesa.core :as p]))
 
 (def theme (.theme EditorView (clj->js {".cm-content"             {:white-space "pre-wrap"
                                                                    :padding     "10px 0"}
@@ -30,33 +32,6 @@
                                         ".cm-cursor"              {:visibility "hidden"}
                                         "&.cm-focused .cm-cursor" {:visibility "visible"}})))
 
-(def edn '{(submissions "") [#:dustingetz{:email  "alice@example.com"
-                                          :gender {:db/ident                       :dustingetz/female
-                                                   (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/womens-small}
-                                                                                    #:db{:ident :dustingetz/womens-medium}
-                                                                                    #:db{:ident :dustingetz/womens-large}]}}
-                             #:dustingetz{:email  "bob@example.com"
-                                          :gender {:db/ident                       :dustingetz/male
-                                                   (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
-                                                                                    #:db{:ident :dustingetz/mens-medium}
-                                                                                    #:db{:ident :dustingetz/mens-large}]}}
-                             #:dustingetz{:email  "charlie@example.com"
-                                          :gender {:db/ident                       :dustingetz/male
-                                                   (shirt-sizes dustingetz/gender) [#:db{:ident :dustingetz/mens-small}
-                                                                                    #:db{:ident :dustingetz/mens-medium}
-                                                                                    #:db{:ident :dustingetz/mens-large}]}}]
-           (genders)        [#:db{:ident :dustingetz/male}
-                             #:db{:ident :dustingetz/female}]})
-
-(defonce !edn (atom edn))
-(defonce >edn (m/watch !edn))
-
-(defn ^:export set-edn! [str]
-  (try
-    (reset! !edn (edn/read-string str))
-    (catch js/Error e
-      (js/console.warn (ex-message e) (clj->js (ex-data e))))))
-
 (defonce ^js extensions #js[theme
                             (history)
                             highlight/defaultHighlightStyle
@@ -73,13 +48,9 @@
                             (.of view/keymap cm-clj/complete-keymap)
                             (.of view/keymap historyKeymap)
                             ;; wordHover
-                            (.. EditorView -updateListener (of (fn [^js view]
-                                                                 (js/setTimeout #(set-edn! (.. view -state -doc (toString)))
-                                                                                1)
-                                                                 true)))
                             Linter])
 
-(defn make-state [^js extensions, ^string doc]
+(defn make-state [^js extensions, ^string doc, on-update]
   (let [[doc ranges] (->> (re-seq #"\||<[^>]*?>|[^<>|]+" doc)
                           (reduce (fn [[^string doc ranges] match]
                                     (cond (= match "|")
@@ -97,28 +68,65 @@
                  :selection  (if (seq ranges)
                                (.create EditorSelection (to-array ranges))
                                js/undefined)
-                 :extensions (let [exts #js[(.. EditorState -allowMultipleSelections (of true))]]
+                 :extensions (let [exts #js[(.. EditorState -allowMultipleSelections (of true))
+                                            (.. EditorView -updateListener (of (fn [^js view]
+                                                                                 (when (.-docChanged view)
+                                                                                   (js/setTimeout #(on-update (.. view -state -doc (toString))) 1))
+                                                                                 true)))]]
                                (if extensions
                                  (do (.push exts extensions)
                                      exts)
                                  exts))})))
 
+(defn set-editor-value! [^js view text]
+  (.dispatch view #js{:changes #js {:from   0
+                                    :to     (.. view -state -doc -length)
+                                    :insert text}}))
+
 (defn pprint-str [x]
   (with-out-str (pprint x)))
 
-(defn edn-view! [dom-element, >edn]
-  (let [^js view (new EditorView #js{:state  (make-state #js[extensions] "")
-                                     :parent dom-element})
-        patch!   (patcher)]
-    ;; TODO call (.destroy editor) when >edn is done, if ever.
-    (->> >edn
-         (m/latest (fn [edn]
-                     (patch! view edn)
-                     edn))
-         (m/relieve {}))))
+(defn set-route! [!route !result text]
+  (try
+    (let [edn (edn/read-string text)]
+      ;; (reset! !route edn)
+      (-> (ws/send! {:type :set-route!, :data edn})
+          (p/then (fn [result]
+                    (reset! !result (:data result))))
+          (p/catch (fn [err]
+                     (js/console.error err))))
+      edn)
+    (catch js/Error e
+      (js/console.warn (ex-message e) (clj->js (ex-data e))))))
 
-(defn ^:export render []
-  ((edn-view! (js/document.getElementById "hf-edn-view-output")
-              >edn)
-   #(prn :ready)
-   #(prn :done)))
+(defn set-result! [!result text]
+  (try
+    (let [edn (edn/read-string text)]
+      (reset! !result edn)
+      edn)
+    (catch js/Error e
+      (js/console.warn (ex-message e) (clj->js (ex-data e))))))
+
+(defn edn-view! [input-element, output-element, !route, !result]
+  (let [>route          (m/watch !route)
+        >result         (m/watch !result)
+        ^js route-view  (new EditorView #js{:state  (make-state #js[extensions] "" (fn [text]
+                                                                                     (set-route! !route !result text)))
+                                            :parent input-element})
+        ^js result-view (new EditorView #js{:state  (make-state #js[extensions] "" (fn [text]
+                                                                                     #_(set-result! !result text)))
+                                            :parent output-element})
+        route-patch!    (patcher)
+        ;; result-patch!   (patcher)
+        route-editor    (m/relieve {} (m/latest #(route-patch! route-view %) >route))
+        result-editor   (m/relieve {} (m/latest #(do #_(result-patch! result-view %)
+                                                     (set-editor-value! result-view (pprint-str %))) >result))]
+    ;; TODO call (.destroy editor) when >result is done, if ever.
+    (route-editor #(prn :route-ready %) #(prn :route-done %))
+    (result-editor #(prn :result-ready %) #(prn :result-done %))))
+
+(defn ^:export boot! []
+  (edn-view! (js/document.getElementById "hf-edn-view-route")
+             (js/document.getElementById "hf-edn-view-output")
+             (atom '(dustin.fiddle-pages/page-submissions ""))
+             (atom nil)))
