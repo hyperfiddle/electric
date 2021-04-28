@@ -145,7 +145,7 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
       {path (try (m/?? slot) (catch Throwable _ ::cancelled))})))
 
 (defn debug! [dataflow {:keys [:source-mapped] :or {source-mapped false}}]
-  (let [state (AtomicReference. {:status :running :log []})
+  (let [state (AtomicReference. ^{:program dataflow} {:status :running, :log []})
         watches (AtomicReference. {})
         reactor (Box. nil)
         public (reify

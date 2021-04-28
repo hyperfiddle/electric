@@ -22,8 +22,11 @@
 (defn heap-dump [process]
   (reduce merge (map meta (:log process))))
 
-(defn result [program process-snapshot]
-  (get (heap-dump process-snapshot) [(:result program)]))
+(defn result
+  ([process-snapshot]
+   (result (:program (meta process-snapshot)) process-snapshot))
+  ([program process-snapshot]
+   (get (heap-dump process-snapshot) [(:result program)])))
 
 (comment
   (require '[missionary.core :as m])
