@@ -3,7 +3,7 @@
  :nrepl    {:port 9001}
  :builds   {:edn-view {
                        :target           :browser
-                       :compiler-options {:output-feature-set    :es8
+                       :compiler-options {:output-feature-set    :es6
                                           :infer-externs         :auto
                                           :js-options            {:variable-renaming :off}
                                           :anon-fn-naming-policy :unmapped}

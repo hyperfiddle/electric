@@ -8,12 +8,7 @@
             [editscript.core :as editscript]
             [editscript.edit :as e]
             [nextjournal.clojure-mode :as cm-clj]
-            [nextjournal.clojure-mode.node :as n]
             [shadow.resource :as rc]))
-
-;; Dev only!
-(def parser (lg/buildParser (rc/inline "./clojure.grammar")
-                            #js{:externalProp n/node-prop}))
 
 (defn diff [a b]
   (e/get-edits (editscript/diff a b)))
@@ -38,6 +33,11 @@
 
   (tree-seq coll? identity a)
   ;; => ({:a {:b 2, :c 3}} [:a {:b 2, :c 3}] :a {:b 2, :c 3} [:b 2] :b 2 [:c 3] :c 3)
+
+  ;; Dev only!
+  (require '[nextjournal.clojure-mode.node :as n])
+  (def parser (lg/buildParser (rc/inline "./clojure.grammar")
+                              #js{:externalProp n/node-prop}))
 
   (def tree (.parse parser (pprint-str a)))
   ;; => #object[Tree Program(Map("{",Keyword,Map("{",Keyword,Number,Keyword,Number,"}"),"}"))]
