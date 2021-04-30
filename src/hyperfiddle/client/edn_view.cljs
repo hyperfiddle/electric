@@ -86,26 +86,39 @@
 (defn pprint-str [x]
   (with-out-str (pprint x)))
 
-(defn set-route! [!route !result text]
-  (try
-    (let [edn (edn/read-string text)]
-      ;; (reset! !route edn)
-      (-> (ws/send! {:type :set-route!, :data edn})
-          (p/then (fn [result]
-                    (reset! !result (:data result))))
-          (p/catch (fn [err]
-                     (js/console.error err))))
-      edn)
-    (catch js/Error e
-      (js/console.warn (ex-message e) (clj->js (ex-data e))))))
+(defn debounce
+  ([f] (debounce f 600))
+  ([f delay-ms]
+   (let [timeout (volatile! nil)]
+     (fn [& args]
+       (when-let [t @timeout]
+         (js/clearTimeout t))
+       (vreset! timeout (js/setTimeout #(apply f args) delay-ms))))))
 
-(defn set-result! [!result text]
-  (try
-    (let [edn (edn/read-string text)]
-      (reset! !result edn)
-      edn)
-    (catch js/Error e
-      (js/console.warn (ex-message e) (clj->js (ex-data e))))))
+(def set-route!
+  (debounce
+   (fn [!route !result text]
+     (try
+       (let [edn (edn/read-string text)]
+         ;; (reset! !route edn)
+         (-> (ws/send! {:type :set-route!, :data edn})
+             (p/then (fn [result]
+                       (reset! !result (:data result))))
+             (p/catch (fn [err]
+                        (js/console.error err))))
+         edn)
+       (catch js/Error e
+         (js/console.warn (ex-message e) (clj->js (ex-data e))))))))
+
+(def set-result!
+  (debounce
+   (fn [!result text]
+     (try
+       (let [edn (edn/read-string text)]
+         (reset! !result edn)
+         edn)
+       (catch js/Error e
+         (js/console.warn (ex-message e) (clj->js (ex-data e))))))))
 
 (defn edn-view! [input-element, output-element, !route, !result]
   (let [>route          (m/watch !route)
