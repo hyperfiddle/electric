@@ -1,7 +1,7 @@
 (ns hyperfiddle.client.ws
   (:require ;; [bidi.bidi :as bidi]
             ;; [hypercrud.transit :as hc-t]
-            ;; [hyperfiddle.api :as hf]
+            [hyperfiddle.api :as hf]
             ;; [hyperfiddle.io.client.http :as http]
             ;; [hyperfiddle.service.routes :as routes]
             [cljs.reader :as edn] ;; TODO replace with transit
