@@ -48,7 +48,7 @@
 
 (defn default-renderer [val props]
   (if-let [a (::hf/a props)]
-    (dataflow [:a {:href (links/sexp->link a)} val])
+    (dataflow (hf/->Link (links/sexp->link a) val))
     (dataflow val)))
 
 (defn continue [val props]

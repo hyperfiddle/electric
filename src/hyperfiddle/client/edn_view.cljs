@@ -11,6 +11,7 @@
             [clojure.string :as str]
             [hyperfiddle.client.edn-view.linter :refer [Linter]]
             [hyperfiddle.client.edn-view.diff :refer [patcher]]
+            [hyperfiddle.client.edn-view.links :refer [LinksPlugin]]
             [missionary.core :as m]
             [nextjournal.clojure-mode :as cm-clj]
             [hyperfiddle.client.ws :as ws]
@@ -48,6 +49,7 @@
                             (.of view/keymap cm-clj/complete-keymap)
                             (.of view/keymap historyKeymap)
                             ;; wordHover
+                            LinksPlugin
                             Linter])
 
 (defn make-state [^js extensions, ^string doc, on-update]
