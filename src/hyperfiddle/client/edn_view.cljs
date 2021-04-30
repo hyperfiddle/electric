@@ -1,5 +1,5 @@
 (ns hyperfiddle.client.edn-view
-  (:require #_["./hoverTooltip" :refer [wordHover]]
+  (:require ["./edn_view/hoverTooltip" :refer [wordHover]]
             ["@codemirror/fold" :as fold]
             ["@codemirror/gutter" :refer [lineNumbers]]
             ["@codemirror/highlight" :as highlight]
