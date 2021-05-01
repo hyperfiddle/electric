@@ -48,7 +48,7 @@
                             cm-clj/default-extensions
                             (.of view/keymap cm-clj/complete-keymap)
                             (.of view/keymap historyKeymap)
-                            ;; wordHover
+                            wordHover
                             LinksPlugin
                             Linter])
 
