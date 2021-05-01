@@ -17,6 +17,7 @@ export const wordHover = hoverTooltip((view, pos, side) => {
             create(_view) {
                 let dom = document.createElement("div");
                 dom.textContent = text + " : " + astNode.name;
+                dom.style.padding = "0.25rem";
                 return {dom};
             }
         };
