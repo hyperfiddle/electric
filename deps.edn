@@ -19,8 +19,10 @@
  :aliases {:dev {:extra-paths ["src-dev"
                                "scratch"]                   ; for clj command
                  :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}}}
-           :edn-view {:extra-deps {juji/editscript  {:mvn/version "0.5.7"}
-                                   borkdude/edamame {:mvn/version "0.0.11-alpha.29"}}}
+           :edn-view {:extra-deps {juji/editscript          {:mvn/version "0.5.7"}
+                                   borkdude/edamame         {:mvn/version "0.0.11-alpha.29"}
+                                   nextjournal/clojure-mode {:git/url "https://github.com/nextjournal/clojure-mode"
+                                                             :sha "29982ac6fcf21fac961e11e0d77b87c97611c1a5"}}}
            :server {:extra-deps {com.taoensso/timbre              {:mvn/version "4.10.0"}
                                  com.fzakaria/slf4j-timbre        {:mvn/version "0.3.13"}
                                  io.pedestal/pedestal.jetty       {:mvn/version "0.5.5"}
