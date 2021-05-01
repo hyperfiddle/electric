@@ -28,7 +28,8 @@
         "w3c-keyname": "^2.2.4"
     },
     "scripts": {
-        "watch": "shadow-cljs -A:demo watch demo test",
-        "build": "shadow-cljs -A:demo release demo"
+        "watch": "shadow-cljs -A:edn-view:server watch",
+        "build": "shadow-cljs -A:edn-view:server release",
+        "server": "shadow-cljs -A:edn-view:server server"
     }
 }
