@@ -20,6 +20,9 @@
     (:local :global) (first args)
     :remote          (list `hfdl.impl.compiler/remote (decompile* (first args)))))
 
+(defn decompile [program]
+  (decompile* (:result program)))
+
 #_(tests
  (require '[hfdl.lang :refer [dataflow debug! heap-dump]]
           '[clojure.data :refer [diff]]
