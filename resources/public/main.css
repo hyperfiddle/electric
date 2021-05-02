@@ -2,10 +2,9 @@
 @tailwind components;
 
 .hf-code-tooltip{
-    @apply tw-border-0 tw-px-3 tw-py-2
-    tw-text-sm
-    tw-rounded tw-backdrop-filter tw-backdrop-blur
-    ;
+    @apply tw-border-0 tw-px-3 tw-py-2;
+    @apply tw-rounded tw-backdrop-filter tw-backdrop-blur;
+    @apply tw-text-xs tw-font-mono;
 
     z-index: 100;
     background-color: transparent!important;
