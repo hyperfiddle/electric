@@ -127,6 +127,7 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
   (m/ap (m/? (f (m/?? input)))))
 
 (defn poll [task]
+  ; takes a task and returns a flow that runs the task repeatedly
   (m/ap (m/? (m/?? (m/enumerate (repeat task))))))
 
 (defmacro amb= [& forms]

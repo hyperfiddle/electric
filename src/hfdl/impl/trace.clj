@@ -102,18 +102,26 @@
   )
 
 (defn sampler! [cb flow]
+  ; flow is a continuous flow
+  ; repl operator with two features
+  ;   as lazy as the original flow, or maybe the lazyness is controlled
+  ;     you control when the flow is actually sampled
+  ;   memoized, so don't need to remember if flow is ready
   (let [memo (Box. nil)
         iter (Box. nil)
         sampler (reify IDeref
                   (deref [this]
+                    ; user controlled sampling
+                    ; check if value is dirty and if so, resample
                     (locking this
                       (let [x (.-val memo)]
                         (if (identical? x memo)
                           (loop []
                             (set! (.-val memo) nil)
-                            (let [x @(.-val iter)]
+                            (let [x @(.-val iter)]          ; sample
                               (if (identical? (.-val memo) memo)
-                                (recur) (set! (.-val memo) x)))) x)))))
+                                (recur) (set! (.-val memo) x))))
+                          x)))))
         ready! #(locking sampler
                   (if (identical? (.-val memo) memo)
                     (cb sampler) (set! (.-val memo) memo)))]
@@ -138,7 +146,7 @@
         input (fn [s] (->> s (m/observe) (m/relieve {})))
         global (comp u/pure deref resolve)
         variable (fn [c t] (c/bind-context c (switch t)))]
-    (fn [boot write >read]
+    (fn [boot trace >read]
       (m/reactor
         (let [process (object-array 4)]
           (letfn [(context [{:keys [result graphs]} n t]
@@ -188,7 +196,7 @@
                              (change {node (m/?? (get (aget process nodes) node))}))))))
               (m/relieve u/map-into)
               (m/stream!)
-              (u/foreach write)
+              (u/foreach trace)
               (m/stream!))))))))
 
 (defmacro df [& body]
@@ -196,14 +204,21 @@
 
 (defmacro debug [sym & body]
   `(fn []
-     (sampler! (fn [s#] (def ~sym s#))
-       (dataflow ~@body))))
+     (sampler! (fn [s#] (println :ready ~sym) (def ~sym s#))
+       ~@body)))
 
 
 
 (comment
+  ; Boot a peer (process reactor) with a boot function
+  ; the boot function is for a dag
+  ; the debug adds a way to sample the result on the side for testing
+  ; (in production the result is never sampled, process will fire more effects)
 
-  ((peer (debug sampler (* 6 7)) #(m/sp (prn %)) (u/poll m/never)) prn prn)
+  ((peer (debug sampler (* 6 7))                            ; dag boot fn
+     #(m/sp (prn %))                                        ; trace spout
+     (u/poll m/never))                                      ; no network inputs
+   prn prn)
 
   @sampler
 
@@ -235,19 +250,31 @@
   )
 
 (defn system [boot]
+  ; test emulator of distributed system
   (m/sp
     (let [l->r (m/rdv)
           r->l (m/rdv)]
       (m/? (m/join vector
-             (peer #() r->l (u/poll l->r))
-             (peer boot l->r (u/poll r->l)))))))
+             (peer #() #(do (println 'r->l %) (r->l %)) (u/poll l->r))
+             (peer boot #(do (println 'l->r %) (l->r %)) (u/poll r->l)))))))
 
 (comment
 
   (def !a1 (atom 6))
   (def !a2 (atom 7))
 
-  ((system (debug sampler (* @(m/watch !a1) @(m/watch !a2)))) prn prn)
+  (def dag (dataflow (* @(m/watch !a1) @(m/watch !a2))))
+
+  ; does nothing, the boot had no effect and the return value is ignored
+  ;(def system-task (system (fn [] dag)))
+
+  ; prod server - run for effects, don't ever sample, that's fine
+  (def system-task (system (fn [] (dag #() #()))))
+
+  ; repl server – run for effects but with hook for user to read the result at some time
+  (def system-task (system (fn [] (sampler! #(def sampler %) dag))))
+  (system-task prn prn)                                     ; runs forever
+  @sampler := 42
   @sampler := 42
 
   (swap! !a1 inc)
@@ -258,14 +285,36 @@
 (comment
   (def !input (atom "alice"))
   (defn form-input [] (m/watch !input))
-  (defn render-table [x] (prn :render-table x))
+  (defn render-table [>x] (m/relieve {}
+                            (dataflow
+                              (prn :render-table @>x))
+                           #_(m/ap (prn :render-table (m/?! x)))))
   (defn query [q] [q])
 
-  ((system (debug sampler
-             (let [needle @(form-input)
-                   results (remote (query needle))]
-               (render-table results)))) prn prn)
-  @sampler
+  ; what touches the network is eager
+  ; if something is required remotely we don't lazy sample,
+  ; we just pass the value eagerly and then when we receive it
+  ; we can turn that into a lazy sampling.
+
+  ; why? its debatable
+  ; Leo says: think this is the behavior that will minimize
+  ; experienced latency
+
+  ; there are two types of effects with network between
+  ; user interaction effects -> network -> rendering effects
+
+  (def system-task
+    (system (debug sampler
+              (dataflow
+                (let [needle @(form-input)
+                      results (remote (query needle))]
+                  @(render-table ~results))))))
+  (system-task prn prn)
+  ; no prints
+  @sampler := nil
+  ; :render-table ["alice"]
   (reset! !input "bob")
-  @sampler
+  ; nothing yet
+  @sampler := nil
+  ; :render-table ["bob"]
   )
