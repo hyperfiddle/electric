@@ -54,7 +54,7 @@
            {::http/routes
             (->> (expand-routes
                   #{["/assets/*file-path" :get [rewrite-resources-path (middlewares/file-info) (middlewares/file "resources/public")] :route-name :serve]
-                    ["/*sexpr" :get (conj base-chain (middlewares/file-info) index-dispatch) :route-name :index]})
+                    ["/*sexpr" :get (conj base-chain (middlewares/file-info) index-dispatch) :route-name :index #_#_:constraints {:sexpr #"(?!ws$).*$"}]})
                  (routes/sort-by-position :route-name [:serve :index]))
             ::http/router            :linear-search ;; it’s fine we’ve got 1 or 2 routes
             ::http/host              host

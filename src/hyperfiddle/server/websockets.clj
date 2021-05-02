@@ -85,13 +85,17 @@
 (defn build-ws-context [{:keys [config request]}]
   (let [request (bean request)
         !route  (atom nil)]
-    {:config  config
-     :request request
-     :!route  !route
-     :process (entrypoint/eval-fiddle! (m/watch !route))
-     ;; :auth    (auth/build-auth-context config request) ;; TODO restore
-     :ws      {:session nil
-               :chan    nil}}))
+    (try
+      {:config  config
+       :request request
+       :!route  !route
+       :process (entrypoint/eval-fiddle! (m/watch !route))
+       ;; :auth    (auth/build-auth-context config request) ;; TODO restore
+       :ws      {:session nil
+                 :chan    nil}}
+      (catch Throwable t
+        (log/error (ex-info "Failed to initialize socket context" {} t))
+        (throw t)))))
 
 (defn make-ws-listener
   "Given a map representing WebSocket actions
