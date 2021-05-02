@@ -40,7 +40,7 @@
 (defn no-context [d n t]
   (failer n t (ex-info "Unable to find dafaflow context" {:dataflow d})))
 
-(defrecord Dataflow [result graph]
+(defrecord Dataflow [result graphs]
   IFn (invoke [d n t] ((or (get-ctx) no-context) d n t)))
 
 ;; GG: This is a copy/paste from `clojure.tools.analyser.jvm/macroexpand-1`, without inlining.
@@ -112,24 +112,24 @@
 
 (def graphs (u/monoid u/map-into [#{} #{}]))
 
+(defn build-graphs [graphs node]
+  (if (contains? (first graphs) node)
+    graphs (let [[op & args] node]
+             (update (case op
+                       :remote (-> graphs u/swap (build-graphs (second node)) u/swap)
+                       (case op
+                         :apply (reduce build-graphs (build-graphs graphs (first args)) (second args))
+                         (:constant :variable) (build-graphs graphs (first args))
+                         (:local :global) graphs))
+               0 conj node))))
+
 (defn result [node]
-  (->Dataflow node
-    ((fn walk [graph node]
-       (if (contains? (first graph) node)
-         graph (let [[op & args] node]
-                 (update (case op
-                           :remote (-> graph u/swap (walk (second node)) u/swap)
-                           (case op
-                             :apply (reduce walk (walk graph (first args)) (second args))
-                             (:constant :variable) (walk graph (first args))
-                             (:local :global) graph))
-                   0 conj node))))
-     (graphs) node)))
+  {:result node :graphs (build-graphs (graphs) node)})
 
 (defn discard [x & ys]
   (->> ys
-    (map :graph)
-    (apply update x :graph graphs)))
+    (map :graphs)
+    (apply update x :graphs graphs)))
 
 (defn normalize-binding [r {:keys [name init]}]
   (let [s (normalize-ast (:env r) init)]
@@ -148,7 +148,7 @@
   [:local x])
 
 (defn node-global [s]
-  [:global s])
+  [:global `(quote ~s)])
 
 (defn node-variable [n]
   [:variable n])
@@ -262,7 +262,7 @@
     (let [{:keys [fn args]} ast]
       (case (special fn)
         :remote (let [df (normalize-ast (u/swap env) (first args))]
-                  (discard (result (node-remote (:result df))) (update df :graph u/swap)))
+                  (discard (result (node-remote (:result df))) (update df :graphs u/swap)))
         :constant (normalize-par env node-constant (first args))
         :variable (normalize-par env node-variable (first args))
         (apply normalize-par env node-apply fn args)))
@@ -272,7 +272,7 @@
       (map (partial normalize-ast env) (:statements ast)))
 
     (:let)
-    (let [b (reduce normalize-binding {:env env :graph (graphs)} (:bindings ast))]
+    (let [b (reduce normalize-binding {:env env :graphs (graphs)} (:bindings ast))]
       (discard (normalize-ast (:env b) (:body ast)) b))
 
     (:if)
@@ -309,22 +309,14 @@
   (if (contains? sort node)
     sort (assoc-count (reduce topsort sort (deps node)) node)))
 
-(defn emit-frame [dag]
-  (let [slots (reduce topsort {} (:graph dag))]
-    (list `->Dataflow
-      (->> slots
-        (sort-by val)
-        (mapv (comp (fn [[op & args]]
-                      (cons op
-                        (case op
-                          :apply [(slots (first args)) (mapv slots (second args))]
-                          (:remote :constant :variable) [(slots (first args))]
-                          (:local :global) args))) key))) (slots (:result dag)))))
+(defn emit-frame [{:keys [result graphs]}]
+  (list `->Dataflow result graphs))
 
 (defn df [env form]
   (->> form
     (analyze-clj env)
-    (normalize-ast empty-env)))
+    (normalize-ast empty-env)
+    (emit-frame)))
 
 (tests
   "Constants"

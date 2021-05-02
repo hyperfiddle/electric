@@ -141,9 +141,9 @@
     (fn [boot write >read]
       (m/reactor
         (let [process (object-array 4)]
-          (letfn [(context [{:keys [result graph]} n t]
-                    (reduce graph! nil (first graph))
-                    ((aget process create-cb) (second graph))
+          (letfn [(context [{:keys [result graphs]} n t]
+                    (reduce graph! nil (first graphs))
+                    ((aget process create-cb) (second graphs))
                     (((aget process nodes) result) n t))
                   (listener [slot]
                     (->> (fn [!] (aset process slot !) u/nop)
