@@ -1,11 +1,11 @@
-(ns hyperfiddle.server.routes
-  (:require [hyperfiddle.common.links :as links]))
+(ns hyperfiddle.server.routes)
 
 (comment
   (require 'dustin.fiddle-pages))
 
 ;; TODO should either come from config or reflected from metas.
-(def WHITELIST `#{dustin.fiddle-pages/page-submissions})
+(def WHITELIST `#{dustin.fiddle-pages/page-submissions
+                  dustin.fiddle-pages/page-submission-details})
 
 ;; TODO: use a real parser like edamame to be able to diagnose what's wrong with
 ;; a link. This is primitive routing, just parse sexp.

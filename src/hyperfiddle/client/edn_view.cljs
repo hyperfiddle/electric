@@ -12,6 +12,7 @@
             [hyperfiddle.client.edn-view.linter :refer [Linter]]
             [hyperfiddle.client.edn-view.diff :refer [patcher]]
             [hyperfiddle.client.edn-view.links :refer [LinksPlugin]]
+            [hyperfiddle.client.router :as router]
             [missionary.core :as m]
             [nextjournal.clojure-mode :as cm-clj]
             [hyperfiddle.client.ws :as ws]
@@ -99,10 +100,10 @@
 
 (def set-route!
   (debounce
-   (fn [!route !result text]
+   (fn [!result text]
      (try
        (let [edn (edn/read-string text)]
-         ;; (reset! !route edn)
+         (router/set-route! edn)
          (-> (ws/send! {:type :set-route!, :data edn})
              (p/then (fn [result]
                        (reset! !result (:data result))))
@@ -112,24 +113,13 @@
        (catch js/Error e
          (js/console.warn (ex-message e) (clj->js (ex-data e))))))))
 
-(def set-result!
-  (debounce
-   (fn [!result text]
-     (try
-       (let [edn (edn/read-string text)]
-         (reset! !result edn)
-         edn)
-       (catch js/Error e
-         (js/console.warn (ex-message e) (clj->js (ex-data e))))))))
-
 (defn edn-view! [input-element, output-element, !route, !result]
   (let [>route          (m/watch !route)
         >result         (m/watch !result)
         ^js route-view  (new EditorView #js{:state  (make-state #js[extensions] "" (fn [text]
-                                                                                     (set-route! !route !result text)))
+                                                                                     (set-route! !result text)))
                                             :parent input-element})
-        ^js result-view (new EditorView #js{:state  (make-state #js[extensions] "" (fn [text]
-                                                                                     #_(set-result! !result text)))
+        ^js result-view (new EditorView #js{:state  (make-state #js[extensions] "" (fn [_text] ))
                                             :parent output-element})
         route-patch!    (patcher)
         ;; result-patch!   (patcher)
@@ -143,5 +133,5 @@
 (defn ^:export boot! []
   (edn-view! (js/document.getElementById "hf-edn-view-route")
              (js/document.getElementById "hf-edn-view-output")
-             (atom '(dustin.fiddle-pages/page-submissions ""))
+             router/!route
              (atom nil)))

@@ -1,9 +1,7 @@
 (ns hyperfiddle.client.edn-view.links
   (:require ["./links" :refer [linksPlugin]]
             [cljs.reader :as edn]
-            [hyperfiddle.api]))
+            [hyperfiddle.api]
+            [hyperfiddle.common.ednish :as ednish]))
 
-(defn- parse-link [s]
-  (edn/read-string s))
-
-(def LinksPlugin (linksPlugin parse-link))
+(def LinksPlugin (linksPlugin edn/read-string ednish/url-encode))

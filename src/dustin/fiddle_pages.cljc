@@ -6,11 +6,19 @@
 
 (defn page-submissions [needle]
   (dataflow
-   (let [needle needle]
-     (hfql [{(submissions needle)
-             [(:db/id ::hf/a (submission-details %))
-              :dustingetz/email
-              {:dustingetz/gender
-               [:db/ident
-                {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
-            {(genders) [:db/ident]}]))))
+   (hfql [{(submissions needle)
+           [(:db/id ::hf/a (page-submission-details %))
+            :dustingetz/email
+            {:dustingetz/gender
+             [:db/ident
+              {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
+          {(genders) [:db/ident]}])))
+
+
+(defn page-submission-details [eid]
+  (dataflow
+   (hfql [{(submission-details eid) [:db/id
+                                     :dustingetz/email
+                                     :dustingetz/shirt-size
+                                     {:dustingetz/gender [:db/ident {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
+          {(genders) [:db/ident]}])))
