@@ -1,7 +1,7 @@
 (ns hfdl.sourcemap
   (:import (hfdl.impl.compiler Dataflow)))
 
-(defn decompile [program]
+#_(defn decompile [program]
   (reduce (fn [asts [op & args]]
             (conj asts
                   (case op
@@ -11,6 +11,14 @@
                     (:local :global) (first args))))
           []
           (:graph program)))
+
+(defn decompile* [[op & args]]
+  (case op
+    :apply           (cons (decompile* (first args)) (map decompile* (second args)))
+    :constant        (list `clojure.core/unquote (decompile* (first args)))
+    :variable        (list `clojure.core/deref (decompile* (first args)))
+    (:local :global) (first args)
+    :remote          (list `hfdl.impl.compiler/remote (decompile* (first args)))))
 
 #_(tests
  (require '[hfdl.lang :refer [dataflow debug! heap-dump]]
