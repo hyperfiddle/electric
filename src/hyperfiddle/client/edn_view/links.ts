@@ -1,12 +1,15 @@
 import {EditorView, Decoration, WidgetType, ViewUpdate, ViewPlugin, DecorationSet, Range} from "@codemirror/view"
 import {syntaxTree} from "@codemirror/language"
 
+type Sexp = any;
+
 interface Link{
-    href: string;
+    href: Sexp;
     value: string;
 }
 
 type LinkParser = (s : string) => Link;
+type SexpEncoder = (a : Sexp) => string;
 
 class LinkWidget extends WidgetType {
     constructor(readonly href: string,
@@ -28,7 +31,7 @@ class LinkWidget extends WidgetType {
     ignoreEvent() { return false }
 }
 
-function links(parseLink : LinkParser, view: EditorView) {
+function links(parseLink : LinkParser, encodeSexp : SexpEncoder,  view: EditorView) {
     let widgets : Range<Decoration>[] = []
     for (let {from, to} of view.visibleRanges) {
         let tree = syntaxTree(view.state);
@@ -42,7 +45,7 @@ function links(parseLink : LinkParser, view: EditorView) {
                 let text = view.state.doc.sliceString(from, to); // get link edn text
                 let link = parseLink(text);
                 let deco = Decoration.replace({
-                    widget: new LinkWidget(link.href, link.value),
+                    widget: new LinkWidget(encodeSexp(link.href), link.value),
                     inclusive: true
                 })
                 widgets.push(deco.range(prev_to, to)) // push it as left as possible, next to the key
@@ -52,17 +55,17 @@ function links(parseLink : LinkParser, view: EditorView) {
     return Decoration.set(widgets)
 }
 
-export function linksPlugin (parseLink : LinkParser) {
+export function linksPlugin (parseLink : LinkParser, encodeSexp : SexpEncoder) {
     return ViewPlugin.fromClass(class {
         decorations: DecorationSet
 
         constructor(view: EditorView) {
-            this.decorations = links(parseLink, view);
+            this.decorations = links(parseLink, encodeSexp, view);
         }
 
         update(update: ViewUpdate) {
             if (update.docChanged || update.viewportChanged){
-                this.decorations = links(parseLink, update.view);
+                this.decorations = links(parseLink, encodeSexp, update.view);
             }
         }
     }, {

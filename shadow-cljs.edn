@@ -7,6 +7,6 @@
                                           :infer-externs         :auto
                                           :js-options            {:variable-renaming :off}
                                           :anon-fn-naming-policy :unmapped}
-                       :output-dir       "resources/public/edn_view/js"
-                       :asset-path       "js"
+                       :output-dir       "resources/public/js"
+                       :asset-path       "/assets/js"
                        :modules          {:main {:entries [hyperfiddle.client.edn-view]}}}}}

@@ -42,13 +42,11 @@
             [hfdl.lang :refer [dataflow debug! result]]
             [hfdl.lib :refer [reactive-for]]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.common.links :as links]
-            [minitest :refer [tests]]
-            [missionary.core :as m]))
+            [minitest :refer [tests]]))
 
 (defn default-renderer [val props]
   (if-let [a (::hf/a props)]
-    (dataflow (hf/->Link (links/sexp->link a) val))
+    (dataflow (hf/->Link a val))
     (dataflow val)))
 
 (defn continue [val props]
@@ -129,7 +127,7 @@
 (defmacro hfql [form]
   (compile-hfql* &env (ns-map *ns*) {} form))
 
-(tests
+#_(tests
 
  (macroexpand-1 '(hfql {(submissions needle) [(:db/id ::hf/a (submission-details %))]}))
 
@@ -138,10 +136,10 @@
                  (hfql {(submissions needle) [(:db/id ::hf/a (submission-details %))]}))))
  (def process (debug! program))
  (result program @process)
- := `{(dustin.fiddle/submissions needle)
-      [#:db{:id [:a {:href "(dustin.fiddle/submission-details 9)"} 9]}
-       #:db{:id [:a {:href "(dustin.fiddle/submission-details 10)"} 10]}
-       #:db{:id [:a {:href "(dustin.fiddle/submission-details 11)"} 11]}]}
+ := {'(dustin.fiddle/submissions needle)
+     [#:db{:id (hf/->Link '(dustin.fiddle/submission-details 9) 9)}
+      #:db{:id (hf/->Link '(dustin.fiddle/submission-details 10) 10)}
+      #:db{:id (hf/->Link '(dustin.fiddle/submission-details 11) 11)}]}
  )
 
 #_(tests

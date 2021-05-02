@@ -9,3 +9,4 @@
 node_modules
 tsconfig.tsbuildinfo
 src/**/*.js
+/resources/public/js/

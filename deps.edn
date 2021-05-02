@@ -21,6 +21,7 @@
                  :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}}}
            :edn-view {:extra-deps {juji/editscript          {:mvn/version "0.5.7"}
                                    borkdude/edamame         {:mvn/version "0.0.11-alpha.29"}
+                                   kibu/pushy               {:mvn/version "0.3.8"}
                                    nextjournal/clojure-mode {:git/url "https://github.com/nextjournal/clojure-mode"
                                                              :sha "29982ac6fcf21fac961e11e0d77b87c97611c1a5"}}}
            :server {:extra-deps {com.taoensso/timbre              {:mvn/version "4.10.0"}
@@ -28,7 +29,8 @@
                                  io.pedestal/pedestal.jetty       {:mvn/version "0.5.5"}
                                  io.pedestal/pedestal.service     {:mvn/version "0.5.5"}
                                  org.clojure/core.async           {:mvn/version "1.3.618"} ;; for Pedestal WS, mandatory.
-                                 org.apache.commons/commons-lang3 {:mvn/version "3.8.1"}}}
+                                 org.apache.commons/commons-lang3 {:mvn/version "3.8.1"}
+                                 bidi/bidi                        {:mvn/version "2.1.6"}}}
            :test-clj {:main-opts ["-m" "contrib.test-runner" "clj"]}
            :test-cljs {:extra-deps    {olical/cljs-test-runner {:mvn/version "3.7.0"}}
                        :main-opts     ["-m" "contrib.test-runner" "cljs"]}}}

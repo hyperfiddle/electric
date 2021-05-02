@@ -1,21 +1,29 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <meta charset="utf-8"/>
         <title>Hyperfiddle</title>
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
-        <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-        <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-        <link rel="manifest" href="/icons/site.webmanifest">
-        <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#5bbad5">
-        <link rel="shortcut icon" href="/icons/favicon.ico">
+        <link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon.png">
+        <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/favicon-16x16.png">
+        <link rel="manifest" href="/assets/icons/site.webmanifest">
+        <link rel="mask-icon" href="/assets/icons/safari-pinned-tab.svg" color="#5bbad5">
+        <link rel="shortcut icon" href="/assets/icons/favicon.ico">
         <meta name="msapplication-TileColor" content="#da532c">
         <meta name="msapplication-config" content="/icons/browserconfig.xml">
         <meta name="theme-color" content="#ffffff">
     </head>
-    <body>
-        <h1>Hyperfiddle</h1>
-        <ul>
-            <li><a href="edn_view/edn_view.html">EDN View</a></li>
-        </ul>
+    <body style="height:100%; margin:0; padding:0;">
+        <div style="display:flex; flex-direction: column; width: 100%; height: 100%">
+            <div id="hf-edn-view-route" style="min-height: 2.5rem; box-shadow: 0 0 1rem darkgray"></div>
+            <div id="hf-edn-view-output" style="flex:1;"></div>
+        </div>
+        <!-- <div id="docs"> </div> -->
+
+        <div id="hf-edn-test-view"> </div>
+        <script type="text/javascript" src="/assets/js/main.js"></script>
+        <script type="text/javascript">
+         hyperfiddle.client.edn_view.boot_BANG_();
+        </script>
     </body>
 </html>
