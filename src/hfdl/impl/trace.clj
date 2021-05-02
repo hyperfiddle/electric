@@ -102,22 +102,32 @@
   )
 
 (defn sampler! [cb flow]
-  (let [state (AtomicReference. :clean)
-        memo (Box. nil)
+  (let [memo (Box. nil)
         iter (Box. nil)
-        sampler
-        #(reify IDeref
-           (deref [_]
-             (if (.compareAndSet state :dirty :clean)
-               (set! (.-val memo) @(.-val iter))
-               (.-val memo))))]
-    (set! (.-val iter)
-      (flow
-        #(case (.get state)
-           :clean (if (.compareAndSet state :clean :dirty) (do) (recur))
-           :dirty (cb (sampler))) #()))
-    (if (.compareAndSet state :clean :dirty)
-      (do) (cb (sampler)))))
+        sampler (reify IDeref
+                  (deref [this]
+                    (locking this
+                      (let [x (.-val memo)]
+                        (if (identical? x memo)
+                          (loop []
+                            (set! (.-val memo) nil)
+                            (let [x @(.-val iter)]
+                              (if (identical? (.-val memo) memo)
+                                (recur) (set! (.-val memo) x)))) x)))))
+        ready! #(locking sampler
+                  (if (identical? (.-val memo) memo)
+                    (cb sampler) (set! (.-val memo) memo)))]
+    (set! (.-val iter) (flow ready! #()))
+    (ready!)))
+
+(tests
+  (def !a (atom 0))
+  (sampler! #(def s %) (m/watch !a))
+  @s := 0
+  (swap! !a inc)
+  (swap! !a inc)
+  @s := 2
+  )
 
 (def peer
   (let [nodes (int 0)                                       ;; {node signal}
