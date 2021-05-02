@@ -1,6 +1,5 @@
 (ns hyperfiddle.client.edn-view
-  (:require ["./edn_view/hoverTooltip" :refer [wordHover]]
-            ["@codemirror/fold" :as fold]
+  (:require ["@codemirror/fold" :as fold]
             ["@codemirror/gutter" :refer [lineNumbers]]
             ["@codemirror/highlight" :as highlight]
             ["@codemirror/history" :refer [history historyKeymap]]
@@ -12,11 +11,13 @@
             [hyperfiddle.client.edn-view.linter :refer [Linter]]
             [hyperfiddle.client.edn-view.diff :refer [patcher]]
             [hyperfiddle.client.edn-view.links :refer [LinksPlugin]]
+            [hyperfiddle.client.edn-view.spec-tooltip :refer [spec-tooltip]]
             [hyperfiddle.client.router :as router]
             [missionary.core :as m]
             [nextjournal.clojure-mode :as cm-clj]
             [hyperfiddle.client.ws :as ws]
-            [promesa.core :as p]))
+            [promesa.core :as p]
+            [dustin.fiddle-pages]))
 
 (def theme (.theme EditorView (clj->js {".cm-content"             {:white-space "pre-wrap"
                                                                    :padding     "10px 0"}
@@ -49,7 +50,7 @@
                             cm-clj/default-extensions
                             (.of view/keymap cm-clj/complete-keymap)
                             (.of view/keymap historyKeymap)
-                            wordHover
+                            spec-tooltip
                             LinksPlugin
                             Linter])
 
