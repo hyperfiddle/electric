@@ -30,6 +30,8 @@
     "scripts": {
         "watch": "shadow-cljs -A:edn-view:server watch",
         "build": "shadow-cljs -A:edn-view:server release",
-        "server": "shadow-cljs -A:edn-view:server server"
+        "server": "shadow-cljs -A:edn-view:server server",
+        "typescript": "tsc --watch",
+        "dev": "npm run typescript & npm run server"
     }
 }
