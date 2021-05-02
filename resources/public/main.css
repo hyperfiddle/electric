@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+
+.hf-code-tooltip{
+    @apply tw-border-0 tw-px-3 tw-py-2
+    tw-text-sm
+    tw-rounded tw-backdrop-filter tw-backdrop-blur
+    ;
+
+    z-index: 100;
+    background-color: transparent!important;
+}
+
+@tailwind utilities;

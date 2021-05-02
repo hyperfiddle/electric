@@ -1,12 +1,12 @@
-{:deps     {:aliases [:dev]}
- :dev-http {8000 "resources/public"}
+{:deps     {:aliases [:dev :edn-view :server]}
  :nrepl    {:port 9001}
- :builds   {:edn-view {
-                       :target           :browser
-                       :compiler-options {:output-feature-set    :es6
-                                          :infer-externs         :auto
-                                          :js-options            {:variable-renaming :off}
-                                          :anon-fn-naming-policy :unmapped}
-                       :output-dir       "resources/public/js"
-                       :asset-path       "/assets/js"
-                       :modules          {:main {:entries [hyperfiddle.client.edn-view]}}}}}
+ :builds   {:app {:target           :browser
+                  :devtools         {:watch-dir  "resources/public"
+                                     :watch-path "/assets"}
+                  :compiler-options {:output-feature-set    :es6
+                                     :infer-externs         :auto
+                                     :js-options            {:variable-renaming :off}
+                                     :anon-fn-naming-policy :unmapped}
+                  :output-dir       "resources/public/js"
+                  :asset-path       "/assets/js"
+                  :modules          {:main {:entries [hyperfiddle.client.edn-view]}}}}}
