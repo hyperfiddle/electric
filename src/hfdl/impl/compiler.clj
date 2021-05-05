@@ -94,13 +94,8 @@
 
 (defn remote [_])
 
-(defn special [ast]
-  (when (= :var (:op ast))
-    (case (symbol (:var ast))
-      clojure.core/deref :variable
-      clojure.core/unquote :constant
-      hfdl.impl.compiler/remote :remote
-      nil)))
+(defn var-symbol [ast]
+  (and (= :var (:op ast)) (symbol (:var ast))))
 
 (declare normalize-ast)
 
@@ -260,11 +255,12 @@
 
     (:invoke)
     (let [{:keys [fn args]} ast]
-      (case (special fn)
-        :remote (let [df (normalize-ast (u/swap env) (first args))]
-                  (discard (result (node-remote (:result df))) (update df :graphs u/swap)))
-        :constant (normalize-par env node-constant (first args))
-        :variable (normalize-par env node-variable (first args))
+      (case (var-symbol fn)
+        (hfdl.impl.compiler/remote clojure.core/unquote-splicing)
+        (let [df (normalize-ast (u/swap env) (first args))]
+          (discard (result (node-remote (:result df))) (update df :graphs u/swap)))
+        clojure.core/unquote (normalize-par env node-constant (first args))
+        clojure.core/deref (normalize-par env node-variable (first args))
         (apply normalize-par env node-apply fn args)))
 
     (:do)
