@@ -1,5 +1,6 @@
 @tailwind base;
 @tailwind components;
+/* Don't write above this line */
 
 .hf-code-tooltip{
     @apply tw-border-0 tw-px-3 tw-py-2;
@@ -7,7 +8,9 @@
     @apply tw-text-xs tw-font-mono;
 
     z-index: 100;
-    background-color: transparent!important;
+    background-color: rgba(255,255,255,0.75)!important;
 }
 
+
+/* Don't write below this line */
 @tailwind utilities;
