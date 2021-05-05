@@ -1,35 +1,55 @@
 import {hoverTooltip} from "@codemirror/tooltip";
 import {syntaxTree} from "@codemirror/language";
+import {Sexpr} from "./spec";
+import {SyntaxNode} from "lezer-tree";
+import { EditorState } from "@codemirror/state";
 
-type Symbol = string;
-type Keyword = string;
-type Speced = Symbol | Keyword;
-type SpecedType = "Symbol" | "Keyword";
-type Sexpr = string;
+type SpecResolver = (form : Sexpr) => Sexpr | null;
 
-type SpecResolver = (sym : Speced, type : SpecedType) => Sexpr | null;
+function findNamespace(state : EditorState, startAt : SyntaxNode) : string | null {
+    let cursor = startAt.cursor;
+    cursor.parent();
+    cursor.parent();
+    if(cursor.type.name == "NamespacedMap"){
+        cursor.next(); // KeywordPrefix
+        let {from, to} = cursor;
+        return state.doc.sliceString(from+1, to);
+    }
+    else return null;
+}
+
+function extractKeyword(state: EditorState, node : SyntaxNode) : string {
+    let {from, to} = node;
+    let kw = state.doc.sliceString(from, to);
+    let parent = findNamespace(state, node);
+    if (kw.includes("/")){
+        return kw;
+    } else if (parent != null){
+        return parent + "/" + kw.substring(1); // drop ":"
+    }
+    else return kw;
+}
 
 export function specTooltip(resolve : SpecResolver){
     return hoverTooltip((view, pos, side) => {
-        let tree = syntaxTree(view.state);
-        let astNode = tree.resolve(pos);
-        if (astNode.name == "Symbol" || astNode.name == "Keyword"){
-            let start = astNode.from;
-            let end = astNode.to;
-            let text = view.state.doc.sliceString(start, end);
-            if (start == pos && side < 0 || end == pos && side > 0){
+        let node = syntaxTree(view.state).resolve(pos);
+        let {name, from, to} = node;
+        if (name == "Symbol" || name == "Keyword"){
+            if (from == pos && side < 0 || to == pos && side > 0){
                 return null;
-            }
-            else{
+            } else{
+                let text : string;
+                if(name == "Keyword"){
+                    text = extractKeyword(view.state, node);
+                } else {
+                    text = view.state.doc.sliceString(from, to);
+                }
                 return {
-                    pos: astNode.from,
-                    end: astNode.to,
+                    pos: from,
+                    end: to,
                     above: true,
                     create(_view) {
-                        let spec = resolve(text, <SpecedType> astNode.name);
-                        if (spec == null){
-                            spec = "No spec found";
-                        }
+                        let spec = resolve(text) || "No spec found";
                         let dom = document.createElement("pre");
                         dom.textContent = spec;
                         dom.classList.add("hf-code-tooltip");

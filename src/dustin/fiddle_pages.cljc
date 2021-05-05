@@ -5,7 +5,8 @@
                     [hfdl.lang :refer [dataflow]]
                     [hyperfiddle.api :as hf]))
   #?(:cljs (:require [clojure.spec.alpha :as s]
-                     [hyperfiddle.api :as hf])))
+                     [hyperfiddle.api :as hf]
+                     [dustin.fiddle])))
 
 (s/fdef page-submissions :args (s/cat :needle string?))
 

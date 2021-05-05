@@ -68,7 +68,9 @@
         #_[(dustin.fiddle/needle-match ?ident ?needle)]]
       *$* needle-rule gender (or needle ""))))
 
-(s/fdef shirt-sizes :ret sequential?)
+(s/fdef shirt-sizes :args (s/alt :zero (s/cat :gender nat-int?)
+                                 :one (s/cat :gender nat-int?, :needle string?))
+        :ret sequential?)
 
 (tests
   (shirt-sizes :dustingetz/male) := [m-sm m-md m-lg]
@@ -79,13 +81,15 @@
   shirt-size [gender]
   (first (shirt-sizes gender)))
 
-(s/fdef shirt-size :ret (complement sequential?))
+(s/fdef shirt-size :args (s/cat :gender nat-int?) :ret (complement sequential?))
 
 (tests
   (shirt-size :dustingetz/male) := m-sm
   (shirt-size :dustingetz/female) := w-sm
   ;(shirt-size male) := m-sm ; datascript issue?
   )
+
+(s/fdef submissions :args (s/cat :needle string?) :ret sequential?)
 
 (defn submissions [& [needle]]
   (sort
@@ -97,6 +101,8 @@
            #_[(dustin.fiddle/needle-match ?email ?needle)]]
       *$* needle-rule (or needle ""))))
 
+(s/fdef submission-details :args (s/cat :eid nat-int?))
+
 (defn submission-details [eid]
   eid)
 
@@ -104,6 +110,9 @@
   (submissions) := [alice bob charlie]
   (submissions "example") := [alice bob charlie]
   (submissions "b") := [bob])
+
+(s/fdef submission-details :args (s/alt :zero (s/cat)
+                                        :one (s/cat :needle string?)))
 
 (defn submission [& [needle]]
   (first (submissions needle)))

@@ -1,8 +1,9 @@
 (ns hyperfiddle.client.edn-view.spec-tooltip
   (:require ["./specTooltip" :refer [specTooltip]]
-            [clojure.spec.alpha :as spec]
             [clojure.pprint :refer [pprint]]
-            [clojure.walk :as walk]))
+            [clojure.spec.alpha :as spec]
+            [clojure.walk :as walk]
+            [edamame.core :as edn]))
 
 (defn drop-ns [sym]
   (symbol (name sym)))
@@ -16,11 +17,12 @@
                     x))
                 form))
 
-(defn- resolve* [sym-or-kw, type]
+(defn- resolve* [sym-or-kw-text]
   (with-out-str
-    (some-> (spec/get-spec (case type
-                             "Symbol"  (symbol sym-or-kw)
-                             "Keyword" (keyword (subs sym-or-kw 1))))
+    (some-> (try
+              (edn/parse-string sym-or-kw-text)
+              (catch :default _ nil))
+            (spec/get-spec)
             (spec/form)
             (unalias)
             (pprint))))
