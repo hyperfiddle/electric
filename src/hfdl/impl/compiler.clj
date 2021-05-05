@@ -305,32 +305,32 @@
   (if (contains? sort node)
     sort (assoc-count (reduce topsort sort (deps node)) node)))
 
-(defn emit-frame [{:keys [result graphs]}]
+(defn emit [{:keys [result graphs]}]
   (list `->Dataflow result graphs))
 
 (defn df [env form]
   (->> form
     (analyze-clj env)
     (normalize-ast empty-env)
-    (emit-frame)))
+    (emit)))
 
 (tests
   "Constants"
-  (df {} 1) := (result (node-local 1))
-  (df {} [1 2]) := (result (node-local [1 2]))
-  (df {} {:a 1}) := (result (node-local {:a 1}))
-  (df {} #{:foo :bar}) := (result (node-local #{:bar :foo})))
+  (df {} 1) := (emit (result (node-local 1)))
+  (df {} [1 2]) := (emit (result (node-local [1 2])))
+  (df {} {:a 1}) := (emit (result (node-local {:a 1})))
+  (df {} #{:foo :bar}) := (emit (result (node-local #{:bar :foo}))))
 
 (tests
   "Locals"
   (def a 1)
-  (df {} `a) := (result (node-global `a)))
+  (df {} `a) := (emit (result (node-global `a))))
 
 (tests
   "Variables"
   (def !a (atom 0))
   (def a (m/watch !a))
-  (df {} `@a) := (result (node-variable (node-global `a))))
+  (df {} `@a) := (emit (result (node-variable (node-global `a)))))
 
 (tests
   "Vectors"
@@ -338,11 +338,12 @@
   (def a (m/watch !a))
   (df {} [1 `@a])
   :=
-  (result
-    (node-apply
-      (node-global `vector)
-      (node-local 1)
-      (node-variable (node-global `a)))))
+  (emit
+    (result
+      (node-apply
+        (node-global `vector)
+        (node-local 1)
+        (node-variable (node-global `a))))))
 
 (tests
   "Unification"
@@ -350,11 +351,12 @@
   (def a (m/watch !a))
   (df {} `[@a @a])
   :=
-  (result
-    (node-apply
-      (node-global `vector)
-      (node-variable (node-global `a))
-      (node-variable (node-global `a)))))
+  (emit
+    (result
+      (node-apply
+        (node-global `vector)
+        (node-variable (node-global `a))
+        (node-variable (node-global `a))))))
 
 (tests
   "Maps"
@@ -362,19 +364,21 @@
   (def a (m/watch !a))
   (df {} {:k `@a})
   :=
-  (result
-    (node-apply
-      (node-global `hash-map)
-      (node-local :k)
-      (node-variable (node-global `a))))
+  (emit
+    (result
+      (node-apply
+        (node-global `hash-map)
+        (node-local :k)
+        (node-variable (node-global `a)))))
 
   (df {} {`@a :v})
   :=
-  (result
-    (node-apply
-      (node-global `hash-map)
-      (node-variable (node-global `a))
-      (node-local :v))))
+  (emit
+    (result
+      (node-apply
+        (node-global `hash-map)
+        (node-variable (node-global `a))
+        (node-local :v)))))
 
 (tests
   "Sets"
@@ -382,29 +386,32 @@
   (def a (m/watch !a))
   (df {} #{1 `@a})
   :=
-  (result
-    (node-apply
-      (node-global `hash-set)
-      (node-local 1)
-      (node-variable (node-global `a)))))
+  (emit
+    (result
+      (node-apply
+        (node-global `hash-set)
+        (node-local 1)
+        (node-variable (node-global `a))))))
 
 (tests
   "Static calls"
   (df {} '(java.lang.Math/sqrt 4))
   :=
-  (result
-    (node-apply
-      (node-local '(clojure.core/fn [arg0] (java.lang.Math/sqrt arg0)))
-      (node-local 4))))
+  (emit
+    (result
+      (node-apply
+        (node-local '(clojure.core/fn [arg0] (java.lang.Math/sqrt arg0)))
+        (node-local 4)))))
 
 (tests
   "Invoke"
   (df {} `(str 1))
   :=
-  (result
-    (node-apply
-      (node-global `str)
-      (node-local 1))))
+  (emit
+    (result
+      (node-apply
+        (node-global `str)
+        (node-local 1)))))
 
 ;; Inlining is disabled for now
 #_(tests
@@ -421,34 +428,35 @@
   "Composition"
   (df {} `(str (str 1)))
   :=
-  (result
-    (node-apply
-      (node-global `str)
+  (emit
+    (result
       (node-apply
         (node-global `str)
-        (node-local 1)))))
+        (node-apply
+          (node-global `str)
+          (node-local 1))))))
 
 (tests
   "Do"
   (df {} '(do 1 2))
   :=
-  (result (node-local 2)) ; no effect on 1, skipped.
+  (emit (result (node-local 2)))                            ; no effect on 1, skipped.
 
   (df {} '(do (println 1) 2))
   :=
-  (discard (result (node-local 2)) (result (node-apply (node-global `println) (node-local 1)))))
+  (emit (discard (result (node-local 2)) (result (node-apply (node-global `println) (node-local 1))))))
 
 (tests
   "Let is transparent"
   (df {} '(let [a 1] a))
   :=
-  (result (node-local 1)))
+  (emit (result (node-local 1))))
 
 (tests
   "Let is not sequential"
   (df {} '(let [a 1 b 2 c 3] c))
   :=
-  (discard (result (node-local 3)) (result (node-local 1)) (result (node-local 2))))
+  (emit (discard (result (node-local 3)) (result (node-local 1)) (result (node-local 2)))))
 
 (tests
   "Referential transparency unifies bindings"
@@ -457,75 +465,84 @@
                 b (str a)]
             [c b]))
   :=
-  (result
-    (node-apply
-      (node-global `vector)
-      (node-apply (node-global `str) (node-local 1))
-      (node-apply (node-global `str) (node-local 1)))))
+  (emit
+    (result
+      (node-apply
+        (node-global `vector)
+        (node-apply (node-global `str) (node-local 1))
+        (node-apply (node-global `str) (node-local 1))))))
 
 (tests
   "If"
   (df {} '(if (odd? 1) :odd :even))
   :=
-  (result
-    (node-variable
-      (node-apply
-        (node-global `get)
+  (emit
+    (result
+      (node-variable
         (node-apply
-          (node-global `hash-map)
-          (node-local nil)
-          (node-constant (node-local :even))
-          (node-local false)
-          (node-constant (node-local :even)))
-        (node-apply
-          (node-global `odd?)
-          (node-local 1))
-        (node-constant (node-local :odd))))))
+          (node-global `get)
+          (node-apply
+            (node-global `hash-map)
+            (node-local nil)
+            (node-constant (node-local :even))
+            (node-local false)
+            (node-constant (node-local :even)))
+          (node-apply
+            (node-global `odd?)
+            (node-local 1))
+          (node-constant (node-local :odd)))))))
 
 (tests
   "Case"
-  (:result (df {} '(case 1
-                     (1 3) :odd
-                     2 :even
-                     4 :even
-                     :default)))
+  (df {} '(case 1
+            (1 3) :odd
+            2 :even
+            4 :even
+            :default))
   :=
-  (node-variable
-    (node-apply (node-global `get)
-      (node-apply (node-global `hash-map)
-        (node-local 1) (node-constant (node-local :odd))
-        (node-local 2) (node-constant (node-local :even))
-        (node-local 3) (node-constant (node-local :odd))
-        (node-local 4) (node-constant (node-local :even)))
-      (node-local 1)
-      (node-constant (node-local :default)))))
+  (emit
+    (result
+      (node-variable
+        (node-apply (node-global `get)
+          (node-apply (node-global `hash-map)
+            (node-local 1) (node-constant (node-local :odd))
+            (node-local 2) (node-constant (node-local :even))
+            (node-local 3) (node-constant (node-local :odd))
+            (node-local 4) (node-constant (node-local :even)))
+          (node-local 1)
+          (node-constant (node-local :default)))))))
 
 (tests
   "fn"
   (df {} '(fn [] 1))
   :=
-  (result
-    (node-apply (node-local '(clojure.core/fn [] (fn* ([] 1))))))
+  (emit
+    (result
+      (node-apply (node-local '(clojure.core/fn [] (fn* ([] 1)))))))
 
-  (:result (df {} '(let [a 1] (fn [] (let [f inc] (f a))))))
+  (df {} '(let [a 1] (fn [] (let [f inc] (f a)))))
   :=
-  (node-apply (node-local '(clojure.core/fn [a] (fn* ([] (let [f inc] (f a))))))
-    (node-local 1)))
+  (emit
+    (result
+      (node-apply (node-local '(clojure.core/fn [a] (fn* ([] (let [f inc] (f a))))))
+        (node-local 1)))))
 
 (tests
   (defn form-input [])
   (defn query [_])
   (defn render-table [_])
-  (:result (df {}
-             '(let [needle @(form-input)
-                    results (remote @(query needle))]
-                @(render-table results))))
+  (df {}
+    '(let [needle @(form-input)
+           results (remote @(query needle))]
+       @(render-table results)))
   :=
-  (node-variable
-    (node-apply (node-global `render-table)
-      (node-remote
-        (node-variable
-          (node-apply (node-global `query)
-            (node-remote
-              (node-variable
-                (node-apply (node-global `form-input))))))))))
+  (emit
+    (result
+      (node-variable
+        (node-apply (node-global `render-table)
+          (node-remote
+            (node-variable
+              (node-apply (node-global `query)
+                (node-remote
+                  (node-variable
+                    (node-apply (node-global `form-input))))))))))))
