@@ -42,7 +42,8 @@
             [hfdl.lang :refer [dataflow debug! result]]
             [hfdl.lib :refer [reactive-for]]
             [hyperfiddle.api :as hf]
-            [minitest :refer [tests]]))
+            [minitest :refer [tests]]
+            [clojure.walk :as walk]))
 
 (defn default-renderer [val props]
   (if-let [a (::hf/a props)]
@@ -85,10 +86,14 @@
                  r))
              props props))
 
-(defn quote* [xs]
-  (if (seqable? xs)
-    `(list ~@xs)
-    xs))
+(defn quote* [env& env' xs]
+  (walk/postwalk (fn [x]
+                   (cond
+                     (list? x)    (cons `list x)
+                     (get env' x) (get env' x)
+                     (get env& x) x
+                     :else        (list 'quote x)))
+                 xs))
 
 (defn compile-hfql*
   [env& ns-map env' form]
@@ -105,7 +110,7 @@
                        props           (expand-props env& ns-map env' props)]
                    (merge r
                           (if (many? qedge)
-                            `{~(quote* (replace* env' qedge))
+                            `{~(quote* env& env' qedge)
                               @(continue
                                 @(reactive-for (~'fn [~'%]
                                                 (dataflow
@@ -115,7 +120,7 @@
                                                    nil)))
                                                (~'unquote ~(replace* env' edge*)))
                                 ~props)}
-                            `{~(quote* (replace* env' qedge))
+                            `{~(quote* env& env' qedge)
                               @(continue
                                 (~'let [~'% ~(replace* env' edge*)]
                                  (~'let [~edge-sym ~'%]
@@ -127,7 +132,7 @@
     :else (let [[form props] (if (has-props? form) (extract-props form) [form nil])
                 props        (expand-props env& ns-map env' props)
                 qedge        (qualify env& ns-map form)]
-            {`~(quote* (replace* env' qedge)) `@(continue ~(compile-leaf* form) ~props)})))
+            {`~(quote* env& env' qedge) `@(continue ~(compile-leaf* form) ~props)})))
 
 (defmacro hfql [form]
   (compile-hfql* &env (ns-map *ns*) {} form))
@@ -150,13 +155,13 @@
 #_(tests
 
  (def !needle (atom ""))
- (def >needle (m/watch !needle))
+ (def >needle (missionary.core/watch !needle))
  (def program (dataflow
                (let [needle @>needle]
                  (hfql {(submissions needle) [:dustingetz/email
                                               {(:dustingetz/gender ::hf/options (genders)) [:db/ident]}
-                                              {(:dustingetz/shirt-size ::hf/options (shirt-sizes (:dustingetz/gender %))
-                                                                       ::hf/render simple-picklist)
+                                              {(:dustingetz/shirt-size #_#_::hf/options (shirt-sizes (:dustingetz/gender %))
+                                                                       #_#_::hf/render simple-picklist)
                                                [:db/ident]}]}))))
 
  (def process (debug! program))
