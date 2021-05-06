@@ -37,7 +37,7 @@
         "cljs:server":  "./node_modules/.bin/shadow-cljs server",
         "ts:watch":     "./node_modules/.bin/tsc --watch",
         "ts:build":     "./node_modules/.bin/tsc",
-        "css:build":    "NODE_ENV=production  ./node_modules/.bin/tailwind build -o ./resources/public/main.min.css",
+        "css:build":    "NODE_ENV=production  ./node_modules/.bin/postcss ./resources/public/main.css -o ./resources/public/main.min.css",
         "css:watch":    "NODE_ENV=development ./node_modules/.bin/postcss ./resources/public/main.css -o ./resources/public/main.min.css -w"
     },
     "devDependencies": {
