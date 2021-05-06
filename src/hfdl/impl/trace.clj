@@ -149,10 +149,11 @@
     (fn [boot trace >read]
       (m/reactor
         (let [process (object-array 4)]
-          (letfn [(context [{:keys [result graphs]} n t]
-                    (reduce graph! nil (first graphs))
-                    ((aget process create-cb) (second graphs))
-                    (((aget process nodes) result) n t))
+          (letfn [(context [{:keys [expression statements]} n t]
+                    (graph! nil expression)
+                    (reduce graph! nil (first statements))
+                    ((aget process create-cb) (second statements))
+                    (((aget process nodes) expression) n t))
                   (listener [slot]
                     (->> (fn [!] (aset process slot !) u/nop)
                       (m/observe)
@@ -200,11 +201,11 @@
               (m/stream!))))))))
 
 (defmacro df [& body]
-  `(:result (dataflow ~@body)))
+  `(:expression (dataflow ~@body)))
 
 (defmacro debug [sym & body]
   `(fn []
-     (sampler! (fn [s#] (println :ready ~sym) (def ~sym s#))
+     (sampler! (fn [s#] (println :ready '~sym) (def ~sym s#))
        ~@body)))
 
 
@@ -215,7 +216,7 @@
   ; the debug adds a way to sample the result on the side for testing
   ; (in production the result is never sampled, process will fire more effects)
 
-  ((peer (debug sampler (* 6 7))                            ; dag boot fn
+  ((peer (debug sampler (dataflow (* 6 7)))                 ; dag boot fn
      #(m/sp (prn %))                                        ; trace spout
      (u/poll m/never))                                      ; no network inputs
    prn prn)
