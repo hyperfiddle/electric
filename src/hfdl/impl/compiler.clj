@@ -40,7 +40,7 @@
 (defn no-context [d n t]
   (failer n t (ex-info "Unable to find dafaflow context" {:dataflow d})))
 
-(defrecord Dataflow [result graphs]
+(defrecord Dataflow [expression statements]
   IFn (invoke [d n t] ((or (get-ctx) no-context) d n t)))
 
 ;; GG: This is a copy/paste from `clojure.tools.analyser.jvm/macroexpand-1`, without inlining.
@@ -101,9 +101,9 @@
 
 (defn deps [[op & args]]
   (case op
-    :apply (cons (first args) (second args))
-    (:remote :constant :variable) (list (first args))
-    (:local :global) ()))
+    :apply (into #{(first args)} (second args))
+    (:remote :constant :variable) #{(first args)}
+    (:local :global) #{}))
 
 (def graphs (u/monoid u/map-into [#{} #{}]))
 
@@ -298,15 +298,24 @@
     ;; (:new) ;; TODO
     ))
 
-(defn assoc-count [m k]
-  (assoc m k (count m)))
-
-(defn topsort [sort node]
-  (if (contains? sort node)
-    sort (assoc-count (reduce topsort sort (deps node)) node)))
+(def tc
+  (letfn [(walk-dep [graphs dep]
+            (if (contains? (first graphs) dep)
+              graphs (update (walk-node graphs dep) 0 conj dep)))
+          (walk-node [graphs [op & args]]
+            (case op
+              :remote (-> graphs u/swap (walk-dep (first args)) u/swap)
+              :apply (reduce walk-dep (walk-dep graphs (first args)) (second args))
+              (:constant :variable) (walk-dep graphs (first args))
+              (:local :global) graphs))]
+    (fn [graphs [l r]]
+      (reduce walk-node (u/swap (reduce walk-node (u/swap graphs) r)) l))))
 
 (defn emit [{:keys [result graphs]}]
-  (list `->Dataflow result graphs))
+  (->> graphs
+    (tc [#{result} #{}])
+    (mapv u/outof graphs)
+    (list `->Dataflow result)))
 
 (defn df [env form]
   (->> form

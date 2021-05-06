@@ -29,6 +29,7 @@
           IDeref
           (deref [_] (t) x))))
 
+(def outof (partial reduce disj))
 (def map-into (partial mapv into))
 (def swap (juxt second first))
 
