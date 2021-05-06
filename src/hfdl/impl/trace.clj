@@ -145,7 +145,7 @@
         local u/pure
         input (fn [s] (->> s (m/observe) (m/relieve {})))
         global (comp u/pure deref resolve)
-        variable (fn [c t] (c/bind-context c (switch t)))]
+        variable (fn [c f] (switch (m/latest (partial c/bind-context c) f)))]
     (fn [boot trace >read]
       (m/reactor
         (let [process (object-array 4)]
@@ -164,6 +164,7 @@
                       (->> deps
                         (map store)
                         (apply ctor arg)
+                        #_(u/log-failure)
                         (m/signal!)
                         (assoc store node)
                         (aset process nodes))))
@@ -189,7 +190,10 @@
                      (create (m/?? (listener create-cb)))
                      (sample (m/?? (listener sample-cb)))
                      (do (c/with-ctx context (boot))
-                         (let [[changed created sampled] (m/?? (m/stream! >read))]
+                         (let [[changed created sampled]
+                               (->> >read
+                                 (c/bind-context context)
+                                 (m/stream!) (m/??))]
                            (reduce graph! nil sampled)
                            (reduce graph! nil created)
                            (reduce-kv touch! nil changed)
@@ -198,6 +202,7 @@
               (m/relieve u/map-into)
               (m/stream!)
               (u/foreach trace)
+              (c/bind-context context)
               (m/stream!))))))))
 
 (defmacro df [& body]
@@ -256,8 +261,8 @@
     (let [l->r (m/rdv)
           r->l (m/rdv)]
       (m/? (m/join vector
-             (peer #() #(do (println 'r->l %) (r->l %)) (u/poll l->r))
-             (peer boot #(do (println 'l->r %) (l->r %)) (u/poll r->l)))))))
+             (peer #() (-> r->l #_(u/log-args 'r->l)) (u/poll l->r))
+             (peer boot (-> l->r #_(u/log-args 'l->r)) (u/poll r->l)))))))
 
 (comment
 
