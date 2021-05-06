@@ -23,14 +23,15 @@
      (set-ctx ~ctx)
      (try ~@body (finally (set-ctx ctx#)))))
 
+(defn wrap [context target]
+  (reify
+    IFn
+    (invoke [_] (with-ctx context (target)))
+    IDeref
+    (deref [_] (with-ctx context @target))))
+
 (defn bind-context [ctx flow]
-  (fn [n t]
-    (let [it (flow n t)]
-      (reify
-        IFn
-        (invoke [_] (it))
-        IDeref
-        (deref [_] (with-ctx ctx @it))))))
+  (fn [n t] (wrap ctx (flow (wrap ctx n) (wrap ctx t)))))
 
 (defn failer [n t e]
   (n) (reify

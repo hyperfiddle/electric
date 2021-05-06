@@ -1,7 +1,7 @@
 (ns dustin.hfql.hfql-traced1
   (:require [dustin.fiddle :refer [submission gender shirt-size submission-details]]
             [geoffrey.hfql.links :refer [hfql]]
-            [hfdl.lang :refer [dataflow remote]]
+            [hfdl.lang :refer [dataflow]]
             [hfdl.impl.trace :refer [system debug]]
             [hyperfiddle.api :as hf]
             [minitest :refer [tests]]
@@ -71,10 +71,10 @@
     "hfql with remote"
     (def !needle (atom "bob"))
     (def dag (dataflow (let [needle @(m/watch !needle)]
-                         (remote (hfql {(submission needle) [:db/id]})))))
+                         ~@(hfql {(submission needle) [:db/id]}))))
     ((system (debug sampler2 dag)) prn prn)
     ; network activity
-    @sampler2 := {'(dustin.fiddle/submission needle) {:db/id 10 :dustingetz/email [:div.email "bob@example.com"]}}
+    @sampler2 := {'(dustin.fiddle/submission needle) {:db/id 10}}
     )
 
   (tests
@@ -84,20 +84,15 @@
     (defn render-email [v {:keys [alice]}]
       (dataflow
         (let [alice (:dustingetz/email (datascript.core/entity hf/*$* alice))]
-          (remote
-            [:div.render
+          ~@[:div.render
              [:div.me v]
-             [:div.alice alice]]))))
+             [:div.alice alice]])))
 
     (defn render-pre! [v]
-      (m/ap
-        (-> js/document
-          (.querySelector "#root")
-          (.setInnerHtml (with-out-str (clojure.pprint/pprint v))))))
+      (m/ap (prn (m/?? v))))
 
     (def dag (dataflow (let [needle @(m/watch !needle)]
-                         @(render-pre!
-                           ~(remote (hfql {(submission needle) [:db/id (:dustingetz/email ::hf/render render-email :alice 9)]}))))))
+                         @(render-pre! ~~@(hfql {(submission needle) [:db/id (:dustingetz/email ::hf/render render-email :alice 9)]})))))
     ((system (debug sampler1 dag)) prn prn)
     @sampler1 := nil)
 

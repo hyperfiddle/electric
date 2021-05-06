@@ -56,6 +56,21 @@
 (defn pst [^Throwable e]
   (.printStackTrace e))
 
+(defn log-failure [f]
+  (fn [n t]
+    (let [it (f n t)]
+      (reify
+        IFn
+        (invoke [_] (it))
+        IDeref
+        (deref [_]
+          (try @it
+               (catch Throwable e
+                 (pst e) (throw e))))))))
+
+(defn log-args [f & prefix]
+  (fn [& args] (apply prn (concat prefix args)) (apply f args)))
+
 (defn join "
 TODO error handling
 
