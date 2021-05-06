@@ -1,6 +1,11 @@
 @tailwind base;
 @tailwind components;
+@tailwind utilities;
 /* Don't write above this line */
+
+a {
+    @apply tw-underline tw-text-blue-600 hover:tw-text-blue-800 visited:tw-text-purple-600;
+}
 
 .hf-code-tooltip{
     @apply tw-border-0 tw-px-3 tw-py-2;
@@ -11,6 +16,3 @@
     background-color: rgba(255,255,255,0.75)!important;
 }
 
-
-/* Don't write below this line */
-@tailwind utilities;
