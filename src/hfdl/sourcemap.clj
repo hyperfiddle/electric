@@ -21,7 +21,7 @@
     :remote          (list `hfdl.impl.compiler/remote (decompile* (first args)))))
 
 (defn decompile [program]
-  (decompile* (:result program)))
+  (decompile* (:expression program)))
 
 #_(tests
  (require '[hfdl.lang :refer [dataflow debug! heap-dump]]
