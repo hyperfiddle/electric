@@ -14,11 +14,12 @@
 
 (defn decompile* [[op & args]]
   (case op
-    :apply           (cons (decompile* (first args)) (map decompile* (second args)))
-    :constant        (list `clojure.core/unquote (decompile* (first args)))
-    :variable        (list `clojure.core/deref (decompile* (first args)))
-    (:local :global) (first args)
-    :remote          (list `hfdl.impl.compiler/remote (decompile* (first args)))))
+    :remote   (list `clojure.core/unquote-splicing (decompile* (first args)))
+    :constant (list `clojure.core/unquote (decompile* (first args)))
+    :variable (list `clojure.core/deref (decompile* (first args)))
+    :apply    (cons (decompile* (first args)) (map decompile* (second args)))
+    :local    (list `quote (first args))
+    :global   (first args)))
 
 (defn decompile [program]
   (decompile* (:expression program)))
