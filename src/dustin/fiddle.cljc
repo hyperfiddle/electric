@@ -68,8 +68,8 @@
         #_[(dustin.fiddle/needle-match ?ident ?needle)]]
       *$* needle-rule gender (or needle ""))))
 
-(s/fdef shirt-sizes :args (s/alt :zero (s/cat :gender nat-int?)
-                                 :one (s/cat :gender nat-int?, :needle string?))
+(s/fdef shirt-sizes :args (s/alt :zero (s/cat :gender keyword?)
+                                 :one  (s/cat :gender keyword?, :needle string?))
         :ret sequential?)
 
 (tests
