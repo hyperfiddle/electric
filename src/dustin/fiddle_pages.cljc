@@ -5,6 +5,7 @@
                     [hfdl.lang :refer [dataflow]]
                     [hyperfiddle.api :as hf]
                     [clojure.pprint :as pprint]
+                    [hfdl.impl.trace :refer [system debug]]
                     [hyperfiddle.client.ui :as ui]))
   #?(:cljs (:require [clojure.spec.alpha :as s]
                      [hyperfiddle.api :as hf]
@@ -46,6 +47,7 @@
                    ::hf/options (shirt-sizes dustingetz/gender))
                   [:db/ident]
                   }]}])  )))
-  (def process (hfdl.lang/debug! (program "")))
-  (pprint/pprint (hfdl.lang/result @process)))
+  ((system (debug sample (program ""))) prn prn)
+  @sample)
+
 

@@ -50,7 +50,7 @@
     (dataflow (hf/->Link a val))
     (dataflow val)))
 
-(defn continue [val props]
+(defn render [val props]
   (let [renderf (::hf/render props default-renderer)]
     (renderf val (dissoc props ::hf/render))))
 
@@ -111,11 +111,11 @@
                    (merge r
                           (if (many? qedge)
                             `{~(quote* env& env' qedge)
-                              ;; @(continue )
+                              ;; @(render )
                               @(reactive-for (~'fn [~'%]
                                                          (dataflow
                                                           (~'let [~edge-sym ~'%]
-                                                           @(continue
+                                                           @(render
                                                              ~(compile-hfql* env& ns-map env' cont)
                                                              ~props))))
                                                         (~'unquote ~(replace* env' edge*)))
@@ -124,7 +124,7 @@
                             `{~(quote* env& env' qedge)
                               (~'let [~'% ~(replace* env' edge*)]
                                (~'let [~edge-sym ~'%]
-                                @(continue
+                                @(render
                                   ~(compile-hfql* env& ns-map env' cont)
                                   ~props)))}))))
                {}
@@ -133,7 +133,7 @@
     :else (let [[form props] (if (has-props? form) (extract-props form) [form nil])
                 props        (expand-props env& ns-map env' props)
                 qedge        (qualify env& ns-map form)]
-            {`~(quote* env& env' qedge) `@(continue ~(compile-leaf* (replace* env' form)) ~props)})))
+            {`~(quote* env& env' qedge) `@(render ~(compile-leaf* (replace* env' form)) ~props)})))
 
 (defmacro hfql [form]
   (compile-hfql* &env (ns-map *ns*) {} form))
