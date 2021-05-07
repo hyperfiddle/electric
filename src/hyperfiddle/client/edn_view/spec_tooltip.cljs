@@ -2,6 +2,7 @@
   (:require ["./specTooltip" :refer [specTooltip]]
             [clojure.pprint :refer [pprint]]
             [clojure.spec.alpha :as spec]
+            [clojure.string :as str]
             [clojure.walk :as walk]
             [edamame.core :as edn]))
 
@@ -27,4 +28,31 @@
             (unalias)
             (pprint))))
 
-(def spec-tooltip (specTooltip resolve*))
+(defn cat->vec [[_ & pairs]]
+  (into [] (map vec (partition 2 pairs))))
+
+(defn args [fn-sym]
+  (when-let [form (some-> (spec/get-spec fn-sym)
+                          (:args)
+                          (spec/describe))]
+    (let [[type & pairs :as args] form]
+      (case type
+        cat [(cat->vec args)]
+        alt (->> (partition 2 pairs)
+                 (mapv (fn [[_ cat]] (cat->vec cat))))))))
+
+(defn- resolve-arg [sym, pos]
+  (prn sym pos)
+  (some-> (try
+            (edn/parse-string sym)
+            (catch :default _ nil))
+          (args)
+          (doto prn)
+          (->> (map (fn [arity] (get arity (dec pos))))
+               (filter some?)
+               (map (fn [[nom pred]] (str nom " " pred)))
+               (str/join "\n"))))
+
+(def spec-tooltip (specTooltip resolve* resolve-arg))
+
+
