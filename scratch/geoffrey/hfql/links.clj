@@ -111,28 +111,29 @@
                    (merge r
                           (if (many? qedge)
                             `{~(quote* env& env' qedge)
-                              @(continue
-                                @(reactive-for (~'fn [~'%]
-                                                (dataflow
-                                                 @(continue
-                                                   (~'let [~edge-sym ~'%]
-                                                    ~(compile-hfql* env& ns-map env' cont))
-                                                   nil)))
-                                               (~'unquote ~(replace* env' edge*)))
-                                ~props)}
+                              ;; @(continue )
+                              @(reactive-for (~'fn [~'%]
+                                                         (dataflow
+                                                          (~'let [~edge-sym ~'%]
+                                                           @(continue
+                                                             ~(compile-hfql* env& ns-map env' cont)
+                                                             ~props))))
+                                                        (~'unquote ~(replace* env' edge*)))
+                              ;; nil
+                              }
                             `{~(quote* env& env' qedge)
-                              @(continue
-                                (~'let [~'% ~(replace* env' edge*)]
-                                 (~'let [~edge-sym ~'%]
-                                  ~(compile-hfql* env& ns-map env' cont)))
-                                ~props)}))))
+                              (~'let [~'% ~(replace* env' edge*)]
+                               (~'let [~edge-sym ~'%]
+                                @(continue
+                                  ~(compile-hfql* env& ns-map env' cont)
+                                  ~props)))}))))
                {}
                form)
 
     :else (let [[form props] (if (has-props? form) (extract-props form) [form nil])
                 props        (expand-props env& ns-map env' props)
                 qedge        (qualify env& ns-map form)]
-            {`~(quote* env& env' qedge) `@(continue ~(compile-leaf* form) ~props)})))
+            {`~(quote* env& env' qedge) `@(continue ~(compile-leaf* (replace* env' form)) ~props)})))
 
 (defmacro hfql [form]
   (compile-hfql* &env (ns-map *ns*) {} form))
