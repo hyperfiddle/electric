@@ -1,48 +1,20 @@
 (ns hfdl.impl.compiler
-  (:require [cljs.analyzer.api :as cljs]
-            [clojure.tools.analyzer :as ana]
+  (:require [clojure.tools.analyzer :as ana]
             [clojure.tools.analyzer.env :as env]
             [clojure.tools.analyzer.jvm :as clj]
             [clojure.tools.analyzer.utils :as utils]
+            [cljs.analyzer]
             [minitest :refer [tests]]
             [missionary.core :as m]
-            [hfdl.impl.util :as u])
-  (:import clojure.lang.Compiler$LocalBinding
-           (clojure.lang IFn IDeref)))
+            [hfdl.impl.util :as u]
+            [hfdl.impl.runtime :refer [->Dataflow]])
+  (:import clojure.lang.Compiler$LocalBinding))
 
-(def context (ThreadLocal.))
-
-(defmacro get-ctx []
-  `(.get ~(with-meta `context {:tag `ThreadLocal})))
-
-(defmacro set-ctx [c]
-  `(.set ~(with-meta `context {:tag `ThreadLocal}) ~c))
-
-(defmacro with-ctx [ctx & body]
-  `(let [ctx# (get-ctx)]
-     (set-ctx ~ctx)
-     (try ~@body (finally (set-ctx ctx#)))))
-
-(defn wrap [context target]
-  (reify
-    IFn
-    (invoke [_] (with-ctx context (target)))
-    IDeref
-    (deref [_] (with-ctx context @target))))
-
-(defn bind-context [ctx flow]
-  (fn [n t] (wrap ctx (flow (wrap ctx n) (wrap ctx t)))))
-
-(defn failer [n t e]
-  (n) (reify
-        IFn (invoke [_])
-        IDeref (deref [_] (t) (throw e))))
-
-(defn no-context [d n t]
-  (failer n t (ex-info "Unable to find dafaflow context" {:dataflow d})))
-
-(defrecord Dataflow [expression statements]
-  IFn (invoke [d n t] ((or (get-ctx) no-context) d n t)))
+(defn out [& args]
+  (doseq [arg args]
+    (.print System/out (pr-str arg))
+    (.print System/out " "))
+  (.println System/out))
 
 ;; GG: This is a copy/paste from `clojure.tools.analyser.jvm/macroexpand-1`, without inlining.
 (defn macroexpand-1'
@@ -50,25 +22,25 @@
   ([form] (macroexpand-1' form (clj/empty-env)))
   ([form env]
    (env/ensure (clj/global-env)
-               (cond
-                 (seq? form)    (let [[op & _args] form]
-                                  (if (clj/specials op)
-                                    form
-                                    (let [v      (utils/resolve-sym op env)
-                                          m      (meta v)
-                                          local? (-> env :locals (get op))
-                                          macro? (and (not local?) (:macro m)) ;; locals shadow macros
-                                          ]
-                                      (if macro?
-                                        (let [res (apply v form (:locals env) (rest form))] ; (m &form &env & args)
-                                          (when-not (clj/ns-safe-macro v)
-                                            (clj/update-ns-map!))
-                                          (if (utils/obj? res)
-                                            (vary-meta res merge (meta form))
-                                            res))
-                                        (clj/desugar-host-expr form env)))))
-                 (symbol? form) (clj/desugar-symbol form env)
-                 :else          form))))
+     (cond
+       (seq? form) (let [[op & _args] form]
+                     (if (clj/specials op)
+                       form
+                       (let [v (utils/resolve-sym op env)
+                             m (meta v)
+                             local? (-> env :locals (get op))
+                             macro? (and (not local?) (:macro m)) ;; locals shadow macros
+                             ]
+                         (if macro?
+                           (let [res (apply v form (:locals env) (rest form))] ; (m &form &env & args)
+                             (when-not (clj/ns-safe-macro v)
+                               (clj/update-ns-map!))
+                             (if (utils/obj? res)
+                               (vary-meta res merge (meta form))
+                               res))
+                           (clj/desugar-host-expr form env)))))
+       (symbol? form) (clj/desugar-symbol form env)
+       :else form))))
 
 (def analyze-clj
   (let [scope-bindings
@@ -85,18 +57,23 @@
                        binding))) {})]
     (fn [env form]
       (if (:js-globals env)
-        (cljs/analyze env form)
+        (binding [cljs.env/*compiler* (or cljs.env/*compiler* (cljs.env/default-compiler-env))]
+          (cljs.analyzer/analyze env form nil nil))
         (binding [clj/run-passes clj/scheduled-default-passes]
           (clj/analyze form
-                       (->> env
-                            (scope-bindings)
-                            (update (clj/empty-env) :locals merge))
-                       {:bindings {#'ana/macroexpand-1 macroexpand-1'}}))))))
-
-(defn remote [_])
+            (->> env
+              (scope-bindings)
+              (update (clj/empty-env) :locals merge))
+            {:bindings {#'ana/macroexpand-1 macroexpand-1'}}))))))
 
 (defn var-symbol [ast]
-  (and (= :var (:op ast)) (symbol (:var ast))))
+  (case (:op ast) :var (or (:name ast) (symbol (:var ast))) nil))
+
+(defn global [s]
+  (keyword
+    (let [n (namespace s)]
+      (case n "cljs.core" "clojure.core" n))
+    (name s)))
 
 (declare normalize-ast)
 
@@ -144,7 +121,7 @@
   [:local x])
 
 (defn node-global [s]
-  [:global `(quote ~s)])
+  [:global (global s)])
 
 (defn node-variable [n]
   [:variable n])
@@ -242,7 +219,7 @@
     (litteral-as-function env ast)
 
     (:var)
-    (result (node-global (symbol (:var ast))))
+    (result (node-global (var-symbol ast)))
 
     (:static-call)
     (let [{:keys [class method args]} ast
@@ -257,11 +234,16 @@
     (:invoke)
     (let [{:keys [fn args]} ast]
       (case (var-symbol fn)
-        (hfdl.impl.compiler/remote clojure.core/unquote-splicing)
+        (clojure.core/unquote-splicing cljs.core/unquote-splicing)
         (let [df (normalize-ast (u/swap env) (first args))]
           (discard (result (node-remote (:result df))) (update df :graphs u/swap)))
-        clojure.core/unquote (normalize-par env node-constant (first args))
-        clojure.core/deref (normalize-par env node-variable (first args))
+
+        (clojure.core/unquote cljs.core/unquote)
+        (normalize-par env node-constant (first args))
+
+        (clojure.core/deref cljs.core/deref)
+        (normalize-par env node-variable (first args))
+
         (apply normalize-par env node-apply fn args)))
 
     (:do)
@@ -297,7 +279,8 @@
 
     ;; (:throw) ;; TODO
     ;; (:new) ;; TODO
-    ))
+
+    (throw (ex-info "Unsupported form." (select-keys ast [:form])))))
 
 (def tc
   (letfn [(walk-dep [graphs dep]
@@ -323,6 +306,9 @@
     (analyze-clj env)
     (normalize-ast empty-env)
     (emit)))
+
+(defn vars [env forms]
+  (into {} (map (comp (juxt global identity) var-symbol (partial analyze-clj env))) forms))
 
 (tests
   "Constants"
@@ -543,7 +529,7 @@
   (defn render-table [_])
   (df {}
     '(let [needle @(form-input)
-           results (remote @(query needle))]
+           results ~@@(query needle)]
        @(render-table results)))
   :=
   (emit

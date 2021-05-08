@@ -34,7 +34,8 @@
   (pushy/pushy set-route-from-url! (partial bidi/match-route ROUTES)))
 
 (defn set-route! [sexp]
-  ;; TODO assert route is valid here
-  (pushy/set-token! history (ednish/url-encode sexp)))
+  (when (seq? sexp)
+    (when-some [route (seq sexp)]
+      (pushy/set-token! history (ednish/url-encode route)))))
 
 (pushy/start! history)

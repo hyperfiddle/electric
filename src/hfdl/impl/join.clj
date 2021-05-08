@@ -1,75 +1,8 @@
-(ns hfdl.impl.util
-  (:require [missionary.core :as m])
+(ns hfdl.impl.join
+  (:require [hfdl.impl.util :as u]
+            [hfdl.impl.token :as t])
   (:import (java.util.concurrent.atomic AtomicReference AtomicInteger)
-           (clojure.lang IFn IDeref Box)))
-
-(defn nop [])
-
-(defn token
-  ([] (token nop))
-  ([c] (AtomicReference. c)))
-
-(defn swap-token! [^AtomicReference t c]
-  (loop []
-    (if-some [x (.get t)]
-      (if (.compareAndSet t x c)
-        (do) (recur)) (c))))
-
-(defn burn-token! [^AtomicReference t]
-  (loop []
-    (when-some [c (.get t)]
-      (if (.compareAndSet t c nil)
-        (c) (recur)))))
-
-(defn pure [x]
-  (fn [n t]
-    (n) (reify
-          IFn
-          (invoke [_])
-          IDeref
-          (deref [_] (t) x))))
-
-(def outof (partial reduce disj))
-(def map-into (partial mapv into))
-(def swap (juxt second first))
-
-(defn monoid [f i]
-  (fn
-    ([] i)
-    ([x] x)
-    ([x y] (f x y))
-    ([x y & zs] (reduce f (f x y) zs))))
-
-(defn call
-  ([f] (f))
-  ([f a] (f a))
-  ([f a b] (f a b))
-  ([f a b c] (f a b c))
-  ([f a b c & ds] (apply f a b c ds)))
-
-(defmacro aget-aset [arr idx val]
-  `(let [a# ~arr
-         i# ~idx
-         x# (aget a# i#)]
-     (aset a# i# ~val) x#))
-
-(defn pst [^Throwable e]
-  (.printStackTrace e))
-
-(defn log-failure [f]
-  (fn [n t]
-    (let [it (f n t)]
-      (reify
-        IFn
-        (invoke [_] (it))
-        IDeref
-        (deref [_]
-          (try @it
-               (catch Throwable e
-                 (pst e) (throw e))))))))
-
-(defn log-args [f & prefix]
-  (fn [& args] (apply prn (concat prefix args)) (apply f args)))
+           (clojure.lang Box IFn IDeref)))
 
 (defn join "
 TODO error handling
@@ -92,8 +25,8 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
 3. `alive` : the number of non-terminated iterators (outer + inners).
 " [input]
   (fn [n t]
-    (let [state (AtomicReference. nop)
-          token (token)
+    (let [state (AtomicReference. u/nop)
+          token (t/token)
           alive (AtomicInteger. 1)
           done! #(when (zero? (.decrementAndGet alive)) (t))
           outer (input
@@ -103,14 +36,14 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
                      (if (.compareAndSet state nil state) (do) (recur)))
                   #(do (loop []
                          (if-some [s (.get state)]
-                           (swap-token! token (if (instance? Box s) (.-val ^Box s) s))
+                           (t/swap-token! token (if (instance? Box s) (.-val ^Box s) s))
                            (if (.compareAndSet state nil token)
                              (do) (recur)))) (done!)))]
       (.set token outer)
       (reify
         IFn
         (invoke [_]
-          (burn-token! token))
+          (t/burn-token! token))
         IDeref
         (deref [_]
           @(loop []
@@ -132,20 +65,4 @@ the outer flow iterator until it's terminated, the inner flow iterator afterward
                    (if (.compareAndSet state nil i)
                      i (if (.compareAndSet state state nil)
                          (do (i) (try @i (catch Throwable _)) (recur))
-                         (do (swap-token! token i) (.set state i) i))))))))))))
-
-(defn slot-changes [slots]
-  (m/ap
-    (let [[path slot] (m/?= (m/enumerate (m/?= slots)))]
-      {path (try (m/?? slot) (catch Throwable _ ::cancelled))})))
-
-(defn foreach [f input]
-  (m/ap (m/? (f (m/?? input)))))
-
-(defn poll [task]
-  ; takes a task and returns a flow that runs the task repeatedly
-  (m/ap (m/? (m/?? (m/enumerate (repeat task))))))
-
-(defmacro amb= [& forms]
-  `(case (m/?= (m/enumerate (range ~(count forms))))
-     ~@(interleave (range) forms)))
+                         (do (t/swap-token! token i) (.set state i) i))))))))))))

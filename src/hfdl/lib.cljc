@@ -1,14 +1,16 @@
 (ns hfdl.lib
   (:require [hfdl.lang :refer [dataflow]]
-            [hfdl.impl.rfor :as rfor]
+            #?(:clj [hfdl.impl.rfor :as rfor])
             [missionary.core :as m])
-  (:import (clojure.lang Box)))
+  #?(:clj (:import (clojure.lang Box))))
 
-(defmacro $ [f & args]
-  `(deref (~f ~@(map (partial list `unquote) args))))
+#?(:clj
+   (defmacro $ [f & args]
+     `(deref (~f ~@(map (partial list `unquote) args)))))
 
-(defmacro ifn [args & body]
-  `(fn ~args (dataflow (let [~@(mapcat (juxt identity (partial list `deref)) args)] ~@body))))
+#?(:clj
+   (defmacro ifn [args & body]
+     `(fn ~args (dataflow (let [~@(mapcat (juxt identity (partial list `deref)) args)] ~@body)))))
 
 (defn place! "
 Defines a new identity representing a variable initialized with given value and usable both :
@@ -21,23 +23,25 @@ Defines a new identity representing a variable initialized with given value and 
       ([x] (reset! !a x))
       ([n t] (>a n t)))))
 
-(defn diff [z -]
-  (fn [rf]
-    (let [p (Box. z)]
-      (fn
-        ([] (rf))
-        ([r] (rf r))
-        ([r x]
-         (let [r (rf r (- x (.-val p)))]
-           (set! (.-val p) x) r))))))
+#?(:clj
+   (defn diff [z -]
+     (fn [rf]
+       (let [p (Box. z)]
+         (fn
+           ([] (rf))
+           ([r] (rf r))
+           ([r x]
+            (let [r (rf r (- x (.-val p)))]
+              (set! (.-val p) x) r)))))))
 
 ;; TODO error handling
-(defn reactive-for "
+#?(:clj
+   (defn reactive-for "
 Turns a continuous flow of collections of distinct items into a flow calling given function for each item added to the
 collection. The function must return another flow that will be run in parallel and cancelled when the item is removed
 from the input collection. Returns a continuous flow of collections of current values of inner flows, in the same order
 as input.
-" [f in] (fn [n t] (rfor/spawn f in n t)))
+" [f in] (fn [n t] (rfor/spawn f in n t))))
 
 (comment
   (def >input (atom (vec (range 5))))

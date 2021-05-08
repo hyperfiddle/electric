@@ -39,7 +39,7 @@
 (ns geoffrey.hfql.links
   (:require [dustin.fiddle :refer [genders shirt-sizes submissions submission-details]]
             [dustin.hfql.hfql25 :refer [compile-leaf* hf-edge->sym! many? qualify replace*]]
-            [hfdl.lang :refer [dataflow debug! result]]
+            [hfdl.lang :refer [dataflow]]
             [hfdl.lib :refer [reactive-for]]
             [hyperfiddle.api :as hf]
             [minitest :refer [tests]]
