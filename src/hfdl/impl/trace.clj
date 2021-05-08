@@ -210,6 +210,8 @@
 
 (defmacro debug [sym & body]
   `(fn []
+     (println :reset '~sym)
+     (.unbindRoot (def ~sym))
      (sampler! (fn [s#] (println :ready '~sym) (def ~sym s#))
        ~@body)))
 
