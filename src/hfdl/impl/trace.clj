@@ -215,6 +215,11 @@
      (sampler! (fn [s#] (println :ready '~sym) (def ~sym s#))
        ~@body)))
 
+(defmacro debug* [atom-sym & body]
+  `(fn []
+     (sampler! (fn [s#] (println :ready '~atom-sym) (reset! ~atom-sym s#))
+               ~@body)))
+
 
 
 (comment
