@@ -4,7 +4,7 @@
     ))
 
 (comment
-  (require '[hyperfiddle.server.core :refer [start-server!]])
+  (require '[hyperfiddle.server :refer [start-server!]])
   (require '[io.pedestal.http :as http])
 
   (def server (start-server! {:host   "localhost"

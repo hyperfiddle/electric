@@ -1,53 +1,55 @@
 (ns dustin.fiddle-pages
   #?(:clj (:require [clojure.spec.alpha :as s]
                     [dustin.fiddle :refer [submissions genders shirt-sizes submission-details]]
-                    [geoffrey.hfql.links :refer [hfql]]
-                    [hfdl.lang :refer [dataflow]]
+                    [hyperfiddle.q :as q]
+                    [hfdl.lang :refer [dataflow vars]]
                     [hyperfiddle.api :as hf]
-                    [clojure.pprint :as pprint]
-                    [hfdl.impl.trace :refer [system debug]]
                     [hyperfiddle.client.ui :as ui]))
   #?(:cljs (:require [clojure.spec.alpha :as s]
                      [hyperfiddle.api :as hf]
-                     [dustin.fiddle])))
+                     [dustin.fiddle]))
+  #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
 
 (s/fdef page-submissions :args (s/cat :needle string?))
 
 (s/def :dustingetz/email string?)
 
-#?(:clj
-   (defn page-submissions [needle]
+(defn page-submissions [needle]
+  #?(:clj
      (dataflow
-      (hfql [{(submissions needle)
-              [(:db/id ::hf/a (page-submission-details %))
-               :dustingetz/email
-               {:dustingetz/gender
-                [:db/ident
-                 {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
-             {(genders) [:db/ident]}]))))
+       (q/hfql
+         [{(submissions needle)
+           [(:db/id ::hf/a (page-submission-details %))
+            :dustingetz/email
+            {:dustingetz/gender
+             [:db/ident
+              {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
+          {(genders) [:db/ident]}]))))
 
-#?(:clj
-   (defn page-submission-details [eid]
+(defn page-submission-details [eid]
+  #?(:clj
      (dataflow
-      (hfql [{(submission-details eid) [:db/id
-                                        :dustingetz/email
-                                        :dustingetz/shirt-size
-                                        {:dustingetz/gender [:db/ident {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
-             {(genders) [:db/ident]}]))))
+       (q/hfql
+         [{(submission-details eid) [:db/id
+                                     :dustingetz/email
+                                     :dustingetz/shirt-size
+                                     {:dustingetz/gender [:db/ident {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
+          {(genders) [:db/ident]}]))))
 
 (comment
-  #?(:clj
-     (defn program [needle]
-       (dataflow
-        (hfql [{((submissions needle) ::hf/render ui/render-table)
-                [:db/id
-                 :dustingetz/email
-                 {((:dustingetz/gender %)
-                   ::hf/render ui/picklist
-                   ::hf/options (shirt-sizes dustingetz/gender))
-                  [:db/ident]
-                  }]}])  )))
-  ((system (debug sample (program ""))) prn prn)
-  @sample)
+  (require '[hfdl.lang :refer [system debug]])
+  (defn program [needle]
+    (dataflow
+      (q/hfql
+        [{((submissions needle) ::hf/render ui/render-table)
+          [:db/id
+           :dustingetz/email
+           {((:dustingetz/gender %)
+             ::hf/render ui/picklist
+             ::hf/options (shirt-sizes dustingetz/gender))
+            [:db/ident]}]}])))
+  ((system (merge q/exports (vars ui/picklist)) (debug sample (program ""))) prn prn)
+  @sample
+  )
 
-
+(def fiddles (vars page-submissions page-submission-details))

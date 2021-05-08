@@ -1,6 +1,7 @@
 (ns hfdl.impl.debug
   (:require [missionary.core :as m]
             [hfdl.impl.util :as u]
+            [hfdl.impl.join :refer [join]]
             [hfdl.impl.compiler :as c]
             [hfdl.sourcemap :as sm])
   (:import (java.util.concurrent.atomic AtomicReference)
@@ -42,7 +43,7 @@
                :variable
                (c/bind-context
                  (->Context on-frame (conj path idx) 0)
-                 (u/join (aget ar (first args)))))
+                 (join (aget ar (first args)))))
           (m/signal!)
           (aset ar idx)))
       nil graph)

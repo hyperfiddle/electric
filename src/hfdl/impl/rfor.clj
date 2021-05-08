@@ -1,5 +1,6 @@
 (ns hfdl.impl.rfor
-  (:require [hfdl.impl.util :as u])
+  (:require [hfdl.impl.util :as u]
+            [hfdl.impl.token :as t])
   (:import (clojure.lang IFn IDeref)
            (java.util.concurrent.atomic AtomicReference)))
 
@@ -37,11 +38,11 @@
       (let [state (AtomicReference. 1)
             outer (object-array outer-length)
             token (->> (in #(mark! state outer n) #(done! state outer t))
-                    (aset outer iterator) (u/token))]
+                    (aset outer iterator) (t/token))]
         (reify
           IFn
           (invoke [_]
-            (u/burn-token! token))
+            (t/burn-token! token))
           IDeref
           (deref [_]
             (loop [live 0]
@@ -86,7 +87,7 @@
                                              (vals)
                                              (cons outer)
                                              (partial run! kill!)
-                                             (u/swap-token! token))
+                                             (t/swap-token! token))
                                            (+ live (- (count union) (count curr)))))
                                      (do
                                        (if-some [pos (aget head position)]

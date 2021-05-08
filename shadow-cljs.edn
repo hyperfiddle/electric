@@ -9,4 +9,4 @@
                                      :anon-fn-naming-policy :unmapped}
                   :output-dir       "resources/public/js"
                   :asset-path       "/assets/js"
-                  :modules          {:main {:entries [hyperfiddle.client.edn-view]}}}}}
+                  :modules          {:main {:entries [hyperfiddle.client]}}}}}
