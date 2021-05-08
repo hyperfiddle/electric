@@ -26,7 +26,7 @@
 (defn- build-context [context session chan]
   (update context :ws assoc :session session, :chan chan))
 
-(defn- handle! [{:keys [!route process] :as context} {:keys [id type data]}]
+(defn- handle! [{:keys [!route !result] :as context} {:keys [id type data]}]
   (try
     (case type
       :ping       (send! context {:id id, :type :pong})         ; heartbeat
@@ -34,7 +34,7 @@
       :set-route! (do (reset! !route data)
                       (send! context {:id   id
                                       :type :result
-                                      :data (hfdl/result @process)})))
+                                      :data @!result})))
     (catch Throwable t
       (log/error t)
       (send! context {:id id, :type :error, :message (ex-message t)}))))
@@ -89,7 +89,7 @@
       {:config  config
        :request request
        :!route  !route
-       :process (entrypoint/eval-fiddle! (m/watch !route))
+       :!result (entrypoint/eval-fiddle! (m/watch !route))
        ;; :auth    (auth/build-auth-context config request) ;; TODO restore
        :ws      {:session nil
                  :chan    nil}}

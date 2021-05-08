@@ -1,6 +1,7 @@
 (ns hyperfiddle.server.entrypoint
   (:require [hyperfiddle.server.routes :as routes]
-            [hfdl.lang :refer [dataflow dbg!]]))
+            [hfdl.lang :refer [dataflow]]
+            [hfdl.impl.trace :refer [system debug*]]))
 
 (defn resolve* [f]
   (if (contains? routes/WHITELIST f)
@@ -19,8 +20,9 @@
                          :data    (ex-data e)}}))))
 
 (defn eval-fiddle! [>route]
-  (let [program (dataflow @(hf-run! @>route))]
-    (dbg! program)))
+  (let [!result (atom nil)]
+    ((system (debug* !result (dataflow @(hf-run! @>route)))) prn prn)
+    @!result))
 
 (comment
   (require '[dustin.fiddle-pages :refer [page-submissions]])
