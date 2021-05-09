@@ -93,36 +93,52 @@
 (comment
 
 
-  (defn render-uppercase [val _props]
+  (defn render-uppercase [val props]
     (dataflow
      (let [a @(run-effect! #(println 'run2!))]
        [a (clojure.string/upper-case val)])))
 
   (clojure.tools.analyzer.jvm/macroexpand-all
    '(hfql {((submission needle) ::hf/render render-form)
-           [(:dustingetz/email ::hf/render render-uppercase)
+           [(:dustingetz/email ::hf/render render-email)
             {(:dustingetz/gender ::hf/options (gender)) [:db/ident]}
             {(:dustingetz/shirt-size ::hf/options (shirt-sizes (:dustingetz/gender %))
                                      ::hf/render simple-picklist)
              [:db/ident]}]})
    (clojure.tools.analyzer.jvm/empty-env))
 
-  (defn render-form [val _props] #_{:dustingetz/shirt-size Flow
-                                    :dustingetz/gender     Flow
-                                    :dustingetz/email      Flow}
-    (dataflow
-     (let [a @(run-effect! #(println 'run1!))]
-       [:div a @(get val :dustingetz/shirt-size)])))
 
-  (defn simple-picklist [value {::hf/keys [options] :as props}]
+  ref <- @(mount-element "div" ?parent)
+  (run-child child parent-props) ;; if child is flow, sample, if child is fn, call then sample
+
+  ;; {a, m b} -> m c
+  (defn render-form [val props] #_{:dustingetz/shirt-size DataFlow
+                                   :dustingetz/gender     DataFlow
+                                   :dustingetz/email      DataFlow}
     (dataflow
-     (let [!input (atom …)
-           a @(run-effect! #(println 'picklist-mount))]
-       [:div
-        [:input {:type :text :on-change #(reset! !input (.. % -target -value) )}]
-        (into [:select {:value value, :parent a}]
-              (for [option (options @!input)] ;; should this be a deref or function
-                [:option ! (hf-nav :db/ident option)]))])))
+     (let [a     @(run-effect! #(println 'run1!))
+           ref   @(m/observe (fn [!]
+                               (let [ref (.createElement js/document "div")]
+                                 (! ref)
+                                 (fn []
+                                   (.. ref -parentElement (removeChild ref))))))]
+       [:div a    @(render-email ~@@(get val :dustingetz/email) ref)])))
+
+  (defn render-email [val props]
+    (dataflow (cljs.pprint/pprint ~@val)))
+
+  ;; a -> m b -> m c
+  (defn simple-picklist [value {::hf/keys [options]
+                                :as       props}]
+    (fn [ref]
+      (dataflow
+       (let [!input (atom …)
+             a      @(run-effect! #(println 'picklist-mount))]
+         [:div {:parent ref}
+          [:input {:type :text, :on-change #(reset! !input (.. % -target -value) )}]
+          (into [:select {:value ~@value, :parent a}]
+                (for [option (options @!input)] ;; should this be a deref or function
+                  [:option ~@(hf-nav :db/ident option)]))]))))
 
   (defn shirt-sizes* [ids]
     )
