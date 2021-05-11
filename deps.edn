@@ -18,7 +18,9 @@
         }
  :aliases {:dev {:extra-paths ["src-dev"
                                "scratch"]                   ; for clj command
-                 :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}}}
+                 :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}}
+                 :jvm-opts   ["-XX:-OmitStackTraceInFastThrow" ; Don't mess with my stacktraces¹! I need them.
+                              ]}
            :edn-view {:extra-deps {juji/editscript          {:mvn/version "0.5.7"}
                                    borkdude/edamame         {:mvn/version "0.0.11-alpha.29"}
                                    kibu/pushy               {:mvn/version "0.3.8"}
@@ -38,3 +40,5 @@
            :test-clj {:main-opts ["-m" "contrib.test-runner" "clj"]}
            :test-cljs {:extra-deps    {olical/cljs-test-runner {:mvn/version "3.7.0"}}
                        :main-opts     ["-m" "contrib.test-runner" "cljs"]}}}
+
+;; ¹ http://webcache.googleusercontent.com/search?q=cache:4Rya0J2jOb4J:yellerapp.com/posts/2015-05-11-clojure-no-stacktrace.html
