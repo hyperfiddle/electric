@@ -1,6 +1,6 @@
 {:paths ["src"]
  :deps {hyperfiddle/dataflow {:local/root "./out/DF/DF.jar"}
-        hyperfiddle/minitest {:local/root "./vendor/minitest"}
+        hyperfiddle/rcf {:local/root "./vendor/rcf"}
         hyperfiddle/via {:local/root "./vendor/via"
                          :exclusions [hyperfiddle/minitest]}
         org.clojure/clojure {:mvn/version "1.10.0"}
