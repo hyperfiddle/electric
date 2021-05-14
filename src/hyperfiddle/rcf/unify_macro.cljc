@@ -1,4 +1,4 @@
-(ns geoffrey.unify-macro
+(ns hyperfiddle.rcf.unify-macro
   (:require [clojure.zip :as zip]))
 
 (declare garner-unifiers occurs? bind-phase)
@@ -45,7 +45,7 @@
      `(fn ~'var-unify
         [~varp ~v ~expr ~binds]
         (if-let [vb# (~binds ~v)]
-          (geoffrey.unify/garner-unifiers ~varp vb# ~expr ~binds)
+          (hyperfiddle.rcf.unify/garner-unifiers ~varp vb# ~expr ~binds)
           (if-let [vexpr# (and (~varp ~expr) (~binds ~expr))]
-            (geoffrey.unify/garner-unifiers ~varp ~v vexpr# ~binds)
+            (hyperfiddle.rcf.unify/garner-unifiers ~varp ~v vexpr# ~binds)
             ~(determine-occursness want-occurs? varp v expr binds))))))

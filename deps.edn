@@ -19,7 +19,8 @@
  :aliases {:dev {:extra-paths ["src-dev"
                                "scratch"]                   ; for clj command
                  :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}}
-                 :jvm-opts   ["-XX:-OmitStackTraceInFastThrow" ; Don't mess with my stacktraces¹! I need them.
+                 :jvm-opts   ["-Dhyperfiddle.rcf.enabled=true"
+                              "-XX:-OmitStackTraceInFastThrow" ; Don't mess with my stacktraces¹! I need them.
                               ]}
            :edn-view {:extra-deps {juji/editscript          {:mvn/version "0.5.7"}
                                    borkdude/edamame         {:mvn/version "0.0.11-alpha.29"}
@@ -36,7 +37,8 @@
                                 nrepl/nrepl                               {:mvn/version "0.8.3"}
                                 refactor-nrepl/refactor-nrepl             {:mvn/version "2.5.0"}
                                 cider/cider-nrepl                         {:mvn/version "0.25.8"}}}
-           :test-clj {:main-opts ["-m" "contrib.test-runner" "clj"]}
+           :test-clj {#_#_:main-opts ["-m" "contrib.test-runner" "clj"]
+                      :jvm-opts ["-Dhyperfiddle.rcf.generate-tests=true"]}
            :test-cljs {:extra-deps    {olical/cljs-test-runner {:mvn/version "3.7.0"}}
                        :main-opts     ["-m" "contrib.test-runner" "cljs"]}}}
 

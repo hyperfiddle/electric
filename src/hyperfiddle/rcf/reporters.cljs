@@ -1,6 +1,6 @@
-(ns geoffrey.tests-reporters
+(ns hyperfiddle.rcf.reporters
   (:require [cljs.test :as t]
-            [geoffrey.tests-utils :refer [pprint-str]]))
+            [hyperfiddle.rcf.utils :refer [pprint-str]]))
 
 (defn testing-vars-str
   "Returns a string representation of the current test.  Renders names

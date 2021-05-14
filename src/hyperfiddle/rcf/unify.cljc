@@ -8,11 +8,10 @@
 
 (ns ^{:doc "A unification library for Clojure."
       :author "Michael Fogus"}
-  geoffrey.unify
-  (:require [clojure.zip :as zip]
-            [clojure.walk :as walk]
-            #?(:clj [geoffrey.unify-macro :refer [create-var-unification-fn]])
-            #?(:cljs [geoffrey.unify-macro :refer-macros [create-var-unification-fn]])))
+  hyperfiddle.rcf.unify
+  (:require [clojure.walk :as walk]
+            #?(:clj [hyperfiddle.rcf.unify-macro :refer [create-var-unification-fn]])
+            #?(:cljs [hyperfiddle.rcf.unify-macro :refer-macros [create-var-unification-fn]])))
 
 (defn ignore-variable? [sym] (= '_ sym))
 

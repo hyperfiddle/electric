@@ -1,7 +1,7 @@
-(ns geoffrey.tests-reporters
+(ns hyperfiddle.rcf.reporters
   (:require [clojure.stacktrace :as stack]
             [clojure.test :as t]
-            [geoffrey.tests-utils :refer [pprint testing-vars-str]]))
+            [hyperfiddle.rcf.utils :refer [pprint testing-vars-str]]))
 
 (defmethod t/report :pass [m]
   (t/with-test-out

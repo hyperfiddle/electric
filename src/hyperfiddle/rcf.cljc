@@ -8,7 +8,7 @@
 ;;** TODO Monkeypatch (not sure if needed)
 ;;** TODO *e
 
-(ns geoffrey.tests
+(ns hyperfiddle.rcf
   (:refer-clojure :exclude [*1 *2 *3])
   (:require ;; #?(:clj [clojure.core.match :as m])
             ;; #?(:cljs [cljs.core.match :as m])
@@ -19,9 +19,9 @@
                :cljs [cljs.test :as t :refer-macros [testing]])
             [clojure.string :as str]
             [clojure.walk :as walk]
-            [geoffrey.unify :refer [unifier]]
+            [hyperfiddle.rcf.unify :refer [unifier]]
             #?(:cljs [cljs.analyzer.api :as ana-api])
-            [geoffrey.tests-reporters]
+            [hyperfiddle.rcf.reporters]
             ))
 
 (def ^:dynamic *config*
@@ -33,7 +33,12 @@
   This will define testing functions in your namespace using `deftest`. Defaults
   to `false`. "
   {:dots           false
-   :generate-tests false})
+   :enabled        #?( :clj (= "true" (System/getProperty "hyperfiddle.rcf.enabled"))
+                      :cljs true ; use a goog.define instead
+                      )
+   :generate-tests #?(:clj (= "true" (System/getProperty "hyperfiddle.rcf.generate-tests"))
+                      :cljs true ; mandatory for now, not an issue.
+                      )})
 
 (defn set-config! [config]
   #?(:clj (alter-var-root #'*config* merge config)
@@ -245,7 +250,8 @@
         symf  (partial prefix-sym cljs?)]
     (if (or (:generate-tests *config*) cljs?)
        `(do (~(symf 'deftest) ~nom ~@body)
-           (~nom))
+            ~(when (:enabled *config*)
+               `~nom))
        `((fn [] (binding [t/*testing-vars* (conj clojure.test/*testing-vars* '~nom)]
                  (clojure.test/do-report {:type :begin-test-var, :var '~nom})
                 (clojure.test/inc-report-counter :test)
@@ -257,11 +263,19 @@
                                             :actual   e#}))))
            (t/do-report {:type :end-test-var, :var '~nom}) )))))
 
-(defmacro tests
+(defn should-run-tests? [menv]
+  (if (cljs? menv)
+    ana/*load-tests*
+    #?(:clj (and t/*load-tests* ; standard clojure.test way of skipping tests
+                 (not *compile-files*) ; no tests in AOT compiled code
+                 (or (:enabled *config*)
+                     (:generate-tests *config*))))))
+
+(defmacro examples
   {:style/indent [:defn]}
   [& body]
-  (when (if (cljs? &env) ana/*load-tests* (and t/*load-tests* (not *compile-files*)))
-    (let [prefix        "geoffrey_tests"
+  (when (should-run-tests? &env)
+    (let [prefix        "RCF"
           file          (:file (meta &form))
           line          (:line (meta &form))
           test-name-sym (-> (if (some? line)
