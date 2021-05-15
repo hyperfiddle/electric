@@ -19,7 +19,7 @@
      (dataflow
        (q/hfql
          [{(submissions needle)
-           [(:db/id ::hf/a (page-submission-details %))
+           [(:db/id ::hf/a (dustin.fiddle-pages/page-submission-details %)) ;; TODO expand sym
             :dustingetz/email
             {:dustingetz/gender
              [:db/ident

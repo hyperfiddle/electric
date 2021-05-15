@@ -1,5 +1,5 @@
 (ns hyperfiddle.q
-  (:require [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission]]
+  (:require [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission submission-details]]
             [hyperfiddle.api :as hf]
             [hfdl.lang :refer [dataflow vars]]
             [hfdl.lib :refer [reactive-for]]
@@ -154,4 +154,4 @@
 
 (def exports
   (vars with-meta hash-map list hfdl.lib/reactive-for submissions shirt-sizes hf-nav render hf/->Link
-    genders))
+    genders submission-details))
