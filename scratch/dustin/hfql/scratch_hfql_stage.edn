@@ -1,0 +1,60 @@
+(defn page-submission-master [>needle]
+  (dataflow
+    (hfql
+      [{((submissions >needle))
+        [(:db/id ::hf/a (page-submission-detail %))
+         (:dustingetz/email
+           ::hf/modal (page-submission-detail %)
+           ::hf/txfn _)
+         (:dustingetz/email ::hf/new ::hf/push-stage ::hf/a (page-submission-detail %))
+         {(:dustingetz/gender ::hf/options (genders) ::hf/render picklist ::hf/option-label name)
+          [:db/ident]}
+         {(:dustingetz/shirt-size ::hf/option-query (shirt-sizes gender _))
+          [:db/ident]}]
+
+        ; create new section
+        ((page-submission-detail %) ::hf/new ::hf/tx create-admin)
+
+
+        ((create-admin % name email roles) ::hf/new ::hf/tx (create-admin % name email roles))
+        ((create-sub % name email roles) ::hf/new ::hf/tx (create-sub % name email roles))
+
+        }])))
+
+;(s/fdef create-sub :args (s/cat :e tempid? ...))
+
+(defn popover [v props]
+  (dataflow
+    (let [!stage (atom [])                                  ; server session state
+          $' (d/with $ @!stage)]
+      (hyperfiddle.ui/form $' !stage v props))))
+
+(defn form [v props]
+  (dataflow
+    (let [xs (datomic.api/q hf/*$* ...)]
+      (remote
+        [:form
+         [:input {:type      "text"
+                  :value     v
+                  :on-change #(remote (swap! hf/*!stage* conj ...))}]]))
+    ))
+
+[:db/add "a" _ _]
+{:db/id "a"}
+
+
+(defn picklist [$ v {:keys [::hf/option-query :gender] :as props}]
+  (dataflow
+    (let [!needle (atom nil)
+          >needle (m/watch !needle)
+          >options (remote (eval (template option-query {_ >needle})))
+          #_#_>options (remote (shirt-size gender >needle))]
+      [:<>
+       [:input {:type        "text"
+                :on-change   #(reset! !needle (-> % .-target .-value))
+                :value       @!needle
+                :invalid-msg ...}]
+       [:select
+        (reactive-for [>x @>options]
+          [:option (pr-str @>x)])]])))
+

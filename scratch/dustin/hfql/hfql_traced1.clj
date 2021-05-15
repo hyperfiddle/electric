@@ -96,4 +96,52 @@
     ((system (debug sampler1 dag)) prn prn)
     @sampler1 := nil)
 
+
+  (tests
+    (s/fdef shirt-size :args (s/cat :gender ref? :needle string?))
+
+    (defn shirt-size [gender & [needle]]
+      ... (or needle "") ...)
+
+    (defn thing [needle]
+      (dataflow
+        (remote
+          (hfql {(submissions needle)
+                 [:db/id
+                  {:dustingetz/gender [:db/ident]}
+                  {(:dustingetz/shirt-sizes ::hf/options (shirt-size gender _))
+                   [:db/ident]}]}))))
+
+    ;(def !needle (atom "bob"))
+    (def dag (dataflow (let [needle @(m/watch !needle)]
+                         (remote (hfql {(submission _)
+                                        [:db/id
+                                         {:dustingetz/gender [:db/ident]}
+                                         {(:dustingetz/shirt-sizes ::hf/options (shirt-size gender _))
+                                          [:db/ident]}]})))))
+    ((system (debug sampler2 dag)) prn prn)
+    ; network activity
+    @sampler2 := {'(dustin.fiddle/submission needle) {:db/id 10 :dustingetz/email [:div.email "bob@example.com"]}}
+
+
+    )
+
+
+
+  (tests
+
+
+    (defn codemirror [vs props]
+      (binding []
+        (for [v vs]
+          (render))))
+
+
+    (hfql
+      {((submission needle) ::hf/render codemirror)
+       [:db/id
+        (:dustingetz/email ::hf/render codemirror-string-input)
+        {(:dustingetz/gender ::hf/options (genders)) [:db/ident]}]}
+      ))
+
   )
