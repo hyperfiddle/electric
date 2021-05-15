@@ -13,21 +13,22 @@
             #?(:cljs ["@codemirror/highlight" :as highlight])
             #?(:cljs ["@codemirror/history" :refer [history historyKeymap]])
             #?(:cljs ["@codemirror/state" :refer [EditorState EditorSelection]])
-            #?(:cljs ["@codemirror/view" :as view :refer [EditorView]]))
+            #?(:cljs ["@codemirror/view" :as view :refer [EditorView]])
+            #?(:cljs [edamame.core :as edn]))
   #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
 
 (defn pprint-str [x]
-  (with-out-str (pprint x)))
+  (str/trimr (with-out-str (pprint x))))
 
-#_
-(defn debounce
-  ([f] (debounce f 600))
-  ([f delay-ms]
-   (let [timeout (volatile! nil)]
-     (fn [& args]
-       (when-let [t @timeout]
-         (js/clearTimeout t))
-       (vreset! timeout (js/setTimeout #(apply f args) delay-ms))))))
+#?(:cljs
+   (defn debounce
+     ([f] (debounce f 600))
+     ([f delay-ms]
+      (let [timeout (volatile! nil)]
+        (fn [& args]
+          (when-let [t @timeout]
+            (js/clearTimeout t))
+          (vreset! timeout (js/setTimeout #(apply f args) delay-ms)))))))
 
 #_
 (def set-route!
@@ -99,7 +100,8 @@
                                                             (count doc)
                                                             (+ (count doc) (- (count match) 2))))]
                                             :else
-                                            [(str doc match) ranges])) ["" []]))]
+                                            [(str doc match) ranges])) ["" []]))
+             on-update (debounce on-update)]
          (.create EditorState
            #js{:doc        doc
                :selection  (if (seq ranges)
@@ -108,7 +110,7 @@
                :extensions (let [exts #js[(.. EditorState -allowMultipleSelections (of true))
                                           (.. EditorView -updateListener (of (fn [^js view]
                                                                                (when (.-docChanged view)
-                                                                                 (js/setTimeout #(on-update (.. view -state -doc (toString))) 1))
+                                                                                 (on-update (.. view -state -doc (toString))))
                                                                                true)))]]
                              (if extensions
                                (do (.push exts extensions)
@@ -123,9 +125,12 @@
 (def set-editor-value!
   #?(:cljs
      (fn [^js view edn]
-       (.dispatch view #js{:changes #js {:from   0
-                                         :to     (.. view -state -doc -length)
-                                         :insert (pprint-str edn)}}))))
+       ;; TODO slow, avoid parse and pprint
+       (let [actual (edn/parse-string (.. view -state -doc (sliceString 0)))]
+         (when (not= edn actual)
+           (.dispatch view #js{:changes #js {:from   0
+                                             :to     (.. view -state -doc -length)
+                                             :insert (pprint-str edn)}}))))))
 
 (def exports (vars editor set-editor-value!))
 
