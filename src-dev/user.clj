@@ -1,11 +1,12 @@
 (ns user
   #_(:require #_[repl :refer [refresh! refresh-all!]]
-            #_[dustin.dev]
-    ))
+            #_[dustin.dev])
+  (:require [hyperfiddle.rcf :as rcf]))
 
 (comment
-  (require '[hyperfiddle.server :refer [start-server!]])
-  (require '[io.pedestal.http :as http])
+  (rcf/with-config {:enabled false}
+    (require '[hyperfiddle.server :refer [start-server!]])
+    (require '[io.pedestal.http :as http]))
 
   (def server (start-server! {:host   "localhost"
                               :port   8080
