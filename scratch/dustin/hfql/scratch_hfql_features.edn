@@ -1,0 +1,91 @@
+
+
+; useful snippets for later
+
+
+(defmethod hf/render ['(submissions ...) :dustingetz/shirt-size]
+  [val]
+  [picklist {:html/disabled (! (datomic.api/q ...))
+             ::hf/options   (! (hfql {(shirt-sizes dustingetz/gender _) [:db/ident]}))}]
+
+  )
+
+
+(defmethod hf/render #{:google.index/normalized-email `sub-display} [ctx props]
+  #?(:cljs
+     [hyperfiddle.ui.controls/string (hf/data ctx)
+      (assoc ctx ::hf/view-change! (fn [ctx]
+                                     (fn [old new]
+                                       ;; hf/tx and :tx-fn only available on popovers for now
+                                       (runtime/with-tx ctx
+                                         [`(change-email ~(hf/e ctx) ~new)]))))
+      props]))
+
+(defmethod hf/tx-meta `change-email
+  [_schema [f e & _]]
+  {::hf/tx-identifier   e
+   ::hf/tx-cardinality  ::hf/one
+   ;; ::hf/tx-inverse      `(change-email ~e ~new ~old)
+   ::hf/tx-conflicting? (fn [[f' e' & _]] (and (= f f') (= e e')))})
+
+#_{:html/id          `security-role-picker
+   ::hf/needle-key   :needle
+   ::hf/option-label :db/ident
+   ::hf/ident-key    :db/ident
+   ::hf/options      `admins/security-roles
+   ::hf/is-invalid   true                                   ; internal
+   }
+
+
+(defmethod hf/render ['(submissions needle nil nil)
+                      :dustingetz/shirt-size] [v]
+
+  (let [options-result #(:clj (hfql {(shirt-sizes dustingetz/gender) [:db/ident]}))]
+    #?(:cljs
+       [picklist ctx
+        {::hf/options      `shirt-sizes
+         ::hf/options      options-result
+         ::hf/option-label :db/ident #_(:db/ident (d/entity))
+         ::hf/needle-key   `shirt-sizes}])))
+
+
+
+(defmethod hf/render ['(submissions needle nil nil)
+                      :dustingetz/shirt-size] [v]
+
+  (let [options-result #(:clj (hfql {(shirt-sizes dustingetz/gender) [:db/ident]}))]
+    #?(:cljs
+       [picklist ctx
+        {::hf/options      `shirt-sizes
+         ::hf/options      options-result
+         ::hf/option-label :db/ident #_(:db/ident (d/entity))
+         ::hf/needle-key   `shirt-sizes}])))
+
+(defmethod hf/render-fiddle `school-base-pay-rates [_ ctx props]
+  #?(:cljs
+     [:div.container-fluid props
+      [:h1 "Base pay rates for school: " (-> (context/derive-for-args-rendering ctx) hf/data :school :school/name)]
+      (let [ctx (assoc ctx ::hf/view-change!
+                  (fn [ctx]
+                    (fn [_old new]
+                      ; validate on new !
+                      ;; hf/tx and :tx-fn only available on popovers for now
+                      (runtime/with-tx ctx
+                        [`(set-base-pay-rate! ~(hf/e ctx) ~new)]))))]
+        [ui/result (hf/data ctx) ctx {}])
+      [:hr]
+      [:ul
+       [:li {:key `swinged.rosie.new-pay-rate/new-pay-rate}
+        [hyperfiddle.ui/link `swinged.rosie.new-pay-rate/new-pay-rate ctx nil {}]]]]))
+
+(defmethod hf/tx-meta `set-base-pay-rate!
+  [schema [f e & _]]
+  {::hf/tx-identifier  e
+   ::hf/tx-cardinality ::hf/one
+   ::hf/tx-conflicting? (fn [[f' e' & _]] (and (= f f') (= e e')))})
+
+(defn set-base-pay-rate! [pay-rate-id base-pay-rate]
+  #?(:clj
+     (let [pay-rate (d/entity hf/*$* pay-rate-id)
+           school (:school/_base-pay-rates pay-rate)]
+       (suber2.web.cmd.link/link' :school (:db/id school) :pay-rate (:pay-rate/type pay-rate) base-pay-rate (:pay-rate/interval pay-rate)))))
