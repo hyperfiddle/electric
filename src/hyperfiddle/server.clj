@@ -88,7 +88,7 @@
       (fiddle-error route :invalid-empty))
     (fiddle-error route :invalid-not-seq)))
 
-(def env (merge d/exports q/exports ui/exports (d/vars prn get-fiddle)))
+(def env (merge d/exports q/exports ui/exports (d/vars prn get-fiddle) dustin.fiddle-pages/exports))
 
 (def edn-view
   (d/dataflow
@@ -151,7 +151,6 @@
 
 
 (comment
-  (require '[minitest.executor])
   (def server (start-server! default-config))
   (http/stop server)
   @sampler
