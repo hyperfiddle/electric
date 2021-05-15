@@ -8,11 +8,14 @@
     (require '[hyperfiddle.server :refer [start-server!]])
     (require '[io.pedestal.http :as http]))
 
+  (http/stop server)
   (def server (start-server! {:host   "localhost"
                               :port   8080
                               :scheme "http"}))
+  ; load the effects
+  ;(require 'dustin.fiddle-pages)
 
-  (require 'dustin.fiddle-pages)                            ; load the effects
+  ; http://localhost:8080/dustin.fiddle-pages!page-submissions/''
 
-  (http/stop server)
+
   )

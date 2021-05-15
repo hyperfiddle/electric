@@ -1,6 +1,7 @@
 (ns dustin.fiddle-pages
   #?(:clj (:require [clojure.spec.alpha :as s]
-                    [dustin.fiddle :refer [submissions genders shirt-sizes submission-details]]
+                    [dustin.fiddle :refer [submissions genders shirt-sizes submission-details
+                                           submission gender shirt-size]]
                     [hyperfiddle.q :as q]
                     [hfdl.lang :refer [dataflow vars]]
                     [hyperfiddle.api :as hf]
@@ -14,17 +15,21 @@
 
 (s/def :dustingetz/email string?)
 
+(defn render-email [e props]
+  (dataflow
+    ~@[::hi (pr-str ~@(q/hf-nav :db/id [:dustingetz/email e]))]))
+
 (defn page-submissions [needle]
   #?(:clj
      (dataflow
        (q/hfql
-         [{(submissions needle)
+         [{(submission needle)
            [(:db/id ::hf/a (dustin.fiddle-pages/page-submission-details %)) ;; TODO expand sym
-            :dustingetz/email
+            (:dustingetz/email ::hf/render render-email)
             {:dustingetz/gender
              [:db/ident
-              {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
-          {(genders) [:db/ident]}]))))
+              {(shirt-size dustingetz/gender) [:db/ident]}]}]}
+          {(gender) [:db/ident]}]))))
 
 (defn page-submission-details [eid]
   #?(:clj
@@ -34,7 +39,7 @@
                                      :dustingetz/email
                                      :dustingetz/shirt-size
                                      {:dustingetz/gender [:db/ident {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
-          {(genders) [:db/ident]}]))))
+          {(gender) [:db/ident]}]))))
 
 (comment
   (require '[hfdl.lang :refer [system debug]])
@@ -53,3 +58,4 @@
   )
 
 (def fiddles (vars page-submissions page-submission-details))
+(def exports (vars render-email pr-str gender submission shirt-size inc q/hf-nav))

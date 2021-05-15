@@ -34,7 +34,7 @@
       (set! (.-onmessage ws) (fn [x] (! (edn/read-string (.-data x)))))
       #(set! (.-onmessage ws) nil))))
 
-(def env (merge d/exports ui/exports ev/exports (d/vars prn)))
+(def env (merge d/exports ui/exports ev/exports (d/vars prn pr-str)))
 
 (def ^:export main
   (m/sp
