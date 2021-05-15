@@ -1,9 +1,9 @@
-[submodule "vendor/via"]
-	path = vendor/via
-	url = git@github.com:hyperfiddle/via.git
 [submodule "vendor/cloroutine"]
 	path = vendor/cloroutine
 	url = git@github.com:leonoel/cloroutine.git
 [submodule "vendor/rcf"]
 	path = vendor/rcf
 	url = git@github.com:hyperfiddle/minitest.git
+[submodule "vendor/missionary"]
+	path = vendor/missionary
+	url = git@github.com:leonoel/missionary.git
