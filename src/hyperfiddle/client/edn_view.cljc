@@ -1,6 +1,5 @@
 (ns hyperfiddle.client.edn-view
   (:require [clojure.string :as str]
-            [clojure.pprint :refer [pprint]]
             #?(:clj [hfdl.lang :refer [dataflow vars]])
             #?(:cljs [hyperfiddle.client.edn-view.linter :refer [Linter]])
             #?(:cljs [hyperfiddle.client.edn-view.diff :refer [patcher]])
@@ -14,11 +13,9 @@
             #?(:cljs ["@codemirror/history" :refer [history historyKeymap]])
             #?(:cljs ["@codemirror/state" :refer [EditorState EditorSelection]])
             #?(:cljs ["@codemirror/view" :as view :refer [EditorView]])
-            #?(:cljs [edamame.core :as edn]))
+            #?(:cljs [edamame.core :as edn])
+            #?(:cljs [hyperfiddle.client.pprint :as pprint]))
   #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
-
-(defn pprint-str [x]
-  (str/trimr (with-out-str (pprint x))))
 
 #?(:cljs
    (defn debounce
@@ -128,9 +125,10 @@
        ;; TODO slow, avoid parse and pprint
        (let [actual (edn/parse-string (.. view -state -doc (sliceString 0)))]
          (when (not= edn actual)
-           (.dispatch view #js{:changes #js {:from   0
-                                             :to     (.. view -state -doc -length)
-                                             :insert (pprint-str edn)}}))))))
+           (pprint/pprint-async edn (fn [str]
+                                      (.dispatch view #js{:changes #js {:from   0
+                                                                        :to     (.. view -state -doc -length)
+                                                                        :insert str}}))))))))
 
 (def exports (vars editor set-editor-value!))
 
