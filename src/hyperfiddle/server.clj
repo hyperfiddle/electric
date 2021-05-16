@@ -1,6 +1,7 @@
 (ns hyperfiddle.server
   (:require
     ;; [hyperfiddle.server.entrypoint :as entrypoint]
+    [hyperfiddle.common.transit :as transit]
     [hyperfiddle.server.websockets :as ws]                  ;; TODO restore
     [hyperfiddle.server.interceptors :as i]
     hyperfiddle.server.logging
@@ -58,10 +59,10 @@
                      res)))))
 
 (defn edn->str [x]
-  (m/via m/cpu (pr-str x)))
+  (m/via m/cpu #_(pr-str x) (transit/encode x)))
 
 (defn str->edn [x]
-  (m/via m/cpu (edn/read-string x)))
+  (m/via m/cpu #_(edn/read-string x) (transit/decode x)))
 
 (defn edn-reader [x]
   (m/ap (m/? (str->edn (m/?> (u/poll x))))))

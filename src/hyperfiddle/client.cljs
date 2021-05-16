@@ -1,6 +1,7 @@
 (ns hyperfiddle.client
   (:require [missionary.core :as m]
             [clojure.edn :as edn]
+            [hyperfiddle.common.transit :as transit]
             [hyperfiddle.client.ui :as ui]
             [hyperfiddle.client.edn-view :as ev]
             [hfdl.lang :as d])
@@ -21,7 +22,7 @@
   (fn [x]
     (fn [s f]
       (try
-        (.send ws (pr-str x))
+        (.send ws (transit/encode x))
         (s nil)
         (catch :default e
           (f e)))
@@ -31,7 +32,7 @@
   (m/observe
     (fn [!]
       (set! (.-onclose ws) (fn [x] (js/console.log x)))
-      (set! (.-onmessage ws) (fn [x] (! (edn/read-string (.-data x)))))
+      (set! (.-onmessage ws) (fn [x] (! (transit/decode (.-data x)))))
       #(set! (.-onmessage ws) nil))))
 
 (def env (merge d/exports ui/exports ev/exports (d/vars prn pr-str)))
