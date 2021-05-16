@@ -78,8 +78,8 @@
   (shirt-sizes :dustingetz/male "sm") := [m-sm])
 
 (defn ^{:db/cardinality :db.cardinality/one}
-  shirt-size [gender]
-  (first (shirt-sizes gender)))
+  shirt-size [gender & [needle]]
+  (first (shirt-sizes gender needle)))
 
 (s/fdef shirt-size :args (s/cat :gender nat-int?) :ret (complement sequential?))
 

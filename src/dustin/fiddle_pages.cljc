@@ -5,10 +5,12 @@
                     [hyperfiddle.q :as q]
                     [hfdl.lang :refer [dataflow vars]]
                     [hyperfiddle.api :as hf]
-                    [hyperfiddle.client.ui :as ui]))
+                    [hyperfiddle.client.ui :as ui]
+                    [missionary.core :as m]))
   #?(:cljs (:require [clojure.spec.alpha :as s]
                      [hyperfiddle.api :as hf]
-                     [dustin.fiddle]))
+                     [dustin.fiddle]
+                     [missionary.core :as m]))
   #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
 
 (s/fdef page-submissions :args (s/cat :needle string?))
@@ -19,6 +21,17 @@
   (dataflow
     ~@[::hi (pr-str ~@(q/hf-nav :db/id [:dustingetz/email e]))]))
 
+(defn render-with-deep-input [e props]
+  (dataflow
+    ~@(let [!needle (atom "")
+            _ (hyperfiddle.client.ui/hack !needle)
+            needle @(m/watch !needle)]
+        [:div
+         [:input {:value needle
+                  #_#_:on-change (fn [%] (reset! !needle (.-value (.-target %))))}]
+         [::selection e]
+         [::options ~@(shirt-size (:db/ident e) needle)]])))
+
 (defn page-submissions [needle]
   #?(:clj
      (dataflow
@@ -26,9 +39,13 @@
          [{(submission needle)
            [(:db/id ::hf/a (dustin.fiddle-pages/page-submission-details %)) ;; TODO expand sym
             (:dustingetz/email ::hf/render render-email)
-            {:dustingetz/gender
-             [:db/ident
-              {(shirt-size dustingetz/gender) [:db/ident]}]}]}
+            {(:dustingetz/gender ::hf/render render-with-deep-input)
+             [:db/ident]}
+            #_
+            {((:dustingetz/gender %)
+                ::hf/options (shirt-size dustingetz/gender _)
+                ::hf/render ui/picklist #_render-gender)
+               [:db/ident]}]}
           {(gender) [:db/ident]}]))))
 
 (defn page-submission-details [eid]
@@ -58,4 +75,8 @@
   )
 
 (def fiddles (vars page-submissions page-submission-details))
-(def exports (vars render-email pr-str gender submission shirt-size inc q/hf-nav))
+(def exports (vars render-email
+                   #_render-gender
+                   render-with-deep-input reset! m/watch atom
+                   ui/picklist
+                   pr-str gender submission shirt-size inc q/hf-nav))
