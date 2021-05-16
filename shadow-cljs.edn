@@ -9,4 +9,13 @@
                                      :anon-fn-naming-policy :unmapped}
                   :output-dir       "resources/public/js"
                   :asset-path       "/assets/js"
-                  :modules          {:main {:entries [hyperfiddle.client]}}}}}
+                  :modules          {:shared         {:entries [;; HACK: Shadow should take care of it,
+                                                                ;; but for some reason it doesn't.
+                                                                shadow.cljs.bootstrap.env
+                                                                shadow.cljs.bootstrap.browser]}
+                                     :main           {:entries    [hyperfiddle.client]
+                                                      :depends-on #{:shared}}
+                                     :printer-worker {:web-worker true
+                                                      :entries    [hyperfiddle.client.printer-worker]
+                                                      :init-fn    hyperfiddle.client.printer-worker/init
+                                                      :depends-on #{:shared}}}}}}
