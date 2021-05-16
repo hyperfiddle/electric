@@ -35,4 +35,11 @@
 (def change-route! #?(:cljs (comp router/set-route! edn/read-string)))
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
-(def exports (vars world render-cell render-row render-table picklist change-route! >route by-id))
+(defn hack [!needle]
+  #?(:cljs (aset js/window "hack" !needle)
+     :clj nil))
+
+(def exports (vars world render-cell render-row render-table
+                   picklist change-route! >route by-id
+                   into map
+                   hack))
