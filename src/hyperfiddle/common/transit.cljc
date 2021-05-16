@@ -1,5 +1,6 @@
 (ns hyperfiddle.common.transit
   (:require [cognitect.transit :as t]
+            #?(:cljs [com.cognitect.transit.types])
             #?(:clj  [hyperfiddle.api :as hf]
                :cljs [hyperfiddle.api :as hf :refer [Link]]))
   #?(:clj (:import (hyperfiddle.api Link)
