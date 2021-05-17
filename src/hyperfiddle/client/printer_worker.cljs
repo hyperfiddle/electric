@@ -1,12 +1,13 @@
 (ns hyperfiddle.client.printer-worker
-  (:require [clojure.pprint :as pprint]
-            [clojure.string :as str]
-            [hyperfiddle.common.transit :as transit]))
+  (:require [clojure.string :as str]
+            [hyperfiddle.common.transit :as transit]
+            [fipp.edn :as fipp]
+            [fipp.clojure :as fipp-clj]))
 
 (defn pprint [o & [columns]]
   (str/trimr
-   (binding [pprint/*print-right-margin* (or columns pprint/*print-right-margin*)]
-     (with-out-str (pprint/pprint o)))))
+   ;; (binding [pprint/*print-right-margin* (or columns pprint/*print-right-margin*)])
+   (with-out-str (fipp-clj/pprint o))))
 
 (def encoder (js/TextEncoder.))
 (def decoder (js/TextDecoder.))
