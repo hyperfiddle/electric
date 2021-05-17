@@ -67,7 +67,7 @@
      #js[theme
          (history)
          highlight/defaultHighlightStyle
-         (view/drawSelection)
+         (view/drawSelection #js{:cursorBlinkRate 0})
          (lineNumbers)
          (fold/foldGutter)
          (.. EditorState -allowMultipleSelections (of true))
