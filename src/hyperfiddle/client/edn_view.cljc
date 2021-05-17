@@ -13,7 +13,7 @@
             #?(:cljs ["@codemirror/history" :refer [history historyKeymap]])
             #?(:cljs ["@codemirror/state" :refer [EditorState EditorSelection]])
             #?(:cljs ["@codemirror/view" :as view :refer [EditorView]])
-            #?(:cljs [edamame.core :as edn])
+            #?(:cljs [cljs.reader :as edn])
             #?(:cljs [hyperfiddle.client.pprint :as pprint]))
   #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
 
@@ -123,7 +123,7 @@
   #?(:cljs
      (fn [^js view edn]
        ;; TODO slow, avoid parse and pprint
-       (let [actual (edn/parse-string (.. view -state -doc (sliceString 0)))]
+       (let [actual (edn/read-string (.. view -state -doc (sliceString 0)))]
          (when (not= edn actual)
            (pprint/pprint-async edn (fn [str]
                                       (.dispatch view #js{:changes #js {:from   0
