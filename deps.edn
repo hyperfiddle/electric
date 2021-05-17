@@ -25,7 +25,8 @@
                                    kibu/pushy               {:mvn/version "0.3.8"}
                                    nextjournal/clojure-mode {:git/url "https://github.com/nextjournal/clojure-mode"
                                                              :sha "29982ac6fcf21fac961e11e0d77b87c97611c1a5"}
-                                   com.cognitect/transit-cljs {:mvn/version "0.8.256"}}}
+                                   com.cognitect/transit-cljs {:mvn/version "0.8.256"}
+                                   fipp/fipp                  {:mvn/version "0.6.23"}}}
            :server {:extra-deps {com.taoensso/timbre              {:mvn/version "4.10.0"}
                                  com.fzakaria/slf4j-timbre        {:mvn/version "0.3.13"}
                                  io.pedestal/pedestal.jetty       {:mvn/version "0.5.5"}

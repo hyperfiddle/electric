@@ -1,5 +1,6 @@
 (ns hyperfiddle.common.transit
   (:require [cognitect.transit :as t]
+            [fipp.ednize :as ednize]
             #?(:cljs [com.cognitect.transit.types])
             #?(:clj  [hyperfiddle.api :as hf]
                :cljs [hyperfiddle.api :as hf :refer [Link]]))
@@ -59,4 +60,15 @@
                         (default-writer))]
              (t/write wrtr x))))
 
+;;;;;;;;;;;;;;;;
+;; EXTENTIONS ;;
+;;;;;;;;;;;;;;;;
+
 #?(:cljs (extend-type com.cognitect.transit.types/UUID IUUID)) ; https://github.com/hyperfiddle/hyperfiddle/issues/728
+
+(extend-protocol ednize/IEdn
+  Link
+  (-edn [this]
+    (tagged-literal 'hyperfiddle.api.Link {:href  #?(:clj (.href this)  :cljs (.-href this))
+                                           :value #?(:clj (.value this) :cljs (.-value this))})))
+
