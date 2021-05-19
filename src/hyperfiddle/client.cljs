@@ -35,7 +35,7 @@
       (set! (.-onmessage ws) (fn [x] (! (transit/decode (.-data x)))))
       #(set! (.-onmessage ws) nil))))
 
-(def env (merge d/exports ui/exports ev/exports (d/vars prn pr-str m/watch atom)))
+(def env (merge d/exports ui/exports ev/exports (d/vars prn pr-str m/watch atom hf/->Input)))
 
 (def ^:export main
   (m/sp

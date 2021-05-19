@@ -27,8 +27,8 @@
             _ (hyperfiddle.client.ui/hack !needle)
             needle @(m/watch !needle)]
         [:div
-         [:input {:value needle
-                  #_#_:on-change (fn [%] (reset! !needle (.-value (.-target %))))}]
+         [:input {:value (hf/->Input needle)
+                    #_#_:on-change (fn [%] (reset! !needle (.-value (.-target %))))}]
          [::selection e]
          [::options ~@(shirt-size (:db/ident e) needle)]])))
 
@@ -79,4 +79,4 @@
                    #_render-gender
                    render-with-deep-input reset! m/watch atom
                    ui/picklist
-                   pr-str gender submission shirt-size inc q/hf-nav))
+                   pr-str gender submission shirt-size inc q/hf-nav hf/->Input))

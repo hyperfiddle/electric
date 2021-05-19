@@ -3,18 +3,20 @@
             [fipp.ednize :as ednize]
             #?(:cljs [com.cognitect.transit.types])
             #?(:clj  [hyperfiddle.api :as hf]
-               :cljs [hyperfiddle.api :as hf :refer [Link]]))
-  #?(:clj (:import (hyperfiddle.api Link)
+               :cljs [hyperfiddle.api :as hf :refer [Link Input]]))
+  #?(:clj (:import (hyperfiddle.api Link Input)
                    (java.io ByteArrayInputStream ByteArrayOutputStream)
                    (clojure.lang ExceptionInfo))))
 
 (def read-handlers
   (atom {"ex-info"              (t/read-handler #(apply ex-info %))
-         "hyperfiddle.api.Link" (t/read-handler #(apply hf/->Link %))}))
+         "hyperfiddle.api.Link" (t/read-handler #(apply hf/->Link %))
+         "hyperfiddle.api.Input" (t/read-handler #(apply hf/->Input %))}))
 
 (def write-handlers
   (atom {ExceptionInfo (t/write-handler (constantly "ex-info") (fn [ex] [(ex-message ex) (ex-data ex) (ex-cause ex)]))
-         Link          (t/write-handler (constantly "hyperfiddle.api.Link") (fn [^Link x] [(.-href x) (.-value x)]))}))
+         Link          (t/write-handler (constantly "hyperfiddle.api.Link") (fn [^Link x] [(.-href x) (.-value x)]))
+         Input         (t/write-handler (constantly "hyperfiddle.api.Input") (fn [^Input x] [(.-value x)]))}))
 
 (def ^:dynamic string-encoding "UTF-8")
 
@@ -70,5 +72,8 @@
   Link
   (-edn [this]
     (tagged-literal 'hyperfiddle.api.Link {:href  #?(:clj (.href this)  :cljs (.-href this))
-                                           :value #?(:clj (.value this) :cljs (.-value this))})))
+                                           :value #?(:clj (.value this) :cljs (.-value this))}))
+  Input
+  (-edn [this]
+    (tagged-literal 'hyperfiddle.api.Input {:value #?(:clj (.value this) :cljs (.-value this))})))
 
