@@ -59,10 +59,18 @@
                      res)))))
 
 (defn edn->str [x]
-  (m/via m/cpu #_(pr-str x) (transit/encode x)))
+  (m/via m/cpu #_(pr-str x)
+         (try (transit/encode x)
+              (catch Throwable t
+                (log/error "Failed to encode" t)
+                (throw t)))))
 
 (defn str->edn [x]
-  (m/via m/cpu #_(edn/read-string x) (transit/decode x)))
+  (m/via m/cpu #_(edn/read-string x)
+         (try (transit/decode x)
+              (catch Throwable t
+                (log/error "Failed to decode" t)
+                (throw t)))))
 
 (defn edn-reader [x]
   (m/ap (m/? (str->edn (m/?> (u/poll x))))))
