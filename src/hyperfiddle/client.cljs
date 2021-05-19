@@ -4,7 +4,8 @@
             [hyperfiddle.common.transit :as transit]
             [hyperfiddle.client.ui :as ui]
             [hyperfiddle.client.edn-view :as ev]
-            [hfdl.lang :as d])
+            [hfdl.lang :as d]
+            [hyperfiddle.api :as hf])
   (:require-macros [hfdl.lang :as d]))
 
 ;; TODO reconnect on failures
@@ -22,6 +23,7 @@
   (fn [x]
     (fn [s f]
       (try
+        (js/console.log "🔼" x)
         (.send ws (transit/encode x))
         (s nil)
         (catch :default e
@@ -32,7 +34,9 @@
   (m/observe
     (fn [!]
       (set! (.-onclose ws) (fn [x] (js/console.log x)))
-      (set! (.-onmessage ws) (fn [x] (! (transit/decode (.-data x)))))
+      (set! (.-onmessage ws) (fn [x] (! (let [decoded (transit/decode (.-data x))]
+                                         (js/console.log "🔽" decoded)
+                                         decoded))))
       #(set! (.-onmessage ws) nil))))
 
 (def env (merge d/exports ui/exports ev/exports (d/vars prn pr-str m/watch atom hf/->Input)))
