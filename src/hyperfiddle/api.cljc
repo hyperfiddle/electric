@@ -15,13 +15,13 @@
     (and (= href (.href other))
          (= value (.value other)))))
 
-(deftype Input [value]
+(deftype Input [id value onChange]
   Object
   (toString [this]
-    (str "#hyperfiddle.api.Input" {:value value}))
+    (str "#hyperfiddle.api.Input" {:id    id
+                                   :value value}))
   (equals [this other]
-    (= (.value this) (.value other))))
-
+    (= (.id this) (.id other))))
 
 #?(:clj (defmethod print-method Link [^Link v w]
           (.write w (.toString v))))
@@ -31,7 +31,7 @@
 
 #?(:cljs (cljs.reader/register-tag-parser! 'hyperfiddle.api.Link (fn [{:keys [href value]}] (Link. href value))))
 
-#?(:cljs (cljs.reader/register-tag-parser! 'hyperfiddle.api.Input (fn [{:keys [value]}] (Input. value))))
+#?(:cljs (cljs.reader/register-tag-parser! 'hyperfiddle.api.Input (fn [{:keys [id value]}] (Input. id value nil))))
 
 #?(:cljs (extend-protocol IPrintWithWriter
            Link
@@ -40,4 +40,5 @@
                                                                  :value (.-value this)})))
            Input
            (-pr-writer [this writer _]
-             (write-all writer "#hyperfiddle.api.Input " (pr-str {:value (.-value this)})))))
+             (write-all writer "#hyperfiddle.api.Input " (pr-str {:id    (.-id this)
+                                                                  :value (.-value this)})))))

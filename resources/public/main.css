@@ -16,3 +16,8 @@ a {
     background-color: rgba(255,255,255,0.75)!important;
 }
 
+.hf-cm-input{
+    @apply tw-rounded-sm tw-border tw-shadow-inner;
+    @apply tw-px-1;
+    @apply focus:tw-shadow-none;
+}

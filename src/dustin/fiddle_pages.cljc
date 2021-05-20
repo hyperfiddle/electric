@@ -10,7 +10,8 @@
   #?(:cljs (:require [clojure.spec.alpha :as s]
                      [hyperfiddle.api :as hf]
                      [dustin.fiddle]
-                     [missionary.core :as m]))
+                     [missionary.core :as m]
+                     [hyperfiddle.client.ui :as ui]))
   #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
 
 (s/fdef page-submissions :args (s/cat :needle string?))
@@ -27,8 +28,7 @@
             _ (hyperfiddle.client.ui/hack !needle)
             needle @(m/watch !needle)]
         [:div
-         [:input {:value (hf/->Input needle)
-                    #_#_:on-change (fn [%] (reset! !needle (.-value (.-target %))))}]
+         (ui/new-input! needle (ui/set-input! !needle))
          [::selection e]
          [::options ~@(shirt-size (:db/ident e) needle)]])))
 
