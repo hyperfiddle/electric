@@ -62,14 +62,14 @@
   (m/via m/cpu #_(pr-str x)
          (try (transit/encode x)
               (catch Throwable t
-                (log/error "Failed to encode" t)
+                (log/error (ex-info "Failed to encode" {:value x} t))
                 (throw t)))))
 
 (defn str->edn [x]
   (m/via m/cpu #_(edn/read-string x)
          (try (transit/decode x)
               (catch Throwable t
-                (log/error "Failed to decode" t)
+                (log/error (ex-info "Failed to decode" {:value x} t))
                 (throw t)))))
 
 (defn edn-reader [x]
