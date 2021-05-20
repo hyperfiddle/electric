@@ -9,14 +9,14 @@
                    (clojure.lang ExceptionInfo))))
 
 (def read-handlers
-  (atom {"ex-info"              (t/read-handler #(apply ex-info %))
-         "hyperfiddle.api.Link" (t/read-handler #(apply hf/->Link %))
-         "hyperfiddle.api.Input" (t/read-handler #(apply hf/->Input %))}))
+  (atom {"ex-info"               (t/read-handler #(apply ex-info %))
+         "hyperfiddle.api.Link"  (t/read-handler #(apply hf/->Link %))
+         "hyperfiddle.api.Input" (t/read-handler (fn [[id value]] (hf/->Input id value nil)))}))
 
 (def write-handlers
   (atom {ExceptionInfo (t/write-handler (constantly "ex-info") (fn [ex] [(ex-message ex) (ex-data ex) (ex-cause ex)]))
          Link          (t/write-handler (constantly "hyperfiddle.api.Link") (fn [^Link x] [(.-href x) (.-value x)]))
-         Input         (t/write-handler (constantly "hyperfiddle.api.Input") (fn [^Input x] [(.-value x)]))}))
+         Input         (t/write-handler (constantly "hyperfiddle.api.Input") (fn [^Input x] [(.-id x) (.-value x)]))}))
 
 (def ^:dynamic string-encoding "UTF-8")
 
@@ -75,5 +75,10 @@
                                            :value #?(:clj (.value this) :cljs (.-value this))}))
   Input
   (-edn [this]
-    (tagged-literal 'hyperfiddle.api.Input {:value #?(:clj (.value this) :cljs (.-value this))})))
+    (tagged-literal 'hyperfiddle.api.Input {:id    #?(:clj (.id this) :cljs (.-id this))
+                                            :value #?(:clj (.value this) :cljs (.-value this))})))
 
+#?(:cljs (extend-protocol ednize/IEdn
+           com.cognitect.transit.types/UUID
+           (-edn [this]
+             (tagged-literal 'uuid (.toString this)))))

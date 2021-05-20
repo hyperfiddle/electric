@@ -3,7 +3,7 @@
             #?(:clj [hfdl.lang :refer [dataflow vars]])
             #?(:cljs [hyperfiddle.client.edn-view.linter :refer [Linter]])
             #?(:cljs [hyperfiddle.client.edn-view.diff :refer [patcher]])
-            #?(:cljs [hyperfiddle.client.edn-view.links :refer [LinksPlugin]])
+            #?(:cljs [hyperfiddle.client.edn-view.extentions :refer [ExtentionsPlugin]])
             #?(:cljs [hyperfiddle.client.edn-view.spec-tooltip :refer [spec-tooltip]])
             #?(:cljs [hyperfiddle.client.router :as router])
             #?(:cljs [nextjournal.clojure-mode :as cm-clj])
@@ -14,6 +14,7 @@
             #?(:cljs ["@codemirror/state" :refer [EditorState EditorSelection]])
             #?(:cljs ["@codemirror/view" :as view :refer [EditorView]])
             #?(:cljs [cljs.reader :as edn])
+            #?(:cljs [hyperfiddle.client.ui :as ui])
             #?(:cljs [hyperfiddle.client.pprint :as pprint]))
   #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
 
@@ -71,6 +72,7 @@
          (lineNumbers)
          (fold/foldGutter)
          (.. EditorState -allowMultipleSelections (of true))
+         (.. EditorView -editable (of false))
          #_(if false
              ;; use live-reloading grammar
              #js[(cm-clj/syntax live-grammar/parser)
@@ -80,7 +82,7 @@
          (.of view/keymap cm-clj/complete-keymap)
          (.of view/keymap historyKeymap)
          spec-tooltip
-         LinksPlugin
+         ExtentionsPlugin
          Linter]))
 
 (def make-state
