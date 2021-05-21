@@ -1,9 +1,9 @@
 (ns dustin.fiddle-pages
   #?(:clj (:require [clojure.spec.alpha :as s]
-                    [dustin.fiddle :refer [submissions genders shirt-sizes submission-details
-                                           submission gender shirt-size]]
-                    [hyperfiddle.q :as q]
-                    [hfdl.lang :refer [dataflow vars]]
+                    [geoffrey.fiddle-effects :refer [submissions genders shirt-sizes submission-details
+                                                     submission gender shirt-size]]
+                    [hyperfiddle.q2 :as q]
+                    [hfdl.lang :refer [dataflow vars system debug]]
                     [hyperfiddle.api :as hf]
                     [hyperfiddle.client.ui :as ui]
                     [missionary.core :as m]))
@@ -18,9 +18,6 @@
 
 (s/def :dustingetz/email string?)
 
-(defn render-email [e props]
-  (dataflow
-    ~@[::hi (pr-str ~@(q/hf-nav :db/id [:dustingetz/email e]))]))
 
 (defn render-with-deep-input [e props]
   (dataflow
@@ -31,6 +28,24 @@
          (ui/new-input! needle (ui/set-input! !needle))
          [::selection e]
          [::options ~@(shirt-size (:db/ident e) needle)]])))
+
+(defn render-email [>v props]
+  (prn 'render-email >v props)
+  (dataflow
+   (let [v @>v]
+     (prn "v" v)
+     ~@[::hi (pr-str v)])))
+
+(defn simple-email [needle]
+  #?(:clj
+     (dataflow
+      (-> @(q/hfql
+            [{(submission needle) [(:dustingetz/email ::hf/render render-email)]}])
+          (get `(submission ~needle))
+          (deref)
+          (:dustingetz/email)
+          (deref)
+          ))))
 
 (defn page-submissions [needle]
   #?(:clj

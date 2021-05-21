@@ -20,7 +20,7 @@
     [hyperfiddle.client.ui :as ui]
     [hyperfiddle.client.edn-view :as ev]
     [dustin.fiddle-pages :as f]
-    [hyperfiddle.q :as q])
+    [hyperfiddle.q2 :as q])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)))
 
@@ -109,6 +109,14 @@
 (def hello-world
   (d/dataflow ["hello" ~@ui/world]))
 
+(def ui-view
+  (d/dataflow
+   ~@(let [route-request @ui/>route]
+       (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) route-request)
+       ;; (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-output") {}) ~@@(get-fiddle route-request))
+       @(ui/mount-component-at-node! "hf-ui-root" (ui/hfql-ui ~@@(get-fiddle route-request)))
+       nil)))
+
 (defn define-sampler [s]
   (println (case s nil :reset :ready))
   (def sampler s))
@@ -119,7 +127,7 @@
                (start! (m/sp (loop [] (m/? (ws/write-str remote (m/? read-str))) (recur))))))
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
-               (start! (d/peer env (d/boot define-sampler edn-view) (edn-writer remote) (edn-reader read-str)))))})
+               (start! (d/peer env (d/boot define-sampler ui-view) (edn-writer remote) (edn-reader read-str)))))})
 
 (defn gzip-handler [& methods]
   (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))

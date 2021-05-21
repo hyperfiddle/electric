@@ -141,7 +141,24 @@
   (def dag (dataflow (let [x @(hfql {((geoffrey.fiddle-effects/shirt-size :dustingetz/male) ::hf/render custom-renderer) [:db/id]})]
                        @(get x '(geoffrey.fiddle-effects/shirt-size :dustingetz/male)))))
 
-  ((hfdl.impl.trace/system (hfdl.impl.trace/debug sampler dag)) prn prn)
+  ((hfdl.lang/system (hfdl.lang/vars apply
+                                     concat
+                                     custom-renderer
+                                     datascript.core/entity
+                                     datascript.core/q
+                                     first
+                                     geoffrey.fiddle-effects/needle-rule
+                                     geoffrey.fiddle-effects/shirt-size
+                                     geoffrey.fiddle-effects/shirt-sizes
+                                     get
+                                     hash-map
+                                     hf-nav
+                                     hyperfiddle.api/*$*
+                                     list
+                                     seq
+                                     sort
+                                     vector)
+                     (hfdl.lang/debug sampler dag)) prn prn)
   @sampler
 
   (render 1 {})  )
