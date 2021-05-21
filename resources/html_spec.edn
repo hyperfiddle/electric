@@ -1,0 +1,114 @@
+{:tags {:a          {:doc "Defines a hyperlink."}
+        :abbr       {:doc "Defines an abbreviated form of a longer word or phrase."}
+        :address    {:doc "Specifies the author's contact information."}
+        :area       {:doc "Defines a specific area within an image map."}
+        :article    {:doc "Defines an article."}
+        :aside      {:doc "Defines some content loosely related to the page content."}
+        :audio      {:doc "Embeds a sound, or an audio stream in an HTML document."}
+        :b          {:doc "Displays text in a bold style."}
+        :base       {:doc "Defines the base URL for all relative URLs in a document."}
+        :bdi        {:doc "Represents text that is isolated from its surrounding for the purposes of bidirectional text formatting."}
+        :bdo        {:doc "Overrides the current text direction."}
+        :blockquote {:doc "Represents a section that is quoted from another source."}
+        :body       {:doc "Defines the document's body."}
+        :br         {:doc "Produces a single line break."}
+        :button     {:doc "Creates a clickable button."}
+        :canvas     {:doc "Defines a region in the document, which can be used to draw graphics on the fly via scripting (usually JavaScript)."}
+        :caption    {:doc "Defines the caption or title of the table."}
+        :cite       {:doc "Indicates a citation or reference to another source."}
+        :code       {:doc "Specifies text as computer code."}
+        :col        {:doc "Defines attribute values for one or more columns in a table."}
+        :colgroup   {:doc "Specifies attributes for multiple columns in a table."}
+        :data       {:doc "Links a piece of content with a machine-readable translation."}
+        :datalist   {:doc "Represents a set of pre-defined options for an <input> element."}
+        :dd         {:doc "Specifies a description, or value for the term (<dt>) in a description list (<dl>)"}
+        :del        {:doc "Represents text that has been deleted from the document."}
+        :details    {:doc "Represents a widget from which the user can obtain additional information or controls on-demand."}
+        :dfn        {:doc "Specifies a definition."}
+        :dialog     {:doc "Defines a dialog box or subwindow."}
+        :div        {:doc "Specifies a division or a section in a document."}
+        :dl         {:doc "Defines a description list."}
+        :dt         {:doc "Defines a term (an item) in a description list."}
+        :em         {:doc "Defines emphasized text."}
+        :embed      {:doc "Embeds external application, typically multimedia content like audio or video into an HTML document."}
+        :fieldset   {:doc "Specifies a set of related form fields."}
+        :figcaption {:doc "Defines a caption or legend for a figure."}
+        :figure     {:doc "Represents a figure illustrated as part of the document."}
+        :footer     {:doc "Represents the footer of a document or a section."}
+        :form       {:doc "Defines an HTML form for user input."}
+        :head       {:doc "Defines the head portion of the document that contains information about the document such as title."}
+        :header     {:doc "Represents the header of a document or a section."}
+        :hgroup     {:doc "Defines a group of headings."}
+        :h1         {:doc "to <h6>	Defines HTML headings."}
+        :h2         {:doc "to <h6>	Defines HTML headings."}
+        :h3         {:doc "to <h6>	Defines HTML headings."}
+        :h4         {:doc "to <h6>	Defines HTML headings."}
+        :h5         {:doc "to <h6>	Defines HTML headings."}
+        :h6         {:doc "to <h6>	Defines HTML headings."}
+        :hr         {:doc "Produce a horizontal line."}
+        :html       {:doc "Defines the root of an HTML document."}
+        :i          {:doc "Displays text in an italic style."}
+        :iframe     {:doc "Displays a URL in an inline frame."}
+        :img        {:doc "Represents an image."}
+        :input      {:doc "Defines an input control."}
+        :ins        {:doc "Defines a block of text that has been inserted into a document."}
+        :kbd        {:doc "Specifies text as keyboard input."}
+        :keygen     {:doc "Represents a control for generating a public-private key pair."}
+        :label      {:doc "Defines a label for an <input> control."}
+        :legend     {:doc "Defines a caption for a <fieldset> element."}
+        :li         {:doc "Defines a list item."}
+        :link       {:doc "Defines the relationship between the current document and an external resource."}
+        :main       {:doc "Represents the main or dominant content of the document."}
+        ;; :map        {:doc "Defines a client-side image-map."}
+        :mark       {:doc "Represents text highlighted for reference purposes."}
+        :menu       {:doc "Represents a list of commands."}
+        :menuitem   {:doc "Defines a list (or menuitem) of commands that a user can perform."}
+        :meta       {:doc "Provides structured metadata about the document content."}
+        :meter      {:doc "Represents a scalar measurement within a known range."}
+        :nav        {:doc "Defines a section of navigation links."}
+        :noscript   {:doc "Defines alternative content to display when the browser doesn't support scripting."}
+        :object     {:doc "Defines an embedded object."}
+        :ol         {:doc "Defines an ordered list."}
+        :optgroup   {:doc "Defines a group of related options in a selection list."}
+        :option     {:doc "Defines an option in a selection list."}
+        :output     {:doc "Represents the result of a calculation."}
+        :p          {:doc "Defines a paragraph."}
+        :param      {:doc "Defines a parameter for an object or applet element."}
+        :picture    {:doc "Defines a container for multiple image sources."}
+        :pre        {:doc "Defines a block of preformatted text."}
+        :progress   {:doc "Represents the completion progress of a task."}
+        :q          {:doc "Defines a short inline quotation."}
+        :rp         {:doc "Provides fall-back parenthesis for browsers that that don't support ruby annotations."}
+        :rt         {:doc "Defines the pronunciation of character presented in a ruby annotations."}
+        :ruby       {:doc "Represents a ruby annotation."}
+        :s          {:doc "Represents contents that are no longer accurate or no longer relevant."}
+        :samp       {:doc "Specifies text as sample output from a computer program."}
+        :script     {:doc "Places script in the document for client-side processing."}
+        :section    {:doc "Defines a section of a document, such as header, footer etc."}
+        :select     {:doc "Defines a selection list within a form."}
+        :small      {:doc "Displays text in a smaller size."}
+        :source     {:doc "Defines alternative media resources for the media elements like <audio> or <video>."}
+        :span       {:doc "Defines an inline styleless section in a document."}
+        :strong     {:doc "Indicate strongly emphasized text."}
+        :style      {:doc "Inserts style information (commonly CSS) into the head of a document."}
+        :sub        {:doc "Defines subscripted text."}
+        :summary    {:doc "Defines a summary for the <details> element."}
+        :sup        {:doc "Defines superscripted text."}
+        :svg        {:doc "Embed SVG (Scalable Vector Graphics) content in an HTML document."}
+        :table      {:doc "Defines a data table."}
+        :tbody      {:doc "Groups a set of rows defining the main body of the table data."}
+        :td         {:doc "Defines a cell in a table."}
+        :template   {:doc "Defines the fragments of HTML that should be hidden when the page is loaded, but can be cloned and inserted in the document by JavaScript."}
+        :textarea   {:doc "Defines a multi-line text input control (text area)."}
+        :tfoot      {:doc "Groups a set of rows summarizing the columns of the table."}
+        :th         {:doc "Defines a header cell in a table."}
+        :thead      {:doc "Groups a set of rows that describes the column labels of a table."}
+        :time       {:doc "Represents a time and/or date."}
+        :title      {:doc "Defines a title for the document."}
+        :tr         {:doc "Defines a row of cells in a table."}
+        :track      {:doc "Defines text tracks for the media elements like <audio> or <video>."}
+        :u          {:doc "Displays text with an underline."}
+        :ul         {:doc "Defines an unordered list."}
+        :var        {:doc "Defines a variable."}
+        :video      {:doc "Embeds video content in an HTML document."}
+        :wbr        {:doc "Represents a line break opportunity."}}}

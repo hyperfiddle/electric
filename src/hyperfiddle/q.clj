@@ -1,14 +1,17 @@
 (ns hyperfiddle.q
-  (:require [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission submission-details]]
-            [hyperfiddle.api :as hf]
-            [hfdl.lang :refer [dataflow vars]]
+  (:require [clojure.walk :as walk]
+            [datascript.core :as d]
+            [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission submission-details]]
+            [hfdl.lang :refer [dataflow system debug vars]]
             [hfdl.lib :refer [reactive-for]]
-            [clojure.walk :as walk]
-            [datascript.core :as d]))
+            [hyperfiddle.api :as hf]
+            [hyperfiddle.rcf :refer [tests]]
+            [missionary.core :as m]))
 
 (defn default-renderer [val props]
+  (prn 'default-renderer val props)
   (if-let [a (::hf/a props)]
-    (dataflow (hf/->Link a val))
+    (dataflow (hf/->Link a @val)) ;; TODO
     (dataflow val)))
 
 (defn render [val props]
@@ -70,7 +73,7 @@
 
 (defn hf-nav [kf ref]
   ; emits smart refs
-  (kf (d/entity hyperfiddle.api/*$* ref)))
+  (dataflow (kf (d/entity hyperfiddle.api/*$* ref))))
 
 (defn compile-leaf* [?form]
   (cond
@@ -123,31 +126,29 @@
                        [env' edge-sym] (hf-edge->sym! env' edge)
                        props           (expand-props env& ns-map env' props)]
                    (merge r
-                     (if (many? qedge)
-                       `{~(quote* env& env' qedge)
-                         ;; @(render )
-                         @(reactive-for (~'fn [~'%]
-                                          (dataflow
-                                            (~'let [~edge-sym ~'%]
-                                              @(render
+                          (if (many? qedge)
+                            `{~(quote* env& env' qedge)
+                              @(reactive-for (~'fn [~'%]
+                                              (dataflow
+                                               (~'let [~edge-sym ~'%]
+                                                (render
                                                  ~(compile-hfql* env& ns-map env' cont)
                                                  ~props))))
-                            (~'unquote ~(replace* env' edge*)))
-                         ;; nil
-                         }
-                       `{~(quote* env& env' qedge)
-                         (~'let [~'% ~(replace* env' edge*)]
-                           (~'let [~edge-sym ~'%]
-                             @(render
-                                ~(compile-hfql* env& ns-map env' cont)
-                                ~props)))}))))
-      {}
-      form)
+                                             (~'unquote ~(replace* env' edge*)))
+                              }
+                            `{~(quote* env& env' qedge)
+                              (~'let [~'% ~(replace* env' edge*)]
+                               (~'let [~edge-sym ~'%]
+                                (render
+                                 ~(compile-hfql* env& ns-map env' cont)
+                                 ~props)))}))))
+               {}
+               form)
 
     :else (let [[form props] (if (has-props? form) (extract-props form) [form nil])
                 props        (expand-props env& ns-map env' props)
                 qedge        (qualify env& ns-map form)]
-            {`~(quote* env& env' qedge) `@(render ~(compile-leaf* (replace* env' form)) ~props)})))
+            {`~(quote* env& env' qedge) `(render ~(compile-leaf* (replace* env' form)) ~props)})))
 
 (defmacro hfql [form]
   (compile-hfql* &env (ns-map *ns*) {} form))

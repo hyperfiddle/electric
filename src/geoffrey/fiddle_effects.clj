@@ -3,7 +3,8 @@
 
 (ns geoffrey.fiddle-effects
   (:require [datascript.core :as d]
-            [hfdl.lang :refer [dataflow]]
+            [hfdl.lang :refer [dataflow vars]]
+            [dustin.dev]
             [hyperfiddle.api :refer [*$*]]))
 
 (defn genders []
@@ -66,6 +67,9 @@
 
 (defn submission [& [needle]]
   (dataflow (first @(submissions needle))))
+
+(def exports (vars genders into gender needle-rule shirt-sizes sort d/q *$* first
+                   shirt-size submissions submission-details submission))
 
 ;; ((hfdl.impl.trace/system (hfdl.impl.trace/debug sample (submission))) prn prn)
 ;; @sample
