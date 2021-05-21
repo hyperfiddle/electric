@@ -3,7 +3,8 @@
             [hfdl.impl.trace :as t]
             [hfdl.impl.util :as u]
             [hfdl.impl.sampler :refer [sampler!]]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [hyperfiddle.rcf :refer [tests]])
   #?(:cljs (:require-macros [hfdl.lang :refer [vars]])))
 
 #?(:clj
@@ -101,12 +102,12 @@ of this var to the value currently bound to this var.
              (peer resolve #() (-> r->l #_(u/log-args 'r->l)) (u/poll l->r))
              (peer resolve boot (-> l->r #_(u/log-args 'l->r)) (u/poll r->l)))))))
 
-(comment
+(tests
 
   (def !a1 (atom 6))
   (def !a2 (atom 7))
 
-  (def env (globals * m/watch !a1 !a2))
+  (def env (vars * m/watch !a1 !a2))
   (def dag (dataflow (* @(m/watch !a1) @(m/watch !a2))))
 
   ; does nothing, the boot had no effect and the return value is ignored
@@ -126,7 +127,7 @@ of this var to the value currently bound to this var.
 
   )
 
-(comment
+(tests
   (def !input (atom "alice"))
   (defn form-input [] (m/watch !input))
   (defn render-table [>x] (m/relieve {}
@@ -149,7 +150,7 @@ of this var to the value currently bound to this var.
 
   (def system-task
     (system
-      (globals !input form-input render-table query prn)
+      (vars !input form-input render-table query prn)
       (debug sampler
         (dataflow
           (let [needle @(form-input)
