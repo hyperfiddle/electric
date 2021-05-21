@@ -153,5 +153,6 @@
   (compile-hfql* &env (ns-map *ns*) {} form))
 
 (def exports
-  (vars with-meta hash-map list hfdl.lib/reactive-for submissions shirt-sizes hf-nav render hf/->Link
-    genders submission-details))
+  (vars with-meta hash-map list vector into get seq map
+    reactive-for submissions shirt-sizes hf-nav render
+    hf/->Link genders submission-details))

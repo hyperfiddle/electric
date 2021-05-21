@@ -1,6 +1,6 @@
 (ns hfdl.lib
   (:require [hfdl.lang :refer [dataflow]]
-            #?(:clj [hfdl.impl.rfor :as rfor])
+            [hfdl.impl.rfor :refer [rfor]]
             [missionary.core :as m])
   #?(:clj (:import (clojure.lang Box))))
 
@@ -35,13 +35,12 @@ Defines a new identity representing a variable initialized with given value and 
               (set! (.-val p) x) r)))))))
 
 ;; TODO error handling
-#?(:clj
-   (defn reactive-for "
+(def reactive-for "
 Turns a continuous flow of collections of distinct items into a flow calling given function for each item added to the
 collection. The function must return another flow that will be run in parallel and cancelled when the item is removed
 from the input collection. Returns a continuous flow of collections of current values of inner flows, in the same order
 as input.
-" [f in] (fn [n t] (rfor/spawn f in n t))))
+" rfor)
 
 (comment
   (def >input (atom (vec (range 5))))

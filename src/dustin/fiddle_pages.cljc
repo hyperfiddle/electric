@@ -36,13 +36,12 @@
   #?(:clj
      (dataflow
        (q/hfql
-         [{(submission needle)
+         [{(submissions needle)
            [(:db/id ::hf/a (dustin.fiddle-pages/page-submission-details %)) ;; TODO expand sym
             (:dustingetz/email ::hf/render render-email)
-            {(:dustingetz/gender ::hf/render render-with-deep-input)
+            #_{(:dustingetz/gender ::hf/render render-with-deep-input)
              [:db/ident]}
-            #_
-            {((:dustingetz/gender %)
+            #_{((:dustingetz/gender %)
                 ::hf/options (shirt-size dustingetz/gender _)
                 ::hf/render ui/picklist #_render-gender)
                [:db/ident]}]}
@@ -58,6 +57,13 @@
                                      {:dustingetz/gender [:db/ident {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
           {(gender) [:db/ident]}]))))
 
+(def fiddles (vars page-submissions page-submission-details))
+(def exports (vars render-email
+               #_render-gender
+               render-with-deep-input reset! m/watch atom
+               ui/picklist
+               pr-str gender submission shirt-size inc q/hf-nav hf/->Input))
+
 (comment
   (require '[hfdl.lang :refer [system debug]])
   (defn program [needle]
@@ -70,13 +76,7 @@
              ::hf/render ui/picklist
              ::hf/options (shirt-sizes dustingetz/gender))
             [:db/ident]}]}])))
-  ((system (merge q/exports (vars ui/picklist)) (debug sample (program ""))) prn prn)
+  ((system (merge q/exports exports (vars ui/picklist ui/render-table ui/render-row))
+     (debug sample (program "a"))) prn prn)
   @sample
   )
-
-(def fiddles (vars page-submissions page-submission-details))
-(def exports (vars render-email
-                   #_render-gender
-                   render-with-deep-input reset! m/watch atom
-                   ui/picklist
-                   pr-str gender submission shirt-size inc q/hf-nav hf/->Input))
