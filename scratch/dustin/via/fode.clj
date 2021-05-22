@@ -136,15 +136,76 @@
   @!z := [#{} #{[11]}])
 
 (tests
-
   (defn App [>db]
     `(div.
        (let [>xs' (dx (datomic.api/q (quote [:in $ :find ?e :where [?e :person/name]]) '>db))]
-         (pre. (pr-str @(m/integrate patch >xs')))            ; [101 102 104 106]
+         (pre. (pr-str @(m/reductions patch >xs')))            ; [101 102 104 106]
          (for. [>id >xs']                                   ; differential for
            (pre.
              (pr-str @(entity-get' >db >id ':person/tags))
              (for. [>k (entity-ks' >db >id)]
                (pr-str @(entity-get' >db >id >k))))))))
-
+  := _
   )
+
+
+
+
+
+(defmacro defnode [& body] `~body)                                 ; defobject class deftype
+
+;(deftype Foo [x])
+;(Foo 1)
+;(tests Foo := _)
+
+(defmacro rfor [bindings body])
+(defnode div [& children])
+(defnode pre [& children])
+(defnode entity-get [db e & [k]])
+(defnode entity-ks [db e])
+(defnode dx [x])
+
+(defn q [db] (m/via _ (datomic.api/q (quote [:in $ :find ?e :where [?e :person/name]]) db)))
+(defeffect q [db] (m/via _ (datomic.api/q (quote [:in $ :find ?e :where [?e :person/name]]) db)))
+(defnode q [db] (datomic.api/q (quote [:in $ :find ?e :where [?e :person/name]]) @db))
+
+(defnode if2 [test a b] ({true a false b} @test))           ; m bool -> m a -> m a -> m a
+
+; :: FLow [Task a] -> Flow a
+(defn run2 [>task] (m/ap (m/? (m/?! >task))))
+
+; m a -> m b ; a = Task _
+(defnode run [task] (run2 task))
+
+(defn place! [s] (m/ap ()))
+
+(leo-lang
+  (let [a (m/signal! (m/ap 42))
+        b (m/signal! (m/ap (inc (m/?! a))))
+        c (m/signal! (m/ap 0))]
+    (+ (inc a) b (inc a) c)))
+
+
+(defnode input []
+  (let [!needle (atom "")
+        needle ]
+
+    ))
+
+(tests
+  (defnode App [db x]
+    (div
+      (let [xs' (dx (run (q (if2 (boolean (inc (inc 0))) db db))))]
+        (pre (pr-str @(m/reductions patch xs')))
+        (rfor [id xs']
+          (pre
+            (pr-str @(entity-get db id))
+            (rfor [k (entity-ks db id)]
+              (div
+                (input)
+                (pr-str (entity-get db id k)))))))))
+  := _)
+
+
+
+; given f a flow transformer, how do you apply f to a flow in a dag
