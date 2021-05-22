@@ -41,7 +41,6 @@
 
 (def >route #?(:cljs (m/watch router/!route)))
 (def change-route! #?(:cljs (comp router/set-route! edn/read-string)))
-(defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
 (defn hack [!needle]
   #?(:cljs (aset js/window "hack" !needle)
@@ -64,33 +63,80 @@
     #?(:cljs (vswap! *inputs assoc id input))
     input))
 
-;; ---------------------------------------------------
+;; -----------------------------------------------------------------------
+
+;; TODO use org.w3c.dom instead
+(defprotocol ITextNode
+  (-get-text-content [this])
+  (-set-text-content! [this text]))
+
+(deftype TextNode [^:volatile-mutable text]
+  ITextNode
+  (-get-text-content [this] text)
+  (-set-text-content! [this text'] (set! text text') this))
+
+#?(:clj
+   (defmethod print-method TextNode [this w]
+     (print-simple (pr-str [:text (-get-text-content this)]) w)))
+
+;; TODO use org.w3c.dom instead
+(defprotocol INode
+  (-get-children [this])
+  (-append-child! [this child])
+  (-remove-child! [this child]))
+
+(deftype Node [tag ^:volatile-mutable children]
+  INode
+  (-get-children [this] children)
+  (-append-child! [this child] (set! children (conj children child)) this)
+  (-remove-child! [this child] (set! children (disj children child)) this))
+
+#?(:clj
+   (defmethod print-method Node [this w]
+     (print-simple (pr-str (into [(.tag this)] (-get-children this))) w)))
 
 (defn create-element [tag]
   #?(:cljs (if (keyword? tag)
              (.createElement js/document (name tag))
-             (.createTextNode js/document (str tag)))))
+             (.createTextNode js/document (str tag)))
+     :clj (if (keyword? tag)
+            (Node. tag #{})
+            (TextNode. tag))))
 
-(defn set-text-content! [elem text] (set! (.-textContent elem) text))
+(defn by-id [id] #?(:cljs (js/document.getElementById id)
+                    :clj (Node. id #{})))
 
-(defn text   [>text]
+(defn set-text-content! [elem text]
+  (prn "setting " elem text)
+  #?(:clj (-set-text-content! elem text)
+     :cljs (set! (.-textContent elem) text)))
+
+(defn text [>text]
   (let [elem (create-element "")]
-    (m/stream! (m/latest (fn [text] (set! (.-textContent elem) text)) >text))
+    (m/stream! (m/latest #(set-text-content! elem %) >text))
     (m/ap elem)))
 
-;; (defn create-element' [tag]
-;;   (m/ap (create-element tag)))
+(defn append-childs [parent items]
+  (reduce (fn [r item]
+            (prn r item)
+            #?(:clj (-append-child! r item)
+               :cljs (doto r (.appendChild item))))
+          parent
+          items))
 
-;; (defn text' [>text _]
-;;   (dataflow (doto @(create-element' "")
-;;               (set-text-content! @>text))))
+(defn remove-childs [parent items]
+  (reduce (fn [r item]
+            #?(:clj (-remove-child! r item)
+               :cljs (doto r (.removeChild item))))
+          parent
+          items))
 
 (defn mount [parent items]
   (m/observe
    (fn [!]
-     (! (run! #(.appendChild parent %) items))
+     (! (append-childs parent items))
      (fn []
-       (run! #(.removeChild parent %) items)))))
+       (remove-childs parent items)))))
 
 (defn shadow-props [elem]
   (aget elem "hf-shadow-props"))
@@ -122,27 +168,24 @@
   ([elem >props & >childs]
    (let [elem (create-element elem)]
      (when >props
-       (prn elem "props!" >props)
-       (m/stream! (m/latest (fn [props]
-                              (patch-properties! elem props))
-                            >props)))
+       (m/stream! (m/latest #(patch-properties! elem %) >props)))
      (when (seq (filter identity >childs))
-       (prn elem "childs!" (seq (filter identity >childs)))
-       (m/stream! (switch (apply m/latest (fn [& childs]
-                                            ;; if contains child -> replacechild
-                                            ;; else appendChild
-                                            (mount elem childs))
-                                 >childs))))
+       ;; if contains child -> replacechild
+       ;; else appendChild
+       (m/stream! (switch (apply m/latest #(mount elem %&) >childs))))
      (m/ap elem))))
 
-(defn append-child [elem >child]
-  (m/stream! (switch (m/latest (fn [child]
-                                 (mount elem [child]))
-                               >child)))
-  (m/ap elem))
+;; (div (text ~"string"))
+;; (tag "div" props (if (odd? x)
+;;                    (text ~"string")
+;;                    (text ~"other string")))
 
-(defn mount-component-at-node! [id elem]
-  (append-child (by-id id) elem))
+(defn append-child! [parent >child]
+  (m/stream! (switch (m/latest #(mount parent [%]) >child)))
+  parent)
+
+(defn mount-component-at-node! [id >component]
+  (append-child! (by-id id) >component))
 
 (defn hiccup? [x]
   (and (vector? x)
@@ -190,23 +233,37 @@
 (defn root [>route]
   (let [!title (atom "Hyperfiddle UI")
         >title (m/watch !title)]
-    (html
-     [:div {"style" "border: 1px gray solid; margin: 1rem; padding: 1rem"}
-      [:h1 (text >title)]
-      [:pre (text >route)]
-      [:input {"type"        "text"
-               "placeholder" "Change title"
-               "className"   "hf-cm-input"
-               "value"       ~>title
-               "onkeyup"     #(reset! !title (.. % -target -value))}]])))
+    (tag :div {"style" "border: 1px gray solid; margin: 1rem; padding: 1rem"}
+         (tag :h1 nil (text >title))
+         (tag :pre nil (text >route))
+         (tag :input (m/latest (partial assoc {"type"        "text"
+                                                "placeholder" "Change title"
+                                                "className"   "hf-cm-input"
+                                                "onkeyup"     #(reset! !title (.. % -target -value))}
+                                         "value")
+                                >title)))))
 
 
-(defn hfql-ui [>hfql]
-  (pre nil >hfql))
+(def !needle (atom ""))
+(def >needle (m/watch !needle))
 
-(def exports (vars world render-cell render-row render-table
-                   picklist change-route! >route by-id
-                   into map
-                   hack new-input! set-input!
-                   mount-component-at-node! create-element
-                   root hfql-ui))
+(defn ^:export mount-root! []
+  ((m/reactor
+    (mount-component-at-node! "hf-ui-dev-root" (root >needle)))
+   prn prn))
+
+#?(:clj
+   (defmacro export-tags! []
+     (let [tags (keys (:tags (edn/read-string (slurp (io/file "./resources/html_spec.edn")))))]
+       `(def html-exports (vars ~@(map symbol tags))))))
+
+#?(:clj (export-tags!))
+
+(def exports (merge html-exports
+                    (vars world render-cell render-row render-table
+                          text append-childs remove-childs
+                          picklist change-route! >route by-id
+                          into map
+                          hack new-input! set-input!
+                          mount-component-at-node! create-element
+                          root)))

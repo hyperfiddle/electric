@@ -46,7 +46,7 @@
         :h5         {:doc "to <h6>	Defines HTML headings."}
         :h6         {:doc "to <h6>	Defines HTML headings."}
         :hr         {:doc "Produce a horizontal line."}
-        :html       {:doc "Defines the root of an HTML document."}
+        ;; :html       {:doc "Defines the root of an HTML document."}
         :i          {:doc "Displays text in an italic style."}
         :iframe     {:doc "Displays a URL in an inline frame."}
         :img        {:doc "Represents an image."}
