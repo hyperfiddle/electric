@@ -237,7 +237,7 @@
   (defn join-all [>map]
     (dataflow (into {} @(reactive-for (fn [[k >v]]
                                         (dataflow [k @>v]))
-                                      (seq @>map)))))
+                                      ~(seq @>map)))))
 
   (run-dag! (vars join-all) (dataflow (let [% ~9] @(join-all (hfql :db/id)))))
   := {:db/id 9}
