@@ -21,10 +21,17 @@
     (keyword? ?form) `(hf-nav ~?form ~'%)
     (seq? ?form)     ?form))
 
-(defn default-renderer [val props]
+(defn join-1
+  "Flow<{k, Flow<v>}> -> Flow<{k, v}>"
+  [>map]
+  (dataflow (into {} @(reactive-for (fn [[k >v]]
+                                      (dataflow [k @>v]))
+                                    ~(seq @>map)))))
+
+(defn default-renderer [>val props] ; m a -> m b
   (if-let [a (::hf/a props)]
-    (dataflow (hf/->Link a @val))
-    val ; identity
+    (dataflow (hf/->Link a @>val))
+    >val ; identity
     ))
 
 (defn render [>val props]
@@ -141,13 +148,14 @@
                           (if (many? qedge)
                             `{~(quote* env& env' qedge)
                               ;; @(render )
-                              @(reactive-for (~'fn [~'%]
-                                              (dataflow
-                                               (~'let [~edge-sym ~'%]
-                                                (render
+                              ;; rfor :: (a -> m b) -> m [a] -> m [b]
+                              (reactive-for (~'fn [~'%]
+                                             (dataflow
+                                              (~'let [~edge-sym (~'unquote ~'%)]
+                                               @(render
                                                  ~(compile-hfql* env& ns-map env' cont)
                                                  ~props))))
-                                             (~'unquote ~(replace* env' edge*)))
+                                            ~(replace* env' edge*))
                               ;; nil
                               }
                             `{~(quote* env& env' qedge)
@@ -173,6 +181,7 @@
          (vars default-renderer render
                list concat seq d/entity
                hfdl.lib/reactive-for
+               join-1
                hf-nav hf/->Link)))
 
 #_(let [needle @>needle
@@ -226,21 +235,28 @@
   (defn id-as-string [>v props]
     (dataflow (str @>v)))
 
-  (run-dag! (vars id-as-string str) (dataflow (-> @(hfql {(submission "") [:dustingetz/email (:db/id ::hf/render id-as-string)]})
-                                              (get '(geoffrey.fiddle-effects/submission ""))
-                                              (deref)
-                                              (:db/id)
-                                              (deref))))
+  (run-dag! (vars id-as-string str join-1)
+            (dataflow (-> (hfql {(submission "") [:dustingetz/email (:db/id ::hf/render id-as-string)]})
+                          (join-1)
+                          (deref)
+                          (get '(geoffrey.fiddle-effects/submission ""))
+                          (:db/id)
+                          (deref)
+                          )))
   := "9"
 
-
-  (defn join-all [>map]
-    (dataflow (into {} @(reactive-for (fn [[k >v]]
-                                        (dataflow [k @>v]))
-                                      ~(seq @>map)))))
-
-  (run-dag! (vars join-all) (dataflow (let [% ~9] @(join-all (hfql :db/id)))))
+  (run-dag! (vars join-1) (dataflow (let [% ~9] @(join-1 (hfql :db/id)))))
   := {:db/id 9}
+
+  (run-dag! (vars id-as-string str join-1)
+            (dataflow (-> (hfql {(submissions "") [:db/id]})
+                          (deref)
+                          (get '(geoffrey.fiddle-effects/submissions ""))
+                          (deref)
+                          (first)
+                          (:db/id)
+                          (deref))))
+  := 9
 
   ;; 3. Call into UI library.
 

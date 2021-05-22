@@ -27,6 +27,7 @@
         (.send ws (transit/encode x))
         (s nil)
         (catch :default e
+          (js/console.error e)
           (f e)))
       #())))
 
