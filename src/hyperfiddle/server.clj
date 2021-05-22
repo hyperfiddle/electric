@@ -114,7 +114,7 @@
    ~@(let [route-request @ui/>route]
        (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) route-request)
        ;; (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-output") {}) ~@@(get-fiddle route-request))
-       @(ui/mount-component-at-node! "hf-ui-root" (ui/hfql-ui ~@@(get-fiddle route-request)))
+       ~@@(get-fiddle route-request)
        nil)))
 
 (defn define-sampler [s]

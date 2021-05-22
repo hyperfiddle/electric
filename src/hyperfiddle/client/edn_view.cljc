@@ -72,7 +72,7 @@
          (lineNumbers)
          (fold/foldGutter)
          (.. EditorState -allowMultipleSelections (of true))
-         (.. EditorView -editable (of false))
+         ;; (.. EditorView -editable (of false))
          #_(if false
              ;; use live-reloading grammar
              #js[(cm-clj/syntax live-grammar/parser)
@@ -100,7 +100,7 @@
                                                             (+ (count doc) (- (count match) 2))))]
                                             :else
                                             [(str doc match) ranges])) ["" []]))
-             on-update (debounce on-update)]
+             #_#_on-update (debounce on-update)]
          (.create EditorState
            #js{:doc        doc
                :selection  (if (seq ranges)

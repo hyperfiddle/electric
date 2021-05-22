@@ -36,16 +36,16 @@
      (prn "v" v)
      ~@[::hi (pr-str v)])))
 
+(defn render-text [>a]
+  (dataflow
+   (let [a @>a]
+     ~@(do (ui/mount-component-at-node! "hf-ui-root" (ui/text ~a))
+           ::done))))
+
 (defn simple-email [needle]
   #?(:clj
-     (dataflow
-      (-> @(q/hfql
-            [{(submission needle) [(:dustingetz/email ::hf/render render-email)]}])
-          (get `(submission ~needle))
-          (deref)
-          (:dustingetz/email)
-          (deref)
-          ))))
+     #_(dataflow @(render-text (q/hfql [{(submission "") [(:dustingetz/email #_#_::hf/render render-email)]}])))
+     (render-text needle)))
 
 (defn page-submissions [needle]
   #?(:clj
@@ -72,9 +72,8 @@
                                      {:dustingetz/gender [:db/ident {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
           {(gender) [:db/ident]}]))))
 
-(def fiddles (vars page-submissions page-submission-details))
-(def exports (vars render-email
-               #_render-gender
+(def fiddles (vars page-submissions page-submission-details simple-email))
+(def exports (vars render-email render-text 
                render-with-deep-input reset! m/watch atom
                ui/picklist
                pr-str gender submission shirt-size inc q/hf-nav hf/->Input))
@@ -91,7 +90,8 @@
              ::hf/render ui/picklist
              ::hf/options (shirt-sizes dustingetz/gender))
             [:db/ident]}]}])))
-  ((system (merge q/exports exports (vars ui/picklist ui/render-table ui/render-row))
-     (debug sample (program "a"))) prn prn)
+
+  ((system (merge q/exports ui/exports exports (vars ui/picklist ui/render-table render-text' render-email ui/render-row ))
+     (debug sample (simple-email "a"))) prn prn)
   @sample
   )
