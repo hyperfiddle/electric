@@ -1,6 +1,5 @@
 (ns hyperfiddle.server
   (:require
-    ;; [hyperfiddle.server.entrypoint :as entrypoint]
     [hyperfiddle.common.transit :as transit]
     [hyperfiddle.server.websockets :as ws]                  ;; TODO restore
     [hyperfiddle.server.interceptors :as i]
@@ -14,10 +13,10 @@
     [ring.middleware.file :as file]
     [taoensso.timbre :as log]
     [missionary.core :as m]
-    [clojure.edn :as edn]
     [hfdl.impl.util :as u]
     [hfdl.lang :as d]
     [hyperfiddle.client.ui :as ui]
+    [hyperfiddle.common.routes :as common-routes]
     [hyperfiddle.client.edn-view :as ev]
     [dustin.fiddle-pages :as f]
     [hyperfiddle.q2 :as q])
@@ -101,7 +100,7 @@
 
 (def edn-view
   (d/dataflow
-    ~@(let [route-request @ui/>route]
+    ~@(let [route-request @common-routes/>route]
         (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) route-request)
         (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-output") {}) ~@@(get-fiddle route-request))
         nil)))
@@ -111,7 +110,7 @@
 
 (def ui-view
   (d/dataflow
-   ~@(let [route-request @ui/>route]
+   ~@(let [route-request @common-routes/>route]
        (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) route-request)
        ;; (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-output") {}) ~@@(get-fiddle route-request))
        ~@@(get-fiddle route-request)

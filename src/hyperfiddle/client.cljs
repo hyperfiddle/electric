@@ -1,11 +1,12 @@
 (ns hyperfiddle.client
   (:require [missionary.core :as m]
-            [clojure.edn :as edn]
             [hyperfiddle.common.transit :as transit]
             [hyperfiddle.client.ui :as ui]
             [hyperfiddle.client.edn-view :as ev]
             [hfdl.lang :as d]
-            [hyperfiddle.api :as hf])
+            [hyperfiddle.api :as hf]
+            [hyperfiddle.client.ui.demo]
+            [hyperfiddle.common.routes :as routes])
   (:require-macros [hfdl.lang :as d]))
 
 ;; TODO reconnect on failures
@@ -40,7 +41,7 @@
                                          decoded))))
       #(set! (.-onmessage ws) nil))))
 
-(def env (merge d/exports ui/exports ev/exports (d/vars prn pr-str m/watch atom hf/->Input)))
+(def env (merge d/exports ui/exports ev/exports (d/vars prn pr-str m/watch atom hf/->Input routes/>route)))
 
 (def ^:export main
   (m/sp

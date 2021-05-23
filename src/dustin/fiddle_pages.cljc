@@ -5,6 +5,7 @@
                     [hyperfiddle.q2 :as q]
                     [hfdl.lang :refer [dataflow vars system debug]]
                     [hyperfiddle.api :as hf]
+                    ;; [hyperfiddle.server.ssr :as ui]
                     [hyperfiddle.client.ui :as ui]
                     [missionary.core :as m]))
   #?(:cljs (:require [clojure.spec.alpha :as s]
@@ -83,10 +84,9 @@
 (defn render-with-deep-input [e props]
   (dataflow
    ~@(let [!needle (atom "")
-           _ (hyperfiddle.client.ui/hack !needle)
            needle @(m/watch !needle)]
        [:div
-        (ui/new-input! needle (ui/set-input! !needle))
+        ;; (ui/new-input! needle (ui/set-input! !needle))
         [::selection e]
         [::options ~@(shirt-size (:db/ident e) needle)]])))
 
@@ -113,11 +113,10 @@
      (prn "v" v)
      ~@[::hi (pr-str v)])))
 
-(defn render-text [>a]
+(defn render-text [a]
   (dataflow
-   (let [a @>a]
-     ~@(do (ui/mount-component-at-node! "hf-ui-root" (ui/text ~a))
-           ::done))))
+   ~@(do (ui/mount-component-at-node! "hf-ui-root" (ui/text ~a))
+         ::done)))
 
 (defn simple-email [needle]
   #?(:clj
@@ -152,7 +151,6 @@
 (def fiddles (vars page-submissions page-submission-details simple-email))
 (def exports (vars render-email render-text set-needle!
                render-with-deep-input reset! m/watch atom
-               ui/picklist
                pr-str gender submission shirt-size inc q/hf-nav hf/->Input))
 
 (comment
@@ -164,11 +162,11 @@
           [:db/id
            :dustingetz/email
            {((:dustingetz/gender %)
-             ::hf/render ui/picklist
+             ;; ::hf/render ui/picklist
              ::hf/options (shirt-sizes dustingetz/gender))
             [:db/ident]}]}])))
 
-  ((system (merge q/exports ui/exports exports (vars ui/picklist ui/render-table render-text' render-email ui/render-row ))
+  ((system (merge q/exports ui/exports exports (vars render-email))
      (debug sample (simple-email "a"))) prn prn)
   @sample
   )
