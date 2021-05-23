@@ -26,5 +26,17 @@
 
 (defn ^:export mount-root! []
   ((m/reactor
-    (ui/mount-component-at-node! "hf-ui-dev-root" (root >props)))
-   prn prn))
+    (m/stream! (ui/mount-component-at-node! "hf-ui-dev-root" (root >props))))
+   js/console.log js/console.error))
+
+(defn ^:export unmount-root! [task]
+  (task))
+
+(defn ^:export stress!
+  "Mount and unmount to trigger GC and track memory leaks"
+  []
+  (let [app (mount-root!)]
+    (js/setTimeout (fn []
+                     (unmount-root! app)
+                     (stress))
+                   500)))

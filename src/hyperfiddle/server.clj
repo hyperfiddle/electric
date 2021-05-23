@@ -105,9 +105,6 @@
         (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-output") {}) ~@@(get-fiddle route-request))
         nil)))
 
-(def hello-world
-  (d/dataflow ["hello" ~@ui/world]))
-
 (def ui-view
   (d/dataflow
    ~@(let [route-request @common-routes/>route]
