@@ -2,12 +2,12 @@
   (:require [hyperfiddle.client.ui :as ui :refer [tag text]]
             [missionary.core :as m]))
 
-(defn root [>needle]
+(defn root [>props]
   (let [!title (atom "Hyperfiddle UI")
         >title (m/watch !title)]
-    (tag :div {"style" "border: 1px gray solid; margin: 1rem; padding: 1rem"}
+    (tag :div (m/latest (partial merge {"style" "border: 1px gray solid; margin: 1rem; padding: 1rem"})
+                        >props)
          (tag :h1 nil (text >title))
-         (tag :pre nil (text >needle))
          (tag :input (m/latest (partial assoc {"type"        "text"
                                                "placeholder" "Change title"
                                                "className"   "hf-cm-input"
@@ -15,10 +15,16 @@
                                         "value")
                                >title)))))
 
-(def !needle (atom ""))
-(def >needle (m/watch !needle))
+(def !props (atom {}))
+(def >props (m/watch !props))
+
+(defn set-prop! [k v]
+  (swap! !props assoc k v))
+
+(defn remove-prop! [k]
+  (swap! !props dissoc k))
 
 (defn ^:export mount-root! []
   ((m/reactor
-    (ui/mount-component-at-node! "hf-ui-dev-root" (root >needle)))
+    (ui/mount-component-at-node! "hf-ui-dev-root" (root >props)))
    prn prn))

@@ -6,6 +6,7 @@
             [missionary.core :as m]
             #?(:cljs [clojure.edn :as edn])
             #?(:cljs [hyperfiddle.client.router :as router])
+            #?(:cljs [goog.dom :as dom])
             )
   #?(:cljs (:require-macros [hfdl.lang :refer [vars]])))
 
@@ -50,29 +51,28 @@
                        :will-write-to-dom? (not= v actual)})
     (when (not= v actual)
       (aset elem "hf-shadow-props" (assoc sp k v))
-      (aset elem k v))))
+      #?(:cljs (dom/setProperties elem (clj->js {(name k) v}))))))
 
 (defn patch-properties! [elem props]
   (let [old-props (shadow-props elem)
         rets      (set/difference (set (keys old-props)) (set (keys props)))]
     (when (seq rets)
-      (run! (fn [k] (.removeAttribute elem k)) rets))
+      (run! (fn [k]
+              (aset elem "hf-shadow-props" (dissoc old-props k))
+              #?(:cljs (.removeAttribute elem (name k)))) rets))
     (run! (fn [[k v]]
             (set-prop! elem k v))
           props)))
 
-(defn tag
-  ([elem] (tag elem nil nil))
-  ([elem >props] (tag elem >props nil))
-  ([elem >props & >childs]
-   (let [elem (create-tag-node elem)]
-     (when >props
-       (m/stream! (m/latest #(patch-properties! elem %) >props)))
-     (when (seq (filter identity >childs))
-       ;; if contains child -> replacechild
-       ;; else appendChild
-       (m/stream! (switch (apply m/latest #(mount elem %&) >childs))))
-     (m/ap elem))))
+(defn tag [elem >props & >childs]
+  (let [elem (create-tag-node elem)]
+    (when >props
+      (m/stream! (m/latest #(patch-properties! elem %) >props)))
+    (when (seq (filter identity >childs))
+      ;; if contains child -> replacechild
+      ;; else appendChild
+      (m/stream! (switch (apply m/latest #(mount elem %&) >childs))))
+    (m/ap elem)))
 
 (defn append-child! [parent >child]
   (m/stream! (switch (m/latest #(mount parent [%]) >child)))
