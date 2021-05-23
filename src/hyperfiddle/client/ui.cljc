@@ -6,12 +6,8 @@
             [missionary.core :as m]
             #?(:cljs [clojure.edn :as edn])
             #?(:cljs [hyperfiddle.client.router :as router])
-            #?(:cljs [goog.dom :as dom])
-            )
+            #?(:cljs [goog.dom :as dom]))
   #?(:cljs (:require-macros [hfdl.lang :refer [vars]])))
-
-;; TODO drop
-(def world #?(:clj "server" :cljs "client"))
 
 ;; TODO belongs here?
 (def change-route! #?(:cljs (comp router/set-route! edn/read-string)))
@@ -24,9 +20,13 @@
 (defn set-text-content! [elem text] #?(:cljs (set! (.-textContent elem) text)))
 
 (defn text [>text]
-  (let [elem (create-text-node "")]
-    (m/stream! (m/latest #(set-text-content! elem %) >text))
-    (m/ap elem)))
+  (m/observe
+   (fn [!]
+     (let [elem        (create-text-node "")
+           text-stream (m/stream! (m/latest #(set-text-content! elem %) >text))]
+       (! elem)
+       (fn []
+         (text-stream))))))
 
 (defn append-childs [parent items] (reduce #?(:cljs #(doto %1 (.appendChild %2))) parent items))
 (defn remove-childs [parent items] (reduce #?(:cljs #(doto %1 (.removeChild %2))) parent items))
@@ -41,8 +41,26 @@
 (defn shadow-props [elem]
   (aget elem "hf-shadow-props"))
 
+(defn prop-name
+  "See goog.dom.setProperties. https://github.com/google/closure-library/blob/master/closure/goog/dom/dom.js#L460"
+  [k]
+  (let [nom (name k)]
+    (case nom
+      "class"       "className"
+      "for"         "htmlFor"
+      "cellpadding" "cellPadding"
+      "cellspacing" "cellSpacing"
+      "colspan"     "colSpan"
+      "frameborder" "frameBorder"
+      "maxlength"   "maxLength"
+      "rowspan"     "rowSpan"
+      "usemap"      "useMap"
+      "valign"      "vAlign"
+      nom)))
+
 (defn set-prop! [elem k v]
   (let [sp     (shadow-props elem)
+        k      (prop-name k)
         actual (get sp k)]
     #_(js/console.log {:prop               k
                        :old                actual
@@ -51,34 +69,59 @@
                        :will-write-to-dom? (not= v actual)})
     (when (not= v actual)
       (aset elem "hf-shadow-props" (assoc sp k v))
-      #?(:cljs (dom/setProperties elem (clj->js {(name k) v}))))))
+      #?(:cljs (dom/setProperties elem (js-obj k v))))))
 
 (defn patch-properties! [elem props]
   (let [old-props (shadow-props elem)
         rets      (set/difference (set (keys old-props)) (set (keys props)))]
     (when (seq rets)
       (run! (fn [k]
-              (aset elem "hf-shadow-props" (dissoc old-props k))
-              #?(:cljs (.removeAttribute elem (name k)))) rets))
+              (let [k (prop-name k)]
+                (aset elem "hf-shadow-props" (dissoc old-props k))
+                #?(:cljs (.removeAttribute elem k))))
+            rets))
     (run! (fn [[k v]]
             (set-prop! elem k v))
           props)))
 
-(defn tag [elem >props & >childs]
-  (let [elem (create-tag-node elem)]
-    (when >props
-      (m/stream! (m/latest #(patch-properties! elem %) >props)))
-    (when (seq (filter identity >childs))
-      ;; if contains child -> replacechild
-      ;; else appendChild
-      (m/stream! (switch (apply m/latest #(mount elem %&) >childs))))
-    (m/ap elem)))
+;; f :: Flow {k a} -> (a -> Flow b) -> Flow {k b}
+;; join-all :: Flow {k Flow a} -> Flow {k a}
+
+;; switch :: Flow [Flow a] -> Flow [a] ; semi-lazy join
+;; This impl is eager. Using this until we get cancellation on switch.
+(defn switch' [>a]
+  (m/ap (m/?< (m/?< >a))))
+
+(defn tag [name >props & >childs]
+  (m/observe
+   (fn [!]
+     (let [elem            (create-tag-node name)
+           children-stream (when (seq (filter identity >childs))
+                             ;; if contains child -> replacechild
+                             ;; else appendChild
+                             (m/stream! (switch' (apply m/latest #(mount elem %&) >childs))))
+           props-stream    (when >props (m/stream! (m/latest #(patch-properties! elem %) >props)))]
+       (! elem)
+       (fn []
+         (when children-stream
+           (children-stream))
+         (when props-stream
+           (props-stream))
+         (run! (fn [k]
+                 #?(:cljs (.removeAttribute elem k)))
+               (set (keys (shadow-props elem))))
+         (aset elem "hf-shadow-props" nil))))))
 
 (defn append-child! [parent >child]
-  (m/stream! (switch (m/latest #(mount parent [%]) >child)))
-  parent)
+  (m/observe
+   (fn [!]
+     (let [child-stream (m/stream! (switch' (m/latest #(mount parent [%]) >child)))]
+       (! parent)
+       (fn []
+         (child-stream))))))
 
 (defn mount-component-at-node! [id >component]
   (append-child! (by-id id) >component))
 
-(def exports (vars world text tag change-route! by-id mount-component-at-node!))
+(def exports (vars text tag change-route! by-id mount-component-at-node!))
+
