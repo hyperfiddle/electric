@@ -2,7 +2,7 @@
   (:require ["./extentions" :refer [extentionsPlugin WidgetBuilder]]
             [cljs.reader :as edn]
             [hyperfiddle.api :refer [Link Input]]
-            [hyperfiddle.client.ui :as ui]
+            [geoffrey.ui-inputs :as ui]
             [hyperfiddle.common.ednish :as ednish]))
 
 (defn parseTaggedValue [str]
