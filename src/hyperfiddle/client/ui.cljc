@@ -4,10 +4,15 @@
             [hfdl.impl.switch :refer [switch]]
             [hfdl.lang :refer [#?@(:clj [vars])]]
             [missionary.core :as m]
+            [hyperfiddle.rcf :refer [tests]]
+            #?(:clj [clojure.test :as t])
             #?(:cljs [clojure.edn :as edn])
+            #?(:cljs [cljs.test :as t])
             #?(:cljs [hyperfiddle.client.router :as router])
-            #?(:cljs [goog.dom :as dom]))
-  #?(:cljs (:require-macros [hfdl.lang :refer [vars]])))
+            #?(:cljs [goog.dom :as dom])
+            #?(:cljs [goog.style :as sty]))
+  #?(:cljs (:require-macros [hfdl.lang :refer [vars]]
+                            [hyperfiddle.rcf :refer [tests]])))
 
 ;; TODO belongs here?
 (def change-route! #?(:cljs (comp router/set-route! edn/read-string)))
@@ -58,6 +63,15 @@
       "valign"      "vAlign"
       nom)))
 
+(defn set-style! [elem styles]
+  (let [old-props (shadow-props elem)
+        old-style (:style old-props)
+        rets      (set/difference (set (keys old-style)) (set (keys styles)))
+        styles'   (reduce (fn [r k] (assoc r k nil)) styles rets)]
+    (->> (assoc old-props :style styles')
+         (aset elem "hf-shadow-props"))
+    #?(:cljs (sty/setStyle elem (clj->js styles')))))
+
 (defn set-prop! [elem k v]
   (let [sp     (shadow-props elem)
         k      (prop-name k)
@@ -68,8 +82,11 @@
                        :equal?             (= v actual)
                        :will-write-to-dom? (not= v actual)})
     (when (not= v actual)
-      (aset elem "hf-shadow-props" (assoc sp k v))
-      #?(:cljs (dom/setProperties elem (js-obj k v))))))
+      (if (= "style" (name k))
+        (set-style! elem v)
+        (do
+          (aset elem "hf-shadow-props" (assoc sp k v))
+          #?(:cljs (dom/setProperties elem (js-obj k v))))))))
 
 (defn patch-properties! [elem props]
   (let [old-props (shadow-props elem)
