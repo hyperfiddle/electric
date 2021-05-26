@@ -4,7 +4,7 @@
   (:require [hyperfiddle.rcf :as rcf]))
 
 (comment
-  (rcf/with-config {:enabled false}
+  (binding [hyperfiddle.rcf/*enabled* false]
     (require '[hyperfiddle.server :refer [start-server!]])
     (require '[io.pedestal.http :as http]))
 
