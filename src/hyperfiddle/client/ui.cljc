@@ -10,7 +10,9 @@
             #?(:cljs [cljs.test :as t])
             #?(:cljs [hyperfiddle.client.router :as router])
             #?(:cljs [goog.dom :as dom])
-            #?(:cljs [goog.style :as sty]))
+            #?(:cljs [goog.style :as sty])
+            #?(:cljs [goog.events :as events])
+            [clojure.string :as str])
   #?(:cljs (:require-macros [hfdl.lang :refer [vars]]
                             [hyperfiddle.rcf :refer [tests]])))
 
@@ -43,8 +45,10 @@
      (fn []
        (remove-childs parent items)))))
 
+(defonce ^:const HF-SHADOW-PROPS (str (gensym "hf")))
+
 (defn shadow-props [elem]
-  (aget elem "hf-shadow-props"))
+  (aget elem HF-SHADOW-PROPS))
 
 (defn prop-name
   "See goog.dom.setProperties. https://github.com/google/closure-library/blob/master/closure/goog/dom/dom.js#L460"
@@ -63,30 +67,53 @@
       "valign"      "vAlign"
       nom)))
 
+(defn set-shadow-props! [elem props] (aset elem HF-SHADOW-PROPS props))
+
 (defn set-style! [elem styles]
   (let [old-props (shadow-props elem)
         old-style (:style old-props)
         rets      (set/difference (set (keys old-style)) (set (keys styles)))
         styles'   (reduce (fn [r k] (assoc r k nil)) styles rets)]
     (->> (assoc old-props :style styles')
-         (aset elem "hf-shadow-props"))
+         (set-shadow-props! elem))
     #?(:cljs (sty/setStyle elem (clj->js styles')))))
 
+(defn normalize-prop-name [k] (str/lower-case (name k)))
+(defn normalize-event-name [k] (str/replace k #"^on" ""))
+(defn event-name? [k] (str/starts-with? (normalize-prop-name k) "on"))
+
+(defn add-event-handler! [elem k f]
+  #?(:cljs
+     (let [sp         (shadow-props elem)
+           event-name (normalize-event-name k)
+           old-event  (get sp k)]
+       (when (and old-event (not= f old-event))
+         (events/unlisten elem event-name old-event))
+       (events/listen elem event-name f))))
+
+(defn remove-event-handler! [elem k]
+  #?(:cljs
+     (let [sp         (shadow-props elem)
+           event-name (normalize-event-name k)
+           old-event  (get sp k)]
+       (when old-event
+         (events/unlisten elem event-name old-event)))))
+
 (defn set-prop! [elem k v]
-  (let [sp     (shadow-props elem)
-        k      (prop-name k)
-        actual (get sp k)]
+  (let [sp (shadow-props elem)
+        k  (prop-name k)]
     #_(js/console.log {:prop               k
                        :old                actual
                        :new                v
                        :equal?             (= v actual)
                        :will-write-to-dom? (not= v actual)})
-    (when (not= v actual)
-      (if (= "style" (name k))
-        (set-style! elem v)
-        (do
-          (aset elem "hf-shadow-props" (assoc sp k v))
-          #?(:cljs (dom/setProperties elem (js-obj k v))))))))
+    (when (not= v (get sp k))
+      (cond
+        (= "style" (normalize-prop-name k)) (set-style! elem v)
+        (event-name? k)                     (do (add-event-handler! elem k v)
+                                                (set-shadow-props! elem (assoc sp k v)))
+        :else                               (do #?(:cljs (dom/setProperties elem (js-obj k v)))
+                                                (set-shadow-props! elem (assoc sp k v)))))))
 
 (defn patch-properties! [elem props]
   (let [old-props (shadow-props elem)
@@ -94,8 +121,10 @@
     (when (seq rets)
       (run! (fn [k]
               (let [k (prop-name k)]
-                (aset elem "hf-shadow-props" (dissoc old-props k))
-                #?(:cljs (.removeAttribute elem k))))
+                (set-shadow-props! elem (dissoc old-props k))
+                (if (event-name? k)
+                  (remove-event-handler! elem k)
+                  #?(:cljs (.removeAttribute elem k)))))
             rets))
     (run! (fn [[k v]]
             (set-prop! elem k v))
@@ -127,7 +156,7 @@
          (run! (fn [k]
                  #?(:cljs (.removeAttribute elem k)))
                (set (keys (shadow-props elem))))
-         (aset elem "hf-shadow-props" nil))))))
+         (set-shadow-props! elem nil))))))
 
 (defn append-child! [parent >child]
   (m/observe
@@ -142,3 +171,36 @@
 
 (def exports (vars text tag change-route! by-id mount-component-at-node!))
 
+;;;;;;;;;;;
+;; TESTS ;;
+;;;;;;;;;;;
+
+#?(:cljs
+   (do
+     (defn install-test-root! []
+       (let [root (doto (.createElement js/document "div")
+                    (.setAttribute "id" "hf-test-root"))]
+         (.appendChild js/document.body root)
+         root))
+
+     (defn make-root! [cont]
+       (prn "mount")
+       (let [root (install-test-root!)]
+         (cont)
+         (prn "unmount")
+         (.remove root)))
+
+     (t/use-fixtures :once make-root!)
+
+     (tests
+       "Simple Rendering"
+       (install-test-root!)
+       (def component (tag :p nil (text (m/ap "foo"))))
+       ((m/reactor (m/stream! (mount-component-at-node! "hf-test-root" component)))
+        js/console.log js/console.error)
+       (def node (by-id "hf-test-root"))
+       (def node-text (.-textContent node))
+       node-text := "foo"
+
+       )))
+;; (set! hyperfiddle.rcf/*enabled* true)
