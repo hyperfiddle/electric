@@ -1,7 +1,7 @@
 (ns hyperfiddle.client.ui.sugar
   (:refer-clojure :exclude [time meta]) ; replaced by html tags
   (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
+            #?(:clj [clojure.java.io :as io])
             [clojure.walk :as walk]
             [missionary.core :as m]
             [hyperfiddle.client.ui :as ui]
@@ -32,18 +32,17 @@
         `(m/ap ~props)
         `(m/latest (partial props-setter ~props ~keys) ~@vals)))))
 
-(defmacro html [body]
-  (walk/prewalk (fn [x]
-                  (if (hiccup? x)
-                    (let [[tag props & children] x
-                          props?                 (map? props)
-                          props'                 (if props? props nil)
-                          children               (filter some? (if-not props? (cons props children) children))]
-                      (if props?
-                        `(tag ~tag ~(rewrite-props props') ~@children)
-                        `(tag ~tag nil ~@children)))
-                    x))
-                body))
+(defn html* [body]
+  (if (empty? body)
+    nil
+    (let [[tag props & children] body]
+      (if (keyword? tag)
+        (if (= :text tag)
+          `(hyperfiddle.client.ui/text ~props)
+          `(hyperfiddle.client.ui/tag ~tag ~props ~@(map html* children)))
+        `(~tag ~props ~@(map html* children))))))
+
+(defmacro html [body] (html* body))
 
 (defmacro gen-tags! []
   (let [tags (:tags (edn/read-string (slurp (io/file "./resources/html_spec.edn"))))]
