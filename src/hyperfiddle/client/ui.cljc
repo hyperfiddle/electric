@@ -23,7 +23,9 @@
 ;; -----------------------------------------------------------------------
 
 (defn create-text-node [initial-value] #?(:cljs (.createTextNode js/document (str initial-value))))
-(defn create-tag-node [tag] #?(:cljs (.createElement js/document (name tag))))
+(defn create-tag-node [tag] #?(:cljs (if (= tag :html.document/fragment)
+                                       (.createDocumentFragment js/document)
+                                       (.createElement js/document (name tag)))))
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 (defn set-text-content! [elem text] #?(:cljs (set! (.-textContent elem) text)))
 
@@ -214,16 +216,20 @@
 
 (defn noop [& _])
 
-(defn component [{:keys [will-mount will-unmount render]
-                  :or   {will-mount   noop
+(defn component [{:keys [did-mount will-unmount render]
+                  :or   {did-mount    noop
                          will-unmount noop}}]
   (fn [>props & children>]
-    (switch' (m/observe
-              (fn [!]
-                (will-mount)
-                (! (apply render >props children>))
-                (fn []
-                  (will-unmount)))))))
+    (m/latest (fn [elem] (do (did-mount elem) elem))
+              (switch' (m/observe
+                        (fn [!]
+                          (let [elem (apply render >props children>)]
+                            (! elem)
+                            (fn []
+                              (will-unmount elem)))))))))
+
+(defn fragment [& children>]
+  (apply tag :html.document/fragment nil children>))
 
 (defn assoc-keys [m & kvs]
   (if (odd? (count kvs))

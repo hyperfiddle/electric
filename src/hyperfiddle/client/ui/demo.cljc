@@ -1,5 +1,5 @@
 (ns hyperfiddle.client.ui.demo
-  (:require [hyperfiddle.client.ui :as ui :refer [tag text use-state component]]
+  (:require [hyperfiddle.client.ui :as ui :refer [tag text use-state component fragment]]
             [hyperfiddle.client.ui.sugar :refer [html]]
             [missionary.core :as m]))
 
@@ -25,11 +25,13 @@
                  false))))))))
 
 (def Autocomplete
-  (component {:render (fn [>props & children>]
+  (component {:did-mount (fn [elem]
+                           (js/console.log "did-mount" elem))
+              :render (fn [>props & children>]
                         (let [id (str (gensym))]
-                          (tag :div nil
-                               (tag :input (m/latest #(assoc % :html/list id) >props))
-                               (apply tag :datalist (m/ap {:html/id id}) children>))))}))
+                          (fragment
+                           (tag :input (m/latest #(assoc % :html/list id) >props))
+                           (apply tag :datalist (m/ap {:html/id id}) children>))))}))
 
 (defn root [>props]
   (let [[>title set-title!] (use-state "Hyperfiddle UI")]
