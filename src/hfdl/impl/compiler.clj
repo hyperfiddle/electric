@@ -3,12 +3,15 @@
             [clojure.tools.analyzer.env :as env]
             [clojure.tools.analyzer.jvm :as clj]
             [clojure.tools.analyzer.utils :as utils]
-            [cljs.analyzer]
             [minitest :refer [tests]]
             [missionary.core :as m]
             [hfdl.impl.util :as u]
-            [hfdl.impl.runtime :refer [->Dataflow]])
-  (:import clojure.lang.Compiler$LocalBinding))
+            [hfdl.impl.switch :refer [switch]]
+            [cljs.analyzer :as cljs]
+            [hfdl.impl.runtime :as r])
+  (:import clojure.lang.Compiler$LocalBinding
+           cljs.tagged_literals.JSValue
+           (clojure.lang Box)))
 
 (defn out [& args]
   (doseq [arg args]
@@ -75,97 +78,6 @@
       (case n "cljs.core" "clojure.core" n))
     (name s)))
 
-(declare normalize-ast)
-
-(defn deps [[op & args]]
-  (case op
-    :apply (into #{(first args)} (second args))
-    (:remote :constant :variable) #{(first args)}
-    (:local :global) #{}))
-
-(def graphs (u/monoid u/map-into [#{} #{}]))
-
-(defn build-graphs [graphs node]
-  (if (contains? (first graphs) node)
-    graphs (let [[op & args] node]
-             (update (case op
-                       :remote (-> graphs u/swap (build-graphs (second node)) u/swap)
-                       (case op
-                         :apply (reduce build-graphs (build-graphs graphs (first args)) (second args))
-                         (:constant :variable) (build-graphs graphs (first args))
-                         (:local :global) graphs))
-               0 conj node))))
-
-(defn result [node]
-  {:result node :graphs (build-graphs (graphs) node)})
-
-(defn discard [x & ys]
-  (->> ys
-    (map :graphs)
-    (apply update x :graphs graphs)))
-
-(defn normalize-binding [r {:keys [name init]}]
-  (let [s (normalize-ast (:env r) init)]
-    (-> r
-      (update :env update 0 assoc name (:result s))
-      (discard s))))
-
-(defn normalize-par [env ctor & deps]
-  (let [dags (map (partial normalize-ast env) deps)]
-    (apply discard (result (apply ctor (map :result dags))) dags)))
-
-(defn node-apply [f & args]
-  [:apply f (vec args)])
-
-(defn node-local [x]
-  [:local x])
-
-(defn node-global [s]
-  [:global (global s)])
-
-(defn node-variable [n]
-  [:variable n])
-
-(defn node-constant [n]
-  [:constant n])
-
-(defn node-remote [n]
-  [:remote n])
-
-(defn node-if [test then else]
-  (node-variable
-    (node-apply
-      (node-global `get)
-      (node-apply
-        (node-global `hash-map)
-        (node-local nil) [:constant else]
-        (node-local false) [:constant else])
-      test [:constant then])))
-
-(defn node-case [test default & pairs]
-  (node-variable
-    (node-apply
-      (node-global `get)
-      (->> pairs
-        (partition 2)
-        (mapcat (fn [[k v]] [k [:constant v]]))
-        (apply node-apply (node-global `hash-map)))
-      test [:constant default])))
-
-(declare normalize-ast)
-
-(defn litteral-as-function
-  "Rewrite a literal to its equivalent function call form:
-  - {:a 1}  => (hash-map :a 1)
-  - [:a 1]  => (vector :a 1)
-  - #{:a 1} => (hash-set :a 1)"
-  [env {:keys [op] :as ast}]
-  (case op
-    :vector (apply normalize-par env (partial node-apply (node-global `vector))   (:items ast))
-    :set    (apply normalize-par env (partial node-apply (node-global `hash-set)) (:items ast))
-    :map    (apply normalize-par env (partial node-apply (node-global `hash-map)) (interleave (:keys ast) (:vals ast)))
-    :with-meta (apply normalize-par env (partial node-apply (node-global `with-meta)) [(:expr ast) (:meta ast)])))
-
 (defn free [env ast]
   (case (:op ast)
     (:local)
@@ -197,348 +109,166 @@
                    (if local (cons local params) params)) body)))
     (apply merge)))
 
-(def empty-env [{} {}])
+(defn emit-fn [prefix body arity]
+  (let [arg-syms (into [] (map (comp symbol (partial str (name prefix)))) (range arity))]
+    (list `fn arg-syms (apply body arg-syms))))
 
-(defn resolve-local [[l r] s]
-  (if-some [n (l s)]
-    n (if-some [n (r s)]
-        [:remote n])))
+(def remote {:client :server, :server :client})
 
-(defn normalize-ast [env {:keys [op] :as ast}]
-  (case op
-    (:const)
-    (result (node-local (:val ast)))
+(defn runtime-resolve
+  "Returns the fully qualified symbol of the var resolved by given symbol at runtime."
+  [env form]
+  (when (symbol? form)
+    (let [b (Box. true)
+          v (cljs/resolve-var env form
+              (fn [env prefix suffix]
+                (cljs/confirm-var-exists env prefix suffix
+                  (fn [_ _ _] (set! (.-val b) false)))))]
+      (when (.-val b) (:name v)))))
 
-    (:quote)
-    (result (node-local (:form ast)))
+(defn map-results [f & results]
+  (cons
+    (apply f (map first results))
+    (apply concat (map next results))))
 
-    (:local)
-    (result (or (resolve-local env (:name ast)) (node-local (:name ast))))
+(def analyze
+  (letfn [(analyze-symbol [env sym]
+            (let [res (cljs/resolve-var env sym)]
+              (case (:op res)
+                :js-var (list [:interop #(:name res)])
+                :var (list [:global (global (:name res))])
+                :local (if-some [p (::peer res)]
+                         (if (= p (::peer env))
+                           (list [:local (::tier res)])
+                           (list [:input] [:local (::tier res)]))
+                         (list [:literal (:name res)])))))
+          (analyze-literal [_ value]
+            (list [:literal `(quote ~value)]))
+          (analyze-binding [[env & res] [name init]]
+            (let [peer (::peer env)
+                  tier (peer (::tier env))]
+              (cons
+                (-> env
+                  (update ::tier assoc peer (inc tier))
+                  (update :locals update name assoc
+                    :name name ::peer peer ::tier tier))
+                (cons (analyze-form env init) res))))
+          (analyze-sexpr [env form]
+            (out :sexpr form)
+            ;; Inlining inhibition : don't macroexpand if the operator refers to a runtime var.
+            (let [exp (if (runtime-resolve env (first form))
+                        form (cljs/macroexpand-1 env form))] ;; TODO save line+column
+              (if (identical? form exp)
+                (let [[op & args] form]
+                  (case op
+                    (var case* throw try def fn* letfn* loop* recur set! ns ns* deftype* defrecord*)
+                    (throw (ex-info "Unsupported operation." {:op op :args args}))
 
-    (:map :vector :set :with-meta)
-    (litteral-as-function env ast)
+                    (let*)
+                    (let [[env & res] (reduce analyze-binding (list env) (partition 2 (first args)))]
+                      (reduce (partial map-results (fn [r x] [:share x r]))
+                        (analyze-form env (cons `do (next args))) res))
 
-    (:var)
-    (result (node-global (var-symbol ast)))
+                    (do)
+                    (->> (reverse args)
+                      (map (partial analyze-form env))
+                      (apply map-results
+                        (fn [expression & statements]
+                          (reduce (fn [r x] [:effect x r]) expression statements))))
 
-    (:static-call)
-    (let [{:keys [class method args]} ast
-          arg-syms (into [] (map (comp symbol (partial str "arg"))) (range (count args)))]
-      (apply normalize-par env
-        (partial node-apply
-          (->> arg-syms
-            (cons (symbol (.getName ^Class class) (name method)))
-            (list `fn arg-syms)
-            (node-local))) args))
+                    (if)
+                    (let [[test then else] args]
+                      (analyze-form env `(deref ((u/map-falsey (unquote ~else)) test (unquote ~then)))))
 
-    (:invoke)
-    (let [{:keys [fn args]} ast]
-      (case (var-symbol fn)
-        (clojure.core/unquote-splicing cljs.core/unquote-splicing)
-        (let [df (normalize-ast (u/swap env) (first args))]
-          (discard (result (node-remote (:result df))) (update df :graphs u/swap)))
+                    (quote)
+                    (analyze-literal env (first args))
 
-        (clojure.core/unquote cljs.core/unquote)
-        (normalize-par env node-constant (first args))
+                    (js* new)
+                    (apply map-results
+                      (partial vector :interop (partial list op (first args)))
+                      (map (partial analyze-form env) (next args)))
 
-        (clojure.core/deref cljs.core/deref)
-        (normalize-par env node-variable (first args))
+                    (.)
+                    (let [dot (cljs/build-dot-form [(first args) (second args) (nnext args)])]
+                      (->> (cons (:target dot) (:args dot))
+                        (map (partial analyze-form env))
+                        (apply map-results
+                          (partial vector :interop
+                            (case (:dot-action dot)
+                              ::cljs/call (fn [target & args] `(. ~target ~(:method dot) ~@args))
+                              ::cljs/access (fn [target] `(. ~target ~(symbol (str "-" (name (:field dot)))))))))))
 
-        (apply normalize-par env node-apply fn args)))
+                    (clojure.core/deref cljs.core/deref)
+                    (map-results (partial vector :variable) (analyze-form env (first args)))
 
-    (:do)
-    (apply discard (normalize-ast env (:ret ast))
-      (map (partial normalize-ast env) (:statements ast)))
+                    (clojure.core/unquote cljs.core/unquote)
+                    (map-results (partial vector :constant) (analyze-form env (first args)))
 
-    (:let)
-    (let [b (reduce normalize-binding {:env env :graphs (graphs)} (:bindings ast))]
-      (discard (normalize-ast (:env b) (:body ast)) b))
+                    (clojure.core/unquote-splicing cljs.core/unquote-splicing)
+                    (let [x (analyze-form (update env ::peer remote) (first args))]
+                      (list (reduce (fn [r o] [:output o r]) [:input] (next x)) (first x)))
 
-    (:if)
-    (normalize-par env node-if (:test ast) (:then ast) (:else ast))
+                    (->> (cons op args)
+                      (map (partial analyze-form env))
+                      (apply map-results (partial vector :apply)))))
+                (analyze-form env exp))))
+          (analyze-map [env form]
+            (analyze-form env `(hash-map ~(interleave (keys form) (vals form)))))
+          (analyze-vector [env form]
+            (analyze-form env `(vector ~@form)))
+          (analyze-set [env form]
+            (analyze-form env `(hash-set ~@form)))
+          (analyze-js [env form]
+            (assert nil "Not implemented : #js"))
+          (analyze-form [env form]
+            ((or
+               (and (symbol? form) analyze-symbol)
+               (and (seq? form) (seq form) analyze-sexpr)
+               (and (map? form) analyze-map)
+               (and (vector? form) analyze-vector)
+               (and (set? form) analyze-set)
+               (and (instance? JSValue form) analyze-js)
+               analyze-literal) env form))]
+    (fn [env form]
+      (-> env
+        (assoc
+          ::peer :client
+          ::tier {:client 0
+                  :server 0})
+        (analyze-form form)))))
 
-    (:case)
-    (if (= :throw (get-in ast [:default :op]))
-      (throw (new IllegalArgumentException "Please provide a default for `case`. The `throw` special form is not supported yet."))
-      (apply normalize-par env node-case (:test ast)
-             (:default ast)
-             (interleave (:tests ast)
-                         (:thens ast))))
-    (:case-test)
-    (normalize-ast env (:test ast))
+(defn emit-log-failure [form]
+  `(u/log-failure ~form))
 
-    (:case-then)
-    (normalize-ast env (:then ast))
+(defn emit! [prefix node]
+  ((fn walk! [tier [op & args]]
+     (-> (case op
+           :input `(m/signal! (r/input ~prefix))
+           :apply `(m/latest u/call ~@(map (partial walk! tier) args))
+           :share `(let [~(symbol (str (name prefix) tier))
+                         (m/signal! ~(walk! tier (first args)))]
+                     ~(walk! (inc tier) (second args)))
+           :local (symbol (str (name prefix) (first args)))
+           :global `(u/pure ~(symbol (first args)))
+           :effect `(do (m/stream! ~(walk! tier (first args)))
+                        ~(walk! tier (second args)))
+           :output `(do ((r/output-cb ~prefix) ~(walk! tier (first args)))
+                        ~(walk! tier (second args)))
+           :literal `(u/pure ~(first args))
+           :interop `(m/latest
+                       ~(emit-fn prefix (first args) (count (next args)))
+                       ~@(map (partial walk! tier) (next args)))
+           :constant `(u/pure ~(walk! tier (first args)))
+           :variable `(switch ~(walk! tier (first args))))
+       #_emit-log-failure)) 0 node))
 
-    (:fn)
-    (let [{:keys [form local methods]} ast
-          n->s (reduce-kv (fn [m l s]
-                            (if-some [n (resolve-local env l)]
-                              (assoc m n s) m)) {} (free-variables local methods))]
-      (result (apply node-apply (node-local `(fn [~@(vals n->s)] ~form)) (keys n->s))))
-
-    ;; (:throw) ;; TODO
-    ;; (:new) ;; TODO
-
-    (throw (ex-info "Unsupported form." (select-keys ast [:form])))))
-
-(def tc
-  (letfn [(walk-dep [graphs dep]
-            (if (contains? (first graphs) dep)
-              graphs (update (walk-node graphs dep) 0 conj dep)))
-          (walk-node [graphs [op & args]]
-            (case op
-              :remote (-> graphs u/swap (walk-dep (first args)) u/swap)
-              :apply (reduce walk-dep (walk-dep graphs (first args)) (second args))
-              (:constant :variable) (walk-dep graphs (first args))
-              (:local :global) graphs))]
-    (fn [graphs [l r]]
-      (reduce walk-node (u/swap (reduce walk-node (u/swap graphs) r)) l))))
-
-(defn emit [{:keys [result graphs]}]
-  (->> graphs
-    (tc [#{result} #{}])
-    (mapv u/outof graphs)
-    (list `->Dataflow result)))
-
-(defn df [env form]
-  (->> form
-    (analyze-clj env)
-    (normalize-ast empty-env)
-    (emit)))
+(defn df [prefix env form]
+  (let [[client & server] (analyze env form)]
+    `(fn [n# t#]
+       (if-some [~prefix (r/get-ctx)]
+         (do ((r/remote-cb ~prefix) (list ~@server))
+             (~(emit! prefix client) n# t#))
+         (u/failer (ex-info "Unable to find dataflow context." {}) n# t#)))))
 
 (defn vars [env forms]
   (into {} (map (comp (juxt global identity) var-symbol (partial analyze-clj env))) forms))
-
-(tests
-  "Constants"
-  (df {} 1) := (emit (result (node-local 1)))
-  (df {} [1 2]) := (emit (result (node-local [1 2])))
-  (df {} {:a 1}) := (emit (result (node-local {:a 1})))
-  (df {} #{:foo :bar}) := (emit (result (node-local #{:bar :foo}))))
-
-(tests
-  "Locals"
-  (def a 1)
-  (df {} `a) := (emit (result (node-global `a))))
-
-(tests
-  "Variables"
-  (def !a (atom 0))
-  (def a (m/watch !a))
-  (df {} `@a) := (emit (result (node-variable (node-global `a)))))
-
-(tests
-  "Vectors"
-  (def !a (atom 0))
-  (def a (m/watch !a))
-  (df {} [1 `@a])
-  :=
-  (emit
-    (result
-      (node-apply
-        (node-global `vector)
-        (node-local 1)
-        (node-variable (node-global `a))))))
-
-(tests
-  "Unification"
-  (def !a (atom 0))
-  (def a (m/watch !a))
-  (df {} `[@a @a])
-  :=
-  (emit
-    (result
-      (node-apply
-        (node-global `vector)
-        (node-variable (node-global `a))
-        (node-variable (node-global `a))))))
-
-(tests
-  "Maps"
-  (def !a (atom 0))
-  (def a (m/watch !a))
-  (df {} {:k `@a})
-  :=
-  (emit
-    (result
-      (node-apply
-        (node-global `hash-map)
-        (node-local :k)
-        (node-variable (node-global `a)))))
-
-  (df {} {`@a :v})
-  :=
-  (emit
-    (result
-      (node-apply
-        (node-global `hash-map)
-        (node-variable (node-global `a))
-        (node-local :v)))))
-
-(tests
-  "Sets"
-  (def !a (atom 0))
-  (def a (m/watch !a))
-  (df {} #{1 `@a})
-  :=
-  (emit
-    (result
-      (node-apply
-        (node-global `hash-set)
-        (node-local 1)
-        (node-variable (node-global `a))))))
-
-(tests
-  "Static calls"
-  (df {} '(java.lang.Math/sqrt 4))
-  :=
-  (emit
-    (result
-      (node-apply
-        (node-local '(clojure.core/fn [arg0] (java.lang.Math/sqrt arg0)))
-        (node-local 4)))))
-
-(tests
-  "Invoke"
-  (df {} `(str 1))
-  :=
-  (emit
-    (result
-      (node-apply
-        (node-global `str)
-        (node-local 1)))))
-
-;; Inlining is disabled for now
-#_(tests
- "Invoke inlined function"
- (dataflow {} `(inc 1))
- :=
- '(hfdl.impl.compiler/->Dataflow
-   [[:local 1]
-    [:local (clojure.core/fn [arg0] (clojure.lang.Numbers/inc arg0))]
-    [:apply 1 [0]]]
-   2))
-
-(tests
-  "Composition"
-  (df {} `(str (str 1)))
-  :=
-  (emit
-    (result
-      (node-apply
-        (node-global `str)
-        (node-apply
-          (node-global `str)
-          (node-local 1))))))
-
-(tests
-  "Do"
-  (df {} '(do 1 2))
-  :=
-  (emit (result (node-local 2)))                            ; no effect on 1, skipped.
-
-  (df {} '(do (println 1) 2))
-  :=
-  (emit (discard (result (node-local 2)) (result (node-apply (node-global `println) (node-local 1))))))
-
-(tests
-  "Let is transparent"
-  (df {} '(let [a 1] a))
-  :=
-  (emit (result (node-local 1))))
-
-(tests
-  "Let is not sequential"
-  (df {} '(let [a 1 b 2 c 3] c))
-  :=
-  (emit (discard (result (node-local 3)) (result (node-local 1)) (result (node-local 2)))))
-
-(tests
-  "Referential transparency unifies bindings"
-  (df {} '(let [a 1
-                c (str a)
-                b (str a)]
-            [c b]))
-  :=
-  (emit
-    (result
-      (node-apply
-        (node-global `vector)
-        (node-apply (node-global `str) (node-local 1))
-        (node-apply (node-global `str) (node-local 1))))))
-
-(tests
-  "If"
-  (df {} '(if (odd? 1) :odd :even))
-  :=
-  (emit
-    (result
-      (node-variable
-        (node-apply
-          (node-global `get)
-          (node-apply
-            (node-global `hash-map)
-            (node-local nil)
-            (node-constant (node-local :even))
-            (node-local false)
-            (node-constant (node-local :even)))
-          (node-apply
-            (node-global `odd?)
-            (node-local 1))
-          (node-constant (node-local :odd)))))))
-
-(tests
-  "Case"
-  (df {} '(case 1
-            (1 3) :odd
-            2 :even
-            4 :even
-            :default))
-  :=
-  (emit
-    (result
-      (node-variable
-        (node-apply (node-global `get)
-          (node-apply (node-global `hash-map)
-            (node-local 1) (node-constant (node-local :odd))
-            (node-local 2) (node-constant (node-local :even))
-            (node-local 3) (node-constant (node-local :odd))
-            (node-local 4) (node-constant (node-local :even)))
-          (node-local 1)
-          (node-constant (node-local :default)))))))
-
-(tests
-  "fn"
-  (df {} '(fn [] 1))
-  :=
-  (emit
-    (result
-      (node-apply (node-local '(clojure.core/fn [] (fn* ([] 1)))))))
-
-  (df {} '(let [a 1] (fn [] (let [f inc] (f a)))))
-  :=
-  (emit
-    (result
-      (node-apply (node-local '(clojure.core/fn [a] (fn* ([] (let [f inc] (f a))))))
-        (node-local 1)))))
-
-(tests
-  (defn form-input [])
-  (defn query [_])
-  (defn render-table [_])
-  (df {}
-    '(let [needle @(form-input)
-           results ~@@(query needle)]
-       @(render-table results)))
-  :=
-  (emit
-    (result
-      (node-variable
-        (node-apply (node-global `render-table)
-          (node-remote
-            (node-variable
-              (node-apply (node-global `query)
-                (node-remote
-                  (node-variable
-                    (node-apply (node-global `form-input))))))))))))

@@ -5,7 +5,7 @@
             [clojure.walk :as walk]
             [missionary.core :as m]
             [hyperfiddle.client.ui :as ui]
-            [hfdl.lang :refer [vars]])
+            [hfdl.lang :refer [#?(:clj vars)]])
   #?(:cljs (:require-macros [hyperfiddle.client.ui.sugar :refer [gen-tags! export-tags! html]])))
 
 (defn hiccup? [x]

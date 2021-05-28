@@ -2,14 +2,16 @@
   (:require [clojure.walk :as walk]
             [datascript.core :as d]
             [geoffrey.fiddle-effects :refer [genders shirt-sizes submissions submission submission-details]]
-            [hfdl.lang :refer [dataflow system debug vars]]
+            [hfdl.lang :refer [#?(:clj vars) #?(:clj dataflow) #?(:clj debug) system]]
             [hfdl.lib :refer [reactive-for]]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tests]]
-            [missionary.core :as m]))
+            [missionary.core :as m])
+  #?(:cljs (:require-macros [hfdl.lang :refer [dataflow]])))
 
 (defn hf-nav [kf >ref]
-  (dataflow (kf (d/entity hyperfiddle.api/*$* @>ref))))
+  #?(:cljs
+     (dataflow (kf (d/entity hyperfiddle.api/*$* @>ref)))))
 
 (defn replace* [smap coll]
   (if (seqable? coll)
@@ -21,18 +23,20 @@
     (keyword? ?form) `(hf-nav ~?form ~'%)
     (seq? ?form)     ?form))
 
+(defn map-entry [[k >v]]
+  #?(:cljs (dataflow [k @>v])))
+
 (defn join-1
   "Flow<{k, Flow<v>}> -> Flow<{k, v}>"
   [>map]
-  (dataflow (into {} @(reactive-for (fn [[k >v]]
-                                      (dataflow [k @>v]))
-                                    ~(seq @>map)))))
+  #?(:cljs (dataflow (into {} @(reactive-for map-entry ~(seq @>map))))))
 
 (defn default-renderer [>val props] ; m a -> m b
-  (if-let [a (::hf/a props)]
-    (dataflow (hf/->Link a @>val))
-    >val ; identity
-    ))
+  #?(:cljs
+     (if-let [a (::hf/a props)]
+       (dataflow (hf/->Link a @>val))
+       >val                                                 ; identity
+       )))
 
 (defn render [>val props]
   (let [render-sym (::hf/render props default-renderer)
@@ -172,17 +176,18 @@
                 qedge        (qualify env& ns-map form)]
             {`~(quote* env& env' qedge) `(render ~(compile-leaf* (replace* env' form)) ~props)})))
 
-(defmacro hfql [form]
-  (compile-hfql* &env (ns-map *ns*) {} (if-not (vector? form) [form] form)))
+#?(:clj
+   (defmacro hfql [form]
+     (compile-hfql* &env (ns-map *ns*) {} (if-not (vector? form) [form] form))))
 
 (def exports
-  (merge geoffrey.fiddle-effects/exports
-         hfdl.lang/exports
-         (vars default-renderer render
-               list concat seq d/entity
-               hfdl.lib/reactive-for
-               join-1
-               hf-nav hf/->Link)))
+  #?(:clj
+     (merge geoffrey.fiddle-effects/exports
+       (vars default-renderer render
+         list concat seq d/entity
+         hfdl.lib/reactive-for
+         join-1
+         hf-nav hf/->Link))))
 
 #_(let [needle @>needle
       x      @(hfql {(submission needle) [:dustingetz/email
@@ -191,7 +196,8 @@
   #_@(get x `(submission ""))
   x)
 
-(tests
+;; TODO test
+(comment
   (def !needle (atom ""))
   (def >needle (m/watch !needle))
 

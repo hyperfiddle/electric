@@ -1,12 +1,11 @@
 (ns hyperfiddle.client
   (:require [missionary.core :as m]
-            [hyperfiddle.common.transit :as transit]
-            [hyperfiddle.client.ui :as ui]
-            [hyperfiddle.client.edn-view :as ev]
             [hfdl.lang :as d]
-            [hyperfiddle.api :as hf]
-            [hyperfiddle.client.ui.demo]
-            [hyperfiddle.common.routes :as routes])
+            [hyperfiddle.common.transit :as transit]
+            [dustin.fiddle-pages :as f]
+            [hyperfiddle.common.routes :as common-routes]
+            [hyperfiddle.client.ui :as ui]
+            [hyperfiddle.client.edn-view :as ev])
   (:require-macros [hfdl.lang :as d]))
 
 ;; TODO reconnect on failures
@@ -41,9 +40,21 @@
                                          decoded))))
       #(set! (.-onmessage ws) nil))))
 
-(def env (merge d/exports ui/exports ev/exports (d/vars prn pr-str m/watch atom hf/->Input routes/>route)))
-
-(def ^:export main
+(defn client [app]
   (m/sp
     (let [ws (m/? connect)]
-      (m/? (d/peer env #() (writer ws) (reader ws))))))
+      (m/? (d/client app (writer ws) (reader ws))))))
+
+(def sampler)
+
+(defn define-sampler! [s]
+  (js/console.log (case s nil "booting..." "operational."))
+  (set! sampler s))
+
+(def ^:export main
+  (client
+    (d/boot define-sampler! #_f/ui-view
+      (d/dataflow
+        (let [route-request @common-routes/>route]
+          (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) ~@route-request)))
+      )))
