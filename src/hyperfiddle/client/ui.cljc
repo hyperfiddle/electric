@@ -164,6 +164,16 @@
 (defn switch' [>a]
   (m/ap (m/?< (m/?< >a))))
 
+(defn select-ns [ns m]
+  (reduce-kv (fn [r k v]
+               (if (and (keyword? k) (= ns (namespace k)))
+                 (assoc r (keyword (name k)) v)
+                 r))
+             {} m))
+
+(tests
+  (select-ns "html" {:html/id 1, :id 2}) := {:id 1})
+
 (defn tag [name >props & >childs]
   (m/observe
    (fn [!]
@@ -172,7 +182,7 @@
                              ;; if contains child -> replacechild
                              ;; else appendChild
                              (m/stream! (switch' (apply m/latest #(mount elem %&) >childs))))
-           props-stream    (when >props (m/stream! (m/latest #(patch-properties! elem %) >props)))]
+           props-stream    (when >props (m/stream! (m/latest #(patch-properties! elem (select-ns "html" %)) >props)))]
        (! elem)
        (fn []
          (when children-stream

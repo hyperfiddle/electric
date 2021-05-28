@@ -28,31 +28,31 @@
   (component {:render (fn [>props & children>]
                         (let [id (str (gensym))]
                           (tag :div nil
-                               (tag :input (m/latest #(assoc % :list id) >props))
-                               (apply tag :datalist (m/ap {:id id}) children>))))}))
+                               (tag :input (m/latest #(assoc % :html/list id) >props))
+                               (apply tag :datalist (m/ap {:html/id id}) children>))))}))
 
 (defn root [>props]
   (let [[>title set-title!] (use-state "Hyperfiddle UI")]
-    (tag :div (m/latest (partial merge {:style {:border "1px gray solid", :margin "1rem", :padding "1rem"}})
+    (tag :div (m/latest (partial merge {:html/style {:border "1px gray solid", :margin "1rem", :padding "1rem"}})
                         >props)
          (tag :h1 nil (ui/text >title))
          (tag :form nil
-              (Autocomplete (m/latest (partial assoc {:type        :text,
-                                                      :placeholder "Autocomplete title",
-                                                      :class       "hf-cm-input",
-                                                      :on-input    (fn [e]
-                                                                     (let [this (.. e -target)
-                                                                           v    (.-value this)]
-                                                                       (if (has-option? this v)
-                                                                         (do (.setCustomValidity this "")
-                                                                             (set-title! (.. e -target -value)))
-                                                                         (do (.setCustomValidity this "Please select a valid value")
-                                                                             (.. this (closest "form") (reportValidity))))))}
-                                               :value)
+              (Autocomplete (m/latest (partial assoc {:html/type        :text,
+                                                      :html/placeholder "Autocomplete title",
+                                                      :html/class       "hf-cm-input",
+                                                      :html/on-input    (fn [e]
+                                                                          (let [this (.. e -target)
+                                                                                v    (.-value this)]
+                                                                            (if (has-option? this v)
+                                                                              (do (.setCustomValidity this "")
+                                                                                  (set-title! (.. e -target -value)))
+                                                                              (do (.setCustomValidity this "Please select a valid value")
+                                                                                  (.. this (closest "form") (reportValidity))))))}
+                                               :html/value)
                                       >title)
-                            (tag :option (m/ap {:value "alice"}))
-                            (tag :option (m/ap {:value "bob"}))
-                            (tag :option (m/ap {:value "charlie"})))))))
+                            (tag :option (m/ap {:html/value "alice"}))
+                            (tag :option (m/ap {:html/value "bob"}))
+                            (tag :option (m/ap {:html/value "charlie"})))))))
 
 (def !props (atom {}))
 (def >props (m/watch !props))
