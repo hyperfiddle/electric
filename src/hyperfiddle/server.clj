@@ -16,10 +16,10 @@
     [hfdl.impl.util :as u]
     [hfdl.lang :as d]
     [hyperfiddle.client.ui :as ui]
-    [hyperfiddle.common.routes :as common-routes]
     [hyperfiddle.client.edn-view :as ev]
+    [hyperfiddle.q2 :as q]
     [dustin.fiddle-pages :as f]
-    [hyperfiddle.q2 :as q])
+    [hyperfiddle.client.ui :as ui])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)))
 
@@ -72,7 +72,7 @@
                 (throw t)))))
 
 (defn edn-reader [x]
-  (m/ap (m/? (str->edn (m/?> (u/poll x))))))
+  (m/ap (m/? (str->edn (m/? (m/?> (m/seed (repeat x))))))))
 
 (defn edn-writer [remote]
   (fn [x] (m/sp (m/? (ws/write-str remote (m/? (edn->str x)))))))
@@ -80,50 +80,13 @@
 (defn start! [task]
   (task prn u/pst))
 
-(defn fiddle-error [route error]
-  (m/ap {:route route :error error}))
-
-(defn get-fiddle [route]
-  (if (seq? route)
-    (if-some [[f & args] (seq route)]
-      (if (symbol? f)
-        (if-some [fiddle (f/fiddles (keyword "dustin.fiddle-pages" (name f)))]
-          (try (apply fiddle args)
-               (catch Throwable _
-                 (fiddle-error route :internal)))
-          (fiddle-error route :not-found))
-        (fiddle-error route :invalid-not-symbol))
-      (fiddle-error route :invalid-empty))
-    (fiddle-error route :invalid-not-seq)))
-
-(def env (merge d/exports q/exports ui/exports (d/vars prn get-fiddle) dustin.fiddle-pages/exports))
-
-(def edn-view
-  (d/dataflow
-    ~@(let [route-request @common-routes/>route]
-        (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) route-request)
-        (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-output") {}) ~@@(get-fiddle route-request))
-        nil)))
-
-(def ui-view
-  (d/dataflow
-   ~@(let [route-request @common-routes/>route]
-       (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) route-request)
-       ;; (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-output") {}) ~@@(get-fiddle route-request))
-       ~@@(get-fiddle route-request)
-       nil)))
-
-(defn define-sampler [s]
-  (println (case s nil :reset :ready))
-  (def sampler s))
-
 (defn ws-paths [_config]
   {"/echo" (fn [_request]
              (fn [remote read-str read-buf closed]
                (start! (m/sp (loop [] (m/? (ws/write-str remote (m/? read-str))) (recur))))))
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
-               (start! (d/peer env (d/boot define-sampler ui-view) (edn-writer remote) (edn-reader read-str)))))})
+               (start! (d/server f/exports (edn-writer remote) (edn-reader read-str)))))})
 
 (defn gzip-handler [& methods]
   (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))
@@ -166,5 +129,4 @@
 (comment
   (def server (start-server! default-config))
   (http/stop server)
-  @sampler
   )

@@ -1,21 +1,16 @@
 (ns hfdl.lang
   (:require #?(:clj [hfdl.impl.compiler :as c])
-            [hfdl.impl.trace :as t]
+            [hfdl.impl.runtime :as r]
             [hfdl.impl.util :as u]
             [hfdl.impl.sampler :refer [sampler!]]
             [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hfdl.lang :refer [vars]])))
-
-#?(:clj
-   (defmacro remote [& body]
-     `(unquote-splicing (do ~@body))))
+            [hyperfiddle.rcf :refer [tests]]))
 
 #?(:clj
    (defmacro dataflow
      "Defines a dataflow program from given HFDL expressions, in an implicit `do`."
      [& body]
-     (c/df &env (cons `do body))))
+     (c/df (gensym) &env (cons `do body))))
 
 #?(:clj
    (defmacro vars "
@@ -23,9 +18,8 @@ Turns an arbitrary number of symbols resolving to vars into a map associating th
 of this var to the value currently bound to this var.
 " [& forms] (c/vars &env forms)))
 
-(def exports (vars apply vector hash-map first next seq get keyword nil? m/relieve))
-
-(def peer t/peer)
+(def client r/client)
+(def server r/server)
 
 (defn boot [f d]
   (fn []
@@ -62,47 +56,16 @@ of this var to the value currently bound to this var.
 
   )
 
-#?(:clj
-   (defmacro df [& body]
-     `(:expression (dataflow ~@body))))
-
-(defn shell [s f]
-  (let [in (m/mbx)
-        out (m/rdv)
-        cancel ((peer u/nop out (u/poll in)) s f)]
-    (fn
-      ([] (cancel))
-      ([e] (in e))
-      ([s f] (out s f)))))
-
-(comment
-
-  (def $ (shell prn prn))
-  ($ (sample #{(df (* 6 7))}))
-  (m/? $) := (change {(df (* 6 7)) 42})
-
-  ($ (sample #{(df (* 6 (remote 7)))}))
-  (m/? $) := (sample #{(df 7)})
-
-  ($ (change {(df 7) 7}))
-  (m/? $) := (change {(df (* 6 (remote 7))) 42})
-
-  ($ (change {(df 7) 8}))
-  (m/? $) := (change {(df (* 6 (remote 7))) 48})
-  )
-
-
-
 (defn system [resolve boot]
   ; test emulator of distributed system
   (m/sp
     (let [l->r (m/rdv)
           r->l (m/rdv)]
       (m/? (m/join vector
-             (peer resolve #() (-> r->l #_(u/log-args 'r->l)) (u/poll l->r))
-             (peer resolve boot (-> l->r #_(u/log-args 'l->r)) (u/poll r->l)))))))
+             (server resolve (-> r->l #_(u/log-args 'r->l)) (u/poll l->r))
+             (client boot (-> l->r #_(u/log-args 'l->r)) (u/poll r->l)))))))
 
-(tests
+(comment
 
   (def !a1 (atom 6))
   (def !a2 (atom 7))
@@ -127,7 +90,7 @@ of this var to the value currently bound to this var.
 
   )
 
-(tests
+(comment
   (def !input (atom "alice"))
   (defn form-input [] (m/watch !input))
   (defn render-table [>x] (m/relieve {}
@@ -165,31 +128,4 @@ of this var to the value currently bound to this var.
   @sampler := nil
   ; :render-table ["bob"]
   )
-
-
-
-#_
-    (defn dbg! ;; Follow the pr/print and  prn/println clojure.core idiom.
-      "Runs given dataflow program in debug mode and returns a process instance.
-      `dbg!` is for machines, use `debug!` for a human-friendly representation."
-      ([program]      (dbg! program {}))
-      ([program opts] (d/debug! program opts)))
-
-#_
-    (defn debug!
-      "Runs given dataflow program in debug mode and returns a human-readable process
-      instance."
-      [program]
-      (dbg! program {:source-mapped true}))
-
-#_
-    (defn heap-dump [process]
-      (reduce merge (map meta (:log process))))
-
-#_
-    (defn result
-      ([process-snapshot]
-       (result (:program (meta process-snapshot)) process-snapshot))
-      ([program process-snapshot]
-       (get (heap-dump process-snapshot) [(:result program)])))
 

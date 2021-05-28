@@ -1,6 +1,6 @@
 (ns hyperfiddle.common.base64
-  (:require [clojure.string :as str])
-  #?(:cljs (:require [goog.crypt.base64 :as base64]))
+  (:require [clojure.string :as str]
+            #?(:cljs [goog.crypt.base64 :as base64]))
   #?(:clj (:import (java.util Base64))))
 
 (defn encode-string [s]

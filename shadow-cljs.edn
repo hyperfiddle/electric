@@ -1,4 +1,4 @@
-{:deps     {:aliases [:dev :edn-view :server]}
+{:deps     {:aliases [:dev :edn-view]}
  :nrepl    {:port 9001}
  :builds   {:app {:target           :browser
                   :devtools         {:watch-dir  "resources/public"

@@ -15,15 +15,17 @@
           IFn (#?(:clj invoke :cljs -invoke) [_])
           IDeref (#?(:clj deref :cljs -deref) [_] (t) x))))
 
-(defn failer [e]
-  (fn [n t]
-    (n) (reify
-          IFn (#?(:clj invoke :cljs -invoke) [_])
-          IDeref (#?(:clj deref :cljs -deref) [_] (t) (throw e)))))
+(defn failer [e n t]
+  (n) (reify
+        IFn (#?(:clj invoke :cljs -invoke) [_])
+        IDeref (#?(:clj deref :cljs -deref) [_] (t) (throw e))))
 
 (def outof (partial reduce disj))
 (def map-into (partial mapv into))
 (def swap (juxt second first))
+
+(defn map-falsey [x]
+  {nil x false x})
 
 (defn monoid [f i]
   (fn

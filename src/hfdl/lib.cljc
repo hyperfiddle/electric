@@ -1,8 +1,9 @@
 (ns hfdl.lib
-  (:require [hfdl.lang :refer [dataflow]]
+  (:require [hfdl.lang :refer [#?(:clj dataflow)]]
             [hfdl.impl.rfor :refer [rfor]]
             [missionary.core :as m])
-  #?(:clj (:import (clojure.lang Box))))
+  #?(:clj (:import (clojure.lang Box)))
+  #?(:cljs (:require-macros [hfdl.lang :refer [dataflow]])))
 
 #?(:clj
    (defmacro $ [f & args]

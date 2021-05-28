@@ -1,19 +1,17 @@
 (ns dustin.fiddle-pages
-  #?(:clj (:require [clojure.spec.alpha :as s]
-                    [geoffrey.fiddle-effects :refer [submissions genders shirt-sizes submission-details
-                                                     submission gender shirt-size]]
-                    [hyperfiddle.q2 :as q]
-                    [hfdl.lang :refer [dataflow vars system debug]]
-                    [hyperfiddle.api :as hf]
-                    ;; [hyperfiddle.server.ssr :as ui]
-                    [hyperfiddle.client.ui :as ui]
-                    [missionary.core :as m]))
-  #?(:cljs (:require [clojure.spec.alpha :as s]
-                     [hyperfiddle.api :as hf]
-                     [dustin.fiddle]
-                     [missionary.core :as m]
-                     [hyperfiddle.client.ui :as ui]))
-  #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
+  (:require [clojure.spec.alpha :as s]
+            [geoffrey.fiddle-effects :refer [submissions genders shirt-sizes submission-details
+                                             submission gender shirt-size]]
+            [hfdl.lang :refer [#?(:clj vars) #?(:clj debug) system]]
+            [hyperfiddle.api :as hf]
+    ;; [hyperfiddle.server.ssr :as ui]
+            [hyperfiddle.client.ui :as ui]
+            [missionary.core :as m]
+            [hyperfiddle.client.edn-view :as ev]
+            [hyperfiddle.q2 :as q]
+            [hyperfiddle.common.routes :as common-routes])
+  #?(:cljs (:require-macros [hfdl.lang :refer [dataflow]]
+                            [hyperfiddle.q2 :refer [hfql]])))
 
 (s/fdef page-submissions :args (s/cat :needle string?))
 
@@ -82,13 +80,14 @@
 
 
 (defn render-with-deep-input [e props]
-  (dataflow
-   ~@(let [!needle (atom "")
-           needle @(m/watch !needle)]
-       [:div
-        ;; (ui/new-input! needle (ui/set-input! !needle))
-        [::selection e]
-        [::options ~@(shirt-size (:db/ident e) needle)]])))
+  #?(:cljs
+     (dataflow
+       ~@(let [!needle (atom "")
+               needle @(m/watch !needle)]
+           [:div
+            ;; (ui/new-input! needle (ui/set-input! !needle))
+            [::selection e]
+            [::options ~@(shirt-size (:db/ident e) needle)]]))))
 
 ;; (defn render-with-deep-input [e {:keys [>options]}]
 ;;   (dataflow
@@ -108,25 +107,27 @@
 
 (defn render-email [>v props]
   (prn 'render-email >v props)
-  (dataflow
-   (let [v @>v]
-     (prn "v" v)
-     ~@[::hi (pr-str v)])))
+  #?(:cljs
+     (dataflow
+       (let [v @>v]
+         (prn "v" v)
+         ~@[::hi (pr-str v)]))))
 
 (defn render-text [a]
-  (dataflow
-   ~@(do (ui/mount-component-at-node! "hf-ui-root" (ui/text ~a))
-         ::done)))
+  #?(:cljs
+     (dataflow
+       ~@(do (ui/mount-component-at-node! "hf-ui-root" (ui/text ~a))
+             ::done))))
 
 (defn simple-email [needle]
   #?(:clj
-     #_(dataflow @(render-text (q/hfql [{(submission "") [(:dustingetz/email #_#_::hf/render render-email)]}])))
+     #_(dataflow @(render-text (hfql [{(submission "") [(:dustingetz/email #_#_::hf/render render-email)]}])))
      (render-text needle)))
 
 (defn page-submissions [needle]
-  #?(:clj
+  #?(:cljs
      (dataflow
-       (q/hfql
+       (hfql
          [{(submissions needle)
            [(:db/id ::hf/a (dustin.fiddle-pages/page-submission-details %)) ;; TODO expand sym
             (:dustingetz/email ::hf/render render-email)
@@ -139,19 +140,58 @@
           {(gender) [:db/ident]}]))))
 
 (defn page-submission-details [eid]
-  #?(:clj
+  #?(:cljs
      (dataflow
-       (q/hfql
+       (hfql
          [{(submission-details eid) [:db/id
                                      :dustingetz/email
                                      :dustingetz/shirt-size
                                      {:dustingetz/gender [:db/ident {(shirt-sizes dustingetz/gender) [:db/ident]}]}]}
           {(gender) [:db/ident]}]))))
 
-(def fiddles (vars page-submissions page-submission-details simple-email))
-(def exports (vars render-email render-text set-needle!
-               render-with-deep-input reset! m/watch atom
-               pr-str gender submission shirt-size inc q/hf-nav hf/->Input))
+(def fiddles
+  #?(:clj (vars page-submissions page-submission-details simple-email)))
+
+(defn fiddle-error [route error]
+  #?(:clj (m/ap {:route route :error error})))
+
+(defn get-fiddle [route]
+  #?(:clj
+     (if (seq? route)
+       (if-some [[f & args] (seq route)]
+         (if (symbol? f)
+           (if-some [fiddle (fiddles (keyword "dustin.fiddle-pages" (name f)))]
+             (try (apply fiddle args)
+                  (catch Throwable _
+                    (fiddle-error route :internal)))
+             (fiddle-error route :not-found))
+           (fiddle-error route :invalid-not-symbol))
+         (fiddle-error route :invalid-empty))
+       (fiddle-error route :invalid-not-seq))))
+
+
+(def edn-view
+  #?(:cljs
+     (dataflow
+       (let [route-request @common-routes/>route]
+         (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) route-request)
+         (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-output") {}) ~@@(get-fiddle route-request))
+         nil))))
+
+(def ui-view
+  #?(:cljs
+     (dataflow
+       (let [route-request @common-routes/>route]
+         (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) route-request)
+         ;; (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-output") {}) ~@@(get-fiddle route-request))
+         ~@@(get-fiddle route-request)
+         nil))))
+
+(def exports
+  #?(:clj (merge q/exports
+            (vars render-email render-text set-needle!
+              render-with-deep-input reset! m/watch atom get-fiddle prn
+              pr-str gender submission shirt-size inc q/hf-nav hf/->Input))))
 
 (comment
   (require '[hfdl.lang :refer [system debug]])
