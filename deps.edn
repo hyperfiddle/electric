@@ -32,7 +32,9 @@
                                  io.pedestal/pedestal.service     {:mvn/version "0.5.5"}
                                  org.apache.commons/commons-lang3 {:mvn/version "3.8.1"}
                                  com.cognitect/transit-clj        {:mvn/version "0.8.313"}
-                                 com.datomic/datomic-free {:mvn/version "0.9.5656" :exclusions [org.slf4j/slf4j-nop]}}}
+                                 com.datomic/datomic-free {:mvn/version "0.9.5656"
+                                                           :exclusions [org.slf4j/slf4j-nop
+                                                                        com.google.guava/guava]}}}
            :cider {:extra-deps {com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.0"}
                                 nrepl/nrepl                               {:mvn/version "0.8.3"}
                                 refactor-nrepl/refactor-nrepl             {:mvn/version "2.5.0"}
