@@ -125,7 +125,7 @@
      (render-text needle)))
 
 (defn page-submissions [needle]
-  #?(:cljs
+  #_(:cljs
      (dataflow
        (hfql
          [{(submissions needle)
@@ -140,7 +140,7 @@
           {(gender) [:db/ident]}]))))
 
 (defn page-submission-details [eid]
-  #?(:cljs
+  #_(:cljs
      (dataflow
        (hfql
          [{(submission-details eid) [:db/id
