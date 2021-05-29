@@ -1,5 +1,5 @@
 (ns hyperfiddle.client.ui.demo
-  (:require [hyperfiddle.client.ui :as ui :refer [tag text use-state component fragment]]
+  (:require [hyperfiddle.client.ui :as ui :refer [tag text use-state component]]
             [hyperfiddle.client.ui.sugar :refer [html]]
             [missionary.core :as m]))
 
@@ -29,7 +29,7 @@
                            (js/console.log "did-mount" elem))
               :render (fn [>props & children>]
                         (let [id (str (gensym))]
-                          (fragment
+                          (tag :<> nil
                            (tag :input (m/latest #(assoc % :html/list id) >props))
                            (apply tag :datalist (m/ap {:html/id id}) children>))))}))
 
