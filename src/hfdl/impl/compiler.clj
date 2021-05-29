@@ -45,6 +45,19 @@
        (symbol? form) (clj/desugar-symbol form env)
        :else form))))
 
+
+(defn runtime-resolve
+  "Returns the fully qualified symbol of the var resolved by given symbol at runtime."
+  [env form]
+  (when (symbol? form)
+    (let [b (Box. true)
+          v (cljs/resolve-var env form
+              (fn [env prefix suffix]
+                (cljs/confirm-var-exists env prefix suffix
+                  (fn [_ _ _] (set! (.-val b) false)))))]
+      (when (.-val b) (:name v)))))
+
+
 (def analyze-clj
   (let [scope-bindings
         (partial reduce-kv
@@ -59,15 +72,12 @@
                               :name symbol}))
                        binding))) {})]
     (fn [env form]
-      (if (:js-globals env)
-        (binding [cljs.env/*compiler* (or cljs.env/*compiler* (cljs.env/default-compiler-env))]
-          (cljs.analyzer/analyze env form nil nil))
-        (binding [clj/run-passes clj/scheduled-default-passes]
-          (clj/analyze form
-            (->> env
-              (scope-bindings)
-              (update (clj/empty-env) :locals merge))
-            {:bindings {#'ana/macroexpand-1 macroexpand-1'}}))))))
+      (binding [clj/run-passes clj/scheduled-default-passes]
+        (clj/analyze form
+          (->> env
+            (scope-bindings)
+            (update (clj/empty-env) :locals merge))
+          {:bindings {#'ana/macroexpand-1 macroexpand-1'}})))))
 
 (defn var-symbol [ast]
   (case (:op ast) :var (or (:name ast) (symbol (:var ast))) nil))
@@ -114,17 +124,6 @@
     (list `fn arg-syms (apply body arg-syms))))
 
 (def remote {:client :server, :server :client})
-
-(defn runtime-resolve
-  "Returns the fully qualified symbol of the var resolved by given symbol at runtime."
-  [env form]
-  (when (symbol? form)
-    (let [b (Box. true)
-          v (cljs/resolve-var env form
-              (fn [env prefix suffix]
-                (cljs/confirm-var-exists env prefix suffix
-                  (fn [_ _ _] (set! (.-val b) false)))))]
-      (when (.-val b) (:name v)))))
 
 (defn map-results [f & results]
   (cons
@@ -264,6 +263,7 @@
 
 (defn df [prefix env form]
   (let [[client & server] (analyze env form)]
+    (out client server)
     `(fn [n# t#]
        (if-some [~prefix (r/get-ctx)]
          (do ((r/remote-cb ~prefix) (list ~@server))
@@ -271,4 +271,9 @@
          (u/failer (ex-info "Unable to find dataflow context." {}) n# t#)))))
 
 (defn vars [env forms]
-  (into {} (map (comp (juxt global identity) var-symbol (partial analyze-clj env))) forms))
+  (into {} (map
+             (comp (juxt global identity)
+               (if (:js-globals env)
+                 (partial runtime-resolve env)
+                 (comp var-symbol (partial analyze-clj env)))))
+    forms))
