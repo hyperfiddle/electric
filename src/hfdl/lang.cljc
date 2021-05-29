@@ -4,7 +4,8 @@
             [hfdl.impl.util :as u]
             [hfdl.impl.sampler :refer [sampler!]]
             [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests]])
+            [hyperfiddle.rcf :refer [tests]]
+            [clojure.string :as str])
   #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
 
 (defmacro dataflow
@@ -64,24 +65,41 @@ of this var to the value currently bound to this var.
              (server resolve (-> r->l #_(u/log-args 'r->l)) (u/poll l->r))
              (client boot (-> l->r #_(u/log-args 'l->r)) (u/poll r->l)))))))
 
-(tests
+#?(:cljs
+   (tests
 
-  (def !a1 (atom 6))
-  (def !a2 (atom 7))
+     (def !a1 (atom 6))
+     (def !a2 (atom 7))
 
-  (def env (vars * m/watch !a1 !a2))
-  (def dag (dataflow (* @(m/watch !a1) @(m/watch !a2))))
+     (def env (vars * m/watch !a1 !a2))
+     (def dag (dataflow (* @(m/watch !a1) @(m/watch !a2))))
 
-  ; repl server – run for effects but with hook for user to read the result at some time
-  (def system-task (system env (fn [] (sampler! #(def sampler %) dag))))
-  (system-task prn prn)                                     ; runs forever
-  @sampler := 42
-  @sampler := 42
+     ; repl server – run for effects but with hook for user to read the result at some time
+     (def system-task (system env (fn [] (sampler! #(def sampler %) dag))))
+     (system-task prn prn)                                  ; runs forever
+     @sampler := 42
+     @sampler := 42
 
-  (swap! !a1 inc)
-  @sampler := 49
+     (swap! !a1 inc)
+     @sampler := 49
 
-  )
+     ))
+
+#?(:cljs
+   (tests
+
+     (def !needle (atom "alice"))
+     (def dag
+       (dataflow
+         (let [needle @(m/watch !needle)]
+           ~@(str/upper-case needle))))
+     ((system (vars str/upper-case)
+        (fn [] (sampler! #(def sampler %) dag))) prn prn)
+     @sampler := "ALICE"
+     (reset! !needle "bob")
+     @sampler := "BOB"
+
+     ))
 
 (comment
   (def !input (atom "alice"))
