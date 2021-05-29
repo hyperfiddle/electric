@@ -2,7 +2,7 @@
   (:require [clojure.walk :as walk]
             [datascript.core :as d]
             [geoffrey.fiddle-effects :refer [genders shirt-sizes submissions submission submission-details]]
-            [hfdl.lang :refer [#?(:clj vars) #?(:clj dataflow) #?(:clj debug) system]]
+            [hfdl.lang :refer [vars #?(:clj dataflow) debug system]]
             [hfdl.lib :refer [reactive-for]]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tests]]
