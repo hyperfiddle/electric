@@ -23,7 +23,7 @@
 ;; -----------------------------------------------------------------------
 
 (defn create-text-node [initial-value] #?(:cljs (.createTextNode js/document (str initial-value))))
-(defn create-tag-node [tag] #?(:cljs (if (= tag :html.document/fragment)
+(defn create-tag-node [tag] #?(:cljs (if (= tag :<>)
                                        (.createDocumentFragment js/document)
                                        (.createElement js/document (name tag)))))
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
@@ -227,10 +227,6 @@
                             (! elem)
                             (fn []
                               (will-unmount elem)))))))))
-
-(defn fragment [& children>]
-  (apply tag :html.document/fragment nil children>))
-
 (defn assoc-keys [m & kvs]
   (if (odd? (count kvs))
     (throw (ex-info "assoc-kvs takes an even number of key-values" {:m   m
