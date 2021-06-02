@@ -212,7 +212,7 @@
                       (apply map-results (partial vector :apply)))))
                 (analyze-form env exp))))
           (analyze-map [env form]
-            (analyze-form env `(hash-map ~(interleave (keys form) (vals form)))))
+            (analyze-form env `(hash-map ~@(interleave (keys form) (vals form)))))
           (analyze-vector [env form]
             (analyze-form env `(vector ~@form)))
           (analyze-set [env form]
