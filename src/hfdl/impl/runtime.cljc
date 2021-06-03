@@ -80,8 +80,8 @@
   (m/ap
     (m/amb=
       (cons {} (m/?> remote))
-      (let [out (m/?= output)]
-        (list (hash-map (out-id! handler) (m/?> out))))
+      (let [[k v] (m/seed (m/?= output))]
+        (list (hash-map k (m/?> v))))
       (do (boot) (dispatch-all! handler (m/?> in)) (m/amb>)))))
 
 (defn client [boot write >read]
@@ -93,8 +93,11 @@
         (bind-ctx context)
         (m/stream!)
         (client-handler
-          (m/observe (fn [!] (aset context (int 1) !) u/nop))
-          (m/observe (fn [!] (aset context (int 2) !) u/nop))
+          (->> (m/observe (fn [!] (aset context (int 1) !) u/nop))
+            (m/relieve concat))
+          (->> (m/observe (fn [!] (aset context (int 2)
+                                    (fn [f] (! {(out-id! handler) f}))) u/nop))
+            (m/relieve merge))
           (bind context boot) handler)
         (m/relieve collapse)
         (m/stream!)
