@@ -1,4 +1,5 @@
 (ns hfdl.lang
+  (:refer-clojure :exclude [for eval])
   (:require #?(:clj [hfdl.impl.compiler :as c])
             [hfdl.impl.runtime :as r]
             [hfdl.impl.util :as u]
@@ -8,18 +9,43 @@
             [clojure.string :as str])
   #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
 
-(defmacro dataflow
-  "Defines a dataflow program from given HFDL expressions, in an implicit `do`."
-  [& body]
-  (c/df (gensym) &env (cons `do body)))
+;; TODO variadic
+(defmacro defnode "" [sym & decl]
+  (let [args (gensym)]
+    `(defmacro ~sym [& ~args]
+       (c/node ~(name (ns-name *ns*))
+         ~(name sym) (quote ~decl) ~args))))
+
+(defmacro main [& body]
+  (c/main (gensym) &env (cons `do body)))
+
+(defmacro for [bindings & body]
+  (if-some [[s v & bindings] (seq bindings)]
+    `(r/prod {s# ~v} (let [~s s#] (for ~bindings ~@body)))
+    `(do ~@body)))
 
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
 of this var to the value currently bound to this var.
 " [& forms] (c/vars &env forms))
 
-(def client r/client)
-(def server r/server)
+(def peer r/peer)
+(def eval r/eval)
+
+(defmacro system [vars & body]
+  `(let [[c# s#] (main ~@body)
+         s# (eval ~vars s#)]
+     (m/sp
+       (let [c->s# (m/rdv)
+             s->c# (m/rdv)]
+         (m/? (m/join {}
+                (peer s# (-> s->c# (u/log-args 'r->l)) (u/poll c->s#))
+                (peer c# (-> c->s# (u/log-args 'l->r)) (u/poll s->c#))))))))
+
+(comment
+  ((system (vars) (prn 42)) prn prn)
+
+  )
 
 (defn boot [f d]
   (fn []
@@ -55,15 +81,6 @@ of this var to the value currently bound to this var.
   @sampler
 
   )
-
-(defn system [resolve boot]
-  ; test emulator of distributed system
-  (m/sp
-    (let [l->r (m/rdv)
-          r->l (m/rdv)]
-      (m/? (m/join vector
-             (server resolve (-> r->l #_(u/log-args 'r->l)) (u/poll l->r))
-             (client boot (-> l->r #_(u/log-args 'l->r)) (u/poll r->l)))))))
 
 #?(:cljs
    (tests

@@ -1,158 +1,206 @@
-(ns hfdl.impl.runtime
+(ns ^{:doc ""}
+  hfdl.impl.runtime
+  (:refer-clojure :exclude [eval])
   (:require [hfdl.impl.util :as u]
-            [hfdl.impl.switch :refer [switch]]
+            [hfdl.impl.switch :as s]
+            [hfdl.impl.rfor :refer [rfor]]
             [missionary.core :as m])
   #?(:clj (:import (clojure.lang IFn IDeref)))
   #?(:cljs (:require-macros [hfdl.impl.runtime :refer [with-ctx get-ctx]])))
 
-(def context #?(:clj (ThreadLocal.)))
+(def prod)
+(def node)
 
-#?(:clj
-   (defmacro get-ctx []
-     (if (:js-globals &env)
-       `context
-       `(.get ~(with-meta `context {:tag `ThreadLocal})))))
+;; context
+;; 0: root frame
+;; 1: request callback
+;; 2: publish callback
 
-#?(:clj
-   (defmacro set-ctx [c]
-     (if (:js-globals &env)
-       `(set! context ~c)
-       `(.set ~(with-meta `context {:tag `ThreadLocal}) ~c))))
+;; frame
+;; 0: static vector of nested classes
+;; 1: static vector of signals
+;; 2: static vector of inputs
+;; 3: static counter of outputs
 
-#?(:clj
-   (defmacro with-ctx [ctx & body]
-     `(let [ctx# (get-ctx)]
-        (set-ctx ~ctx)
-        (try ~@body (finally (set-ctx ctx#))))))
+;; inner
+;; 0: dynamic map from frame id to frame
+;; 1: id of next frame constructed
+;; 2: frame constructor
 
-(deftype ContextBound [context target]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_]
-    (with-ctx context (target)))
-  IDeref
-  (#?(:clj deref :cljs -deref) [_]
-    (with-ctx context @target)))
+(defn child [r x]
+  (get (aget r (int 0)) x))
 
-(def bind ->ContextBound)
+(defn child-in [context path]
+  (reduce child (aget context (int 0)) path))
 
-(defn bind-ctx [ctx flow]
-  (fn [n t] (bind ctx (flow (bind ctx n) (bind ctx t)))))
+;; TODO
+(defn cancel-frame [fr]
+  (reduce
+    (fn [_ in]
+      (reduce-kv (fn [_ _ fr] (cancel-frame fr))
+        nil (aget in (int 0))))
+    nil (aget fr (int 0)))
+  (reduce (fn [_ x]) nil (aget fr 1))
+  (reduce (fn [_ x]) nil (aget fr 2)))
 
-(defn handler []
-  (doto (object-array 3)
-    (aset (int 0) 0)
-    (aset (int 1) 0)
-    (aset (int 2) {})))
+(defn inner [context path ctor]
+  (let [frame (child-in context path)
+        slots (aget frame (int 0))]
+    (doto (object-array 3)
+      (aset (int 0) {})
+      (aset (int 1) 0)
+      (aset (int 2) ctor)
+      (->> (conj slots)
+        (aset frame (int 0))))
+    (conj path (count slots))))
 
-(defn dispatch! [store id value]
-  ((store id) value) store)
+(defn frame []
+  (doto (object-array 4)
+    (aset (int 0) [])
+    (aset (int 1) [])
+    (aset (int 2) [])
+    (aset (int 3) 0)))
 
-(defn dispatch-all! [handler changes]
-  (reduce-kv dispatch! (aget handler (int 2)) changes) nil)
+(defn allocate [context path]
+  (let [in (child-in context path)
+        id (aget in (int 1))]
+    (aset in (int 0)
+      (assoc (aget in (int 0))
+        id (frame)))
+    (aset in (int 1) (inc id))
+    (conj path id)))
 
-(defn out-id! [handler]
-  (doto (aget handler (int 0))
-    (->> inc (aset handler (int 0)))))
+(defn steady [x]
+  (m/observe (fn [!] (! x) u/nop)))
 
-(defn in-flow [handler]
-  (->> (fn [!]
-         (let [id (aget handler (int 1))]
-           (aset handler (int 1) (inc id))
-           (aset handler (int 2) (assoc (aget handler (int 2)) id !))
-           #(aset handler (int 2) (dissoc (aget handler (int 2)) id))))
-    (m/observe)
-    (m/relieve {})))
+(defn spawn [context path & args]
+  (let [inner (child-in context path)
+        request (aget context (int 1))]
+    (request path)
+    (let [path (allocate context path)
+          flow (apply (aget inner (int 2)) path (map steady args))]
+      (fn [n t]
+        (flow n
+          #(do (cancel-frame (child-in context path))
+               (request path) (t)))))))
 
-(defn collapse [x y]
-  (cons (merge (first x) (first y))
-    (concat (next x) (next y))))
+(defn branch [context test choice]
+  (->> (m/stream! test) ;; TODO register that stream for cancellation
+    (m/eduction
+      (map choice)
+      (dedupe)
+      (map (partial spawn context)))
+    (s/switch)))
 
-(defn input [ctx]
-  (aget ctx (int 0)))
+(defn product [context path ctor & inputs]
+  (apply rfor (partial spawn context (inner context path ctor)) (mapv m/stream! inputs))) ;; TODO register these ones too
 
-(defn remote-cb [ctx]
-  (aget ctx (int 1)))
+(def invoke (partial m/latest u/call))
 
-(defn output-cb [ctx]
-  (aget ctx (int 2)))
+(defn share [context path flow]
+  (let [frame (child-in context path)]
+    (doto (m/signal! flow)
+      (->> (conj (aget frame (int 1)))
+        (aset frame (int 1))))))
 
-(defn client-handler [remote output boot handler in]
-  (m/ap
-    (m/amb=
-      (cons {} (m/?> remote))
-      (let [[k v] (m/seed (m/?= output))]
-        (list (hash-map k (m/?> v))))
-      (do (boot) (dispatch-all! handler (m/?> in)) (m/amb>)))))
+(defn output [context path flow]
+  (let [frame (child-in context path)
+        id (aget frame (int 3))]
+    (aset frame (int 3) (inc id))
+    ((aget context (int 2)) (conj path id (m/signal! flow))))) ;; TODO register that signal too
 
-(defn client [boot write >read]
+(defn input [context path]
+  (let [frame (child-in context path)]
+    (->> (fn [!]
+           (let [slots (aget frame (int 2))
+                 id (count slots)]
+             (aset frame (int 2) (conj slots !))
+             #(aset frame (int 2) (assoc slots id nil))))
+      (m/observe)
+      (m/relieve {})
+      (m/signal!))))
+
+(defn message
+  ([] [{}])
+  ([x] x)
+  ([x y]
+   (-> (pop x)
+     (into (pop y))
+     (conj (merge (peek x) (peek y)))))
+  ([x y & zs]
+   (reduce message (message x y) zs)))
+
+(defn change [context path value]
+  ((-> (child-in context (pop path))
+     (aget (int 2))
+     (get (peek path)))
+   value) context)
+
+(defn handle [context path]
+  (if (even? (count path))
+    (cancel-frame (child-in context path))
+    ((aget (child-in context path) (int 2))
+     (allocate context path))) context)
+
+(defn peer [boot write >read]
   (m/reactor
-    (let [handler (handler)
-          context (doto (object-array 3)
-                    (aset (int 0) (in-flow handler)))]
+    (let [ctx (doto (object-array 3)
+                (aset (int 0) (frame))
+                (aset (int 1) (m/mbx))
+                (aset (int 2) (m/mbx)))]
+      (m/stream! (or (boot ctx) m/none))
       (->> >read
-        (bind-ctx context)
         (m/stream!)
-        (client-handler
-          (->> (m/observe (fn [!] (aset context (int 1) !) u/nop))
-            (m/relieve concat))
-          (->> (m/observe (fn [!] (aset context (int 2)
-                                    (fn [f] (! {(out-id! handler) f}))) u/nop))
-            (m/relieve merge))
-          (bind context boot) handler)
-        (m/relieve collapse)
-        (m/stream!)
-        (u/foreach write)
-        (bind-ctx context)
-        (m/stream!)))))
-
-(defn eval! [resolve input node]
-  ((fn walk! [locals [op & args]]
-     (case op
-       :input (list (m/signal! input))
-       :apply (let [xs (mapv (partial walk! locals) args)]
-                (cons (apply m/latest u/call (map first xs))
-                  (apply concat (map next xs))))
-       :share (let [x (walk! locals (first args))
-                    y (walk! (conj locals (m/signal! (first x))) (second args))]
-                (cons (first y) (concat (next x) (next y))))
-       :local (list (nth locals (first args)))
-       :global (-> (find resolve (first args))
-                 (doto (when-not (u/pst (ex-info (str "Unable to resolve global : "
-                                                   (name (first args)))
-                                          {:op op :args args}))))
-                 val u/pure list)
-       :effect (let [x (walk! locals (first args))
-                     y (walk! locals (second args))]
-                 (m/stream! (first x))
-                 (cons (first y) (concat (next x) (next y))))
-       :output (let [x (walk! locals (first args))
-                     y (walk! locals (second args))]
-                 (cons (first y) (concat x (next y))))
-       :literal (list (u/pure (first args)))
-       :interop (throw (ex-info "Unsupported operation : interop" {:op op :args args}))
-       :constant (let [x (walk! locals (first args))]
-                   (cons (u/pure (first x)) (next x)))
-       :variable (let [x (walk! locals (first args))]
-                   (cons (switch (first x)) (next x)))))
-   [] node))
-
-(defn server-handler [node! handler in]
-  (m/ap
-    (let [[changes & nodes] (doto (m/?> in) prn)
-          outputs (reduce node! nil nodes)]
-      (dispatch-all! handler changes)
-      (let [out (m/?= (m/seed outputs))]
-        (doto (hash-map (out-id! handler) (m/?> out)) prn)))))
-
-(defn server [resolve write >read]
-  (m/reactor
-    (let [handler (handler)
-          input (in-flow handler)
-          node! (fn [outputs node]
-                  (concat outputs (eval! resolve input node)))]
-      (->> (m/stream! >read)
-        (server-handler node! handler)
-        (m/relieve merge)
+        (m/eduction
+          (map (fn [x]
+                 (reduce handle ctx (pop x))
+                 (reduce-kv change ctx (peek x)))))
+        (m/stream!))
+      (->> (m/ap (m/amb=
+                   (loop []
+                     (let [x (m/? (aget ctx (int 1)))]
+                       (m/amb= [x {}] (recur))))
+                   (loop []
+                     (let [x (m/? (aget ctx (int 2)))]
+                       (m/amb= [{(pop x) (m/?> (peek x))}] (recur))))))
+        (m/relieve message)
         (m/stream!)
         (u/foreach write)
         (m/stream!)))))
+
+(defn eval [resolve nodes]
+  (fn [ctx]
+    ((fn walk [path locals [op & args]]
+       (case op
+         :sub (nth locals (first args))
+         :pub (walk path (conj locals (share ctx path (walk path locals (first args)))) (second args))
+         :node (walk path (into [] (map (comp (partial share ctx path)
+                                          (partial walk path locals))) (next args))
+                 (nth nodes (first args)))
+         :void (transduce (map (partial walk path locals)) {} nil args)
+         :case (branch ctx (walk path locals (first args))
+                 (let [[default & branches]
+                       (into []
+                         (map (fn [inst] (inner ctx path (fn [path] (walk path locals inst)))))
+                         (cons (second args) (map peek (nnext args))))
+                       dispatch (into {} cat
+                                  (map (partial map vector)
+                                    (map pop (nnext args))
+                                    (map repeat branches)))]
+                   (fn [test] (get dispatch test default))))
+         :frame (inner ctx path (fn [path] (walk path locals (first args))))
+         :input (do (walk path locals (first args)) (input ctx path))
+         :output (output ctx path (walk path locals (first args)))
+         :invoke (apply invoke (map (partial walk path locals) args))
+         :global (-> (find resolve (first args))
+                   (doto (when-not (u/pst (ex-info (str "Unable to resolve " (first args))
+                                            {:op op :args args}))))
+                   val steady)
+         :product (apply product ctx path
+                    (fn [path & ids] (walk path (into locals ids) (first args)))
+                    (map (partial walk path locals) (next args)))
+         :literal (steady (first args))
+         :constant (steady (walk path locals (first args)))
+         :variable (s/switch (walk path locals (first args)))
+         (throw (ex-info (str "Unsupported operation " op) {:op op :args args}))))
+     [] [] [:node (dec (count nodes))])))

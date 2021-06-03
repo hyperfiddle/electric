@@ -2,16 +2,17 @@
   (:require [clojure.walk :as walk]
             [datascript.core :as d]
             [geoffrey.fiddle-effects :refer [genders shirt-sizes submissions submission submission-details]]
-            [hfdl.lang :refer [vars #?(:clj dataflow) debug system]]
-            [hfdl.lib :refer [reactive-for]]
+            [hfdl.lang :refer [vars #?(:clj defnode) debug system] :as h]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tests]]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hfdl.lang :refer [dataflow]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [defnode]])))
 
-(defn hf-nav [kf >ref]
-  #?(:cljs
-     (dataflow (kf (d/entity hyperfiddle.api/*$* @>ref)))))
+(defn hf-nav* [db kf ref]
+  (m/ap (m/? (m/via m/blk (kf (d/entity db ref))))))
+
+(defnode hf-nav [kf ref]
+  ~(hf-nav* hf/*$* kf ref))
 
 (defn replace* [smap coll]
   (if (seqable? coll)
@@ -23,25 +24,12 @@
     (keyword? ?form) `(hf-nav ~?form ~'%)
     (seq? ?form)     ?form))
 
-(defn map-entry [[k >v]]
-  #?(:cljs (dataflow [k @>v])))
+(defmacro default-renderer [val props]
+  (if-let [a (::hf/a props)]
+    (list `hf/->Link a val) val))
 
-(defn join-1
-  "Flow<{k, Flow<v>}> -> Flow<{k, v}>"
-  [>map]
-  #?(:cljs (dataflow (into {} @(reactive-for map-entry ~(seq @>map))))))
-
-(defn default-renderer [>val props] ; m a -> m b
-  #?(:cljs
-     (if-let [a (::hf/a props)]
-       (dataflow (hf/->Link a @>val))
-       >val                                                 ; identity
-       )))
-
-(defn render [>val props]
-  (let [render-sym (::hf/render props default-renderer)
-        props      (dissoc props ::hf/render)]
-    (render-sym >val props)))
+(defmacro render [val props]
+  (list (::hf/render props `default-renderer) val (dissoc props ::hf/render)))
 
 (defn has-props? [form]
   (and (sequential? form)
@@ -110,7 +98,7 @@
                   #_(:db/cardinality (meta f)))))
 
 (tests
-  (cardinality `(shirt-sizes _)) := :db.cardinality/many
+  (cardinality `(shirt-sizes _ nil)) := :db.cardinality/many
   (cardinality `shirt-sizes) := :db.cardinality/many)
 
 (defn many? [form] (= :db.cardinality/many (cardinality form)))
@@ -119,7 +107,7 @@
   (many? :dustingetz/gender) := false
   (many? `shirt-sizes) := true
   (many? `shirt-size) := false
-  (many? `(shirt-sizes a)) := true
+  (many? `(shirt-sizes a nil)) := true
   (many? `(shirt-size a)) := false)
 
 (defn drop-slash [kw-sym]
@@ -139,7 +127,7 @@
   [env& ns-map env' form]
   (cond
     (vector? form)
-    `(unquote ~(apply merge (map (partial compile-hfql* env& ns-map env') form)))
+    (apply merge (map (partial compile-hfql* env& ns-map env') form))
 
     (map? form)
     (reduce-kv (fn [r edge cont]
@@ -153,13 +141,9 @@
                             `{~(quote* env& env' qedge)
                               ;; @(render )
                               ;; rfor :: (a -> m b) -> m [a] -> m [b]
-                              (reactive-for (~'fn [~'%]
-                                             (dataflow
-                                              (~'let [~edge-sym (~'unquote ~'%)]
-                                               @(render
-                                                 ~(compile-hfql* env& ns-map env' cont)
-                                                 ~props))))
-                                            ~(replace* env' edge*))
+                              (h/for [~'% ~(replace* env' edge*)]
+                                (let [~edge-sym ~'%]
+                                  (render ~(compile-hfql* env& ns-map env' cont) ~props)))
                               ;; nil
                               }
                             `{~(quote* env& env' qedge)
@@ -176,18 +160,12 @@
                 qedge        (qualify env& ns-map form)]
             {`~(quote* env& env' qedge) `(render ~(compile-leaf* (replace* env' form)) ~props)})))
 
-#?(:clj
-   (defmacro hfql [form]
-     (compile-hfql* &env (ns-map *ns*) {} (if-not (vector? form) [form] form))))
+(defmacro hfql [form]
+  (compile-hfql* &env (ns-map *ns*) {} (if-not (vector? form) [form] form)))
 
 (def exports
-  #?(:clj
-     (merge geoffrey.fiddle-effects/exports
-       (vars default-renderer render
-         list concat seq d/entity
-         hfdl.lib/reactive-for
-         join-1
-         hf-nav hf/->Link))))
+  (merge geoffrey.fiddle-effects/exports
+    (vars hash-map vector list concat seq hf-nav* hf/->Link)))
 
 #_(let [needle @>needle
       x      @(hfql {(submission needle) [:dustingetz/email
@@ -196,73 +174,106 @@
   #_@(get x `(submission ""))
   x)
 
+(comment
+  (macroexpand '(hfql :db/id)) :=
+  #:db{:id (hyperfiddle.q2/render (hyperfiddle.q2/hf-nav :db/id %) nil)}
+
+  (macroexpand '(hfql {(submission "") [:db/id]})) :=
+  {(clojure.core/list (quote geoffrey.fiddle-effects/submission) (quote ""))
+   (let [% (submission "")]
+     (let [% %]
+       (hyperfiddle.q2/render
+         #:db{:id (hyperfiddle.q2/render
+                    (hyperfiddle.q2/hf-nav :db/id %)
+                    nil)} nil)))}
+
+  (macroexpand '(hfql {(submission "") [{:dustingetz/shirt-size [:db/ident]}]})) :=
+  {(clojure.core/list (quote geoffrey.fiddle-effects/submission) (quote ""))
+   (let [% (submission "")]
+     (let [% %]
+       (hyperfiddle.q2/render
+         #:dustingetz{:shirt-size (let [% (hyperfiddle.q2/hf-nav :dustingetz/shirt-size %)]
+                                    (let [dustingetz__shirt-size %]
+                                      (hyperfiddle.q2/render
+                                        #:db{:ident (hyperfiddle.q2/render
+                                                      (hyperfiddle.q2/hf-nav
+                                                        :db/ident %)
+                                                      nil)} nil)))} nil)))}
+
+  (macroexpand '(hfql {(submission "") [:dustingetz/email (:db/id ::hf/render id-as-string)]})) :=
+  {(clojure.core/list (quote geoffrey.fiddle-effects/submission) (quote ""))
+   (let [% (submission "")]
+     (let [% %]
+       (hyperfiddle.q2/render
+         {:dustingetz/email (hyperfiddle.q2/render (hyperfiddle.q2/hf-nav :dustingetz/email %) nil),
+          :db/id (hyperfiddle.q2/render (hyperfiddle.q2/hf-nav :db/id %)
+                   #:hyperfiddle.api{:render id-as-string})} nil)))}
+
+  (macroexpand '(hfql {(submissions "") [:db/id]})) :=
+  {(clojure.core/list (quote geoffrey.fiddle-effects/submissions) (quote ""))
+   (hfdl.lang/for [% (submissions "")]
+     (clojure.core/let [% %]
+       (hyperfiddle.q2/render #:db{:id (hyperfiddle.q2/render (hyperfiddle.q2/hf-nav :db/id %) nil)} nil)))}
+
+  )
+
 ;; TODO test
 (comment
   (def !needle (atom ""))
   (def >needle (m/watch !needle))
 
-  (defn run-dag!
-    ([dag] (run-dag! {} dag))
-    ([vars dag]
-     (def reactor ((system (merge exports (vars >needle) vars)
-                           (debug sampler dag)) prn prn))
-     @sampler))
+  (def !res (atom nil))
+  ((system exports (reset! !res (hf-nav :db/id 9))) nil nil)
+  @!res := 9
 
-  (run-dag! (dataflow @(hf-nav :db/id ~9)))
-  := 9
+  (reset! !res nil)
+  ((system exports (reset! !res (let [% 9] (:db/id (hfql :db/id))))) nil nil)
+  @!res := 9
 
-  (run-dag! (dataflow (let [% ~9] (-> @(hfql :db/id)
-                                      (:db/id)
-                                      (deref)
-                                      ))))
-  := 9
+  (reset! !res nil)
+  ((system exports
+     (reset! !res
+       (-> (hfql {(submission "") [:db/id]})
+         (get '(geoffrey.fiddle-effects/submission ""))
+         (:db/id)))) nil nil)
+  @!res := 9
 
-  (run-dag! (dataflow (-> @(hfql {(submission "") [:db/id]})
-                          (get '(geoffrey.fiddle-effects/submission ""))
-                          (deref)
-                          (:db/id)
-                          (deref))))
-  := 9
-
-  (run-dag! (dataflow
-             (-> @(hfql {(submission "") [{:dustingetz/shirt-size [:db/ident]}]})
-                 (get '(geoffrey.fiddle-effects/submission ""))
-                 (deref)
-                 (:dustingetz/shirt-size)
-                 (deref)
-                 (:db/ident)
-                 (deref))))
-  := :dustingetz/womens-large
+  (reset! !res nil)
+  ((system exports
+     (reset! !res
+       (-> (hfql {(submission "") [{:dustingetz/shirt-size [:db/ident]}]})
+         (get '(geoffrey.fiddle-effects/submission ""))
+         (:dustingetz/shirt-size)
+         (:db/ident)))) nil nil)
+  @!res := :dustingetz/womens-large
 
   ;; [X] 1. We should remove join points in hfql and get the same result because the default renderer samples by default. WRONG, the default renderer is identity Flow.
 
   ;; 2. Add custom renderers and sample (or not) manually.
 
-  (defn id-as-string [>v props]
-    (dataflow (str @>v)))
+  (defnode id-as-string [v props]
+    (str v))
 
-  (run-dag! (vars id-as-string str join-1)
-            (dataflow (-> (hfql {(submission "") [:dustingetz/email (:db/id ::hf/render id-as-string)]})
-                          (join-1)
-                          (deref)
-                          (get '(geoffrey.fiddle-effects/submission ""))
-                          (:db/id)
-                          (deref)
-                          )))
-  := "9"
+  (reset! !res nil)
+  ((system exports
+     (reset! !res
+       (-> (hfql {(submission "") [:dustingetz/email (:db/id ::hf/render id-as-string)]})
+         (get '(geoffrey.fiddle-effects/submission ""))
+         (:db/id)))) nil nil)
+  @!res := "9"
 
-  (run-dag! (vars join-1) (dataflow (let [% ~9] @(join-1 (hfql :db/id)))))
-  := {:db/id 9}
+  (reset! !res nil)
+  ((system exports (reset! !res (let [% 9] (hfql :db/id)))) nil nil)
+  @!res := {:db/id 9}
 
-  (run-dag! (vars id-as-string str join-1)
-            (dataflow (-> (hfql {(submissions "") [:db/id]})
-                          (deref)
-                          (get '(geoffrey.fiddle-effects/submissions ""))
-                          (deref)
-                          (first)
-                          (:db/id)
-                          (deref))))
-  := 9
+  (reset! !res nil)
+  ((system exports
+     (reset! !res
+       (-> (hfql {(submissions "") [:db/id]})
+         (get '(geoffrey.fiddle-effects/submissions ""))
+         (first)
+         (:db/id)))) nil nil)
+  @!res := 9
 
   ;; 3. Call into UI library.
 
@@ -270,5 +281,4 @@
 
   ;; 5. Put a flag on it.
   )
-
 

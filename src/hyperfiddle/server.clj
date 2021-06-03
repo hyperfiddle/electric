@@ -86,7 +86,8 @@
                (start! (m/sp (loop [] (m/? (ws/write-str remote (m/? read-str))) (recur))))))
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
-               (start! (d/server f/exports (edn-writer remote) (edn-reader read-str)))))})
+               (start! (m/sp (m/? (d/peer (d/evaluator f/exports (m/? (str->edn (m/? read-str))))
+                                    (edn-writer remote) (edn-reader read-str)))))))})
 
 (defn gzip-handler [& methods]
   (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))
