@@ -3,23 +3,19 @@
 
 (ns geoffrey.fiddle-effects
   (:require [datascript.core :as d]
-            [hfdl.lang :refer [#?(:clj vars)]]
+            [hfdl.lang :refer [#?(:clj defnode) vars]]
             [dustin.dev]
             [hyperfiddle.api :refer [*$*]]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hfdl.lang :refer [dataflow]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [defnode]])))
 
-(defn genders []
-  #?(:cljs
-     (dataflow
-       (into []
-         (d/q '[:find [?e ...]
-                :where [_ :dustingetz/gender ?e]]
-           *$*)))))
+(def q (comp #(m/ap (m/? (m/via m/blk %))) d/q))
 
-(defn gender []
-  #?(:cljs
-     (dataflow (first @(genders)))))
+(defnode genders []
+  (into [] ~(q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] *$*)))
+
+(defnode gender []
+  (first (genders)))
 
 (defn needle-match [v needle]
   (clojure.string/includes?
@@ -27,7 +23,7 @@
    (.toLowerCase (or (str needle) ""))))
 
 (def needle-rule
-  '[[(needle-match ?v ?needle)
+  '[[(geoffrey.fiddle-effects/needle-match ?v ?needle)
      [(str ?v) ?v']
      [(str ?needle) ?needle']
      #_[(.toLowerCase ?v')]
@@ -35,45 +31,37 @@
      #_[(clojure.string/includes? ?v' ?needle')]
      [(clojure.string/includes? ?v' ?needle')]]])
 
-(defn ^{:db/cardinality :db.cardinality/many}
-  shirt-sizes [gender & [needle]]
+(defnode ^{:db/cardinality :db.cardinality/many}
+  shirt-sizes [gender needle]
   #_(println `(shirt-sizes ~gender ~needle))
-  (m/via _
-    (sort
-      (d/q
-        '[:in $ % ?gender ?needle
-          :find [?e ...]
-          :where
-          [?e :dustingetz/type :dustingetz/shirt-size]
-          [?e :dustingetz/gender ?gender]
-          [?e :db/ident ?ident]
-          (needle-match ?ident ?needle)
-          #_[(dustin.fiddle/needle-match ?ident ?needle)]]
-        *$* needle-rule gender (or needle "")))))
+  (sort ~(q '[:in $ % ?gender ?needle
+              :find [?e ...]
+              :where
+              [?e :dustingetz/type :dustingetz/shirt-size]
+              [?e :dustingetz/gender ?gender]
+              [?e :db/ident ?ident]
+              (geoffrey.fiddle-effects/needle-match ?ident ?needle)
+              #_[(dustin.fiddle/needle-match ?ident ?needle)]]
+           *$* needle-rule gender (or needle ""))))
 
-(defn ^{:db/cardinality :db.cardinality/one}
-  shirt-size [gender]
-  #?(:cljs (dataflow (first @(shirt-sizes gender)))))
+(defnode ^{:db/cardinality :db.cardinality/one} shirt-size [gender needle]
+  (first (shirt-sizes gender needle)))
 
-(defn submissions [& [needle]]
-  (m/via _ (sort
-             (d/q '[:find [?e ...]
-                    :in $ % ?needle
-                    :where
-                    [?e :dustingetz/email ?email]
-                    (needle-match ?email ?needle)
-                    #_[(dustin.fiddle/needle-match ?email ?needle)]]
-                  *$* needle-rule (or needle "")))))
+(defnode submissions [needle]
+  (sort ~(q '[:find [?e ...]
+                :in $ % ?needle
+                :where
+                [?e :dustingetz/email ?email]
+                (geoffrey.fiddle-effects/needle-match ?email ?needle)
+                #_[(dustin.fiddle/needle-match ?email ?needle)]]
+           *$* needle-rule (or needle ""))))
 
-(defn submission-details [eid]
-  #?(:cljs (dataflow eid)))
+(defnode submission-details [eid] eid)
 
-(defn submission [& [needle]]
-  #?(:cljs (dataflow (first @(submissions needle)))))
+(defnode submission [needle]
+  (first (submissions needle)))
 
-(def exports
-  #?(:clj (vars genders into gender needle-rule shirt-sizes sort d/q *$* first
-            shirt-size submissions submission-details submission)))
+(def exports (vars into needle-rule sort q *$* first))
 
 ;; ((hfdl.impl.trace/system (hfdl.impl.trace/debug sample (submission))) prn prn)
 ;; @sample

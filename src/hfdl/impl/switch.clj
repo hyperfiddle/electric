@@ -1,5 +1,6 @@
 (ns hfdl.impl.switch
-  (:require [hfdl.impl.util :as u])
+  (:require [hfdl.impl.util :as u]
+            [hfdl.impl.token :as t])
   (:import (java.util.function IntBinaryOperator)
            (java.util.concurrent.atomic AtomicReference AtomicInteger)
            (clojure.lang IDeref IFn)))
@@ -11,7 +12,7 @@
         transfer (int (bit-shift-left 1 0))
         operational (int (bit-shift-left 1 1))
         toggle (reify IntBinaryOperator (applyAsInt [_ x y] (bit-xor x y)))]
-    (letfn [(next! [^AtomicReference sampler ^AtomicInteger control outer it in]
+    (letfn [(next! [^AtomicReference sampler ^AtomicInteger control outer token it in]
               (when (zero? (bit-and operational (.accumulateAndGet control operational toggle)))
                 (if (nil? (u/aget-aset in iterator (u/aget-aset outer iterator it)))
                   (loop []
@@ -23,9 +24,9 @@
                             (it) (try @it (catch Throwable _))))
                         (recur))
                       (do (.set sampler in) ((aget outer notifier))
-                          (more! sampler control outer))))
-                  (more! sampler control outer))))
-            (more! [^AtomicReference sampler ^AtomicInteger control out]
+                          (more! sampler control outer token))))
+                  (more! sampler control outer token))))
+            (more! [^AtomicReference sampler ^AtomicInteger control out token]
               (when (zero? (.accumulateAndGet control transfer toggle))
                 (if-some [t (aget out terminator)]
                   (loop []
@@ -35,47 +36,51 @@
                       (t)))
                   (let [it (aget out iterator)
                         in (object-array 1)]
-                    (aset out iterator
-                      (@it
-                        #(if-some [it (aget in iterator)]
-                           (if (.compareAndSet sampler it in)
-                             ((aget out notifier))
-                             (if (identical? it (aget out iterator))
-                               ((aget out notifier))
-                               (try @it (catch Throwable _))))
-                           (next! sampler control out it in))
-                        #(if-some [it (aget in iterator)]
-                           (if (.compareAndSet sampler it nil)
-                             (do) (if (identical? it (aget out iterator))
-                                    ((aget out terminator))
-                                    (more! sampler control out)))
-                           (next! sampler control out it (aset in iterator in)))))
-                    (next! sampler control out it in)))))]
+                    (t/swap-token! token
+                      (aset out iterator
+                        ((try @it (catch Throwable e (prn :switch-outer-failure it) (u/pst e)))
+                         #(if-some [it (aget in iterator)]
+                            (if (.compareAndSet sampler it in)
+                              ((aget out notifier))
+                              (if (identical? it (aget out iterator))
+                                ((aget out notifier))
+                                (try @it (catch Throwable _))))
+                            (next! sampler control out token it in))
+                         #(if-some [it (aget in iterator)]
+                            (if (.compareAndSet sampler it nil)
+                              (t/swap-token! token (aget out iterator))
+                              (if (identical? it (aget out iterator))
+                                ((aget out terminator))
+                                (more! sampler control out token)))
+                            (next! sampler control out token it (aset in iterator in))))))
+                    (next! sampler control out token it in)))))]
       (fn [f]
         (fn [n t]
           (let [sampler (AtomicReference.)
                 control (AtomicInteger.)
                 out (doto (object-array 3) (aset notifier n))
-                rdy #(more! sampler control out)]
-            (aset out iterator (f rdy #(do (aset out terminator t) (rdy))))
+                token (t/token)
+                rdy #(more! sampler control out token)]
+            (t/swap-token! token (aset out iterator (f rdy #(do (aset out terminator t) (rdy)))))
             (rdy)
             (reify
               IFn
               (invoke [_]
-                ;; TODO cancellation
-                )
+                (t/burn-token! token))
               IDeref
               (deref [_]
                 ;; TODO catch exceptions
                 ;; transfer should happen before cas to prevent post-failure notify
-                @(loop []
-                   (if-some [in (.get sampler)]
-                     (let [it (aget in iterator)]
-                       (if (.compareAndSet sampler in it)
-                         it (recur)))
-                     (aget out iterator)))))))))))
+                (try @(loop []
+                        (if-some [in (.get sampler)]
+                          (let [it (aget in iterator)]
+                            (if (.compareAndSet sampler in it)
+                              it (recur)))
+                          (aget out iterator)))
+                     (catch Throwable e (prn :switch-inner-failure) (u/pst e)))))))))))
 
 (comment
+  (require '[missionary.core :as m])
   (def in1 (atom 0))
   (def in2 (atom :a))
   (def out (atom (m/observe #(def ! %))))
