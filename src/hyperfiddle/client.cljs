@@ -5,7 +5,9 @@
             [dustin.fiddle-pages :as f]
             [hyperfiddle.common.routes :as common-routes]
             [hyperfiddle.client.ui :as ui]
-            [hyperfiddle.client.edn-view :as ev])
+            [hyperfiddle.client.edn-view :as ev]
+            [hyperfiddle.client.ui.demo-dataflow]
+            [hyperfiddle.client.ui.demo-edn])
   (:require-macros [hfdl.lang :as d]))
 
 ;; TODO reconnect on failures

@@ -21,3 +21,18 @@ a {
     @apply tw-px-1;
     @apply focus:tw-shadow-none;
 }
+
+.hf-invalid-input {
+    text-decoration: underline wavy red;
+}
+
+.hf-edn-view-close-braket{
+    /* color: rgba(0, 0, 0, 0.25); */
+}
+
+[contenteditable="true"] {
+    /* background-color: rgba(0, 128, 128, 0.25); */
+}
+[contenteditable="false"]{
+    /* background-color: rgba(255, 0, 0, 0.15); */
+}
