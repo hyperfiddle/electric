@@ -81,13 +81,14 @@
 
 (defn event-name? [k] (= "on" (str/lower-case (subs (name k) 0 2))))
 
-(defn normalize-event-name [k] (str/lower-case (subs (normalize-prop-name k) 2)))
+(defn normalize-event-name [k] (subs (normalize-prop-name k) 2))
 
 (defn add-event-handler! [elem k f]
   #?(:cljs
      (let [sp         (shadow-props elem)
            event-name (normalize-event-name k)
            old-event  (get sp k)]
+       (js/console.log elem k event-name f)
        (when (and old-event (not= f old-event))
          (log/warn "Potential mistake: An event listener is being replaced. They should be constant. An anonymous function is probably created on each render. Hint: use `(partial merge {…})` or `(partial assoc {…} :key)`so the `{…}` map is constant."
                    {:prop k, :element (re-find #"^<[^>]*>" (.-outerHTML elem))})
@@ -107,16 +108,17 @@
   [k]
   (let [nom (normalize-prop-name k)]
     (case nom
-      "class"       "className"
-      "for"         "htmlFor"
-      "cellpadding" "cellPadding"
-      "cellspacing" "cellSpacing"
-      "colspan"     "colSpan"
-      "frameborder" "frameBorder"
-      "maxlength"   "maxLength"
-      "rowspan"     "rowSpan"
-      "usemap"      "useMap"
-      "valign"      "vAlign"
+      "class"           "className"
+      "for"             "htmlFor"
+      "cellpadding"     "cellPadding"
+      "cellspacing"     "cellSpacing"
+      "colspan"         "colSpan"
+      "frameborder"     "frameBorder"
+      "maxlength"       "maxLength"
+      "rowspan"         "rowSpan"
+      "usemap"          "useMap"
+      "valign"          "vAlign"
+      "contenteditable" "contentEditable"
       nom)))
 
 (def NON-STANDARD-ATTRIBUTES #{"list" ;; read-only, must use setAttribute
@@ -125,9 +127,11 @@
 (defmulti set-attribute! (fn [_elem k _v] k))
 (defmethod set-attribute! :default [elem k v]
   #?(:cljs
-     (if (NON-STANDARD-ATTRIBUTES k)
-       (xml/setAttributes elem (js-obj k v))
-       (dom/setProperties elem (js-obj k v)))))
+     (do
+       (prn elem k v)
+       (if (NON-STANDARD-ATTRIBUTES k)
+         (xml/setAttributes elem (js-obj k v))
+         (dom/setProperties elem (js-obj k v))))))
 
 (defn set-prop! [elem k v]
   #?(:cljs

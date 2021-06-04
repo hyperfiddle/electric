@@ -12,7 +12,8 @@
         cloroutine/cloroutine {:local/root "./vendor/cloroutine"}
         org.clojure/tools.analyzer.jvm {:mvn/version "1.1.0"}
         bidi/bidi {:mvn/version "2.1.6"}
-        com.taoensso/timbre {:mvn/version "4.10.0"}}
+        com.taoensso/timbre {:mvn/version "4.10.0"}
+        reagent/reagent {:mvn/version "1.0.0"}}
  :aliases {:dev {:extra-paths ["src-dev"
                                "scratch"]                   ; for clj command
                  :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}}
