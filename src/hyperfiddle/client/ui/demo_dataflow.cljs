@@ -20,36 +20,13 @@
                (let [!needle (atom "foo")
                      >needle (m/watch !needle)]
                  (ui/tag :form nil
-                         (ui/tag :input ~{:html/type     :text
-                                          :html/class    "hf-cm-input"
-                                          :html/value    @>needle
-                                          :html/on-input (set-needle! !needle)})
+                         (ui/tag :input ~{:dom.attribute/type      :text
+                                          :dom.attribute/className "hf-cm-input"
+                                          :dom.attribute/value     @>needle
+                                          :dom.event/input         (set-needle! !needle)})
                          (ui/tag :pre nil (ui/text >needle))))))
 
 (declare edn-renderer)
-
-(defn table-row [[k v]]
-  (d/dataflow
-   (ui/tag :<> nil
-           (ui/tag :div nil (ui/text ~k))
-           (ui/tag :div nil (doto @(edn-renderer (doto ~v prn)) prn)))))
-
-(defn edn-renderer [>edn]
-  (d/dataflow
-   (let [edn @>edn]
-     (cond
-       (map? edn) (ui/tag :div ~{:html/style {:display "flex", :width "fit-content"}}
-                          (ui/tag :div ~{:html/style {:display "flex"}}
-                                  (ui/text ~"{"))
-                          (apply ui/tag :div ~{:html/style {:display               "grid"
-                                                            :grid-template-columns "auto 1fr"
-                                                            :grid-gap              "0 0.25rem"}}
-                                 @(reactive-for table-row ~edn))
-                          (ui/tag :div ~{:html/style {:display "flex" :align-items "flex-end"}}
-                                  (ui/text ~"}")))
-       :else      (do
-                    (prn 'text edn)
-                    (ui/text ~edn))))))
 
 (defn err->diagnostic [err]
   (let [{:keys [:type
@@ -85,11 +62,11 @@
   (d/dataflow
    (ui/tag :span nil
            (ui/tag :span nil (ui/text ~k))
-           (ui/tag :span ~{#_#_:html/type                 :text
-                           :html/content-editable         true
-                           #_#_:html/value                v
-                           :html/on-focus                 (partial js/console.log "focus")
-                           :html/on-DOMCharacterDataModified validate-edn}
+           (ui/tag :span ~{#_#_:dom.attribute/type                 :text
+                           :dom.attribute/contentEditable         true
+                           #_#_:dom.attribute/value                v
+                           :dom.event/focus                 (partial js/console.log "focus")
+                           :dom.event/DOMCharacterDataModified validate-edn}
                    (ui/text ~v)
                    #_@(edn-renderer ~v)))))
 
@@ -97,7 +74,7 @@
   (d/dataflow
    (let [edn @>edn]
      (cond
-       (map? edn) (ui/tag :span ~{:html/content-editable true}
+       (map? edn) (ui/tag :span ~{:dom.attribute/contentEditable true}
                           (ui/tag :span nil (ui/text ~"{"))
                           (apply ui/tag :span nil @(reactive-for edn-key-value >edn))
                           (ui/tag :span nil (ui/text ~"}")))
@@ -118,5 +95,5 @@
    ))
 
 ;; (-> (tag :div)
-;;     (prop :html/id ~"foo")
+;;     (prop :dom.attribute/id ~"foo")
 ;;     (children (text ~"hello")))

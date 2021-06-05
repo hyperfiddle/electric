@@ -63,30 +63,10 @@
                       #_ (reduce-kv (fn [r k v] (assoc r (name k) (name v))) {}))]
     #?(:cljs (sty/setStyle elem (clj->js styles')))))
 
-(def dont-camel-case #{"aria" "data"})
-
-(defn capitalize [s]
-  (if (< (count s) 2)
-    (str/upper-case s)
-    (str (str/upper-case (subs s 0 1)) (subs s 1))))
-
-(defn normalize-prop-name [dashed]
-  (if (string? dashed)
-    dashed
-    (let [name-str        (name dashed)
-          [start & parts] (str/split name-str #"-")]
-      (if (dont-camel-case start)
-        name-str
-        (apply str start (map capitalize parts))))))
-
-(defn event-name? [k] (= "on" (str/lower-case (subs (name k) 0 2))))
-
-(defn normalize-event-name [k] (subs (normalize-prop-name k) 2))
-
 (defn add-event-handler! [elem k f]
   #?(:cljs
      (let [sp         (shadow-props elem)
-           event-name (normalize-event-name k)
+           event-name (name k)
            old-event  (get sp k)]
        (js/console.log elem k event-name f)
        (when (and old-event (not= f old-event))
@@ -98,28 +78,10 @@
 (defn remove-event-handler! [elem k]
   #?(:cljs
      (let [sp         (shadow-props elem)
-           event-name (normalize-event-name k)
+           event-name (name k)
            old-event  (get sp k)]
        (when old-event
          (events/unlisten elem event-name old-event)))))
-
-(defn prop-name
-  "See goog.dom.setProperties. https://github.com/google/closure-library/blob/master/closure/goog/dom/dom.js#L460"
-  [k]
-  (let [nom (normalize-prop-name k)]
-    (case nom
-      "class"           "className"
-      "for"             "htmlFor"
-      "cellpadding"     "cellPadding"
-      "cellspacing"     "cellSpacing"
-      "colspan"         "colSpan"
-      "frameborder"     "frameBorder"
-      "maxlength"       "maxLength"
-      "rowspan"         "rowSpan"
-      "usemap"          "useMap"
-      "valign"          "vAlign"
-      "contenteditable" "contentEditable"
-      nom)))
 
 (def NON-STANDARD-ATTRIBUTES #{"list" ;; read-only, must use setAttribute
                                })
@@ -133,17 +95,46 @@
          (xml/setAttributes elem (js-obj k v))
          (dom/setProperties elem (js-obj k v))))))
 
+(defn ns-segments [named] (when named (str/split (name named) #"\.")))
+(defn segments->ns [segments] (when (seq segments) (str/join "." segments)))
+
+(defn select-ns [ns m]
+  (reduce-kv (fn [r k v]
+               (if (keyword? k)
+                 (if-let [segments (ns-segments (namespace k))]
+                   (if (= ns (first segments))
+                     (assoc r (keyword (segments->ns (rest segments)) (name k)) v)
+                     r)
+                   r)
+                 r))
+             {} m))
+
+(tests
+  (select-ns "foo" {:foo/bar 1, :baz 2}) := {:bar 1}
+  (select-ns "dom" {:dom.attribute/id 1}) := {:attribute/id 1}
+  (->> {:dom.attribute.data/foo 1}
+       (select-ns "dom")
+       (select-ns "attribute")
+       (select-ns "data")) := {:foo 1})
+
+(defn rewrite-attr [attr]
+  (if (keyword? attr)
+    (if (#{"attribute.data" "attribute.aria"} (namespace attr))
+      (keyword "attribute" (str (last (ns-segments (namespace attr))) "-" (name attr)))
+      attr)
+    attr))
+
 (defn set-prop! [elem k v]
   #?(:cljs
      (try
        (let [sp (shadow-props elem)]
          (when (not= v (get sp k))
-           (let [prop (prop-name k)]
+           (let [prop (name k)]
              (cond
-               (= "style" prop)   (set-style! elem v)
-               (event-name? prop) (add-event-handler! elem k v)
-               :else              (let [v (if (keyword? v) (name v) v)]
-                                    (set-attribute! elem prop v))))))
+               (= :attribute/style k)    (set-style! elem v)
+               (= "event" (namespace k)) (add-event-handler! elem k v)
+               :else                     (let [v (if (keyword? v) (name v) v)]
+                                           (set-attribute! elem prop v))))))
        (catch js/Error e
          (js/console.error "Failed to set prop" {:elem elem, :key k, :value v :error e})))))
 
@@ -152,13 +143,13 @@
         rets      (set/difference (set (keys old-props)) (set (keys props)))]
     (when (seq rets)
       (run! (fn [k]
-              (let [k (prop-name k)]
-                (if (event-name? k)
+              (let [k (name k)]
+                (if (= "event" (namespace k))
                   (remove-event-handler! elem k)
-                  #?(:cljs (.removeAttribute elem k)))))
+                  #?(:cljs (.removeAttribute elem (name k))))))
             rets))
     (run! (fn [[k v]]
-            (set-prop! elem k v))
+            (set-prop! elem k (rewrite-attr v)))
           props)
     (set-shadow-props! elem props)))
 
@@ -170,16 +161,6 @@
 (defn switch' [>a]
   (m/ap (m/?< (m/?< >a))))
 
-(defn select-ns [ns m]
-  (reduce-kv (fn [r k v]
-               (if (and (keyword? k) (= ns (namespace k)))
-                 (assoc r (keyword (name k)) v)
-                 r))
-             {} m))
-
-(tests
-  (select-ns "html" {:html/id 1, :id 2}) := {:id 1})
-
 (defn tag [name >props & >childs]
   (m/observe
    (fn [!]
@@ -188,7 +169,7 @@
                              ;; if contains child -> replacechild
                              ;; else appendChild
                              (m/stream! (switch' (apply m/latest #(mount elem %&) >childs))))
-           props-stream    (when >props (m/stream! (m/latest #(patch-properties! elem (select-ns "html" %)) >props)))]
+           props-stream    (when >props (m/stream! (m/latest #(patch-properties! elem (select-ns "dom" %)) >props)))]
        (! elem)
        (fn []
          (when children-stream
