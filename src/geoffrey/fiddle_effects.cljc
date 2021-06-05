@@ -5,7 +5,8 @@
   (:require [datascript.core :as d]
             [hfdl.lang :refer [#?(:clj vars)]]
             [dustin.dev]
-            [hyperfiddle.api :refer [*$*]])
+            [hyperfiddle.api :refer [*$*]]
+            [missionary.core :as m])
   #?(:cljs (:require-macros [hfdl.lang :refer [dataflow]])))
 
 (defn genders []
@@ -37,35 +38,32 @@
 (defn ^{:db/cardinality :db.cardinality/many}
   shirt-sizes [gender & [needle]]
   #_(println `(shirt-sizes ~gender ~needle))
-  #?(:cljs
-     (dataflow
-       (sort
-         (d/q
-           '[:in $ % ?gender ?needle
-             :find [?e ...]
-             :where
-             [?e :dustingetz/type :dustingetz/shirt-size]
-             [?e :dustingetz/gender ?gender]
-             [?e :db/ident ?ident]
-             (needle-match ?ident ?needle)
-             #_[(dustin.fiddle/needle-match ?ident ?needle)]]
-           *$* needle-rule gender (or needle ""))))))
+  (m/via _
+    (sort
+      (d/q
+        '[:in $ % ?gender ?needle
+          :find [?e ...]
+          :where
+          [?e :dustingetz/type :dustingetz/shirt-size]
+          [?e :dustingetz/gender ?gender]
+          [?e :db/ident ?ident]
+          (needle-match ?ident ?needle)
+          #_[(dustin.fiddle/needle-match ?ident ?needle)]]
+        *$* needle-rule gender (or needle "")))))
 
 (defn ^{:db/cardinality :db.cardinality/one}
   shirt-size [gender]
   #?(:cljs (dataflow (first @(shirt-sizes gender)))))
 
 (defn submissions [& [needle]]
-  #?(:cljs
-     (dataflow
-       (sort
-         (d/q '[:find [?e ...]
-                :in $ % ?needle
-                :where
-                [?e :dustingetz/email ?email]
-                (needle-match ?email ?needle)
-                #_[(dustin.fiddle/needle-match ?email ?needle)]]
-           *$* needle-rule (or needle ""))))))
+  (m/via _ (sort
+             (d/q '[:find [?e ...]
+                    :in $ % ?needle
+                    :where
+                    [?e :dustingetz/email ?email]
+                    (needle-match ?email ?needle)
+                    #_[(dustin.fiddle/needle-match ?email ?needle)]]
+                  *$* needle-rule (or needle "")))))
 
 (defn submission-details [eid]
   #?(:cljs (dataflow eid)))
