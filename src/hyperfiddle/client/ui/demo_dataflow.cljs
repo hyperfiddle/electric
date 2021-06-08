@@ -41,8 +41,16 @@
                                          " to match " opened-delimiter)
                  :else              message)}))
 
+(defn text-under-node [^js node]
+  (let [walk  (.createTreeWalker js/document node js/NodeFilter.SHOW_TEXT nil false)]
+    (loop [n     (.nextNode walk)
+           rope ""]
+      (if n
+        (recur (.nextNode walk) (str rope (.-data n) \space))
+        rope))))
+
 (defn validate-edn [^js e]
-  (let [text    (.. e -currentTarget -textContent)
+  (let [text    (text-under-node (.. e -currentTarget))
         [_ err] (try [(edn/parse-string text) nil]
                      (catch js/Error e
                        [nil (err->diagnostic e)]))]
