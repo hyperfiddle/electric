@@ -68,7 +68,7 @@
      (let [sp         (shadow-props elem)
            event-name (name k)
            old-event  (get sp k)]
-       (js/console.log elem k event-name f)
+       ;; (js/console.log elem k event-name f)
        (when (and old-event (not= f old-event))
          (log/warn "Potential mistake: An event listener is being replaced. They should be constant. An anonymous function is probably created on each render. Hint: use `(partial merge {…})` or `(partial assoc {…} :key)`so the `{…}` map is constant."
                    {:prop k, :element (re-find #"^<[^>]*>" (.-outerHTML elem))})
@@ -90,10 +90,10 @@
 (defmethod set-attribute! :default [elem k v]
   #?(:cljs
      (do
-       (prn elem k v)
-       (if (NON-STANDARD-ATTRIBUTES k)
+       ;; (prn elem k v)
+       (if true #_(NON-STANDARD-ATTRIBUTES k)
          (xml/setAttributes elem (js-obj k v))
-         (dom/setProperties elem (js-obj k v))))))
+         #_(dom/setProperties elem (js-obj k v))))))
 
 (defn ns-segments [named] (when named (str/split (name named) #"\.")))
 (defn segments->ns [segments] (when (seq segments) (str/join "." segments)))
