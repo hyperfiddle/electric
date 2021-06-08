@@ -42,17 +42,16 @@
                  :else              message)}))
 
 (defn validate-edn [^js e]
-  (let [text    (.. e -target -parentNode -innerText)
+  (let [text    (.. e -currentTarget -textContent)
         [_ err] (try [(edn/parse-string text) nil]
                      (catch js/Error e
                        [nil (err->diagnostic e)]))]
     (js/console.log 'validate-edn text err e)
     (if err
       (do
-        (.stopPropagation e)
-        (.. e -target -parentNode -classList (add "hf-invalid-input"))
-        (.. e -target -parentNode (setAttribute "title" (:message err))))
-      (.. e -target -parentNode -classList (remove "hf-invalid-input")))
+        (.. e -currentTarget (setAttribute "aria-invalid" true))
+        (.. e -currentTarget (setAttribute "title" (:message err))))
+      (.. e -currentTarget (removeAttribute "aria-invalid")))
     nil))
 
 
@@ -60,24 +59,31 @@
 
 (defn edn-key-value [[k v]]
   (d/dataflow
-   (ui/tag :span nil
-           (ui/tag :span nil (ui/text ~k))
-           (ui/tag :span ~{#_#_:dom.attribute/type                 :text
-                           :dom.attribute/contentEditable         true
-                           #_#_:dom.attribute/value                v
-                           :dom.event/focus                 (partial js/console.log "focus")
-                           :dom.event/DOMCharacterDataModified validate-edn}
-                   (ui/text ~v)
-                   #_@(edn-renderer ~v)))))
+   (ui/tag :span ~{:dom.attribute/contentEditable true} ;; kv
+           (ui/tag :span ~{:dom.attribute/contentEditable false} ;; protect k and v deletion
+                   (ui/tag :span ~{:dom.attribute/contentEditable      true
+                                   :dom.attribute/placeholder          "key"
+                                   :dom.event/DOMCharacterDataModified validate-edn}
+                           (ui/text ~k))
+                   (ui/tag :span ~{#_#_:dom.attribute/type             :text
+                                   :dom.attribute/contentEditable      true
+                                   :dom.attribute/placeholder          "value"
+                                   #_#_:dom.attribute/value            v
+                                   :dom.event/focus                    (partial js/console.log "focus")
+                                   :dom.event/DOMCharacterDataModified validate-edn}
+                           (ui/text ~v)
+                           #_@(edn-renderer ~v))))))
 
 (defn edn-renderer [>edn]
   (d/dataflow
    (let [edn @>edn]
      (cond
-       (map? edn) (ui/tag :span ~{:dom.attribute/contentEditable true}
-                          (ui/tag :span nil (ui/text ~"{"))
-                          (apply ui/tag :span nil @(reactive-for edn-key-value >edn))
-                          (ui/tag :span nil (ui/text ~"}")))
+       (map? edn) (ui/tag :span ~{:dom.attribute/contentEditable      true
+                                  :dom.event/DOMCharacterDataModified validate-edn}
+                          (ui/tag :span ~{:dom.attribute/contentEditable false}
+                                  (ui/tag :span ~{:dom.attribute/contentEditable true} (ui/text ~"{"))
+                                  (apply ui/tag :span nil @(reactive-for edn-key-value >edn))
+                                  (ui/tag :span ~{:dom.attribute/contentEditable true} (ui/text ~"}"))))
        :else      (ui/text ~edn)))))
 
 (def ^:export main
