@@ -1,4 +1,4 @@
-(ns dustin.fiddle
+(ns user.fiddle
   #?(:cljs (:require-macros [minitest :refer [tests]]))
   (:require
     [clojure.spec.alpha :as s]

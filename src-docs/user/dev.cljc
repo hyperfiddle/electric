@@ -1,4 +1,4 @@
-(ns dustin.dev
+(ns user.dev
   (:require
     ;#?(:clj [datomic.api :as d])
     [datascript.core :as d]
