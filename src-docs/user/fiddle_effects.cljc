@@ -1,7 +1,7 @@
 ;; Same as `dustin.fiddle`, but all functions are `a -> m b`
 
 
-(ns geoffrey.fiddle-effects
+(ns user.fiddle-effects
   (:require [datascript.core :as d]
             [hfdl.lang :refer [#?(:clj defnode) vars]]
             [dustin.dev]
@@ -34,27 +34,31 @@
 (defnode ^{:db/cardinality :db.cardinality/many}
   shirt-sizes [gender needle]
   #_(println `(shirt-sizes ~gender ~needle))
-  (sort ~(q '[:in $ % ?gender ?needle
-              :find [?e ...]
-              :where
-              [?e :dustingetz/type :dustingetz/shirt-size]
-              [?e :dustingetz/gender ?gender]
-              [?e :db/ident ?ident]
-              (geoffrey.fiddle-effects/needle-match ?ident ?needle)
-              #_[(dustin.fiddle/needle-match ?ident ?needle)]]
-           *$* needle-rule gender (or needle ""))))
+  (m/via m/cpu
+    (sort
+      (d/q
+        '[:in $ % ?gender ?needle
+          :find [?e ...]
+          :where
+          [?e :dustingetz/type :dustingetz/shirt-size]
+          [?e :dustingetz/gender ?gender]
+          [?e :db/ident ?ident]
+          (needle-match ?ident ?needle)
+          #_[(dustin.fiddle/needle-match ?ident ?needle)]]
+        *$* needle-rule gender (or needle "")))))
 
 (defnode ^{:db/cardinality :db.cardinality/one} shirt-size [gender needle]
   (first (shirt-sizes gender needle)))
 
-(defnode submissions [needle]
-  (sort ~(q '[:find [?e ...]
-                :in $ % ?needle
-                :where
-                [?e :dustingetz/email ?email]
-                (geoffrey.fiddle-effects/needle-match ?email ?needle)
-                #_[(dustin.fiddle/needle-match ?email ?needle)]]
-           *$* needle-rule (or needle ""))))
+(defn submissions [& [needle]]
+  (m/via m/cpu (sort
+             (d/q '[:find [?e ...]
+                    :in $ % ?needle
+                    :where
+                    [?e :dustingetz/email ?email]
+                    (needle-match ?email ?needle)
+                    #_[(dustin.fiddle/needle-match ?email ?needle)]]
+                  *$* needle-rule (or needle "")))))
 
 (defnode submission-details [eid] eid)
 

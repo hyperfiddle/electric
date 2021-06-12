@@ -1,4 +1,4 @@
-(in-ns 'user.hello-world)
+;(in-ns 'user.hello-world)
 (ns user.hello-world
   (:require [hfdl.impl.sampler :refer [sampler!]]
             [hfdl.lang :refer [system dataflow vars]]

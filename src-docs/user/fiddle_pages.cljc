@@ -1,4 +1,4 @@
-(ns dustin.fiddle-pages
+(ns user.fiddle-pages
   (:require [clojure.spec.alpha :as s]
             [geoffrey.fiddle-effects :refer [submissions genders shirt-sizes submission-details
                                              submission gender shirt-size]]
@@ -195,16 +195,16 @@
 
 (comment
   (require '[hfdl.lang :refer [system debug]])
-  (defn program [needle]
-    (dataflow
-      (q/hfql
-        [{((submissions needle) ::hf/render ui/render-table)
-          [:db/id
-           :dustingetz/email
-           {((:dustingetz/gender %)
-             ;; ::hf/render ui/picklist
-             ::hf/options (shirt-sizes dustingetz/gender))
-            [:db/ident]}]}])))
+  (defnode page [needle]
+    (hfql
+      [{(submissions needle)
+        [:db/id
+         :dustingetz/email
+         {(:dustingetz/gender ::hf/options (genders))
+          [:db/ident]}
+         {(:dustingetz/shirt-size ::hf/options (shirt-sizes dustingetz/gender))
+          [:db/ident]}
+         ]}]))
 
   ((system (merge q/exports ui/exports exports (vars render-email))
      (debug sample (simple-email "a"))) prn prn)
