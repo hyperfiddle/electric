@@ -20,7 +20,7 @@
 
 (defnode render-shirt-size2 [v]
   [:select {:selected v}
-   [:option ~@(shirt-size :dustingetz/male v)]])
+   [:option ~@(shirt-size :dustingetz/male nil)]])
 
 (defnode render-form [e]
   [:tr
@@ -44,19 +44,20 @@
   (def !result (atom nil))
   ((system exports (reset! !result (hello))) prn u/pst)
   @!result := "hello-world"
+  ; system is still running for effect
   )
 
 ; dag is a composite with both local and remote part. remote will be sent to server for evaluation
 
 (comment
-  "node args are unlifted"
+  "node args feel like values"
   (def !result (atom nil))
   ((system exports (reset! !result (num? 1))) prn u/pst)
   @!result := true
   )
 
 (comment
-  "incremental maintenance"
+  "node args are actually flows"
   (def !input (atom 2))
   (def !result (atom nil))
   ((system exports (reset! !result (plus 1 ~(m/watch !input)))) prn u/pst)
@@ -76,16 +77,16 @@
   )
 
 (comment
-  "simple effects + composing view and query in one process"
+  "simple effects + composing view and query with transfer"
   ; this test passes in both directions since it is datascript and no host interop
 
   (def !shirt-size (atom :mens-large))
   (def !result (atom nil))
   ((system exports (reset! !result (render-shirt-size2 ~(m/watch !shirt-size)))) prn u/pst)
 
-  @!result := [:select {:selected :mens-large} [:option nil]]
+  @!result := [:select {:selected :mens-large} [:option 3]]
   (reset! !shirt-size :mens-medium)
-  @!result := [:select {:selected :mens-medium} [:option nil]]
+  @!result := [:select {:selected :mens-medium} [:option 3]]
   )
 
 ; We want to pretend view is client and query is server
@@ -105,9 +106,10 @@
    [[:tr
      [:field "alice@example.com"]
      [:field [:select {:selected :dustingetz/womens-large}
-              [:option nil]]]]]]
+              [:option 3]]]]]]
 
   (reset! !needle "bob")
+  ; should target a point update to the :tr
 
   @!result :=
   [:table
@@ -131,7 +133,7 @@
    {:dustingetz/email "alice@example.com",
     :dustingetz/shirt-size [:select
                             {:selected :dustingetz/womens-large}
-                            [:option nil]],
+                            [:option 3]],
     :db/id 9}}
 
   (reset! !needle "bob")
@@ -141,8 +143,52 @@
    {:dustingetz/email "bob@example.com",
     :dustingetz/shirt-size [:select
                             {:selected :dustingetz/mens-large}
-                            [:option 5]],
+                            [:option 3]],
     :db/id 10}}
+
+  )
+
+(defnode page-submissions [needle]
+  (hfql
+    [{(submissions needle)
+      [:db/id
+       :dustingetz/email
+       (:dustingetz/shirt-size :hyperfiddle.api/render render-shirt-size2)]}]))
+
+(comment
+  "hfql cardinality many"
+
+  (def !needle (atom ""))
+  (def !result (atom nil))
+  ((system exports (reset! !result ~@(page-submissions ~@~(m/watch !needle)))) prn u/pst)
+
+  @!result :=
+  {(geoffrey.fiddle-effects/submissions "")
+   [{:dustingetz/email      "alice@example.com",
+     :dustingetz/shirt-size [:select
+                             {:selected :dustingetz/womens-large}
+                             [:option 3]],
+     :db/id                 9}
+    {:dustingetz/email      "bob@example.com",
+     :dustingetz/shirt-size [:select
+                             {:selected :dustingetz/mens-large}
+                             [:option 3]],
+     :db/id                 10}
+    {:dustingetz/email      "charlie@example.com",
+     :dustingetz/shirt-size [:select
+                             {:selected :dustingetz/mens-medium}
+                             [:option 3]],
+     :db/id                 11}]}
+
+  (reset! !needle "bob")                                    ; broken test
+
+  @!result :=
+  {(geoffrey.fiddle-effects/submissions "")
+   [{:dustingetz/email      "bob@example.com",
+     :dustingetz/shirt-size [:select
+                             {:selected :dustingetz/mens-large}
+                             [:option 3]],
+     :db/id                 10}]}
 
   )
 
