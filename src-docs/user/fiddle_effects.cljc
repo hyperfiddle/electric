@@ -11,6 +11,10 @@
 
 (def q (comp #(m/ap (m/? (m/via m/blk %))) d/q))
 
+(defmacro thread [body]
+  `(unquote (m/ap (m/? (m/via m/blk ~body)))))
+; when lambdas work, thread will work for free because m/ap generates lambda
+
 (defnode genders []
   (into [] ~(q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] *$*)))
 
