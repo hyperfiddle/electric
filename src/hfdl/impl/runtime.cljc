@@ -12,7 +12,7 @@
 (def node)
 
 ;; context
-;; 0: root frame
+;; 0: path -> frame
 ;; 1: request callback
 ;; 2: publish callback
 
@@ -23,36 +23,20 @@
 ;; 3: static counter of outputs
 
 ;; inner
-;; 0: dynamic map from frame id to frame
+;; 0: set of current child frame ids
 ;; 1: id of next frame constructed
 ;; 2: frame constructor
 
-(defn child [r x]
-  (get (aget r (int 0)) x))
-
-(defn child-in [context path]
-  (reduce child (aget context (int 0)) path))
-
-;; TODO
-(defn cancel-frame [fr]
-  (reduce
-    (fn [_ in]
-      (reduce-kv (fn [_ _ fr] (cancel-frame fr))
-        nil (aget in (int 0))))
-    nil (aget fr (int 0)))
-  (reduce (fn [_ x]) nil (aget fr 1))
-  (reduce (fn [_ x]) nil (aget fr 2)))
-
 (defn inner [context path ctor]
-  (let [frame (child-in context path)
+  (let [frame (get (aget context 0) path)
         slots (aget frame (int 0))]
     (doto (object-array 3)
-      (aset (int 0) {})
+      (aset (int 0) #{})
       (aset (int 1) 0)
       (aset (int 2) ctor)
       (->> (conj slots)
         (aset frame (int 0))))
-    (conj path (count slots))))
+    (count slots)))
 
 (defn frame []
   (doto (object-array 4)
@@ -61,56 +45,73 @@
     (aset (int 2) [])
     (aset (int 3) 0)))
 
-(defn allocate [context path]
-  (let [in (child-in context path)
-        id (aget in (int 1))]
-    (aset in (int 0)
-      (assoc (aget in (int 0))
-        id (frame)))
-    (aset in (int 1) (inc id))
-    (conj path id)))
-
 (defn steady [x]
   (m/observe (fn [!] (! x) u/nop)))
 
-(defn spawn [context path & args]
-  (let [inner (child-in context path)
-        request (aget context (int 1))]
-    (request path)
-    (let [path (allocate context path)
-          flow (apply (aget inner (int 2)) path (map steady args))]
-      (fn [n t]
-        (flow n
-          #(do (cancel-frame (child-in context path))
-               (request path) (t)))))))
+;; TODO
+(defn destruct [context path]
+  (let [store (aget context (int 0))
+        frame (get store path)]
+    (aset context (int 0) (dissoc store path))
+    (reduce-kv
+      (fn [_ slot inner]
+        (reduce (fn [_ id] (destruct context (conj path slot id)))
+          nil (aget inner (int 0))))
+      nil (aget frame (int 0)))
+    (reduce (fn [_ x]) nil (aget frame 1))
+    (reduce (fn [_ x]) nil (aget frame 2))))
 
-(defn branch [context test choice]
-  (->> (m/stream! test) ;; TODO register that stream for cancellation
+(defn allocate [context path slot & args]
+  (let [in (-> context
+             (aget (int 0))
+             (get path)
+             (aget (int 0))
+             (nth slot))
+        id (aget in (int 1))
+        path (conj path slot id)]
+    (aset in (int 0) (conj (aget in (int 0)) id))
+    (aset in (int 1) (inc id))
+    (aset context (int 0)
+      (assoc (aget context (int 0))
+        path (frame)))
+    (apply (aget in (int 2))
+      path (map steady args))))
+
+(defn active [context path flow]
+  ((aget context (int 1)) (pop path))
+  (fn [n t]
+    (flow n
+      #(do ((aget context (int 1)) path)
+           (destruct context path) (t)))))
+
+(defn branch [context path test choice]
+  (->> (m/signal! test) ;; TODO register that stream for cancellation
     (m/eduction
       (map choice)
       (dedupe)
-      (map (partial spawn context)))
+      (map (partial allocate context path)))
     (s/switch)))
 
-(defn product [context path ctor & inputs]
-  (apply rfor (partial spawn context (inner context path ctor)) (mapv m/stream! inputs))) ;; TODO register these ones too
+(defn product [context path inputs slot]
+  (apply rfor (partial allocate context path slot)
+    (mapv m/signal! inputs))) ;; TODO register these ones too
 
 (def invoke (partial m/latest u/call))
 
 (defn share [context path flow]
-  (let [frame (child-in context path)]
+  (let [frame (get (aget context (int 0)) path)]
     (doto (m/signal! flow)
       (->> (conj (aget frame (int 1)))
         (aset frame (int 1))))))
 
 (defn output [context path flow]
-  (let [frame (child-in context path)
+  (let [frame (get (aget context (int 0)) path)
         id (aget frame (int 3))]
     (aset frame (int 3) (inc id))
     ((aget context (int 2)) (conj path id (m/signal! flow))))) ;; TODO register that signal too
 
 (defn input [context path]
-  (let [frame (child-in context path)]
+  (let [frame (get (aget context (int 0)) path)]
     (->> (fn [!]
            (let [slots (aget frame (int 2))
                  id (count slots)]
@@ -131,21 +132,22 @@
    (reduce message (message x y) zs)))
 
 (defn change [context path value]
-  ((-> (child-in context (pop path))
+  ((-> context
+     (aget (int 0))
+     (get (pop path))
      (aget (int 2))
-     (get (peek path)))
+     (nth (peek path)))
    value) context)
 
 (defn handle [context path]
-  (if (even? (count path))
-    (cancel-frame (child-in context path))
-    ((aget (child-in context path) (int 2))
-     (allocate context path))) context)
+  (if (odd? (count path))
+    (allocate context (pop path) (peek path))
+    (destruct context path)) context)
 
 (defn peer [boot write >read]
   (m/reactor
     (let [ctx (doto (object-array 3)
-                (aset (int 0) (frame))
+                (aset (int 0) {[] (frame)})
                 (aset (int 1) (m/mbx))
                 (aset (int 2) (m/mbx)))]
       (m/stream! (or (boot ctx) m/none))
@@ -178,10 +180,14 @@
                                           (partial walk path locals))) (next args))
                  (nth nodes (first args)))
          :void (transduce (map (partial walk path locals)) {} nil args)
-         :case (branch ctx (walk path locals (first args))
+         :case (branch ctx path (walk path locals (first args))
                  (let [[default & branches]
                        (into []
-                         (map (fn [inst] (inner ctx path (fn [path] (walk path locals inst)))))
+                         (map (fn [inst]
+                                (inner ctx path
+                                  (fn [path]
+                                    (active ctx path
+                                      (walk path locals inst))))))
                          (cons (second args) (map peek (nnext args))))
                        dispatch (into {} cat
                                   (map (partial map vector)
@@ -196,9 +202,13 @@
                    (doto (when-not (u/pst (ex-info (str "Unable to resolve " (first args))
                                             {:op op :args args}))))
                    val steady)
-         :product (apply product ctx path
-                    (fn [path & ids] (walk path (into locals ids) (first args)))
-                    (map (partial walk path locals) (next args)))
+         :product (product ctx path
+                    (mapv (partial walk path locals) (next args))
+                    (inner ctx path
+                      (fn [path & ids]
+                        (active ctx path
+                          (walk path (into locals ids)
+                            (first args))))))
          :literal (steady (first args))
          :constant (steady (walk path locals (first args)))
          :variable (s/switch (walk path locals (first args)))

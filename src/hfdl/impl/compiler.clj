@@ -331,12 +331,14 @@ is a macro or special form."
                   ~@(map (fn [inst] `(r/share ~(sym 'ctx) ~(sym 'path) ~(walk tier inst))) (next args)))
          :void `(do ~@(map (partial walk tier) args) nil)
          :case (let [branches (map (partial sym 'branch) (range))]
-                 `(r/branch ~(sym 'ctx) ~(walk tier (first args))
+                 `(r/branch ~(sym 'ctx) ~(sym 'path) ~(walk tier (first args))
                     (let [~@(interleave
                               (cons (sym 'branch) branches)
                               (map (fn [x]
                                      `(r/inner ~(sym 'ctx) ~(sym 'path)
-                                        (fn [~(sym 'path)] ~(walk tier x))))
+                                        (fn [~(sym 'path)]
+                                          (r/active ~(sym 'ctx) ~(sym 'path)
+                                            ~(walk tier x)))))
                                 (cons (second args) (map peek (nnext args)))))]
                       (fn [~(sym 'test)]
                         (case ~(sym 'test)
@@ -352,10 +354,12 @@ is a macro or special form."
          :invoke `(r/invoke ~@(map (partial walk tier) args))
          :global `(r/steady ~(symbol (first args)))
          :product `(r/product ~(sym 'ctx) ~(sym 'path)
-                     ~(let [after (+ tier (dec (count args)))]
-                        `(fn [~(sym 'path) ~@(map sym (range tier (+ tier after)))]
-                           ~(walk after (first args))))
-                     ~@(map (partial walk tier) (next args)))
+                     ~(mapv (partial walk tier) (next args))
+                     (r/inner ~(sym 'ctx) ~(sym 'path)
+                       ~(let [after (+ tier (dec (count args)))]
+                          `(fn [~(sym 'path) ~@(map sym (range tier (+ tier after)))]
+                             (r/active ~(sym 'ctx) ~(sym 'path)
+                               ~(walk after (first args)))))))
          :literal `(r/steady ~(first args))
          :interop `(m/latest
                      ~(emit-fn sym (first args) (count (next args)))
