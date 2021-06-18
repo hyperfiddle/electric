@@ -90,8 +90,9 @@
                                          (aset o result (conj (aget o result) nil))
                                          (doto b (aset prev p))) p (aget e adds))]
                       (reduce-kv (fn [_ s b]
-                                   (aset o result (assoc (aget o result) s (aget b slot)))
-                                   (aset b slot s)) nil (aget e movs))
+                                   (let [r (aget o result)]
+                                     (aset o result (assoc r s (nth r (aget b slot))))
+                                     (aset b slot s))) nil (aget e movs))
                       (reduce-kv (fn [_ _ b]
                                    ((aget b iterator))
                                    (aset o result (pop (aget o result)))

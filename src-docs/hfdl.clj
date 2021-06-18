@@ -183,7 +183,7 @@
   (reset! !needle "bob")                                    ; broken test
 
   @!result :=
-  {(geoffrey.fiddle-effects/submissions "")
+  {(geoffrey.fiddle-effects/submissions "bob")
    [{:dustingetz/email      "bob@example.com",
      :dustingetz/shirt-size [:select
                              {:selected :dustingetz/mens-large}
