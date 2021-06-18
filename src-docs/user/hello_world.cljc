@@ -46,8 +46,8 @@
 
 (defnode render-form [e]
   ~@[:tr
-     [:field ~@@(hf-nav :dustingetz/email e)]
-     [:field ~@@(render-shirt-size (hf-nav :dustingetz/shirt-size e))]])
+     [:field ~@~(hf-nav :dustingetz/email e)]
+     [:field ~@~(render-shirt-size (hf-nav :dustingetz/shirt-size e))]])
 
 #?(:cljs
    (tests
