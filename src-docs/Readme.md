@@ -1,0 +1,1 @@
+Everything in src-docs should be kept working
