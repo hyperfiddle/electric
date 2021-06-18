@@ -357,7 +357,7 @@ is a macro or special form."
                      ~(mapv (partial walk tier) (next args))
                      (r/inner ~(sym 'ctx) ~(sym 'path)
                        ~(let [after (+ tier (dec (count args)))]
-                          `(fn [~(sym 'path) ~@(map sym (range tier (+ tier after)))]
+                          `(fn [~(sym 'path) ~@(map sym (range tier after))]
                              (r/active ~(sym 'ctx) ~(sym 'path)
                                ~(walk after (first args)))))))
          :literal `(r/steady ~(first args))
