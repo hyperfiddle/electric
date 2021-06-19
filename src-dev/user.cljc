@@ -25,8 +25,9 @@
 
 (comment
   ; JVM
-  (require '[hyperfiddle.server :refer [start-server!]])
+  (require '[dev])
   (require '[io.pedestal.http :as http])
+  (require '[hyperfiddle.server :refer [start-server!]])
 
   (http/stop server)
   (def server (start-server! {:host   "localhost"

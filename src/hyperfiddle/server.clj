@@ -88,10 +88,10 @@
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
                (start! (m/sp (m/? (d/peer (d/eval (merge q/exports
-                                                         user.tutorial/exports2
-                                                         (d/vars m/watch))
-                                                  (m/? (str->edn (m/? read-str))))
-                                          (edn-writer remote) (edn-reader read-str)))))))})
+                                                    user.tutorial/exports2
+                                                    (d/vars m/watch))
+                                            (m/? (str->edn (m/? read-str))))
+                                    (edn-writer remote) (edn-reader read-str)))))))})
 
 (defn gzip-handler [& methods]
   (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))
