@@ -18,7 +18,6 @@
     [hyperfiddle.client.ui :as ui]
     [hyperfiddle.client.edn-view :as ev]
     [hyperfiddle.q2 :as q]
-    [dustin.fiddle-pages :as f]
     [hyperfiddle.client.ui :as ui])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)))
@@ -86,7 +85,7 @@
                (start! (m/sp (loop [] (m/? (ws/write-str remote (m/? read-str))) (recur))))))
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
-               (start! (m/sp (m/? (d/peer (d/evaluator f/exports (m/? (str->edn (m/? read-str))))
+               (start! (m/sp (m/? (d/peer (d/eval q/exports (m/? (str->edn (m/? read-str))))
                                     (edn-writer remote) (edn-reader read-str)))))))})
 
 (defn gzip-handler [& methods]

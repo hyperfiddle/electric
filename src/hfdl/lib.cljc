@@ -3,15 +3,7 @@
             [hfdl.impl.rfor :refer [rfor]]
             [missionary.core :as m])
   #?(:clj (:import (clojure.lang Box)))
-  #?(:cljs (:require-macros [hfdl.lang :refer [dataflow]])))
-
-#?(:clj
-   (defmacro $ [f & args]
-     `(deref (~f ~@(map (partial list `unquote) args)))))
-
-#?(:clj
-   (defmacro ifn [args & body]
-     `(fn ~args (dataflow (let [~@(mapcat (juxt identity (partial list `deref)) args)] ~@body)))))
+  #?(:cljs (:require-macros [hfdl.lang :refer []])))
 
 (defn place! "
 Defines a new identity representing a variable initialized with given value and usable both :
@@ -34,14 +26,6 @@ Defines a new identity representing a variable initialized with given value and 
            ([r x]
             (let [r (rf r (- x (.-val p)))]
               (set! (.-val p) x) r)))))))
-
-;; TODO error handling
-(def reactive-for "
-Turns a continuous flow of collections of distinct items into a flow calling given function for each item added to the
-collection. The function must return another flow that will be run in parallel and cancelled when the item is removed
-from the input collection. Returns a continuous flow of collections of current values of inner flows, in the same order
-as input.
-" rfor)
 
 (comment
   (def >input (atom (vec (range 5))))

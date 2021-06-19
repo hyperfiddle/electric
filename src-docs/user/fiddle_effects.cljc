@@ -1,10 +1,6 @@
-;; Same as `dustin.fiddle`, but all functions are `a -> m b`
-
-
 (ns user.fiddle-effects
   (:require [datascript.core :as d]
             [hfdl.lang :refer [#?(:clj defnode) vars]]
-            [dustin.dev]
             [hyperfiddle.api :refer [*$*]]
             [missionary.core :as m])
   #?(:cljs (:require-macros [hfdl.lang :refer [defnode]])))

@@ -3,7 +3,12 @@
   (:import (clojure.lang IFn IDeref)
            (java.util.concurrent.atomic AtomicReference AtomicInteger)
            (java.util.function IntBinaryOperator)))
-
+"
+Turns a continuous flow of collections of distinct items into a flow calling given function for each item added to the
+collection. The function must return another flow that will be run in parallel and cancelled when the item is removed
+from the input collection. Returns a continuous flow of collections of current values of inner flows, in the same order
+as input.
+"
 ;; outer: prev, iter, k->b, s->v, queue, ready, notifier, terminator, continuation
 ;; branch: prev, iter, slot
 ;; patch: prev, barrier, adds, movs, rets
