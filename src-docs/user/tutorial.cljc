@@ -2,11 +2,17 @@
   (:require [hyperfiddle.rcf :refer [tests]]
             [hfdl.lang :as h :refer [defnode vars system]]
             [missionary.core :as m]
-            [geoffrey.fiddle-effects
+            [user.fiddle-effects
              :refer [submissions genders shirt-sizes submission-details
                      submission gender shirt-size]]
             [hyperfiddle.q2 :refer [hf-nav hfql exports]]
-            [hfdl.impl.util :as u]))
+            [hfdl.impl.util :as u])
+  #?(:cljs (:require-macros
+             [hfdl.lang :refer [defnode main]]
+             [user.tutorial
+              :refer [hello num? plus render-shirt-size render-shirt-size2 render-form
+                      hello-world page-submission-detail page-submissions
+                      ]])))
 
 (defnode hello [] "hello-world")
 
@@ -56,9 +62,10 @@
   @!result := true
   )
 
+(def !input (atom 2))
+
 (comment
   "node args are actually flows"
-  (def !input (atom 2))
   (def !result (atom nil))
   ((system exports (reset! !result (plus 1 ~(m/watch !input)))) prn u/pst)
   @!result := 3
@@ -66,9 +73,11 @@
   @!result := 4
   )
 
+(def !shirt-size (atom :mens-large))
+
 (comment
   "simple effects + composing view and query in one process"
-  (def !shirt-size (atom :mens-large))
+
   (def !result (atom nil))
   ((system exports (reset! !result (render-shirt-size ~(m/watch !shirt-size)))) prn u/pst)
   @!result := [:select {:selected :mens-large} [:option 3]]
@@ -94,10 +103,11 @@
 
 ; host interop is forbidden in remote blocks and not sure about lambdas (arguably this is interop)
 
+(def !needle (atom "alice"))
+
 (comment
   "crud"
 
-  (def !needle (atom "alice"))
   (def !result (atom nil))
   ((system exports (reset! !result (hello-world ~(m/watch !needle)))) prn u/pst)
 
@@ -198,3 +208,5 @@
 ; todo
 ;(tests
 ;  (defnode if2 ...))
+
+(def exports2 (vars !input !needle !shirt-size))

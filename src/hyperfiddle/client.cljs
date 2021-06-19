@@ -5,9 +5,13 @@
             [hyperfiddle.common.routes :as common-routes]
             [hyperfiddle.client.ui :as ui]
             [hyperfiddle.client.edn-view :as ev]
-            [hyperfiddle.client.ui.demo-dataflow]
-            [hyperfiddle.client.ui.demo-edn])
-  (:require-macros [hfdl.lang :as d]))
+            [hyperfiddle.client.ui.demo-dataflow :refer [edn-renderer]]
+            [hyperfiddle.client.ui.demo-edn]
+            [user.tutorial])
+  (:require-macros
+    [hfdl.lang :as d]
+    [hyperfiddle.client.ui.demo-dataflow
+     :refer [echo edn-key-value edn-renderer]]))
 
 ;; TODO reconnect on failures
 (def connect
@@ -51,4 +55,16 @@
   (client
     (d/main
       (let [route-request ~common-routes/>route]
-        (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) ~@route-request)))))
+        (ui/mount-component-at-node!
+          "hf-ui-dev-root"
+          (edn-renderer
+            #_(user.tutorial/plus 1 ~@~(m/watch user.tutorial/!input))
+            ~@(user.tutorial/render-shirt-size
+              ~(m/watch user.tutorial/!shirt-size)))
+
+          #_(edn-renderer {:a 1
+                           :b {:c 2}
+                           :d :e}))
+        #_(ev/set-editor-value!
+          (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!)
+          ~@route-request)))))

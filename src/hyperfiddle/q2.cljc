@@ -6,7 +6,9 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tests]]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hfdl.lang :refer [defnode]])))
+  #?(:cljs (:require-macros
+             [hfdl.lang :refer [defnode]]
+             [hyperfiddle.q2 :refer [hfql]])))
 
 (defn hf-nav* [db kf ref]
   (m/ap (m/? (m/via m/blk (kf (d/entity db ref))))))
