@@ -14,13 +14,13 @@
 
 (defnode echo []
   (let [!needle (atom "foo")
-        >needle (m/watch !needle)]
+        needle ~(m/watch !needle)]
     (ui/tag :form nil
-      (ui/tag :input ~{:dom.attribute/type      :text
+      [(ui/tag :input {:dom.attribute/type  :text
                        :dom.attribute/class "hf-cm-input"
-                       :dom.attribute/value     ~>needle
-                       :dom.event/input         (set-needle! !needle)})
-      (ui/tag :pre nil (ui/text >needle)))))
+                       :dom.attribute/value needle
+                       :dom.event/input     (set-needle! !needle)} [])
+       (ui/tag :pre nil [(ui/text needle)])])))
 
 (declare edn-renderer)
 
@@ -60,33 +60,34 @@
          (.. ^js e -currentTarget (removeAttribute "aria-invalid")))
        nil)))
 
-(defnode edn-key-value [[k v]]
-  (ui/tag :<> nil
-    (ui/tag :span ~{:dom.attribute/contentEditable      true
-                    :dom.attribute/class                "hf-edn-cell hf-edn-key"
-                    :dom.attribute/placeholder          "key"
-                    :dom.event/DOMCharacterDataModified validate-edn}
-      (ui/text ~k))
-    (ui/tag :span ~{:dom.attribute/contentEditable      true
-                    :dom.attribute/class                "hf-edn-cell hf-edn-value"
-                    :dom.attribute/placeholder          "value"
-                    :dom.event/focus                    (partial js/console.log "focus")
-                    :dom.event/DOMCharacterDataModified validate-edn}
-      (ui/text ~v)
-      #_@(edn-renderer ~v))))
+(defnode edn-key-value [e]
+  (let [[k v] e]
+    (ui/tag :<> nil
+      [(ui/tag :span {:dom.attribute/contentEditable      true
+                      :dom.attribute/class                "hf-edn-cell hf-edn-key"
+                      :dom.attribute/placeholder          "key"
+                      :dom.event/DOMCharacterDataModified validate-edn}
+         (ui/text k))
+       (ui/tag :span {:dom.attribute/contentEditable      true
+                      :dom.attribute/class                "hf-edn-cell hf-edn-value"
+                      :dom.attribute/placeholder          "value"
+                      :dom.event/focus                    (partial js/console.log "focus")
+                      :dom.event/DOMCharacterDataModified validate-edn}
+         (ui/text v)
+         #_@(edn-renderer ~v))])))
 
 (defnode edn-renderer [edn]
   (cond
-    (map? edn) (ui/tag :div ~{:dom.attribute/class                "hf-edn-renderer"
-                              :dom.event/DOMCharacterDataModified validate-edn}
+    (map? edn) (ui/tag :div {:dom.attribute/class                "hf-edn-renderer"
+                             :dom.event/DOMCharacterDataModified validate-edn}
                  #_(ui/tag :button ~{:dom.attribute/title "Edit raw"
                                      :dom.attribute/class "hf-edn-renderer__edit-button"}
                      (ui/text ~"✏️ "))
-                 (ui/tag :div ~{:dom.attribute/class "hf-edn-renderer__content"}
-                   (ui/tag :span ~{:dom.attribute/class "hf-edn-map"}
-                     (ui/tag :span ~{:dom.attribute/class "hf-edn-map-open"} (ui/text ~"{"))
-                     (apply ui/tag :<> nil (h/for [e edn] (edn-key-value e)))
-                     (ui/tag :span ~{:dom.attribute/class "hf-edn-map-close"} (ui/text ~"}")))))
+                 [(ui/tag :div {:dom.attribute/class "hf-edn-renderer__content"}
+                    [(ui/tag :span {:dom.attribute/class "hf-edn-map"}
+                       [(ui/tag :span {:dom.attribute/class "hf-edn-map-open"} [(ui/text "{")])
+                        (ui/tag :<> nil (h/for [e edn] (edn-key-value e)))
+                        (ui/tag :span {:dom.attribute/class "hf-edn-map-close"} [(ui/text "}")])])])])
     :else      (ui/text edn)))
 
 (def ^:export main
@@ -94,11 +95,11 @@
      (h/peer                                                ;; ( -> _) -> (t -> Task void) -> Flow -> Task  ; client spawns a reactor, initialize a context
        (first
          (h/main
-           ~(ui/mount-component-at-node! "hf-ui-dev-root"
-              ;; (ui/text @(foo ~[1 2 3]))
-              (edn-renderer {:a 1
-                             :b {:c 2}
-                             :d :e}))))
+           (ui/mount-component-at-node! "hf-ui-dev-root"
+             ;; (ui/text @(foo ~[1 2 3]))
+             (edn-renderer {:a 1
+                            :b {:c 2}
+                            :d :e}))))
        (fn [x] (m/sp (prn "fake WS put" x)))
        m/none                                               ;; fake WS read, produces nothing, forever
        )))

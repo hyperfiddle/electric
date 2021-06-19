@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [meta time])
   (:require [clojure.set :as set]
             [hfdl.impl.switch :refer [switch]]
-            [hfdl.lang :refer [#?@(:clj [vars])]]
+            [hfdl.lang :refer [#?@(:clj [defnode vars])]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
             #?(:clj [clojure.test :as t])
@@ -15,7 +15,7 @@
             #?(:cljs [goog.events :as events])
             [clojure.string :as str]
             [taoensso.timbre :as log])
-  #?(:cljs (:require-macros [hfdl.lang :refer [vars]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [defnode vars]])))
 
 ;; TODO belongs here?
 (def change-route! #?(:cljs (comp router/set-route! edn/read-string)))
@@ -29,24 +29,22 @@
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 (defn set-text-content! [elem text] #?(:cljs (set! (.-textContent elem) text)))
 
-(defn text [>text]
-  (m/observe
-   (fn [!]
-     (let [elem        (create-text-node "")
-           text-stream (m/stream! (m/latest #(set-text-content! elem %) >text))]
-       (! elem)
-       (fn []
-         (text-stream))))))
+(defnode text [x]
+  (doto (create-text-node "")
+    (set-text-content! x)))
 
 (defn append-childs [parent items] (reduce #?(:cljs #(doto %1 (.appendChild %2))) parent items))
 (defn remove-childs [parent items] (reduce #?(:cljs #(doto %1 (.removeChild %2))) parent items))
 
-(defn mount [parent items]
+(defn mount* [parent items]
   (m/observe
    (fn [!]
      (! (append-childs parent items))
      (fn []
        (remove-childs parent items)))))
+
+(defnode mount [parent items]
+  ~(mount* parent items))
 
 (defonce ^:const HF-SHADOW-PROPS (str (gensym "hf")))
 
@@ -161,6 +159,13 @@
 (defn switch' [>a]
   (m/ap (m/?< (m/?< >a))))
 
+;; TODO shadow props
+(defnode tag [name props children]
+  (doto (create-tag-node name)
+    (mount children)
+    (patch-properties! (select-ns "dom" props))))
+
+#_
 (defn tag [name >props & >childs]
   (m/observe
    (fn [!]
@@ -181,16 +186,11 @@
                (set (keys (shadow-props elem))))
          (set-shadow-props! elem nil))))))
 
-(defn append-child! [parent >child]
-  (m/observe
-   (fn [!]
-     (let [child-stream (m/stream! (switch' (m/latest #(mount parent [%]) >child)))]
-       (! parent)
-       (fn []
-         (child-stream))))))
+(defnode append-child! [parent child]
+  (doto parent (mount [child])))
 
-(defn mount-component-at-node! [id >component]
-  (append-child! (by-id id) >component))
+(defnode mount-component-at-node! [id component]
+  (append-child! (by-id id) component))
 
 (defn use-state
   ([] (use-state nil))
@@ -221,8 +221,6 @@
 
 (tests
   (assoc-keys {} :foo :bar 1 2) := {:foo 1, :bar 2})
-
-(def exports (vars text tag change-route! by-id mount-component-at-node!))
 
 ;;;;;;;;;;;
 ;; TESTS ;;
