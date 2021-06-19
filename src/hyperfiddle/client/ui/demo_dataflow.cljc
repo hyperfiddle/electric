@@ -75,8 +75,7 @@
                       :dom.attribute/placeholder          "value"
                       :dom.event/focus                    (partial console-log "focus")
                       :dom.event/DOMCharacterDataModified validate-edn}
-         [(ui/text v)]
-         #_@(edn-renderer ~v))])))
+         [(edn-renderer v)])])))
 
 (defnode edn-renderer [edn]
   (cond
