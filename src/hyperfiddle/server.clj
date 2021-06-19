@@ -18,7 +18,9 @@
     [hyperfiddle.client.ui :as ui]
     [hyperfiddle.client.edn-view :as ev]
     [hyperfiddle.q2 :as q]
-    [hyperfiddle.client.ui :as ui])
+    [hyperfiddle.client.ui :as ui]
+    hyperfiddle.client.ui.demo-dataflow
+    user.tutorial)
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)))
 
@@ -85,8 +87,11 @@
                (start! (m/sp (loop [] (m/? (ws/write-str remote (m/? read-str))) (recur))))))
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
-               (start! (m/sp (m/? (d/peer (d/eval q/exports (m/? (str->edn (m/? read-str))))
-                                    (edn-writer remote) (edn-reader read-str)))))))})
+               (start! (m/sp (m/? (d/peer (d/eval (merge q/exports
+                                                         user.tutorial/exports2
+                                                         (d/vars m/watch))
+                                                  (m/? (str->edn (m/? read-str))))
+                                          (edn-writer remote) (edn-reader read-str)))))))})
 
 (defn gzip-handler [& methods]
   (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))
