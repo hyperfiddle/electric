@@ -122,7 +122,8 @@ is a macro or special form."
           v (cljs/resolve-var env sym
               (fn [env prefix suffix]
                 (cljs/confirm-var-exists env prefix suffix
-                  (fn [_ _ _] (set! (.-val b) false)))))]
+                  (fn [_ _ _] (when-not ((symbol (str prefix) (str suffix)) '#{cljs.core/unquote-splicing})
+                                (set! (.-val b) false))))))]
       (when (.-val b) (:name v)))
     (when-some [^Var v (resolve-var env sym)]
       (when-not (.isMacro v) (.toSymbol v)))))

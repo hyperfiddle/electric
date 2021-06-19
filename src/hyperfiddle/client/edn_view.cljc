@@ -1,6 +1,6 @@
 (ns hyperfiddle.client.edn-view
   (:require [clojure.string :as str]
-            #?(:clj [hfdl.lang :refer [dataflow vars]])
+            #?(:clj [hfdl.lang :refer [vars]])
             #?(:cljs [hyperfiddle.client.edn-view.linter :refer [Linter]])
             #?(:cljs [hyperfiddle.client.edn-view.diff :refer [patcher]])
             #?(:cljs [hyperfiddle.client.edn-view.extentions :refer [ExtentionsPlugin]])
@@ -16,7 +16,7 @@
             #?(:cljs [cljs.reader :as edn])
             #?(:cljs [hyperfiddle.client.ui :as ui])
             #?(:cljs [hyperfiddle.client.pprint :as pprint]))
-  #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [vars]])))
 
 #?(:cljs
    (defn debounce

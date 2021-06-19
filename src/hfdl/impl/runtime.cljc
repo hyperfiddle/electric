@@ -2,11 +2,9 @@
   hfdl.impl.runtime
   (:refer-clojure :exclude [eval])
   (:require [hfdl.impl.util :as u]
-            [hfdl.impl.switch :as s]
+            [hfdl.impl.switch :refer [switch]]
             [hfdl.impl.rfor :refer [rfor]]
-            [missionary.core :as m])
-  #?(:clj (:import (clojure.lang IFn IDeref)))
-  #?(:cljs (:require-macros [hfdl.impl.runtime :refer [with-ctx get-ctx]])))
+            [missionary.core :as m]))
 
 (def prod)
 (def node)
@@ -90,7 +88,7 @@
       (map choice)
       (dedupe)
       (map (partial allocate context path)))
-    (s/switch)))
+    (switch)))
 
 (defn product [context path inputs slot]
   (apply rfor (partial allocate context path slot)
@@ -167,7 +165,7 @@
                        (m/amb= [{(pop x) (m/?> (peek x))}] (recur))))))
         (m/relieve message)
         (m/stream!)
-        (u/foreach write)
+        (u/foreach (-> write (u/log-args '>)))
         (m/stream!)))))
 
 (defn eval [resolve nodes]
@@ -211,6 +209,6 @@
                             (first args))))))
          :literal (steady (first args))
          :constant (steady (walk path locals (first args)))
-         :variable (s/switch (walk path locals (first args)))
+         :variable (switch (walk path locals (first args)))
          (throw (ex-info (str "Unsupported operation " op) {:op op :args args}))))
      [] [] [:node (dec (count nodes))])))

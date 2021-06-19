@@ -1,13 +1,12 @@
 (ns hfdl.lang
   (:refer-clojure :exclude [for eval])
-  (:require #?(:clj [hfdl.impl.compiler :as c])
+  (:require [hfdl.impl.compiler :as c]
             [hfdl.impl.runtime :as r]
             [hfdl.impl.util :as u]
             [hfdl.impl.sampler :refer [sampler!]]
             [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests]]
-            [clojure.string :as str])
-  #?(:cljs (:require-macros [hfdl.lang :refer [dataflow vars]])))
+            [hyperfiddle.rcf :refer [tests]])
+  #?(:cljs (:require-macros [hfdl.lang :refer [vars]])))
 
 ;; TODO variadic
 (defmacro defnode "" [sym & decl]
@@ -39,13 +38,8 @@ of this var to the value currently bound to this var.
        (let [c->s# (m/rdv)
              s->c# (m/rdv)]
          (m/? (m/join {}
-                (peer s# (-> s->c# (u/log-args 'r->l)) (u/poll c->s#))
-                (peer c# (-> c->s# (u/log-args 'l->r)) (u/poll s->c#))))))))
-
-(comment
-  ((system (vars) (prn 42)) prn prn)
-
-  )
+                (peer s# (-> s->c# #_(u/log-args 'r->l)) (u/poll c->s#))
+                (peer c# (-> c->s# #_(u/log-args 'l->r)) (u/poll s->c#))))))))
 
 (defn boot [f d]
   (fn []
@@ -64,59 +58,6 @@ of this var to the value currently bound to this var.
      `(boot (fn [s#]
               (println (case s# nil :reset :ready))
               (reset! ~sym s#)) ~prg)))
-
-(comment
-  ; Boot a peer (process reactor) with a boot function
-  ; the boot function is for a dag
-  ; the debug adds a way to sample the result on the side for testing
-  ; (in production the result is never sampled, process will fire more effects)
-
-  ((peer
-     (globals *)
-     (debug sampler (dataflow (* 6 7)))                 ; dag boot fn
-     #(m/sp (prn %))                                        ; trace spout
-     (u/poll m/never))                                      ; no network inputs
-   prn prn)
-
-  @sampler
-
-  )
-
-#?(:cljs
-   (tests
-
-     (def !a1 (atom 6))
-     (def !a2 (atom 7))
-
-     (def env (vars * m/watch !a1 !a2))
-     (def dag (dataflow (* @(m/watch !a1) @(m/watch !a2))))
-
-     ; repl server – run for effects but with hook for user to read the result at some time
-     (def system-task (system env (fn [] (sampler! #(def sampler %) dag))))
-     (system-task prn prn)                                  ; runs forever
-     @sampler := 42
-     @sampler := 42
-
-     (swap! !a1 inc)
-     @sampler := 49
-
-     ))
-
-#?(:cljs
-   (tests
-
-     (def !needle (atom "alice"))
-     (def dag
-       (dataflow
-         (let [needle @(m/watch !needle)]
-           ~@(str/upper-case needle))))
-     ((system (vars str/upper-case)
-        (fn [] (sampler! #(def sampler %) dag))) prn prn)
-     @sampler := "ALICE"
-     (reset! !needle "bob")
-     @sampler := "BOB"
-
-     ))
 
 (comment
   (def !input (atom "alice"))

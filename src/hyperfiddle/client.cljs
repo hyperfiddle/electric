@@ -2,7 +2,6 @@
   (:require [missionary.core :as m]
             [hfdl.lang :as d]
             [hyperfiddle.common.transit :as transit]
-            [dustin.fiddle-pages :as f]
             [hyperfiddle.common.routes :as common-routes]
             [hyperfiddle.client.ui :as ui]
             [hyperfiddle.client.edn-view :as ev]
@@ -42,21 +41,14 @@
                                          decoded))))
       #(set! (.-onmessage ws) nil))))
 
-(defn client [app]
+(defn client [[c s]]
   (m/sp
     (let [ws (m/? connect)]
-      (m/? (d/client app (writer ws) (reader ws))))))
-
-(def sampler)
-
-(defn define-sampler! [s]
-  (js/console.log (case s nil "booting..." "operational."))
-  (set! sampler s))
+      (m/? ((writer ws) s))
+      (m/? (d/peer c (writer ws) (reader ws))))))
 
 (def ^:export main
   (client
-    (d/boot define-sampler! #_f/ui-view
-      (d/dataflow
-        (let [route-request @common-routes/>route]
-          (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) ~@route-request)))
-      )))
+    (d/main
+      (let [route-request ~common-routes/>route]
+        (ev/set-editor-value! (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!) ~@route-request)))))
