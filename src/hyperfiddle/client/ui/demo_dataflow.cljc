@@ -5,7 +5,7 @@
             [hyperfiddle.rcf :refer-macros [tests]]
             [edamame.core :as edn])
   #?(:cljs (:require-macros [hfdl.lang :refer [defnode main]]
-             [hyperfiddle.client.ui.demo-dataflow])))
+                            [hyperfiddle.client.ui.demo-dataflow :refer [echo edn-key-value edn-renderer]])))
 
 (defn set-needle! [!needle]
   #?(:cljs
@@ -60,6 +60,8 @@
          (.. ^js e -currentTarget (removeAttribute "aria-invalid")))
        nil)))
 
+(def console-log #?(:cljs js/console.log))
+
 (defnode edn-key-value [e]
   (let [[k v] e]
     (ui/tag :<> nil
@@ -67,13 +69,13 @@
                       :dom.attribute/class                "hf-edn-cell hf-edn-key"
                       :dom.attribute/placeholder          "key"
                       :dom.event/DOMCharacterDataModified validate-edn}
-         (ui/text k))
+         [(ui/text k)])
        (ui/tag :span {:dom.attribute/contentEditable      true
                       :dom.attribute/class                "hf-edn-cell hf-edn-value"
                       :dom.attribute/placeholder          "value"
-                      :dom.event/focus                    (partial js/console.log "focus")
+                      :dom.event/focus                    (partial console-log "focus")
                       :dom.event/DOMCharacterDataModified validate-edn}
-         (ui/text v)
+         [(ui/text v)]
          #_@(edn-renderer ~v))])))
 
 (defnode edn-renderer [edn]
@@ -107,3 +109,4 @@
 ;; (-> (tag :div)
 ;;     (prop :dom.attribute/id ~"foo")
 ;;     (children (text ~"hello")))
+

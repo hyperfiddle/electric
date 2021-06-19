@@ -124,7 +124,7 @@ is a macro or special form."
                 (cljs/confirm-var-exists env prefix suffix
                   (fn [_ _ _] (when-not ((symbol (str prefix) (str suffix)) '#{cljs.core/unquote-splicing})
                                 (set! (.-val b) false))))))]
-      (when (.-val b) (:name v)))
+      (when (.-val b) (when-not (:macro v) (:name v))))
     (when-some [^Var v (resolve-var env sym)]
       (when-not (.isMacro v) (.toSymbol v)))))
 
@@ -248,7 +248,9 @@ is a macro or special form."
 
                     (analyze-form env
                       (if (:js-globals env)
-                        (cljs/macroexpand-1 env form)
+                        (if-some [v (cljs/get-expander op env)]
+                          (apply v form env args)
+                          (throw (ex-info "Unsupported form." {:op op :args args})))
                         (if-some [v (resolve-var env op)]
                           (apply v form (:locals env) args)
                           (clj/desugar-host-expr form env)))))))
