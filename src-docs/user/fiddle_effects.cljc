@@ -23,7 +23,7 @@
    (.toLowerCase (or (str needle) ""))))
 
 (def needle-rule
-  '[[(geoffrey.fiddle-effects/needle-match ?v ?needle)
+  '[[(user.fiddle-effects/needle-match ?v ?needle)
      [(str ?v) ?v']
      [(str ?needle) ?needle']
      #_[(.toLowerCase ?v')]
@@ -33,7 +33,6 @@
 
 (defnode ^{:db/cardinality :db.cardinality/many}
   shirt-sizes [gender needle]
-  #_(println `(shirt-sizes ~gender ~needle))
   (sort
     (d/q
       '[:in $ % ?gender ?needle
@@ -42,7 +41,7 @@
         [?e :dustingetz/type :dustingetz/shirt-size]
         [?e :dustingetz/gender ?gender]
         [?e :db/ident ?ident]
-        (needle-match ?ident ?needle)
+        #_(needle-match ?ident ?needle)
         #_[(dustin.fiddle/needle-match ?ident ?needle)]]
       *$* needle-rule gender (or needle ""))))
 

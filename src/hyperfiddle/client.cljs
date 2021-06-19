@@ -60,7 +60,7 @@
           (edn-renderer
             #_(user.tutorial/plus 1 ~@~(m/watch user.tutorial/!input))
             ~@(user.tutorial/render-shirt-size
-              ~(m/watch user.tutorial/!shirt-size)))
+                ~(m/watch user.tutorial/!shirt-size)))
 
           #_(edn-renderer {:a 1
                            :b {:c 2}
