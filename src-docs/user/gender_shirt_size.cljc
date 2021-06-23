@@ -11,8 +11,7 @@
   #?(:cljs
      (:require-macros
        [user.gender-shirt-size
-        :refer [render-shirt-size render-form
-                page-submission-detail page-submissions]])))
+        :refer [ref render-form page-submissions]])))
 
 (def q (comp #(m/ap (m/? (m/via m/blk %))) d/q))
 
@@ -61,7 +60,7 @@
 ;  (submissions "b") := [bob])
 
 (defnode ref [v {::hf/keys [options]}]
-  (dom/select {:selected v} (p/for [x options] (dom/option x))))
+  (dom/select v (p/for [x options] (dom/option x))))
 
 (defnode render-form [xs]
   #_(let [!needle (atom "")]
@@ -73,12 +72,17 @@
           (dom/input !needle)))
       ))
   (dom/table
-    (p/for [{:keys [:person/gender
+    (p/for [{:keys [:db/id
+                    :person/email
+                    :person/gender
                     :person/shirt-size]} xs #_(xs ~(m/watch !needle))]
-           (dom/tr
-             (dom/td gender)
-             (dom/td shirt-size)))))
+      (dom/tr
+        (dom/td (dom/span (pr-str id)))
+        (dom/td email)
+        (dom/td (dom/span (pr-str gender)))
+        (dom/td (dom/span (pr-str shirt-size)))))))
 
+#_
 (defnode page-submission-detail "" [e]
   (hfql
     [{e
@@ -89,14 +93,17 @@
        {(:person/shirt-size ::hf/options (shirt-sizes person/gender _)
           ::hf/render ref) [:db/ident]}]}]))
 
+(defnode render-text [x opts]
+  (dom/input x))
+
 (defnode page-submissions "" []
   (hfql
     [{((submissions _) ::hf/render render-form)
       [:db/id
-       (:person/email ::hf/a page-submission-detail)
-       {(:person/gender ::hf/options (genders)) [:db/ident]}
+       (:person/email ::hf/render render-text)
+       {(:person/gender ::hf/options (genders) ::hf/render ref) [:db/ident]}
        {(:person/shirt-size ::hf/options (shirt-sizes gender _)
-          ::hf/render render-shirt-size) [:db/ident]}]}]))
+          ::hf/render ref) [:db/ident]}]}]))
 
 (def !needle (atom ""))
 
