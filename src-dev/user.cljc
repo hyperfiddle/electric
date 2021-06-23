@@ -25,14 +25,14 @@
 
 (comment
   ; JVM
-  (require '[dev])
-  (require '[io.pedestal.http :as http])
-  (require '[hyperfiddle.server :refer [start-server!]])
-
+  (do
+    (require '[dev])
+    (require '[hyperfiddle.server :refer [start-server!]])
+    (require '[io.pedestal.http :as http])
+    (def server (start-server! {:host   "localhost"
+                                :port   8080
+                                :scheme "http"})))s
   (http/stop server)
-  (def server (start-server! {:host   "localhost"
-                              :port   8080
-                              :scheme "http"}))
   ; load the effects
   ;(require 'dustin.fiddle-pages)
 
