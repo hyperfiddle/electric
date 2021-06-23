@@ -6,7 +6,8 @@
             [hfdl.impl.sampler :refer [sampler!]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hfdl.lang :refer [vars]])))
+  #?(:cljs (:require-macros
+             [hfdl.lang :refer [defnode vars main for system debug]])))
 
 ;; TODO variadic
 (defmacro defnode "" [sym & decl]
