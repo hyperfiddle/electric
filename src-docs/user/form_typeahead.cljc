@@ -1,4 +1,4 @@
-(ns user.typeahead
+(ns user.form-typeahead
   (:require [hyperfiddle.rcf :refer [tests]]
             [hfdl.lang :as h :refer [defnode vars system]]
             [missionary.core :as m]

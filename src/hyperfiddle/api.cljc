@@ -1,7 +1,40 @@
-(ns hyperfiddle.api)
+(ns hyperfiddle.api
+  (:require [hyperfiddle.rcf :refer [tests]]))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
+(def ^:dynamic *route*)                                     ; cljs
 
+(defmacro hfql [& body])
+(defmacro page [& body])
+(defmacro app [& body])
+
+(defn needle-match [v needle]
+  (clojure.string/includes?
+    (.toLowerCase (or (str v) ""))
+    (.toLowerCase (or (str needle) ""))))
+
+(tests
+  (needle-match "alice" "a") := true
+  (needle-match "alice" "A") := true
+  (needle-match "alice" "b") := false)
+
+(defn needle-match' [v needle]
+  (boolean (re-find #?(:clj  (re-pattern (str "(?i)" needle))
+                       :cljs (js/RegExp. needle "i")) v)))
+
+(tests
+  (needle-match' "alice" "a") := true
+  (needle-match' "alice" "A") := true
+  (needle-match' "alice" "b") := false)
+
+(def rules
+  '[[(hyperfiddle.api/needle-match ?v ?needle)
+     [(str ?v) ?v']
+     [(str ?needle) ?needle']
+     #_[(.toLowerCase ?v')]
+     #_[(.toLowerCase ?needle')]
+     #_[(clojure.string/includes? ?v' ?needle')]
+     [(clojure.string/includes? ?v' ?needle')]]])
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; Semantic Types ;;

@@ -2,7 +2,7 @@
   (:require [hyperfiddle.rcf :refer [tests]]
             [hfdl.lang :as h :refer [defnode vars system]]
             [missionary.core :as m]
-            [user.fiddle-effects
+            [user.gender-shirt-size
              :refer [submissions genders shirt-sizes submission-details
                      submission gender shirt-size]]
             [hyperfiddle.q2 :refer [hf-nav hfql exports]]
@@ -173,7 +173,7 @@
   ((system exports (reset! !result ~@(page-submissions ~@~(m/watch !needle)))) prn u/pst)
 
   @!result :=
-  {(geoffrey.fiddle-effects/submissions "")
+  {(user.gender-shirt-size/submissions "")
    [{:dustingetz/email      "alice@example.com",
      :dustingetz/shirt-size [:select
                              {:selected :dustingetz/womens-large}
@@ -193,7 +193,7 @@
   (reset! !needle "bob")                                    ; broken test
 
   @!result :=
-  {(geoffrey.fiddle-effects/submissions "bob")
+  {(user.gender-shirt-size/submissions "bob")
    [{:dustingetz/email      "bob@example.com",
      :dustingetz/shirt-size [:select
                              {:selected :dustingetz/mens-large}
