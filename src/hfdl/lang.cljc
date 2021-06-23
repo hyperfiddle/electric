@@ -7,7 +7,7 @@
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
   #?(:cljs (:require-macros
-             [hfdl.lang :refer [defnode vars main for system debug]])))
+             [hfdl.lang :refer [defnode vars main for system debug node thread]])))
 
 ;; TODO variadic
 (defmacro defnode "" [sym & decl]
@@ -15,6 +15,12 @@
     `(defmacro ~sym [& ~args]
        (c/node ~(name (ns-name *ns*))
          ~(name sym) (quote ~decl) ~args))))
+
+(defmacro node [& x])
+
+(defmacro thread [body]
+  `(unquote (m/ap (m/? (m/via m/blk ~body)))))
+; when lambdas work, thread will work for free because m/ap generates lambda
 
 (defmacro main [& body]
   (c/main (gensym) &env (cons `do body)))
