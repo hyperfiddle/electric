@@ -1,7 +1,7 @@
 (ns hyperfiddle.q2
   (:require [clojure.walk :as walk]
             [datascript.core :as d]
-            [user.fiddle-effects :refer [genders shirt-sizes submissions submission submission-details]]
+            [user.gender-shirt-size :refer [genders shirt-sizes submissions submission submission-details]]
             [hfdl.lang :refer [vars #?(:clj defnode) debug system] :as h]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tests]]
@@ -166,8 +166,8 @@
   (compile-hfql* &env (ns-map *ns*) {} (if-not (vector? form) [form] form)))
 
 (def exports
-  (merge user.fiddle-effects/exports
-    (vars hash-map vector list concat seq hf-nav* hf/->Link)))
+  (merge user.gender-shirt-size/exports
+         (vars hash-map vector list concat seq hf-nav* hf/->Link)))
 
 #_(let [needle @>needle
       x      @(hfql {(submission needle) [:dustingetz/email
@@ -181,7 +181,7 @@
   #:db{:id (hyperfiddle.q2/render (hyperfiddle.q2/hf-nav :db/id %) nil)}
 
   (macroexpand '(hfql {(submission "") [:db/id]})) :=
-  {(clojure.core/list (quote user.fiddle-effects/submission) (quote ""))
+  {(clojure.core/list (quote user.gender-shirt-size/submission) (quote ""))
    (let [% (submission "")]
      (let [% %]
        (hyperfiddle.q2/render
@@ -190,7 +190,7 @@
                     nil)} nil)))}
 
   (macroexpand '(hfql {(submission "") [{:dustingetz/shirt-size [:db/ident]}]})) :=
-  {(clojure.core/list (quote user.fiddle-effects/submission) (quote ""))
+  {(clojure.core/list (quote user.gender-shirt-size/submission) (quote ""))
    (let [% (submission "")]
      (let [% %]
        (hyperfiddle.q2/render
@@ -203,7 +203,7 @@
                                                       nil)} nil)))} nil)))}
 
   (macroexpand '(hfql {(submission "") [:dustingetz/email (:db/id ::hf/render id-as-string)]})) :=
-  {(clojure.core/list (quote user.fiddle-effects/submission) (quote ""))
+  {(clojure.core/list (quote user.gender-shirt-size/submission) (quote ""))
    (let [% (submission "")]
      (let [% %]
        (hyperfiddle.q2/render
@@ -212,7 +212,7 @@
                    #:hyperfiddle.api{:render id-as-string})} nil)))}
 
   (macroexpand '(hfql {(submissions "") [:db/id]})) :=
-  {(clojure.core/list (quote user.fiddle-effects/submissions) (quote ""))
+  {(clojure.core/list (quote user.gender-shirt-size/submissions) (quote ""))
    (hfdl.lang/for [% (submissions "")]
      (clojure.core/let [% %]
        (hyperfiddle.q2/render #:db{:id (hyperfiddle.q2/render (hyperfiddle.q2/hf-nav :db/id %) nil)} nil)))}
@@ -236,7 +236,7 @@
   ((system exports
      (reset! !res
        (-> (hfql {(submission "") [:db/id]})
-         (get '(user.fiddle-effects/submission ""))
+         (get '(user.gender-shirt-size/submission ""))
          (:db/id)))) nil nil)
   @!res := 9
 
@@ -244,7 +244,7 @@
   ((system exports
      (reset! !res
        (-> (hfql {(submission "") [{:dustingetz/shirt-size [:db/ident]}]})
-         (get '(user.fiddle-effects/submission ""))
+         (get '(user.gender-shirt-size/submission ""))
          (:dustingetz/shirt-size)
          (:db/ident)))) nil nil)
   @!res := :dustingetz/womens-large
@@ -260,7 +260,7 @@
   ((system exports
      (reset! !res
        (-> (hfql {(submission "") [:dustingetz/email (:db/id ::hf/render id-as-string)]})
-         (get '(user.fiddle-effects/submission ""))
+         (get '(user.gender-shirt-size/submission ""))
          (:db/id)))) nil nil)
   @!res := "9"
 
@@ -272,7 +272,7 @@
   ((system exports
      (reset! !res
        (-> (hfql {(submissions "") [:db/id]})
-         (get '(user.fiddle-effects/submissions ""))
+         (get '(user.gender-shirt-size/submissions ""))
          (first)
          (:db/id)))) nil nil)
   @!res := 9

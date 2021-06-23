@@ -20,65 +20,6 @@
 (defn set-needle! [needle %]
   (reset! needle (.. % -target -value)))
 
-;; * Leo: different idea about RT
-;;
-;; **Problem: how to introduce a new identity in a DF expression?**
-;;
-;; Ex:
-;; - js/document.createElement
-;; - clojure.core/atom
-;; - gensym
-;; **-> we don't want them to be re-used.**
-;;
-;; what does defines an apply node identity? apply nodes has a heap, the heap is
-;; the identity. does the place in the AST is the identity? does let introduces
-;; identities?
-;;
-;; Solutions:
-;; 1. [Leo]: we write a macro, generating a unique sym at compile time. Instead
-;;    of calling a non-rt fn we call a wrapper that proxies and discards the
-;;    result at runtime. Each time the macro is called, the call is guaranteed
-;;    to have a unique identity.
-;;
-;;    ```clojure
-;;    (dataflow
-;;     (id (atom 0)) ; id defines the identity (allocates a new one)
-;;     (id (atom 0)) ; not the same identity as above
-;;     ))
-;;     ```
-;;
-;; 2. [Leo]: Remove RT, so the only way to re-use nodes (share them) is via let.
-;;    Each expr has its own identity. Let propagates identities.
-;;
-;;    #+begin_src clojure
-;;    ;; With let propagating identites
-;;    (dataflow
-;;     (let [a (atom 1)]
-;;       (+ (deref a) (deref a)))) ; shared, same `a`, not the same `(deref a)`
-;;
-;;    ;; is different from
-;;    (dataflow (+ @(atom 1) @(atom 1))) ; nothing shared
-;;    #+end_src
-;;
-;;    One downside is we lose re-use across frames. So if we spawn multiple
-;;    dataflows with the same structure, we are going to duplicate nodes having
-;;    the same behavior.
-;;
-;;    #+begin_src clojure
-;;    (defn new-integer [x] (java.lang.Integer. x))
-;;
-;;    (dataflow
-;;     (+ (new-integer. 1) ; new is special case of `apply` with a new identity
-;;        (new-integer. 1)))
-;;
-;;    (dataflow
-;;     (let [a (atom. 1)
-;;           sym (gensym.)
-;;           elem (create-element. "div")]
-;;       (+ @a @a)))
-;;    #+end_src
-
-
 (defn render-with-deep-input [e props]
   #?(:cljs
      (dataflow
@@ -195,16 +136,17 @@
 
 (comment
   (require '[hfdl.lang :refer [system debug]])
-  (defnode page [needle]
-    (hfql
-      [{(submissions needle)
-        [:db/id
-         :dustingetz/email
-         {(:dustingetz/gender ::hf/options (genders))
-          [:db/ident]}
-         {(:dustingetz/shirt-size ::hf/options (shirt-sizes dustingetz/gender))
-          [:db/ident]}
-         ]}]))
+
+(defnode page [needle]
+  (hfql
+    [{(submissions needle)
+      [:db/id
+       (:person/email ::hf/a (submission-detail db/id))
+       {(:person/gender ::hf/options (genders))
+        [:db/ident]}
+       {(:person/shirt-size
+          ::hf/options (shirt-sizes dustingetz/gender _))
+        [:db/ident]}]}]))
 
   ((system (merge q/exports ui/exports exports (vars render-email))
      (debug sample (simple-email "a"))) prn prn)

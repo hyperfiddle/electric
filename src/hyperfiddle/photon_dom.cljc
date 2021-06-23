@@ -1,0 +1,17 @@
+(ns hyperfiddle.photon-dom
+  (:require [hyperfiddle.photon :refer [defnode]]))
+
+(defnode fragment [& body])
+(defnode div [& body])
+(defnode span [& body])
+(defnode h1 [& body])
+(defnode input [& body])
+(defnode table [& body])
+(defnode thead [& body])
+(defnode tbody [& body])
+(defnode tr [& body])
+(defnode td [& body])
+(defnode form [& body])
+(defnode field [& body])
+(defnode select [& body])
+(defnode option [& body])
