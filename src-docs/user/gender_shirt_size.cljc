@@ -1,7 +1,7 @@
 (ns user.gender-shirt-size
   (:require [clojure.spec.alpha :as s]
             [datascript.core :as d]
-            [hfdl.lang :refer [#?(:clj defnode) vars system]]
+            [hfdl.lang :as p :refer [#?(:clj defnode) vars system]]
             [hfdl.impl.util :as u]
             [hyperfiddle.api :as hf :refer [*$*]]
             [hyperfiddle.q2 :refer [hf-nav hfql exports]]
@@ -17,33 +17,31 @@
 (def q (comp #(m/ap (m/? (m/via m/blk %))) d/q))
 
 (defnode genders []
-  (into [] ~(q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] *$*)))
+  (into [] ~(q '[:find [?e ...] :where [_ :person/gender ?e]] *$*)))
 
 ;(tests
-;  (genders) := [:dustingetz/male :dustingetz/female] #_[male female])
+;  (genders) := [:person/male :person/female] #_[male female])
 
 (defnode gender []
   (first (genders)))
 
 ;(tests
-;  (gender) := :dustingetz/male #_male)
+;  (gender) := :person/male #_male)
 
-(defnode shirt-sizes [gender & [needle]]
+(defnode shirt-sizes [gender needle]
   (sort
     (d/q
       '[:in $ % ?gender ?needle
         :find [?e ...]
         :where
-        [?e :dustingetz/type :dustingetz/shirt-size]
-        [?e :dustingetz/gender ?gender]
+        [?e :person/type :person/shirt-size]
+        [?e :person/gender ?gender]
         [?e :db/ident ?ident]
         (hyperfiddle.api/needle-match ?ident ?needle)]
       *$* hf/rules gender (or needle ""))))
 
-(s/fdef shirt-sizes
-        :args (s/alt :naked (s/cat :gender keyword? #_nat-int?)
-                     :needle (s/cat :gender keyword?, :needle string?))
-        :ret sequential?)
+(s/fdef shirt-sizes :args (s/cat :gender keyword?
+                                 :needle string?) :ret sequential?)
 
 (defn submissions [& [needle]]
   ;(m/via m/cpu)
@@ -51,44 +49,53 @@
     (d/q '[:find [?e ...]
            :in $ % ?needle
            :where
-           [?e :dustingetz/email ?email]
+           [?e :person/email ?email]
            (hyperfiddle.api/needle-match ?email ?needle)]
          *$* hf/rules (or needle ""))))
 
-(s/fdef submissions
-        :args (s/alt :naked (s/cat) :needle (s/cat :needle string?))
-        :ret sequential?)
+(s/fdef submissions :args (s/cat :needle string?) :ret sequential?)
 
 ;(tests
 ;  (submissions) := [alice bob charlie]
 ;  (submissions "example") := [alice bob charlie]
 ;  (submissions "b") := [bob])
 
-(defnode render-shirt-size [v {::hf/keys [options]}]
-  (dom/select {:selected v} (for [x options] (dom/option x))))
+(defnode ref [v {::hf/keys [options]}]
+  (dom/select {:selected v} (p/for [x options] (dom/option x))))
 
-(defnode render-form [e]
-  (dom/tr
-    (dom/field ~@(hf-nav :dustingetz/email e))
-    (dom/field (render-shirt-size ~@(hf-nav :dustingetz/shirt-size e)))))
+(defnode render-form [xs]
+  #_(let [!needle (atom "")]
+    (dom/div
+      (dom/h1 "submissions")
+      (dom/form
+        (dom/field
+          (dom/span "needle")
+          (dom/input !needle)))
+      ))
+  (dom/table
+    (p/for [{:keys [:person/gender
+                    :person/shirt-size]} xs #_(xs ~(m/watch !needle))]
+           (dom/tr
+             (dom/td gender)
+             (dom/td shirt-size)))))
 
 (defnode page-submission-detail "" [e]
   (hfql
-    ; how to link back? command bar and stack?
     [{e
       [:db/id
-       :dustingetz/email
-       {(:dustingetz/gender ::hf/options (genders)) [:db/ident]}
-       {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender)
-          ::hf/render render-shirt-size) [:db/ident]}]}]))
+       :person/email
+       {(:person/gender ::hf/options (genders)
+          ::hf/render ref) [:db/ident]}
+       {(:person/shirt-size ::hf/options (shirt-sizes person/gender _)
+          ::hf/render ref) [:db/ident]}]}]))
 
-(defnode page-submissions "" [needle]
+(defnode page-submissions "" []
   (hfql
-    [{((submissions needle) ::hf/render render-form)
+    [{((submissions _) ::hf/render render-form)
       [:db/id
-       (:dustingetz/email ::hf/a page-submission-detail)
-       {(:dustingetz/gender ::hf/options (genders)) [:db/ident]}
-       {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender)
+       (:person/email ::hf/a page-submission-detail)
+       {(:person/gender ::hf/options (genders)) [:db/ident]}
+       {(:person/shirt-size ::hf/options (shirt-sizes gender _)
           ::hf/render render-shirt-size) [:db/ident]}]}]))
 
 (def !needle (atom ""))
