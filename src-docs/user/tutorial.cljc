@@ -3,8 +3,7 @@
             [hfdl.lang :as h :refer [defnode vars system]]
             [missionary.core :as m]
             [user.gender-shirt-size
-             :refer [submissions genders shirt-sizes submission-details
-                     submission gender shirt-size]]
+             :refer [submissions genders shirt-sizes submission-details]]
             [hyperfiddle.q2 :refer [hf-nav hfql exports]]
             [hfdl.impl.util :as u])
   #?(:cljs (:require-macros
@@ -14,6 +13,10 @@
                       hello-world page-submission-detail page-submissions
                       ]])))
 
+(defnode submission [needle] (first (submissions needle)))
+(defnode gender [] (first (genders)))
+(defnode shirt-size [gender & [needle]] (first (shirt-sizes gender needle)))
+
 (defnode hello [] "hello-world")
 
 (defnode num? [a] (number? a))
@@ -22,7 +25,7 @@
 
 (defnode render-shirt-size [v]
   [:select {:selected v}
-   [:option (shirt-size :dustingetz/male nil)]])
+   [:option (first (shirt-sizes :dustingetz/male nil))]])
 
 (defnode render-shirt-size2 [v]
   [:select {:selected v}
