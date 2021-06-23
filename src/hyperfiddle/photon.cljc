@@ -1,4 +1,10 @@
 (ns hyperfiddle.photon)
 
 (defmacro defnode [& body])
+(defmacro node [& body])
+(defmacro for [& body])
+(defmacro thread [& body])
 (defmacro main [& body])
+(defmacro vars [& body])
+(defmacro system [& body])
+(defmacro debug [& body])
