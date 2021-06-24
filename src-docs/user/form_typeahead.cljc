@@ -36,6 +36,22 @@
     (.appendChild *!parent !el)
     ~(m/observe (dom-listen !el))))
 
+(defmacro thread [& body]
+  `(m/ap (m/? (m/via m/blk ~@body))))
+
+(defn entity-gender [db e]
+  (thread (:dustingetz/gender (datomic.api/entity db e))))
+
+(defn entity-ident [db e]
+  (thread (:db/ident (datomic.api/entity db e))))
+
+(defn shirt-sizes [db gender needle]
+  (thread
+    (datomic.api/q
+      '[:in $ ?gender :find [?e ...] :where
+        [?e :dustingetz/type :dustingetz/shirt-size]
+        [?e :dustingetz/gender ?gender]]
+      db gender (or needle ""))))
 
 (defnode option [])
 (defnode typeahead-select [])
@@ -47,15 +63,9 @@
       (typeahead-select
         ::hf/eav [e :dustingetz/shirt-size]
         ::options (node [needle]
-                    (let [gender (thread (:dustingetz/gender (datomic.api/entity db e)))
-                          es (thread
-                               (datomic.api/q
-                                 '[:in $ ?gender :find [?e ...] :where
-                                   [?e :dustingetz/type :dustingetz/shirt-size]
-                                   [?e :dustingetz/gender ?gender]]
-                                 db gender (or needle "")))]
-                      (for [e es]
-                        (option ~@(thread (:db/ident (datomic.api/entity db e)))))))))))
+                    (let [gender ~(entity-gender db e)]
+                      (for [e ~(shirt-sizes db gender needle)]
+                        (option ~@~(entity-ident db e)))))))))
 
 ; everything is async in dataflow context, blocking is forbidden.
 
