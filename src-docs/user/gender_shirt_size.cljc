@@ -11,7 +11,7 @@
   #?(:cljs
      (:require-macros
        [user.gender-shirt-size
-        :refer [ref render-form page-submissions]])))
+        :refer [ref2 render-form page-submissions]])))
 
 (def q (comp #(m/ap (m/? (m/via m/blk %))) d/q))
 
@@ -27,7 +27,7 @@
 ;(tests
 ;  (gender) := :person/male #_male)
 
-(defnode shirt-sizes [gender needle]
+(defn shirt-sizes [gender needle]
   (sort
     (d/q
       '[:in $ % ?gender ?needle
@@ -59,7 +59,7 @@
 ;  (submissions "example") := [alice bob charlie]
 ;  (submissions "b") := [bob])
 
-(defnode ref [v {::hf/keys [options]}]
+(defnode ref2 [v {::hf/keys [options]}]
   (dom/select v (p/for [x options] (dom/option x))))
 
 (defnode render-form [xs]
@@ -98,12 +98,12 @@
 
 (defnode page-submissions "" []
   (hfql
-    [{((submissions _) ::hf/render render-form)
+    [{((submissions "") ::hf/render render-form)
       [:db/id
        (:person/email ::hf/render render-text)
-       {(:person/gender ::hf/options (genders) ::hf/render ref) [:db/ident]}
-       {(:person/shirt-size ::hf/options (shirt-sizes gender _)
-          ::hf/render ref) [:db/ident]}]}]))
+       {(:person/gender ::hf/options (genders) ::hf/render ref2) [:db/ident]}
+       {(:person/shirt-size ::hf/options (shirt-sizes :dustingetz/male nil)
+          ::hf/render ref2) [:db/ident]}]}]))
 
 (def !needle (atom ""))
 

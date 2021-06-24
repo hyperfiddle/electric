@@ -1,5 +1,8 @@
 (ns hyperfiddle.api
-  (:require [hyperfiddle.rcf :refer [tests]]))
+  (:require [hyperfiddle.photon :as photon :refer [defnode]]
+            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.rcf :refer [tests]]
+            [missionary.core :as m]))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 (def ^:dynamic *route*)                                     ; cljs
