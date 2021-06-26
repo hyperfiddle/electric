@@ -6,8 +6,7 @@
             [hfdl.impl.sampler :refer [sampler!]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros
-             [hfdl.lang :refer [defnode vars main for system debug node thread]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [defnode vars main for system debug node thread]])))
 
 ;; TODO variadic
 (defmacro defnode "" [sym & decl]
@@ -37,6 +36,8 @@ of this var to the value currently bound to this var.
 
 (def peer r/peer)
 (def eval r/eval)
+
+(def exports (vars hash-map vector list concat seq sort into first m/watch))
 
 (defmacro system [vars & body]
   `(let [[c# s#] (main ~@body)

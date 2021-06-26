@@ -1,7 +1,6 @@
 (ns hyperfiddle.api
-  (:require [hyperfiddle.photon :as photon :refer [defnode]]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :refer [tests]]
+  (:require [hyperfiddle.rcf :refer [tests]]
+            [hfdl.lang :refer [vars]]
             [missionary.core :as m]))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
@@ -78,3 +77,5 @@
            (-pr-writer [this writer _]
              (write-all writer "#hyperfiddle.api.Input " (pr-str {:id    (.-id this)
                                                                   :value (.-value this)})))))
+
+(def exports (vars rules ->Link))

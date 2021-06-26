@@ -31,7 +31,7 @@
     (require '[io.pedestal.http :as http])
     (def server (start-server! {:host   "localhost"
                                 :port   8080
-                                :scheme "http"})))s
+                                :scheme "http"})))
   (http/stop server)
   ; load the effects
   ;(require 'dustin.fiddle-pages)

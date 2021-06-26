@@ -81,16 +81,15 @@
 (defn start! [task]
   (task prn u/pst))
 
+(def env q/exports)
+
 (defn ws-paths [_config]
   {"/echo" (fn [_request]
              (fn [remote read-str read-buf closed]
                (start! (m/sp (loop [] (m/? (ws/write-str remote (m/? read-str))) (recur))))))
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
-               (start! (m/sp (m/? (d/peer (d/eval (merge q/exports
-                                                    user.tutorial/exports2
-                                                    (d/vars m/watch))
-                                            (m/? (str->edn (m/? read-str))))
+               (start! (m/sp (m/? (d/peer (d/eval env (m/? (str->edn (m/? read-str))))
                                     (edn-writer remote) (edn-reader read-str)))))))})
 
 (defn gzip-handler [& methods]
