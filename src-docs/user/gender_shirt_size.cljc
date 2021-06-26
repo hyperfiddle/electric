@@ -52,50 +52,45 @@
 ;  (submissions "example") := [alice bob charlie]
 ;  (submissions "b") := [bob])
 
-(defnode ref2 [v {::hf/keys [options]}]
-  (dom/select v (p/for [x options] (dom/option x))))
+(defnode ref2 [v {::hf/keys [options]} needle]
+  (dom/select v (p/for [x (options "")] (dom/option x))))
 
-(defnode render-form [xs]
-  #_(let [!needle (atom "")]
-    (dom/div
-      (dom/h1 "submissions")
-      (dom/form
-        (dom/field
-          (dom/span "needle")
-          (dom/input !needle)))
-      ))
-  (dom/table
-    (p/for [{:keys [:db/id
-                    :person/email
-                    :person/gender
-                    :person/shirt-size]} xs #_(xs ~(m/watch !needle))]
-      (dom/tr
-        (dom/td (dom/span (pr-str id)))
-        (dom/td email)
-        (dom/td (dom/span (pr-str gender)))
-        (dom/td (dom/span (pr-str shirt-size)))))))
+;(defmacro ref3 [v {::hf/keys [options]}]
+;  `(let [gender nil
+;         needle ""]
+;     (dom/select ~v (p/for [x ~options] (dom/option x)))))
 
-#_
-(defnode page-submission-detail "" [e]
-  (hfql
-    [{e
-      [:db/id
-       :person/email
-       {(:person/gender ::hf/options (genders)
-          ::hf/render ref) [:db/ident]}
-       {(:person/shirt-size ::hf/options (shirt-sizes person/gender _)
-          ::hf/render ref) [:db/ident]}]}]))
+(defmacro auto-render [v props]
+  ;(let [!needle (atom "")])
+  `(dom/div
+     (dom/h1 "submissions")
+     #_(let [args
+           (dom/form
+             (dom/field (dom/span "needle") (dom/input needle))
+             (dom/field (dom/span "needle2") (dom/input needle2))
+             (dom/field (dom/span "needle3") (dom/input needle3)))]) ; in scope
+     (let [xs ~v #_(v needle)]                              ; assume needle in scope
+       (dom/table
+         (p/for [{:keys [:db/id
+                         :person/email
+                         :person/gender
+                         :person/shirt-size]} xs #_(xs ~(m/watch !needle))]
+                (dom/tr
+                  (dom/td (dom/span (pr-str id)))
+                  (dom/td email)
+                  (dom/td (dom/span (pr-str gender)))
+                  (dom/td (dom/span (pr-str shirt-size)))))))))
 
 (defnode render-text [x opts]
   (dom/input x))
 
-(defnode page-submissions "" []
+(defnode page-submissions []
   (hfql
-    [{((submissions "") ::hf/render render-form)
+    [{((submissions "") ::hf/render auto-render)
       [:db/id
        (:person/email ::hf/render render-text)
        {(:person/gender ::hf/options (genders) ::hf/render ref2) [:db/ident]}
-       {(:person/shirt-size ::hf/options (shirt-sizes :dustingetz/male nil)
+       {(:person/shirt-size ::hf/options (shirt-sizes :dustingetz/male "")
           ::hf/render ref2) [:db/ident]}]}]))
 
 (def !needle (atom ""))

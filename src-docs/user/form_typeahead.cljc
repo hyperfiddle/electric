@@ -23,3 +23,10 @@
           ~@~(d/mount results
                (doto (d/element "div")
                  (d/set-text-content! (name id))))))))
+
+;(let [gender ...]
+;  (typeahead-select _ _
+;
+;                    '(shirt-sizes ~(nav entity :dustingetz/gender :db/ident) needle)
+;
+;                    (node [needle] (shirt-sizes gender needle))))
