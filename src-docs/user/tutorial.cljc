@@ -2,8 +2,7 @@
   (:require [hyperfiddle.rcf :refer [tests]]
             [hfdl.lang :as h :refer [defnode vars system]]
             [missionary.core :as m]
-            [user.gender-shirt-size
-             :refer [submissions genders shirt-sizes submission-details]]
+            [user.gender-shirt-size :refer [submissions genders shirt-sizes]]
             [hyperfiddle.q2 :refer [hf-nav hfql exports]]
             [hfdl.impl.util :as u])
   #?(:cljs (:require-macros

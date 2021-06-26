@@ -1,19 +1,30 @@
 (ns hyperfiddle.q2
   (:require [clojure.walk :as walk]
             [datascript.core :as d]
-            [hfdl.lang :refer [vars #?(:clj defnode) debug system] :as h]
+            #_[datomic.api :as d]
+            [hfdl.lang :refer [vars defnode debug system] :as h]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tests]]
             [missionary.core :as m])
-  #?(:cljs (:require-macros
-             [hfdl.lang :refer [defnode]]
-             [hyperfiddle.q2 :refer [hfql]])))
+  #?(:cljs (:require-macros [hyperfiddle.q2 :refer [hfql]])))
 
-(defn hf-nav* [db kf ref]
-  (m/ap (m/? (m/via m/blk (kf (d/entity db ref))))))
+(defn wrap [f] (fn [& args] (m/ap (m/? (m/via m/blk (apply f args))))))
+
+(defn nav!
+  ([_ ref] ref)
+  ([db ref kf] (kf (d/entity db ref)))
+  ([db ref kf & kfs] (reduce (partial nav! db) (nav! db ref kf) kfs)))
+
+(def q (wrap (fn [query & args]
+               (apply prn :q query args)
+               (doto (apply d/q query hf/*$* args) prn))))
+
+(def nav (wrap (fn [ref & kfs]
+                 (apply prn :nav ref kfs)
+                 (doto (apply nav! hf/*$* ref kfs) prn))))
 
 (defnode hf-nav [kf ref]
-  ~(hf-nav* hf/*$* kf ref))
+  ~(nav ref kf))
 
 (defn replace* [smap coll]
   (if (seqable? coll)
@@ -165,9 +176,7 @@
 (defmacro hfql [form]
   (compile-hfql* &env (ns-map *ns*) {} (if-not (vector? form) [form] form)))
 
-(def exports
-  (merge user.gender-shirt-size/exports
-         (vars hash-map vector list concat seq hf-nav* hf/->Link)))
+(def exports (merge h/exports hf/exports (vars nav q)))
 
 (tests
   (macroexpand '(hfql :db/id)) :=
