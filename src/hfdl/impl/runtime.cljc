@@ -48,17 +48,16 @@
 
 ;; TODO
 (defn destruct [context path]
-  (prn :destruct path)
   (let [store (aget context (int 0))
         frame (get store path)]
     (aset context (int 0) (dissoc store path))
+    #_
     (reduce-kv
       (fn [_ slot inner]
         (reduce (fn [_ id] (destruct context (conj path slot id)))
           nil (aget inner (int 0))))
       nil (aget frame (int 0)))
-    (reduce (fn [_ x] (x)) nil (aget frame (int 1))))
-  (prn :destructed path))
+    (reduce (fn [_ x] (x)) nil (aget frame (int 1)))))
 
 (defn allocate [context path slot & args]
   (let [in (-> context
@@ -105,11 +104,9 @@
 
 (defn output [context path flow]
   (let [frame (get (aget context (int 0)) path)
-        id (aget frame (int 3))
-        out (m/signal! flow)]
+        id (aget frame (int 3))]
     (aset frame (int 3) (inc id))
-    (aset frame (int 1) (conj (aget frame (int 1)) out))
-    ((aget context (int 2)) (conj path id out))))
+    ((aget context (int 2)) (conj path id (share context path flow)))))
 
 (defn input [context path]
   (let [frame (get (aget context (int 0)) path)]
@@ -167,8 +164,8 @@
                      (let [x (m/? (aget ctx (int 2)))]
                        (m/amb= [{(pop x) (try (m/?> (peek x))
                                               (catch #?(:clj Throwable
-                                                        :cljs :default) e
-                                                (u/pst e)))}] (recur))))))
+                                                        :cljs :default) _
+                                                (m/?> m/none)))}] (recur))))))
         (m/relieve message)
         (m/stream!)
         (u/foreach (-> write (u/log-args '>)))
