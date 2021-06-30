@@ -24,6 +24,8 @@
 (defmacro main [& body]
   (c/main (gensym) &env (cons `do body)))
 
+(defmacro test "single peer system (no transfer) with sampler" [& body])
+
 (defmacro for [bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
     `(r/prod {s# ~v} (let [~s s#] (for ~bindings ~@body)))
