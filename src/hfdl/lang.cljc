@@ -31,6 +31,10 @@
     `(r/prod {s# ~v} (let [~s s#] (for ~bindings ~@body)))
     `(do ~@body)))
 
+(defmacro with [bindings & body])
+
+(defnode $ [g & args] #_(apply g args))
+
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
 of this var to the value currently bound to this var.
