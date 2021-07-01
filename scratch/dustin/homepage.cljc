@@ -6,18 +6,27 @@
 (defn genders [] ...)
 (defn shirt-sizes [gender needle] ...)
 
-(s/fdef submissions :args (s/cat :needle string?))
+(s/fdef submissions :args (s/cat :needle string?) :ret sequential?)
+(s/fdef genders :args (s/cat) :ret sequential?)
 (s/fdef shirt-sizes :args (s/cat :gender keyword?
-                                 :needle string?))
+                                 :needle string?) :ret sequential?)
+
+(defnode page [needle]
+  (hfql
+    {(submissions needle)
+     [:db/id
+      :person/email
+      {(:person/gender ::hf/options (genders))
+       [:db/ident]}
+      {(:person/shirt-size ::hf/options (shirt-sizes gender .))
+       [:db/ident]}]}))
+
 
 (hf/serve
-  [{(submissions _)
+  [{(submissions .)
     [:db/id
      :person/email
      {(:person/gender ::hf/options (genders))
       [:db/ident]}
-     {(:person/shirt-size ::hf/options (shirt-sizes gender _))
+     {(:person/shirt-size ::hf/options (shirt-sizes gender .))
       [:db/ident]}]}])
-
-(defn foo [a]
-  (+ (inc a) (dec a)))

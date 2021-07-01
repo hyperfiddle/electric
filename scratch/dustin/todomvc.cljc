@@ -1,88 +1,59 @@
 (ns user.todomvc
   (:require [clojure.spec.alpha :as s]
-            [datascript.core :as d]
+            [datomic.api :as d]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as photon :refer [defnode main]]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :refer [tests]]
-            [missionary.core :as m]))
+            [hyperfiddle.photon :refer [defnode]]
+            [hyperfiddle.photon-dom :as dom]))
 
-(defnode todos "" [status]
-  ; active, completed, all
-  (d/q '[:find [?e ...] :in $ ?needle :where
-         [?e :task/name]]
-       hf/*$*))
-
-(s/fdef todos :args (s/cat :status keyword?))
-
-(defnode header [& {:keys [::title]}]
-  (dom/h1 title))
-
-(defnode todo-table [xs]
+(defnode todo-list [xs]
   (dom/fragment
+    (dom/h1 "To Better Do, a distributed concurrent todo list application")
     (dom/table
-      (dom/thead (for [x ["id" "name" "completed"]] (dom/td x)))
+      (dom/thead (for [x ["id" "name" "status"]] (dom/td x)))
       (dom/tbody (for [x xs]
                    (dom/tr
                      (for [[k v] x]
-                       ; toggle completion
-                       ; checkbox-> datom
                        (dom/td v))))))
     (dom/span "Count: " (count xs))))
 
-(defnode todo-detail "Details" [e]
-  (hf/page
-    ["Details"
-     {e
-      [:db/id
-       :task/name
-       :task/completed
-       :task/description
-       *]}]))
+(defnode todos "" [status]
+  (d/q '[:find [?e ...] :in $ ?status :where [?e :task/status ?status]] hf/*$* status))
 
-(defnode todo-new [e]
-  (hf/page
-    ["Enter a new todo"
-     {e
-      [:db/id
-       :task/name]}]))
+(s/fdef todos :args (s/cat :status keyword?) :ret sequential?)
 
-(defnode todo-list [status]
-  (hf/page
-    [(::hf/render header ::title "To Better Do")
-     {((todos status) ::hf/render todo-table)
-      [(-1 ::hf/new (todo-new %))
-       (:db/id ::hf/a (todo-detail %))
-       (:task/name ::hf/render dom/input)
-       :task/completed]}]))
+(defnode todo-new "Enter a new todo" [] -1)
+(s/fdef todo-new :args (s/cat))
 
-(defnode todomvc [route]
-  )
+(defnode todo-detail [e] e)
+(s/fdef todo-detail :args (s/cat :e ref?))
 
-(hf/serve (todomvc _))
-
-; doing it this way gives you free routing
 (def todomvc
   (hf/app
-    ; docstring title
-    {((todos _) ::hf/render todo-table)
-     [
-      (:db/id ::hf/a (todo-detail %))
-      :task/name
-      :task/completed]}
+    {((todos .) ::hf/render todo-list)
+     [(:db/id ::hf/a (todo-detail %))
+      :task/status
+      :task/description]}
+    {((todo-detail .) ::hf/render)
+     [:db/id
+      :task/status
+      :task/description]}
+    {(todo-new)
+     [:db/id
+      :task/description]}))
 
-    {-1 [(::hf/new (todo-new %))]}                          ; same page
+(hf/serve todomvc)
 
+(defnode page [[f & [status & args] :as route]]
+  (case route
+    [(hf/hfql
+       {((todos status) ::hf/render todo-list)
+        [(:db/id ::hf/a (todo-detail %))
+         :task/status
+         :task/description]})
+     (hf/hfql
+       {((todos status) ::hf/render todo-list)
+        [(:db/id ::hf/a (todo-detail %))
+         :task/status
+         :task/description]})]))
 
-    {((todo-detail _) ::hf/render)
-     [(::hf/a (todos _))
-      :db/id
-      :task/name
-      :task/completed
-      :todo/description]}))
-
-(photon/main
-  (loop [db (d/db *conn*)]
-    (binding [hf/*$* db]
-      (let [tx (todomvc ~@~(m/watch hf/*route*))]
-        (recur (:db-after (d/with % tx)))))))
+(page ...)
