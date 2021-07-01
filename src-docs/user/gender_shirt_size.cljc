@@ -76,10 +76,10 @@
                          :person/gender
                          :person/shirt-size]} xs #_(xs ~(m/watch !needle))]
                 (dom/tr
-                  (dom/td (dom/span (pr-str id)))
+                  (dom/td (str id))
                   (dom/td email)
-                  (dom/td (dom/span (pr-str gender)))
-                  (dom/td (dom/span (pr-str shirt-size)))))))))
+                  (dom/td (pr-str gender))
+                  (dom/td (pr-str shirt-size))))))))
 
 (defnode render-text [x opts]
   (dom/input x))
