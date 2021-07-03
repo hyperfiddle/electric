@@ -31,7 +31,7 @@
     `(r/prod {s# ~v} (let [~s s#] (for ~bindings ~@body)))
     `(do ~@body)))
 
-(defmacro with [bindings & body])
+(defmacro bind [bindings & body])
 
 (defnode call [g & args] #_(apply g args))
 
