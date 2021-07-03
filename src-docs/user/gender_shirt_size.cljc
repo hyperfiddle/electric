@@ -22,7 +22,7 @@
 ;(tests
 ;  (gender) := :person/male #_male)
 
-(defnode shirt-sizes [gender needle]
+(defnode shirt-sizes [gender & [needle]]
   (sort
     ~(q '[:in $ % ?gender ?needle
           :find [?e ...]
