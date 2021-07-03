@@ -24,7 +24,7 @@
 (defmacro main [& body]
   (c/main (gensym) &env (cons `do body)))
 
-(defmacro test "single peer system (no transfer) with sampler" [& body])
+(defmacro run "single peer system (no transfer) with sampler" [& body])
 
 (defmacro for [bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
@@ -33,7 +33,7 @@
 
 (defmacro with [bindings & body])
 
-(defnode $ [g & args] #_(apply g args))
+(defnode call [g & args] #_(apply g args))
 
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
