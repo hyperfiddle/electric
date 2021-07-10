@@ -130,6 +130,31 @@
   (swap! !xs conj 4)
   % := [2 3 4 5]
 
+  "reactive for is differential (diff/patch)"
+  (def !xs (atom [1 2 3]))
+  (r/run (! (r/for [x ~(m/watch !xs)] (! x))))
+  % := 1
+  % := 2
+  % := 3
+  % := [1 2 3]
+  (swap! !xs conj 4)
+  % := 4
+  % := [1 2 3 4]
+  (swap! !xs pop)
+  % := [1 2 3]
+  (swap! !xs assoc 1 :b)
+  % := :b
+  % := [1 :b 3]
+
+  "reactive for with keyfn"                                 ; TODO
+  ;(def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
+  ;(r/run (! (r/for :id [x ~(m/watch !xs)] (! x))))
+  ;% := {:id 1 :name "alice"}
+  ;% := {:id 1 :name "bob"}
+  ;% := [{:id 1 :name "alice"} {:id 2 :name "bob"}]
+  ;(swap! !xs assoc-in [0 :name] "ALICE")
+  ;% := {:id 1 :name "ALICE"}
+  ;% := [{:id 1 :name "ALICE"} {:id 2 :name "bob"}]
   )
 
 ; node call (static dispatch)
