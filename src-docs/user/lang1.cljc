@@ -181,7 +181,7 @@
   % := :qq
   (dispose))
 
-(tests
+(comment
   "reactive for"
   (def !xs (atom [1 2 3]))
   (def dispose (r/run (! (r/for [x ~(m/watch !xs)] (inc x)))))
@@ -206,7 +206,7 @@
   (swap! !xs assoc 1 :b)
   % := :b
   % := [1 :b 3]
-  (dispose))
+  #_(dispose))                                              ; broken dispose fixme
 
 (comment                                                    ; TODO
   "reactive for with keyfn"
@@ -219,56 +219,133 @@
   % := {:id 1 :name "ALICE"}
   % := [{:id 1 :name "ALICE"} {:id 2 :name "bob"}])
 
-; node call (static dispatch)
-
-; nested dags
-
-(defnode g [x] x)                                           ; reactive fn (DAG). Compiler marks dag with meta
-(defn f [x] x)                                              ; This var is not marked with meta
+(tests
+  "reactive do"
+  (def !x (atom 0))
+  (def dispose (r/run (do (! :a) (! ~(m/watch !x)))))
+  ; do is not monadic sequence, we considered that
+  ; It's an incremental computation so only rerun what changed in our opinion
+  % := :a
+  % := 0
+  (swap! !x inc)
+  % := 1
+  (dispose))
 
 (tests
+  "reactive doto"
+  (defn MutableMap [] (new java.util.HashMap))
+  (defn PutMap [!m k v] (.put !m k v))
+  (defn Ref [] (new Object))
+  (def !z (atom 0))
+  (def !x (atom 0))
+  (def dispose
+    (r/run
+      #_(doto (element "input")
+          (set-attribute! "type" "text")
+          (set-attribute! "value" x))
+      (! (doto (MutableMap)                                 ; the doto is incrementalized
+           (PutMap "a" (swap! !z inc))                      ; detect effect
+           (PutMap "b" ~(m/watch !x))))))
+  % := {"a" 1
+        "b" 0}
+  (swap! !x inc)
+  % := ::rcf/timeout                                        ; no further sample, the map hasn't changed
+  (dispose))
+
+; node call (static dispatch)
+(comment
+  "defnode is defn for reactive fns"
+  ; best example of this is hiccup incremental maintenance
+
+  (defnode !')
+  (defnode div [child] (!' child) [:div child])
+  (defnode widget [x]
+    (div [(div x) (div :a)]))
+
+  (def !x (atom 0))
+  (def dispose (r/run (! (r/bind [(!' [x] (rcf/! x))]
+                                 (widget ~(m/watch !x))))))
+  % := 0
+  % := :a
+  % := [[:div 0] [:div :a]]
+  % := [:div [[:div 0] [:div :a]]]
+  (swap! !x inc)
+  % := 1
+  ; no :a
+  % := [[:div 1] [:div :a]]
+  % := [:div [[:div 1] [:div :a]]]
+  (dispose))
+
+(tests
+  "node call vs fn call"
+  (defnode g [x] x)                                         ; reactive fn (DAG). Compiler marks dag with meta
+  (defn f [x] x)                                            ; This var is not marked with meta
+  (def !x (atom 0))
+  (def dispose
+    (r/run
+      (! (let [x ~(m/watch !x)]
+           [(f x)
+            (g x)
+            ]))))
+  % := [0 0]
+  (dispose))
+
+(comment
   "higher order dags"
   (def !x (atom 0))
-  ~(r/run
-     (let [ff (fn [x] x)                                    ; foreign clojure fns are useful, e.g. passing callbacks to DOM
-           gg (node [x] x)                                  ; you almost always want this, not fn
-           x ~(m/watch !x)]
-       [(f x)                                               ; var marked
-        (g x)                                               ; var says node
-        (ff x)                                              ; Must assume interop, for compat with clojure macros
-        (r/call gg x)                                       ; Must mark reactive-call
-        (r/call (node [x] x) x)]))
-  := [0 0 0 0 0])
 
-(tests
+  (def dispose
+    (r/run
+      (! (let [ff (fn [x] x)                                ; foreign clojure fns are useful, e.g. passing callbacks to DOM
+               gg (node [x] x)                              ; you almost always want this, not fn
+               x ~(m/watch !x)]
+           [(f x)                                           ; var marked
+            (g x)                                           ; var says node
+            (ff x)                                          ; Must assume interop, for compat with clojure macros
+            ($ gg x)                                        ; Must mark reactive-call
+            ($ (node [x] x) x)]))))
+  % := [0 0 0 0 0]
+  (dispose))
+
+(comment
   "reactive node closure"
   (def !x (atom 0))
   (def !y (atom 0))
-  ~(r/run
-     (let [x ~(m/watch !x)
-           y ~(m/watch !y)
-           _ 1
-           _ ~(m/seed [1])
-           f (node [needle] (+ y needle))                   ; constant signal
-           g (if (odd? x) (node [needle] (+ y needle)) (node [needle] (+ y needle)))
-           h ~(m/seed [(node [needle] (+ y needle))])]
-       [(call f x)
-        (call g x)
-        (call h x)]))
-  := [0 0 0])
+  (def dispose
+    (r/run (! (let [x ~(m/watch !x)
+                    y ~(m/watch !y)
+                    _ 1
+                    _ ~(m/seed [1])
+                    f (node [needle] (+ y needle))          ; constant signal
+                    g (if (odd? x) (node [needle] (+ y needle))
+                                   (node [needle] (+ y needle)))
+                    h ~(m/seed [(node [needle] (+ y needle))])]
+                [($ f x)
+                 ($ g x)
+                 ($ h x)]))))
+  % := [0 0 0]
+  (dispose))
 
-(tests
+(comment
   "reactive clojure.core/fn"
-  ~(r/run
-     (let [x ~(m/watch !x)
-           y ~(m/watch !y)
-           f (fn [needle] (+ y needle))]                    ; closure is rebuilt when flow changes
-       ; (value is fully compatible with fn contract)
-       ; the lambda is as variable as the var it closes over
-       ; well defined. It's not allowed to use dataflow inside FN. Compiler can never reach it
-       ; compiler will talk it to detect the free variables only
-       (f x)))
-  := [0 0])
+  (def !x (atom 0))
+  (def !y (atom 0))
+  (def dispose
+    (r/run
+      (! (let [x ~(m/watch !x)
+               y ~(m/watch !y)
+               f (fn [needle] (+ y needle))]                ; closure is rebuilt when y changes
+           ; (value is fully compatible with fn contract)
+           ; the lambda is as variable as the var it closes over
+           ; well defined. It's not allowed to use dataflow inside FN. Compiler can never reach it
+           ; compiler will walk it to detect the free variables only
+           (f x)))))
+  % := 0
+  (swap! !y inc)
+  % := 1
+  (swap! !x inc)
+  % := 2
+  (dispose))
 
 ; if we really want to be able to close over reactive values we
 ; need to solve the problem of dynamic extent. if a node closes over a
@@ -277,91 +354,143 @@
 ; In other words, there is a dag alive that needs X and X dies
 ; Should that dag be killed as well, or allowed to live with last known value of x, or undefined?
 
-(tests
+(comment
   "reactive closure over discarded var"
   (def !a (atom false))
   (def !b (atom 1))
-  ~(r/run
-     (call (let [!n (atom (node [] 0))]
+  (def dispose
+    (r/run
+      (! ($                                                 ; call a closure from outside the extent of its parent
+           (let [!n (atom (node [] 0))]
              (when ~(m/watch !a)
                (let [x ~(m/watch !b)]
-                 (reset! !n (node [] x))))
-             ~(m/watch !n))))
+                 (reset! !n (node [] x))))                  ; use mutation to escape the extent of the closure
+             ~(m/watch !n))))))
   := 0
   (swap! !a not)
   := 1
   (swap! !a not)                                            ; watch !b is discarded
-  := 'undefined)
+  := ::rcf/timeout)
 
 (defnode fib [n]
   (case n
     0 0 1 1
-    (+ (recur (- n 2))
-       (recur (- n 1)))))
+    (+ (fib (- n 2))
+       (fib (- n 1)))))
 
 (tests
   "reactive recursion"
-  (fib 3) := 5)
+  (def !x (atom 5))
+  (def dispose (r/run (! (fib ~(m/watch !x)))))
+  % := 5
+  (swap! !x inc)
+  ; this will reuse the topmost frame, it is still naive though
+  % := 8
+  (dispose))
 
-(declare pong)
-(defnode ping [x] (case x 0 :done (pong (dec x))))
-(defnode pong [x] (ping x))
+(defnode fib [n]
+  (case n
+    0 0 1 1
+    ; these are not tail calls
+    (+ (recur (- n 2))                                      ; non-tail call is legal in reactive clojure
+       (recur (- n 1)))))
+
+(comment
+  "recur special form"
+  (def !x (atom 5))
+  (def dispose (r/run (! (fib ~(m/watch !x)))))
+  % := 5
+  (swap! !x inc)
+  ; this will reuse the topmost frame, it is still naive though
+  % := 8
+  (dispose))
+
+; todo loop recur
 
 (tests
   "mutual recursion"
-  (ping 3) := :done)
-
-(defnode boom [] (throw (Exception. "")))
+  (declare pong)
+  (defnode ping [x] (case x 0 :done (pong (dec x))))
+  (defnode pong [x] (ping x))
+  (def dispose (r/run (! (ping 3))))
+  % := :done
+  (dispose))
 
 (tests
-  "exceptions"
-  ; As a reference, see how regular Clojure exceptions are dynamic scoped
+  "For reference, Clojure exceptions have dynamic scope"
   (try
     (let [f (try (fn [] (/ 1 0))                            ; this exception will escape
-                 (catch Exception _ :inner))]
+                 (catch Exception _ ::inner))]
       ; the lambda doesn't know it was constructed in a try/catch block
       (f))
-    (catch Exception _ :outer))
-  := :outer
+    (catch Exception _ ::outer))
+  := ::outer)
 
-  ~(r/run (r/try (boom) (r/catch Exception _))) := nil      ; reactive exception caught
+(comment
+  "reactive exceptions"
+  (defnode boom [] (throw (ex-info "" {})))
+  (def dispose
+    (r/run (! (r/try
+                (boom)
+                (r/catch Exception _ ::inner)))))
+  % := ::inner                                              ; reactive exception caught
 
-  ~(r/run
-     (r/try
-       (let [f (r/try
-                 (node [] (boom))                           ; reactive exception uncaught
-                 (r/catch Exception _ :inner))]
-         (f))
-       (r/catch Exception _ :outer)))
-  := :outer)
+  (def dispose
+    (r/run (! (r/try
+                (let [nf (r/try
+                           (node [] (boom))                 ; reactive exception uncaught
+                           (r/catch Exception _ ::inner))]
+                  ($ nf))
+                (r/catch Exception _ ::outer)))))
+  := ::outer)
 
-(defnode db)
-(defnode foo [] db)
+(comment
+  "leo bind"
+  (defnode foo)
+  (def !x (atom 0))
+  (def dispose (r/run (! (r/bind [(foo [] ~(m/watch !x))] (foo)))))
+  % := 0
+  (swap! !x inc)
+  % := 1
+  (dispose))
 
-(tests
+(comment
+  "cannot take value of a bind"
+  (defnode nf)
+  (def dispose
+    (r/run (! (r/bind [(nf [] (boom))]
+                      nf))))
+  % := ::rcf/timeout                                        ; runtime error
+  (dispose))
+
+(comment
   "dynamic scope (note that try/catch has the same structure)"
-  ~(r/run (r/with {db 0} (foo))) := 0                       ; binding available
+  (def ^:dynamic db)
+  (defnode foo [] db)
+  (def dispose (r/run (! (r/binding [db ::inner] (foo)))))
+  % := ::inner
 
-  ~(r/run (r/with {db 1}
-                  (let [n (r/with {db 0}
-                                  (node [] (foo)))]         ; binding out of scope
-                    (r/call n)))) := 1)
+  (def dispose (r/run (! (r/binding [db ::outer]
+                                    (let [nf (r/binding [db ::inner]
+                                                        (node [] (foo)))] ; binding out of scope
+                                      ($ nf))))))
+  % := ::outer
+  (dispose))
 
-; first class node with static linking
-; first class node with dynamic linking
-
-(defnode foo)
-(def ^:dynamic *db*)
-(defn effect [] (println *db*))
-(defnode bar [nf]
-  [($ nf :x)
-   (foo :x)
-   (effect *db*)])
-
-(tests
-  (r/run (r/bind [*db* ~(m/seed 1)
-                  (foo [x] *db*)]
-                 (bar (node [x] *db*))))
-
-  )
-
+(comment
+  "reactive interop with clojure dynamic scope"
+  ; motivating use case: (defnode hf-nav [kf e] (kf (d/entity *db* e)))
+  ; we think this is well defined but dangerous because
+  ; each and every down-scope function call will react on this implicit global
+  ; which can be catastrophic to performance
+  (def ^:dynamic *db*)
+  ; all reactive bindings are captured and attached to both of these calls
+  ; only reactive bindings must be translated, not clojure bindings
+  (defn not-query [] (inc 1))                               ; reacts on implicit global !!
+  (defn query [] (inc *db*))
+  (def !x (atom 0))
+  (def dispose (r/run (! (r/binding [*db* ~(m/watch !x)] (query)))))
+  % := 0
+  (swap! !x inc)
+  % := 1
+  (dispose))
