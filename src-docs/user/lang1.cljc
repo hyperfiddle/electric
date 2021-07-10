@@ -1,141 +1,202 @@
 (ns user.lang1
   "Photon language tutorial"
   (:require [hfdl.lang :as r :refer [defnode node]]
-            [hyperfiddle.rcf :refer [tests ! %]]
+            [hfdl.impl.util :as u]
+            [hyperfiddle.rcf :as rcf :refer [tests ! %]]
             [missionary.core :as m]))
 
-
-
 (tests
-  "literals are lifted"
-  (r/run (! 1))
-  % := 1
+  "smoke screen"
+  (def dispose (run (! "hello world")))
+  % := "hello world"
+  (dispose)
 
-  (r/run (! inc))
-  % := inc
-
-  "data literals lifted"
-  (r/run (! {:a 1}))
-  % := {:a 1}
-
-  ;"diamonds"
-  ;(run (let [x 1]
-  ;       (+ x x)))
-
-  "reactive quote escapes to flow layer"
-  (r/run (! (let [x 1]
-              [(type x)
-               (type #'x)])))
-  % := [Long 'flow]
-
-  "special form for unquoting a quoted flow (monadic join)"
-  (r/run (! (let [x #'1] ~x)))
-  % := 1
-
-  "globals lifted"
-  (def a 1)
-  (r/run (! a))
-  % := 1
-
-  "clojure call"
-  (r/run (! (inc (inc 1))))
-  % := 3
-
-  "introduce a flow from foreign clojure call (e.g. entrypoint)"
-  (def !x (atom 0))                                         ; atoms model variable inputs
-  (def x (m/watch !x))                                      ; clojure flow derived from atom
-  (r/run ~x)                                                ; unquote foreign flow
-  % := 0
-  (swap! !x inc)
-  % := 1
-
-  "reactive addition"
   (def !x (atom 0))
   (def x (m/watch !x))
-  (r/run (+ x x))
+  (def dispose (run (! (let [x ~(m/watch !x)]
+                         (+ x x)))))
   % := 0
   (swap! !x inc)
   % := 2
   (swap! !x inc)
   % := 4
+  (dispose))
 
+(tests
+  "literals are lifted"
+  (def dispose (r/run (! 1)))
+  % := 1
+  (dispose)
+
+  (def dispose (r/run (! inc)))
+  % := inc
+  (dispose)
+
+  "data literals lifted"
+  (def dispose (r/run (! {:a 1})))
+  % := {:a 1}
+  (dispose)
+
+  "globals lifted"
+  (def a 1)
+  (def dispose (r/run (! a)))
+  % := 1
+  (dispose)
+
+  "clojure call"
+  (def dispose (r/run (! (inc (inc 1)))))
+  % := 3
+  (dispose)
+
+  "introduce a flow from foreign clojure call (e.g. entrypoint)"
+  (def !x (atom 0))                                         ; atoms model variable inputs
+  (def x (m/watch !x))                                      ; clojure flow derived from atom
+  (def dispose (r/run (! ~x)))                              ; unquote foreign flow
+  % := 0
+  (swap! !x inc)
+  % := 1
+  (dispose))
+
+; todo
+;(tests
+;  "reactive quote escapes to flow layer"
+;  (def dispose
+;    (r/run (! (let [x 1]
+;                [(type x)
+;                 (type #'x)]))))
+;  % := [Long 'flow]
+;  (dispose)
+;
+;  "special form for unquoting a quoted flow (monadic join)"
+;  (def dispose (r/run (! (let [x #'1] ~x))))
+;  % := 1
+;  (dispose))
+
+(tests
+  "reactive addition (wrong way – two propagation frames, no sharing)"
+  (def !x (atom 0))
+  (def x (m/watch !x))
+  (def dispose (r/run (! (+ ~x ~x))))
+  % := 0
+  (swap! !x inc)
+  % := 1
+  % := 2
+  (swap! !x inc)
+  % := 3
+  % := 4
+  (dispose)
+
+  "diamonds - let introduces shared nodes in the dag, no glitch"
+  (def !x (atom 0))
+  (def x (m/watch !x))
+  (def dispose (run (! (let [x ~(m/watch !x)]
+                         (+ x x)))))
+  % := 0
+  (swap! !x inc)
+  % := 2
+  (swap! !x inc)
+  % := 4
+  (dispose))
+
+(tests
   "reactive function call"
   (def !f (atom +)) (def f (m/watch !f))
   (def !x (atom 1)) (def x (m/watch !x))
-  (r/run (f 0 x))
+  (def dispose (r/run (! (~f 0 ~x))))
   % := 1
-  ! (swap! !x inc)
+  (swap! !x inc)
   % := 2
-  ! (reset! !f -)
+  (reset! !f -)
   % := -2
+  (dispose))
 
+(tests
   "foreign clojure collections. clojure.core/map is not incremental, the arguments are"
   (def !xs (atom [1 2 3]))
   (def !f (atom inc))
-  (r/run
-    (let [f ~(m/watch !f)
-          xs ~(m/watch !xs)]
-      (map f xs)))
+  (def dispose
+    (r/run
+      (! (let [f ~(m/watch !f)
+               xs ~(m/watch !xs)]
+           (clojure.core/map f xs)))))
   % := [2 3 4]
   (swap! !xs conj 4)
   % := [2 3 4 5]
   (reset! !f dec)
   % := [0 1 2 3]
+  (dispose))
 
+(tests
   "common core macros just work"
-  (r/run
-    (let [f ~(m/watch (atom inc))
-          xs ~(m/watch (atom [1 2 3]))]
-      (->> xs (map f))))
+  (def dipsose
+    (r/run
+      (! (let [f ~(m/watch (atom inc))
+               xs ~(m/watch (atom [1 2 3]))]
+           (->> xs (map f))))))
   % := [2 3 4]
+  (dispose)
 
   "destructuring"
-  (r/run (let [[a] ~(m/watch (atom [:a]))] a))
+  (def dispose
+    (r/run (! (let [[a] ~(m/watch (atom [:a]))] a))))
   % := :a
+  (dispose))
 
-  "transition between running and terminated"
+(tests
+  "reactor termination"
   (def !x (atom 0))
-  (r/run ~(->> (m/watch !x) (m/eduction (take-while even?))))
+  (def dispose
+    (r/run (! ~(->> (m/watch !x) (m/eduction (take-while even?))))))
   % := 0
-  (reset! !x 2) % := 2
-  (reset! !x 1) % := 2                                      ; terminated before switching odd
+  (reset! !x 2)
+  % := 2
+  (reset! !x 1)
+  % := ::rcf/timeout                                        ; never switched odd because it terminated
+  (dispose))
 
+(tests
   "reactive if"
   (def !a (atom 1)) (def a (m/watch !a))
-  (def !p (atom :p)) (def p ~(m/watch !p))
-  (def !q (atom :q)) (def q ~(m/watch !q))
-  (r/run (if (odd? a) p q))
+  (def !p (atom :p)) (def p (m/watch !p))
+  (def !q (atom :q)) (def q (m/watch !q))
+  (def dispose (r/run (! (if (odd? ~a) ~p ~q))))
   % := :p
   (swap! !a inc)
   % := :q
   (reset! !p :pp)
   (swap! !a inc)
   % := :pp
+  (dispose))
 
+(tests
   "reactive case"
   (def !a (atom 0)) (def a (m/watch !a))
-  (def !p (atom :p)) (def p ~(m/watch !p))
-  (def !q (atom :q)) (def q ~(m/watch !q))
-  (r/test (case a 0 p q))
+  (def !p (atom :p)) (def p (m/watch !p))
+  (def !q (atom :q)) (def q (m/watch !q))
+  (def dispose (r/run (! (case ~a 0 ~p ~q))))
   % := :p
   (swap! !a inc)
   % := :q
   (reset! !q :qq)
   % := :qq
+  (dispose))
 
+(tests
   "reactive for"
   (def !xs (atom [1 2 3]))
-  (r/run (for [x ~(m/watch !xs)] (inc x)))
+  (def dispose (r/run (! (r/for [x ~(m/watch !xs)] (inc x)))))
   % := [2 3 4]
   (swap! !xs conj 4)
   % := [2 3 4 5]
+  (dispose))
 
+(tests
   "reactive for is differential (diff/patch)"
   (def !xs (atom [1 2 3]))
-  (r/run (! (r/for [x ~(m/watch !xs)] (! x))))
-  % := 1
-  % := 2
-  % := 3
+  (def dispose (r/run (! (r/for [x ~(m/watch !xs)] (! x)))))
+  % := _                                                    ; its a race
+  % := _
+  % := _
   % := [1 2 3]
   (swap! !xs conj 4)
   % := 4
@@ -145,22 +206,20 @@
   (swap! !xs assoc 1 :b)
   % := :b
   % := [1 :b 3]
+  (dispose))
 
-  "reactive for with keyfn"                                 ; TODO
-  ;(def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
-  ;(r/run (! (r/for :id [x ~(m/watch !xs)] (! x))))
-  ;% := {:id 1 :name "alice"}
-  ;% := {:id 1 :name "bob"}
-  ;% := [{:id 1 :name "alice"} {:id 2 :name "bob"}]
-  ;(swap! !xs assoc-in [0 :name] "ALICE")
-  ;% := {:id 1 :name "ALICE"}
-  ;% := [{:id 1 :name "ALICE"} {:id 2 :name "bob"}]
-  )
+(comment                                                    ; TODO
+  "reactive for with keyfn"
+  (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
+  (r/run (! (r/for :id [x ~(m/watch !xs)] (! x))))
+  % := {:id 1 :name "alice"}
+  % := {:id 1 :name "bob"}
+  % := [{:id 1 :name "alice"} {:id 2 :name "bob"}]
+  (swap! !xs assoc-in [0 :name] "ALICE")
+  % := {:id 1 :name "ALICE"}
+  % := [{:id 1 :name "ALICE"} {:id 2 :name "bob"}])
 
 ; node call (static dispatch)
-
-
-
 
 ; nested dags
 
