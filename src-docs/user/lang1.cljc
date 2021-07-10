@@ -1,99 +1,143 @@
 (ns user.lang1
   "Photon language tutorial"
   (:require [hfdl.lang :as r :refer [defnode node]]
-            [hyperfiddle.rcf :refer [tests]]
+            [hyperfiddle.rcf :refer [tests ! %]]
             [missionary.core :as m]))
 
+
+
 (tests
-  "tutorial"
-  ~(r/run 1) := 1                                           ; literals are lifted
-  ~(r/run inc) := inc
-  ~(r/run {:a 1}) := {:a 1}                                 ; data literals lifted
+  "literals are lifted"
+  (r/run (! 1))
+  % := 1
 
-  ~(r/test (type #'1)) := 'flow                             ; reactive quote escapes to flow layer
-  ~(r/test ~#'1) := 1                                       ; monadic join on nested flow
+  (r/run (! inc))
+  % := inc
 
+  "data literals lifted"
+  (r/run (! {:a 1}))
+  % := {:a 1}
+
+  ;"diamonds"
+  ;(run (let [x 1]
+  ;       (+ x x)))
+
+  "reactive quote escapes to flow layer"
+  (r/run (! (let [x 1]
+              [(type x)
+               (type #'x)])))
+  % := [Long 'flow]
+
+  "special form for unquoting a quoted flow (monadic join)"
+  (r/run (! (let [x #'1] ~x)))
+  % := 1
+
+  "globals lifted"
   (def a 1)
-  ~(r/run a) := 1                                           ; globals lifted
-  ~(r/run (inc 1)) := 2                                     ; clojure call
-  ~(r/run (inc (inc 1))) := 3
+  (r/run (! a))
+  % := 1
 
+  "clojure call"
+  (r/run (! (inc (inc 1))))
+  % := 3
+
+  "introduce a flow from foreign clojure call (e.g. entrypoint)"
   (def !x (atom 0))                                         ; atoms model variable inputs
   (def x (m/watch !x))                                      ; clojure flow derived from atom
-  ~(r/run ~x) := 0                                          ; monadic join (weave) foreign flow
-  ! (swap! !x inc) := 1                                     ; reactive result
+  (r/run ~x)                                                ; unquote foreign flow
+  % := 0
+  (swap! !x inc)
+  % := 1
 
+  "reactive addition"
   (def !x (atom 0))
   (def x (m/watch !x))
-  ~(r/run (+ x x)) := 0
-  ! (swap! !x inc) := 2
-  ! (swap! !x inc) := 4
+  (r/run (+ x x))
+  % := 0
+  (swap! !x inc)
+  % := 2
+  (swap! !x inc)
+  % := 4
 
-  (def !xs (atom [1 2 3]))
-  (def !f (atom inc))
-  ~(r/run
-     (let [f ~(m/watch !f)
-           xs ~(m/watch !xs)]
-       (map f xs))) := [2 3 4]                              ; clojure core interop
-
-  ! (swap! !xs conj 4) := [2 3 4 5]
-  ! (reset! !f dec) := [0 1 2 3]
-
-  ~(r/run
-     (let [f ~(m/watch (atom inc))
-           xs ~(m/watch (atom [1 2 3]))]
-       (->> xs (map f)))) := [2 3 4]                        ; clojure core macros
-
-  ~(r/run (let [[a] ~(m/watch (atom [:a]))] a)) := :a       ; destructuring
-
+  "reactive function call"
   (def !f (atom +)) (def f (m/watch !f))
   (def !x (atom 1)) (def x (m/watch !x))
-  ~(r/run (f 0 x)) := 1                                     ; reactive function call
-  ! (swap! !x inc) := 2
-  ! (reset! !f -) := -2
+  (r/run (f 0 x))
+  % := 1
+  ! (swap! !x inc)
+  % := 2
+  ! (reset! !f -)
+  % := -2
 
-  ; transition between running and terminated
+  "foreign clojure collections. clojure.core/map is not incremental, the arguments are"
+  (def !xs (atom [1 2 3]))
+  (def !f (atom inc))
+  (r/run
+    (let [f ~(m/watch !f)
+          xs ~(m/watch !xs)]
+      (map f xs)))
+  % := [2 3 4]
+  (swap! !xs conj 4)
+  % := [2 3 4 5]
+  (reset! !f dec)
+  % := [0 1 2 3]
+
+  "common core macros just work"
+  (r/run
+    (let [f ~(m/watch (atom inc))
+          xs ~(m/watch (atom [1 2 3]))]
+      (->> xs (map f))))
+  % := [2 3 4]
+
+  "destructuring"
+  (r/run (let [[a] ~(m/watch (atom [:a]))] a))
+  % := :a
+
+  "transition between running and terminated"
   (def !x (atom 0))
-  ~(r/run ~(->> (m/watch !x) (m/eduction (take-while even?))))
-  := 0
-  ! (reset! !x 2) := 2
-  ! (reset! !x 1) := 2                                      ; terminated before turning odd
+  (r/run ~(->> (m/watch !x) (m/eduction (take-while even?))))
+  % := 0
+  (reset! !x 2) % := 2
+  (reset! !x 1) % := 2                                      ; terminated before switching odd
 
+  "reactive if"
   (def !a (atom 1)) (def a (m/watch !a))
   (def !p (atom :p)) (def p ~(m/watch !p))
   (def !q (atom :q)) (def q ~(m/watch !q))
-  ~(r/run (if (odd? a) p q)) := :p                          ; reactive if
-  ! (swap! !a inc) := :q
-  ! (reset! !p :pp)
-  ! (swap! !a inc) := :pp
+  (r/run (if (odd? a) p q))
+  % := :p
+  (swap! !a inc)
+  % := :q
+  (reset! !p :pp)
+  (swap! !a inc)
+  % := :pp
 
+  "reactive case"
   (def !a (atom 0)) (def a (m/watch !a))
   (def !p (atom :p)) (def p ~(m/watch !p))
   (def !q (atom :q)) (def q ~(m/watch !q))
-  ~(r/test (case a 0 p q)) := :p
-  ! (swap! !a inc) := :q
-  ! (reset! !q :qq) := :qq
+  (r/test (case a 0 p q))
+  % := :p
+  (swap! !a inc)
+  % := :q
+  (reset! !q :qq)
+  % := :qq
 
-  ; reactive for
+  "reactive for"
+  (def !xs (atom [1 2 3]))
+  (r/run (for [x ~(m/watch !xs)] (inc x)))
+  % := [2 3 4]
+  (swap! !xs conj 4)
+  % := [2 3 4 5]
 
   )
 
-(test
-  "effects"
-
-  ; dags are RT other than clojure interop and their execution is optimized
-
-  )
-
-; let introduces shared node
 ; node call (static dispatch)
 
+
+
+
 ; nested dags
-
-
-; first-class nodes seem inevitable
-; first-class nodes seems easily solvable, but we'll need syntax disambiguate
-; ordinary function calls from node calls
 
 (defnode g [x] x)                                           ; reactive fn (DAG). Compiler marks dag with meta
 (defn f [x] x)                                              ; This var is not marked with meta
@@ -221,3 +265,19 @@
 
 ; first class node with static linking
 ; first class node with dynamic linking
+
+(defnode foo)
+(def ^:dynamic *db*)
+(defn effect [] (println *db*))
+(defnode bar [nf]
+  [($ nf :x)
+   (foo :x)
+   (effect *db*)])
+
+(tests
+  (r/run (r/bind [*db* ~(m/seed 1)
+                  (foo [x] *db*)]
+                 (bar (node [x] *db*))))
+
+  )
+
