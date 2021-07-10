@@ -24,8 +24,6 @@
 (defmacro main [& body]
   (c/main (gensym) &env (cons `do body)))
 
-(defmacro run "single peer system (no transfer) with sampler" [& body])
-
 (defmacro for [bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
     `(r/prod {s# ~v} (let [~s s#] (for ~bindings ~@body)))
@@ -54,6 +52,19 @@ of this var to the value currently bound to this var.
          (m/? (m/join {}
                 (peer s# (-> s->c# #_(u/log-args 'r->l)) (u/poll c->s#))
                 (peer c# (-> c->s# #_(u/log-args 'l->r)) (u/poll s->c#))))))))
+
+(defmacro local-system
+  "single peer system (no transfer) with sampler. ~@ is undefined"
+  [& body]
+  `(let [[c# _#] (main ~@body)]
+     ; use compiler (client) because no need for exports
+     (peer c# (constantly (m/sp)) m/none)))
+
+(defmacro run "test entrypoint, single process" [& body]
+  `(let [reactor-task# (local-system ~@body)
+         dispose-reactor# (reactor-task#
+                            (fn [_#] #_(prn ::finished)) u/pst)]
+     dispose-reactor#))
 
 (defn boot [f d]
   (fn []
