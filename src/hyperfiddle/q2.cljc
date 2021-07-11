@@ -41,6 +41,7 @@
     (list `hf/->Link a val) val))
 
 (defmacro render [val props]
+  ;(assoc props ::hf/options (p/for [o (::hf/options props)] ~(nav o :db/ident)))
   (list (::hf/render props `default-renderer) val (dissoc props ::hf/render)))
 
 (defn has-props? [form]
