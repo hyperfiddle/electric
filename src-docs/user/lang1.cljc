@@ -1,14 +1,9 @@
-(ns user.lang1
+(ns user.lang
   "Photon language tutorial"
   (:require [hfdl.lang :as r :refer [defnode node]]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
             [missionary.core :as m]))
 
-(tests
-  "hello world"
-  (def dispose (r/run (! "hello world")))
-  % := "hello world"
-  (dispose))
 
 (tests
   "literals are lifted"
