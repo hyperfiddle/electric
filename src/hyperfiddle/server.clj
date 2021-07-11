@@ -20,7 +20,7 @@
     [hyperfiddle.q2 :as q]
     [hyperfiddle.client.ui :as ui]
     hyperfiddle.client.ui.demo-dataflow
-    user.webform1)
+    user.webform)
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)))
 

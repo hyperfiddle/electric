@@ -1,4 +1,4 @@
-(ns user.webform1
+(ns user.webform
   "Web app tutorial, part 1 (no network)"
   (:require [hfdl.lang :as h :refer [defnode]]
             [hfdl.impl.util :as u]
@@ -42,7 +42,7 @@
           [:field [:select {:selected :dustingetz/womens-large}
                    [[:option 3] [:option 4] [:option 5]]]]]]]
 
-  (reset! !needle "bob") ; should target a point update to the :tr
+  (reset! !needle "bob")
   % := [:table
         [[:tr
           [:field "bob@example.com"]
