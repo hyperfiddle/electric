@@ -158,6 +158,29 @@
   (dispose))
 
 (tests
+  "lazy"
+  (def dispose (r/run (! (if false (! :a) (! :b)))))
+  % := :b
+  % := :b
+  (dispose))
+
+(tests
+  "lazy"
+  (def dispose (r/run (! (if false (! :a) (! :b)))))
+  % := :b
+  % := :b
+  (dispose))
+
+(comment
+  "control flow implemented with lazy"
+  (defnode if2 [x a b] (get {true a false b} (boolean x)))
+  (def dispose (r/run (! (if2 false (! :a) (! :b)))))
+  ;% := :a
+  % := :b
+  % := :b
+  (dispose))
+
+(tests
   "reactive case"
   (def !a (atom 0)) (def a (m/watch !a))
   (def !p (atom :p)) (def p (m/watch !p))
