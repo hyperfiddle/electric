@@ -93,8 +93,7 @@
        {(:person/shirt-size ::hf/options (shirt-sizes :dustingetz/male "")
           ::hf/render ref2) [:db/ident]}]}]))
 
-(def !needle (atom ""))
-
 (comment
+  (def !needle (atom ""))
   ((system exports (page-submissions ~@~(m/watch !needle))) prn u/pst)
   )
