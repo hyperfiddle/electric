@@ -1,6 +1,6 @@
 (ns leo.scope
   (:require [hyperfiddle.rcf :refer [tests]]
-            [hfdl.lang :as h :refer [defnode vars system node thread]]
+            [hfdl.lang :as h :refer [defnode vars local2 node thread]]
             [hyperfiddle.photon :as photon]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.api :as hf]

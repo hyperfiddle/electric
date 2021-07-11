@@ -141,7 +141,7 @@
   (def dag (dataflow (let [x @(hfql {((geoffrey.fiddle-effects/shirt-size :dustingetz/male) ::hf/render custom-renderer) [:db/id]})]
                        @(get x '(geoffrey.fiddle-effects/shirt-size :dustingetz/male)))))
 
-  ((hfdl.lang/system (hfdl.lang/vars apply
+  ((hfdl.lang/local2 (hfdl.lang/vars apply
                                      concat
                                      custom-renderer
                                      datascript.core/entity

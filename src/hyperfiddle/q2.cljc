@@ -2,7 +2,7 @@
   (:require [clojure.walk :as walk]
             [datascript.core :as d]
             #_[datomic.api :as d]
-            [hfdl.lang :refer [vars defnode debug system] :as h]
+            [hfdl.lang :refer [vars defnode debug local2] :as h]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tests]]
             [missionary.core :as m])
@@ -229,24 +229,24 @@
   (def >needle (m/watch !needle))
 
   (def !res (atom nil))
-  ((system exports (reset! !res (hf-nav :db/id 9))) nil nil)
+  ((local2 exports (reset! !res (hf-nav :db/id 9))) nil nil)
   @!res := 9
 
   (reset! !res nil)
-  ((system exports (reset! !res (let [% 9] (:db/id (hfql :db/id))))) nil nil)
+  ((local2 exports (reset! !res (let [% 9] (:db/id (hfql :db/id))))) nil nil)
   @!res := 9
 
   (reset! !res nil)
-  ((system exports
-     (reset! !res
+  ((local2 exports
+           (reset! !res
        (-> (hfql {(submission "") [:db/id]})
          (get '(user.gender-shirt-size/submission ""))
          (:db/id)))) nil nil)
   @!res := 9
 
   (reset! !res nil)
-  ((system exports
-     (reset! !res
+  ((local2 exports
+           (reset! !res
        (-> (hfql {(submission "") [{:dustingetz/shirt-size [:db/ident]}]})
          (get '(user.gender-shirt-size/submission ""))
          (:dustingetz/shirt-size)
@@ -261,20 +261,20 @@
     (str v))
 
   (reset! !res nil)
-  ((system exports
-     (reset! !res
+  ((local2 exports
+           (reset! !res
        (-> (hfql {(submission "") [:dustingetz/email (:db/id ::hf/render id-as-string)]})
          (get '(user.gender-shirt-size/submission ""))
          (:db/id)))) nil nil)
   @!res := "9"
 
   (reset! !res nil)
-  ((system exports (reset! !res (let [% 9] (hfql :db/id)))) nil nil)
+  ((local2 exports (reset! !res (let [% 9] (hfql :db/id)))) nil nil)
   @!res := {:db/id 9}
 
   (reset! !res nil)
-  ((system exports
-     (reset! !res
+  ((local2 exports
+           (reset! !res
        (-> (hfql {(submissions "") [:db/id]})
          (get '(user.gender-shirt-size/submissions ""))
          (first)

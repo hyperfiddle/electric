@@ -1,6 +1,6 @@
 (ns user.form-typeahead2
   (:require [clojure.spec.alpha :as s]
-            [hfdl.lang :as p :refer [defnode vars system bind]]
+            [hfdl.lang :as p :refer [defnode vars local2 bind]]
             [hfdl.impl.util :as u]
             [hyperfiddle.api :as hf :refer [*$*]]
             [hyperfiddle.q2 :as q :refer [q nav hfql]]
@@ -60,5 +60,5 @@
 (def !needle (atom ""))
 
 (comment
-  ((system exports (page-submissions ~@~(m/watch !needle))) prn u/pst)
+  ((local2 exports (page-submissions ~@~(m/watch !needle))) prn u/pst)
   )

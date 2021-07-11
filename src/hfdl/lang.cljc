@@ -6,7 +6,7 @@
             [hfdl.impl.sampler :refer [sampler!]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hfdl.lang :refer [defnode vars main for system debug node thread]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [defnode vars main for local2 debug node thread]])))
 
 ;; TODO variadic
 (defmacro defnode "" [sym & decl]
@@ -44,28 +44,36 @@ of this var to the value currently bound to this var.
 
 (def exports (vars hash-map vector list concat seq sort into first m/watch))
 
-(defmacro system [vars & body]
-  `(let [[c# s#] (main ~@body)
-         s# (eval ~vars s#)]
-     (m/sp
-       (let [c->s# (m/rdv)
-             s->c# (m/rdv)]
-         (m/? (m/join {}
-                (peer s# (-> s->c# #_(u/log-args 'r->l)) (u/poll c->s#))
-                (peer c# (-> c->s# #_(u/log-args 'l->r)) (u/poll s->c#))))))))
+(defmacro local2
+  "2-peer loopback system with transfer. Returns boot task"
+  [vars & body]
+  `(let [[client# server#] (main ~@body)
+         server# (eval ~vars server#)
+         c->s# (m/rdv)
+         s->c# (m/rdv)
+         ServerReactor (peer server# (-> s->c# #_(u/log-args 'r->l)) (u/poll c->s#))
+         ClientReactor (peer client# (-> c->s# #_(u/log-args 'l->r)) (u/poll s->c#))
+         Reactors (m/sp (m/? (m/join {} ServerReactor ClientReactor)))]
+     Reactors))
 
-(defmacro local-system
-  "single peer system (no transfer) with sampler. ~@ is undefined"
+(defmacro local1
+  "single peer system (no transfer, ~@ is undefined). Returns boot task"
   [& body]
-  `(let [[c# _#] (main ~@body)]
-     ; use compiler (client) because no need for exports
-     (peer c# (constantly (m/sp)) m/none)))
+  ; use compiler (client) because no need for exports
+  `(let [[client# server#] (main ~@body)
+         Reactor (peer client# (constantly (m/sp)) m/none)]
+     Reactor))
 
 (defmacro run "test entrypoint, single process" [& body]
-  `(let [reactor-task# (local-system ~@body)
-         dispose-reactor# (reactor-task#
-                            (fn [_#] #_(prn ::finished)) u/pst)]
-     dispose-reactor#))
+  `(let [dispose ((local1 ~@body)
+                  (fn [_#] #_(prn ::finished)) u/pst)]
+     dispose))
+
+(defmacro run2 "test entrypoint, 2-peer loopback system"
+  [vars & body]
+  `(let [dispose ((local2 vars ~@body)
+                  (fn [_#] #_(prn ::finished)) u/pst)]
+     dispose))
 
 (defn boot [f d]
   (fn []
@@ -107,7 +115,7 @@ of this var to the value currently bound to this var.
   ; user interaction effects -> network -> rendering effects
 
   (def system-task
-    (system
+    (local2
       (vars !input form-input render-table query prn)
       (debug sampler
         (dataflow
