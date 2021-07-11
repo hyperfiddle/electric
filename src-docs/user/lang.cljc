@@ -4,6 +4,16 @@
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
             [missionary.core :as m]))
 
+;(defmacro with-disposal [task & body]
+;  `(let [dispose# ~task]
+;     ~@body
+;     (dispose#)))
+;
+;(tests
+;  "hello world"
+;  (with-disposal
+;    (r/run (! "hello world"))
+;    % := "hello world"))
 
 (tests
   "literals are lifted"
@@ -501,3 +511,8 @@
   (swap! !x inc)
   % := 1
   (dispose))
+
+; unquote is for introducing flow transformers – a special form
+(comment
+  "flow transformers"
+  )
