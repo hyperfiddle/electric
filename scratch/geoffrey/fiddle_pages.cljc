@@ -2,7 +2,7 @@
   (:require [clojure.spec.alpha :as s]
             [geoffrey.fiddle-effects :refer [submissions genders shirt-sizes submission-details
                                              submission gender shirt-size]]
-            [hfdl.lang :refer [#?(:clj vars) #?(:clj debug) system]]
+            [hfdl.lang :refer [#?(:clj vars) #?(:clj debug) local2]]
             [hyperfiddle.api :as hf]
     ;; [hyperfiddle.server.ssr :as ui]
             [hyperfiddle.client.ui :as ui]
@@ -135,7 +135,7 @@
               pr-str gender submission shirt-size inc q/hf-nav hf/->Input))))
 
 (comment
-  (require '[hfdl.lang :refer [system debug]])
+  (require '[hfdl.lang :refer [local2 debug]])
 
 (defnode page [needle]
   (hfql
@@ -148,7 +148,7 @@
           ::hf/options (shirt-sizes dustingetz/gender _))
         [:db/ident]}]}]))
 
-  ((system (merge q/exports ui/exports exports (vars render-email))
-     (debug sample (simple-email "a"))) prn prn)
+  ((local2 (merge q/exports ui/exports exports (vars render-email))
+           (debug sample (simple-email "a"))) prn prn)
   @sample
   )

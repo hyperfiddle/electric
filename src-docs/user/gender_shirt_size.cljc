@@ -1,6 +1,6 @@
 (ns user.gender-shirt-size
   (:require [clojure.spec.alpha :as s]
-            [hfdl.lang :as p :refer [defnode vars system]]
+            [hfdl.lang :as p :refer [defnode vars local2]]
             [hfdl.impl.util :as u]
             [hyperfiddle.api :as hf :refer [*$*]]
             [hyperfiddle.q2 :as q :refer [q nav hfql]]
@@ -92,8 +92,3 @@
        {(:person/gender ::hf/options (genders) ::hf/render ref2) [:db/ident]}
        {(:person/shirt-size ::hf/options (shirt-sizes :dustingetz/male "")
           ::hf/render ref2) [:db/ident]}]}]))
-
-(comment
-  (def !needle (atom ""))
-  ((system exports (page-submissions ~@~(m/watch !needle))) prn u/pst)
-  )
