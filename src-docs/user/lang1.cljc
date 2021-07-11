@@ -1,25 +1,13 @@
 (ns user.lang1
   "Photon language tutorial"
   (:require [hfdl.lang :as r :refer [defnode node]]
-            [hfdl.impl.util :as u]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
             [missionary.core :as m]))
 
 (tests
-  "smoke screen"
-  (def dispose (run (! "hello world")))
+  "hello world"
+  (def dispose (r/run (! "hello world")))
   % := "hello world"
-  (dispose)
-
-  (def !x (atom 0))
-  (def x (m/watch !x))
-  (def dispose (run (! (let [x ~(m/watch !x)]
-                         (+ x x)))))
-  % := 0
-  (swap! !x inc)
-  % := 2
-  (swap! !x inc)
-  % := 4
   (dispose))
 
 (tests
@@ -28,11 +16,7 @@
   % := 1
   (dispose)
 
-  (def dispose (r/run (! inc)))
-  % := inc
-  (dispose)
-
-  "data literals lifted"
+  "data literals"
   (def dispose (r/run (! {:a 1})))
   % := {:a 1}
   (dispose)
@@ -41,6 +25,10 @@
   (def a 1)
   (def dispose (r/run (! a)))
   % := 1
+  (dispose)
+
+  (def dispose (r/run (! inc)))
+  % := inc
   (dispose)
 
   "clojure call"
@@ -89,8 +77,9 @@
   "diamonds - let introduces shared nodes in the dag, no glitch"
   (def !x (atom 0))
   (def x (m/watch !x))
-  (def dispose (run (! (let [x ~(m/watch !x)]
-                         (+ x x)))))
+  (def dispose
+    (r/run (! (let [x ~(m/watch !x)]
+                (+ x x)))))
   % := 0
   (swap! !x inc)
   % := 2
