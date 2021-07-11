@@ -30,7 +30,8 @@
     `(do ~@body)))
 
 (defmacro bind [bindings & body])
-
+(defmacro binding [bindings & body])
+(defmacro loop [bindings & body])
 (defnode call [g & args] #_(apply g args))
 
 (defmacro vars "

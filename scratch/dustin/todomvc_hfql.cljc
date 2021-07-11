@@ -1,4 +1,4 @@
-(ns user.todomvc
+(ns user.todomvc-hfql
   (:require [clojure.spec.alpha :as s]
             [datomic.api :as d]
             [hyperfiddle.api :as hf]
