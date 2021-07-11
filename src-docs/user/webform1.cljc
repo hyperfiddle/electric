@@ -1,6 +1,6 @@
 (ns user.webform1
   "Web app tutorial, part 1 (no network)"
-  (:require [hfdl.lang :as h :refer [defnode vars system]]
+  (:require [hfdl.lang :as h :refer [defnode]]
             [hfdl.impl.util :as u]
             [hyperfiddle.api :as hf]
             [hyperfiddle.q2 :refer [hf-nav hfql exports]]
