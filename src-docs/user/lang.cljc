@@ -169,16 +169,9 @@
   % := :b
   (dispose))
 
-(tests
-  "lazy"
-  (def dispose (r/run (! (if false (! :a) (! :b)))))
-  % := :b
-  % := :b
-  (dispose))
-
 (comment
   "control flow implemented with lazy"
-  (defnode if2 [x a b] (get {true a false b} (boolean x)))
+  (defnode if2 [x a b] ~(get {true (r/quote a) false (r/quote b)} (boolean x)))
   (def dispose (r/run (! (if2 false (! :a) (! :b)))))
   ;% := :a
   % := :b
