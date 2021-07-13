@@ -53,7 +53,7 @@ of this var to the value currently bound to this var.
          s->c# (m/rdv)
          ServerReactor (peer server# (-> s->c# #_(u/log-args 'r->l)) (u/poll c->s#))
          ClientReactor (peer client# (-> c->s# #_(u/log-args 'l->r)) (u/poll s->c#))
-         Reactors (m/sp (m/? (m/join {} ServerReactor ClientReactor)))]
+         Reactors (m/join {} ServerReactor ClientReactor)]
      Reactors))
 
 (defmacro local1
