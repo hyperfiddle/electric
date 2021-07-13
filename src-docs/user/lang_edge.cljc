@@ -6,10 +6,6 @@
 
 (tests
   (def !x (atom 0))
-  (defnode f [x]
-    (do (reset! !x (+ 1 x))    ; !
-        (inc x)))
-  (def dispose (r/run (f ~(m/watch !x))))
-  ; infinite loop
-  % := ::rcf/timeout
+  (def dispose (r/run (reset !x (! (inc ~(m/watch !x))))))
+  ; infinite loop on construction, hang RCF. (while true)
   (dispose))
