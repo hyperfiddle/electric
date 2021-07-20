@@ -19,52 +19,89 @@
 ;; 4: frame-id -> inputs
 ;; 5: frame-id -> targets
 ;; 6: frame-id -> signals
+;; 7: bindings
 
 (defn steady [x]
   (m/observe (fn [!] (! x) u/nop)))
 
-(defn input [cb]
-  (->> (fn [!] (cb !) u/nop)
-    (m/observe)
-    (m/relieve {})
-    (m/signal!)))
+(defn input [context slot]
+  (let [inputs (get (aget context (int 4)) (aget context (int 2)))]
+    (->> (fn [!] (aset inputs slot !) u/nop)
+      (m/observe)
+      (m/relieve {})
+      (m/signal!))))
 
-(defn output [context frame slot flow]
-  ((aget context (int 1)) [(- frame) slot flow]))
+(defn frame [context id inputs targets signals]
+  (aset context (int 4) (assoc (aget context (int 4)) id (object-array inputs)))
+  (aset context (int 5) (assoc (aget context (int 5)) id (object-array targets)))
+  (aset context (int 6) (assoc (aget context (int 6)) id (object-array signals))))
 
-(defn constant [context target slot ctor]
-  (steady
+(defn target [context slot inputs targets signals ctor]
+  (aset (get (aget context (int 5)) (aget context (int 2))) slot
+    (fn []
+      (let [id (aset context (int 3) (dec (aget context (int 3))))]
+        (frame context id inputs targets signals)
+        (ctor) context))))
+
+(defn publish [context slot flow]
+  (aset (get (aget context (int 6)) (aget context (int 2))) slot (m/signal! flow)))
+
+(defn output [context slot flow]
+  ((aget context (int 1)) [(- (aget context (int 2))) slot flow]))
+
+(defn constant [context slot inputs targets signals ctor]
+  (let [req (aget context (int 0))
+        id (aget context (int 2))]
+    (steady
+      (fn [n t]
+        (req [(- id) slot])
+        (let [id (aset context (int 2) (inc (aget context (int 2))))]
+          (frame context id inputs targets signals)
+          ((ctor) n #(do (req [(- id) -1])
+                         (comment destructor) (t))))))))
+
+(defn get-node [context slot]
+  (aget (aget context (int 7)) slot))
+
+(defn set-node [context slot value]
+  (aset (aget context (int 7)) slot value))
+
+(defn capture [context]
+  (let [curr (aclone (aget context (int 7)))]
+    (fn [flow]
+      (fn [n t]
+        (let [prev (aget context (int 7))]
+          (aset context (int 7) curr)
+          (try (flow n t)
+               (finally
+                 (aset context (int 7) prev))))))))
+
+(defn binder [context & slots]
+  (fn [flow & args]
     (fn [n t]
-      (let [req (aget context (int 0))
-            source (inc (aget context (int 2)))
-            flow (ctor (aset context (int 2) source))]
-        (req [(- target) slot])
-        (flow n #(do (req [(- source) -1]) (comment destructor) (t)))))))
+      (let [prev (mapv (partial get-node context) slots)]
+        (mapv (partial set-node context) slots args)
+        (try (flow n t)
+             (finally (mapv (partial set-node context) slots prev)))))))
 
-(defn create [context frame input target signal]
-  (doto context
-    (aset (int 4) (assoc (aget context (int 4)) frame input))
-    (aset (int 5) (assoc (aget context (int 5)) frame target))
-    (aset (int 6) (assoc (aget context (int 6)) frame signal))))
+;; TODO cancel signals
+(defn variable [context flow]
+  (->> flow
+    (m/stream!)
+    (m/eduction (dedupe) (map (capture context)))
+    (switch)
+    (m/signal!)))
 
 (defn discard [context frame]
   (let [signals (get (aget context (int 6)) frame)]
-    (doto context
-      (aset (int 4) (dissoc (aget context (int 4)) frame))
-      (aset (int 5) (dissoc (aget context (int 5)) frame))
-      (aset (int 6) (dissoc (aget context (int 6)) frame)))
     (loop [i 0]
       (when (< i (alength signals))
         ((aget signals i))
-        (recur (inc i))))))
-
-(defn target [context frame slot]
-  ((-> context
-     (aget (int 5))
-     (get frame)
-     (aget slot))
-   (aset context (int 3)
-     (dec (aget context (int 3))))))
+        (recur (inc i)))))
+  (doto context
+    (aset (int 4) (dissoc (aget context (int 4)) frame))
+    (aset (int 5) (dissoc (aget context (int 5)) frame))
+    (aset (int 6) (dissoc (aget context (int 6)) frame))))
 
 (defn message
   ([] [{}])
@@ -85,85 +122,115 @@
 (defn handle [context [frame slot]]
   (case slot
     -1 (discard context frame)
-    (target context frame slot))
-  context)
+    ((-> context
+       (aget (int 5))
+       (get frame)
+       (aget slot)))))
 
-(defn peer [boot write >read]
-  (m/reactor
-    (let [ctx (doto (object-array 7)
-                (aset (int 0) (m/mbx))
-                (aset (int 1) (m/mbx))
-                (aset (int 2) 0)
-                (aset (int 3) 0)
-                (aset (int 4) {})
-                (aset (int 5) {})
-                (aset (int 6) {}))]
-      (m/stream! (or (boot ctx) m/none))
-      (->> >read
-        (m/stream!)
-        (m/eduction
-          (map (fn [x]
-                 (reduce handle ctx (pop x))
-                 (reduce-kv change ctx (peek x)))))
-        (m/stream!))
-      (->> (m/ap (m/amb=
-                   (loop []
-                     (let [x (m/? (aget ctx (int 0)))]
-                       (m/amb= [x {}] (recur))))
-                   (loop []
-                     (let [x (m/? (aget ctx (int 1)))]
-                       (m/amb= [{(pop x) (try (m/?> (peek x))
-                                              (catch #?(:clj Throwable
-                                                        :cljs :default) _
-                                                (m/?> m/none)))}] (recur))))))
-        (m/relieve message)
-        (m/stream!)
-        (u/foreach (-> write (u/log-args '>)))
-        (m/stream!)))))
+(defn peer [nodes inputs targets signals boot]
+  (fn [write >read]
+    (m/reactor
+      (let [ctx (doto (object-array 8)
+                  (aset (int 0) (m/mbx))
+                  (aset (int 1) (m/mbx))
+                  (aset (int 2) 0)
+                  (aset (int 3) 0)
+                  (aset (int 4) {0 (object-array inputs)})
+                  (aset (int 5) {0 (object-array targets)})
+                  (aset (int 6) {0 (object-array signals)})
+                  (aset (int 7) (object-array nodes)))]
+        (m/stream! (boot ctx))
+        (->> >read
+          (m/stream!)
+          (m/eduction
+            (map (fn [x]
+                   (reduce handle ctx (pop x))
+                   (reduce-kv change ctx (peek x)))))
+          (m/stream!))
+        (->> (m/ap (m/amb=
+                     (loop []
+                       (let [x (m/? (aget ctx (int 0)))]
+                         (m/amb= [x {}] (recur))))
+                     (loop []
+                       (let [x (m/? (aget ctx (int 1)))]
+                         (m/amb= [{(pop x) (try (m/?> (peek x))
+                                                (catch #?(:clj  Throwable
+                                                          :cljs :default) _
+                                                  (m/?> m/none)))}] (recur))))))
+          (m/relieve message)
+          (m/stream!)
+          (u/foreach (-> write (u/log-args '>)))
+          (m/stream!))))))
 
 (def eval
   (let [slots (u/local)
-        init {:input [] :target [] :signal [] :output 0 :constant 0}]
+        init {:input 0 :target 0 :signal 0 :output 0 :constant 0}]
     (letfn [(slot [k]
               (let [m (u/get-local slots), n (get m k)]
-                (u/set-local slots (assoc m k (inc n))) n))
-            (store [k x]
-              (let [m (u/get-local slots)]
-                (u/set-local slots (update m k conj x)) nil))]
-      (fn [resolve nodes]
-        (fn [context]
-          ((fn eval-frame [locals insts frame]
-             (let [prev (u/get-local slots)]
-               (u/set-local slots init)
-               (try
-                 (let [results
-                       (mapv (partial
-                               (fn eval-inst [locals [op & args]]
-                                 (case op
-                                   :sub (nth locals (- (count locals) (first args)))
-                                   :pub (let [s (m/signal! (eval-inst locals (first args)))]
-                                          (store :signal s)
-                                          (eval-inst (conj locals s) (second args)))
-                                   :apply (apply m/latest u/call (map (partial eval-inst locals) args))
-                                   :input (do (run! (partial eval-inst locals) args)
-                                              (input (partial store :input)))
-                                   :output (output context frame (slot :output) (eval-inst locals (first args)))
-                                   :target (store :target (partial eval-frame locals args))
-                                   :global (let [x (resolve (first args) resolve)]
-                                             (if (identical? x resolve)
-                                               (partial u/failer
-                                                 (doto (ex-info (str "Unable to resolve - "
-                                                                  (symbol (first args))) {}) u/pst))
-                                               (steady x)))
-                                   :literal (steady (first args))
-                                   :constant (constant context frame (slot :constant)
-                                               (partial eval-frame locals args))
-                                   :variable (switch (eval-inst locals (first args)))
-                                   (throw (ex-info (str "Unsupported operation - " op) {:op op :args args}))))
-                               locals) insts)]
-                   (apply create context frame
-                     (map (comp object-array (u/get-local slots))
-                       [:input :target :signal]))
-                   (peek results))
-                 (finally (u/set-local slots prev)))))
-           [] (peek nodes) 0))))))
+                (u/set-local slots (assoc m k (inc n))) n))]
+      (fn [resolve insts]
+        (letfn [(eval-inst [[op & args]]
+                  (case op
+                    :sub (let [[idx] args]
+                           (fn [_ pubs] (nth pubs (- (count pubs) idx))))
+                    :pub (let [[f g] (mapv eval-inst args)
+                               s (slot :signal)]
+                           (fn [context pubs]
+                             (g context (conj pubs (publish context s (f context pubs))))))
+                    :def (fn [context _] (steady (apply binder context args)))
+                    :node (let [n (first args)]
+                            (fn [context _] (get-node context n)))
+                    :bind (let [fs (into {} (map (juxt key (comp eval-inst val))) (first args))
+                                g (eval-inst (second args))]
+                            (fn [context pubs]
+                              (let [ps (into {} (map (juxt key (comp (partial get-node context) val))) fs)]
+                                (run! (partial apply set-node context) fs)
+                                (try (g context pubs)
+                                     (finally (run! (partial apply set-node context) ps))))))
+                    :apply (comp (partial apply m/latest u/call)
+                             (apply juxt (map eval-inst args)))
+                    :input (let [f (apply juxt (map eval-inst args))
+                                 i (slot :input)]
+                             (fn [context pubs]
+                               (f context pubs)
+                               (input context i)))
+                    :output (let [f (eval-inst (first args))
+                                  o (slot :output)]
+                              (fn [context pubs]
+                                (output context o (f context pubs))))
+                    :target (let [[f {:keys [input target signal]}]
+                                  (u/with-local slots init
+                                    (apply juxt (mapv eval-inst args)))
+                                  t (slot :target)]
+                              (fn [context pubs]
+                                (target context t input target signal #(f context pubs))))
+                    :global (if (contains? resolve (first args))
+                              (let [x (get resolve (first args))]
+                                (fn [_ _] (steady x)))
+                              (throw (ex-info (str "Unable to resolve - "
+                                                (symbol (first args))) {})))
+                    :literal (let [x (first args)]
+                               (fn [_ _] (steady x)))
+                    :constant (let [[f {:keys [input target signal]}]
+                                    (u/with-local slots init
+                                      (eval-inst (first args)))
+                                    c (slot :constant)]
+                                (fn [context pubs]
+                                  (constant context c input target signal #(f context pubs))))
+                    :variable (let [f (eval-inst (first args))]
+                                (fn [context pubs]
+                                  (variable context (f context pubs))))
+                    (throw (ex-info (str "Unsupported operation - " op) {:op op :args args}))))]
+          (let [[[fs] {:keys [input target signal]}]
+                (u/with-local slots init
+                  (reduce
+                    (fn [[fs insts] inst]
+                      (let [insts (conj insts (eval-inst inst))]
+                        (case (first inst)
+                          (:output :target) [fs insts]
+                          [(conj fs (comp peek (apply juxt insts))) []])))
+                    [[] []] insts))]
+            (peer (dec (count fs)) input target signal
+              (fn [context]
+                (reduce-kv (fn [_ i f] (set-node context i (f context []))) nil (pop fs))
+                ((peek fs) context [])))))))))

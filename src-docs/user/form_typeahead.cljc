@@ -1,6 +1,6 @@
 (ns user.form-typeahead
   (:require [missionary.core :as m]
-            [hfdl.lang :as h :refer [defnode vars system]]
+            [hfdl.lang :as h :refer [defnode vars local2]]
             [hyperfiddle.rcf :refer [tests]]
             [hyperfiddle.q2 :refer [q nav hfql exports]]
             [hyperfiddle.photon-dom :as d]

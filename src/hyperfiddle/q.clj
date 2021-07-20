@@ -2,7 +2,7 @@
   (:require [clojure.walk :as walk]
             [datascript.core :as d]
             [dustin.fiddle :refer [genders shirt-sizes submissions gender shirt-size submission submission-details]]
-            [hfdl.lang :refer [dataflow system debug vars]]
+            [hfdl.lang :refer [dataflow local2 debug vars]]
             [hfdl.lib :refer [reactive-for]]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tests]]

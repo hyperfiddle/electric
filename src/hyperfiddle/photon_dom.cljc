@@ -9,7 +9,7 @@
              [hyperfiddle.photon-dom :refer
               [mount! element-with-children fragment div span h1 table thead tbody tr td select option]])))
 
-(def parent)
+(defnode parent [])
 
 (defn append-children [parent items] (reduce #?(:cljs #(doto %1 (.appendChild %2))) parent items))
 (defn remove-children [parent items] (reduce #?(:cljs #(doto %1 (.removeChild %2))) parent items))
@@ -24,7 +24,7 @@
 (defn mount [parent child]
   #?(:cljs
      (m/observe
-       (fn [!]
+       (fn [!]                                              ; fn is not yet supported in defnode
          (! nil)
          (d/appendChild parent child)
          #(d/removeNode child)))))
@@ -58,6 +58,8 @@
   #?(:cljs (.-value e)))
 
 (defnode mount! [child]
+  ;(assert (bound? #'parent) "photon-dom/parent not in scope")
+  (assert parent "photon-dom/parent not in scope")
   ~(mount parent child))
 
 (defnode element-with-children [type children]
@@ -77,9 +79,12 @@
   (mount! (element-with-children :h1 children)))
 
 (defnode input [x]
-  (mount! (doto (element "input")
-                     (set-attribute! "type" "text")
-                     (set-attribute! "value" x))))
+  (let [el (doto (element "input")
+             (set-attribute! "type" "text")
+             (set-attribute! "value" x))]
+    (mount! el)
+    (-> ~(m/relieve {} (events el input-event))
+        event-target get-value)))
 
 (defnode table [& children]
   (mount! (element-with-children :table children)))
