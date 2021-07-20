@@ -1,7 +1,6 @@
 (ns hyperfiddle.api
   (:require [hyperfiddle.rcf :refer [tests]]
-            [hfdl.lang :refer [vars]]
-            [missionary.core :as m]))
+            [hfdl.lang :refer [vars defnode]]))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 (def ^:dynamic *route*)                                     ; cljs
@@ -37,6 +36,8 @@
      #_[(.toLowerCase ?needle')]
      #_[(clojure.string/includes? ?v' ?needle')]
      [(clojure.string/includes? ?v' ?needle')]]])
+
+(defnode a nil)
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; Semantic Types ;;

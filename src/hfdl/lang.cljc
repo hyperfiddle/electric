@@ -3,30 +3,36 @@
   (:require [hfdl.impl.compiler :as c]
             [hfdl.impl.runtime :as r]
             [hfdl.impl.util :as u]
+            [hfdl.impl.rfor :refer [rfor]]
             [hfdl.impl.sampler :refer [sampler!]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hfdl.lang :refer [defnode vars main for system debug node thread]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [defnode bind vars main for system debug node thread]])))
 
-;; TODO variadic
-(defmacro defnode "" [sym & decl]
-  (let [args (gensym)]
-    `(defmacro ~sym [& ~args]
-       (c/node ~(name (ns-name *ns*))
-         ~(name sym) (quote ~decl) ~args))))
+(defmacro defnode "
+Declares a node var with optional default value.
+" [sym & decl]
+  `(doto (def sym) (alter-meta! assoc :macro true :node ~(cons `list decl))))
 
-(defmacro node [& x])
-
-(defmacro thread [body]
-  `(unquote (m/ap (m/? (m/via m/blk ~body)))))
+(defmacro thread [& body]
+  `(unquote (m/ap (m/? (m/via m/blk ~@body)))))
 ; when lambdas work, thread will work for free because m/ap generates lambda
 
 (defmacro main [& body]
-  (c/main (gensym) &env (cons `do body)))
+  (-> (c/analyze &env (cons `do body))
+    (update 0 c/emit (comp symbol (partial str (gensym) '-)))
+    (update 1 (partial list `quote))))
 
+;; TODO
+(defmacro bind [bindings & body]
+  (if-some [[[sym & decl] & bindings] (seq bindings)]
+    (list* `c/node (list `c/bind sym (list* `bind bindings body))
+      (c/parse-decl decl)) (cons `do body)))
+
+(defnode item)
 (defmacro for [bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
-    `(r/prod {s# ~v} (let [~s s#] (for ~bindings ~@body)))
+    `(unquote (rfor (var (let [~s item] (for ~bindings ~@body))) (var ~v)))
     `(do ~@body)))
 
 (defmacro vars "
@@ -37,7 +43,7 @@ of this var to the value currently bound to this var.
 (def peer r/peer)
 (def eval r/eval)
 
-(def exports (vars hash-map vector list concat seq sort into first m/watch))
+(def exports (vars hash-map vector list concat seq sort into first inc dec + - / * m/watch))
 
 (defmacro system [vars & body]
   `(let [[c# s#] (main ~@body)
@@ -46,8 +52,17 @@ of this var to the value currently bound to this var.
        (let [c->s# (m/rdv)
              s->c# (m/rdv)]
          (m/? (m/join {}
-                (peer s# (-> s->c# #_(u/log-args 'r->l)) (u/poll c->s#))
-                (peer c# (-> c->s# #_(u/log-args 'l->r)) (u/poll s->c#))))))))
+                (peer s# (-> s->c# (u/log-args 'r->l)) (u/poll c->s#))
+                (peer c# (-> c->s# (u/log-args 'l->r)) (u/poll s->c#))))))))
+
+(comment
+  (def !a (atom 0))
+  ((system exports
+     (let [a ~(m/watch !a)]
+       (prn (if (odd? a) ~@(inc a) a)))) prn u/pst)
+  (swap! !a inc)
+
+  )
 
 (defn boot [f d]
   (fn []

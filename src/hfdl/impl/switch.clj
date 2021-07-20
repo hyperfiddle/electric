@@ -5,6 +5,7 @@
            (java.util.concurrent.atomic AtomicReference AtomicInteger)
            (clojure.lang IDeref IFn)))
 
+;; TODO deduplicate inner flows
 (def switch
   (let [iterator (int 0)
         notifier (int 1)
