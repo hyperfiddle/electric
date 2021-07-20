@@ -6,7 +6,7 @@
         funcool/promesa {:mvn/version "6.0.0"}
         funcool/lentes {:mvn/version "1.3.3"}
         dorothy/dorothy {:mvn/version "0.0.7"}
-        missionary/missionary #_{:local/root "./vendor/missionary"} {:mvn/version "b.20-SNAPSHOT"}
+        missionary/missionary #_{:local/root "./vendor/missionary"} {:mvn/version "b.20"}
         datascript/datascript {:mvn/version "1.0.3"}
         lexikon/lexikon {:mvn/version "0.2.1"}
         cloroutine/cloroutine {:local/root "./vendor/cloroutine"}

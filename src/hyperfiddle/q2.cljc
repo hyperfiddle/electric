@@ -2,7 +2,7 @@
   (:require [clojure.walk :as walk]
             [datascript.core :as d]
             #_[datomic.api :as d]
-            [hfdl.lang :refer [vars defnode debug system] :as h]
+            [hfdl.lang :refer [vars with defnode debug system] :as h]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tests]]
             [missionary.core :as m])
@@ -23,8 +23,11 @@
                  (apply prn :nav ref kfs)
                  (doto (apply nav! hf/*$* ref kfs) prn))))
 
-(defnode hf-nav [kf ref]
-  ~(nav ref kf))
+(defnode attribute)
+(defnode entity)
+(defnode value)
+
+(defnode hf-nav ~(nav entity attribute))
 
 (defn replace* [smap coll]
   (if (seqable? coll)
@@ -33,15 +36,13 @@
 
 (defn compile-leaf* [?form]
   (cond
-    (keyword? ?form) `(hf-nav ~?form ~'%)
+    (keyword? ?form) `(with {attribute ~?form} hf-nav)
     (seq? ?form)     ?form))
 
-(defmacro default-renderer [val props]
-  (if-let [a (::hf/a props)]
-    (list `hf/->Link a val) val))
+(defnode renderer (if-let [a hf/a] (hf/->Link a value) value))
 
-(defmacro render [val props]
-  (list (::hf/render props `default-renderer) val (dissoc props ::hf/render)))
+(defn render [val props]
+  `(with ~(assoc props `value val) renderer))
 
 (defn has-props? [form]
   (and (sequential? form)
@@ -134,7 +135,7 @@
         (let [sym (drop-slash edge)]
           [(assoc env (symbol edge) sym) sym])
         [env (symbol (name edge))])
-      [env '%])))
+      [env nil])))
 
 (defn compile-hfql*
   [env& ns-map env' form]
@@ -150,61 +151,60 @@
                        [env' edge-sym] (hf-edge->sym! env' edge)
                        props           (expand-props env& ns-map env' props)]
                    (merge r
-                          (if (many? qedge)
-                            `{~(quote* env& env' qedge)
-                              ;; @(render )
-                              ;; rfor :: (a -> m b) -> m [a] -> m [b]
-                              (h/for [~'% ~(replace* env' edge*)]
-                                (let [~edge-sym ~'%]
-                                  (render ~(compile-hfql* env& ns-map env' cont) ~props)))
-                              ;; nil
-                              }
-                            `{~(quote* env& env' qedge)
-                              (~'let [~'% ~(replace* env' edge*)]
-                               (~'let [~edge-sym ~'%]
-                                (render
-                                 ~(compile-hfql* env& ns-map env' cont)
-                                 ~props)))}))))
-               {}
-               form)
+                     `{~(quote* env& env' qedge)
+                       (~(if (many? qedge) `h/for `with) {entity ~(replace* env' edge*)}
+                         (let [~@(when edge-sym [edge-sym `entity])]
+                           ~(render (compile-hfql* env& ns-map env' cont) props)))})))
+      {} form)
 
     :else (let [[form props] (if (has-props? form) (extract-props form) [form nil])
                 props        (expand-props env& ns-map env' props)
                 qedge        (qualify env& ns-map form)]
-            {`~(quote* env& env' qedge) `(render ~(compile-leaf* (replace* env' form)) ~props)})))
+            {`~(quote* env& env' qedge) (render (compile-leaf* (replace* env' form)) props)})))
 
 (defmacro hfql [form]
   (compile-hfql* &env (ns-map *ns*) {} (if-not (vector? form) [form] form)))
 
 (def exports (merge h/exports hf/exports (vars nav q)))
 
-(tests
+(comment
   (macroexpand '(hfql :db/id)) :=
-  '#:db{:id (hyperfiddle.q2/render (hyperfiddle.q2/hf-nav :db/id %) nil)}
+  '{:db/id (hfdl.lang/with {hyperfiddle.q2/value (hyperfiddle.q2/hf-nav :db/id hyperfiddle.q2/entity)} hyperfiddle.q2/renderer)}
 
   (macroexpand '(hfql {(user.gender-shirt-size/submission "") [:db/id]})) :=
   '{(clojure.core/list (quote user.gender-shirt-size/submission) (quote ""))
-   (let [% (user.gender-shirt-size/submission "")]
-     (let [% %]
-       (hyperfiddle.q2/render
-         #:db{:id (hyperfiddle.q2/render
-                    (hyperfiddle.q2/hf-nav :db/id %)
-                    nil)} nil)))}
+    (hfdl.lang/with
+      [hyperfiddle.q2/entity
+       (user.gender-shirt-size/submission "")]
+      (clojure.core/let []
+        (hfdl.lang/with
+          {hyperfiddle.q2/value {:db/id (hfdl.lang/with
+                                          {hyperfiddle.q2/value
+                                           (hfdl.lang/with {hyperfiddle.q2/attribute :db/id} hyperfiddle.q2/hf-nav)}
+                                          hyperfiddle.q2/renderer)}}
+          hyperfiddle.q2/renderer)))}
 
   (macroexpand '(hfql {(user.gender-shirt-size/submission "") [{:dustingetz/shirt-size [:db/ident]}]})) :=
   '{(clojure.core/list (quote user.gender-shirt-size/submission) (quote ""))
-   (let [% (user.gender-shirt-size/submission "")]
-     (let [% %]
-       (hyperfiddle.q2/render
-         #:dustingetz{:shirt-size (let [% (hyperfiddle.q2/hf-nav :dustingetz/shirt-size %)]
-                                    (let [dustingetz__shirt-size %]
-                                      (hyperfiddle.q2/render
-                                        #:db{:ident (hyperfiddle.q2/render
-                                                      (hyperfiddle.q2/hf-nav
-                                                        :db/ident %)
-                                                      nil)} nil)))} nil)))}
+    (hfdl.lang/with {hyperfiddle.q2/entity (user.gender-shirt-size/submission "")}
+      (clojure.core/let []
+        (hfdl.lang/with {hyperfiddle.q2/value
+                         {:dustingetz/shirt-size
+                          (hfdl.lang/with {hyperfiddle.q2/entity
+                                           (hfdl.lang/with {hyperfiddle.q2/attribute :dustingetz/shirt-size}
+                                             hyperfiddle.q2/hf-nav)}
+                            (clojure.core/let [dustingetz__shirt-size hyperfiddle.q2/entity]
+                              (hfdl.lang/with
+                                {hyperfiddle.q2/value
+                                 {:db/ident (hfdl.lang/with
+                                              {hyperfiddle.q2/value (hfdl.lang/with {hyperfiddle.q2/attribute :db/ident}
+                                                                      hyperfiddle.q2/hf-nav)}
+                                              hyperfiddle.q2/renderer)}}
+                                hyperfiddle.q2/renderer)))}}
+          hyperfiddle.q2/renderer)))}
 
-  (macroexpand '(hfql {(user.gender-shirt-size/submission "") [:dustingetz/email (:db/id ::hf/render id-as-string)]})) :=
+  (macroexpand '(hfql {(user.gender-shirt-size/submission "")
+                       [:dustingetz/email {attribute :db/id renderer id-as-string}]})) :=
   '{(clojure.core/list (quote user.gender-shirt-size/submission) (quote ""))
    (let [% (user.gender-shirt-size/submission "")]
      (let [% %]

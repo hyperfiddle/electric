@@ -4,7 +4,7 @@
   #?(:clj
      (:import (java.util.concurrent.atomic AtomicReference AtomicInteger)
               (clojure.lang IFn IDeref Box)))
-  #?(:cljs (:require-macros [hfdl.impl.util :refer [when-fail]]
+  #?(:cljs (:require-macros [hfdl.impl.util :refer [when-fail local get-local set-local]]
                             [minitest :refer [tests]])))
 
 (defn nop [])
@@ -19,6 +19,13 @@
   (n) (reify
         IFn (#?(:clj invoke :cljs -invoke) [_])
         IDeref (#?(:clj deref :cljs -deref) [_] (t) (throw e))))
+
+(defn map-flow [f flow]
+  (fn [n t]
+    (let [it (flow n t)]
+      (reify
+        IFn (#?(:clj invoke :cljs -invoke) [_] (it))
+        IDeref (#?(:clj deref :cljs -deref) [_] (f @it))))))
 
 (def outof (partial reduce disj))
 (def map-into (partial mapv into))
@@ -88,3 +95,12 @@
 (defn poll [task]
   ; takes a task and returns a flow that runs the task repeatedly
   (m/ap (m/? (m/?> (m/seed (repeat task))))))
+
+(defmacro local []
+  (if (:js-globals &env) `(volatile! nil) `(ThreadLocal.)))
+
+(defmacro get-local [l]
+  (if (:js-globals &env) `(deref ~l) `(.get ~l)))
+
+(defmacro set-local [l x]
+  (if (:js-globals &env) `(vreset! ~l ~x) `(doto ~x (->> (.set ~l)))))
