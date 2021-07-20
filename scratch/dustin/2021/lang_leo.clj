@@ -1,41 +1,10 @@
 (ns dustin.lang-leo
   "tests to communicate about leo lang"
-
-  ;; What is our mission ?
-  ;; Produce test cases that bring the right questions
-  ;; that make us enquire about design choices
-
-  ;; Dustin: Ask questions at .9999999 precision
-  ;; Dustin: A question at .9 precision does not qualify as a valid question
-
-  ;; How will we do it? What artifact will we produce?
-  ;; create one file lang-leo with 200 LOC test cases
-  ;; we will test from hello-world to let, if, case, destructuring
-  ;; what operations introduce signals? We don't know
-  ;; effects?
-  ;; reactive-for
-  ;; Out of scope: ifn, $, nested dags (wait for .99999 precision before moving on to this)
-
-  ;; What will D/G do tomorrow? We will read the cases and Dustin will agree that this matches
-  ;; our understanding of leo-lang and then pass on to Leo
-
-  ;; What are we optimizing for?
-  ;; Not interrupting Leo because he's the severe bottleneck
-  ;; Build a foundation to communicate on top of
-
-
-
-  ;; OODA
-  ;; observe -> orient -> decide -> act ->
-
-
   (:require [hfdl.lang :refer [dataflow debug! heap-dump] :as hfdl]
-            [minitest :refer [tests]]
+            [hyperfiddle.rcf :refer [tests]]
             [missionary.core :as m]
             [hfdl.viz :refer [show! dot differential-dot]]
             [clojure.data :refer [diff]]))
-
-;; TODO indicate ::free in the log
 
 (tests
  "programs without variability terminate immediately"
@@ -80,7 +49,7 @@
  "Transition between running and terminated state"
  (def !a (atom 0))
  (def a (->> (m/watch !a)
-             (m/transform (take-while even?))))
+             (m/eduction (take-while even?))))
 
  (def program (dataflow @a))
  (def process (debug! program))

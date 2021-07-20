@@ -1,6 +1,6 @@
 (ns user.gender-shirt-size
   (:require [clojure.spec.alpha :as s]
-            [hfdl.lang :as p :refer [defnode vars system]]
+            [hfdl.lang :as p :refer [defnode vars local2]]
             [hfdl.impl.util :as u]
             [hyperfiddle.api :as hf :refer [*$*]]
             [hyperfiddle.q2 :as q :refer [q nav hfql]]
@@ -22,7 +22,7 @@
 ;(tests
 ;  (gender) := :person/male #_male)
 
-(defnode shirt-sizes [gender needle]
+(defnode shirt-sizes [gender & [needle]]
   (sort
     ~(q '[:in $ % ?gender ?needle
           :find [?e ...]
@@ -76,10 +76,10 @@
                          :person/gender
                          :person/shirt-size]} xs #_(xs ~(m/watch !needle))]
                 (dom/tr
-                  (dom/td (dom/span (pr-str id)))
+                  (dom/td (str id))
                   (dom/td email)
-                  (dom/td (dom/span (pr-str gender)))
-                  (dom/td (dom/span (pr-str shirt-size)))))))))
+                  (dom/td (pr-str gender))
+                  (dom/td (pr-str shirt-size))))))))
 
 (defnode render-text [x opts]
   (dom/input x))
@@ -92,9 +92,3 @@
        {(:person/gender ::hf/options (genders) ::hf/render ref2) [:db/ident]}
        {(:person/shirt-size ::hf/options (shirt-sizes :dustingetz/male "")
           ::hf/render ref2) [:db/ident]}]}]))
-
-(def !needle (atom ""))
-
-(comment
-  ((system exports (page-submissions ~@~(m/watch !needle))) prn u/pst)
-  )

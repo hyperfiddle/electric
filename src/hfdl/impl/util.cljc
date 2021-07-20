@@ -4,7 +4,7 @@
   #?(:clj
      (:import (java.util.concurrent.atomic AtomicReference AtomicInteger)
               (clojure.lang IFn IDeref Box)))
-  #?(:cljs (:require-macros [hfdl.impl.util :refer [when-fail local get-local set-local]]
+  #?(:cljs (:require-macros [hfdl.impl.util :refer [when-fail local get-local set-local with-local]]
                             [minitest :refer [tests]])))
 
 (defn nop [])
@@ -104,3 +104,9 @@
 
 (defmacro set-local [l x]
   (if (:js-globals &env) `(vreset! ~l ~x) `(doto ~x (->> (.set ~l)))))
+
+(defmacro with-local [l i & body]
+  `(let [prev# (get-local ~l)]
+     (set-local ~l ~i)
+     (try [(do ~@body) (get-local ~l)]
+          (finally (set-local ~l prev#)))))

@@ -1,84 +1,101 @@
 (ns hfdl.lang
-  (:refer-clojure :exclude [for eval])
-  (:require [hfdl.impl.compiler :as c]
+  (:refer-clojure :exclude [fn for eval])
+  (:require [clojure.core :as cc]
+            [hfdl.impl.compiler :as c]
             [hfdl.impl.runtime :as r]
             [hfdl.impl.util :as u]
             [hfdl.impl.rfor :refer [rfor]]
             [hfdl.impl.sampler :refer [sampler!]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hfdl.lang :refer [defnode bind vars main for system debug node thread]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [defnode bind vars main for local2 debug node thread]])))
 
-(defmacro defnode "
-Declares a node var with optional default value.
-" [sym & decl]
-  `(doto (def sym) (alter-meta! assoc :macro true :node ~(cons `list decl))))
-
-(defmacro thread [& body]
-  `(unquote (m/ap (m/? (m/via m/blk ~@body)))))
-; when lambdas work, thread will work for free because m/ap generates lambda
+(alter-meta!
+  (intern *ns* 'def
+    (cc/fn [_ _ sym & body]
+      `(doto (def ~sym) (alter-meta! assoc :macro true :node (quote ~body)))))
+  assoc :macro true)
 
 (defmacro main [& body]
   (-> (c/analyze &env (cons `do body))
-    (update 0 c/emit (comp symbol (partial str (gensym) '-)))
+    (update 0 (partial c/emit (comp symbol (partial str (gensym) '-))))
     (update 1 (partial list `quote))))
 
-;; TODO
-(defmacro bind [bindings & body]
-  (if-some [[[sym & decl] & bindings] (seq bindings)]
-    (list* `c/node (list `c/bind sym (list* `bind bindings body))
-      (c/parse-decl decl)) (cons `do body)))
+;; TODO self-refer
+(defmacro fn [args & body]
+  `(partial (def ~@(take (count args) c/args))
+     (var (let [~@(interleave args c/args)] ~@body))))
 
-(defnode item)
+(defmacro $ [f & args]
+  `(unquote (~f ~@(map (partial list `var) args))))
+
 (defmacro for [bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
-    `(unquote (rfor (var (let [~s item] (for ~bindings ~@body))) (var ~v)))
+    `(unquote (rfor (comp (partial (def ~(second c/args))
+                            (var (let [~s ~(second c/args)]
+                                   (for ~bindings ~@body))))
+                      r/steady) (var ~v)))
     `(do ~@body)))
+
+; when lambdas work, thread will work for free because m/ap generates lambda
+(defmacro thread [& body]
+  `(unquote (m/ap (m/? (m/via m/blk ~@body)))))
+
+(def eval r/eval)
 
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
 of this var to the value currently bound to this var.
 " [& forms] (c/vars &env forms))
 
-(def peer r/peer)
-(def eval r/eval)
-
 (def exports (vars hash-map vector list concat seq sort into first inc dec + - / * m/watch))
 
-(defmacro system [vars & body]
-  `(let [[c# s#] (main ~@body)
-         s# (eval ~vars s#)]
-     (m/sp
-       (let [c->s# (m/rdv)
-             s->c# (m/rdv)]
-         (m/? (m/join {}
-                (peer s# (-> s->c# (u/log-args 'r->l)) (u/poll c->s#))
-                (peer c# (-> c->s# (u/log-args 'l->r)) (u/poll s->c#))))))))
+(defmacro local2
+  "2-peer loopback system with transfer. Returns boot task"
+  [vars & body]
+  `(let [[client# server#] (main ~@body)
+         server# (eval ~vars server#)
+         c->s# (m/rdv)
+         s->c# (m/rdv)
+         ServerReactor# (server# (-> s->c# #_(u/log-args 'r->l)) (u/poll c->s#))
+         ClientReactor# (client# (-> c->s# #_(u/log-args 'l->r)) (u/poll s->c#))
+         Reactors# (m/join {} ServerReactor# ClientReactor#)]
+     Reactors#))
 
-(comment
-  (def !a (atom 0))
-  ((system exports
-     (let [a ~(m/watch !a)]
-       (prn (if (odd? a) ~@(inc a) a)))) prn u/pst)
-  (swap! !a inc)
+(defmacro local1
+  "single peer system (no transfer, ~@ is undefined). Returns boot task"
+  [& body]
+  ; use compiler (client) because no need for exports
+  `(let [[client# server#] (main ~@body)
+         Reactor# (client# (constantly (m/sp)) m/none)]
+     Reactor#))
 
-  )
+(defmacro run "test entrypoint, single process" [& body]
+  `(let [dispose# ((local1 ~@body)
+                   (cc/fn [_#] #_(prn ::finished)) u/pst)]
+     dispose#))
+
+(defmacro run2 "test entrypoint, 2-peer loopback system"
+  [vars & body]
+  `(let [dispose ((local2 vars ~@body)
+                  (cc/fn [_#] #_(prn ::finished)) u/pst)]
+     dispose))
 
 (defn boot [f d]
-  (fn []
+  (cc/fn []
     (f nil)
     (sampler! f d)))
 
 #?(:clj
    (defmacro debug [sym prg]
      `(boot
-        (fn [s#]
+        (cc/fn [s#]
           (println (case s# nil :reset :ready))
           (def ~sym s#)) ~prg)))
 
 #?(:clj
    (defmacro debug* [sym prg]
-     `(boot (fn [s#]
+     `(boot (cc/fn [s#]
               (println (case s# nil :reset :ready))
               (reset! ~sym s#)) ~prg)))
 
@@ -104,7 +121,7 @@ of this var to the value currently bound to this var.
   ; user interaction effects -> network -> rendering effects
 
   (def system-task
-    (system
+    (local2
       (vars !input form-input render-table query prn)
       (debug sampler
         (dataflow
