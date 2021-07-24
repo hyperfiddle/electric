@@ -50,20 +50,19 @@
   % := 1
   (dispose))
 
-; todo
-;(tests
-;  "reactive quote escapes to flow layer"
-;  (def dispose
-;    (r/run (! (let [x 1]
-;                [(type x)
-;                 (type #'x)]))))
-;  % := [Long 'flow]
-;  (dispose)
-;
-;  "special form for unquoting a quoted flow (monadic join)"
-;  (def dispose (r/run (! (let [x #'1] ~x))))
-;  % := 1
-;  (dispose))
+(tests
+  "reactive quote escapes to flow layer"
+  (def dispose
+    (r/run (! (let [x 1]
+                [(type x)
+                 (if (fn? #'x) ::fn)]))))
+  % := [java.lang.Long ::fn]
+  (dispose)
+
+  "special form for unquoting a quoted flow (monadic join)"
+  (def dispose (r/run (! (let [x #'1] ~x))))
+  % := 1
+  (dispose))
 
 (tests
   "reactive addition (wrong way – two propagation frames, no sharing)"
@@ -138,6 +137,7 @@
 
 (comment
   "reactor termination"
+  ; Leo says: pending question. (The test does pass)
   (def !x (atom 0))
   (def dispose
     (r/run (! ~(->> (m/watch !x) (m/eduction (take-while even?))))))
@@ -169,10 +169,38 @@
   % := :b
   (dispose))
 
+(tests
+  "reactive def")
+
+(tests
+  "reactive fn"
+  ; Leo thinks fn definition is not right, easy fix
+  ; reactive quote works
+  (def dispose (r/run (! (r/$ (r/fn [x] (inc x)) 1))))
+  % := 2
+  (dispose))
+
+(tests
+  "reactive def fn"
+  (r/def f (r/fn [x] (inc x)))
+  (def dispose (r/run (! (r/$ f 1))))
+  % := 2
+  (dispose))
+
+(tests
+  "reactive defn"
+  (r/defn f [x] (inc x))
+  (def dispose (r/run (! (r/$ f 1))))
+  % := 2
+  (dispose))
+
 (comment
+  ; TBD, negotiating with Leo
+  ; Leo: by eager we mean, when inside the if2 body, a and b
+  ; are already evaluated (the flow has been run but not sampled)
   "control flow implemented with lazy"
-  (r/def if2 [x a b] ~(get {true #'a false #'b} (boolean x)))
-  (def dispose (r/run (! (if2 false (! :a) (! :b)))))
+  (r/defn if2 [x a b] ~(get {true #'a false #'b} (boolean x)))
+  (def dispose (r/run (! (r/$ if2 false (! :a) (! :b)))))
   ;% := :a
   % := :b
   % := :b
@@ -193,6 +221,7 @@
 
 (tests
   "def"
+  ; concurrency issue, a problem with def redefinition
   (r/def foo 1)
   (def dispose (r/run (! foo)))
   % := 1
@@ -207,6 +236,9 @@
 
 (tests
   "quote captures lexical scope"
+  ; Dustin: controversial
+  ; Leo suggests renaming to "thunk" to match the behavior
+  ; thunk is a closure with no args
   (def dispose (r/run (! ~(let [a 1] #'a))))
   % := 1
   (dispose))
@@ -229,7 +261,7 @@
   (dispose))
 
 (tests
-  "if with bindings"
+  "if with unwinding binding"
   (def !a (atom true))
   (r/def foo 1)
   (def dispose (r/run (! ~(r/binding [foo 2] #'(if ~(m/watch !a) foo (- foo))))))
@@ -240,7 +272,7 @@
 
 ;; FIXME
 (comment
-  "def"
+  "internal def"
   (def !a (atom 0))
   (r/def foo 1)
   (r/def bar 2)
@@ -257,13 +289,11 @@
   % := [2 3 4 5]
   #_(dispose))
 
-(comment
+(tests
   "reactive for is differential (diff/patch)"
   (def !xs (atom [1 2 3]))
   (def dispose (r/run (! (r/for [x ~(m/watch !xs)] (! x)))))
-  % := _                                                    ; its a race
-  % := _
-  % := _
+  (hash-set % % %) := #{1 2 3}                              ; concurrent, order undefined
   % := [1 2 3]
   (swap! !xs conj 4)
   % := 4
@@ -292,17 +322,47 @@
 
 (tests
   "reactive do"
+  ; What is the intent of do?
+  ; When you write do, you always want to perform effects
+  ; Todo, resolve controversy - how lazy is it?
   (def !x (atom 0))
-  (def dispose (r/run (do (! :a) (! ~(m/watch !x)))))
+  (def dispose (r/run (! (do (! :a) (! ~(m/watch !x))))))
   ; do is not monadic sequence, we considered that
   ; It's an incremental computation so only rerun what changed in our opinion
   % := :a
   % := 0
+  % := 0
   (swap! !x inc)
+  % := 1
   % := 1
   (dispose))
 
+(tests
+  "do forces evaluation (introduces eagerness)"
+  ; Current behavior - do stmts are sampled eagerly, as fast as possible
+  (def !a (atom 0))
+  (def !b (atom 0))
+  (r/run (! @(doto !b (reset! (! ~(m/watch !a))))))
+  % := 0
+  % := 0
+  (swap! !a inc)
+  ; the ref !b doesn't change, so we don't see 1 again
+  % := 1)
+
 (comment
+  "entrypoint forces evaluation (introduces eagerness)" ; desired behavior, we think
+  ; Alternative - do stmts are sampled (for effect) when result is sampled
+
+  (def !a (atom 0))
+  (def !b (atom 0))
+  (r/run (! @(doto !b (reset! (! ~(m/watch !a))))))
+  % := 0
+  % := 0
+  (swap! !a inc)
+  % := 1
+  % := 1)
+
+(tests
   "reactive doto"
   (defn MutableMap [] (new java.util.HashMap))
   (defn PutMap [!m k v] (.put !m k v))
@@ -317,10 +377,10 @@
       (! (doto (MutableMap)                                 ; the doto is incrementalized
            (PutMap "a" (swap! !z inc))                      ; detect effect
            (PutMap "b" ~(m/watch !x))))))
-  % := {"a" 1
-        "b" 0}
+  % := {"a" 1 "b" 0}
   (swap! !x inc)
-  % := ::rcf/timeout                                        ; no further sample, the map hasn't changed
+  % := ::rcf/timeout       ; no further sample, the map hasn't changed
+  ;% := {"a" 1 "b" 1} ; alternative (desired) design will sample again
   (dispose))
 
 ; node call (static dispatch)
@@ -328,14 +388,14 @@
   "defnode is defn for reactive fns"
   ; best example of this is hiccup incremental maintenance
 
-  (defnode !')
-  (defnode div [child] (!' child) [:div child])
-  (defnode widget [x]
-    (div [(div x) (div :a)]))
+  (r/def !')
+  (r/defn div [child] (!' child) [:div child])
+  (r/defn widget [x]
+    (r/$ div [(r/$ div x) (r/$ div :a)]))
 
   (def !x (atom 0))
-  (def dispose (r/run (! (r/bind [(!' [x] (rcf/! x))]
-                                 (widget ~(m/watch !x))))))
+  (def dispose (r/run (! (r/binding [!' ! #_(r/fn [x] (! x))]
+                           (widget ~(m/watch !x))))))
   % := 0
   % := :a
   % := [[:div 0] [:div :a]]
@@ -363,7 +423,8 @@
 (comment
   "higher order dags"
   (def !x (atom 0))
-
+  (defn f [x] x)
+  (r/def g (r/fn [x] x))
   (def dispose
     (r/run
       (! (let [ff (fn [x] x)                                ; foreign clojure fns are useful, e.g. passing callbacks to DOM
@@ -377,26 +438,36 @@
   % := [0 0 0 0 0]
   (dispose))
 
-(comment
+(tests
+  "bug"
+  (def !x (atom 0))
+  (def !y (atom 0))
+  (def dispose (r/run (! (let [y ~(m/watch !y)]
+                           (if (odd? ~(m/watch !x))
+                             (r/fn [x] (+ y x))
+                             (r/fn [x] (+ y x)))))))
+  % := _
+  (dispose))
+
+(tests
   "reactive node closure"
   (def !x (atom 0))
   (def !y (atom 0))
   (def dispose
     (r/run (! (let [x ~(m/watch !x)
                     y ~(m/watch !y)
-                    _ 1
-                    _ ~(m/seed [1])
-                    f (node [needle] (+ y needle))          ; constant signal
-                    g (if (odd? x) (node [needle] (+ y needle))
-                                   (node [needle] (+ y needle)))
-                    h ~(m/seed [(node [needle] (+ y needle))])]
-                [($ f x)
-                 ($ g x)
-                 ($ h x)]))))
+                    f (r/fn [x] (+ y x))          ; constant signal
+                    g (if (odd? x) (r/fn [x] (+ y x))
+                                   (r/fn [x] (+ y x)))
+                    #_#_h ~(m/seed [(r/fn [x] (+ y x))])]
+                [#_(r/$ f x)
+                 #_(r/$ g x)
+                 #_(r/$ h x)]))))
   % := [0 0 0]
   (dispose))
 
 (comment
+  ; todo implement fn
   "reactive clojure.core/fn"
   (def !x (atom 0))
   (def !y (atom 0))
@@ -404,7 +475,8 @@
     (r/run
       (! (let [x ~(m/watch !x)
                y ~(m/watch !y)
-               f (fn [needle] (+ y needle))]                ; closure is rebuilt when y changes
+               ; rebuild clojure closure when y updates
+               f (fn [needle] (+ y needle))]
            ; (value is fully compatible with fn contract)
            ; the lambda is as variable as the var it closes over
            ; well defined. It's not allowed to use dataflow inside FN. Compiler can never reach it
@@ -431,10 +503,10 @@
   (def dispose
     (r/run
       (! ($                                                 ; call a closure from outside the extent of its parent
-           (let [!n (atom (node [] 0))]
+           (let [!n (atom (r/fn [] 0))]
              (when ~(m/watch !a)
                (let [x ~(m/watch !b)]
-                 (reset! !n (node [] x))))                  ; use mutation to escape the extent of the closure
+                 (reset! !n (r/fn [] x))))                  ; use mutation to escape the extent of the closure
              ~(m/watch !n))))))
   := 0
   (swap! !a not)
@@ -442,15 +514,14 @@
   (swap! !a not)                                            ; watch !b is discarded
   := ::rcf/timeout)
 
-(r/def fib
-  (r/fn [n]
-    (case n
-      0 0 1 1
-      (+ (fib (- n 2))
-        (fib (- n 1))))))
-
 (comment
   "reactive recursion"
+  (r/defn fib [n]
+    ; todo, recursion doesn't work yet
+    (case n
+      0 0 1 1
+      (+ (r/$ fib (- n 2))                                        ; self recur
+         (r/$ fib (- n 1)))))
   (def !x (atom 5))
   (def dispose (r/run (! (fib ~(m/watch !x)))))
   % := 5
@@ -461,8 +532,13 @@
 
 (comment
   "recur special form"
+  (r/defn fib' [n]
+    (case n
+      0 0 1 1
+      (+ (recur (- n 2)) ; todo
+         (recur (- n 1)))))
   (def !x (atom 5))
-  (def dispose (r/run (! (fib ~(m/watch !x)))))
+  (def dispose (r/run (! (fib' ~(m/watch !x)))))
   % := 5
   (swap! !x inc)
   ; this will reuse the topmost frame, it is still naive though
@@ -474,13 +550,14 @@
 (comment
   "mutual recursion"
   (declare pong)
-  (defnode ping [x] (case x 0 :done (pong (dec x))))
-  (defnode pong [x] (ping x))
+  (r/defn ping [x] (case x 0 :done (r/$ pong (dec x))))
+  ; can static call infer $ here? Leo needs to think
+  (r/defn pong [x] (r/$ ping x))
   (def dispose (r/run (! (ping 3))))
   % := :done
   (dispose))
 
-(comment
+(tests
   "For reference, Clojure exceptions have dynamic scope"
   (try
     (let [f (try (fn [] (/ 1 0))                            ; this exception will escape
@@ -510,34 +587,38 @@
 
 (comment
   "leo bind"
-  (defnode foo)
+  (r/def foo)
+  (r/def foo')
   (def !x (atom 0))
-  (def dispose (r/run (! (r/bind [(foo [] ~(m/watch !x))] (foo)))))
-  % := 0
+  (def dispose (r/run (! (r/binding [foo #'(inc ~(m/watch !x))
+                                     foo' (r/fn [] (inc ~(m/watch !x)))]
+                           [~foo (r/$ foo')]))))            ; omg
+  % := [0 0]
   (swap! !x inc)
-  % := 1
+  % := [1 1]
   (dispose))
 
-(comment
-  "cannot take value of a bind"
-  (defnode nf)
-  (def dispose
-    (r/run (! (r/bind [(nf [] (boom))]
-                      nf))))
-  % := ::rcf/timeout                                        ; runtime error
-  (dispose))
+; dumb test
+;(comment
+;  "can take value of bind (previously couldn't)"
+;  (r/def nf)
+;  (def dispose
+;    (r/run (! (r/binding [nf 1] nf))))
+;  % := 1                                        ; runtime error
+;  (dispose))
 
-(comment
+(tests
   "dynamic scope (note that try/catch has the same structure)"
-  (def ^:dynamic db)
-  (defnode foo [] db)
-  (def dispose (r/run (! (r/binding [db ::inner] (foo)))))
+  (r/def db)
+  (r/defn foo [] db)
+  (def dispose (r/run (! (r/binding [db ::inner] (r/$ foo)))))
   % := ::inner
+  (dispose)
 
   (def dispose (r/run (! (r/binding [db ::outer]
-                                    (let [nf (r/binding [db ::inner]
-                                                        (node [] (foo)))] ; binding out of scope
-                                      ($ nf))))))
+                           (let [nf (r/binding [db ::inner]
+                                      (r/fn [] (foo)))]     ; binding out of scope
+                             (r/$ nf))))))
   % := ::outer
   (dispose))
 
