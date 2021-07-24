@@ -1,5 +1,5 @@
 (ns hfdl.lang
-  (:refer-clojure :exclude [binding fn for eval])
+  (:refer-clojure :exclude [def binding fn for eval])
   (:require [clojure.core :as cc]
             [hfdl.impl.compiler :as c]
             [hfdl.impl.runtime :as r]
@@ -8,50 +8,7 @@
             [hfdl.impl.sampler :refer [sampler!]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hfdl.lang :refer [defnode bind vars main for local2 debug node thread]])))
-
-(alter-meta!
-  (intern *ns* 'def
-    (cc/fn [_ _ sym & body]
-      `(doto (def ~sym) (alter-meta! assoc :macro true :node (quote ~body)))))
-  assoc :macro true)
-
-(defmacro main [& body]
-  (-> (c/analyze &env (cons `do body))
-    (update 0 (partial c/emit (comp symbol (partial str (gensym) '-))))
-    (update 1 (partial list `quote))))
-
-(defmacro binding [bindings & body]
-  (if-some [bindings (seq (partition-all 2 bindings))]
-    (let [[syms exprs] (apply map vector bindings)]
-      (->> exprs
-        (cons (cons `do body))
-        (map (partial list `var))
-        (cons (cons `def syms))
-        (list `unquote)))
-    (cons `do body)))
-
-;; TODO self-refer
-(defmacro fn [args & body]
-  `(partial (def ~@(take (count args) c/args))
-     (var (let [~@(interleave args c/args)] ~@body))))
-
-(defmacro $ [f & args]
-  `(unquote (~f ~@(map (partial list `var) args))))
-
-(defmacro for [bindings & body]
-  (if-some [[s v & bindings] (seq bindings)]
-    `(unquote (rfor (comp (partial (def ~(second c/args))
-                            (var (let [~s ~(second c/args)]
-                                   (for ~bindings ~@body))))
-                      r/steady) (var ~v)))
-    `(do ~@body)))
-
-; when lambdas work, thread will work for free because m/ap generates lambda
-(defmacro thread [& body]
-  `(unquote (m/ap (m/? (m/via m/blk ~@body)))))
-
-(def eval r/eval)
+  #?(:cljs (:require-macros [hfdl.lang :refer [def fn $ bindings vars main for local2 debug thread]])))
 
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
@@ -60,11 +17,64 @@ of this var to the value currently bound to this var.
 
 (def exports (vars hash-map vector list concat seq sort into first inc dec + - / * m/watch))
 
+(def eval r/eval)
+
+(defmacro def [sym & body]
+  `(doto (~'def ~sym) (alter-meta! assoc :macro true :node (quote ~body))))
+
+(defmacro main [& body]
+  (-> (c/analyze &env (cons 'do body))
+    (update 0 (partial c/emit (comp symbol (partial str (gensym) '-))))
+    (update 1 (partial list 'quote))))
+
+(defmacro binding [bindings & body]
+  (if-some [bindings (seq (partition-all 2 bindings))]
+    (let [[syms exprs] (apply map vector bindings)]
+      (->> exprs
+        (cons (cons 'do body))
+        (map (partial list 'var))
+        (cons (cons 'def syms))
+        (list `unquote)))
+    (cons 'do body)))
+
+;; TODO self-refer
+(defmacro fn [args & body]
+  (->> body
+    (cons (vec (interleave args c/args)))
+    (cons `let)
+    (list 'var)
+    (list `partial (cons 'def (take (count args) c/args)))))
+
+(defmacro $ [f & args]
+  (->> args
+    (map (partial list 'var))
+    (cons f)
+    (list `unquote)))
+
+(defmacro for [bindings & body]
+  (if-some [[s v & bindings] (seq bindings)]
+    (->> (list 'var v)
+      (list `rfor
+        (list `comp
+          (->> body
+            (cons bindings)
+            (cons `for)
+            (list `let [s (second c/args)])
+            (list 'var)
+            (list `partial (list 'def (second c/args))))
+          `r/steady))
+      (list `unquote))
+    (cons 'do body)))
+
+; when lambdas work, thread will work for free because m/ap generates lambda
+(defmacro thread [& body]
+  `(unquote (m/ap (m/? (m/via m/blk ~@body)))))
+
 (defmacro local2
   "2-peer loopback system with transfer. Returns boot task"
   [vars & body]
   `(let [[client# server#] (main ~@body)
-         server# (eval ~vars server#)
+         server# (r/eval ~vars server#)
          c->s# (m/rdv)
          s->c# (m/rdv)
          ServerReactor# (server# (-> s->c# #_(u/log-args 'r->l)) (u/poll c->s#))
