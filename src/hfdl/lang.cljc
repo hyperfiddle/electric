@@ -1,5 +1,5 @@
 (ns hfdl.lang
-  (:refer-clojure :exclude [fn for eval])
+  (:refer-clojure :exclude [binding fn for eval])
   (:require [clojure.core :as cc]
             [hfdl.impl.compiler :as c]
             [hfdl.impl.runtime :as r]
@@ -20,6 +20,16 @@
   (-> (c/analyze &env (cons `do body))
     (update 0 (partial c/emit (comp symbol (partial str (gensym) '-))))
     (update 1 (partial list `quote))))
+
+(defmacro binding [bindings & body]
+  (if-some [bindings (seq (partition-all 2 bindings))]
+    (let [[syms exprs] (apply map vector bindings)]
+      (->> exprs
+        (cons (cons `do body))
+        (map (partial list `var))
+        (cons (cons `def syms))
+        (list `unquote)))
+    (cons `do body)))
 
 ;; TODO self-refer
 (defmacro fn [args & body]

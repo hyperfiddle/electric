@@ -201,7 +201,7 @@
 (tests
   "binding"
   (r/def foo 1)
-  (def dispose (r/run (! (binding [foo 2] foo))))
+  (def dispose (r/run (! (r/binding [foo 2] foo))))
   % := 2
   (dispose))
 
@@ -214,7 +214,7 @@
 (tests
   "join captures dynamic scope"
   (r/def foo 1)
-  (def dispose (r/run (! (let [q #'foo] (binding [foo 2] ~q)))))
+  (def dispose (r/run (! (let [q #'foo] (r/binding [foo 2] ~q)))))
   % := 2
   (dispose))
 
@@ -222,7 +222,7 @@
   "if with bindings"
   (def !a (atom true))
   (r/def foo 1)
-  (def dispose (r/run (! (binding [foo 2] (if ~(m/watch !a) foo (- foo))))))
+  (def dispose (r/run (! (r/binding [foo 2] (if ~(m/watch !a) foo (- foo))))))
   % := 2
   (swap! !a not)
   % := -2
@@ -232,7 +232,7 @@
   "if with bindings"
   (def !a (atom true))
   (r/def foo 1)
-  (def dispose (r/run (! ~(binding [foo 2] #'(if ~(m/watch !a) foo (- foo))))))
+  (def dispose (r/run (! ~(r/binding [foo 2] #'(if ~(m/watch !a) foo (- foo))))))
   % := 1
   (swap! !a not)
   % := -1

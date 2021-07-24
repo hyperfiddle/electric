@@ -272,19 +272,9 @@ is a macro or special form."
                         [[:output (peek res)] (into [:input] (pop res))])
                       (analyze-apply env form))
                     (if-some [v (resolve-var env op)]
-                      (let [m (meta v)
-                            s (symbol (name (ns-name (:ns m))) (name (:name m)))]
-                        (case s
-                          (clojure.core/binding cljs.core/binding)
-                          (-> [[:bind]]
-                            (conj-res (transduce
-                                        (comp (partition-all 2)
-                                          (map (fn [[s x]] (conj-res [[(resolve-node env s)]] (analyze-form env x)))))
-                                        conj-res [{}] (first args)))
-                            (conj-res (analyze-form env (cons `do (next args)))))
-                          (if (:node m)
-                            (analyze-apply env form)
-                            (analyze-form env (apply v form (if (:js-globals env) env (:locals env)) args)))))
+                      (if (:node (meta v))
+                        (analyze-apply env form)
+                        (analyze-form env (apply v form (if (:js-globals env) env (:locals env)) args)))
                       (analyze-form env (desugar-host env form)))))
                 (analyze-apply env form)))
             (analyze-map [env form]
@@ -384,10 +374,6 @@ is a macro or special form."
   [[[:literal nil] [:node 0]]
    [[:literal nil]]]
 
-  (analyze {} '(binding [node 1] node)) :=
-  [[[:literal nil] [:bind {0 [:literal 1]} [:node 0]]]
-   [[:literal nil]]]
-
   (analyze {} '(def node)) :=
   [[[:literal nil] [:def 0]] [[:literal nil]]]
   )
@@ -409,20 +395,6 @@ is a macro or special form."
                        (emit-inst sym (inc pub) (second args)))
                 :def (list `r/steady (cons `r/binder (cons (sym 'context) args)))
                 :node (list `r/get-node (sym 'context) (first args))
-                :bind (-> []
-                        (into (map (fn [[node inst]]
-                                     (list `r/set-node (sym 'context) node
-                                       (list `r/publish (sym 'context) (slot :signal)
-                                         (emit-inst sym pub inst)))))
-                          (sort-by key (first args)))
-                        (conj (list `try (emit-inst sym pub (second args))
-                                (cons `finally
-                                  (map (fn [node] (list `r/set-node (sym 'context) node (sym 'node node)))
-                                    (keys (first args))))))
-                        (->> (cons (into []
-                                     (mapcat (fn [node] [(sym 'node node) (list `r/get-node (sym 'context) node)]))
-                                     (keys (first args))))
-                          (cons `let)))
                 :apply (cons `m/latest (cons `u/call (mapv (partial emit-inst sym pub) args)))
                 :input (cons `do (conj (mapv (partial emit-inst sym pub) args)
                                    (list `r/input (sym 'context) (slot :input))))
@@ -532,15 +504,6 @@ is a macro or special form."
                    (r/steady '1)
                    (r/constant ~'context 2 0 0 0
                      (fn [] (r/steady '7))))))))))
-
-  (emit (comp symbol str)
-    [[:bind {0 [:literal 2]} [:node 0]]]) :=
-  `(r/peer 0 0 0 1
-     (fn [~'context]
-       (do (let [~'node0 (r/get-node ~'context 0)]
-             (r/set-node ~'context 0 (r/publish ~'context 0 (r/steady '2)))
-             (try (r/get-node ~'context 0)
-                  (finally (r/set-node ~'context 0 ~'node0)))))))
 
   (emit (comp symbol str) [[:def 0]]) :=
   `(r/peer 0 0 0 0
