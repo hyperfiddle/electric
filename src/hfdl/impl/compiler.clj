@@ -169,13 +169,13 @@ is a macro or special form."
                     (doto (-> (.get nodes) (get l) count dec)
                       (->> (update (.get nodes) l update sym assoc :slot) (.set nodes)))))))
             (resolve-node [env sym]
-              (doto (when-some [v (resolve-var env sym)]
-                      (let [m (meta v)]
-                        (when (contains? m :node)
-                          (visit-node env
-                            (symbol (name (ns-name (:ns m)))
-                              (name (:name m))) (:node m)))))
-                (when-not (throw (ex-info (str "Unable to resolve node - " sym) {})))))
+              (if-some [v (resolve-var env sym)]
+                (let [m (meta v)
+                      s (symbol (name (ns-name (:ns m))) (name (:name m)))]
+                  (if-some [n (:node m)]
+                    (visit-node env s n)
+                    (throw (ex-info (str "Not a reactive var - " s) {}))))
+                (throw (ex-info (str "Unable to resolve symbol - " sym) {}))))
             (analyze-symbol [env sym]
               (if (contains? (:locals env) sym)
                 (if-some [[p i] (::pub (get (:locals env) sym))]
@@ -190,7 +190,7 @@ is a macro or special form."
                           s (symbol (name (ns-name (:ns m))) (name (:name m)))]
                       (if-some [n (:node m)]
                         [[:node (visit-node env s n)]]
-                        (throw (ex-info "Can't take value of macro." {:symbol sym}))))
+                        (throw (ex-info "Can't take value of macro." {:symbol s}))))
                     (throw (ex-info "Unable to resolve symbol." {:symbol sym}))))))
             (analyze-apply [env form]
               (transduce
