@@ -1,5 +1,5 @@
 (ns hfdl.lang
-  (:refer-clojure :exclude [def binding fn for eval])
+  (:refer-clojure :exclude [def binding fn for eval defn])
   (:require [clojure.core :as cc]
             [hfdl.impl.compiler :as c]
             [hfdl.impl.runtime :as r]
@@ -44,6 +44,9 @@ of this var to the value currently bound to this var.
     (cons `let)
     (list 'var)
     (list `partial (cons 'def (take (count args) c/args)))))
+
+; syntax quote doesn't qualify special forms like 'def
+(defmacro defn [sym & rest] `(hfdl.lang/def ~sym (fn ~@rest)))
 
 (defmacro $ [f & args]
   (->> args
@@ -101,7 +104,7 @@ of this var to the value currently bound to this var.
                   (cc/fn [_#] #_(prn ::finished)) u/pst)]
      dispose))
 
-(defn boot [f d]
+(cc/defn boot [f d]
   (cc/fn []
     (f nil)
     (sampler! f d)))
@@ -121,12 +124,12 @@ of this var to the value currently bound to this var.
 
 (comment
   (def !input (atom "alice"))
-  (defn form-input [] (m/watch !input))
-  (defn render-table [>x] (m/relieve {}
+  (cc/defn form-input [] (m/watch !input))
+  (cc/defn render-table [>x] (m/relieve {}
                             (dataflow
                               (prn :render-table @>x))
                             #_(m/ap (prn :render-table (m/?! x)))))
-  (defn query [q] [q])
+  (cc/defn query [q] [q])
 
   ; what touches the network is eager
   ; if something is required remotely we don't lazy sample,
