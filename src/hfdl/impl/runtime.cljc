@@ -180,13 +180,6 @@
                     :def (fn [context _] (steady (apply binder context args)))
                     :node (let [n (first args)]
                             (fn [context _] (get-node context n)))
-                    :bind (let [fs (into {} (map (juxt key (comp eval-inst val))) (first args))
-                                g (eval-inst (second args))]
-                            (fn [context pubs]
-                              (let [ps (into {} (map (juxt key (comp (partial get-node context) val))) fs)]
-                                (run! (partial apply set-node context) fs)
-                                (try (g context pubs)
-                                     (finally (run! (partial apply set-node context) ps))))))
                     :apply (comp (partial apply m/latest u/call)
                              (apply juxt (map eval-inst args)))
                     :input (let [f (apply juxt (map eval-inst args))
