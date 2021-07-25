@@ -1,6 +1,6 @@
 (ns hyperfiddle.photon-dom
   (:refer-clojure :exclude [for])
-  (:require [hfdl.lang :refer [defnode for]]
+  (:require [hfdl.lang :as r :refer [defnode for]]
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e]))
@@ -9,7 +9,7 @@
              [hyperfiddle.photon-dom :refer
               [mount! element-with-children fragment div span h1 table thead tbody tr td select option]])))
 
-(defnode parent [])
+(r/def parent)
 
 (defn append-children [parent items] (reduce #?(:cljs #(doto %1 (.appendChild %2))) parent items))
 (defn remove-children [parent items] (reduce #?(:cljs #(doto %1 (.removeChild %2))) parent items))
@@ -57,28 +57,33 @@
 (defn get-value [e]
   #?(:cljs (.-value e)))
 
-(defnode mount! [child]
+(r/defn mount! [child]
   ;(assert (bound? #'parent) "photon-dom/parent not in scope")
   (assert parent "photon-dom/parent not in scope")
   ~(mount parent child))
 
-(defnode element-with-children [type children]
+(r/defn element-with-children [type children]
   (let [e (element (name type))]
     (binding [parent e]
       (for [c children] (mount! c))) e))
 
+;(defmacro element [type & body]
+;  `(let [e (dom type ... )]
+;    (r/binding [parent e]
+;      ~@body)))
+
 (with-out-str (println "a"))
 
-(defnode fragment [& body])
-(defnode div [& body])
+(r/defn fragment [& children] (mount! (element-with-children :fragment children)))
+(r/defn div [& children] (mount! (element-with-children :fragment children)))
 
-(defnode span [& children]
+(r/defn span [& children]
   (mount! (element-with-children :span children)))
 
-(defnode h1 [& children]
+(r/defn h1 [& children]
   (mount! (element-with-children :h1 children)))
 
-(defnode input [x]
+(r/defn input [x]
   (let [el (doto (element "input")
              (set-attribute! "type" "text")
              (set-attribute! "value" x))]
@@ -86,23 +91,23 @@
     (-> ~(m/relieve {} (events el input-event))
         event-target get-value)))
 
-(defnode table [& children]
+(r/defn table [& children]
   (mount! (element-with-children :table children)))
 
-(defnode thead [& children]
+(r/defn thead [& children]
   (mount! (element-with-children :thead children)))
 
-(defnode tbody [& children]
+(r/defn tbody [& children]
   (mount! (element-with-children :tbody children)))
 
-(defnode tr [& children]
+(r/defn tr [& children]
   (mount! (element-with-children :tr children)))
 
-(defnode td [& children]
+(r/defn td [& children]
   (mount! (element-with-children :td children)))
 
 ;; TODO
-(defnode radio [value options]
+(r/defn radio [value options]
   (for [[id text] options]
     [(doto (element "input")
        (set-attribute! "type" "radio"))
@@ -110,7 +115,7 @@
        (set-attribute! "for" id)
        (set-text-content! text))]))
 
-(defnode select [selected options]
+(r/defn select [selected options]
   (mount!
     (binding [parent (element "select")]
       (mount! (for [[k v] options]
@@ -120,4 +125,4 @@
       (set-attribute! parent "selected" selected)
       parent)))
 
-(defnode option [& body])
+(r/defn option [& body] (mount! (element-with-children :option children)))
