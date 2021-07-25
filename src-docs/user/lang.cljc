@@ -643,4 +643,17 @@
 ; unquote is for introducing flow transformers – a special form
 (comment
   "flow transformers"
+  ; :: (a -> m b) -> (a -> m b)
+  ; widgets take a flow and return a new flow.
   )
+
+(tests
+  "lazy parameters. Flows are not run unless sampled"
+  (def dispose (r/run (r/$ (r/fn [_]) (! :boom))))
+  % := ::rcf/timeout
+  (dispose)
+
+  (r/def foo :boom)
+  (def dispose (r/run (let [_ (! :boom)])))
+  % := ::rcf/timeout
+  (dispose))
