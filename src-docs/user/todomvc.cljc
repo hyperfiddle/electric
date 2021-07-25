@@ -5,34 +5,35 @@
             [hyperfiddle.rcf :refer [tests ! %]]
             [missionary.core :as m]))
 
-(defnode todos [db status]
+(r/defn todos [db status]
   (d/q '[:find [?e ...] :in $ ?status
          :where [?e :task/status ?status]]
        db status))
 
-(defnode root [db]
-  (dom/fragment
-    (dom/h1 "To Better Do, a distributed concurrent todo list application")
-    (let [status (dom/input "")
-          es (todos db status)]
-      (dom/table
-        (dom/thead (r/for [x ["id" "status" "name"]] (dom/td x)))
-        (dom/tbody (r/for [e es]
+(r/defn root [db]
+  (r/$ dom/fragment
+    (r/$ dom/h1 "To Better Do, a distributed concurrent todo list application")
+    (let [status (r/$ dom/input "")
+          es (r/$ todos db status)]
+      (r/$ dom/table
+        (r/$ dom/thead (r/for [x ["id" "status" "name"]] (r/$ dom/td x)))
+        (r/$ dom/tbody (r/for [e es]
                      (let [{:keys [:db/id
                                    :task/status
                                    :task/description]} (d/entity db e)]
-                       (dom/tr e
-                         (dom/td :db/id id)
-                         (dom/td :task/status (dom/checkbox status))
-                         (dom/td :task/description (dom/input description)))))))
-      (dom/span "Count: " (count es)))))
+                       (r/$ dom/tr e
+                         (r/$ dom/td :db/id id)
+                         (r/$ dom/td :task/status (r/$ dom/checkbox status))
+                         (r/$ dom/td :task/description (r/$ dom/input description)))))))
+      (r/$ dom/span "Count: " (count es)))))
 
 (tests
   (def !db (atom (d/db *conn*)))
   (def dispose
     (r/run
       (r/binding [dom/parent (js/document.getElementById "#root")]
-        (let [tx (root ~(m/watch !db))]
+        (let [tx (r/$ root ~(m/watch !db))]
+          (! tx)
           (swap! db #(:db-after (d/with % tx)))
           #_(d/transact *conn* tx)))))
   % := _
