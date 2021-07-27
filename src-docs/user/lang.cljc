@@ -270,8 +270,7 @@
   % := -1
   (dispose))
 
-;; FIXME
-(comment
+(tests
   "internal def"
   (def !a (atom 0))
   (r/def foo 1)
@@ -384,7 +383,7 @@
   (dispose))
 
 ; node call (static dispatch)
-(comment
+(tests
   "defnode is defn for reactive fns"
   ; best example of this is hiccup incremental maintenance
 
@@ -395,7 +394,7 @@
 
   (def !x (atom 0))
   (def dispose (r/run (! (r/binding [!' ! #_(r/fn [x] (! x))]
-                           (widget ~(m/watch !x))))))
+                           (r/$ widget ~(m/watch !x))))))
   % := 0
   % := :a
   % := [[:div 0] [:div :a]]
@@ -407,27 +406,26 @@
   % := [:div [[:div 1] [:div :a]]]
   (dispose))
 
-(comment
+(tests
   "node call vs fn call"
   (r/def g (r/fn [x] x))                                      ; reactive fn (DAG). Compiler marks dag with meta
   (defn f [x] x)                                            ; This var is not marked with meta
   (def !x (atom 0))
   (def dispose
     (r/run
-      (prn (let [x ~(m/watch !x)]
-           [(f x)
-            (r/$ g x)]))))
+      (! (let [x ~(m/watch !x)]
+           [(f x) (r/$ g x)]))))
   % := [0 0]
   (dispose))
 
-(comment
+(tests
   "higher order dags"
   (def !x (atom 0))
   (defn f [x] x)
   (r/def g (r/fn [x] x))
   (def dispose
     (r/run
-      (! (let [ff (fn [x] x)                                ; foreign clojure fns are useful, e.g. passing callbacks to DOM
+      (! (let [ff #_(fn [x] x) identity                     ; foreign clojure fns are useful, e.g. passing callbacks to DOM
                gg (r/fn [x] x)                              ; you almost always want this, not fn
                x ~(m/watch !x)]
            [(f x)                                           ; var marked

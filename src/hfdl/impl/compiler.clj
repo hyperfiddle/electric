@@ -155,19 +155,17 @@ is a macro or special form."
               ([x y]
                (conj (into (pop x) (pop y))
                  (conj (peek x) (peek y)))))
-            (visit-node [env sym body]
+            (visit-node [env sym form]                      ;; TODO detect cycles
               (let [l (::local env)]
                 (if-some [node (-> (.get nodes) (get l) (get sym))]
-                  (doto (:slot node) (when-not (throw (ex-info (str "Circular dependency - " sym) {}))))
-                  (do
-                    (.set nodes (update (.get nodes) l assoc sym {}))
-                    (-> env
-                      (assoc :locals {} :ns (symbol (namespace sym)))
-                      (dissoc ::index)
-                      (analyze-form (cons `do body))
-                      (->> (update (.get nodes) l update sym assoc :inst) (.set nodes)))
-                    (doto (-> (.get nodes) (get l) count dec)
-                      (->> (update (.get nodes) l update sym assoc :slot) (.set nodes)))))))
+                  (:slot node)
+                  (let [inst (-> env
+                               (assoc :locals {} :ns (symbol (namespace sym)))
+                               (dissoc ::index)
+                               (analyze-form form))]
+                    (doto (-> (.get nodes) (get l) count)
+                      (->> (update (.get nodes) l update sym assoc :inst inst :slot)
+                        (.set nodes)))))))
             (resolve-node [env sym]
               (if-some [v (resolve-var env sym)]
                 (let [m (meta v)
@@ -369,13 +367,15 @@ is a macro or special form."
     [:target]
     [:literal nil]]]
 
-  (doto (def node) (alter-meta! assoc :macro true :node ()))
-  (analyze {} 'node) :=
-  [[[:literal nil] [:node 0]]
+  (doto (def foo) (alter-meta! assoc :macro true :node '()))
+  (doto (def bar) (alter-meta! assoc :macro true :node '(foo)))
+  (analyze {} 'bar) :=
+  [[[:literal nil] [:node 0] [:node 1]]
    [[:literal nil]]]
 
-  (analyze {} '(def node)) :=
+  (analyze {} '(def foo)) :=
   [[[:literal nil] [:def 0]] [[:literal nil]]]
+
   )
 
 (defn emit-log-failure [form]
