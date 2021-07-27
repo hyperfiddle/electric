@@ -437,7 +437,7 @@
   (dispose))
 
 (tests
-  "bug"
+  "former bug"
   (def !x (atom 0))
   (def !y (atom 0))
   (def dispose (r/run (! (let [y ~(m/watch !y)]
@@ -457,10 +457,10 @@
                     f (r/fn [x] (+ y x))          ; constant signal
                     g (if (odd? x) (r/fn [x] (+ y x))
                                    (r/fn [x] (+ y x)))
-                    #_#_h ~(m/seed [(r/fn [x] (+ y x))])]
-                [#_(r/$ f x)
-                 #_(r/$ g x)
-                 #_(r/$ h x)]))))
+                    h ~(m/seed [(r/fn [x] (+ y x))])]
+                [(r/$ f x)
+                 (r/$ g x)
+                 (r/$ h x)]))))
   % := [0 0 0]
   (dispose))
 
@@ -583,17 +583,18 @@
                 (r/catch Exception _ ::outer)))))
   := ::outer)
 
-(comment
+(tests
   "leo bind"
   (r/def foo)
   (r/def foo')
   (def !x (atom 0))
-  (def dispose (r/run (! (r/binding [foo #'(inc ~(m/watch !x))
-                                     foo' (r/fn [] (inc ~(m/watch !x)))]
-                           [~foo (r/$ foo')]))))            ; omg
-  % := [0 0]
-  (swap! !x inc)
+  (def dispose (r/run (! (let [x ~(m/watch !x)]
+                           (r/binding [foo #'(inc x)
+                                       foo' (r/fn [] (inc x))]
+                             [~foo (r/$ foo')])))))            ; omg
   % := [1 1]
+  (swap! !x inc)
+  % := [2 2]
   (dispose))
 
 ; dumb test
@@ -615,7 +616,7 @@
 
   (def dispose (r/run (! (r/binding [db ::outer]
                            (let [nf (r/binding [db ::inner]
-                                      (r/fn [] (foo)))]     ; binding out of scope
+                                      (r/fn [] (r/$ foo)))]     ; binding out of scope
                              (r/$ nf))))))
   % := ::outer
   (dispose))
