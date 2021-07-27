@@ -20,10 +20,10 @@ of this var to the value currently bound to this var.
 (def eval r/eval)
 
 (defmacro def [sym & body]
-  `(doto (~'def ~sym) (alter-meta! assoc :macro true :node (quote (~@body)))))
+  `(doto (~'def ~sym) (alter-meta! assoc :macro true :node (quote (do ~@body)))))
 
 (defmacro main [& body]
-  (-> (c/analyze &env (cons 'do body))
+  (-> (doto (c/analyze &env (cons 'do body)) prn)
     (update 0 (partial c/emit (comp symbol (partial str (gensym) '-))))
     (update 1 (partial list 'quote))))
 
