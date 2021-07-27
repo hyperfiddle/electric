@@ -23,7 +23,7 @@ of this var to the value currently bound to this var.
   `(doto (~'def ~sym) (alter-meta! assoc :macro true :node (quote (do ~@body)))))
 
 (defmacro main [& body]
-  (-> (doto (c/analyze &env (cons 'do body)) prn)
+  (-> (c/analyze &env (cons 'do body))
     (update 0 (partial c/emit (comp symbol (partial str (gensym) '-))))
     (update 1 (partial list 'quote))))
 
