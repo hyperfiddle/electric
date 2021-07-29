@@ -1,6 +1,6 @@
 (ns hyperfiddle.api
   (:require [hyperfiddle.rcf :refer [tests]]
-            [hfdl.lang :refer [vars defnode]]))
+            [hfdl.lang :as photon :refer [vars]]))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 (def ^:dynamic *route*)                                     ; cljs
@@ -37,7 +37,8 @@
      #_[(clojure.string/includes? ?v' ?needle')]
      [(clojure.string/includes? ?v' ?needle')]]])
 
-(defnode a nil)
+;; HTML <a> used in HFQL
+(photon/def a nil)
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; Semantic Types ;;
