@@ -79,7 +79,7 @@
   (fn [flow & args]
     (fn [n t]
       (let [prev (mapv (partial get-node context) slots)]
-        (mapv (partial set-node context) slots args)
+        (mapv (partial set-node context) slots (map m/signal! args))
         (try (flow n t)
              (finally (mapv (partial set-node context) slots prev)))))))
 

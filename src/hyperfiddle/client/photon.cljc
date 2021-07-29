@@ -1,4 +1,9 @@
 (ns hyperfiddle.client.photon
-  (:require [hyperfiddle.photon-dom :as dom]))
+  (:require [hyperfiddle.photon-dom :as dom]
+            [hfdl.lang :as photon]))
 
-(js/console.log "hello")
+(def body (.-body js/document))
+
+(photon/run
+  (photon/binding [dom/parent body]
+    (dom/element :div)))
