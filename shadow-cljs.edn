@@ -1,5 +1,6 @@
 {:deps     {:aliases [:dev :edn-view :server]}
  :nrepl    {:port 9001}
+ :dev-http {8000 "resources/public"}
  :builds   {:app {:target           :browser
                   :devtools         {:watch-dir  "resources/public"
                                      :watch-path "/assets"
@@ -19,4 +20,21 @@
                                      :printer-worker {:web-worker true
                                                       :entries    [hyperfiddle.client.printer-worker]
                                                       :init-fn    hyperfiddle.client.printer-worker/init
-                                                      :depends-on #{:shared}}}}}}
+                                                      :depends-on #{:shared}}}}
+            :photon {:target           :browser
+                     :devtools         {:watch-dir  "resources/public/photon"
+                                        :watch-path "/assets"
+                                        :hud        #{:errors :progress}}
+                     :compiler-options {:output-feature-set    :es6
+                                        :infer-externs         :auto
+                                        :js-options            {:variable-renaming :off}
+                                        :anon-fn-naming-policy :unmapped
+                                        :source-map            true}
+                     :output-dir       "resources/public/photon/js"
+                     :asset-path       "js"
+                     :modules          {:shared         {:entries [;; HACK: Shadow should take care of it,
+                                                                   ;; but for some reason it doesn't.
+                                                                   shadow.cljs.bootstrap.env
+                                                                   shadow.cljs.bootstrap.browser]}
+                                        :main           {:entries    [hyperfiddle.client.photon]
+                                                         :depends-on #{:shared}}}}}}
