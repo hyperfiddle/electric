@@ -6,7 +6,7 @@
   #?(:cljs (:import goog.events.EventType))
   #?(:cljs (:require-macros
              [hyperfiddle.photon-dom :refer
-              [fragment div span h1 table thead tbody select option]])))
+              [element fragment div span h1 table thead tbody select option]])))
 
 (p/def parent)
 
