@@ -57,32 +57,29 @@
   #?(:cljs (.-value e)))
 
 (defmacro fragment [& body] (element :fragment ~@body))
+(defmacro option [& body] (element :option ~@body))
 
-(p/defn input [x]
-  (let [el (doto (element "input")
-             (set-attribute! "type" "text")
-             (set-attribute! "value" x))]
-    (mount! el)
-    (-> ~(m/relieve {} (events el input-event))
-        event-target get-value)))
-
-;; TODO
-(p/defn radio [value options]
-  (p/for [[id text] options]
-    [(doto (element "input")
-       (set-attribute! "type" "radio"))
-     (doto (element "label")
-       (set-attribute! "for" id)
-       (set-text-content! text))]))
-
-(p/defn select [selected options]
-  (mount!
-    (binding [parent (element "select")]
-      (mount! (for [[k v] options]
-                   (doto (element "option")
-                     (set-attribute! "value" k)
-                     (set-text-content! v))))
-      (set-attribute! parent "selected" selected)
-      parent)))
-
-(p/defn option [& body] (mount! (element-with-children :option children)))
+;(p/defn input [x]
+;  (let [el (doto (element "input")
+;             (set-attribute! "type" "text")
+;             (set-attribute! "value" x))]
+;    (mount! el)
+;    (-> ~(m/relieve {} (events el input-event))
+;        event-target get-value)))
+;
+;;; TODO
+;(p/defn radio [value options]
+;  (p/for [[id text] options]
+;    [(doto (element "input")
+;       (set-attribute! "type" "radio"))
+;     (doto (element "label")
+;       (set-attribute! "for" id)
+;       (set-text-content! text))]))
+;
+;(defmacro select [selected & options]
+;  (element :select options)
+;  (set-attribute! parent "selected" selected))
+;
+;(tests
+;  (options 2 (p/for [] (option id)))
+;  )
