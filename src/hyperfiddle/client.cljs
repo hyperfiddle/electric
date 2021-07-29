@@ -8,7 +8,7 @@
             [user.form-typeahead :refer [typeahead-select]]
             [hyperfiddle.client.ui.demo-dataflow :refer [edn-renderer]]
             [hyperfiddle.client.ui.demo-edn]
-            [user.tutorial]
+            ;; [user.tutorial]
             [dev])
   (:require-macros
     [hyperfiddle.client.ui.demo-dataflow :refer [echo edn-key-value edn-renderer]]))

@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [meta time])
   (:require [clojure.set :as set]
             [hfdl.impl.switch :refer [switch]]
-            [hfdl.lang :refer [#?@(:clj [defnode vars])]]
+            [hfdl.lang :as photon :refer [#?@(:clj [vars])]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
             #?(:clj [clojure.test :as t])
@@ -15,7 +15,7 @@
             #?(:cljs [goog.events :as events])
             [clojure.string :as str]
             [taoensso.timbre :as log])
-  #?(:cljs (:require-macros [hfdl.lang :refer [defnode vars]])))
+  #?(:cljs (:require-macros [hfdl.lang :as photon :refer [vars]])))
 
 ;; TODO belongs here?
 (def change-route! #?(:cljs (comp router/set-route! edn/read-string)))
@@ -29,7 +29,7 @@
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 (defn set-text-content! [elem text] #?(:cljs (set! (.-textContent elem) text)))
 
-(defnode text [x]
+(photon/def text [x]
   (doto (create-text-node "")
     (set-text-content! x)))
 
@@ -43,7 +43,7 @@
      (fn []
        (remove-childs parent items)))))
 
-(defnode mount [parent items]
+(photon/def mount [parent items]
   ~(mount* parent items))
 
 (defonce ^:const HF-SHADOW-PROPS (str (gensym "hf")))
@@ -160,7 +160,7 @@
   (m/ap (m/?< (m/?< >a))))
 
 ;; TODO shadow props
-(defnode tag [name props children]
+(photon/def tag [name props children]
   (doto (create-tag-node name)
     (mount children)
     (patch-properties! (select-ns "dom" props))))
@@ -186,10 +186,10 @@
                (set (keys (shadow-props elem))))
          (set-shadow-props! elem nil))))))
 
-(defnode append-child! [parent child]
+(photon/def append-child! [parent child]
   (doto parent (mount [child])))
 
-(defnode mount-component-at-node! [id component]
+(photon/def mount-component-at-node! [id component]
   (append-child! (by-id id) component))
 
 (defn use-state
