@@ -2,7 +2,8 @@
   (:require [hfdl.lang :as p]
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
-            #?(:cljs [goog.events :as e]))
+            #?(:cljs [goog.events :as e])
+            #?(:cljs [goog.style]))
   #?(:cljs (:import goog.events.EventType))
   #?(:cljs (:require-macros
              [hyperfiddle.photon-dom :refer
@@ -40,8 +41,16 @@
 (defn set-text-content! [e t]
   #?(:cljs (d/setTextContent e t)))
 
-(defmacro text [str]
-  `(set-text-content! parent ~str))
+(defn create-text [parent]
+  #?(:cljs
+     (m/observe
+      (fn [!]
+        (let [child (d/createTextNode "")]
+          (d/appendChild parent child)
+          (! child) #(d/removeNode child))))))
+
+(defmacro text [text]
+  `(set-text-content! (unquote (create-text parent)) ~text))
 
 (defmacro div [& body]
   `(element :div ~@body))
@@ -50,7 +59,10 @@
   `(element :p ~@body))
 
 (defmacro attribute [k v]
-  `(set-attribute! parent k v))
+  `(set-attribute! parent ~k ~v))
+
+(defmacro property [k v]
+  `(set-property! parent ~k ~v))
 
 (defmacro class [value]
   `(attribute "class" ~value))
@@ -73,11 +85,26 @@
 (defmacro tbody [& body]
   `(element :tbody ~@body))
 
+(defmacro ul [& body]
+  `(element :ul ~@body))
+
+(defmacro li [& body]
+  `(element :li ~@body))
+
+(defmacro code [& body]
+  `(element :code ~@body))
+
+(defn set-style! [parent style-map]
+  #?(:cljs (goog.style/setStyle parent (clj->js style-map))))
+
 (defmacro style [style-map]
   `(set-style! parent ~style-map))
 
 (defn set-attribute! [e k v]
   #?(:cljs (.setAttribute e k v)))
+
+(defn set-property! [e k v]
+  #?(:cljs (d/setProperties e (clj->js {k v}))))
 
 (defn get-attribute [e k]
   #?(:cljs (.getAttribute e k)))
@@ -91,6 +118,13 @@
 (def click-event
   #?(:cljs (.-CLICK EventType)))
 
+(def change-event
+  #?(:cljs (.-CHANGE EventType)))
+
+(defn log [e]
+  #?(:cljs  (js/console.log e))
+  e)
+
 (defn event-target [e]
   #?(:cljs (.-target e)))
 
@@ -99,6 +133,8 @@
 
 (defmacro fragment [& body] `(element :fragment ~@body))
 (defmacro option [& body] `(element :option ~@body))
+
+(defmacro input [& body] `(element :input ~@body))
 
 ;(p/defn input [x]
 ;  (let [el (doto (element "input")

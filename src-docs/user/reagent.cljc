@@ -216,8 +216,8 @@
 (r/defn bmi-component []
   (d/div
    (let [height (r/$ slider 170 100 220)]
-     (r/letrec [weight (r/$ slider (* bmi height height)        30 150)
-                bmi    (r/$ slider (/ weight (* height height)) 10 50)]
+     (r/rec [weight (r/$ slider (* (or bmi 50) height height)        30 150)
+             bmi    (r/$ slider (/ (or weight 70) (* height height)) 10 50)]
         (d/p (d/text "BMI: ")
              (d/text bmi))))))
 
