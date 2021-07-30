@@ -159,8 +159,9 @@ is a macro or special form."
               (let [l (::local env)]
                 (if-some [node (-> (.get nodes) (get l) (get sym))]
                   (:slot node)
-                  (let [inst (-> env
-                               (assoc :locals {} :ns (symbol (namespace sym)))
+                  (let [sym-ns (symbol (namespace sym))
+                        inst (-> env
+                               (assoc :locals {} :ns (if (:js-globals env) (cljs/get-namespace sym-ns) sym-ns))
                                (dissoc ::index)
                                (analyze-form form))]
                     (doto (-> (.get nodes) (get l) count)
