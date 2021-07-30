@@ -133,6 +133,9 @@
 (defn get-value [e]
   #?(:cljs (.-value e)))
 
+(defn get-checked [e]
+  #?(:cljs (.-checked e)))
+
 (defmacro fragment [& body] `(element :fragment ~@body))
 (defmacro option [& body] `(element :option ~@body))
 

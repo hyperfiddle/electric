@@ -13,3 +13,4 @@ src/**/*.js
 /resources/public/*.min.css
 /.lsp
 /resources/public/photon/js/
+/resources/public/examples/js/
