@@ -74,6 +74,8 @@ of this var to the value currently bound to this var.
 (defmacro thread [& body]
   `(unquote (m/ap (m/? (m/via m/blk ~@body)))))
 
+(defmacro rec [& bindings])
+
 (defmacro local2
   "2-peer loopback system with transfer. Returns boot task"
   [vars & body]
