@@ -78,14 +78,12 @@
 ;; Example 7
 
 (photon/defn input [val]
-  (dom/input (dom/set-attribute! "type" "text")
-             (dom/set-attribute! "value" val)
+  (dom/input (dom/set-attribute! dom/parent "type" "text")
+             (dom/set-attribute! dom/parent "value" val)
              (->> ~(m/relieve {} (dom/events dom/parent dom/input-event))
                   dom/log
                   dom/event-target
                   dom/get-value)))
-
-;; FIXME dom/events isn’t called. Probably ~(m/releive …) isn’t sampled.
 
 (photon/defn shared-state []
   (let [!val (atom "foo")]
@@ -95,8 +93,7 @@
 
 ;; EXAMPLE 8 (entrypoint)
 
-
-
-(photon/run
-  (photon/binding [dom/parent body]
-    (photon/$ shared-state)))
+(def main
+  (photon/local1
+    (photon/binding [dom/parent body]
+      (photon/$ shared-state))))
