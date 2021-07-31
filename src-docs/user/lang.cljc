@@ -271,6 +271,7 @@
   (dispose))
 
 (tests
+  ; unstable
   "internal def"
   (def !a (atom 0))
   (r/def foo 1)
@@ -303,8 +304,6 @@
   % := :b
   % := [1 :b 3]
   #_(dispose))                                              ; broken dispose fixme
-
-(rcf/enable!)
 
 (tests
   "Reactive for with bindings"
@@ -429,7 +428,7 @@
 
 ; node call (static dispatch)
 (tests
-  "defnode is defn for reactive fns"
+  "reactive defn"
   ; best example of this is hiccup incremental maintenance
 
   (r/def !')
@@ -438,7 +437,7 @@
     (r/$ div [(r/$ div x) (r/$ div :a)]))
 
   (def !x (atom 0))
-  (def dispose (r/run (! (r/binding [!' ! #_(r/fn [x] (! x))]
+  (def dispose (r/run (! (r/binding [!' ! #_(r/fn [x] (! x))] ; careful at repl, ! only defined in test context
                            (r/$ widget ~(m/watch !x))))))
   % := 0
   % := :a
