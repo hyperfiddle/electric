@@ -1,6 +1,8 @@
 (ns hyperfiddle.api
-  (:require [hyperfiddle.rcf :refer [tests]]
-            [hfdl.lang :as photon :refer [vars]]))
+  (:require [datascript.core :as d]
+            [hyperfiddle.rcf :refer [tests]]
+            [hfdl.lang :as photon :refer [vars]]
+            [missionary.core :as m]))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 (def ^:dynamic *route*)                                     ; cljs
@@ -81,3 +83,32 @@
                                                                   :value (.-value this)})))))
 
 (def exports (vars rules ->Link))
+
+; todo rename wrap, it's sideeffect-fn to fn-returning-flow
+(defn wrap [f] (fn [& args] (m/ap (m/? (m/via m/blk (apply f args))))))
+
+(def q (wrap (fn [query & args]
+               (apply prn :q query args)
+               (doto (apply d/q query *$* args) prn))))
+
+(tests
+  (datascript.core/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] *$*)
+  := [:dustingetz/male :dustingetz/female]
+  (m/? (m/reduce conj (q '[:find [?e ...] :where [_ :dustingetz/gender ?e]])))
+  := [[:dustingetz/male :dustingetz/female]])
+
+(defn nav!
+  ([_ ref] ref)
+  ([db ref kf] (kf (d/entity db ref)))
+  ([db ref kf & kfs] (reduce (partial nav! db) (nav! db ref kf) kfs)))
+
+(def nav (wrap (fn [ref & kfs]
+                 (apply prn :nav ref kfs)
+                 (doto (apply nav! *$* ref kfs) prn))))
+
+(tests
+  (nav! *$* 9 :dustingetz/email)
+  := "alice@example.com"
+
+  (m/? (m/reduce conj (nav 9 :dustingetz/email)))
+  := ["alice@example.com"])

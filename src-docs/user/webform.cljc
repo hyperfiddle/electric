@@ -1,41 +1,44 @@
 (ns user.webform
   "Web app tutorial, part 1 (no network)"
-  (:require [hfdl.lang :as h :refer [defnode]]
+  (:require [hfdl.lang :as p]
             [hfdl.impl.util :as u]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.q2 :refer [hf-nav hfql exports]]
+            #_[hyperfiddle.q2 :refer [hf-nav hfql exports]]
             [hyperfiddle.rcf :refer [tests ! %]]
             [missionary.core :as m]
             [user.gender-shirt-size :refer [submissions genders shirt-sizes]]))
 
-(defnode render-shirt-size [v]
+(p/defn render-shirt-size [v]
   [:select {:selected v}
-   (h/for [x (shirt-sizes :dustingetz/male nil)]
+   (p/for [x (p/$ shirt-sizes :dustingetz/male nil)]
      [:option x])])
 
 (tests
   "reactive widget with query/view composition"
   (def !shirt-size (atom :mens-large))
-  (def dispose (r/run (! (render-shirt-size ~(m/watch !shirt-size)))))
-  % := [:select {:selected :mens-large} [[:option 3] [:option 4] [:option 5]]]
+  (def dispose (p/run (! (p/$ render-shirt-size ~(m/watch !shirt-size)))))
+  % := [:select {:selected :mens-large}
+        [[:option 3] [:option 4] [:option 5]]]
   (reset! !shirt-size :mens-medium)
-  % := [:select {:selected :mens-medium} [[:option 3] [:option 4] [:option 5]]]
-  (dispose))
+  % := [:select {:selected :mens-medium}
+        [[:option 3] [:option 4] [:option 5]]]
+  ; dispose doesn't work with reactive-for
+  #_(dispose))
 
-(defnode submissions-form [e]
+(p/defn submissions-form [e]
   [:tr
-   [:field (hf-nav :dustingetz/email e)]
-   [:field (render-shirt-size (hf-nav :dustingetz/shirt-size e))]])
+   [:field ~(hf/nav e :dustingetz/email)]
+   [:field (p/$ render-shirt-size ~(hf/nav e :dustingetz/shirt-size))]])
 
-(defnode submissions-table [needle]
+(p/defn submissions-table [needle]
   [:table
-   (h/for [e (submissions needle)]
-     (submissions-form e))])
+   (p/for [e (p/$ submissions needle)]
+     (p/$ submissions-form e))])
 
 (tests
   "reactive table with query/view composition"
   (def !needle (atom "alice"))
-  (def dispose (r/run (! (submissions-table ~(m/watch !needle)))))
+  (def dispose (p/run (! (p/$ submissions-table ~(m/watch !needle)))))
   % := [:table
         [[:tr
           [:field "alice@example.com"]
