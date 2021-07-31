@@ -8,26 +8,19 @@
             [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.q2 :refer [hfql]])))
 
-(defn wrap [f] (fn [& args] (m/ap (m/? (m/via m/blk (apply f args))))))
+(def wrap hf/wrap)
 
-(defn nav!
-  ([_ ref] ref)
-  ([db ref kf] (kf (d/entity db ref)))
-  ([db ref kf & kfs] (reduce (partial nav! db) (nav! db ref kf) kfs)))
+(def nav! hf/nav!)
 
-(def q (wrap (fn [query & args]
-               (apply prn :q query args)
-               (doto (apply d/q query hf/*$* args) prn))))
+(def q hf/q)
 
-(def nav (wrap (fn [ref & kfs]
-                 (apply prn :nav ref kfs)
-                 (doto (apply nav! hf/*$* ref kfs) prn))))
+(def nav hf/nav)
 
-(defnode attribute)
-(defnode entity)
-(defnode value)
+(p/def attribute)
+(p/def entity)
+(p/def value)
 
-(defnode hf-nav ~(nav entity attribute))
+(p/defn hf-nav [] ~(nav entity attribute))
 
 (defn replace* [smap coll]
   (if (seqable? coll)
