@@ -379,6 +379,33 @@
   % := 1
   % := 1)
 
+(rcf/set-timeout! 4000)
+
+(tests
+  "do stmts run in parallel, not sequence.
+  In other words, `do` is sequenceA or sequenceM"
+  (def x (m/ap (m/? (m/sleep 1000 :a))))
+  (def y (m/ap (m/? (m/sleep 1000 :b))))
+  (def z (m/ap (m/? (m/sleep 1000 :c))))
+  (def dispose
+    (r/run
+
+      (! (do ~x ~y ~z))
+
+      ))
+  % := :c
+  ; and took 1 seconds
+  (dispose))
+
+; first way (do a b) is same as (let [_ a] b) - true in clojure. Problem here is do stmts (a) are never sampled which is
+; never what you want
+;
+; second way (do a b) is the same as (case a b). a and b are sequenced. problem is b is not constructed until a is
+; available (maybe bug). This is what we have today, may not disqualify the current behavior
+;
+; third way (do a b) is same as ({} a b); both are constructed at the same time and we need both to be available for the
+; do expression to be available. whenever a changes, the expr changes.
+
 (tests
   "reactive doto"
   (defn MutableMap [] (new java.util.HashMap))
@@ -396,8 +423,8 @@
            (PutMap "b" ~(m/watch !x))))))
   % := {"a" 1 "b" 0}
   (swap! !x inc)
-  % := ::rcf/timeout       ; no further sample, the map hasn't changed
-  ;% := {"a" 1 "b" 1} ; alternative (desired) design will sample again
+  ;% := ::rcf/timeout       ; old design no further sample, the map hasn't changed
+  % := {"a" 1 "b" 1} ; alternative (desired) design will sample again
   (dispose))
 
 ; node call (static dispatch)
