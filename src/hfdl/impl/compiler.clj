@@ -240,7 +240,7 @@ is a macro or special form."
                         (throw (ex-info "TODO partial case" {})))))
 
                   (quote)
-                  [[:literal form]]
+                  [[:literal (first args)]]
 
                   (def)
                   (transduce (map (comp vector (partial resolve-node env)))
