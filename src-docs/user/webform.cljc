@@ -1,7 +1,6 @@
 (ns user.webform
   "Web app tutorial, part 1 (no network)"
   (:require [hfdl.lang :as p]
-            [hfdl.impl.util :as u]
             [hyperfiddle.api :as hf]
             #_[hyperfiddle.q2 :refer [hf-nav hfql exports]]
             [hyperfiddle.rcf :refer [tests ! %]]
@@ -51,3 +50,65 @@
           [:field "bob@example.com"]
           [:field [:select {:selected :dustingetz/mens-large}
                    [[:option 3] [:option 4] [:option 5]]]]]]])
+
+(def !select-needle (atom ""))
+(def !query-needle (atom "alice"))
+
+(p/defn typeahead-select [v options]
+  (let [needle ~(m/watch !select-needle)]
+    [:select {:selected v}
+     (p/for [e (doto (p/$ options needle) prn)]
+       [:option #_(name) e])]))
+
+(tests
+  (def dispose (p/run (! (p/$ typeahead-select
+                              :dustingetz/womens-large
+                              (p/fn [needle]
+                                (p/$ shirt-sizes :dustingetz/male needle))
+                              ))))
+  % := [:select
+        {:selected :dustingetz/womens-large}
+        [[:option 3]
+         [:option 4]
+         [:option 5]]]
+  #_(dispose)
+  )
+
+(p/defn render-shirt-size-with-select [v]
+  (p/$ typeahead-select v (p/fn [needle]
+                            (p/$ shirt-sizes :dustingetz/male needle))))
+
+(p/defn submissions-form-with-select [e]
+  [:tr
+   [:field ~(hf/nav e :dustingetz/email)]
+   [:field (p/$ render-shirt-size-with-select
+                ~(hf/nav e :dustingetz/shirt-size))]])
+
+(p/defn submissions-table-with-select [needle]
+  [:table
+   (p/for [e (p/$ submissions needle)]
+     (p/$ submissions-form-with-select e))])
+
+(tests
+  (def !select-needle (atom ""))
+  (def !query-needle (atom "alice"))
+  (def dispose (p/run (! (p/$ submissions-table-with-select
+                              ~(m/watch !query-needle)))))
+  % := [:table
+        [[:tr
+          [:field "alice@example.com"]
+          [:field [:select {:selected :dustingetz/womens-large}
+                   [[:option 3] [:option 4] [:option 5]]]]]]]
+  (reset! !select-needle "large")
+  % := _
+  (reset! !query-needle "bob")
+  % := [:table
+        [[:tr
+          [:field "bob@example.com"]
+          [:field [:select {:selected :dustingetz/mens-large}
+                   [[:option 5]]]]]]]
+  #_(dispose)
+  )
+
+
+
