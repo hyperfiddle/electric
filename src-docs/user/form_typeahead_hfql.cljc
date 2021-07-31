@@ -1,4 +1,4 @@
-(ns user.form-typeahead2
+(ns user.form-typeahead_hfql
   (:require [clojure.spec.alpha :as s]
             [hfdl.lang :as p :refer [defnode vars local2 bind]]
             [hfdl.impl.util :as u]
