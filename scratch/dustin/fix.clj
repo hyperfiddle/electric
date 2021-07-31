@@ -22,6 +22,8 @@
   (fix (constantly "a")) := "a"
   (try (fix inc) (catch StackOverflowError _ ::overflow)) := ::overflow)
 
+; http://www.cse.chalmers.se/~rjmh/afp-arrows.pdf
+;
 ; class Arrow a => ArrowLoop a where
 ;   loop :: a (b,d) (c,d) -> a b c
 ;
@@ -29,7 +31,7 @@
 ;   loop f b = let (c,d) = f (b,d) in c
 
 (r/defn loop [f b]
-  (let {[c d] (f [b d])}
+  (let [[c d] (f [b d])]
     c))
 
 ; f (b,d) = (drop (d-2) b, length b)
@@ -40,3 +42,15 @@
   (def dispose (r/run (! 1)))
   % := 1
   (dispose))
+
+; counter :: ArrowCircuit a => a Bool Int
+; counter = proc reset -> do
+;         rec     output <- returnA -< if reset then 0 else next
+;                 next <- delay 0 -< output+1
+;         returnA -< output
+
+
+
+
+
+
