@@ -112,6 +112,8 @@
 (defn events [e t]
   #?(:cljs (m/observe (fn [!] (e/listen e t !) #(e/unlisten e t !)))))
 
+(defn target-value [e] #?(:cljs (-> e .-target .-value)))
+
 (def input-event
   #?(:cljs (.-INPUT EventType)))
 
