@@ -304,6 +304,24 @@
   % := [1 :b 3]
   #_(dispose))                                              ; broken dispose fixme
 
+(rcf/enable!)
+
+(tests
+  "Reactive for with bindings"
+
+  (def !items (atom ["a"]))
+  (r/def foo 0)
+  (r/run (r/binding [foo 1]
+           (r/for [item ~(m/watch !items)]
+             (! foo)
+             item)))
+
+  % := 1
+  (swap! !items conj "b")
+  % := 1 ; If 0 -> foo’s binding vanished
+  )
+
+
 (comment                                                    ; TODO
   "reactive for with keyfn"
   (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
