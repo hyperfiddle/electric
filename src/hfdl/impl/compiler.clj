@@ -214,7 +214,7 @@ is a macro or special form."
                   (if-some [[x & xs] args]
                     (case xs
                       nil (analyze-form env x)
-                      (analyze-sexpr env (list `case x (cons `do xs))))
+                      (analyze-sexpr env (list {} x (cons `do xs))))
                     [[:literal nil]])
 
                   (if)
@@ -348,10 +348,10 @@ is a macro or special form."
    [[:target] [:literal nil]]]
 
   (analyze {} '(do :a :b)) :=
-  [[[:variable
-     [:apply [:apply [:global :clojure.core/hash-map]]
-      [:literal :a] [:constant [:literal :b]]]]]
-   [[:target] [:literal nil]]]
+  [[[:apply
+     [:apply [:global :clojure.core/hash-map]]
+     [:literal :a] [:literal :b]]]
+   [[:literal nil]]]
 
   (analyze {} '(case 1 2 3 (4 5) ~@6 7)) :=
   [[[:variable
