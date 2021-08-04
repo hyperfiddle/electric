@@ -60,28 +60,21 @@
                                (comment destructor) (t))))))))
 
 (defn get-node [context slot]
-  (aget (aget context (int 7)) slot))
+  (get (aget context (int 7)) slot))
 
 (defn set-node [context slot value]
-  (aset (aget context (int 7)) slot value))
+  (aset context (int 7) (assoc (aget context (int 7)) slot value)))
 
-(defn capture [context]
-  (let [curr (aclone (aget context (int 7)))]
-    (fn [flow]
-      (fn [n t]
-        (let [prev (aget context (int 7))]
-          (aset context (int 7) curr)
-          (try (flow n t)
-               (finally
-                 (aset context (int 7) prev))))))))
-
-(defn binder [context & slots]
-  (fn [flow & args]
-    (fn [n t]
-      (let [prev (mapv (partial get-node context) slots)]
-        (mapv (partial set-node context) slots (map m/signal! args))
-        (try (flow n t)
-             (finally (mapv (partial set-node context) slots prev)))))))
+(defn capture [context & slots]
+  (let [curr (aget context (int 7))]
+    (fn [flow & args]
+      (let [curr (reduce (partial apply assoc)
+                   curr (map vector slots (map m/signal! args)))]
+        (fn [n t]
+          (let [prev (aget context (int 7))]
+            (aset context (int 7) curr)
+            (try (flow n t)
+                 (finally (aset context (int 7) prev)))))))))
 
 ;; TODO cancel signals
 (defn variable [context flow]
@@ -137,7 +130,7 @@
                   (aset (int 4) {0 (object-array inputs)})
                   (aset (int 5) {0 (object-array targets)})
                   (aset (int 6) {0 (object-array signals)})
-                  (aset (int 7) (object-array nodes)))]
+                  (aset (int 7) (vec (repeat nodes nil))))]
         (m/stream! (boot ctx))
         (->> >read
           (m/stream!)
@@ -176,7 +169,7 @@
                                s (slot :signal)]
                            (fn [context frame pubs]
                              (g context frame (conj pubs (publish context frame s (f context frame pubs))))))
-                    :def (fn [context _ _] (steady (apply binder context args)))
+                    :def (fn [context _ _] (steady (apply capture context args)))
                     :node (let [n (first args)]
                             (fn [context _ _] (get-node context n)))
                     :apply (comp (partial apply m/latest u/call)
