@@ -1,9 +1,9 @@
-(ns dustin.missionary6
+(ns dustin.missionary6_docs
   "documentation end to end for missionary"
   (:require
     [minitest :refer [tests]]
     [missionary.core :as m :refer [? ?? ?! ap sp]]
-    [dustin.missionary5 :refer [sleep-emit]]))
+    [dustin.missionary5_reactor :refer [sleep-emit]]))
 
 (tests
   "task"
@@ -65,7 +65,7 @@
 
   ; if ask is inside sp/ap block, it is desugared to a continuation
   ; if outside, it blocks the current thread
-  ; This is a design choice. Core.async made a diferent choice, they have two operators -
+  ; This is a design choice. Core.async made a different choice, they have two operators -
   ; block thread has an extra bang
 
 
@@ -81,9 +81,10 @@
   ; operations in ap blocks
 
   (defn sleep' [delay v]
-    (sp (let [x (? (m/sleep delay v))]
-          (println x)
-          x)))
+    (m/sp
+      (let [x (m/? (m/sleep delay v))]
+        (println x)
+        x)))
 
   (defn sleep' [delay v]
     ; compiler phase inline - delay and v are in scope still
@@ -536,11 +537,9 @@
 
 
   ; create a diamond shape
-  (ap
-    (let [x (?! (m/enumerate (range 3)))]
-      (vector (inc x) (dec x)))
-
-    )
+  (m/ap
+    (let [x (m/?< (m/seed (range 3)))]
+      (vector (inc x) (dec x))))
 
 
 
