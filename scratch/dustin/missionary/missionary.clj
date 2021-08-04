@@ -1,42 +1,35 @@
-(ns dustin.missionary
+(ns dustin.missionary.missionary
   (:require
-    [missionary.core :as m :refer
-     [? ?? ?! ?= sp ap join aggregate enumerate]]
-    [minitest :refer [tests]]))
+    [missionary.core :as m]
+    [hyperfiddle.rcf :refer [tests ! %]]))
 
+(tests
+    (def hello-task (m/sp (println "Hello")))
+    (hello-task #(print ::success %) #(print ::failure %))
 
-(comment
-  (def hello-world
-    (sp (println "Hello world !")))
-  (? hello-world)
+    (def sleep-task (m/sleep 1000))
+    (def async-hello-task
+      (m/sp                            ; async Sequential Process
+        (m/? hello-task)
+        (m/? sleep-task)
+        (println "World")
+        (m/? sleep-task)
+        (println "!")))
 
-  (def nap (m/sleep 1000))
-  (? nap)
+    (async-hello-task #(print ::success %) #(print ::failure %))
 
-
-
-  (def slowmo-hello-world
-    (sp (println "Hello")
-      (? nap)
-      (println "World")
-      (? nap)
-      (println "!")))
-
-  (? slowmo-hello-world)
-
+  ;(? slowmo-hello-world)
 
   (def chatty-hello-world (join vector slowmo-hello-world slowmo-hello-world))
   (? chatty-hello-world)
 
-  (? (join vector
-       (sp (inc (? (m/sleep 1000 1))))
-       (sp (inc (? (m/sleep 100 2))))))
+  (? (m/join vector
+       (m/sp (inc (m/? (m/sleep 1000 1))))
+       (m/sp (inc (m/? (m/sleep 100 2))))))
 
   (? (join vector
        (m/sleep 1000 1)
        (m/sleep 100 2)))
-
-  ;~(vector ~(m/sleep 1000 1) ~(m/sleep 100 2))
 
   (def unreliable-hello-world
     (sp (println "hello")
@@ -45,8 +38,6 @@
 
   (? (sp (try (? unreliable-hello-world)
               (catch Exception e e))))
-
-
 
   ; ? outside sp blocks on jvm
   (try (? unreliable-hello-world)
