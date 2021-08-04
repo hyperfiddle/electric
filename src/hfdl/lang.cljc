@@ -43,8 +43,7 @@ of this var to the value currently bound to this var.
   (->> body
     (cons (vec (interleave args c/args)))
     (cons `let)
-    (list 'var)
-    (list `partial (cons 'def (take (count args) c/args)))))
+    (list 'var)))
 
 ; syntax quote doesn't qualify special forms like 'def
 (defmacro defn [sym & rest] `(hfdl.lang/def ~sym (fn ~@rest)))
@@ -53,6 +52,7 @@ of this var to the value currently bound to this var.
   (->> args
     (map (partial list 'var))
     (cons f)
+    (cons (cons 'def (take (count args) c/args)))
     (list `unquote)))
 
 (defmacro for [bindings & body]

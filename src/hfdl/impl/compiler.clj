@@ -394,7 +394,7 @@ is a macro or special form."
                 :pub (list `let [(sym 'pub pub) (list `r/publish (sym 'context) (sym 'frame) (slot :signal)
                                                   (emit-inst sym pub (first args)))]
                        (emit-inst sym (inc pub) (second args)))
-                :def (list `r/steady (cons `r/binder (cons (sym 'context) args)))
+                :def (list `r/steady (cons `r/capture (cons (sym 'context) args)))
                 :node (list `r/get-node (sym 'context) (first args))
                 :apply (cons `m/latest (cons `u/call (mapv (partial emit-inst sym pub) args)))
                 :input (cons `do (conj (mapv (partial emit-inst sym pub) args)
@@ -518,7 +518,7 @@ is a macro or special form."
   `(r/peer 0 0 0 0
      (fn [~'context]
        (let [~'frame 0]
-         (do (do (r/steady (r/binder ~'context 0)))))))
+         (do (do (r/steady (r/capture ~'context 0)))))))
 
   )
 
