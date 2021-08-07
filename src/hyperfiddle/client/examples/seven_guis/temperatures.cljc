@@ -20,46 +20,42 @@
 (defn to-celsius [f]
   (Math/floor (* (- f 32) (/ 5 9))))
 
-(defn cas! [!atom v]
-  #?(:cljs (js/console.log v @!atom))
-  (when (not= v @!atom)
-    (reset! !atom v)))
-
-(photon/defn Input [default-value value]
+(photon/defn Input [ value]
   ~(m/eduction
     (dedupe)
     #'(dom/input
-       (dom/attribute "value" value) ;; New behavior of do makes this produce nil
-       ;; and the do block produces a value. Not the
-       ;; same nil.
-       ~(->> (dom/events dom/parent "keyup")
+       (dom/attribute "value" value)
+       ;; New behavior of do makes this produce nil and the do block produces a
+       ;; value. Not the same nil.
+       (->> (dom/events dom/parent "keyup")
              (m/eduction (map dom/event-target)
                          (map dom/get-value)
                          (map parse-num)
                          (filter is-num?))
-             (m/reductions {} default-value) ;; value is variable, we don’t want to re-build the
-             ;; pipeline each time
-             (m/relieve {})
+             ;; (m/reductions {} default-value)
+             ;; value is variable, we don’t want to re-build the pipeline each
+             ;; time
+             ;; (m/relieve {})
              ))))
 
 (defn log [m x] (prn m x) x)
 
-(photon/defn Converter []
-  (let [!c (atom 0)
-        !f (atom 0)]
-    (dom/div
-     (->> (photon/$ Input 0 (log "c" ~(m/watch !c)))
-          (log "c2")
-          (to-fahrenheit)
-          (log "c -> f")
-          (reset! !f))
-     (dom/text " Celsius = ")
-     (->> (photon/$ Input (to-fahrenheit 0) ~(m/watch !f))
-          (log "f")
-          (to-celsius)
-          (log "f -> c")
-          (reset! !c))
-     (dom/text " Fahrenheit"))))
+(photon/defn Converter [temperature]
+  (dom/div
+   (photon/$ Input temperature)
+   (dom/text " Celsius = ")
+   (to-celsius (photon/$ Input (to-fahrenheit temperature)))
+   (dom/text " Fahrenheit")))
+
+
+(defn state [init-value]
+  (let [!state (atom init-value)
+        >state (m/eduction (dedupe) (m/watch !state))]
+    ;; we have to dedupe maybe it’s a hack. Is there something in the language
+    ;; forcing us to do that. Should we change the language?
+    (fn
+      ([v] (reset! !state v))
+      ([notify terminate] (>state notify terminate)))))
 
 (dc/defcard converter
   "# 2 — Temperature Converter
@@ -91,6 +87,6 @@
    (fn [_ node]
      (photon/run
        (photon/binding [dom/parent node]
-         (photon/$ Converter))))))
+         (let [>temp! (state 0)]
+           (>temp! (photon/$ Converter ~>temp!))))))))
 
-(hash-map)
