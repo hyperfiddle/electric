@@ -8,16 +8,24 @@
 
 (defn inc-reducer [r _] (inc r))
 
-(photon/defn Counter []
-  (let [!count (atom 0)]
-    (dom/div
-     (dom/input (dom/style {"margin-right" "1rem"})
-                (dom/attribute "value" ~(m/watch !count))
-                (dom/attribute "disabled" true))
-     (dom/button
-      (dom/text "Count")
-      (reset! !count ~(->> (dom/events dom/parent dom/click-event)
-                           (m/reductions inc-reducer 0)))))))
+(photon/defn Counter [c]
+  (dom/div
+   (dom/input (dom/style {"margin-right" "1rem"})
+              (dom/attribute "value" c)
+              (dom/attribute "disabled" true))
+   (dom/button
+    (dom/text "Count")
+    ~(->> (dom/events dom/parent dom/click-event)
+          (m/reductions inc-reducer 0)))))
+
+(defn state [init-value]
+  (let [!state (atom init-value)
+        >state (m/eduction (dedupe) (m/watch !state))]
+    ;; we have to dedupe maybe it’s a hack. Is there something in the language
+    ;; forcing us to do that. Should we change the language?
+    (fn
+      ([v] (reset! !state v))
+      ([notify terminate] (>state notify terminate)))))
 
 (dc/defcard counter
   "# 1 — Counter
@@ -39,4 +47,13 @@
    (fn [_ node]
      (photon/run
        (photon/binding [dom/parent node]
-         (photon/$ Counter))))))
+         (let [>count! (state 0)]
+           (>count! (photon/$ Counter ~>count!))))))))
+
+(comment
+  (defmacro rec [binding expr]
+    `(let [state# (state nil)
+           ~binding (unquote state#)]
+       (state# ~expr)))
+
+  (macroexpand-1 '(rec x (inc x))))
