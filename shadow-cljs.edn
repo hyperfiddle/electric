@@ -42,11 +42,16 @@
                        :devtools         {:watch-dir  "resources/public/examples"
                                           :watch-path "/assets"
                                           :hud        #{:errors :progress}}
-                       :compiler-options {:output-feature-set    :es6
+                       :compiler-options {#_#_:output-feature-set    :es6
                                           :infer-externs         :auto
                                           :js-options            {:variable-renaming :off}
                                           :anon-fn-naming-policy :unmapped
-                                          :source-map            true}
+                                          :source-map            true
+                                          :devcards              true
+                                          :source-map-timestamp  true
+                                          :output-feature-set :es8}
+                       :js-options       {:resolve {"devcards-marked"             {:target :npm :require "marked"}
+                                                    "devcards-syntax-highlighter" {:target :npm :require "highlight.js"}}}
                        :output-dir       "resources/public/examples/js"
                        :asset-path       "js"
                        :modules          {:shared         {:entries [;; HACK: Shadow should take care of it,
