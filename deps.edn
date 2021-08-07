@@ -16,7 +16,8 @@
         reagent/reagent {:mvn/version "1.0.0"}}
  :aliases {:dev {:extra-paths ["src-dev" "src-docs"
                                "scratch"]                   ; for clj command
-                 :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}}
+                 :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}
+                              devcards/devcards           {:mvn/version "0.2.7"}}
                  :jvm-opts   ["-Dhyperfiddle.rcf.enabled=true"
                               "-XX:-OmitStackTraceInFastThrow" ; Don't mess with my stacktraces¹! I need them.
                               ]}

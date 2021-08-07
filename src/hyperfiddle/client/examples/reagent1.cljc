@@ -1,6 +1,8 @@
 (ns hyperfiddle.client.examples.reagent1
   (:require [hfdl.lang :as photon]
-            [hyperfiddle.photon-dom :as dom])
+            [hyperfiddle.photon-dom :as dom]
+            [devcards.core :as dc]
+            [hyperfiddle.client.examples.card :refer [dom-node]])
   #?(:cljs (:require-macros [hyperfiddle.client.examples.reagent1 :refer [simple-component]])))
 
 (photon/defn simple-component []
@@ -13,7 +15,10 @@
 
 (def root #?(:cljs (js/document.getElementById "root")))
 
-(defn ^:export main []
-  (photon/run
-    (photon/binding [dom/parent root]
-      (photon/$ simple-component))))
+(dc/defcard reagent-1
+  "*Reagent simple example*"
+  (dom-node
+   (fn [_!data node]
+     (photon/run
+       (photon/binding [dom/parent node]
+         (photon/$ simple-component))))))

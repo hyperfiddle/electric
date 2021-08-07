@@ -55,6 +55,9 @@
 (defmacro div [& body]
   `(element :div ~@body))
 
+(defmacro button [& body]
+  `(element :button ~@body))
+
 (defmacro p [& body]
   `(element :p ~@body))
 
