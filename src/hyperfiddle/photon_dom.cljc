@@ -1,10 +1,11 @@
 (ns hyperfiddle.photon-dom
+  (:refer-clojure :exclude [class])
   (:require [hfdl.lang :as p]
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])
             #?(:cljs [goog.style]))
-  #?(:cljs (:import goog.events.EventType))
+  #?(:cljs (:import (goog.events EventType KeyCodes)))
   #?(:cljs (:require-macros
              [hyperfiddle.photon-dom :refer
               [element fragment div span h1 table thead tbody select option]])))
@@ -126,6 +127,15 @@
 
 (def change-event
   #?(:cljs (.-CHANGE EventType)))
+
+(def keydown-event
+  #?(:cljs (.-KEYDOWN EventType)))
+
+(defn keycode [e]
+  #?(:cljs (.-keyCode e)))
+
+(def keycode-enter
+  #?(:cljs (.-ENTER KeyCodes)))
 
 (defn log [e]
   #?(:cljs  (js/console.log e))
