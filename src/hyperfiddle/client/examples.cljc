@@ -22,14 +22,16 @@
    ;; [hyperfiddle.client.examples.7GUIs-6]
    ;; [hyperfiddle.client.examples.7GUIs-7]
 
-   ["highlight.js" :as hljs]
-   ["marked" :as marked]
+   [hyperfiddle.client.examples.todomvc]
+
+   #?(:cljs ["highlight.js" :as hljs])
+   #?(:cljs ["marked" :as marked])
    [devcards.core :as dc]
    ))
 
 ;; Devcards deps patch
 ;; See https://github.com/bhauman/devcards/issues/168
-(js/goog.exportSymbol "DevcardsMarked" marked)
-(js/goog.exportSymbol "DevcardSyntaxHighlighter" hljs)
+#?(:cljs (js/goog.exportSymbol "DevcardsMarked" marked))
+#?(:cljs (js/goog.exportSymbol "DevcardSyntaxHighlighter" hljs))
 
-(dc/start-devcard-ui!)
+#?(:cljs (dc/start-devcard-ui!))
