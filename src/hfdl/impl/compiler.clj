@@ -223,21 +223,20 @@ is a macro or special form."
 
                   (case clojure.core/case cljs.core/case)
                   (analyze-form env
-                    (let [clauses (vec (next args))]
-                      (if (odd? (count clauses))
-                        (let [partition (partition-all 2 (pop clauses))
-                              symbols (repeatedly gensym)]
-                          (->> (list `var (peek clauses))
-                            (list
-                              (reduce merge {}
-                                (map (fn [p s] (zipmap (parse-clause (first p)) (repeat s)))
-                                  partition symbols))
-                              (first args))
-                            (list `let (vec (interleave symbols
-                                              (map (fn [p] (list `var (second p)))
-                                                partition))))
-                            (list `unquote)))
-                        (throw (ex-info "TODO partial case" {})))))
+                    (let [clauses (vec (next args))
+                          total? (odd? (count clauses))
+                          partition (partition-all 2 (if total? (pop clauses) clauses))
+                          symbols (repeatedly gensym)]
+                      (->> (when total? (list `var (peek clauses)))
+                        (list
+                          (reduce merge {}
+                            (map (fn [p s] (zipmap (parse-clause (first p)) (repeat s)))
+                              partition symbols))
+                          (first args))
+                        (list `let (vec (interleave symbols
+                                          (map (fn [p] (list `var (second p)))
+                                            partition))))
+                        (list `unquote))))
 
                   (quote)
                   [[:literal (first args)]]
@@ -366,6 +365,22 @@ is a macro or special form."
    [[:target]
     [:target [:output [:literal 6]]]
     [:target]
+    [:literal nil]]]
+
+  (analyze {} '(case 1 2 3 (4 5) ~@6)) :=
+  [[[:variable
+     [:pub
+      [:constant [:literal 3]]
+      [:pub
+       [:constant [:input]]
+       [:apply [:apply [:global :clojure.core/hash-map]
+                [:literal 2] [:sub 2]
+                [:literal 4] [:sub 1]
+                [:literal 5] [:sub 1]]
+        [:literal 1]
+        [:literal nil]]]]]]
+   [[:target]
+    [:target [:output [:literal 6]]]
     [:literal nil]]]
 
   (doto (def foo) (alter-meta! assoc :macro true :node '(do)))
