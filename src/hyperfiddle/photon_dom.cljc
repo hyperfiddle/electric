@@ -11,6 +11,7 @@
               [element fragment div span h1 table thead tbody select option]])))
 
 (p/def parent)
+(p/def node-index nil)
 
 (defn append-children [parent items] (reduce #?(:cljs #(doto %1 (.appendChild %2))) parent items))
 (defn remove-children [parent items] (reduce #?(:cljs #(doto %1 (.removeChild %2))) parent items))
@@ -22,18 +23,20 @@
       (fn []
         (remove-children parent items)))))
 
-
-
-(defn create-mount [parent type]
+(defn create-mount [parent position type]
   #?(:cljs
      (m/observe
        (fn [!]
          (let [child (d/createElement type)]
-           (d/appendChild parent child)
-           (! child) #(d/removeNode child))))))
+           (if (nil? position)
+             (d/appendChild parent child)
+             (d/insertChildAt parent child position))
+           (! child)
+           (fn [_]
+             (d/removeNode child)))))))
 
 (defmacro element [type & body]
-  `(p/binding [parent (unquote (create-mount parent ~(name type)))] ~@body))
+  `(p/binding [parent (unquote (create-mount parent node-index ~(name type)))] ~@body))
 
 (defn set-fragment! [e f]
   ;; TODO
