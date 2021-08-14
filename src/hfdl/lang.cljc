@@ -30,12 +30,11 @@ of this var to the value currently bound to this var.
 
 (defmacro binding [bindings & body]
   (if-some [bindings (seq (partition-all 2 bindings))]
-    (let [[syms exprs] (apply map vector bindings)]
-      (->> exprs
-        (cons (cons 'do body))
-        (map (partial list 'var))
-        (cons (cons 'def syms))
-        (list `unquote)))
+    (let [locals (repeatedly (count bindings) gensym)
+          [vars exprs] (apply map vector bindings)]
+      `(let [~@(interleave locals exprs)]
+         (unquote ((def ~@vars) ~@(map (partial list 'var)
+                                    (cons (cons 'do body) locals))))))
     (cons 'do body)))
 
 ;; TODO self-refer

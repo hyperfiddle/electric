@@ -49,6 +49,14 @@
 (defn output [context frame slot flow]
   ((aget context (int 1)) [(- frame) slot flow]))
 
+(defn discard [context frame]
+  (let [signals (get (aget context (int 6)) frame)]
+    (dotimes [i (alength signals)] ((aget signals i))))
+  (doto context
+    (aset (int 4) (dissoc (aget context (int 4)) frame))
+    (aset (int 5) (dissoc (aget context (int 5)) frame))
+    (aset (int 6) (dissoc (aget context (int 6)) frame))))
+
 (defn constant [context frame slot inputs targets signals ctor]
   (let [req (aget context (int 0))]
     (steady
@@ -56,8 +64,8 @@
         (req [(- frame) slot])
         (let [frame (aset context (int 2) (inc (aget context (int 2))))]
           (spawn context frame inputs targets signals)
-          ((ctor frame) n #(do (req [(- frame) -1])
-                               (comment destructor) (t))))))))
+          ((ctor frame) n #(do (discard context frame)
+                               (req [(- frame) -1]) (t))))))))
 
 (defn get-node [context slot]
   (get (aget context (int 7)) slot))
@@ -69,31 +77,19 @@
   (let [curr (aget context (int 7))]
     (fn [flow & args]
       (let [curr (reduce (partial apply assoc)
-                   curr (map vector slots (map m/signal! args)))]
+                   curr (map vector slots args))]
         (fn [n t]
           (let [prev (aget context (int 7))]
             (aset context (int 7) curr)
             (try (flow n t)
                  (finally (aset context (int 7) prev)))))))))
 
-;; TODO cancel signals
-(defn variable [context flow]
+(defn variable [context frame slot flow]
   (->> flow
-    (m/stream!)
+    (m/stream!) ;; TODO cancel this one
     (m/eduction (dedupe) (map (capture context)))
     (switch)
-    (m/signal!)))
-
-(defn discard [context frame]
-  (let [signals (get (aget context (int 6)) frame)]
-    (loop [i 0]
-      (when (< i (alength signals))
-        ((aget signals i))
-        (recur (inc i)))))
-  (doto context
-    (aset (int 4) (dissoc (aget context (int 4)) frame))
-    (aset (int 5) (dissoc (aget context (int 5)) frame))
-    (aset (int 6) (dissoc (aget context (int 6)) frame))))
+    (publish context frame slot)))
 
 (defn message
   ([] [{}])
@@ -204,7 +200,7 @@
                                   (constant context frame c input target signal #(f context frame pubs))))
                     :variable (let [f (eval-inst (first args))]
                                 (fn [context frame pubs]
-                                  (variable context (f context frame pubs))))
+                                  (variable context frame (slot :signal) (f context frame pubs))))
                     (throw (ex-info (str "Unsupported operation - " op) {:op op :args args}))))]
           (let [[[fs] {:keys [input target signal]}]
                 (u/with-local slots init
