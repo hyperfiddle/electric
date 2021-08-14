@@ -14,13 +14,8 @@
     [taoensso.timbre :as log]
     [missionary.core :as m]
     [hfdl.impl.util :as u]
-    [hfdl.lang :as d]
-    [hyperfiddle.client.ui :as ui]
-    [hyperfiddle.client.edn-view :as ev]
-    [hyperfiddle.q2 :as q]
-    [hyperfiddle.client.ui :as ui]
-    hyperfiddle.client.ui.demo-dataflow
-    user.webform)
+    [hfdl.lang :as p]
+    [hyperfiddle.todomvc :as t])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)))
 
@@ -81,7 +76,16 @@
 (defn start! [task]
   (task prn u/pst))
 
-(def env q/exports)
+(def env (merge p/exports t/exports))
+
+;; to boot a distributed photon app
+;; p/main is expanded on cljs side, returns a pair
+;; first element is the compiled client version
+;; second element is the server version as data.
+;; When client starts, it initializes the ws connection, then sends the server program as first message, the boots its
+;; local reactor.
+;; The server listens to incoming ws connections, waits for the program as first message, the evaluates the program and
+;; boots its local reactor.
 
 (defn ws-paths [_config]
   {"/echo" (fn [_request]
@@ -89,8 +93,13 @@
                (start! (m/sp (loop [] (m/? (ws/write-str remote (m/? read-str))) (recur))))))
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
-               (start! (m/sp (m/? (d/peer (d/eval env (m/? (str->edn (m/? read-str))))
-                                    (edn-writer remote) (edn-reader read-str)))))))})
+               (start!
+                 (m/sp
+                   (let [program (m/? (str->edn (m/? read-str)))
+                         _ (prn :got-program program)
+                         bootfn (p/eval env program)]
+                     (prn :booting-reactor)
+                     (m/? (bootfn (edn-writer remote) (edn-reader read-str))))))))})
 
 (defn gzip-handler [& methods]
   (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))

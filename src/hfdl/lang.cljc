@@ -15,15 +15,26 @@ Turns an arbitrary number of symbols resolving to vars into a map associating th
 of this var to the value currently bound to this var.
 " [& forms] (c/vars &env forms))
 
-(def exports (vars hash-map vector list concat seq sort into first inc dec + - / * m/watch))
+(def exports
+  (vars hash-map vector list concat seq sort into first inc dec + - / * swap! cons sorted-map keys comp remove filter
+    m/eduction m/reductions m/relieve m/watch))
 
-(def eval r/eval)
+(def eval "Takes a resolve map and a program, returns a booting function.
+The booting function takes
+* as first argument a function Any->Task[Unit] returned task writes the value on the wire.
+* as second argument a flow producing the values read on the wire.
+and returning a task that runs the local reactor."
+  r/eval)
 
 (defmacro def [sym & body]
   (when-not (:js-globals &env)
     `(doto (~'def ~sym) (alter-meta! assoc :macro true :node (quote (do ~@body))))))
 
-(defmacro main [& body]
+(defmacro main "
+Takes a photon program and returns a pair
+* the first item is the local booting function (cf eval)
+* the second item is the remote program.
+" [& body]
   (-> (c/analyze &env (cons 'do body))
     (update 0 (partial c/emit (comp symbol (partial str (gensym) '-))))
     (update 1 (partial list 'quote))))
