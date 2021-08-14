@@ -429,7 +429,8 @@ is a macro or special form."
                                 (u/with-local slots init (emit-inst sym pub (first args)))]
                             (list `r/constant (sym 'context) (sym 'frame) (slot :constant) input target signal
                               (list `fn [(sym 'frame)] form)))
-                :variable (list `r/variable (sym 'context) (emit-inst sym pub (first args)))))]
+                :variable (list `r/variable (sym 'context) (sym 'frame) (slot :signal)
+                            (emit-inst sym pub (first args)))))]
       (fn [sym insts]
         (let [[[forms] {:keys [input target signal]}]
               (u/with-local slots init
@@ -480,10 +481,10 @@ is a macro or special form."
 
   (emit (comp symbol str)
     [[:variable [:global :missionary.core/none]]]) :=
-  `(r/peer 0 0 0 0
+  `(r/peer 0 0 0 1
      (fn [~'context]
        (let [~'frame 0]
-         (do (do (r/variable ~'context (r/steady m/none)))))))
+         (do (do (r/variable ~'context ~'frame 0 (r/steady m/none)))))))
 
   (emit (comp symbol str)
     [[:input]]) :=
@@ -510,14 +511,14 @@ is a macro or special form."
                  [:literal 5] [:sub 1]]
          [:literal 1]
          [:constant [:literal 7]]]]]]]) :=
-  `(r/peer 0 0 0 2
+  `(r/peer 0 0 0 3
      (fn [~'context]
        (let [~'frame 0]
-         (do (do (r/variable ~'context
-                   (let [~'pub0 (r/publish ~'context ~'frame 0
+         (do (do (r/variable ~'context ~'frame 0
+                   (let [~'pub0 (r/publish ~'context ~'frame 1
                                   (r/constant ~'context ~'frame 0 0 0 0
                                     (fn [~'frame] (r/steady '3))))]
-                     (let [~'pub1 (r/publish ~'context ~'frame 1
+                     (let [~'pub1 (r/publish ~'context ~'frame 2
                                     (r/constant ~'context ~'frame 1 1 0 0
                                       (fn [~'frame] (do (r/input ~'context ~'frame 0)))))]
                        (m/latest u/call
