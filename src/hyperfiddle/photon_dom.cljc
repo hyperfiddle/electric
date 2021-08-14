@@ -150,6 +150,9 @@
 (defn get-checked [e]
   #?(:cljs (.-checked e)))
 
+(defn set-checked! [e v]
+  #?(:cljs (set! (.-checked e) (boolean v))))
+
 (defmacro fragment [& body] `(element :fragment ~@body))
 (defmacro option [& body] `(element :option ~@body))
 

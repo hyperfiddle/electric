@@ -54,7 +54,7 @@
 (defn build-eav [eav [op & args]]
   (case op
     :remove (dissoc eav (first args))
-    :append (apply update eav (first args) assoc :name (next args))
+    :append (apply update eav (first args) assoc :done false :name (next args))
     :update (apply update eav (first args) assoc (next args))))
 
 (def first-or (partial m/reduce (comp reduced {})))
@@ -121,7 +121,7 @@
                     (concat
                       (dom/input
                         (dom/set-attribute! dom/parent "type" "checkbox")
-                        (dom/set-attribute! dom/parent "checked" done?)
+                        (dom/set-checked! dom/parent done?)
                         (when-some [done? ~(->> (dom/events dom/parent dom/input-event)
                                              (m/eduction (map dom/event-target) (map dom/get-checked))
                                              (stage nil #'(partial = done?)))]
