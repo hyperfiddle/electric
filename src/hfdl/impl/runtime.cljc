@@ -170,7 +170,9 @@
                             (fn [context _ _] (get-node context n)))
                     :apply (comp (partial apply m/latest u/call)
                              (apply juxt (map eval-inst args)))
-                    :input (let [f (apply juxt (map eval-inst args))
+                    :input (let [f (if-some [args (seq args)]
+                                     (apply juxt (map eval-inst args))
+                                     (constantly []))
                                  i (slot :input)]
                              (fn [context frame pubs]
                                (f context frame pubs)
@@ -181,7 +183,9 @@
                                 (output context frame o (f context frame pubs))))
                     :target (let [[f {:keys [input target signal]}]
                                   (u/with-local slots init
-                                    (apply juxt (mapv eval-inst args)))
+                                    (if-some [args (seq args)]
+                                      (apply juxt (mapv eval-inst args))
+                                      (constantly [])))
                                   t (slot :target)]
                               (fn [context frame pubs]
                                 (target context frame t input target signal #(f context frame pubs))))

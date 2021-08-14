@@ -2,16 +2,12 @@
   (:require [missionary.core :as m]
             [hfdl.lang :as d]
             [hyperfiddle.common.transit :as transit]
-            [hyperfiddle.common.routes :as common-routes]
-            [hyperfiddle.client.ui :as ui]
-            [hyperfiddle.client.edn-view :as ev]
-            [user.form-typeahead :refer [typeahead-select]]
-            [hyperfiddle.client.ui.demo-dataflow :refer [edn-renderer]]
-            [hyperfiddle.client.ui.demo-edn]
-            ;; [user.tutorial]
-            [dev])
-  (:require-macros
-    [hyperfiddle.client.ui.demo-dataflow :refer [echo edn-key-value edn-renderer]]))
+            [hyperfiddle.todomvc :as t]
+    ;; [user.tutorial]
+            [dev]
+            [hyperfiddle.photon-dom :as dom]
+            [hfdl.lang :as p])
+  (:require-macros))
 
 ;; TODO reconnect on failures
 (def connect
@@ -49,16 +45,9 @@
   (m/sp
     (let [ws (m/? connect)]
       (m/? ((writer ws) s))
-      (m/? (d/peer c (writer ws) (reader ws))))))
+      (m/? (c (writer ws) (reader ws))))))
 
-(def root (ui/by-id "hf-ui-dev-root"))
+(def root (js/document.getElementById "hf-ui-dev-root"))
 
 (def ^:export main
-  (client
-    (d/main
-      (let [route-request ~common-routes/>route]
-        (typeahead-select root dev/alice)
-
-        #_(ev/set-editor-value!
-          (ev/editor (ui/by-id "hf-edn-view-route") ui/change-route!)
-          ~@route-request)))))
+  (client (d/main (p/binding [dom/parent root] ~t/app))))
