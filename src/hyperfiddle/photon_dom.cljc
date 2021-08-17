@@ -10,6 +10,8 @@
              [hyperfiddle.photon-dom :refer
               [element fragment div span h1 table thead tbody select option]])))
 
+(defn by-id [id] #?(:cljs (js/document.getElementById id)))
+
 (p/def parent)
 (p/def node-index nil)
 

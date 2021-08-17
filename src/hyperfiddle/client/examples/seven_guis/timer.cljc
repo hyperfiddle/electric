@@ -1,9 +1,7 @@
 (ns hyperfiddle.client.examples.seven-guis.timer
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
-            [devcards.core :as dc :include-macros true]
-            [missionary.core :as m]
-            [hyperfiddle.client.examples.card :refer [dom-node]])
+            [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.client.examples.seven-guis.timer :refer [Timer]]))
   )
 
@@ -52,29 +50,10 @@
                            (m/relieve {}))
                      0))))))
 
-(dc/defcard timer
-  "# 4 — Timer
+(defn timer []
+  (photon/run
+    (photon/binding [dom/parent (dom/by-id "timer")]
+      (photon/$ Timer))))
 
-   Challenges: concurrency, competing user/signal interactions, responsiveness.
 
-   ![](https://eugenkiss.github.io/7guis/static/timer.ed46b6b4.png)
-
-   The task is to build a frame containing a gauge `G` for the elapsed time `e`,
-   a label which shows the elapsed time as a numerical value, a slider `S` by
-   which the duration `d` of the timer can be adjusted while the timer is running
-   and a reset button `R`.
-
-   - [x] Adjusting `S` must immediately reflect on `d` and not only when `S` is
-   released.
-   - [x] It follows that while moving `S` the filled amount of `G` will (usually)
-   change immediately.
-   - [x] When `e ≥ d` is true then the timer stops (and `G` will be full).
-   - [x] If, thereafter, `d` is increased such that `d > e` will be true then the
-   timer restarts to tick until `e ≥ d` is true again.
-   - [x] Clicking R will reset `e` to zero.
-"
-  (dom-node
-   (fn [_ node]
-     (photon/run
-       (photon/binding [dom/parent node]
-         (photon/$ Timer))))))
+(timer)

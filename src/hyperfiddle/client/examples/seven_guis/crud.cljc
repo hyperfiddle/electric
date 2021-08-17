@@ -1,9 +1,7 @@
 (ns hyperfiddle.client.examples.seven-guis.crud
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
-            [devcards.core :as dc :include-macros true]
             [missionary.core :as m]
-            [hyperfiddle.client.examples.card :refer [dom-node]]
             [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.client.examples.seven-guis.crud :refer [CRUD]]))
   )
@@ -123,20 +121,15 @@
                         (m/relieve {})))
       ~(m/watch !out)))))
 
-(dc/defcard crud
-  "# 5 — CRUD
+(def people {:people [{:id 1, :name "John",   :surname "Doe"}
+                      {:id 2, :name "Jenson", :surname "Jones"}
+                      {:id 3, :name "Lukas",  :surname "Luna"}]})
 
-  ![](https://eugenkiss.github.io/7guis/static/crud.515ce94b.png)
+(defn crud []
+  (let [!state (atom people)]
+    (photon/run
+      (photon/binding [dom/parent (dom/by-id "crud")]
+        (->> (photon/$ CRUD ~(m/eduction (dedupe) (m/watch !state)))
+             (swap! !state assoc :people))))))
 
-The task is to build a frame containing the following elements: a textfield Tprefix, a pair of textfields Tname and Tsurname, a listbox L, buttons BC, BU and BD and the three labels as seen in the screenshot. L presents a view of the data in the database that consists of a list of names. At most one entry can be selected in L at a time. By entering a string into Tprefix the user can filter the names whose surname start with the entered prefix—this should happen immediately without having to submit the prefix with enter. Clicking BC will append the resulting name from concatenating the strings in Tname and Tsurname to L. BU and BD are enabled iff an entry in L is selected. In contrast to BC, BU will not append the resulting name but instead replace the selected entry with the new name. BD will remove the selected entry. The layout is to be done like suggested in the screenshot. In particular, L must occupy all the remaining space."
-  (dom-node
-   (fn [!state node]
-     (photon/run
-       (photon/binding [dom/parent node]
-         (->> (photon/$ CRUD ~(m/eduction (dedupe) (m/watch !state)))
-              (swap! !state assoc :people))))))
-  {:people [{:id 1, :name "John",   :surname "Doe"}
-            {:id 2, :name "Jenson", :surname "Jones"}
-            {:id 3, :name "Lukas",  :surname "Luna"}]}
-
-  {:inspect-data true})
+(crud)

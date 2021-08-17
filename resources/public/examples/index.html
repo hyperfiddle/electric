@@ -3,9 +3,188 @@
     <head>
         <meta charset="utf-8"/>
         <title>Examples</title>
+        <style>
+         body{
+             margin: 30vh 0 50vh 0;
+             color: rgb(31, 41, 55);
+             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+             font-size: 16px;
+             display: grid;
+             grid-auto-flow: row;
+             align-items: center;
+             grid-gap: 20vh;
+             justify-items: center;
+         }
+         h1{
+             font-size: 1.75rem;
+         }
+         a{
+             text-decoration:none;
+             color: #428bca;
+         }
+         .card{
+             width: 75%;
+         }
+         .about{
+             text-align: justify;
+             max-width: 75%;
+         }
+        </style>
     </head>
     <body>
+
+        <div class="card">
+            <h1>Reagent1</h1>
+
+            <div id="reagent1" class="card-body"></div>
+        </div>
+
+        <div class="card">
+            <div class="about">
+                # 1 — Counter
+
+                Challenge: Understanding the basic ideas of a language/toolkit.
+
+                ![](https://eugenkiss.github.io/7guis/static/counter.9cd92091.png)
+
+                The task is to build a frame containing a label or read-only textfield T and
+                a button B. Initially, the value in T is “0” and each click of B increases
+                the value in T by one.
+
+                Counter serves as a gentle introduction to the basics of the language,
+                paradigm and toolkit for one of the simplest GUI applications imaginable.
+                Thus, Counter reveals the required scaffolding and how the very basic
+                features work together to build a GUI application. A good solution will have
+                almost no scaffolding.
+            </div>
+            <div id="counter" class="card-body"></div>
+        </div>
+
+        <div class="card">
+            <div class="about">
+                # 2 — Temperature Converter
+
+                Challenges: bidirectional data flow, user-provided text input.
+
+                ![](https://eugenkiss.github.io/7guis/static/tempconv.de9aff1f.png)
+
+
+                The task is to build a frame containing two textfields TC and TF representing
+                the temperature in Celsius and Fahrenheit, respectively. Initially, both TC
+                and TF are empty. When the user enters a numerical value into TC the
+                corresponding value in TF is automatically updated and vice versa. When the
+                user enters a non-numerical string into TC the value in TF is not updated and
+                vice versa. The formula for converting a temperature C in Celsius into a
+                temperature F in Fahrenheit is `C = (F - 32) * (5/9)` and the dual direction is
+                `F = C * (9/5) + 32`.
+
+                Temperature Converter increases the complexity of Counter by having
+                bidirectional data flow between the Celsius and Fahrenheit inputs and the
+                need to check the user input for validity. A good solution will make the
+                bidirectional dependency very clear with minimal boilerplate code.
+
+                Temperature Converter is inspired by the Celsius/Fahrenheit converter from
+                the book Programming in Scala. It is such a widespread example—sometimes also
+                in the form of a currency converter—that one could give a thousand
+                references. The same is true for the Counter task.
+
+            </div>
+            <div id="temperature" class="card-body"></div>
+        </div>
+
+        <div class="card">
+            <div class="about">
+                # 3 — Flight Booker
+
+                Challenge: Constraints.
+
+                ![](https://eugenkiss.github.io/7guis/static/bookflight.a5434663.png)
+
+
+                The focus of Flight Booker lies on modelling constraints between widgets on
+                the one hand and modelling constraints within a widget on the other hand.
+                Such constraints are very common in everyday interactions with GUI
+                applications. A good solution for Flight Booker will make the constraints
+                clear, succinct and explicit in the source code and not hidden behind a lot
+                of scaffolding.
+
+                The task is:
+
+                - [x] to build a frame containing a combobox C with the two options “one-way
+                flight” and “return flight”,
+                - [x] two textfields T1 and T2 representing the start and return date,
+                respectively,
+                - [x] and a button B for submitting the selected flight.
+                - [x] T2 is enabled iff C’s value is “return flight”.
+                - [x] When C has the value “return flight” and T2’s date is strictly before
+                T1’s then B is disabled.
+                - [x] When a non-disabled textfield T has an ill-formatted date then T is
+                colored red and B is disabled.
+                - [x] When clicking B a message is displayed informing the user of his
+                selection (e.g. “You have booked a one-way flight on 04.04.2014.”).
+                - [x] Initially, C has the value “one-way flight”
+                - [x] and T1 as well as T2 have the same (arbitrary) date
+                - [x] (it is implied that T2 is disabled).
+            </div>
+            <div id="flight-booker" class="card-body"></div>
+        </div>
+
+        <div class="card">
+            <div class="about">
+                # 4 — Timer
+
+                Challenges: concurrency, competing user/signal interactions, responsiveness.
+
+                ![](https://eugenkiss.github.io/7guis/static/timer.ed46b6b4.png)
+
+                The task is to build a frame containing a gauge `G` for the elapsed time `e`,
+                a label which shows the elapsed time as a numerical value, a slider `S` by
+                which the duration `d` of the timer can be adjusted while the timer is running
+                and a reset button `R`.
+
+                - [x] Adjusting `S` must immediately reflect on `d` and not only when `S` is
+                released.
+                - [x] It follows that while moving `S` the filled amount of `G` will (usually)
+                change immediately.
+                - [x] When `e ≥ d` is true then the timer stops (and `G` will be full).
+                - [x] If, thereafter, `d` is increased such that `d > e` will be true then the
+                timer restarts to tick until `e ≥ d` is true again.
+                - [x] Clicking R will reset `e` to zero.
+            </div>
+            <div id="timer" class="card-body"></div>
+        </div>
+
+
+        <div class="card">
+            <div class="about">
+                # 5 — CRUD
+
+                ![](https://eugenkiss.github.io/7guis/static/crud.515ce94b.png)
+
+                The task is to build a frame containing the following elements: a textfield Tprefix, a pair of textfields Tname and Tsurname, a listbox L, buttons BC, BU and BD and the three labels as seen in the screenshot. L presents a view of the data in the database that consists of a list of names. At most one entry can be selected in L at a time. By entering a string into Tprefix the user can filter the names whose surname start with the entered prefix—this should happen immediately without having to submit the prefix with enter. Clicking BC will append the resulting name from concatenating the strings in Tname and Tsurname to L. BU and BD are enabled iff an entry in L is selected. In contrast to BC, BU will not append the resulting name but instead replace the selected entry with the new name. BD will remove the selected entry. The layout is to be done like suggested in the screenshot. In particular, L must occupy all the remaining space.
+            </div>
+            <div id="crud" class="card-body"></div>
+        </div>
+
+        <div class="card">
+            <h1>TodoMVC</h1>
+            <div id="todomvc" class="card-body"></div>
+        </div>
+
         <script type="text/javascript" src="./js/shared.js"></script>
         <script type="text/javascript" src="./js/main.js"></script>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/12.2.0/markdown-it.min.js" integrity="sha512-cTQeM/op796Fp1ZUxfech8gSMLT/HvrXMkRGdGZGQnbwuq/obG0UtcL04eByVa99qJik7WlnlQOr5/Fw5B36aw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script type="text/javascript">
+         let md = markdownit();
+         document.querySelectorAll(".about").forEach((e)=>{
+             e.innerHTML = md.render(e.innerHTML.replaceAll(/\ +/ig, " "));
+         });
+
+         document.querySelectorAll("h1").forEach((e) => {
+             var text = e.innerText;
+             e.innerHTML = `<a id="${text}" href="#${text}">${text}</a>`;
+         });
+        </script>
     </body>
 </html>

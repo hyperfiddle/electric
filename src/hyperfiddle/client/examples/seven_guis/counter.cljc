@@ -1,9 +1,7 @@
 (ns hyperfiddle.client.examples.seven-guis.counter
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
-            [devcards.core :as dc :include-macros true]
-            [missionary.core :as m]
-            [hyperfiddle.client.examples.card :refer [dom-node]])
+            [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.client.examples.seven-guis.counter :refer [Counter]])))
 
 (defn inc-reducer [r _] (inc r))
@@ -16,7 +14,9 @@
    (dom/button
     (dom/text "Count")
     ~(->> (dom/events dom/parent dom/click-event)
-          (m/reductions inc-reducer 0)))))
+          (m/eduction (map (constantly 1)))
+          (m/relieve +)
+          (m/reductions +)))))
 
 (defn state [init-value]
   (let [!state (atom init-value)
@@ -27,28 +27,13 @@
       ([v] (reset! !state v))
       ([notify terminate] (>state notify terminate)))))
 
-(dc/defcard counter
-  "# 1 — Counter
+(defn counter []
+  (photon/run
+    (photon/binding [dom/parent (dom/by-id "counter")]
+      (let [>count! (state 0)]
+        (>count! (photon/$ Counter ~>count!))))))
 
-   Challenge: Understanding the basic ideas of a language/toolkit.
-
-   ![](https://eugenkiss.github.io/7guis/static/counter.9cd92091.png)
-
-   The task is to build a frame containing a label or read-only textfield T and
-   a button B. Initially, the value in T is “0” and each click of B increases
-   the value in T by one.
-
-   Counter serves as a gentle introduction to the basics of the language,
-   paradigm and toolkit for one of the simplest GUI applications imaginable.
-   Thus, Counter reveals the required scaffolding and how the very basic
-   features work together to build a GUI application. A good solution will have
-   almost no scaffolding."
-  (dom-node
-   (fn [_ node]
-     (photon/run
-       (photon/binding [dom/parent node]
-         (let [>count! (state 0)]
-           (>count! (photon/$ Counter ~>count!))))))))
+(counter)
 
 (comment
   (defmacro rec [binding expr]

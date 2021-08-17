@@ -2,8 +2,6 @@
   (:require [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
-            [devcards.core :as dc :include-macros true]
-            [hyperfiddle.client.examples.card :refer [dom-node]]
             [hyperfiddle.todomvc :as t])
   #?(:cljs (:require-macros
              [hyperfiddle.client.examples.todomvc :refer [head todo-list]])))
@@ -59,12 +57,11 @@
 
 (def log (atom nil))
 
-(dc/defcard todomvc
-  "# TodoMVC"
-  (dom-node
-    (fn [_ node]
-      (p/run
-        (p/binding [head ~(m/watch log)
-                    dom/parent node]
-          (when-some [txs (seq ~todo-list)]
-            (swap! log cons txs)))))))
+(defn todo-mvc []
+  (p/run
+    (p/binding [head ~(m/watch log)
+                dom/parent (dom/by-id "todomvc")]
+      (when-some [txs (seq ~todo-list)]
+        (swap! log cons txs)))))
+
+(todo-mvc)
