@@ -15,7 +15,8 @@
     [missionary.core :as m]
     [hfdl.impl.util :as u]
     [hfdl.lang :as p]
-    [hyperfiddle.todomvc :as t])
+    [hyperfiddle.todomvc :as t]
+    [hyperfiddle.api :as h])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)))
 
@@ -76,7 +77,7 @@
 (defn start! [task]
   (task prn u/pst))
 
-(def env (merge p/exports t/exports))
+(def env (merge p/exports t/exports h/exports))
 
 ;; to boot a distributed photon app
 ;; p/main is expanded on cljs side, returns a pair

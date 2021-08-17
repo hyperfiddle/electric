@@ -169,9 +169,9 @@
                     :node (let [n (first args)]
                             (fn [context _ _] (get-node context n)))
                     :apply (comp (partial apply m/latest u/call)
-                             (apply juxt (map eval-inst args)))
+                             (apply juxt (mapv eval-inst args)))
                     :input (let [f (if-some [args (seq args)]
-                                     (apply juxt (map eval-inst args))
+                                     (apply juxt (mapv eval-inst args))
                                      (constantly []))
                                  i (slot :input)]
                              (fn [context frame pubs]
@@ -202,9 +202,10 @@
                                     c (slot :constant)]
                                 (fn [context frame pubs]
                                   (constant context frame c input target signal #(f context frame pubs))))
-                    :variable (let [f (eval-inst (first args))]
+                    :variable (let [f (eval-inst (first args))
+                                    s (slot :signal)]
                                 (fn [context frame pubs]
-                                  (variable context frame (slot :signal) (f context frame pubs))))
+                                  (variable context frame s (f context frame pubs))))
                     (throw (ex-info (str "Unsupported operation - " op) {:op op :args args}))))]
           (let [[[fs] {:keys [input target signal]}]
                 (u/with-local slots init

@@ -1,9 +1,8 @@
 (ns hyperfiddle.client
   (:require [missionary.core :as m]
-            [hfdl.lang :as d]
             [hyperfiddle.common.transit :as transit]
             [hyperfiddle.todomvc :as t]
-    ;; [user.tutorial]
+            [hyperfiddle.api :as h]
             [dev]
             [hyperfiddle.photon-dom :as dom]
             [hfdl.lang :as p])
@@ -50,4 +49,5 @@
 (def root (js/document.getElementById "hf-ui-dev-root"))
 
 (def ^:export main
-  (client (d/main (p/binding [dom/parent root] ~t/app))))
+  (client (p/main #_(p/binding [dom/parent root] ~t/app)
+            (dom/set-text-content! root (str "hello " ~@~(m/watch h/info) " !")))))

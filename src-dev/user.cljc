@@ -27,12 +27,16 @@
   ; JVM
   (do
     (require '[dev])
+    (require '[hyperfiddle.api :as h])
     (require '[hyperfiddle.server :refer [start-server!]])
     (require '[io.pedestal.http :as http])
+    (require '[shadow.cljs.devtools.api :as shadow])
     (def server (start-server! {:host   "localhost"
                                 :port   8080
                                 :scheme "http"})))
   (http/stop server)
+  (shadow/compile :app)
+  (reset! h/info "world")
   ; load the effects
   ;(require 'dustin.fiddle-pages)
 
