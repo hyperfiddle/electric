@@ -28,6 +28,7 @@
   (do
     (require '[dev])
     (require '[hyperfiddle.api :as h])
+    (require '[hyperfiddle.todomvc :as t])
     (require '[hyperfiddle.server :refer [start-server!]])
     (require '[io.pedestal.http :as http])
     (require '[shadow.cljs.devtools.api :as shadow])
@@ -37,6 +38,7 @@
   (http/stop server)
   (shadow/compile :app)
   (reset! h/info "world")
+  (reset! t/log nil)
   ; load the effects
   ;(require 'dustin.fiddle-pages)
 
