@@ -82,7 +82,9 @@
              (write-all writer "#hyperfiddle.api.Input " (pr-str {:id    (.-id this)
                                                                   :value (.-value this)})))))
 
-(def exports (vars rules ->Link))
+(def info (atom "hyperfiddle"))
+
+(def exports (vars rules ->Link info))
 
 ; todo rename wrap, it's sideeffect-fn to fn-returning-flow
 (defn wrap [f] (fn [& args] (m/ap (m/? (m/via m/blk (apply f args))))))
