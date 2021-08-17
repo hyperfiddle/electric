@@ -3,7 +3,7 @@
             [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]])
-  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [head pick todo-list]])))
+  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [pick todo-list]])))
 
 #_
 (p/defn todos [db status]
@@ -105,10 +105,9 @@ return nothing (you return nil) but in flows nothing is different than nil." [>f
 
 (def log #?(:clj (atom nil) :cljs nil))
 
-(p/def head)
 (p/def todo-list
   #'(dom/div
-      ~@(let [eav ~(->> #'head
+      ~@(let [eav ~(->> (m/watch log)
                      (m/eduction events)
                      (m/reductions build-eav (sorted-map))
                      (m/relieve {}))

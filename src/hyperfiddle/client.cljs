@@ -48,6 +48,7 @@
 
 (def root (js/document.getElementById "hf-ui-dev-root"))
 
+(p/def hello-world (dom/set-text-content! root (str "hello " ~@~(m/watch h/info) " !")))
+
 (def ^:export main
-  (client (p/main #_(p/binding [dom/parent root] ~t/app)
-            (dom/set-text-content! root (str "hello " ~@~(m/watch h/info) " !")))))
+  (client (p/main (p/binding [dom/parent root] ~t/app))))
