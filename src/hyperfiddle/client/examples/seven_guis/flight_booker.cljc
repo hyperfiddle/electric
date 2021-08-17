@@ -1,9 +1,7 @@
 (ns hyperfiddle.client.examples.seven-guis.flight-booker
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
-            [devcards.core :as dc :include-macros true]
             [missionary.core :as m]
-            [hyperfiddle.client.examples.card :refer [dom-node]]
             [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.client.examples.seven-guis.flight-booker :refer [ComboBox DateInput BookButton FlightBooker]])))
 
@@ -105,41 +103,10 @@
                                                     (not (valid-date? ~(m/watch !d1)))
                                                     (not (valid-date? ~(m/watch !d2)))))))))
 
-(dc/defcard booker
-  "# 3 — Flight Booker
 
-   Challenge: Constraints.
+(defn flight-booker []
+  (photon/run
+    (photon/binding [dom/parent (dom/by-id "flight-booker")]
+      (photon/$ FlightBooker))))
 
-   ![](https://eugenkiss.github.io/7guis/static/bookflight.a5434663.png)
-
-
-   The focus of Flight Booker lies on modelling constraints between widgets on
-   the one hand and modelling constraints within a widget on the other hand.
-   Such constraints are very common in everyday interactions with GUI
-   applications. A good solution for Flight Booker will make the constraints
-   clear, succinct and explicit in the source code and not hidden behind a lot
-   of scaffolding.
-
-   The task is:
-
-   - [x] to build a frame containing a combobox C with the two options “one-way
-   flight” and “return flight”,
-   - [x] two textfields T1 and T2 representing the start and return date,
-   respectively,
-   - [x] and a button B for submitting the selected flight.
-   - [x] T2 is enabled iff C’s value is “return flight”.
-   - [x] When C has the value “return flight” and T2’s date is strictly before
-   T1’s then B is disabled.
-   - [x] When a non-disabled textfield T has an ill-formatted date then T is
-   colored red and B is disabled.
-   - [x] When clicking B a message is displayed informing the user of his
-   selection (e.g. “You have booked a one-way flight on 04.04.2014.”).
-   - [x] Initially, C has the value “one-way flight”
-   - [x] and T1 as well as T2 have the same (arbitrary) date
-     - [x] (it is implied that T2 is disabled).
-"
-  (dom-node
-   (fn [_ node]
-     (photon/run
-       (photon/binding [dom/parent node]
-         (photon/$ FlightBooker))))))
+(flight-booker)

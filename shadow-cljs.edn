@@ -47,11 +47,8 @@
                                           :js-options            {:variable-renaming :off}
                                           :anon-fn-naming-policy :unmapped
                                           :source-map            true
-                                          :devcards              true
                                           :source-map-timestamp  true
                                           :output-feature-set :es8}
-                       :js-options       {:resolve {"devcards-marked"             {:target :npm :require "marked"}
-                                                    "devcards-syntax-highlighter" {:target :npm :require "highlight.js"}}}
                        :output-dir       "resources/public/examples/js"
                        :asset-path       "js"
                        :modules          {:shared         {:entries [;; HACK: Shadow should take care of it,
