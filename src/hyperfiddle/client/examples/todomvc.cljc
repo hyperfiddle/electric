@@ -2,7 +2,7 @@
   (:require [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
-            [devcards.core :as dc]
+            [devcards.core :as dc :include-macros true]
             [hyperfiddle.client.examples.card :refer [dom-node]]
             [hyperfiddle.todomvc :as t])
   #?(:cljs (:require-macros

@@ -1,7 +1,7 @@
 (ns hyperfiddle.client.examples.seven-guis.crud
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
-            [devcards.core :as dc]
+            [devcards.core :as dc :include-macros true]
             [missionary.core :as m]
             [hyperfiddle.client.examples.card :refer [dom-node]]
             [clojure.string :as str])
