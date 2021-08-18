@@ -2,7 +2,7 @@
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.examples.seven-guis.counter :refer [Counter]])))
+  #?(:cljs (:require-macros [hyperfiddle.examples.seven-guis.counter :refer [Counter counter]])))
 
 (defn inc-reducer [r _] (inc r))
 
@@ -18,27 +18,7 @@
           (m/relieve +)
           (m/reductions +)))))
 
-(defn state [init-value]
-  (let [!state (atom init-value)
-        >state (m/eduction (dedupe) (m/watch !state))]
-    ;; we have to dedupe maybe it’s a hack. Is there something in the language
-    ;; forcing us to do that. Should we change the language?
-    (fn
-      ([v] (reset! !state v))
-      ([notify terminate] (>state notify terminate)))))
-
-(defn counter []
-  (photon/run
-    (photon/binding [dom/parent (dom/by-id "counter")]
-      (let [>count! (state 0)]
-        (>count! (photon/$ Counter ~>count!))))))
-
-#?(:cljs (counter))
-
-(comment
-  (defmacro rec [binding expr]
-    `(let [state# (state nil)
-           ~binding (unquote state#)]
-       (state# ~expr)))
-
-  (macroexpand-1 '(rec x (inc x))))
+(photon/def counter
+  #'~@(let [>count! (dom/state 0)
+            v       ~>count!]
+        (>count! ~@ (photon/$ Counter v))))

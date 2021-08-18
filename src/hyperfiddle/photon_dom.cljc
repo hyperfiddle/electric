@@ -216,3 +216,16 @@
 
 ;; The number of milliseconds elapsed since January 1, 1970
 (p/def clock ~>clock)
+
+(defn state [init-value]
+  (let [!state (atom init-value)
+        >state (m/eduction (dedupe) (m/watch !state))]
+    ;; we have to dedupe maybe it’s a hack. Is there something in the language
+    ;; forcing us to do that. Should we change the language?
+    (fn
+      ([v] (reset! !state v))
+      ([notify terminate] (>state notify terminate)))))
+
+(def exports (p/vars click-event create-mount create-text events
+                     set-attribute! set-style! set-text-content!
+                     state))
