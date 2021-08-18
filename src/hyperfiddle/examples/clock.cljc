@@ -1,4 +1,4 @@
-(ns hyperfiddle.client.examples.clock
+(ns hyperfiddle.examples.clock
   (:require [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom]))
 

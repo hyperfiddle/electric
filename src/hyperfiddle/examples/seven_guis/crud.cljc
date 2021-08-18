@@ -1,9 +1,9 @@
-(ns hyperfiddle.client.examples.seven-guis.crud
+(ns hyperfiddle.examples.seven-guis.crud
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
             [clojure.string :as str])
-  #?(:cljs (:require-macros [hyperfiddle.client.examples.seven-guis.crud :refer [CRUD]]))
+  #?(:cljs (:require-macros [hyperfiddle.examples.seven-guis.crud :refer [CRUD]]))
   )
 
 (def initial-goal 1000)

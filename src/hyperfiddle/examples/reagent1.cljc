@@ -1,7 +1,7 @@
-(ns hyperfiddle.client.examples.reagent1
+(ns hyperfiddle.examples.reagent1
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom])
-  #?(:cljs (:require-macros [hyperfiddle.client.examples.reagent1 :refer [simple-component]])))
+  #?(:cljs (:require-macros [hyperfiddle.examples.reagent1 :refer [simple-component]])))
 
 (photon/defn simple-component []
   (dom/div

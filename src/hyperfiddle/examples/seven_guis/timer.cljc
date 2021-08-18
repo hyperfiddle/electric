@@ -1,8 +1,8 @@
-(ns hyperfiddle.client.examples.seven-guis.timer
+(ns hyperfiddle.examples.seven-guis.timer
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.client.examples.seven-guis.timer :refer [Timer]]))
+  #?(:cljs (:require-macros [hyperfiddle.examples.seven-guis.timer :refer [Timer]]))
   )
 
 (def second-elapsed
