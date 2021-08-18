@@ -1,10 +1,10 @@
-(ns hyperfiddle.client.examples.todomvc
+(ns hyperfiddle.examples.todomvc
   (:require [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
             [hyperfiddle.todomvc :as t])
   #?(:cljs (:require-macros
-             [hyperfiddle.client.examples.todomvc :refer [head todo-list]])))
+             [hyperfiddle.examples.todomvc :refer [head todo-list]])))
 
 (p/def head)
 (p/def todo-list

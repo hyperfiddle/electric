@@ -1,8 +1,8 @@
-(ns hyperfiddle.client.examples.seven-guis.counter
+(ns hyperfiddle.examples.seven-guis.counter
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.client.examples.seven-guis.counter :refer [Counter]])))
+  #?(:cljs (:require-macros [hyperfiddle.examples.seven-guis.counter :refer [Counter]])))
 
 (defn inc-reducer [r _] (inc r))
 

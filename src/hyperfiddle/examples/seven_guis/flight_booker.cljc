@@ -1,9 +1,9 @@
-(ns hyperfiddle.client.examples.seven-guis.flight-booker
+(ns hyperfiddle.examples.seven-guis.flight-booker
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
             [clojure.string :as str])
-  #?(:cljs (:require-macros [hyperfiddle.client.examples.seven-guis.flight-booker :refer [ComboBox DateInput BookButton FlightBooker]])))
+  #?(:cljs (:require-macros [hyperfiddle.examples.seven-guis.flight-booker :refer [ComboBox DateInput BookButton FlightBooker]])))
 
 (def date-regexp #"^[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{4}$")
 

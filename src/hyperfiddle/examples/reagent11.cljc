@@ -1,8 +1,8 @@
-(ns hyperfiddle.client.examples.reagent11
+(ns hyperfiddle.examples.reagent11
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.client.examples.reagent11 :refer [TodoMVC Checkbox TodoItem TextInput]])))
+  #?(:cljs (:require-macros [hyperfiddle.examples.reagent11 :refer [TodoMVC Checkbox TodoItem TextInput]])))
 
 (defn log [message x] #?(:cljs (js/console.log message x)) x)
 

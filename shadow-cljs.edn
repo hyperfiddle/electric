@@ -55,5 +55,5 @@
                                                                      ;; but for some reason it doesn't.
                                                                      shadow.cljs.bootstrap.env
                                                                      shadow.cljs.bootstrap.browser]}
-                                          :main           {:entries    [hyperfiddle.client.examples]
+                                          :main           {:entries    [hyperfiddle.examples]
                                                            :depends-on #{:shared}}}}}}

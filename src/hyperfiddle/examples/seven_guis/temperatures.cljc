@@ -1,8 +1,8 @@
-(ns hyperfiddle.client.examples.seven-guis.temperatures
+(ns hyperfiddle.examples.seven-guis.temperatures
   (:require [hfdl.lang :as photon]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.client.examples.seven-guis.temperatures :refer [Converter Input]])))
+  #?(:cljs (:require-macros [hyperfiddle.examples.seven-guis.temperatures :refer [Converter Input]])))
 
 (defn parse-num [x] #?(:cljs (-> (js/parseFloat x)
                                  (* 100)
