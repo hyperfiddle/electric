@@ -50,10 +50,7 @@
                            (m/relieve {}))
                      0))))))
 
-(defn timer []
-  (photon/run
-    (photon/binding [dom/parent (dom/by-id "timer")]
-      (photon/$ Timer))))
-
-
-(timer)
+#?(:cljs
+   (photon/run
+     (photon/binding [dom/parent (dom/by-id "timer")]
+       (photon/$ Timer))))

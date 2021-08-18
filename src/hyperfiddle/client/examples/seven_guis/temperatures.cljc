@@ -60,4 +60,4 @@
       (let [>temp! (state 0)]
         (>temp! (photon/$ Converter ~>temp!))))))
 
-(temperature)
+#?(:cljs (temperature))

@@ -18,4 +18,4 @@
     (photon/binding [dom/parent (dom/by-id "reagent1")]
       (photon/$ simple-component))))
 
-(reagent1)
+#?(:cljs (reagent1))

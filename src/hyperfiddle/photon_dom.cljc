@@ -5,7 +5,8 @@
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])
             #?(:cljs [goog.style]))
-  #?(:cljs (:import (goog.events EventType KeyCodes)))
+  #?(:cljs (:import (goog.events EventType KeyCodes)
+                    (goog.dom.animationFrame)))
   #?(:cljs (:require-macros
              [hyperfiddle.photon-dom :refer
               [element fragment div span h1 table thead tbody select option]])))
@@ -187,3 +188,31 @@
 ;(tests
 ;  (options 2 (p/for [] (option id)))
 ;  )
+
+#?(:cljs
+   (deftype Clock [^:mutable ^number raf
+                   ^:mutable callback
+                   terminator]
+     IFn
+     (-invoke [_]
+       (if (zero? raf)
+         (set! callback nil)
+         (do (.cancelAnimationFrame js/window raf)
+             (terminator))))
+     IDeref
+     (-deref [_]
+       (if (nil? callback)
+         (terminator)
+         (set! raf (.requestAnimationFrame js/window callback)))
+       (.now js/Date))))
+
+(def ^:no-doc >clock
+  #?(:cljs
+     (fn [n t]
+       (let [c (->Clock 0 nil t)]
+         (set! (.-callback c)
+           (fn [_] (set! (.-raf c) 0) (n)))
+         (n) c))))
+
+;; The number of milliseconds elapsed since January 1, 1970
+(p/def clock ~>clock)
