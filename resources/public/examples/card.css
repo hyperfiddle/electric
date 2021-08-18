@@ -1,0 +1,25 @@
+body{
+    margin: 30vh 0 50vh 0;
+    color: rgb(31, 41, 55);
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    display: grid;
+    grid-auto-flow: row;
+    align-items: center;
+    grid-gap: 20vh;
+    justify-items: center;
+}
+h1{
+    font-size: 1.75rem;
+}
+a{
+    text-decoration:none;
+    color: #428bca;
+}
+.card{
+    width: 75%;
+}
+.about{
+    text-align: justify;
+    max-width: 75%;
+}
