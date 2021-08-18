@@ -109,4 +109,4 @@
     (photon/binding [dom/parent (dom/by-id "flight-booker")]
       (photon/$ FlightBooker))))
 
-(flight-booker)
+#?(:cljs (flight-booker))

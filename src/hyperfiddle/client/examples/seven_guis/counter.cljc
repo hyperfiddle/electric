@@ -33,7 +33,7 @@
       (let [>count! (state 0)]
         (>count! (photon/$ Counter ~>count!))))))
 
-(counter)
+#?(:cljs (counter))
 
 (comment
   (defmacro rec [binding expr]

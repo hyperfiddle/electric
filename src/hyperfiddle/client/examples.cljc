@@ -1,5 +1,6 @@
 (ns hyperfiddle.client.examples
   (:require
+   [hyperfiddle.client.examples.clock]
    [hyperfiddle.client.examples.reagent1]
    ;; [hyperfiddle.client.examples.reagent2]
    ;; [hyperfiddle.client.examples.reagent3]

@@ -64,4 +64,4 @@
       (when-some [txs (seq ~todo-list)]
         (swap! log cons txs)))))
 
-(todo-mvc)
+#?(:cljs (todo-mvc))

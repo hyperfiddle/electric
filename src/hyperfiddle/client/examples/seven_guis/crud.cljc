@@ -125,11 +125,9 @@
                       {:id 2, :name "Jenson", :surname "Jones"}
                       {:id 3, :name "Lukas",  :surname "Luna"}]})
 
-(defn crud []
-  (let [!state (atom people)]
-    (photon/run
-      (photon/binding [dom/parent (dom/by-id "crud")]
-        (->> (photon/$ CRUD ~(m/eduction (dedupe) (m/watch !state)))
-             (swap! !state assoc :people))))))
-
-(crud)
+#?(:cljs
+   (let [!state (atom people)]
+     (photon/run
+       (photon/binding [dom/parent (dom/by-id "crud")]
+         (->> (photon/$ CRUD ~(m/eduction (dedupe) (m/watch !state)))
+           (swap! !state assoc :people))))))
