@@ -194,6 +194,17 @@
   ([_ _ _ & args]
    (apply ignore args)))
 
+(defn globals [program]
+  (->> (tree-seq coll? seq program)
+       (eduction (comp (filter vector?)
+                       (filter (fn [[a _]] (= :global a)))
+                       (map second)
+                       (distinct)))
+       (sort-by (juxt namespace name))))
+
+(defn missing-exports [env program]
+  (map symbol (remove env (globals program))))
+
 (def eval
   (let [slots (u/local)
         init {:input 0 :target 0 :signal 0 :output 0 :constant 0}]
@@ -236,7 +247,8 @@
                               (let [x (get resolve (first args))]
                                 (fn [_ _ _] (steady x)))
                               (throw (ex-info (str "Unable to resolve - "
-                                                (symbol (first args))) {})))
+                                                   (symbol (first args)))
+                                              {:missing-exports (missing-exports resolve insts)})))
                     :literal (let [x (first args)]
                                (fn [_ _ _] (steady x)))
                     :constant (let [[f {i :input t :target s :signal}]
