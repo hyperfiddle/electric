@@ -3,33 +3,7 @@
     <head>
         <meta charset="utf-8"/>
         <title>Examples</title>
-        <style>
-         body{
-             margin: 30vh 0 50vh 0;
-             color: rgb(31, 41, 55);
-             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-             font-size: 16px;
-             display: grid;
-             grid-auto-flow: row;
-             align-items: center;
-             grid-gap: 20vh;
-             justify-items: center;
-         }
-         h1{
-             font-size: 1.75rem;
-         }
-         a{
-             text-decoration:none;
-             color: #428bca;
-         }
-         .card{
-             width: 75%;
-         }
-         .about{
-             text-align: justify;
-             max-width: 75%;
-         }
-        </style>
+        <link rel="stylesheet" href="card.css" type="text/css" media="screen" />
     </head>
     <body>
 
@@ -179,17 +153,5 @@
         <script type="text/javascript" src="./js/shared.js"></script>
         <script type="text/javascript" src="./js/main.js"></script>
 
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/12.2.0/markdown-it.min.js" integrity="sha512-cTQeM/op796Fp1ZUxfech8gSMLT/HvrXMkRGdGZGQnbwuq/obG0UtcL04eByVa99qJik7WlnlQOr5/Fw5B36aw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-        <script type="text/javascript">
-         let md = markdownit();
-         document.querySelectorAll(".about").forEach((e)=>{
-             e.innerHTML = md.render(e.innerHTML.replaceAll(/\ +/ig, " "));
-         });
-
-         document.querySelectorAll("h1").forEach((e) => {
-             var text = e.innerText;
-             e.innerHTML = `<a id="${text}" href="#${text}">${text}</a>`;
-         });
-        </script>
     </body>
 </html>

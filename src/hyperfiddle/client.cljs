@@ -1,12 +1,10 @@
 (ns hyperfiddle.client
-  (:require [missionary.core :as m]
+  (:require [dev]
+            [hfdl.lang :as p]
             [hyperfiddle.common.transit :as transit]
-            [hyperfiddle.todomvc :as t]
-            [hyperfiddle.api :as h]
-            [dev]
             [hyperfiddle.photon-dom :as dom]
-            [hfdl.lang :as p])
-  (:require-macros))
+            [missionary.core :as m]
+            [hyperfiddle.router :as r]))
 
 ;; TODO reconnect on failures
 (def connect
@@ -46,9 +44,5 @@
       (m/? ((writer ws) s))
       (m/? (c (writer ws) (reader ws))))))
 
-(def root (js/document.getElementById "hf-ui-dev-root"))
-
-(p/def hello-world (dom/set-text-content! root (str "hello " ~@~(m/watch h/info) " !")))
-
 (def ^:export main
-  (client (p/main (p/binding [dom/parent root] ~t/app))))
+  (client (p/main (p/binding [dom/parent (dom/by-id "hf-ui-dev-root")] ~r/router))))
