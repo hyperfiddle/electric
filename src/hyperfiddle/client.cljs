@@ -6,6 +6,8 @@
             [missionary.core :as m]
             [hyperfiddle.router :as r]))
 
+(def ^:export LATENCY 0)
+
 ;; TODO reconnect on failures
 (def connect
   (fn [s f]
@@ -22,7 +24,7 @@
     (fn [s f]
       (try
         (js/console.log "🔼" x)
-        (.send ws (transit/encode x))
+        (js/setTimeout #(.send ws (transit/encode x)) LATENCY)
         (s nil)
         (catch :default e
           (js/console.error e)
@@ -33,9 +35,10 @@
   (m/observe
     (fn [!]
       (set! (.-onclose ws) (fn [x] (js/console.log x)))
-      (set! (.-onmessage ws) (fn [x] (! (let [decoded (transit/decode (.-data x))]
-                                         (js/console.log "🔽" decoded)
-                                         decoded))))
+      (set! (.-onmessage ws) (fn [x] (js/setTimeout #(! (let [decoded (transit/decode (.-data x))]
+                                                          (js/console.log "🔽" decoded)
+                                                          decoded))
+                                                    LATENCY)))
       #(set! (.-onmessage ws) nil))))
 
 (defn client [[c s]]
