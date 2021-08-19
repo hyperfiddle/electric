@@ -37,8 +37,7 @@
                                 :scheme "http"})))
   (http/stop server)
   (shadow/compile :app)
-  (reset! h/info "world")
-  (reset! t/log nil)
+
   ; load the effects
   ;(require 'dustin.fiddle-pages)
 

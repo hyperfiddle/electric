@@ -9,7 +9,7 @@
                     (goog.dom.animationFrame)))
   #?(:cljs (:require-macros
              [hyperfiddle.photon-dom :refer
-              [element fragment div span h1 table thead tbody select option]])))
+              [element fragment div span h1 table thead tbody select option pick]])))
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
@@ -216,6 +216,13 @@
 
 ;; The number of milliseconds elapsed since January 1, 1970
 (p/def clock ~>clock)
+
+(def first-or (partial m/reduce (comp reduced {})))
+
+(defmacro pick "head for flows. return first or nothing. Note that in Clojure you can't
+return nothing (you return nil) but in flows nothing is different than nil." [>f]
+  `(let [x# (m/? (first-or ::empty ~>f))]
+     (case x# ::empty (m/amb>) x#)))
 
 (defn state [init-value]
   (let [!state (atom init-value)
