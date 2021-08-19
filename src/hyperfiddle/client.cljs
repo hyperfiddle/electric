@@ -24,7 +24,7 @@
     (fn [s f]
       (try
         (js/console.log "🔼" x)
-        (js/setTimeout #(.send ws (transit/encode x)) LATENCY)
+        (js/setTimeout #(.send ws (transit/encode x)) (/ LATENCY 2))
         (s nil)
         (catch :default e
           (js/console.error e)
@@ -38,7 +38,7 @@
       (set! (.-onmessage ws) (fn [x] (js/setTimeout #(! (let [decoded (transit/decode (.-data x))]
                                                           (js/console.log "🔽" decoded)
                                                           decoded))
-                                                    LATENCY)))
+                                                    (/ LATENCY 2))))
       #(set! (.-onmessage ws) nil))))
 
 (defn client [[c s]]
