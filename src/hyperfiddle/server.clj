@@ -79,8 +79,6 @@
 (defn start! [task]
   (task prn u/pst))
 
-(def env (merge p/exports dom/exports t/exports h/exports temperature/exports))
-
 ;; to boot a distributed photon app
 ;; p/main is expanded on cljs side, returns a pair
 ;; first element is the compiled client version
@@ -100,7 +98,9 @@
                  (m/sp
                    (let [program (m/? (str->edn (m/? read-str)))
                          _ (prn :got-program program)
-                         bootfn (p/eval env program)]
+                         bootfn (p/eval (merge p/exports h/exports dom/exports
+                                          temperature/exports
+                                          t/exports) program)]
                      (prn :booting-reactor)
                      (m/? (bootfn (edn-writer remote) (edn-reader read-str))))))))})
 
