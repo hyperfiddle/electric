@@ -4,7 +4,8 @@
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
             [hyperfiddle.todomvc :as t]
-            [hyperfiddle.examples.seven-guis.counter :as counter])
+            [hyperfiddle.examples.seven-guis.counter :as counter]
+            [hyperfiddle.examples.seven-guis.temperatures :as temperature])
   #?(:cljs (:require-macros [hyperfiddle.router :refer [router hello-world]])))
 
 
@@ -21,6 +22,7 @@
                              (dom/option (dom/attribute "value" "hello-world") (dom/text "Hello World"))
                              (dom/option (dom/attribute "value" "counter") (dom/text "Counter"))
                              (dom/option (dom/attribute "value" "todomvc") (dom/text "TodoMVC"))
+                             (dom/option (dom/attribute "value" "temperature") (dom/text "Temperature"))
                              ~(->> (dom/events dom/parent "change")
                                    (m/eduction (map dom/target-value))
                                    (m/reductions {} nil)
@@ -42,4 +44,5 @@
                  "hello-world" ~hello-world
                  "todomvc"     ~t/app
                  "counter"     ~counter/counter
+                 "temperature" ~temperature/temperature
                  nil))))

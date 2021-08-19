@@ -9,6 +9,7 @@
                                      :infer-externs         :auto
                                      :js-options            {:variable-renaming :off}
                                      :anon-fn-naming-policy :unmapped}
+                  :build-options    {:cache-level :jars} ;; Recompile everything but jars.
                   :output-dir       "resources/public/js"
                   :asset-path       "/assets/js"
                   :modules          {:shared         {:entries [;; HACK: Shadow should take care of it,

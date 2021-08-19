@@ -17,7 +17,8 @@
     [hfdl.lang :as p]
     [hyperfiddle.todomvc :as t]
     [hyperfiddle.api :as h]
-    [hyperfiddle.photon-dom :as dom])
+    [hyperfiddle.photon-dom :as dom]
+    [hyperfiddle.examples.seven-guis.temperatures :as temperature])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)))
 
@@ -78,7 +79,7 @@
 (defn start! [task]
   (task prn u/pst))
 
-(def env (merge p/exports dom/exports t/exports h/exports))
+(def env (merge p/exports dom/exports t/exports h/exports temperature/exports))
 
 ;; to boot a distributed photon app
 ;; p/main is expanded on cljs side, returns a pair
