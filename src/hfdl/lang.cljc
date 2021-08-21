@@ -18,8 +18,7 @@ of this var to the value currently bound to this var.
 " [& forms] (c/vars &env forms))
 
 (def exports
-  (vars hash-map vector list concat seq sort into first inc dec + - / * swap! cons sorted-map keys comp remove filter
-    count map constantly
+  (vars hash-map vector list concat seq sort into first inc dec + - / * swap! cons sorted-map keys comp remove filter map constantly str coll? empty list? map? nth partial rfor r/steady count
     m/eduction m/reductions m/relieve m/watch))
 
 (def eval "Takes a resolve map and a program, returns a booting function.
@@ -104,7 +103,7 @@ Takes a photon program and returns a pair
 (defmacro run2 "test entrypoint, 2-peer loopback system"
   [vars & body]
   `(let [dispose# ((local2 ~vars ~@body)
-                   (cc/fn [_#] #_(prn ::finished)) u/pst)]
+                  (cc/fn [_#] #_(prn ::finished)) u/pst)]
      dispose#))
 
 (cc/defn boot [f d]
