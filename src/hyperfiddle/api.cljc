@@ -1,8 +1,9 @@
 (ns hyperfiddle.api
   (:require [datascript.core :as d]
             [hyperfiddle.rcf :refer [tests]]
-            [hfdl.lang :as photon :refer [vars]]
-            [missionary.core :as m]))
+            [hfdl.lang :as p :refer [vars]]
+            [missionary.core :as m])
+  #?(:cljs (:require-macros [hyperfiddle.api :refer [entity attribute value a]])))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 (def ^:dynamic *route*)                                     ; cljs
@@ -38,9 +39,6 @@
      #_[(.toLowerCase ?needle')]
      #_[(clojure.string/includes? ?v' ?needle')]
      [(clojure.string/includes? ?v' ?needle')]]])
-
-;; HTML <a> used in HFQL
-(photon/def a nil)
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; Semantic Types ;;
@@ -84,10 +82,31 @@
 
 (def info (atom "hyperfiddle"))
 
-(def exports (vars rules ->Link info))
+;; HTML <a> used in HFQL
+(p/def a nil)
+
+(p/def entity)
+(p/def attribute)
+(p/def value)
+
+;; Default behavior. Join all reachable points.
+(p/def render #'(if a
+                  (->Link a ~value)
+                  (let [v ~value]
+                    (prn "RENDER >" v)
+                    (doto
+                        (cond
+                          (map? v)  (into {} (p/for [[k v] v] [k ~v]))
+                          (list? v) (p/for [v v] ~v)
+                          (coll? v) (into (empty v) (p/for [v v] ~v))
+                          :else     v)
+                      (->> (prn "RENDER  <"))))))
+
+(p/def props)
 
 ; todo rename wrap, it's sideeffect-fn to fn-returning-flow
-(defn wrap [f] (fn [& args] (m/ap (m/? (m/via m/blk (apply f args))))))
+(defn wrap [f] (fn [& args] #?(:clj (m/ap (m/? (m/via m/blk (apply f args))))
+                               :cljs (m/ap (apply f args))))) ; m/via not supported in cljs
 
 (def q (wrap (fn [query & args]
                (apply prn :q query args)
@@ -101,3 +120,12 @@
 (def nav (wrap (fn [ref & kfs]
                  (apply prn :nav ref kfs)
                  (doto (apply nav! *$* ref kfs) prn))))
+
+(tests
+  (nav! *$* 9 :dustingetz/email)
+  := "alice@example.com"
+
+  (m/? (m/reduce conj (nav 9 :dustingetz/email)))
+  := ["alice@example.com"])
+
+(def exports (vars rules ->Link info q nav))

@@ -45,7 +45,7 @@
   )
 
 (defn set-text-content! [e t]
-  #?(:cljs (d/setTextContent e t)))
+  #?(:cljs (d/setTextContent e (str t))))
 
 (defn create-text [parent]
   #?(:cljs
@@ -88,6 +88,7 @@
 (defmacro table [& body] `(element :table ~@body))
 (defmacro tr [& body] `(element :tr ~@body))
 (defmacro td [& body] `(element :td ~@body))
+(defmacro th [& body] `(element :th ~@body))
 
 (defmacro thead [& body]
   `(element :thead ~@body))
