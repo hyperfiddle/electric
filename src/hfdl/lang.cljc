@@ -94,8 +94,8 @@ Takes a photon program and returns a pair
          server# (r/eval ~vars server#)
          c->s# (m/rdv)
          s->c# (m/rdv)
-         ServerReactor# (server# (-> s->c# #_(u/log-args 'r->l)) (u/poll c->s#))
-         ClientReactor# (client# (-> c->s# #_(u/log-args 'l->r)) (u/poll s->c#))
+         ServerReactor# (server# s->c# (m/sp (m/? (m/sleep 10 (m/? c->s#)))))
+         ClientReactor# (client# c->s# (m/sp (m/? (m/sleep 10 (m/? s->c#)))))
          Reactors# (m/join {} ServerReactor# ClientReactor#)]
      Reactors#))
 
@@ -104,7 +104,7 @@ Takes a photon program and returns a pair
   [& body]
   ; use compiler (client) because no need for exports
   `(let [[client# server#] (main ~@body)
-         Reactor# (client# (constantly (m/sp)) m/none)]
+         Reactor# (client# (constantly (m/sp)) m/never)]
      Reactor#))
 
 (defmacro run "test entrypoint, single process" [& body]
@@ -114,9 +114,9 @@ Takes a photon program and returns a pair
 
 (defmacro run2 "test entrypoint, 2-peer loopback system"
   [vars & body]
-  `(let [dispose ((local2 vars ~@body)
-                  (cc/fn [_#] #_(prn ::finished)) u/pst)]
-     dispose))
+  `(let [dispose# ((local2 ~vars ~@body)
+                   (cc/fn [_#] #_(prn ::finished)) u/pst)]
+     dispose#))
 
 (cc/defn boot [f d]
   (cc/fn []

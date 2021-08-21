@@ -115,7 +115,7 @@
        (aget slot)))))
 
 (defn peer [nodes inputs targets signals boot]
-  (fn [write >read]
+  (fn [write ?read]
     (m/reactor
       (let [ctx (doto (object-array 8)
                   (aset (int 0) (m/mbx))
@@ -127,7 +127,7 @@
                   (aset (int 6) {0 (object-array signals)})
                   (aset (int 7) (vec (repeat nodes nil))))]
         (m/stream! (boot ctx))
-        (->> >read
+        (->> (u/poll ?read)
           (m/stream!)
           (m/eduction
             (map (fn [x]

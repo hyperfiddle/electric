@@ -8,44 +8,45 @@
 
 (def ^:export LATENCY 0)
 
+(defn delayed [task]
+  (m/sp (m/? (m/sleep (/ LATENCY 2))) (m/? task)))
+
 ;; TODO reconnect on failures
-(def connect
+(defn connect [cb]
   (fn [s f]
-    (let [socket (new js/WebSocket (str "ws://" (.. js/document -location -host) "/ws"))
-          clean! (fn []
-                   (set! (.-onerror socket) nil)
-                   (set! (.-onopen socket) nil))]
-      (set! (.-onopen socket) (fn [_] (clean!) (s socket)))
-      (set! (.-onerror socket) (fn [err] (clean!) (f err))))
+    (let [socket (new js/WebSocket (str "ws://" (.. js/document -location -host) "/ws"))]
+      (set! (.-onopen socket)
+        (fn [_]
+          (set! (.-onopen socket) nil)
+          (set! (.-onerror socket) nil)
+          (set! (.-onclose socket) js/console.log)
+          (set! (.-onmessage socket)
+            #(let [decoded (transit/decode (.-data %))]
+               (js/console.log "🔽" decoded)
+               (cb decoded)))
+          (s (fn [x]
+               (fn [s f]
+                 (try
+                   (js/console.log "🔼" x)
+                   (.send socket (transit/encode x))
+                   (s nil)
+                   (catch :default e
+                     (js/console.error e)
+                     (f e)))
+                 #())))))
+      (set! (.-onerror socket)
+        (fn [err]
+          (set! (.-onopen socket) nil)
+          (set! (.-onerror socket) nil)
+          (f err))))
     #(prn :TODO-CANCEL-WS-CONNECT)))
-
-(defn writer [ws]
-  (fn [x]
-    (fn [s f]
-      (try
-        (js/console.log "🔼" x)
-        (js/setTimeout #(.send ws (transit/encode x)) (/ LATENCY 2))
-        (s nil)
-        (catch :default e
-          (js/console.error e)
-          (f e)))
-      #())))
-
-(defn reader [ws]
-  (m/observe
-    (fn [!]
-      (set! (.-onclose ws) (fn [x] (js/console.log x)))
-      (set! (.-onmessage ws) (fn [x] (js/setTimeout #(! (let [decoded (transit/decode (.-data x))]
-                                                          (js/console.log "🔽" decoded)
-                                                          decoded))
-                                                    (/ LATENCY 2))))
-      #(set! (.-onmessage ws) nil))))
 
 (defn client [[c s]]
   (m/sp
-    (let [ws (m/? connect)]
-      (m/? ((writer ws) s))
-      (m/? (c (writer ws) (reader ws))))))
+    (let [m (m/mbx)
+          w (m/? (connect m))]
+      (m/? (w s))
+      (m/? (c (comp delayed w) (delayed m))))))
 
 (def ^:export main
   (client (p/main (p/binding [dom/parent (dom/by-id "hf-ui-dev-root")] ~r/router))))
