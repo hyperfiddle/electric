@@ -712,7 +712,5 @@
 
 (tests
   (r/def foo nil)
-  (r/run2 {} (! (r/binding [foo 1] ~@ ~ #' ~@ foo)))
+  (r/run2 {} (! (r/binding [foo 1] ~@~#'~@foo)))
   % := 1)
-
-
