@@ -700,3 +700,12 @@
   (def dispose (r/run (let [_ (! :boom)])))
   % := ::rcf/timeout
   (dispose))
+
+(tests
+  (r/run2 {} (! ~@~@1))
+  % := 1)
+
+(tests
+  (r/def foo nil)
+  (r/run2 {} (prn (r/binding [foo 1] ~@~@foo)))
+  % := 1)

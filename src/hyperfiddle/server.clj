@@ -70,12 +70,6 @@
                 (log/error (ex-info "Failed to decode" {:value x} t))
                 (throw t)))))
 
-(defn edn-reader [x]
-  (m/ap (m/? (str->edn (m/? (m/?> (m/seed (repeat x))))))))
-
-(defn edn-writer [remote]
-  (fn [x] (m/sp (m/? (ws/write-str remote (m/? (edn->str x)))))))
-
 (defn start! [task]
   (task prn u/pst))
 
@@ -94,15 +88,17 @@
                (start! (m/sp (loop [] (m/? (ws/write-str remote (m/? read-str))) (recur))))))
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
-               (start!
-                 (m/sp
-                   (let [program (m/? (str->edn (m/? read-str)))
-                         _ (prn :got-program program)
-                         bootfn (p/eval (merge p/exports h/exports dom/exports
-                                          temperature/exports
-                                          t/exports) program)]
-                     (prn :booting-reactor)
-                     (m/? (bootfn (edn-writer remote) (edn-reader read-str))))))))})
+               (let [?read (m/sp (m/? (str->edn (m/? read-str))))
+                     write #(m/sp (m/? (ws/write-str remote (m/? (edn->str %)))))]
+                 (start!
+                   (m/sp
+                     (let [program (m/? ?read)
+                           _ (prn :got-program program)
+                           bootfn (p/eval (merge p/exports h/exports dom/exports
+                                            temperature/exports
+                                            t/exports) program)]
+                       (prn :booting-reactor)
+                       (m/? (bootfn write ?read))))))))})
 
 (defn gzip-handler [& methods]
   (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))
