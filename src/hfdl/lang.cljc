@@ -37,7 +37,7 @@ Takes a photon program and returns a pair
 * the second item is the remote program.
 " [& body]
   (-> (c/analyze &env (cons 'do body))
-    (update 0 (partial c/emit (comp symbol (partial str (gensym) '-))))
+    (update 0 (partial apply c/emit (comp symbol (partial str (gensym) '-))))
     (update 1 (partial list 'quote))))
 
 (defmacro binding [bindings & body]
