@@ -91,7 +91,7 @@ Takes a photon program and returns a pair
   "2-peer loopback system with transfer. Returns boot task"
   [vars & body]
   `(let [[client# server#] (main ~@body)
-         server# (r/eval ~vars server#)
+         server# (apply r/eval ~vars server#)
          c->s# (m/rdv)
          s->c# (m/rdv)
          ServerReactor# (server# s->c# (m/sp (m/? (m/sleep 10 (m/? c->s#)))))
