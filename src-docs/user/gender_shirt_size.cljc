@@ -49,6 +49,18 @@
           (hyperfiddle.api/needle-match ?email ?needle)]
        hf/rules (or needle ""))))
 
+(s/fdef submissions :args (s/cat :needle string?)
+        :ret (s/coll-of (s/keys :req [:dustingetz/email
+                                      :dustingetz/email1
+                                      :dustingetz/gender
+                                      :dustingetz/shirt-size])))
+
+(p/defn submission [needle] (first (p/$ submissions needle)))
+
+(tests
+  (hfdl.lang/run (! (p/$ user.gender-shirt-size/submission "")))
+  %)
+
 (s/fdef submissions :args (s/cat :needle string?) :ret sequential?)
 
 (tests
