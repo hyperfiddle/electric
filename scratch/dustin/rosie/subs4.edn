@@ -1,0 +1,55 @@
+(p/defn foo [e]
+  (hf/input (:sub/name ~e)))
+
+(p/defn sub-display-render [e]
+  (dom/h1 "Sub:" ~@(d/q)))
+
+(def sub-display
+  (merge
+    (hf/router
+      {((sub-display {?sub [suber-name]}) #_#_::hf/render sub-display-render)
+       [:db/id
+        :google/email
+        {:school/_sub []}
+        '(sub-requests ?sub)
+        '(sub-feedback ?sub)
+
+        {((school-requested-block
+            {?sub [suber-name]}
+            {(?school
+               ::hf/render picklist
+               ::hf/options (school-picklist ?needle))
+             [:school/name :school/id]}
+            ?block-reason
+            ?mode
+            ?penalize)
+          ::hf/render modal-anchor)
+         []}
+
+
+
+        ]})
+
+    (hf/router
+      {
+
+       (sub-requests ?sub)
+       []
+
+       (sub-feedback ?sub)
+       []})))
+
+
+
+
+
+
+
+
+
+
+
+
+;{'(sub-display 1234)
+; {:db/id 1234
+;  '(sub-feedback 1234) [1 2 3 4]}}
