@@ -1,0 +1,35 @@
+(hf/router
+  {(sub-display {sub [suber-name]})
+   [(suber-name sub)
+    :sub/id
+    :db/id
+    '(sub-requests sub)
+    ('(school-requested-block
+        {sub [:sub/id]}
+        {(school
+           ::hf/render picklist
+           ::hf/options (school-picklist needle)
+           ::hf/option-label :school/name)
+         [:school/id :school/name]}
+        {(block-reason
+           ::hf/render picklist
+           ::hf/options (event-reason-codes-picklist needle)
+           ::hf/option-label (comp name :db/ident))
+         [:db/ident]}
+        (block-mode
+          ::hf/render checkbox-picker
+          ::hf/default (or block-mode :force-cancel)
+          ::hf/options (unlink-mode-options #_block-mode)
+          ::hf/option-label (let [wide {:style {:display "inline-block" :width "12em"}}]
+                              {:force-cancel      (dom/span (dom/span wide ":force-cancel") "Cancel all the sub's existing commitment at this school")
+                               :leave-commitments (dom/span (dom/span wide ":leave-commitments") "Don’t cancel sub's existing commitments")}))
+        (penalize
+          ::hf/default (if (some penalize) penalize false)))
+      ::hf/prompt render-school-requested-block
+      ::hf/tx [(suber2.web.cmd/school-requested-block' school sub block-mode block-reason penalize)])
+    ((sub-tags sub) ::hf/options (all-tags (needle ::hf/default (or needle ""))))
+    ((sub-locations sub) ::hf/options (all-locations (needle ::hf/default (or needle ""))))
+    {(:school/_subs
+       ::hf/render ...
+       ::hf/options (sub-schools-picker-options needle))
+     [:school/id :school/name]}]})

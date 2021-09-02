@@ -1,0 +1,64 @@
+(hfql
+  {(sub-display .)
+   [:sub/id
+    :db/id
+    (suber-name db/id)
+    '(sub-requests sub)
+    {(:school/_subs ::hf/options (sub-schools-picker-options .))
+     [:school/id :school/name]}]})
+
+(let []
+  (hfql
+    {(sub-display sub)
+     [(suber-name sub)
+      '(sub-requests sub)
+      {(:school/_subs ::hf/options (sub-schools-picker-options needle))
+       [:school/id :school/name]}]}))
+
+
+
+(tests
+  (let []
+    (hfql
+      {(sub-display {sub [:db/id]})
+       [(suber-name sub)
+        '(sub-requests sub)
+        {(:school/_subs ::hf/options (sub-schools-picker-options needle))
+         [:school/id :school/name]}]}))
+  :=
+
+  )
+
+(hfql
+  {(submissions needle)
+   [(:db/id ::hf/a (submission id))
+    :dustingetz/email
+    {(:dustingetz/gender ::hf/options (genders)) [:db/ident]}
+    {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender needle2)) [:db/ident]}]})
+
+(s/fdef submission :args (s/cat :e ref?))
+(p/defn submission [e] e)
+
+(tests
+  (hfql
+    {(submission {(e ::hf/render ...)
+                  [:db/id :dustingetz/email]} #_{e [:db/id :dustingetz/email]})
+     [:db/id
+      :dustingetz/email
+      {(:dustingetz/gender ::hf/options (genders)) [:db/ident]}
+      {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender needle2)) [:db/ident]}]})
+
+  := {^{::hf/view-defaults [^{} []
+                            {:db/id 9 :dustingetz/email "alice@example.com"}]}
+      '(submission {e [:db/id :dustingetz/email]})
+      #:dustingetz{:db/id      9
+                   :email      "alice@example.com",
+                   :gender     ^{::hf/options [#:db{:ident :dustingetz/male}
+                                               #:db{:ident :dustingetz/female}]}
+                               {:db/ident :dustingetz/female}
+                   :shirt-size ^{::hf/options [#:db{:ident :dustingetz/womens-small}
+                                               #:db{:ident :dustingetz/womens-medium}
+                                               #:db{:ident :dustingetz/womens-large}]}
+                               {:db/ident :dustingetz/womens-large}}}
+
+  )
