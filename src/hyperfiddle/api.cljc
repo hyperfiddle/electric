@@ -1,9 +1,9 @@
 (ns hyperfiddle.api
   (:require [datascript.core :as d]
-            [hyperfiddle.rcf :refer [tests]]
+            [hyperfiddle.rcf :refer [tests ! %]]
             [hfdl.lang :as p :refer [vars]]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.api :refer [entity attribute value a]])))
+  #?(:cljs (:require-macros [hyperfiddle.api :refer [entity attribute value a sequenceM]])))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 (def ^:dynamic *route*)                                     ; cljs
@@ -82,27 +82,37 @@
 
 (def info (atom "hyperfiddle"))
 
-;; HTML <a> used in HFQL
-(p/def a nil)
-
 (p/def entity)
 (p/def attribute)
 (p/def value)
 
-;; Default behavior. Join all reachable points.
-(p/def render #'(if a
-                  (->Link a ~value)
-                  (let [v ~value]
-                    (prn "RENDER >" v)
-                    (doto
-                        (cond
-                          (map? v)  (into {} (p/for [[k v] v] [k ~v]))
-                          (list? v) (p/for [v v] ~v)
-                          (coll? v) (into (empty v) (p/for [v v] ~v))
-                          :else     v)
-                      (->> (prn "RENDER  <"))))))
+(p/def columns [])
 
-(p/def props)
+;; https://hackage.haskell.org/package/base-4.15.0.0/docs/Control-Monad.html#v:sequence
+(p/def sequenceM #'(let [v ~value]
+                     (cond
+                       (map? v)  (into {} (p/for [[k v] v] [k ~v]))
+                       (list? v) (p/for [v v] ~v)
+                       (coll? v) (into (empty v) (p/for [v v] ~v))
+                       :else     v)))
+
+(tests
+  (p/run (! (binding [value #'[#'1 #'2 #'3]]
+              ~sequenceM)))
+  % := [1 2 3])
+
+(tests
+  (p/run (! (binding [value #'(list #'1 #'2 #'3)]
+              ~sequenceM)))
+  % := '(1 2 3))
+
+(p/def render sequenceM)
+
+(p/def props {})
+(p/def args  {})
+
+;;  HTML <a> used in old HFQL
+(p/def a nil)
 
 ; todo rename wrap, it's sideeffect-fn to fn-returning-flow
 (defn wrap [f] (fn [& args] #?(:clj (m/ap (m/? (m/via m/blk (apply f args))))

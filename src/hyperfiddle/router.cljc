@@ -6,7 +6,7 @@
             [hyperfiddle.todomvc :as t]
             [hyperfiddle.examples.seven-guis.counter :as counter]
             [hyperfiddle.examples.seven-guis.temperatures :as temperature]
-            [user.gender-shirt-size :as submissions])
+            [user.hfql-full :as hfql-full])
   #?(:cljs (:require-macros [hyperfiddle.router :refer [router hello-world]])))
 
 
@@ -47,5 +47,5 @@
                  "todomvc"     ~t/app
                  "counter"     ~counter/counter
                  "temperature" ~temperature/main
-                 "submissions" ~submissions/page-submissions
+                 "submissions" ~hfql-full/page-submissions
                  nil))))

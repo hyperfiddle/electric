@@ -17,8 +17,7 @@
  :aliases {:dev {:extra-paths ["src-dev" "src-docs"
                                "scratch"]                   ; for clj command
                  :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}}
-                 :jvm-opts   ["-Dhyperfiddle.rcf.enabled=true"
-                              "-XX:-OmitStackTraceInFastThrow" ; Don't mess with my stacktraces¹! I need them.
+                 :jvm-opts   ["-XX:-OmitStackTraceInFastThrow" ; Don't mess with my stacktraces¹! I need them.
                               ]}
            :edn-view {:extra-deps {juji/editscript          {:mvn/version "0.5.7"}
                                    borkdude/edamame         {:mvn/version "0.0.11-alpha.29"}
