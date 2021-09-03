@@ -44,7 +44,8 @@
 
 (defn init-datascript []
   (def schema
-    {:dustingetz/email      {#_#_:db/valueType :db.type/string :db/cardinality :db.cardinality/one :db/unique :db.unique/identity}
+    ;; FIXME Datascript doesn’t support :db/valueType, using :hf/valueType in the meantime
+    {:dustingetz/email      {:hf/valueType :db.type/string :db/cardinality :db.cardinality/one :db/unique :db.unique/identity}
      :dustingetz/gender     {#_#_:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
      :dustingetz/shirt-size {#_#_:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
      :dustingetz/type       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}

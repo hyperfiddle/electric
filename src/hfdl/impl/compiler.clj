@@ -345,7 +345,9 @@ is a macro or special form."
                           (analyze-form env desugared-form))))))
                 (analyze-apply env form)))
             (analyze-map [env form]
-              (analyze-form env (cons `hash-map (sequence cat form))))
+              (analyze-form env (if-let [m (meta form)]
+                                  (list `with-meta (cons `hash-map (sequence cat form)) (meta form))
+                                  (cons `hash-map (sequence cat form)))))
             (analyze-set [env form]
               (analyze-form env (cons `hash-set form)))
             (analyze-vector [env form]
@@ -498,6 +500,16 @@ is a macro or special form."
     [:literal 3]]
    [:target [:target [:nop] [:target [:nop] [:source [:nop]]]] [:source [:literal nil]]]]
 
+  )
+
+
+(tests "literals"
+  (analyze {} {:a 1}) := [[:apply [:global :clojure.core/hash-map] [:literal :a] [:literal 1]] [:literal nil]]
+  (analyze {} ^{:b 2} {:a 1}) := [[:apply
+                                   [:global :clojure.core/with-meta]
+                                   [:apply [:global :clojure.core/hash-map] [:literal :a] [:literal 1]]
+                                   [:apply [:global :clojure.core/hash-map] [:literal :b] [:literal 2]]]
+                                  [:literal nil]]
   )
 
 (defn emit-log-failure [form]

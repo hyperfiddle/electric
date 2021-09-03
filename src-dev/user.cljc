@@ -4,9 +4,6 @@
   (:require [hyperfiddle.rcf :refer [tests]]
             [missionary.core :as m]))
 
-#?(:clj  (alter-var-root #'hyperfiddle.rcf/*enabled* (constantly true))
-   :cljs (set! hyperfiddle.rcf/*enabled* true))
-
 ; % yarn
 ; % yarn run css:build
 ; % yarn run css:watch
@@ -25,6 +22,8 @@
 
 (comment
   ; JVM
+  #?(:clj (alter-var-root #'hyperfiddle.rcf/*generate-tests* (constantly false)))
+
   (do
     (require '[dev])
     (require '[hyperfiddle.api :as h])
@@ -37,6 +36,12 @@
                                 :scheme "http"})))
   (http/stop server)
   (shadow/compile :app)
+
+
+  #?(:clj  (alter-var-root #'hyperfiddle.rcf/*enabled* (constantly true))
+     :cljs (set! hyperfiddle.rcf/*enabled* true))
+
+  (clojure.test/run-all-tests #"(hyperfiddle.api|hyperfiddle.q5|user.gender-shirt-size)")
 
   ; load the effects
   ;(require 'dustin.fiddle-pages)

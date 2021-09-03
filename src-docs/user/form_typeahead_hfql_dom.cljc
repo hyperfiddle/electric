@@ -66,7 +66,7 @@
        ;; ⚠ run2 uses synchronous rdvs. ~@~@ happens in a single propagation frame.
        ;;   We need to change run2 such that it introduces asynchrony to make sure
        ;;   both ~@ and ~@ happens in different frames.
-       (p/run2 {} (! (p/binding [foo 1] ~@ ~@ foo)))
+       (p/run2 {} (! (binding [foo 1] ~@ ~@ foo)))
        % := 1)
      ))
 
