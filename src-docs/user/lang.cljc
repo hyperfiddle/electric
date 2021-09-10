@@ -230,7 +230,7 @@
 (tests
   "binding"
   (r/def foo 1)
-  (def dispose (r/run (! (r/binding [foo 2] foo))))
+  (def dispose (r/run (! (binding [foo 2] foo))))
   % := 2
   (dispose))
 
@@ -246,7 +246,7 @@
 (tests
   "join captures dynamic scope"
   (r/def foo 1)
-  (def dispose (r/run (! (let [q #'foo] (r/binding [foo 2] ~q)))))
+  (def dispose (r/run (! (let [q #'foo] (binding [foo 2] ~q)))))
   % := 2
   (dispose))
 
@@ -254,7 +254,7 @@
   "if with bindings"
   (def !a (atom true))
   (r/def foo 1)
-  (def dispose (r/run (! (r/binding [foo 2] (if ~(m/watch !a) foo (- foo))))))
+  (def dispose (r/run (! (binding [foo 2] (if ~(m/watch !a) foo (- foo))))))
   % := 2
   (swap! !a not)
   % := -2
@@ -264,7 +264,7 @@
   "if with unwinding binding"
   (def !a (atom true))
   (r/def foo 1)
-  (def dispose (r/run (! ~(r/binding [foo 2] #'(if ~(m/watch !a) foo (- foo))))))
+  (def dispose (r/run (! ~(binding [foo 2] #'(if ~(m/watch !a) foo (- foo))))))
   % := 1
   (swap! !a not)
   % := -1
@@ -310,7 +310,7 @@
 
   (def !items (atom ["a"]))
   (r/def foo 0)
-  (r/run (r/binding [foo 1]
+  (r/run (binding [foo 1]
            (r/for [item ~(m/watch !items)]
              (! foo)
              item)))
@@ -633,8 +633,8 @@
   (r/def foo')
   (def !x (atom 0))
   (def dispose (r/run (! (let [x ~(m/watch !x)]
-                           (r/binding [foo #'(inc x)
-                                       foo' (r/fn [] (inc x))]
+                           (binding [foo #'(inc x)
+                                     foo' (r/fn [] (inc x))]
                              [~foo (r/$ foo')])))))            ; omg
   % := [1 1]
   (swap! !x inc)
@@ -654,12 +654,12 @@
   "dynamic scope (note that try/catch has the same structure)"
   (r/def db)
   (r/defn foo [] db)
-  (def dispose (r/run (! (r/binding [db ::inner] (r/$ foo)))))
+  (def dispose (r/run (! (binding [db ::inner] (r/$ foo)))))
   % := ::inner
   (dispose)
 
-  (def dispose (r/run (! (r/binding [db ::outer]
-                           (let [nf (r/binding [db ::inner]
+  (def dispose (r/run (! (binding [db ::outer]
+                           (let [nf (binding [db ::inner]
                                       (r/fn [] (r/$ foo)))]     ; binding out of scope
                              (r/$ nf))))))
   % := ::outer
@@ -707,17 +707,16 @@
 
 (tests
   (r/def foo nil)
-  (r/run2 {} (! (r/binding [foo 1] ~@~@foo)))
+  (r/run2 {} (! (binding [foo 1] ~@~@foo)))
   % := 1)
 
 (tests
   (r/def foo nil)
-  (r/run2 {} (! (r/binding [foo 1] ~@~#'~@foo)))
+  (r/run2 {} (! (binding [foo 1] ~@~#'~@foo)))
   % := 1)
 
 (tests
   (r/def foo nil)
-  (r/def x #'~@foo)
-  (r/run2 {} (! (r/binding [foo 1] ~@~x)))
+  (r/def bar #'~@foo)
+  (r/run2 {} (! (binding [foo 1] ~@~bar)))
   % := 1)
-

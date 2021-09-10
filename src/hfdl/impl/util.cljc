@@ -100,13 +100,36 @@
   (if (:js-globals &env) `(volatile! nil) `(ThreadLocal.)))
 
 (defmacro get-local [l]
-  (if (:js-globals &env) `(deref ~l) `(.get ~l)))
+  (if (:js-globals &env) `(deref ~l) `(.get ~(with-meta l (assoc (meta l) :tag ThreadLocal)))))
 
 (defmacro set-local [l x]
-  (if (:js-globals &env) `(vreset! ~l ~x) `(doto ~x (->> (.set ~l)))))
+  (if (:js-globals &env) `(vreset! ~l ~x) `(doto ~x (->> (.set ~(with-meta l (assoc (meta l) :tag ThreadLocal)))))))
 
 (defmacro with-local [l i & body]
   `(let [prev# (get-local ~l)]
      (set-local ~l ~i)
      (try [(do ~@body) (get-local ~l)]
           (finally (set-local ~l prev#)))))
+
+(defn bind-cb [local value cb]
+  #(let [prev (get-local local)]
+     (set-local local value)
+     (try (cb) (finally (set-local local prev)))))
+
+(defn bind-flow [local value flow]
+  (fn [n t]
+    (let [prev (get-local local)]
+      (set-local local value)
+      (let [it (flow (bind-cb local value n) (bind-cb local value t))]
+        (set-local local prev)
+        (reify
+          IFn
+          (#?(:clj invoke :cljs -invoke) [_]
+            (let [prev (get-local local)]
+              (set-local local value)
+              (try (it) (finally (set-local local prev)))))
+          IDeref
+          (#?(:clj deref :cljs -deref) [_]
+            (let [prev (get-local local)]
+              (set-local local value)
+              (try @it (finally (set-local local prev))))))))))
