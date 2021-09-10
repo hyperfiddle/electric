@@ -1,5 +1,5 @@
 (ns hfdl.lang
-  (:refer-clojure :exclude [def binding fn for eval defn])
+  (:refer-clojure :exclude [def fn for eval defn])
   (:require [clojure.core :as cc]
             [hfdl.impl.compiler :as c]
             [hfdl.impl.runtime :as r]
@@ -37,17 +37,8 @@ Takes a photon program and returns a pair
 * the second item is the remote program.
 " [& body]
   (-> (c/analyze &env (cons 'do body))
-    (update 0 (partial apply c/emit (comp symbol (partial str (gensym) '-))))
+    (update 0 (partial c/emit (comp symbol (partial str (gensym) '-))))
     (update 1 (partial list 'quote))))
-
-(defmacro binding [bindings & body]
-  (if-some [bindings (seq (partition-all 2 bindings))]
-    (let [locals (repeatedly (count bindings) gensym)
-          [vars exprs] (apply map vector bindings)]
-      `(let [~@(interleave locals exprs)]
-         (unquote ((def ~@vars) ~@(map (partial list 'var)
-                                    (cons (cons 'do body) locals))))))
-    (cons 'do body)))
 
 ;; TODO self-refer
 (defmacro fn [args & body]
@@ -60,11 +51,7 @@ Takes a photon program and returns a pair
 (defmacro defn [sym & rest] `(hfdl.lang/def ~sym (fn ~@rest)))
 
 (defmacro $ [f & args]
-  (->> args
-    (map (partial list 'var))
-    (cons f)
-    (cons (cons 'def (take (count args) c/args)))
-    (list `unquote)))
+  `(binding [~@(interleave c/args args)] (unquote ~f)))
 
 (defmacro for [bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
@@ -91,7 +78,7 @@ Takes a photon program and returns a pair
   "2-peer loopback system with transfer. Returns boot task"
   [vars & body]
   `(let [[client# server#] (main ~@body)
-         server# (apply r/eval ~vars server#)
+         server# (r/eval ~vars server#)
          c->s# (m/rdv)
          s->c# (m/rdv)
          ServerReactor# (server# s->c# (m/sp (m/? (m/sleep 10 (m/? c->s#)))))
