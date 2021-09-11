@@ -1,0 +1,43 @@
+(ns interaction
+  (:require
+    [missionary.core :as m]
+    [hyperfiddle.photon :as p]
+    [hyperfiddle.zero :as z]
+    [hyperfiddle.zero-dom :as dom]))
+
+
+(binding [dom/parent (js/document.getElementById "root")]
+  ; side effect and then
+  ; return an async stream of dom events .e.e.e.
+  (dom/input))
+
+
+; side effect dom/parent in scope,
+; transduce event stream to get the strings typed .v.v.v.
+(z/input)
+
+; mount the field, mount the input inside it with controlled values
+; transduce the events to .eav.eav.eav.
+(z/form dbid
+  (z/field :person/name (z/input "alice"))
+  (z/field :person/age (z/input "50")))
+
+
+(p/defn my-form [dbid]
+  (let [!stage (atom nil)
+        tx (z/form dbid
+             (z/field :person/name (z/input (:person/name (d/entity $ dbid))))
+             (z/field :person/age (z/input (:person/age (d/entity $ dbid))))
+             )
+        save! (button "transact!")]
+    (swap! !stage concat tx)
+     save! tx))
+
+; pseudocode
+; closing the loop
+(def !db (atom (d/db *conn*)))
+(p/run
+  (p/binding [dom/parent (js/document.getElementById "root")]
+    ; my-form is a stream-function from stream-of-db to stream-of-tx
+    (let [tx (my-form ~(m/watch !db))]
+      (swap! !db #(:db-after (d/with % tx))))))             ; loop

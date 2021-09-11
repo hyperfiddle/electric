@@ -27,22 +27,22 @@
 
 
 
-  ;#:dustingetz{:db/id  10
-  ;             :email  "bob@example.com",
-  ;             :gender {:db/ident :dustingetz/male}
-  ;             :shirt-size {:db/ident :dustingetz/mens-small}
-  ;             (shirt-sizes dustingetz/gender needle)
-  ;                     [#:db{:id 3, :ident :dustingetz/mens-small}
-  ;                      #:db{:id 4, :ident :dustingetz/mens-medium}
-  ;                      #:db{:id 5, :ident :dustingetz/mens-large}]}
-  ;#:dustingetz{:db/id  11
-  ;             :email  "charlie@example.com",
-  ;             :gender {:db/ident :dustingetz/male}
-  ;             :shirt-size {:db/ident :dustingetz/mens-large}
-  ;             (shirt-sizes dustingetz/gender needle)
-  ;                     [#:db{:id 3, :ident :dustingetz/mens-small}
-  ;                      #:db{:id 4, :ident :dustingetz/mens-medium}
-  ;                      #:db{:id 5, :ident :dustingetz/mens-large}]}
+  #:dustingetz{:db/id  10
+               :email  "bob@example.com",
+               :gender {:db/ident :dustingetz/male}
+               :shirt-size {:db/ident :dustingetz/mens-small}
+               (shirt-sizes dustingetz/gender needle)
+                       [#:db{:id 3, :ident :dustingetz/mens-small}
+                        #:db{:id 4, :ident :dustingetz/mens-medium}
+                        #:db{:id 5, :ident :dustingetz/mens-large}]}
+  #:dustingetz{:db/id  11
+               :email  "charlie@example.com",
+               :gender {:db/ident :dustingetz/male}
+               :shirt-size {:db/ident :dustingetz/mens-large}
+               (shirt-sizes dustingetz/gender needle)
+                       [#:db{:id 3, :ident :dustingetz/mens-small}
+                        #:db{:id 4, :ident :dustingetz/mens-medium}
+                        #:db{:id 5, :ident :dustingetz/mens-large}]}
   ]
 
  }
