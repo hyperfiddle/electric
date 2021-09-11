@@ -49,4 +49,4 @@
       (m/? (c (comp delayed w) (delayed m))))))
 
 (def ^:export main
-  (client (p/main (p/binding [dom/parent (dom/by-id "hf-ui-dev-root")] ~r/router))))
+  (client (p/main (binding [dom/parent (dom/by-id "hf-ui-dev-root")] ~r/router))))
