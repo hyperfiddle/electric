@@ -8,7 +8,7 @@
             [hfdl.impl.sampler :refer [sampler!]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hfdl.lang :refer [def fn $ binding vars main for local2 debug thread]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [def fn $ vars main for local2 debug thread]])))
 
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol

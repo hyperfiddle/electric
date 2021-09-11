@@ -94,7 +94,7 @@
                    (m/sp
                      (let [program (m/? ?read)
                            _ (prn :got-program program)
-                           bootfn (apply p/eval
+                           bootfn (p/eval
                                     (merge p/exports h/exports dom/exports
                                       temperature/exports t/exports) program)]
                        (prn :booting-reactor)
