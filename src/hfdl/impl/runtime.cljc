@@ -7,7 +7,7 @@
             [missionary.core :as m]))
 
 ;; network protocol
-;; message: [[target-frame target-slot source-frame source-slot] #{frame} {[frame slot] value}]
+;; message: [[[target-frame target-slot source-frame source-slot] ...] #{frame ...} {[frame slot] value ...}]
 ;; frame: zero if root, positive integer if owned by sender, negative integer if owned by receiver
 
 ;; context array
@@ -24,51 +24,54 @@
   (m/observe (fn [!] (! x) u/nop)))
 
 (defn input [context frame slot]
-  (let [inputs (get (aget context (int 4)) frame)]
-    (->> (fn [!] (aset inputs slot !) u/nop)
+  (let [inputs (get (aget ^objects context (int 4)) frame)]
+    (->> (fn [!] (aset ^objects inputs slot !) u/nop)
       (m/observe)
-      (m/relieve {})
-      (m/signal!))))
+      (m/relieve {}))))
 
 (defn allocate [context inputs targets sources signals ctor frame nodes]
-  (aset context (int 4) (assoc (aget context (int 4)) frame (object-array inputs)))
-  (aset context (int 5) (assoc (aget context (int 5)) frame (object-array targets)))
-  (aset context (int 6) (assoc (aget context (int 6)) frame (object-array sources)))
-  (aset context (int 7) (assoc (aget context (int 7)) frame (object-array signals)))
+  (aset ^objects context (int 4) (assoc (aget ^objects context (int 4)) frame (object-array inputs)))
+  (aset ^objects context (int 5) (assoc (aget ^objects context (int 5)) frame (object-array targets)))
+  (aset ^objects context (int 6) (assoc (aget ^objects context (int 6)) frame (object-array sources)))
+  (aset ^objects context (int 7) (assoc (aget ^objects context (int 7)) frame (object-array signals)))
   (ctor frame nodes))
 
 (defn target [inputs targets sources signals ctor context frame slot]
-  (aset (get (aget context (int 5)) frame) slot
+  (aset ^objects (get (aget ^objects context (int 5)) frame) slot
     #(allocate context inputs targets sources signals ctor
-       (aset context (int 3) (dec (aget context (int 3)))) %)))
+       (aset ^objects context (int 3) (dec (aget ^objects context (int 3)))) %)))
 
 (defn source [nodes context frame slot]
-  (aset (get (aget context (int 6)) frame) slot nodes))
+  (aset ^objects (get (aget ^objects context (int 6)) frame) slot nodes))
 
 (defn publish [flow context frame slot]
-  (aset (get (aget context (int 7)) frame) slot (m/signal! flow)))
+  (aset ^objects (get (aget ^objects context (int 7)) frame) slot (m/signal! flow)))
 
 (defn output [flow context frame slot]
-  ((aget context (int 1)) [frame slot flow]))
+  ((aget ^objects context (int 1)) [frame slot flow]))
 
 (defn discard [context frame]
-  (let [signals (get (aget context (int 7)) frame)]
-    (dotimes [i (alength signals)] ((aget signals i))))
-  (aset context (int 4) (dissoc (aget context (int 4)) frame))
-  (aset context (int 5) (dissoc (aget context (int 5)) frame))
-  (aset context (int 6) (dissoc (aget context (int 6)) frame))
-  (aset context (int 7) (dissoc (aget context (int 7)) frame)))
+  (let [signals (get (aget ^objects context (int 7)) frame)]
+    (dotimes [i (alength ^objects signals)] ((aget ^objects signals i))))
+  (aset ^objects context (int 4) (dissoc (aget ^objects context (int 4)) frame))
+  (aset ^objects context (int 5) (dissoc (aget ^objects context (int 5)) frame))
+  (aset ^objects context (int 6) (dissoc (aget ^objects context (int 6)) frame))
+  (aset ^objects context (int 7) (dissoc (aget ^objects context (int 7)) frame)))
 
 (def current (u/local))
 
 (defn constant [inputs targets sources signals ctor context frame slot]
-  (steady (fn [n t]
-            (if-some [v (u/get-local current)]
-              (let [f (aset context (int 2) (inc (aget context (int 2))))]
-                ((aget context (int 0)) [[(into [frame slot] (pop v))] #{} {}])
-                ((allocate context inputs targets sources signals ctor f (peek v))
-                 n #(do (discard context f) ((aget context (int 0)) [[] #{f} {}]) (t))))
-              (u/failer (ex-info "Unable to build frame : not in peer context." {}) n t)))))
+  (steady
+    (fn [n t]
+      (if-some [v (u/get-local current)]
+        (let [f (aset ^objects context (int 2) (inc (aget ^objects context (int 2))))
+              n (u/bind-cb current v n)
+              t (u/bind-cb current v t)]
+          ((aget ^objects context (int 0)) [[(into [frame slot] (pop v))] #{} {}])
+          (try ((allocate context inputs targets sources signals ctor f (peek v))
+                n #(do (discard context f) ((aget ^objects context (int 0)) [[] #{f} {}]) (t)))
+               (catch #?(:clj Throwable :cljs :default) e (u/failer e n t))))
+        (u/failer (ex-info "Unable to build frame : not in peer context." {}) n t)))))
 
 (defn capture [& slots]
   (steady
@@ -81,15 +84,24 @@
             (u/failer (ex-info "Unable to bind : not in peer context." {}) n t)))))))
 
 (defn variable [flow nodes frame slot]
-  (->> flow
-    (m/stream!)                                             ;; TODO cancel this one
-    (m/eduction (dedupe)
-      (map (partial u/bind-flow current [frame slot nodes])))
-    (switch)))
+  (let [v [frame slot nodes]]
+    (->> flow
+      (m/eduction (dedupe)
+        (map (fn [flow]
+               (fn [n t]
+                 (let [prev (u/get-local current)]
+                   (u/set-local current v)
+                   (let [it (flow n t)]
+                     (u/set-local current prev)
+                     (u/bind-iterator current v it)))))))
+      (switch))))
 
 (defn create [context [target-frame target-slot source-frame source-slot]]
-  ((-> context (aget (int 5)) (get (- target-frame)) (aget target-slot))
-   (-> context (aget (int 6)) (get (- source-frame)) (aget source-slot)))
+  (if-some [ctors (get (aget ^objects context (int 5)) (- target-frame))]
+    (if-some [nodes (get (aget ^objects context (int 6)) (- source-frame))]
+      ((aget ^objects ctors target-slot) (aget ^objects nodes source-slot))
+      (println "create on dead source frame :" (- target-frame) target-slot (- source-frame) source-slot))
+    (println "create on dead target frame :" (- target-frame) target-slot (- source-frame) source-slot))
   context)
 
 (defn cancel [context frame]
@@ -97,19 +109,19 @@
   context)
 
 (defn change [context [frame slot] value]
-  (if-some [inputs (get (aget context (int 4)) (- frame))]
-    ((aget inputs slot) value)
-    (println "input on dead frame :" (- frame) slot value))
+  (if-some [inputs (get (aget ^objects context (int 4)) (- frame))]
+    ((aget ^objects inputs slot) value)
+    (println "change on dead frame :" (- frame) slot value))
   context)
 
 (defn peer [inputs targets sources signals boot]
   (fn [write ?read]
     (m/reactor
-      (let [ctx (doto (object-array 8)
+      (let [ctx (doto ^objects (object-array 8)
                   (aset (int 0) (m/mbx))
                   (aset (int 1) (m/mbx))
-                  (aset (int 2) 0)
-                  (aset (int 3) 0)
+                  (aset (int 2) (identity 0))
+                  (aset (int 3) (identity 0))
                   (aset (int 4) {0 (object-array inputs)})
                   (aset (int 5) {0 (object-array targets)})
                   (aset (int 6) {0 (object-array sources)})

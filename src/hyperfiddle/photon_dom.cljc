@@ -39,7 +39,7 @@
              (d/removeNode child)))))))
 
 (defmacro element [type & body]
-  `(p/binding [parent (unquote (create-mount parent node-index ~(name type)))] ~@body))
+  `(binding [parent (unquote (create-mount parent node-index ~(name type)))] ~@body))
 
 (defn set-fragment! [e f]
   ;; TODO

@@ -20,10 +20,11 @@
     (token) (set! (.-token s) token)))
 
 (defn transfer [^Switch s]
-  @(if-some [in (.-sampler s)]
-     (let [it (.-iterator in)]
-       (set! (.-sampler s) it))
-     (.-iterator s)))
+  (try @(if-some [in (.-sampler s)]
+          (let [it (.-iterator in)]
+            (set! (.-sampler s) it))
+          (.-iterator s))
+    (catch :default e (prn :switch-inner-failure) (u/pst e))))
 
 (defn next! [^Switch s it in]
   (when (set! (.-operational s) (not (.-operational s)))
@@ -47,8 +48,8 @@
               (set! (.-sampler s) nil)) (t))
         (let [it (.-iterator s)
               in (->Target nil)]
-          (->> (@it
-                 #(if-some [it (.-iterator in)]
+          (->> ((try @it (catch :default e (prn :switch-outer-failure it) (u/pst e)))
+                #(if-some [it (.-iterator in)]
                     (if (identical? it (.-sampler s))
                       (do (set! (.-sampler s) in)
                           ((.-notifier s)))
