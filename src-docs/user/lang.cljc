@@ -720,3 +720,26 @@
   (r/def bar #'~@foo)
   (r/run2 {} (! (binding [foo 1] ~@~bar)))
   % := 1)
+
+(comment
+  "photon binding transfer"
+  ; Guidance: distribution should not impact the evaluated result of the expr
+  (tests
+    (r/def expr #'x)
+    (r/run2 {} (! (let [x 1] ~@~expr)))
+    % := 1)
+
+  (tests
+    (r/defn expr [x] x)
+    (r/run2 {} (! (let [x 1] ~@(r/$ expr x))))
+    % := 1)
+
+  (tests
+    (r/def expr #'(let [x %0] x))
+    (r/run2 {} (! ~@(binding [%0 1] ~expr)))                ; no binding transfer
+    % := 1)
+
+  (tests
+    (r/def expr #'(let [x %0] x))
+    (r/run2 {} (! (binding [%0 1] ~@~expr)))                ; binding transfer
+    % := 1))
