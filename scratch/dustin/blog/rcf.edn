@@ -1,0 +1,24 @@
+(ns www.202109
+  (:require [hyperfiddle.photon :as p]
+    [hyperfiddle.rcf :as rcf :refer [tests ! %]]
+    [missionary.core :as m]))
+
+(tests
+  "photon differential for"
+  (def !xs (atom [1 2 3]))
+  (def xs (m/watch !xs))              ; observe an atom into a signal
+  (def dispose (p/run                 ; boot incremental maintenance of expr
+                 (!                   ; async result probe
+                   (p/for [x ~xs]     ; reactive for (differential)
+                     (! x)))))        ; async element probe
+  (hash-set % % %) := #{2 1 3}        ; visit each element concurrently (undefined order)
+  % := [1 2 3]                        ; visit the result
+  (swap! !xs conj 4)                  ; add element to end
+  % := 4                              ; visit only new element (because differential for)
+  % := [1 2 3 4]                      ; visit updated result
+  (swap! !xs pop)                     ; pop element, existing elements remain, unvisited
+  % := [1 2 3]                        ; visit only updated result
+  (swap! !xs assoc 1 :b)              ; update an individual element
+  % := :b                             ; visit only updated element
+  % := [1 :b 3]                       ; visit result
+  (dispose))                          ; stop incremental maintenance
