@@ -1,9 +1,10 @@
 (ns hyperfiddle.todomvc
-  (:require [datascript.core :as d]
+  (:require [clojure.edn :refer [read-string]]
+    [datascript.core :as d]
             [missionary.core :as m]
             [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom])
-  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db report impulse todo-list]])))
+  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db report todo-list]])))
 
 (defn task-create [description]
   [{:task/description description
@@ -25,7 +26,7 @@
 
   )
 
-(declare db)
+(p/def db)
 
 (def !ack (atom {}))
 (p/def report ~(m/watch !ack))
@@ -54,24 +55,26 @@
                           (do (dom/pick >v')                ; detect ack and discard
                               (recur)))))))
 
+(defn clear-input! [el v] (dom/set-property! el "value" "") v)
+
 (p/def todo-list
   #'(dom/div
       (concat
         (dom/div
+          (dom/text "TodoMVC")
           (dom/input
-            (dom/set-attribute! dom/parent "type" "text")
-            ~(->> (dom/events dom/parent dom/keydown-event)
+            (dom/attribute "type" "text")
+            ~(->> (dom/events dom/parent "keyup" #_dom/keydown-event)
                   (m/eduction
                     (filter (comp #{dom/keycode-enter} dom/keycode))
-                    (map dom/event-target)
-                    (map dom/get-value)
-                    (map task-create))
+                    (map (comp task-create dom/target-value))
+                    (map (partial clear-input! dom/parent)))
                   (fsm (m/eduction (drop 1) #'db)))))
         (dom/div
           (apply concat
-                 (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
-                   (let [status ~@(d/q '[:find ?s . :in $ ?e :where [?e :task/status ?s]] db id)
-                         description ~@(d/q '[:find ?s . :in $ ?e :where [?e :task/description ?s]] db id)]
+                 (p/for [id (d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
+                   (let [status (d/q '[:find ?s . :in $ ?e :where [?e :task/status ?s]] db id)
+                         description (d/q '[:find ?s . :in $ ?e :where [?e :task/description ?s]] db id)]
                      (dom/div
                        (concat
                          (dom/input
@@ -88,30 +91,47 @@
                            (dom/set-text-content! dom/parent description))))))))
         (dom/div
           (dom/span
-            (dom/set-text-content! dom/parent (str ~@(count (d/q '[:find [?e ...] :in $ ?status
+            (dom/set-text-content! dom/parent (str (count (d/q '[:find [?e ...] :in $ ?status
                                                                    :where [?e :task/status ?status]]
                                                                  db :active)) " items left")))))))
 
 (def !conn (d/create-conn {}))
 (def !stage (atom []))
-(p/def db)
+
+(defn log [x] (println x) x)
 
 (p/def app
   #'(do
-      (when-some [tx-data (binding [db (d/with ~(m/watch !conn) ~(m/watch !stage))]
-                            (seq ~todo-list))]
-        ~@(swap! !stage concat tx-data))
-      (when-some [click-event (dom/button (dom/set-attribute! dom/parent "type" "button")
-                                          ~(fsm (m/ap nil) #_(m/eduction (drop 1) (m/watch !conn))
-                                                (dom/events dom/parent dom/ClickEvent)))]
+      (when-some [tx-data (let [tx-report (d/with ~(m/watch !conn) ~(m/watch !stage))]
+                            (println ::tx-report tx-report)
+                            (binding [db (:db-after tx-report)]
+                              (seq ~todo-list)))]
+        (js/console.log ::tx-data tx-data)
+        (swap! !stage concat tx-data))
+
+      (dom/text "transact!")
+      (when-some [click-event (dom/button
+                                (dom/text "transact!")
+                                (dom/set-attribute! dom/parent "type" "button")
+                                          ~(fsm #'nil #_(m/eduction (drop 1) (m/watch !conn))
+                                                (dom/events dom/parent "click")))]
+        (js/console.log ::transact! click-event)
         (d/transact! !conn ~(m/watch !stage))
         (reset! !stage []))
-      (when-some [tx-data (dom/input
-                            (dom/set-attribute! dom/parent "type" "text")
-                            (dom/set-text-content! dom/parent (pr-str ~(m/watch !stage)))
-                            ~(fsm #_tx-data (m/ap nil)
-                                            (dom/events dom/parent dom/keydown-event)))]
-        (reset! !stage (read-string tx-data)))))
+
+      (dom/text "staging area")
+      (if-some [tx-data (dom/input
+                            (dom/attribute "type" "text")
+                            (dom/attribute "value" (pr-str ~(m/watch !stage)))
+                            ~(fsm #'nil (->> (dom/events dom/parent "input")
+                                             (m/eduction
+                                               (map dom/target-value)
+                                               (dedupe)))))]
+        (do
+          (js/console.log ::stage tx-data)
+          (reset! !stage (clojure.edn/read-string tx-data)))
+        (do (js/console.log ::stage ::idle)
+            nil))))
 
 ; button
 ; to transact
