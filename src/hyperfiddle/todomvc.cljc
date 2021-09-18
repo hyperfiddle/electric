@@ -4,7 +4,7 @@
             [missionary.core :as m]
             [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom])
-  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db report todo-list]])))
+  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db basis-t todo-list]])))
 
 (defn task-create [description]
   [{:task/description description
@@ -27,13 +27,7 @@
   )
 
 (p/def db)
-
-(def !ack (atom {}))
-(p/def report ~(m/watch !ack))
-(p/def tx ~(m/watch !ack))
-
-
-
+(p/def basis-t)
 
 (defn fsm
   "Produce a continuous time impulse with value v which will soon be acknowledged at which point the
@@ -57,6 +51,8 @@
 
 (defn clear-input! [el v] (dom/set-property! el "value" "") v)
 
+#?(:cljs (defn log [x] (doto x js/console.log)))
+
 (p/def todo-list
   #'(dom/div
       (concat
@@ -69,7 +65,7 @@
                     (filter (comp #{dom/keycode-enter} dom/keycode))
                     (map (comp task-create dom/target-value))
                     (map (partial clear-input! dom/parent)))
-                  (fsm (m/eduction (drop 1) #'db)))))
+                  (fsm (m/eduction (drop 1) #'basis-t)))))
         (dom/div
           (apply concat
                  (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
@@ -86,7 +82,7 @@
                                    (map dom/get-checked)
                                    (map {false :active, true :done})
                                    (map (partial task-status id)))
-                                 (fsm (m/eduction (drop 1) #'db))))
+                                 (fsm (m/eduction (drop 1) #'basis-t))))
                          (dom/span
                            (dom/set-text-content! dom/parent description))))))))
         (dom/div
@@ -96,16 +92,19 @@
                                                                  db :active)) " items left")))))))
 
 (def !conn (d/create-conn {}))
-(def !stage #?(:cljs (atom [])))                            ; we choose stage on client
+(def !stage #?(:cljs (atom nil)))                            ; we choose stage on client
 
 (p/def app
-  #'(let [stage ~(m/watch !stage)]
+  #'(let [stage ~(m/eduction (dedupe) (m/watch !stage))]
       ~@(let [tx-report (d/with ~(m/watch !conn) stage)]
           (println ::tx-report tx-report)
           (binding [db (:db-after tx-report)]
-            ~@(when-some [tx-data (seq ~todo-list)]
-                (js/console.log ::tx-data tx-data)
-                (swap! !stage concat tx-data))))
+            (let [current-tx (-> tx-report :tempids :db/current-tx)]
+              ~@(binding [basis-t current-tx]
+                  (let [tx-data (seq ~todo-list)]
+                    (when tx-data
+                      (js/console.log ::tx-data tx-data)
+                      (reset! !stage tx-data)))))))
 
       (dom/text "transact!")
       (when-some [click-event (dom/button
@@ -120,7 +119,7 @@
       (dom/text "staging area")
       (if-some [tx-data (dom/input
                           (dom/attribute "type" "text")
-                          (dom/attribute "value" (pr-str stage))
+                          (dom/property "value" (pr-str stage))
                           ~(fsm #'nil (->> (dom/events dom/parent "input")
                                            (m/eduction
                                              (map dom/target-value)
