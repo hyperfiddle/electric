@@ -1,6 +1,6 @@
 (ns hyperfiddle.todomvc
   (:require [clojure.edn :refer [read-string]]
-    [datascript.core :as d]
+            [datascript.core :as d]
             [missionary.core :as m]
             [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom])
@@ -72,9 +72,9 @@
                   (fsm (m/eduction (drop 1) #'db)))))
         (dom/div
           (apply concat
-                 (p/for [id (d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
-                   (let [status (d/q '[:find ?s . :in $ ?e :where [?e :task/status ?s]] db id)
-                         description (d/q '[:find ?s . :in $ ?e :where [?e :task/description ?s]] db id)]
+                 (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
+                   (let [status ~@(d/q '[:find ?s . :in $ ?e :where [?e :task/status ?s]] db id)
+                         description ~@(d/q '[:find ?s . :in $ ?e :where [?e :task/description ?s]] db id)]
                      (dom/div
                        (concat
                          (dom/input
@@ -91,42 +91,40 @@
                            (dom/set-text-content! dom/parent description))))))))
         (dom/div
           (dom/span
-            (dom/set-text-content! dom/parent (str (count (d/q '[:find [?e ...] :in $ ?status
+            (dom/set-text-content! dom/parent (str ~@(count (d/q '[:find [?e ...] :in $ ?status
                                                                    :where [?e :task/status ?status]]
                                                                  db :active)) " items left")))))))
 
 (def !conn (d/create-conn {}))
-(def !stage (atom []))
-
-(defn log [x] (println x) x)
+(def !stage #?(:cljs (atom [])))                            ; we choose stage on client
 
 (p/def app
-  #'(do
-      (when-some [tx-data (let [tx-report (d/with ~(m/watch !conn) ~(m/watch !stage))]
-                            (println ::tx-report tx-report)
-                            (binding [db (:db-after tx-report)]
-                              (seq ~todo-list)))]
-        (js/console.log ::tx-data tx-data)
-        (swap! !stage concat tx-data))
+  #'(let [stage ~(m/watch !stage)]
+      ~@(let [tx-report (d/with ~(m/watch !conn) stage)]
+          (println ::tx-report tx-report)
+          (binding [db (:db-after tx-report)]
+            ~@(when-some [tx-data (seq ~todo-list)]
+                (js/console.log ::tx-data tx-data)
+                (swap! !stage concat tx-data))))
 
       (dom/text "transact!")
       (when-some [click-event (dom/button
                                 (dom/text "transact!")
                                 (dom/set-attribute! dom/parent "type" "button")
-                                          ~(fsm #'nil #_(m/eduction (drop 1) (m/watch !conn))
-                                                (dom/events dom/parent "click")))]
+                                ~(fsm #'nil #_(m/eduction (drop 1) (m/watch !conn))
+                                      (dom/events dom/parent "click")))]
         (js/console.log ::transact! click-event)
-        (d/transact! !conn ~(m/watch !stage))
+        ~@(do (d/transact! !conn stage) nil)
         (reset! !stage []))
 
       (dom/text "staging area")
       (if-some [tx-data (dom/input
-                            (dom/attribute "type" "text")
-                            (dom/attribute "value" (pr-str ~(m/watch !stage)))
-                            ~(fsm #'nil (->> (dom/events dom/parent "input")
-                                             (m/eduction
-                                               (map dom/target-value)
-                                               (dedupe)))))]
+                          (dom/attribute "type" "text")
+                          (dom/attribute "value" (pr-str stage))
+                          ~(fsm #'nil (->> (dom/events dom/parent "input")
+                                           (m/eduction
+                                             (map dom/target-value)
+                                             (dedupe)))))]
         (do
           (js/console.log ::stage tx-data)
           (reset! !stage (clojure.edn/read-string tx-data)))
@@ -140,4 +138,4 @@
 ; Does d/with and d/transact return the same time basis for the same log value
 ; touch query with latest time basis
 
-(def exports (p/vars d/q d/transact! !conn))
+(def exports (p/vars d/q d/transact! !conn println d/with))
