@@ -743,3 +743,27 @@
     (r/def expr #'(let [x %0] x))
     (r/run2 {} (! (binding [%0 1] ~@~expr)))                ; binding transfer
     % := 1))
+
+(comment
+  "clojure metadata"
+  ; is this problematic?
+  ; leo says if transit encodes this then it will work for free
+  ; thus keep clojure core behavior wrt metas
+  (r/run2 {}
+          (let [x (with-meta {} {:foo 1})]
+            ; works with explicit do
+            ; crashes currently
+            (! (meta x))
+            (! (meta ~@x))
+            (! (meta ~@~@x))))
+  % := {:foo 1}
+  % := {:foo 1}
+  % := {:foo 1})
+
+(tests
+  "reactive metadata"
+  (def !x (atom 0))
+  (r/run (! (meta (let [x (with-meta [] {:foo ~(m/watch !x)})] x))))
+  % := {:foo 0}
+  (swap! !x inc)
+  % := {:foo 1})
