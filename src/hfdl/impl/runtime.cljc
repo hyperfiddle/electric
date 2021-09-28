@@ -4,7 +4,8 @@
   (:require [hfdl.impl.util :as u]
             [hfdl.impl.switch :refer [switch]]
             [hfdl.impl.rfor :refer [rfor]]
-            [missionary.core :as m]))
+            [missionary.core :as m])
+  #?(:clj (:import (clojure.lang IFn IDeref))))
 
 ;; network protocol
 ;; message: [[[target-frame target-slot source-frame source-slot] ...] #{frame ...} {[frame slot] value ...}]
@@ -18,10 +19,9 @@
 ;; 4: frame-id -> inputs
 ;; 5: frame-id -> targets
 ;; 6: frame-id -> sources
-;; 7: frame-id -> signals
+;; 7: frame-id -> captures
 
-(defn steady [x]
-  (m/observe (fn [!] (! x) u/nop)))
+(defn steady [x] (u/pure x))
 
 (defn input [context frame slot]
   (let [inputs (get (aget ^objects context (int 4)) frame)]
@@ -64,13 +64,19 @@
   (steady
     (fn [n t]
       (if-some [v (u/get-local current)]
-        (let [f (aset ^objects context (int 2) (inc (aget ^objects context (int 2))))
-              n (u/bind-cb current v n)
-              t (u/bind-cb current v t)]
-          ((aget ^objects context (int 0)) [[(into [frame slot] (pop v))] #{} {}])
-          (try ((allocate context inputs targets sources signals ctor f (peek v))
-                n #(do (discard context f) ((aget ^objects context (int 0)) [[] #{f} {}]) (t)))
-               (catch #?(:clj Throwable :cljs :default) e (u/failer e n t))))
+        (let [cb (aget ^objects context (int 0))
+              id (aset ^objects context (int 2) (inc (aget ^objects context (int 2))))
+              it (try ((allocate context inputs targets sources signals ctor id (peek v))
+                       (u/bind-cb current v n) (u/bind-cb current v t))
+                      (catch #?(:clj Throwable :cljs :default) e (u/failer e n t)))]
+          (cb [[(into [frame slot] (pop v))] #{} {}])
+          (reify
+            IFn
+            (#?(:clj invoke :cljs -invoke) [_]
+              (discard context id)
+              (cb [[] #{id} {}]))
+            IDeref
+            (#?(:clj deref :cljs -deref) [_] @it)))
         (u/failer (ex-info "Unable to build frame : not in peer context." {}) n t)))))
 
 (defn capture [& slots]
@@ -196,23 +202,33 @@
 (defn missing-exports [env program]
   (map symbol (remove env (globals program))))
 
+;; TODO free variables
 (def eval
   (let [slots (u/local)
-        init {:nodes 0 :inputs 0 :targets 0 :sources 0 :signals 0 :outputs 0 :constants 0 :variables 0}]
+        init {:locals (sorted-set)
+              :nodes 0
+              :inputs 0
+              :targets 0
+              :sources 0
+              :signals 0
+              :outputs 0
+              :constants 0
+              :variables 0}]
     (letfn [(slot [k]
               (let [m (u/get-local slots), n (get m k)]
                 (u/set-local slots (assoc m k (inc n))) n))
             (node [s]
               (u/set-local slots (update (u/get-local slots) :nodes max s)) s)]
       (fn [resolve inst]
-        (letfn [(eval-inst [[op & args]]
+        (letfn [(eval-inst [idx [op & args]]
                   (case op
                     :nop (fn [_ _ _ _])
-                    :sub (let [[idx] args]
-                           (fn [_ _ pubs _] (nth pubs (- (count pubs) idx))))
-                    :pub (let [f (eval-inst (first args))
+                    :sub (let [i (- idx (first args))]
+                           (u/set-local slots (update (u/get-local slots) :locals conj i))
+                           (fn [_ _ pubs _] (nth pubs i)))
+                    :pub (let [f (eval-inst idx (first args))
                                s (slot :signals)
-                               g (eval-inst (second args))]
+                               g (eval-inst (inc idx) (second args))]
                            (fn [context frame pubs nodes]
                              (g context frame
                                (conj pubs (publish (f context frame pubs nodes)
@@ -222,31 +238,37 @@
                     :node (let [n (node (first args))]
                             (fn [_ _ _ nodes] (nth nodes n)))
                     :bind (let [n (node (first args))
-                                [f g] (mapv eval-inst (next args))]
+                                [f g] (mapv (partial eval-inst idx) (next args))]
                             (fn [context frame pubs nodes]
                               (g context frame pubs
                                 (assoc nodes n (f context frame pubs nodes)))))
-                    :apply (apply juxt-with (partial m/latest u/call) (mapv eval-inst args))
+                    :apply (apply juxt-with (partial m/latest u/call) (mapv (partial eval-inst idx) args))
                     :input (let [s (slot :inputs)]
                              (fn [context frame _ _]
                                (input context frame s)))
-                    :output (let [f (eval-inst (first args))
+                    :output (let [f (eval-inst idx (first args))
                                   s (slot :outputs)
-                                  g (eval-inst (second args))]
+                                  g (eval-inst idx (second args))]
                               (fn [context frame pubs nodes]
                                 (output (f context frame pubs nodes) context frame s)
                                 (g context frame pubs nodes)))
-                    :target (let [[f {:keys [inputs targets sources signals]}]
-                                  (u/with-local slots init (eval-inst (first args)))
+                    :target (let [[f {:keys [locals inputs targets sources signals]}]
+                                  (u/with-local slots init (eval-inst idx (first args)))
+                                  free (into [] (take-while (partial > idx)) locals)
                                   s (slot :targets)
-                                  g (eval-inst (second args))]
+                                  g (eval-inst idx (second args))]
                               (fn [context frame pubs nodes]
-                                (target inputs targets sources signals
-                                  (fn [frame nodes] (f context frame pubs nodes))
-                                  context frame s)
+                                (target inputs targets sources (+ signals (count free))
+                                  (fn [frame nodes]
+                                    (f context frame pubs
+                                      (reduce-kv
+                                        (fn [nodes i j]
+                                          (update nodes j publish
+                                            context frame (+ signals i)))
+                                        nodes free))) context frame s)
                                 (g context frame pubs nodes)))
                     :source (let [s (slot :sources)
-                                  f (eval-inst (first args))]
+                                  f (eval-inst idx (first args))]
                               (fn [context frame pubs nodes]
                                 (source nodes context frame s)
                                 (f context frame pubs nodes)))
@@ -256,15 +278,22 @@
                                                    (symbol (first args)))
                                               {:missing-exports (missing-exports resolve inst)})))
                     :literal (constantly (steady (first args)))
-                    :constant (let [[f {:keys [inputs targets sources signals]}]
+                    :constant (let [[f {:keys [locals inputs targets sources signals]}]
                                     (u/with-local slots init
-                                      (eval-inst (first args)))
+                                      (eval-inst idx (first args)))
+                                    free (into [] (take-while (partial > idx)) locals)
                                     s (slot :constants)]
                                 (fn [context frame pubs _]
                                   (constant inputs targets sources signals
-                                    (fn [frame nodes] (f context frame pubs nodes))
+                                    (fn [frame nodes]
+                                      (f context frame pubs
+                                        (reduce-kv
+                                          (fn [nodes i j]
+                                            (update nodes j publish
+                                              context frame (+ signals i)))
+                                          nodes free)))
                                     context frame s)))
-                    :variable (let [f (eval-inst (first args))
+                    :variable (let [f (eval-inst idx (first args))
                                     s (slot :signals)
                                     v (slot :variables)]
                                 (fn [context frame pubs nodes]
@@ -273,6 +302,6 @@
                                     (publish context frame s))))
                     (throw (ex-info (str "Unsupported operation - " op) {:op op :args args}))))]
           (let [[f {:keys [nodes inputs targets sources signals]}]
-                (u/with-local slots init (eval-inst inst))]
+                (u/with-local slots init (eval-inst 0 inst))]
             (peer inputs targets sources signals
               (fn [context] (f context 0 [] (vec (repeat nodes nil)))))))))))
