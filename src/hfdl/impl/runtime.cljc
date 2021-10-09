@@ -50,33 +50,38 @@
 (defn output [flow context frame slot]
   ((aget ^objects context (int 1)) [frame slot flow]))
 
-(defn discard [context frame]
-  (let [signals (get (aget ^objects context (int 7)) frame)]
-    (dotimes [i (alength ^objects signals)] ((aget ^objects signals i))))
-  (aset ^objects context (int 4) (dissoc (aget ^objects context (int 4)) frame))
-  (aset ^objects context (int 5) (dissoc (aget ^objects context (int 5)) frame))
-  (aset ^objects context (int 6) (dissoc (aget ^objects context (int 6)) frame))
-  (aset ^objects context (int 7) (dissoc (aget ^objects context (int 7)) frame)))
+(defn discard [^objects context frame]
+  (when-some [^objects signals (get (aget context (int 7)) frame)]
+    (dotimes [i (alength signals)] ((aget signals i)))
+    (aset context (int 4) (dissoc (aget context (int 4)) frame))
+    (aset context (int 5) (dissoc (aget context (int 5)) frame))
+    (aset context (int 6) (dissoc (aget context (int 6)) frame))
+    (aset context (int 7) (dissoc (aget context (int 7)) frame))))
 
 (def current (u/local))
+
+(deftype Frame [context id it]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_]
+    (discard context id))
+  IDeref
+  (#?(:clj deref :cljs -deref) [_] @it))
 
 (defn constant [inputs targets sources signals ctor context frame slot]
   (steady
     (fn [n t]
       (if-some [v (u/get-local current)]
         (let [cb (aget ^objects context (int 0))
-              id (aset ^objects context (int 2) (inc (aget ^objects context (int 2))))
-              it (try ((allocate context inputs targets sources signals ctor id (peek v))
-                       (u/bind-cb current v n) (u/bind-cb current v t))
-                      (catch #?(:clj Throwable :cljs :default) e (u/failer e n t)))]
+              id (aset ^objects context (int 2) (inc (aget ^objects context (int 2))))]
           (cb [[(into [frame slot] (pop v))] #{} {}])
-          (reify
-            IFn
-            (#?(:clj invoke :cljs -invoke) [_]
-              (discard context id)
-              (cb [[] #{id} {}]))
-            IDeref
-            (#?(:clj deref :cljs -deref) [_] @it)))
+          (->Frame context id
+            (try ((allocate context inputs targets sources signals ctor id (peek v))
+                  (u/bind-cb current v n)
+                  (u/bind-cb current v
+                    #(do (discard context id)
+                         (cb [[] #{id} {}]) (t))))
+                 (catch #?(:clj Throwable :cljs :default) e
+                   (u/failer e n t)))))
         (u/failer (ex-info "Unable to build frame : not in peer context." {}) n t)))))
 
 (defn capture [& slots]
