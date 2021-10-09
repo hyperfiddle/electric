@@ -4,74 +4,60 @@
   #?(:clj (:import (clojure.lang IDeref IFn))))
 
 ;; 0: iterator
-;; 1: prev in the stack of ready to transfer
-;; 2: prev in the linked list of cancellable flows
-;; 3: next in the linked list of cancellable flows
-;; 4: head of the linked list of cancellable flows
-;; 5: tail of the linked list of cancellable flows
-;; 6: flag that must toggle twice to trigger transfer on input
-;; 7: flag that must toggle twice to trigger notify on output
-;; 8: count of non-terminated flows
+;; 1: prev in linked list
+;; 2: next in linked list
+;; 3: next in transfer stack
+;; 4: true if input is ready
+;; 5: true if output can be notified
+;; 6: count of non-terminated flows
 
-(defn ^:static attach! [^objects main ^objects item]
-  (if-some [prev ^objects (aset item (int 2) (aget main (int 5)))]
-    (aset prev (int 3) item)
-    (aset main (int 4) item))
-  (aset main (int 5) item))
-
-(defn ^:static detach! [^objects main ^objects item]
-  (let [p (aget item (int 2))
-        s (aget item (int 3))]
-    (if (nil? p)
-      (aset main (int 4) s)
-      (aset p (int 3) s))
-    (if (nil? s)
-      (aset main (int 5) p)
-      (aset s (int 2) p))))
-
-(defn ^:static done! [^objects main ^objects item terminator]
-  (when-not (identical? item (aget item (int 2))) (detach! main item))
-  (when (zero? (aset main (int 8) (dec (aget main (int 8))))) (terminator)))
+(defn ^:static done! [^objects main terminator]
+  (when (zero? (aset main (int 6) (dec (aget main (int 6))))) (terminator)))
 
 (defn ^:static ready! [^objects main notifier]
-  (when (aset main (int 7) (not (aget main (int 7)))) (notifier)))
+  (if (aget main (int 5)) (notifier) (aset main (int 5) true)))
 
-(defn ^:static cancel! [main]
-  (loop []
-    (when-some [item ^objects (aget main (int 4))]
-      (aset main (int 4) (aget item (int 3)))
-      (aset item (int 3) nil)
-      (aset item (int 2) item)
-      ((aget item (int 0)))
-      (recur))))
+(defn ^:static cancel! [^objects main]
+  (when-some [item (aget main (int 2))]
+    (loop [^objects item item]
+      (when-not (identical? item main)
+        (let [n (aget item (int 2))]
+          (aset item (int 1) nil)
+          (aset item (int 2) nil)
+          ((aget item (int 0)))
+          (recur n))))
+    (aset main (int 1) nil)
+    (aset main (int 2) nil)
+    ((aget main (int 0)))))
 
-(defn ^:static flush! [^objects item]
-  (loop [item item]
+(defn ^:static flush! [item]
+  (loop [^objects item item]
     (when (some? item)
-      (let [p (u/aget-aset item (int 1) nil)]
+      (let [next (u/aget-aset item (int 3) nil)]
         (try @(aget item (int 0))
              (catch #?(:clj Throwable :cljs :default) _))
-        (recur p)))))
+        (recur next)))))
 
 (defn ^:static fail! [^objects main ^objects item error]
-  (flush! (u/aget-aset main (int 1) main))
-  (flush! item)
   (cancel! main)
+  (flush! (u/aget-aset main (int 3) nil))
+  (flush! item)
   (throw error))
 
-(defn ^:static reduce! [^objects main rf notifier]
-  (let [h ^objects (u/aget-aset main (int 1) nil)]
-    (loop [p ^objects (u/aget-aset h (int 1) nil)
-           r (try @(aget h (int 0))
+(defn ^:static sample! [^objects main rf notifier]
+  (aset main (int 5) false)
+  (let [^objects head (u/aget-aset main (int 3) nil)]
+    (loop [^objects item (u/aget-aset head (int 3) nil)
+           r (try @(aget head (int 0))
                   (catch #?(:clj Throwable :cljs :default) e
-                    (fail! main p e)))]
-      (if (nil? p)
+                    (fail! main item e)))]
+      (if (nil? item)
         (do (ready! main notifier) r)
-        (let [q (u/aget-aset p (int 1) nil)]
-          (recur q
-            (try (rf r @(aget p (int 0)))
+        (let [next (u/aget-aset item (int 3) nil)]
+          (recur next
+            (try (rf r @(aget item (int 0)))
                  (catch #?(:clj Throwable :cljs :default) e
-                   (fail! main q e)))))))))
+                   (fail! main next e)))))))))
 
 (deftype It [main rf notifier terminator]
   IFn
@@ -79,29 +65,43 @@
     (locking it (cancel! main)))
   IDeref
   (#?(:clj deref :cljs -deref) [it]
-    (locking it (reduce! main rf notifier))))
+    (locking it (sample! main rf notifier))))
 
 (defn ^:static transfer! [^It it]
   (let [^objects main (.-main it)]
-    (while (aset main (int 6) (not (aget main (int 6))))
-      (aset main (int 8) (inc (aget main (int 8))))
-      (let [item (object-array (int 4))]
-        (if (identical? main (aget main (int 2)))
-          (aset item (int 2) item)
-          (attach! main item))
-        (let [n #(locking it
-                   (let [p (aget main (int 1))]
-                     (if (identical? p main)
-                       (try @(aget item (int 0)) (catch #?(:clj Throwable :cljs :default) _))
-                       (do (aset main (int 1) item)
-                           (when (nil? (aset item (int 1) p))
-                             (ready! main (.-notifier it)))))))
-              t #(locking it (done! main item (.-terminator it)))
-              i (try (@(aget main (int 0)) n t)
-                     (catch #?(:clj Throwable :cljs :default) e
-                       (u/failer e n t)))]
-          (aset item (int 0) i)
-          (when (identical? item (aget item (int 2))) (i)))))))
+    (while (aset main (int 4) (not (aget main (int 4))))
+      (if-some [^objects prev (aget main (int 1))]
+        (let [item (object-array (int 4))]
+          (aset main (int 5) false)
+          (aset main (int 6) (inc (aget main (int 6))))
+          (aset item (int 1) prev)
+          (aset prev (int 2) item)
+          (aset main (int 1) item)
+          (aset item (int 2) main)
+          (let [n #(locking it
+                     (if (nil? (aget item (int 1)))
+                       (try @(aget item (int 0))
+                            (catch #?(:clj Throwable
+                                      :cljs :default) _))
+                       (if-some [^objects curr (u/aget-aset main (int 3) item)]
+                         (aset item (int 3) curr)
+                         (ready! main (.-notifier it)))))
+                t #(locking it
+                     (when-some [^objects prev (aget item (int 1))]
+                       (let [^objects next (aget item (int 2))]
+                         (aset next (int 1) prev)
+                         (aset prev (int 2) next)
+                         (aset item (int 1) nil)
+                         (aset item (int 2) nil)))
+                     (done! main (.-terminator it)))]
+            (aset item (int 0)
+              (try (@(aget main (int 0)) n t)
+                   (catch #?(:clj Throwable :cljs :default) e
+                     (u/failer e n t))))
+            (ready! main (.-notifier it))))
+        (try @(aget main (int 0))
+             (catch #?(:clj Throwable
+                       :cljs :default) _))))))
 
 (defn gather "
 Given a commutative function and a flow of flows, returns a flow concurrently running the flow with flows produced by
@@ -109,20 +109,19 @@ this flow and producing values produced by nested flows, reduced by the function
 simultaneously.
 " [rf >>x]
   (fn [n t]
-    (let [main (object-array (int 9))
+    (let [main (object-array (int 7))
           it (->It main rf n t)]
       (doto main
-        (aset (int 4) main)
-        (aset (int 5) main)
-        (aset (int 6) true)
-        (aset (int 7) true)
-        (aset (int 8) 1))
+        (aset (int 1) main)
+        (aset (int 2) main)
+        (aset (int 4) true)
+        (aset (int 5) true)
+        (aset (int 6) 1))
       (locking it
         (aset main (int 0)
           (>>x #(locking it (transfer! it))
-            #(locking it (done! main main t))))
-        (transfer! it)
-        (ready! main n) it))))
+            #(locking it (done! main t))))
+        (transfer! it) it))))
 
 (comment
   (require '[missionary.core :as m])

@@ -31,9 +31,11 @@
 
 (defn ^:static sample! [^objects main notifier]
   (try (aset main (int 5) false)
-       (let [x @(aget ^objects (u/aget-aset main (int 3) nil) (int 0))]
+       (let [^objects item (u/aget-aset main (int 3) nil)
+             x @(aget item (int 0))]
          (ready! main notifier) x)
-       (catch #?(:clj Throwable :cljs :default) e
+       (catch #?(:clj Throwable
+                 :cljs :default) e
          (cancel! main)
          (throw e))))
 
@@ -45,12 +47,12 @@
   (#?(:clj deref :cljs -deref) [it]
     (locking it (sample! main notifier))))
 
-(defn transfer! [^It it]
+(defn ^:static transfer! [^It it]
   (let [^objects main (.-main it)]
-    (aset main (int 5) false)
     (while (aset main (int 4) (not (aget main (int 4))))
       (if-some [^objects prev (aget main (int 1))]
         (let [item (object-array 3)]
+          (aset main (int 5) false)
           (aset main (int 6) (inc (aget main (int 6))))
           (aset item (int 1) prev)
           (aset prev (int 2) item)
@@ -87,11 +89,11 @@
               (try (@(aget main (int 0)) n t)
                    (catch #?(:clj Throwable
                              :cljs :default) e
-                     (u/failer e n t))))))
+                     (u/failer e n t))))
+            (ready! main (.-notifier it))))
         (try @(aget main (int 0))
              (catch #?(:clj Throwable
-                       :cljs :default) _))))
-    (ready! main (.-notifier it))))
+                       :cljs :default) _))))))
 
 (defn switch "
 Given a flow of flows, returns a flow concurrently running the flow with the flows produced by this flow and producing
