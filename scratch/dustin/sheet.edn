@@ -1,0 +1,19 @@
+
+    (def page-size 100)
+
+    (defn infinite-table [records-fn]
+      (client
+        (let [offset (dom/input)]
+          (p/for [e (records-fn offset)]
+            (let [{:keys [person/name
+                          person/email]} (datomic.api/entity *db* e)]
+              (dom/tr (dom/td name) (dom/td email)))))))
+
+    (client
+      (binding [dom/parent (js/document.getElementById "root")]
+        (infinite-table (fn [offset]
+                          (server
+                            (->>
+                              (d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)
+                              (drop (* page-size page))
+                              (take page-size)))))))
