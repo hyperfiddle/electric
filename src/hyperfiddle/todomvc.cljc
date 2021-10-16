@@ -4,10 +4,13 @@
             [missionary.core :as m]
             [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom])
-  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db basis-t todo-list]])))
+  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db basis-t todo-list transact!']])))
+
+(def auto-inc (partial swap! (atom 0) inc))
 
 (defn task-create [description]
-  [{:task/description description
+  [{:db/id            (str "dustin-" (auto-inc))
+    :task/description description
     :task/status      :active}])
 
 (defn task-status [id status]
@@ -65,7 +68,7 @@
                     (filter (comp #{dom/keycode-enter} dom/keycode))
                     (map (comp task-create dom/target-value))
                     (map (partial clear-input! dom/parent)))
-                  (fsm (m/eduction (drop 1) #'basis-t)))))
+                  (fsm #'nil #_(m/eduction (drop 1) #'basis-t)))))
         (dom/div
           (apply concat
                  (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
@@ -74,7 +77,7 @@
                      (dom/div
                        (concat
                          (dom/input
-                           (dom/set-attribute! dom/parent "type" "checkbox")
+                           (dom/attribute "type" "checkbox")
                            (dom/set-checked! dom/parent (#{:done} status))
                            ~(->> (dom/events dom/parent dom/input-event)
                                  (m/eduction
@@ -82,17 +85,21 @@
                                    (map dom/get-checked)
                                    (map {false :active, true :done})
                                    (map (partial task-status id)))
-                                 (fsm (m/eduction (drop 1) #'basis-t))))
-                         (dom/span
-                           (dom/set-text-content! dom/parent description))))))))
+                                 (fsm #'nil #_(m/eduction (drop 1) #'basis-t))))
+                         (dom/span (dom/text (str id "-" description)))))))))
         (dom/div
           (dom/span
-            (dom/set-text-content! dom/parent (str ~@(count (d/q '[:find [?e ...] :in $ ?status
-                                                                   :where [?e :task/status ?status]]
-                                                                 db :active)) " items left")))))))
+            (dom/text (str ~@(count (d/q '[:find [?e ...] :in $ ?status
+                                           :where [?e :task/status ?status]]
+                                         db :active)) " items left")))))))
 
-(def !conn (d/create-conn {}))
+(def !conn #?(:clj (d/create-conn {})))
 (def !stage #?(:cljs (atom nil)))                            ; we choose stage on client
+
+(p/defn transact!' [stage]
+  (fsm
+    #'nil
+    ~@(do (d/transact! !conn stage) nil)))
 
 (p/def app
   #'(let [stage ~(m/eduction (dedupe) (m/watch !stage))]
@@ -104,7 +111,7 @@
                   (let [tx-data (seq ~todo-list)]
                     (when tx-data
                       (js/console.log ::tx-data tx-data)
-                      (reset! !stage tx-data)))))))
+                      (swap! !stage concat tx-data)))))))
 
       (dom/text "transact!")
       (when-some [click-event (dom/button
@@ -112,8 +119,9 @@
                                 (dom/set-attribute! dom/parent "type" "button")
                                 ~(fsm #'nil #_(m/eduction (drop 1) (m/watch !conn))
                                       (dom/events dom/parent "click")))]
-        (js/console.log ::transact! click-event)
-        ~@(do (d/transact! !conn stage) nil)
+        (println ::transact! click-event)
+        (p/$ transact!' stage)
+        #_~@(do (d/transact! !conn stage) nil)
         (reset! !stage []))
 
       (dom/text "staging area")
