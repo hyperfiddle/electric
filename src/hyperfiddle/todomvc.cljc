@@ -49,8 +49,12 @@
   (m/ap
     (loop []
       (m/amb> nil (m/amb> (dom/pick >v)
-                          (do (dom/pick >v')                ; detect ack and discard
-                              (recur)))))))
+                          (do
+                            (println ::fsm-v)
+                            #_(dom/pick >v')                ; detect ack and discard
+                            (m/?> >v')
+                            (println ::fsm-v')
+                            (recur)))))))
 
 (defn clear-input! [el v] (dom/set-property! el "value" "") v)
 
@@ -68,7 +72,7 @@
                     (filter (comp #{dom/keycode-enter} dom/keycode))
                     (map (comp task-create dom/target-value))
                     (map (partial clear-input! dom/parent)))
-                  (fsm #'nil #_(m/eduction (drop 1) #'basis-t)))))
+                  (fsm (m/eduction (drop 1) #'basis-t)))))
         (dom/div
           (apply concat
                  (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
@@ -85,7 +89,7 @@
                                    (map dom/get-checked)
                                    (map {false :active, true :done})
                                    (map (partial task-status id)))
-                                 (fsm #'nil #_(m/eduction (drop 1) #'basis-t))))
+                                 (fsm (m/eduction (drop 1) #'basis-t))))
                          (dom/span (dom/text (str id "-" description)))))))))
         (dom/div
           (dom/span
@@ -101,13 +105,17 @@
     #'nil
     ~@(do (d/transact! !conn stage) nil)))
 
+(def auto-inc-2 (let [!x (atom 0)] (fn [stage]
+                                     (println ::auto-inc stage @!x)
+                                     (swap! !x inc))))
+
 (p/def app
   #'(let [stage ~(m/eduction (dedupe) (m/watch !stage))]
       ~@(let [tx-report (d/with ~(m/watch !conn) stage)]
           (println ::tx-report tx-report)
           (binding [db (:db-after tx-report)]
             (let [current-tx (-> tx-report :tempids :db/current-tx)]
-              ~@(binding [basis-t current-tx]
+              ~@(binding [basis-t (auto-inc-2 stage)]
                   (let [tx-data (seq ~todo-list)]
                     (when tx-data
                       (js/console.log ::tx-data tx-data)
