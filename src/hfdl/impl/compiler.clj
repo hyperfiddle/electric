@@ -338,7 +338,11 @@ is a macro or special form."
                           (if (:node m)
                             (analyze-apply env form)
                             (analyze-form env (apply v form (if (:js-globals env) env (:locals env)) args)))))
-                      (analyze-form env (desugar-host env form)))))
+                      (let [desugared-form (desugar-host env form)]
+                        (if (= form desugared-form)
+                          ;; Nothing got desugared, this is not host interop, meaning `op` var wasn't found.
+                          (throw (ex-info "Unable to resolve symbol" {:symbol op}))
+                          (analyze-form env desugared-form))))))
                 (analyze-apply env form)))
             (analyze-map [env form]
               (analyze-form env (cons `hash-map (sequence cat form))))
