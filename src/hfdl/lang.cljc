@@ -4,8 +4,8 @@
             [hfdl.impl.compiler :as c]
             [hfdl.impl.runtime :as r]
             [hfdl.impl.util :as u]
-            [hfdl.impl.rfor :refer [rfor]]
             [hfdl.impl.sampler :refer [sampler!]]
+            [hfdl.lib :refer [map-by]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
   #?(:cljs (:require-macros [hfdl.lang :refer [def fn $ vars main for local2 debug thread]])))
@@ -53,20 +53,20 @@ Takes a photon program and returns a pair
 (defmacro $ [f & args]
   `(binding [~@(interleave c/args args)] (unquote ~f)))
 
-(defmacro for [bindings & body]
+(defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
     (->> (list 'var v)
-      (list `rfor
-        (list `comp
-          (->> body
-            (cons bindings)
-            (cons `for)
-            (list `let [s (second c/args)])
-            (list 'var)
-            (list `partial (list 'def (second c/args))))
-          `r/steady))
+      (list `map-by kf
+        (->> body
+          (list* `for-by kf bindings)
+          (list `let [s (second c/args)])
+          (list 'var)
+          (list `partial (list 'def (second c/args)))))
       (list `unquote))
     (cons 'do body)))
+
+(defmacro for [bindings & body]
+  `(for-by identity ~bindings ~@body))
 
 ; when lambdas work, thread will work for free because m/ap generates lambda
 (defmacro thread [& body]

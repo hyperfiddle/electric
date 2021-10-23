@@ -284,6 +284,7 @@
   "reactive for"
   (def !xs (atom [1 2 3]))
   (def dispose (r/run (! (r/for [x ~(m/watch !xs)] (inc x)))))
+  % := []                                                   ;; TODO
   % := [2 3 4]
   (swap! !xs conj 4)
   % := [2 3 4 5]
@@ -321,12 +322,12 @@
   )
 
 
-(comment                                                    ; TODO
+(tests
   "reactive for with keyfn"
   (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
-  (r/run (! (r/for :id [x ~(m/watch !xs)] (! x))))
-  % := {:id 1 :name "alice"}
-  % := {:id 1 :name "bob"}
+  (r/run (! (r/for-by :id [x ~(m/watch !xs)] (! x))))
+  % := []                                                   ;; TODO
+  (hash-set % %) := #{{:id 1 :name "alice"} {:id 2 :name "bob"}}
   % := [{:id 1 :name "alice"} {:id 2 :name "bob"}]
   (swap! !xs assoc-in [0 :name] "ALICE")
   % := {:id 1 :name "ALICE"}
