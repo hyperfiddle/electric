@@ -815,3 +815,8 @@
   % := 42
   % := 42  ; bug is timeout
   )
+
+(tests
+  (let [foo (m/ap (m/? (m/sleep 10 :foo)))]
+    (r/run (! ~~#'(let [a ~foo] #'a)))
+    % := :foo))
