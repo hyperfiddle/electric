@@ -726,13 +726,8 @@
   "photon binding transfer"
   ; Guidance: distribution should not impact the evaluated result of the expr
   (tests
-    (r/def expr #'x)
-    (r/run2 {} (! (let [x 1] ~@~expr)))
-    % := 1)
-
-  (tests
     (r/defn expr [x] x)
-    (r/run2 {} (! (let [x 1] ~@(r/$ expr x))))
+    (r/run2 {} (! ~@(r/$ expr 1)))
     % := 1)
 
   (tests
