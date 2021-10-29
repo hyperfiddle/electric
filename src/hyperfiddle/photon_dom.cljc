@@ -125,6 +125,8 @@
 
 (defn target-value [e] #?(:cljs (-> e .-target .-value)))
 
+(defn target-checked [e] #?(:cljs (-> e .-target .-checked)))
+
 (def input-event
   #?(:cljs (.-INPUT EventType)))
 

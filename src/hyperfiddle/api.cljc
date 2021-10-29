@@ -2,8 +2,9 @@
   (:require [datascript.core :as d]
             [hyperfiddle.rcf :refer [tests ! %]]
             [hfdl.lang :as p :refer [vars]]
-            [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.api :refer [entity attribute value a sequenceM]])))
+            [missionary.core :as m]
+            [hyperfiddle.dev.utils :refer [log]])
+  #?(:cljs (:require-macros [hyperfiddle.api :refer [db entity attribute value sequenceM render join-all]])))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 (def ^:dynamic *route*)                                     ; cljs
@@ -82,19 +83,26 @@
 
 (def info (atom "hyperfiddle"))
 
-(p/def entity)
-(p/def attribute)
-(p/def value)
+(p/def db nil)
+(p/def entity #'nil)
+(p/def attribute #'nil)
+(p/def value #'nil)
+(p/def options-attribute #'nil)
 
 (p/def columns [])
+(p/def inputs [])
+
+(p/defn join-all [v]
+  (cond
+    (map? v)  (into {} (p/for [[k v] v] [k ~v]))
+    (list? v) (p/for [v v] ~v)
+    (coll? v) (into (empty v) (p/for [v v] ~v))
+    :else     v))
 
 ;; https://hackage.haskell.org/package/base-4.15.0.0/docs/Control-Monad.html#v:sequence
 (p/def sequenceM #'(let [v ~value]
-                     (cond
-                       (map? v)  (into {} (p/for [[k v] v] [k ~v]))
-                       (list? v) (p/for [v v] ~v)
-                       (coll? v) (into (empty v) (p/for [v v] ~v))
-                       :else     v)))
+                     (log "VALUE" v)
+                     (p/$ join-all v)))
 
 (tests
   (p/run (! (binding [value #'[#'1 #'2 #'3]]
@@ -106,21 +114,32 @@
               ~sequenceM)))
   % := '(1 2 3))
 
+(tests
+  (p/run (! (binding [value #'{:a #'1, :b #'2, :c #'3}]
+              ~sequenceM)))
+  % := '{:a 1, :b 2, :c 3})
+
 (p/def render sequenceM)
+
+(p/def link #'~value)
 
 (p/def props {})
 (p/def args  {})
 
-;;  HTML <a> used in old HFQL
-(p/def a nil)
+(p/defn flatten-1 [>v]
+  (let [render' render]
+    (binding [render #'~value]
+      (let [v ~>v]
+        (binding [render render']
+          (p/$ join-all v))))))
 
 ; todo rename wrap, it's sideeffect-fn to fn-returning-flow
 (defn wrap [f] (fn [& args] #?(:clj (m/ap (m/? (m/via m/blk (apply f args))))
                                :cljs (m/ap (apply f args))))) ; m/via not supported in cljs
 
 (def q (wrap (fn [query & args]
-               (apply prn :q query args)
-               (doto (apply d/q query *$* args) prn))))
+               (apply log *ns* :q query args)
+               (doto (apply d/q query *$* args) log))))
 
 (defn nav!
   ([_ ref] ref)
@@ -128,8 +147,8 @@
   ([db ref kf & kfs] (reduce (partial nav! db) (nav! db ref kf) kfs)))
 
 (def nav (wrap (fn [ref & kfs]
-                 (apply prn :nav ref kfs)
-                 (doto (apply nav! *$* ref kfs) prn))))
+                 (apply log *ns* :nav ref kfs)
+                 (doto (apply nav! *$* ref kfs) log))))
 
 (tests
   (nav! *$* 9 :dustingetz/email)
