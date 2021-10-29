@@ -84,8 +84,9 @@
 (defmethod parse-spec :default [form]
   (let [pred (first form)]
     (assert (or (fn? pred) (qualified-symbol? pred) (keyword? pred))
-            (str "Unable to resolve this predicate or spec. A spec predicate must be a function or reference a function or spec."
-                 {:received pred
-                  :type     (type pred)}))
+            (str "Unable to resolve this predicate or spec: `" (pr-str pred) "`. A spec predicate must be a function or reference a function or spec.\n\n"
+                 (pr-str {:received pred
+                          :type     (type pred)})
+                 "\n"))
     {:type      :hyperfiddle.spec/predicate
      :predicate pred}))

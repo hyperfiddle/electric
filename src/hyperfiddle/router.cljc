@@ -6,7 +6,8 @@
             [hyperfiddle.todomvc :as t]
             [hyperfiddle.examples.seven-guis.counter :as counter]
             [hyperfiddle.examples.seven-guis.temperatures :as temperature]
-            [user.hfql-full :as hfql-full])
+            [user.hfql-full :as hfql-full]
+            [user.hfql-block :as block-sub])
   #?(:cljs (:require-macros [hyperfiddle.router :refer [router hello-world]])))
 
 
@@ -24,10 +25,12 @@
                              (dom/option (dom/attribute "value" "counter") (dom/text "Counter"))
                              (dom/option (dom/attribute "value" "todomvc") (dom/text "TodoMVC"))
                              (dom/option (dom/attribute "value" "temperature") (dom/text "Temperature"))
-                             (dom/option (dom/property "selected" true) (dom/attribute "value" "submissions") (dom/text "Submissions"))
+                             (dom/option (dom/attribute "value" "submissions") (dom/text "Submissions"))
+                             (dom/option (dom/property "selected" true) (dom/attribute "value" "block-sub-from-school")
+                                         (dom/text "Block-sub-from-school"))
                              ~(->> (dom/events dom/parent "change")
                                    (m/eduction (map dom/target-value))
-                                   (m/reductions {} "submissions")
+                                   (m/reductions {} "block-sub-from-school")
                                    (m/relieve {})))]
                (dom/element "br")
                (dom/element "label"
@@ -48,4 +51,5 @@
                  "counter"     ~counter/counter
                  "temperature" ~temperature/main
                  "submissions" ~hfql-full/page-submissions
+                 "block-sub-from-school" ~block-sub/block-sub-from-school-renderer
                  nil))))

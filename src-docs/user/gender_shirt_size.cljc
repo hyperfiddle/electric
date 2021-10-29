@@ -6,7 +6,7 @@
             [hyperfiddle.rcf :refer [tests ! %]]
             [hyperfiddle.spec :as spec]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [user.gender-shirt-size :refer [genders gender shirt-sizes submissions submission emails]])))
+  #?(:cljs (:require-macros [user.gender-shirt-size :refer [genders gender shirt-sizes submissions submission emails sub-profile]])))
 
 
 (s/fdef genders :ret (s/coll-of number?))
@@ -55,6 +55,7 @@
         :ret (s/coll-of string?))
 
 (p/defn submissions [needle]
+  (prn "NEEDLE" needle)
   (sort
     ~(hf/q '[:find [?e ...]
           :in $ % ?needle
@@ -72,6 +73,10 @@
 
 (s/fdef submission :ret number?)
 (p/defn submission [needle] (first (p/$ submissions needle)))
+
+
+(s/fdef sub-profile :args (s/cat :sub any?) :ret any?)
+(p/defn sub-profile [sub] ~(hf/nav sub :db/id))
 
 (tests
   (hfdl.lang/run (! (p/$ user.gender-shirt-size/submission "")))
