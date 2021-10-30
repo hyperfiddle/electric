@@ -10,9 +10,9 @@
                                  (/ 100))))
 (defn is-num? [x] #?(:cljs (not (js/isNaN x))))
 
-(defn to-fahrenheit [c] #?(:clj (Math/floor (+ (* c (/ 9 5)) 32))))
+(defn to-fahrenheit [c] (Math/floor (+ (* c (/ 9 5)) 32)))
 
-(defn to-celsius [f] #?(:clj (Math/floor (* (- f 32) (/ 5 9)))))
+(defn to-celsius [f] (Math/floor (* (- f 32) (/ 5 9))))
 
 (p/defn Input [value]
   (dom/input
