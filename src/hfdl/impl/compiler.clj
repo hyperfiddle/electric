@@ -132,8 +132,9 @@ is a macro or special form."
                   (fn [_ _ _] (when-not ((symbol (str prefix) (str suffix)) '#{cljs.core/unquote-splicing})
                                 (set! (.-val b) false))))))]
       (when (.-val b) (when-not (:macro v) (:name v))))
-    (when-some [^Var v (resolve-var env sym)]
-      (when-not (.isMacro v) (.toSymbol v)))))
+    (let [v (resolve-var env sym)]
+      (or (when (instance? Var v) (when-not (.isMacro ^Var v) (.toSymbol ^Var v)))
+        (when (instance? Class v) (symbol (.getName ^Class v)))))))
 
 (defn with-local [env sym]
   (let [l (::local env)
@@ -152,7 +153,10 @@ is a macro or special form."
   ([x] x)
   ([x y]
    (conj (into (pop x) (pop y))
-     (conj (peek x) (peek y)))))
+     (conj (peek x) (peek y))))
+  ([x y & zs]
+   (conj (into (pop x) (mapcat pop) (cons y zs))
+     (transduce (map peek) conj (peek x) (cons y zs)))))
 
 (defn void [cont]
   (fn rec [insts]
@@ -204,7 +208,7 @@ is a macro or special form."
             (analyze-sexpr [env [op & args :as form]]
               (if (and (symbol? op) (not (contains? (:locals env) op)))
                 (case op
-                  (throw try fn* letfn* loop* recur set! ns ns* deftype* defrecord*)
+                  (fn* letfn* loop* recur set! ns ns* deftype* defrecord*)
                   (throw (ex-info "Unsupported operation." {:op op :args args}))
 
                   (let*)
@@ -266,6 +270,38 @@ is a macro or special form."
                                    ::cljs/call (fn [target & args] `(. ~target ~(:method dot) ~@args))
                                    ::cljs/access (fn [target] `(. ~target ~(symbol (str "-" (name (:field dot)))))))]]
                       (cons (:target dot) (:args dot))))
+
+                  (throw)
+                  (conj-res [[:error]] (analyze-form env (first args)))
+
+                  (try)
+                  (let [[forms catches finally]
+                        (reduce
+                          (fn [[forms catches finally] form]
+                            (case finally
+                              nil (let [[op & args] (when (seq? form) form)]
+                                    (case op
+                                      catch [forms (conj catches args) finally]
+                                      finally [forms catches (vec args)]
+                                      (case catches
+                                        [] [(conj forms form) catches finally]
+                                        (throw (ex-info "Invalid try block - unrecognized clause." {})))))
+                              (throw (ex-info "Invalid try block - finally must be in final position." {}))))
+                          [[] () nil] args)
+                        body (analyze-form env `(do ~@forms))]
+                    (reduce
+                      (fn [r stmt]
+                        (conj-res [[:first]] r (analyze-form env stmt)))
+                      (case catches
+                        [] body
+                        (let [e (gensym)]
+                          (conj-res [[:recover]] body
+                            (analyze-form (with-local env e)
+                              (reduce
+                                (fn [cont [c s & body]]
+                                  (let [form `(let [~s ~e] ~@body)]
+                                    (case c :default form `(if (instance? ~c ~e) ~form ~cont))))
+                                `(throw ~e) catches))))) finally))
 
                   (if-some [sym (resolve-runtime env op)]
                     (case sym
@@ -437,7 +473,26 @@ is a macro or special form."
         [:constant [:sub 1]]]]]]]
    [:bind 0 [:constant [:input]]
     [:target [:output [:variable [:node 0]] [:nop]]
-     [:target [:nop] [:source [:literal nil]]]]]])
+     [:target [:nop] [:source [:literal nil]]]]]]
+
+  (analyze {} '(try 1 (finally 2 3 4))) :=
+  [[:first [:first [:first [:literal 1] [:literal 2]] [:literal 3]] [:literal 4]] [:literal nil]]
+
+  (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
+  [[:first
+    [:recover
+     [:literal 1]
+     [:variable
+      [:pub
+       [:constant [:error [:sub 1]]]
+       [:apply
+        [:apply [:global :clojure.core/hash-map] [:literal nil] [:sub 1] [:literal false] [:sub 1]]
+        [:apply [:global :clojure.core/instance?] [:global :java.lang.Exception] [:sub 2]]
+        [:constant [:pub [:sub 2] [:literal 2]]]]]]]
+    [:literal 3]]
+   [:target [:nop] [:target [:nop] [:source [:literal nil]]]]]
+
+  )
 
 (defn emit-log-failure [form]
   `(u/log-failure ~form))
@@ -458,16 +513,18 @@ is a macro or special form."
                 (u/set-local slots (assoc m k (inc n))) n))
             (node [s]
               (u/set-local slots (update (u/get-local slots) :nodes max s)) s)
-            (emit-frame [sym form signals free]
-              (list `fn [(sym 'frame) (sym 'nodes)]
-                (reduce-kv
-                  (fn [form i j]
-                    (list `let
-                      [(sym 'pub j)
-                       (list `r/publish
-                         (sym 'pub j) (sym 'context)
-                         (sym 'frame) (+ signals i))]
-                      form)) form free)))
+            (emit-frame [sym idx locals signals form]
+              (let [free (into [] (take-while (partial > idx)) locals)]
+                [(+ signals (count free))
+                 (list `fn [(sym 'frame) (sym 'nodes)]
+                   (reduce-kv
+                     (fn [form i j]
+                       (list `let
+                         [(sym 'pub j)
+                          (list `r/publish
+                            (sym 'pub j) (sym 'context)
+                            (sym 'frame) (+ signals i))]
+                         form)) form free))]))
             (emit-inst [sym pub [op & args]]
               (case op
                 :nop nil
@@ -482,39 +539,53 @@ is a macro or special form."
                 :bind (let [[slot inst cont] args]
                         (list `let [(sym 'nodes) (list `assoc (sym 'nodes) (node slot) (emit-inst sym pub inst))]
                           (emit-inst sym pub cont)))
-                :apply (cons `m/latest (cons `u/call (mapv (partial emit-inst sym pub) args)))
-                :input (list `r/input (sym 'context) (sym 'frame) (slot :inputs))
-                :output (list `do
-                          (list `r/output (emit-inst sym pub (first args)) (sym 'context) (sym 'frame) (slot :outputs))
-                          (emit-inst sym pub (second args)))
-                :target (let [[form {:keys [locals inputs targets sources signals]}]
+                :apply `(r/latest-apply ~@(mapv (partial emit-inst sym pub) args))
+                :error `(r/latest-error ~@(mapv (partial emit-inst sym pub) args))
+                :first `(r/latest-first ~@(mapv (partial emit-inst sym pub) args))
+                :input (let [i (slot :inputs)]
+                         `(r/input ~(sym 'context) ~(sym 'frame) ~i))
+                :output (let [f (emit-inst sym pub (first args))
+                              o (slot :outputs)
+                              g (emit-inst sym pub (second args))]
+                          `(do (r/output ~f ~(sym 'context) ~(sym 'frame) ~o) ~g))
+                :target (let [[f {:keys [locals inputs targets sources signals]}]
                               (u/with-local slots init (emit-inst sym pub (first args)))
-                              free (into [] (take-while (partial > pub)) locals)]
-                          (list `do
-                            (list `r/target inputs targets sources (+ signals (count free))
-                              (emit-frame sym form signals free)
-                              (sym 'context) (sym 'frame) (slot :targets))
-                            (emit-inst sym pub (second args))))
-                :source (list `do
-                          (list `r/source (sym 'nodes) (sym 'context) (sym 'frame) (slot :sources))
-                          (emit-inst sym pub (first args)))
-                :global (list `r/steady (symbol (first args)))
-                :literal (list `r/steady (list `quote (first args)))
-                :interop (cons `m/latest
-                           (cons (let [arg-syms (into [] (map sym) (range (count (next args))))]
-                                   (list `fn arg-syms (apply (first args) arg-syms)))
-                             (mapv (partial emit-inst sym pub) (next args))))
+                              [signals frame] (emit-frame sym pub locals signals f)
+                              t (slot :targets)
+                              g (emit-inst sym pub (second args))]
+                          `(do (r/target ~inputs ~targets ~sources ~signals ~frame
+                                 ~(sym 'context) ~(sym 'frame) ~t) ~g))
+                :source (let [s (slot :sources)
+                              f (emit-inst sym pub (first args))]
+                          `(do (r/source ~(sym 'nodes) ~(sym 'context) ~(sym 'frame) ~s) ~f))
+                :global `(r/steady ~(symbol (first args)))
+                :literal `(r/steady (quote ~(first args)))
+                :interop `(r/latest-apply
+                            ~(let [arg-syms (into [] (map sym) (range (count (next args))))]
+                               (list `fn arg-syms (apply (first args) arg-syms)))
+                            ~(mapv (partial emit-inst sym pub) (next args)))
+                :recover (let [body (emit-inst sym pub (first args))
+                               [fallback {:keys [locals inputs targets sources signals]}]
+                               (u/with-local slots init (emit-inst sym (inc pub) (second args)))
+                               [signals frame] (emit-frame sym pub locals signals fallback)
+                               c (slot :constants)
+                               v (slot :variables)]
+                           `(r/recover
+                              (fn [~(sym 'pub pub)]
+                                (r/constant ~inputs ~targets ~sources ~signals ~frame
+                                  ~(sym 'context) ~(sym 'frame) ~c)) ~body
+                              ~(sym 'nodes) ~(sym 'frame) ~v))
                 :constant (let [[form {:keys [locals inputs targets sources signals]}]
                                 (u/with-local slots init (emit-inst sym pub (first args)))
-                                free (into [] (take-while (partial > pub)) locals)]
-                            (list `r/constant inputs targets sources (+ signals (count free))
-                              (emit-frame sym form signals free)
-                              (sym 'context) (sym 'frame) (slot :constants)))
-                :variable (list `r/publish
-                            (list `r/variable
-                              (emit-inst sym pub (first args))
-                              (sym 'nodes) (sym 'frame) (slot :variables))
-                            (sym 'context) (sym 'frame) (slot :signals))))]
+                                [signals frame] (emit-frame sym pub locals signals form)
+                                c (slot :constants)]
+                            `(r/steady (r/constant ~inputs ~targets ~sources ~signals ~frame
+                                         ~(sym 'context) ~(sym 'frame) ~c)))
+                :variable (let [form (emit-inst sym pub (first args))
+                                v (slot :variables)
+                                s (slot :signals)]
+                            `(r/publish (r/variable ~form ~(sym 'nodes) ~(sym 'frame) ~v)
+                               ~(sym 'context) ~(sym 'frame) ~s))))]
       (fn [sym inst]
         (let [[form {:keys [nodes inputs targets sources signals]}]
               (u/with-local slots init (emit-inst sym 0 inst))]
@@ -535,7 +606,7 @@ is a macro or special form."
   `(r/peer 0 0 0 0
      (fn [~'context]
        (let [~'frame 0 ~'nodes []]
-         (m/latest u/call (r/steady +) (r/steady '2) (r/steady '3)))))
+         (r/latest-apply (r/steady +) (r/steady '2) (r/steady '3)))))
 
   (emit (comp symbol str)
     [:pub [:literal 1]
@@ -545,7 +616,7 @@ is a macro or special form."
      (fn [~'context]
        (let [~'frame 0 ~'nodes []]
          (let [~'pub0 (r/publish (r/steady '1) ~'context ~'frame 0)]
-           (m/latest u/call (r/steady +) ~'pub0 (r/steady '2))))))
+           (r/latest-apply (r/steady +) ~'pub0 (r/steady '2))))))
 
   (emit (comp symbol str)
     [:variable [:global :missionary.core/none]]) :=
@@ -564,7 +635,7 @@ is a macro or special form."
   `(r/peer 0 0 0 0
      (fn [~'context]
        (let [~'frame 0 ~'nodes []]
-         (r/constant 0 0 0 0 (fn [~'frame ~'nodes] (r/steady ':foo)) ~'context ~'frame 0))))
+         (r/steady (r/constant 0 0 0 0 (fn [~'frame ~'nodes] (r/steady ':foo)) ~'context ~'frame 0)))))
 
   (emit (comp symbol str)
     [:variable
@@ -582,24 +653,27 @@ is a macro or special form."
          (r/publish
            (r/variable
              (let [~'pub0 (r/publish
-                            (r/constant 0 0 0 0
-                              (fn [~'frame ~'nodes] (r/steady '3))
-                              ~'context ~'frame 0)
+                            (r/steady
+                              (r/constant 0 0 0 0
+                                (fn [~'frame ~'nodes] (r/steady '3))
+                                ~'context ~'frame 0))
                             ~'context ~'frame 0)]
                (let [~'pub1 (r/publish
-                              (r/constant 1 0 0 0
-                                (fn [~'frame ~'nodes] (r/input ~'context ~'frame 0))
-                                ~'context ~'frame 1)
+                              (r/steady
+                                (r/constant 1 0 0 0
+                                  (fn [~'frame ~'nodes] (r/input ~'context ~'frame 0))
+                                  ~'context ~'frame 1))
                               ~'context ~'frame 1)]
-                 (m/latest u/call
-                   (m/latest u/call (r/steady hash-map)
+                 (r/latest-apply
+                   (r/latest-apply (r/steady hash-map)
                      (r/steady '2) ~'pub0
                      (r/steady '4) ~'pub1
                      (r/steady '5) ~'pub1)
                    (r/steady '1)
-                   (r/constant 0 0 0 0
-                     (fn [~'frame ~'nodes] (r/steady '7))
-                     ~'context ~'frame 2))))
+                   (r/steady
+                     (r/constant 0 0 0 0
+                       (fn [~'frame ~'nodes] (r/steady '7))
+                       ~'context ~'frame 2)))))
              ~'nodes ~'frame 0)
            ~'context ~'frame 2))))
 
@@ -616,10 +690,11 @@ is a macro or special form."
      (fn [~'context]
        (let [~'frame 0 ~'nodes []]
          (let [~'pub0 (r/publish (r/steady 'nil) ~'context ~'frame 0)]
-           (r/constant 0 0 0 1
-             (fn [~'frame ~'nodes]
-               (let [~'pub0 (r/publish ~'pub0 ~'context ~'frame 0)] ~'pub0))
-             ~'context ~'frame 0))))))
+           (r/steady
+             (r/constant 0 0 0 1
+               (fn [~'frame ~'nodes]
+                 (let [~'pub0 (r/publish ~'pub0 ~'context ~'frame 0)] ~'pub0))
+               ~'context ~'frame 0)))))))
 
 (def args
   (map (comp symbol

@@ -294,6 +294,7 @@
   "reactive for is differential (diff/patch)"
   (def !xs (atom [1 2 3]))
   (def dispose (r/run (! (r/for [x ~(m/watch !xs)] (! x)))))
+  % := []                                                   ;; TODO
   (hash-set % % %) := #{1 2 3}                              ; concurrent, order undefined
   % := [1 2 3]
   (swap! !xs conj 4)
@@ -610,23 +611,21 @@
     (catch Exception _ ::outer))
   := ::outer)
 
-(comment
+(tests
   "reactive exceptions"
-  (defnode boom [] (throw (ex-info "" {})))
+  (r/defn boom [] (throw (ex-info "" {})))
   (def dispose
-    (r/run (! (r/try
-                (boom)
-                (r/catch Exception _ ::inner)))))
+    (r/run (! (try (r/$ boom) (catch Exception _ ::inner)))))
   % := ::inner                                              ; reactive exception caught
 
   (def dispose
-    (r/run (! (r/try
-                (let [nf (r/try
-                           (node [] (boom))                 ; reactive exception uncaught
-                           (r/catch Exception _ ::inner))]
-                  ($ nf))
-                (r/catch Exception _ ::outer)))))
-  := ::outer)
+    (r/run (! (try
+                (let [nf (try
+                           (r/fn [] (r/$ boom))             ; reactive exception uncaught
+                           (catch Exception _ ::inner))]
+                  (r/$ nf))
+                (catch Exception _ ::outer)))))
+  % := ::outer)
 
 (tests
   "leo bind"
@@ -815,3 +814,30 @@
   (let [foo (m/ap (m/? (m/sleep 10 :foo)))]
     (r/run (! ~~#'(let [a ~foo] #'a)))
     % := :foo))
+
+(tests
+  (def !x (atom 0))
+  (r/run (! (try (-> ~(m/watch !x)
+                   (doto (-> even? (when-not (throw (ex-info "odd" {})))))
+                   (/ 2))
+                 (catch Exception e (ex-message e)))))
+  % := 0
+  (swap! !x inc)
+  % := "odd"
+  (swap! !x inc)
+  % := 1)
+
+(tests
+  (def !x (atom 0))
+  (def !f (atom "hello"))
+  (def e (ex-info "error" {}))
+  (r/run
+    (! (try (when-not (even? ~(m/watch !x)) (throw e))
+            (finally (! ~(m/watch !f))))))
+  % := "hello"
+  % := nil
+  (swap! !x inc)
+  (reset! !f "world")
+  % := "world"
+  (swap! !x inc)
+  % := nil)
