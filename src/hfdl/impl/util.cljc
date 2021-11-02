@@ -1,9 +1,7 @@
 (ns hfdl.impl.util
   (:require [missionary.core :as m]
             #?(:clj [minitest :refer [tests]]))
-  #?(:clj
-     (:import (java.util.concurrent.atomic AtomicReference AtomicInteger)
-              (clojure.lang IFn IDeref Box)))
+  #?(:clj (:import (clojure.lang IFn IDeref)))
   #?(:cljs (:require-macros [hfdl.impl.util :refer [when-fail local get-local set-local with-local]]
                             [minitest :refer [tests]])))
 
@@ -40,13 +38,6 @@
     ([x] x)
     ([x y] (f x y))
     ([x y & zs] (reduce f (f x y) zs))))
-
-(defn call
-  ([f] (f))
-  ([f a] (f a))
-  ([f a b] (f a b))
-  ([f a b c] (f a b c))
-  ([f a b c & ds] (apply f a b c ds)))
 
 #?(:clj
    (defmacro aget-aset [arr idx val]
@@ -128,3 +119,11 @@
       (let [prev (get-local local)]
         (set-local local value)
         (try @it (finally (set-local local prev)))))))
+
+(defn bind-flow [local value flow]
+  (fn [n t]
+    (let [prev (get-local local)]
+      (set-local local value)
+      (let [it (flow n t)]
+        (set-local local prev)
+        (bind-iterator local value it)))))
