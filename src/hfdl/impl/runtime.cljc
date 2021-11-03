@@ -43,11 +43,12 @@
 
 (defn steady [x] (m/observe (fn [!] (! x) u/nop)))
 
+(defrecord Pending [])
+
+(def pending (->E (->Pending)))
+
 (defn input [context frame slot]
-  (let [inputs (get (aget ^objects context (int 4)) frame)]
-    (->> (fn [!] (aset ^objects inputs slot !) u/nop)
-      (m/observe)
-      (m/relieve {}))))
+  (m/watch (aset ^objects (get (aget ^objects context (int 4)) frame) slot (atom pending))))
 
 (defn allocate [context inputs targets sources signals ctor frame nodes]
   (aset ^objects context (int 4) (assoc (aget ^objects context (int 4)) frame (object-array inputs)))
@@ -130,7 +131,7 @@
 
 (defn change [context [frame slot] value]
   (if-some [inputs (get (aget ^objects context (int 4)) (- frame))]
-    ((aget ^objects inputs slot) value)
+    (reset! (aget ^objects inputs slot) value)
     (println "change on dead frame :" (- frame) slot value))
   context)
 
