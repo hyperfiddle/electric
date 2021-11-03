@@ -721,6 +721,42 @@
   (r/run2 {} (! (binding [foo 1] ~@~bar)))
   % := 1)
 
+(tests
+  "reactive pending states"
+  ;~(m/reductions {} hfdl.impl.runtime/pending m/none)
+  (def dispose (r/run (! (try true (catch hfdl.impl.runtime/Pending _ ::pending)))))
+  % := true)
+
+(tests
+  (r/run2 {} (! (try ~@1 (catch hfdl.impl.runtime/Pending _ ::pending))))
+  % := ::pending    ; Use try/catch to intercept special pending state
+  % := 1)
+
+(tests
+  (r/run2 {} (! (try [(! 1) (! ~@2)]
+                     (catch hfdl.impl.runtime/Pending _
+                       ::pending))))
+  % := 1
+  % := ::pending
+  ; do not see 1 again
+  % := 2
+  % := [1 2])
+
+;(tests
+;  (r/run2 {} (! (try (dom/div)                              ; must be cleaned up by pending state - in dom layer. todo
+;                     (dom/div ~@1)
+;                     (catch hfdl.impl.runtime/Pending _
+;                       (dom/div ::pending)))))
+;  % := ::pending
+;  % := 1)
+
+;(tests
+;  (r/run2 {} (! (try [~@(d/q) ~@(d/entity)]
+;                     (catch hfdl.impl.runtime/Pending _
+;                       ::pending))))
+;  % := ::pending
+;  % := 1)
+
 (comment
   "photon binding transfer"
   ; Guidance: distribution should not impact the evaluated result of the expr
