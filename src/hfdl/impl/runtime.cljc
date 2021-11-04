@@ -21,31 +21,31 @@
 ;; 6: frame-id -> sources
 ;; 7: frame-id -> captures
 
-(defrecord E [error])
+(defrecord Failure [error])
 
-(def error (some-fn #(when (instance? E %) %)))
+(def failure (some-fn #(when (instance? Failure %) %)))
 
 (def latest-apply
   (partial m/latest
     (fn [f & args]
-      (or (apply error f args)
+      (or (apply failure f args)
         (try (apply f args)
              (catch #?(:clj Throwable :cljs :default) e
-               (->E e)))))))
+               (->Failure e)))))))
 
 (def latest-error
   (partial m/latest
-    (fn [x] (if (instance? E x) x (->E x)))))
+    (fn [x] (if (instance? Failure x) x (->Failure x)))))
 
 (def latest-first
   (partial m/latest
-    (fn [x y] (if (instance? E y) y x))))
+    (fn [x y] (if (instance? Failure y) y x))))
 
 (defn steady [x] (m/observe (fn [!] (! x) u/nop)))
 
 (defrecord Pending [])
 
-(def pending (->E (->Pending)))
+(def pending (->Failure (->Pending)))
 
 (defn input [context frame slot]
   (m/watch (aset ^objects (get (aget ^objects context (int 4)) frame) slot (atom pending))))
@@ -106,7 +106,7 @@
 
 (defn recover [fallback flow nodes frame slot]
   (let [v [frame slot nodes]]
-    (yield #(when (instance? E %)
+    (yield #(when (instance? Failure %)
               (u/bind-flow current v
                 (fallback (steady (:error %))))) flow)))
 
