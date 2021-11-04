@@ -44,5 +44,5 @@
                  "hello-world" ~hello-world
                  "todomvc"     ~t/app
                  "counter"     ~counter/counter
-                 "temperature" ~temperature/temperature
+                 "temperature" ~temperature/main
                  nil))))

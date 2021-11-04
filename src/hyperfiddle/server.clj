@@ -18,7 +18,8 @@
     [hyperfiddle.todomvc :as t]
     [hyperfiddle.api :as h]
     [hyperfiddle.photon-dom :as dom]
-    [hyperfiddle.examples.seven-guis.temperatures :as temperature])
+    [hyperfiddle.examples.seven-guis.temperatures :as temperature]
+    [hyperfiddle.zero :as z])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)))
 
@@ -94,9 +95,7 @@
                    (m/sp
                      (let [program (m/? ?read)
                            _ (prn :got-program program)
-                           bootfn (p/eval
-                                    (merge p/exports h/exports dom/exports
-                                      temperature/exports t/exports) program)]
+                           bootfn (p/eval (merge p/exports h/exports dom/exports z/exports t/exports) program)]
                        (prn :booting-reactor)
                        (m/? (bootfn write ?read))))))))})
 
