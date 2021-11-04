@@ -3,7 +3,8 @@
             [datascript.core :as d]
             [missionary.core :as m]
             [hfdl.lang :as p]
-            [hyperfiddle.photon-dom :as dom])
+            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.zero :as z])
   #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db basis-t todo-list transact!']])))
 
 (def auto-inc (partial swap! (atom 0) inc))
@@ -32,30 +33,6 @@
 (p/def db)
 (p/def basis-t)
 
-(defn fsm
-  "Produce a continuous time impulse with value v which will soon be acknowledged at which point the
-  impulse is cleared. the ack is a flow of anything, we ignore the value, detecting only that an
-  event happened
-
-          v -|       -------
-   >v        |      |       |
-        nil -|------         -----------
-
-
-         any -|              -----------
-   >ack       |             |
-         any -|-------------
-    " [>v' >v]
-  (m/ap
-    (loop []
-      (m/amb> nil (m/amb> (dom/pick >v)
-                          (do
-                            (println ::fsm-v)
-                            #_(dom/pick >v')                ; detect ack and discard
-                            (m/?> >v')
-                            (println ::fsm-v')
-                            (recur)))))))
-
 (defn clear-input! [el v] (dom/set-property! el "value" "") v)
 
 #?(:cljs (defn log [x] (doto x js/console.log)))
@@ -72,7 +49,7 @@
                     (filter (comp #{dom/keycode-enter} dom/keycode))
                     (map (comp task-create dom/target-value))
                     (map (partial clear-input! dom/parent)))
-                  (fsm (m/eduction (drop 1) #'basis-t)))))
+               (z/fsm nil (m/eduction (drop 1) #'basis-t)))))
         (dom/div
           (apply concat
                  (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
@@ -89,7 +66,7 @@
                                    (map dom/get-checked)
                                    (map {false :active, true :done})
                                    (map (partial task-status id)))
-                                 (fsm (m/eduction (drop 1) #'basis-t))))
+                                 (z/fsm nil (m/eduction (drop 1) #'basis-t))))
                          (dom/span (dom/text (str id "-" description)))))))))
         (dom/div
           (dom/span
@@ -101,7 +78,7 @@
 (def !stage #?(:cljs (atom nil)))                            ; we choose stage on client
 
 (p/defn transact!' [stage]
-  (fsm
+  (z/fsm nil
     #'nil
     ~@(do (d/transact! !conn stage) nil)))
 
@@ -125,7 +102,7 @@
       (when-some [click-event (dom/button
                                 (dom/text "transact!")
                                 (dom/set-attribute! dom/parent "type" "button")
-                                ~(fsm #'nil #_(m/eduction (drop 1) (m/watch !conn))
+                                ~(z/fsm nil #'nil #_(m/eduction (drop 1) (m/watch !conn))
                                       (dom/events dom/parent "click")))]
         (println ::transact! click-event)
         (p/$ transact!' stage)
@@ -136,7 +113,7 @@
       (if-some [tx-data (dom/input
                           (dom/attribute "type" "text")
                           (dom/property "value" (pr-str stage))
-                          ~(fsm #'nil (->> (dom/events dom/parent "input")
+                          ~(z/fsm nil #'nil (->> (dom/events dom/parent "input")
                                            (m/eduction
                                              (map dom/target-value)
                                              (dedupe)))))]

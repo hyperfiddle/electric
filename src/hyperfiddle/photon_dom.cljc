@@ -9,7 +9,7 @@
                     (goog.dom.animationFrame)))
   #?(:cljs (:require-macros
              [hyperfiddle.photon-dom :refer
-              [element fragment div span h1 table thead tbody select option pick]])))
+              [element fragment div span h1 table thead tbody select option]])))
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
@@ -153,6 +153,9 @@
 (defn get-value [e]
   #?(:cljs (.-value e)))
 
+(defn set-value! [e x]
+  #?(:cljs (set! (.-value e) x)))
+
 (defn get-checked [e]
   #?(:cljs (.-checked e)))
 
@@ -217,22 +220,5 @@
 ;; The number of milliseconds elapsed since January 1, 1970
 (p/def clock ~>clock)
 
-(def first-or (partial m/reduce (comp reduced {})))
-
-(defmacro pick "head for flows. return first or nothing. Note that in Clojure you can't
-return nothing (you return nil) but in flows nothing is different than nil." [>f]
-  `(let [x# (m/? (first-or ::empty ~>f))]
-     (case x# ::empty (m/amb>) x#)))
-
-(defn state [init-value]
-  (let [!state (atom init-value)
-        >state (m/eduction (dedupe) (m/watch !state))]
-    ;; we have to dedupe maybe it’s a hack. Is there something in the language
-    ;; forcing us to do that. Should we change the language?
-    (fn
-      ([v] (reset! !state v))
-      ([notify terminate] (>state notify terminate)))))
-
 (def exports (p/vars click-event create-mount create-text events
-                     set-attribute! set-style! set-text-content!
-                     state))
+                     set-attribute! set-style! set-text-content!))
