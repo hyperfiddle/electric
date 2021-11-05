@@ -41,26 +41,16 @@
   (partial m/latest
     (fn [x y] (if (instance? Failure y) y x))))
 
-(defn steady [x] (m/observe (fn [!] (! x) u/nop)))
+(defn lift-failure [<x]
+  (m/cp (try (m/?< <x) (catch #?(:clj Throwable :cljs :default) e (->Failure e)))))
+
+(defn steady [x] (lift-failure (m/watch (atom x))))
 
 (defrecord Pending [])
 (def pending (->Failure (->Pending)))
 
-(defrecord Stopped [])
-(def stopped (->Failure (->Stopped)))
-
-(defn subscribe [f]
-  (fn [n t]
-    (let [it (f n t)]
-      (reify
-        IFn
-        (#?(:clj invoke :cljs -invoke) [_] (it))
-        IDeref
-        (#?(:clj deref :cljs -deref) [_]
-          (try @it (catch Cancelled _ stopped)))))))
-
 (defn input [context frame slot]
-  (m/watch (aset ^objects (get (aget ^objects context (int 4)) frame) slot (atom pending))))
+  (lift-failure (m/watch (aset ^objects (get (aget ^objects context (int 4)) frame) slot (atom pending)))))
 
 (defn allocate [context inputs targets sources signals ctor frame nodes]
   (aset ^objects context (int 4) (assoc (aget ^objects context (int 4)) frame (object-array inputs)))
@@ -78,7 +68,7 @@
   (aset ^objects (get (aget ^objects context (int 6)) frame) slot nodes))
 
 (defn publish [flow context frame slot]
-  (subscribe (aset ^objects (get (aget ^objects context (int 7)) frame) slot (m/signal! flow))))
+  (lift-failure (aset ^objects (get (aget ^objects context (int 7)) frame) slot (m/signal! flow))))
 
 (defn output [flow context frame slot]
   ((aget ^objects context (int 1)) [frame slot flow]))
@@ -123,10 +113,12 @@
                 (fallback (steady (:error %))))) flow)))
 
 (defn variable [flow nodes frame slot]
-  (m/cp (let [v [frame slot nodes]
-              f (m/?< (m/eduction (dedupe) flow))]
-          (m/?< (u/bind-flow current v
-                  (if (failure f) (steady f) f))))))
+  (u/bind-flow current [frame slot nodes]
+    (m/cp (let [f (m/?< flow)]
+            (if (failure f)
+              f (try (m/?< f)
+                     (catch #?(:clj Throwable :cljs :default) e
+                       (->Failure e))))))))
 
 (defn create [context [target-frame target-slot source-frame source-slot]]
   (if-some [ctors (get (aget ^objects context (int 5)) (- target-frame))]
@@ -148,38 +140,34 @@
 
 (defn peer [inputs targets sources signals boot]
   (fn [write ?read]
-    (let [r (m/reactor
-              (let [ctx (doto ^objects (object-array 8)
-                          (aset (int 0) (m/mbx))
-                          (aset (int 1) (m/mbx))
-                          (aset (int 2) (identity 0))
-                          (aset (int 3) (identity 0))
-                          (aset (int 4) {0 (object-array inputs)})
-                          (aset (int 5) {0 (object-array targets)})
-                          (aset (int 6) {0 (object-array sources)})
-                          (aset (int 7) {0 (object-array signals)}))]
-                (m/stream! (boot ctx))
-                (->> (u/poll ?read)
-                  (m/stream!)
-                  (m/eduction
-                    (map (fn [[adds rets mods]]
-                           (reduce create ctx adds)
-                           (reduce cancel ctx rets)
-                           (reduce-kv change ctx mods))))
-                  (m/stream!))
-                (->> (m/ap (m/amb=
-                             (m/? (m/?> (m/seed (repeat (aget ctx (int 0))))))
-                             (loop []
-                               (let [x (m/? (aget ctx (int 1)))]
-                                 (m/amb= [[] #{} {(pop x) (try (m/?> (peek x))
-                                                               (catch #?(:clj  Throwable
-                                                                         :cljs :default) _
-                                                                 (m/?> m/none)))}] (recur))))))
-                  (m/relieve (partial map into))
-                  (m/stream!)
-                  (u/foreach (-> write (u/log-args '>)))
-                  (m/stream!))))]
-      (m/sp (try (m/? r) (catch Cancelled _))))))
+    (m/reactor
+      (let [ctx (doto ^objects (object-array 8)
+                  (aset (int 0) (m/mbx))
+                  (aset (int 1) (m/mbx))
+                  (aset (int 2) (identity 0))
+                  (aset (int 3) (identity 0))
+                  (aset (int 4) {0 (object-array inputs)})
+                  (aset (int 5) {0 (object-array targets)})
+                  (aset (int 6) {0 (object-array sources)})
+                  (aset (int 7) {0 (object-array signals)}))]
+        (m/stream! (boot ctx))
+        (->> (u/poll ?read)
+          (m/stream!)
+          (m/eduction
+            (map (fn [[adds rets mods]]
+                   (reduce create ctx adds)
+                   (reduce cancel ctx rets)
+                   (reduce-kv change ctx mods))))
+          (m/stream!))
+        (->> (m/ap (m/amb=
+                     (m/? (m/?> (m/seed (repeat (aget ctx (int 0))))))
+                     (loop []
+                       (let [x (m/? (aget ctx (int 1)))]
+                         (m/amb= [[] #{} {(pop x) (m/?> (peek x))}] (recur))))))
+          (m/relieve (partial map into))
+          (m/stream!)
+          (u/foreach (-> write (u/log-args '>)))
+          (m/stream!))))))
 
 (defn juxt-with
   ([f]

@@ -4,12 +4,13 @@
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])
-            #?(:cljs [goog.style]))
+            #?(:cljs [goog.style])
+            [clojure.string :as str])
   #?(:cljs (:import (goog.events EventType KeyCodes)
                     (goog.dom.animationFrame)))
   #?(:cljs (:require-macros
              [hyperfiddle.photon-dom :refer
-              [element fragment div span h1 table thead tbody select option]])))
+              [element fragment div span h1 table thead tbody select option context event assign!]])))
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
@@ -189,6 +190,18 @@
 ;(tests
 ;  (options 2 (p/for [] (option id)))
 ;  )
+
+(defmacro canvas [& body]
+  `(element :canvas ~@body))
+
+(defmacro context [type]
+  `(.getContext parent ~(name type)))
+
+(defmacro event [type]
+  `(unquote (events parent ~(map symbol [(str ".-" (str/upper-case (name type))) "goog.events.EventType"]))))
+
+(defmacro assign! [prop value]
+  `(set! (~(symbol (str ".-" (name prop))) parent) value))
 
 #?(:cljs
    (deftype Clock [^:mutable ^number raf

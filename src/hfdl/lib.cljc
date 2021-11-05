@@ -1,6 +1,5 @@
 (ns hfdl.lib
-  (:require [hfdl.impl.runtime :as r]
-            [hfdl.impl.gather :refer [gather]]
+  (:require [hfdl.impl.gather :refer [gather]]
             [hfdl.impl.eventually :refer [eventually]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
@@ -199,8 +198,7 @@ Given a function and a continuous flow of collections, returns a continuous flow
 collection, where values are produced by the continuous flow returned by the function when called with the continuous
 flow of values matching the identity provided by key function, defaulting to identity."
   ([f >xs] (map-by identity f >xs))
-  ([k f >xs] (map-by nil k f >xs))
-  ([e k f >xs]
+  ([k f >xs]
    (->> >xs
      (m/eduction (seq-diff k ::done) cat)
      (m/group-by key)
@@ -214,12 +212,9 @@ flow of values matching the identity provided by key function, defaulting to ide
                          (m/relieve {})
                          (m/latest (partial update empty-diff 0 assoc id)))
                 :value (->> >x
-                         (m/eduction (map val)
-                           (take-while (complement #{::done}))
-                           (append e))
                          (m/relieve {})
-                         (f)
-                         (m/latest (partial update empty-diff 1 assoc id)))))))
+                         (m/latest (fn [[_ x]] (case x ::done (throw (Cancelled. "Collection item removed.")) x)))
+                         (f) (m/latest (partial update empty-diff 1 assoc id)))))))
      (gather merge-diff)
      (m/reductions seq-patch)
      (m/latest #(get % 0)))))
@@ -227,7 +222,10 @@ flow of values matching the identity provided by key function, defaulting to ide
 (tests
   (let [!xs (atom [])
         it ((map-by :id
-              (fn [>x] (m/latest (fn [x] (and x (update x :email str/upper-case))) >x))
+              (fn [<x]
+                (m/cp
+                  (try (update (m/?< <x) :email str/upper-case)
+                       (catch Cancelled _))))
               (m/watch !xs)) #() #())]
     @it := []
     (swap! !xs conj {:id "alice" :email "alice@caramail.com"})

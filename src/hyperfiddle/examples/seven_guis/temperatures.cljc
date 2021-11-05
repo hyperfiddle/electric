@@ -26,7 +26,7 @@
 (p/def input
   #'(dom/input
       (dom/set-value! dom/parent (format-num temp unit))
-      (when-some [value (z/target temp
+      (when-some [value (z/instant temp
                           (->> (dom/events dom/parent "change")
                             (m/relieve {})
                             (m/eduction
