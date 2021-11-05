@@ -14,14 +14,16 @@
          "hyperfiddle.api.Link"  (t/read-handler #(apply hf/->Link %))
          "hyperfiddle.api.Input" (t/read-handler (fn [[id value]] (hf/->Input id value nil)))
          "hyperfiddle.Failure"   (t/read-handler #(apply pr/->Failure %))
-         "hyperfiddle.Pending"   (t/read-handler #(apply pr/->Pending %))}))
+         "hyperfiddle.Pending"   (t/read-handler #(apply pr/->Pending %))
+         "missionary.Cancelled"  (t/read-handler (fn [_] (missionary.Cancelled.)))}))
 
 (def write-handlers
   (atom {ExceptionInfo (t/write-handler (constantly "ex-info") (fn [ex] [(ex-message ex) (ex-data ex) (ex-cause ex)]))
          Link          (t/write-handler (constantly "hyperfiddle.api.Link") (fn [^Link x] [(.-href x) (.-value x)]))
          Input         (t/write-handler (constantly "hyperfiddle.api.Input") (fn [^Input x] [(.-id x) (.-value x)]))
          Failure       (t/write-handler (constantly "hyperfiddle.Failure") (juxt :error))
-         Pending       (t/write-handler (constantly "hyperfiddle.Pending") (constantly []))}))
+         Pending       (t/write-handler (constantly "hyperfiddle.Pending") (constantly []))
+         missionary.Cancelled (t/write-handler (constantly "missionary.Cancelled") (constantly []))}))
 
 (def ^:dynamic string-encoding "UTF-8")
 
