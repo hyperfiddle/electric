@@ -14,7 +14,7 @@
             #?(:cljs [goog.style :as sty])
             #?(:cljs [goog.events :as events])
             [clojure.string :as str]
-            [taoensso.timbre :as log])
+            [hyperfiddle.dev.utils :as utils])
   #?(:cljs (:require-macros [hfdl.lang :as photon :refer [vars]])))
 
 ;; TODO belongs here?
@@ -68,7 +68,7 @@
            old-event  (get sp k)]
        ;; (js/console.log elem k event-name f)
        (when (and old-event (not= f old-event))
-         (log/warn "Potential mistake: An event listener is being replaced. They should be constant. An anonymous function is probably created on each render. Hint: use `(partial merge {…})` or `(partial assoc {…} :key)`so the `{…}` map is constant."
+         (utils/warn "Potential mistake: An event listener is being replaced. They should be constant. An anonymous function is probably created on each render. Hint: use `(partial merge {…})` or `(partial assoc {…} :key)`so the `{…}` map is constant."
                    {:prop k, :element (re-find #"^<[^>]*>" (.-outerHTML elem))})
          (events/unlisten elem event-name old-event))
        (events/listen elem event-name f))))

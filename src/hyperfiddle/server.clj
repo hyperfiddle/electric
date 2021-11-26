@@ -3,7 +3,6 @@
     [hyperfiddle.common.transit :as transit]
     [hyperfiddle.server.websockets :as ws]                  ;; TODO restore
     [hyperfiddle.server.interceptors :as i]
-    hyperfiddle.server.logging
     [hyperfiddle.server.routes :as routes]
     [io.pedestal.http :as http]
     [io.pedestal.http.ring-middlewares :as middlewares]
@@ -11,7 +10,7 @@
     [io.pedestal.http.secure-headers :as secure-headers]
     [io.pedestal.interceptor.helpers :refer [before]]
     [ring.middleware.file :as file]
-    [taoensso.timbre :as log]
+    [hyperfiddle.dev.utils :as utils]
     [missionary.core :as m]
     [hfdl.impl.util :as u]
     [hfdl.lang :as p]
@@ -48,7 +47,7 @@
 (def index-dispatch
   (before (fn index-dispatch
             [{:keys [request] :as context}]
-            (prn request)
+            (utils/trace "request" request)
             (reset! !req request)
             (assoc context :response
                    (let [res (file/file-request (set-path request "/index.html")
@@ -134,7 +133,7 @@
 (defn start-server! [config]
   (let [server (-> config build http/create-server http/start)]
 
-    (log/info "server started at"
+    (utils/info "server started at"
               (str (:scheme config) "://" (:host config) ":" (:port config)))
 
     ;; TODO re-enable once config is settled
