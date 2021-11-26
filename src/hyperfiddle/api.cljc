@@ -3,8 +3,9 @@
             [hyperfiddle.rcf :refer [tests ! %]]
             [hfdl.lang :as p :refer [vars]]
             [missionary.core :as m]
-            [hyperfiddle.dev.utils :refer [log]])
-  #?(:cljs (:require-macros [hyperfiddle.api :refer [db entity attribute value sequenceM render join-all]])))
+            #?(:clj [hyperfiddle.dev.utils :refer [debug]]))
+  #?(:cljs (:require-macros [hyperfiddle.dev.utils :refer [debug]]
+                            [hyperfiddle.api :refer [db entity attribute value sequenceM render join-all]])))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 (def ^:dynamic *route*)                                     ; cljs
@@ -101,7 +102,7 @@
 
 ;; https://hackage.haskell.org/package/base-4.15.0.0/docs/Control-Monad.html#v:sequence
 (p/def sequenceM #'(let [v ~value]
-                     (log "VALUE" v)
+                     (debug "sequenceM" v)
                      (p/$ join-all v)))
 
 (tests
@@ -138,8 +139,8 @@
                                :cljs (m/ap (apply f args))))) ; m/via not supported in cljs
 
 (def q (wrap (fn [query & args]
-               (apply log *ns* :q query args)
-               (doto (apply d/q query *$* args) log))))
+               (debug :q query args)
+               (doto (apply d/q query *$* args) debug))))
 
 (defn nav!
   ([_ ref] ref)
@@ -147,8 +148,8 @@
   ([db ref kf & kfs] (reduce (partial nav! db) (nav! db ref kf) kfs)))
 
 (def nav (wrap (fn [ref & kfs]
-                 (apply log *ns* :nav ref kfs)
-                 (doto (apply nav! *$* ref kfs) log))))
+                 (debug :nav ref kfs)
+                 (doto (apply nav! *$* ref kfs) debug))))
 
 (tests
   (nav! *$* 9 :dustingetz/email)

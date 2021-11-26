@@ -1,6 +1,7 @@
 (ns hfdl.impl.util
   (:require [missionary.core :as m]
-            #?(:clj [minitest :refer [tests]]))
+            #?(:clj [minitest :refer [tests]])
+            [hyperfiddle.dev.utils :as utils])
   #?(:clj (:import (clojure.lang IFn IDeref)))
   #?(:cljs (:require-macros [hfdl.impl.util :refer [when-fail local get-local set-local with-local]]
                             [minitest :refer [tests]])))
@@ -73,7 +74,7 @@
   (comp ->FailureLogger f))
 
 (defn log-args [f & prefix]
-  (fn [& args] (apply prn (concat prefix args)) (apply f args)))
+  (fn [& args] (utils/trace prefix args) (apply f args)))
 
 (defn slot-changes [slots]
   (m/ap
