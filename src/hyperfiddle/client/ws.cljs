@@ -6,7 +6,7 @@
             ;; [hyperfiddle.service.routes :as routes]
             [cljs.reader :as edn] ;; TODO replace with transit
             [promesa.core :as p]
-            [taoensso.timbre :as log]))
+            [hyperfiddle.dev.utils :as utils]))
 
 (def READY_STATE {0 ::connecting
                   1 ::open
@@ -37,7 +37,7 @@
                                            (set! (.-onmessage socket) on-message)
                                            (set! (.-onerror socket) reject))
                                          (catch js/Error e
-                                           (log/error e)
+                                           (utils/error e)
                                            (reject e)))))]
                   (reset! connecting prom)
                   prom)))))
@@ -75,7 +75,7 @@
                     (swap! state assoc id continuation)
                     (.send socket (pr-str #_hc-t/encode (assoc event :id id))))))
         (p/catch (fn [err]
-                   (log/error "Unable to get a socket" err)
+                   (utils/error "Unable to get a socket" err)
                    (p/resolve! continuation nil))))
     continuation))
 
@@ -87,5 +87,5 @@
                            :error (p/reject! continuation data)
                            (p/resolve! continuation data))
                          (dissoc state id))
-                     (do (log/info "No continuation for this answer" data)
+                     (do (utils/info "No continuation for this answer" data)
                          state))))))

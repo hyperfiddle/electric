@@ -12,12 +12,14 @@
         cloroutine/cloroutine {:local/root "./vendor/cloroutine"}
         org.clojure/tools.analyzer.jvm {:mvn/version "1.1.0"}
         bidi/bidi {:mvn/version "2.1.6"}
-        com.taoensso/timbre {:mvn/version "4.10.0"}
-        reagent/reagent {:mvn/version "1.0.0"}}
+        reagent/reagent {:mvn/version "1.0.0"}
+        org.clojure/tools.logging {:mvn/version "1.1.0"}
+        ch.qos.logback/logback-classic {:mvn/version "1.2.6"}}
  :aliases {:dev {:extra-paths ["src-dev" "src-docs"
                                "scratch"]                   ; for clj command
                  :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}}
                  :jvm-opts   ["-XX:-OmitStackTraceInFastThrow" ; Don't mess with my stacktraces¹! I need them.
+                              "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
                               ]}
            :edn-view {:extra-deps {juji/editscript          {:mvn/version "0.5.7"}
                                    borkdude/edamame         {:mvn/version "0.0.11-alpha.29"}
@@ -27,8 +29,7 @@
                                    com.cognitect/transit-cljs {:mvn/version "0.8.256"}
                                    fipp/fipp                  {:mvn/version "0.6.23"}
                                    binaryage/devtools         {:mvn/version "1.0.3"}}}
-           :server {:extra-deps {com.fzakaria/slf4j-timbre        {:mvn/version "0.3.13"}
-                                 io.pedestal/pedestal.jetty       {:mvn/version "0.5.5"}
+           :server {:extra-deps {io.pedestal/pedestal.jetty       {:mvn/version "0.5.5"}
                                  io.pedestal/pedestal.service     {:mvn/version "0.5.5"}
                                  org.apache.commons/commons-lang3 {:mvn/version "3.8.1"}
                                  com.cognitect/transit-clj        {:mvn/version "0.8.313"}
