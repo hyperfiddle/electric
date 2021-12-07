@@ -115,10 +115,14 @@
                     (or (get-in ns-map [(:ns env) :aliases sym-ns])
                       (:ns (ns-map sym-ns))))]
       (when (or (not sym-ns) full-ns)
-        (let [name (if sym-ns (-> sym name symbol) sym)]
-          (-> ns-map
-            (get (or full-ns (:ns env)))
-            :mappings (get name)))))))
+        (let [name        (if sym-ns (-> sym name symbol) sym)
+              mapped-name (-> ns-map
+                              (get (or full-ns (:ns env)))
+                              :mappings (get name))]
+          (if (some? mapped-name)
+            mapped-name
+            ;; java.lang is implicit so not listed in ns form or env
+            (clojure.lang.Compiler/maybeResolveIn (the-ns (:ns env)) sym)))))))
 
 (defn resolve-runtime "
 Returns the fully qualified symbol of the var resolved by given symbol at runtime, or nil if the var doesn't exist or
