@@ -50,3 +50,12 @@
   ; var foo = hyperfiddle.client.ui.demo_dataflow.main(console.log, console.error)
 
   )
+
+
+(comment
+  ;; Perfs
+  (require '[clj-async-profiler.core :as prof])
+  (prof/serve-files 8082)
+  (prof/start)
+  (prof/stop)
+  )
