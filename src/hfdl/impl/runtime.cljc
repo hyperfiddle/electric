@@ -114,7 +114,9 @@
   (let [v [frame slot nodes]]
     (->> flow
       (m/eduction (dedupe)
-        (map #(u/bind-flow current v %)))
+        (map #(u/bind-flow current v
+                (if (failure %)
+                  (steady %) %))))
       (switch))))
 
 (defn create [context [target-frame target-slot source-frame source-slot]]
