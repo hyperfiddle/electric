@@ -127,7 +127,7 @@
        ::http/container-options {:context-configurator
                                  (fn [^ServletContextHandler ctx]
                                    (doto ctx
-                                     (.setGzipHandler (gzip-handler "GET" "POST"))
+                                     #_(.setGzipHandler (gzip-handler "GET" "POST"))
                                      (ws/add-ws-endpoints (ws-paths config))))}})))
 
 (defn start-server! [config]
