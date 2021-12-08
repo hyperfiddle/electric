@@ -5,7 +5,7 @@
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
             [hyperfiddle.router :as r]
-            [hyperfiddle.dev.utils :as utils]))
+            [hyperfiddle.dev.logger :as log]))
 
 (def ^:export LATENCY 0)
 
@@ -23,16 +23,16 @@
           (set! (.-onclose socket) js/console.log)
           (set! (.-onmessage socket)
             #(let [decoded (transit/decode (.-data %))]
-               (utils/trace "🔽" decoded)
+               (log/trace "🔽" decoded)
                (cb decoded)))
           (s (fn [x]
                (fn [s f]
                  (try
-                   (utils/trace "🔼" x)
+                   (log/trace "🔼" x)
                    (.send socket (transit/encode x))
                    (s nil)
                    (catch :default e
-                     (utils/error e)
+                     (log/error e)
                      (f e)))
                  #())))))
       (set! (.-onerror socket)

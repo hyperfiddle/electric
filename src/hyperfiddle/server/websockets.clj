@@ -4,7 +4,7 @@
     ;; [hyperfiddle.service.auth :as auth] ;; TODO restore
     [missionary.core :as m]
     [hfdl.impl.util :as u]
-    [hyperfiddle.dev.utils :as utils])
+    [hyperfiddle.dev.logger :as log])
   (:import (org.eclipse.jetty.servlet ServletContextHandler ServletHolder)
            (org.eclipse.jetty.websocket.api RemoteEndpoint Session WebSocketConnectionListener
                                             WebSocketListener WriteCallback SuspendToken)
@@ -52,14 +52,14 @@
     (token-resume! token))
   WebSocketConnectionListener
   (onWebSocketConnect [this s]
-    (utils/debug "websocket connect")
+    (log/debug "websocket connect")
     (set! session s)
     (boot (.getRemote s)
       (set! msg-str (m/rdv))
       (set! msg-buf (m/rdv))
       (set! close (m/dfv))))
   (onWebSocketClose [this s r]
-    (utils/debug "websocket close")
+    (log/debug "websocket close")
     (close
       (do
         (set! close nil)
@@ -70,15 +70,15 @@
             (set! error nil)
             {:error e})))))
   (onWebSocketError [this e]
-    (utils/error e)
+    (log/error e)
     (set! error e))
   WebSocketListener
   (onWebSocketText [this msg]
-    (utils/trace "receive text" msg)
+    (log/trace "receive text" msg)
     (set! token (session-suspend! session))
     ((msg-str msg) this u/pst))
   (onWebSocketBinary [this payload offset length]
-    (utils/warn "received binary" {:length length})
+    (log/warn "received binary" {:length length})
     (set! token (session-suspend! session))
     ((msg-buf (ByteBuffer/wrap payload offset length)) this u/pst)))
 

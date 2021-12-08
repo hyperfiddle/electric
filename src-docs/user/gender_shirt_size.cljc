@@ -2,10 +2,7 @@
   (:require [clojure.spec.alpha :as s]
             [hfdl.lang :as p]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :refer [tests ! %]]
-            [hyperfiddle.spec :as spec]
-            [missionary.core :as m])
+            [hyperfiddle.rcf :refer [! % tests]])
   #?(:cljs (:require-macros [user.gender-shirt-size :refer [genders gender shirt-sizes submissions submission emails sub-profile]])))
 
 
@@ -32,7 +29,6 @@
         :ret (s/coll-of number?))
 
 (p/defn shirt-sizes [gender needle]
-  (prn "SHIRT-SIZES" gender needle)
   (sort
    ~(hf/q '[:in $ % ?gender ?needle
             :find [?e ...]
@@ -55,7 +51,6 @@
         :ret (s/coll-of string?))
 
 (p/defn submissions [needle]
-  (prn "NEEDLE" needle)
   (sort
     ~(hf/q '[:find [?e ...]
           :in $ % ?needle

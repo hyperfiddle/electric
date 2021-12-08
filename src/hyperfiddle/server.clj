@@ -10,7 +10,7 @@
     [io.pedestal.http.secure-headers :as secure-headers]
     [io.pedestal.interceptor.helpers :refer [before]]
     [ring.middleware.file :as file]
-    [hyperfiddle.dev.utils :as utils]
+    [hyperfiddle.dev.logger :as log]
     [missionary.core :as m]
     [hfdl.impl.util :as u]
     [hfdl.lang :as p]
@@ -47,7 +47,7 @@
 (def index-dispatch
   (before (fn index-dispatch
             [{:keys [request] :as context}]
-            (utils/trace "request" request)
+            (log/trace "request" request)
             (reset! !req request)
             (assoc context :response
                    (let [res (file/file-request (set-path request "/index.html")
@@ -133,7 +133,7 @@
 (defn start-server! [config]
   (let [server (-> config build http/create-server http/start)]
 
-    (utils/info "server started at"
+    (log/info "server started at"
               (str (:scheme config) "://" (:host config) ":" (:port config)))
 
     ;; TODO re-enable once config is settled
