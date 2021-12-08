@@ -9,7 +9,7 @@
             [io.pedestal.http.content-negotiation :as content-negotiation]
             ;; [io.pedestal.http.ring-middlewares :as ring-middleware]
             [io.pedestal.interceptor.helpers :as interceptor]
-            [hyperfiddle.dev.utils :as utils])
+            [hyperfiddle.dev.logger :as log])
   (:import [java.io #_OutputStream OutputStreamWriter]
            java.util.UUID
            org.apache.commons.lang3.StringEscapeUtils))
@@ -31,7 +31,7 @@
                                  (let [id (UUID/randomUUID)
                                        {:keys [remote-addr server-name server-port request-method uri protocol]}
                                        ,, request]
-                                   (utils/trace {:id          id
+                                   (log/trace {:id          id
                                               :remote-addr remote-addr
                                               :host        server-name
                                               :port        server-port
@@ -42,7 +42,7 @@
                                               :user-agent  (get-in request [:headers "user-agent"])})
                                    (update context :request assoc :id id)))
                                (fn trace-response [{:keys [request response] :as context}]
-                                 (utils/debug "request" (str (:id request)) "=> HTTP" (:status response))
+                                 (log/debug "request" (str (:id request)) "=> HTTP" (:status response))
                                  context)))
 
 (defn- print-fn
