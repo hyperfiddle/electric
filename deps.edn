@@ -17,9 +17,13 @@
         ch.qos.logback/logback-classic {:mvn/version "1.2.6"}}
  :aliases {:dev {:extra-paths ["src-dev" "src-docs"
                                "scratch"]                   ; for clj command
-                 :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}}
+                 :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}
+                              com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.0-alpha1"}}
                  :jvm-opts   ["-XX:-OmitStackTraceInFastThrow" ; Don't mess with my stacktraces¹! I need them.
                               "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
+                              "-Djdk.attach.allowAttachSelf" ;; profiling
+                              "-XX:+UnlockDiagnosticVMOptions"
+                              "-XX:+DebugNonSafepoints"
                               ]}
            :edn-view {:extra-deps {juji/editscript          {:mvn/version "0.5.7"}
                                    borkdude/edamame         {:mvn/version "0.0.11-alpha.29"}
