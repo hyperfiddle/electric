@@ -162,7 +162,8 @@ flow of values matching that key in the input map.
                  s id->slot)
          values (reduce-kv
                   (fn [values id value]
-                    (assoc values (get slots id) value))
+                    (if-some [slot (get slots id)]
+                      (assoc values slot value) values))
                   (reduce-kv
                     (fn [values id slot]
                       (case slot
