@@ -294,14 +294,16 @@ is a macro or special form."
                         (conj-res [[:first]] r (analyze-form env stmt)))
                       (case catches
                         [] body
-                        (let [e (gensym)]
-                          (conj-res [[:recover]] body
-                            (analyze-form (with-local env e)
-                              (reduce
-                                (fn [cont [c s & body]]
-                                  (let [form `(let [~s ~e] ~@body)]
-                                    (case c :default form `(if (instance? ~c ~e) ~form ~cont))))
-                                `(throw ~e) catches))))) finally))
+                        (let [e (gensym)
+                              r (analyze-form (with-local env e)
+                                  (reduce
+                                    (fn [cont [c s & body]]
+                                      (let [form `(let [~s ~e] ~@body)]
+                                        (case c :default form `(if (instance? ~c ~e) ~form ~cont))))
+                                    `(throw ~e) catches))]
+                          (conj (pop body)
+                            [:target ((void [:nop]) (pop r))] [:source]
+                            [:recover (peek body) (peek r)]))) finally))
 
                   (if-some [sym (resolve-runtime env op)]
                     (case sym
@@ -490,7 +492,7 @@ is a macro or special form."
         [:apply [:global :clojure.core/instance?] [:global :java.lang.Exception] [:sub 2]]
         [:constant [:pub [:sub 2] [:literal 2]]]]]]]
     [:literal 3]]
-   [:target [:nop] [:target [:nop] [:source [:literal nil]]]]]
+   [:target [:target [:nop] [:target [:nop] [:source [:nop]]]] [:source [:literal nil]]]]
 
   )
 
