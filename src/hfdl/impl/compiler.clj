@@ -685,6 +685,14 @@ is a macro or special form."
     (-> (when-not (throw (ex-info "Unable to resolve symbol." {:form form}))))))
 
 (defn vars [env forms]
-  (into {} (map (comp (juxt global identity)
-                  (partial resolve-runtime-throwing
-                    (normalize-env env)))) forms))
+  (let [resolved (into {} (map (comp (juxt global identity)
+                                     (partial resolve-runtime-throwing (normalize-env env))))
+                       forms)]
+    `(fn ~'global-var-resolver
+       ([ident#]
+        (contains? ~(set (keys resolved)) ident#))
+       ([not-found# ident#]
+        (case ident#
+          ~@(mapcat identity resolved)
+          not-found#)))))
+
