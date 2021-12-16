@@ -41,6 +41,7 @@
   (.resume token))
 
 (deftype Ws [boot
+             ^:unsynchronized-mutable reactor
              ^:unsynchronized-mutable session
              ^:unsynchronized-mutable msg-str
              ^:unsynchronized-mutable msg-buf
@@ -54,12 +55,13 @@
   (onWebSocketConnect [this s]
     (log/debug "websocket connect")
     (set! session s)
-    (boot (.getRemote s)
-      (set! msg-str (m/rdv))
-      (set! msg-buf (m/rdv))
-      (set! close (m/dfv))))
+    (set! reactor (boot (.getRemote s)
+                        (set! msg-str (m/rdv))
+                        (set! msg-buf (m/rdv))
+                        (set! close (m/dfv)))))
   (onWebSocketClose [this s r]
     (log/debug "websocket close")
+    (reactor)
     (close
       (do
         (set! close nil)
@@ -99,5 +101,5 @@
                               #_(auth/configured? context)
                               #_(auth/authenticated? context)
                               )
-                        (->Ws (handler request) nil nil nil nil nil nil))))))))
+                        (->Ws (handler request) nil nil nil nil nil nil nil))))))))
           ^String path)))))
