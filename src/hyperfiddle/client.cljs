@@ -5,6 +5,7 @@
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
             [hyperfiddle.router :as r]
+            [user.hfql-distributed :as distributed]
             [hyperfiddle.dev.logger :as log]))
 
 (def ^:export LATENCY 0)
@@ -50,4 +51,5 @@
       (m/? (c (comp delayed w) (delayed m))))))
 
 (def ^:export main
-  (client (p/main (binding [dom/parent (dom/by-id "hf-ui-dev-root")] ~r/router))))
+  (client (p/main (binding [dom/parent (dom/by-id "hf-ui-dev-root")] ~distributed/page #_~r/router))))
+

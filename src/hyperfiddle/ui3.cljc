@@ -7,11 +7,14 @@
             [missionary.core :as m]
             [datascript.db]
             #?(:clj [hyperfiddle.q6 :as hfql])
-            [hyperfiddle.dev.utils :refer [log]])
+            [hyperfiddle.dev.logger :as log]
+            [hfdl.impl.runtime] ;; FIXME remove
+            )
   #?(:cljs (:require-macros [hyperfiddle.q6 :as hfql]
                             [hyperfiddle.ui3 :refer [render
                                                        spec-renderer spec-renderer-impl
                                                        default-renderer default-renderer-impl
+                                                       string-renderer
                                                        form form-impl form-impl*
                                                        table table-impl
                                                        row row-impl
@@ -22,7 +25,7 @@
                                                        boolean boolean-impl
                                                        render-inputs
                                                        render-options
-                                                       typeahead
+                                                       typeahead typeahead-impl
                                                        link
                                                        with-spec-render
                                                        render-mode-selector]])))
@@ -64,6 +67,7 @@
                (dom/attribute "href" (pr-str ~hf/value))
                (dom/text (pr-str ~hf/value))))
 
+;; DEPRECATED
 (defn sort-by-columns [cols kvs]
   (let [index (into {} (map-indexed (fn [idx v] [v idx]) cols))]
     (if (pos? (count index))
@@ -128,50 +132,54 @@
                                (m/relieve {}))))
     ~(m/watch state)))
 
-(p/defn typeahead []
-  (binding [hf/render hf/sequenceM]
-    (let [id      (str (gensym))
-          options (::hf/options hf/props)
-          label   (::hf/option-label hf/props)]
-      (dom/fragment
-       (let [value  ~hf/value
-             value' (p/$ input {:dom.attribute/type    (:dom.attribute/type hf/props)
-                                :dom.attribute/class   "hf-typeahead"
-                                :dom.property/disabled (::hf/disabled hf/props)
-                                :dom.property/style    {"border-color" (color hf/db)}
-                                :dom.property/value    (str (if (and label value)
-                                                            ~(label value)
-                                                            value))
-                                :dom.attribute/list    id}
-                         dom/target-value)]
-         (when (some? options)
-           (binding [hf/args {'needle value'}]
-             (let [options ~options]
-               (dom/element "datalist"
-                            (dom/attribute "id" id)
-                            (dom/attribute "data-count" (count options))
-                            (p/for [option options]
-                              (dom/option #_(when (= ~hf/value option)
-                                              (dom/attribute "selected" true))
-                                          (dom/text ((or label identity) option))))))))
-         value')))))
+(p/def typeahead)
+(p/defn typeahead-impl []
+  ;; (binding [hf/render hf/sequenceM])
+  (let [id      (str (gensym))
+        options (::hf/options hf/props)
+        label   (::hf/option-label hf/props)]
+    (do (log/info "TYPEAHEAD" {:id id, :options options, :label label})
+        (dom/fragment
+         (let [value  {} #_~hf/value
+               value' (p/$ input {:dom.attribute/type    (:dom.attribute/type hf/props)
+                                  :dom.attribute/class   "hf-typeahead"
+                                  :dom.property/disabled (::hf/disabled hf/props)
+                                  :dom.property/style    {"border-color" (color ~@ hf/db)}
+                                  :dom.property/value    (str (if (and label value)
+                                                                ~(label value)
+                                                                value))
+                                  :dom.attribute/list    id}
+                           dom/target-value)]
+           (when (some? options)
+             (binding [hf/args {'needle value'}]
+               (let [options ~options]
+                 (dom/element "datalist"
+                              (dom/attribute "id" id)
+                              (dom/attribute "data-count" (count options))
+                              (p/for [option options]
+                                ;; FIXME dom nodes not unmounting here
+                                (dom/option #_(when (= ~hf/value option)
+                                                (dom/attribute "selected" true))
+                                            (dom/text ((or label identity) option))))))))
+           value')))))
 
 (p/defn render-inputs []
   (when (seq hf/inputs)
-    (let [f (first hf/attribute)]
-      (dom/div (dom/class "inputs")
-               (merge hf/args
-                      (zipmap (map first hf/inputs)
-                              (p/for [[arg props] hf/inputs]
-                                (let [id (str (gensym))]
-                                  (dom/element "label" (dom/text (str arg))
-                                               (dom/attribute "for" (str id)))
-                                  (binding [hf/props (assoc props :dom.attribute/id id, :dom.attribute/type (input-types (argument-type f arg)))
-                                            hf/db    nil
-                                            hf/value (::hf/value props)]
-                                    (if (some? (::hf/render props))
-                                      ~(::hf/render props)
-                                      ~default-renderer))))))))))
+    (do (log/info "RENDER INPUTS")
+      (let [f (first hf/attribute)]
+        (dom/div (dom/class "inputs")
+                 (merge hf/args
+                        (zipmap (map first hf/inputs)
+                                (p/for [[arg props] hf/inputs]
+                                  (let [id (str (gensym))]
+                                    (dom/element "label" (dom/text (str arg))
+                                                 (dom/attribute "for" (str id)))
+                                    (binding [hf/props {}#_(assoc props :dom.attribute/id id, :dom.attribute/type (input-types (argument-type f arg)))
+                                              hf/db    nil
+                                              hf/value (::hf/value props)]
+                                      (if (some? (::hf/render props))
+                                        ~(::hf/render props)
+                                        ~default-renderer)))))))))))
 
 (p/def form-impl*)
 
@@ -186,9 +194,13 @@
                  (dom/element "legend" (dom/text "::hf/options"))
                  ~table-picker)))
 
+(def foo)
+
 (defn schema-attr [db ?a]
-  (condp = (type db)
-    datascript.db.DB (get (:schema db) ?a)))
+  #?(:clj (do #_(assert (bound? #'hf/*$*) "no db")
+              #_(condp = (type db)
+                datascript.db.DB (get (:schema db) ?a))
+              (get (:schema hf/*$*) ?a))))
 
 (defn cardinality [db ?a]
   (case (:db/cardinality (schema-attr db ?a))
@@ -196,44 +208,50 @@
     :db.cardinality/many ::many
     ::one))
 
+(p/def string-renderer #'(dom/text (str ~hf/value)))
+
 (p/def default-renderer)
 (p/defn default-renderer-impl []
-  (if-some [type (and (some? hf/attribute)
-                      (:hf/valueType (schema-attr hf/*$* hf/attribute)))]
-    (do (prn "DEFAULT" hf/attribute type)
-        #_(binding [hf/props (assoc hf/props :dom.attribute/type (input-types (spec/valueType->type type)))]
-          ~typeahead))
+  (log/trace "DEFAULT hf/attribute: " ~@ hf/attribute)
+  (if-some [type (and (some? ~@ hf/attribute) ;; FIXME binding unification
+                      (:hf/valueType ~@ (schema-attr hf/*$* hf/attribute)))]
+    (do
+      (log/trace "DEFAULT inferred type" type )
+      ;; (dom/text (str ~hf/value))
+      (binding [hf/props {} #_(assoc hf/props :dom.attribute/type (input-types (spec/valueType->type type)))]
+        ~typeahead))
     (dom/code (dom/class "language-clojure") (dom/text (str ~hf/value)))))
 
 (p/defn form-impl []
   (dom/element "form"
-               (dom/style {"border-left-color" (color hf/db)})
-               (let [kvs    (sort-by-columns hf/columns ~hf/value)]
-                 (p/for [[k v] kvs]
-                   (dom/div (dom/class "field")
-                            (dom/style {"border-left-color" (color hf/db)})
-                            (dom/element "label"
-                                         (dom/attribute "title" (spec/parse k))
-                                         (dom/text k))
-                            ~v))))
-  ~render-options)
+               (dom/style {"border-left-color"  (color ~@ hf/db)})
+               (let [value ~hf/value]
+                 (p/for [column ~@ hf/columns]
+                   (do (log/info "column" column)
+                       (dom/div (dom/class "field")
+                                (dom/style {"border-left-color" (color ~@ hf/db)})
+                                (dom/element "label"
+                                             (dom/attribute "title" (spec/parse column))
+                                             (dom/text column))
+                                ~(get value column)))) ))
+  #_~render-options)
 
 (p/defn row-impl []
   (dom/tr
-    (let [kvs (sort-by-columns hf/columns ~hf/value)]
-      (binding [form      form-impl
-                form-impl form-impl*]
-        (p/for [[k v] kvs]
-          (dom/td (dom/style {"border-color" (color hf/db)})
-                  ~v))))))
+   (let [value ~hf/value]
+     (binding [form      form-impl
+               form-impl form-impl*]
+       (p/for [column ~@ hf/columns] ;; FIXME binding unification
+         (dom/td (dom/style {"border-color" (color ~@  hf/db)});; FIXME binding unification
+                 ~(get value column)))))))
 
 (p/defn table-impl []
   (binding [hf/args ~render-inputs]
     (dom/table
      (dom/thead
       (dom/tr
-       (p/for [col hf/columns]
-         (dom/th (dom/style {"background-color" (color hf/db)})
+       (p/for [col ~@ hf/columns] ;; FIXME binding unification
+         (dom/th (dom/style {"background-color" (color ~@ hf/db)}) ;; FIXME binding unification
                  (dom/text (pr-str col))))))
      (dom/tbody
       (binding [form row]
@@ -248,24 +266,24 @@
                                        :dom.attribute/name (::group -table-picker-props)
                                        :dom.property/checked (= (::value -table-picker-props) (binding [hf/render hf/sequenceM]
                                                                                                 ~hf/render))}
-                                dom/target-checked))
-         kvs       (sort-by-columns hf/columns ~hf/value)]
-     (binding [form      form-impl
-               form-impl form-impl*]
-       (p/for [[k v] kvs]
-         (dom/td (dom/style {"border-color" (color hf/db)})
-                 ~v)))
+                                dom/target-checked))]
+     (let [value ~hf/value]
+       (binding [form      form-impl
+                 form-impl form-impl*]
+         (p/for [column ~@ hf/columns]
+           (dom/td (dom/style {"border-color" (color ~@ hf/db)})
+                   ~(get value column)))))
      selected?)))
 
 (p/defn options-picker-impl []
   (binding [hf/args ~render-inputs]
-    (let [cardinality (cardinality hf/*$* hf/options-attribute)]
+    (let [cardinality ~@ (cardinality hf/*$* hf/options-attribute)]
       (dom/table
        (dom/thead
         (dom/tr
          (dom/td)
-         (p/for [col hf/columns]
-           (dom/th (dom/style {"background-color" (color hf/db)})
+         (p/for [col ~@ hf/columns]
+           (dom/th (dom/style {"background-color" (color ~@ hf/db)})
                    (dom/text (pr-str col))))))
        (dom/tbody
         (binding [form                row-picker
@@ -280,11 +298,15 @@
 (p/defn table-picker-impl []
   (binding [table               options-picker
             -table-picker-props {::value hf/value}]
-    ~(::hf/options hf/props)))
+    (do (log/info "TABLE PICKER" hf/props)
+        (when-let [options (::hf/options hf/props)]
+          (do (log/info "RENDER OPTIONS" options)
+              ~options)))))
 
 (p/def spec-renderer)
 (p/defn spec-renderer-impl []
   (let [value ~hf/value]
+    (log/info "SPEC RENDER" value)
     (cond (map? value)    ~form
           (vector? value) ~table
           :else           ~default-renderer)))
@@ -300,5 +322,8 @@
             options-picker   options-picker-impl
             boolean          boolean-impl
             default-renderer default-renderer-impl
+            typeahead        typeahead-impl
             spec-renderer    spec-renderer-impl]
     ~>cont))
+
+(def exports (p/vars nil? prn some? schema-attr cardinality))
