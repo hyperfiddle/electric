@@ -262,8 +262,12 @@
                        (distinct)))
        (sort-by (juxt namespace name))))
 
-(defn missing-exports [env program]
-  (map symbol (remove env (globals program))))
+(defn missing-exports [resolvef program]
+  (->> (globals program)
+       (eduction (map (juxt (partial resolvef ::not-found) identity))
+                 (filter #(= ::not-found (first %)))
+                 (map second)
+                 (map symbol))))
 
 (def eval
   (let [slots (u/local)
@@ -280,7 +284,7 @@
                 (u/set-local slots (assoc m k (inc n))) n))
             (node [s]
               (u/set-local slots (update (u/get-local slots) :nodes max s)) s)]
-      (fn [resolve inst]
+      (fn [resolvef inst]
         (letfn [(eval-inst [idx [op & args]]
                   (case op
                     :nop (fn [_ _])
@@ -323,11 +327,12 @@
                               (fn [pubs nodes]
                                 (source s nodes)
                                 (f pubs nodes)))
-                    :global (if (contains? resolve (first args))
-                              (constantly (steady (get resolve (first args))))
+                    :global (if (resolvef (first args)) ; check if exported, don’t resolve now.
+                              (constantly (steady (resolvef ::not-found (first args)) ; resolve when sampled
+                                                  ))
                               (throw (ex-info (str "Unable to resolve - "
                                                    (symbol (first args)))
-                                              {:missing-exports (missing-exports resolve inst)})))
+                                              {:missing-exports (missing-exports resolvef inst)})))
                     :literal (constantly (steady (first args)))
                     :recover (let [f (eval-inst idx (first args))
                                    [g {:keys [inputs targets sources signals variables outputs]}]
