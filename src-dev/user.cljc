@@ -1,16 +1,13 @@
-(ns user)
+(ns user )
 
-; % yarn
-; % yarn run css:build
-; % yarn run css:watch
-; % yarn run dev
-; start shadow watch in shadow web control plane
-; connect first nrepl for JVM repl
-; load this file in clj nrepl
-; start server (in the shadow JVM)
-; connect second nrepl for JS repl
+; % npx shadow-cljs server
+; connect one nrepl for JVM repl
+; connect second nrepl, then eval (shadow/repl :app) for JS repl
+; check repl type: eval (type 1)
 
-;; Start server and compile client
+;;;;;;;;;;;;;;;;;;
+;; Start server ;;
+;;;;;;;;;;;;;;;;;;
 (comment
   (do
     (require '[dev])
@@ -21,12 +18,14 @@
                                 :port   8080
                                 :scheme "http"})))
   (http/stop server)
-  (shadow/compile :app)
   )
 
-;; Check REPL type
+;;;;;;;;;;;;;;;;;;;;
+;; Compile client ;;
+;;;;;;;;;;;;;;;;;;;;
 (comment
-  (type 1)
+  (shadow/compile :app)
+  (shadow/release :app)
   )
 
 ;; Tests
@@ -51,6 +50,5 @@
 (comment
   (require '[clj-async-profiler.core :as prof])
   (prof/serve-files 8082)
-  (prof/start) ; start profiler
-  (prof/stop)
+  ;; Navigate to http://localhost:8082
   )
