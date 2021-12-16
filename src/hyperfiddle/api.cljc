@@ -3,8 +3,9 @@
             [hyperfiddle.rcf :refer [tests ! %]]
             [hfdl.lang :as p :refer [vars]]
             [missionary.core :as m]
-            #?(:clj [hyperfiddle.dev.utils :refer [debug]]))
-  #?(:cljs (:require-macros [hyperfiddle.dev.utils :refer [debug]]
+            #?(:clj [hyperfiddle.dev.logger :as log]))
+  #?(:cljs (:require [hyperfiddle.dev.logger :as log]))
+  #?(:cljs (:require-macros [hyperfiddle.dev.logger :refer [debug]]
                             [hyperfiddle.api :refer [db entity attribute value sequenceM render join-all]])))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
@@ -139,8 +140,8 @@
                                :cljs (m/ap (apply f args))))) ; m/via not supported in cljs
 
 (def q (wrap (fn [query & args]
-               (debug :q query args)
-               (doto (apply d/q query *$* args) debug))))
+               (log/debug :q query args)
+               (doto (apply d/q query *$* args) log/debug))))
 
 (defn nav!
   ([_ ref] ref)
@@ -148,8 +149,8 @@
   ([db ref kf & kfs] (reduce (partial nav! db) (nav! db ref kf) kfs)))
 
 (def nav (wrap (fn [ref & kfs]
-                 (debug :nav ref kfs)
-                 (doto (apply nav! *$* ref kfs) debug))))
+                 (log/debug :nav ref kfs)
+                 (doto (apply nav! *$* ref kfs) log/debug))))
 
 (tests
   (nav! *$* 9 :dustingetz/email)
