@@ -19,7 +19,8 @@ of this var to the value currently bound to this var.
 
 (def exports
   (vars hash-map vector list concat seq sort into first inc dec + - / * swap! cons sorted-map keys comp remove filter map constantly str coll? empty list? map? nth partial r/steady count
-    m/eduction m/reductions m/relieve m/watch))
+    m/eduction m/reductions m/relieve m/watch
+    map-by identity hfdl.impl.runtime/failure))
 
 (def eval "Takes a resolve map and a program, returns a booting function.
 The booting function takes
@@ -57,14 +58,30 @@ Takes a photon program and returns a pair
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
     (->> (list 'var v)
-      (list `map-by kf
-        (->> body
-          (list* `for-by kf bindings)
-          (list `let [s (second c/args)])
-          (list 'var)
-          (list `partial (list 'def (second c/args)))))
-      (list `unquote))
+         (list `map-by kf
+               (->> body
+                    (list* `for-by kf bindings)
+                    (list `let [s (second c/args)])
+                    (list 'var)
+                    (list `partial (list 'def (second c/args)))))
+         (list `unquote))
     (cons 'do body)))
+
+;; G: was a temporary patch, fixed upstream by Leo
+;; (defmacro for-by [kf bindings & body]
+;;   (let [value (gensym)]
+;;     (if-some [[s v & bindings] (seq bindings)]
+;;       `(let [~value ~v]
+;;          (or (hfdl.impl.runtime/failure ~value) ;; FIXME find a better way to guard rfor against failure
+;;              ~(->> (list 'var value)
+;;                    (list `map-by kf
+;;                          (->> body
+;;                               (list* `for-by kf bindings)
+;;                               (list `let [s (second c/args)])
+;;                               (list 'var)
+;;                               (list `partial (list 'def (second c/args)))))
+;;                    (list `unquote))))
+;;       (cons 'do body))))
 
 (defmacro for [bindings & body]
   `(for-by identity ~bindings ~@body))

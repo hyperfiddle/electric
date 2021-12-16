@@ -272,3 +272,16 @@ flow of values matching the identity provided by key function, defaulting to ide
         (identical? (get x 1) (get y 0)) := true
         (swap! !xs pop)
         @it := [{:id "alice" :email "BOB@YAHOO.COM"}]))))
+
+;; (tests
+;;  ;; (require '[hfdl.impl.runtime])
+;;  (let [!xs (atom [])
+;;        failure (hfdl.impl.runtime/->Failure ":trollface:")
+;;        it ((map-by identity
+;;                    (partial m/latest identity)
+;;                    (m/watch !xs))
+;;            #() #())]
+;;    @it := []
+;;    (reset! !xs failure)
+;;    @it := failure
+;;    ))

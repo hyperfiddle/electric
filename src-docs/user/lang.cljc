@@ -2,7 +2,8 @@
   "Photon language tutorial"
   (:require [hfdl.lang :as r]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
-            [missionary.core :as m]))
+            [missionary.core :as m]
+            [hfdl.lang :as p]))
 
 ;(defmacro with-disposal [task & body]
 ;  `(let [dispose# ~task]
@@ -880,3 +881,35 @@
 
 (tests
   (r/run2 (r/vars vector) (prn (r/for [id ~@[1]] id))))
+
+;; (tests
+;;   (r/run2 (r/vars hash-map true?) (! ~#'(when (true? true) :ok)))
+;;   % := :ok ; pass
+
+;;   (r/run2 (r/vars hash-map true?) (! ~#'(when (true? ~@ true) :ok)))
+;;   % := :ok)
+
+;; (tests
+;;   (let [!xs     (atom [])
+;;         failure (hfdl.impl.runtime/->Failure ":trollface:")
+;;         dispose (p/run (! (r/for [x ~(m/watch !xs)] x)))]
+
+;;     % := []
+
+;;     (reset! !xs failure)  ; won’t call `!` , failure state bypasses apply.
+;;     (reset! !xs [1])
+
+;;     % := []  ; collapse bug
+;;     % := [1]
+
+;;     (dispose)))
+
+;; (tests
+;;   (def !value (atom 0))
+;;   (p/run2 (p/vars hash-map prn) (! (let [v ~(m/watch !value)] ~@ (do (prn v) :nil))))
+;;   ;; print 0
+;;   % := :nil
+;;   (swap! !value inc)
+;;   ;; print 1
+;;   % := :nil ;; :nil sent N times to other peer. Waste of resources.
+;;   )
