@@ -1,10 +1,9 @@
 (ns dev
   (:require
-    ;#?(:clj [datomic.api :as d])
     [datascript.core :as d]
     [missionary.core :as m]
-    [hyperfiddle.api :as hf :refer [*$*]]
-    [hyperfiddle.rcf :refer [tests]]))
+    [hyperfiddle.api :refer [*$*]]
+    [hyperfiddle.dev.logger :as log]))
 
 
 (defn fixtures [$]
@@ -51,13 +50,15 @@
      :dustingetz/type       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
      :dustingetz/tags       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
      :db/ident              {:db/unique :db.unique/identity}})
-  (let [$ (-> (d/create-conn schema) d/db fixtures)]
+  (log/info "Initializing Datascript")
+  (def conn (d/create-conn schema))
+  (let [$ (-> conn d/db fixtures)]
     #?(:clj (alter-var-root #'*$* (constantly $))
        :cljs (set! *$* $))))
 
 ;#?(:clj (init-datomic)
 ;   :cljs (init-datascript))
-(init-datascript)
+#?(:clj (init-datascript))
 
 (def male    1 #_:dustingetz/male   #_17592186045418)
 (def female  2 #_:dustingetz/female #_17592186045419)

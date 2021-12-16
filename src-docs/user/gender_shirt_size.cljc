@@ -29,15 +29,16 @@
         :ret (s/coll-of number?))
 
 (p/defn shirt-sizes [gender needle]
-  (sort
-   ~(hf/q '[:in $ % ?gender ?needle
-            :find [?e ...]
-            :where
-            [?e :dustingetz/type :dustingetz/shirt-size]
-            [?e :dustingetz/gender ?gender]
-            [?e :db/ident ?ident]
-            (hyperfiddle.api/needle-match ?ident ?needle)]
-          hf/rules gender (or needle ""))))
+  (when gender
+    (sort
+     ~(hf/q '[:in $ % ?gender ?needle
+              :find [?e ...]
+              :where
+              [?e :dustingetz/type :dustingetz/shirt-size]
+              [?e :dustingetz/gender ?gender]
+              [?e :db/ident ?ident]
+              (hyperfiddle.api/needle-match ?ident ?needle)]
+            hf/rules gender (or needle "")))))
 
 (p/defn emails [needle]
   ~(hf/q '[:in $ % ?needle

@@ -87,7 +87,7 @@
 
 (p/def db nil)
 (p/def entity #'nil)
-(p/def attribute #'nil)
+(p/def attribute nil)
 (p/def value #'nil)
 (p/def options-attribute #'nil)
 
@@ -102,9 +102,7 @@
     :else     v))
 
 ;; https://hackage.haskell.org/package/base-4.15.0.0/docs/Control-Monad.html#v:sequence
-(p/def sequenceM #'(let [v ~value]
-                     (debug "sequenceM" v)
-                     (p/$ join-all v)))
+(p/def sequenceM #'(p/$ join-all ~value))
 
 (tests
   (p/run (! (binding [value #'[#'1 #'2 #'3]]
@@ -159,4 +157,4 @@
   (m/? (m/reduce conj (nav 9 :dustingetz/email)))
   := ["alice@example.com"])
 
-(def exports (vars rules ->Link info q nav))
+(def exports (vars rules ->Link info q nav *$*))
