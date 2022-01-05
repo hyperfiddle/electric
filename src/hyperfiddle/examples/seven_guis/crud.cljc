@@ -70,7 +70,7 @@
                   "max-height"       "5rem"
                   "overflow-y"       "scroll"})
       (photon/for [[idx {:keys [name surname] :as p}] (map-indexed vector filtered)]
-        (photon/binding [dom/node-index idx]
+        (binding [dom/node-index idx]
           (dom/li (dom/text (str surname ", " name))
                   (dom/style {"cursor" "pointer"})
                   ~(->> (dom/events dom/parent "click")
@@ -128,6 +128,6 @@
 #?(:cljs
    (let [!state (atom people)]
      (photon/run
-       (photon/binding [dom/parent (dom/by-id "crud")]
+       (binding [dom/parent (dom/by-id "crud")]
          (->> (photon/$ CRUD ~(m/eduction (dedupe) (m/watch !state)))
            (swap! !state assoc :people))))))
