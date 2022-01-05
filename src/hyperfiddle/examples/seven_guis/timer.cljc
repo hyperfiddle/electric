@@ -52,5 +52,5 @@
 
 #?(:cljs
    (photon/run
-     (photon/binding [dom/parent (dom/by-id "timer")]
+     (binding [dom/parent (dom/by-id "timer")]
        (photon/$ Timer))))

@@ -1,8 +1,8 @@
 (ns hyperfiddle.examples.todomvc
   (:require [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.zero :as z]
             [missionary.core :as m]
-            [hyperfiddle.todomvc :as t]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]])
   #?(:cljs (:require-macros
              [hyperfiddle.examples.todomvc :refer [head todo-list]])))
@@ -38,10 +38,10 @@
     (fn [_] (swap! c inc))))
 
 (tests
-  ((m/ap (! (dom/pick (m/seed [1 2 3])))) #() #())
+  ((m/ap (! (z/pick (m/seed [1 2 3])))) #() #())
   % := 1
 
-  ((m/ap (! (dom/pick (m/amb>)))) #() #())
+  ((m/ap (! (z/pick (m/amb>)))) #() #())
   % := ::rcf/timeout)
 
 (tests
@@ -65,11 +65,11 @@
   (m/ap
     (loop []
       (m/amb> idle
-        (let [event (dom/pick >events)]
+        (let [event (z/pick >events)]
           (m/amb> event
             ; wait for the pred to become true for this event
             ; wait until the entity is in the index
-            (do (dom/pick (m/eduction (filter #(% event)) >check))
+            (do (z/pick (m/eduction (filter #(% event)) >check))
                 (recur))))))))
 
 (comment
@@ -134,8 +134,8 @@
 
 (defn todo-mvc []
   (p/run
-    (p/binding [head ~(m/watch log)
-                dom/parent (dom/by-id "todomvc")]
+    (binding [head ~(m/watch log)
+              dom/parent (dom/by-id "todomvc")]
       (when-some [txs (seq ~todo-list)]
         (swap! log cons txs)))))
 

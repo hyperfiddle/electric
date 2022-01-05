@@ -15,7 +15,7 @@
 
 (defn reagent1 []
   (photon/run
-    (photon/binding [dom/parent (dom/by-id "reagent1")]
+    (binding [dom/parent (dom/by-id "reagent1")]
       (photon/$ simple-component))))
 
 #?(:cljs (reagent1))

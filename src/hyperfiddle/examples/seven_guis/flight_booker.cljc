@@ -106,7 +106,7 @@
 
 (defn flight-booker []
   (photon/run
-    (photon/binding [dom/parent (dom/by-id "flight-booker")]
+    (binding [dom/parent (dom/by-id "flight-booker")]
       (photon/$ FlightBooker))))
 
 #?(:cljs (flight-booker))
