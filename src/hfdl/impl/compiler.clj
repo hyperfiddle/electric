@@ -514,7 +514,7 @@ is a macro or special form."
               (let [m (u/get-local slots), n (get m k)]
                 (u/set-local slots (assoc m k (inc n))) n))
             (node [s]
-              (u/set-local slots (update (u/get-local slots) :nodes max s)) s)
+              (u/set-local slots (update (u/get-local slots) :nodes max (inc s))) s)
             (emit-frame [sym idx locals signals form]
               (let [free (into [] (take-while (partial > idx)) locals)]
                 [(+ signals (count free))
@@ -682,7 +682,7 @@ is a macro or special form."
   (emit (comp symbol str) [:def 0]) :=
   `(r/peer 0 0 0 0
      (fn [~'context]
-       (let [~'frame 0 ~'nodes []]
+       (let [~'frame 0 ~'nodes [nil]]
          (r/capture 0))))
 
   (emit (comp symbol str)
