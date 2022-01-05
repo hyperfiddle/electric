@@ -284,7 +284,6 @@
   "reactive for"
   (def !xs (atom [1 2 3]))
   (def dispose (r/run (! (r/for [x ~(m/watch !xs)] (inc x)))))
-  % := []                                                   ;; TODO
   % := [2 3 4]
   (swap! !xs conj 4)
   % := [2 3 4 5]
@@ -294,7 +293,6 @@
   "reactive for is differential (diff/patch)"
   (def !xs (atom [1 2 3]))
   (def dispose (r/run (! (r/for [x ~(m/watch !xs)] (! x)))))
-  % := []                                                   ;; TODO
   (hash-set % % %) := #{1 2 3}                              ; concurrent, order undefined
   % := [1 2 3]
   (swap! !xs conj 4)
@@ -327,7 +325,6 @@
   "reactive for with keyfn"
   (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
   (r/run (! (r/for-by :id [x ~(m/watch !xs)] (! x))))
-  % := []                                                   ;; TODO
   (hash-set % %) := #{{:id 1 :name "alice"} {:id 2 :name "bob"}}
   % := [{:id 1 :name "alice"} {:id 2 :name "bob"}]
   (swap! !xs assoc-in [0 :name] "ALICE")
@@ -382,7 +379,7 @@
 
 (rcf/set-timeout! 4000)
 
-(tests
+(comment
   "do stmts run in parallel, not sequence.
   In other words, `do` is sequenceA or sequenceM"
   (def x (m/ap (m/? (m/sleep 1000 :a))))
