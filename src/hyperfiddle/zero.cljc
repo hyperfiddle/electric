@@ -41,10 +41,7 @@ return nothing (you return nil) but in flows nothing is different than nil." [>f
 (defmacro current [form]
   `(unquote (m/eduction (take 1) (var ~form))))
 
-(defn fsm-pending-next [>value >event]
-  (fsm pending (m/eduction (drop 1) >value) >event))
-
 (defmacro target [value event]
-  `(unquote (fsm-pending-next (var ~value) ~event)))
+  `(unquote (fsm nil (m/eduction (drop 1) (var ~value)) ~event)))
 
 (def exports (p/vars state))
