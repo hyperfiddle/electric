@@ -56,7 +56,7 @@ Takes a photon program and returns a pair
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
     (->> (list 'var v)
-      (list `map-by kf
+      (list `map-by kf r/stopped
         (->> body
           (list* `for-by kf bindings)
           (list `let [s (second c/args)])

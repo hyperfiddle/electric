@@ -5,7 +5,8 @@
             [hfdl.impl.switch :refer [switch]]
             [hfdl.impl.yield :refer [yield]]
             [missionary.core :as m])
-  #?(:clj (:import (clojure.lang IFn IDeref))))
+  (:import missionary.Cancelled
+           #?(:clj (clojure.lang IFn IDeref))))
 
 ;; network protocol
 ;; message: [[[target-frame target-slot source-frame source-slot] ...] #{frame ...} {[frame slot] value ...}]
@@ -44,8 +45,20 @@
 (defn steady [x] (m/observe (fn [!] (! x) u/nop)))
 
 (defrecord Pending [])
-
 (def pending (->Failure (->Pending)))
+
+(defrecord Stopped [])
+(def stopped (->Failure (->Stopped)))
+
+(defn subscribe [f]
+  (fn [n t]
+    (let [it (f n t)]
+      (reify
+        IFn
+        (#?(:clj invoke :cljs -invoke) [_] (it))
+        IDeref
+        (#?(:clj deref :cljs -deref) [_]
+          (try @it (catch Cancelled _ stopped)))))))
 
 (defn input [context frame slot]
   (m/watch (aset ^objects (get (aget ^objects context (int 4)) frame) slot (atom pending))))
@@ -66,7 +79,7 @@
   (aset ^objects (get (aget ^objects context (int 6)) frame) slot nodes))
 
 (defn publish [flow context frame slot]
-  (aset ^objects (get (aget ^objects context (int 7)) frame) slot (m/signal! flow)))
+  (subscribe (aset ^objects (get (aget ^objects context (int 7)) frame) slot (m/signal! flow))))
 
 (defn output [flow context frame slot]
   ((aget ^objects context (int 1)) [frame slot flow]))
@@ -139,37 +152,38 @@
 
 (defn peer [inputs targets sources signals boot]
   (fn [write ?read]
-    (m/reactor
-      (let [ctx (doto ^objects (object-array 8)
-                  (aset (int 0) (m/mbx))
-                  (aset (int 1) (m/mbx))
-                  (aset (int 2) (identity 0))
-                  (aset (int 3) (identity 0))
-                  (aset (int 4) {0 (object-array inputs)})
-                  (aset (int 5) {0 (object-array targets)})
-                  (aset (int 6) {0 (object-array sources)})
-                  (aset (int 7) {0 (object-array signals)}))]
-        (m/stream! (boot ctx))
-        (->> (u/poll ?read)
-          (m/stream!)
-          (m/eduction
-            (map (fn [[adds rets mods]]
-                   (reduce create ctx adds)
-                   (reduce cancel ctx rets)
-                   (reduce-kv change ctx mods))))
-          (m/stream!))
-        (->> (m/ap (m/amb=
-                     (m/? (m/?> (m/seed (repeat (aget ctx (int 0))))))
-                     (loop []
-                       (let [x (m/? (aget ctx (int 1)))]
-                         (m/amb= [[] #{} {(pop x) (try (m/?> (peek x))
-                                                       (catch #?(:clj  Throwable
-                                                                 :cljs :default) _
-                                                         (m/?> m/none)))}] (recur))))))
-          (m/relieve (partial map into))
-          (m/stream!)
-          (u/foreach (-> write (u/log-args '>)))
-          (m/stream!))))))
+    (let [r (m/reactor
+              (let [ctx (doto ^objects (object-array 8)
+                          (aset (int 0) (m/mbx))
+                          (aset (int 1) (m/mbx))
+                          (aset (int 2) (identity 0))
+                          (aset (int 3) (identity 0))
+                          (aset (int 4) {0 (object-array inputs)})
+                          (aset (int 5) {0 (object-array targets)})
+                          (aset (int 6) {0 (object-array sources)})
+                          (aset (int 7) {0 (object-array signals)}))]
+                (m/stream! (boot ctx))
+                (->> (u/poll ?read)
+                  (m/stream!)
+                  (m/eduction
+                    (map (fn [[adds rets mods]]
+                           (reduce create ctx adds)
+                           (reduce cancel ctx rets)
+                           (reduce-kv change ctx mods))))
+                  (m/stream!))
+                (->> (m/ap (m/amb=
+                             (m/? (m/?> (m/seed (repeat (aget ctx (int 0))))))
+                             (loop []
+                               (let [x (m/? (aget ctx (int 1)))]
+                                 (m/amb= [[] #{} {(pop x) (try (m/?> (peek x))
+                                                               (catch #?(:clj  Throwable
+                                                                         :cljs :default) _
+                                                                 (m/?> m/none)))}] (recur))))))
+                  (m/relieve (partial map into))
+                  (m/stream!)
+                  (u/foreach (-> write (u/log-args '>)))
+                  (m/stream!))))]
+      (m/sp (try (m/? r) (catch Cancelled _))))))
 
 (defn juxt-with
   ([f]
@@ -221,8 +235,7 @@
 
 (def eval
   (let [slots (u/local)
-        init {:locals (sorted-set)
-              :nodes 0
+        init {:nodes 0
               :inputs 0
               :targets 0
               :sources 0
@@ -234,22 +247,12 @@
               (let [m (u/get-local slots), n (get m k)]
                 (u/set-local slots (assoc m k (inc n))) n))
             (node [s]
-              (u/set-local slots (update (u/get-local slots) :nodes max s)) s)
-            (node-publisher [idx locals signals]
-              (let [free (into [] (take-while (partial > idx)) locals)]
-                [(+ signals (count free))
-                 (fn [context frame nodes]
-                   (reduce-kv
-                     (fn [nodes i j]
-                       (update nodes j publish
-                         context frame (+ signals i)))
-                     nodes free))]))]
+              (u/set-local slots (update (u/get-local slots) :nodes max s)) s)]
       (fn [resolve inst]
         (letfn [(eval-inst [idx [op & args]]
                   (case op
                     :nop (fn [_ _ _ _])
                     :sub (let [i (- idx (first args))]
-                           (u/set-local slots (update (u/get-local slots) :locals conj i))
                            (fn [_ _ pubs _] (nth pubs i)))
                     :pub (let [f (eval-inst idx (first args))
                                s (slot :signals)
@@ -279,16 +282,14 @@
                               (fn [context frame pubs nodes]
                                 (output (f context frame pubs nodes) context frame s)
                                 (g context frame pubs nodes)))
-                    :target (let [[f {:keys [locals inputs targets sources signals]}]
+                    :target (let [[f {:keys [inputs targets sources signals]}]
                                   (u/with-local slots init (eval-inst idx (first args)))
-                                  [signals p] (node-publisher idx locals signals)
                                   s (slot :targets)
                                   g (eval-inst idx (second args))]
                               (fn [context frame pubs nodes]
                                 (target inputs targets sources signals
                                   (fn [frame nodes]
-                                    (f context frame pubs
-                                      (p context frame nodes)))
+                                    (f context frame pubs nodes))
                                   context frame s)
                                 (g context frame pubs nodes)))
                     :source (let [s (slot :sources)
@@ -303,28 +304,25 @@
                                               {:missing-exports (missing-exports resolve inst)})))
                     :literal (constantly (steady (first args)))
                     :recover (let [f (eval-inst idx (first args))
-                                   [g {:keys [locals inputs targets sources signals]}]
+                                   [g {:keys [inputs targets sources signals]}]
                                    (u/with-local slots init (eval-inst (inc idx) (second args)))
-                                   [signals p] (node-publisher idx locals signals)
                                    c (slot :constants)
                                    v (slot :variables)]
                                (fn [context frame pubs nodes]
                                  (recover
                                    #(constant inputs targets sources signals
                                       (fn [frame nodes]
-                                        (g context frame (conj pubs %)
-                                          (p context frame nodes)))
+                                        (g context frame (conj pubs %) nodes))
                                       context frame c)
                                    (f context frame pubs nodes)
                                    nodes frame v)))
-                    :constant (let [[f {:keys [locals inputs targets sources signals]}]
+                    :constant (let [[f {:keys [inputs targets sources signals]}]
                                     (u/with-local slots init (eval-inst idx (first args)))
-                                    [signals p] (node-publisher idx locals signals)
                                     s (slot :constants)]
                                 (fn [context frame pubs _]
                                   (steady
                                     (constant inputs targets sources signals
-                                      (fn [frame nodes] (f context frame pubs (p context frame nodes)))
+                                      (fn [frame nodes] (f context frame pubs nodes))
                                       context frame s))))
                     :variable (let [f (eval-inst idx (first args))
                                     s (slot :signals)

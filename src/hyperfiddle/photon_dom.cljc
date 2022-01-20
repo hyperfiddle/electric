@@ -34,9 +34,7 @@
            (if (nil? position)
              (d/appendChild parent child)
              (d/insertChildAt parent child position))
-           (! child)
-           (fn [_]
-             (d/removeNode child)))))))
+           (! child) #(d/removeNode child))))))
 
 (defmacro element [type & body]
   `(binding [parent (unquote (create-mount parent node-index ~(name type)))] ~@body))

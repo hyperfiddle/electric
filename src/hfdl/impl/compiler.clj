@@ -501,8 +501,7 @@ is a macro or special form."
 
 (def emit
   (let [slots (u/local)
-        init {:locals (sorted-set)
-              :nodes 0
+        init {:nodes 0
               :inputs 0
               :targets 0
               :sources 0
@@ -515,23 +514,10 @@ is a macro or special form."
                 (u/set-local slots (assoc m k (inc n))) n))
             (node [s]
               (u/set-local slots (update (u/get-local slots) :nodes max (inc s))) s)
-            (emit-frame [sym idx locals signals form]
-              (let [free (into [] (take-while (partial > idx)) locals)]
-                [(+ signals (count free))
-                 (list `fn [(sym 'frame) (sym 'nodes)]
-                   (reduce-kv
-                     (fn [form i j]
-                       (list `let
-                         [(sym 'pub j)
-                          (list `r/publish
-                            (sym 'pub j) (sym 'context)
-                            (sym 'frame) (+ signals i))]
-                         form)) form free))]))
             (emit-inst [sym pub [op & args]]
               (case op
                 :nop nil
                 :sub (let [i (- pub (first args))]
-                       (u/set-local slots (update (u/get-local slots) :locals conj i))
                        (sym 'pub i))
                 :pub (list `let [(sym 'pub pub) (list `r/publish (emit-inst sym pub (first args))
                                                   (sym 'context) (sym 'frame) (slot :signals))]
@@ -550,12 +536,12 @@ is a macro or special form."
                               o (slot :outputs)
                               g (emit-inst sym pub (second args))]
                           `(do (r/output ~f ~(sym 'context) ~(sym 'frame) ~o) ~g))
-                :target (let [[f {:keys [locals inputs targets sources signals]}]
+                :target (let [[frame {:keys [inputs targets sources signals]}]
                               (u/with-local slots init (emit-inst sym pub (first args)))
-                              [signals frame] (emit-frame sym pub locals signals f)
                               t (slot :targets)
                               g (emit-inst sym pub (second args))]
-                          `(do (r/target ~inputs ~targets ~sources ~signals ~frame
+                          `(do (r/target ~inputs ~targets ~sources ~signals
+                                 (fn ~[(sym 'frame) (sym 'nodes)] ~frame)
                                  ~(sym 'context) ~(sym 'frame) ~t) ~g))
                 :source (let [s (slot :sources)
                               f (emit-inst sym pub (first args))]
@@ -567,21 +553,21 @@ is a macro or special form."
                                (list `fn arg-syms (apply (first args) arg-syms)))
                             ~(mapv (partial emit-inst sym pub) (next args)))
                 :recover (let [body (emit-inst sym pub (first args))
-                               [fallback {:keys [locals inputs targets sources signals]}]
+                               [frame {:keys [inputs targets sources signals]}]
                                (u/with-local slots init (emit-inst sym (inc pub) (second args)))
-                               [signals frame] (emit-frame sym pub locals signals fallback)
                                c (slot :constants)
                                v (slot :variables)]
                            `(r/recover
                               (fn [~(sym 'pub pub)]
-                                (r/constant ~inputs ~targets ~sources ~signals ~frame
+                                (r/constant ~inputs ~targets ~sources ~signals
+                                  (fn ~[(sym 'frame) (sym 'nodes)] ~frame)
                                   ~(sym 'context) ~(sym 'frame) ~c)) ~body
                               ~(sym 'nodes) ~(sym 'frame) ~v))
-                :constant (let [[form {:keys [locals inputs targets sources signals]}]
+                :constant (let [[frame {:keys [inputs targets sources signals]}]
                                 (u/with-local slots init (emit-inst sym pub (first args)))
-                                [signals frame] (emit-frame sym pub locals signals form)
                                 c (slot :constants)]
-                            `(r/steady (r/constant ~inputs ~targets ~sources ~signals ~frame
+                            `(r/steady (r/constant ~inputs ~targets ~sources ~signals
+                                         (fn ~[(sym 'frame) (sym 'nodes)] ~frame)
                                          ~(sym 'context) ~(sym 'frame) ~c)))
                 :variable (let [form (emit-inst sym pub (first args))
                                 v (slot :variables)
@@ -693,9 +679,8 @@ is a macro or special form."
        (let [~'frame 0 ~'nodes []]
          (let [~'pub0 (r/publish (r/steady 'nil) ~'context ~'frame 0)]
            (r/steady
-             (r/constant 0 0 0 1
-               (fn [~'frame ~'nodes]
-                 (let [~'pub0 (r/publish ~'pub0 ~'context ~'frame 0)] ~'pub0))
+             (r/constant 0 0 0 0
+               (fn [~'frame ~'nodes] ~'pub0)
                ~'context ~'frame 0)))))))
 
 (def args

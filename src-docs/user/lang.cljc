@@ -874,3 +874,28 @@
   % := "world"
   (swap! !x inc)
   % := nil)
+
+(tests
+  (defn observer [x]
+    (fn [f]
+      (f (! [:up x]))
+      #(! [:down x])))
+
+  (def !state (atom [1]))
+
+  (def dispose (r/run (r/for [x ~(m/watch !state)]
+                        ~(m/observe (observer x)))))
+
+  % := [:up 1]
+
+  (swap! !state conj 2)
+
+  % := [:up 2]
+
+  (reset! !state [3])
+
+  % := [:up 3]
+  % := [:down 1]
+  % := [:down 2]
+
+  (dispose))
