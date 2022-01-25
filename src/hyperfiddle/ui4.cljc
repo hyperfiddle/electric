@@ -9,6 +9,7 @@
             [missionary.core :as m]
             [datascript.db]
             #?(:clj [hyperfiddle.q6 :as hfql])
+            #?(:clj [datahike.api :as d])
             [hyperfiddle.dev.logger :as log]
             )
   #?(:cljs (:require-macros [hyperfiddle.q6 :as hfql]
@@ -240,8 +241,12 @@
 
 (defn schema-attr [db ?a]
   (when ?a
-    #?(:clj (condp = (type db)
-              datascript.db.DB (get (:schema db) ?a)))))
+    (do (log/debug "Query DB schema for attr " ?a)
+      #?(:clj (condp = (type db)
+                datascript.db.DB (get (:schema db) ?a)
+                datahike.db.DB (or (d/entity hf/*$* ?a)
+                                   (do (log/info "Unknown attr" ?a)
+                                       nil)))))))
 
 (defn cardinality [db ?a]
   (case (:db/cardinality (schema-attr db ?a))
@@ -264,7 +269,7 @@
 
 (p/defn default-renderer-impl []
   (let [value     ~hf/value
-        valueType (:hf/valueType (schema-attr hf/*$* hf/attribute))]
+        valueType (:db/valueType (schema-attr hf/*$* hf/attribute))]
     (log/info "DEFAULT valueType" valueType)
     (if (some? valueType)
       (binding [hf/props (assoc hf/props :dom.attribute/type (input-types (spec/valueType->type valueType)))]

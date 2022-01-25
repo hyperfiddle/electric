@@ -1,7 +1,7 @@
 (ns dev
   (:require
-    [datascript.core :as d]
-    [missionary.core :as m]
+    [datahike.api :as d]
+    [datahike.core :as dc]
     [hyperfiddle.api :refer [*$*]]
     [hyperfiddle.dev.logger :as log]))
 
@@ -41,18 +41,23 @@
 ;  (def ^:dynamic *$* (-> (d/connect "datomic:mem://hello-world") d/db (d/with schema) :db-after fixtures))
 ;  #_(alter-var-root #'*$* (constantly $)))
 
+(def schema
+  [{:db/ident :dustingetz/email, :db/valueType :db.type/string, :db/cardinality :db.cardinality/one, :db/unique :db.unique/identity}
+   {:db/ident :dustingetz/gender, :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+   {:db/ident :dustingetz/shirt-size, :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+   {:db/ident :dustingetz/type, :db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
+   {:db/ident :dustingetz/tags, :db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}])
+
+(def db-config {:store {:backend :mem, :id "default"}})
+
 (defn init-datascript []
-  (def schema
-    ;; FIXME Datascript doesn’t support :db/valueType, using :hf/valueType in the meantime
-    {:dustingetz/email      {:hf/valueType :db.type/string :db/cardinality :db.cardinality/one :db/unique :db.unique/identity}
-     :dustingetz/gender     {#_#_:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
-     :dustingetz/shirt-size {#_#_:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
-     :dustingetz/type       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
-     :dustingetz/tags       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
-     :db/ident              {:db/unique :db.unique/identity}})
   (log/info "Initializing Datascript")
-  (def conn (d/create-conn schema))
-  (let [$ (-> conn d/db fixtures)]
+  (d/delete-database db-config)
+  (d/create-database db-config)
+  (def conn (d/connect db-config)) ;; connect to "default"
+  (let [$ (-> (d/with (d/db conn) schema)
+              :db-after
+              (fixtures))]
     #?(:clj (alter-var-root #'*$* (constantly $))
        :cljs (set! *$* $))))
 
@@ -60,21 +65,21 @@
 ;   :cljs (init-datascript))
 #?(:clj (init-datascript))
 
-(def male    1 #_:dustingetz/male   #_17592186045418)
-(def female  2 #_:dustingetz/female #_17592186045419)
-(def m-sm    3  #_17592186045421)
-(def m-md    4  #_nil)
-(def m-lg    5  #_nil)
-(def w-sm    6  #_nil)
-(def w-md    7  #_nil)
-(def w-lg    8  #_nil)
-(def alice   9  #_17592186045428)
-(def bob     10 #_nil)
-(def charlie 11 #_nil)
+(def male    6 #_:dustingetz/male   #_17592186045418)
+(def female  7 #_:dustingetz/female #_17592186045419)
+(def m-sm    8  #_17592186045421)
+(def m-md    9  #_nil)
+(def m-lg    10  #_nil)
+(def w-sm    11  #_nil)
+(def w-md    12  #_nil)
+(def w-lg    13  #_nil)
+(def alice   14  #_17592186045428)
+(def bob     15 #_nil)
+(def charlie 16 #_nil)
 
 (comment
-  (d/touch (d/entity *$* alice))
-  (d/touch (d/entity *$* [:dustingetz/email "alice@example.com"]))
+  (dc/touch (d/entity *$* alice))
+  (dc/touch (d/entity *$* [:dustingetz/email "alice@example.com"]))
   => {:db/id                 alice,
       :dustingetz/email      "alice@example.com",
       :dustingetz/gender     :dustingetz/female,

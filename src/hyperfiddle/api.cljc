@@ -1,5 +1,8 @@
 (ns hyperfiddle.api
-  (:require [datascript.core :as d]
+  (:require #?(:clj [datahike.api :as d]
+               :cljs [datascript.core :as d])
+            #?(:clj [datahike.impl.entity :as de]
+               :cljs [datascript.impl.entity :as de])
             [hyperfiddle.rcf :refer [tests ! %]]
             [hfdl.lang :as p :refer [vars]]
             [missionary.core :as m]
@@ -143,7 +146,7 @@
 
 (defn nav!
   ([_ ref] ref)
-  ([db ref kf] (kf (d/entity db ref)))
+  ([db ref kf] (kf (if (de/entity? ref) ref (d/entity db ref))))
   ([db ref kf & kfs] (reduce (partial nav! db) (nav! db ref kf) kfs)))
 
 (def nav (wrap (fn [ref & kfs]

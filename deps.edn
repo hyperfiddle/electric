@@ -8,6 +8,7 @@
         dorothy/dorothy {:mvn/version "0.0.7"}
         missionary/missionary {:mvn/version "b.27-SNAPSHOT"}
         datascript/datascript {:mvn/version "1.0.3"}
+        io.replikativ/datahike {:mvn/version "0.4.1477"}
         lexikon/lexikon {:mvn/version "0.2.1"}
         cloroutine/cloroutine {:local/root "./vendor/cloroutine"}
         org.clojure/tools.analyzer.jvm {:mvn/version "1.1.0"}
