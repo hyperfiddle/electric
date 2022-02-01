@@ -57,4 +57,11 @@
                                                                      shadow.cljs.bootstrap.env
                                                                      shadow.cljs.bootstrap.browser]}
                                           :main           {:entries    [hyperfiddle.examples]
-                                                           :depends-on #{:shared}}}}}}
+                                                           :depends-on #{:shared}}}}
+            :test     {:target           :node-test
+                       :output-to        "out/node-tests.js"
+                       :ns-regexp        "^(hfdl.lib|user.lang)$"
+                       :build-options    {:cache-level :off}
+                       :modules          {:main {:entries [hfdl.lang user.lang]}}
+                       :dev              {:closure-defines {hyperfiddle.dev.logger/LEVEL "debug"}}
+                       :compiler-options {:warnings {:redef-in-file false}}}}}

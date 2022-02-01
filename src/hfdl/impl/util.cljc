@@ -1,10 +1,8 @@
 (ns hfdl.impl.util
   (:require [missionary.core :as m]
-            #?(:clj [minitest :refer [tests]])
             [hyperfiddle.dev.logger :as log])
   #?(:clj (:import (clojure.lang IFn IDeref)))
-  #?(:cljs (:require-macros [hfdl.impl.util :refer [when-fail local get-local set-local with-local]]
-                            [minitest :refer [tests]])))
+  #?(:cljs (:require-macros [hfdl.impl.util :refer [when-fail local get-local set-local with-local]])))
 
 (defn nop [])
 
@@ -74,7 +72,9 @@
   (comp ->FailureLogger f))
 
 (defn log-args [f & prefix]
-  (fn [& args] (log/trace prefix args) (apply f args)))
+  (fn [& args] #?(:clj (log/trace prefix args)
+                  :cljs (log/trace (pr-str (concat prefix args))))
+    (apply f args)))
 
 (defn slot-changes [slots]
   (m/ap
@@ -125,6 +125,9 @@
   (fn [n t]
     (let [prev (get-local local)]
       (set-local local value)
-      (let [it (flow n t)]
-        (set-local local prev)
-        (bind-iterator local value it)))))
+      (try
+        (let [it (flow n t)]
+          (set-local local prev)
+          (bind-iterator local value it))
+        (catch #?(:clj Throwable, :cljs :default) err
+          (throw (ex-info "Failed to bind flow" {:flow flow} err)))))))

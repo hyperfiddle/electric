@@ -25,6 +25,7 @@
                               "-Djdk.attach.allowAttachSelf" ;; profiling
                               "-XX:+UnlockDiagnosticVMOptions"
                               "-XX:+DebugNonSafepoints"
+                              "-Dlogback.configurationFile=/src/logback_dev.xml"
                               ]}
            :edn-view {:extra-deps {juji/editscript          {:mvn/version "0.5.7"}
                                    borkdude/edamame         {:mvn/version "0.0.11-alpha.29"}
@@ -45,9 +46,13 @@
                                 nrepl/nrepl                               {:mvn/version "0.9.0-beta4"}
                                 refactor-nrepl/refactor-nrepl             {:mvn/version "2.5.0"}
                                 cider/cider-nrepl                         {:mvn/version "0.27.2"}}}
-           :test-clj {#_#_:main-opts ["-m" "contrib.test-runner" "clj"]
-                      :jvm-opts ["-Dhyperfiddle.rcf.generate-tests=true"]}
-           :test-cljs {:extra-deps    {olical/cljs-test-runner {:mvn/version "3.7.0"}}
-                       :main-opts     ["-m" "contrib.test-runner" "cljs"]}}}
+           :test {:jvm-opts      ["-XX:-OmitStackTraceInFastThrow"
+                                  "-Dhyperfiddle.rcf.generate-tests=true"
+                                  "-Dlogback.configurationFile=/src/logback_test.xml"
+                                  ]
+                  :extra-deps    {io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                                                        :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
+                  :extra-paths   ["src-docs"]
+                  :exec-fn       cognitect.test-runner.api/test}}}
 
 ;; ¹ http://webcache.googleusercontent.com/search?q=cache:4Rya0J2jOb4J:yellerapp.com/posts/2015-05-11-clojure-no-stacktrace.html
