@@ -8,7 +8,7 @@
             [hfdl.lib :as lib]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hfdl.lang :refer [def fn $ vars main for local2 debug thread]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [def defn fn $ vars main for local2 debug thread]])))
 
 (def map-by (partial lib/map-by (r/->Failure (missionary.Cancelled.))))
 
@@ -43,7 +43,7 @@ and returning a task that runs the local reactor."
 
 (defmacro def [sym & body]
   (when-not (:js-globals &env)
-    `(doto (~'def ~sym) (alter-meta! assoc :macro true :node (quote (do ~@body))))))
+    `(~'def ~(vary-meta sym assoc :macro true ::c/node `(quote (do ~@body))))))
 
 (defmacro main "
 Takes a photon program and returns a pair

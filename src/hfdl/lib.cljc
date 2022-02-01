@@ -1,5 +1,6 @@
 (ns hfdl.lib
   (:require [hfdl.impl.gather :refer [gather]]
+            [hfdl.impl.runtime]
             [hfdl.impl.eventually :refer [eventually]]
             [hfdl.impl.runtime :as r]
             [missionary.core :as m]

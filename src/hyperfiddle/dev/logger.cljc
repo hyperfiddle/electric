@@ -5,7 +5,9 @@
 
 (def levels [:trace :debug :info :warn :error])
 
-(def ^:dynamic *LEVEL* :trace)
+#?(:cljs (goog-define LEVEL "trace"))
+
+(def ^:dynamic *LEVEL* #?(:clj :trace, :cljs (keyword LEVEL)))
 
 (defn set-level! [level]
   (let [level (if (string? level) (keyword level) level)]

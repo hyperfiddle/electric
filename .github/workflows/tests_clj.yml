@@ -1,0 +1,40 @@
+name: Photon on JVM
+on: [push]
+jobs:
+  photon-jvm:
+    runs-on: [ubuntu-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+
+      - name: Assert submodules
+        run: ls vendor
+
+      - name: Prepare java
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+
+      - name: Install clojure tools
+        uses: DeLaGuardo/setup-clojure@3.4
+        with:
+          cli: 1.10.1.727
+
+      - name: Cache local Maven repository
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: prep
+        run: clojure -A:test -P
+        shell: bash
+
+      - name: Run tests
+        run: clojure -X:test :dirs "[\"src\" \"src-docs\"]" :patterns "[\"hfdl.impl.compiler\" \"hfdl.lib\" \"user.lang\"]"
+        # run: clojure -X:test-clj :dirs "[\"src\" \"src-docs\"]" :patterns "[\"hfdl.impl.compiler\" ]"
+        shell: bash
