@@ -1,4 +1,4 @@
-(ns dustin.hfql-router
+(ns dustin.hfql.hfql-router
   (:require [clojure.spec.alpha :as s]
             [datascript.core :as d]
             [hyperfiddle.api :as hf :refer [hfql]]
