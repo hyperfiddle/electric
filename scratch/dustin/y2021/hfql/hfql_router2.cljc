@@ -20,4 +20,6 @@
       {(:dustingetz/gender ::hf/options (genders)) [:db/id :db/ident :dustingetz/type]}
       {(:dustingetz/shirt-size ::hf/options (shirt-sizes gender .)) [:db/ident]}]}))
 
-(hf/main! app)
+(hf/main!
+  'user.gender-shirt-size
+  app)
