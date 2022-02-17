@@ -18,7 +18,11 @@
                             [hyperfiddle.q6 :refer [hfql]]))
   )
 
+;; (set! *print-namespace-maps* false)
 ;; (hyperfiddle.rcf/enable!)
+;; (hyperfiddle.rcf/enable! true)
+;; (alter-var-root #'hyperfiddle.rcf/*generate-tests* (constantly false))
+
 
 (do
   (s/def ::literal    any?)
@@ -41,6 +45,7 @@
   (s/conform ::literal 1)                         := 1
   (s/conform ::keyword ::foo)                     := ::foo
   (s/conform ::keyword :foo)                      := ::s/invalid
+
   (s/conform ::symbol  'a)                        := 'a
   (s/conform ::symbol  'ns/a)                     := 'ns/a
 
@@ -49,6 +54,7 @@
   (s/conform ::props '(a . ::a 1))                := '{::onto  [::symbol a],
                                                        ::_dot  ., ; to be removed by the parser
                                                        ::props [{::key ::a, ::value 1}]}
+
 
   ;; non-namespaced kws allowed
   (s/conform ::props '(a . :a 1))                := '{::onto  _,
@@ -227,9 +233,9 @@
   (roundtrip '(f x))                        := '(f x)
 
   (roundtrip '(a . ::a 1))                  := '(a . ::a 1)
-  (roundtrip '(f (a . ::a 1))               := '(f (a . ::a 1)))
-  (roundtrip '(f {(a . ::a 1) [::b]})       := '(f {(a . ::a 1) [::b]}))
-  (roundtrip '{(::a . :a 1) [::b]})          := '{(::a . :a 1) [::b]}
+  (roundtrip '(f (a . ::a 1)))              := '(f (a . ::a 1))
+  (roundtrip '(f {(a . ::a 1) [::b]}))      := '(f {(a . ::a 1) [::b]})
+  (roundtrip '{(::a . :a 1) [::b]})         := '{(::a . :a 1) [::b]}
 
   (roundtrip '(a . ::a 1) true)             := 'a
   (roundtrip '(f (a . ::a 1)) true)         := '(f a)
@@ -606,14 +612,18 @@
 ;; Use case: get the value of an aliased form as intended by the pull expression.
 (p/def render-mode ::user) ;; #{::edn ::default ::user}
 
+(p/defn render [user-renderer]
+  ;; (prn "render-mode" render-mode)
+  (case render-mode
+    ::default ~hf/render
+    ::edn     ~hf/sequenceM
+    ::user    ~user-renderer))
+
 (defn emit-renderer [ast]
-  (let [render (or (::hf/render (properties ast)) `hf/render)]
-    `(case render-mode
-       ::default (unquote hf/render)
-       ::edn     (unquote hf/sequenceM)
-       ::user    ~(if (symbol? render)
-                    `(unquote ~render)
-                    render))))
+  (let [renderer (or (::hf/render (properties ast)) `hf/render)]
+    (if (symbol? renderer)
+      `(p/$ render ~renderer)
+      `(p/$ render #'(do ~renderer)))))
 
 (declare emit)
 
@@ -806,52 +816,55 @@
   (list 'quote (compile* (make-env &env) expr)))
 
 (tests
-  (compile (make-env {}) :db/id) := '(clojure.core/binding [hyperfiddle.api/props     nil
-                                                            hyperfiddle.api/attribute :db/id
-                                                            hyperfiddle.api/value     #'~(hyperfiddle.api/nav hyperfiddle.api/entity :db/id)]
-                                       ~hyperfiddle.api/render))
+ (compile (make-env {}) :db/id) := '(clojure.core/binding [hyperfiddle.api/props     nil
+                                                           hyperfiddle.api/attribute :db/id
+                                                           hyperfiddle.api/value     #'~(hyperfiddle.api/nav hyperfiddle.api/entity :db/id)]
+                                      (hfdl.lang/$ hyperfiddle.q6/render hyperfiddle.api/render)))
 
 (tests
-  (p/run (! (binding [hf/entity 9] (hfql :db/id) )))
-  % := 9)
+  (p/run (! (binding [hf/entity 14] (hfql [:db/id]) )))
+  % := {:db/id 14})
 
-(tests
-  (p/run (! (binding [hf/entity 9] (hfql [:db/id]) )))
-  % := {:db/id 9})
+(comment 
+  (p/main
+   (hfql :db/id))
+
+  (tests % := 1 % := 2) 
+  )
 
 
 (p/def string-renderer #'(str ~hf/value))
 
 (tests
   "hf/render"
-  (p/run (! (binding [hf/entity 9] (hfql (:db/id . ::hf/render string-renderer)) )))
-  % := "9")
+  (p/run (! (binding [hf/entity 14] (hfql (:db/id . ::hf/render string-renderer)) )))
+  % := "14")
 
 (tests
   "hf/render inline"
-  (p/run (! (binding [hf/entity 9] (hfql (:db/id . ::hf/render (str ~hf/value))) )))
-  % := "9")
+  (p/run (! (binding [hf/entity 14] (hfql (:db/id . ::hf/render (str ~hf/value))) )))
+  % := "14")
 
 (tests
-  (p/run (! (binding [hf/entity 9] (hfql [(:db/id . ::hf/render string-renderer)]) )))
-  % := {:db/id "9"})
+  (p/run (! (binding [hf/entity 14] (hfql [(:db/id . ::hf/render string-renderer)]) )))
+  % := {:db/id "14"})
 
 (tests
-  (p/run (binding [hf/entity 9] (! (hfql {:dustingetz/gender [:db/ident]}) )))
+  (p/run (binding [hf/entity 14] (! (hfql {:dustingetz/gender [:db/ident]}) )))
   % := {:dustingetz/gender {:db/ident :dustingetz/female}})
 
 (tests
-  (p/run (binding [hf/entity 9] (! (hfql [{:dustingetz/gender [:db/ident]}]) )))
+  (p/run (binding [hf/entity 14] (! (hfql [{:dustingetz/gender [:db/ident]}]) )))
   % := {:dustingetz/gender {:db/ident :dustingetz/female}})
 
 (tests
   (p/run (! (hfql {(submission "") [:db/id]}) ))
-  % := {'(user.gender-shirt-size/submission "") {:db/id 9}})
+  % := {'(user.gender-shirt-size/submission "") {:db/id 14}})
 
 (tests
   "EAV"
   (p/run (! (hfql {(submission "") [(:dustingetz/email . ::hf/render [hf/entity hf/attribute ~hf/value])]}) ))
-  % := '{(user.gender-shirt-size/submission "") {:dustingetz/email [9 :dustingetz/email "alice@example.com"]}})
+  % := '{(user.gender-shirt-size/submission "") {:dustingetz/email [14 :dustingetz/email "alice@example.com"]}})
 
 (tests
   (p/run (! (hfql {(submission "") [{:dustingetz/shirt-size [:db/ident]}]}) ))
@@ -859,11 +872,11 @@
 
 (tests
   (p/run (! (hfql {(submissions "") [:db/id]}) ))
-  % := {'(user.gender-shirt-size/submissions "") [{:db/id 9} {:db/id 10} {:db/id 11}]})
+  % := {'(user.gender-shirt-size/submissions "") [{:db/id 14} {:db/id 15} {:db/id 16}]})
 
 (tests
   (p/run (! (hfql {(submissions "") [(:db/id . ::hf/render string-renderer)]}) ))
-  % := {'(user.gender-shirt-size/submissions "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
+  % := {'(user.gender-shirt-size/submissions "") [{:db/id "14"} {:db/id "15"} {:db/id "16"}]})
 
 (defn fail []
   (throw (ex-info "I fail" {})))
@@ -873,7 +886,7 @@
 (p/def ignoring-renderer #'"ignored")
 
 (tests
-  (p/run (! (binding [hf/entity 9]
+  (p/run (! (binding [hf/entity 14]
               (hfql {(:dustingetz/gender . ::hf/render ignoring-renderer)
                      [(:db/ident . ::hf/render throwing-renderer)]}) )))
   % := #:dustingetz{:gender "ignored"} ; note it didn’t throw
@@ -882,6 +895,7 @@
 ;;;;;;;;;;;;;
 ;; OPTIONS ;;
 ;;;;;;;;;;;;;
+
 
 (p/defn join-all [>v]
   (binding [hf/value >v
@@ -894,17 +908,17 @@
             [:option e])))
 
 (tests
-  (p/run (! (binding [hf/entity 9]
+  (p/run (! (binding [hf/entity 14]
               (hfql (:dustingetz/shirt-size . ::hf/render select-option-renderer
                                               ::hf/options (shirt-sizes :dustingetz/female "")
                                               ))
               )))
   %
-  := [:select {:value :dustingetz/womens-large} [:option 6] [:option 7] [:option 8]]
+  := [:select {:value 13} [:option 11] [:option 12] [:option 13]]
   )
 
 (tests
-  (p/run (! (binding [hf/entity 9]
+  (p/run (! (binding [hf/entity 14]
               (hfql {(:dustingetz/shirt-size . ::hf/render select-option-renderer
                                              ::hf/options (shirt-sizes :dustingetz/female ""))
                      [:db/ident]}) )))
@@ -920,20 +934,21 @@
 #_(first (compile* (make-env {}) '[(:dustingetz/shirt-size . ::hf/options (shirt-sizes gender ""))
                                  {:dustingetz/gender [(:db/ident . ::hf/as gender)]}]))
 
+;; HERE
 (tests
-  (p/run (binding [hf/entity 9]
+  (p/run (binding [hf/entity 14]
            (! (hfql [(:dustingetz/shirt-size . ::hf/options (shirt-sizes gender ""))
                      {:dustingetz/gender [(:db/ident . ::hf/as gender)]}])
               )))
   % := #:dustingetz{:gender     #:db{:ident :dustingetz/female},
-                    :shirt-size :dustingetz/womens-large})
+                    :shirt-size 13})
 
 
 (p/defn shirt-sizes-renderer []
   ~(::hf/options hf/props))
 
 (tests
-  (p/run (binding [hf/entity 9]
+  (p/run (binding [hf/entity 14]
            (! (hfql [{:dustingetz/gender [(:db/ident . ::hf/as gender)]}
                      {(:dustingetz/shirt-size . ::hf/options (shirt-sizes gender "")
                                               ::hf/render shirt-sizes-renderer)
@@ -948,10 +963,10 @@
   (let [needle "alice"]
     (p/run (! (hfql {(submissions needle) [:db/id]})
               )))
-  % := '{(user.gender-shirt-size/submissions needle) [#:db{:id 9}]})
+  % := '{(user.gender-shirt-size/submissions needle) [#:db{:id 14}]})
 
 (p/defn render-typeahead []
-  [:select {:value ~hf/value}
+  [:select {:value (p/$ join-all hf/value)}
    (p/for [e (binding [hf/args {'needle ""}] ~(::hf/options hf/props))]
      [:option ~(hf/nav e :db/ident)])])
 
@@ -959,8 +974,9 @@
   (p/run (! (hfql {(submissions needle)
                    [:db/id
                     :dustingetz/email
-                    (:dustingetz/shirt-size . ::hf/render render-typeahead
-                                            ::hf/options (shirt-sizes gender needle))
+                    {(:dustingetz/shirt-size . ::hf/render render-typeahead
+                                             ::hf/options (shirt-sizes gender needle))
+                     [:db/ident]}
                     {(:dustingetz/gender . ::a 1) [(:db/ident . ::hf/as gender)]}]}) ))
   % := '{(user.gender-shirt-size/submissions needle)
          [{:dustingetz/gender #:db{:ident :dustingetz/female},
@@ -971,7 +987,7 @@
             [[:option :dustingetz/womens-small]
              [:option :dustingetz/womens-medium]
              [:option :dustingetz/womens-large]]],
-           :db/id             9}
+           :db/id             14}
           {:dustingetz/gender #:db{:ident :dustingetz/male},
            :dustingetz/email  "bob@example.com",
            :dustingetz/shirt-size
@@ -980,7 +996,7 @@
             [[:option :dustingetz/mens-small]
              [:option :dustingetz/mens-medium]
              [:option :dustingetz/mens-large]]]
-           :db/id             10}
+           :db/id             15}
           {:dustingetz/gender #:db{:ident :dustingetz/male},
            :dustingetz/email  "charlie@example.com",
            :dustingetz/shirt-size
@@ -989,7 +1005,7 @@
             [[:option :dustingetz/mens-small]
              [:option :dustingetz/mens-medium]
              [:option :dustingetz/mens-large]]],
-           :db/id             11}]})
+           :db/id             16}]})
 
 ;;;;;;;;;;;;;;
 ;; DEFAULTS ;;
@@ -997,19 +1013,26 @@
 
 (tests
   "Input is defaulted"
-  (p/run (! (let [sub 9]
+  (p/run (! (let [sub 14]
               (hfql {(submissions (sub . ::hf/default ~(hf/nav sub :dustingetz/email))) [:db/id]})
               )))
-  % := '{(user.gender-shirt-size/submissions sub) [#:db{:id 9}]})
+  % := '{(user.gender-shirt-size/submissions sub) [#:db{:id 14}]})
+
+;; TODO use an ordered map
+(defn get-input [associative k] ;; inputs are not in a map but a seq of kvs
+  (->> associative
+       (sequence (filter #(= k (first %))))
+       first
+       second))
 
 (p/def render-sub-hydrated-defaults #'~(::hf/value (get-input hf/inputs 'sub)))
 
 (tests
   "Input is hydrated"
-  (p/run (! (let [sub 9]
+  (p/run (! (let [sub 14]
               (hfql* {sub sub} {((submissions {sub [:dustingetz/email]})
                                  . ::hf/render render-sub-hydrated-defaults)
-                                [:db/id]})  
+                                [:db/id]})
               )
             ))
   % := '{(user.gender-shirt-size/submissions sub) #:dustingetz{:email "alice@example.com"}})
@@ -1026,18 +1049,11 @@
                                 [:db/id]})
               )
             ))
-  % := '{(user.gender-shirt-size/sub-profile sub) {:sub {:dustingetz/email "alice@example.com", :db/id 9}, :result #:db{:id 9}}})
+  % := '{(user.gender-shirt-size/sub-profile sub) {:sub {:dustingetz/email "alice@example.com", :db/id 14}, :result #:db{:id 14}}})
 
 ;;;;;;;;;;;;;;;;;;;
 ;; VIEW-DEFAULTS ;;
 ;;;;;;;;;;;;;;;;;;;
-
-;; TODO use an ordered map
-(defn get-input [associative k] ;; inputs are not in a map but a seq of kvs
-  (->> associative
-       (sequence (filter #(= k (first %))))
-       first
-       second))
 
 (p/def needle-renderer #'(let [options (binding [hf/render hf/sequenceM
                                                  hf/args   {'needle "alice"}]
@@ -1092,7 +1108,7 @@
   % := '{(user.gender-shirt-size/submissions "alice") [{hyperfiddle.q6/user-name "alice"
                                                         :dustingetz/email         "alice@example.com"}]}
 
-  (p/run (! (hfql {(submissions "alice") [(user-name . ::hf/render (str/upper-case ~hf/value)) :dustingetz/email]}) 
+  (p/run (! (hfql {(submissions "alice") [(user-name . ::hf/render (str/upper-case ~hf/value)) :dustingetz/email]})
             ))
   % := '{(user.gender-shirt-size/submissions "alice") [{hyperfiddle.q6/user-name "ALICE"
                                                         :dustingetz/email         "alice@example.com"}]}
@@ -1114,7 +1130,7 @@
 
 (tests
   "static link"
-  (p/run (! (let [sub "alice"] (hfql {(submissions sub) ['(home)]}) ) 
+  (p/run (! (let [sub "alice"] (hfql {(submissions sub) ['(home)]}) )
             ))
   % := '{(user.gender-shirt-size/submissions sub)
          [{(home) (home)}]}
@@ -1122,20 +1138,20 @@
 
 
 (tests
-  "link as quoted sym" 
-  (p/run (! (let [sub "alice"] (hfql {(submissions sub) ['sub-profile]}) ) 
+  "link as quoted sym"
+  (p/run (! (let [sub "alice"] (hfql {(submissions sub) ['sub-profile]}) )
             ))
   % := '{(user.gender-shirt-size/submissions sub)
-         [#:user.gender-shirt-size{sub-profile (user.gender-shirt-size/sub-profile 9)}]}
+         [#:user.gender-shirt-size{sub-profile (user.gender-shirt-size/sub-profile 14)}]}
   )
 
 (tests
   "templated link"
-  (p/run (! (let [sub "alice"] (hfql {(submissions sub) ['(sub-profile hf/entity sub)]}) ) 
+  (p/run (! (let [sub "alice"] (hfql {(submissions sub) ['(sub-profile hf/entity sub)]}) )
             ))
   % := '{(user.gender-shirt-size/submissions sub)
          [{(user.gender-shirt-size/sub-profile hyperfiddle.api/entity sub)
-           (user.gender-shirt-size/sub-profile 9 "alice")}]}
+           (user.gender-shirt-size/sub-profile 14 "alice")}]}
   )
 
 ;; FAIL TODO
@@ -1143,10 +1159,10 @@
 #_(tests
   "hf/link prop"
   (p/run (! (let [sub "alice"] (hfql {(submissions sub) [(:db/id . ::hf/link sub-profile)
-                                                         (:dustingetz/email . ::hf/link (sub-profile %))]}) ) 
+                                                         (:dustingetz/email . ::hf/link (sub-profile %))]}) )
             ))
   % := '{(user.gender-shirt-size/submissions sub)
-         [{:db/id            (hyperfiddle.q6/sub-profile 9)
+         [{:db/id            (hyperfiddle.q6/sub-profile 14)
            :dustingetz/email (hyperfiddle.q6/sub-profile "alice@example.com")}]}
   )
 
@@ -1197,7 +1213,7 @@
                                             {(:dustingetz/shirt-size . ::hf/options (shirt-sizes gender needle)
                                                                      ::hf/option-label :db/ident
                                                                      ::hf/render  render-typeahead2)
-                                             [:db/ident]}]}) ))
+                                             [:db/ident]}]}) )) 
     % := '{(user.gender-shirt-size/submissions "alice")
            [{:dustingetz/gender     [:select
                                      {:value :dustingetz/female}
@@ -1208,6 +1224,8 @@
                                       [:option :dustingetz/womens-medium]
                                       [:option :dustingetz/womens-large]]]}]})
   )
+
+
 
 ;; (hyperfiddle.rcf/enable! )
 

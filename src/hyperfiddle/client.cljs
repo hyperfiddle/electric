@@ -3,14 +3,9 @@
             [hyperfiddle.common.transit :as transit]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
-            [hyperfiddle.router :as r]
+            ;; [hyperfiddle.router :as r]
             [user.hfql-distributed :as distributed]
             [hyperfiddle.dev.logger :as log]))
-
-(def ^:export LATENCY 0)
-
-(defn delayed [task]
-  (m/sp (m/? (m/sleep (/ LATENCY 2))) (m/? task)))
 
 ;; TODO reconnect on failures
 (defn connect [cb]
@@ -47,7 +42,7 @@
     (let [m (m/mbx)
           w (m/? (connect m))]
       (m/? (w s))
-      (m/? (c (comp delayed w) (delayed m))))))
+      (m/? (c w m)))))
 
 (def ^:export main
   (client (p/main (binding [dom/parent (dom/by-id "hf-ui-dev-root")] ~distributed/page #_~r/router))))
