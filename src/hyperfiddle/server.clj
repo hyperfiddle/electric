@@ -17,10 +17,9 @@
     [hyperfiddle.todomvc :as t]
     [hyperfiddle.api :as h]
     [hyperfiddle.photon-dom :as dom]
-    [hyperfiddle.examples.seven-guis.temperatures :as temperature]
     [hyperfiddle.zero :as z]
     [user.hfql-distributed :as dis]
-    [hyperfiddle.ui4 :as ui4])
+    [hyperfiddle.ui5 :as ui5])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)
            (java.util.concurrent Executors ThreadFactory)))

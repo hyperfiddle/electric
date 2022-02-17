@@ -3,14 +3,14 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests ! %]]
-            [hyperfiddle.ui3 :as ui]
+            [hyperfiddle.ui5 :as ui]
             [user.gender-shirt-size :refer [submissions genders shirt-sizes emails]]
             [clojure.spec.alpha :as s]
             [clojure.string :as str]
-            #?(:clj [hyperfiddle.q6 :refer [hfql] :as hfql])
+            #?(:clj [hyperfiddle.q8 :refer [hfql] :as hfql])
             )
   #?(:cljs (:require-macros [hyperfiddle.api :refer [render]]
-                            [hyperfiddle.q6 :refer [hfql] :as hfql]
+                            [hyperfiddle.q8 :refer [hfql] :as hfql]
                             [user.hfql-full :refer [page-submissions page-submissions-query]])))
 
 (s/fdef user-name :ret any?) ;; cardinality one
@@ -49,7 +49,7 @@
        #'(binding [hf/render        ui/render ;; spec renderer
                    hf/link          ui/link   ;; render links as `<a href=…>`, should be bound by hf/router
                   hfql/render-mode ~ui/render-mode-selector]
-           (prn "RENDER mode" hyperfiddle.q6/render-mode)
+           ;; (prn "RENDER mode" hyperfiddle.q6/render-mode)
            (dom/div (dom/class "page-submissions")
                     (p/$ page-submissions-query)))))
 
