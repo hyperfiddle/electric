@@ -9,7 +9,7 @@
 
 (def ^:dynamic *LEVEL* #?(:clj :trace, :cljs (keyword LEVEL)))
 
-(defn set-level! [level]
+(defn ^:export set-level! [level]
   (let [level (if (string? level) (keyword level) level)]
     (assert ((set levels) level) "Invalid log level.")
     #?(:clj (alter-var-root #'*LEVEL* (constantly level))
