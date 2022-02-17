@@ -37,7 +37,7 @@
      :cljs (set! hyperfiddle.rcf/*enabled* true))
 
   (require '[clojure.test])
-  (clojure.test/run-all-tests #"(hyperfiddle.api|hyperfiddle.q5|user.gender-shirt-size)")
+  (clojure.test/run-all-tests #"(hyperfiddle.api|user.gender-shirt-size)")
 
   ; load the effects
   ;(require 'dustin.fiddle-pages)

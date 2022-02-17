@@ -18,7 +18,7 @@
                                                                 shadow.cljs.bootstrap.browser]}
                                      :main           {:entries    [hyperfiddle.client]
                                                       :depends-on #{:shared}}
-                                     :printer-worker {:web-worker true
+                                     #_#_:printer-worker {:web-worker true
                                                       :entries    [hyperfiddle.client.printer-worker]
                                                       :init-fn    hyperfiddle.client.printer-worker/init
                                                       :depends-on #{:shared}}}}
