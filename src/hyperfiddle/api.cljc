@@ -9,7 +9,7 @@
             #?(:clj [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require-macros [hyperfiddle.dev.logger :refer [debug]]
-                            [hyperfiddle.api :refer [db entity attribute value sequenceM render join-all]])))
+                            [hyperfiddle.api :refer [db entity attribute value refs props sequenceM render join-all]])))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 (def ^:dynamic *route*)                                     ; cljs
@@ -94,18 +94,30 @@
 (p/def value #'nil)
 (p/def options-attribute #'nil)
 
+(p/def refs {}) ;; reference points in HFQL expr
 (p/def columns [])
 (p/def inputs [])
 
+(defn quoted? [form]
+  (and (seq? form)
+       (= 'quote (first form))))
+
 (p/defn join-all [v]
+  ;; (prn "join-all" v)
   (cond
-    (map? v)  (into {} (p/for [[k v] v] [k ~v]))
-    (list? v) (p/for [v v] ~v)
-    (coll? v) (into (empty v) (p/for [v v] ~v))
-    :else     v))
+    (quoted? v) v
+    (map? v)    (into {} (p/for [[k v] v] [k ~v]))
+    (list? v)   (p/for [v v] ~v)
+    (coll? v)   (into (empty v) (p/for [v v] (do (prn v) ~v)))
+    :else       v))
 
 ;; https://hackage.haskell.org/package/base-4.15.0.0/docs/Control-Monad.html#v:sequence
-(p/def sequenceM #'(p/$ join-all ~value))
+(p/def sequenceM #'(let [x (p/$ join-all ~value)]
+                     ;; (prn "sequenceM" x)
+                     x))
+
+;; (p/run (binding [value #'{:a #':b}]
+;;          (prn ~sequenceM)))
 
 (tests
   (p/run (! (binding [value #'[#'1 #'2 #'3]]
@@ -137,27 +149,37 @@
           (p/$ join-all v))))))
 
 ; todo rename wrap, it's sideeffect-fn to fn-returning-flow
-(defn wrap [f] (fn [& args] #?(:clj (m/ap (m/? (m/via m/blk (apply f args))))
+(defn wrap [f] (fn [& args] #?(:clj (m/ap #_(m/? (m/via m/blk (apply f args))) ;; TODO restore and handle continuous flow initial state
+                                          (apply f args))
                                :cljs (m/ap (apply f args))))) ; m/via not supported in cljs
 
 (def q (wrap (fn [query & args]
                (log/debug :q query args)
                (doto (apply d/q query *$* args) log/debug))))
 
-(defn nav!
-  ([_ ref] ref)
-  ([db ref kf] (kf (if (de/entity? ref) ref (d/entity db ref))))
-  ([db ref kf & kfs] (reduce (partial nav! db) (nav! db ref kf) kfs)))
+(tests
+  (d/q '[:find [?e ...] :where [_ :dustingetz/gender ?g] [?g :db/ident ?e]] *$*)
+  := [:dustingetz/male :dustingetz/female]
+  (m/? (m/reduce conj (q '[:find [?e ...] :where [_ :dustingetz/gender ?g] [?g :db/ident ?e]])))
+  := [[:dustingetz/male :dustingetz/female]])
 
-(def nav (wrap (fn [ref & kfs]
-                 (log/debug :nav ref kfs)
-                 (doto (apply nav! *$* ref kfs) log/debug))))
+(defn nav!
+  ([_ e] e)
+  ([db e a] (let [v (a (if (de/entity? e) e (d/entity db e)))]
+              (if (de/entity? v)
+                (:db/id v)
+                v)))
+  ([db e a & as] (reduce (partial nav! db) (nav! db e a) as)))
+
+(def nav (wrap (fn [e & as]
+                 (log/debug :nav e as)
+                 (doto (apply nav! *$* e as) log/debug))))
 
 (tests
-  (nav! *$* 9 :dustingetz/email)
+  (nav! *$* 14 :dustingetz/email)
   := "alice@example.com"
 
-  (m/? (m/reduce conj (nav 9 :dustingetz/email)))
+  (m/? (m/reduce conj (nav 14 :dustingetz/email)))
   := ["alice@example.com"])
 
-(def exports (vars rules ->Link info q nav *$*))
+(def exports (vars rules ->Link info q nav *$* quoted?))
