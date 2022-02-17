@@ -1,53 +1,52 @@
-{:paths ["src"]
- :deps {org.clojure/clojure {:mvn/version "1.10.3"}
-        org.clojure/clojurescript {:mvn/version "1.10.891"}
-        missionary/missionary {:mvn/version "b.27-SNAPSHOT"}
-        datascript/datascript {:mvn/version "1.0.3"}
-        io.replikativ/datahike {:mvn/version "0.4.1477"} ;; datascript/datomic alternative
-        org.clojure/tools.analyzer.jvm {:mvn/version "1.1.0"} ;; used by photon
-        org.clojure/tools.logging {:mvn/version "1.1.0"}
-        ch.qos.logback/logback-classic {:mvn/version "1.2.6"}}
+{:paths   ["src"]
+ :deps    {org.clojure/clojure            {:mvn/version "1.10.3"}
+           org.clojure/clojurescript      {:mvn/version "1.10.891"}
+           missionary/missionary          {:mvn/version "b.27-SNAPSHOT"}
+           datascript/datascript          {:mvn/version "1.0.3"}
+           io.replikativ/datahike         {:mvn/version "0.4.1477"} ;; datascript/datomic alternative
+           org.clojure/tools.analyzer.jvm {:mvn/version "1.1.0"}    ;; used by photon
+           org.clojure/tools.logging      {:mvn/version "1.1.0"}
+           ch.qos.logback/logback-classic {:mvn/version "1.2.6"}}
  :aliases {:scratch {:extra-paths ["scratch"]
-                     :extra-deps {reagent/reagent       {:mvn/version "1.0.0"}
-                                  cloroutine/cloroutine {:mvn/version "10", #_#_:local/root "./vendor/cloroutine"}
-                                  lexikon/lexikon {:mvn/version "0.2.1"} ;; lexical env capture
-                                  funcool/lentes {:mvn/version "1.3.3"} ;; lenses
-                                  funcool/promesa {:mvn/version "6.0.0"} ;; promises, not used anymore
-                                  }}
-           :dev {:extra-paths ["src-dev" "src-docs"
-                               "scratch"]                   ; for clj command
-                 :extra-deps {org.clojure/tools.namespace {:mvn/version "1.0.0"}
-                              com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.0-alpha1"}
-                              binaryage/devtools          {:mvn/version "1.0.3"}
-                              thheller/shadow-cljs        {:mvn/version "2.16.4"}
-                              dorothy/dorothy             {:mvn/version "0.0.7"} ;; graphviz
-                              }
-                 :jvm-opts   ["-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
-                              "-Dlogback.configurationFile=src/logback_dev.xml"
-                              "-XX:-OmitStackTraceInFastThrow" ;; Don't mess with my stacktraces¹!
-                              "-Djdk.attach.allowAttachSelf" ;; profiling
-                              "-XX:+UnlockDiagnosticVMOptions"
-                              "-XX:+DebugNonSafepoints"
-                              ]}
-           :server {:extra-deps {io.pedestal/pedestal.jetty       {:mvn/version "0.5.5"}
-                                 io.pedestal/pedestal.service     {:mvn/version "0.5.5"}
-                                 org.apache.commons/commons-lang3 {:mvn/version "3.8.1"}
-                                 com.cognitect/transit-clj        {:mvn/version "0.8.313"}
-                                 #_#_com.datomic/datomic-free {:mvn/version "0.9.5656"
-                                                               :exclusions [org.slf4j/slf4j-nop
-                                                                            com.google.guava/guava]}}}
-           :cider {:extra-deps {com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.0"}
-                                nrepl/nrepl                               {:mvn/version "0.9.0-beta4"}
-                                refactor-nrepl/refactor-nrepl             {:mvn/version "2.5.0"}
-                                cider/cider-nrepl                         {:mvn/version "0.27.2"}}}
-           :test {:jvm-opts      ["-XX:-OmitStackTraceInFastThrow"
-                                  "-Dhyperfiddle.rcf.generate-tests=true"
-                                  "-Dlogback.configurationFile=src/logback_test.xml"
-                                  ]
-                  :extra-deps    {hyperfiddle/rcf {:local/root "./vendor/rcf"}
-                                  io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
-                                                                        :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
-                  :extra-paths   ["src-docs"]
-                  :exec-fn       cognitect.test-runner.api/test}}}
+                     :extra-deps  {reagent/reagent       {:mvn/version "1.0.0"}
+                                   cloroutine/cloroutine {:mvn/version "10", #_#_:local/root "./vendor/cloroutine"}
+                                   lexikon/lexikon       {:mvn/version "0.2.1"} ;; lexical env capture
+                                   funcool/lentes        {:mvn/version "1.3.3"} ;; lenses
+                                   funcool/promesa       {:mvn/version "6.0.0"} ;; promises, not used anymore
+                                   }}
+           :dev     {:extra-paths ["src-dev" "src-docs" "scratch"] ; for clj command
+                     :extra-deps  {org.clojure/tools.namespace              {:mvn/version "1.0.0"}
+                                   com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.0-alpha1"}
+                                   binaryage/devtools                       {:mvn/version "1.0.3"}
+                                   thheller/shadow-cljs                     {:mvn/version "2.16.4"}
+                                   dorothy/dorothy                          {:mvn/version "0.0.7"} ;; graphviz
+                                   }
+                     :jvm-opts    ["-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
+                                   "-Dlogback.configurationFile=src/logback_dev.xml"
+                                   "-XX:-OmitStackTraceInFastThrow" ;; Don't mess with my stacktraces¹!
+                                   "-Djdk.attach.allowAttachSelf" ;; profiling
+                                   "-XX:+UnlockDiagnosticVMOptions"
+                                   "-XX:+DebugNonSafepoints"
+                                   ]}
+           :server  {:extra-deps {io.pedestal/pedestal.jetty       {:mvn/version "0.5.5"}
+                                  io.pedestal/pedestal.service     {:mvn/version "0.5.5"}
+                                  org.apache.commons/commons-lang3 {:mvn/version "3.8.1"}
+                                  com.cognitect/transit-clj        {:mvn/version "0.8.313"}
+                                  #_#_com.datomic/datomic-free     {:mvn/version "0.9.5656"
+                                                                    :exclusions  [org.slf4j/slf4j-nop
+                                                                                  com.google.guava/guava]}}}
+           :cider   {:extra-deps {com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.0"}
+                                  nrepl/nrepl                               {:mvn/version "0.9.0-beta4"}
+                                  refactor-nrepl/refactor-nrepl             {:mvn/version "2.5.0"}
+                                  cider/cider-nrepl                         {:mvn/version "0.27.2"}}}
+           :test    {:jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
+                                   "-Dhyperfiddle.rcf.generate-tests=true"
+                                   "-Dlogback.configurationFile=src/logback_test.xml"
+                                   ]
+                     :extra-deps  {hyperfiddle/rcf                      {:local/root "./vendor/rcf"}
+                                   io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                                                         :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
+                     :extra-paths ["src-docs"]
+                     :exec-fn     cognitect.test-runner.api/test}}}
 
 ;; ¹ http://webcache.googleusercontent.com/search?q=cache:4Rya0J2jOb4J:yellerapp.com/posts/2015-05-11-clojure-no-stacktrace.html
