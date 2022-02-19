@@ -4,18 +4,36 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.q8.impl :as impl :refer [add-ref-deps dependencies parse reverse-deps]]))
 
+(defn node-label [point]
+  (let [{::impl/keys [role id form]} (meta point)
+        id                           (if (impl/meta-keyword? id) (keyword id) id)
+        alias                        (when-let [alias (`hf/as (meta form))]
+                                       (str " as " alias))]
+    (case role
+      :collect  (str "[ … ]" alias)
+      :traverse (str "{" id  " … }" alias)
+      :call     (str form alias)
+      (str "<font><i>"(name role) "</i>  " id alias "</font>"))))
 
-(defn viz!* [deps]
-  (let [nodes (mapv (fn [dep] [(keyword dep) {:label  (pr-str (::node (meta dep)))
-                                              :xlabel (str (`hf/as (meta (::node (meta dep)))))
-                                              :shape  "none"}]) (keys deps))
-        links (mapcat (fn [[dep deps]] (mapv (fn [child] [(keyword dep) (keyword child)]) deps)) deps)]
-    (->> (concat nodes links)
-         (dot/digraph)
-         (dot/dot)
-         (djvm/show!))))
+(def default-arrowprops {:dir "back", :arrowtail "onormal"})
 
-(defn viz! [form] (viz!* (add-ref-deps (dependencies (parse form)))))
+(defn viz!*
+  ([deps] (viz!* deps "" default-arrowprops))
+  ([deps title arrowprops]
+   (let [deps  (reverse-deps deps)
+         nodes (mapv (fn [point] [(keyword point) {:label  (node-label point)
+                                                   :shape  "none"}]) (keys deps))
+         links (mapcat (fn [[point deps]] (mapv (fn [child] [(keyword point) (keyword child) arrowprops]) deps)) deps)]
+     (->> (concat nodes links)
+          (dot/digraph {:id title})
+          (dot/dot)
+          (djvm/show!)))))
+
+(defn viz! [kind form]
+  (let [deps (add-ref-deps (dependencies (parse form)))]
+    (case kind
+      :let   (viz!* deps "Let dependencies" default-arrowprops)
+      :scope (viz!* (reverse-deps deps) "Dynamic scope flow" {}))))
 
 
 (comment
@@ -26,7 +44,7 @@
   (viz! '[{:user/gender [:db/ident]}
           {:user/shirt-size [:db/ident]}])
 
-  (viz!* (reverse-deps (add-ref-deps (dependencies (parse [{:user/gender [:db/ident]}
-                                                           {:user/shirt-size [:db/ident]}])))))
+  (viz!* (add-ref-deps (dependencies (parse [{:user/gender [:db/ident]}
+                                             {:user/shirt-size [:db/ident]}]))))
 
   )
