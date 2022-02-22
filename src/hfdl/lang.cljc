@@ -5,7 +5,7 @@
             [hfdl.impl.runtime :as r]
             [hfdl.impl.util :as u]
             [hfdl.impl.sampler :refer [sampler!]]
-            [hfdl.lib :refer [map-by]]
+            [hfdl.lib :as lib]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
   #?(:cljs (:require-macros [hfdl.lang :refer [def fn $ vars main for local2 debug thread]])))
@@ -26,6 +26,8 @@ The booting function takes
 * as second argument a flow producing the values read on the wire.
 and returning a task that runs the local reactor."
   r/eval)
+
+(def map-by (partial lib/map-by r/stopped))
 
 (defmacro def [sym & body]
   (when-not (:js-globals &env)
@@ -56,7 +58,7 @@ Takes a photon program and returns a pair
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
     (->> (list 'var v)
-      (list `map-by kf r/stopped
+      (list `map-by kf
         (->> body
           (list* `for-by kf bindings)
           (list `let [s (second c/args)])

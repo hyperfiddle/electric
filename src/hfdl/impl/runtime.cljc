@@ -2,7 +2,6 @@
   hfdl.impl.runtime
   (:refer-clojure :exclude [eval quote])
   (:require [hfdl.impl.util :as u]
-            [hfdl.impl.switch :refer [switch]]
             [hfdl.impl.yield :refer [yield]]
             [missionary.core :as m])
   (:import missionary.Cancelled
@@ -124,13 +123,10 @@
                 (fallback (steady (:error %))))) flow)))
 
 (defn variable [flow nodes frame slot]
-  (let [v [frame slot nodes]]
-    (->> flow
-      (m/eduction (dedupe)
-        (map #(u/bind-flow current v
-                (if (failure %)
-                  (steady %) %))))
-      (switch))))
+  (m/cp (let [v [frame slot nodes]
+              f (m/?< (m/eduction (dedupe) flow))]
+          (m/?< (u/bind-flow current v
+                  (if (failure f) (steady f) f))))))
 
 (defn create [context [target-frame target-slot source-frame source-slot]]
   (if-some [ctors (get (aget ^objects context (int 5)) (- target-frame))]

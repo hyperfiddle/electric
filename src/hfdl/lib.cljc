@@ -198,9 +198,9 @@ flow of values matching that key in the input map.
 Given a function and a continuous flow of collections, returns a continuous flow of vectors of the same size as input
 collection, where values are produced by the continuous flow returned by the function when called with the continuous
 flow of values matching the identity provided by key function, defaulting to identity."
-  ([f >xs] (map-by nil f >xs))
-  ([e f >xs] (map-by identity e f >xs))
-  ([k e f >xs]
+  ([f >xs] (map-by identity f >xs))
+  ([k f >xs] (map-by nil k f >xs))
+  ([e k f >xs]
    (->> >xs
      (m/eduction (seq-diff k ::done) cat)
      (m/group-by key)
@@ -226,7 +226,7 @@ flow of values matching the identity provided by key function, defaulting to ide
 
 (tests
   (let [!xs (atom [])
-        it ((map-by :id nil
+        it ((map-by :id
               (fn [>x] (m/latest (fn [x] (and x (update x :email str/upper-case))) >x))
               (m/watch !xs)) #() #())]
     @it := []

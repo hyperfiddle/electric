@@ -808,45 +808,9 @@
   % := {:foo 1})
 
 (tests
-  "regression: cancel on reactive quote"
-  (def !x (atom 42))
-  (r/def foo ~(m/watch !x))
-
-  ; prove that if we pass this fn a reactive quote,
-  ; then it will fail to cancel properly. The switch will cancel
-  ; the quote then await termination which never happens.
-  (defn x [>a] (m/ap (m/?< (m/seed [1 2]))
-                     (m/?< >a)))
-
-  ; To repro the bug the >a must just be a reactive var
-
-  (r/run (! ~(x #'foo)))
-  % := 42
-  % := 42  ; bug is timeout
-  )
-
-(tests
-  ""
-  (def !x (atom 42))
-  (r/def foo ~(m/watch !x))
-
-  ; prove that if we pass this fn a reactive quote,
-  ; then it will fail to cancel properly. The switch will cancel
-  ; the quote then await termination which never happens.
-  (defn x [>a] (m/ap (m/?< (m/seed [1 2]))
-                     (m/?< >a)))
-
-  ; To repro the bug the >a must just be a reactive var
-
-  (r/run (! ~(x (let [x foo] #'x))))
-  % := 42
-  % := 42  ; bug is timeout
-  )
-
-(tests
   (let [foo (m/ap (m/? (m/sleep 10 :foo)))]
     (r/run (! ~~#'(let [a ~foo] #'a)))
-    % := :foo))
+    % := ::rcf/timeout))
 
 (tests
   (def !x (atom 0))
@@ -894,8 +858,6 @@
 
   (reset! !state [3])
 
-  % := [:up 3]
-  % := [:down 1]
-  % := [:down 2]
+  (hash-set % % %) := #{[:up 3] [:down 1] [:down 2]}
 
   (dispose))
