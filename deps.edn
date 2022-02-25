@@ -35,10 +35,10 @@
                                   #_#_com.datomic/datomic-free     {:mvn/version "0.9.5656"
                                                                     :exclusions  [org.slf4j/slf4j-nop
                                                                                   com.google.guava/guava]}}}
-           :cider   {:extra-deps {com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.0"}
-                                  nrepl/nrepl                               {:mvn/version "0.9.0-beta4"}
-                                  refactor-nrepl/refactor-nrepl             {:mvn/version "2.5.0"}
-                                  cider/cider-nrepl                         {:mvn/version "0.27.2"}}}
+           :cider   {:extra-deps {com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.1"}
+                                  nrepl/nrepl                               {:mvn/version "0.9.0"}
+                                  refactor-nrepl/refactor-nrepl             {:mvn/version "3.3.2"}
+                                  cider/cider-nrepl                         {:mvn/version "0.28.3"}}}
            :test    {:jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
                                    "-Dhyperfiddle.rcf.generate-tests=true"
                                    "-Dlogback.configurationFile=src/logback_test.xml"
