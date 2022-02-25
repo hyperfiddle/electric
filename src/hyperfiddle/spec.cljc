@@ -20,12 +20,15 @@
   (cardinality `foo)                             := ::many ; look up the registry
   )
 
+(defn args [spec]
+  (->> (parse spec)
+       (:args)
+       (:children)))
+
 ;; TODO WIP, account for mulitple arities
 (defn arg "Given an fn spec, try to find spec for arg"
   [spec arg]
-  (->> (parse spec)
-       (:args)
-       (:children)
+  (->> (args spec)
        (filter (comp #{(keyword arg)} :name))
        (first)))
 
