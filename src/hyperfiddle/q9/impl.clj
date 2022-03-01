@@ -2,14 +2,13 @@
     hyperfiddle.q9.impl
   (:refer-clojure :exclude [bound? munge ancestors])
   (:require
-   [clojure.set :as set]
    [clojure.string :as str]
    [hfdl.lang :as p]
    [hyperfiddle.api :as hf] ;; should it be :as-alias?
+   [hyperfiddle.q9.env :as env]
+   [hyperfiddle.rcf :as rcf :refer [! % tests]]
    [hyperfiddle.spec :as spec]
-   [hyperfiddle.walk :as walk]
-   [hyperfiddle.rcf :as rcf :refer [tests ! %]]
-   )
+   [hyperfiddle.walk :as walk])
   (:import
    (clojure.lang IObj)))
 
@@ -53,8 +52,8 @@
     map?     :map
     nil))
 
-(defn props [form]
-  (->> (dissoc (meta form) ::type :line :column)
+(defn get-props [form]
+  (->> (dissoc (meta form) ::type :line :column :bound)
        (map (fn [[k v]] [(keyword k) v]))
        (into {})))
 
@@ -62,9 +61,9 @@
   (merge {:form form}
          (case (categorize form)
            :symbol {:role  :nav
-                    :props (props form)}
+                    :props (get-props form)}
            :seq    {:role  :call
-                    :props (props form)}
+                    :props (get-props form)}
            ;; :vector {:role :collect}
            :map    {:role :traverse}
            nil)))
@@ -73,19 +72,25 @@
 
 (defn meta? [x] (instance? IObj x))
 
-(defn reference? [sym] (and (symbol? sym) (not (meta-keyword? sym))))
+(defn reference? [sym] (and (symbol? sym) (not (meta-keyword? sym))
+                            #_(not (:bound (meta sym)))))
+
+(defn quoted? [form] (and (seq? form) (= 'quote (first form))))
 
 (defn args-points [id-gen parent [f & args]]
   (if-let [args-spec (spec/args f)]
     (->> args
+         (tree-seq (every-pred coll? (complement quoted?)) identity)
          (filter reference?)
-         (map-indexed vector)
-         (map (fn [[idx arg]]
-                {:id     (id-gen)
-                 :role   :ref
-                 :parent parent
-                 :form   arg
-                 :spec   (nth args-spec idx)})))
+         (map-indexed (fn [idx arg]
+                        (->> (tree-seq coll? identity arg)
+                             (filter reference?)
+                             (map (fn [sym]
+                                    {:id     (id-gen)
+                                     :role   :ref
+                                     :parent parent
+                                     :form   sym})))))
+         (mapcat identity))
     ()))
 
 (defn meta-points [id-gen parent form]
@@ -94,7 +99,8 @@
          (mapcat (fn [[k form]] (case (categorize form)
                                   :symbol (cond
                                             (= `hf/as k) [{:id (id-gen) :role :alias :prop k, :form form :parent parent}]
-                                            :else        [{:id (id-gen) :role :ref :prop k, :form form :parent parent}] ;; parent is the refered, will be resolved in further pass.
+                                            #_           (reference? form)
+                                            :else        [{:id (id-gen) :role :ref :prop k, :form form :parent parent}] ;; ref target will be resolved later.
                                             )
                                   :seq    (let [id (id-gen)]
                                             (vec (concat [{:id id :role :call :prop k, :parent parent, :form form}]
@@ -119,8 +125,11 @@
                          (vec (cons call (concat args metas))))
                :vector (mapcat (partial rec parent) form)
                :map    (mapcat (fn [[k v]]
-                                 (let [k-branch (rec parent k)]
-                                   (into k-branch (rec (:id (first k-branch)) v))))
+                                 (let [k-branch  (rec parent k)
+                                       parent-id (:id (first k-branch))
+                                       options   (first (filter (comp #{`hf/options} :prop) k-branch))]
+                                   (cond-> (into k-branch (rec parent-id v))
+                                     (some? options) (into (remove :prop (rec (:id options) v))))))
                                form)))]
      (rec parent form))))
 
@@ -167,16 +176,21 @@
     (->> points
          (map (fn [point]
                 (case (:role point)
-                  :ref (if (#{`hf/render} (:prop point))
-                         point ;; FIXME skip not because it’s hf/render but because it resolves to the global scope
+                  :ref (if (reference? (:form point))
                          (let [candidates (->> (points-in-scope index point)
                                                (filter (fn [candidate] (and (not= point candidate)
+                                                                            (not= :ref (:role candidate))
                                                                             (= (:form point) (:form candidate))))))]
                            (case (count candidates)
-                             0 (throw (ex-info "Can’t resolve reference" {:ref (:form point)}))
+                             0 (if (:external (meta (:form point)))
+                                 point
+                                 (throw (ex-info "Can’t resolve reference" {:ref (:form point)})))
                              1 (assoc point :deps #{(:id (first candidates))})
-                             (throw (ex-info "Ambiguous ref" {:ref (:form point)})))))
+                             (throw (ex-info "Ambiguous ref" {:ref (:form point)}))))
+                         point)
                   point))))))
+
+(defn get-children [index point] (map index (get (children index) (:id point))))
 
 ;; pass
 (defn compute-dependencies [points]
@@ -184,21 +198,18 @@
         children (children index)]
     (->> points
          (map (fn [point]
-                (let [deps (seq (->> (get children (:id point))
-                                     (map index)
-                                     (filter (fn [child] (or (#{:ref} (:role child))
-                                                             #_(and (some? (:prop child))
-                                                                  (not (#{`hf/as} (:prop child)))))))
-                                     (map :id)))
-                      point (if (contains? point :deps)
-                              (update point :deps into deps)
-                              (assoc point :deps (set deps)))]
-                  (if (or (#{:ref} (:role point))
-                          (and (some? (:prop point))
-                               (not (#{`hf/as} (:prop point))))
-                          (nil? (:parent point)))
-                    point
-                    (update point :deps conj (:parent point)))))))))
+                (let [deps  (seq (->> (get children (:id point))
+                                      (map index)
+                                      (filter #(#{:ref} (:role %)))
+                                      (map :id)))
+                      point (update point :deps (fnil into #{}) deps)]
+                  (cond (#{:ref} (:role point)) point
+                        (nil? (:parent point))  point
+                        (some? (:prop point))
+                        (cond
+                          (= `hf/as (:prop point)) (update point :deps conj (:parent point))
+                          :else                    point)
+                        :else                   (update point :deps conj (:parent point)))))))))
 
 (defn down-scope
   ([index point] (down-scope index point true))
@@ -235,10 +246,10 @@
 
 ;; pass
 (defn name-points [points]
-  (map (fn [point] (assoc point :name (cond-> (str (munge (identifier (:form point))))
-                                        (and (:prop point)
-                                             (not= `hf/as (:prop point))) (str "_" (munge (name (:prop point))))
-                                        (:occurrence point)               (str "_" (:occurrence point))))) points))
+  (map (fn [point] (assoc point :name (symbol (cond-> (str (munge (identifier (:form point))))
+                                                (and (:prop point)
+                                                     (#{`hf/options} (:prop point))) (str "_" (munge (name (:prop point))))
+                                                (:occurrence point)                    (str "_" (:occurrence point)))))) points))
 
 (defn rank [index point]
   (if-some [deps (seq (map index (:deps point)))]
@@ -249,37 +260,30 @@
   ([points]       (toposort (map-by :id points)))
   ([index points] (sort-by (fn [%] [(rank index %) (:id %)]) points)))
 
+(defn replace* "Recursive `clojure.core/replace`"
+  [smap coll]
+  (if (empty? smap) coll (walk/prewalk (fn [form]
+                                         (if (quoted? form)
+                                           (reduced form)
+                                           (if-let [subst (get smap form)]
+                                             (reduced subst)
+                                             form)))
+                                       coll)))
+
 (defn emit-point [index point]
-  (case (:role point)
-    :nav   [(symbol (:name point)) (let [parent     (get index (:parent point))
-                                         parent-sym (if (= :many (:card parent))
-                                                      '%
-                                                      (list `unquote (symbol (:name parent))))]
-                                     `(hf/nav ~parent-sym ~(keyword (:form point))))]
-    :call  [(symbol (:name point)) (list 'var (cons `p/$ (:form point)))]
-    :alias [(symbol (:name point)) (symbol (:name (get index (:parent point))))]
-    :ref   nil))
-
-(defn symbolic [form]
-  (condf form
-    meta-keyword? (keyword form)
-    symbol?       (list 'quote form)
-    seq?          (list 'quote form)))
-
-(declare emit)
-
-(defn get-children [index point] (map index (get (children index) (:id point))))
-
-(defn emit-props [index point]
-  (->> (get-children index point)
-       (filter :prop)
-       (map (fn [point] [(keyword (:prop point)) (symbol (:name point))]))
-       (reduce conj (:props point))))
-
-(defn reverse-deps [prnts]
-  (apply merge-with set/union (for [[parent children] prnts
-                                    child             children]
-                                {child (if parent #{parent} #{})})))
+  (let [nom (:name point)]
+    (case (:role point)
+      :nav   [nom (let [parent     (get index (:parent point))
+                        parent-sym (if (= :many (:card parent))
+                                     '%
+                                     (list `unquote (:name parent)))]
+                    `(hf/nav ~parent-sym ~(keyword (:form point))))]
+      :call  [nom (let [refs (into {} (->> (map index (:deps point))
+                                           (remove #(:external (meta (:form %))))
+                                           (map (juxt :form :name))))]
+                    (list 'var (cons `p/$ (replace* refs (:form point)))))]
+      :alias [nom (:name (get index (:parent point)))]
+      :ref   nil)))
 
 (defn ancestors [index point]
   (reduce (fn [r id]
@@ -294,7 +298,7 @@
                                (map index)
                                (sort-by #(rank index %))
                                (filter #(= :many (:card %)))
-                               (first)
+                               (last)
                                (:id)))
               points)))
 
@@ -305,50 +309,67 @@
 (defn renderables [points]
   (remove #(#{:alias :ref} (:role %)) points))
 
-(defn emit-render [scopes index points]
-  (letfn [(rec [point]
-            (if (:prop point)
-              nil
-              (let [nom          (symbol (:name point))
-                    attr         (symbolic (:form point))
-                    children     (renderables (get-children index point))
-                    continuation (if (contains? scopes (:id point))
-                                   (emit scopes index (:id point))
-                                   (if (seq children)
-                                     (into {} (map rec children))
-                                     nom))]
-                [attr `(var (p/$ render ~(cond
+(declare emit emit-render)
+
+(def ^:dynamic *scopes*)
+(def ^:dynamic *index*)
+(def ^:dynamic *props?* false)
+
+(defn var-point [form] (if *props?* form `(var ~form)))
+(defn render-point [form props] (if *props?* form `(p/$ render ~form ~props)))
+
+(defn symbolic-key [point]
+  (let [form (or (:prop point) (:form point))]
+    (condf form
+      meta-keyword? (keyword form)
+      symbol?       (list 'quote form)
+      seq?          (list 'quote form))))
+
+(declare emit*)
+
+(defn emit-1 [point]
+  (binding [*props?* (or *props?* (some? (:prop point)))]
+    (let [nom      (:name point)
+          attr     (symbolic-key point)
+          children (renderables (get-children *index* point))
+          cont     (if (contains? *scopes* (:id point))
+                     (emit* (:id point))
+                     (if (seq children)
+                       (into {} (map emit-1 (remove :prop children)))
+                       nom))]
+      (if *props?*
+        [attr (cond
+                (= :many (:card point)) `(p/for [~'% (unquote ~nom)]
+                                           ~cont)
+                (seq children)          cont
+                :else                   (if (and (:prop point) (not (#{`hf/options} (:prop point))))
+                                          (:form point)
+                                          `(unquote ~nom)))]
+        (let [props (some->> (get-children *index* point)
+                             (filter :prop)
+                             (map emit-1)
+                             (map (fn [[k v]] [k (if (#{::hf/options} k) `(var ~v) v)]))
+                             (seq)
+                             (into {}))]
+          [attr (var-point (render-point (cond
                                            (= :many (:card point)) `(var (p/for [~'% (unquote ~nom)]
-                                                                           (var ~continuation)))
-                                           (seq children)          `(var ~continuation)
-                                           :else                   nom ;; leaf
-                                           )
-                                 ~(emit-props index point)))])))]
-    (into {} (map rec (roots points)))))
+                                                                           (var ~cont)))
+                                           (seq children)          `(var ~cont)
+                                           :else                   nom)
+                                         props))])))))
 
-(->> '[{(user.gender-shirt-size/submissions "alice")
-        [#_:dustingetz/email
-         {(props :dustingetz/shirt-size {::hf/options (user.gender-shirt-size/shirt-sizes gender)})
-          [:db/ident]}
-         {(props :dustingetz/gender {::hf/options (user.gender-shirt-size/genders)
-                                     ::hf/render render-options})
-          [(props :db/ident {::hf/as gender})]}]}
-       #_{(user.gender-shirt-size/genders)
-          [:db/ident #_(props :db/ident {::hf/as gender})]}]
-     (parse)
-     (analyze)
-     (emit)
-     ;; scopes
-     )
+(defn emit-render [points] (into {} (map emit-1 (remove :prop (roots points)))))
 
-(defn emit
-  ([points] (let [index (map-by :id points)]
-              (emit (scopes points) index nil)))
-  ([scopes index id]
-   (let [points (toposort index (get scopes id))]
-     `(let [~@(mapcat #(emit-point index %) points)]
-        (p/$ render (var ~(emit-render scopes index (renderables points)))
-             {})))))
+(defn emit* [point-id]
+  (let [points (toposort *index* (get *scopes* point-id))]
+    `(let [~@(mapcat #(emit-point *index* %) points)]
+       ~(render-point (var-point (emit-render (renderables points))) nil))))
+
+(defn emit [points]
+  (let [index (map-by :id points)]
+    (binding [*scopes* (scopes points)
+              *index*  index]
+      (emit* nil))))
 
 (defn analyze [form]
   (->> (points form)
@@ -361,14 +382,13 @@
 
 (defmacro hfql [form]
   (->> form
+       (env/resolve-syms (env/make-env &env))
        parse
        analyze
        ;; toposort
        ;; (remove (fn [point] (or #_(:prop point) (#{:ref} (:role point)))))
        emit
        ))
-
-(defn quoted? [form] (and (seq? form) (= 'quote (first form))))
 
 (p/defn join-all [v]
   (cond
@@ -383,29 +403,53 @@
     (p/$ renderer >v props)
     (p/$ join-all ~>v)))
 
+;; (p/defn defaults [args] args)
+
 (p/defn render-options [>v props]
   (into [:select {:value (p/$ render >v (dissoc props ::hf/render))}]
         (p/for [opt ~(::hf/options props)]
           [:option opt])))
 
+;; DONE
 (tests
  (p/run (! (binding [hf/entity 9]
-             (hfql [{(user.gender-shirt-size/submissions "alice")
-                     [#_:dustingetz/email
-                      {(props :dustingetz/shirt-size {::hf/options (user.gender-shirt-size/shirt-sizes gender)})
-                       [:db/ident]}
+             (hfql [{(user.gender-shirt-size/submissions "")
+                     [:dustingetz/email
+                      {(props :dustingetz/shirt-size {::hf/options (user.gender-shirt-size/shirt-sizes ~db/ident "")
+                                                      ::hf/render render-options
+                                                      })
+                       [:db/id]}
                       {(props :dustingetz/gender {::hf/options (user.gender-shirt-size/genders)
-                                                  ::hf/render render-options})
+                                                  ::hf/render render-options
+                                                  })
                        [(props :db/ident {::hf/as gender})]}]}
                     #_{(user.gender-shirt-size/genders)
                        [:db/ident #_(props :db/ident {::hf/as gender})]}]) 
              ))) 
  % := _)
 
+
+
+
+
+
+
+
+
+
+(comment
+  (tests
+   ;; Call inner fn with incorrect arity, %2 arg binding (b) leaks from parent fn
+   (p/run (! (p/$ (p/fn [a b] (p/$ (p/fn [c d] [c d]) 3))
+                  1 2)))
+   % := _ ;; FAIL Should throw, instead return [3 2]
+   ))
+
 ;; (rcf/enable! )
 
 ;; (alter-var-root #'clojure.pprint/*print-miser-width* (constantly 72))
 ;; (alter-var-root #'clojure.pprint/*print-right-margin* (constantly 80))
 ;; (alter-var-root #'clojure.pprint/*print-pprint-dispatch* (constantly clojure.pprint/code-dispatch))
+
 
 
