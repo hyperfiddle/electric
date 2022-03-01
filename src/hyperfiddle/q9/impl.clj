@@ -299,11 +299,17 @@
                                      '%
                                      (list `unquote (:name parent)))]
                     `(hf/nav ~parent-sym ~(keyword (:form point))))]
-      :call  [nom (let [[f & _args] (:form point)]
-                    (list 'var (cons `p/$ (cons f (->> (map index (:deps point))
-                                                       (filter #(= :arg (:role %)))
-                                                       (sort-by :position)
-                                                       (map (fn [point] `(unquote ~(:name point)))))))))]
+      :call  [nom (let [[f & _args] (:form point)
+                        args-name   (map symbol (map :name (spec/args f)))
+                        defaultsf   (get (:props point) ::hf/defaults)
+                        args        (->> (map index (:deps point))
+                                         (filter #(= :arg (:role %)))
+                                         (sort-by :position)
+                                         (map (fn [point] `(unquote ~(:name point)))))]
+                    `(var ~(if (some? defaultsf)
+                             `(let [[~@args-name] (p/$ ~defaultsf [~@args])]
+                                (p/$ ~f ~@args-name))
+                             `(p/$ ~f ~@args))))]
       :arg   [nom (let [refs (into {} (->> (map index (:deps point))
                                            (remove #(:external (meta (:form %))))
                                            (map (fn [point] [(:form point) (if (= :input (:role point))
@@ -336,8 +342,22 @@
   (let [present? (set (map :id points))]
     (remove #(present? (:parent %)) points)))
 
+(defn symbolic [form]
+  (condf form
+    keyword?      form
+    meta-keyword? (keyword form)
+    symbol?       (list 'quote form)
+    seq?          (list 'quote form)))
+
+(defn symbolic-key [point] (symbolic (or (:prop point) (:form point))))
+
+(defn symbolic-prop [form]
+  (condf form
+    seq? form
+    (symbolic form)))
+
 (defn renderables [points]
-  (remove #(#{:alias :ref :arg :input} (:role %)) points))
+  (remove (fn [point] (#{:alias :ref :arg :input} (:role point))) points))
 
 (declare emit emit-render)
 
@@ -347,13 +367,6 @@
 
 (defn var-point [form] (if *props?* form `(var ~form)))
 (defn render-point [form props] (if *props?* form `(p/$ render ~form ~props)))
-
-(defn symbolic-key [point]
-  (let [form (or (:prop point) (:form point))]
-    (condf form
-      meta-keyword? (keyword form)
-      symbol?       (list 'quote form)
-      seq?          (list 'quote form))))
 
 (declare emit*)
 
@@ -373,11 +386,12 @@
                                            ~cont)
                 (seq children)          cont
                 :else                   (if (and (:prop point) (not (#{`hf/options} (:prop point))))
-                                          (:form point)
+                                          (symbolic-prop (:form point))
                                           `(unquote ~nom)))]
         (let [props (some->> (get-children *index* point)
                              (filter :prop)
                              (map emit-1)
+                             (remove (fn [[k _v]] (#{::hf/defaults} k)))
                              (map (fn [[k v]] [k (if (#{::hf/options} k) `(var ~v) v)]))
                              (seq)
                              (into {}))]
@@ -394,10 +408,20 @@
   ([points]       (toposort (map-by :id points)))
   ([index points] (sort-by (fn [%] [(rank index %) (:id %)]) points)))
 
+(defn emit-inputs [points]
+  (when-let [inputs (not-empty (reduce (fn [r point]
+                                         (let [[arg call parent & _] (lineage *index* point)]
+                                           (assoc-in r [(if (:prop call)
+                                                          (symbolic-key parent)
+                                                          (symbolic-key call)) (:arg-name arg)] [(:name arg) (:name point)])))
+                                       {} (filter #(= :input (:role %)) points)))]
+    {::hf/inputs inputs}))
+
 (defn emit* [point-id]
   (let [points (toposort *index* (get *scopes* point-id))]
-    `(let [~@(mapcat #(emit-point *index* %) points)]
-       ~(render-point (var-point (emit-render (renderables points))) nil))))
+    `(let [~@(mapcat #(emit-point *index* %) (remove (fn [point] (#{::hf/defaults} (:prop point)))
+                                                     points))]
+       ~(render-point (var-point (emit-render (renderables points))) (emit-inputs points)))))
 
 (defn emit [points]
   (let [index (map-by :id points)]
@@ -445,13 +469,15 @@
 ;; DONE
 (tests
  (p/run (! (binding [hf/entity 9]
-             (hfql [{(user.gender-shirt-size/submissions .)
+             (hfql [{^{::hf/defaults (p/fn [[needle]] [(or needle "alice")])}
+                     (user.gender-shirt-size/submissions .)
                      [#_:dustingetz/email
                       ;; (user.gender-shirt-size/shirt-sizes . .)
-                      {(props :dustingetz/shirt-size {::hf/options (user.gender-shirt-size/shirt-sizes gender .)
-                                                      ;; ::hf/render render-options
-                                                      })
-                       [:db/id]}
+                      {(props (:dustingetz/shirt-size %) {::hf/options (user.gender-shirt-size/shirt-sizes gender .)
+                                                        ::hf/option-label :db/ident
+                                                        ;; ::hf/render render-options
+                                                        })
+                       [(:db/id %)]}
                       {(props :dustingetz/gender {::hf/options (user.gender-shirt-size/genders)
                                                   ::hf/render render-options
                                                   })
