@@ -81,40 +81,45 @@
 
 (defn args-points [id-gen parent [f & args]]
   (if-let [args-spec (spec/args f)]
-    (->> args
-         (map-indexed (fn [idx form]
-                        (let [id   (id-gen)
-                              refs (->> form
-                                        (tree-seq (every-pred coll? (complement quoted?)) identity)
-                                        (filter reference?)
-                                        (map (fn [sym]
-                                               {:id     (id-gen)
-                                                :role   (if (= '. sym) :input :ref)
-                                                :parent id
-                                                :form   sym})))]
-                          (cons {:id       id
-                                 :role     :arg
-                                 :parent   parent
-                                 :form     form
-                                 :position idx
-                                 :arg-name (:name (nth args-spec idx))}
-                                refs))))
-         (mapcat identity))
+    (if (not= (count args) (count args-spec))
+      (throw (ex-info (str "`" f "` called with wrong number of arguments. Spec says " (mapv :name args-spec), ", but " (vec args) " was provided")
+                      {}))
+      (->> args
+           (map-indexed (fn [idx form]
+                          (let [id   (id-gen)
+                                refs (->> form
+                                          (tree-seq (every-pred coll? (complement quoted?)) identity)
+                                          (filter reference?)
+                                          (map (fn [sym]
+                                                 {:id     (id-gen)
+                                                  :role   (if (= '. sym) :input :ref)
+                                                  :parent id
+                                                  :form   sym})))]
+                            (cons {:id       id
+                                   :role     :arg
+                                   :parent   parent
+                                   :form     form
+                                   :position idx
+                                   :arg-name (:name (nth args-spec idx))}
+                                  refs))))
+           (mapcat identity)))
     ()))
 
 (defn meta-points [id-gen parent form]
   (if (meta? form)
     (->> (meta form)
-         (mapcat (fn [[k form]] (case (categorize form)
-                                  :symbol (cond
-                                            (= `hf/as k) [{:id (id-gen) :role :alias :prop k, :form form :parent parent}]
-                                            #_           (reference? form)
-                                            :else        [{:id (id-gen) :role :ref :prop k, :form form :parent parent}] ;; ref target will be resolved later.
-                                            )
-                                  :seq    (let [id (id-gen)]
-                                            (vec (concat [{:id id :role :call :prop k, :parent parent, :form form}]
-                                                         (args-points id-gen id form))))
-                                  nil)))
+         (mapcat (fn rec [[k form]]
+                   (case (categorize form)
+                     :symbol (cond
+                               (= `hf/as k)   [{:id (id-gen) :role :alias :prop k, :form form :parent parent}]
+                               (= `hf/link k) (rec [k `(~form ~'%)])
+                               #_             (reference? form)
+                               :else          [{:id (id-gen) :role :ref :prop k, :form form :parent parent}] ;; ref target will be resolved later.
+                               )
+                     :seq    (let [id (id-gen)]
+                               (vec (concat [{:id id :role :call :prop k, :parent parent, :form form}]
+                                            (args-points id-gen id form))))
+                     nil)))
          (filter identity))
     ()))
 
@@ -229,6 +234,7 @@
                         (some? (:prop point))
                         (cond
                           (= `hf/as (:prop point)) (update point :deps conj (:parent point))
+                          (= `hf/link (:prop point)) (update point :deps conj (:parent point))
                           :else                    point)
                         :else                        (update point :deps conj (:parent point)))))))))
 
@@ -251,7 +257,7 @@
               (->> (down-scope index scope true)
                    (group-by :form)
                    (mapcat (fn [[_form points]]
-                             (case (count (remove (comp #{:ref} :role) points))
+                             (case (count (remove (comp #{:ref :arg} :role) points))
                                (0 1) points
                                (map-indexed (fn [idx point] (assoc point :occurrence idx)) points))))
                    (concat r)
@@ -281,8 +287,8 @@
                                                                   "input"))
                                               (symbol (cond-> (str (munge (identifier point)))
                                                         (and (:prop point)
-                                                             (#{`hf/options} (:prop point))) (str "_" (munge (name (:prop point))))
-                                                        (:occurrence point)                  (str "_" (:occurrence point))))))) points)))
+                                                             (#{`hf/options `hf/link} (:prop point))) (str "_" (munge (name (:prop point))))
+                                                        (:occurrence point)                           (str "_" (:occurrence point))))))) points)))
 
 (defn replace* "Recursive `clojure.core/replace`"
   [smap coll]
@@ -298,9 +304,7 @@
   (let [nom (:name point)]
     (case (:role point)
       :nav   [nom (let [parent     (get index (:parent point))
-                        parent-sym (if (= :many (:card parent))
-                                     '%
-                                     (list `unquote (:name parent)))]
+                        parent-sym (if (= :many (:card parent)) '% (list `unquote (:name parent)))]
                     `(hf/nav ~parent-sym ~(keyword (:form point))))]
       :call  [nom (let [[f & _args] (:form point)
                         args-name   (map symbol (map :name (spec/args f)))
@@ -313,13 +317,14 @@
                                                       many?          (= :many (:card parent))]
                                                   (if (= '% (:form point))
                                                     (if many? '% `(unquote ~(:name parent)))
-                                                    (if (some? parent)
-                                                      `(unquote ~(:name parent))
-                                                      `(unquote ~(:name point))))))))]
-                    `(var ~(if (some? defaultsf)
-                             `(let [[~@args-name] (p/$ ~defaultsf [~@args])]
-                                (p/$ ~f ~@args-name))
-                             `(p/$ ~f ~@args))))]
+                                                    #_(if (some? parent)
+                                                      `(unquote ~(:name parent)))
+                                                    `(unquote ~(:name point)))))))]
+                    `(var ~(cond
+                             (some? defaultsf)          `(let [[~@args-name] (p/$ ~defaultsf [~@args])]
+                                                           (p/$ ~f ~@args-name))
+                             (= `hf/link (:prop point)) `(list '~f ~@args)
+                             :else                      `(p/$ ~f ~@args))))]
       :arg   (when-not (= '% (:form point))
                [nom (let [refs (into {} (->> (map index (:deps point))
                                              (remove #(:external (meta (:form %))))
@@ -398,33 +403,35 @@
           cont     (if (contains? *scopes* (:id point))
                      (partial emit* (:id point))
                      (fn [_ _]
-                       (if (seq children)
-                         (into {} (map emit-1 (remove :prop children)))
+                       (if-some [children (seq (remove :prop children))]
+                         (into {} (map emit-1 children))
                          nom)))]
       (if *props?*
         [attr (cond
                 (= :many (:card point)) `(p/for [~'% (unquote ~nom)]
                                            ~(cont nil nil))
                 (seq children)          (cont nil nil)
-                :else                   (if (and (:prop point) (not (#{`hf/options} (:prop point))))
-                                          (symbolic-prop (:form point))
+                :else                   (if-let [prop (:prop point)]
+                                          (cond (#{`hf/link} prop)          [(list 'quote (:form point)) nom]
+                                                (not (#{`hf/options} prop)) (symbolic-prop (:form point))
+                                                :else                       `(unquote ~nom))
                                           `(unquote ~nom)))]
-        (let [props (some->> (get-children *index* point)
-                             (filter :prop)
-                             (map emit-1)
-                             (remove (fn [[k _v]] (#{::hf/defaults} k)))
-                             (map (fn [[k v]] [k (if (#{::hf/options} k) `(var ~v) v)]))
-                             (seq)
-                             (into {}))
+        (let [props  (some->> (get-children *index* point)
+                              (filter :prop)
+                              (map emit-1)
+                              (remove (fn [[k _v]] (#{::hf/defaults} k)))
+                              (map (fn [[k v]] [k (if (#{::hf/options} k) `(var ~v) v)]))
+                              (seq)
+                              (into {}))
               parent (get *index* (:parent point))
-              next  (render-point (if (= :many (:card parent)) '(var %) (:name parent))
-                                  (symbolic-key point)
-                                  (cond
-                                    (= :many (:card point)) `(var (p/for [~'% (unquote ~nom)]
-                                                                    (var ~(cont '(var %) nil))))
-                                    (seq children)          `(var ~(cont nil nil))
-                                    :else                   nom)
-                                  props)]
+              next   (render-point (if (= :many (:card parent)) '(var %) (:name parent))
+                                   (symbolic-key point)
+                                   (cond
+                                     (= :many (:card point))       `(var (p/for [~'% (unquote ~nom)]
+                                                                           (var ~(cont '(var %) nil))))
+                                     (seq (remove :prop children)) `(var ~(cont nil nil))
+                                     :else                         nom)
+                                   props)]
           [attr (var-point next)]))))) 
 
 (defn emit-render [points] (into {} (map emit-1 (remove :prop (roots points)))))
@@ -488,7 +495,9 @@
 (p/defn render [>v props]
   (if-let [renderer (::hf/render props)]
     (p/$ renderer >v props)
-    (p/$ join-all ~>v)))
+    (if-let [link (::hf/link props)]
+      (str "<a href=\"" (pr-str ~(second link)) "\">" (p/$ join-all ~>v) "</a>")
+      (p/$ join-all ~>v))))
 
 (defn breadcrumbs [context]
   (let [human-friendly-points (filter (fn [[e a _v]] (or e a)) context)
@@ -544,12 +553,19 @@
 (p/defn suber-name [e] (first (str/split ~(hf/nav e :dustingetz/email) #"@")))
 (s/fdef suber-name :args (s/cat :e any?) :ret any?)
 
+;; DONE
 (tests
  (p/run (! (hfql [{(user.gender-shirt-size/submissions "alice") [(suber-name %)
                                                                  suber-name]}]) 
            ))
  % := _)
 
+(tests
+ (p/run (! (hfql [{(user.gender-shirt-size/submissions .)
+                   [(props :db/id {::hf/link user.gender-shirt-size/sub-profile})
+                    (props :dustingetz/email {::hf/link (user.gender-shirt-size/sub-profile db/id)})]}]) 
+           ))
+ % := _) 
 
 
 
