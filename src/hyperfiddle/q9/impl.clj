@@ -238,31 +238,46 @@
                           :else                    point)
                         :else                        (update point :deps conj (:parent point)))))))))
 
-(defn down-scope
-  ([index point] (down-scope index point true))
-  ([index point force]
-   (let [children (children index)]
-     (if (and (not force) (= :many (:card point)))
-       nil ;; FIXME invert polarity?
-       (->> (get children (:id point))
-            (map index)
-            (mapcat #(down-scope index % false))
-            (cons point))))))
+;; (defn down-scope
+;;   ([index point] (down-scope index point true))
+;;   ([index point force]
+;;    (let [children (children index)]
+;;      (if (and (not force) (= :many (:card point)))
+;;        nil ;; FIXME invert polarity?
+;;        (->> (get children (:id point))
+;;             (map index)
+;;             (mapcat #(down-scope index % false))
+;;             (cons point))))))
+
+(defn ancestors [index point]
+  (reduce (fn [r id]
+            (if-let [parent (get index id)]
+              (into r (ancestors index parent))
+              r))
+          (:deps point) (:deps point)))
+
+(defn scopes [points]
+  (let [index (map-by :id points)]
+    (group-by (fn [point]
+                (->> (ancestors index point)
+                     (map index)
+                     (sort-by #(rank index %))
+                     (filter #(= :many (:card %)))
+                     (first)
+                     (:id)))
+              points)))
 
 ;; pass
 (defn unique-name-points [points]
-  (let [index  (map-by :id points)
-        scopes (filter #(= :many (:card %)) points)]
-    (reduce (fn [r scope]
-              (->> (down-scope index scope true)
-                   (group-by :form)
-                   (mapcat (fn [[_form points]]
-                             (case (count (remove (comp #{:ref :arg} :role) points))
-                               (0 1) points
-                               (map-indexed (fn [idx point] (assoc point :occurrence idx)) points))))
-                   (concat r)
-                   ))
-            () scopes))) ;; FIXME root points not scanned if not card :many
+  (reduce (fn [r scope]
+            (->> (group-by :name scope)
+                 (mapcat (fn [[name points]]
+                           (case (count (remove (comp #{:ref :arg} :role) points))
+                             (0 1) points
+                             (map-indexed (fn [idx point] (assoc point :name (symbol (str name "_" idx)), :occurrence idx)) points))))
+                 (concat r)
+                 ))
+          () (vals (scopes points)))) ;; FIXME root points not scanned if not card :many
 
 (defn munge [point] (str/replace (str point) #"[\.\/]" "_"))
 
@@ -278,17 +293,16 @@
 ;; pass
 (defn name-points [points]
   (let [index (map-by :id points)]
-    (map (fn rec [point] (assoc point :name (case (:role point)
-                                              :arg   (symbol (str (:name (rec (get index (:parent point))))
+    (map (fn rec [point] (assoc point :name (symbol (case (:role point)
+                                                      :arg   (str (:name (rec (get index (:parent point))))
                                                                   "_"
-                                                                  (name (:arg-name point))))
-                                              :input (symbol (str (:name (rec (get index (:parent point))))
+                                                                  (name (:arg-name point)))
+                                                      :input (str (:name (rec (get index (:parent point))))
                                                                   "_"
-                                                                  "input"))
-                                              (symbol (cond-> (str (munge (identifier point)))
+                                                                  "input")
+                                                      (cond-> (str (munge (identifier point)))
                                                         (and (:prop point)
-                                                             (#{`hf/options `hf/link} (:prop point))) (str "_" (munge (name (:prop point))))
-                                                        (:occurrence point)                           (str "_" (:occurrence point))))))) points)))
+                                                             (#{`hf/options `hf/link} (:prop point))) (str "_" (munge (name (:prop point))))))))) points)))
 
 (defn replace* "Recursive `clojure.core/replace`"
   [smap coll]
@@ -335,24 +349,6 @@
       :input [nom `(atom nil)]
       :alias [nom (:name (get index (:parent point)))]
       :ref   nil)))
-
-(defn ancestors [index point]
-  (reduce (fn [r id]
-            (if-let [parent (get index id)]
-              (into r (ancestors index parent))
-              r))
-          (:deps point) (:deps point)))
-
-(defn scopes [points]
-  (let [index (map-by :id points)]
-    (group-by (fn [point]
-                (->> (ancestors index point)
-                     (map index)
-                     (sort-by #(rank index %))
-                     (filter #(= :many (:card %)))
-                     (first)
-                     (:id)))
-              points)))
 
 (defn roots [points]
   (let [present? (set (map :id points))]
@@ -470,8 +466,8 @@
        (map add-cardinality)
        resolve-refs
        compute-dependencies
-       unique-name-points
        name-points
+       unique-name-points
        ))
 
 (defmacro hfql [form]
