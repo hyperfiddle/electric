@@ -52,7 +52,7 @@
   (walk/prewalk (fn [form]
                   (cond (quoted? form) (reduced form)
                         (symbol? form) (cond
-                                         (= '. form)         form ;; special syntax for deep inputs
+                                         (#{'. '%} form)     form ;; special syntax
                                          (local? env form)   (vary-meta form assoc :external true)
                                          (clj/specials form) (vary-meta form assoc :external true)
                                          :else               (if-let [var (resolve-runtime env form)]
