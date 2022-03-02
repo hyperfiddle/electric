@@ -353,7 +353,8 @@
 
 (defn symbolic-prop [form]
   (condf form
-    seq? form
+    symbol? form
+    seq?    form
     (symbolic form)))
 
 (defn renderables [points]
@@ -365,8 +366,16 @@
 (def ^:dynamic *index*)
 (def ^:dynamic *props?* false)
 
+(defmacro render* [e a >v props]
+  `(let [>v# ~>v]
+     (binding [hf/context (cons [~e ~a #'(binding [render hf/join-all] (unquote >v#))] hf/context)]
+       (p/$ render >v# ~props))))
+
 (defn var-point [form] (if *props?* form `(var ~form)))
-(defn render-point [form props] (if *props?* form `(p/$ render ~form ~props)))
+
+(defn render-point
+  ([>v props] (render-point nil nil >v props))
+  ([e a >v props] (if *props?* >v `(render* ~(or e '(var nil)) ~a ~>v ~props))))
 
 (declare emit*)
 
@@ -376,15 +385,16 @@
           attr     (symbolic-key point)
           children (renderables (get-children *index* point))
           cont     (if (contains? *scopes* (:id point))
-                     (emit* (:id point))
-                     (if (seq children)
-                       (into {} (map emit-1 (remove :prop children)))
-                       nom))]
+                     (partial emit* (:id point))
+                     (fn [_ _]
+                       (if (seq children)
+                         (into {} (map emit-1 (remove :prop children)))
+                         nom)))]
       (if *props?*
         [attr (cond
                 (= :many (:card point)) `(p/for [~'% (unquote ~nom)]
-                                           ~cont)
-                (seq children)          cont
+                                           ~(cont nil nil))
+                (seq children)          (cont nil nil)
                 :else                   (if (and (:prop point) (not (#{`hf/options} (:prop point))))
                                           (symbolic-prop (:form point))
                                           `(unquote ~nom)))]
@@ -394,13 +404,17 @@
                              (remove (fn [[k _v]] (#{::hf/defaults} k)))
                              (map (fn [[k v]] [k (if (#{::hf/options} k) `(var ~v) v)]))
                              (seq)
-                             (into {}))]
-          [attr (var-point (render-point (cond
-                                           (= :many (:card point)) `(var (p/for [~'% (unquote ~nom)]
-                                                                           (var ~cont)))
-                                           (seq children)          `(var ~cont)
-                                           :else                   nom)
-                                         props))])))))
+                             (into {}))
+              parent (get *index* (:parent point))
+              next  (render-point (if (= :many (:card parent)) '(var %) (:name parent))
+                                  (symbolic-key point)
+                                  (cond
+                                    (= :many (:card point)) `(var (p/for [~'% (unquote ~nom)]
+                                                                    (var ~(cont '(var %) nil))))
+                                    (seq children)          `(var ~(cont nil nil))
+                                    :else                   nom)
+                                  props)]
+          [attr (var-point next)]))))) 
 
 (defn emit-render [points] (into {} (map emit-1 (remove :prop (roots points)))))
 
@@ -417,11 +431,15 @@
                                        {} (filter #(= :input (:role %)) points)))]
     {::hf/inputs inputs}))
 
-(defn emit* [point-id]
-  (let [points (toposort *index* (get *scopes* point-id))]
-    `(let [~@(mapcat #(emit-point *index* %) (remove (fn [point] (#{::hf/defaults} (:prop point)))
-                                                     points))]
-       ~(render-point (var-point (emit-render (renderables points))) (emit-inputs points)))))
+(defn emit*
+  ([point-id] (emit* point-id nil nil))
+  ([point-id e a]
+   (let [points (toposort *index* (get *scopes* point-id))]
+     `(let [~@(mapcat #(emit-point *index* %) (remove (fn [point] (#{::hf/defaults} (:prop point)))
+                                                      points))]
+        ~(render-point e #_(when point-id '%)
+                       a #_(when point-id (symbolic-key (get *index* point-id)))
+                       (var-point (emit-render (renderables points))) (emit-inputs points))))))
 
 (defn emit [points]
   (let [index (map-by :id points)]
@@ -461,6 +479,30 @@
     (p/$ renderer >v props)
     (p/$ join-all ~>v)))
 
+(defn breadcrumbs [context]
+  (let [human-friendly-points (filter (fn [[e a _v]] (or e a)) context)
+        index                 (group-by first human-friendly-points)]
+    (reduce (fn [r e]
+              (cons e (into r (filter identity (map second (get index e))))))
+            () (dedupe (map first human-friendly-points)))))
+
+(defn format-breadcrumbs [path]
+  (str/join " > " (cons "/" (rest path))))
+
+(p/defn 🦆 [>v props]
+  (prn (str "Breadcrumbs: " (format-breadcrumbs (breadcrumbs (p/for [[>e a >v] hf/context] [~>e a >v])))))
+  (p/$ render >v (dissoc props ::hf/render)))
+
+(tests
+ (p/run (! (hfql [{(user.gender-shirt-size/submissions .) [{:dustingetz/gender [(props :db/ident {::hf/render 🦆})]}]}])
+           ))
+ % := _)
+
+
+
+
+
+
 (p/defn render-options [>v props]
   (into [:select {:value (p/$ render >v (dissoc props ::hf/render))}]
         (p/for [opt ~(::hf/options props)]
@@ -468,23 +510,22 @@
 
 ;; DONE
 (tests
- (p/run (! (binding [hf/entity 9]
-             (hfql [{^{::hf/defaults (p/fn [[needle]] [(or needle "alice")])}
-                     (user.gender-shirt-size/submissions .)
-                     [#_:dustingetz/email
-                      ;; (user.gender-shirt-size/shirt-sizes . .)
-                      {(props (:dustingetz/shirt-size %) {::hf/options (user.gender-shirt-size/shirt-sizes gender .)
-                                                        ::hf/option-label :db/ident
-                                                        ;; ::hf/render render-options
-                                                        })
-                       [(:db/id %)]}
-                      {(props :dustingetz/gender {::hf/options (user.gender-shirt-size/genders)
-                                                  ::hf/render render-options
-                                                  })
-                       [(props :db/ident {::hf/as gender})]}]}
-                    #_{(user.gender-shirt-size/genders)
-                       [:db/ident #_(props :db/ident {::hf/as gender})]}]) 
-             ))) 
+ (p/run (! (hfql [{^{::hf/defaults (p/fn [[needle]] [(or needle "alice")])}
+                   (user.gender-shirt-size/submissions .)
+                   [:dustingetz/email
+                    ;; (user.gender-shirt-size/shirt-sizes . .)
+                    {(props (:dustingetz/shirt-size %) {::hf/options (user.gender-shirt-size/shirt-sizes gender .)
+                                                            ;; ::hf/option-label :db/ident
+                                                            ::hf/render render-options
+                                                            })
+                         [:db/id]}
+                    {(props :dustingetz/gender {::hf/options (user.gender-shirt-size/genders)
+                                                ::hf/render render-options
+                                                })
+                     [(props :db/ident {::hf/as gender})]}]}
+                  #_{(user.gender-shirt-size/genders)
+                     [:db/ident #_(props :db/ident {::hf/as gender})]}]) 
+           )) 
  % := _)
 
 
