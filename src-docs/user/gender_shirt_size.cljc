@@ -67,7 +67,7 @@
                                       :dustingetz/shirt-size])))
 
 
-(s/fdef submission :ret number?)
+(s/fdef submission :args (s/cat :needle string?) :ret number?)
 (p/defn submission [needle] (first (p/$ submissions needle)))
 
 

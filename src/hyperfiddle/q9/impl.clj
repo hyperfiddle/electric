@@ -3,11 +3,9 @@
   (:refer-clojure :exclude [bound? munge ancestors])
   (:require
    [clojure.string :as str]
-   [clojure.spec.alpha :as s]
    [hfdl.lang :as p]
    [hyperfiddle.api :as hf] ;; should it be :as-alias?
    [hyperfiddle.q9.env :as env]
-   [hyperfiddle.rcf :as rcf :refer [! % tests]]
    [hyperfiddle.spec :as spec]
    [hyperfiddle.walk :as walk]
    [missionary.core :as m])
@@ -32,7 +30,7 @@
 
 (defn parse-props [[_props form metas]] (vary-meta form merge metas))
 
-(defn parse-call [[f & args :as sexpr]]
+(defn parse-call [[f & _args :as sexpr]]
   (if (meta-keyword? f)
     f
     sexpr))
@@ -80,30 +78,38 @@
 (defn quoted? [form] (and (seq? form) (= 'quote (first form))))
 
 (defn args-points [id-gen parent [f & args]]
-  (if-let [args-spec (spec/args f)]
-    (if (not= (count args) (count args-spec))
-      (throw (ex-info (str "`" f "` called with wrong number of arguments. Spec says " (mapv :name args-spec), ", but " (vec args) " was provided")
-                      {}))
-      (->> args
-           (map-indexed (fn [idx form]
-                          (let [id   (id-gen)
-                                refs (->> form
-                                          (tree-seq (every-pred coll? (complement quoted?)) identity)
-                                          (filter reference?)
-                                          (map (fn [sym]
-                                                 {:id     (id-gen)
-                                                  :role   (if (= '. sym) :input :ref)
-                                                  :parent id
-                                                  :form   sym})))]
-                            (cons {:id       id
-                                   :role     :arg
-                                   :parent   parent
-                                   :form     form
-                                   :position idx
-                                   :arg-name (:name (nth args-spec idx))}
-                                  refs))))
-           (mapcat identity)))
-    ()))
+  (if (#{`p/fn} f)
+    ()
+    (let [args-spec (spec/args f)]
+      (cond
+
+        (nil? args-spec)
+        (throw (ex-info (str "Couldn’t find `:args` spec for `" f "`") {}))
+
+        (not= (count args) (count args-spec))
+        (throw (ex-info (str "`" f "` called with wrong number of arguments. Spec says " (mapv :name args-spec), ", but " (vec args) " was provided")
+                        {}))
+        :else
+        (->> args
+             (map-indexed (fn [idx form]
+                            (let [id   (id-gen)
+                                  refs (->> form
+                                            (tree-seq (every-pred coll? (complement quoted?)) identity)
+                                            (filter reference?)
+                                            (map (fn [sym]
+                                                   {:id     (id-gen)
+                                                    :role   (if (= '. sym) :input :ref)
+                                                    :parent id
+                                                    :form   sym})))]
+                              (cons {:id       id
+                                     :role     :arg
+                                     :parent   parent
+                                     :form     form
+                                     :position idx
+                                     :arg-name (:name (nth args-spec idx))
+                                     :props    (get-props form)}
+                                    refs))))
+             (mapcat identity))))))
 
 (defn meta-points [id-gen parent form]
   (if (meta? form)
@@ -238,17 +244,6 @@
                           :else                    point)
                         :else                        (update point :deps conj (:parent point)))))))))
 
-;; (defn down-scope
-;;   ([index point] (down-scope index point true))
-;;   ([index point force]
-;;    (let [children (children index)]
-;;      (if (and (not force) (= :many (:card point)))
-;;        nil ;; FIXME invert polarity?
-;;        (->> (get children (:id point))
-;;             (map index)
-;;             (mapcat #(down-scope index % false))
-;;             (cons point))))))
-
 (defn ancestors [index point]
   (reduce (fn [r id]
             (if-let [parent (get index id)]
@@ -263,7 +258,7 @@
                      (map index)
                      (sort-by #(rank index %))
                      (filter #(= :many (:card %)))
-                     (first)
+                     (last)
                      (:id)))
               points)))
 
@@ -277,7 +272,7 @@
                              (map-indexed (fn [idx point] (assoc point :name (symbol (str name "_" idx)), :occurrence idx)) points))))
                  (concat r)
                  ))
-          () (vals (scopes points)))) ;; FIXME root points not scanned if not card :many
+          () (vals (scopes points))))
 
 (defn munge [point] (str/replace (str point) #"[\.\/]" "_"))
 
@@ -318,7 +313,9 @@
   (let [nom (:name point)]
     (case (:role point)
       :nav   [nom (let [parent     (get index (:parent point))
-                        parent-sym (if (= :many (:card parent)) '% (list `unquote (:name parent)))]
+                        parent-sym (if (nil? parent)
+                                     `hf/entity
+                                     (if (= :many (:card parent)) '% (list `unquote (:name parent))))]
                     `(hf/nav ~parent-sym ~(keyword (:form point))))]
       :call  [nom (let [[f & _args] (:form point)
                         args-name   (map symbol (map :name (spec/args f)))
@@ -332,7 +329,7 @@
                                                   (if (= '% (:form point))
                                                     (if many? '% `(unquote ~(:name parent)))
                                                     #_(if (some? parent)
-                                                      `(unquote ~(:name parent)))
+                                                        `(unquote ~(:name parent)))
                                                     `(unquote ~(:name point)))))))]
                     `(var ~(cond
                              (some? defaultsf)          `(let [[~@args-name] (p/$ ~defaultsf [~@args])]
@@ -340,12 +337,22 @@
                              (= `hf/link (:prop point)) `(list '~f ~@args)
                              :else                      `(p/$ ~f ~@args))))]
       :arg   (when-not (= '% (:form point))
-               [nom (let [refs (into {} (->> (map index (:deps point))
-                                             (remove #(:external (meta (:form %))))
-                                             (map (fn [point] [(:form point) (if (= :input (:role point))
-                                                                               `(unquote (m/watch ~(:name point)))
-                                                                               `(unquote ~(:name point)))]))))]
-                      (list 'var (replace* refs (:form point))))])
+               [nom (let [form      (if-let [refs (some->> (map index (:deps point))
+                                                           (remove #(:external (meta (:form %))))
+                                                           (map (fn [point] [(:form point) (if (= :input (:role point))
+                                                                                             `(unquote (m/watch ~(:name point)))
+                                                                                             `(unquote ~(:name point)))]))
+                                                           (seq)
+                                                           (into {}))]
+                                      (replace* refs (:form point))
+                                      (if (meta-keyword? (:form point))
+                                        (keyword (:form point))
+                                        (:form point)))
+                          defaultsf (get (:props point) ::hf/defaults)]
+                      (list 'var
+                            (cond
+                              (some? defaultsf) `(p/$ ~defaultsf ~form)
+                              :else             form)))])
       :input [nom `(atom nil)]
       :alias [nom (:name (get index (:parent point)))]
       :ref   nil)))
@@ -401,7 +408,9 @@
                      (fn [_ _]
                        (if-some [children (seq (remove :prop children))]
                          (into {} (map emit-1 children))
-                         nom)))]
+                         (if (= :many (:card point))
+                           '%
+                           nom))))]
       (if *props?*
         [attr (cond
                 (= :many (:card point)) `(p/for [~'% (unquote ~nom)]
@@ -419,7 +428,7 @@
                               (map (fn [[k v]] [k (if (#{::hf/options} k) `(var ~v) v)]))
                               (seq)
                               (into {}))
-              parent (get *index* (:parent point))
+              parent (get *index* (:parent point) {:name (list 'var `hf/entity)})
               next   (render-point (if (= :many (:card parent)) '(var %) (:name parent))
                                    (symbolic-key point)
                                    (cond
@@ -446,14 +455,13 @@
     {::hf/inputs inputs}))
 
 (defn emit*
-  ([point-id] (emit* point-id nil nil))
+  ([point-id] (emit* point-id (list 'var `hf/entity) `hf/attribute))
   ([point-id e a]
    (let [points (toposort *index* (get *scopes* point-id))]
-     `(let [~@(mapcat #(emit-point *index* %) (remove (fn [point] (#{::hf/defaults} (:prop point)))
+     `(let [~@(mapcat #(emit-point *index* %) (remove (fn [point] (#{`hf/defaults `hf/render} ;; FIXME kw vs sym vs meta-kw
+                                                                   (:prop point)))
                                                       points))]
-        ~(render-point e #_(when point-id '%)
-                       a #_(when point-id (symbolic-key (get *index* point-id)))
-                       (var-point (emit-render (renderables points))) (emit-inputs points))))))
+        ~(render-point e a (var-point (emit-render (renderables points))) (emit-inputs points))))))
 
 (defn emit [points]
   (let [index (map-by :id points)]
@@ -470,13 +478,11 @@
        unique-name-points
        ))
 
-(defmacro hfql [form]
+(defn hfql [&env form]
   (->> form
        (env/resolve-syms (env/make-env &env))
        parse
        analyze
-       ;; toposort
-       ;; (remove (fn [point] (or #_(:prop point) (#{:ref} (:role point)))))
        emit
        ))
 
@@ -495,89 +501,96 @@
       (str "<a href=\"" (pr-str ~(second link)) "\">" (p/$ join-all ~>v) "</a>")
       (p/$ join-all ~>v))))
 
-(defn breadcrumbs [context]
-  (let [human-friendly-points (filter (fn [[e a _v]] (or e a)) context)
-        index                 (group-by first human-friendly-points)]
-    (reduce (fn [r e]
-              (cons e (into r (filter identity (map second (get index e))))))
-            () (dedupe (map first human-friendly-points)))))
+;; (comment
 
-(defn format-breadcrumbs [path]
-  (str/join " > " (cons "/" (rest path))))
+  
 
-(p/defn 🦆 [>v props]
-  (prn (str "Breadcrumbs: " (format-breadcrumbs (breadcrumbs (p/for [[>e a >v] hf/context] [~>e a >v])))))
-  (p/$ render >v (dissoc props ::hf/render)))
+;;   (defn breadcrumbs [context]
+;;     (let [human-friendly-points (filter (fn [[e a _v]] (or e a)) context)
+;;           index                 (group-by first human-friendly-points)]
+;;       (reduce (fn [r e]
+;;                 (cons e (into r (filter identity (map second (get index e))))))
+;;               () (dedupe (map first human-friendly-points)))))
 
-(tests
- (p/run (! (hfql [{(user.gender-shirt-size/submissions .) [{:dustingetz/gender [(props :db/ident {::hf/render 🦆})]}]}])
-           ))
- % := _)
+;;   (defn format-breadcrumbs [path]
+;;     (str/join " > " (cons "/" (rest path))))
+
+;;   (p/defn 🦆 [>v props]
+;;     (prn (str "Breadcrumbs: " (format-breadcrumbs (breadcrumbs (p/for [[>e a >v] hf/context] [~>e a >v])))))
+;;     (p/$ render >v (dissoc props ::hf/render)))
+
+;;   (tests
+;;    (p/run (! (hfql [{(user.gender-shirt-size/submissions .) [{:dustingetz/gender [(props :db/ident {::hf/render 🦆})]}]}])
+;;              ))
+;;    % := _)
+
+
+;;   (p/defn render-options [>v props]
+;;     (into [:select {:value (p/$ render >v (dissoc props ::hf/render))}]
+;;           (p/for [opt ~(::hf/options props)]
+;;             [:option opt])))
+
+;;   ;; DONE
+;;   (tests
+;;    (p/run (! (hfql [{^{::hf/defaults (p/fn [[needle]] [(or needle "alice")])}
+;;                      (user.gender-shirt-size/submissions .)
+;;                      [:dustingetz/email
+;;                       ;; (user.gender-shirt-size/shirt-sizes . .)
+;;                       {(props (:dustingetz/shirt-size %) {::hf/options (user.gender-shirt-size/shirt-sizes gender .)
+;;                                                           ;; ::hf/option-label :db/ident
+;;                                                           ::hf/render render-options
+;;                                                           })
+;;                        [:db/id]}
+;;                       {(props :dustingetz/gender {::hf/options (user.gender-shirt-size/genders)
+;;                                                   ::hf/render render-options
+;;                                                   })
+;;                        [(props :db/ident {::hf/as gender})]}]}
+;;                     #_{(user.gender-shirt-size/genders)
+;;                        [:db/ident #_(props :db/ident {::hf/as gender})]}]) 
+;;              )) 
+;;    % := _)
 
 
 
+;;   (p/defn suber-name [e] (first (str/split ~(hf/nav e :dustingetz/email) #"@")))
+;;   (s/fdef suber-name :args (s/cat :e any?) :ret any?)
 
-
-
-(p/defn render-options [>v props]
-  (into [:select {:value (p/$ render >v (dissoc props ::hf/render))}]
-        (p/for [opt ~(::hf/options props)]
-          [:option opt])))
+;; (p/defn blank [])
+;; (s/fdef blank :args (s/cat) :ret any?)
 
 ;; DONE
-(tests
- (p/run (! (hfql [{^{::hf/defaults (p/fn [[needle]] [(or needle "alice")])}
-                   (user.gender-shirt-size/submissions .)
-                   [:dustingetz/email
-                    ;; (user.gender-shirt-size/shirt-sizes . .)
-                    {(props (:dustingetz/shirt-size %) {::hf/options (user.gender-shirt-size/shirt-sizes gender .)
-                                                            ;; ::hf/option-label :db/ident
-                                                            ::hf/render render-options
-                                                            })
-                         [:db/id]}
-                    {(props :dustingetz/gender {::hf/options (user.gender-shirt-size/genders)
-                                                ::hf/render render-options
-                                                })
-                     [(props :db/ident {::hf/as gender})]}]}
-                  #_{(user.gender-shirt-size/genders)
-                     [:db/ident #_(props :db/ident {::hf/as gender})]}]) 
-           )) 
- % := _)
+;; (tests
+;; (p/run (! (hfql [{(user.gender-shirt-size/submissions "alice") [(suber-name %)
+;;                                                                 (props :db/id {::hf/link (blank)})
+;;                                                                 suber-name]}]) 
+;;           ))
+;; % := _)
+
+;;   (tests
+;;    (p/run (! (hfql [{(user.gender-shirt-size/submissions .)
+;;                      [(props :db/id {::hf/link user.gender-shirt-size/sub-profile})
+;;                       (props :dustingetz/email {::hf/link (user.gender-shirt-size/sub-profile db/id)})]}]) 
+;;              ))
+;;    % := _) 
 
 
 
-(p/defn suber-name [e] (first (str/split ~(hf/nav e :dustingetz/email) #"@")))
-(s/fdef suber-name :args (s/cat :e any?) :ret any?)
+;;   (comment
+;;     (tests
+;;      ;; Call inner fn with incorrect arity, %2 arg binding (b) leaks from parent fn
+;;      (p/run (! (p/$ (p/fn [a b] (p/$ (p/fn [c d] [c d]) 3))
+;;                     1 2)))
+;;      % := _ ;; FAIL Should throw, instead return [3 2]
+;;      ))
 
-;; DONE
-(tests
- (p/run (! (hfql [{(user.gender-shirt-size/submissions "alice") [(suber-name %)
-                                                                 suber-name]}]) 
-           ))
- % := _)
+;;   ;; (rcf/enable! )
 
-(tests
- (p/run (! (hfql [{(user.gender-shirt-size/submissions .)
-                   [(props :db/id {::hf/link user.gender-shirt-size/sub-profile})
-                    (props :dustingetz/email {::hf/link (user.gender-shirt-size/sub-profile db/id)})]}]) 
-           ))
- % := _) 
+;;   ;; (alter-var-root #'clojure.pprint/*print-miser-width* (constantly 72))
+;;   ;; (alter-var-root #'clojure.pprint/*print-right-margin* (constantly 80))
+;;   ;; (alter-var-root #'clojure.pprint/*print-pprint-dispatch* (constantly clojure.pprint/code-dispatch))
 
 
 
-(comment
-  (tests
-   ;; Call inner fn with incorrect arity, %2 arg binding (b) leaks from parent fn
-   (p/run (! (p/$ (p/fn [a b] (p/$ (p/fn [c d] [c d]) 3))
-                  1 2)))
-   % := _ ;; FAIL Should throw, instead return [3 2]
-   ))
-
-;; (rcf/enable! )
-
-;; (alter-var-root #'clojure.pprint/*print-miser-width* (constantly 72))
-;; (alter-var-root #'clojure.pprint/*print-right-margin* (constantly 80))
-;; (alter-var-root #'clojure.pprint/*print-pprint-dispatch* (constantly clojure.pprint/code-dispatch))
-
+;;   )
 
 
