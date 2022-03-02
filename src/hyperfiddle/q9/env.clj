@@ -4,7 +4,7 @@
    [clojure.tools.analyzer.jvm :as clj]
    [hyperfiddle.walk :as walk])
   (:import
-   (clojure.lang Var Box)))
+   (clojure.lang Var Box IObj)))
 
 (defn- resolve-var [env sym]
   (if (:js-globals env)
@@ -48,17 +48,22 @@
 
 (defn- quoted? [form] (and (seq? form) (= 'quote (first form))))
 
+(defn meta? [x] (instance? IObj x))
+
 (defn resolve-syms [env form]
   (walk/prewalk (fn [form]
-                  (cond (quoted? form) (reduced form)
-                        (symbol? form) (cond
-                                         (#{'. '%} form)     form ;; special syntax
-                                         (local? env form)   (vary-meta form assoc :external true)
-                                         (clj/specials form) (vary-meta form assoc :external true)
-                                         :else               (if-let [var (resolve-runtime env form)]
-                                                               (vary-meta (symbol var) assoc :external true)
-                                                               form))
-                        :else          form))
+                  (let [form (cond (quoted? form) (reduced form)
+                                   (symbol? form) (cond
+                                                    (#{'. '%} form)     form ;; special syntax
+                                                    (local? env form)   (vary-meta form assoc :external true)
+                                                    (clj/specials form) (vary-meta form assoc :external true)
+                                                    :else               (if-let [var (resolve-runtime env form)]
+                                                                          (vary-meta (symbol var) assoc :external true)
+                                                                          form))
+                                   :else          form)]
+                    (if (meta? form)
+                      (with-meta form (resolve-syms env (meta form)))
+                      form)))
                 form))
 
 (defn make-env [&env]
