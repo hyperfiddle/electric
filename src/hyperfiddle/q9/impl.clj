@@ -3,6 +3,7 @@
   (:refer-clojure :exclude [bound? munge ancestors])
   (:require
    [clojure.string :as str]
+   [clojure.spec.alpha :as s]
    [hfdl.lang :as p]
    [hyperfiddle.api :as hf] ;; should it be :as-alias?
    [hyperfiddle.q9.env :as env]
@@ -65,7 +66,6 @@
                     :props (get-props form)}
            :seq    {:role  :call
                     :props (get-props form)}
-           ;; :vector {:role :collect}
            :map    {:role :traverse}
            nil)))
 
@@ -74,6 +74,7 @@
 (defn meta? [x] (instance? IObj x))
 
 (defn reference? [sym] (and (symbol? sym) (not (meta-keyword? sym))
+                            (not= '% sym)
                             #_(not (:bound (meta sym)))))
 
 (defn quoted? [form] (and (seq? form) (= 'quote (first form))))
@@ -122,10 +123,12 @@
   ([id-gen parent form]
    (letfn [(rec [parent form]
              (case (categorize form)
-               :symbol (let [id    (id-gen)
-                             sym   (merge {:id id :parent parent} (describe form))
-                             metas (meta-points id-gen id form)]
-                         (vec (cons sym metas)))
+               :symbol (if (meta-keyword? form)
+                         (let [id    (id-gen)
+                               sym   (merge {:id id :parent parent} (describe form))
+                               metas (meta-points id-gen id form)]
+                           (vec (cons sym metas)))
+                         (update (rec parent `(~form ~'%)) 0 assoc :original-form form))
                :seq    (let [id    (id-gen)
                              call  (merge {:id id :parent parent} (describe form))
                              args  (args-points id-gen id form)
@@ -305,17 +308,25 @@
                         args        (->> (map index (:deps point))
                                          (filter #(= :arg (:role %)))
                                          (sort-by :position)
-                                         (map (fn [point] `(unquote ~(:name point)))))]
+                                         (map (fn [point]
+                                                (let [[_call parent] (lineage index point)
+                                                      many?          (= :many (:card parent))]
+                                                  (if (= '% (:form point))
+                                                    (if many? '% `(unquote ~(:name parent)))
+                                                    (if (some? parent)
+                                                      `(unquote ~(:name parent))
+                                                      `(unquote ~(:name point))))))))]
                     `(var ~(if (some? defaultsf)
                              `(let [[~@args-name] (p/$ ~defaultsf [~@args])]
                                 (p/$ ~f ~@args-name))
                              `(p/$ ~f ~@args))))]
-      :arg   [nom (let [refs (into {} (->> (map index (:deps point))
-                                           (remove #(:external (meta (:form %))))
-                                           (map (fn [point] [(:form point) (if (= :input (:role point))
-                                                                             `(unquote (m/watch ~(:name point)))
-                                                                             `(unquote ~(:name point)))]))))]
-                    (list 'var (replace* refs (:form point))))]
+      :arg   (when-not (= '% (:form point))
+               [nom (let [refs (into {} (->> (map index (:deps point))
+                                             (remove #(:external (meta (:form %))))
+                                             (map (fn [point] [(:form point) (if (= :input (:role point))
+                                                                               `(unquote (m/watch ~(:name point)))
+                                                                               `(unquote ~(:name point)))]))))]
+                      (list 'var (replace* refs (:form point))))])
       :input [nom `(atom nil)]
       :alias [nom (:name (get index (:parent point)))]
       :ref   nil)))
@@ -349,7 +360,7 @@
     symbol?       (list 'quote form)
     seq?          (list 'quote form)))
 
-(defn symbolic-key [point] (symbolic (or (:prop point) (:form point))))
+(defn symbolic-key [point] (symbolic (or (:prop point) (:original-form point) (:form point))))
 
 (defn symbolic-prop [form]
   (condf form
@@ -530,9 +541,14 @@
 
 
 
+(p/defn suber-name [e] (first (str/split ~(hf/nav e :dustingetz/email) #"@")))
+(s/fdef suber-name :args (s/cat :e any?) :ret any?)
 
-
-
+(tests
+ (p/run (! (hfql [{(user.gender-shirt-size/submissions "alice") [(suber-name %)
+                                                                 suber-name]}]) 
+           ))
+ % := _)
 
 
 
