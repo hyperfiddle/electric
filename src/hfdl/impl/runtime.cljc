@@ -19,7 +19,8 @@
 ;; 4: frame-id -> inputs
 ;; 5: frame-id -> targets
 ;; 6: frame-id -> sources
-;; 7: frame-id -> captures
+;; 7: frame-id -> signals
+;; 8: frame-id -> outputs
 
 (defrecord Failure [error])
 
@@ -52,16 +53,28 @@
 (defn input [context frame slot]
   (lift-failure (m/watch (aset ^objects (get (aget ^objects context (int 4)) frame) slot (atom pending)))))
 
-(defn allocate [context inputs targets sources signals ctor frame nodes]
-  (aset ^objects context (int 4) (assoc (aget ^objects context (int 4)) frame (object-array inputs)))
-  (aset ^objects context (int 5) (assoc (aget ^objects context (int 5)) frame (object-array targets)))
-  (aset ^objects context (int 6) (assoc (aget ^objects context (int 6)) frame (object-array sources)))
-  (aset ^objects context (int 7) (assoc (aget ^objects context (int 7)) frame (object-array signals)))
-  (ctor frame nodes))
+(defn allocate [context inputs targets sources signals outputs ctor frame nodes]
+  (let [ins (object-array inputs)
+        tgts (object-array targets)
+        srcs (object-array sources)
+        sigs (object-array signals)
+        outs (object-array outputs)]
+    (aset ^objects context (int 4) (assoc (aget ^objects context (int 4)) frame ins))
+    (aset ^objects context (int 5) (assoc (aget ^objects context (int 5)) frame tgts))
+    (aset ^objects context (int 6) (assoc (aget ^objects context (int 6)) frame srcs))
+    (aset ^objects context (int 7) (assoc (aget ^objects context (int 7)) frame sigs))
+    (aset ^objects context (int 8) (assoc (aget ^objects context (int 8)) frame outs))
+    (let [flow (ctor frame nodes)]
+      ((aget ^objects context (int 1))
+       (m/ap
+         (loop [slot 0]
+           (if (< slot outputs)
+             (m/amb= [[] #{} {[frame slot] (m/?> (aget outs slot))}]
+               (recur (inc slot))) (m/amb))))) flow)))
 
-(defn target [inputs targets sources signals ctor context frame slot]
+(defn target [inputs targets sources signals outputs ctor context frame slot]
   (aset ^objects (get (aget ^objects context (int 5)) frame) slot
-    #(allocate context inputs targets sources signals ctor
+    #(allocate context inputs targets sources signals outputs ctor
        (aset ^objects context (int 3) (dec (aget ^objects context (int 3)))) %)))
 
 (defn source [nodes context frame slot]
@@ -71,25 +84,28 @@
   (lift-failure (aset ^objects (get (aget ^objects context (int 7)) frame) slot (m/signal! flow))))
 
 (defn output [flow context frame slot]
-  ((aget ^objects context (int 1)) [frame slot flow]))
+  (aset ^objects (get (aget context (int 8)) frame) slot (m/stream! flow)))
 
 (defn discard [^objects context frame]
-  (let [^objects signals (get (aget context (int 7)) frame)]
-    (dotimes [i (alength signals)] ((aget signals i))))
+  (let [^objects signals (get (aget context (int 7)) frame)
+        ^objects outputs (get (aget context (int 8)) frame)]
+    (dotimes [i (alength signals)] ((aget signals i)))
+    (dotimes [i (alength outputs)] ((aget outputs i))))
   (aset context (int 4) (dissoc (aget context (int 4)) frame))
   (aset context (int 5) (dissoc (aget context (int 5)) frame))
   (aset context (int 6) (dissoc (aget context (int 6)) frame))
-  (aset context (int 7) (dissoc (aget context (int 7)) frame)))
+  (aset context (int 7) (dissoc (aget context (int 7)) frame))
+  (aset context (int 8) (dissoc (aget context (int 8)) frame)))
 
 (def current (u/local))
 
-(defn constant [inputs targets sources signals ctor context frame slot]
+(defn constant [inputs targets sources signals outputs ctor context frame slot]
   (fn [n t]
     (if-some [v (u/get-local current)]
       (let [cb (aget ^objects context (int 0))
             id (aset ^objects context (int 2) (inc (aget ^objects context (int 2))))]
         (cb [[(into [frame slot] (pop v))] #{} {}])
-        (try ((allocate context inputs targets sources signals ctor id (peek v))
+        (try ((allocate context inputs targets sources signals outputs ctor id (peek v))
               #(let [p (u/get-local current)]
                  (u/set-local current v) (n) (u/set-local current p))
               #(do (discard context id) (cb [[] #{id} {}]) (t)))
@@ -138,10 +154,10 @@
     (println "change on dead frame :" (- frame) slot value))
   context)
 
-(defn peer [inputs targets sources signals boot]
+(defn peer [inputs targets sources signals outputs boot]
   (fn [write ?read]
     (m/reactor
-      (let [ctx (doto ^objects (object-array 8)
+      (let [ctx (doto ^objects (object-array 9)
                   (aset (int 0) (m/mbx))
                   (aset (int 1) (m/mbx))
                   (aset (int 2) (identity 0))
@@ -149,7 +165,8 @@
                   (aset (int 4) {0 (object-array inputs)})
                   (aset (int 5) {0 (object-array targets)})
                   (aset (int 6) {0 (object-array sources)})
-                  (aset (int 7) {0 (object-array signals)}))]
+                  (aset (int 7) {0 (object-array signals)})
+                  (aset (int 8) {0 (object-array outputs)}))]
         (m/stream! (boot ctx))
         (->> (u/poll ?read)
           (m/stream!)
@@ -160,13 +177,14 @@
                    (reduce-kv change ctx mods))))
           (m/stream!))
         (->> (m/ap (m/amb=
-                     (m/? (m/?> (m/seed (repeat (aget ctx (int 0))))))
                      (loop []
-                       (let [x (m/? (aget ctx (int 1)))]
-                         (m/amb= [[] #{} {(pop x) (m/?> (peek x))}] (recur))))))
+                       (m/amb (m/? (aget ctx (int 0))) (recur)))
+                     (loop []
+                       (let [>x (m/? (aget ctx (int 1)))]
+                         (m/amb= (m/?> >x) (recur))))))
           (m/relieve (partial map into))
           (m/stream!)
-          (u/foreach (-> write (u/log-args '>)))
+          (u/foreach write)
           (m/stream!))))))
 
 (defn juxt-with
@@ -266,12 +284,12 @@
                               (fn [context frame pubs nodes]
                                 (output (f context frame pubs nodes) context frame s)
                                 (g context frame pubs nodes)))
-                    :target (let [[f {:keys [inputs targets sources signals]}]
+                    :target (let [[f {:keys [inputs targets sources signals outputs]}]
                                   (u/with-local slots init (eval-inst idx (first args)))
                                   s (slot :targets)
                                   g (eval-inst idx (second args))]
                               (fn [context frame pubs nodes]
-                                (target inputs targets sources signals
+                                (target inputs targets sources signals outputs
                                   (fn [frame nodes]
                                     (f context frame pubs nodes))
                                   context frame s)
@@ -288,35 +306,33 @@
                                               {:missing-exports (missing-exports resolve inst)})))
                     :literal (constantly (steady (first args)))
                     :recover (let [f (eval-inst idx (first args))
-                                   [g {:keys [inputs targets sources signals]}]
+                                   [g {:keys [inputs targets sources signals outputs]}]
                                    (u/with-local slots init (eval-inst (inc idx) (second args)))
                                    c (slot :constants)
                                    v (slot :variables)]
                                (fn [context frame pubs nodes]
                                  (recover
-                                   #(constant inputs targets sources signals
+                                   #(constant inputs targets sources signals outputs
                                       (fn [frame nodes]
                                         (g context frame (conj pubs %) nodes))
                                       context frame c)
                                    (f context frame pubs nodes)
                                    nodes frame v)))
-                    :constant (let [[f {:keys [inputs targets sources signals]}]
+                    :constant (let [[f {:keys [inputs targets sources signals outputs]}]
                                     (u/with-local slots init (eval-inst idx (first args)))
                                     s (slot :constants)]
                                 (fn [context frame pubs _]
                                   (steady
-                                    (constant inputs targets sources signals
+                                    (constant inputs targets sources signals outputs
                                       (fn [frame nodes] (f context frame pubs nodes))
                                       context frame s))))
                     :variable (let [f (eval-inst idx (first args))
-                                    s (slot :signals)
                                     v (slot :variables)]
                                 (fn [context frame pubs nodes]
                                   (-> (f context frame pubs nodes)
-                                    (variable nodes frame v)
-                                    (publish context frame s))))
+                                    (variable nodes frame v))))
                     (throw (ex-info (str "Unsupported operation - " op) {:op op :args args}))))]
-          (let [[f {:keys [nodes inputs targets sources signals]}]
+          (let [[f {:keys [nodes inputs targets sources signals outputs]}]
                 (u/with-local slots init (eval-inst 0 inst))]
-            (peer inputs targets sources signals
+            (peer inputs targets sources signals outputs
               (fn [context] (f context 0 [] (vec (repeat nodes nil)))))))))))
