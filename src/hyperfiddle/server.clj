@@ -18,10 +18,10 @@
     [hyperfiddle.todomvc :as t]
     [hyperfiddle.api :as h]
     [hyperfiddle.photon-dom :as dom]
-    [hyperfiddle.examples.seven-guis.temperatures :as temperature]
     [hyperfiddle.zero :as z])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
-           (org.eclipse.jetty.servlet ServletContextHandler)))
+           (org.eclipse.jetty.servlet ServletContextHandler)
+           (java.util.concurrent Executors ThreadFactory)))
 
 (def base-config {::http/type            :jetty
                   ::http/allowed-origins {:allowed-origins (constantly true)}
@@ -57,19 +57,17 @@
                          (update :body slurp))
                      res)))))
 
-(defn edn->str [x]
-  (m/via m/cpu #_(pr-str x)
-         (try (transit/encode x)
-              (catch Throwable t
-                (log/error (ex-info "Failed to encode" {:value x} t))
-                (throw t)))))
-
-(defn str->edn [x]
-  (m/via m/cpu #_(edn/read-string x)
-         (try (transit/decode x)
-              (catch Throwable t
-                (log/error (ex-info "Failed to decode" {:value x} t))
-                (throw t)))))
+(def event-loop
+  (let [procs (.availableProcessors (Runtime/getRuntime))
+        execs (into []
+                (map (fn [i]
+                       (Executors/newSingleThreadExecutor
+                         (reify ThreadFactory
+                           (newThread [_ r]
+                             (doto (Thread. r (str "hf-eventloop-" i))
+                               (.setDaemon true)))))))
+                (range procs))]
+    (fn [x] (nth execs (mod (hash x) procs)))))
 
 (defn start! [task]
   (task prn u/pst))
@@ -89,15 +87,28 @@
                (start! (m/sp (loop [] (m/? (ws/write-str remote (m/? read-str))) (recur))))))
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
-               (let [?read (m/sp (m/? (str->edn (m/? read-str))))
-                     write #(m/sp (m/? (ws/write-str remote (m/? (edn->str %)))))]
-                 (start!
-                   (m/sp
-                     (let [program (m/? ?read)
-                           _ (prn :got-program program)
-                           bootfn (p/eval (merge p/exports h/exports dom/exports z/exports t/exports) program)]
-                       (prn :booting-reactor)
-                       (m/? (bootfn write ?read))))))))})
+               (start!
+                 (m/sp
+                   (let [el (event-loop remote)
+                         ?read (m/sp
+                                 (let [x (try (m/? read-str)
+                                              (finally (m/? (m/via el))))]
+                                   (try (transit/decode x)
+                                        (catch Throwable t
+                                          (log/error (ex-info "Failed to decode" {:value x} t))
+                                          (throw t)))))
+                         program (m/? ?read)]
+                     (prn :booting-reactor program)
+                     (m/? ((p/eval (merge p/exports h/exports dom/exports z/exports t/exports) program)
+                           (fn [x]
+                             (m/sp
+                               (try
+                                 (m/? (ws/write-str remote
+                                        (try (transit/encode x)
+                                             (catch Throwable t
+                                               (log/error (ex-info "Failed to encode" {:value x} t))
+                                               (throw t)))))
+                                 (finally (m/? (m/via el)))))) ?read)))))))})
 
 (defn gzip-handler [& methods]
   (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))
