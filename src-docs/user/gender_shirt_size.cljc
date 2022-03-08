@@ -6,7 +6,7 @@
   #?(:cljs (:require-macros [user.gender-shirt-size :refer [genders gender shirt-sizes submissions submission emails sub-profile]])))
 
 
-(s/fdef genders :ret (s/coll-of number?))
+(s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (p/defn genders []
   (into [] ~ (hf/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]])))
 

@@ -9,10 +9,9 @@
             #?(:clj [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require-macros [hyperfiddle.dev.logger :refer [debug]]
-                            [hyperfiddle.api :refer [db entity attribute value context refs props sequenceM render join-all]])))
+                            [hyperfiddle.api :refer [route db entity attribute value context refs props sequenceM render join-all data]])))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
-(def ^:dynamic *route*)                                     ; cljs
 
 (defmacro hfql [& body])
 (defmacro page [& body])
@@ -88,6 +87,7 @@
 
 (def info (atom "hyperfiddle"))
 
+(p/def route (atom nil))
 (p/def db nil)
 (p/def entity #'nil)
 (p/def attribute nil)
@@ -112,10 +112,17 @@
     (coll? v)   (into (empty v) (p/for [v v] (do (prn v) ~v)))
     :else       v))
 
+(p/defn render [>v props]
+  (if-let [renderer (::render props)]
+    (p/$ renderer >v props)
+    (if-let [link (::link props)]
+      (str "<a href=\"" (pr-str ~(second link)) "\">" (p/$ join-all ~>v) "</a>")
+      (p/$ join-all ~>v))))
+
 ;; https://hackage.haskell.org/package/base-4.15.0.0/docs/Control-Monad.html#v:sequence
-(p/def sequenceM #'(let [x (p/$ join-all ~value)]
-                     ;; (prn "sequenceM" x)
-                     x))
+(p/defn sequenceM [>v _props] (p/$ join-all ~>v))
+
+(p/defn data [>v] (binding [render sequenceM] (p/$ render >v nil)))
 
 ;; (p/run (binding [value #'{:a #':b}]
 ;;          (prn ~sequenceM)))
@@ -135,19 +142,10 @@
               ~sequenceM)))
   % := '{:a 1, :b 2, :c 3})
 
-(p/def render sequenceM)
-
 (p/def link #'~value)
 
 (p/def props {})
 (p/def args  {})
-
-(p/defn flatten-1 [>v]
-  (let [render' render]
-    (binding [render #'~value]
-      (let [v ~>v]
-        (binding [render render']
-          (p/$ join-all v))))))
 
 ; todo rename wrap, it's sideeffect-fn to fn-returning-flow
 (defn wrap [f] (fn [& args] #?(:clj (m/ap #_(m/? (m/via m/blk (apply f args))) ;; TODO restore and handle continuous flow initial state

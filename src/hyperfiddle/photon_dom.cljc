@@ -152,6 +152,11 @@
 (defn event-target [e]
   #?(:cljs (.-target e)))
 
+(defn stop-event! [event]
+  (.preventDefault event)
+  (.stopPropagation event)
+  event)
+
 (defn get-value [e]
   #?(:cljs (.-value e)))
 

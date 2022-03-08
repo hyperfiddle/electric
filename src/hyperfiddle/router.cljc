@@ -6,7 +6,9 @@
             [hyperfiddle.todomvc :as t]
             [hyperfiddle.examples.seven-guis.counter :as counter]
             [hyperfiddle.examples.seven-guis.temperatures :as temperature]
-            [user.hfql-distributed :as distributed])
+            [user.hfql-distributed :as distributed]
+            [user.browser :as browser]
+            )
   #?(:cljs (:require-macros [hyperfiddle.router :refer [router hello-world]])))
 
 
@@ -26,7 +28,7 @@
                                          (dom/text "Block-sub-from-school"))
                              ~(->> (dom/events dom/parent "change")
                                    (m/eduction (map dom/target-value))
-                                   (m/reductions {} "distributed" #_"block-sub-from-school")
+                                   (m/reductions {} "browser" #_"block-sub-from-school")
                                    (m/relieve {})))]
                (dom/element "br")
                (dom/element "label"
@@ -39,5 +41,5 @@
                  "todomvc"     ~t/app
                  "counter"     ~counter/counter
                  "temperature" ~temperature/main
-                 "distributed" ~distributed/page
+                 "browser" ~browser/view
                  nil))))

@@ -1,0 +1,28 @@
+
+.browser {
+    position: relative;
+    width: 90vw;
+    padding: 2rem 0.5rem 0 0.5rem;
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+    border: 1px solid;
+    border-color:  rgb(226 232 240);
+
+    border-radius: 0.75rem;
+    background: url("./images/mac_window_options.svg") 0.5rem 0.6rem no-repeat;
+    background-color: white;
+}
+
+.browser .navbar{
+    width: 100%;
+    display:flex;
+}
+
+.browser .navbar .route {
+    flex:1;
+    border-radius: 5px 0 0 5px;
+    padding: 0.35rem 0.5rem;
+}
+
+.browser .view {
+    padding: 1rem 0.25rem;
+}

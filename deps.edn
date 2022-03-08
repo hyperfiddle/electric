@@ -6,7 +6,9 @@
            io.replikativ/datahike         {:mvn/version "0.4.1477"} ;; datascript/datomic alternative
            org.clojure/tools.analyzer.jvm {:mvn/version "1.1.0"}    ;; used by photon
            org.clojure/tools.logging      {:mvn/version "1.1.0"}
-           ch.qos.logback/logback-classic {:mvn/version "1.2.6"}}
+           ch.qos.logback/logback-classic {:mvn/version "1.2.6"}
+           org.hsluv/hsluv                {:mvn/version "0.2"} ;; human friendly random colors
+           }
  :aliases {:scratch {:extra-paths ["scratch"]
                      :extra-deps  {reagent/reagent       {:mvn/version "1.0.0"}
                                    cloroutine/cloroutine {:mvn/version "10", #_#_:local/root "./vendor/cloroutine"}
