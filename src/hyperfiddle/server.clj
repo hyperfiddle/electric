@@ -99,8 +99,9 @@
                                           (log/error (ex-info "Failed to decode" {:value x} t))
                                           (throw t)))))
                          program (m/? ?read)]
-                     (prn :booting-reactor program)
-                     (m/? ((p/eval (merge p/exports h/exports dom/exports z/exports t/exports) program)
+                     (prn :booting-reactor #_program)
+                     (m/? ((p/eval (p/merge-vars p/exports h/exports dom/exports z/exports t/exports ui6/exports dis/exports
+                                                 (p/vars log/js-log*)) program)
                            (fn [x]
                              (m/sp
                                (try
