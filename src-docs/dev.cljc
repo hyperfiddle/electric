@@ -2,7 +2,9 @@
   (:require
     ;#?(:clj [datomic.api :as d])
     [datascript.core :as d]
-    [hyperfiddle.api :refer [*$*]]))
+    [missionary.core :as m]
+    [hyperfiddle.api :as hf :refer [*$*]]
+    [hyperfiddle.rcf :refer [tests]]))
 
 
 (defn fixtures [$]
@@ -82,3 +84,14 @@
       :db/ident        :dustingetz/female
       :dustingetz/type :dustingetz/gender}
   )
+
+(tests
+  (datascript.core/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] *$*)
+  := [:dustingetz/male :dustingetz/female])
+
+(tests
+  (hf/nav! *$* 9 :dustingetz/email)
+  := "alice@example.com"
+
+  (m/? (m/reduce conj (hf/nav 9 :dustingetz/email)))
+  := ["alice@example.com"])

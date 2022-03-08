@@ -93,12 +93,6 @@
                (apply prn :q query args)
                (doto (apply d/q query *$* args) prn))))
 
-(tests
-  (datascript.core/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] *$*)
-  := [:dustingetz/male :dustingetz/female]
-  (m/? (m/reduce conj (q '[:find [?e ...] :where [_ :dustingetz/gender ?e]])))
-  := [[:dustingetz/male :dustingetz/female]])
-
 (defn nav!
   ([_ ref] ref)
   ([db ref kf] (kf (d/entity db ref)))
@@ -107,10 +101,3 @@
 (def nav (wrap (fn [ref & kfs]
                  (apply prn :nav ref kfs)
                  (doto (apply nav! *$* ref kfs) prn))))
-
-(tests
-  (nav! *$* 9 :dustingetz/email)
-  := "alice@example.com"
-
-  (m/? (m/reduce conj (nav 9 :dustingetz/email)))
-  := ["alice@example.com"])
