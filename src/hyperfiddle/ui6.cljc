@@ -22,12 +22,12 @@
                                                      options-picker options-picker-impl
                                                      row-picker row-picker-impl
                                                      input
-                                                     boolean boolean-impl
+                                                     ;; boolean boolean-impl
                                                      render-inputs
                                                      render-options
                                                      typeahead
                                                      with-spec-render
-                                                     render-mode-selector
+                                                     ;; render-mode-selector
                                                      ]])))
 
 (def color color/color)
@@ -44,7 +44,7 @@
 (p/def table-picker)
 (p/def row-picker)
 (p/def options-picker)
-(p/def boolean)
+;; (p/def boolean)
 
 (def input-types {:hyperfiddle.spec.type/symbol  "text"
                   :hyperfiddle.spec.type/uuid    "text"

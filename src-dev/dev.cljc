@@ -93,13 +93,14 @@
       :dustingetz/type :dustingetz/gender}
   )
 
-(tests
-  (datascript.core/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] *$*)
-  := [:dustingetz/male :dustingetz/female])
+(comment
+  (tests
+   (datascript.core/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] *$*)
+   := [:dustingetz/male :dustingetz/female])
 
-(tests
-  (hf/nav! *$* 9 :dustingetz/email)
-  := "alice@example.com"
+  (tests
+   (hf/nav! *$* 9 :dustingetz/email)
+   := "alice@example.com"
 
-  (m/? (m/reduce conj (hf/nav 9 :dustingetz/email)))
-  := ["alice@example.com"])
+   (m/? (m/reduce conj (hf/nav 9 :dustingetz/email)))
+   := ["alice@example.com"]))
