@@ -19,7 +19,7 @@
     [hyperfiddle.photon-dom :as dom]
     [hyperfiddle.zero :as z]
     [user.hfql-distributed :as dis]
-    [hyperfiddle.ui5 :as ui5])
+    [hyperfiddle.ui6 :as ui6])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)
            (java.util.concurrent Executors ThreadFactory)))

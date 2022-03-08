@@ -145,14 +145,16 @@
                              args  (args-points id-gen id form)
                              metas (meta-points id-gen id form)]
                          (vec (cons call (concat args metas))))
-               :vector (mapcat (partial rec parent) form)
-               :map    (mapcat (fn [[k v]]
-                                 (let [k-branch  (rec parent k)
-                                       parent-id (:id (first k-branch))
-                                       options   (first (filter (comp #{`hf/options} :prop) k-branch))]
-                                   (cond-> (into k-branch (rec parent-id v))
-                                     (some? options) (into (remove :prop (rec (:id options) v))))))
-                               form)))]
+               :vector (vec (mapcat identity (map-indexed (fn [idx form]
+                                                            (-> (rec parent form)
+                                                                (assoc-in [0 :position] idx))) form)))
+               :map    (vec (mapcat (fn [[k v]]
+                                      (let [k-branch  (rec parent k)
+                                            parent-id (:id (first k-branch))
+                                            options   (first (filter (comp #{`hf/options} :prop) k-branch))]
+                                        (cond-> (into k-branch (rec parent-id v))
+                                          (some? options) (into (remove :prop (rec (:id options) v))))))
+                                    form))))]
      (rec parent form))))
 
 ;; pass
@@ -366,14 +368,16 @@
     keyword?      form
     meta-keyword? (keyword form)
     symbol?       (list 'quote form)
-    seq?          (list 'quote form)))
+    seq?          (list 'quote form)
+    nil?          nil))
 
 (defn symbolic-key [point] (symbolic (or (:prop point) (:original-form point) (:form point))))
 
 (defn symbolic-prop [form]
   (condf form
-    symbol? form
-    seq?    form
+    meta-keyword? (keyword form)
+    symbol?       form
+    seq?          form
     (symbolic form)))
 
 (defn renderables [points]
@@ -386,9 +390,10 @@
 (def ^:dynamic *props?* false)
 
 (defmacro render* [e a >v props]
-  `(let [>v# ~>v]
-     (binding [hf/context (cons [~e ~a #'(binding [render hf/join-all] (unquote >v#))] hf/context)]
-       (p/$ render >v# ~props))))
+  `(let [>v#    ~>v
+         props# ~props]
+     (binding [hf/context (cons [~e ~a #'(p/$ hf/data >v#) props#] hf/context)]
+       (p/$ hf/render >v# props#))))
 
 (defn var-point [form] (if *props?* form `(var ~form)))
 
@@ -396,10 +401,12 @@
   ([>v props] (render-point nil nil >v props))
   ([e a >v props] (if *props?* >v `(render* ~(or e '(var nil)) ~a ~>v ~props))))
 
+(defn columns [points] (mapv symbolic-key (sort-by :position (remove #(or (:prop %) (= :arg (:role %))) points)))) ;; FIXME remove predicate is flipped, columns can’t be props and should be either call or nav. 
+
 (declare emit*)
 
 (defn emit-1 [point]
-  (binding [*props?* (or *props?* (some? (:prop point)))]
+  (binding [*props?* false #_ (or *props?* (some? (:prop point)))]
     (let [nom      (:name point)
           attr     (symbolic-key point)
           children (renderables (get-children *index* point))
@@ -411,13 +418,14 @@
                          (if (= :many (:card point))
                            '%
                            nom))))]
-      (if *props?*
+      (if (and (:prop point) (not (#{`hf/options} (:prop point)))) #_*props?*
         [attr (cond
                 (= :many (:card point)) `(p/for [~'% (unquote ~nom)]
                                            ~(cont nil nil))
                 (seq children)          (cont nil nil)
                 :else                   (if-let [prop (:prop point)]
                                           (cond (#{`hf/link} prop)          [(list 'quote (:form point)) nom]
+                                                (#{`hf/as} prop)            (symbolic (:form point))
                                                 (not (#{`hf/options} prop)) (symbolic-prop (:form point))
                                                 :else                       `(unquote ~nom))
                                           `(unquote ~nom)))]
@@ -425,18 +433,20 @@
                               (filter :prop)
                               (map emit-1)
                               (remove (fn [[k _v]] (#{::hf/defaults} k)))
-                              (map (fn [[k v]] [k (if (#{::hf/options} k) `(var ~v) v)]))
+                              (map (fn [[k v]] [k (if false #_(#{::hf/options} k) `(var ~v) v)]))
                               (seq)
                               (into {}))
               parent (get *index* (:parent point) {:name (list 'var `hf/entity)})
+              cols   (columns children)
               next   (render-point (if (= :many (:card parent)) '(var %) (:name parent))
-                                   (symbolic-key point)
+                                   (symbolic (:form point))
                                    (cond
                                      (= :many (:card point))       `(var (p/for [~'% (unquote ~nom)]
                                                                            (var ~(cont '(var %) nil))))
                                      (seq (remove :prop children)) `(var ~(cont nil nil))
                                      :else                         nom)
-                                   props)]
+                                   (cond-> props
+                                     (seq cols) (assoc ::hf/columns cols)))]
           [attr (var-point next)]))))) 
 
 (defn emit-render [points] (into {} (map emit-1 (remove :prop (roots points)))))
@@ -447,11 +457,13 @@
 
 (defn emit-inputs [points]
   (when-let [inputs (not-empty (reduce (fn [r point]
-                                         (let [[arg call parent & _] (lineage *index* point)]
-                                           (assoc-in r [(if (:prop call)
-                                                          (symbolic-key parent)
-                                                          (symbolic-key call)) (:arg-name arg)] [(:name arg) (:name point)])))
-                                       {} (filter #(= :input (:role %)) points)))]
+                                         (let [[call parent & _] (lineage *index* point)
+                                               input             (first (filter #(= :input (:role %)) (get-children *index* point)))]
+                                           (assoc-in r [(symbolic (:form parent)) (symbolic (:form call)) (:arg-name point)]
+                                                     [(:name point) (when (some? input)
+                                                                      (:name input))])))
+                                       {} (filter (fn [%] (and (= :arg (:role %))
+                                                               (not= `hf/link (:prop (get *index* (:parent %)))))) points)))]
     {::hf/inputs inputs}))
 
 (defn emit*
@@ -461,7 +473,9 @@
      `(let [~@(mapcat #(emit-point *index* %) (remove (fn [point] (#{`hf/defaults `hf/render} ;; FIXME kw vs sym vs meta-kw
                                                                    (:prop point)))
                                                       points))]
-        ~(render-point e a (var-point (emit-render (renderables points))) (emit-inputs points))))))
+        ~(render-point e a (var-point (emit-render (renderables points)))
+                       (cond-> (emit-inputs points)
+                         (nil? point-id) (assoc ::hf/columns (columns (roots points)))))))))
 
 (defn emit [points]
   (let [index (map-by :id points)]
@@ -485,21 +499,6 @@
        analyze
        emit
        ))
-
-(p/defn join-all [v]
-  (cond
-    (quoted? v) v
-    (map? v)    (into {} (p/for [[k v] v] [k ~v]))
-    (list? v)   (seq (p/for [v v] ~v))
-    (coll? v)   (into (empty v) (p/for [v v] ~v))
-    :else       v))
-
-(p/defn render [>v props]
-  (if-let [renderer (::hf/render props)]
-    (p/$ renderer >v props)
-    (if-let [link (::hf/link props)]
-      (str "<a href=\"" (pr-str ~(second link)) "\">" (p/$ join-all ~>v) "</a>")
-      (p/$ join-all ~>v))))
 
 ;; (comment
 

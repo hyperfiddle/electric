@@ -4,7 +4,9 @@
  :builds   {:app      {:target           :browser
                        :devtools         {:watch-dir  "resources/public"
                                           :watch-path "/assets"
-                                          :hud        #{:errors :progress}}
+                                          :hud        #{:errors :progress}
+                                          :ignore-warnings true ;; warnings don't prevent hot-reload
+                                          }
                        :compiler-options {:output-feature-set    :es6
                                           :infer-externs         :auto
                                           :js-options            {:variable-renaming :off}
