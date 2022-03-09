@@ -1,3 +1,9 @@
+body {
+    background-color: rgb(248 250 252);
+    display: flex;
+    justify-content : center;
+    padding: 5vh 0vw;
+}
 
 .browser {
     position: relative;
@@ -8,19 +14,42 @@
     border-color:  rgb(226 232 240);
 
     border-radius: 0.75rem;
-    background: url("./images/mac_window_options.svg") 0.5rem 0.6rem no-repeat;
+    background: url("./images/mac_window_options.svg")  0.5rem 0.6rem no-repeat;
     background-color: white;
 }
 
 .browser .navbar{
     width: 100%;
     display:flex;
+    align-items: center;
 }
 
 .browser .navbar .route {
     flex:1;
-    border-radius: 5px 0 0 5px;
-    padding: 0.35rem 0.5rem;
+    border-radius: 5px;
+    padding: 0.5rem 0.5rem;
+    /* border-right: 0; */
+    font-size: 1.1em;
+}
+
+.browser .navbar .go-button{
+    position: absolute;
+    background-color: transparent;
+    border: 0;
+    right: 0.75rem;
+    width: 2rem;
+    height: 2rem;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\"><path d=\"M190.5 66.9l22.2-22.2c9.4-9.4 24.6-9.4 33.9 0L441 239c9.4 9.4 9.4 24.6 0 33.9L246.6 467.3c-9.4 9.4-24.6 9.4-33.9 0l-22.2-22.2c-9.5-9.5-9.3-25 .4-34.3L311.4 296H24c-13.3 0-24-10.7-24-24v-32c0-13.3 10.7-24 24-24h287.4L190.9 101.2c-9.8-9.3-10-24.8-.4-34.3z\"/></svg>");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 0.9rem;
+    cursor: pointer;
+}
+
+.browser .navbar .go-button:hover{
+    /* box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.1); */
+    box-shadow: 0 1px 3px 2px rgb(0 0 0 / 0.2), 0 1px 2px -1px rgb(0 0 0 / 0.2);
+    border-radius: 50%;
 }
 
 .browser .view {
