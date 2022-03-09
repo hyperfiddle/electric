@@ -9,15 +9,18 @@
             #?(:clj [hyperfiddle.q9 :as hfql])
             #?(:clj [datahike.api :as d])
             [hyperfiddle.dev.logger :as log]
-            [hyperfiddle.color :as color])
+            [hyperfiddle.color :refer [color]])
   #?(:cljs (:require-macros [hyperfiddle.q9 :as hfql]
                             [hyperfiddle.ui6 :refer [render
                                                      spec-renderer spec-renderer-impl
+                                                     user-renderer user-renderer-impl
                                                      default-renderer default-renderer-impl
                                                      link-renderer link-renderer-impl
                                                      form form-impl form-impl*
                                                      table table-impl
                                                      row row-impl
+                                                     grid grid-impl
+                                                     grid-row grid-row-impl
                                                      table-picker table-picker-impl -table-picker-props
                                                      options-picker options-picker-impl
                                                      row-picker row-picker-impl
@@ -30,8 +33,6 @@
                                                      ;; render-mode-selector
                                                      ]])))
 
-(def color color/color)
-
 ;;;;;;;;;;;;;;;;;
 ;; UI ELEMENTS ;;
 ;;;;;;;;;;;;;;;;;
@@ -40,6 +41,8 @@
 (p/def link-renderer)
 (p/def table)
 (p/def row)
+(p/def grid)
+(p/def grid-row)
 (p/def form)
 (p/def table-picker)
 (p/def row-picker)
@@ -142,7 +145,7 @@
                    ~@(p/for [[arg [>v ?!v]] inputs]
                        (let [locked? (nil? ?!v)
                              set-v!  (if locked? (constantly nil) (partial reset! ?!v))
-                             v       ~>v]
+                             v       (str ~>v)]
                          (log/info "ARG" arg v)
                          (let [v' ~@ (let [id (str (gensym))]
                                        (dom/element "label" (dom/text (str arg))
@@ -153,7 +156,8 @@
                                                    :dom.property/disabled locked?}
                                             dom/target-value))]
                            (when-not (= v v')
-                             (set-v! v')))))))))
+                             (do (log/warn "setting v -> v'" (pr-str [v v']))
+                               (set-v! v'))))))))))
 
 ;; TODO remove
 (p/def form-impl*)
@@ -267,6 +271,34 @@
           (p/for [row-renderer (seq ~>v)]
             ~row-renderer))))))
 
+(p/defn grid-impl [>v props]
+  (let [columns (::hf/columns props)
+        numcols (count columns)
+        c       (color hf/db)]
+    ~@
+    (dom/table
+     (dom/class "grid")
+     (dom/style {"grid-template-columns" (str "repeat("numcols", auto)")})
+     ~@
+     (p/for [col columns]
+       ~@(dom/th (dom/style {"background-color" c}) ;; FIXME binding unification
+                 (dom/text (pr-str col))))
+     ~@(binding [form grid-row]
+         (p/for [row-renderer (seq ~>v)]
+           ~row-renderer)))))
+
+(p/defn grid-row-impl [>v _props]
+  ;; server
+  (binding [form form-impl];; restore binding
+    (let [c             (color hf/db)
+          value         ~>v
+          [_ _ _ props] (second hf/context)]
+      (p/for [col (::hf/columns props)]
+        ~@ ;; client
+        (dom/td (dom/style {"border-color" c})
+                ~@ ;; server
+                ~(get value col))))))
+
 (p/defn row-picker-impl [>v props]
   (binding [form      form-impl
             form-impl form-impl*] ;; restore binding
@@ -313,7 +345,7 @@
         (dom/table
          (dom/thead
           (dom/tr
-           (dom/td)
+           (dom/td (dom/text ""))
            ~@
            (p/for [col columns]
              ~@
@@ -332,30 +364,37 @@
   (binding [table options-picker]
     ~(::hf/options props)))
 
-
 (p/def spec-renderer)
 (p/defn spec-renderer-impl [>v props]
   (let [value    ~>v
-        renderer (cond (::hf/render props) (::hf/render props)
-                       (map? value)        form
-                       (vector? value)     table
-                       :else               default-renderer)]
-    (log/info "SPEC RENDER" value)
+        renderer (cond (map? value)    form
+                       (vector? value) table
+                       :else           default-renderer)]
     (p/$ renderer >v props)))
 
-(p/def render #'~spec-renderer)
+(p/def user-renderer)
+(p/defn user-renderer-impl [>v props]
+  (if-let [renderer (::hf/render props)]
+    (p/$ renderer >v props)
+    (p/$ spec-renderer >v props)))
+
+(p/def render #'~user-renderer)
 
 (p/defn with-spec-render [>cont]
   (binding [form             form-impl
             table            table-impl
             row              row-impl
+            grid             grid-impl
+            grid-row         grid-row-impl
             table-picker     table-picker-impl
             row-picker       row-picker-impl
             options-picker   options-picker-impl
             ;; boolean          boolean-impl
             default-renderer default-renderer-impl
-            link-renderer link-renderer-impl
-            spec-renderer    spec-renderer-impl]
+            link-renderer    link-renderer-impl
+            spec-renderer    spec-renderer-impl
+            user-renderer    user-renderer-impl
+            ]
     ~>cont))
 
 (def exports (p/vars nil? prn some? schema-attr cardinality conj color

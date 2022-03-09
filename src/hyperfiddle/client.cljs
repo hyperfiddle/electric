@@ -61,7 +61,6 @@
   (if reactor
     (do (log/info "Stopping reactor…")
         (reactor) ;; dispose
-        (. (dom/by-id "hf-ui-dev-root") (replaceChildren)) ;; clear all children
         (set! reactor nil)
         (log/info "Reactor stopped"))
     (log/info "Reactor already stopped")))
