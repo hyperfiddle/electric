@@ -88,30 +88,29 @@ flow of values matching that key in the input map.
                   (aset (int 1) {})                         ;; curr
                   (aset (int 2) 0)                          ;; current slot
                   (aset (int 3) 0))                         ;; current id
-          f (fn [d x]
+          f (fn [r x]
               (let [p (aget state (int 0))
                     c (aget state (int 1))
                     i (aget state (int 2))
                     k (kf x)]
                 (aset state (int 2) (inc i))
                 (if-some [[[id j y] & m] (get p k)]
-                  (let [d (if (= i j) d (assoc d [id :index] i))
-                        d (if (= x y) d (assoc d [id :value] x))]
+                  (let [r (if (= i j) r (rf r [id :index i]))
+                        r (if (= x y) r (rf r [id :value x]))]
                     (aset state (int 0) (case m nil (dissoc p k) (assoc p k m)))
-                    (aset state (int 1) (assoc c k (conj (get c k []) [id i x]))) d)
+                    (aset state (int 1) (assoc c k (conj (get c k []) [id i x]))) r)
                   (let [id (aset state (int 3) (inc (aget state (int 3))))]
                     (aset state (int 1) (assoc c k (conj (get c k []) [id i x])))
-                    (assoc d [id :index] i [id :value] x)))))
-          g (fn [d _ m] (reduce (fn [d [id]] (assoc d [id :index] done [id :value] done)) d m))]
+                    (-> r (rf [id :index i]) (rf [id :value x]))))))
+          g (fn [r _ m] (reduce (fn [r [id]] (-> r (rf [id :index done]) (rf [id :value done]))) r m))]
       (fn
         ([] (rf))
         ([r] (rf r))
         ([r xs]
-         (let [d (reduce-kv g (reduce f {} xs) (aget state (int 0)))]
+         (let [r (reduce-kv g (reduce f r xs) (aget state (int 0)))]
            (aset state (int 0) (aget state (int 1)))
            (aset state (int 1) {})
-           (aset state (int 2) 0)
-           (rf r d)))))))
+           (aset state (int 2) 0) r))))))
 
 (tests
   (sequence (seq-diff :id ::done)
@@ -126,21 +125,21 @@ flow of values matching that key in the input map.
       {:id "alice" :email "alice@msn.com"}]
      [{:id "bob" :name "bob@yahoo.com"}
       {:id "alice" :email "alice@msn.com"}]]) :=
-  [{[1 :index] 0,
-    [1 :value] {:id "alice", :email "alice@caramail.com"}}
-   {[1 :value] {:id "alice", :email "alice@gmail.com"},
-    [2 :index] 1,
-    [2 :value] {:id "bob", :name "bob@yahoo.com"}}
-   {[3 :index] 1,
-    [3 :value] {:id "alice", :email "alice@msn.com"},
-    [2 :index] 2}
-   {[2 :index] 1,
-    [3 :index] 2}
-   {[2 :index] 0,
-    [1 :index] 1,
-    [1 :value] {:id "alice", :email "alice@msn.com"},
-    [3 :index] ::done,
-    [3 :value] ::done}])
+  [[1 :index 0]
+   [1 :value {:id "alice", :email "alice@caramail.com"}]
+   [1 :value {:id "alice", :email "alice@gmail.com"}]
+   [2 :index 1]
+   [2 :value {:id "bob", :name "bob@yahoo.com"}]
+   [3 :index 1]
+   [3 :value {:id "alice", :email "alice@msn.com"}]
+   [2 :index 2]
+   [2 :index 1]
+   [3 :index 2]
+   [2 :index 0]
+   [1 :index 1]
+   [1 :value {:id "alice", :email "alice@msn.com"}]
+   [3 :index ::done]
+   [3 :value ::done]])
 
 (defn conj-nil [r] (conj r nil))
 
@@ -200,20 +199,24 @@ flow of values matching the identity provided by key function, defaulting to ide
   ([f >xs] (map-by identity f >xs))
   ([k f >xs]
    (->> >xs
-     (m/eduction (seq-diff k ::done) cat)
-     (m/group-by key)
+     (m/eduction (seq-diff k ::done))
+     (m/group-by pop)
      (m/eduction
        (map (fn [[[id tag] >x]]
               (case tag
                 :index (->> >x
-                         (m/eduction (map val)
+                         (m/eduction (map peek)
                            (take-while (complement #{::done}))
                            (append -1))
                          (m/relieve {})
                          (m/latest (partial update empty-diff 0 assoc id)))
                 :value (->> >x
                          (m/relieve {})
-                         (m/latest (fn [[_ x]] (case x ::done (throw (Cancelled. "Collection item removed.")) x)))
+                         (m/latest
+                           (fn [x]
+                             (doto (peek x)
+                               (-> (= ::done)
+                                 (when (throw (Cancelled. "Collection item removed.")))))))
                          (f) (m/latest (partial update empty-diff 1 assoc id)))))))
      (gather merge-diff)
      (m/reductions seq-patch)
