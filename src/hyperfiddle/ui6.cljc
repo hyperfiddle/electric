@@ -110,35 +110,36 @@
           disabled    (::hf/disabled props)
           c           (color hf/db)
           value       ~>v
-          input-value (str (if (and label value) ~(label value) value))]
-      (log/info "TYPEAHEAD" {:label label, :options options})
-      ~@
-      (dom/fragment
-       (let [id     (str (gensym))
-             value' (p/$ input {:dom.attribute/type    attr-type
-                                :dom.attribute/class   "hf-typeahead"
-                                :dom.property/disabled disabled
-                                :dom.property/style    {"border-color" c}
-                                :dom.property/value    input-value
-                                :dom.attribute/list    id}
-                         dom/target-value)]
-         ~@ ;; server
-         (when-some [options (::hf/options props)]
-           (let [options    ~options
-                 data-count (count options)
-                 ]
-             ~@ ;; client
-             (dom/element "datalist"
-                          (dom/attribute "id" id)
-                          (dom/attribute "data-count" data-count)
-                          ~@ ;; server
-                          (p/for [option options]
-                            ~@
-                            (dom/option ;; FIXME dom nodes not unmounting here
-                             #_(when (= ~hf/value option)
-                                 (dom/attribute "selected" true))
-                             (dom/text ~@((or label identity) option)))))))
-         value')))))
+          input-value (str (if (and label value) ~(label value) value))
+          value'
+          ~@
+          (dom/fragment
+           (let [id     (str (gensym))
+                 value' (p/$ input {:dom.attribute/type    attr-type
+                                    :dom.attribute/class   "hf-typeahead"
+                                    :dom.property/disabled disabled
+                                    :dom.property/style    {"border-color" c}
+                                    :dom.property/value    input-value
+                                    :dom.attribute/list    id}
+                             dom/target-value)]
+             ~@ ;; server
+             (when-some [options (::hf/options props)]
+               (let [options    ~options
+                     data-count (count options)
+                     ]
+                 ~@ ;; client
+                 (dom/element "datalist"
+                              (dom/attribute "id" id)
+                              (dom/attribute "data-count" data-count)
+                              ~@ ;; server
+                              (p/for [option options]
+                                ~@
+                                (dom/option ;; FIXME dom nodes not unmounting here
+                                 #_(when (= ~hf/value option)
+                                     (dom/attribute "selected" true))
+                                 (dom/text ~@((or label identity) option)))))))
+             value'))]
+      (doto (p/$ hf/tx value') prn))))
 
 (defn extract-refs [inputs refs]
   (filter second (map (juxt identity (partial get refs)) inputs)))
@@ -226,8 +227,7 @@
           valueType   (:db/valueType (schema-attr hf/*$* a))]
       (log/info "DEFAULT valueType" valueType)
       (if (some? valueType)
-        (binding [hf/props (assoc hf/props :dom.attribute/type (input-types (spec/valueType->type valueType)))]
-          ~typeahead)
+        (p/$ typeahead >v (assoc props :dom.attribute/type (input-types (spec/valueType->type valueType))))
         (let [value (pr-str value)]
           ~@
           (dom/code (dom/class "language-clojure") (dom/text value)))))))
@@ -239,25 +239,25 @@
                  ~@(p/$ table-picker >v props)))
 
 (p/defn form-impl [>v props]
-  (let [c (color hf/db)]
-    ~@
-    (dom/element "form"
-                 (dom/style {"border-left-color" c})
-                 ~@
-                 (let [value ~>v]
-                   (p/for [column (::hf/columns props)]
-                     ~@
-                     (dom/div (dom/class "field")
-                              (dom/style {"border-left-color" c})
-                              (dom/element "label"
-                                           (dom/attribute "title" (spec/parse column))
-                                           (dom/text column))
-                              ~@(let [[_ a⁻¹ _] (second hf/context)]
-                                  (when-let [inputs (get-in props [::hf/inputs a⁻¹ column])]
-                                    (p/$ render-inputs column inputs)))
-                              ~@~(get value column)))) ))
-  (when (::hf/options props)
-    (p/$ render-options >v props)))
+  (let [c  (color hf/db)
+        tx ~@(dom/element "form"
+                          (dom/style {"border-left-color" c})
+                          ~@
+                          (let [value ~>v]
+                            (p/for [column (::hf/columns props)]
+                              ~@
+                              (dom/div (dom/class "field")
+                                       (dom/style {"border-left-color" c})
+                                       (dom/element "label"
+                                                    (dom/attribute "title" (spec/parse column))
+                                                    (dom/text column))
+                                       ~@(let [[_ a⁻¹ _] (second hf/context)]
+                                           (when-let [inputs (get-in props [::hf/inputs a⁻¹ column])]
+                                             (p/$ render-inputs column inputs)))
+                                       ~@ ~(get value column)))) )]
+    (when (::hf/options props)
+      (p/$ render-options >v props))
+    tx))
 
 (p/defn row-impl [>v _props]
   ;; server
