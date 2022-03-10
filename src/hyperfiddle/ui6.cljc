@@ -78,7 +78,7 @@
                      (m/reductions {} v)
                      (m/relieve {})))))
 
-(defn set-state! [!atom v] (reset! !atom v))
+;; (defn set-state! [!atom v] (reset! !atom v))
 
 ;; (p/defn render-mode-selector []
 ;;   (let [state (atom ::hfql/default)]
@@ -96,6 +96,11 @@
 ;;                                (m/reductions {} nil)
 ;;                                (m/relieve {}))))
 ;;     ~(m/watch state)))
+
+;; (p/defn tooltip [text & body]
+;;   (dom/div (dom/class "tooltip")
+;;            (dom/div (dom/class "tooltip-text")
+;;                     (dom/text (str label-str)))))
 
 (p/defn typeahead [>v props]
   (binding [hf/render hf/sequenceM]
@@ -138,26 +143,39 @@
 (defn extract-refs [inputs refs]
   (filter second (map (juxt identity (partial get refs)) inputs)))
 
+(defn sort-inputs-by-spec [spec inputs]
+  (let [arg-position (into {} (map-indexed (fn [idx arg] [(:name arg) idx]) (spec/args spec)))]
+    (sort-by (comp arg-position key) inputs)))
+
 (p/defn render-inputs [attr inputs]
-  (let [] ;; FIXME binding unification
-    (do (log/warn 'RENDER-INPUTS attr inputs)
+  (let [inputs (sort-inputs-by-spec (first attr) inputs)] ;; FIXME binding unification
+    (do (prn "intputs" inputs)
+        (log/warn 'RENDER-INPUTS attr inputs)
         ~@(dom/div (dom/class "inputs")
                    ~@(p/for [[arg [>v ?!v]] inputs]
                        (let [locked? (nil? ?!v)
                              set-v!  (if locked? (constantly nil) (partial reset! ?!v))
                              v       (str ~>v)]
-                         (log/info "ARG" arg v)
-                         (let [v' ~@ (let [id (str (gensym))]
-                                       (dom/element "label" (dom/text (str arg))
+                         ;; (log/info "ARG" arg v)
+                         (let [v' ~@ (let [id       (str (gensym))
+                                           arg-spec (spec/arg (first attr) arg)]
+                                       (dom/element "label"
+                                                    (dom/attribute "data-tooltip" (cond-> (pr-str (:predicate arg-spec))
+                                                                                    locked? (str " — internal reference 🔒")))
+                                                    (dom/text (name arg))
                                                     (dom/attribute "for" (str id)))
                                        (p/$ input {:dom.attribute/id      id,
                                                    :dom.attribute/type    (input-types (argument-type (first attr) arg))
                                                    :dom.property/value    (str v)
                                                    :dom.property/disabled locked?}
                                             dom/target-value))]
-                           (when-not (= v v')
-                             (do (log/warn "setting v -> v'" (pr-str [v v']))
-                               (set-v! v'))))))))))
+                           (log/info "ARG" arg v "->" v')
+                           (if (= v v')
+                             (prn "same as before")
+                             (do (prn "new value")
+                                 #_(log/warn "setting v -> v'" (pr-str [v v']))
+                                 (do (set-v! v')
+                                     v'))))))))))
 
 ;; TODO remove
 (p/def form-impl*)
@@ -187,7 +205,7 @@
         href             ~>href
         href-str         (pr-str href)
         v                (pr-str ~>v)]
-    (let [click ~@(dom/element "a" (dom/attribute "title" symbolic)
+    ~@(let [click (dom/element "a" (dom/attribute "title" symbolic)
                                (dom/attribute "href" href-str)
                                (dom/text v)
                                ~(->> (dom/events dom/parent "click")
@@ -195,8 +213,9 @@
                                                  (map (constantly "click")))
                                      (m/reductions {} nil)
                                      (m/relieve {})))]
-      (when click
-        (reset! hf/route href)))))
+        (when click
+          (do (log/info "Click!" href hf/route)
+            (reset! hf/route href))))))
 
 (p/defn default-renderer-impl [>v props]
   (cond
@@ -400,4 +419,5 @@
 (def exports (p/vars nil? prn some? schema-attr cardinality conj color
                      input-types argument-type spec/valueType->type
                      assoc = gensym merge zipmap
-                     extract-refs))
+                     extract-refs
+                     sort-inputs-by-spec))
