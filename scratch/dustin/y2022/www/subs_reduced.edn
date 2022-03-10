@@ -1,0 +1,44 @@
+{(sub-display {::sub [suber-name]})
+ [(suber-name sub)
+  ((sub-tags sub) {::hf/options (all-tags (::needle {::hf/default (or needle "")}))})
+  ((sub-locations sub) {::hf/options (all-locations (::needle {::hf/default (or needle "")}))})
+  {(:school/_subs {::hf/options (subs-picklist needle)})
+   [:school/id
+    :school/name]}
+  '(sub-requests sub)
+  '((school-requested-block
+      {::sub [sub-name]}
+      {(::school {::hf/options      (schools .)
+                  ::hf/option-label :school/name})
+       [:school/id
+        :school/name]}
+      {(::block-reason {::hf/options      (block-reasons .)
+                        ::hf/option-label :db/ident})
+       [:db/ident]}))]}
+
+
+(school-requested-block
+  {::sub [sub-name]}
+  {(::school {::hf/options      (schools .)
+              ::hf/option-label :school/name})
+   [:school/id :school/name]}
+  {(::block-reason {::hf/options (block-reasons .)})
+   [:db/ident]})
+
+(school-requested-block
+  {::sub [sub-name]}
+  {(::school
+     {::hf/options      (schools .)
+      ::hf/option-label :school/name})
+   [:school/id :school/name]}
+  {(::block-reason
+     {::hf/options (block-reasons .)})
+   [:db/ident]})
+
+
+(school-requested-block
+  {::sub [sub-name]}
+  {(::school {::hf/options (schools .) ::hf/option-label :school/name})
+   [:school/id :school/name]}
+  {(::block-reason {::hf/options (block-reasons .)})
+   [:db/ident]})
