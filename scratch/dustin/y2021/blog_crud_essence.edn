@@ -1,0 +1,52 @@
+(defn shirt-size-options [db gender needle]
+  (d/q '[:in $ ?gender :find [?e ...] :where
+         [?e :dustingetz/type :dustingetz/shirt-size]
+         [?e :dustingetz/gender ?gender]]
+    db gender (or needle "")))
+
+(defn example-form [db e]
+  (let [!e (d/entity db e)
+        !email (atom (:dustingetz/email !e))    ; atom or mutable dom reference ...
+        !gender (atom (:dustingetz/gender !e))
+        !v (atom (:dustingetz/shirt-size !e))]
+    [:form
+     [:div [:label "id"] [:input {:value (:db/id !e)}]]
+     [:div [:label "email"]
+      [:input {:value @!email :on-change #(reset! !email %)}]]
+     [:div [:label "gender"]
+      [:select {:selected @!gender :on-change #(reset! !gender %)}
+       (->> (d/q '[:find [?e ...]
+                   :where [?e :dustingetz/type :dustingetz/gender]] db)
+         (mapv (fn [option]
+                 [:option option])))]]
+     (let [!needle (atom "")]                               ; deep local state
+       [:div [:label "shirt-size"]
+        [:input.select-needle {:value @!needle}]
+        [:select {:selected @!v :on-change #(reset! !v %)}
+         (->> (shirt-size-options db
+                (:dustingetz/gender !e)
+                @!needle)                 ; deep query depends on view local state
+           (mapv (fn [option]
+                   [:option option])))]])
+     [:input {:type     "submit"
+              :on-click #(d/transact [{:db/id                 (:db/id !e)
+                                       :dustingetz/email      @!email
+                                       :dustingetz/gender     @!gender
+                                       :dustingetz/shirt-size @!shirt-size}])}
+      "save!"]]))
+
+(tests
+  (example-form (d/db *conn*) [:dustingetz/email "alice@example.com"])
+  := [:form
+      [:div [:label "id"] [:input {:value "9"}]]
+      [:div [:label "email"] [:input {:value "alice@example.com"}]]
+      [:div [:label "gender"] [:select {:selected :dustingetz/male}
+                               [[:option :dustingetz/male]
+                                [:option :dustingetz/female]]]]
+      [:div [:label "shirt-size"]
+       [:input.select-search {:value ""}]
+       [:select {:selected :dustingetz/mens-large}
+        [[:option :dustingetz/mens-small]
+         [:option :dustingetz/mens-medium]
+         [:option :dustingetz/mens-large]]]]
+      [:input {:type "submit"} "save!"]])

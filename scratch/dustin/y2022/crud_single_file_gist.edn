@@ -1,0 +1,159 @@
+(ns dustin.y2022.crud-single-file-gist
+  "Concrete minimum viable crud app that demonstrates strong composition and real world edge cases"
+  (:require
+    [clojure.spec.alpha :as s]
+    #?(:clj [datomic.api :as d])
+    [hyperfiddle.api :as hf]
+    [hyperfiddle.photon :as p]
+    [hyperfiddle.photon-dom :as dom]
+    [hyperfiddle.html5 :as-alias html]))
+
+(def fixtures
+  [[{:db/ident :person/name :db/valueType :db.type/string :db/cardinality :db.cardinality/one}
+    {:db/ident :person/email :db/valueType :db.type/string :db/cardinality :db.cardinality/one :db/unique :db.unique/identity}
+    {:db/ident :person/gender :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+    {:db/ident :person/shirt-size :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+    {:db/ident :enum/class :db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}]
+   [{:enum/class :person/gender :db/ident :person/male}
+    {:enum/class :person/gender :db/ident :person/female}]
+   [{:db/ident :person/mens-small :person/gender :person/male :enum/class :person/shirt-size}
+    {:db/ident :person/mens-medium :person/gender :person/male :enum/class :person/shirt-size}
+    {:db/ident :person/mens-large :person/gender :person/male :enum/class :person/shirt-size}
+    {:db/ident :person/womens-small :person/gender :person/female :enum/class :person/shirt-size}
+    {:db/ident :person/womens-medium :person/gender :person/female :enum/class :person/shirt-size}
+    {:db/ident :person/womens-large :person/gender :person/female :enum/class :person/shirt-size}]
+   [{:person/email "alice@example.com" :person/gender :person/female :person/shirt-size :person/womens-large}
+    {:person/email "bob@example.com" :person/gender :person/male :person/shirt-size :person/mens-large}
+    {:person/email "charlie@example.com" :person/gender :person/male :person/shirt-size :person/mens-medium}]])
+
+; business rules, coded in simple Clojure
+
+(defn includes-str? [v needle]
+  (clojure.string/includes? (.toLowerCase (str v)) (.toLowerCase (str needle))))
+
+(defn persons [needle]
+  (d/q '[:find [?e ...] :in $ % ?needle :where
+         [?e :person/email ?email]
+         [(includes-str? ?email ?needle)]]
+    hf/*db* (or needle "")))
+
+(defn genders [needle]
+  (filter #(includes-str? % needle) [::male ::female]))
+
+(defn shirt-sizes [gender needle]
+  (d/q '[:in $ % ?gender ?needle :find [?e ...] :where
+         [?e :enum/class :person/shirt-size]
+         [?e :person/gender ?gender]
+         [?e :db/ident ?ident]
+         [(includes-str? ?ident ?needle)]]
+    hf/*db* gender (or needle "")))
+
+(defn email-taken? [email]
+  (some? (d/q '[:in ?x $ :find ?e . :where [?e :person/email ?x]] hf/*db* email)))
+
+; streaming client/server application as an expression with strong composition, coded in Photon
+; Amazingly, the compiler-managed network I/O is efficient and generates optimal request batching
+(p/defn App []                                              ; stream function, receives hf/*db* from dynamic scope
+  (p/client
+    (dom/div
+      (dom/h1 "hello world")
+      (let [needle (dom/input {::html/placeholder "alice@example.com"})]
+        (dom/table
+          (try
+            (dom/tbody {:style load-mask}
+              (p/for [e (p/server (persons needle))]
+                (tr-form e
+                  (td-field :person/name)
+                  (td-field :person/email {::html/invalid (p/server (email-taken? (get (d/entity hf/*db* e) :person/email)))})
+                  (td-field :person/gender {::options-fn (p/fn [needle] (genders needle))})
+                  (td-field :person/shirt-size {::options-fn (p/fn [needle]
+                                                               (p/server
+                                                                 (let [gender (get (d/entity hf/*db* e) :person/gender)]
+                                                                   (shirt-sizes gender needle))))}))))
+            (catch p/Pending _ (dom/span "loading table"))))))))
+
+; Above this point:
+; 9 lines of imports
+; 17 lines of data model and test data
+; 22 lines of business rules
+; 18 lines of explicit UI
+;
+; total = 66 LOC
+
+; Below is streaming UI widget implementation, inlined here for your perusal.
+; Composable UI functions come with Photon. These are true functions! Well, lifted async dataflow functions.
+
+; p/defn essentially compiles Clojure forms into a dependency network, colors it into client and server portions,
+; partitions and emits dataflow operations for said DAG that are supervised by Missionary, a functional effect system.
+(p/defn typeahead-select [v {:keys [::options-fn]}]
+  (p/client
+    (dom/div
+      (let [needle (dom/input {::html/placeholder ""})]
+        (dom/select v
+          (try
+            (for [x (options-fn needle)]                    ; hf/*db* cannot be seen on options-fn interface
+              (dom/option x))
+            (catch p/Pending _ nil)))))))                   ; trap local pending state
+
+; fields are async dataflow functions from signal-of-db to stream-of-edits,
+; with dom input/output tie-ins by supervised side effect,
+; typically emitting new values on the server, streaming through the client, parking until dom interaction, then
+; emitting edit events out the return channel.
+(p/defn td-field [a props]
+  (p/client
+    (let [v (dom/td
+              (case (p/server (:db/valueType (d/entity hf/*db* a))) ; point query
+                :db.type/ref (typeahead-select (p/server (get (d/entity hf/*db* *e*) a)) props) ; point query
+                :db.type/string (dom/input (p/server (get (d/entity hf/*db* *e*) a))) ; point query
+                (dom/div "unknown type")))]                 ; don't query
+      [a v])))                                              ; fields emit stream of [a v] edits
+
+(defmacro tr-form [e & body]
+  `(dom/tr                                                  ; a form is a list of fields related by entity
+     (p/for-by first [[a v] ~@body]                         ; fields emit [a v] edits
+       [:db/add ~e a v])))                                  ; forms emit global eav triples ready for database
+
+(defn entrypoint [conn]
+  (p/run                                                    ; bootstrap client/server and establish websocket
+    (p/server
+      (binding [hf/*user* ...]
+        (loop [db (d/db conn)]                              ; todo controlled server push
+          (let [tx (binding [hf/*db* db]
+                     (p/client
+                       (binding [dom/*parent* (js/document.querySelector "#root")]
+                         ; App is an incrementally maintained stream-function
+                         ; from signal-of-db to stream-of-tx with mid-flight dom tie-ins
+                         (App))))]
+            (println tx)
+            (recur (:db-after @(d/transact conn tx)))))))))
+
+(comment
+  (d/create-database "datomic:mem://hello-world")
+  (def conn (d/connect "datomic:mem://hello-world"))
+  (doall (reduce (fn [_ tx] (d/transact conn tx)) fixtures))
+
+  ; entrypoint runs process for side effect until cancelled
+  ; todo each websocket session (browser tab) gets a reactor
+  (def cancel! (entrypoint conn))
+  (cancel!)
+  )
+
+; Once you understand the above, here is the easy declarative alternative for end-user programmers:
+(p/defn App []
+  (hf/ui                                                    ; this hypermedia DSL macroexpands to basically the Photon implementation seen above
+    {(persons .)
+     [:person/name {::html/placeholder "alice@example.com"}
+      :person/email {::html/invalid (p/server (email-taken? person/email))}
+      {(:person/gender {::hf/options      (genders)
+                        ::hf/option-label :db/ident
+                        ::hf/render       typeahead-select})
+       [:db/ident]}
+      {(:person/shirt-size {::hf/options      (shirt-sizes person/gender .)
+                            ::hf/option-label :db/ident
+                            ::hf/render       typeahead-select})
+       [:db/ident]}]}))
+
+; specs are used to auto-gen UI from business function parameter lists
+(s/fdef persons :args (s/cat :needle string?) :ret (s/coll-of hf/ref?))
+(s/fdef genders :ret (s/coll-of hf/ref?))
+(s/fdef shirt-sizes :args (s/cat :gender hf/ref? :needle string?) :ret (s/coll-of hf/ref?))

@@ -1,0 +1,53 @@
+(defn school-requested-block
+  "School has requested that the given sub be blocked from their school.
+  This will always unlink the sub."
+  [sub school block-reason mode penalize]
+  ; Query backend
+  ; This fn should come from classpath or can be an API connector
+  ...)
+
+(s/fdef school-requested-block :args (s/cat
+                                       :sub (s/and some? ref?)
+                                       :school (s/and some? ref?)
+                                       :block-reason (s/and some? ref?)
+                                       :block-mode (s/and some? keyword?)
+                                       :penalize boolean?))
+(s/fdef sub-display :arts (s/cat :sub (s/and some? ref?)))
+
+{(sub-display {:sub [suber-name]})
+ [(suber-name sub)
+  ((sub-tags sub) {::hf/options (all-tags (needle {::hf/default (or needle "")}))})
+  ((sub-locations sub) {::hf/options (all-locations (needle {::hf/default (or needle "")}))})
+  {(:school/_subs {::hf/options (subs-picklist needle)})
+   [:school/id :school/name]}
+
+  (:db/id ::hf/a (sub-requests %))
+  (:db/id ::hf/a sub-requests)
+  (:db/id ::hf/a (sub-requests sub) ::hf/render anchor ::hf/prompt (p/client (dom/span (str "Back to sub: " (p/server (suber-name sub))))))
+
+  ;((suber-name %) ::hf/a (sub-display sub) ::hf/render ...)
+
+  ; this is what you want
+  (link sub-requests sub)
+  #link (sub-requests sub)
+
+
+  #action
+      ((school-requested-block
+         {:sub [sub-name]}
+         {(:school {::hf/options      (school-picklist .)
+                    ::hf/option-label :school/name})
+          [:school/id :school/name]}
+         {(:block-reason {::hf/options      (event-reason-codes-picklist .)
+                          ::hf/option-label (comp name :db/ident)})
+          [:db/ident]}
+         (:block-mode {::hf/render       checkbox-picker
+                       ::hf/default      (or block-mode :force-cancel)
+                       ::hf/options      (unlink-mode-options)
+                       ::hf/option-label (let [x ~school/id
+                                               wide {:style {:display "inline-block" :width "12em"}}]
+                                           {:force-cancel      (dom/span (dom/span wide ":force-cancel") "Cancel all the sub's existing commitment at this school")
+                                            :leave-commitments (dom/span (dom/span wide ":leave-commitments") "Don’t cancel sub's existing commitments")})})
+         (:penalize {::hf/default (if (some penalize) penalize false)})))]}
+
+(defmethod hf/title `school-requested-block "Block sub from school")
