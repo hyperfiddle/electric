@@ -8,7 +8,8 @@
             [user.gender-shirt-size :refer [submissions genders submission shirt-sizes sub-profile]]
             [hyperfiddle.hfql.router :as router]
             [clojure.edn :as edn]
-            [hyperfiddle.dev.logger :as log])
+            [hyperfiddle.dev.logger :as log]
+            [clojure.pprint :as pprint])
   #?(:cljs (:require-macros [user.browser :refer [view NavBar NotFoundPage]]
                             [user.gender-shirt-size :refer [submissions sub-profile]])))
 
@@ -34,7 +35,6 @@
                                      ;; (m/eduction (map (constantly true)))
                                      (m/reductions {} false)
                                      (m/relieve {})))]
-     (log/info "Route" hf/route "-> " ~>route "->" route)
      (if go!
        route
        '(about:homepage)))))
@@ -47,35 +47,43 @@
                        (dom/h1 (dom/text "Page not found"))
                        (dom/code (pr-str route))))))
 
+(defn pprint-str [x] (with-out-str (pprint/pprint x)))
+
 (p/defn view []
   ~@(binding [hf/db "$"]
       ~@(dom/div
          (dom/class "browser")
-         (let [route     (p/$ NavBar)
-               #_#_x-ray (dom/input (dom/attribute "type" "checkbox")
-                                    ~(->> (dom/events dom/parent "input")
-                                          (m/eduction (map dom/target-checked))
-                                          (m/reductions {} false)
-                                          (m/relieve {})))]
-           (log/info "Route" route) ;; force dom node order
+         (let [route     (p/$ NavBar)]
            (dom/div
             (dom/class "view")
-            ~@(p/$ ui/with-spec-render
-                   #'(binding [hf/render        ui/render
-                               hf/db            "$"
-                               hf/route         (atom route)
-                               router/not-found NotFoundPage]
-                       (router/router
-                        {(sub-profile 9) [:db/id]}
-                        {(submissions . .)
-                         [(props :db/id {::hf/link sub-profile})
-                          :dustingetz/email
-                          {(props :dustingetz/gender {::hf/options      (genders)
-                                                        ::hf/option-label :db/ident
-                                                        ::hf/render       ui/typeahead}) [(props :db/ident {::hf/as gender})]}
-                          {(props :dustingetz/shirt-size {::hf/options      (shirt-sizes gender .)
-                                                            ::hf/option-label :db/ident
-                                                            #_#_::hf/render   ui/typeahead}) [:db/ident]}]}))))))))
+            (let [tx ~@(p/$ ui/with-spec-render
+                            #'(binding [hf/render        ui/render
+                                        hf/db            "$"
+                                        hf/route         (atom route)
+                                        router/not-found NotFoundPage]
+                                (let [needle (nth route 1)]
+                                  (router/router
+                                   {(sub-profile 9) [:db/id]}
+                                   {(submissions needle .)
+                                    [(props :db/id {::hf/link sub-profile})
+                                     :dustingetz/email
+                                     {(props :dustingetz/gender {::hf/options      (genders)
+                                                                 ::hf/option-label :db/ident
+                                                                 ::hf/render       ui/typeahead}) [(props :db/ident {::hf/as gender})]}
+                                     {(props :dustingetz/shirt-size {::hf/options      (shirt-sizes gender .)
+                                                                     ::hf/option-label :db/ident}) [:db/ident]}]}))))]
+              (dom/div
+               (dom/element "hr")
+               (dom/code (dom/text (pprint-str tx))))))))))
+
+
+;; #_#_x-ray (dom/input (dom/attribute "type" "checkbox")
+;;                      ~(->> (dom/events dom/parent "input")
+;;                            (m/eduction (map dom/target-checked))
+;;                            (m/reductions {} false)
+;;                            (m/relieve {})))
+
+;; (hyperfiddle.q9/hfql {(submissions . .) [:db/id]}) 
 
 (def !input (atom (list 9 10 11)))
 
