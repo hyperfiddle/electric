@@ -51,7 +51,7 @@
 (s/fdef emails :args (s/cat :needle string?)
         :ret (s/coll-of string?))
 
-(p/defn submissions [needle]
+(p/defn submissions [needle _]
   (sort
     ~(hf/q '[:find [?e ...]
           :in $ % ?needle
@@ -60,7 +60,8 @@
           (hyperfiddle.api/needle-match ?email ?needle)]
        hf/rules (or needle ""))))
 
-(s/fdef submissions :args (s/cat :needle string?)
+(s/fdef submissions :args (s/cat :needle string?
+                                 :reverse? boolean?)
         :ret (s/coll-of (s/keys :req [:dustingetz/email
                                       :dustingetz/email1
                                       :dustingetz/gender
