@@ -81,36 +81,48 @@ flow of values matching that key in the input map.
     (swap! !ms assoc :a 2)
     @it := {:a 3}))
 
+(def val-first (partial reduce-kv (fn [r _ m] (reduce (fn [r [id]] (conj r id)) r m)) []))
+
 (defn seq-diff [kf done]
   (fn [rf]
     (let [state (doto (object-array 4)
-                  (aset (int 0) {})                         ;; prev {key [[id slot value]...]}
-                  (aset (int 1) {})                         ;; curr
-                  (aset (int 2) 0)                          ;; current slot
-                  (aset (int 3) 0))                         ;; current id
-          f (fn [r x]
-              (let [p (aget state (int 0))
-                    c (aget state (int 1))
-                    i (aget state (int 2))
-                    k (kf x)]
-                (aset state (int 2) (inc i))
-                (if-some [[[id j y] & m] (get p k)]
-                  (let [r (if (= i j) r (rf r [id :index i]))
-                        r (if (= x y) r (rf r [id :value x]))]
-                    (aset state (int 0) (case m nil (dissoc p k) (assoc p k m)))
-                    (aset state (int 1) (assoc c k (conj (get c k []) [id i x]))) r)
-                  (let [id (aset state (int 3) (inc (aget state (int 3))))]
-                    (aset state (int 1) (assoc c k (conj (get c k []) [id i x])))
-                    (-> r (rf [id :index i]) (rf [id :value x]))))))
-          g (fn [r _ m] (reduce (fn [r [id]] (-> r (rf [id :index done]) (rf [id :value done]))) r m))]
+                  (aset (int 0) {})                     ;; prev {key [[id slot value]...]}
+                  (aset (int 1) {})                     ;; curr
+                  (aset (int 2) 0)                      ;; current slot
+                  (aset (int 3) 0))                     ;; current id
+          scan (partial reduce
+                 (fn [r x]
+                   (let [p (aget state (int 0))
+                         c (aget state (int 1))
+                         i (aget state (int 2))
+                         k (kf x)]
+                     (aset state (int 2) (inc i))
+                     (if-some [[[id j y] & m] (get p k)]
+                       (let [r (if (= i j) r (update r :move assoc id i))
+                             r (if (= x y) r (update r :change assoc id x))]
+                         (aset state (int 0) (case m nil (dissoc p k) (assoc p k m)))
+                         (aset state (int 1) (assoc c k (conj (get c k []) [id i x]))) r)
+                       (let [id (aset state (int 3) (inc (aget state (int 3))))]
+                         (aset state (int 1) (assoc c k (conj (get c k []) [id i x])))
+                         (update r :add assoc id [i x]))))) {})
+          send-remove (partial reduce (fn [r id] (-> r (rf [id :index done]) (rf [id :value done]))))
+          send-move   (partial reduce-kv (fn [r id i] (rf r [id :index i])))
+          send-change (partial reduce-kv (fn [r id x] (rf r [id :value x])))
+          send-add    (partial reduce-kv (fn [r id [i x]] (-> r (rf [id :index i]) (rf [id :value x]))))]
       (fn
         ([] (rf))
         ([r] (rf r))
         ([r xs]
-         (let [r (reduce-kv g (reduce f r xs) (aget state (int 0)))]
+         (let [{:keys [add move change]} (scan xs)
+               remove (val-first (aget state (int 0)))]
            (aset state (int 0) (aget state (int 1)))
            (aset state (int 1) {})
-           (aset state (int 2) 0) r))))))
+           (aset state (int 2) 0)
+           (-> r
+             (send-remove remove)
+             (send-move move)
+             (send-change change)
+             (send-add add))))))))
 
 (tests
   (sequence (seq-diff :id ::done)
@@ -130,16 +142,16 @@ flow of values matching that key in the input map.
    [1 :value {:id "alice", :email "alice@gmail.com"}]
    [2 :index 1]
    [2 :value {:id "bob", :name "bob@yahoo.com"}]
+   [2 :index 2]
    [3 :index 1]
    [3 :value {:id "alice", :email "alice@msn.com"}]
-   [2 :index 2]
    [2 :index 1]
    [3 :index 2]
+   [3 :index ::done]
+   [3 :value ::done]
    [2 :index 0]
    [1 :index 1]
-   [1 :value {:id "alice", :email "alice@msn.com"}]
-   [3 :index ::done]
-   [3 :value ::done]])
+   [1 :value {:id "alice", :email "alice@msn.com"}]])
 
 (defn conj-nil [r] (conj r nil))
 
