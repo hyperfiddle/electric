@@ -14,9 +14,6 @@
 (defn ^:static done! [^objects main terminator]
   (when (zero? (aset main (int 6) (dec (aget main (int 6))))) (terminator)))
 
-(defn ^:static ready! [^objects main notifier]
-  (if (aget main (int 5)) (notifier) (aset main (int 5) true)))
-
 (defn ^:static cancel! [^objects main]
   (when-some [item (aget main (int 2))]
     (loop [^objects item item]
@@ -45,14 +42,16 @@
   (throw error))
 
 (defn ^:static sample! [^objects main rf notifier]
-  (aset main (int 5) false)
-  (let [^objects head (u/aget-aset main (int 3) nil)]
+  (let [^boolean idle (u/aget-aset main (int 5) false)
+        ^objects head (u/aget-aset main (int 3) nil)]
     (loop [^objects item (u/aget-aset head (int 3) nil)
            r (try @(aget head (int 0))
                   (catch #?(:clj Throwable :cljs :default) e
                     (fail! main item e)))]
       (if (nil? item)
-        (do (ready! main notifier) r)
+        (do (if (aget main (int 5))
+              (when idle (notifier))
+              (aset main (int 5) idle)) r)
         (let [next (u/aget-aset item (int 3) nil)]
           (recur next
             (try (rf r @(aget item (int 0)))
@@ -71,8 +70,8 @@
   (let [^objects main (.-main it)]
     (while (aset main (int 4) (not (aget main (int 4))))
       (if-some [^objects prev (aget main (int 1))]
-        (let [item (object-array (int 4))]
-          (aset main (int 5) false)
+        (let [item (object-array (int 4))
+              ^boolean idle (u/aget-aset main (int 5) false)]
           (aset main (int 6) (inc (aget main (int 6))))
           (aset item (int 1) prev)
           (aset prev (int 2) item)
@@ -85,7 +84,9 @@
                                       :cljs :default) _))
                        (if-some [^objects curr (u/aget-aset main (int 3) item)]
                          (aset item (int 3) curr)
-                         (ready! main (.-notifier it)))))
+                         (if (aget main (int 5))
+                           ((.-notifier it))
+                           (aset main (int 5) true)))))
                 t #(locking it
                      (when-some [^objects prev (aget item (int 1))]
                        (let [^objects next (aget item (int 2))]
@@ -98,7 +99,9 @@
               (try (@(aget main (int 0)) n t)
                    (catch #?(:clj Throwable :cljs :default) e
                      (u/failer e n t))))
-            (ready! main (.-notifier it))))
+            (if (aget main (int 5))
+              (when idle ((.-notifier it)))
+              (aset main (int 5) idle))))
         (try @(aget main (int 0))
              (catch #?(:clj Throwable
                        :cljs :default) _))))))
