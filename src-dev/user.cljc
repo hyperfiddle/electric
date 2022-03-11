@@ -1,9 +1,22 @@
 (ns user )
 
-; % npx shadow-cljs server
-; connect one nrepl for JVM repl
-; connect second nrepl, then eval (shadow/repl :app) for JS repl
-; check repl type: eval (type 1)
+; % rm .cpcache .shadow-cljs
+; % yarn
+; % npm install
+; % npx shadow-cljs -A:test server
+; http://localhost:9630/build/app ; click watch
+; nrepl to shadow JVM ; nrepl port in shadow-cljs.edn
+; start photon server per below comment block
+; http://localhost:8080/ ; hard refresh
+;
+; Optional CLJS REPL:
+;   connect second nrepl, then eval (shadow/repl :app) for JS repl
+;   check repl type: eval (type 1)
+;
+; Warning:
+;   Commonly we think our macros confuse shadow. 99% of the time this is not the case.
+;   the problem is sharing JVM with shadow and the JVM state is the problem.
+;   Restart the JVM by restarting shadow.
 
 ;;;;;;;;;;;;;;;;;;
 ;; Start server ;;
@@ -12,12 +25,15 @@
   (do
     (require '[dev])
     (require '[hyperfiddle.server :refer [start-server!]])
-    (require '[io.pedestal.http :as http])
-    (require '[shadow.cljs.devtools.api :as shadow])
+    (require '[io.pedestal.http :as http]
+             '[shadow.cljs.devtools.api :as shadow])
     (def server (start-server! {:host   "localhost"
                                 :port   8080
                                 :scheme "http"})))
   (http/stop server)
+
+  #_(hyperfiddle.dev.logger/set-level! :debug)
+  ; use logger when debugging due to concurrency which will interleave printlns
   )
 
 ;;;;;;;;;;;;;;;;;;;;
@@ -26,6 +42,11 @@
 (comment
   (shadow/compile :app)
   (shadow/release :app)
+
+  ; Watch works
+  ; Make sure to eval on JVM first, then save file to trigger cljs compile and reload
+  (shadow/watch :app)
+
   )
 
 ;; Tests
