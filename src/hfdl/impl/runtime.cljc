@@ -121,7 +121,7 @@
 (defn capture [& slots]
   (steady
     (fn [flow & args]
-      (let [m (zipmap slots args)]
+      (let [m (zipmap slots (map lift-failure args))]
         (fn [n t]
           (if-some [v (u/get-local current)]
             (do (u/set-local current (conj (pop v) (reduce-kv assoc (peek v) m)))
