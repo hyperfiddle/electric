@@ -99,7 +99,7 @@
   (if-let [txfn (::tx props)]
     (p/$ txfn v')
     (let [[>e a _] (first context)]
-      [~>e a v'])))
+      [[:db/add ~>e a v']])))
 
 (p/def refs {}) ;; reference points in HFQL expr
 (p/def columns [])
