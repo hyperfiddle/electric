@@ -7,6 +7,7 @@
             ;; #?(:clj [hyperfiddle.q9 :refer [hfql]])
             [user.gender-shirt-size :refer [submissions genders submission shirt-sizes sub-profile]]
             [hyperfiddle.hfql.router :as router]
+            [hyperfiddle.ui.codemirror :as cm]
             [clojure.edn :as edn]
             [hyperfiddle.dev.logger :as log]
             [clojure.pprint :as pprint])
@@ -20,12 +21,14 @@
   (dom/div
    (dom/class "navbar")
    (let [>route    (m/watch hf/route)
-         route-str (p/$ ui/input
-                        {:dom.property/value       (str (or ~>route `(submissions "alice")))
-                         :dom.attribute/type       "text"
-                         :dom.property/placeholder "(page …)"
-                         :dom.property/class       "route"}
-                        dom/target-value)
+         default-route `(submissions "alice")
+         route-str (p/$ cm/CodeMirror {:parent dom/parent, :inline true} default-route)
+         #_(p/$ ui/input
+                             {:dom.property/value       (str (or ~>route `(submissions "alice")))
+                              :dom.attribute/type       "text"
+                              :dom.property/placeholder "(page …)"
+                              :dom.property/class       "route"}
+                             dom/target-value)
          route     (try (edn/read-string route-str)
                         (catch :default t
                           (hyperfiddle.dev.logger/error t)
@@ -35,9 +38,10 @@
                                      ;; (m/eduction (map (constantly true)))
                                      (m/reductions {} false)
                                      (m/relieve {})))]
-     (if go!
-       route
-       '(about:homepage)))))
+     (do route ;; HACK
+         (if go!
+           (or route default-route)
+           '(about:homepage))))))
 
 (p/defn NotFoundPage []
   ~@(let [route @hf/route]
@@ -54,27 +58,30 @@
       ~@(dom/div
          (dom/class "browser")
          (let [route     (p/$ NavBar)]
-           (dom/div
-            (dom/class "view")
-            (let [tx ~@(p/$ ui/with-spec-render
-                            #'(binding [hf/render        ui/render
-                                        hf/db            "$"
-                                        hf/route         (atom route)
-                                        router/not-found NotFoundPage]
-                                (let [needle (nth route 1)]
-                                  (router/router
-                                   {(sub-profile 9) [:db/id]}
-                                   {(submissions needle .)
-                                    [(props :db/id {::hf/link sub-profile})
-                                     :dustingetz/email
-                                     {(props :dustingetz/gender {::hf/options      (genders)
-                                                                 ::hf/option-label :db/ident
-                                                                 ::hf/render       ui/typeahead}) [(props :db/ident {::hf/as gender})]}
-                                     {(props :dustingetz/shirt-size {::hf/options      (shirt-sizes gender .)
-                                                                     ::hf/option-label :db/ident}) [:db/ident]}]}))))]
-              (dom/div
-               (dom/element "hr")
-               (dom/code (dom/text (pprint-str tx))))))))))
+           (do
+             route ;; HACK
+             (dom/div
+              (dom/class "view")
+              (let [tx ~@(p/$ ui/with-spec-render
+                              #'(binding [hf/render        ui/render
+                                          hf/db            "$"
+                                          hf/route         (atom route)
+                                          router/not-found NotFoundPage]
+                                  (let [needle (nth route 1)]
+                                    (router/router
+                                     {(sub-profile 9) [:db/id]}
+                                     {(submissions needle .)
+                                      [(props :db/id {::hf/link sub-profile})
+                                       :dustingetz/email
+                                       {(props :dustingetz/gender {::hf/options      (genders)
+                                                                   ::hf/option-label :db/ident
+                                                                   ::hf/render       ui/typeahead}) [(props :db/ident {::hf/as gender})]}
+                                       {(props :dustingetz/shirt-size {::hf/options      (shirt-sizes gender .)
+                                                                       ::hf/option-label :db/ident}) [:db/ident]}]}))))]
+                (dom/div
+                 (dom/element "hr")
+                 (p/$ cm/CodeMirror {:parent dom/parent} tx)
+                 #_(dom/code (dom/text (pprint-str tx)))))))))))
 
 
 ;; #_#_x-ray (dom/input (dom/attribute "type" "checkbox")
@@ -85,18 +92,21 @@
 
 ;; (hyperfiddle.q9/hfql {(submissions . .) [:db/id]}) 
 
-(def !input (atom (list 9 10 11)))
+(def !input (atom "initial"))
 
-(defn set-input [x]
-  (reset! !input (clojure.edn/read-string x)))
+(defn set-input [x] (reset! !input x))
 
 #_(p/defn view []
-  (let [ids ~(m/watch !input)]
-    (dom/ul
-     (p/for [id ids]
-       (dom/li (dom/text (pr-str id)))))))
+  (log/info (p/$ cm/CodeMirror dom/parent ~(m/watch !input)))
+  #_(p/for [id ~(m/watch !input)] ~(prn-up-down id)))
 
-(def exports (p/vars !input))
+(comment ;; manually,  at the js REPL
+  (set-input "(9 10 11)")
+  (set-input "(9 10)")
+  (set-input "(9 10 11 12)")
+  )
+
+(def exports (p/vars))
 
 
 
@@ -114,14 +124,15 @@
 
 (comment
 
+  (require '[hfdl.lang :as p])
+  (require '[missionary.core :as m])
   (def !input (atom (list 9 10 11)))
 
-  (def dispose (p/run (prn (p/for [id ~(m/watch !input)]
-                             id))))
+  (defn prn-up-down [x] (m/observe (fn [!] (prn "up!" x) (! x) #(prn "down" x))))
 
-  (reset! !input (list 9 10))
+  (def dispose (p/run (prn (p/for [id ~(m/watch !input)] ~(prn-up-down id)))))
 
-
+  (reset! !input (list 9 10 11))
 
   (dispose)
   )
