@@ -53,6 +53,9 @@
 
 (defn pprint-str [x] (with-out-str (pprint/pprint x)))
 
+(defn statement? [x] (and (vector? x)
+                          (#{:db/add} (first x))))
+
 (p/defn view []
   ~@(binding [hf/db "$"]
       ~@(dom/div
@@ -80,7 +83,7 @@
                                                                        ::hf/option-label :db/ident}) [:db/ident]}]}))))]
                 (dom/div
                  (dom/element "hr")
-                 (p/$ cm/CodeMirror {:parent dom/parent} tx)
+                 (p/$ cm/CodeMirror {:parent dom/parent} (vec (filter statement? (tree-seq coll? identity tx))))
                  #_(dom/code (dom/text (pprint-str tx)))))))))))
 
 
