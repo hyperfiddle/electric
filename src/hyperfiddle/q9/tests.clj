@@ -4,6 +4,7 @@
             [hyperfiddle.api :as hf]
             ;; [hyperfiddle.q9 :refer [hfql]]
             [hyperfiddle.q9 :refer [hfql]]
+            [hyperfiddle.q9.impl :as impl]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
             [user.gender-shirt-size :refer [submissions submission shirt-sizes genders]]))
 
@@ -12,27 +13,27 @@
 
 (tests
  (p/run (! (binding [hf/entity 9] (hfql :db/id) )))
- % := {:db/id 9})
+ % := 9)
 
 (tests
  (p/run (! (binding [hf/entity 9] (hfql [:db/id]) )))
- % := {:db/id 9})
+ % := 9)
 
 (p/def string-renderer (p/fn [>v _props] (str ~>v)))
 
 (tests
  "hf/render"
  (p/run (! (binding [hf/entity 9] (hfql (props :db/id {::hf/render string-renderer})) )))
- % := {:db/id "9"})
+ % := "9")
 
 (tests
  "hf/render inline"
  (p/run (! (binding [hf/entity 9] (hfql (props :db/id {::hf/render (p/fn [>v _props] (str ~>v))})) )))
- % := {:db/id "9"})
+ % := "9")
 
 (tests
  (p/run (! (binding [hf/entity 9] (hfql [(props :db/id {::hf/render string-renderer})]) )))
- % := {:db/id "9"})
+ % := "9")
 
 (tests
  (p/run (binding [hf/entity 9] (! (hfql {:dustingetz/gender [:db/ident]}) )))

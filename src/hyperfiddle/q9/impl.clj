@@ -473,9 +473,11 @@
      `(let [~@(mapcat #(emit-point *index* %) (remove (fn [point] (#{`hf/defaults `hf/render} ;; FIXME kw vs sym vs meta-kw
                                                                    (:prop point)))
                                                       points))]
-        ~(render-point e a (var-point (emit-render (renderables points)))
-                       (cond-> (emit-inputs points)
-                         (nil? point-id) (assoc ::hf/columns (columns (roots points)))))))))
+        ~(if (and (nil? point-id) (= 1 (count (remove :prop points)))) ;; no traversal, root expr, like: (hfql :db/id)
+           (second (val (first (emit-render (renderables points)))))
+           (render-point e a (var-point (emit-render (renderables points)))
+                          (cond-> (emit-inputs points)
+                            (nil? point-id) (assoc ::hf/columns (columns (roots points))))))))))
 
 (defn emit [points]
   (let [index (map-by :id points)]
