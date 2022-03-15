@@ -26,10 +26,16 @@
     (let [keys (keys page)]
       (assert (= 1 (count keys )) (str "A routable page must have a single entrypoint (root). The given page declares " (count keys) " entrypoints: " (pr-str keys) ". Please choose one. In `" (pr-str page) "`.")))))
 
+(defn- identifier [call]
+  (let [[f & args] call]
+    (case f
+      props (identifier (first args))
+      f)))
+
 (defn page-identifier [page]
   (let [entrypoint (key (first page))]
     (assert (seq? entrypoint) (str "A page entrypoint must be a route-like expression. Given `" (pr-str entrypoint) "`."))
-    (first entrypoint)))
+    (identifier entrypoint)))
 
 #?(:clj
    (defn routing-map [&env pages]
