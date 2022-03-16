@@ -24,30 +24,51 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
      (case x# ::empty (m/amb) x#)))
 
 (defn fsm
-  "Produce a continuous time impulse with value v which will soon be acknowledged at which point the
-  impulse is cleared. the ack is a flow of anything, we ignore the value, detecting only that an
-  event happened
+  "A continuous time impulse as a discreet flow. This is a state machine. It first
+  emit `init`, then the first value of the `>values` discreet flow, called the
+  impulse. The impulse is expected to be acknowledge soon by a new value in
+  `>control`, at which point it restart emitting `init`.
 
-          v -|       -------
-   >y        |      |       |
-          i -|------         -----------
+   Start ———> 1. emit `init`
+          |   2. listen to `>values`, wait for a value
+          |
+          |   3. emit first value of `>values`           |
+          |    . stop listening to `>values`             | Toggles
+          |    . listen to `>control`, wait for a value  |
+          |
+           —— 4. stop listening to `>control`
+               . discard value
+               . GOTO 1.
 
-
-         any -|              -----------
-   >x         |             |
-         any -|-------------
-    " [i x y]
+   Time ——————— 0 ———— 1 ———— 2 ————3——————————>
+                |
+               -|       ————————————
+   >values      |      |            |
+               -|——————              ——————————
+               -|               —————————
+   >control     |              |         |
+               -|——————————————           —————
+             v -|       ———————      ————
+   result       |      |       |    |    |
+          init -|——————         ————      —————
+                |
+  "
+  [init >control >values]
   (m/ap
     (loop []
-      (m/amb i
-        (if-some [e (m/? y)]
-          (m/amb e (if (m/? x) (m/amb) (recur)))
+      (m/amb init
+        (if-some [e (m/? >values)]
+          (m/amb e (if (m/? >control) (m/amb) (recur)))
           (m/amb))))))
+
+(defmacro instant
+  "A state machine emitting `nil`, then one value of a discreet flow `>values`.
+  Then waits for `control` to change and restarts from `nil`.
+  To be used from a photon expression."
+  [control >values]
+  `(unquote (fsm nil (empty? (m/eduction (drop 1) (var ~control))) (first-or nil ~>values))))
 
 (defmacro current [form]
   `(unquote (m/eduction (take 1) (var ~form))))
-
-(defmacro instant [value event]
-  `(unquote (fsm nil (empty? (m/eduction (drop 1) (var ~value))) (first-or nil ~event))))
 
 (def exports (p/vars state))
