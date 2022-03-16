@@ -861,3 +861,19 @@
   (hash-set % % %) := #{[:up 3] [:down 1] [:down 2]}
 
   (dispose))
+
+(tests
+  (r/def x 1)
+  (def !input (atom [1 2]))
+  (defn up-down [p x]
+    (m/observe (fn [!] (p :up) (! x) #(p :down))))
+
+  (r/run
+    (! (r/for [id ~(m/watch !input)]
+         (binding [x (do id x)]
+           ~(up-down ! x)))))
+  [% %] := [:up :up]
+  % := [1 1]
+  (swap! !input pop)
+  % := :down
+  % := [1])

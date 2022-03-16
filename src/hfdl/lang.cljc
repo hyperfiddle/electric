@@ -5,10 +5,12 @@
             [hfdl.impl.runtime :as r]
             [hfdl.impl.util :as u]
             [hfdl.impl.sampler :refer [sampler!]]
-            [hfdl.lib :refer [map-by]]
+            [hfdl.lib :as lib]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
   #?(:cljs (:require-macros [hfdl.lang :refer [def fn $ vars main for local2 debug thread]])))
+
+(def map-by (partial lib/map-by (r/->Failure (missionary.Cancelled.))))
 
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol

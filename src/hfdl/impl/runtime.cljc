@@ -121,11 +121,15 @@
 (defn capture [& slots]
   (steady
     (fn [flow & args]
-      (let [m (zipmap slots (map lift-failure args))]
+      (let [m (zipmap slots args)]
         (fn [n t]
           (if-some [v (u/get-local current)]
-            (do (u/set-local current (conj (pop v) (reduce-kv assoc (peek v) m)))
-                (try (flow n t) (finally (u/set-local current v))))
+            (do (u/set-local current
+                  (conj (pop v)
+                    (reduce-kv (fn [nodes slot flow]
+                                 (assoc nodes slot (lift-failure (m/signal! flow)))) ;; TODO cleanup
+                      (peek v) m)))
+              (try (flow n t) (finally (u/set-local current v))))
             (u/failer (ex-info "Unable to bind : not in peer context." {}) n t)))))))
 
 (defn recover [fallback flow nodes frame slot]
@@ -140,7 +144,7 @@
       (u/bind-flow current [frame slot nodes]
         (m/cp (let [f (m/?< flow)]
                 (if (failure f)
-                  f (try (m/?< f)
+                  f (try (m/?< f)           ;; TODO don't lift here, should be done in user space
                          (catch #?(:clj Throwable :cljs :default) e
                            (->Failure e))))))))))
 
