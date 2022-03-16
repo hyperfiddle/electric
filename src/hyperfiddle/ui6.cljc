@@ -29,6 +29,7 @@
                                                      render-inputs
                                                      render-options
                                                      typeahead
+                                                     select-options select-options-impl
                                                      with-spec-render
                                                      ;; render-mode-selector
                                                      ]])))
@@ -140,6 +141,43 @@
                                  (dom/text ~@((or label identity) option)))))))
              value'))]
       (doto (p/$ hf/tx value') prn))))
+
+(defn index-by [kf coll] (into {} (map (juxt kf identity)) coll))
+(defn index-id [x] (str (hash x)))
+
+(p/def select-options)
+(p/defn select-options-impl [>v props]
+  (binding [hf/render hf/sequenceM]
+    (let [label    (::hf/option-label props)
+          disabled (::hf/disabled props)
+          c        (color hf/db)
+          value    (p/$ hf/data >v)
+          ;; input-value (str (if (and label value) ~(label value) value))
+          value'
+          ~@
+          (let [value' (dom/select (dom/class "hf-select")
+                                   (dom/property "disabled" disabled)
+                                   (dom/style {"border-color" c})
+                                   ~@ ;; server
+                                   (when-some [options (::hf/options props)]
+                                     (let [options ~options
+                                           index   (index-by index-id options)]
+                                       (do
+                                         (p/for [option options]
+                                           (let [selected? (= value option)]
+                                             ~@
+                                             (dom/option ;; FIXME dom nodes not unmounting here
+                                              (when selected?
+                                                (dom/attribute "selected" "selected"))
+                                              (dom/attribute "value" ~@(index-id option)) ;; index-id might be platform-specific
+                                              (dom/text ~@((or label identity) option)))))
+                                         ~@
+                                         ~(->> (dom/events dom/parent "input")
+                                               (m/eduction (map dom/target-value)
+                                                           (map index))
+                                               (continuous))))))]
+            value')]
+      (p/$ hf/tx value' props))))
 
 (defn extract-refs [inputs refs]
   (filter second (map (juxt identity (partial get refs)) inputs)))
@@ -408,6 +446,7 @@
             table-picker     table-picker-impl
             row-picker       row-picker-impl
             options-picker   options-picker-impl
+            select-options   select-options-impl
             ;; boolean          boolean-impl
             default-renderer default-renderer-impl
             link-renderer    link-renderer-impl
@@ -420,4 +459,6 @@
                      input-types argument-type spec/valueType->type
                      assoc = gensym merge zipmap
                      extract-refs
-                     sort-inputs-by-spec))
+                     sort-inputs-by-spec
+                     index-by
+                     index-id))
