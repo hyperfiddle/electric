@@ -9,7 +9,7 @@
             #?(:clj [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require-macros [hyperfiddle.dev.logger :refer [debug]]
-                            [hyperfiddle.api :refer [route db entity attribute value context refs props sequenceM render join-all data tx]])))
+                            [hyperfiddle.api :refer [route db basis-t entity attribute value context refs props sequenceM render join-all data tx]])))
 
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 
@@ -89,6 +89,7 @@
 
 (p/def route (atom nil))
 (p/def db nil)
+(p/def basis-t #'nil)
 (p/def entity #'nil)
 (p/def attribute nil)
 (p/def value #'nil)
@@ -98,8 +99,9 @@
 (p/defn tx [v' props]
   (if-let [txfn (::tx props)]
     (p/$ txfn v')
-    (let [[>e a _] (first context)]
-      [[:db/add ~>e a v']])))
+    (when v'
+      (let [[>e a _] (first context)]
+        [[:db/add ~>e a v']]))))
 
 (p/def refs {}) ;; reference points in HFQL expr
 (p/def columns [])

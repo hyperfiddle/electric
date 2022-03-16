@@ -67,17 +67,24 @@
 
 (defn property? [kw] (= "dom.property" (namespace kw)))
 
+(defn debounce [delay flow]
+  (m/ap (let [x (m/?< flow)]
+          (try (m/? (m/sleep delay x))
+               (catch #?(:clj Exception, :cljs :default) _ (m/?> m/none))))))
+
+(defn continuous
+  ([>x] (continuous nil >x))
+  ([init >x] (m/relieve {} (m/reductions {} init >x))))
+
 (p/defn input [props extractor]
-  (let [v (:dom.property/value props)]
-    (dom/input (p/for [[k v] props]
-                 (cond
-                   (= :dom.property/style k) (dom/style v)
-                   (property? k)             (dom/property (name k) v)
-                   :else                     (dom/attribute (name k) v)))
-               ~(->> (dom/events dom/parent "input")
-                     (m/eduction #_(drop 1) (map extractor))
-                     (m/reductions {} v)
-                     (m/relieve {})))))
+  (dom/input (p/for [[k v] props]
+               (cond
+                 (= :dom.property/style k) (dom/style v)
+                 (property? k)             (dom/property (name k) v)
+                 :else                     (dom/attribute (name k) v)))
+             ~(->> (dom/events dom/parent "input")
+                   (m/eduction (map extractor))
+                   (continuous))))
 
 ;; (defn set-state! [!atom v] (reset! !atom v))
 
@@ -140,7 +147,7 @@
                                      (dom/attribute "selected" true))
                                  (dom/text ~@((or label identity) option)))))))
              value'))]
-      (doto (p/$ hf/tx value') prn))))
+      (p/$ hf/tx value' props))))
 
 (defn index-by [kf coll] (into {} (map (juxt kf identity)) coll))
 (defn index-id [x] (str (hash x)))
@@ -209,7 +216,8 @@
                                                    :dom.property/disabled locked?}
                                             dom/target-value))]
                            (log/info "ARG" arg v "->" v')
-                           (if (= v v')
+                           v'
+                           #_(if (= v v')
                              (prn "same as before")
                              (do (prn "new value")
                                  #_(log/warn "setting v -> v'" (pr-str [v v']))
@@ -268,7 +276,9 @@
         (p/$ typeahead >v (assoc props :dom.attribute/type (input-types (spec/valueType->type valueType))))
         (let [value (pr-str value)]
           ~@
-          (dom/code (dom/class "language-clojure") (dom/text value)))))))
+          (do (dom/code (dom/class "language-clojure") (dom/text value))
+              nil ;; no tx
+              ))))))
 
 (p/defn render-options [>v props]
   ~@(dom/element "fieldset"
@@ -276,23 +286,26 @@
                  (dom/element "legend" (dom/text "::hf/options"))
                  ~@(p/$ table-picker >v props)))
 
+(defn into-tx [txs] (into [] cat txs))
+
 (p/defn form-impl [>v props]
   (let [c  (color hf/db)
         tx ~@(dom/element "form"
                           (dom/style {"border-left-color" c})
                           ~@
                           (let [value ~>v]
-                            (p/for [column (::hf/columns props)]
-                              ~@
-                              (dom/div (dom/class "field")
-                                       (dom/style {"border-left-color" c})
-                                       (dom/element "label"
-                                                    (dom/attribute "title" (spec/parse column))
-                                                    (dom/text column))
-                                       ~@(let [[_ a⁻¹ _] (second hf/context)]
-                                           (when-let [inputs (get-in props [::hf/inputs a⁻¹ column])]
-                                             (p/$ render-inputs column inputs)))
-                                       ~@ ~(get value column)))) )]
+                            (into-tx
+                             (p/for [column (::hf/columns props)]
+                               ~@
+                               (dom/div (dom/class "field")
+                                        (dom/style {"border-left-color" c})
+                                        (dom/element "label"
+                                                     (dom/attribute "title" (spec/parse column))
+                                                     (dom/text column))
+                                        ~@(let [[_ a⁻¹ _] (second hf/context)]
+                                            (when-let [inputs (get-in props [::hf/inputs a⁻¹ column])]
+                                              (p/$ render-inputs column inputs)))
+                                        ~@ ~(get value column))))) )]
     (when (::hf/options props)
       (p/$ render-options >v props))
     tx))
@@ -306,11 +319,11 @@
       ~@ ;; client
       (dom/tr
        ~@ ;; server
-       (p/for [col (::hf/columns props)]
-         ~@ ;; client
-         (dom/td (dom/style {"border-color" c})
-                 ~@ ;; server
-                 ~(get value col)))))))
+       (into-tx (p/for [col (::hf/columns props)]
+                  ~@ ;; client
+                  (dom/td (dom/style {"border-color" c})
+                          ~@ ;; server
+                          ~(get value col))))))))
 
 (p/defn table-impl [>v props]
   (let [columns (::hf/columns props)
@@ -325,8 +338,9 @@
                    (dom/text (pr-str col))))))
      (dom/tbody
       ~@(binding [form row]
-          (p/for [row-renderer (seq ~>v)]
-            ~row-renderer))))))
+          (into-tx
+           (p/for [row-renderer (seq ~>v)]
+             ~row-renderer)))))))
 
 (p/defn grid-impl [>v props]
   (let [columns (::hf/columns props)
@@ -460,5 +474,6 @@
                      assoc = gensym merge zipmap
                      extract-refs
                      sort-inputs-by-spec
+                     into-tx
                      index-by
                      index-id))
