@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon-dom
-  (:refer-clojure :exclude [class])
+  (:refer-clojure :exclude [class for])
   (:require [hfdl.lang :as p]
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
@@ -10,7 +10,7 @@
                     (goog.dom.animationFrame)))
   #?(:cljs (:require-macros
              [hyperfiddle.photon-dom :refer
-              [element fragment div span h1 table thead tbody select option context event assign!]])))
+              [element fragment div span h1 table thead tbody select option context event assign! for for-by]])))
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
@@ -230,6 +230,16 @@
 
 ;; The number of milliseconds elapsed since January 1, 1970
 (p/def clock ~>clock)
+
+(defmacro for-by [kf bindings & body]
+  (if-some [[s v & bindings] (seq bindings)]
+    `(p/for-by ~kf [~s ~v]
+       (binding [parent (do ~s parent)]
+         (for-by ~kf ~bindings ~@body)))
+    `(do ~@body)))
+
+(defmacro for [bindings & body]
+  `(for-by identity ~bindings ~@body))
 
 (def exports (p/vars click-event create-mount create-text events
                      set-attribute! set-style! set-text-content!))
