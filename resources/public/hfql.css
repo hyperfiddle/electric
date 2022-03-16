@@ -82,7 +82,7 @@ thead td:empty{
     border: none;
 }
 
-input:not([type="radio"]):not([type="checkbox"]){
+input:not([type="radio"]):not([type="checkbox"]), select {
     box-sizing: border-box;
     /* width:100%; */
     border-width: 1px;
