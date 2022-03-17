@@ -11,40 +11,45 @@
 ;; (rcf/enable!)
 ;; (rcf/enable! false)
 
+(defn db [] (hf/->DB "$" nil nil hf/*$*))
+
 (tests
- (p/run (! (binding [hf/entity 9] (hfql :db/id) )))
+ (p/run (! (binding [hf/db     (db)
+                     hf/entity 9]
+             (hfql :db/id) )))
  % := 9)
 
 (tests
- (p/run (! (binding [hf/entity 9] (hfql [:db/id]) )))
+ (p/run (! (binding [hf/db (db)
+                     hf/entity 9] (hfql [:db/id]) )))
  % := 9)
 
 (p/def string-renderer (p/fn [>v _props] (str ~>v)))
 
 (tests
  "hf/render"
- (p/run (! (binding [hf/entity 9] (hfql (props :db/id {::hf/render string-renderer})) )))
+ (p/run (! (binding [hf/db (db) hf/entity 9] (hfql (props :db/id {::hf/render string-renderer})) )))
  % := "9")
 
 (tests
  "hf/render inline"
- (p/run (! (binding [hf/entity 9] (hfql (props :db/id {::hf/render (p/fn [>v _props] (str ~>v))})) )))
+ (p/run (! (binding [hf/db (db) hf/entity 9] (hfql (props :db/id {::hf/render (p/fn [>v _props] (str ~>v))})) )))
  % := "9")
 
 (tests
- (p/run (! (binding [hf/entity 9] (hfql [(props :db/id {::hf/render string-renderer})]) )))
+ (p/run (! (binding [hf/db (db) hf/entity 9] (hfql [(props :db/id {::hf/render string-renderer})]) )))
  % := "9")
 
 (tests
- (p/run (binding [hf/entity 9] (! (hfql {:dustingetz/gender [:db/ident]}) )))
+ (p/run (binding [hf/db (db) hf/entity 9] (! (hfql {:dustingetz/gender [:db/ident]}) )))
  % := {:dustingetz/gender {:db/ident :dustingetz/female}})
 
 (tests
- (p/run (binding [hf/entity 9] (! (hfql [{:dustingetz/gender [:db/ident]}]) )))
+ (p/run (binding [hf/db (db) hf/entity 9] (! (hfql [{:dustingetz/gender [:db/ident]}]) )))
  % := {:dustingetz/gender {:db/ident :dustingetz/female}})
 
 (tests
- (p/run (! (hfql {(submission "") [:db/id]}) ))
+ (p/run (! (binding [hf/db (db)] (hfql {(submission "") [:db/id]})) ))
  % := {'(user.gender-shirt-size/submission "") {:db/id 9}})
 
 (tests

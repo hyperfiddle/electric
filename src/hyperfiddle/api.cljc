@@ -85,7 +85,7 @@
              (write-all writer "#hyperfiddle.api.Input " (pr-str {:id    (.-id this)
                                                                   :value (.-value this)})))))
 
-(def info (atom "hyperfiddle"))
+(defrecord DB [name basis-t tempids db])
 
 (p/def route (atom nil))
 (p/def db nil)
@@ -112,12 +112,11 @@
        (= 'quote (first form))))
 
 (p/defn join-all [v]
-  ;; (prn "join-all" v)
   (cond
     (quoted? v) v
     (map? v)    (into {} (p/for [[k v] v] [k ~v]))
     (list? v)   (p/for [v v] ~v)
-    (coll? v)   (into (empty v) (p/for [v v] (do (prn v) ~v)))
+    (coll? v)   (into (empty v) (p/for [v v] ~v))
     :else       v))
 
 (p/defn render [>v props]
@@ -162,7 +161,7 @@
 
 (def q (wrap (fn [query & args]
                (log/debug :q query args)
-               (doto (apply d/q query *$* args) log/debug))))
+               (doto (apply d/q query args) log/debug))))
 
 (tests
   (d/q '[:find [?e ...] :where [_ :dustingetz/gender ?g] [?g :db/ident ?e]] *$*)
@@ -178,15 +177,15 @@
                 v)))
   ([db e a & as] (reduce (partial nav! db) (nav! db e a) as)))
 
-(def nav (wrap (fn [e & as]
-                 (log/debug :nav e as)
-                 (doto (apply nav! *$* e as) log/debug))))
+(def nav (wrap (fn [db e a]
+                 (log/debug :nav e a)
+                 (doto (nav! db e a) log/debug))))
 
 (tests
   (nav! *$* 14 :dustingetz/email)
   := "alice@example.com"
 
-  (m/? (m/reduce conj (nav 14 :dustingetz/email)))
+  (m/? (m/reduce conj (nav *$* 14 :dustingetz/email)))
   := ["alice@example.com"])
 
-(def exports (vars rules ->Link info q nav *$* quoted?))
+(def exports (vars rules ->Link q nav *$* quoted? ->DB))
