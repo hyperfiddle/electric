@@ -110,13 +110,15 @@
 ;;            (dom/div (dom/class "tooltip-text")
 ;;                     (dom/text (str label-str)))))
 
+(defn db-color [db] (color (str (:name db) (* 100 (:basis-t db)))))
+
 (p/defn typeahead [>v props]
   (binding [hf/render hf/sequenceM]
     (let [options     (::hf/options props)
           label       (::hf/option-label props)
           attr-type   (:dom.attribute/type props "search")
           disabled    (::hf/disabled props)
-          c           (color hf/db)
+          c           (db-color hf/db)
           value       ~>v
           input-value (str (if (and label value) ~(label value) value))
           value'
@@ -157,7 +159,7 @@
   (binding [hf/render hf/sequenceM]
     (let [label    (::hf/option-label props)
           disabled (::hf/disabled props)
-          c        (color hf/db)
+          c        (db-color hf/db)
           value    (p/$ hf/data >v)
           ;; input-value (str (if (and label value) ~(label value) value))
           value'
@@ -289,7 +291,7 @@
 (defn into-tx [txs] (into [] cat txs))
 
 (p/defn form-impl [>v props]
-  (let [c  (color hf/db)
+  (let [c  (db-color hf/db)
         tx ~@(dom/element "form"
                           (dom/style {"border-left-color" c})
                           ~@
@@ -313,7 +315,7 @@
 (p/defn row-impl [>v _props]
   ;; server
   (binding [form form-impl];; restore binding
-    (let [c             (color hf/db)
+    (let [c             (db-color hf/db)
           value         ~>v
           [_ _ _ props] (second hf/context)]
       ~@ ;; client
@@ -327,7 +329,7 @@
 
 (p/defn table-impl [>v props]
   (let [columns (::hf/columns props)
-        c       (color hf/db)]
+        c       (db-color hf/db)]
     ~@
     (dom/table
      (dom/thead
@@ -345,7 +347,7 @@
 (p/defn grid-impl [>v props]
   (let [columns (::hf/columns props)
         numcols (count columns)
-        c       (color hf/db)]
+        c       (db-color hf/db)]
     ~@
     (dom/table
      (dom/class "grid")
@@ -361,7 +363,7 @@
 (p/defn grid-row-impl [>v _props]
   ;; server
   (binding [form form-impl];; restore binding
-    (let [c             (color hf/db)
+    (let [c             (db-color hf/db)
           value         ~>v
           [_ _ _ props] (second hf/context)]
       (p/for [col (::hf/columns props)]
@@ -373,7 +375,7 @@
 (p/defn row-picker-impl [>v props]
   (binding [form      form-impl
             form-impl form-impl*] ;; restore binding
-    (let [color                 (color hf/db)
+    (let [color                 (db-color hf/db)
           [e⁻¹ a⁻¹ v⁻¹ props⁻¹] (::eav -table-picker-props)
           [>e _ _ _]            (first hf/context)
           e                     ~>e
@@ -403,7 +405,7 @@
 
 (p/defn options-picker-impl [>v props]
   ;; (binding [hf/args ~render-inputs])
-  (let [c               (color hf/db)
+  (let [c               (db-color hf/db)
         columns         (::hf/columns props)
         [_ a _ _]       (nth hf/context 0)
         [_ a⁻¹ _ _]     (nth hf/context 1)
@@ -469,7 +471,7 @@
             ]
     ~>cont))
 
-(def exports (p/vars nil? prn some? schema-attr cardinality conj color
+(def exports (p/vars nil? prn some? schema-attr cardinality conj db-color
                      input-types argument-type spec/valueType->type
                      assoc = gensym merge zipmap
                      extract-refs

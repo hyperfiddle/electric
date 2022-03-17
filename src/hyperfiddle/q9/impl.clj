@@ -318,7 +318,7 @@
                         parent-sym (if (nil? parent)
                                      `hf/entity
                                      (if (= :many (:card parent)) '% (list `unquote (:name parent))))]
-                    `(hf/nav ~parent-sym ~(keyword (:form point))))]
+                    `(hf/nav (:db hf/db) ~parent-sym ~(keyword (:form point))))]
       :call  [nom (let [[f & _args] (:form point)
                         args-name   (map symbol (map :name (spec/args f)))
                         defaultsf   (get (:props point) ::hf/defaults)

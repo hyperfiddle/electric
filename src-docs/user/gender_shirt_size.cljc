@@ -8,7 +8,7 @@
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (p/defn genders []
-  (into [] ~ (hf/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]])))
+  (into [] ~ (hf/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] (:db hf/db))))
 
 (tests
   (def dispose (p/run (! (p/$ genders))))
@@ -38,6 +38,7 @@
               [?e :dustingetz/gender ?gender]
               [?e :db/ident ?ident]
               (hyperfiddle.api/needle-match ?ident ?needle)]
+            (:db hf/db)
             hf/rules gender (or needle "")))))
 
 (p/defn emails [needle]
@@ -46,6 +47,7 @@
            :where
            [?e :dustingetz/email ?email]
            (hyperfiddle.api/needle-match ?email ?needle)]
+         (:db hf/db)
          hf/rules (or needle "")))
 
 (s/fdef emails :args (s/cat :needle string?)
@@ -58,7 +60,8 @@
           :where
           [?e :dustingetz/email ?email]
           (hyperfiddle.api/needle-match ?email ?needle)]
-       hf/rules (or needle ""))))
+          (:db hf/db)
+          hf/rules (or needle ""))))
 
 (s/fdef submissions :args (s/cat :needle string?
                                  :reverse? boolean?)
@@ -73,7 +76,7 @@
 
 
 (s/fdef sub-profile :args (s/cat :sub any?) :ret any?)
-(p/defn sub-profile [sub] ~(hf/nav sub :db/id))
+(p/defn sub-profile [sub] ~(hf/nav (:db hf/db) sub :db/id))
 
 (tests
   (hfdl.lang/run (! (p/$ user.gender-shirt-size/submission "")))
