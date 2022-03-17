@@ -1,6 +1,7 @@
 (ns hyperfiddle.ui6
   (:refer-clojure :exclude [boolean])
   (:require [hfdl.lang :as p]
+            #?(:clj [hfdl.lib :refer [forget]])
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.spec :as spec]
@@ -11,6 +12,7 @@
             [hyperfiddle.dev.logger :as log]
             [hyperfiddle.color :refer [color]])
   #?(:cljs (:require-macros [hyperfiddle.q9 :as hfql]
+                            [hfdl.lib :refer [forget]]
                             [hyperfiddle.ui6 :refer [render
                                                      spec-renderer spec-renderer-impl
                                                      user-renderer user-renderer-impl
@@ -205,26 +207,23 @@
                              set-v!  (if locked? (constantly nil) (partial reset! ?!v))
                              v       (str ~>v)]
                          ;; (log/info "ARG" arg v)
-                         (let [v' ~@ (let [id       (str (gensym))
-                                           arg-spec (spec/arg (first attr) arg)]
-                                       (dom/element "label"
-                                                    (dom/attribute "data-tooltip" (cond-> (pr-str (:predicate arg-spec))
-                                                                                    locked? (str " — internal reference 🔒")))
-                                                    (dom/text (name arg))
-                                                    (dom/attribute "for" (str id)))
-                                       (p/$ input {:dom.attribute/id      id,
-                                                   :dom.attribute/type    (input-types (argument-type (first attr) arg))
-                                                   :dom.property/value    (str v)
-                                                   :dom.property/disabled locked?}
-                                            dom/target-value))]
+                         (when-let [v' ~@ (let [id       (str (gensym))
+                                                arg-spec (spec/arg (first attr) arg)]
+                                            (dom/element "label"
+                                                         (dom/attribute "data-tooltip" (cond-> (pr-str (:predicate arg-spec))
+                                                                                         locked? (str " — internal reference 🔒")))
+                                                         (dom/text (name arg))
+                                                         (dom/attribute "for" (str id)))
+                                            (p/$ input {:dom.attribute/id      id,
+                                                        :dom.attribute/type    (input-types (argument-type (first attr) arg))
+                                                        :dom.property/value    (str v)
+                                                        :dom.property/disabled locked?}
+                                                 dom/target-value))]
                            (log/info "ARG" arg v "->" v')
-                           v'
-                           #_(if (= v v')
+                           (if (= v v')
                              (prn "same as before")
                              (do (prn "new value")
-                                 #_(log/warn "setting v -> v'" (pr-str [v v']))
-                                 (do (set-v! v')
-                                     v'))))))))))
+                                 (set-v! v'))))))))))
 
 ;; TODO remove
 (p/def form-impl*)
