@@ -6,20 +6,15 @@
             [hyperfiddle.todomvc :as t]
             [hyperfiddle.examples.seven-guis.counter :as counter]
             [hyperfiddle.examples.seven-guis.temperatures :as temperature]
-            [user.hfql-distributed :as distributed]
             [user.browser :as browser]
             )
   #?(:cljs (:require-macros [hyperfiddle.router :refer [router hello-world]])))
-
-
-(p/def hello-world #'(dom/text (str "hello " ~@ ~(m/watch hyperfiddle.api/info) " !")))
 
 (p/def router
   #'(dom/div (dom/style {"display"        "grid"
                          "grid-auto-flow" "rows"})
              (let [selected (dom/select
                              (dom/option (dom/text "Pick an example"))
-                             (dom/option (dom/attribute "value" "hello-world") (dom/text "Hello World"))
                              (dom/option (dom/attribute "value" "counter") (dom/text "Counter"))
                              (dom/option (dom/attribute "value" "todomvc") (dom/text "TodoMVC"))
                              (dom/option (dom/attribute "value" "temperature") (dom/text "Temperature"))
@@ -37,7 +32,6 @@
 
                (dom/element "br")
                (case selected
-                 "hello-world" ~hello-world
                  "todomvc"     ~t/app
                  "counter"     ~counter/counter
                  "temperature" ~temperature/main

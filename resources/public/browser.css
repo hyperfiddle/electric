@@ -55,3 +55,14 @@ body {
 .browser .view {
     padding: 1rem 0.25rem;
 }
+
+.hf-error{
+    background-color: rgb(254 242 242);
+    padding: 1rem;
+    border-radius: 3px;
+    opacity:0;
+    display: block;
+}
+.hf-error:not(:empty){
+    opacity: 1;
+}
