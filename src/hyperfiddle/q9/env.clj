@@ -66,10 +66,10 @@
                       form)))
                 form))
 
-(defn make-env [&env]
-  (if (:js-globals &env)
-    &env
+(defn make-env [env]
+  (if (:js-globals env)
+    env
     {:ns     (ns-name *ns*)
      :locals (into {} (reduce-kv (fn [r k v] (if (instance? clojure.lang.Compiler$LocalBinding v)
                                                (assoc r (.-sym v) (.-sym v))
-                                               (assoc r k v))) {} &env))}))
+                                               (assoc r k v))) {} env))}))
