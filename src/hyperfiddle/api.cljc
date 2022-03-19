@@ -15,7 +15,11 @@
 
 (defrecord DB [name basis-t tempids db])
 
-(p/def route (atom nil))
+(def route-state #?(:cljs (atom nil))) ;; Route state lives on the client.
+
+(p/defn set-route! [new-route] ;; could be rebound to set the URL.
+  (reset! route-state new-route))
+(p/def route)
 (p/def db nil)
 (p/def context nil)
 
@@ -62,23 +66,23 @@
 
 
 (tests
-  (p/run (! (p/$ join-all #'[#'1 #'2 #'3])))
-  % := [1 2 3])
+ (p/run (! (p/$ join-all #'[#'1 #'2 #'3])))
+ % := [1 2 3])
 
 (tests
-  (p/run (! (p/$ join-all #'(list #'1 #'2 #'3))))
-  % := '(1 2 3))
+ (p/run (! (p/$ join-all #'(list #'1 #'2 #'3))))
+ % := '(1 2 3))
 
 (tests
-  (p/run (! (p/$ join-all #'{:a #'1, :b #'2, :c #'3})))
-  % := '{:a 1, :b 2, :c 3})
+ (p/run (! (p/$ join-all #'{:a #'1, :b #'2, :c #'3})))
+ % := '{:a 1, :b 2, :c 3})
 
 (p/def ^:deprecated props {})
 (p/def ^:deprecated args {})
 
 ; todo rename wrap, it's sideeffect-fn to fn-returning-flow
 (defn wrap [f] (fn [& args] #?(:clj (m/ap #_(m/? (m/via m/blk (apply f args))) ;; TODO restore and handle continuous flow initial state
-                                          (apply f args))
+                                     (apply f args))
                                :cljs (m/ap (apply f args))))) ; m/via not supported in cljs
 
 (def q (wrap (fn [query & args]
@@ -86,10 +90,10 @@
                (doto (apply d/q query args) log/debug))))
 
 (tests
-  (d/q '[:find [?e ...] :where [_ :dustingetz/gender ?g] [?g :db/ident ?e]] *$*)
-  := [:dustingetz/male :dustingetz/female]
-  (m/? (m/reduce conj (q '[:find [?e ...] :where [_ :dustingetz/gender ?g] [?g :db/ident ?e]])))
-  := [[:dustingetz/male :dustingetz/female]])
+ (d/q '[:find [?e ...] :where [_ :dustingetz/gender ?g] [?g :db/ident ?e]] *$*)
+ := [:dustingetz/male :dustingetz/female]
+ (m/? (m/reduce conj (q '[:find [?e ...] :where [_ :dustingetz/gender ?g] [?g :db/ident ?e]])))
+ := [[:dustingetz/male :dustingetz/female]])
 
 (defn nav!
   ([_ e] e)
@@ -104,11 +108,11 @@
                  (doto (nav! db e a) log/debug))))
 
 (tests
-  (nav! *$* 14 :dustingetz/email)
-  := "alice@example.com"
+ (nav! *$* 14 :dustingetz/email)
+ := "alice@example.com"
 
-  (m/? (m/reduce conj (nav *$* 14 :dustingetz/email)))
-  := ["alice@example.com"])
+ (m/? (m/reduce conj (nav *$* 14 :dustingetz/email)))
+ := ["alice@example.com"])
 
 (def rules
   '[[(hyperfiddle.api/needle-match ?v ?needle)

@@ -263,7 +263,7 @@
                                      (m/relieve {})))]
         (when click
           (do (log/info "Click!" href hf/route)
-            (reset! hf/route href))))))
+              (p/$ hf/set-route! href))))))
 
 (p/defn default-renderer-impl [>v props]
   (cond

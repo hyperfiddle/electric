@@ -1,8 +1,6 @@
 (ns hyperfiddle.hfql.router
   (:require
    [hfdl.lang :as p]
-   [hyperfiddle.q9 :refer [hfql]]
-   [hyperfiddle.api :as hf]
    #?(:clj [hyperfiddle.q9.env :as env]))
   #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [set-route! not-found]])))
 
@@ -24,7 +22,7 @@
   (doseq [page pages]
     (assert (map? page) (str "A router can only route to a page. A page is a single key-value HFQL map. Given `" (pr-str page) "`"))
     (let [keys (keys page)]
-      (assert (= 1 (count keys )) (str "A routable page must have a single entrypoint (root). The given page declares " (count keys) " entrypoints: " (pr-str keys) ". Please choose one. In `" (pr-str page) "`.")))))
+      (assert (= 1 (count keys)) (str "A routable page must have a single entrypoint (root). The given page declares " (count keys) " entrypoints: " (pr-str keys) ". Please choose one. In `" (pr-str page) "`.")))))
 
 (defn- identifier [call]
   (let [[f & args] call]
@@ -44,8 +42,7 @@
 ;;* Router
 ;;
 ;;  Takes:
-;;  - a flow of routes, for the router to be driven from the outside,
-;;  - a function called with the selected route,
+;;  - a route, for the router to be driven from the outside,
 ;;  - one or more pages descriptions.
 ;;
 ;;  A page description is a single key-value HFQL map expression.
@@ -54,35 +51,21 @@
 ;;
 ;;  #+begin_src clojure
 ;;    ;; Router hooked to the browser
-;;    (router >parsed-url set-url!
-;;            {(page1) [:db/id]}
-;;            {(page2) [:db/id]})
-;;
-;;    ;; Standalone router
-;;    (router #'nil (constantly nil)
+;;    (router route
 ;;            {(page1) [:db/id]}
 ;;            {(page2) [:db/id]})
 ;;  #+end_src
 ;;
-(defmacro router [& pages] ;; pages are HFQL exprs, they must all have a
-  (validate-pages! pages)
-  `(let [pages#  ~(routing-map (env/make-env &env) pages)
-         >route# (m/watch hf/route)
-         route#  (unquote >route#)]
-     (validate-route! route#)
-     (let [page# (get pages# (first route#))]
-       (prn "Router Found" page#)
-       (if (some? page#)
-         (p/$ page#)
-         (do (prn "Page not found" (pr-str (first route#)) "in" (pr-str (keys pages#)))
-             (p/$ not-found))))))
-
-
-(p/defn set-route! [sexpr]
-  (validate-route! hf/route sexpr)
-  (reset! hf/route sexpr))
+#?(:clj (defmacro router [route & pages] ;; pages are HFQL exprs, they must all have a
+          (validate-pages! pages)
+          `(let [route# ~route
+                 pages# ~(routing-map (env/make-env &env) pages)]
+             (validate-route! route#)
+             (let [page# (get pages# (first route#))]
+               (prn "Router Found" page#)
+               (if (some? page#)
+                 (p/$ page#)
+                 (do (prn "Page not found" (pr-str (first route#)) "in" (pr-str (keys pages#)))
+                     (p/$ not-found)))))))
 
 (p/defn not-found [] "page not found")
-
-;; (router #'nil (constantly nil)
-;;         {(user.gender-shirt-size/submissions .) [:dustingetz/email]} ) 

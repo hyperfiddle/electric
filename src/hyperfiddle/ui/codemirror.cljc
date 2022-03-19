@@ -2,7 +2,6 @@
   (:require
    [hfdl.lang :as p]
    [hfdl.impl.runtime]
-   #?(:cljs [clojure.pprint :as pprint])
    #?(:cljs ["@codemirror/fold" :as fold])
    #?(:cljs ["@codemirror/gutter" :refer [lineNumbers]])
    #?(:cljs ["@codemirror/highlight" :as highlight])
@@ -10,7 +9,7 @@
    #?(:cljs ["@codemirror/state" :refer [EditorState]])
    #?(:cljs ["@codemirror/view" :as view :refer [EditorView]])
    #?(:cljs [nextjournal.clojure-mode :as cm-clj])
-   #?(:cljs [missionary.core :as m]))
+   [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.ui.codemirror :refer [CodeMirror]])))
 
 #?(:cljs
@@ -49,33 +48,31 @@
                                (cond-> inline-extensions
                                  (not (:inline props)) (concat [(lineNumbers) (fold/foldGutter)])
                                  true (concat [(.. EditorView -updateListener (of (fn [^js view-update]
-                                                                                    (when (.-docChanged view-update)
-                                                                                      (on-update view-update))
+                                                                                    (on-update view-update)
                                                                                     true)))])))})))
 
 #?(:cljs (defn make-editor [props on-change]
            (new EditorView #js{:parent (:parent props) :state (make-state props "" on-change)})))
 
-#?(:cljs (def set-editor-value!
-           (fn [^js view edn]
-             (js/console.log "set on view" edn view)
-             (let [str (with-out-str (pprint/pprint edn))]
-               (.dispatch view #js{:changes #js {:from   0
-                                                 :to     (.. view -state -doc -length)
-                                                 :insert str}})))))
-
-#?(:cljs (defn codemirror [props]
-           (let [on-change! (atom (constantly nil))
-                 ^js view   (make-editor props (fn [^js view-update]
-                                                 (@on-change! (.. view-update -state -doc (toString)))))]
-             [view (m/observe (fn [!]
-                                (! nil)
-                                (reset! on-change! !)
-                                #(.destroy view)))])))
-
-#_{:clj-kondo/ignore [:unused-binding]}
-(p/defn CodeMirror [props value]
+(def set-editor-value!
   #?(:cljs
-     (let [[view >value'] (codemirror props)]
-       (set-editor-value! view value)
-       ~>value')))
+     (fn [^js view new-value]
+       (.dispatch view #js{:changes #js {:from   0
+                                         :to     (.. view -state -doc -length)
+                                         :insert new-value}}))))
+(def codemirror
+  #?(:cljs (fn [props]
+             (let [on-change! (atom (constantly nil))
+                   ^js view   (make-editor props (fn [^js view-update]
+                                                   (when (.-docChanged view-update)
+                                                     (@on-change! (.. view-update -state -doc (toString))))))]
+               [view (m/observe (fn [!]
+                                  (reset! on-change! !)
+                                  #(.destroy view)))]))))
+
+(p/defn CodeMirror [props value]
+  (let [[view >value'] (codemirror props)] ;; TODO don’t recreate instance for each value
+    (set-editor-value! view value)
+    ~(->> >value'
+          (m/reductions {} value)
+          (m/relieve {}))))
