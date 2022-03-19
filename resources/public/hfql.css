@@ -10,13 +10,15 @@ form {
     grid-gap: 0.5rem;
     grid-auto-flow:row;
     padding-bottom: 0.5rem;
+    border-left-style: solid;
+    border-left-width: 0.25rem;
+    padding-left: 0.25rem;
 }
 
 form .field{
     display:grid;
     border-left-width: 0rem;
     border-left-style: solid;
-    padding-left: 0.5rem;
     padding-bottom: 0.5rem;
     grid-gap: 0.5rem;
 }
