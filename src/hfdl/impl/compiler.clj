@@ -1,57 +1,13 @@
 (ns hfdl.impl.compiler
-  (:require [clojure.tools.analyzer.env :as env]
-            [clojure.tools.analyzer.jvm :as clj]
-            [clojure.tools.analyzer.utils :as utils]
+  (:require [clojure.tools.analyzer.jvm :as clj]
             [missionary.core :as m]
             [hfdl.impl.util :as u]
             [cljs.analyzer :as cljs]
             [hfdl.impl.runtime :as r]
-            [hyperfiddle.rcf :as rcf :refer [tests]])
-  (:import clojure.lang.Compiler$LocalBinding
-           cljs.tagged_literals.JSValue
+            [hyperfiddle.rcf :as rcf :refer [tests]]
+            [cljs.analyzer.api :as api])
+  (:import cljs.tagged_literals.JSValue
            (clojure.lang Box Var)))
-
-(defn out [& args]
-  (doseq [arg args]
-    (.print System/out (pr-str arg))
-    (.print System/out " "))
-  (.println System/out))
-
-;; GG: This is a copy/paste from `clojure.tools.analyser.jvm/macroexpand-1`, without inlining.
-(defn macroexpand-1'
-  "If form represents a macro form,returns its expansion, else returns form."
-  ([form] (macroexpand-1' form (clj/empty-env)))
-  ([form env]
-   (env/ensure (clj/global-env)
-     (cond
-       (seq? form) (let [[op & _args] form]
-                     (if (clj/specials op)
-                       form
-                       (let [v (utils/resolve-sym op env)
-                             m (meta v)
-                             local? (-> env :locals (get op))
-                             macro? (and (not local?) (:macro m)) ;; locals shadow macros
-                             ]
-                         (if macro?
-                           (let [res (apply v form (:locals env) (rest form))] ; (m &form &env & args)
-                             (when-not (clj/ns-safe-macro v)
-                               (clj/update-ns-map!))
-                             (if (utils/obj? res)
-                               (vary-meta res merge (meta form))
-                               res))
-                           (clj/desugar-host-expr form env)))))
-       (symbol? form) (clj/desugar-symbol form env)
-       :else form))))
-
-(defn normalize-binding [binding]
-  (if (instance? Compiler$LocalBinding binding)
-    (let [binding ^Compiler$LocalBinding binding]
-      {:op   :local
-       :tag  (when (.hasJavaClass binding)
-               (some-> binding (.getJavaClass)))
-       :form (.-sym binding)
-       :name (.-sym binding)})
-    binding))
 
 (defn normalize-env [env]
   (if (:js-globals env)
@@ -173,7 +129,7 @@ is a macro or special form."
 
 (defn resolve-node [env sym]
   (let [clj-var  (resolve-var env sym)
-        cljs-var (when-not (some? clj-var) (cljs.analyzer.api/resolve env sym))]
+        cljs-var (when-not (some? clj-var) (api/resolve env sym))]
     (if (or (some? clj-var) (some? cljs-var))
       (let [m        (if (some? clj-var)
                        (meta clj-var)
@@ -350,7 +306,7 @@ is a macro or special form."
 
 (defn analyze-map [env form]
   (analyze-form env (if-let [m (meta form)]
-                      (list `with-meta (cons `hash-map (sequence cat form)) (meta form))
+                      (list `with-meta (cons `hash-map (sequence cat form)) m)
                       (cons `hash-map (sequence cat form)))))
 
 (defn analyze-set [env form]
@@ -359,7 +315,7 @@ is a macro or special form."
 (defn analyze-vector [env form]
   (analyze-form env (cons `vector form)))
 
-(defn analyze-js [env form]
+(defn analyze-js [_env _form]
   (assert nil "Not implemented : #js"))
 
 (defn analyze-form [env form]
