@@ -8,93 +8,22 @@
             [missionary.core :as m]
             #?(:clj [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require [hyperfiddle.dev.logger :as log]))
-  #?(:cljs (:require-macros [hyperfiddle.dev.logger :refer [debug]]
-                            [hyperfiddle.api :refer [route db basis-t entity attribute value context refs props sequenceM render join-all data tx]])))
+  #?(:cljs (:require-macros [hyperfiddle.api :refer [route db basis-t entity attribute value context refs props sequenceM render join-all data tx]])))
 
+;; TODO remove, use hf/db instead
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
-
-(defmacro hfql [& body])
-(defmacro page [& body])
-(defmacro app [& body])
-
-(defn needle-match [v needle]
-  (clojure.string/includes?
-    (.toLowerCase (or (str v) ""))
-    (.toLowerCase (or (str needle) ""))))
-
-(tests
-  (needle-match "alice" "a") := true
-  (needle-match "alice" "A") := true
-  (needle-match "alice" "b") := false)
-
-(defn needle-match' [v needle]
-  (boolean (re-find #?(:clj  (re-pattern (str "(?i)" needle))
-                       :cljs (js/RegExp. needle "i")) v)))
-
-(tests
-  (needle-match' "alice" "a") := true
-  (needle-match' "alice" "A") := true
-  (needle-match' "alice" "b") := false)
-
-(def rules
-  '[[(hyperfiddle.api/needle-match ?v ?needle)
-     [(str ?v) ?v']
-     [(str ?needle) ?needle']
-     #_[(.toLowerCase ?v')]
-     #_[(.toLowerCase ?needle')]
-     #_[(clojure.string/includes? ?v' ?needle')]
-     [(clojure.string/includes? ?v' ?needle')]]])
-
-;;;;;;;;;;;;;;;;;;;;
-;; Semantic Types ;;
-;;;;;;;;;;;;;;;;;;;;
-
-(deftype Link [href value]
-  Object
-  (toString [this]
-    (str "#hyperfiddle.api.Link " {:href href, :value value}))
-  (equals [this other]
-    (and (= href (.href other))
-         (= value (.value other)))))
-
-(deftype Input [id value onChange]
-  Object
-  (toString [this]
-    (str "#hyperfiddle.api.Input" {:id    id
-                                   :value value}))
-  (equals [this other]
-    (= (.id this) (.id other))))
-
-#?(:clj (defmethod print-method Link [^Link v w]
-          (.write w (.toString v))))
-
-#?(:clj (defmethod print-method Input [^Input v w]
-          (.write w (.toString v))))
-
-#?(:cljs (cljs.reader/register-tag-parser! 'hyperfiddle.api.Link (fn [{:keys [href value]}] (Link. href value))))
-
-#?(:cljs (cljs.reader/register-tag-parser! 'hyperfiddle.api.Input (fn [{:keys [id value]}] (Input. id value nil))))
-
-#?(:cljs (extend-protocol IPrintWithWriter
-           Link
-           (-pr-writer [this writer _]
-             (write-all writer "#hyperfiddle.api.Link " (pr-str {:href  (.-href this)
-                                                                 :value (.-value this)})))
-           Input
-           (-pr-writer [this writer _]
-             (write-all writer "#hyperfiddle.api.Input " (pr-str {:id    (.-id this)
-                                                                  :value (.-value this)})))))
 
 (defrecord DB [name basis-t tempids db])
 
 (p/def route (atom nil))
 (p/def db nil)
-(p/def basis-t #'nil)
-(p/def entity #'nil)
-(p/def attribute nil)
-(p/def value #'nil)
-(p/def options-attribute #'nil)
 (p/def context nil)
+
+(p/def entity #'nil)
+(p/def ^:deprecated attribute nil)
+(p/def ^:deprecated value #'nil)
+(p/def ^:deprecated options-attribute #'nil)
+
 
 (p/defn tx [v' props]
   (if-let [txfn (::tx props)]
@@ -103,9 +32,9 @@
       (let [[>e a _] (first context)]
         [[:db/add ~>e a v']]))))
 
-(p/def refs {}) ;; reference points in HFQL expr
-(p/def columns [])
-(p/def inputs [])
+(p/def ^:deprecated refs {}) ;; reference points in HFQL expr
+(p/def ^:deprecated columns [])
+(p/def ^:deprecated inputs [])
 
 (defn quoted? [form]
   (and (seq? form)
@@ -119,6 +48,9 @@
     (coll? v)   (into (empty v) (p/for [v v] ~v))
     :else       v))
 
+;; https://hackage.haskell.org/package/base-4.15.0.0/docs/Control-Monad.html#v:sequence
+(p/defn sequenceM [>v _props] (p/$ join-all ~>v))
+
 (p/defn render [>v props]
   (if-let [renderer (::render props)]
     (p/$ renderer >v props)
@@ -126,33 +58,23 @@
       (str "<a href=\"" (pr-str ~(second link)) "\">" (p/$ join-all ~>v) "</a>")
       (p/$ join-all ~>v))))
 
-;; https://hackage.haskell.org/package/base-4.15.0.0/docs/Control-Monad.html#v:sequence
-(p/defn sequenceM [>v _props] (p/$ join-all ~>v))
-
 (p/defn data [>v] (binding [render sequenceM] (p/$ render >v nil)))
 
-;; (p/run (binding [value #'{:a #':b}]
-;;          (prn ~sequenceM)))
 
 (tests
-  (p/run (! (binding [value #'[#'1 #'2 #'3]]
-              ~sequenceM)))
+  (p/run (! (p/$ join-all #'[#'1 #'2 #'3])))
   % := [1 2 3])
 
 (tests
-  (p/run (! (binding [value #'(list #'1 #'2 #'3)]
-              ~sequenceM)))
+  (p/run (! (p/$ join-all #'(list #'1 #'2 #'3))))
   % := '(1 2 3))
 
 (tests
-  (p/run (! (binding [value #'{:a #'1, :b #'2, :c #'3}]
-              ~sequenceM)))
+  (p/run (! (p/$ join-all #'{:a #'1, :b #'2, :c #'3})))
   % := '{:a 1, :b 2, :c 3})
 
-(p/def link #'~value)
-
-(p/def props {})
-(p/def args  {})
+(p/def ^:deprecated props {})
+(p/def ^:deprecated args {})
 
 ; todo rename wrap, it's sideeffect-fn to fn-returning-flow
 (defn wrap [f] (fn [& args] #?(:clj (m/ap #_(m/? (m/via m/blk (apply f args))) ;; TODO restore and handle continuous flow initial state
@@ -188,4 +110,13 @@
   (m/? (m/reduce conj (nav *$* 14 :dustingetz/email)))
   := ["alice@example.com"])
 
-(def exports (vars rules ->Link q nav *$* quoted? ->DB))
+(def rules
+  '[[(hyperfiddle.api/needle-match ?v ?needle)
+     [(str ?v) ?v']
+     [(str ?needle) ?needle']
+     #_[(.toLowerCase ?v')]
+     #_[(.toLowerCase ?needle')]
+     #_[(clojure.string/includes? ?v' ?needle')]
+     [(clojure.string/includes? ?v' ?needle')]]])
+
+(def exports (vars rules q nav *$* quoted? ->DB))
