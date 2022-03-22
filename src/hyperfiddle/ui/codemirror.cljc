@@ -1,16 +1,13 @@
 (ns hyperfiddle.ui.codemirror
-  (:require
-   [hfdl.lang :as p]
-   [hfdl.impl.runtime]
-   #?(:cljs ["@codemirror/fold" :as fold])
-   #?(:cljs ["@codemirror/gutter" :refer [lineNumbers]])
-   #?(:cljs ["@codemirror/highlight" :as highlight])
-   #?(:cljs ["@codemirror/history" :refer [history historyKeymap]])
-   #?(:cljs ["@codemirror/state" :refer [EditorState]])
-   #?(:cljs ["@codemirror/view" :as view :refer [EditorView]])
-   #?(:cljs [nextjournal.clojure-mode :as cm-clj])
-   [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.ui.codemirror :refer [CodeMirror]])))
+  #?(:cljs (:require
+            ["@codemirror/fold" :as fold]
+            ["@codemirror/gutter" :refer [lineNumbers]]
+            ["@codemirror/highlight" :as highlight]
+            ["@codemirror/history" :refer [history historyKeymap]]
+            ["@codemirror/state" :refer [EditorState]]
+            ["@codemirror/view" :as view :refer [EditorView]]
+            [nextjournal.clojure-mode :as cm-clj]
+            [missionary.core :as m])))
 
 #?(:cljs
    (def theme
@@ -52,27 +49,26 @@
                                                                                     true)))])))})))
 
 #?(:cljs (defn make-editor [props on-change]
-           (new EditorView #js{:parent (:parent props) :state (make-state props "" on-change)})))
+           (new EditorView #js{:parent (:parent props) :state (make-state props "nil" on-change)})))
 
 (def set-editor-value!
   #?(:cljs
-     (fn [^js view new-value]
-       (.dispatch view #js{:changes #js {:from   0
-                                         :to     (.. view -state -doc -length)
-                                         :insert new-value}}))))
-(def codemirror
+     (fn [^js view, new-value]
+       (let [change #js {:from   0
+                         :to     (.. view -state -doc -length)
+                         :insert (str new-value)}]
+         (.dispatch view #js {:changes change})))))
+
+(def ^{:doc "Return a pair of `[view >value]` :      
+  - `view` is an Editor instance.
+  - `>value` is a discreet flow of the editor content (string)."}
+  codemirror
   #?(:cljs (fn [props]
              (let [on-change! (atom (constantly nil))
                    ^js view   (make-editor props (fn [^js view-update]
-                                                   (when (.-docChanged view-update)
+                                                   (when (and (.. view-update -view -hasFocus) ;; user manual action
+                                                              (.-docChanged view-update))                                                     (prn "CM - Change!" (.. view-update -state -doc (toString)))
                                                      (@on-change! (.. view-update -state -doc (toString))))))]
                [view (m/observe (fn [!]
                                   (reset! on-change! !)
                                   #(.destroy view)))]))))
-
-(p/defn CodeMirror [props value]
-  (let [[view >value'] (codemirror props)] ;; TODO don’t recreate instance for each value
-    (set-editor-value! view value)
-    ~(->> >value'
-          (m/reductions {} value)
-          (m/relieve {}))))
