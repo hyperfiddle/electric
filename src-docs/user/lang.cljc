@@ -877,3 +877,6 @@
   (swap! !input pop)
   % := :down
   % := [1])
+
+(tests
+  (r/run2 (r/vars vector) (prn (r/for [id ~@[1]] id))))

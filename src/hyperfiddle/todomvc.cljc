@@ -1,11 +1,11 @@
 (ns hyperfiddle.todomvc
-  (:require [clojure.edn :refer [read-string]]
+  (:require [clojure.edn :as edn]
             [datascript.core :as d]
             [missionary.core :as m]
             [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z])
-  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db basis-t todo-list transact!']])))
+  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db basis-t todo-list transact!' app]])))
 
 (def auto-inc (partial swap! (atom 0) inc))
 
@@ -44,37 +44,51 @@
           (dom/text "TodoMVC")
           (dom/input
             (dom/attribute "type" "text")
-            ~(->> (dom/events dom/parent "keyup" #_dom/keydown-event)
-                  (m/eduction
-                    (filter (comp #{dom/keycode-enter} dom/keycode))
-                    (map (comp task-create dom/target-value))
-                    (map (partial clear-input! dom/parent)))
-               (z/fsm nil (m/eduction (drop 1) #'basis-t)))))
+            (z/instant basis-t
+              (->> (dom/events dom/parent "keyup")
+                (m/eduction
+                  (filter (comp #{dom/keycode-enter} dom/keycode))
+                  (map (comp task-create dom/target-value))
+                  (map (partial clear-input! dom/parent)))))))
         (dom/div
           (apply concat
-                 (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
-                   (let [status ~@(d/q '[:find ?s . :in $ ?e :where [?e :task/status ?s]] db id)
-                         description ~@(d/q '[:find ?s . :in $ ?e :where [?e :task/description ?s]] db id)]
-                     (dom/div
-                       (concat
-                         (dom/input
-                           (dom/attribute "type" "checkbox")
-                           (dom/set-checked! dom/parent (#{:done} status))
-                           ~(->> (dom/events dom/parent dom/input-event)
-                                 (m/eduction
-                                   (map dom/event-target)
-                                   (map dom/get-checked)
-                                   (map {false :active, true :done})
-                                   (map (partial task-status id)))
-                                 (z/fsm nil (m/eduction (drop 1) #'basis-t))))
-                         (dom/span (dom/text (str id "-" description)))))))))
+            (dom/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
+              (let [status ~@(d/q '[:find ?s . :in $ ?e :where [?e :task/status ?s]] db id)
+                    description ~@(d/q '[:find ?s . :in $ ?e :where [?e :task/description ?s]] db id)]
+                (dom/div
+                  (concat
+                    (dom/input
+                      (dom/attribute "type" "checkbox")
+                      (dom/set-checked! dom/parent (#{:done} status))
+                      (z/instant basis-t
+                        (->> (dom/events dom/parent dom/input-event)
+                          (m/eduction
+                            (map dom/event-target)
+                            (map dom/get-checked)
+                            (map {false :active, true :done})
+                            (map (partial task-status id))))))
+                    (dom/span (dom/text (str id "-" description)))))))))
         (dom/div
           (dom/span
             (dom/text (str ~@(count (d/q '[:find [?e ...] :in $ ?status
                                            :where [?e :task/status ?status]]
-                                         db :active)) " items left")))))))
+                                      db :active)) " items left")))))))
 
-(def !conn #?(:clj (d/create-conn {})))
+(def !conn (d/create-conn {}))
+
+(defn transact [tx-data]
+  (prn :tx-data tx-data)
+  (d/transact! !conn tx-data) 1)
+
+(p/def app
+  #'(let [!t (atom 0)]
+      (binding [basis-t ~(m/watch !t)]
+        (prn :basis-t basis-t)
+        ~@(binding [db ~(m/watch !conn)]
+            ~@(if-some [tx-data (seq ~todo-list)]
+                (swap! !t + ~@(transact tx-data))
+                (prn :idle))))))
+
 (def !stage #?(:cljs (atom nil)))                            ; we choose stage on client
 
 (p/defn transact!' [stage]
@@ -86,7 +100,7 @@
                                      (println ::auto-inc stage @!x)
                                      (swap! !x inc))))
 
-(p/def app
+(p/def app-staging-fixme
   #'(let [stage ~(m/eduction (dedupe) (m/watch !stage))]
       ~@(let [tx-report (d/with ~(m/watch !conn) stage)]
           (println ::tx-report tx-report)
@@ -119,7 +133,7 @@
                                              (dedupe)))))]
         (do
           (js/console.log ::stage tx-data)
-          (reset! !stage (clojure.edn/read-string tx-data)))
+          (reset! !stage (edn/read-string tx-data)))
         (do (js/console.log ::stage ::idle)
             nil))))
 
@@ -130,4 +144,4 @@
 ; Does d/with and d/transact return the same time basis for the same log value
 ; touch query with latest time basis
 
-(def exports (p/vars d/q d/transact! !conn println d/with))
+(def exports (p/vars d/q d/transact! !conn transact println d/with))
