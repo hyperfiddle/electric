@@ -1,6 +1,7 @@
 (ns hfdl.lib
   (:require [hfdl.impl.gather :refer [gather]]
             [hfdl.impl.eventually :refer [eventually]]
+            [hfdl.impl.runtime :as r]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str])
@@ -85,7 +86,7 @@ flow of values matching that key in the input map.
 
 (defn seq-diff [kf done]
   (fn [rf]
-    (let [state (doto (object-array 4)
+    (let [state (doto (object-array 5)
                   (aset (int 0) {})                     ;; prev {key [[id slot value]...]}
                   (aset (int 1) {})                     ;; curr
                   (aset (int 2) 0)                      ;; current slot
@@ -113,11 +114,14 @@ flow of values matching that key in the input map.
         ([] (rf))
         ([r] (rf r))
         ([r xs]
-         (let [{:keys [add move change]} (scan xs)
+         (let [failure (r/failure xs)
+               {:keys [add move change]} (when-not failure (scan xs))
+               change (merge change (when-not (= failure (aget state (int 4))) {0 failure}))
                remove (val-first (aget state (int 0)))]
            (aset state (int 0) (aget state (int 1)))
            (aset state (int 1) {})
            (aset state (int 2) 0)
+           (aset state (int 4) failure)
            (-> r
              (send-remove remove)
              (send-move move)
@@ -136,7 +140,8 @@ flow of values matching that key in the input map.
       {:id "bob" :name "bob@yahoo.com"}
       {:id "alice" :email "alice@msn.com"}]
      [{:id "bob" :name "bob@yahoo.com"}
-      {:id "alice" :email "alice@msn.com"}]]) :=
+      {:id "alice" :email "alice@msn.com"}]
+     (r/->Failure nil)]) :=
   [[1 :index 0]
    [1 :value {:id "alice", :email "alice@caramail.com"}]
    [1 :value {:id "alice", :email "alice@gmail.com"}]
@@ -151,7 +156,12 @@ flow of values matching that key in the input map.
    [3 :value ::done]
    [2 :index 0]
    [1 :index 1]
-   [1 :value {:id "alice", :email "alice@msn.com"}]])
+   [1 :value {:id "alice", :email "alice@msn.com"}]
+   [2 :index :hfdl.lib/done]
+   [2 :value :hfdl.lib/done]
+   [1 :index :hfdl.lib/done]
+   [1 :value :hfdl.lib/done]
+   [0 :value (r/->Failure nil)]])
 
 (defn conj-nil [r] (conj r nil))
 
@@ -172,7 +182,7 @@ flow of values matching that key in the input map.
 (defn seq-patch
   ([] [[] {}])
   ([x] x)
-  ([[v s] [id->slot id->value]]
+  ([[v s _] [id->slot id->value]]
    (let [slots (reduce-kv
                  (fn [m id slot]
                    (case slot
@@ -188,8 +198,9 @@ flow of values matching that key in the input map.
                       (case slot
                         -1 values
                         (assoc values slot (get v (get s id)))))
-                    (resize v (- (count slots) (count s))) id->slot) id->value)]
-     [values slots])))
+                    (resize v (- (count slots) (count s))) id->slot)
+                  (dissoc id->value 0))]
+     [values slots (id->value 0)])))
 
 (tests
   (reduce seq-patch (seq-patch)
@@ -202,7 +213,7 @@ flow of values matching that key in the input map.
   :=
   [[{:id "bob", :name "bob@yahoo.com"}
     {:id "alice", :email "alice@msn.com"}]
-   {1 1, 2 0}])
+   {1 1, 2 0} nil])
 
 (defn map-by "
 Given a function and a continuous flow of collections, returns a continuous flow of vectors of the same size as input
@@ -216,22 +227,30 @@ flow of values matching the identity provided by key function, defaulting to ide
      (m/group-by pop)
      (m/eduction
        (map (fn [[[id tag] >x]]
-              (case tag
-                :index (->> >x
-                         (m/eduction (map peek)
-                           (take-while (complement #{::done}))
-                           (append -1))
-                         (m/relieve {})
-                         (m/latest (partial update empty-diff 0 assoc id)))
-                :value (->> >x
-                         (m/eduction (map peek)
-                           (take-while (complement #{::done}))
-                           (append e))
-                         (m/relieve {})
-                         (f) (m/latest (partial update empty-diff 1 assoc id)))))))
+              (case id
+                0 (->> >x
+                    (m/eduction (map peek))
+                    (m/relieve {})
+                    (m/latest (partial update empty-diff 1 assoc id)))
+                (case tag
+                  :index (->> >x
+                           (m/eduction (map peek)
+                             (take-while (complement #{::done}))
+                             (append -1))
+                           (m/relieve {})
+                           (m/latest (partial update empty-diff 0 assoc id)))
+                  :value (->> >x
+                           (m/eduction (map peek)
+                             (take-while (complement #{::done}))
+                             (append e))
+                           (m/relieve {})
+                           (f) (m/latest (partial update empty-diff 1 assoc id))))))))
      (gather merge-diff)
      (m/reductions seq-patch)
-     (m/latest #(get % 0)))))
+     (m/latest (fn [[v _ f]]
+                 (if (r/failure f)
+                   f (if-some [f (apply r/failure v)]
+                       f v)))))))
 
 (tests
   (let [!xs (atom [])
