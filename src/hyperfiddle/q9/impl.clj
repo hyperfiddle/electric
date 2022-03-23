@@ -1,4 +1,4 @@
-(ns ^{:clj-kondo/config '{:lint-as {hyperfiddle.q9.impl/condf clojure.core/condp}}}
+(ns ;;^{:clj-kondo/config '{:lint-as {hyperfiddle.q9.impl/condf clojure.core/condp}}}
     hyperfiddle.q9.impl
   (:refer-clojure :exclude [bound? munge ancestors])
   (:require

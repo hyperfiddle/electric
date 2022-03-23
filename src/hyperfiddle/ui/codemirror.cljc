@@ -1,5 +1,10 @@
 (ns hyperfiddle.ui.codemirror
-  #?(:cljs (:require
+  #?(:clj  (:require [hfdl.lang :as p]
+                     [hfdl.lib :as lib]
+                     [missionary.core :as m])
+     :cljs (:require
+            [hfdl.lang :as p]
+            [hfdl.lib :as lib]
             ["@codemirror/fold" :as fold]
             ["@codemirror/gutter" :refer [lineNumbers]]
             ["@codemirror/highlight" :as highlight]
@@ -68,7 +73,16 @@
                    ^js view   (make-editor props (fn [^js view-update]
                                                    (when (and (.. view-update -view -hasFocus) ;; user manual action
                                                               (.-docChanged view-update))                                                     (prn "CM - Change!" (.. view-update -state -doc (toString)))
-                                                     (@on-change! (.. view-update -state -doc (toString))))))]
+                                                         (@on-change! (.. view-update -state -doc (toString))))))]
                [view (m/observe (fn [!]
                                   (reset! on-change! !)
                                   #(.destroy view)))]))))
+
+
+(p/defn CodeMirror [props readf writef value]
+  (let [[view >value] (codemirror props)]
+    (set-editor-value! view (writef value))
+    ~(->> >value
+          (m/eduction (map readf))
+          (lib/newest #'value)
+          (lib/continuous))))

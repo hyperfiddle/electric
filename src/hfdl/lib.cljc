@@ -7,7 +7,7 @@
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str])
   (:import missionary.Cancelled)
-  #?(:cljs (:require-macros [hfdl.lib :refer [forget deduping]])))
+  #?(:cljs (:require-macros [hfdl.lib :refer [forget deduping get-memoized]])))
 
 (defn append [y]
   (fn [rf]
@@ -288,6 +288,10 @@ flow of values matching the identity provided by key function, defaulting to ide
 ;;    @it := failure
 ;;    ))
 
+(defn continuous
+  ([>x] (continuous nil >x))
+  ([init >x] (m/relieve {} (m/reductions {} init >x))))
+
 (defmacro forget
   "Like `do` but returs `nil` once, then never return again."
   [& body]
@@ -301,3 +305,5 @@ flow of values matching the identity provided by key function, defaulting to ide
                  (m/eduction (dedupe))
                  (m/reductions {} nil)
                  (m/relieve {}))))
+
+(defn newest [>left >right] (m/ap (m/?< (m/amb= >left >right))))
