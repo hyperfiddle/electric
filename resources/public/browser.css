@@ -56,12 +56,26 @@ body {
     padding: 1rem 0.25rem;
 }
 
+.hf-error-wrapper{
+    position: relative;
+}
+
 .hf-error{
+    position: absolute;
+    box-sizing: border-box;
+    display: block;
+    z-index: 1;
+    width: 100%;
     background-color: rgb(254 242 242);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     padding: 1rem;
     border-radius: 3px;
-    opacity:0;
-    display: block;
+    
+    margin-top: 1rem;
+    top: 50%; /* ok but not correct */
+
+    opacity: 0;
+    transition: 0.4s ease opacity;
 }
 .hf-error:not(:empty){
     opacity: 1;

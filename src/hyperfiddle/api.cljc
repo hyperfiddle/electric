@@ -8,7 +8,8 @@
             [missionary.core :as m]
             #?(:clj [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require [hyperfiddle.dev.logger :as log]))
-  #?(:cljs (:require-macros [hyperfiddle.api :refer [route db basis-t entity attribute value context refs props sequenceM render join-all data tx]])))
+  #?(:cljs (:require-macros [hyperfiddle.api :refer [route db entity attribute value context refs props sequenceM render join-all data tx
+                                                     ]])))
 
 ;; TODO remove, use hf/db instead
 (def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
@@ -19,8 +20,13 @@
 
 (p/defn set-route! [new-route] ;; could be rebound to set the URL.
   (reset! route-state new-route))
+
 (p/def route)
+
+(def db-state #?(:clj (atom nil)))
+
 (p/def db nil)
+
 (p/def context nil)
 
 (p/def entity #'nil)

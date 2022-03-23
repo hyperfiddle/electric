@@ -1,21 +1,18 @@
 (ns hyperfiddle.hfql.router
   (:require
    [hfdl.lang :as p]
-   #?(:clj [hyperfiddle.q9.env :as env]))
-  #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [set-route! not-found]])))
+   [hfdl.lib :as lib]
+   #?(:clj [hyperfiddle.q9 :as hfql])
+   #?(:clj [hyperfiddle.q9.env :as env])
+   )
+  #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [not-found]]
+                            [hfdl.lib])))
 
-(defn fncall [sexpr] (and (seq? sexpr) (symbol? (first sexpr))))
+(defn- fncall [sexpr] (and (seq? sexpr) (symbol? (first sexpr))))
 
-(defn validate-route!
-  ([route]
-   (when (not (fncall route))
-     (throw (ex-info (str "Tryed to set an invalid route. Routes are symbolic function calls like `(foo :bar)`, given `" route "`.") {:route route}))))
-  ([old-route new-route]
-   (let [ex-data {:old-route old-route
-                  :new-route new-route}]
-     (cond
-       ;; (nil? old-route)         (throw (ex-info (str "Not in a routing context. Tried to set route `" (pr-str new-route) "`.") ex-data))
-       (not (fncall new-route)) (throw (ex-info (str "Tryed to set an invalid route. Routes are symbolic function calls like `(foo :bar)`, given `" new-route "`.") ex-data))))))
+(defn validate-route! [route]
+  (when (not (fncall route))
+    (throw (ex-info (str "Invalid route. Routes are symbolic function calls like `(foo :bar)`, given `" route "`.") {:route route}))))
 
 (defn validate-pages! [pages]
   (assert (seq pages) "A router requires at least one page to route to.")
@@ -37,7 +34,9 @@
 
 #?(:clj
    (defn routing-map [&env pages]
-     (into {} (map (fn [page] [(list 'quote (env/resolve-syms &env (page-identifier page))) `#'(hfql ~page)])) pages)))
+     (->> pages
+          (map (fn [page] [(list 'quote (page-identifier (hfql/expand &env page))) `#'(hfql/hfql ~page)]))
+          (into {}))))
 
 ;;* Router
 ;;
@@ -58,14 +57,9 @@
 ;;
 #?(:clj (defmacro router [route & pages] ;; pages are HFQL exprs, they must all have a
           (validate-pages! pages)
-          `(let [route# ~route
-                 pages# ~(routing-map (env/make-env &env) pages)]
+          `(let [pages# ~(routing-map (env/make-env &env) pages)
+                 route# ~route]
              (validate-route! route#)
-             (let [page# (get pages# (first route#))]
-               (prn "Router Found" page#)
-               (if (some? page#)
-                 (p/$ page#)
-                 (do (prn "Page not found" (pr-str (first route#)) "in" (pr-str (keys pages#)))
-                     (p/$ not-found)))))))
+             (p/$ (lib/deduping (get pages# (first route#) not-found))))))
 
 (p/defn not-found [] "page not found")

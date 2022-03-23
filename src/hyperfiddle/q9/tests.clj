@@ -54,8 +54,10 @@
 
 (tests
  "EAV"
- (p/run (! (hfql {(submission "") [(props :dustingetz/email {::hf/render (p/fn [_ _] (let [[>e a >v] (first hf/context)]
-                                                                                       [~>e a ~>v]))})]}) ))
+ (p/run (! (binding [hf/db (db)]
+             (hfql {(submission "") [(props :dustingetz/email {::hf/render (p/fn [_ _] (let [[>e a >v] (first hf/context)]
+                                                                                         [>e a ~>v]
+                                                                                         hf/context))})]})) ))
  % := '{(user.gender-shirt-size/submission "") {:dustingetz/email [9 :dustingetz/email "alice@example.com"]}})
 
 (tests

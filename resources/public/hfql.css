@@ -68,7 +68,7 @@ th:last-child{
 }
 
 /* Select last th if there’s only tow columns */
-th:first-child:nth-last-child(2) ~ th:last-child { 
+th:first-child:nth-last-child(2) ~ th:last-child {
     display: table-cell;
 }
 
@@ -82,6 +82,12 @@ td{
 thead td:empty{
     visibility:hidden;
     border: none;
+}
+
+.hf-table-picker-count{
+  border: none;
+  vertical-align: middle;
+  text-align: center;
 }
 
 input:not([type="radio"]):not([type="checkbox"]), select {
@@ -232,7 +238,7 @@ fieldset.hf-options th:nth-child(2){
 .tooltip-top:hover:after,
 .tooltip-top:focus:before,
 .tooltip-top:focus:after {
-  transform:         translateY(-12px); 
+  transform:         translateY(-12px);
 }
 
 /* Left */
@@ -255,7 +261,7 @@ fieldset.hf-options th:nth-child(2){
 .tooltip-left:hover:after,
 .tooltip-left:focus:before,
 .tooltip-left:focus:after {
-  transform:         translateX(-12px); 
+  transform:         translateX(-12px);
 }
 
 /* Bottom */
@@ -277,7 +283,7 @@ fieldset.hf-options th:nth-child(2){
 .tooltip-bottom:hover:after,
 .tooltip-bottom:focus:before,
 .tooltip-bottom:focus:after {
-  transform:         translateY(12px); 
+  transform:         translateY(12px);
 }
 
 /* Right */
@@ -298,7 +304,7 @@ fieldset.hf-options th:nth-child(2){
 .tooltip-right:hover:after,
 .tooltip-right:focus:before,
 .tooltip-right:focus:after {
-  transform:         translateX(12px); 
+  transform:         translateX(12px);
 }
 
 /* Move directional arrows down a bit for left/right tooltips */
