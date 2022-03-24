@@ -1,7 +1,7 @@
 (ns hyperfiddle.ui6
   (:refer-clojure :exclude [boolean])
-  (:require [hfdl.lang :as p]
-            #?(:clj [hfdl.lib :refer [forget deduping]])
+  (:require [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-xp :as xp]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.spec :as spec]
@@ -12,7 +12,7 @@
             [hyperfiddle.dev.logger :as log]
             [hyperfiddle.color :refer [color]])
   #?(:cljs (:require-macros [hyperfiddle.q9 :as hfql]
-                            [hfdl.lib :refer [forget deduping]]
+                            [hyperfiddle.photon-xp :as xp]
                             [hyperfiddle.ui6 :refer [render
                                                      spec-renderer spec-renderer-impl
                                                      user-renderer user-renderer-impl
@@ -71,7 +71,7 @@
           (try (m/? (m/sleep delay x))
                (catch #?(:clj Exception, :cljs :default) _ (m/?> m/none))))))
 
-(defn ^:deprecated continuous [& args] (apply hfdl.lib/continuous args))
+(defn ^:deprecated continuous [& args] (apply hyperfiddle.photon-xp/continuous args))
 
 (p/defn input [props extractor]
   (dom/input (p/for [[k v] props]
@@ -238,7 +238,7 @@
 (defn set-route! [href _event] (hf/navigate! href))
 
 (defmacro link [href on-click & body]
-  `(forget (dom/element "a" (dom/attribute "href" (str ~href))
+  `(xp/forget (dom/element "a" (dom/attribute "href" (str ~href))
                         (unquote (->> (dom/events dom/parent "click")
                                       (m/eduction (map dom/stop-event!)
                                                   (map ~on-click)
@@ -421,7 +421,7 @@
 (p/def spec-renderer)
 (p/defn spec-renderer-impl [>v props]
   (let [value    ~>v
-        renderer (deduping (cond (map? value)    form
+        renderer (xp/deduping (cond (map? value)    form
                                  (vector? value) table
                                  :else           default-renderer))]
     (p/$ renderer >v props)))

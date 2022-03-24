@@ -1,6 +1,6 @@
 (ns user.gender-shirt-size
   (:require [clojure.spec.alpha :as s]
-            [hfdl.lang :as p]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [! % tests]])
   #?(:cljs (:require-macros [user.gender-shirt-size :refer [genders gender shirt-sizes submissions submission emails sub-profile]])))
@@ -79,7 +79,7 @@
 (p/defn sub-profile [sub] ~(hf/nav (:db hf/db) sub :db/id))
 
 (tests
-  (hfdl.lang/run (! (p/$ user.gender-shirt-size/submission "")))
+  (hyperfiddle.photon/run (! (p/$ user.gender-shirt-size/submission "")))
   %)
 
 (tests

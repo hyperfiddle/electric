@@ -1,6 +1,6 @@
 (ns user.hfql-distributed
-  (:require [hfdl.lang :as p]
-            [hyperfiddle.api :as hf]
+  (:require [hyperfiddle.api :as hf]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui6 :as ui]
             [missionary.core :as m]

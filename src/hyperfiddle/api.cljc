@@ -4,7 +4,7 @@
             #?(:clj [datahike.impl.entity :as de]
                :cljs [datascript.impl.entity :as de])
             [hyperfiddle.rcf :refer [tests ! %]]
-            [hfdl.lang :as p :refer [vars]]
+            [hyperfiddle.photon :as p :refer [vars]]
             [missionary.core :as m]
             #?(:clj [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require [hyperfiddle.dev.logger :as log]))

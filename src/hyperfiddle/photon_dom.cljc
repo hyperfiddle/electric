@@ -1,6 +1,6 @@
 (ns hyperfiddle.photon-dom
   (:refer-clojure :exclude [class for])
-  (:require [hfdl.lang :as p]
+  (:require [hyperfiddle.photon :as p]
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])

@@ -1,5 +1,5 @@
 (ns hyperfiddle.client
-  (:require [hfdl.lang :as p]
+  (:require [hyperfiddle.photon :as p]
             [hyperfiddle.common.transit :as transit]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]

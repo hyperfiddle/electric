@@ -1,10 +1,9 @@
-(ns hfdl.impl.compiler
+(ns hyperfiddle.photon-impl.compiler
   (:require [clojure.tools.analyzer.jvm :as clj]
             [missionary.core :as m]
-            [hfdl.impl.util :as u]
             [cljs.analyzer :as cljs]
-            [hfdl.impl.runtime :as r]
-            [hyperfiddle.rcf :as rcf :refer [tests]]
+            [hyperfiddle.photon-impl.local :as l]
+            [hyperfiddle.rcf :refer [tests]]
             [cljs.analyzer.api :as api])
   (:import cljs.tagged_literals.JSValue
            (clojure.lang Box Var)))
@@ -329,7 +328,7 @@ is a macro or special form."
             (and (instance? JSValue form) analyze-js))]
     (analyze env form) [[:literal form]]))
 
-(let [nodes (ThreadLocal.)]
+(let [nodes (l/local)]
   (defn visit-node [env sym form]                      ;; TODO detect cycles
     (let [l (::local env)]
       (if-some [node (-> (.get nodes) (get l) (get sym))]
@@ -347,7 +346,7 @@ is a macro or special form."
 
   (defn analyze [env form]
     (let [[inst nodes]
-          (u/with-local nodes {}
+          (l/with-local nodes {}
             (-> env
                 (normalize-env)
                 (assoc ::local true)
@@ -492,161 +491,6 @@ is a macro or special form."
                                    [:apply [:global :clojure.core/hash-map] [:literal :b] [:literal 2]]]
                                   [:literal nil]]
   )
-
-(defn emit-log-failure [form]
-  `(u/log-failure ~form))
-
-(def emit
-  (let [slots (u/local)
-        init {:nodes 0
-              :inputs 0
-              :targets 0
-              :sources 0
-              :signals 0
-              :outputs 0
-              :constants 0
-              :variables 0}]
-    (letfn [(slot [k]
-              (let [m (u/get-local slots), n (get m k)]
-                (u/set-local slots (assoc m k (inc n))) n))
-            (node [s]
-              (u/set-local slots (update (u/get-local slots) :nodes max (inc s))) s)
-            (emit-inst [sym pub [op & args]]
-              (case op
-                :nop nil
-                :sub (let [i (- pub (first args))]
-                       (sym 'pub i))
-                :pub (let [f (emit-inst sym pub (first args))
-                           s (slot :signals)]
-                       `(let [~(sym 'pub pub) (r/signal ~s ~f)]
-                          ~(emit-inst sym (inc pub) (second args))))
-                :def (cons `r/capture (mapv node args))
-                :node (list `nth (sym 'nodes) (node (first args)))
-                :bind (let [[slot inst cont] args]
-                        (list `let [(sym 'nodes) (list `assoc (sym 'nodes) (node slot) (emit-inst sym pub inst))]
-                          (emit-inst sym pub cont)))
-                :apply `(r/latest-apply ~@(mapv (partial emit-inst sym pub) args))
-                :error `(r/latest-error ~@(mapv (partial emit-inst sym pub) args))
-                :first `(r/latest-first ~@(mapv (partial emit-inst sym pub) args))
-                :input (let [i (slot :inputs)] `(r/input ~i))
-                :output (let [f (emit-inst sym pub (first args))
-                              o (slot :outputs)
-                              g (emit-inst sym pub (second args))]
-                          `(do (r/output ~o ~f) ~g))
-                :target (let [[frame {:keys [inputs targets sources signals variables outputs]}]
-                              (u/with-local slots init (emit-inst sym pub (first args)))
-                              t (slot :targets)
-                              g (emit-inst sym pub (second args))]
-                          `(do (r/target ~t ~inputs ~targets ~sources ~signals ~variables ~outputs
-                                 (fn [~(sym 'nodes)] ~frame)) ~g))
-                :source (let [s (slot :sources)
-                              f (emit-inst sym pub (first args))]
-                          `(do (r/source ~s ~(sym 'nodes)) ~f))
-                :global `(r/steady ~(symbol (first args)))
-                :literal `(r/steady (quote ~(first args)))
-                :interop `(r/latest-apply
-                            ~(let [arg-syms (into [] (map sym) (range (count (next args))))]
-                               (list `fn arg-syms (apply (first args) arg-syms)))
-                            ~(mapv (partial emit-inst sym pub) (next args)))
-                :recover (let [body (emit-inst sym pub (first args))
-                               [frame {:keys [inputs targets sources signals variables outputs]}]
-                               (u/with-local slots init (emit-inst sym (inc pub) (second args)))
-                               c (slot :constants)
-                               v (slot :variables)]
-                           `(r/recover ~v ~(sym 'nodes) ~body
-                              (fn [~(sym 'pub pub)]
-                                (r/constant ~c ~inputs ~targets ~sources ~signals ~variables ~outputs
-                                  (fn [~(sym 'nodes)] ~frame)))))
-                :constant (let [[frame {:keys [inputs targets sources signals variables outputs]}]
-                                (u/with-local slots init (emit-inst sym pub (first args)))
-                                c (slot :constants)]
-                            `(r/steady (r/constant ~c ~inputs ~targets ~sources ~signals ~variables ~outputs
-                                         (fn [~(sym 'nodes)] ~frame))))
-                :variable (let [form (emit-inst sym pub (first args))
-                                v (slot :variables)]
-                            `(r/variable ~v ~(sym 'nodes) ~form))))]
-      (fn [sym inst]
-        (let [[form {:keys [nodes inputs targets sources signals variables outputs]}]
-              (u/with-local slots init (emit-inst sym 0 inst))]
-          `(r/peer ~nodes ~inputs ~targets ~sources ~signals ~variables ~outputs
-             (fn [~(sym 'nodes)] ~form)))))))
-
-(tests
-  (emit (comp symbol str) [:literal 5]) :=
-  `(r/peer 0 0 0 0 0 0 0 (fn [~'nodes] (r/steady '5)))
-
-  (emit (comp symbol str)
-    [:apply [:global :clojure.core/+] [:literal 2] [:literal 3]]) :=
-  `(r/peer 0 0 0 0 0 0 0
-     (fn [~'nodes]
-       (r/latest-apply (r/steady +) (r/steady '2) (r/steady '3))))
-
-  (emit (comp symbol str)
-    [:pub [:literal 1]
-     [:apply [:global :clojure.core/+]
-      [:sub 1] [:literal 2]]]) :=
-  `(r/peer 0 0 0 0 1 0 0
-     (fn [~'nodes]
-       (let [~'pub0 (r/signal 0 (r/steady '1))]
-         (r/latest-apply (r/steady +) ~'pub0 (r/steady '2)))))
-
-  (emit (comp symbol str)
-    [:variable [:global :missionary.core/none]]) :=
-  `(r/peer 0 0 0 0 0 1 0
-     (fn [~'nodes] (r/variable 0 ~'nodes (r/steady m/none))))
-
-  (emit (comp symbol str) [:input]) :=
-  `(r/peer 0 1 0 0 0 0 0
-     (fn [~'nodes] (r/input 0)))
-
-  (emit (comp symbol str) [:constant [:literal :foo]]) :=
-  `(r/peer 0 0 0 0 0 0 0
-     (fn [~'nodes]
-       (r/steady
-         (r/constant 0 0 0 0 0 0 0
-           (fn [~'nodes] (r/steady ':foo))))))
-
-  (emit (comp symbol str)
-    [:variable
-     [:pub [:constant [:literal 3]]
-      [:pub [:constant [:input]]
-       [:apply [:apply [:global :clojure.core/hash-map]
-                [:literal 2] [:sub 2]
-                [:literal 4] [:sub 1]
-                [:literal 5] [:sub 1]]
-        [:literal 1]
-        [:constant [:literal 7]]]]]]) :=
-  `(r/peer 0 0 0 0 2 1 0
-     (fn [~'nodes]
-       (r/variable 0 ~'nodes
-         (let [~'pub0 (r/signal 0
-                        (r/steady
-                          (r/constant 0 0 0 0 0 0 0
-                            (fn [~'nodes] (r/steady '3)))))]
-           (let [~'pub1 (r/signal 1
-                          (r/steady
-                            (r/constant 1 1 0 0 0 0 0
-                              (fn [~'nodes] (r/input 0)))))]
-             (r/latest-apply
-               (r/latest-apply (r/steady hash-map)
-                 (r/steady '2) ~'pub0
-                 (r/steady '4) ~'pub1
-                 (r/steady '5) ~'pub1)
-               (r/steady '1)
-               (r/steady
-                 (r/constant 2 0 0 0 0 0 0
-                   (fn [~'nodes] (r/steady '7))))))))))
-
-  (emit (comp symbol str) [:def 0]) :=
-  `(r/peer 1 0 0 0 0 0 0 (fn [~'nodes] (r/capture 0)))
-
-  (emit (comp symbol str)
-    [:pub [:literal nil]
-     [:constant [:sub 1]]]) :=
-  `(r/peer 0 0 0 0 1 0 0
-     (fn [~'nodes]
-       (let [~'pub0 (r/signal 0 (r/steady 'nil))]
-         (r/steady (r/constant 0 0 0 0 0 0 0 (fn [~'nodes] ~'pub0)))))))
 
 (def args
   (map (comp symbol

@@ -1,12 +1,12 @@
 (ns hyperfiddle.hfql.router
   (:require
-   [hfdl.lang :as p]
-   [hfdl.lib :as lib]
+   [hyperfiddle.photon :as p]
+   [hyperfiddle.photon-xp :as xp]
    #?(:clj [hyperfiddle.q9 :as hfql])
    #?(:clj [hyperfiddle.q9.env :as env])
    )
   #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [not-found]]
-                            [hfdl.lib])))
+                            [hyperfiddle.photon-xp :as xp])))
 
 (defn- fncall [sexpr] (and (seq? sexpr) (symbol? (first sexpr))))
 
@@ -60,6 +60,6 @@
           `(let [pages# ~(routing-map (env/make-env &env) pages)
                  route# ~route]
              (validate-route! route#)
-             (p/$ (lib/deduping (get pages# (first route#) not-found))))))
+             (p/$ (xp/deduping (get pages# (first route#) not-found))))))
 
 (p/defn not-found [] "page not found")
