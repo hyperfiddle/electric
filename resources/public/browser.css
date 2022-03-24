@@ -1,4 +1,9 @@
+* {
+    box-sizing: border-box;
+}
+
 body {
+    min-height: 101vh; /* DEMO ONLY, force scrollbar to show up, preventing paint flashing  */
     background-color: rgb(248 250 252);
     display: flex;
     justify-content : center;
@@ -8,6 +13,8 @@ body {
 .browser {
     position: relative;
     width: 90vw;
+    margin-bottom: 25vh;
+    /* height: 100%; */
     padding: 2rem 0.5rem 0 0.5rem;
     box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
     border: 1px solid;
@@ -19,9 +26,15 @@ body {
 }
 
 .browser .navbar{
+    display: grid;
     width: 100%;
-    display:flex;
-    align-items: center;
+    height: 2rem;
+    padding: 0 1rem;
+    grid-template-columns: auto 1fr auto;
+    align-items: baseline;
+    justify-items: flex-start;
+    grid-gap: 1rem;
+    justify-content: end;
 }
 
 .browser .navbar .route {
@@ -30,6 +43,11 @@ body {
     padding: 0.5rem 0.5rem;
     /* border-right: 0; */
     font-size: 1.1em;
+}
+
+.browser .navbar a[href=""] {
+    pointer-events: none;
+    color: gray;
 }
 
 .browser .navbar .go-button{
@@ -54,6 +72,8 @@ body {
 
 .browser .view {
     padding: 1rem 0.25rem;
+    /* margin-bottom: 25vh; */
+    position: relative;
 }
 
 .hf-error-wrapper{
@@ -70,13 +90,33 @@ body {
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     padding: 1rem;
     border-radius: 3px;
-    
+
     margin-top: 1rem;
-    top: 50%; /* ok but not correct */
+    /* margin-bottom: 100%; */
+    bottom: 80%; /* ok but not correct */
 
     opacity: 0;
     transition: 0.4s ease opacity;
 }
 .hf-error:not(:empty){
     opacity: 1;
+}
+
+.hf-staging-area{
+    position: fixed; /* TODO should be sticky (bottom, autocollapse) */
+    z-index: 2;
+
+    left: 2.5vw;
+    right: 2.5vw;
+    bottom: 0;
+    min-height: 3rem;
+
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+
+    padding: 0.5rem 1rem;
+
+    background-color: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 1rem 0.5rem rgb(0 0 0 / 0.25);
 }

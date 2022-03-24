@@ -16,10 +16,11 @@
 
 (defrecord DB [name basis-t tempids db])
 
-(def route-state #?(:cljs (atom nil))) ;; Route state lives on the client.
+(def route-state #?(:cljs (atom ()))) ;; Route state lives on the client.
 
-(p/defn set-route! [new-route] ;; could be rebound to set the URL.
-  (reset! route-state new-route))
+(defn navigate! [new-route] (swap! route-state conj new-route))
+
+(defn navigate-back! [] (swap! route-state rest))
 
 (p/def route)
 
