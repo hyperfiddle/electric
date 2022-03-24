@@ -235,12 +235,10 @@
     :db.cardinality/many ::many
     ::one))
 
-(defn set-route! [href _event]
-  (prn "Set route to " href)
-  (reset! hf/route-state href))
+(defn set-route! [href _event] (hf/navigate! href))
 
 (defmacro link [href on-click & body]
-  `(forget (dom/element "a" (dom/attribute "href" ~href)
+  `(forget (dom/element "a" (dom/attribute "href" (str ~href))
                         (unquote (->> (dom/events dom/parent "click")
                                       (m/eduction (map dom/stop-event!)
                                                   (map ~on-click)

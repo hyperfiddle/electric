@@ -15,7 +15,7 @@
             [hyperfiddle.dev.logger :as log]
             [clojure.pprint :as pprint]
             #?(:clj [datahike.api :as d]))
-  #?(:cljs (:require-macros [user.browser :refer [view NavBar NotFoundPage]]
+  #?(:cljs (:require-macros [user.browser :refer [view NavBar NotFoundPage BackButton]]
                             [user.gender-shirt-size :refer [submissions sub-profile]]
                             [hfdl.lib :as lib :refer [forget deduping]])))
 
@@ -31,10 +31,19 @@
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 
-(p/defn NavBar [route]
-  (dom/div
-   (dom/class "navbar")
-   (p/$ cm/CodeMirror {:parent dom/parent :inline true} read-edn write-edn route)))
+(defn back! [href _event] (when href (hf/navigate-back!)))
+
+(p/defn BackButton [prev]
+  (ui/link prev (partial back! prev)
+           (dom/text "< back")))
+
+(p/defn NavBar []
+  (let [route-state ~(m/watch hf/route-state)]
+    (dom/div
+     (dom/class "navbar")
+     (p/$ BackButton (second route-state))
+     (dom/div (dom/class "navbar-route")
+              (p/$ cm/CodeMirror {:parent dom/parent :inline true} read-edn write-edn (first route-state))))))
 
 (p/defn NotFoundPage []
   ~@(dom/div
@@ -67,8 +76,8 @@
       (reset! !db db'))
     nil))
 
-(defn set-route! [_event]
-  (reset! hf/route-state `(sub-profile ~(rand-int 100))))
+;; Set initial route state
+#?(:cljs (reset! hf/route-state `((user.gender-shirt-size/submissions "alice"))))
 
 (p/defn view []
   ~@;; server
@@ -81,8 +90,7 @@
         ~@;; client
           (dom/div
            (dom/class "browser")
-           (binding [hf/route (p/$ NavBar (or ~(m/watch hf/route-state)
-                                              `(user.gender-shirt-size/sub-profile 10)))]
+           (binding [hf/route (p/$ NavBar)]
              hf/route ;; hack
              (dom/div
               (dom/class "view")
@@ -95,33 +103,29 @@
                                    route
                                    {(sub-profile sub) [:db/id :dustingetz/email]}
                                    {(submissions . .) [(props :db/id {::hf/link sub-profile})
-                                                       :dustingetz/email
-                                                       {(props :dustingetz/gender {::hf/options      (genders)
-                                                                                   ::hf/option-label :db/ident
-                                                                                   ::hf/render       ui/select-options}) [(props :db/ident {::hf/as gender})]}
-                                                       {(props :dustingetz/shirt-size {::hf/options      (shirt-sizes gender .)
-                                                                                       ::hf/option-label :db/ident}) [:db/ident]}]}))))]
-                (dom/div (dom/class "hf-error-wrapper")
-                 #_(dom/p (dom/text (str "Query result: " ~@~(hf/q '[:find ?email . :where [9 :dustingetz/email ?email]]
-                                                                   (:db hf/db)))))
-                 #_(p/$ cm/CodeMirror {:parent dom/parent} ~@(assoc hf/db :db "<server side only>"))
-                 
-                 (let [tx' (p/$ cm/CodeMirror {:parent dom/parent} read-edn write-edn [])]
-                   (do tx'
-                       ~@(forget (reset! !stage tx'))
-
-                   ;; TODO use z/fsm or z/instant
-                       #_(let [click (dom/button (dom/text "transact!")
-                                               ~(->> (dom/events dom/parent "click")
-                                                     (m/eduction (map (constantly true)))
-                                                     (ui/continuous)))]
-                         ~@(forget ~(->> #'click
-                                         (m/eduction (filter boolean?)
-                                                     (map (partial transact!! !db !stage)))
-                                         (ui/continuous))))
-                       (dom/code (dom/class "hf-error") 
-                                 (dom/style {"margin" "1rem 0"})
-                                 (dom/text message))))))))))))
+                                                         :dustingetz/email
+                                                         {(props :dustingetz/gender {::hf/options      (genders)
+                                                                                     ::hf/option-label :db/ident
+                                                                                     ::hf/render       ui/select-options}) [(props :db/ident {::hf/as gender})]}
+                                                         {(props :dustingetz/shirt-size {::hf/options      (shirt-sizes gender .)
+                                                                                         ::hf/option-label :db/ident}) [:db/ident]}]}))))]
+                (dom/div (dom/class "hf-staging-area")
+                         (dom/div (dom/class "hf-error-wrapper")
+                                  (let [tx' (p/$ cm/CodeMirror {:parent dom/parent} read-edn write-edn [])]
+                                    (do tx'
+                                        ~@(forget (reset! !stage tx'))
+                                        ;; TODO use z/fsm or z/instant
+                                        #_(let [click (dom/button (dom/text "transact!")
+                                                                  ~(->> (dom/events dom/parent "click")
+                                                                        (m/eduction (map (constantly true)))
+                                                                        (ui/continuous)))]
+                                            ~@(forget ~(->> #'click
+                                                            (m/eduction (filter boolean?)
+                                                                        (map (partial transact!! !db !stage)))
+                                                            (ui/continuous))))
+                                        (dom/code (dom/class "hf-error")
+                                                  (dom/style {"margin" "1rem 0"})
+                                                  (dom/text message)))))))))))))
 
 (def exports (p/vars transact! ui/continuous ui/debounce not-empty boolean? transact!!))
 

@@ -7,7 +7,7 @@
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str])
   (:import missionary.Cancelled)
-  #?(:cljs (:require-macros [hfdl.lib :refer [forget deduping get-memoized]])))
+  #?(:cljs (:require-macros [hfdl.lib :refer [forget deduping]])))
 
 (defn append [y]
   (fn [rf]
@@ -287,6 +287,13 @@ flow of values matching the identity provided by key function, defaulting to ide
 ;;    (reset! !xs failure)
 ;;    @it := failure
 ;;    ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;         EXPERIMENTAL ZONE             ;;
+;;                                       ;;
+;; Everything below should be considered ;;
+;; guilty until proven innocent          ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn continuous
   ([>x] (continuous nil >x))
