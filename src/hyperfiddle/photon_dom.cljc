@@ -20,39 +20,39 @@
 (defn append-children [parent items] (reduce #?(:cljs #(doto %1 (.appendChild %2))) parent items))
 (defn remove-children [parent items] (reduce #?(:cljs #(doto %1 (.removeChild %2))) parent items))
 
-(defn mount-all [parent & items]
-  (m/observe
-    (fn [!]
-      (! (append-children parent items))
-      (fn []
-        (remove-children parent items)))))
+(defn peer-error! [message]
+  ;; To help us debug distribution
+  (m/ap (throw (ex-info (str "Not available on this peer: " message) {}))))
 
 (defn create-mount [parent position type]
-  #?(:cljs
+  #?(:clj (peer-error! `create-mount)
+     :cljs
      (m/observe
        (fn [!]
          (let [child (d/createElement type)]
            (if (nil? position)
-             (d/appendChild parent child)
+             (js/requestAnimationFrame #(d/appendChild parent child))
              (d/insertChildAt parent child position))
            (! child) #(d/removeNode child))))))
 
 (defmacro element [type & body]
-  `(binding [parent (unquote (create-mount parent node-index ~(name type)))] ~@body))
+  `(binding [parent (unquote (create-mount parent node-index ~(name type)))]
+     ~@body))
 
 (defn set-fragment! [e f]
   ;; TODO
   )
 
 (defn set-text-content! [e t]
-  #?(:cljs (d/setTextContent e t)))
+  #?(:cljs (js/requestAnimationFrame #(d/setTextContent e (str t)))))
 
 (defn create-text [parent]
-  #?(:cljs
+  #?(:clj (peer-error! `create-text)
+     :cljs
      (m/observe
       (fn [!]
         (let [child (d/createTextNode "")]
-          (d/appendChild parent child)
+          (js/requestAnimationFrame #(d/appendChild parent child))
           (! child) #(d/removeNode child))))))
 
 (defmacro text [text]
@@ -88,6 +88,7 @@
 (defmacro table [& body] `(element :table ~@body))
 (defmacro tr [& body] `(element :tr ~@body))
 (defmacro td [& body] `(element :td ~@body))
+(defmacro th [& body] `(element :th ~@body))
 
 (defmacro thead [& body]
   `(element :thead ~@body))
@@ -111,10 +112,10 @@
   `(set-style! parent ~style-map))
 
 (defn set-attribute! [e k v]
-  #?(:cljs (.setAttribute e k v)))
+  #?(:cljs (js/requestAnimationFrame #(.setAttribute e k v))))
 
 (defn set-property! [e k v]
-  #?(:cljs (d/setProperties e (clj->js {k v}))))
+  #?(:cljs (js/requestAnimationFrame #(d/setProperties e (clj->js {k v})))))
 
 (defn get-attribute [e k]
   #?(:cljs (.getAttribute e k)))
@@ -123,6 +124,8 @@
   #?(:cljs (m/observe (fn [!] (e/listen e t !) #(e/unlisten e t !)))))
 
 (defn target-value [e] #?(:cljs (-> e .-target .-value)))
+
+(defn target-checked [e] #?(:cljs (-> e .-target .-checked)))
 
 (def input-event
   #?(:cljs (.-INPUT EventType)))
@@ -148,6 +151,11 @@
 
 (defn event-target [e]
   #?(:cljs (.-target e)))
+
+(defn stop-event! [event]
+  (.preventDefault event)
+  (.stopPropagation event)
+  event)
 
 (defn get-value [e]
   #?(:cljs (.-value e)))
@@ -242,4 +250,5 @@
   `(for-by identity ~bindings ~@body))
 
 (def exports (p/vars click-event create-mount create-text events
-                     set-attribute! set-style! set-text-content!))
+                     set-attribute! set-style! set-text-content!
+                     peer-error!))

@@ -3,7 +3,8 @@
     ;; [hypercrud.transit :as hc-t] ;; TODO restore
     ;; [hyperfiddle.service.auth :as auth] ;; TODO restore
     [missionary.core :as m]
-    [hfdl.impl.util :as u])
+    [hfdl.impl.util :as u]
+    [hyperfiddle.dev.logger :as log])
   (:import (org.eclipse.jetty.servlet ServletContextHandler ServletHolder)
            (org.eclipse.jetty.websocket.api RemoteEndpoint Session WebSocketConnectionListener
                                             WebSocketListener WriteCallback SuspendToken)
@@ -40,6 +41,7 @@
   (.resume token))
 
 (deftype Ws [boot
+             ^:unsynchronized-mutable reactor
              ^:unsynchronized-mutable session
              ^:unsynchronized-mutable msg-str
              ^:unsynchronized-mutable msg-buf
@@ -51,14 +53,15 @@
     (token-resume! token))
   WebSocketConnectionListener
   (onWebSocketConnect [this s]
-    (prn :connect)
+    (log/debug "websocket connect")
     (set! session s)
-    (boot (.getRemote s)
-      (set! msg-str (m/rdv))
-      (set! msg-buf (m/rdv))
-      (set! close (m/dfv))))
+    (set! reactor (boot (.getRemote s)
+                        (set! msg-str (m/rdv))
+                        (set! msg-buf (m/rdv))
+                        (set! close (m/dfv)))))
   (onWebSocketClose [this s r]
-    (prn :close)
+    (log/debug "websocket close")
+    (reactor)
     (close
       (do
         (set! close nil)
@@ -69,15 +72,15 @@
             (set! error nil)
             {:error e})))))
   (onWebSocketError [this e]
-    (prn :error)
+    (log/error e)
     (set! error e))
   WebSocketListener
   (onWebSocketText [this msg]
-    (prn :text)
+    (log/trace "receive text" msg)
     (set! token (session-suspend! session))
     ((msg-str msg) this u/pst))
   (onWebSocketBinary [this payload offset length]
-    (prn :binary)
+    (log/warn "received binary" {:length length})
     (set! token (session-suspend! session))
     ((msg-buf (ByteBuffer/wrap payload offset length)) this u/pst)))
 
@@ -98,5 +101,5 @@
                               #_(auth/configured? context)
                               #_(auth/authenticated? context)
                               )
-                        (->Ws (handler request) nil nil nil nil nil nil))))))))
+                        (->Ws (handler request) nil nil nil nil nil nil nil))))))))
           ^String path)))))

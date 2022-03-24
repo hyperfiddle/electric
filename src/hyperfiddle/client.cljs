@@ -1,15 +1,12 @@
 (ns hyperfiddle.client
-  (:require [dev]
-            [hfdl.lang :as p]
+  (:require [hfdl.lang :as p]
             [hyperfiddle.common.transit :as transit]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
-            [hyperfiddle.router :as r]))
-
-(def ^:export LATENCY 0)
-
-(defn delayed [task]
-  (m/sp (m/? (m/sleep (/ LATENCY 2))) (m/? task)))
+            [user.browser :as browser]
+            [hyperfiddle.dev.logger :as log])
+  (:require-macros [hyperfiddle.ui6] ;; hot-reload p/defs on save
+                   ))
 
 ;; TODO reconnect on failures
 (defn connect [cb]
@@ -22,16 +19,16 @@
           (set! (.-onclose socket) js/console.log)
           (set! (.-onmessage socket)
             #(let [decoded (transit/decode (.-data %))]
-               (js/console.log "🔽" decoded)
+               (log/trace "🔽" decoded)
                (cb decoded)))
           (s (fn [x]
                (fn [s f]
                  (try
-                   (js/console.log "🔼" x)
+                   (log/trace "🔼" x)
                    (.send socket (transit/encode x))
                    (s nil)
                    (catch :default e
-                     (js/console.error e)
+                     (log/error e)
                      (f e)))
                  #())))))
       (set! (.-onerror socket)
@@ -46,7 +43,25 @@
     (let [m (m/mbx)
           w (m/? (connect m))]
       (m/? (w s))
-      (m/? (c (comp delayed w) (delayed m))))))
+      (m/? (c w m)))))
 
-(def ^:export main
-  (client (p/main (binding [dom/parent (dom/by-id "hf-ui-dev-root")] ~r/router))))
+(def main
+  (client (p/main (binding [dom/parent (dom/by-id "hf-ui-dev-root")] ~browser/view))))
+
+(def ^:export reactor)
+
+(defn ^:dev/after-load ^:export start! []
+  (if-not reactor
+    (do (log/info "Starting reactor…")
+        (set! reactor (main js/console.log js/console.error))
+        (log/info "Reactor started."))
+    (log/info "Reactor already started") ))
+
+(defn ^:dev/before-load stop! []
+  (if reactor
+    (do (log/info "Stopping reactor…")
+        (reactor) ;; dispose
+        (set! reactor nil)
+        (log/info "Reactor stopped"))
+    (log/info "Reactor already stopped")))
+

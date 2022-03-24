@@ -1,0 +1,5 @@
+{:lint-as {hfdl.lang/def  clojure.core/def
+           hfdl.lang/defn clojure.core/defn
+           hfdl.lang/for  clojure.core/for
+           hfdl.lang/fn   clojure.core/fn}
+ :linters {:redundant-expression {:level :off}}}

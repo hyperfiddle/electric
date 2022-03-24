@@ -1,34 +1,16 @@
-(ns user
-  #_(:require #_[repl :refer [refresh! refresh-all!]]
-            #_[dustin.dev])
-  (:require [hyperfiddle.rcf :refer [tests]]
-            [missionary.core :as m]))
+(ns user )
 
-#?(:clj  (alter-var-root #'hyperfiddle.rcf/*enabled* (constantly true))
-   :cljs (set! hyperfiddle.rcf/*enabled* true))
+; % npx shadow-cljs server
+; connect one nrepl for JVM repl
+; connect second nrepl, then eval (shadow/repl :app) for JS repl
+; check repl type: eval (type 1)
 
-; % yarn
-; % yarn run css:build
-; % yarn run css:watch
-; % yarn run dev
-; start shadow watch in shadow web control plane
-; connect first nrepl for JVM repl
-; load this file in clj nrepl
-; start server (in the shadow JVM)
-; connect second nrepl for JS repl
-
+;;;;;;;;;;;;;;;;;;
+;; Start server ;;
+;;;;;;;;;;;;;;;;;;
 (comment
-  ; JS
-  (type 1)
-
-  )
-
-(comment
-  ; JVM
   (do
     (require '[dev])
-    (require '[hyperfiddle.api :as h])
-    (require '[hyperfiddle.todomvc :as t])
     (require '[hyperfiddle.server :refer [start-server!]])
     (require '[io.pedestal.http :as http])
     (require '[shadow.cljs.devtools.api :as shadow])
@@ -36,12 +18,39 @@
                                 :port   8080
                                 :scheme "http"})))
   (http/stop server)
+  )
+
+;;;;;;;;;;;;;;;;;;;;
+;; Compile client ;;
+;;;;;;;;;;;;;;;;;;;;
+(comment
   (shadow/compile :app)
+  (shadow/release :app)
+  )
+
+;; Tests
+(comment
+  (require '[hyperfiddle.rcf])
+
+  #?(:clj (alter-var-root #'hyperfiddle.rcf/*generate-tests* (constantly false)))
+  #?(:clj  (alter-var-root #'hyperfiddle.rcf/*enabled* (constantly true))
+     :cljs (set! hyperfiddle.rcf/*enabled* true))
+
+  (require '[clojure.test])
+  (clojure.test/run-all-tests #"(hyperfiddle.api|user.gender-shirt-size)")
 
   ; load the effects
   ;(require 'dustin.fiddle-pages)
 
   ; http://localhost:8080/dustin.fiddle-pages!page-submissions/''
   ; var foo = hyperfiddle.client.ui.demo_dataflow.main(console.log, console.error)
+  )
 
+;; Perfs
+(comment
+  (require '[clj-async-profiler.core :as prof])
+  (prof/serve-files 8082)
+  ;; Navigate to http://localhost:8082
+  (prof/start {:framebuf 10000000})
+  (prof/stop)
   )

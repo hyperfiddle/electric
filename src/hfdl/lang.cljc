@@ -8,7 +8,7 @@
             [hfdl.lib :as lib]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hfdl.lang :refer [def fn $ vars main for local2 debug thread]])))
+  #?(:cljs (:require-macros [hfdl.lang :refer [def defn fn $ vars main for local2 debug thread]])))
 
 (def map-by (partial lib/map-by (r/->Failure (missionary.Cancelled.))))
 
@@ -17,10 +17,22 @@ Turns an arbitrary number of symbols resolving to vars into a map associating th
 of this var to the value currently bound to this var.
 " [& forms] (c/vars &env forms))
 
+(cc/defn merge-vars
+  ([fa fb]
+   (cc/fn
+     ([ident] (or (fa ident) (fb ident)))
+     ([not-found ident]
+      (let [a (fa not-found ident)]
+        (if (= not-found a)
+          (fb not-found ident)
+          a)))))
+  ([fa fb & fs]
+   (reduce merge-vars (merge-vars fa fb) fs)))
+
 (def exports
-  (vars hash-map vector list concat seq sort into first inc dec + - / * swap! cons sorted-map keys comp remove filter
-    count map constantly
-    m/eduction m/reductions m/relieve m/watch))
+  (vars hash-map vector list concat seq sort into first inc dec + - / * swap! cons sorted-map keys comp remove filter map constantly str coll? empty list? map? nth partial r/steady count
+    m/eduction m/reductions m/relieve m/watch
+    map-by identity hfdl.impl.runtime/failure))
 
 (def eval "Takes a resolve map and a program, returns a booting function.
 The booting function takes
@@ -31,7 +43,7 @@ and returning a task that runs the local reactor."
 
 (defmacro def [sym & body]
   (when-not (:js-globals &env)
-    `(doto (~'def ~sym) (alter-meta! assoc :macro true :node (quote (do ~@body))))))
+    `(~'def ~(vary-meta sym assoc :macro true ::c/node `(quote (do ~@body))))))
 
 (defmacro main "
 Takes a photon program and returns a pair
@@ -58,14 +70,30 @@ Takes a photon program and returns a pair
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
     (->> (list 'var v)
-      (list `map-by kf
-        (->> body
-          (list* `for-by kf bindings)
-          (list `let [s (second c/args)])
-          (list 'var)
-          (list `partial (list 'def (second c/args)))))
-      (list `unquote))
+         (list `map-by kf
+               (->> body
+                    (list* `for-by kf bindings)
+                    (list `let [s (second c/args)])
+                    (list 'var)
+                    (list `partial (list 'def (second c/args)))))
+         (list `unquote))
     (cons 'do body)))
+
+;; G: was a temporary patch, fixed upstream by Leo
+;; (defmacro for-by [kf bindings & body]
+;;   (let [value (gensym)]
+;;     (if-some [[s v & bindings] (seq bindings)]
+;;       `(let [~value ~v]
+;;          (or (hfdl.impl.runtime/failure ~value) ;; FIXME find a better way to guard rfor against failure
+;;              ~(->> (list 'var value)
+;;                    (list `map-by kf
+;;                          (->> body
+;;                               (list* `for-by kf bindings)
+;;                               (list `let [s (second c/args)])
+;;                               (list 'var)
+;;                               (list `partial (list 'def (second c/args)))))
+;;                    (list `unquote))))
+;;       (cons 'do body))))
 
 (defmacro for [bindings & body]
   `(for-by identity ~bindings ~@body))
@@ -104,7 +132,7 @@ Takes a photon program and returns a pair
 (defmacro run2 "test entrypoint, 2-peer loopback system"
   [vars & body]
   `(let [dispose# ((local2 ~vars ~@body)
-                   (cc/fn [_#] #_(prn ::finished)) u/pst)]
+                  (cc/fn [_#] #_(prn ::finished)) u/pst)]
      dispose#))
 
 (cc/defn boot [f d]

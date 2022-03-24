@@ -3,7 +3,6 @@
     [hyperfiddle.common.transit :as transit]
     [hyperfiddle.server.websockets :as ws]                  ;; TODO restore
     [hyperfiddle.server.interceptors :as i]
-    hyperfiddle.server.logging
     [hyperfiddle.server.routes :as routes]
     [io.pedestal.http :as http]
     [io.pedestal.http.ring-middlewares :as middlewares]
@@ -11,14 +10,17 @@
     [io.pedestal.http.secure-headers :as secure-headers]
     [io.pedestal.interceptor.helpers :refer [before]]
     [ring.middleware.file :as file]
-    [taoensso.timbre :as log]
+    [hyperfiddle.dev.logger :as log]
     [missionary.core :as m]
     [hfdl.impl.util :as u]
     [hfdl.lang :as p]
     [hyperfiddle.todomvc :as t]
     [hyperfiddle.api :as h]
     [hyperfiddle.photon-dom :as dom]
-    [hyperfiddle.zero :as z])
+    [hyperfiddle.zero :as z]
+    [user.hfql-distributed :as dis]
+    [user.browser :as browser]
+    [hyperfiddle.ui6 :as ui6])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)
            (java.util.concurrent Executors ThreadFactory)))
@@ -48,7 +50,7 @@
 (def index-dispatch
   (before (fn index-dispatch
             [{:keys [request] :as context}]
-            (prn request)
+            (log/trace "request" request)
             (reset! !req request)
             (assoc context :response
                    (let [res (file/file-request (set-path request "/index.html")
@@ -98,8 +100,10 @@
                                           (log/error (ex-info "Failed to decode" {:value x} t))
                                           (throw t)))))
                          program (m/? ?read)]
-                     (prn :booting-reactor program)
-                     (m/? ((p/eval (merge p/exports h/exports dom/exports z/exports t/exports) program)
+                     (prn :booting-reactor #_program)
+                     (m/? ((p/eval (p/merge-vars p/exports h/exports dom/exports z/exports t/exports ui6/exports dis/exports
+                                                 browser/exports
+                                                 (p/vars log/js-log*)) program)
                            (fn [x]
                              (m/sp
                                (try
@@ -128,7 +132,7 @@
        ::http/container-options {:context-configurator
                                  (fn [^ServletContextHandler ctx]
                                    (doto ctx
-                                     (.setGzipHandler (gzip-handler "GET" "POST"))
+                                     #_(.setGzipHandler (gzip-handler "GET" "POST"))
                                      (ws/add-ws-endpoints (ws-paths config))))}})))
 
 (defn start-server! [config]

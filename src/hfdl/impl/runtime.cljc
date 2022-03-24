@@ -3,7 +3,8 @@
   (:refer-clojure :exclude [eval quote])
   (:require [hfdl.impl.util :as u]
             [hfdl.impl.yield :refer [yield]]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [hyperfiddle.dev.logger :as log])
   (:import missionary.Cancelled
            #?(:clj (clojure.lang IFn IDeref))))
 
@@ -170,8 +171,8 @@
   (if-some [ctors (get (aget ^objects context (int 5)) (- target-frame))]
     (if-some [nodes (get (aget ^objects context (int 6)) (- source-frame))]
       ((aget ^objects ctors target-slot) (aget ^objects nodes source-slot))
-      (println "create on dead source frame :" (- target-frame) target-slot (- source-frame) source-slot))
-    (println "create on dead target frame :" (- target-frame) target-slot (- source-frame) source-slot))
+      (log/warn "create on dead source frame :" (- target-frame) target-slot (- source-frame) source-slot))
+    (log/warn "create on dead target frame :" (- target-frame) target-slot (- source-frame) source-slot))
   context)
 
 (defn cancel [context frame]
@@ -181,7 +182,7 @@
 (defn change [context [frame slot] value]
   (if-some [inputs (get (aget ^objects context (int 4)) (- frame))]
     (reset! (aget ^objects inputs slot) value)
-    (println "change on dead frame :" (- frame) slot value))
+    (log/warn "change on dead frame :" (- frame) slot value))
   context)
 
 (defn peer [nodes inputs targets sources signals variables outputs boot]
@@ -261,8 +262,12 @@
                        (distinct)))
        (sort-by (juxt namespace name))))
 
-(defn missing-exports [env program]
-  (map symbol (remove env (globals program))))
+(defn missing-exports [resolvef program]
+  (->> (globals program)
+       (eduction (map (juxt (partial resolvef ::not-found) identity))
+                 (filter #(= ::not-found (first %)))
+                 (map second)
+                 (map symbol))))
 
 (def eval
   (let [slots (u/local)
@@ -279,7 +284,7 @@
                 (u/set-local slots (assoc m k (inc n))) n))
             (node [s]
               (u/set-local slots (update (u/get-local slots) :nodes max s)) s)]
-      (fn [resolve inst]
+      (fn [resolvef inst]
         (letfn [(eval-inst [idx [op & args]]
                   (case op
                     :nop (fn [_ _])
@@ -322,11 +327,12 @@
                               (fn [pubs nodes]
                                 (source s nodes)
                                 (f pubs nodes)))
-                    :global (if (contains? resolve (first args))
-                              (constantly (steady (get resolve (first args))))
+                    :global (if (resolvef (first args)) ; check if exported, don’t resolve now.
+                              (constantly (steady (resolvef ::not-found (first args)) ; resolve when sampled
+                                                  ))
                               (throw (ex-info (str "Unable to resolve - "
                                                    (symbol (first args)))
-                                              {:missing-exports (missing-exports resolve inst)})))
+                                              {:missing-exports (missing-exports resolvef inst)})))
                     :literal (constantly (steady (first args)))
                     :recover (let [f (eval-inst idx (first args))
                                    [g {:keys [inputs targets sources signals variables outputs]}]

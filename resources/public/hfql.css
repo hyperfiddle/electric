@@ -1,0 +1,345 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap');
+
+body{
+    font-family: 'Open Sans', Arial, Verdana, sans-serif;
+    font-size: 0.8rem;
+}
+
+form {
+    display: grid;
+    grid-gap: 0.5rem;
+    grid-auto-flow:row;
+    padding-bottom: 0.5rem;
+    border-left-style: solid;
+    border-left-width: 0.25rem;
+    padding-left: 0.25rem;
+}
+
+form .field{
+    display:grid;
+    border-left-width: 0rem;
+    border-left-style: solid;
+    padding-bottom: 0.5rem;
+    grid-gap: 0.5rem;
+}
+
+form .field:last-child{
+    padding-bottom: 0;
+}
+
+form .field > label{
+    font-size: 1rem;
+    /* font-weight: 600; */
+}
+
+label{
+    font-weight: 500;
+}
+
+table{
+    display: inline-table;
+    table-layout: fixed;
+    border-collapse: collapse;
+    /* border: 1px solid; */
+}
+th {
+    border-width: 0px;
+    border-left-width: 1px;
+    border-style: solid;
+    font-weight: 500;
+    font-size: 1rem;
+    border-color: white;
+    font-size: 1.1em;
+    padding: 0.35rem;
+}
+
+th:first-child{
+    display: block;
+    border-left-width: 0;
+    border-top-left-radius: 2px;
+    margin-left: -0.5px;
+}
+
+th:last-child{
+    border-top-right-radius: 2px;
+    display: block;
+    margin-right: -2px;
+    border-right-width: 1px;
+}
+
+/* Select last th if there’s only tow columns */
+th:first-child:nth-last-child(2) ~ th:last-child {
+    display: table-cell;
+}
+
+td{
+    vertical-align: top;
+    padding: 0.3rem;
+    border-width: 1px;
+    border-style: solid;
+}
+
+thead td:empty{
+    visibility:hidden;
+    border: none;
+}
+
+.hf-table-picker-count{
+  border: none;
+  vertical-align: middle;
+  text-align: center;
+}
+
+input:not([type="radio"]):not([type="checkbox"]), select {
+    box-sizing: border-box;
+    /* width:100%; */
+    border-width: 1px;
+    border-left-width: 0.2rem;
+    border-style:solid;
+    border-radius: 2px;
+    padding: 0.5rem 0.5rem;
+    width: 100%;
+}
+
+input[type="checkbox"]{
+    margin:0;
+    width: 1rem;
+    height: 1rem;
+}
+
+.inputs{
+    display:grid;
+    grid-template-columns: auto 1fr;
+    grid-gap: 0.5rem 1rem;
+    align-items: baseline;
+    align-items: center;
+    /* justify-content: flex-start; */
+}
+
+fieldset.hf-options {
+    display:grid;
+    width: fit-content;
+    grid-gap: 0.5rem;
+    border-radius: 3px;
+    border: 1px gray solid;
+}
+
+fieldset.hf-options th:nth-child(2){
+    display: block;
+    margin: 0 -1px;
+    box-sizing: content-box;
+    border-top-left-radius: 2px;
+    border-top-right-radius: 2px;
+}
+
+/**
+ * Tooltip Styles
+ */
+
+/* Base styles for the element that has a tooltip */
+[data-tooltip],
+.tooltip {
+  position: relative;
+  cursor: pointer;
+}
+
+/* Base styles for the entire tooltip */
+[data-tooltip]:before,
+[data-tooltip]:after,
+.tooltip:before,
+.tooltip:after
+{
+  position: absolute;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out,
+              visibility 0.2s ease-in-out,
+              transform 0.2s cubic-bezier(0.71, 1.7, 0.77, 1.24);
+  transform: translate3d(0, 0, 0);
+  pointer-events: none;
+}
+
+/* Show the entire tooltip on hover and focus */
+[data-tooltip]:hover:before,
+[data-tooltip]:hover:after,
+[data-tooltip]:focus:before,
+[data-tooltip]:focus:after,
+.tooltip:hover:before,
+.tooltip:hover:after,
+.tooltip:focus:before,
+.tooltip:focus:after {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Base styles for the tooltip's directional arrow */
+.tooltip:before,
+[data-tooltip]:before {
+  z-index: 1001;
+  border: 6px solid transparent;
+  background: transparent;
+  content: "";
+}
+
+/* Base styles for the tooltip's content area */
+.tooltip:after,
+[data-tooltip]:after {
+  z-index: 1000;
+  padding: 8px;
+  min-width: 80px;
+  background-color: hsla(0, 0%, 20%, 0.75);
+  backdrop-filter: blur(2px);
+  color: #fff;
+  content: attr(data-tooltip);
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  border-radius: 3px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+/* Directions */
+
+/* Top (default) */
+[data-tooltip]:before,
+[data-tooltip]:after,
+.tooltip:before,
+.tooltip:after,
+.tooltip-top:before,
+.tooltip-top:after {
+  bottom: 100%;
+  left: 50%;
+}
+
+[data-tooltip]:before,
+.tooltip:before,
+.tooltip-top:before {
+  margin-left: -6px;
+  margin-bottom: -12px;
+  border-top-color: hsla(0, 0%, 20%, 0.75);
+}
+
+/* Horizontally align top/bottom tooltips */
+[data-tooltip]:after,
+.tooltip:after,
+.tooltip-top:after {
+  margin-left: -40px;
+}
+
+[data-tooltip]:hover:before,
+[data-tooltip]:hover:after,
+[data-tooltip]:focus:before,
+[data-tooltip]:focus:after,
+.tooltip:hover:before,
+.tooltip:hover:after,
+.tooltip:focus:before,
+.tooltip:focus:after,
+.tooltip-top:hover:before,
+.tooltip-top:hover:after,
+.tooltip-top:focus:before,
+.tooltip-top:focus:after {
+  transform:         translateY(-12px);
+}
+
+/* Left */
+.tooltip-left:before,
+.tooltip-left:after {
+  right: 100%;
+  bottom: 50%;
+  left: auto;
+}
+
+.tooltip-left:before {
+  margin-left: 0;
+  margin-right: -12px;
+  margin-bottom: 0;
+  border-top-color: transparent;
+  border-left-color: hsla(0, 0%, 20%, 0.9);
+}
+
+.tooltip-left:hover:before,
+.tooltip-left:hover:after,
+.tooltip-left:focus:before,
+.tooltip-left:focus:after {
+  transform:         translateX(-12px);
+}
+
+/* Bottom */
+.tooltip-bottom:before,
+.tooltip-bottom:after {
+  top: 100%;
+  bottom: auto;
+  left: 50%;
+}
+
+.tooltip-bottom:before {
+  margin-top: -12px;
+  margin-bottom: 0;
+  border-top-color: transparent;
+  border-bottom-color: hsla(0, 0%, 20%, 0.9);
+}
+
+.tooltip-bottom:hover:before,
+.tooltip-bottom:hover:after,
+.tooltip-bottom:focus:before,
+.tooltip-bottom:focus:after {
+  transform:         translateY(12px);
+}
+
+/* Right */
+.tooltip-right:before,
+.tooltip-right:after {
+  bottom: 50%;
+  left: 100%;
+}
+
+.tooltip-right:before {
+  margin-bottom: 0;
+  margin-left: -12px;
+  border-top-color: transparent;
+  border-right-color: hsla(0, 0%, 20%, 0.9);
+}
+
+.tooltip-right:hover:before,
+.tooltip-right:hover:after,
+.tooltip-right:focus:before,
+.tooltip-right:focus:after {
+  transform:         translateX(12px);
+}
+
+/* Move directional arrows down a bit for left/right tooltips */
+.tooltip-left:before,
+.tooltip-right:before {
+  top: 3px;
+}
+
+/* Vertically center tooltip content for left/right tooltips */
+.tooltip-left:after,
+.tooltip-right:after {
+  margin-left: 0;
+  margin-bottom: -16px;
+}
+
+/* .grid{ */
+/*     display: grid; */
+/*     box-sizing: border-box; */
+/*     grid-auto-flow: row; */
+/*     border: 1px solid; */
+/* } */
+
+/* .grid th, .grid td { */
+/*     display: block; */
+/*     box-sizing: content-box; */
+/* } */
+
+/* .grid th { */
+/*     border-width: 0; */
+/*     border-right: 1px white solid; */
+/* } */
+
+/* .grid td { */
+/*     border-width: 0; */
+/*     /\* border-left-width: 1px ; *\/ */
+/*     border-bottom-width: 1px ; */
+/* } */
+
