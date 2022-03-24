@@ -1,6 +1,6 @@
-(ns hfdl.impl.sampler
+(ns hyperfiddle.photon-impl.sampler
   #?(:clj (:import (clojure.lang IFn IDeref)))
-  #?(:cljs (:require-macros [hfdl.impl.sampler :refer [lock]])))
+  #?(:cljs (:require-macros [hyperfiddle.photon-impl.sampler :refer [lock]])))
 
 #?(:clj
    (defmacro lock [& args]

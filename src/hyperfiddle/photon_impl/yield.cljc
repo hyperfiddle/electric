@@ -1,4 +1,4 @@
-(ns hfdl.impl.yield
+(ns hyperfiddle.photon-impl.yield
   #?(:clj (:import (clojure.lang IFn IDeref))))
 
 (declare cancel sample)

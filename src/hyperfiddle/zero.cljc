@@ -1,8 +1,7 @@
 (ns hyperfiddle.zero
   (:refer-clojure :exclude [empty?])
   (:require [missionary.core :as m]
-            [hfdl.lang :as p]
-            [hfdl.impl.runtime :refer [pending]])
+            [hyperfiddle.photon :as p])
   #?(:cljs (:require-macros [hyperfiddle.zero :refer [pick current instant]])))
 
 (defn state [init-value]

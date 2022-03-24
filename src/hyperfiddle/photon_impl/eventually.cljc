@@ -1,4 +1,4 @@
-(ns hfdl.impl.eventually
+(ns hyperfiddle.photon-impl.eventually
   #?(:clj (:import (clojure.lang IFn IDeref))))
 
 (deftype It [final notifier terminator ^objects state]

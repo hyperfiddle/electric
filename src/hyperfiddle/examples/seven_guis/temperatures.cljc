@@ -1,5 +1,5 @@
 (ns hyperfiddle.examples.seven-guis.temperatures
-  (:require [hfdl.lang :as p]
+  (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z]
             [missionary.core :as m]

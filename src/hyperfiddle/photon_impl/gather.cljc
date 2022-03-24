@@ -1,7 +1,15 @@
-(ns hfdl.impl.gather
-  (:require [hfdl.impl.util :as u]
+(ns hyperfiddle.photon-impl.gather
+  (:require [hyperfiddle.photon-impl.runtime :as r]
             [missionary.core :as m])
-  #?(:clj (:import (clojure.lang IDeref IFn))))
+  #?(:clj (:import (clojure.lang IDeref IFn)))
+  #?(:cljs (:require-macros [hyperfiddle.photon-impl.gather :refer [aget-aset]])))
+
+#?(:clj
+   (defmacro aget-aset [arr idx val]
+     `(let [a# ~arr
+            i# ~idx
+            x# (aget a# i#)]
+        (aset a# i# ~val) x#)))
 
 ;; 0: iterator
 ;; 1: prev in linked list
@@ -30,21 +38,21 @@
 (defn ^:static flush! [item]
   (loop [^objects item item]
     (when (some? item)
-      (let [next (u/aget-aset item (int 3) nil)]
+      (let [next (aget-aset item (int 3) nil)]
         (try @(aget item (int 0))
              (catch #?(:clj Throwable :cljs :default) _))
         (recur next)))))
 
 (defn ^:static fail! [^objects main ^objects item error]
   (cancel! main)
-  (flush! (u/aget-aset main (int 3) nil))
+  (flush! (aget-aset main (int 3) nil))
   (flush! item)
   (throw error))
 
 (defn ^:static sample! [^objects main rf notifier]
-  (let [^boolean idle (u/aget-aset main (int 5) false)
-        ^objects head (u/aget-aset main (int 3) nil)]
-    (loop [^objects item (u/aget-aset head (int 3) nil)
+  (let [^boolean idle (aget-aset main (int 5) false)
+        ^objects head (aget-aset main (int 3) nil)]
+    (loop [^objects item (aget-aset head (int 3) nil)
            r (try @(aget head (int 0))
                   (catch #?(:clj Throwable :cljs :default) e
                     (fail! main item e)))]
@@ -52,7 +60,7 @@
         (do (if (aget main (int 5))
               (when idle (notifier))
               (aset main (int 5) idle)) r)
-        (let [next (u/aget-aset item (int 3) nil)]
+        (let [next (aget-aset item (int 3) nil)]
           (recur next
             (try (rf r @(aget item (int 0)))
                  (catch #?(:clj Throwable :cljs :default) e
@@ -71,7 +79,7 @@
     (while (aset main (int 4) (not (aget main (int 4))))
       (if-some [^objects prev (aget main (int 1))]
         (let [item (object-array (int 4))
-              ^boolean idle (u/aget-aset main (int 5) false)]
+              ^boolean idle (aget-aset main (int 5) false)]
           (aset main (int 6) (inc (aget main (int 6))))
           (aset item (int 1) prev)
           (aset prev (int 2) item)
@@ -82,7 +90,7 @@
                        (try @(aget item (int 0))
                             (catch #?(:clj Throwable
                                       :cljs :default) _))
-                       (if-some [^objects curr (u/aget-aset main (int 3) item)]
+                       (if-some [^objects curr (aget-aset main (int 3) item)]
                          (aset item (int 3) curr)
                          (if (aget main (int 5))
                            ((.-notifier it))
@@ -98,7 +106,7 @@
             (aset item (int 0)
               (try (@(aget main (int 0)) n t)
                    (catch #?(:clj Throwable :cljs :default) e
-                     (u/failer e n t))))
+                     (r/failer e n t))))
             (if (aget main (int 5))
               (when idle ((.-notifier it)))
               (aset main (int 5) idle))))

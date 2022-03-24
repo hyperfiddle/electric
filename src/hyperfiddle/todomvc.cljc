@@ -2,7 +2,7 @@
   (:require [clojure.edn :as edn]
             [datascript.core :as d]
             [missionary.core :as m]
-            [hfdl.lang :as p]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z])
   #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db basis-t todo-list transact!' app]])))

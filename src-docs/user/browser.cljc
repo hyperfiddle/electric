@@ -1,7 +1,6 @@
 (ns user.browser
-  (:require [hfdl.lang :as p]
-            [hfdl.lib :as lib]
-            ;; #?(:clj [hfdl.lib :as lib :refer [forget deduping ]])
+  (:require [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-xp :as xp]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui6 :as ui]
@@ -17,7 +16,7 @@
             #?(:clj [datahike.api :as d]))
   #?(:cljs (:require-macros [user.browser :refer [view NavBar NotFoundPage BackButton]]
                             [user.gender-shirt-size :refer [submissions sub-profile]]
-                            [hfdl.lib :as lib :refer [forget deduping]])))
+                            [hyperfiddle.photon-xp :as xp])))
 
 ;; NOTE
 ;; shirt-sizes computed for each row, should we cache? could the DAG ensures deduplication?
@@ -86,7 +85,7 @@
           !stage       (atom nil)
           stage        ~(m/watch !stage)
           [db message] (transact! ~>db stage)]
-      (binding [hf/db (deduping db)]
+      (binding [hf/db (xp/deduping db)]
         ~@;; client
           (dom/div
            (dom/class "browser")
@@ -113,13 +112,13 @@
                          (dom/div (dom/class "hf-error-wrapper")
                                   (let [tx' (p/$ cm/CodeMirror {:parent dom/parent} read-edn write-edn [])]
                                     (do tx'
-                                        ~@(forget (reset! !stage tx'))
+                                        ~@(xp/forget (reset! !stage tx'))
                                         ;; TODO use z/fsm or z/instant
                                         #_(let [click (dom/button (dom/text "transact!")
                                                                   ~(->> (dom/events dom/parent "click")
                                                                         (m/eduction (map (constantly true)))
                                                                         (ui/continuous)))]
-                                            ~@(forget ~(->> #'click
+                                            ~@(xp/forget ~(->> #'click
                                                             (m/eduction (filter boolean?)
                                                                         (map (partial transact!! !db !stage)))
                                                             (ui/continuous))))

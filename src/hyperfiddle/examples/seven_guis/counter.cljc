@@ -1,5 +1,5 @@
 (ns hyperfiddle.examples.seven-guis.counter
-  (:require [hfdl.lang :as photon]
+  (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z]
             [missionary.core :as m])
@@ -7,7 +7,7 @@
 
 (defn inc-reducer [r _] (inc r))
 
-(photon/defn Counter [c]
+(p/defn Counter [c]
   (dom/div
    (dom/input (dom/style {"margin-right" "1rem"})
               (dom/attribute "value" c)
@@ -19,7 +19,7 @@
           (m/relieve +)
           (m/reductions +)))))
 
-(photon/def counter
+(p/def counter
   #'~@(let [>count! (z/state 0)
             v       ~>count!]
-        (>count! ~@ (photon/$ Counter v))))
+        (>count! ~@ (p/$ Counter v))))

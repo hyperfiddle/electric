@@ -3,7 +3,6 @@
     ;; [hypercrud.transit :as hc-t] ;; TODO restore
     ;; [hyperfiddle.service.auth :as auth] ;; TODO restore
     [missionary.core :as m]
-    [hfdl.impl.util :as u]
     [hyperfiddle.dev.logger :as log])
   (:import (org.eclipse.jetty.servlet ServletContextHandler ServletHolder)
            (org.eclipse.jetty.websocket.api RemoteEndpoint Session WebSocketConnectionListener
@@ -18,13 +17,15 @@
 (defn open? [^Session session]
   (.isOpen session))
 
+(defn nop [])
+
 (defn write-str [^RemoteEndpoint remote ^String message]
   (fn [s f]
     (.sendString remote message
       (reify WriteCallback
         (writeFailed [_ e] (f e))
         (writeSuccess [_] (s nil))))
-    u/nop))
+    nop))
 
 (defn write-buf [^RemoteEndpoint remote ^ByteBuffer message]
   (fn [s f]
@@ -32,7 +33,7 @@
       (reify WriteCallback
         (writeFailed [_ e] (f e))
         (writeSuccess [_] (s nil))))
-    u/nop))
+    nop))
 
 (defn session-suspend! [^Session session]
   (.suspend session))
@@ -40,8 +41,7 @@
 (defn token-resume! [^SuspendToken token]
   (.resume token))
 
-(deftype Ws [boot
-             ^:unsynchronized-mutable reactor
+(deftype Ws [^:unsynchronized-mutable cancel
              ^:unsynchronized-mutable session
              ^:unsynchronized-mutable msg-str
              ^:unsynchronized-mutable msg-buf
@@ -52,16 +52,17 @@
   (invoke [_ _]
     (token-resume! token))
   WebSocketConnectionListener
-  (onWebSocketConnect [this s]
+  (onWebSocketConnect [_ s]
     (log/debug "websocket connect")
     (set! session s)
-    (set! reactor (boot (.getRemote s)
-                        (set! msg-str (m/rdv))
-                        (set! msg-buf (m/rdv))
-                        (set! close (m/dfv)))))
-  (onWebSocketClose [this s r]
+    (set! cancel
+      (cancel (.getRemote s)
+        (set! msg-str (m/rdv))
+        (set! msg-buf (m/rdv))
+        (set! close (m/dfv)))))
+  (onWebSocketClose [_ s r]
     (log/debug "websocket close")
-    (reactor)
+    (cancel)
     (close
       (do
         (set! close nil)
@@ -71,18 +72,18 @@
           (when-some [e error]
             (set! error nil)
             {:error e})))))
-  (onWebSocketError [this e]
+  (onWebSocketError [_ e]
     (log/error e)
     (set! error e))
   WebSocketListener
   (onWebSocketText [this msg]
     (log/trace "receive text" msg)
     (set! token (session-suspend! session))
-    ((msg-str msg) this u/pst))
+    ((msg-str msg) this this))
   (onWebSocketBinary [this payload offset length]
     (log/warn "received binary" {:length length})
     (set! token (session-suspend! session))
-    ((msg-buf (ByteBuffer/wrap payload offset length)) this u/pst)))
+    ((msg-buf (ByteBuffer/wrap payload offset length)) this this)))
 
 (def add-ws-endpoints
   (partial reduce-kv
@@ -101,5 +102,5 @@
                               #_(auth/configured? context)
                               #_(auth/authenticated? context)
                               )
-                        (->Ws (handler request) nil nil nil nil nil nil nil))))))))
+                        (->Ws (handler request) nil nil nil nil nil nil))))))))
           ^String path)))))

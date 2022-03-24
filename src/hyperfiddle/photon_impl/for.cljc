@@ -1,13 +1,11 @@
-(ns hfdl.lib
-  (:require [hfdl.impl.gather :refer [gather]]
-            [hfdl.impl.runtime]
-            [hfdl.impl.eventually :refer [eventually]]
-            [hfdl.impl.runtime :as r]
+(ns hyperfiddle.photon-impl.for
+  (:require [hyperfiddle.photon-impl.gather :refer [gather]]
+            [hyperfiddle.photon-impl.eventually :refer [eventually]]
+            [hyperfiddle.photon-impl.runtime :as r]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str])
-  (:import missionary.Cancelled)
-  #?(:cljs (:require-macros [hfdl.lib :refer [forget deduping]])))
+  (:import missionary.Cancelled))
 
 (defn append [y]
   (fn [rf]
@@ -143,7 +141,7 @@ flow of values matching that key in the input map.
       {:id "alice" :email "alice@msn.com"}]
      [{:id "bob" :name "bob@yahoo.com"}
       {:id "alice" :email "alice@msn.com"}]
-     (r/->Failure nil)]) :=
+     r/remote]) :=
   [[1 :index 0]
    [1 :value {:id "alice", :email "alice@caramail.com"}]
    [1 :value {:id "alice", :email "alice@gmail.com"}]
@@ -159,11 +157,11 @@ flow of values matching that key in the input map.
    [2 :index 0]
    [1 :index 1]
    [1 :value {:id "alice", :email "alice@msn.com"}]
-   [2 :index :hfdl.lib/done]
-   [2 :value :hfdl.lib/done]
-   [1 :index :hfdl.lib/done]
-   [1 :value :hfdl.lib/done]
-   [0 :value (r/->Failure nil)]])
+   [2 :index ::done]
+   [2 :value ::done]
+   [1 :index ::done]
+   [1 :value ::done]
+   [0 :value r/remote]])
 
 (defn conj-nil [r] (conj r nil))
 
@@ -222,8 +220,7 @@ Given a function and a continuous flow of collections, returns a continuous flow
 collection, where values are produced by the continuous flow returned by the function when called with the continuous
 flow of values matching the identity provided by key function, defaulting to identity."
   ([f >xs] (map-by identity f >xs))
-  ([k f >xs] (map-by nil k f >xs))
-  ([e k f >xs]
+  ([k f >xs]
    (->> >xs
      (m/eduction (seq-diff k ::done))
      (m/group-by pop)
@@ -244,7 +241,7 @@ flow of values matching the identity provided by key function, defaulting to ide
                   :value (->> >x
                            (m/eduction (map peek)
                              (take-while (complement #{::done}))
-                             (append e))
+                             (append (r/->Failure (missionary.Cancelled.))))
                            (m/relieve {})
                            (f) (m/latest (partial update empty-diff 1 assoc id))))))))
      (gather merge-diff)
@@ -257,7 +254,7 @@ flow of values matching the identity provided by key function, defaulting to ide
 (tests
   (let [!xs (atom [])
         it ((map-by :id
-              (partial m/latest (fn [x] (when (some? x) (update x :email str/upper-case))))
+              (partial m/latest (fn [x] (if (r/failure x) x (update x :email str/upper-case))))
               (m/watch !xs)) #() #())]
     @it := []
     (swap! !xs conj {:id "alice" :email "alice@caramail.com"})
@@ -274,43 +271,3 @@ flow of values matching the identity provided by key function, defaulting to ide
         (identical? (get x 1) (get y 0)) := true
         (swap! !xs pop)
         @it := [{:id "alice" :email "BOB@YAHOO.COM"}]))))
-
-;; (tests
-;;  ;; (require '[hfdl.impl.runtime])
-;;  (let [!xs (atom [])
-;;        failure (hfdl.impl.runtime/->Failure ":trollface:")
-;;        it ((map-by identity
-;;                    (partial m/latest identity)
-;;                    (m/watch !xs))
-;;            #() #())]
-;;    @it := []
-;;    (reset! !xs failure)
-;;    @it := failure
-;;    ))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;         EXPERIMENTAL ZONE             ;;
-;;                                       ;;
-;; Everything below should be considered ;;
-;; guilty until proven innocent          ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn continuous
-  ([>x] (continuous nil >x))
-  ([init >x] (m/relieve {} (m/reductions {} init >x))))
-
-(defmacro forget
-  "Like `do` but returs `nil` once, then never return again."
-  [& body]
-  `(unquote (->> (var (do ~@body))
-                 (m/eduction (constantly nil) (dedupe))
-                 (m/reductions {} nil)
-                 (m/relieve {}))))
-
-(defmacro deduping [x]
-  `(unquote (->> (var ~x)
-                 (m/eduction (dedupe))
-                 (m/reductions {} nil)
-                 (m/relieve {}))))
-
-(defn newest [>left >right] (m/ap (m/?< (m/amb= >left >right))))

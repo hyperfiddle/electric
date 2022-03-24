@@ -1,18 +1,18 @@
 (ns hyperfiddle.ui.codemirror
-  #?(:clj  (:require [hfdl.lang :as p]
-                     [hfdl.lib :as lib]
+  #?(:clj  (:require [hyperfiddle.photon :as p]
+                     [hyperfiddle.photon-xp :as xp]
                      [missionary.core :as m])
      :cljs (:require
-            [hfdl.lang :as p]
-            [hfdl.lib :as lib]
-            ["@codemirror/fold" :as fold]
-            ["@codemirror/gutter" :refer [lineNumbers]]
-            ["@codemirror/highlight" :as highlight]
-            ["@codemirror/history" :refer [history historyKeymap]]
-            ["@codemirror/state" :refer [EditorState]]
-            ["@codemirror/view" :as view :refer [EditorView]]
-            [nextjournal.clojure-mode :as cm-clj]
-            [missionary.core :as m])))
+             [hyperfiddle.photon :as p]
+             [hyperfiddle.photon-xp :as xp]
+             [missionary.core :as m]
+             ["@codemirror/fold" :as fold]
+             ["@codemirror/gutter" :refer [lineNumbers]]
+             ["@codemirror/highlight" :as highlight]
+             ["@codemirror/history" :refer [history historyKeymap]]
+             ["@codemirror/state" :refer [EditorState]]
+             ["@codemirror/view" :as view :refer [EditorView]]
+             [nextjournal.clojure-mode :as cm-clj])))
 
 #?(:cljs
    (def theme
@@ -84,5 +84,5 @@
     (set-editor-value! view (writef value))
     ~(->> >value
           (m/eduction (map readf))
-          (lib/newest #'value)
-          (lib/continuous))))
+          (xp/newest #'value)
+          (xp/continuous))))

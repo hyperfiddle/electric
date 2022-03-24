@@ -3,7 +3,7 @@
   (:refer-clojure :exclude [bound? munge ancestors])
   (:require
    [clojure.string :as str]
-   [hfdl.lang :as p]
+   [hyperfiddle.photon :as p]
    [hyperfiddle.api :as hf] ;; should it be :as-alias?
    [hyperfiddle.q9.env :as env]
    [hyperfiddle.spec :as spec]
