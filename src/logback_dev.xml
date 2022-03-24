@@ -1,0 +1,38 @@
+<!-- Options: http://logback.qos.ch/manual/layouts.html -->
+<configuration debug="false" scan="true" scanPeriod="10 seconds">
+    <appender name="ERGONOMIC" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %cyan(%logger{15}) %white([%thread]) - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="FULL" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %logger [%thread] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+
+    <logger name="hyperfiddle.server" level="DEBUG" additivity="false">
+        <appender-ref ref="ERGONOMIC" />
+    </logger>
+
+
+    <logger name="org.xnio" level="INFO" additivity="false">
+        <appender-ref ref="FULL" />
+    </logger>
+    <logger name="io.undertow" level="INFO" additivity="false">
+        <appender-ref ref="FULL" />
+    </logger>
+    <logger name="org.eclipse.jetty" level="INFO" additivity="false">
+        <appender-ref ref="FULL" />
+    </logger>
+    <logger name="io.pedestal" level="WARN" additivity="false">
+        <appender-ref ref="FULL" />
+    </logger>
+
+    <root level="TRACE">
+        <appender-ref ref="ERGONOMIC"/>
+    </root>
+
+</configuration>

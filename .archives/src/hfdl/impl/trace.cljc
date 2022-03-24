@@ -2,9 +2,7 @@
   (:require [hfdl.impl.runtime :as r]
             [hfdl.impl.util :as u]
             [hfdl.impl.switch :refer [switch]]
-            [missionary.core :as m]
-            [minitest :refer [tests]])
-  #?(:cljs (:require-macros [minitest])))
+            [missionary.core :as m]))
 
 (def events (u/monoid u/map-into [{} #{} #{}]))
 (def change (partial assoc (events) 0))

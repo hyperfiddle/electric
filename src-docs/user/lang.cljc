@@ -2,7 +2,11 @@
   "Photon language tutorial"
   (:require [hfdl.lang :as r]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
-            [missionary.core :as m]))
+            [missionary.core :as m])
+  #?(:cljs (:require-macros [user.lang :refer [f2 my-inc my-var foo bar !' div widget g boom foo' inner outer foo1 bar1 foo2 foo3 foo4
+                                               ;; if2 ping pong fib fib' expr
+                                               ]])))
+
 
 ;(defmacro with-disposal [task & body]
 ;  `(let [dispose# ~task]
@@ -54,9 +58,9 @@
   "reactive quote escapes to flow layer"
   (def dispose
     (r/run (! (let [x 1]
-                [(type x)
-                 (if (fn? #'x) ::fn)]))))
-  % := [java.lang.Long ::fn]
+                [(number? x)
+                 (fn? #'x)]))))
+  % := [true true]
   (dispose)
 
   "special form for unquoting a quoted flow (monadic join)"
@@ -94,10 +98,10 @@
 (tests
   "reactive function call"
   (def !f (atom +)) (def f (m/watch !f))
-  (def !x (atom 1)) (def x (m/watch !x))
+  (def !x2 (atom 1)) (def x (m/watch !x2))
   (def dispose (r/run (! (~f 0 ~x))))
   % := 1
-  (swap! !x inc)
+  (swap! !x2 inc)
   % := 2
   (reset! !f -)
   % := -2
@@ -180,17 +184,17 @@
   % := 2
   (dispose))
 
+(r/def f2 (r/fn [x] (inc x)))
 (tests
   "reactive def fn"
-  (r/def f (r/fn [x] (inc x)))
-  (def dispose (r/run (! (r/$ f 1))))
+  (def dispose (r/run (! (r/$ f2 1))))
   % := 2
   (dispose))
 
+(r/defn my-inc [x] (inc x))
 (tests
   "reactive defn"
-  (r/defn f [x] (inc x))
-  (def dispose (r/run (! (r/$ f 1))))
+  (def dispose (r/run (! (r/$ my-inc 1))))
   % := 2
   (dispose))
 
@@ -219,11 +223,12 @@
   % := :qq
   (dispose))
 
+;; FIXME RCF fail in cljs
+(r/def my-var 1)
 (tests
   "def"
   ; concurrency issue, a problem with def redefinition
-  (r/def foo 1)
-  (def dispose (r/run (! foo)))
+  (def dispose (r/run (! my-var)))
   % := 1
   (dispose))
 
@@ -260,24 +265,24 @@
   % := -2
   (dispose))
 
+(r/def foo4 1)
 (tests
   "if with unwinding binding"
   (def !a (atom true))
-  (r/def foo 1)
-  (def dispose (r/run (! ~(binding [foo 2] #'(if ~(m/watch !a) foo (- foo))))))
+  (def dispose (r/run (! ~(binding [foo4 2] #'(if ~(m/watch !a) foo4 (- foo4))))))
   % := 1
   (swap! !a not)
   % := -1
   (dispose))
 
+(r/def foo 1)
+(r/def bar 2)
 (tests
-  ; unstable
+  ; FIXME unstable
   "internal def"
   (def !a (atom 0))
-  (r/def foo 1)
-  (r/def bar 2)
   (def dispose (r/run (! ~((def bar) #'[foo bar] (m/watch !a)))))
-  % := [1 0]
+  % := [1 0] ;; FAIL with [nil 0] in cljs
   (dispose))
 
 (tests
@@ -305,11 +310,10 @@
   % := [1 :b 3]
   #_(dispose))                                              ; broken dispose fixme
 
+(r/def foo 0)
 (tests
   "Reactive for with bindings"
-
   (def !items (atom ["a"]))
-  (r/def foo 0)
   (r/run (binding [foo 1]
            (r/for [item ~(m/watch !items)]
              (! foo)
@@ -377,9 +381,9 @@
   % := 1
   % := 1)
 
-(rcf/set-timeout! 4000)
 
 (comment
+  (rcf/set-timeout! 4000)
   "do stmts run in parallel, not sequence.
   In other words, `do` is sequenceA or sequenceM"
   (def x (m/ap (m/? (m/sleep 1000 :a))))
@@ -404,39 +408,43 @@
 ; third way (do a b) is same as ({} a b); both are constructed at the same time and we need both to be available for the
 ; do expression to be available. whenever a changes, the expr changes.
 
-(tests
-  "reactive doto"
-  (defn MutableMap [] (new java.util.HashMap))
-  (defn PutMap [!m k v] (.put !m k v))
-  (defn Ref [] (new Object))
-  (def !z (atom 0))
-  (def !x (atom 0))
-  (def dispose
-    (r/run
-      #_(doto (element "input")
-          (set-attribute! "type" "text")
-          (set-attribute! "value" x))
-      (! (doto (MutableMap)                                 ; the doto is incrementalized
-           (PutMap "a" (swap! !z inc))                      ; detect effect
-           (PutMap "b" ~(m/watch !x))))))
-  % := {"a" 1 "b" 0}
-  (swap! !x inc)
-  ;% := ::rcf/timeout       ; old design no further sample, the map hasn't changed
-  % := {"a" 1 "b" 1} ; alternative (desired) design will sample again
-  (dispose))
+#?(:clj
+   (tests
+    "reactive doto"
+    (defn MutableMap [] (new java.util.HashMap))
+    (defn PutMap [!m k v] (.put !m k v))
+    (defn Ref [] (new Object))
+    (def !z (atom 0))
+    (def !xx (atom 0))
+    (def dispose2
+      (r/run
+        #_(doto (element "input")
+            (set-attribute! "type" "text")
+            (set-attribute! "value" x))
+        (! (doto (MutableMap)                                 ; the doto is incrementalized
+             (PutMap "a" (swap! !z inc))                      ; detect effect
+             (PutMap "b" ~(m/watch !xx))))))
+    % := {"a" 1 "b" 0}
+    (swap! !xx inc)
+                                        ;% := ::rcf/timeout       ; old design no further sample, the map hasn't changed
+    % := {"a" 1 "b" 1} ; alternative (desired) design will sample again
+    (dispose2))
+   :cljs
+   (tests 1 := 1, 1 := 1) ;; for assert count parity in reports
+   )
 
 ; node call (static dispatch)
+(r/def !')
+(r/defn div [child] (!' child) [:div child])
+(r/defn widget [x]
+  (r/$ div [(r/$ div x) (r/$ div :a)]))
+
 (tests
   "reactive defn"
   ; best example of this is hiccup incremental maintenance
 
-  (r/def !')
-  (r/defn div [child] (!' child) [:div child])
-  (r/defn widget [x]
-    (r/$ div [(r/$ div x) (r/$ div :a)]))
-
   (def !x (atom 0))
-  (def dispose (r/run (! (r/binding [!' ! #_(r/fn [x] (! x))] ; careful at repl, ! only defined in test context
+  (def dispose (r/run (! (binding [!' ! #_(r/fn [x] (! x))] ; careful at repl, ! only defined in test context
                            (r/$ widget ~(m/watch !x))))))
   % := 0
   % := :a
@@ -449,9 +457,9 @@
   % := [:div [[:div 1] [:div :a]]]
   (dispose))
 
+(r/def g (r/fn [x] x))                                      ; reactive fn (DAG). Compiler marks dag with meta
 (tests
   "node call vs fn call"
-  (r/def g (r/fn [x] x))                                      ; reactive fn (DAG). Compiler marks dag with meta
   (defn f [x] x)                                            ; This var is not marked with meta
   (def !x (atom 0))
   (def dispose
@@ -461,11 +469,11 @@
   % := [0 0]
   (dispose))
 
+(r/def g (r/fn [x] x))
 (tests
   "higher order dags"
   (def !x (atom 0))
   (defn f [x] x)
-  (r/def g (r/fn [x] x))
   (def dispose
     (r/run
       (! (let [ff #_(fn [x] x) identity                     ; foreign clojure fns are useful, e.g. passing callbacks to DOM
@@ -601,33 +609,33 @@
 (tests
   "For reference, Clojure exceptions have dynamic scope"
   (try
-    (let [f (try (fn [] (/ 1 0))                            ; this exception will escape
-                 (catch Exception _ ::inner))]
+    (let [f (try (fn [] (throw (ex-info "boom" {}))) ; this exception will escape
+                 (catch #?(:clj Exception, :cljs :default) _ ::inner))]
       ; the lambda doesn't know it was constructed in a try/catch block
       (f))
-    (catch Exception _ ::outer))
+    (catch #?(:clj Exception, :cljs :default) _ ::outer))
   := ::outer)
 
+(r/defn boom [] (throw (ex-info "" {})))
 (tests
   "reactive exceptions"
-  (r/defn boom [] (throw (ex-info "" {})))
   (def dispose
-    (r/run (! (try (r/$ boom) (catch Exception _ ::inner)))))
+    (r/run (! (try (r/$ boom) (catch #?(:clj Exception, :cljs :default) _ ::inner)))))
   % := ::inner                                              ; reactive exception caught
 
   (def dispose
     (r/run (! (try
                 (let [nf (try
                            (r/fn [] (r/$ boom))             ; reactive exception uncaught
-                           (catch Exception _ ::inner))]
+                           (catch #?(:clj Exception, :cljs :default) _ ::inner))]
                   (r/$ nf))
-                (catch Exception _ ::outer)))))
+                (catch #?(:clj Exception, :cljs :default) _ ::outer)))))
   % := ::outer)
 
+(r/def foo)
+(r/def foo')
 (tests
   "leo bind"
-  (r/def foo)
-  (r/def foo')
   (def !x (atom 0))
   (def dispose (r/run (! (let [x ~(m/watch !x)]
                            (binding [foo #'(inc x)
@@ -643,21 +651,21 @@
 ;  "can take value of bind (previously couldn't)"
 ;  (r/def nf)
 ;  (def dispose
-;    (r/run (! (r/binding [nf 1] nf))))
+;    (r/run (! (binding [nf 1] nf))))
 ;  % := 1                                        ; runtime error
 ;  (dispose))
 
+(r/def inner)
+(r/def outer (r/fn [] inner))
 (tests
   "dynamic scope (note that try/catch has the same structure)"
-  (r/def db)
-  (r/defn foo [] db)
-  (def dispose (r/run (! (binding [db ::inner] (r/$ foo)))))
+  (def dispose (r/run (! (binding [inner ::inner] (r/$ outer)))))
   % := ::inner
   (dispose)
 
-  (def dispose (r/run (! (binding [db ::outer]
-                           (let [nf (binding [db ::inner]
-                                      (r/fn [] (r/$ foo)))]     ; binding out of scope
+  (def dispose (r/run (! (binding [inner ::outer]
+                           (let [nf (binding [inner ::inner]
+                                      (r/fn [] (r/$ outer)))]     ; binding out of scope
                              (r/$ nf))))))
   % := ::outer
   (dispose))
@@ -674,7 +682,7 @@
   (defn not-query [] (inc 1))                               ; reacts on implicit global !!
   (defn query [] (inc *db*))
   (def !x (atom 0))
-  (def dispose (r/run (! (r/binding [*db* ~(m/watch !x)] (query)))))
+  (def dispose (r/run (! (binding [*db* ~(m/watch !x)] (query)))))
   % := 0
   (swap! !x inc)
   % := 1
@@ -693,8 +701,7 @@
   % := ::rcf/timeout
   (dispose)
 
-  (r/def foo :boom)
-  (def dispose (r/run (let [_ (! :boom)])))
+  (def dispose (r/run (let [_ (! :bang)])))
   % := ::rcf/timeout
   (dispose))
 
@@ -702,20 +709,20 @@
   (r/run2 {} (! ~@~@1))
   % := 1)
 
+(r/def foo nil)
 (tests
-  (r/def foo nil)
   (r/run2 {} (! (binding [foo 1] ~@~@foo)))
   % := 1)
 
+(r/def foo nil)
 (tests
-  (r/def foo nil)
   (r/run2 {} (! (binding [foo 1] ~@~#'~@foo)))
   % := 1)
 
+(r/def foo1 nil)
+(r/def bar1 #'~@foo1)
 (tests
-  (r/def foo nil)
-  (r/def bar #'~@foo)
-  (r/run2 {} (! (binding [foo 1] ~@~bar)))
+  (r/run2 {} (! (binding [foo1 1] ~@~bar1)))
   % := 1)
 
 (tests
@@ -807,17 +814,63 @@
   (swap! !x inc)
   % := {:foo 1})
 
+;; FIXME confused, please revisit
+(r/def foo2 ~(m/watch !x))
+
 (tests
-  (let [foo (m/ap (m/? (m/sleep 10 :foo)))]
-    (r/run (! ~~#'(let [a ~foo] #'a)))
-    % := ::rcf/timeout))
+ (let [foo (m/ap (m/? (m/sleep 10 :foo)))]
+   (r/run (! ~~#'(let [a ~foo] #'a)))
+   % := ::rcf/timeout))
+
+(tests
+  "regression: cancel on reactive quote"
+  (def !x (atom 42))
+
+  ; prove that if we pass this fn a reactive quote,
+  ; then it will fail to cancel properly. The switch will cancel
+  ; the quote then await termination which never happens.
+  (defn x [>a] (m/ap (m/?< (m/seed [:a 2]))
+                     (m/?< >a)))
+
+  ; To repro the bug the >a must just be a reactive var
+
+  (r/run (! ~(x #'foo2)))
+  % := 42
+  % := ::rcf/timeout  ; do not produce 42 twice
+  )
+
+;; FIXME confused, please revisit
+(r/def foo3 ~(m/watch !x))
+(tests
+  ""
+  (def !x (atom 42))
+
+  ; prove that if we pass this fn a reactive quote,
+  ; then it will fail to cancel properly. The switch will cancel
+  ; the quote then await termination which never happens.
+  (defn x [>a] (m/ap (m/?< (m/seed [1 2]))
+                     (m/?< >a)))
+
+  ; To repro the bug the >a must just be a reactive var
+
+  (r/run (! ~(x (let [x foo3] #'x))))
+  % := 42
+  % := ::rcf/timeout  ; do not produce 42 twice
+  )
+
+(tests
+  "undefined continuous flow, flow is not defined for the first 10ms"
+  (let [flow (m/ap (m/? (m/sleep 10 :foo)))]
+    (r/run (! ~~#'(let [a ~flow] #'a)))
+    % := ::rcf/timeout ;; FAIL should throw, does nothing instead
+    ))
 
 (tests
   (def !x (atom 0))
   (r/run (! (try (-> ~(m/watch !x)
                    (doto (-> even? (when-not (throw (ex-info "odd" {})))))
                    (/ 2))
-                 (catch Exception e (ex-message e)))))
+                 (catch #?(:clj Exception, :cljs :default) e (ex-message e)))))
   % := 0
   (swap! !x inc)
   % := "odd"
@@ -880,3 +933,35 @@
 
 (tests
   (r/run2 (r/vars vector) (prn (r/for [id ~@[1]] id))))
+
+;; (tests
+;;   (r/run2 (r/vars hash-map true?) (! ~#'(when (true? true) :ok)))
+;;   % := :ok ; pass
+
+;;   (r/run2 (r/vars hash-map true?) (! ~#'(when (true? ~@ true) :ok)))
+;;   % := :ok)
+
+;; (tests
+;;   (let [!xs     (atom [])
+;;         failure (hfdl.impl.runtime/->Failure ":trollface:")
+;;         dispose (p/run (! (r/for [x ~(m/watch !xs)] x)))]
+
+;;     % := []
+
+;;     (reset! !xs failure)  ; won’t call `!` , failure state bypasses apply.
+;;     (reset! !xs [1])
+
+;;     % := []  ; collapse bug
+;;     % := [1]
+
+;;     (dispose)))
+
+;; (tests
+;;   (def !value (atom 0))
+;;   (p/run2 (p/vars hash-map prn) (! (let [v ~(m/watch !value)] ~@ (do (prn v) :nil))))
+;;   ;; print 0
+;;   % := :nil
+;;   (swap! !value inc)
+;;   ;; print 1
+;;   % := :nil ;; :nil sent N times to other peer. Waste of resources.
+;;   )

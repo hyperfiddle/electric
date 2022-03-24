@@ -13,31 +13,21 @@
         <meta name="msapplication-config" content="/icons/browserconfig.xml">
         <meta name="theme-color" content="#ffffff">
 
-        <!-- <link rel="stylesheet" href="/assets/main.min.css" type="text/css" media="screen" /> -->
-        <link rel="stylesheet" href="/assets/examples/card.css" type="text/css" media="screen" />
+        <link rel="stylesheet" href="/assets/hfql.css" type="text/css" media="screen" />
+        <link rel="stylesheet" href="/assets/browser.css" type="text/css" media="screen" />
     </head>
     <body class="tw-flex tw-flex-col tw-pt-32">
-        <div style="display:none;">
-            <div id="hf-edn-view-route" style="min-height: 2.5rem; box-shadow: 0 0 1rem darkgray"></div>
-            <div id="hf-edn-view-output" style="flex:1;"></div>
-            <!-- <div id="docs"> </div> -->
 
-            <div id="hf-ui-root"></div>
-        </div>
-        <div class="card">
-            <h1>Examples</h1>
-            <div id="hf-ui-dev-root"></div>
-        </div>
+        <div id="hf-ui-dev-root"></div>
 
-
-        <div id="hf-edn-test-view"> </div>
         <script type="text/javascript" src="/assets/js/shared.js"></script>
         <script type="text/javascript" src="/assets/js/main.js"></script>
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/12.2.0/markdown-it.min.js" integrity="sha512-cTQeM/op796Fp1ZUxfech8gSMLT/HvrXMkRGdGZGQnbwuq/obG0UtcL04eByVa99qJik7WlnlQOr5/Fw5B36aw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
         <script type="text/javascript" src="/assets/examples/card.js"> </script>
         <script type="text/javascript">
-         var reactor = hyperfiddle.client.main(console.log, console.error);
+         /* var reactor = hyperfiddle.client.main(console.log, console.error); */
+         hyperfiddle.client.start_BANG_();
         </script>
     </body>
 </html>

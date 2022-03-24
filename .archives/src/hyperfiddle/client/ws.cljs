@@ -6,7 +6,7 @@
             ;; [hyperfiddle.service.routes :as routes]
             [cljs.reader :as edn] ;; TODO replace with transit
             [promesa.core :as p]
-            [taoensso.timbre :as log]))
+            [hyperfiddle.dev.logger :as log]))
 
 (def READY_STATE {0 ::connecting
                   1 ::open

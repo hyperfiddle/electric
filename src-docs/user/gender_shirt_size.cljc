@@ -1,17 +1,14 @@
 (ns user.gender-shirt-size
   (:require [clojure.spec.alpha :as s]
             [hfdl.lang :as p]
-            [hfdl.impl.util :as u]
-            [hyperfiddle.api :as hf :refer [*$*]]
-            #_[hyperfiddle.q2 :as q :refer [q nav hfql]]
-            [hyperfiddle.rcf :refer [tests ! %]]
-            [hyperfiddle.photon-dom :as dom]
-            [missionary.core :as m])
-  #?(:cljs
-     (:require-macros [user.gender-shirt-size :refer [ref2 render-form page-submissions]])))
+            [hyperfiddle.api :as hf]
+            [hyperfiddle.rcf :refer [! % tests]])
+  #?(:cljs (:require-macros [user.gender-shirt-size :refer [genders gender shirt-sizes submissions submission emails sub-profile]])))
 
+
+(s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (p/defn genders []
-  (into [] ~(hf/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]])))
+  (into [] ~ (hf/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] (:db hf/db))))
 
 (tests
   (def dispose (p/run (! (p/$ genders))))
@@ -21,35 +18,69 @@
 (p/defn gender []
   (first (p/$ genders)))
 
+
 (tests
   (def dispose (p/run (! (p/$ gender))))
   % := :dustingetz/male
   (dispose))
 
-(p/defn shirt-sizes [gender needle]
-  (sort
-    ~(hf/q '[:in $ % ?gender ?needle
-          :find [?e ...]
-          :where
-          [?e :dustingetz/type :dustingetz/shirt-size]
-          [?e :dustingetz/gender ?gender]
-          [?e :db/ident ?ident]
-          (hyperfiddle.api/needle-match ?ident ?needle)]
-       hf/rules gender (or needle ""))))
-
 (s/fdef shirt-sizes :args (s/cat :gender keyword?
-                                 :needle string?) :ret sequential?)
+                                 :needle string?)
+        :ret (s/coll-of number?))
 
-(p/defn submissions [needle]
+(p/defn shirt-sizes [gender needle]
+  (when gender
+    (sort
+     ~(hf/q '[:in $ % ?gender ?needle
+              :find [?e ...]
+              :where
+              [?e :dustingetz/type :dustingetz/shirt-size]
+              [?e :dustingetz/gender ?gender]
+              [?e :db/ident ?ident]
+              (hyperfiddle.api/needle-match ?ident ?needle)]
+            (:db hf/db)
+            hf/rules gender (or needle "")))))
+
+(p/defn emails [needle]
+  ~(hf/q '[:in $ % ?needle
+           :find [?e ...]
+           :where
+           [?e :dustingetz/email ?email]
+           (hyperfiddle.api/needle-match ?email ?needle)]
+         (:db hf/db)
+         hf/rules (or needle "")))
+
+(s/fdef emails :args (s/cat :needle string?)
+        :ret (s/coll-of string?))
+
+(p/defn submissions [needle _]
   (sort
     ~(hf/q '[:find [?e ...]
           :in $ % ?needle
           :where
           [?e :dustingetz/email ?email]
           (hyperfiddle.api/needle-match ?email ?needle)]
-       hf/rules (or needle ""))))
+          (:db hf/db)
+          hf/rules (or needle ""))))
 
-(s/fdef submissions :args (s/cat :needle string?) :ret sequential?)
+(s/fdef submissions :args (s/cat :needle string?
+                                 :reverse? boolean?)
+        :ret (s/coll-of (s/keys :req [:dustingetz/email
+                                      :dustingetz/email1
+                                      :dustingetz/gender
+                                      :dustingetz/shirt-size])))
+
+
+(s/fdef submission :args (s/cat :needle string?) :ret number?)
+(p/defn submission [needle] (first (p/$ submissions needle)))
+
+
+(s/fdef sub-profile :args (s/cat :sub any?) :ret any?)
+(p/defn sub-profile [sub] ~(hf/nav (:db hf/db) sub :db/id))
+
+(tests
+  (hfdl.lang/run (! (p/$ user.gender-shirt-size/submission "")))
+  %)
 
 (tests
   (def dispose
@@ -61,45 +92,3 @@
   % := [9 10 11]
   % := [10]
   (dispose))
-
-(comment
-  (p/defn ref2 [v {::hf/keys [options]} needle]
-    (dom/select v (p/for [x (options "")] (dom/option x))))
-
-  ;(defmacro ref3 [v {::hf/keys [options]}]
-  ;  `(let [gender nil
-  ;         needle ""]
-  ;     (dom/select ~v (p/for [x ~options] (dom/option x)))))
-
-  (defmacro auto-render [v props]
-    ;(let [!needle (atom "")])
-    `(dom/div
-       (dom/h1 "submissions")
-       #_(let [args
-               (dom/form
-                 (dom/field (dom/span "needle") (dom/input needle))
-                 (dom/field (dom/span "needle2") (dom/input needle2))
-                 (dom/field (dom/span "needle3") (dom/input needle3)))]) ; in scope
-       (let [xs ~v #_(v needle)]                            ; assume needle in scope
-         (dom/table
-           (p/for [{:keys [:db/id
-                           :dustingetz/email
-                           :dustingetz/gender
-                           :dustingetz/shirt-size]} xs #_(xs ~(m/watch !needle))]
-             (dom/tr
-               (dom/td (str id))
-               (dom/td email)
-               (dom/td (pr-str gender))
-               (dom/td (pr-str shirt-size))))))))
-
-  (p/defn render-text [x opts]
-    (dom/input x))
-
-  (p/defn page-submissions []
-    (hfql
-      [{((submissions "") ::hf/render auto-render)
-        [:db/id
-         (:dustingetz/email ::hf/render render-text)
-         {(:dustingetz/gender ::hf/options (genders) ::hf/render ref2) [:db/ident]}
-         {(:dustingetz/shirt-size ::hf/options (shirt-sizes :dustingetz/male "")
-            ::hf/render ref2) [:db/ident]}]}])))

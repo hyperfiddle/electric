@@ -1,11 +1,13 @@
 (ns hfdl.lib
   (:require [hfdl.impl.gather :refer [gather]]
+            [hfdl.impl.runtime]
             [hfdl.impl.eventually :refer [eventually]]
             [hfdl.impl.runtime :as r]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str])
-  (:import missionary.Cancelled))
+  (:import missionary.Cancelled)
+  #?(:cljs (:require-macros [hfdl.lib :refer [forget deduping]])))
 
 (defn append [y]
   (fn [rf]
@@ -272,3 +274,43 @@ flow of values matching the identity provided by key function, defaulting to ide
         (identical? (get x 1) (get y 0)) := true
         (swap! !xs pop)
         @it := [{:id "alice" :email "BOB@YAHOO.COM"}]))))
+
+;; (tests
+;;  ;; (require '[hfdl.impl.runtime])
+;;  (let [!xs (atom [])
+;;        failure (hfdl.impl.runtime/->Failure ":trollface:")
+;;        it ((map-by identity
+;;                    (partial m/latest identity)
+;;                    (m/watch !xs))
+;;            #() #())]
+;;    @it := []
+;;    (reset! !xs failure)
+;;    @it := failure
+;;    ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;         EXPERIMENTAL ZONE             ;;
+;;                                       ;;
+;; Everything below should be considered ;;
+;; guilty until proven innocent          ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn continuous
+  ([>x] (continuous nil >x))
+  ([init >x] (m/relieve {} (m/reductions {} init >x))))
+
+(defmacro forget
+  "Like `do` but returs `nil` once, then never return again."
+  [& body]
+  `(unquote (->> (var (do ~@body))
+                 (m/eduction (constantly nil) (dedupe))
+                 (m/reductions {} nil)
+                 (m/relieve {}))))
+
+(defmacro deduping [x]
+  `(unquote (->> (var ~x)
+                 (m/eduction (dedupe))
+                 (m/reductions {} nil)
+                 (m/relieve {}))))
+
+(defn newest [>left >right] (m/ap (m/?< (m/amb= >left >right))))
