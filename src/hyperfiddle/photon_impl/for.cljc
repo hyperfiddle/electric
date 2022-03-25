@@ -264,10 +264,10 @@ flow of values matching the identity provided by key function, defaulting to ide
     (swap! !xs conj {:id "bob" :email "bob@yahoo.com"})
     (let [x @it]
       x := [{:id "alice" :email "ALICE@GMAIL.COM"}
-            {:id "alice" :email "BOB@YAHOO.COM"}]
+            {:id "bob" :email "BOB@YAHOO.COM"}]
       (swap! !xs (comp vec reverse))
       (let [y @it]
         (identical? (get x 0) (get y 1)) := true
         (identical? (get x 1) (get y 0)) := true
         (swap! !xs pop)
-        @it := [{:id "alice" :email "BOB@YAHOO.COM"}]))))
+        @it := [{:id "bob" :email "BOB@YAHOO.COM"}]))))

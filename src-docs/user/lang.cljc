@@ -917,8 +917,8 @@
 
   (dispose))
 
+(p/def x 1)
 (tests
-  (p/def x 1)
   (def !input (atom [1 2]))
   (defn up-down [p x]
     (m/observe (fn [!] (p :up) (! x) #(p :down))))
