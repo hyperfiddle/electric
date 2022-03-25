@@ -2,9 +2,9 @@
   (:require
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-xp :as xp]
+   [hyperfiddle.spec :as spec]
    #?(:clj [hyperfiddle.q9 :as hfql])
-   #?(:clj [hyperfiddle.q9.env :as env])
-   )
+   #?(:clj [hyperfiddle.q9.env :as env]))
   #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [not-found]]
                             [hyperfiddle.photon-xp :as xp])))
 
@@ -27,16 +27,41 @@
       props (identifier (first args))
       f)))
 
-(defn page-identifier [page]
-  (let [entrypoint (key (first page))]
-    (assert (seq? entrypoint) (str "A page entrypoint must be a route-like expression. Given `" (pr-str entrypoint) "`."))
-    (identifier entrypoint)))
+#?(:clj (defn page-identifier
+          ([page]
+           (let [entrypoint (key (first page))]
+             (assert (seq? entrypoint) (str "A page entrypoint must be a route-like expression. Given `" (pr-str entrypoint) "`."))
+             (identifier entrypoint)))
+          ([&env page]
+           (page-identifier (hfql/expand &env page)))))
 
 #?(:clj
    (defn routing-map [&env pages]
      (->> pages
-          (map (fn [page] [(list 'quote (page-identifier (hfql/expand &env page))) `#'(hfql/hfql ~page)]))
+          (map (fn [page] [(list 'quote (page-identifier &env page)) `#'(hfql/hfql ~page)]))
           (into {}))))
+
+(defn args-indices [f]
+  (into {} (map-indexed (fn [idx arg] [(:name arg) idx])) (spec/args f)))
+
+(defn fns-args-indices [fns] (reduce (fn [r f] (assoc r (list 'quote f) (args-indices f))) {} fns))
+
+(defmacro arg-getter [indices arg route]
+  `(let [[f# & args#] ~route]
+     (if-let [index# (get-in ~indices [f# ~arg])]
+       (when (< index# (count args#))
+         (nth args# index#))
+       (prn (ex-info "Unknown route arg" {:f f#
+                                          :arg ~arg
+                                          :indices ~indices})))))
+
+(defmacro with-route-getters [route fns & body]
+  (let [indices-sym (gensym "indices")
+        indices     (fns-args-indices fns)
+        all-args    (->> indices vals (mapcat keys) (into #{}))]
+    `(let [~indices-sym ~indices
+           ~@(mapcat (fn [arg] [(symbol arg) `(arg-getter ~indices-sym ~arg ~route)]) all-args)]
+       ~@body)))
 
 ;;* Router
 ;;
@@ -56,10 +81,14 @@
 ;;  #+end_src
 ;;
 #?(:clj (defmacro router [route & pages] ;; pages are HFQL exprs, they must all have a
+          (assert (symbol? route))
           (validate-pages! pages)
-          `(let [pages# ~(routing-map (env/make-env &env) pages)
-                 route# ~route]
-             (validate-route! route#)
-             (p/$ (xp/deduping (get pages# (first route#) not-found))))))
+          (let [env         (env/make-env &env)
+                routing-map (routing-map env pages)
+                fns         (set (map (partial page-identifier env) pages))]
+            `(with-route-getters ~route ~fns
+               (let [routing-map#  ~routing-map]
+                 (validate-route! ~route)
+                 (p/$ (xp/deduping (get routing-map# (first ~route) not-found))))))))
 
 (p/defn not-found [] "page not found")
