@@ -35,7 +35,8 @@ jobs:
         shell: bash
 
       - name: Run tests
-        run: clojure -X:test :dirs "[\"src\" \"src-docs\"]" :patterns "[\"hfdl.impl.compiler\" \"hfdl.lib\" \"user.lang\"]"
+        run: clojure -X:test :dirs "[\"src\" \"src-docs\"]" :patterns "[\"hyperfiddle.photon-impl.compiler\" \"hyperfiddle.photon-impl.for\" \"user.lang\"]"
+        # run: clojure -X:test :dirs "[\"src\" \"src-docs\"]" :patterns "[\"hfdl.impl.compiler\" \"hfdl.lib\" \"user.lang\"]"
         # run: clojure -X:test-clj :dirs "[\"src\" \"src-docs\"]" :patterns "[\"hfdl.impl.compiler\" ]"
         shell: bash
         
