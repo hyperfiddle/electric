@@ -18,6 +18,17 @@
 
 (def route-state #?(:cljs (atom ()))) ;; Route state lives on the client.
 
+(defn- pad [val n coll] (into coll (repeat n val)))
+
+(defn- set-route-arg [index val route]
+  (seq (let [route (vec route)]
+         (if (<= index (count route))
+           (assoc route index val)
+           (set-route-arg index val (pad nil (- index (count route)) route))))))
+
+(defn set-route-arg! [index val] (swap! route-state (fn [[current & history]]
+                                                      (cons (set-route-arg index val current) history))))
+
 (defn navigate! [new-route] (swap! route-state conj new-route))
 
 (defn navigate-back! [] (swap! route-state rest))

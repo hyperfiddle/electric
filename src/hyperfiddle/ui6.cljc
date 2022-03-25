@@ -49,18 +49,20 @@
 
 ;; (p/def boolean)
 
-(def input-types {:hyperfiddle.spec.type/symbol  "text"
-                  :hyperfiddle.spec.type/uuid    "text"
-                  :hyperfiddle.spec.type/uri     "text"
-                  :hyperfiddle.spec.type/instant "date"
-                  :hyperfiddle.spec.type/boolean "checkbox"
-                  :hyperfiddle.spec.type/string  "text"
-                  :hyperfiddle.spec.type/bigdec  "text"
-                  :hyperfiddle.spec.type/keyword "text"
-                  :hyperfiddle.spec.type/ref     "text"
-                  :hyperfiddle.spec.type/float   "number"
-                  :hyperfiddle.spec.type/double  "number"
-                  :hyperfiddle.spec.type/long    "number"})
+(defn input-types [type]
+  (get {:hyperfiddle.spec.type/symbol  "text"
+        :hyperfiddle.spec.type/uuid    "text"
+        :hyperfiddle.spec.type/uri     "text"
+        :hyperfiddle.spec.type/instant "date"
+        :hyperfiddle.spec.type/boolean "checkbox"
+        :hyperfiddle.spec.type/string  "text"
+        :hyperfiddle.spec.type/bigdec  "text"
+        :hyperfiddle.spec.type/keyword "text"
+        :hyperfiddle.spec.type/ref     "text"
+        :hyperfiddle.spec.type/float   "number"
+        :hyperfiddle.spec.type/double  "number"
+        :hyperfiddle.spec.type/long    "number"}
+       type "text"))
 
 (defn argument-type [f arg] (spec/type-of f arg))
 
@@ -73,8 +75,15 @@
 
 (defn ^:deprecated continuous [& args] (apply hyperfiddle.photon-xp/continuous args))
 
+(defn adapt-checkbox-props [props]
+  (if (= "checkbox" (:dom.attribute/type props))
+    (-> props
+        (assoc :dom.property/checked (:dom.property/value props))
+        (dissoc :dom.property/value))
+    props))
+
 (p/defn input [props extractor]
-  (dom/input (p/for [[k v] props]
+  (dom/input (p/for [[k v] (adapt-checkbox-props props)]
                (cond
                  (= :dom.property/style k) (dom/style v)
                  (property? k)             (dom/property (name k) v)
@@ -191,27 +200,35 @@
     (do (prn "intputs" inputs)
         (log/warn 'RENDER-INPUTS attr inputs)
         ~@(dom/div (dom/class "inputs")
-                   ~@(p/for [[arg [>v ?!v]] inputs]
+                   ~@(p/for [[idx [arg [>v ?!v]]] (map-indexed vector inputs)]
                        (let [locked? (nil? ?!v)
                              set-v!  (if locked? (constantly nil) (partial reset! ?!v))
-                             v       (str ~>v)]
-                         (when-let [v' ~@(let [id       (str (gensym))
-                                               arg-spec (spec/arg (first attr) arg)]
-                                           (dom/element "label"
-                                                        (dom/attribute "data-tooltip" (cond-> (pr-str (:predicate arg-spec))
-                                                                                        locked? (str " — internal reference 🔒")))
-                                                        (dom/text (name arg))
-                                                        (dom/attribute "for" (str id)))
-                                           (p/$ input {:dom.attribute/id      id,
-                                                       :dom.attribute/type    (input-types (argument-type (first attr) arg))
-                                                       :dom.property/value    (str v)
-                                                       :dom.property/disabled locked?}
-                                                dom/target-value))]
+                             v       ~>v]
+                         (when-some [v' ~@(let [id         (str (gensym))
+                                                arg-spec   (spec/arg (first attr) arg)
+                                                input-type (input-types (argument-type (first attr) arg))
+                                                extractor  (if (= "checkbox" input-type)
+                                                             dom/target-checked
+                                                             dom/target-value)]
+                                            (dom/element "label"
+                                                         (dom/attribute "data-tooltip" (cond-> (pr-str (:predicate arg-spec))
+                                                                                         locked? (str " — internal reference 🔒")))
+                                                         (dom/text (name arg))
+                                                         (dom/attribute "for" (str id)))
+                                            (let [v' (p/$ input {:dom.attribute/id      id,
+                                                                 :dom.attribute/type    (input-types (argument-type (first attr) arg))
+                                                                 :dom.property/value    v
+                                                                 :dom.property/disabled locked?}
+                                                          extractor)]
+                                              (log/info "extracted" v')
+                                              v'))]
                            (log/info "ARG" arg v "->" v')
                            (if (= v v')
                              (prn "same as before")
                              (do (prn "new value")
-                                 (set-v! v'))))))))))
+                                 ~@(hf/set-route-arg! (inc idx) v')
+                                 (set-v! v')
+                                 )))))))))
 
 ;; TODO remove
 (p/def form-impl*)
