@@ -1,19 +1,19 @@
 (ns user.hytradboi
   (:require clojure.edn
             clojure.pprint
-            [hfdl.lang :as p]
             [hyperfiddle.api :as hf]
+            [hyperfiddle.hfql.router :refer [router]]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
+            #?(:clj [hyperfiddle.q9 :as q9 :refer [hfql]])
+            [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui6 :as ui]
             [missionary.core :as m]
-            #?(:clj [hyperfiddle.q9 :as q9 :refer [hfql]])
-            [user.gender-shirt-size :refer [submissions genders submission shirt-sizes sub-profile]]
-            [hyperfiddle.hfql.router :refer [router]]
-            [hyperfiddle.ui.codemirror :as codemirror])
+            [user.persons :refer [persons genders submission shirt-sizes sub-profile]])
   #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [router]]
                             [hyperfiddle.q9 :refer [hfql]]
                             [user.hytradboi :refer [view App render-input render-select render-table]]
-                            [user.gender-shirt-size :refer [submissions]])))
+                            [user.persons :refer [persons]])))
 
 (p/defn render-table [>v props]
   (let [xs (p/$ hf/render >v {})]
@@ -34,7 +34,7 @@
 (p/defn App []
   (binding [hf/render ui/render]
     (hyperfiddle.q9/hfql
-      {(submissions .)
+      {(persons .)
        [:db/id
         :dustingetz/email
         {(props :dustingetz/gender {::hf/options      (genders)
