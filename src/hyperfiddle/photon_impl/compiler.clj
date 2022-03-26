@@ -3,10 +3,13 @@
             [missionary.core :as m]
             [cljs.analyzer :as cljs]
             [hyperfiddle.photon-impl.local :as l]
+            [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.rcf :refer [tests]]
             [cljs.analyzer.api :as api])
   (:import cljs.tagged_literals.JSValue
            (clojure.lang Box Var)))
+
+(doto (def exception) (alter-meta! assoc :macro true ::node '(do)))
 
 (defn normalize-env [env]
   (if (:js-globals env)
@@ -230,7 +233,7 @@ is a macro or special form."
                    (cons (:target dot) (:args dot))))
 
       (throw)
-      (conj-res [[:error]] (analyze-form env (first args)))
+      (analyze-form env `(r/fail ~(first args)))
 
       (try)
       (let [[forms catches finally]
@@ -245,23 +248,21 @@ is a macro or special form."
                            [] [(conj forms form) catches finally]
                            (throw (ex-info "Invalid try block - unrecognized clause." {})))))
                  (throw (ex-info "Invalid try block - finally must be in final position." {}))))
-             [[] () nil] args)
-            body (analyze-form env `(do ~@forms))]
-        (reduce
-         (fn [r stmt]
-           (conj-res [[:first]] r (analyze-form env stmt)))
-         (case catches
-           [] body
-           (let [e (gensym)
-                 r (analyze-form (with-local env e)
-                                 (reduce
-                                  (fn [cont [c s & body]]
-                                    (let [form `(let [~s ~e] ~@body)]
-                                      (case c :default form `(if (instance? ~c ~e) ~form ~cont))))
-                                  `(throw ~e) catches))]
-             (conj (pop body)
-                   [:target ((void [:nop]) (pop r))] [:source]
-                   [:recover (peek body) (peek r)]))) finally))
+             [[] () nil] args)]
+        (analyze-form env
+          `(unquote ~(reduce
+                       (fn [r f] `(r/latest-first ~r (var ~f)))
+                       (case catches
+                         [] `(var (do ~@forms))
+                         `(r/recover
+                            (some-fn
+                              ~@(map (fn [[c s & body]]
+                                       (let [f `(partial (def exception) (var (let [~s exception] ~@body)))]
+                                         (case c
+                                           (:default Throwable)
+                                           `(r/clause ~f)
+                                           `(r/clause ~f ~c)))) catches))
+                            (var (do ~@forms)))) finally))))
 
       (if-some [sym (resolve-runtime env op)]
         (case sym
@@ -464,22 +465,29 @@ is a macro or special form."
      [:target [:nop] [:source [:literal nil]]]]]]
 
   (analyze {} '(try 1 (finally 2 3 4))) :=
-  [[:first [:first [:first [:literal 1] [:literal 2]] [:literal 3]] [:literal 4]] [:literal nil]]
+  [[:variable
+    [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
+     [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
+      [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
+       [:constant [:literal 1]]
+       [:constant [:literal 2]]]
+      [:constant [:literal 3]]]
+     [:constant [:literal 4]]]]
+   [:target [:nop] [:target [:nop] [:target [:nop] [:target [:nop] [:source [:literal nil]]]]]]]
 
   (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
-  [[:first
-    [:recover
-     [:literal 1]
-     [:variable
-      [:pub
-       [:constant [:error [:sub 1]]]
-       [:apply
-        [:apply [:global :clojure.core/hash-map] [:literal nil] [:sub 1] [:literal false] [:sub 1]]
-        [:apply [:global :clojure.core/instance?] [:global :java.lang.Exception] [:sub 2]]
-        [:constant [:pub [:sub 2] [:literal 2]]]]]]]
-    [:literal 3]]
-   [:target [:target [:nop] [:target [:nop] [:source [:nop]]]] [:source [:literal nil]]]]
-
+  [[:bind 0 [:literal nil]
+    [:variable
+     [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
+      [:apply [:global :hyperfiddle.photon-impl.runtime/recover]
+       [:apply [:global :clojure.core/some-fn]
+        [:apply [:global :hyperfiddle.photon-impl.runtime/clause]
+         [:apply [:global :clojure.core/partial] [:def 0]
+          [:constant [:pub [:node 0] [:literal 2]]]]
+         [:global :java.lang.Exception]]]
+       [:constant [:literal 1]]]
+      [:constant [:literal 3]]]]]
+   [:target [:nop] [:target [:nop] [:target [:nop] [:source [:literal nil]]]]]]
   )
 
 
