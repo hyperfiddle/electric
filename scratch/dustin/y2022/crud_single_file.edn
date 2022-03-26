@@ -1,19 +1,13 @@
-(ns dustin.y2022.crud-single-file
+(ns user
   "Concrete example of minimum viable crud app that demonstrates strong composition
   and realistic architectural constraints"
   (:require
     clojure.string
     #?(:clj [datomic.api :as d])
-    [hyperfiddle.api :refer [hfql]]
+    [hyperfiddle.api :as hf]
     [hyperfiddle.photon :as p]
     [hyperfiddle.photon-dom :as dom]
     [hyperfiddle.html5 :as-alias html]))
-
-#?(:clj (def ^:dynamic *db* nil))
-#?(:clj (def ^:dynamic *user* nil))
-
-(defn includes-str? [v needle]
-  (clojure.string/includes? (.toLowerCase (str v)) (.toLowerCase (str needle))))
 
 ; logical data model
 
@@ -37,11 +31,17 @@
 
 ; business rules, coded in simple Clojure
 
+#?(:clj (def ^:dynamic *db* nil))
+#?(:clj (def ^:dynamic *user* nil))
+
+(defn includes-str? [v needle]
+  (clojure.string/includes? (.toLowerCase (str v)) (.toLowerCase (str needle))))
+
 (defn persons [needle]
   #?(:clj
      (d/q '[:find [?e ...] :in $ % ?needle :where
             [?e :person/email ?email]
-            [(user.crud/includes-str? ?email ?needle)]]
+            [(user/includes-str? ?email ?needle)]]
        *db* (or needle ""))))
 
 (defn genders [needle]
@@ -53,34 +53,32 @@
             [?e :enum/class :person/shirt-size]
             [?e :person/gender ?gender]
             [?e :db/ident ?ident]
-            [(user.crud/includes-str? ?ident ?needle)]]
+            [(user/includes-str? ?ident ?needle)]]
        *db* gender (or needle ""))))
-
-(defn email-taken? [email]
-  #?(:clj (some? (d/q '[:in ?x $ :find ?e . :where [?e :person/email ?x]] *db* email))))
 
 (p/defn App []                                              ; stream function, receives *db* from dynamic scope
   (p/client
     (dom/div
       (dom/h1 "hello world")
-      (hfql {(submissions .)
-             [[:person/name {::html/placeholder "alice@example.com"}]
-              [:person/email {::html/invalid (p/server (email-taken? person/email))}]
-              {[:person/gender {::hf/options      (genders)
-                                ::hf/option-label :db/ident
-                                ::hf/render       typeahead-select}]
-               [:db/ident]}
-              {[:person/shirt-size {::hf/options      (shirt-sizes person/gender .)
-                                    ::hf/option-label :db/ident
-                                    ::hf/render       typeahead-select}]
-               [:db/ident]}]}))))
+      (hf/ui
+        {(persons .)
+         [:person/name
+          :person/email
+          {(props :person/gender {::hf/options      (genders)
+                                  ::hf/option-label :db/ident
+                                  ::hf/render       typeahead-select})
+           [:db/ident]}
+          {(props :person/shirt-size {::hf/options      (shirt-sizes person/gender .)
+                                      ::hf/option-label :db/ident
+                                      ::hf/render       typeahead-select})
+           [:db/ident]}]}))))
 
 (defn entrypoint [conn]
   #?(:clj
      ; bootstrap client/server and establish websocket
      ; todo each websocket session (browser tab) gets a reactor
-     ; todo server push on database updates
-     (p/run
+     ; todo server push on concurrent database updates
+     (p/run api
        (p/server
          (binding [*user* ...]
            (loop [db (d/db conn)]
@@ -92,15 +90,11 @@
                (println tx)
                (recur (:db-after @(d/transact conn tx))))))))))
 
-(defn migrate-db [conn fixtures]
-  #?(:clj (reduce (fn [db tx] (d/transact conn tx) #_(:db-after (d/with db tx))) fixtures)))
-
 (comment
   (d/create-database "datomic:mem://hello-world")
   (def conn (d/connect "datomic:mem://hello-world"))
   (doall (reduce (fn [_ tx] (d/transact conn tx)) fixtures))
 
-  ; entrypoint runs process for side effect until cancelled
-  (def cancel! (entrypoint conn))
+  (def cancel! (entrypoint conn)) ; entrypoint runs process for side effect until cancelled
   (cancel!)
   )

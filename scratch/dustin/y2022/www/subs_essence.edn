@@ -34,7 +34,7 @@
 
   #action
       ((school-requested-block
-         {:sub [sub-name]}
+         ;{:sub [sub-name]}
          {(:school {::hf/options      (school-picklist .)
                     ::hf/option-label :school/name})
           [:school/id :school/name]}

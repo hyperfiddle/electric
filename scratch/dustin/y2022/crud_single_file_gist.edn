@@ -1,4 +1,4 @@
-(ns dustin.y2022.crud-single-file-gist
+(ns user
   "Concrete minimum viable crud app that demonstrates strong composition and real world edge cases"
   (:require
     [clojure.spec.alpha :as s]
@@ -7,6 +7,8 @@
     [hyperfiddle.photon :as p]
     [hyperfiddle.photon-dom :as dom]
     [hyperfiddle.html5 :as-alias html]))
+
+; logical data model
 
 (def fixtures
   [[{:db/ident :person/name :db/valueType :db.type/string :db/cardinality :db.cardinality/one}
@@ -28,28 +30,30 @@
 
 ; business rules, coded in simple Clojure
 
+#?(:clj (def ^:dynamic *db* nil))
+#?(:clj (def ^:dynamic *user* nil))
+
 (defn includes-str? [v needle]
   (clojure.string/includes? (.toLowerCase (str v)) (.toLowerCase (str needle))))
 
 (defn persons [needle]
-  (d/q '[:find [?e ...] :in $ % ?needle :where
-         [?e :person/email ?email]
-         [(includes-str? ?email ?needle)]]
-    hf/*db* (or needle "")))
+  #?(:clj
+     (d/q '[:find [?e ...] :in $ % ?needle :where
+            [?e :person/email ?email]
+            [(user/includes-str? ?email ?needle)]]
+       *db* (or needle ""))))
 
 (defn genders [needle]
   (filter #(includes-str? % needle) [::male ::female]))
 
 (defn shirt-sizes [gender needle]
-  (d/q '[:in $ % ?gender ?needle :find [?e ...] :where
-         [?e :enum/class :person/shirt-size]
-         [?e :person/gender ?gender]
-         [?e :db/ident ?ident]
-         [(includes-str? ?ident ?needle)]]
-    hf/*db* gender (or needle "")))
-
-(defn email-taken? [email]
-  (some? (d/q '[:in ?x $ :find ?e . :where [?e :person/email ?x]] hf/*db* email)))
+  #?(:clj
+     (d/q '[:in $ % ?gender ?needle :find [?e ...] :where
+            [?e :enum/class :person/shirt-size]
+            [?e :person/gender ?gender]
+            [?e :db/ident ?ident]
+            [(user/includes-str? ?ident ?needle)]]
+       *db* gender (or needle ""))))
 
 ; streaming client/server application as an expression with strong composition, coded in Photon
 ; Amazingly, the compiler-managed network I/O is efficient and generates optimal request batching
@@ -64,12 +68,12 @@
               (p/for [e (p/server (persons needle))]
                 (tr-form e
                   (td-field :person/name)
-                  (td-field :person/email {::html/invalid (p/server (email-taken? (get (d/entity hf/*db* e) :person/email)))})
-                  (td-field :person/gender {::options-fn (p/fn [needle] (genders needle))})
-                  (td-field :person/shirt-size {::options-fn (p/fn [needle]
-                                                               (p/server
-                                                                 (let [gender (get (d/entity hf/*db* e) :person/gender)]
-                                                                   (shirt-sizes gender needle))))}))))
+                  (td-field :person/email)
+                  (td-field :person/gender {::options-fn (p/fn [_] (p/server (genders)))})
+                  (td-field :person/shirt-size {::options (p/fn [needle]
+                                                            (p/server
+                                                              (let [gender (get (d/entity hf/*db* e) :person/gender)]
+                                                                (shirt-sizes gender needle))))}))))
             (catch p/Pending _ (dom/span "loading table"))))))))
 
 ; Above this point:
@@ -85,10 +89,10 @@
 
 ; p/defn essentially compiles Clojure forms into a dependency network, colors it into client and server portions,
 ; partitions and emits dataflow operations for said DAG that are supervised by Missionary, a functional effect system.
-(p/defn typeahead-select [v {:keys [::options-fn]}]
+(p/defn typeahead-select [v {:keys [::options]}]
   (p/client
     (dom/div
-      (let [needle (dom/input {::html/placeholder ""})]
+      (let [needle (dom/input {:default-value ""})]
         (dom/select v
           (try
             (for [x (options-fn needle)]                    ; hf/*db* cannot be seen on options-fn interface
@@ -114,44 +118,48 @@
        [:db/add ~e a v])))                                  ; forms emit global eav triples ready for database
 
 (defn entrypoint [conn]
-  (p/run                                                    ; bootstrap client/server and establish websocket
-    (p/server
-      (binding [hf/*user* ...]
-        (loop [db (d/db conn)]                              ; todo controlled server push
-          (let [tx (binding [hf/*db* db]
-                     (p/client
-                       (binding [dom/*parent* (js/document.querySelector "#root")]
-                         ; App is an incrementally maintained stream-function
-                         ; from signal-of-db to stream-of-tx with mid-flight dom tie-ins
-                         (App))))]
-            (println tx)
-            (recur (:db-after @(d/transact conn tx)))))))))
+  #?(:clj
+     ; bootstrap client/server and establish websocket
+     ; todo each websocket session (browser tab) gets a reactor
+     ; todo server push on concurrent database updates
+     (p/run api
+       (p/server
+         (binding [*user* ...]
+           (loop [db (d/db conn)]
+             (let [tx (binding [*db* db]
+                        (p/client
+                          (binding [dom/*parent* (js/document.querySelector "#root")]
+                            ; App is an incrementally maintained stream-function from stream-of-db to stream-of-tx
+                            (App))))]
+               (println tx)
+               (recur (:db-after @(d/transact conn tx))))))))))
 
 (comment
   (d/create-database "datomic:mem://hello-world")
   (def conn (d/connect "datomic:mem://hello-world"))
   (doall (reduce (fn [_ tx] (d/transact conn tx)) fixtures))
 
-  ; entrypoint runs process for side effect until cancelled
-  ; todo each websocket session (browser tab) gets a reactor
-  (def cancel! (entrypoint conn))
+  (def cancel! (entrypoint conn)) ; entrypoint runs process for side effect until cancelled
   (cancel!)
   )
 
 ; Once you understand the above, here is the easy declarative alternative for end-user programmers:
-(p/defn App []
-  (hf/ui                                                    ; this hypermedia DSL macroexpands to basically the Photon implementation seen above
-    {(persons .)
-     [:person/name {::html/placeholder "alice@example.com"}
-      :person/email {::html/invalid (p/server (email-taken? person/email))}
-      {(:person/gender {::hf/options      (genders)
-                        ::hf/option-label :db/ident
-                        ::hf/render       typeahead-select})
-       [:db/ident]}
-      {(:person/shirt-size {::hf/options      (shirt-sizes person/gender .)
-                            ::hf/option-label :db/ident
-                            ::hf/render       typeahead-select})
-       [:db/ident]}]}))
+(p/defn App []                                              ; stream function, receives *db* from dynamic scope
+  (p/client
+    (dom/div
+      (dom/h1 "hello world")
+      (hf/ui
+        {(persons .)
+         [:person/name
+          :person/email
+          {(props :person/gender {::hf/options      (genders)
+                                  ::hf/option-label :db/ident
+                                  ::hf/render       typeahead-select})
+           [:db/ident]}
+          {(props :person/shirt-size {::hf/options      (shirt-sizes person/gender .)
+                                      ::hf/option-label :db/ident
+                                      ::hf/render       typeahead-select})
+           [:db/ident]}]}))))
 
 ; specs are used to auto-gen UI from business function parameter lists
 (s/fdef persons :args (s/cat :needle string?) :ret (s/coll-of hf/ref?))
