@@ -13,18 +13,3 @@
             feedbk (* body .4)
             body (delay (/ 1 freq) out)]))
     (* out (* amp amp2))))
-
-(defn example-system [config-options]
-  (let [{:keys [host port]} config-options]
-    (component/system-map
-      :db (new-database host port)
-      :scheduler (new-scheduler)
-      :app (component/using
-             (example-component config-options)
-             {:database  :db
-              :scheduler :scheduler}))))
-
-(r/defn system [{:keys [host port] :as config}]
-  (let [database (Database host port)
-        scheduler (Scheduler config)]
-    (Example-component database scheduler)))
