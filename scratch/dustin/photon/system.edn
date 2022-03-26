@@ -1,0 +1,25 @@
+
+(defn example-system [{:as config :keys [host port]}]
+  (component/system-map
+    :db (new-database host port)
+    :scheduler (new-scheduler)
+    :app (component/using
+           (example-component config)
+           {:database  :db
+            :scheduler :scheduler})))
+
+(p/defn system [{:keys [has-mem-db host port] :as config}]
+  ; config is a continuous signal (sampling of a file value)
+  (let [db (Database host port)
+        scheduler (Scheduler config)
+        app (Example-component database scheduler)]
+    ; components are "reactive fns" (fns of signal -> signal)
+    ; Photon is lazy, so entrypoint must sample the output signal to drive effects.
+    ; the output signal may be a log value or something, the component fns can emit anything
+    app
+    ))
+
+; cc/destructure is naive and will emit a dumb DAG that fires all leaves when the value changes
+; therefore this example requires diffing. Consider the config value flattens to EAV triples;
+; now do reactive-for on the triples in order to stabilize the body of the function.
+; The result is the system will not thrash (unmount/remount) components on irrelevant config changes.
