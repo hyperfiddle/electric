@@ -1,10 +1,12 @@
 (ns hyperfiddle.client
-  (:require [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.api :as hf]
             [hyperfiddle.common.transit :as transit]
+            [hyperfiddle.dev.logger :as log]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
-            [user.browser :as browser]
-            [hyperfiddle.dev.logger :as log])
+            user.browser
+            user.hytradboi)
   (:require-macros [hyperfiddle.ui6] ;; hot-reload p/defs on save
                    ))
 
@@ -46,7 +48,18 @@
       (m/? (c w m)))))
 
 (def main
-  (client (p/main (binding [dom/parent (dom/by-id "hf-ui-dev-root")] ~browser/view))))
+  (client
+    (p/main
+      (binding [dom/parent (dom/by-id "hf-ui-dev-root")]
+        ~@;; server
+            (binding [hf/db (hf/->DB "$" 0 nil hf/*$*)]
+              ~@;; client
+                  (dom/div
+                    (dom/class "browser")
+                    (dom/div
+                      (dom/class "view")
+                      ~user.browser/view
+                      #_~user.hytradboi/view)))))))
 
 (def ^:export reactor)
 

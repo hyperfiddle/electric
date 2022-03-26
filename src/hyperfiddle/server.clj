@@ -18,7 +18,8 @@
     [hyperfiddle.photon-dom :as dom]
     [hyperfiddle.zero :as z]
     [user.hfql-distributed :as dis]
-    [user.browser :as browser]
+    user.browser
+    user.hytradboi
     [hyperfiddle.ui6 :as ui6])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)
@@ -115,7 +116,8 @@
                           program (m/? ?read)]
                       (prn :booting-reactor #_program)
                       (m/? ((p/eval (p/merge-vars p/exports h/exports dom/exports z/exports t/exports ui6/exports dis/exports
-                                      browser/exports
+                                                  user.browser/exports
+                                                  user.hytradboi/exports
                                       (p/vars log/js-log*)) program) write ?read)))
                     (catch Cancelled _))) success failure)))})
 
