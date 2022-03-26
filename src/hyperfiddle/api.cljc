@@ -141,7 +141,7 @@
      #_[(clojure.string/includes? ?v' ?needle')]
      [(clojure.string/includes? ?v' ?needle')]]])
 
-(defn match-str [v needle]
+(defn includes-str? [v needle]
   (clojure.string/includes? (.toLowerCase (str v))
                             (.toLowerCase (str needle))))
 ;(def datalog-rules '[[(match-str ?v ?needle) [(match-str ?v ?needle)]]])

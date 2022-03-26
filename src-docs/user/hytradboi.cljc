@@ -1,52 +1,50 @@
 (ns user.hytradboi
-  (:require clojure.edn
-            clojure.pprint
-            [hyperfiddle.api :as hf]
-            [hyperfiddle.hfql.router :refer [router]]
+  (:require [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            #?(:clj [hyperfiddle.q9 :as q9 :refer [hfql]])
+            #?(:clj [hyperfiddle.q9 :refer [hfql]])
+            [hyperfiddle.rcf :refer [tests ! %]]
             [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui6 :as ui]
-            [missionary.core :as m]
-            [user.persons :refer [persons genders submission shirt-sizes sub-profile]])
-  #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [router]]
-                            [hyperfiddle.q9 :refer [hfql]]
-                            [user.hytradboi :refer [view App render-input render-select render-table]]
-                            [user.persons :refer [persons]])))
-
-(p/defn render-table [>v props]
-  (let [xs (p/$ hf/render >v {})]
-    ['table
-     ['thead (keys (first xs))]
-     ['tbody (p/for [x xs]
-               ['tr x])]]))
-
-(p/defn render-input [v props]
-  ['input ~v])
-
-(p/defn render-select [v props]
-  ['select
-   ((or (::hf/option-label props) identity) (p/$ hf/render v {}))
-   (p/for [option ~(::hf/options props)]
-     ((or (::hf/option-label props) identity) option))])
+            [user.teeshirt-orders :refer [orders genders shirt-sizes]]
+            dustin.y2022.edn-render)
+  #?(:cljs (:require-macros [hyperfiddle.q9 :refer [hfql]]
+                            [user.hytradboi :refer [view App]]
+                            [user.teeshirt-orders :refer [orders genders shirt-sizes]])))
 
 (p/defn App []
-  (binding [hf/render ui/render]
-    (hyperfiddle.q9/hfql
-      {(persons .)
-       [:db/id
-        :dustingetz/email
-        {(props :dustingetz/gender {::hf/options      (genders)
-                                    ::hf/option-label :db/ident
-                                    #_#_::hf/render ui/typeahead})
-         [:db/ident]}
-        {(props :dustingetz/shirt-size {::hf/options      (shirt-sizes :dustingetz/male .)
-                                        #_#_::hf/render ui/typeahead
-                                        ::hf/option-label :db/ident})
-         [:db/ident]}]})))
+
+  (hfql
+
+    {(orders .)
+     [:dustingetz/email
+      {(props :dustingetz/gender {::hf/options (genders)})
+       [:db/ident]}
+      {(props :dustingetz/shirt-size {::hf/options (shirt-sizes dustingetz/gender .)})
+       [:db/ident]}]}
+
+    ))
 
 (p/defn view []
-  (p/$ codemirror/edn ~@(ui/with-spec-render (p/$ App))))
+  (p/$ codemirror/edn ~@#_"server" (ui/with-spec-render (p/$ App))))
 
-(def exports (p/vars))
+(comment
+  (def !x (atom "alice"))
+
+  (p/run
+    (binding [hf/db (hf/->DB "$" 0 nil hf/*$*)]
+      (!
+        (p/$ App ~(m/watch !x)))))
+
+  % := '{(user.teeshirt-orders/orders _)
+         [{:dustingetz/gender     #:db{:ident :dustingetz/female},
+           :dustingetz/email      "alice@example.com",
+           :dustingetz/shirt-size _}]}
+
+  (reset! !x "bob")
+
+  % := '{(user.teeshirt-orders/orders _)
+         [{:dustingetz/gender     #:db{:ident :dustingetz/male},
+           :dustingetz/email      "bob@example.com",
+           :dustingetz/shirt-size _}]}
+  )
