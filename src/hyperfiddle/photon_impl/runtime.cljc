@@ -48,11 +48,11 @@
         (l/set-local local prev)
         (bind-iterator local value it)))))
 
-(deftype Failure [error])
+(defn steady [x] (m/watch (atom x)))
 
-;; TODO move out of impl ns
-(deftype Pending [])
-(deftype Remote [])
+(defn fail [x] (throw x))
+
+(deftype Failure [error])
 
 (def failure (some-fn #(when (instance? Failure %) %)))
 
@@ -64,13 +64,18 @@
              (catch #?(:clj Throwable :cljs :default) e
                (->Failure e)))))))
 
-(def latest-error
-  (partial m/latest
-    (fn [x] (if (instance? Failure x) x (->Failure x)))))
-
 (def latest-first
   (partial m/latest
     (fn [x y] (if (instance? Failure y) y x))))
+
+(defn recover [p >x]
+  (yield (fn [x]
+           (when (instance? Failure x)
+             (p (.-error ^Failure x)))) >x))
+
+(defn clause
+  ([f] (fn [e] (f (steady e))))
+  ([f c] (fn [e] (when (instance? c e) (f (steady e))))))
 
 (def lift-cancelled
   (partial comp
@@ -82,7 +87,9 @@
         (#?(:clj deref :cljs -deref) [_]
           (try @it (catch Cancelled e (->Failure e))))))))
 
-(defn steady [x] (m/watch (atom x)))
+;; TODO move out of impl ns
+(deftype Pending [])
+(deftype Remote [])
 
 (def cancelled (->Failure (Cancelled.)))
 (def pending (->Failure (Pending.)))
@@ -202,13 +209,6 @@
                (catch #?(:clj Throwable :cljs :default) e (failer e n t))))
         (failer (ex-info "Unable to build frame : not in peer context." {}) n t)))))
 
-(defn recover [slot nodes flow fallback]
-  (when-some [^Builder b (l/get-local builder)]
-    (let [v [(.-frame b) slot nodes]]
-      (yield #(when (instance? Failure %)
-                (bind-flow current v
-                  (fallback (steady (.-error ^Failure %))))) flow))))
-
 (defn capture [& slots]
   (steady
     (fn [flow & args]
@@ -315,8 +315,6 @@
                         (list `let [(sym 'nodes) (list `assoc (sym 'nodes) (node slot) (emit-inst sym pub inst))]
                           (emit-inst sym pub cont)))
                 :apply `(latest-apply ~@(mapv (partial emit-inst sym pub) args))
-                :error `(latest-error ~@(mapv (partial emit-inst sym pub) args))
-                :first `(latest-first ~@(mapv (partial emit-inst sym pub) args))
                 :input (let [i (slot :inputs)] `(input ~i))
                 :output (let [f (emit-inst sym pub (first args))
                               o (slot :outputs)
@@ -337,15 +335,6 @@
                             ~(let [arg-syms (into [] (map sym) (range (count (next args))))]
                                (list `fn arg-syms (apply (first args) arg-syms)))
                             ~(mapv (partial emit-inst sym pub) (next args)))
-                :recover (let [body (emit-inst sym pub (first args))
-                               [frame {:keys [inputs targets sources signals variables outputs]}]
-                               (l/with-local slots init (emit-inst sym (inc pub) (second args)))
-                               c (slot :constants)
-                               v (slot :variables)]
-                           `(recover ~v ~(sym 'nodes) ~body
-                              (fn [~(sym 'pub pub)]
-                                (constant ~c ~inputs ~targets ~sources ~signals ~variables ~outputs
-                                  (fn [~(sym 'nodes)] ~frame)))))
                 :constant (let [[frame {:keys [inputs targets sources signals variables outputs]}]
                                 (l/with-local slots init (emit-inst sym pub (first args)))
                                 c (slot :constants)]
@@ -524,8 +513,6 @@
                             (fn [pubs nodes]
                               (g pubs (assoc nodes n (f pubs nodes)))))
                     :apply (apply juxt-with latest-apply (mapv (partial eval-inst idx) args))
-                    :error (apply juxt-with latest-error (mapv (partial eval-inst idx) args))
-                    :first (apply juxt-with latest-first (mapv (partial eval-inst idx) args))
                     :input (let [s (slot :inputs)]
                              (fn [_ _] (input s)))
                     :output (let [f (eval-inst idx (first args))
@@ -554,15 +541,6 @@
                                                 (symbol (first args)))
                                        {:missing-exports (missing-exports resolvef inst)})))
                     :literal (constantly (steady (first args)))
-                    :recover (let [f (eval-inst idx (first args))
-                                   [g {:keys [inputs targets sources signals variables outputs]}]
-                                   (l/with-local slots init (eval-inst (inc idx) (second args)))
-                                   c (slot :constants)
-                                   v (slot :variables)]
-                               (fn [context frame pubs nodes]
-                                 (recover v nodes (f context frame pubs nodes)
-                                   #(constant c inputs targets sources signals variables outputs
-                                      (fn [nodes] (g (conj pubs %) nodes))))))
                     :constant (let [[f {:keys [inputs targets sources signals variables outputs]}]
                                     (l/with-local slots init (eval-inst idx (first args)))
                                     s (slot :constants)]
