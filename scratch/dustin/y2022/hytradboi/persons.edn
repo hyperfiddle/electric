@@ -1,0 +1,41 @@
+(ns user.persons)
+
+(defn submissions-master [first second last] ...)
+
+(defn genders [] ...)
+
+(defn shirt-sizes [gender needle] ...)
+
+
+
+(hf/ui
+  {(submissions-master . . .)
+   [[:person/name {::html/placeholder "alice@example.com"}]
+    [:person/email {::html/invalid (p/server (email-taken? person/email))}]
+    {[:person/gender {::hf/options      (genders)
+                      ::hf/option-label :db/ident
+                      ::hf/render       typeahead-select}]
+     [:db/ident]}
+    {[:person/shirt-size {::hf/options      (shirt-sizes person/gender .)
+                          ::hf/option-label :db/ident
+                          ::hf/render       typeahead-select}]
+     [:db/ident]}]})
+
+
+
+
+(s/fdef submissions-master
+  :args (s/cat
+          :first string?
+          :second string?
+          :last number?)
+  :ret (s/coll-of hf/ref?))
+
+(s/fdef genders
+  :ret (s/coll-of hf/ref?))
+
+(s/fdef shirt-sizes
+  :args (s/cat
+          :gender hf/ref?
+          :needle string?)
+  :ret (s/coll-of hf/ref?))

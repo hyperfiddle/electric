@@ -1,0 +1,142 @@
+"UI as an Expression"
+
+
+
+
+
+; Color, Chop, Distribute
+; https://hyperfiddle.notion.site/image/https%3A%2F%2Fs3-us-west-2.amazonaws.com%2Fsecure.notion-static.com%2F6d431984-0d9d-4d15-a303-a80126f70307%2FUntitled.png?table=block&id=6fe2324a-3191-4214-bb52-144b5a1cc45f&spaceId=1c81cf47-65ad-4f3f-9af2-418ab3a084fc&width=1920&userId=&cache=v2
+
+; 1. It's reactive
+; 2. it's distributed
+; 3. No routing, graphql adapters, resolvers, caches
+; 4. IO is streaming, backpressured, reactive, concurrent, real-time
+; 5. None of these behaviors are visible in the AST. Zero boilerplate. Free. It just works.
+
+; Harder expression - form with edits
+(p/defn App [db]
+  (p/client
+    (dom/div
+      (dom/h1 "hello world")
+      (dom/table
+        (let [needle (dom/input {::html/placeholder "alice@example.com"})]
+          (p/for [e (p/server (persons db needle))]
+            (dom/tr
+              (field :person/name)
+              (field :person/email)
+              (field :person/gender)
+              (field :person/shirt-size))))))))
+
+
+(p/defn App [db]
+  (dom/div
+    (dom/h1 "hello world")
+    (dom/table
+      (let [needle (dom/input {::html/placeholder "alice@example.com"})]
+        (p/for [e _1]
+          (dom/tr
+            (field :person/name)
+            (field :person/email)
+            (field :person/gender)
+            (field :person/shirt-size)))))))
+
+(p/defn App [db]
+  (persons db _2))
+
+
+
+(p/defn persons [needle] (p/server ...))
+
+(p/defn field [a] (p/client ...))
+
+; color and chop
+
+; server
+(p/defn App []
+  (#_p/client
+   (#_dom/div
+    (#_dom/h1 #_"hello world")
+    (#_dom/table
+     (#_let [#_needle (#_dom/input {#_::html/placeholder #_"alice@example.com"})]
+      (#_p/for [#_e (p/server (persons #_needle))]
+       (#_dom/tr
+        (#_field #_:person/name)
+        (#_field #_:person/email)
+        (#_field #_:person/gender)
+        (#_field #_:person/shirt-size))))))))
+
+; client
+(p/defn App []
+  (p/client
+    (dom/div
+      (dom/h1 "hello world")
+      (dom/table
+        (let [needle (dom/input {::html/placeholder "alice@example.com"})]
+          (p/for [e (#_p/server (#_persons needle))]
+            (dom/tr
+              (field :person/name)
+              (field :person/email)
+              (field :person/gender)
+              (field :person/shirt-size))))))))
+
+; network log
+[_X]
+
+"Streaming point server reads"
+(p/defn field [a props]
+  (p/client
+    (let [v (dom/field
+              (case (p/server (:db/valueType (d/entity *db* a)))
+                :db.type/ref (typeahead-select (p/server (get (d/entity *db* *e*) a)) props)
+                :db.type/string (dom/input (p/server (get (d/entity *db* *e*) a)))
+                (dom/div "unknown type")))]
+      [a v])))
+
+"pending state"
+(p/client (dom/h1 "The result is: " (try (p/server (query-database db))
+                                         (catch p/Pending _ "loading"))))
+
+"control flow, scope, lambda, closures, HOFs, macros, foreign calls, pending"
+(p/defn App []
+  (p/client
+    (dom/div
+      (dom/h1 "hello world")
+      (dom/table
+        (let [needle (dom/input {::html/placeholder "alice@example.com"})]
+          (try
+            (p/for [e (p/server (persons needle))]
+              (dom/tr
+                (field :person/name)
+                (field :person/email {::html/invalid (p/server (exists? db :person/email v))})
+                (field :person/gender {::hf/options (p/server (genders db))})
+                (field :person/shirt-size {::hf/options (p/fn [needle]
+                                                          (p/server
+                                                            (shirt-sizes db (:person/gender (d/entity hf/*db* e)) needle)))})))
+            (catch p/Pending _ "loading")))))))
+
+; entrypoint
+
+(ns dustin.y2022.jamietalk.jamie
+  (:require
+    #?(:clj [datomic.api :as d])
+    [hyperfiddle.api :refer [ui]]
+    [hyperfiddle.photon :as p]
+    #?(:cljs [hyperfiddle.photon-dom :as dom])))
+
+(defn entrypoint [conn]
+  #?(:clj
+     ; bootstrap client/server and establish websocket
+     (p/run
+       (p/server
+         (binding [*user* ...]
+           (loop [db (datomic.api/db conn)]
+             (let [tx (binding [*db* db]
+                        (p/client
+                          (binding [dom/*parent* (js/document.querySelector "#root")]
+                            ; App is an incrementally maintained stream-function from stream-of-db to stream-of-tx
+                            (App))))]
+               (println tx)
+               (recur (:db-after @(datomic.api/transact conn tx))))))))))
+
+; You don’t need a web framework, you need a web language
+; https://hyperfiddle.notion.site/image/https%3A%2F%2Fs3-us-west-2.amazonaws.com%2Fsecure.notion-static.com%2F379ccfd8-8cb8-442d-9e25-7ea52e680e44%2FUntitled.png?table=block&id=0a2be994-696e-4aba-b97c-388905e0340c&spaceId=1c81cf47-65ad-4f3f-9af2-418ab3a084fc&width=1920&userId=&cache=v2
