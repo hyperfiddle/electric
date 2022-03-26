@@ -1,9 +1,15 @@
 (ns hyperfiddle.ui.codemirror
-  #?(:clj  (:require [hyperfiddle.photon :as p]
+  #?(:clj  (:require clojure.edn
+                     clojure.pprint
+                     [hyperfiddle.photon :as p]
+                     hyperfiddle.photon-dom
                      [hyperfiddle.photon-xp :as xp]
                      [missionary.core :as m])
      :cljs (:require
+             clojure.edn
+             clojure.pprint
              [hyperfiddle.photon :as p]
+             hyperfiddle.photon-dom
              [hyperfiddle.photon-xp :as xp]
              [missionary.core :as m]
              ["@codemirror/fold" :as fold]
@@ -12,7 +18,8 @@
              ["@codemirror/history" :refer [history historyKeymap]]
              ["@codemirror/state" :refer [EditorState]]
              ["@codemirror/view" :as view :refer [EditorView]]
-             [nextjournal.clojure-mode :as cm-clj])))
+             [nextjournal.clojure-mode :as cm-clj]))
+  #?(:cljs (:require-macros [hyperfiddle.ui.codemirror :refer [CodeMirror]])))
 
 #?(:cljs
    (def theme
@@ -86,3 +93,9 @@
           (m/eduction (map readf))
           (xp/newest #'value)
           (xp/continuous))))
+
+(defn read-edn [edn-str] (try (clojure.edn/read-string edn-str) (catch #?(:clj Throwable :cljs :default) t nil)))
+
+(defn write-edn [edn] (with-out-str (clojure.pprint/pprint edn)))
+
+(p/defn edn [v] (p/$ CodeMirror {:parent hyperfiddle.photon-dom/parent} read-edn write-edn v))
