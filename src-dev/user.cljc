@@ -24,12 +24,15 @@
 (comment
   (do
     (require '[dev])
+    (require 'hyperfiddle.rcf)
     (require '[hyperfiddle.server :refer [start-server!]])
     (require '[io.pedestal.http :as http]
              '[shadow.cljs.devtools.api :as shadow])
     (def server (start-server! {:host   "localhost"
                                 :port   8080
-                                :scheme "http"})))
+                                :scheme "http"}))
+    (hyperfiddle.rcf/enable!))
+
   (http/stop server)
 
   #_(hyperfiddle.dev.logger/set-level! :debug)
