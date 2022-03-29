@@ -419,7 +419,7 @@
     ~@(dom/table
        (dom/thead
         (dom/tr
-         (dom/td (dom/class "hf-table-picker-count") (dom/text (str v-count)))
+         (dom/td (dom/class "hf-table-picker-count") (dom/text "" #_(str v-count)))
          ~@(p/for [col columns]
              ~@(dom/th (dom/style {"background-color" c})
                        (dom/text (pr-str col))))))
