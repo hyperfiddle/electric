@@ -3,6 +3,7 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
             [missionary.core :as m])
+  (:import missionary.Cancelled)
   #?(:cljs (:require-macros [user.lang :refer [f2 my-inc my-var foo bar !' div widget g boom foo' inner outer foo1 bar1 foo2 foo3 foo4
                                                ;; if2 ping pong fib fib' expr
                                                ]])))
@@ -816,8 +817,7 @@
   (swap! !x inc)
   % := {:foo 1})
 
-;; FIXME confused, please revisit
-(p/def foo2 ~(m/watch !x))
+(p/def foo2 42)
 
 (tests
  (let [foo (m/ap (m/? (m/sleep 10 :foo)))]
@@ -826,13 +826,12 @@
 
 (tests
   "regression: cancel on reactive quote"
-  (def !x (atom 42))
 
   ; prove that if we pass this fn a reactive quote,
   ; then it will fail to cancel properly. The switch will cancel
   ; the quote then await termination which never happens.
   (defn x [>a] (m/ap (m/?< (m/seed [:a 2]))
-                     (m/?< >a)))
+                 (try (m/?< >a) (catch Cancelled _))))
 
   ; To repro the bug the >a must just be a reactive var
 
@@ -841,21 +840,18 @@
   % := ::rcf/timeout  ; do not produce 42 twice
   )
 
-;; FIXME confused, please revisit
-(p/def foo3 ~(m/watch !x))
 (tests
   ""
-  (def !x (atom 42))
 
   ; prove that if we pass this fn a reactive quote,
   ; then it will fail to cancel properly. The switch will cancel
   ; the quote then await termination which never happens.
   (defn x [>a] (m/ap (m/?< (m/seed [1 2]))
-                     (m/?< >a)))
+                 (try (m/?< >a) (catch Cancelled _))))
 
   ; To repro the bug the >a must just be a reactive var
 
-  (p/run (! ~(x (let [x foo3] #'x))))
+  (p/run (! ~(x (let [x foo2] #'x))))
   % := 42
   % := ::rcf/timeout  ; do not produce 42 twice
   )
