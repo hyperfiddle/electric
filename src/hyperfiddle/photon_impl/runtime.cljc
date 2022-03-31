@@ -122,10 +122,23 @@
               :hyperfiddle.photon/remote))))
     value))
 
-(deftype Builder [log ctx frame ats tgts srcs sigs vars outs])
+(defn make-builder [log ctx frame path ats tgts srcs sigs vars outs]
+  (doto (object-array 11)
+    (aset (int 0) log)
+    (aset (int 1) ctx)
+    (aset (int 2) frame)
+    (aset (int 3) path)
+    (aset (int 4) ats)
+    (aset (int 5) tgts)
+    (aset (int 6) srcs)
+    (aset (int 7) sigs)
+    (aset (int 8) vars)
+    (aset (int 9) outs)
+    (aset (int 10) 0)))
+
 (def builder (l/local))
 
-(defn allocate [log context inputs targets sources signals variables outputs ctor frame nodes]
+(defn allocate [log context inputs targets sources signals variables outputs ctor frame path nodes]
   (let [out (aget ^objects context (int 1))
         prev (l/get-local builder)
         ats (object-array inputs)
@@ -142,7 +155,7 @@
         frame #(do (dotimes [i signals] ((aget sigs i)))
                    (dotimes [i variables] ((aget vars i)))
                    (dotimes [i outputs] ((aget outs i))))))
-    (l/set-local builder (->Builder log context frame ats tgts srcs sigs vars outs))
+    (l/set-local builder (make-builder log context frame path ats tgts srcs sigs vars outs))
     (try (ctor nodes)
          (finally
            (l/set-local builder prev)
@@ -153,59 +166,69 @@
                         (recur (inc slot))) (m/amb)))))))))
 
 (defn input [slot]
-  (when-some [^Builder b (l/get-local builder)]
-    (m/signal! (lift-cancelled (m/watch (aset (.-ats b) slot (atom pending))))))) ;; TODO cleanup
+  (when-some [^objects b (l/get-local builder)]
+    (m/signal! (lift-cancelled (m/watch (aset ^objects (aget b (int 4)) slot (atom pending))))))) ;; TODO cleanup
 
 (defn target [slot inputs targets sources signals variables outputs ctor]
-  (when-some [^Builder b (l/get-local builder)]
-    (aset ^objects (.-tgts b) slot
-      (let [log (.-log b)
-            context (.-ctx b)]
-        #(allocate log context inputs targets sources signals variables outputs ctor
-           (aset ^objects context (int 3) (dec (aget ^objects context (int 3)))) %)))))
+  (when-some [^objects b (l/get-local builder)]
+    (aset ^objects (aget b (int 5)) slot
+      (let [log (aget b (int 0))
+            ctx (aget b (int 1))
+            node (aget b (int 10))
+            path (conj (aget b (int 3)) node)]
+        (aset b (int 10) (inc node))
+        #(allocate log ctx inputs targets sources signals variables outputs ctor
+           (aset ^objects ctx (int 3) (dec (aget ^objects ctx (int 3)))) path %)))))
 
 (defn source [slot nodes]
-  (when-some [^Builder b (l/get-local builder)]
-    (aset ^objects (.-srcs b) slot nodes)))
+  (when-some [^objects b (l/get-local builder)]
+    (aset ^objects (aget b (int 6)) slot nodes)))
 
 (defn signal [slot flow]
-  (when-some [^Builder b (l/get-local builder)]
-    (aset ^objects (.-sigs b) slot (m/signal! (lift-cancelled flow)))))
+  (when-some [^objects b (l/get-local builder)]
+    (aset ^objects (aget b (int 7)) slot (m/signal! (lift-cancelled flow)))))
 
 (defn variable [slot nodes <<x]
-  (when-some [^Builder b (l/get-local builder)]
-    (aset ^objects (.-vars b) slot
-      (m/signal!
-        (bind-flow current [(.-frame b) slot nodes]
-          (m/cp (try (let [<x (m/?< <<x)]
-                       (if (failure <x)
-                         <x (m/?< <x)))
-                     (catch Cancelled e
-                       (->Failure e)))))))))
+  (when-some [^objects b (l/get-local builder)]
+    (aset ^objects (aget b (int 8)) slot
+      (let [id (aget b (int 10))]
+        (aset b (int 10) (inc id))
+        (m/signal!
+          (bind-flow current [(aget b (int 2)) slot (conj (aget b (int 3)) id) nodes]
+            (m/cp (try (let [<x (m/?< <<x)]
+                         (if (failure <x)
+                           <x (m/?< <x)))
+                       (catch Cancelled e
+                         (->Failure e))))))))))
 
 (defn output [slot flow]
-  (when-some [^Builder b (l/get-local builder)]
-    (aset ^objects (.-outs b) slot (m/stream! (lift-cancelled flow)))))
+  (when-some [^objects b (l/get-local builder)]
+    (aset ^objects (aget b (int 9)) slot (m/stream! (lift-cancelled flow)))))
 
 (defn failer [e n t]
   (n) (reify
         IFn (#?(:clj invoke :cljs -invoke) [_])
         IDeref (#?(:clj deref :cljs -deref) [_] (t) (throw e))))
 
+(def path
+  (reify IDeref
+    (#?(:clj deref :cljs -deref) [_]
+      (if-some [[_ _ path _] (l/get-local current)]
+        path (throw (ex-info "Unable to build path : not in peer context." {}))))))
+
 (defn constant [slot inputs targets sources signals variables outputs ctor]
-  (when-some [^Builder b (l/get-local builder)]
+  (when-some [^objects b (l/get-local builder)]
     (fn [n t]
       (if-some [v (l/get-local current)]
-        (let [log (.-log b)
-              context (.-ctx b)
-              frame (.-frame b)
-              cb (aget ^objects context (int 0))
-              id (aset ^objects context (int 2) (inc (aget ^objects context (int 2))))]
-          (cb [[(into [frame slot] (pop v))] #{} {}])
-          (try ((allocate log context inputs targets sources signals variables outputs ctor id (peek v))
+        (let [[call-frame call-slot path nodes] v
+              ctx (aget b (int 1))
+              cb (aget ^objects ctx (int 0))
+              id (aset ^objects ctx (int 2) (inc (aget ^objects ctx (int 2))))]
+          (cb [[[(aget b (int 2)) slot call-frame call-slot]] #{} {}])
+          (try ((allocate (aget b (int 0)) ctx inputs targets sources signals variables outputs ctor id path nodes)
                 #(let [p (l/get-local current)]
                    (l/set-local current v) (n) (l/set-local current p))
-                #(do (discard context id) (cb [[] #{id} {}]) (t)))
+                #(do (discard ctx id) (cb [[] #{id} {}]) (t)))
                (catch #?(:clj Throwable :cljs :default) e (failer e n t))))
         (failer (ex-info "Unable to build frame : not in peer context." {}) n t)))))
 
@@ -265,7 +288,7 @@
                    (aset (int 5) {})
                    (aset (int 6) {})
                    (aset (int 7) {}))]
-         (m/stream! (allocate log ctx inputs targets sources signals variables outputs boot 0 (vec (repeat nodes nil))))
+         (m/stream! (allocate log ctx inputs targets sources signals variables outputs boot 0 [] (vec (repeat nodes nil))))
          (->> (poll ?read)
            (m/stream!)
            (m/eduction

@@ -42,6 +42,8 @@ and returning a task that runs the local reactor."
   (when-not (:js-globals &env)
     `(~'def ~(vary-meta sym assoc :macro true ::c/node `(quote (do ~@body))))))
 
+(def path r/path)
+
 (defmacro main "
 Takes a photon program and returns a pair
 * the first item is the local booting function (cf eval)
