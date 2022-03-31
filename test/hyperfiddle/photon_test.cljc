@@ -1,10 +1,10 @@
-(ns user.lang
-  "Photon language tutorial"
+(ns hyperfiddle.photon-test
+  "Photon language unit tests"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
             [missionary.core :as m])
   (:import missionary.Cancelled)
-  #?(:cljs (:require-macros [user.lang :refer [f2 my-inc my-var foo bar !' div widget g boom foo' inner outer foo1 bar1 foo2 foo3 foo4
+  #?(:cljs (:require-macros [user.photon-test :refer [f2 my-inc my-var foo bar !' div widget g boom foo' inner outer foo1 bar1 foo2 foo3 foo4
                                                ;; if2 ping pong fib fib' expr
                                                ]])))
 

@@ -42,7 +42,7 @@ jobs:
       run: clojure -A:test -P
 
     - name: Run tests
-      run: clojure -X:test :dirs "[\"src\" \"src-docs\"]" :patterns "[\"hyperfiddle.photon-impl.compiler\" \"hyperfiddle.photon-impl.for\" \"user.lang\"]"
+      run: clojure -X:test :dirs "[\"src\" \"src-docs\" \"test\"]" :patterns "[\"hyperfiddle.photon-impl.compiler\" \"hyperfiddle.photon-impl.for\" \"hyperfiddle.photon-test\"]"
         
   photon-nodejs:
     if: ${{ false }} # Disabled until we fix the cljs test suite locally
