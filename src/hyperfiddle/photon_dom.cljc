@@ -4,6 +4,7 @@
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])
+            #?(:cljs [goog.object :as o])
             #?(:cljs [goog.style])
             [clojure.string :as str])
   #?(:cljs (:import (goog.events EventType KeyCodes)
@@ -14,9 +15,6 @@
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
-(p/def parent)
-(p/def node-index nil)
-
 (defn append-children [parent items] (reduce #?(:cljs #(doto %1 (.appendChild %2))) parent items))
 (defn remove-children [parent items] (reduce #?(:cljs #(doto %1 (.removeChild %2))) parent items))
 
@@ -24,39 +22,52 @@
   ;; To help us debug distribution
   (m/ap (throw (ex-info (str "Not available on this peer: " message) {}))))
 
-(defn create-mount [parent position type]
-  #?(:clj (peer-error! `create-mount)
-     :cljs
-     (m/observe
-       (fn [!]
-         (let [child (d/createElement type)]
-           (if (nil? position)
-             (js/requestAnimationFrame #(d/appendChild parent child))
-             (d/insertChildAt parent child position))
-           (! child) #(d/removeNode child))))))
+(p/def parent)
+
+(defn dom-element [type]
+  #?(:cljs (d/createElement type)))
+
+(defn text-node []
+  #?(:cljs (d/createTextNode "")))
+
+(defn before? [x y]
+  (let [xl (count x)
+        yl (count y)
+        ml (min xl yl)]
+    (loop [i 0]
+      (if (< i ml)
+        (let [xi (nth x i)
+              yi (nth y i)]
+          (if (== xi yi)
+            (recur (inc i))
+            (< xi yi)))
+        (< xl yl)))))
+
+(defn mount [parent child path]
+  #?(:clj (peer-error! `mount)
+     :cljs (m/observe
+             (fn [!]
+               (o/set child "--photon-path" path)
+               (.insertBefore parent child
+                 ;; TODO sublinear anchor search. skip list ?
+                 (loop [anchor (.-firstChild parent)]
+                   (when-not (nil? anchor)
+                     (if (before? (o/get anchor "--photon-path") path)
+                       (recur (.-nextSibling anchor)) anchor))))
+               (! child) #(d/removeNode child)))))
 
 (defmacro element [type & body]
-  `(binding [parent (unquote (create-mount parent node-index ~(name type)))]
-     ~@body))
+  `(binding [parent (unquote (mount parent (dom-element ~(name type)) @p/path))] ~@body))
 
 (defn set-fragment! [e f]
   ;; TODO
   )
 
 (defn set-text-content! [e t]
-  #?(:cljs (js/requestAnimationFrame #(d/setTextContent e (str t)))))
-
-(defn create-text [parent]
-  #?(:clj (peer-error! `create-text)
-     :cljs
-     (m/observe
-      (fn [!]
-        (let [child (d/createTextNode "")]
-          (js/requestAnimationFrame #(d/appendChild parent child))
-          (! child) #(d/removeNode child))))))
+  #?(:cljs (d/setTextContent e (str t))))
 
 (defmacro text [text]
-  `(set-text-content! (unquote (create-text parent)) ~text))
+  `(set-text-content! (unquote (mount parent (text-node) @p/path)) ~text))
 
 (defmacro div [& body]
   `(element :div ~@body))
@@ -249,6 +260,6 @@
 (defmacro for [bindings & body]
   `(for-by identity ~bindings ~@body))
 
-(def exports (p/vars click-event create-mount create-text events
+(def exports (p/vars click-event mount events
                      set-attribute! set-style! set-text-content!
                      peer-error!))
