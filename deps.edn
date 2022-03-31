@@ -50,7 +50,7 @@
                      :extra-deps  {hyperfiddle/rcf                      {:local/root "./vendor/rcf"}
                                    io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                          :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
-                     :extra-paths ["src-docs"]
+                     :extra-paths ["src-docs" "test"]
                      :exec-fn     cognitect.test-runner.api/test}}}
 
 ;; ¹ http://webcache.googleusercontent.com/search?q=cache:4Rya0J2jOb4J:yellerapp.com/posts/2015-05-11-clojure-no-stacktrace.html
