@@ -4,7 +4,7 @@
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
             [missionary.core :as m])
   (:import missionary.Cancelled)
-  #?(:cljs (:require-macros [user.photon-test :refer [f2 my-inc my-var foo bar !' div widget g boom foo' inner outer foo1 bar1 foo2 foo3 foo4
+  #?(:cljs (:require-macros [user.photon-test :refer [f2 my-inc my-var foo bar !' div widget g boom foo' inner outer foo1 bar1 foo2 foo3 foo4 x2
                                                ;; if2 ping pong fib fib' expr
                                                ]])))
 
@@ -913,7 +913,7 @@
 
   (dispose))
 
-(p/def x 1)
+(p/def x2 1)
 (tests
   (def !input (atom [1 2]))
   (defn up-down [p x]
@@ -921,8 +921,8 @@
 
   (p/run
     (! (p/for [id ~(m/watch !input)]
-         (binding [x (do id x)]
-           ~(up-down ! x)))))
+         (binding [x2 (do id x2)]
+           ~(up-down ! x2)))))
   [% %] := [:up :up]
   % := [1 1]
   (swap! !input pop)
