@@ -9,45 +9,45 @@
 (defn fixtures [$]
   ; portable
   (-> $
-    (d/with [{:db/id 1 :dustingetz/type :dustingetz/gender :db/ident :dustingetz/male}
-             {:db/id 2 :dustingetz/type :dustingetz/gender :db/ident :dustingetz/female}])
+    (d/with [{:db/id 1 :order/type :order/gender :db/ident :order/male}
+             {:db/id 2 :order/type :order/gender :db/ident :order/female}])
     :db-after
-    (d/with [{:db/id 3 :dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/mens-small :dustingetz/gender :dustingetz/male}
-             {:db/id 4 :dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/mens-medium :dustingetz/gender :dustingetz/male}
-             {:db/id 5 :dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/mens-large :dustingetz/gender :dustingetz/male}
-             {:db/id 6 :dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/womens-small :dustingetz/gender :dustingetz/female}
-             {:db/id 7 :dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/womens-medium :dustingetz/gender :dustingetz/female}
-             {:db/id 8 :dustingetz/type :dustingetz/shirt-size :db/ident :dustingetz/womens-large :dustingetz/gender :dustingetz/female}])
+    (d/with [{:db/id 3 :order/type :order/shirt-size :db/ident :order/mens-small :order/gender :order/male}
+             {:db/id 4 :order/type :order/shirt-size :db/ident :order/mens-medium :order/gender :order/male}
+             {:db/id 5 :order/type :order/shirt-size :db/ident :order/mens-large :order/gender :order/male}
+             {:db/id 6 :order/type :order/shirt-size :db/ident :order/womens-small :order/gender :order/female}
+             {:db/id 7 :order/type :order/shirt-size :db/ident :order/womens-medium :order/gender :order/female}
+             {:db/id 8 :order/type :order/shirt-size :db/ident :order/womens-large :order/gender :order/female}])
     :db-after
-    (d/with [{:db/id 9 :dustingetz/email "alice@example.com" :dustingetz/gender :dustingetz/female :dustingetz/shirt-size :dustingetz/womens-large
-              :dustingetz/tags  [:a :b :c]}
-             {:db/id 10 :dustingetz/email "bob@example.com" :dustingetz/gender :dustingetz/male :dustingetz/shirt-size :dustingetz/mens-large
-              :dustingetz/tags  [:b]}
-             {:db/id 11 :dustingetz/email "charlie@example.com" :dustingetz/gender :dustingetz/male :dustingetz/shirt-size :dustingetz/mens-medium}])
+    (d/with [{:db/id 9 :order/email "alice@example.com" :order/gender :order/female :order/shirt-size :order/womens-large
+              :order/tags  [:a :b :c]}
+             {:db/id 10 :order/email "bob@example.com" :order/gender :order/male :order/shirt-size :order/mens-large
+              :order/tags  [:b]}
+             {:db/id 11 :order/email "charlie@example.com" :order/gender :order/male :order/shirt-size :order/mens-medium}])
     :db-after
-    #_(d/with [{:db/id 12 :dustingetz/email "alice@example.com" :dustingetz/gender :dustingetz/female :dustingetz/shirt-size :dustingetz/womens-large}
-             {:dustingetz/email "bob@example.com" :dustingetz/gender :dustingetz/male :dustingetz/shirt-size :dustingetz/mens-large}
-             {:dustingetz/email "charlie@example.com" :dustingetz/gender :dustingetz/male :dustingetz/shirt-size :dustingetz/mens-medium}])
+    #_(d/with [{:db/id 12 :order/email "alice@example.com" :order/gender :order/female :order/shirt-size :order/womens-large}
+             {:order/email "bob@example.com" :order/gender :order/male :order/shirt-size :order/mens-large}
+             {:order/email "charlie@example.com" :order/gender :order/male :order/shirt-size :order/mens-medium}])
 
     #_:db-after))
 
 ;(defn init-datomic []
-;  (def schema [{:db/ident :dustingetz/email :db/valueType :db.type/string :db/cardinality :db.cardinality/one :db/unique :db.unique/identity}
-;               {:db/ident :dustingetz/gender :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
-;               {:db/ident :dustingetz/shirt-size :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
-;               {:db/ident :dustingetz/type :db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
-;               {:db/ident :dustingetz/tags :db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}])
+;  (def schema [{:db/ident :order/email :db/valueType :db.type/string :db/cardinality :db.cardinality/one :db/unique :db.unique/identity}
+;               {:db/ident :order/gender :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+;               {:db/ident :order/shirt-size :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+;               {:db/ident :order/type :db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
+;               {:db/ident :order/tags :db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}])
 ;  (d/create-database "datomic:mem://hello-world")
 ;  (def ^:dynamic *$* (-> (d/connect "datomic:mem://hello-world") d/db (d/with schema) :db-after fixtures))
 ;  #_(alter-var-root #'*$* (constantly $)))
 
 (def schema
   ;; manual db/ids for tests consistency and clarity, not a requirement
-  [{:db/id 100001 :db/ident :dustingetz/email, :db/valueType :db.type/string, :db/cardinality :db.cardinality/one, :db/unique :db.unique/identity}
-   {:db/id 100002 :db/ident :dustingetz/gender, :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
-   {:db/id 100003 :db/ident :dustingetz/shirt-size, :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
-   {:db/id 100004 :db/ident :dustingetz/type, :db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
-   {:db/id 100005 :db/ident :dustingetz/tags, :db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}])
+  [{:db/id 100001 :db/ident :order/email, :db/valueType :db.type/string, :db/cardinality :db.cardinality/one, :db/unique :db.unique/identity}
+   {:db/id 100002 :db/ident :order/gender, :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+   {:db/id 100003 :db/ident :order/shirt-size, :db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+   {:db/id 100004 :db/ident :order/type, :db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
+   {:db/id 100005 :db/ident :order/tags, :db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}])
 
 (def db-config {:store {:backend :mem, :id "default"}})
 
@@ -66,8 +66,8 @@
 ;   :cljs (init-datascript))
 #?(:clj (init-datascript))
 
-(def male    1 #_:dustingetz/male   #_17592186045418)
-(def female  2 #_:dustingetz/female #_17592186045419)
+(def male    1 #_:order/male   #_17592186045418)
+(def female  2 #_:order/female #_17592186045419)
 (def m-sm    3  #_17592186045421)
 (def m-md    4  #_nil)
 (def m-lg    5  #_nil)
@@ -80,27 +80,27 @@
 
 (comment
   (dc/touch (d/entity *$* alice))
-  (dc/touch (d/entity *$* [:dustingetz/email "alice@example.com"]))
+  (dc/touch (d/entity *$* [:order/email "alice@example.com"]))
   => {:db/id                 alice,
-      :dustingetz/email      "alice@example.com",
-      :dustingetz/gender     :dustingetz/female,
-      :dustingetz/shirt-size :dustingetz/womens-large,
-      :dustingetz/tags       #{:c :b :a}}
+      :order/email      "alice@example.com",
+      :order/gender     :order/female,
+      :order/shirt-size :order/womens-large,
+      :order/tags       #{:c :b :a}}
 
-  (dc/touch (d/entity *$* :dustingetz/female))
+  (dc/touch (d/entity *$* :order/female))
   => {:db/id           female
-      :db/ident        :dustingetz/female
-      :dustingetz/type :dustingetz/gender}
+      :db/ident        :order/female
+      :order/type :order/gender}
   )
 
 (comment
   (tests
-   (datascript.core/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] *$*)
-   := [:dustingetz/male :dustingetz/female])
+   (datascript.core/q '[:find [?e ...] :where [_ :order/gender ?e]] *$*)
+   := [:order/male :order/female])
 
   (tests
-   (hf/nav! *$* 9 :dustingetz/email)
+   (hf/nav! *$* 9 :order/email)
    := "alice@example.com"
 
-   (m/? (m/reduce conj (hf/nav 9 :dustingetz/email)))
+   (m/? (m/reduce conj (hf/nav 9 :order/email)))
    := ["alice@example.com"]))

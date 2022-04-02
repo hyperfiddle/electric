@@ -8,7 +8,7 @@
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (p/defn genders []
-  (into [] (sort ~(hf/q '[:find [?e ...] :where [_ :dustingetz/gender ?e]] (:db hf/db)))))
+  (into [] (sort ~(hf/q '[:find [?e ...] :where [_ :order/gender ?e]] (:db hf/db)))))
 
 (tests
   (def dispose (p/run (binding [hf/db (hf/->DB "$" 0 nil hf/*$*)] (! (p/$ genders)))))
@@ -25,8 +25,8 @@
       ~(hf/q '[:in $ % ?gender ?needle
                :find [?e ...]
                :where
-               [?e :dustingetz/type :dustingetz/shirt-size]
-               [?e :dustingetz/gender ?gender]
+               [?e :order/type :order/shirt-size]
+               [?e :order/gender ?gender]
                [?e :db/ident ?ident]
                [(hyperfiddle.api/includes-str? ?ident ?needle)]]
              (:db hf/db)
@@ -34,7 +34,7 @@
       ~(hf/q '[:in $ % ?needle
                :find [?e ...]
                :where
-               [?e :dustingetz/type :dustingetz/shirt-size]
+               [?e :order/type :order/shirt-size]
                [?e :db/ident ?ident]
                [(hyperfiddle.api/includes-str? ?ident ?needle)]]
              (:db hf/db)
@@ -51,7 +51,7 @@
     ~(hf/q '[:find [?e ...]
              :in $ ?needle
              :where
-             [?e :dustingetz/email ?email]
+             [?e :order/email ?email]
              [(hyperfiddle.api/includes-str? ?email ?needle)]]
            (:db hf/db)
            (or needle ""))))
@@ -62,10 +62,10 @@
   %)
 
 (s/fdef orders :args (s/cat :needle string?)
-        :ret (s/coll-of (s/keys :req [:dustingetz/email
-                                      :dustingetz/email1
-                                      :dustingetz/gender
-                                      :dustingetz/shirt-size])))
+        :ret (s/coll-of (s/keys :req [:order/email
+                                      :order/email1
+                                      :order/gender
+                                      :order/shirt-size])))
 
 (s/fdef order :args (s/cat :needle string?) :ret number?)
 (p/defn order [needle] (first (p/$ orders needle)))
