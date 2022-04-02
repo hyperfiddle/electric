@@ -1,9 +1,9 @@
-(ns user.teeshirt-orders
+(ns user.orders
   (:require [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [! % tests]])
-  #?(:cljs (:require-macros [user.teeshirt-orders :refer [genders shirt-sizes orders]])))
+  #?(:cljs (:require-macros [user.orders :refer [genders shirt-sizes orders]])))
 
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
@@ -71,7 +71,7 @@
 (p/defn order [needle] (first (p/$ orders needle)))
 
 (tests
-  (p/run (! (p/$ user.teeshirt-orders/order "")))
+  (p/run (! (p/$ user.orders/order "")))
   %)
 
 (tests

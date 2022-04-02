@@ -6,11 +6,11 @@
             [hyperfiddle.rcf :refer [tests ! %]]
             [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui6 :as ui]
-            [user.teeshirt-orders :refer [orders genders shirt-sizes]]
+            [user.orders :refer [orders genders shirt-sizes]]
             dustin.y2022.edn-render)
   #?(:cljs (:require-macros [hyperfiddle.q9 :refer [hfql]]
                             [user.hytradboi :refer [view App]]
-                            [user.teeshirt-orders :refer [orders genders shirt-sizes]])))
+                            [user.orders :refer [orders genders shirt-sizes]])))
 
 (p/defn App []
 
@@ -36,14 +36,14 @@
       (!
         (p/$ App ~(m/watch !x)))))
 
-  % := '{(user.teeshirt-orders/orders _)
+  % := '{(user.orders/orders _)
          [{:order/gender     #:db{:ident :order/female},
            :order/email      "alice@example.com",
            :order/shirt-size _}]}
 
   (reset! !x "bob")
 
-  % := '{(user.teeshirt-orders/orders _)
+  % := '{(user.orders/orders _)
          [{:order/gender     #:db{:ident :order/male},
            :order/email      "bob@example.com",
            :order/shirt-size _}]}
