@@ -1,0 +1,92 @@
+
+(p/defn App [db]
+  (p/client
+    (dom/div
+      (let [needle (dom/input "")]
+        (dom/h1 "The result is: "
+          (p/server (query-database db needle)))))))
+
+(p/defn App [db]
+  (p/client
+    (dom/div
+      (dom/input "" ?needle)
+      (dom/h1 "The result is: "
+        (p/server (query-database db ?needle))))))
+
+(p/client
+  (dom/div
+    (with-form [form [[:db/add 1 :person/name ?name]]]
+      (dom/input ?needle)
+      (dom/h1 "The result is: "
+        (p/server (query-database db ?needle))))))
+
+
+(p/defn App [db]
+  (p/client
+    (dom/div
+      (dom/h1 "hello world")
+      (with-form [form ?needle]
+        (dom/input ?needle)
+        (let [genders (p/server (genders db))]
+          (dom/table
+            (p/for [e (p/server (persons db needle))]
+              (let [gender (:person/gender (d/entity db e))]
+                (dom/tr
+                  (field :person/name)
+                  (field :person/email)
+                  (field :person/gender {:options genders})
+                  (field :person/shirt-size {:options (p/fn [needle]
+                                                        (p/server (shirt-sizes db gender)))}))))))))))
+
+(p/defn App [db]
+  (p/client
+    [:div
+     [:h1 "hello world"]
+     (with-form [form (?needle :init "")]
+       [:input ?needle]
+       (let [genders (p/server (genders db))]
+         [:table
+          (p/for [e (p/server (persons db needle))]
+            (let [gender (:person/gender (d/entity db e))]
+              [:tr
+               (render-field :person/name)
+               (render-field :person/email)
+               (render-field :person/gender {:options genders})
+               (render-field :person/shirt-size {:options (p/fn [needle]
+                                                     (p/server (shirt-sizes db gender)))})]))]))]))
+
+(p/defn App [db]
+  (p/client
+    (dom/div
+      (dom/h1 "hello world")
+      (let [needle (dom/input "")
+            genders (p/server (genders db))]
+        (dom/table
+          (p/for [e (p/server (persons db needle))]
+            (let [gender (:person/gender (d/entity db e))]
+              (dom/tr
+                (field :person/name)
+                (field :person/email)
+                (field :person/gender {:options genders})
+                (field :person/shirt-size {:options (p/server (shirt-sizes db gender))})))))))))
+
+(p/client
+  (with-form [form [[:db/add 1 :person/name ?name]]
+              :meta {?name {:label      "Your full name"
+                            :validators [(forms/min-length 3)]}}]
+    (dom/form
+      (dom/input ?name)
+      (dom/pre (str "valid? " (forms/valid? form)))
+      (dom/pre (str @form)))))
+
+
+
+(cljs
+  (with-form [form [[:db/add 1 :person/name ?name]]
+              :meta {?name {:label "Your full name"
+                            :validators [(forms/min-length 3)]}}]
+
+    [:form
+     [managed-text-input ?name]
+     [:pre (str "valid? " (forms/valid? form))]
+     [:pre (str @form)]]))
