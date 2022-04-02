@@ -1,6 +1,6 @@
 (ns hyperfiddle.q9.tests
   (:require [clojure.spec.alpha :as s]
-            [hfdl.lang :as p]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             ;; [hyperfiddle.q9 :refer [hfql]]
             [hyperfiddle.q9 :refer [hfql]]
