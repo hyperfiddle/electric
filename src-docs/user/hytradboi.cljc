@@ -17,10 +17,10 @@
   (hfql
 
     {(orders .)
-     [:dustingetz/email
-      {(props :dustingetz/gender {::hf/options (genders)})
+     [:order/email
+      {(props :order/gender {::hf/options (genders)})
        [:db/ident]}
-      {(props :dustingetz/shirt-size {::hf/options (shirt-sizes dustingetz/gender .)})
+      {(props :order/shirt-size {::hf/options (shirt-sizes order/gender .)})
        [:db/ident]}]}
 
     ))
@@ -37,14 +37,14 @@
         (p/$ App ~(m/watch !x)))))
 
   % := '{(user.teeshirt-orders/orders _)
-         [{:dustingetz/gender     #:db{:ident :dustingetz/female},
-           :dustingetz/email      "alice@example.com",
-           :dustingetz/shirt-size _}]}
+         [{:order/gender     #:db{:ident :order/female},
+           :order/email      "alice@example.com",
+           :order/shirt-size _}]}
 
   (reset! !x "bob")
 
   % := '{(user.teeshirt-orders/orders _)
-         [{:dustingetz/gender     #:db{:ident :dustingetz/male},
-           :dustingetz/email      "bob@example.com",
-           :dustingetz/shirt-size _}]}
+         [{:order/gender     #:db{:ident :order/male},
+           :order/email      "bob@example.com",
+           :order/shirt-size _}]}
   )
