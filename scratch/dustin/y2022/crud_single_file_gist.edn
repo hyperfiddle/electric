@@ -95,7 +95,7 @@
       (let [needle (dom/input {:default-value ""})]
         (dom/select v
           (try
-            (for [x (options-fn needle)]                    ; hf/*db* cannot be seen on options-fn interface
+            (p/for [x (options-fn needle)]                    ; hf/*db* cannot be seen on options-fn interface
               (dom/option x))
             (catch p/Pending _ nil)))))))                   ; trap local pending state
 

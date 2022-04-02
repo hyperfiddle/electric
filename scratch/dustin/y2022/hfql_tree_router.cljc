@@ -34,14 +34,14 @@
         :dustingetz/email
         {(props :dustingetz/gender {::hf/options #_(p/client) (genders)
                                     ::hf/option-label         :db/ident #_(p/fn [x] ((comp name :db/ident) x))
-                                    ::hf/render               dustin.y2022.edn-render/render-select})
+                                    ::hf/render               dustin.y2022.edn-render/edn-select})
          [:db/ident]}
         {(props :dustingetz/shirt-size {::hf/options      (shirt-sizes {(props dustingetz/gender {::hf/options (genders)})
                                                                         [:db/ident]}
                                                                        "small"
                                                                        100)
                                         ::hf/option-label :db/ident
-                                        ::hf/render       dustin.y2022.edn-render/render-select
+                                        ::hf/render       dustin.y2022.edn-render/edn-select
                                         #_#_::hf/render (p/fn [>v props]
                                                           (hfql {(eval (::hf/options props))
                                                                  (::hf/pull props)}

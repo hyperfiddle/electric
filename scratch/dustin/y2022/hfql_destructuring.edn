@@ -1,0 +1,30 @@
+(p/defn f [e]
+  (hfql
+    {e
+     [:db/id
+      :dustingetz/email
+      {:dustingetz/gender [:db/ident]}
+      {:dustingetz/shirt-size [:db/ident]}]})
+  (let [(hfql {e
+               [:db/id]})]
+
+    ))
+
+
+(let [{:keys
+       [:db/id
+        :dustingetz/email
+        :dustingetz/gender
+        :dustingetz/shirt-size]} (nav e)])
+
+(let [{:keys [:db/id
+              :dustingetz/email
+              {:dustingetz/gender [:db/ident]}
+              {:dustingetz/shirt-size [:db/ident]}]} (nav e)])
+
+(for [{:keys [:db/id
+              :dustingetz/email
+              {:dustingetz/gender [:db/ident]}
+              {:dustingetz/shirt-size [:db/ident]}]} (persons "")]
+  id
+  )
