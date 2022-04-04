@@ -23,7 +23,7 @@
     [hyperfiddle.ui6 :as ui6])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)
-           (java.util.concurrent Executors ThreadFactory)
+           (java.util.concurrent Executors ThreadFactory Executor)
            (missionary Cancelled)))
 
 (def base-config {::http/type            :jetty
@@ -72,6 +72,13 @@
                 (range procs))]
     (fn [x] (nth execs (mod (hash x) procs)))))
 
+(defn run-via [^Executor e f]
+  (fn [& args]
+    (.execute e
+      (reify Runnable
+        (run [_]
+          (apply f args))))))
+
 (defn success [_]
   (println "WS handler completed."))
 
@@ -94,32 +101,33 @@
                            (catch Cancelled _))) success failure)))
    "/ws"   (fn [_request]
              (fn [remote read-str read-buf closed]
-               ((m/sp
-                  (try
-                    (let [el (event-loop remote)
-                          ?read (m/sp
-                                  (let [x (try (m/? read-str)
-                                               (finally (m/? (m/via el))))]
-                                    (try (transit/decode x)
-                                         (catch Throwable t
-                                           (log/error (ex-info "Failed to decode" {:value x} t))
-                                           (throw t)))))
-                          write (fn [x]
-                                  (m/sp
-                                    (try
-                                      (m/? (ws/write-str remote
-                                             (try (transit/encode x)
-                                                  (catch Throwable t
-                                                    (log/error (ex-info "Failed to encode" {:value x} t))
-                                                    (throw t)))))
-                                      (finally (m/? (m/via el))))))
-                          program (m/? ?read)]
-                      (prn :booting-reactor #_program)
-                      (m/? ((p/eval (p/merge-vars p/exports h/exports dom/exports z/exports t/exports ui6/exports dis/exports
-                                                  user.browser/exports
-                                                  user.hytradboi/exports
-                                      (p/vars log/js-log*)) program) write ?read)))
-                    (catch Cancelled _))) success failure)))})
+               (let [el (event-loop remote)]
+                 (run-via el
+                   ((m/sp
+                      (try
+                        (let [?read (m/sp
+                                      (let [x (try (m/? read-str)
+                                                   (finally (m/? (m/via el))))]
+                                        (try (transit/decode x)
+                                             (catch Throwable t
+                                               (log/error (ex-info "Failed to decode" {:value x} t))
+                                               (throw t)))))
+                              write (fn [x]
+                                      (m/sp
+                                        (try
+                                          (m/? (ws/write-str remote
+                                                 (try (transit/encode x)
+                                                      (catch Throwable t
+                                                        (log/error (ex-info "Failed to encode" {:value x} t))
+                                                        (throw t)))))
+                                          (finally (m/? (m/via el))))))
+                              program (m/? ?read)]
+                          (prn :booting-reactor #_program)
+                          (m/? ((p/eval (p/merge-vars p/exports h/exports dom/exports z/exports t/exports ui6/exports dis/exports
+                                          user.browser/exports
+                                          user.hytradboi/exports
+                                          (p/vars log/js-log*)) program) write ?read)))
+                        (catch Cancelled _))) success failure)))))})
 
 (defn gzip-handler [& methods]
   (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))
