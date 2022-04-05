@@ -100,14 +100,14 @@
                                 (let [[_ sub] route]
                                   (router/router
                                    route
-                                   {(sub-profile sub) [:db/id :dustingetz/email]}
+                                   {(sub-profile sub) [:db/id :order/email]}
                                    {(submissions . .) [(props :db/id {::hf/link sub-profile})
-                                                         :dustingetz/email
-                                                         {(props :dustingetz/gender {::hf/options      (genders)
-                                                                                     ::hf/option-label :db/ident
-                                                                                     ::hf/render       ui/select-options}) [(props :db/ident {::hf/as gender})]}
-                                                         {(props :dustingetz/shirt-size {::hf/options      (shirt-sizes gender .)
-                                                                                         ::hf/option-label :db/ident}) [:db/ident]}]}))))]
+                                                       :order/email
+                                                       {(props :order/gender {::hf/options      (genders)
+                                                                              ::hf/option-label :db/ident
+                                                                              ::hf/render       ui/select-options}) [(props :db/ident {::hf/as gender})]}
+                                                       {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
+                                                                                  ::hf/option-label :db/ident}) [:db/ident]}]}))))]
                 (dom/div (dom/class "hf-staging-area")
                          (dom/div (dom/class "hf-error-wrapper")
                                   (let [tx' (p/$ cm/CodeMirror {:parent dom/parent} read-edn write-edn [])]
