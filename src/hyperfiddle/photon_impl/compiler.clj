@@ -517,11 +517,8 @@ is a macro or special form."
   (let [resolved (into {} (map (comp (juxt global identity)
                                      (partial resolve-runtime-throwing (normalize-env env))))
                        forms)]
-    `(fn ~'global-var-resolver
-       ([ident#]
-        (contains? ~(set (keys resolved)) ident#))
-       ([not-found# ident#]
-        (case ident#
-          ~@(mapcat identity resolved)
-          not-found#)))))
+    `(fn ~'global-var-resolver [not-found# ident#]
+       (case ident#
+         ~@(mapcat identity resolved)
+         not-found#))))
 

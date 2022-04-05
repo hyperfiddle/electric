@@ -123,10 +123,10 @@
                                           (finally (m/? (m/via el))))))
                               program (m/? ?read)]
                           (prn :booting-reactor #_program)
-                          (m/? ((p/eval (p/merge-vars p/exports h/exports dom/exports z/exports t/exports ui6/exports dis/exports
-                                          user.browser/exports
-                                          user.hytradboi/exports
-                                          (p/vars log/js-log*)) program) write ?read)))
+                          (m/? ((p/eval
+                                  #_(p/merge-vars p/exports h/exports dom/exports z/exports t/exports ui6/exports dis/exports
+                                    user.browser/exports user.hytradboi/exports (p/vars log/js-log*))
+                                  program) write ?read)))
                         (catch Cancelled _))) success failure)))))})
 
 (defn gzip-handler [& methods]

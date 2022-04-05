@@ -16,13 +16,11 @@ of this var to the value currently bound to this var.
 
 (cc/defn merge-vars
   ([fa fb]
-   (cc/fn
-     ([ident] (or (fa ident) (fb ident)))
-     ([not-found ident]
-      (let [a (fa not-found ident)]
-        (if (= not-found a)
-          (fb not-found ident)
-          a)))))
+   (cc/fn [not-found ident]
+     (let [a (fa not-found ident)]
+       (if (= not-found a)
+         (fb not-found ident)
+         a))))
   ([fa fb & fs]
    (reduce merge-vars (merge-vars fa fb) fs)))
 
