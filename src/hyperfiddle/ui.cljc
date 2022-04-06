@@ -344,7 +344,7 @@
           checked?              (= v⁻¹ (hf/Data. V))
           v                     (V.)]
       (log/info "V V" (list v⁻¹ (hf/Data. V)))
-      ~@(binding [dom/parent (do e dom/parent)]
+      ~@(binding [dom/node (do e dom/node)]
           (dom/tr
            (let [selected? (dom/td {:style {"border-color" color}}
                                    (Input. {:type   (case cardinality

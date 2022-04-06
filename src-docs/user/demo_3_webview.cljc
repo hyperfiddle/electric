@@ -45,7 +45,7 @@
           (dom/td (dom/text ~@(:order/gender (d/entity db id)))))))))
 
 (p/defn App []
-  (binding [dom/parent (dom/by-id "root")]
+  (dom/with (dom/by-id "root")
     ~@(binding [db (p/watch conn)]                          ; server
         ~@(View.))))
 

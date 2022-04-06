@@ -25,3 +25,20 @@
   (swap! !x not)
   % := "abd"
   )
+
+(tests
+  (def !xs (atom ["b" "c"]))
+  (p/run
+    (binding [dom/parent body]
+      (dom/text "a")
+      (dom/for [x ~(m/watch !xs)]
+        (dom/text x))
+      (dom/text "d"))
+    (! (text-content body)))
+
+  % := "abcd"
+  (swap! !xs reverse)
+  % := "acbd"
+  (swap! !xs reverse)
+  % := "abcd"
+  )

@@ -71,7 +71,7 @@
             (swap! !t + (do ~@(transact tx) 1))             ; auto-transact
             (prn :idle)))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]
+(def main #?(:cljs (p/client (p/main (try (dom/with (dom/by-id "root")
                                             (App.))
                                           (catch Pending _))))))
 
