@@ -3,8 +3,8 @@
   Adapted from `ring.adapter.jetty`."
   (:require [missionary.core :as m]
             [hyperfiddle.logger :as log]
-            [cognitect.transit :as t]
-            [hyperfiddle.photon :as p])
+            [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-impl.io :as io])
   (:import [org.eclipse.jetty.server
             Request
             Server
@@ -22,7 +22,6 @@
             WebSocketPingPongListener WebSocketListener WriteCallback SuspendToken]
            [org.eclipse.jetty.websocket.servlet WebSocketCreator WebSocketServlet]
            [clojure.lang IFn]
-           [java.io ByteArrayInputStream ByteArrayOutputStream]
            [java.nio ByteBuffer]
            [missionary Cancelled]
            [java.util.concurrent Executors ThreadFactory Executor]))
@@ -31,12 +30,14 @@
 
 (defn nop [])
 
-(defn write-str [^RemoteEndpoint remote ^String message]
+(defn write-msg [^RemoteEndpoint remote message]
   (fn [s f]
-    (.sendString remote message
-      (reify WriteCallback
-        (writeFailed [_ e] (f e))
-        (writeSuccess [_] (s nil))))
+    (let [cb (reify WriteCallback
+               (writeFailed [_ e] (f e))
+               (writeSuccess [_] (s nil)))]
+      (if (string? message)
+        (.sendString remote ^String message cb)
+        (.sendBytes remote ^ByteBuffer message cb)))
     nop))
 
 (defn session-suspend! [^Session session]
@@ -58,8 +59,7 @@
 (deftype Ws [^:unsynchronized-mutable cancel
              ^:unsynchronized-mutable remote
              ^:unsynchronized-mutable session
-             ^:unsynchronized-mutable msg-str
-             ^:unsynchronized-mutable msg-buf
+             ^:unsynchronized-mutable messages
              ^:unsynchronized-mutable close
              ^:unsynchronized-mutable token
              ^:unsynchronized-mutable error
@@ -75,8 +75,7 @@
       (set! remote (.getRemote s))
       (set! cancel
         (cancel remote
-          (set! msg-str (m/rdv))
-          (set! msg-buf (m/rdv))
+          (set! messages (m/rdv))
           (set! close (m/dfv))))
       (set! pong-mailbox (m/mbx))
       (set! heartbeat ((make-heartbeat s pong-mailbox) (fn [_]) (fn [_])))))
@@ -85,8 +84,7 @@
               (heartbeat) ; cancel heartbeat
               (cancel) ; FIXME success or failure callback not called
               (close (do (set! (.close this) nil)
-                       (set! (.msg-str this) nil)
-                       (set! (.msg-buf this) nil)
+                         (set! (.-messages this) nil)
                        (merge {:status status, :reason reason}
                          (when-some [e (.error this)]
                            (set! (.error this) nil)
@@ -107,14 +105,13 @@
   WebSocketListener
   (onWebSocketText [this msg]
     (set! token (session-suspend! session))
-    ((msg-str msg) this this))
+    ((messages msg) this this))
   (onWebSocketBinary [this payload offset length]
-    (log/warn "received binary" {:length length})
     (set! token (session-suspend! session))
-    ((msg-buf (ByteBuffer/wrap payload offset length)) this this)))
+    ((messages (ByteBuffer/wrap payload offset length)) this this)))
 
 (defn- make-reactor! [handler request]
-  (->Ws (handler request) nil nil nil nil nil nil nil nil nil))
+  (->Ws (handler request) nil nil nil nil nil nil nil nil))
 
 (def add-ws-endpoints
   (partial reduce-kv
@@ -160,13 +157,6 @@
 (defn failure [^Throwable e]
   (log/error e) #_(.printStackTrace e))
 
-(defn encode "Serialize to transit json" [v]
-  (let [out (ByteArrayOutputStream.)]
-    (t/write (t/writer out :json) v)
-    (.toString out)))
-(defn decode "Parse transit json" [^String s] 
-  (t/read (t/reader (ByteArrayInputStream. (.getBytes s "UTF-8")) :json)))
-
 ;; to boot a distributed photon app
 ;; p/main is expanded on cljs side, returns a pair
 ;; first element is the compiled client version
@@ -178,35 +168,24 @@
 
 (def ws-paths
   {"/echo" (fn [request]
-             (fn [remote read-str _read-buf _closed]
-               ((m/sp (try (loop [] (m/? (write-str remote (m/? read-str))) (recur))
-                        (catch Cancelled _))) success failure)))
-   "/ws" (fn [request]
-           (fn [remote read-str _read-buf _closed]
-             (let [el (event-loop remote)]
-               (run-via el
-                 ((m/sp
-                    (try
-                      (let [?read (m/sp
-                                    (let [x (try (m/? read-str)
-                                              (finally (m/? (m/via el))))]
-                                      (try (decode x)
-                                        (catch Throwable t
-                                          #_(log/error (ex-info "Failed to decode" {:value x} t)) ; don't double log
-                                          (throw (ex-info "Failed to decode" {:value x} t))))))
-                            write (fn [x]
-                                    (m/sp
-                                      (try
-                                        (m/? (write-str remote
-                                               (try (encode x)
-                                                 (catch Throwable t
-                                                   #_(log/error (ex-info "Failed to encode" {:value x} t)) ; don't double log
-                                                   (throw (ex-info "Failed to encode" {:value x} t))))))
-                                        (finally (m/? (m/via el))))))
-                            program (m/? ?read)]
-                        (prn :booting-reactor #_program)
-                        (m/? ((p/eval program) write ?read)))
-                      (catch Cancelled _))) success failure)))))})
+             (fn [remote read-msg _closed]
+               ((m/sp (try (loop [] (m/? (write-msg remote (m/? read-msg))) (recur))
+                           (catch Cancelled _))) success failure)))
+   "/ws"   (fn [request]
+             (fn [remote read-msg _closed]
+               (let [el (event-loop remote)
+                     r (m/sp (try (m/? read-msg)
+                                  (finally (m/? (m/via el)))))
+                     w #(m/sp (try (m/? (write-msg remote %))
+                                   (finally (m/? (m/via el)))))]
+                 (run-via el
+                   ((m/sp
+                      (try
+                        (m/? ((p/eval (io/decode (m/? r)))
+                              (io/message-writer w)
+                              (io/message-reader r)))
+                        (catch Cancelled _)))
+                    success failure)))))})
 
 ;;; HTTP Server
 

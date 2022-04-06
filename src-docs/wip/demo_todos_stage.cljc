@@ -41,7 +41,7 @@
              (->> (dom/>keychord-events #{"enter"})
              (m/eduction
                (map (comp task-create (dom/oget :target :value)))
-               (map (partial clear-input! dom/parent)))
+               (map (partial clear-input! dom/node)))
              (z/impulse basis-t)))
       (dom/div
         (apply concat
@@ -97,7 +97,7 @@
           (reset! !stage (clojure.edn/read-string tx)))
         (do (js/console.log ::stage ::idle) nil)))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]
+(def main #?(:cljs (p/client (p/main (try (dom/with (dom/by-id "root")
                                             (App.))
                                           (catch Pending _))))))
 

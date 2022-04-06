@@ -5,7 +5,9 @@
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str])
-  (:import missionary.Cancelled))
+  (:import missionary.Cancelled
+           hyperfiddle.photon.Failure
+           #?(:clj (clojure.lang MapEntry))))
 
 (defn append [y]
   (fn [rf]
@@ -84,52 +86,75 @@ flow of values matching that key in the input map.
 
 (def val-first (partial reduce-kv (fn [r _ m] (reduce (fn [r [id]] (conj r id)) r m)) []))
 
-(defn seq-diff [kf done]
+(def into-vec (fnil into []))
+
+(defn seq-diff [kf]
   (fn [rf]
-    (let [state (doto (object-array 5)
-                  (aset (int 0) {})                     ;; prev {key [[id slot value]...]}
-                  (aset (int 1) {})                     ;; curr
-                  (aset (int 2) 0)                      ;; current slot
-                  (aset (int 3) 0))                     ;; current id
-          scan (partial reduce
-                 (fn [r x]
-                   (let [p (aget state (int 0))
-                         c (aget state (int 1))
-                         i (aget state (int 2))
-                         k (kf x)]
-                     (aset state (int 2) (inc i))
-                     (if-some [[[id j y] & m] (get p k)]
-                       (let [r (if (= i j) r (update r :move assoc id i))
-                             r (if (= x y) r (update r :change assoc id x))]
-                         (aset state (int 0) (case m nil (dissoc p k) (assoc p k m)))
-                         (aset state (int 1) (assoc c k (conj (get c k []) [id i x]))) r)
-                       (let [id (aset state (int 3) (inc (aget state (int 3))))]
-                         (aset state (int 1) (assoc c k (conj (get c k []) [id i x])))
-                         (update r :add assoc id [i x]))))) {})
-          send-remove (partial reduce (fn [r id] (-> r (rf [id :index done]) (rf [id :value done]))))
-          send-move   (partial reduce-kv (fn [r id i] (rf r [id :index i])))
-          send-change (partial reduce-kv (fn [r id x] (rf r [id :value x])))
-          send-add    (partial reduce-kv (fn [r id [i x]] (-> r (rf [id :index i]) (rf [id :value x]))))]
+    (let [state (object-array 4)
+          append (fn [^objects o k]
+                   (let [c (aget state (int 2))]
+                     ;; add item to current index
+                     (aset state (int 2)
+                       (assoc c k (conj (get c k []) o)))
+                     ;; append item to current list
+                     (if-some [^objects h (aget state (int 3))]
+                       (let [^objects t (aget h (int 1))]
+                         (aset o (int 0) t)
+                         (aset o (int 1) h)
+                         (aset h (int 0) o)
+                         (aset t (int 1) o))
+                       (do (aset o (int 0) o)
+                           (aset o (int 1) o)
+                           (aset state (int 3) o)))))
+          scan (fn [r x]
+                 (let [k (kf x)
+                       p (aget state (int 0))
+                       h (aget state (int 1))]
+                   (if-some [[o & os] (get p k)]
+                     (let [prev (aget o (int 0))
+                           next (when-not (identical? o prev)
+                                  (aset prev (int 1)
+                                    (doto (aget o (int 1))
+                                      (aset (int 0) prev))))
+                           ;; if item was head, move forward
+                           r (if (identical? o h)
+                               (do (aset state (int 1) next) r)
+                               (rf r nil [o h]))
+                           ;; emit change if needed
+                           r (if (= x (aget o (int 2)))
+                               r (rf r o (aset o (int 2) x)))]
+                       ;; remove from previous index
+                       (aset state (int 0) (assoc p k os))
+                       (append o k) r)
+                     (let [o (object-array 3)]
+                       (append o k)
+                       (-> r
+                         (rf nil [o h])
+                         (rf o (aset o (int 2) x)))))))]
       (fn
         ([] (rf))
         ([r] (rf r))
         ([r xs]
-         (let [failure (r/failure xs)
-               {:keys [add move change]} (when-not failure (scan xs))
-               change (merge change (when-not (= failure (aget state (int 4))) {0 failure}))
-               remove (val-first (aget state (int 0)))]
-           (aset state (int 0) (aget state (int 1)))
-           (aset state (int 1) {})
-           (aset state (int 2) 0)
-           (aset state (int 4) failure)
-           (-> r
-             (send-remove remove)
-             (send-move move)
-             (send-change change)
-             (send-add add))))))))
+         ;; TODO failures
+         (let [r (reduce scan r xs)
+               r (if-some [h (aget state (int 1))]
+                   (loop [o h, r r]
+                     (let [o (aget o (int 0))
+                           r (rf r nil [o o])]
+                       (if (identical? o h)
+                         r (recur o r)))) r)]
+           (aset state (int 0) (aget state (int 2)))
+           (aset state (int 1) (aget state (int 3)))
+           (aset state (int 2) nil)
+           (aset state (int 3) nil)
+           r))))))
+
+(defn entry [k v]
+  #?(:clj (MapEntry. k v)
+     :cljs (->MapEntry k v nil)))
 
 (tests
-  (sequence (seq-diff :id ::done)
+  (sequence (comp (seq-diff :id) (map entry))
     [[{:id "alice" :email "alice@caramail.com"}]
      [{:id "alice" :email "alice@gmail.com"}
       {:id "bob" :name "bob@yahoo.com"}]
@@ -141,79 +166,120 @@ flow of values matching that key in the input map.
       {:id "alice" :email "alice@msn.com"}]
      [{:id "bob" :name "bob@yahoo.com"}
       {:id "alice" :email "alice@msn.com"}]
-     r/remote]) :=
-  [[1 :index 0]
-   [1 :value {:id "alice", :email "alice@caramail.com"}]
-   [1 :value {:id "alice", :email "alice@gmail.com"}]
-   [2 :index 1]
-   [2 :value {:id "bob", :name "bob@yahoo.com"}]
-   [2 :index 2]
-   [3 :index 1]
-   [3 :value {:id "alice", :email "alice@msn.com"}]
-   [2 :index 1]
-   [3 :index 2]
-   [3 :index ::done]
-   [3 :value ::done]
-   [2 :index 0]
-   [1 :index 1]
-   [1 :value {:id "alice", :email "alice@msn.com"}]
-   [2 :index ::done]
-   [2 :value ::done]
-   [1 :index ::done]
-   [1 :value ::done]
-   [0 :value r/remote]])
+     []]) :=
+  [[nil [?a nil]]
+   [?a {:id "alice", :email "alice@caramail.com"}]
+   [?a {:id "alice", :email "alice@gmail.com"}]
+   [nil [?b nil]]
+   [?b {:id "bob", :name "bob@yahoo.com"}]
+   [nil [?c ?b]]
+   [?c {:id "alice", :email "alice@msn.com"}]
+   [nil [?b ?c]]
+   [nil [?b ?a]]
+   [?a {:id "alice", :email "alice@msn.com"}]
+   [nil [?c ?c]]
+   [nil [?a ?a]]
+   [nil [?b ?b]]])
 
-(defn conj-nil [r] (conj r nil))
+(defn insert-before [r x]
+  (let [{:keys [index target]} r
+        n (count index)]
+    (case target
+      nil (if (contains? index x)
+            (assoc r :target x)
+            (let [{:keys [keys vals]} r]
+              (assoc r
+                :vals (conj vals nil)
+                :keys (conj keys x)
+                :index (assoc index x n)
+                :target x)))
+      (let [t (index target)
+            a (if (= x target) n (case x nil n (index x)))
+            f (if (< t a) (dec a) a)
+            s (compare f t)
+            r (dissoc r :target)
+            r (case s
+                0 r
+                (let [{:keys [vals keys]} r
+                      v (nth vals t)]
+                  (loop [vals vals, keys keys, index index, i t]
+                    (let [j (+ i s)
+                          k (nth keys j)
+                          vals (assoc vals i (nth vals j))
+                          keys (assoc keys i k)
+                          index (assoc index k i)]
+                      (if (== j f)
+                        (assoc r
+                          :vals (assoc vals j v)
+                          :keys (assoc keys j target)
+                          :index (assoc index target j))
+                        (recur vals keys index j))))))]
+        (if (= x target)
+          (do (r/move (inc t))
+              (-> r
+                (update :vals pop)
+                (update :keys pop)
+                (update :index dissoc x)))
+          (do (r/move (inc t) (inc f)) r))))))
 
-(defn grow [r n]
-  (nth (iterate conj-nil r) n))
+(tests
+  (reduce insert-before
+    '{:vals [a b c] :keys [:a :b :c] :index {:a 0 :b 1 :c 2}}
+    [:a :c]) :=
+  '{:vals [b a c] :keys [:b :a :c] :index {:b 0 :a 1 :c 2}}
 
-(defn shrink [r n]
-  (nth (iterate pop r) n))
+  (reduce insert-before
+    '{:vals [a b c] :keys [:a :b :c] :index {:a 0 :b 1 :c 2}}
+    [:c :a]) :=
+  '{:vals [c a b] :keys [:c :a :b] :index {:c 0 :a 1 :b 2}}
 
-(defn resize [r n]
-  (if (neg? n)
-    (shrink r (- n))
-    (if (pos? n)
-      (grow r n) r)))
+  (reduce insert-before
+    '{:vals [a b c] :keys [:a :b :c] :index {:a 0 :b 1 :c 2}}
+    [:a :a]) :=
+  '{:vals [b c] :keys [:b :c] :index {:b 0, :c 1}}
 
-(def merge-diff (partial mapv merge))
-(def empty-diff [{} {}])
+  (reduce insert-before
+    '{:vals [b c] :keys [:b :c] :index {:b 0 :c 1}}
+    [:a :b]) :=
+  '{:vals [nil b c] :keys [:a :b :c] :index {:a 0, :b 1, :c 2}}
+  )
+
+(defn change [{:keys [index] :as r} k v]
+  (if-some [i (index k)]
+    (-> r
+      (update :vals assoc i v)
+      (update :failed
+        (if (instance? Failure v)
+          conj disj) i)) r))
+
+(defn values [{:keys [vals failed]}]
+  (if-some [[i] (seq failed)]
+    (vals i) vals))
+
 (defn seq-patch
-  ([] [[] {}])
-  ([x] x)
-  ([[v s _] [id->slot id->value]]
-   (let [slots (reduce-kv
-                 (fn [m id slot]
-                   (case slot
-                     -1 (dissoc m id)
-                     (assoc m id slot)))
-                 s id->slot)
-         values (reduce-kv
-                  (fn [values id value]
-                    (if-some [slot (get slots id)]
-                      (assoc values slot value) values))
-                  (reduce-kv
-                    (fn [values id slot]
-                      (case slot
-                        -1 values
-                        (assoc values slot (get v (get s id)))))
-                    (resize v (- (count slots) (count s))) id->slot)
-                  (dissoc id->value 0))]
-     [values slots (id->value 0)])))
+  ([] {:vals [] :keys [] :index {} :failed (sorted-set)})
+  ([r] r)
+  ([r diff]
+   (reduce-kv change
+     (reduce insert-before r (get diff nil))
+     (dissoc diff nil))))
 
 (tests
   (reduce seq-patch (seq-patch)
-    [[{1 0} {1 {:id "alice", :email "alice@caramail.com"}}]
-     [{2 1} {1 {:id "alice", :email "alice@gmail.com"}
-             2 {:id "bob", :name "bob@yahoo.com"}}]
-     [{3 1 2 2} {3 {:id "alice", :email "alice@msn.com"}}]
-     [{2 1 3 2} {}]
-     [{2 0 1 1 3 -1} {1 {:id "alice", :email "alice@msn.com"}}]])
+    [{nil [:a nil]
+      :a  {:id "alice", :email "alice@caramail.com"}}
+     {nil [:b nil]
+      :a {:id "alice", :email "alice@gmail.com"}
+      :b {:id "bob", :name "bob@yahoo.com"}}
+     {nil [:c nil]
+      :c {:id "alice", :email "alice@msn.com"}}
+     {nil [:c :c]}])
   :=
-  [[{:id "bob", :name "bob@yahoo.com"}
-    {:id "alice", :email "alice@msn.com"}]
-   {1 1, 2 0} nil])
+  {:vals  [{:id "alice", :email "alice@gmail.com"}
+           {:id "bob", :name "bob@yahoo.com"}]
+   :keys  [:a :b]
+   :index {:a 0 :b 1}
+   :failed #{}})
 
 (defn map-by "
 Given a function and a continuous flow of collections, returns a continuous flow of vectors of the same size as input
@@ -221,37 +287,21 @@ collection, where values are produced by the continuous flow returned by the fun
 flow of values matching the identity provided by key function, defaulting to identity."
   ([f >xs] (map-by identity f >xs))
   ([k f >xs]
-   (->> >xs
-     (m/eduction (seq-diff k ::done))
-     (m/group-by pop)
-     (m/eduction
-       (map (fn [[[id tag] >x]]
-              (case id
-                0 (->> >x
-                    (m/eduction (map peek))
-                    (m/relieve {})
-                    (m/latest (partial update empty-diff 1 assoc id)))
-                (case tag
-                  :index (->> >x
-                           (m/eduction (map peek)
-                             (take-while (complement #{::done}))
-                             (append -1))
-                           (m/relieve {})
-                           (m/latest (partial update empty-diff 0 assoc id)))
-                  :value (->> >x
-                           (m/eduction (map peek)
-                             (take-while (complement #{::done}))
-                             (append (r/->Failure (missionary.Cancelled.))))
-                           (m/relieve {})
-                           (f) (m/latest (partial update empty-diff 1 assoc id))))))))
-     (gather merge-diff)
+   (->> (m/ap (let [[id >x] (m/?> (->> >xs
+                                    (m/eduction (seq-diff k) (map entry))
+                                    (m/group-by key)))
+                    >x-val (m/zip val >x)]
+                (case id
+                  nil (m/zip (partial hash-map id)
+                        (m/relieve into >x-val))
+                  (m/latest (partial hash-map id)
+                    (f (m/relieve {} >x-val))))))
+     (gather merge)
      (m/reductions seq-patch)
-     (m/latest (fn [[v _ f]]
-                 (if (r/failure f)
-                   f (if-some [f (apply r/failure v)]
-                       f v)))))))
+     (m/latest values))))
 
 (tests
+
   (let [!xs (atom [])
         it ((map-by :id
               (partial m/latest (fn [x] (if (r/failure x) x (update x :email str/upper-case))))
@@ -270,4 +320,5 @@ flow of values matching the identity provided by key function, defaulting to ide
         (identical? (get x 0) (get y 1)) := true
         (identical? (get x 1) (get y 0)) := true
         (swap! !xs pop)
-        @it := [{:id "bob" :email "BOB@YAHOO.COM"}]))))
+        @it := [{:id "bob" :email "BOB@YAHOO.COM"}])))
+  )

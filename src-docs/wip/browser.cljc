@@ -67,7 +67,7 @@
                                                                          ::hf/option-label :db/ident}) [:db/ident]}]}))))]
               (dom/div {:class "hf-staging-area"}
                        (dom/div {:class "hf-error-wrapper"}
-                                (let [tx' (cm/CodeMirror. {:parent dom/parent} cm/read-edn cm/write-edn [])]
+                                (let [tx' (cm/CodeMirror. {:parent dom/node} cm/read-edn cm/write-edn [])]
                                   (do tx'
                                       ~@(p/forget (reset! !stage tx'))
                                         ;; TODO use z/fsm or z/instant

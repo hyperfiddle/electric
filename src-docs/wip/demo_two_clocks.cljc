@@ -33,10 +33,10 @@
              (dom/span (dom/text (- c s)))))))
 
 (def main #?(:cljs (p/client (p/main
-                               (binding [dom/parent (dom/by-id "root")]
-                                 (try
-                                   (App.)
-                                   (catch Pending _)))))))
+                               (try
+                                 (dom/with (dom/by-id "root")
+                                   (App.))
+                                 (catch Pending _))))))
 
 (comment
   ; List in user.cljc for cljs compiler
