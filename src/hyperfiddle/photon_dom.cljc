@@ -8,51 +8,52 @@
             #?(:cljs [goog.object :as o])
             #?(:cljs [goog.style])
             [clojure.string :as str])
-  #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [oget]]))
+  #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [with oget]]))
   #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
                     (goog.ui.KeyboardShortcutHandler EventType))))
 
-(defn before? [x y]
-  (let [xl (count x)
-        yl (count y)
-        ml (min xl yl)]
-    (loop [i 0]
-      (if (< i ml)
-        (let [xi (nth x i)
-              yi (nth y i)]
-          (if (== xi yi)
-            (recur (inc i))
-            (< xi yi)))
-        (< xl yl)))))
-
-(defn mount [parent child path]
-  #?(:cljs (m/observe
-             (fn [!]
-               (o/set child "--photon-path" path)
-               (.insertBefore parent child
-                 ;; TODO sublinear anchor search. skip list ?
-                 (loop [anchor (.-firstChild parent)]
-                   (when-not (nil? anchor)
-                     (if (before? (o/get anchor "--photon-path") path)
-                       (recur (.-nextSibling anchor)) anchor))))
-               (! child) #(prn 'unmount (d/removeNode child))))))
-
-(defn dom-element [tag] #?(:cljs (d/createElement tag)))
-
-(p/def parent)
-
-(defmacro element [type & [props & body]]
-  `(binding [parent (new (mount parent (dom-element ~(name type)) @p/path))]
-     parent ; touch parent to trigger mount effect when no children
-     ~@(if (map? props)
-         (cons `(props ~props) body)
-         (cons props body))))
+(p/def node nil)
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
-(defn text-node [] #?(:cljs (d/createTextNode "")))
+(defn discard [rf]
+  (fn
+    ([] (rf))
+    ([r] (rf r))
+    ([r _] (rf r))))
+
+(defn unsupported [& _]
+  (throw (ex-info (str "Not available on this peer.") {})))
+
+(def hook
+  #?(:clj  unsupported
+     :cljs (fn ([x] (.removeChild (.-parentNode x) x))
+             ([x y] (.insertBefore (.-parentNode x) x y)))))
+
+(defmacro with [n & body]
+  `(binding [node ~n]
+     (new (p/hook hook node
+            (p/fn [] ~@body)))))
+
+(defn dom-element [parent type]
+  #?(:cljs (let [node (d/createElement type)]
+             (.appendChild parent node) node)))
+
+(defmacro element [t & [props & body]]
+  `(with (dom-element node ~(name t)) ~@(if (map? props)
+                                          (cons `(props ~props) body)
+                                          (cons props body))))
+
+(defn by-id [id] #?(:cljs (js/document.getElementById id)))
+
+(defn text-node [parent]
+  #?(:cljs (let [node (d/createTextNode "")]
+             (.appendChild parent node) node)))
+
 (defn set-text-content! [e t] #?(:cljs (d/setTextContent e (str t))))
-(defmacro text [& strs] `(set-text-content! (new (mount parent (text-node) @p/path)) (str ~@strs)))
+
+(defmacro text [& strs]
+  `(with (text-node node) (set-text-content! node (str ~@strs))))
 
 (defn clean-props [props]
   (cond-> props
@@ -63,7 +64,7 @@
                                        (when (seq styles) (goog.style/setStyle e (clj->js styles)))
                                        (when (seq props) (d/setProperties e (clj->js (clean-props props)))))))
 
-(defmacro props [m] `(set-properties! parent ~m))
+(defmacro props [m] `(set-properties! node ~m))
 
 (defn >events* [node event-type & [xform init rf :as args]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
@@ -73,7 +74,7 @@
                init?  (m/reductions (or rf {}) init)))))
 
 (defmacro >events
-  "Produce a discreet flow of dom events of `event-type` on the current dom parent.
+  "Produce a discreet flow of dom events of `event-type` on the current dom node.
   `event-type` can be a string naming the event or a set of event names.
   If provided:
   - `xform` will be applied as an eduction,
@@ -84,7 +85,7 @@
   - `rf` is applied only if `init` is provided,
   - if `xform`, `init` and `rf` are provided, they form a transduction."
   [event-type & [xform init rf :as args]]
-  (list* `>events* `parent event-type args))
+  (list* `>events* `node event-type args))
 
 (defn >keychord-events* [node keychord & [xform init rf :as args]]
   (assert (or (string? keychord) (coll? keychord)))
@@ -117,7 +118,7 @@
   ;; at the right place in the dom tree to avoid event bubbling messing with
   ;; accessibility.
   [keychord & [xform init rf :as args]]
-  (list* `>keychord-events* `parent keychord args))
+  (list* `>keychord-events* `node keychord args))
 
 (defmacro events
   "Return a transduction of events as a continuous flow. See `clojure.core/transduce`.\n
@@ -132,10 +133,10 @@
         (comp (map event-type) (map {\"focus\" true, \"blur\" false}))
         false))
    ```"
-  ([event-type]                    `(new (m/relieve {} (>events* parent ~event-type nil    nil   nil))))
-  ([event-type xform]              `(new (m/relieve {} (>events* parent ~event-type ~xform nil   nil))))
-  ([event-type xform init]         `(new (m/relieve {} (>events* parent ~event-type ~xform ~init nil))))
-  ([event-type xform init rf]      `(new (m/relieve {} (>events* parent ~event-type ~xform ~init ~rf))))
+  ([event-type]                    `(new (m/relieve {} (>events* node ~event-type nil    nil   nil))))
+  ([event-type xform]              `(new (m/relieve {} (>events* node ~event-type ~xform nil   nil))))
+  ([event-type xform init]         `(new (m/relieve {} (>events* node ~event-type ~xform ~init nil))))
+  ([event-type xform init rf]      `(new (m/relieve {} (>events* node ~event-type ~xform ~init ~rf))))
   ([node event-type xform init rf] `(new (m/relieve {} (>events* ~node  ~event-type ~xform ~init ~rf)))))
 
 (defn- flip [f] (fn [& args] (apply f (reverse args))))
@@ -219,16 +220,6 @@
   "The number of milliseconds elapsed since January 1, 1970, with custom `Hz` frequency.
   If `Hz` is 0, sample at the browser Animation Frame speed."
   [Hz] (new (clock* Hz)))
-
-(defmacro for-by [kf bindings & body]
-  (if-some [[s v & bindings] (seq bindings)]
-    `(p/for-by ~kf [~s ~v]
-       (binding [parent (do ~s parent)]
-         (for-by ~kf ~bindings ~@body)))
-    `(do ~@body)))
-
-(defmacro for [bindings & body]
-  `(for-by identity ~bindings ~@body))
 
 (defn pack-string-litterals [xs]
   (loop [r        []

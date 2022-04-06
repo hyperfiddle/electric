@@ -9,8 +9,8 @@
             [clojure.core.async :as a]
             #?(:cljs [hyperfiddle.photon-client]))
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping debounce wrap]]))
-  (:import #?(:clj (hyperfiddle.photon_impl.runtime Failure))
-           (hyperfiddle.photon Pending)
+  (:import (clojure.lang IDeref)
+           (hyperfiddle.photon Pending Failure)
            (missionary Cancelled)))
 
 #?(:clj
@@ -55,7 +55,15 @@
   and returning a task that runs the local reactor."
   r/eval)
 
-(def path r/path)
+(def hook r/hook)
+
+(defmacro def
+  ([sym] `(hyperfiddle.photon/def ~sym ::c/unbound))
+  ([sym form] 
+   ;; GG: Expand to an unbound var with body stored in ::c/node meta.
+   ;;     Clojure compiler will analyze vars metas, which would analyze form as clojure, so we quote it.
+   ;;     ClojureScript do not have vars at runtime and will not analyze or emit vars meta. No need to quote.
+   `(def ~(vary-meta sym assoc ::c/node (if (:js-globals &env) form `(quote ~form))))))
 
 (defmacro main "
   Takes a photon program and returns a pair
@@ -63,9 +71,8 @@
   * the second item is the remote program.
   " [& body]
   (-> (c/analyze &env (cons 'do body))
-      (update 0 (partial r/emit (comp symbol (partial str (gensym) '-))))
-      (update 1 (partial list 'quote))))
-
+    (update 0 (partial r/emit (gensym)))
+    (update 1 (partial list 'quote))))
 
 (cc/defn pair [c s]
   (let [c->s (m/rdv)

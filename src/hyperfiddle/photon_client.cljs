@@ -1,7 +1,6 @@
 (ns hyperfiddle.photon-client
-  (:require [cognitect.transit :as t]
-            [com.cognitect.transit.types]
-            [hyperfiddle.logger :as log]
+  (:require [hyperfiddle.logger :as log]
+            [hyperfiddle.photon-impl.io :as io]
             [missionary.core :as m])
   (:import missionary.Cancelled))
 
@@ -9,11 +8,6 @@
   (let [url (.. js/window -hyperfiddle_photon_config -server_url)]
     (assert (string? url) "Missing websocket server url.")
     url))
-
-(defn encode "Serialize to transit json" [v] (t/write (t/writer :json) v))
-(defn decode "Parse transit json" [^String s] (t/read (t/reader :json) s))
-
-(extend-type com.cognitect.transit.types/UUID IUUID) ; https://github.com/hyperfiddle/hyperfiddle/issues/728
 
 (defn connect! [socket]
   (let [deliver (m/dfv)]
@@ -69,7 +63,7 @@
                        (let [mailbox    (m/mbx)
                              write-chan (m/?< (connect mailbox))]
                          (log/info "Starting Photon Client")
-                         (m/? (write-chan server)) ; bootstrap server
-                         (m/? (client write-chan mailbox))) ; start client
+                         (m/? (write-chan (io/encode server))) ; bootstrap server
+                         (m/? (client (io/message-reader write-chan) (io/message-reader mailbox)))) ; start client
                        (catch Cancelled _
                          "stopped")))))

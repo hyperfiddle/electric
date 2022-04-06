@@ -15,7 +15,7 @@
 
 (def main #?(:cljs (p/client (p/main
                                (try
-                                 (binding [dom/parent (dom/by-id "root")]
+                                 (dom/with (dom/by-id "root")
                                    (App.))
                                  (catch Pending _))))))
 

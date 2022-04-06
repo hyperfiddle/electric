@@ -32,7 +32,7 @@
     (dom/div {:class "view"}
       (Orders.))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]
+(def main #?(:cljs (p/client (p/main (try (dom/with (dom/by-id "root")
                                             ~@(binding [hf/db     hf/*db* ; why
                                                         hf/Render ui/Render] ; remove for livecoding demo
                                                 (ui/with-spec-render

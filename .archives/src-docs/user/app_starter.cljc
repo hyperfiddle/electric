@@ -16,7 +16,7 @@
                            (pr-str (type x))))))))
 
 (def main #?(:cljs (p/client (p/main
-                               (binding [dom/parent (dom/by-id "root")]
+                               (dom/with (dom/by-id "root")
                                  (try
                                    (App.)
                                    (catch Pending _)))))))
