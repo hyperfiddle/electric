@@ -8,6 +8,20 @@
                                                ;; if2 ping pong fib fib' expr
                                                ]])))
 
+(require '[hyperfiddle.rcf.analyzer :as ana])
+
+;; Disable p/run and cloroutine/cr macroexpansion for RCF to rewrite their body before they macroexpand.
+;; Optional
+(defmethod ana/macroexpand-hook `p/run [_the-var _form _env args] `(p/run ~@args))
+(defmethod ana/macroexpand-hook `p/run2 [_the-var _form _env args] `(p/run2 ~@args))
+(defmethod ana/macroexpand-hook `cloroutine.core/cr [the-var form env args] `(cloroutine.core/cr ~@args))
+
+;; Don't expand `clojure.core/binding`, photon has a special case for it.
+;; Not optional
+(defmethod ana/macroexpand-hook `binding [_the-var _form _env [bindings & body]]
+  (reduced ;; tell the analyzer this form should not be macroxpanded again (prevent infinite loop).
+   ;; make the "implit do" explicit
+   `(binding ~bindings (do ~@body))))
 
 ;(defmacro with-disposal [task & body]
 ;  `(let [dispose# ~task]
