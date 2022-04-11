@@ -26,7 +26,7 @@
     ))
 
 (p/defn view []
-  (p/$ codemirror/edn ~@#_"server" (ui/with-spec-render (p/$ App))))
+  (new codemirror/edn ~@#_"server" (ui/with-spec-render (App.))))
 
 (comment
   (def !x (atom "alice"))
@@ -34,7 +34,7 @@
   (p/run
     (binding [hf/db (hf/->DB "$" 0 nil hf/*$*)]
       (!
-        (p/$ App ~(m/watch !x)))))
+        (new App (new (m/watch !x))))))
 
   % := '{(user.orders/orders _)
          [{:order/gender     #:db{:ident :order/female},

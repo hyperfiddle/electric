@@ -65,9 +65,9 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
   Then waits for `control` to change and restarts from `nil`.
   To be used from a photon expression."
   [control >values]
-  `(unquote (fsm nil (empty? (m/eduction (drop 1) (var ~control))) (first-or nil ~>values))))
+  `(new (fsm nil (empty? (m/eduction (drop 1) (p/fn [] ~control))) (first-or nil ~>values))))
 
 (defmacro current [form]
-  `(unquote (m/eduction (take 1) (var ~form))))
+  `(new (m/eduction (take 1) (p/fn [] ~form))))
 
 (def exports (p/vars state))

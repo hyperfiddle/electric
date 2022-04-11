@@ -89,13 +89,13 @@
 (p/defn CodeMirror [props readf writef value]
   (let [[view >value] (codemirror props)]
     (set-editor-value! view (writef value))
-    ~(->> >value
-          (m/eduction (map readf))
-          (xp/newest #'value)
-          (xp/continuous))))
+    (new (->> >value
+           (m/eduction (map readf))
+           (xp/newest (p/fn [] value))
+           (xp/continuous)))))
 
 (defn read-edn [edn-str] (try (clojure.edn/read-string edn-str) (catch #?(:clj Throwable :cljs :default) t nil)))
 
 (defn write-edn [edn] (with-out-str (clojure.pprint/pprint edn)))
 
-(p/defn edn [v] (p/$ CodeMirror {:parent hyperfiddle.photon-dom/parent} read-edn write-edn v))
+(p/defn edn [v] (new CodeMirror {:parent hyperfiddle.photon-dom/parent} read-edn write-edn v))

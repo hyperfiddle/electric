@@ -48,8 +48,7 @@
 
   "introduce a flow from foreign clojure call (e.g. entrypoint)"
   (def !x (atom 0))                                         ; atoms model variable inputs
-  (def x (m/watch !x))                                      ; clojure flow derived from atom
-  (def dispose (p/run (! ~x)))                              ; unquote foreign flow
+  (def dispose (p/run (! (new (m/watch !x)))))              ; clojure flow derived from atom
   % := 0
   (swap! !x inc)
   % := 1
@@ -60,20 +59,19 @@
   (def dispose
     (p/run (! (let [x 1]
                 [(number? x)
-                 (fn? #'x)]))))
+                 (fn? (p/fn [] x))]))))
   % := [true true]
   (dispose)
 
   "special form for unquoting a quoted flow (monadic join)"
-  (def dispose (p/run (! (let [x #'1] ~x))))
+  (def dispose (p/run (! (let [X (p/fn [] 1)] (X.)))))
   % := 1
   (dispose))
 
 (tests
   "reactive addition (wrong way – two propagation frames, no sharing)"
   (def !x (atom 0))
-  (def x (m/watch !x))
-  (def dispose (p/run (! (+ ~x ~x))))
+  (def dispose (p/run (! (let [X (m/watch !x)] (+ (X.) (X.))))))
   % := 0
   (swap! !x inc)
   % := 1
@@ -85,9 +83,8 @@
 
   "diamonds - let introduces shared nodes in the dag, no glitch"
   (def !x (atom 0))
-  (def x (m/watch !x))
   (def dispose
-    (p/run (! (let [x ~(m/watch !x)]
+    (p/run (! (let [x (new (m/watch !x))]
                 (+ x x)))))
   % := 0
   (swap! !x inc)
@@ -98,9 +95,9 @@
 
 (tests
   "reactive function call"
-  (def !f (atom +)) (def f (m/watch !f))
-  (def !x2 (atom 1)) (def x (m/watch !x2))
-  (def dispose (p/run (! (~f 0 ~x))))
+  (def !f (atom +))
+  (def !x2 (atom 1))
+  (def dispose (p/run (! ((new (m/watch !f)) 0 (new (m/watch !x2))))))
   % := 1
   (swap! !x2 inc)
   % := 2
@@ -114,8 +111,8 @@
   (def !f (atom inc))
   (def dispose
     (p/run
-      (! (let [f ~(m/watch !f)
-               xs ~(m/watch !xs)]
+      (! (let [f (new (m/watch !f))
+               xs (new (m/watch !xs))]
            (clojure.core/map f xs)))))
   % := [2 3 4]
   (swap! !xs conj 4)
@@ -128,15 +125,15 @@
   "common core macros just work"
   (def dispose
     (p/run
-      (! (let [f ~(m/watch (atom inc))
-               xs ~(m/watch (atom [1 2 3]))]
+      (! (let [f (new (m/watch (atom inc)))
+               xs (new (m/watch (atom [1 2 3])))]
            (->> xs (map f))))))
   % := [2 3 4]
   (dispose)
 
   "destructuring"
   (def dispose
-    (p/run (! (let [[a] ~(m/watch (atom [:a]))] a))))
+    (p/run (! (let [[a] (new (m/watch (atom [:a])))] a))))
   % := :a
   (dispose))
 
@@ -145,7 +142,7 @@
   ; Leo says: pending question. (The test does pass)
   (def !x (atom 0))
   (def dispose
-    (p/run (! ~(->> (m/watch !x) (m/eduction (take-while even?))))))
+    (p/run (! (new (->> (m/watch !x) (m/eduction (take-while even?)))))))
   % := 0
   (reset! !x 2)
   % := 2
@@ -155,10 +152,10 @@
 
 (tests
   "reactive if"
-  (def !a (atom 1)) (def a (m/watch !a))
-  (def !p (atom :p)) (def p (m/watch !p))
-  (def !q (atom :q)) (def q (m/watch !q))
-  (def dispose (p/run (! (if (odd? ~a) ~p ~q))))
+  (def !a (atom 1))
+  (def !p (atom :p))
+  (def !q (atom :q))
+  (def dispose (p/run (! (if (odd? (new (m/watch !a))) (new (m/watch !p)) (new (m/watch !q))))))
   % := :p
   (swap! !a inc)
   % := :q
@@ -181,21 +178,21 @@
   "reactive fn"
   ; Leo thinks fn definition is not right, easy fix
   ; reactive quote works
-  (def dispose (p/run (! (p/$ (p/fn [x] (inc x)) 1))))
+  (def dispose (p/run (! (new (p/fn [x] (inc x)) 1))))
   % := 2
   (dispose))
 
-(p/def f2 (p/fn [x] (inc x)))
+(p/def F2 (p/fn [x] (inc x)))
 (tests
   "reactive def fn"
-  (def dispose (p/run (! (p/$ f2 1))))
+  (def dispose (p/run (! (F2. 1))))
   % := 2
   (dispose))
 
-(p/defn my-inc [x] (inc x))
+(p/defn My-inc [x] (inc x))
 (tests
   "reactive defn"
-  (def dispose (p/run (! (p/$ my-inc 1))))
+  (def dispose (p/run (! (My-inc. 1))))
   % := 2
   (dispose))
 
@@ -204,8 +201,8 @@
   ; Leo: by eager we mean, when inside the if2 body, a and b
   ; are already evaluated (the flow has been run but not sampled)
   "control flow implemented with lazy"
-  (p/defn if2 [x a b] ~(get {true #'a false #'b} (boolean x)))
-  (def dispose (p/run (! (p/$ if2 false (! :a) (! :b)))))
+  (p/defn If2 [x a b] (new (get {true (p/fn [] a) false (p/fn [] b)} (boolean x))))
+  (def dispose (p/run (! (If2. false (! :a) (! :b)))))
   ;% := :a
   % := :b
   % := :b
@@ -213,10 +210,10 @@
 
 (tests
   "reactive case"
-  (def !a (atom 0)) (def a (m/watch !a))
-  (def !p (atom :p)) (def p (m/watch !p))
-  (def !q (atom :q)) (def q (m/watch !q))
-  (def dispose (p/run (! (case ~a 0 ~p ~q))))
+  (def !a (atom 0))
+  (def !p (atom :p))
+  (def !q (atom :q))
+  (def dispose (p/run (! (case (new (m/watch !a)) 0 (new (m/watch !p)) (new (m/watch !q))))))
   % := :p
   (swap! !a inc)
   % := :q
@@ -245,14 +242,14 @@
   ; Dustin: controversial
   ; Leo suggests renaming to "thunk" to match the behavior
   ; thunk is a closure with no args
-  (def dispose (p/run (! ~(let [a 1] #'a))))
+  (def dispose (p/run (! (new (let [a 1] (p/fn [] a))))))
   % := 1
   (dispose))
 
 (tests
   "join captures dynamic scope"
   (p/def foo 1)
-  (def dispose (p/run (! (let [q #'foo] (binding [foo 2] ~q)))))
+  (def dispose (p/run (! (let [Q (p/fn [] foo)] (binding [foo 2] (Q.))))))
   % := 2
   (dispose))
 
@@ -260,7 +257,7 @@
   "if with bindings"
   (def !a (atom true))
   (p/def foo 1)
-  (def dispose (p/run (! (binding [foo 2] (if ~(m/watch !a) foo (- foo))))))
+  (def dispose (p/run (! (binding [foo 2] (if (new (m/watch !a)) foo (- foo))))))
   % := 2
   (swap! !a not)
   % := -2
@@ -270,7 +267,7 @@
 (tests
   "if with unwinding binding"
   (def !a (atom true))
-  (def dispose (p/run (! ~(binding [foo4 2] #'(if ~(m/watch !a) foo4 (- foo4))))))
+  (def dispose (p/run (! (new (binding [foo4 2] (p/fn [] (if (new (m/watch !a)) foo4 (- foo4))))))))
   % := 1
   (swap! !a not)
   % := -1
@@ -282,14 +279,14 @@
   ; FIXME unstable
   "internal def"
   (def !a (atom 0))
-  (def dispose (p/run (! ~((def bar) #'[foo bar] (m/watch !a)))))
+  (def dispose (p/run (! (new ((def bar) (p/fn [] [foo bar]) (m/watch !a))))))
   % := [1 0] ;; FAIL with [nil 0] in cljs
   (dispose))
 
 (tests
   "reactive for"
   (def !xs (atom [1 2 3]))
-  (def dispose (p/run (! (p/for [x ~(m/watch !xs)] (inc x)))))
+  (def dispose (p/run (! (p/for [x (new (m/watch !xs))] (inc x)))))
   % := [2 3 4]
   (swap! !xs conj 4)
   % := [2 3 4 5]
@@ -298,7 +295,7 @@
 (tests
   "reactive for is differential (diff/patch)"
   (def !xs (atom [1 2 3]))
-  (def dispose (p/run (! (p/for [x ~(m/watch !xs)] (! x)))))
+  (def dispose (p/run (! (p/for [x (new (m/watch !xs))] (! x)))))
   (hash-set % % %) := #{1 2 3}                              ; concurrent, order undefined
   % := [1 2 3]
   (swap! !xs conj 4)
@@ -316,7 +313,7 @@
   "Reactive for with bindings"
   (def !items (atom ["a"]))
   (p/run (binding [foo 1]
-           (p/for [item ~(m/watch !items)]
+           (p/for [item (new (m/watch !items))]
              (! foo)
              item)))
 
@@ -329,7 +326,7 @@
 (tests
   "reactive for with keyfn"
   (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
-  (p/run (! (p/for-by :id [x ~(m/watch !xs)] (! x))))
+  (p/run (! (p/for-by :id [x (new (m/watch !xs))] (! x))))
   (hash-set % %) := #{{:id 1 :name "alice"} {:id 2 :name "bob"}}
   % := [{:id 1 :name "alice"} {:id 2 :name "bob"}]
   (swap! !xs assoc-in [0 :name] "ALICE")
@@ -346,7 +343,7 @@
   ; When you write do, you always want to perform effects
   ; Todo, resolve controversy - how lazy is it?
   (def !x (atom 0))
-  (def dispose (p/run (! (do (! :a) (! ~(m/watch !x))))))
+  (def dispose (p/run (! (do (! :a) (! (new (m/watch !x)))))))
   ; do is not monadic sequence, we considered that
   ; It's an incremental computation so only rerun what changed in our opinion
   % := :a
@@ -362,7 +359,7 @@
   ; Current behavior - do stmts are sampled eagerly, as fast as possible
   (def !a (atom 0))
   (def !b (atom 0))
-  (p/run (! @(doto !b (reset! (! ~(m/watch !a))))))
+  (p/run (! @(doto !b (reset! (! (new (m/watch !a)))))))
   % := 0
   % := 0
   (swap! !a inc)
@@ -375,7 +372,7 @@
 
   (def !a (atom 0))
   (def !b (atom 0))
-  (p/run (! @(doto !b (reset! (! ~(m/watch !a))))))
+  (p/run (! @(doto !b (reset! (! (new (m/watch !a)))))))
   % := 0
   % := 0
   (swap! !a inc)
@@ -393,7 +390,7 @@
   (def dispose
     (p/run
 
-      (! (do ~x ~y ~z))
+      (! (do (new x) (new y) (new z)))
 
       ))
   % := :c
@@ -424,7 +421,7 @@
             (set-attribute! "value" x))
         (! (doto (MutableMap)                                 ; the doto is incrementalized
              (PutMap "a" (swap! !z inc))                      ; detect effect
-             (PutMap "b" ~(m/watch !xx))))))
+             (PutMap "b" (new (m/watch !xx)))))))
     % := {"a" 1 "b" 0}
     (swap! !xx inc)
                                         ;% := ::rcf/timeout       ; old design no further sample, the map hasn't changed
@@ -436,9 +433,9 @@
 
 ; node call (static dispatch)
 (p/def !')
-(p/defn div [child] (!' child) [:div child])
-(p/defn widget [x]
-  (p/$ div [(p/$ div x) (p/$ div :a)]))
+(p/defn Div [child] (!' child) [:div child])
+(p/defn Widget [x]
+  (Div. [(Div. x) (Div. :a)]))
 
 (tests
   "reactive defn"
@@ -446,7 +443,7 @@
 
   (def !x (atom 0))
   (def dispose (p/run (! (binding [!' ! #_(r/fn [x] (! x))] ; careful at repl, ! only defined in test context
-                           (p/$ widget ~(m/watch !x))))))
+                           (Widget. (new (m/watch !x)))))))
   % := 0
   % := :a
   % := [[:div 0] [:div :a]]
@@ -458,19 +455,19 @@
   % := [:div [[:div 1] [:div :a]]]
   (dispose))
 
-(p/def g (p/fn [x] x))                                      ; reactive fn (DAG). Compiler marks dag with meta
+(p/def G (p/fn [x] x))                                      ; reactive fn (DAG). Compiler marks dag with meta
 (tests
   "node call vs fn call"
   (defn f [x] x)                                            ; This var is not marked with meta
   (def !x (atom 0))
   (def dispose
     (p/run
-      (! (let [x ~(m/watch !x)]
-           [(f x) (p/$ g x)]))))
+      (! (let [x (new (m/watch !x))]
+           [(f x) (G. x)]))))
   % := [0 0]
   (dispose))
 
-(p/def g (p/fn [x] x))
+(p/def G (p/fn [x] x))
 (tests
   "higher order dags"
   (def !x (atom 0))
@@ -478,13 +475,13 @@
   (def dispose
     (p/run
       (! (let [ff #_(fn [x] x) identity                     ; foreign clojure fns are useful, e.g. passing callbacks to DOM
-               gg (p/fn [x] x)                              ; you almost always want this, not fn
-               x ~(m/watch !x)]
+               Gg (p/fn [x] x)                              ; you almost always want this, not fn
+               x (new (m/watch !x))]
            [(f x)                                           ; var marked
-            (p/$ g x)                                           ; var says node
+            (G. x)                                           ; var says node
             (ff x)                                          ; Must assume interop, for compat with clojure macros
-            (p/$ gg x)                                        ; Must mark reactive-call
-            (p/$ (p/fn [x] x) x)]))))
+            (Gg. x)                                        ; Must mark reactive-call
+            (new (p/fn [x] x) x)]))))
   % := [0 0 0 0 0]
   (dispose))
 
@@ -492,8 +489,8 @@
   "former bug"
   (def !x (atom 0))
   (def !y (atom 0))
-  (def dispose (p/run (! (let [y ~(m/watch !y)]
-                           (if (odd? ~(m/watch !x))
+  (def dispose (p/run (! (let [y (new (m/watch !y))]
+                           (if (odd? (new (m/watch !x)))
                              (p/fn [x] (+ y x))
                              (p/fn [x] (+ y x)))))))
   % := _
@@ -504,15 +501,15 @@
   (def !x (atom 0))
   (def !y (atom 0))
   (def dispose
-    (p/run (! (let [x ~(m/watch !x)
-                    y ~(m/watch !y)
-                    f (p/fn [x] (+ y x))          ; constant signal
-                    g (if (odd? x) (p/fn [x] (+ y x))
+    (p/run (! (let [x (new (m/watch !x))
+                    y (new (m/watch !y))
+                    F (p/fn [x] (+ y x))          ; constant signal
+                    G (if (odd? x) (p/fn [x] (+ y x))
                                    (p/fn [x] (+ y x)))
-                    h ~(m/seed [(p/fn [x] (+ y x))])]
-                [(p/$ f x)
-                 (p/$ g x)
-                 (p/$ h x)]))))
+                    H (new (m/seed [(p/fn [x] (+ y x))]))]
+                [(F. x)
+                 (G. x)
+                 (H. x)]))))
   % := [0 0 0]
   (dispose))
 
@@ -523,8 +520,8 @@
   (def !y (atom 0))
   (def dispose
     (p/run
-      (! (let [x ~(m/watch !x)
-               y ~(m/watch !y)
+      (! (let [x (new (m/watch !x))
+               y (new (m/watch !y))
                ; rebuild clojure closure when y updates
                f (fn [needle] (+ y needle))]
            ; (value is fully compatible with fn contract)
@@ -552,12 +549,12 @@
   (def !b (atom 1))
   (def dispose
     (p/run
-      (! ($                                                 ; call a closure from outside the extent of its parent
+      (! (new                                               ; call a closure from outside the extent of its parent
            (let [!n (atom (p/fn [] 0))]
-             (when ~(m/watch !a)
-               (let [x ~(m/watch !b)]
+             (when (new (m/watch !a))
+               (let [x (new (m/watch !b))]
                  (reset! !n (p/fn [] x))))                  ; use mutation to escape the extent of the closure
-             ~(m/watch !n))))))
+             (new (m/watch !n)))))))
   := 0
   (swap! !a not)
   := 1
@@ -570,10 +567,10 @@
     ; todo, recursion doesn't work yet
     (case n
       0 0 1 1
-      (+ (p/$ fib (- n 2))                                        ; self recur
-         (p/$ fib (- n 1)))))
+      (+ (new fib (- n 2))                                        ; self recur
+         (new fib (- n 1)))))
   (def !x (atom 5))
-  (def dispose (p/run (! (fib ~(m/watch !x)))))
+  (def dispose (p/run (! (fib (new (m/watch !x))))))
   % := 5
   (swap! !x inc)
   ; this will reuse the topmost frame, it is still naive though
@@ -588,7 +585,7 @@
       (+ (recur (- n 2)) ; todo
          (recur (- n 1)))))
   (def !x (atom 5))
-  (def dispose (p/run (! (fib' ~(m/watch !x)))))
+  (def dispose (p/run (! (fib' (new (m/watch !x))))))
   % := 5
   (swap! !x inc)
   ; this will reuse the topmost frame, it is still naive though
@@ -599,11 +596,11 @@
 
 (comment
   "mutual recursion"
-  (declare pong)
-  (p/defn ping [x] (case x 0 :done (p/$ pong (dec x))))
+  (declare Pong)
+  (p/defn Ping [x] (case x 0 :done (Pong. (dec x))))
   ; can static call infer $ here? Leo needs to think
-  (p/defn pong [x] (p/$ ping x))
-  (def dispose (p/run (! (ping 3))))
+  (p/defn Pong [x] (Ping. x))
+  (def dispose (p/run (! (Ping. 3))))
   % := :done
   (dispose))
 
@@ -617,37 +614,21 @@
     (catch #?(:clj Exception, :cljs :default) _ ::outer))
   := ::outer)
 
-(p/defn boom [] (throw (ex-info "" {})))
+(p/defn Boom [] (throw (ex-info "" {})))
 (tests
   "reactive exceptions"
   (def dispose
-    (p/run (! (try (p/$ boom) (catch #?(:clj Exception, :cljs :default) _ ::inner)))))
+    (p/run (! (try (Boom.) (catch #?(:clj Exception, :cljs :default) _ ::inner)))))
   % := ::inner                                              ; reactive exception caught
 
   (def dispose
     (p/run (! (try
-                (let [nf (try
-                           (p/fn [] (p/$ boom))             ; reactive exception uncaught
+                (let [Nf (try
+                           (p/fn [] (Boom.))             ; reactive exception uncaught
                            (catch #?(:clj Exception, :cljs :default) _ ::inner))]
-                  (p/$ nf))
+                  (Nf.))
                 (catch #?(:clj Exception, :cljs :default) _ ::outer)))))
   % := ::outer)
-
-(p/def foo)
-(p/def foo')
-(tests
-  "leo bind"
-  (p/def foo)
-  (p/def foo')
-  (def !x (atom 0))
-  (def dispose (p/run (! (let [x ~(m/watch !x)]
-                           (binding [foo #'(inc x)
-                                     foo' (p/fn [] (inc x))]
-                             [~foo (p/$ foo')])))))            ; omg
-  % := [1 1]
-  (swap! !x inc)
-  % := [2 2]
-  (dispose))
 
 ; dumb test
 ;(comment
@@ -659,17 +640,17 @@
 ;  (dispose))
 
 (p/def inner)
-(p/def outer (p/fn [] inner))
+(p/def Outer (p/fn [] inner))
 (tests
   "dynamic scope (note that try/catch has the same structure)"
-  (def dispose (p/run (! (binding [inner ::inner] (p/$ outer)))))
+  (def dispose (p/run (! (binding [inner ::inner] (Outer.)))))
   % := ::inner
   (dispose)
 
   (def dispose (p/run (! (binding [inner ::outer]
-                           (let [nf (binding [inner ::inner]
-                                      (p/fn [] (p/$ outer)))]     ; binding out of scope
-                             (p/$ nf))))))
+                           (let [Nf (binding [inner ::inner]
+                                      (p/fn [] (Outer.)))]     ; binding out of scope
+                             (Nf.))))))
   % := ::outer
   (dispose))
 
@@ -685,7 +666,7 @@
   (defn not-query [] (inc 1))                               ; reacts on implicit global !!
   (defn query [] (inc *db*))
   (def !x (atom 0))
-  (def dispose (p/run (! (binding [*db* ~(m/watch !x)] (query)))))
+  (def dispose (p/run (! (binding [*db* (new (m/watch !x))] (query)))))
   % := 0
   (swap! !x inc)
   % := 1
@@ -700,7 +681,7 @@
 
 (tests
   "lazy parameters. Flows are not run unless sampled"
-  (def dispose (p/run (p/$ (p/fn [_]) (! :boom))))
+  (def dispose (p/run (new (p/fn [_]) (! :boom))))
   % := ::rcf/timeout
   (dispose)
 
@@ -719,13 +700,13 @@
 
 (p/def foo nil)
 (tests
-  (p/run2 {} (! (binding [foo 1] ~@~#'~@foo)))
+  (p/run2 {} (! (binding [foo 1] ~@(new (p/fn [] ~@foo)))))
   % := 1)
 
 (p/def foo1 nil)
-(p/def bar1 #'~@foo1)
+(p/def Bar1 (p/fn [] ~@foo1))
 (tests
-  (p/run2 {} (! (binding [foo1 1] ~@~bar1)))
+  (p/run2 {} (! (binding [foo1 1] ~@(Bar1.))))
   % := 1)
 
 (tests
@@ -768,24 +749,24 @@
   "photon binding transfer"
   ; Guidance: distribution should not impact the evaluated result of the expr
   (tests
-    (p/defn expr [x] x)
-    (p/run2 {} (! ~@(p/$ expr 1)))
+    (p/defn Expr [x] x)
+    (p/run2 {} (! ~@(Expr. 1)))
     % := 1)
 
   (tests
-    (p/def expr #'(let [x %0] x))
-    (p/run2 {} (! ~@(binding [%0 1] ~expr)))                ; no binding transfer
+    (p/def Expr (p/fn [] (let [x %0] x)))
+    (p/run2 {} (! ~@(binding [%0 1] (Expr.))))                ; no binding transfer
     % := 1)
 
   (tests
-    (p/def expr #'(let [x %0] x))
-    (p/run2 {} (! (binding [%0 1] ~@~expr)))                ; binding transfer
+    (p/def Expr (p/fn [] (let [x %0] x)))
+    (p/run2 {} (! (binding [%0 1] ~@(Expr.))))                ; binding transfer
     % := 1))
 
 (tests
   (def !x (atom 0))
   (p/run
-    (let [x ~(m/watch !x)]
+    (let [x (new (m/watch !x))]
       (when (even? x) (! x))))
   % := 0
   (swap! !x inc)
@@ -812,7 +793,7 @@
 (tests
   "reactive metadata"
   (def !x (atom 0))
-  (p/run (! (meta (let [x (with-meta [] {:foo ~(m/watch !x)})] x))))
+  (p/run (! (meta (let [x (with-meta [] {:foo (new (m/watch !x))})] x))))
   % := {:foo 0}
   (swap! !x inc)
   % := {:foo 1})
@@ -820,8 +801,8 @@
 (p/def foo2 42)
 
 (tests
- (let [foo (m/ap (m/? (m/sleep 10 :foo)))]
-   (p/run (! ~~#'(let [a ~foo] #'a)))
+ (let [Foo (m/ap (m/? (m/sleep 10 :foo)))]
+   (p/run (! (new (new (p/fn [] (let [a (Foo.)] (p/fn [] a)))))))
    % := ::rcf/timeout))
 
 (tests
@@ -835,7 +816,7 @@
 
   ; To repro the bug the >a must just be a reactive var
 
-  (p/run (! ~(x #'foo2)))
+  (p/run (! (new (x (p/fn [] foo2)))))
   % := 42
   % := ::rcf/timeout  ; do not produce 42 twice
   )
@@ -851,7 +832,7 @@
 
   ; To repro the bug the >a must just be a reactive var
 
-  (p/run (! ~(x (let [x foo2] #'x))))
+  (p/run (! (new (x (let [x foo2] (p/fn [] x))))))
   % := 42
   % := ::rcf/timeout  ; do not produce 42 twice
   )
@@ -859,13 +840,13 @@
 (tests
   "undefined continuous flow, flow is not defined for the first 10ms"
   (let [flow (m/ap (m/? (m/sleep 10 :foo)))]
-    (p/run (! ~~#'(let [a ~flow] #'a)))
+    (p/run (! (new (new (p/fn [] (let [a (new flow)] (p/fn [] a)))))))
     % := ::rcf/timeout ;; FAIL should throw, does nothing instead
     ))
 
 (tests
   (def !x (atom 0))
-  (p/run (! (try (-> ~(m/watch !x)
+  (p/run (! (try (-> (new (m/watch !x))
                    (doto (-> even? (when-not (throw (ex-info "odd" {})))))
                    (/ 2))
                  (catch #?(:clj Exception, :cljs :default) e (ex-message e)))))
@@ -880,8 +861,8 @@
   (def !f (atom "hello"))
   (def e (ex-info "error" {}))
   (p/run
-    (! (try (when-not (even? ~(m/watch !x)) (throw e))
-            (finally (! ~(m/watch !f))))))
+    (! (try (when-not (even? (new (m/watch !x))) (throw e))
+            (finally (! (new (m/watch !f)))))))
   % := "hello"
   % := nil
   (swap! !x inc)
@@ -898,8 +879,8 @@
 
   (def !state (atom [1]))
 
-  (def dispose (p/run (p/for [x ~(m/watch !state)]
-                        ~(m/observe (observer x)))))
+  (def dispose (p/run (p/for [x (new (m/watch !state))]
+                        (new (m/observe (observer x))))))
 
   % := [:up 1]
 
@@ -920,9 +901,9 @@
     (m/observe (fn [!] (p :up) (! x) #(p :down))))
 
   (p/run
-    (! (p/for [id ~(m/watch !input)]
+    (! (p/for [id (new (m/watch !input))]
          (binding [x2 (do id x2)]
-           ~(up-down ! x2)))))
+           (new (up-down ! x2))))))
   [% %] := [:up :up]
   % := [1 1]
   (swap! !input pop)

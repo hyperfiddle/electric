@@ -264,6 +264,8 @@
     (log/warn "change on dead frame :" (- frame) slot value))
   context)
 
+(def unbound (m/cp (throw (#?(:clj Error. :cljs js/Error. "Unbound var.")))))
+
 (defn foreach [f input]
   (m/ap (m/? (f (m/?> input)))))
 
@@ -288,7 +290,8 @@
                    (aset (int 5) {})
                    (aset (int 6) {})
                    (aset (int 7) {}))]
-         (m/stream! (allocate log ctx inputs targets sources signals variables outputs boot 0 [] (vec (repeat nodes nil))))
+         (m/stream! (allocate log ctx inputs targets sources signals variables outputs boot 0 []
+                      (vec (repeat nodes unbound))))
          (->> (poll ?read)
            (m/stream!)
            (m/eduction
@@ -333,9 +336,10 @@
                        `(let [~(sym 'pub pub) (signal ~s ~f)]
                           ~(emit-inst sym (inc pub) (second args))))
                 :def (cons `capture (mapv node args))
+                :eval `(steady ~(first args))
                 :node (list `nth (sym 'nodes) (node (first args)))
-                :bind (let [[slot inst cont] args]
-                        (list `let [(sym 'nodes) (list `assoc (sym 'nodes) (node slot) (emit-inst sym pub inst))]
+                :bind (let [[slot idx cont] args]
+                        (list `let [(sym 'nodes) (list `assoc (sym 'nodes) (node slot) (sym 'pub (- pub idx)))]
                           (emit-inst sym pub cont)))
                 :apply `(latest-apply ~@(mapv (partial emit-inst sym pub) args))
                 :input (let [i (slot :inputs)] `(input ~i))
@@ -354,10 +358,6 @@
                           `(do (source ~s ~(sym 'nodes)) ~f))
                 :global `(steady ~(symbol (first args)))
                 :literal `(steady (quote ~(first args)))
-                :interop `(latest-apply
-                            ~(let [arg-syms (into [] (map sym) (range (count (next args))))]
-                               (list `fn arg-syms (apply (first args) arg-syms)))
-                            ~(mapv (partial emit-inst sym pub) (next args)))
                 :constant (let [[frame {:keys [inputs targets sources signals variables outputs]}]
                                 (l/with-local slots init (emit-inst sym pub (first args)))
                                 c (slot :constants)]
@@ -541,9 +541,10 @@
                       :node (let [n (node (first args))]
                               (fn [_ nodes] (nth nodes n)))
                       :bind (let [n (node (first args))
-                                  [f g] (mapv (partial eval-inst idx) (next args))]
+                                  i (- idx (nth args 1))
+                                  f (eval-inst idx (nth args 2))]
                               (fn [pubs nodes]
-                                (g pubs (assoc nodes n (f pubs nodes)))))
+                                (f pubs (assoc nodes n (nth pubs i)))))
                       :apply (apply juxt-with latest-apply (mapv (partial eval-inst idx) args))
                       :input (let [s (slot :inputs)]
                                (fn [_ _] (input s)))

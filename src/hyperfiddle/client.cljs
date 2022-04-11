@@ -58,7 +58,7 @@
                     (dom/class "browser")
                     (dom/div
                       (dom/class "view")
-                      ~user.browser/view
+                      (new user.browser/View)
                       #_~user.hytradboi/view)))))))
 
 (def ^:export reactor)

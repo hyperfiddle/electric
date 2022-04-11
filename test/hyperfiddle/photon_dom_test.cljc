@@ -13,7 +13,7 @@
   (p/run
     (binding [dom/parent body]
       (dom/text "a")
-      (if ~(m/watch !x)
+      (if (new (m/watch !x))
         (dom/text "b")
         (dom/text "c"))
       (dom/text "d"))
