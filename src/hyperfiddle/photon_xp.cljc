@@ -1,5 +1,6 @@
 (ns hyperfiddle.photon-xp
-  (:require [missionary.core :as m])
+  (:require [missionary.core :as m]
+            [hyperfiddle.photon :as p])
   #?(:cljs (:require-macros [hyperfiddle.photon-xp :refer [forget deduping]])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -16,15 +17,15 @@
 (defmacro forget
   "Like `do` but returs `nil` once, then never return again."
   [& body]
-  `(unquote (->> (var (do ~@body))
-              (m/eduction (constantly nil) (dedupe))
-              (m/reductions {} nil)
-              (m/relieve {}))))
+  `(new (->> (p/fn [] ~@body)
+          (m/eduction (constantly nil) (dedupe))
+          (m/reductions {} nil)
+          (m/relieve {}))))
 
 (defmacro deduping [x]
-  `(unquote (->> (var ~x)
-              (m/eduction (dedupe))
-              (m/reductions {} nil)
-              (m/relieve {}))))
+  `(new (->> (p/fn [] ~x)
+          (m/eduction (dedupe))
+          (m/reductions {} nil)
+          (m/relieve {}))))
 
 (defn newest [>left >right] (m/ap (m/?< (m/amb= >left >right))))

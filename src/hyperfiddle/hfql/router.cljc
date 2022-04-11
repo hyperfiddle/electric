@@ -38,7 +38,7 @@
 #?(:clj
    (defn routing-map [&env pages]
      (->> pages
-          (map (fn [page] [(list 'quote (page-identifier &env page)) `#'(hfql/hfql ~page)]))
+          (map (fn [page] [(list 'quote (page-identifier &env page)) `(p/fn [] (hfql/hfql ~page))]))
           (into {}))))
 
 (defn args-indices [f]
@@ -89,6 +89,6 @@
             `(with-route-getters ~route ~fns
                (let [routing-map#  ~routing-map]
                  (validate-route! ~route)
-                 (p/$ (xp/deduping (get routing-map# (first ~route) not-found))))))))
+                 (new (xp/deduping (get routing-map# (first ~route) not-found))))))))
 
 (p/defn not-found [] "page not found")

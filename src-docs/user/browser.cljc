@@ -14,7 +14,7 @@
             [hyperfiddle.dev.logger :as log]
             [clojure.pprint :as pprint]
             #?(:clj [datahike.api :as d]))
-  #?(:cljs (:require-macros [user.browser :refer [view NavBar NotFoundPage BackButton]]
+  #?(:cljs (:require-macros [user.browser :refer [View NavBar NotFoundPage BackButton]]
                             [user.gender-shirt-size :refer [submissions sub-profile]]
                             [hyperfiddle.photon-xp :as xp])))
 
@@ -37,12 +37,12 @@
            (dom/text "< back")))
 
 (p/defn NavBar []
-  (let [route-state ~(m/watch hf/route-state)]
+  (let [route-state (new (m/watch hf/route-state))]
     (dom/div
-     (dom/class "navbar")
-     (p/$ BackButton (second route-state))
-     (dom/div (dom/class "navbar-route")
-              (p/$ cm/CodeMirror {:parent dom/parent :inline true} read-edn write-edn (first route-state))))))
+      (dom/class "navbar")
+      (BackButton. (second route-state))
+      (dom/div (dom/class "navbar-route")
+        (cm/CodeMirror. {:parent dom/parent :inline true} read-edn write-edn (first route-state))))))
 
 (p/defn NotFoundPage []
   ~@(dom/div
@@ -78,18 +78,18 @@
 ;; Set initial route state
 #?(:cljs (reset! hf/route-state `((user.gender-shirt-size/submissions "alice"))))
 
-(p/defn view []
+(p/defn View []
   ~@;; server
     (let [!db          (atom (hf/->DB "$" 0 nil hf/*$*))
-          >db          (m/watch !db)
+          Db           (m/watch !db)
           !stage       (atom nil)
-          stage        ~(m/watch !stage)
-          [db message] (transact! ~>db stage)]
+          stage        (new (m/watch !stage))
+          [db message] (transact! (Db.) stage)]
       (binding [hf/db (xp/deduping db)]
         ~@;; client
           (dom/div
            (dom/class "browser")
-           (binding [hf/route (p/$ NavBar)]
+           (binding [hf/route (NavBar.)]
              hf/route ;; hack
              (dom/div
               (dom/class "view")
@@ -110,18 +110,18 @@
                                                                                   ::hf/option-label :db/ident}) [:db/ident]}]}))))]
                 (dom/div (dom/class "hf-staging-area")
                          (dom/div (dom/class "hf-error-wrapper")
-                                  (let [tx' (p/$ cm/CodeMirror {:parent dom/parent} read-edn write-edn [])]
+                                  (let [tx' (cm/CodeMirror. {:parent dom/parent} read-edn write-edn [])]
                                     (do tx'
                                         ~@(xp/forget (reset! !stage tx'))
                                         ;; TODO use z/fsm or z/instant
                                         #_(let [click (dom/button (dom/text "transact!")
-                                                                  ~(->> (dom/events dom/parent "click")
-                                                                        (m/eduction (map (constantly true)))
-                                                                        (ui/continuous)))]
-                                            ~@(xp/forget ~(->> #'click
-                                                            (m/eduction (filter boolean?)
-                                                                        (map (partial transact!! !db !stage)))
-                                                            (ui/continuous))))
+                                                        (new (->> (dom/events dom/parent "click")
+                                                               (m/eduction (map (constantly true)))
+                                                               (ui/continuous))))]
+                                            ~@(xp/forget (new (->> (p/fn [] click)
+                                                                (m/eduction (filter boolean?)
+                                                                  (map (partial transact!! !db !stage)))
+                                                                (ui/continuous)))))
                                         (dom/code (dom/class "hf-error")
                                                   (dom/style {"margin" "1rem 0"})
                                                   (dom/text message)))))))))))))
@@ -131,13 +131,13 @@
 
 (comment
 
-  (require '[hfdl.lang :as p])
+  (require '[hyperfiddle.photon :as p])
   (require '[missionary.core :as m])
   (def !input (atom (list 9 10 11)))
 
   (defn prn-up-down [x] (m/observe (fn [!] (prn "up!" x) (! x) #(prn "down" x))))
 
-  (def dispose (p/run (prn (p/for [id ~(m/watch !input)] ~(prn-up-down id)))))
+  (def dispose (p/run (prn (p/for [id (new (m/watch !input))] (new (prn-up-down id))))))
 
   (reset! !input (list 9 10 11))
 

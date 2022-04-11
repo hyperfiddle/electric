@@ -41,18 +41,18 @@
 
 (p/def context nil)
 
-(p/def entity #'nil)
+(p/defn entity [])
 (p/def ^:deprecated attribute nil)
-(p/def ^:deprecated value #'nil)
-(p/def ^:deprecated options-attribute #'nil)
+(p/defn ^:deprecated value [])
+(p/defn ^:deprecated options-attribute [])
 
 
 (p/defn tx [v' props]
-  (if-let [txfn (::tx props)]
-    (p/$ txfn v')
+  (if-let [Txfn (::tx props)]
+    (Txfn. v')
     (when v'
-      (let [[>e a _] (first context)]
-        [[:db/add ~>e a v']]))))
+      (let [[E a _] (first context)]
+        [[:db/add (E.) a v']]))))
 
 (p/def ^:deprecated refs {}) ;; reference points in HFQL expr
 (p/def ^:deprecated columns [])
@@ -65,34 +65,34 @@
 (p/defn join-all [v]
   (cond
     (quoted? v) v
-    (map? v)    (into {} (p/for [[k v] v] [k ~v]))
-    (list? v)   (p/for [v v] ~v)
-    (coll? v)   (into (empty v) (p/for [v v] ~v))
+    (map? v)    (into {} (p/for [[k V] v] [k (V.)]))
+    (list? v)   (p/for [V v] (V.))
+    (coll? v)   (into (empty v) (p/for [V v] (V.)))
     :else       v))
 
 ;; https://hackage.haskell.org/package/base-4.15.0.0/docs/Control-Monad.html#v:sequence
-(p/defn sequenceM [>v _props] (p/$ join-all ~>v))
+(p/defn sequenceM [V _props] (join-all. (V.)))
 
-(p/defn render [>v props]
-  (if-let [renderer (::render props)]
-    (p/$ renderer >v props)
+(p/defn render [V props]
+  (if-let [Renderer (::render props)]
+    (Renderer. V props)
     (if-let [link (::link props)]
-      (str "<a href=\"" (pr-str ~(second link)) "\">" (p/$ join-all ~>v) "</a>")
-      (p/$ join-all ~>v))))
+      (str "<a href=\"" (pr-str (new (second link))) "\">" (join-all. (V.)) "</a>")
+      (join-all. (V.)))))
 
-(p/defn data [>v] (binding [render sequenceM] (p/$ render >v nil)))
+(p/defn data [V] (binding [render sequenceM] (render. V nil)))
 
 
 (tests
- (p/run (! (p/$ join-all #'[#'1 #'2 #'3])))
+ (p/run (! (join-all. (p/fn [] [(p/fn [] 1) (p/fn [] 2) (p/fn [] 3)]))))
  % := [1 2 3])
 
 (tests
- (p/run (! (p/$ join-all #'(list #'1 #'2 #'3))))
+ (p/run (! (join-all. (p/fn [] (list (p/fn [] 1) (p/fn [] 2) (p/fn [] 3))))))
  % := '(1 2 3))
 
 (tests
- (p/run (! (p/$ join-all #'{:a #'1, :b #'2, :c #'3})))
+ (p/run (! (join-all. (p/fn [] {:a (p/fn [] 1), :b (p/fn [] 2), :c (p/fn [] 3)}))))
  % := '{:a 1, :b 2, :c 3})
 
 (p/def ^:deprecated props {})

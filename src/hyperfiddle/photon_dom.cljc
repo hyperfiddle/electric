@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon-dom
-  (:refer-clojure :exclude [class for])
+  (:refer-clojure :exclude [class for time])
   (:require [hyperfiddle.photon :as p]
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
@@ -57,7 +57,7 @@
                (! child) #(d/removeNode child)))))
 
 (defmacro element [type & body]
-  `(binding [parent (unquote (mount parent (dom-element ~(name type)) @p/path))] ~@body))
+  `(binding [parent (new (mount parent (dom-element ~(name type)) @p/path))] ~@body))
 
 (defn set-fragment! [e f]
   ;; TODO
@@ -67,7 +67,7 @@
   #?(:cljs (d/setTextContent e (str t))))
 
 (defmacro text [text]
-  `(set-text-content! (unquote (mount parent (text-node) @p/path)) ~text))
+  `(set-text-content! (new (mount parent (text-node) @p/path)) ~text))
 
 (defmacro div [& body]
   `(element :div ~@body))
@@ -217,7 +217,7 @@
   `(.getContext parent ~(name type)))
 
 (defmacro event [type]
-  `(unquote (events parent ~(map symbol [(str ".-" (str/upper-case (name type))) "goog.events.EventType"]))))
+  `(new (events parent ~(map symbol [(str ".-" (str/upper-case (name type))) "goog.events.EventType"]))))
 
 (defmacro assign! [prop value]
   `(set! (~(symbol (str ".-" (name prop))) parent) value))
@@ -239,7 +239,7 @@
          (set! raf (.requestAnimationFrame js/window callback)))
        (.now js/Date))))
 
-(def ^:no-doc >clock
+(defn ^:no-doc clock []
   #?(:cljs
      (fn [n t]
        (let [c (->Clock 0 nil t)]
@@ -248,7 +248,7 @@
          (n) c))))
 
 ;; The number of milliseconds elapsed since January 1, 1970
-(p/def clock ~>clock)
+(p/def time (new (clock)))
 
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]

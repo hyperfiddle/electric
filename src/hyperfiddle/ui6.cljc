@@ -88,9 +88,9 @@
                  (= :dom.property/style k) (dom/style v)
                  (property? k)             (dom/property (name k) v)
                  :else                     (dom/attribute (name k) v)))
-             ~(->> (dom/events dom/parent "input")
-                   (m/eduction (map extractor))
-                   (continuous))))
+    (new (->> (dom/events dom/parent "input")
+           (m/eduction (map extractor))
+           (continuous)))))
 
 ;; (defn set-state! [!atom v] (reset! !atom v))
 
@@ -118,28 +118,28 @@
 
 (defn db-color [db] (color (str (:name db) (* 100 (:basis-t db)))))
 
-(p/defn typeahead [>v props]
+(p/defn typeahead [V props]
   (binding [hf/render hf/sequenceM]
     (let [options     (::hf/options props)
           label       (::hf/option-label props)
           attr-type   (:dom.attribute/type props "search")
           disabled    (::hf/disabled props)
           c           (db-color hf/db)
-          value       ~>v
-          input-value (str (if (and label value) ~(label value) value))
+          value       (V.)
+          input-value (str (if (and label value) (new (label value)) value))
           value'
           ~@(dom/fragment
              (let [id     (str (gensym))
-                   value' (p/$ input {:dom.attribute/type    attr-type
-                                      :dom.attribute/class   "hf-typeahead"
-                                      :dom.property/disabled disabled
-                                      :dom.property/style    {"border-color" c}
-                                      :dom.property/value    input-value
-                                      :dom.attribute/list    id}
-                               dom/target-value)]
+                   value' (input. {:dom.attribute/type    attr-type
+                                   :dom.attribute/class   "hf-typeahead"
+                                   :dom.property/disabled disabled
+                                   :dom.property/style    {"border-color" c}
+                                   :dom.property/value    input-value
+                                   :dom.attribute/list    id}
+                            dom/target-value)]
                ~@;; server
-                 (when-some [options (::hf/options props)]
-                   (let [options    ~options
+                 (when-some [Options (::hf/options props)]
+                   (let [options (Options.)
                          data-count (count options)]
                      ~@;; client
                        (dom/element "datalist"
@@ -152,26 +152,26 @@
                                                (dom/attribute "selected" true))
                                            (dom/text ~@((or label identity) option)))))))
                value'))]
-      (p/$ hf/tx value' props))))
+      (hf/tx. value' props))))
 
 (defn index-by [kf coll] (into {} (map (juxt kf identity)) coll))
 (defn index-id [x] (str (hash x)))
 
 (p/def select-options)
-(p/defn select-options-impl [>v props]
+(p/defn select-options-impl [V props]
   (binding [hf/render hf/sequenceM]
     (let [label    (::hf/option-label props)
           disabled (::hf/disabled props)
           c        (db-color hf/db)
-          value    (p/$ hf/data >v)
+          value    (hf/data. V)
           ;; input-value (str (if (and label value) ~(label value) value))
           value'
           ~@(let [value' (dom/select (dom/class "hf-select")
                                      (dom/property "disabled" disabled)
                                      (dom/style {"border-color" c})
                                      ~@;; server
-                                       (when-some [options (::hf/options props)]
-                                         (let [options ~options
+                                       (when-some [Options (::hf/options props)]
+                                         (let [options (Options.)
                                                index   (index-by index-id options)]
                                            (do
                                              (p/for [option options]
@@ -181,12 +181,12 @@
                                                       (dom/attribute "selected" "selected"))
                                                     (dom/attribute "value" ~@(index-id option)) ;; index-id might be platform-specific
                                                     (dom/text ~@((or label identity) option)))))
-                                             ~@~(->> (dom/events dom/parent "input")
-                                                     (m/eduction (map dom/target-value)
-                                                                 (map index))
-                                                     (continuous))))))]
+                                             ~@(new (->> (dom/events dom/parent "input")
+                                                      (m/eduction (map dom/target-value)
+                                                        (map index))
+                                                      (continuous)))))))]
               value')]
-      (p/$ hf/tx value' props))))
+      (hf/tx. value' props))))
 
 (defn extract-refs [inputs refs]
   (filter second (map (juxt identity (partial get refs)) inputs)))
@@ -200,10 +200,10 @@
     (do (prn "intputs" inputs)
         (log/warn 'RENDER-INPUTS attr inputs)
         ~@(dom/div (dom/class "inputs")
-                   ~@(p/for [[idx [arg [>v ?!v]]] (map-indexed vector inputs)]
+                   ~@(p/for [[idx [arg [V ?!v]]] (map-indexed vector inputs)]
                        (let [locked? (nil? ?!v)
                              set-v!  (if locked? (constantly nil) (partial reset! ?!v))
-                             v       ~>v]
+                             v       (V.)]
                          (when-some [v' ~@(let [id         (str (gensym))
                                                 arg-spec   (spec/arg (first attr) arg)
                                                 input-type (input-types (argument-type (first attr) arg))
@@ -215,11 +215,11 @@
                                                                                          locked? (str " — internal reference 🔒")))
                                                          (dom/text (name arg))
                                                          (dom/attribute "for" (str id)))
-                                            (let [v' (p/$ input {:dom.attribute/id      id,
-                                                                 :dom.attribute/type    (input-types (argument-type (first attr) arg))
-                                                                 :dom.property/value    v
-                                                                 :dom.property/disabled locked?}
-                                                          extractor)]
+                                            (let [v' (input. {:dom.attribute/id      id,
+                                                              :dom.attribute/type    (input-types (argument-type (first attr) arg))
+                                                              :dom.property/value    v
+                                                              :dom.property/disabled locked?}
+                                                       extractor)]
                                               (log/info "extracted" v')
                                               v'))]
                            (log/info "ARG" arg v "->" v')
@@ -265,46 +265,46 @@
                         ~@body)))
 
 (p/def link-renderer)
-(p/defn link-renderer-impl [>v props]
-  (let [[symbolic >href] (::hf/link props)
+(p/defn link-renderer-impl [V props]
+  (let [[symbolic Href] (::hf/link props)
         symbolic         (pr-str symbolic)
-        href             ~>href
+        href             (Href.)
         href-str         (pr-str href)
-        v                (pr-str ~>v)]
+        v                (pr-str (V.))]
     ~@(link href-str (partial set-route! href)
             (dom/attribute "href" href-str)
             (dom/text v))))
 
 (p/def default-renderer)
-(p/defn default-renderer-impl [>v props]
+(p/defn default-renderer-impl [V props]
   (cond
-    (some? (::hf/link props)) (p/$ link-renderer >v props)
+    (some? (::hf/link props)) (link-renderer. V props)
     :else
-    (let [value       ~>v
+    (let [value       (V.)
           [_>e a _>v] (first hf/context)
           valueType   (:db/valueType (schema-attr hf/*$* a))]
       (log/info "DEFAULT valueType" valueType)
       (if (some? valueType)
-        (p/$ typeahead >v (assoc props :dom.attribute/type (input-types (spec/valueType->type valueType))))
+        (typeahead. V (assoc props :dom.attribute/type (input-types (spec/valueType->type valueType))))
         (let [value (pr-str value)]
           ~@(do (dom/code (dom/class "language-clojure") (dom/text value))
                 nil ;; no tx
                 ))))))
 
-(p/defn render-options [>v props]
+(p/defn render-options [V props]
   ~@(dom/element "fieldset"
                  (dom/class "hf-options")
                  (dom/element "legend" (dom/text "::hf/options"))
-                 ~@(p/$ table-picker >v props)))
+                 ~@(table-picker. V props)))
 
 (defn into-tx [txs] (into [] cat txs))
 
 (p/def form)
-(p/defn form-impl [>v props]
+(p/defn form-impl [V props]
   (let [c  (db-color hf/db)
         tx ~@(dom/element "form"
                           (dom/style {"border-left-color" c})
-                          ~@(let [value ~>v]
+                          ~@(let [value (V.)]
                               (into-tx
                                (p/for [column (::hf/columns props)]
                                  ~@(dom/div (dom/class "field")
@@ -315,17 +315,17 @@
                                             ~@(do
                                                 (let [[_ a⁻¹ _] (second hf/context)]
                                                   (when-let [inputs (get-in props [::hf/inputs a⁻¹ column])]
-                                                    (p/$ render-inputs column inputs)))
-                                                ~(get value column)))))))]
+                                                    (render-inputs. column inputs)))
+                                                (new (get value column))))))))]
     (when (::hf/options props)
-      (p/$ render-options >v props))
+      (render-options. V props))
     tx))
 
-(p/defn row-impl [>v _props]
+(p/defn row-impl [V _props]
   ;; server
   (binding [form form-impl];; restore binding
     (let [c             (db-color hf/db)
-          value         ~>v
+          value         (V.)
           [_ _ _ props] (second hf/context)]
       ~@;; client
         (dom/tr
@@ -334,9 +334,9 @@
                       ~@;; client
                         (dom/td (dom/style {"border-color" c})
                                 ~@;; server
-                                  ~(get value col))))))))
+                                    (new (get value col)))))))))
 
-(p/defn table-impl [>v props]
+(p/defn table-impl [V props]
   (let [columns (::hf/columns props)
         c       (db-color hf/db)]
     ~@(dom/table
@@ -348,10 +348,10 @@
        (dom/tbody
         ~@(binding [form row]
             (into-tx
-             (p/for [row-renderer (seq ~>v)]
-               ~row-renderer)))))))
+             (p/for [RowRenderer (seq (V.))]
+               (RowRenderer.))))))))
 
-(p/defn grid-impl [>v props]
+(p/defn grid-impl [V props]
   (let [columns (::hf/columns props)
         numcols (count columns)
         c       (db-color hf/db)]
@@ -362,60 +362,60 @@
            ~@(dom/th (dom/style {"background-color" c}) ;; FIXME binding unification
                      (dom/text (pr-str col))))
        ~@(binding [form grid-row]
-           (p/for [row-renderer (seq ~>v)]
-             ~row-renderer)))))
+           (p/for [RowRenderer (seq (V.))]
+             (RowRenderer.))))))
 
-(p/defn grid-row-impl [>v _props]
+(p/defn grid-row-impl [V _props]
   ;; server
   (binding [form form-impl];; restore binding
     (let [c             (db-color hf/db)
-          value         ~>v
+          value         (V.)
           [_ _ _ props] (second hf/context)]
       (p/for [col (::hf/columns props)]
         ~@;; client
           (dom/td (dom/style {"border-color" c})
                   ~@;; server
-                    ~(get value col))))))
+                      (new (get value col)))))))
 
 (p/def row-picker)
-(p/defn row-picker-impl [>v props]
+(p/defn row-picker-impl [V props]
   (binding [form      form-impl
             form-impl form-impl*] ;; restore binding
     (let [color                 (db-color hf/db)
           [e⁻¹ a⁻¹ v⁻¹ props⁻¹] (::eav -table-picker-props)
-          [>e _ _ _]            (first hf/context)
-          e                     ~>e
+          [E _ _ _]             (first hf/context)
+          e                     (E.)
           cardinality           (cardinality hf/*$* a⁻¹)
           group                 (::group -table-picker-props)
-          checked?              (= v⁻¹ (p/$ hf/data >v))
-          v                     ~>v]
-      (log/info "V V" (list v⁻¹ (p/$ hf/data >v)))
+          checked?              (= v⁻¹ (hf/data. V))
+          v                     (V.)]
+      (log/info "V V" (list v⁻¹ (hf/data. V)))
       ~@(binding [dom/parent (do e dom/parent)]
           (dom/tr
            (let [selected? (dom/td (dom/style {"border-color" color})
-                                   (p/$ input {:dom.attribute/type   (case cardinality
-                                                                       ::one  "radio"
-                                                                       ::many "checkbox")
-                                               :dom.attribute/name   group
-                                               :dom.property/checked checked?}
-                                        dom/target-checked))]
+                                   (input. {:dom.attribute/type   (case cardinality
+                                                                    ::one  "radio"
+                                                                    ::many "checkbox")
+                                            :dom.attribute/name   group
+                                            :dom.property/checked checked?}
+                                     dom/target-checked))]
              (do (log/info "TX" [e⁻¹ a⁻¹ e] cardinality)
                  ~@(p/for [column (::hf/columns props⁻¹)]
                      ~@(dom/td (dom/style {"border-color" color})
-                               ~@~(get v column)))
+                               ~@(new (get v column))))
                  selected?)))))))
 
 (p/def options-picker)
-(p/defn options-picker-impl [>v props]
+(p/defn options-picker-impl [V props]
   (let [c               (db-color hf/db)
         columns         (::hf/columns props)
         [_ a _ _]       (nth hf/context 0)
         [_ a⁻¹ _ _]     (nth hf/context 1)
         [_ _ _ props⁻²] (nth hf/context 2)
-        v               ~>v
+        v               (V.)
         v-count (count v) ]
     (when-let [inputs (get-in props⁻² [::hf/inputs a⁻¹ a])]
-      (p/$ render-inputs a inputs))
+      (render-inputs. a inputs))
     ~@(dom/table
        (dom/thead
         (dom/tr
@@ -424,32 +424,32 @@
              ~@(dom/th (dom/style {"background-color" c})
                        (dom/text (pr-str col))))))
        (dom/tbody
-        ~@(let [[>e a >v⁻¹ _] (second hf/context)]
+        ~@(let [[E a V⁻¹ _] (second hf/context)]
             (binding [form                row-picker
-                      -table-picker-props {::eav   [~>e a ~>v⁻¹ props]
+                      -table-picker-props {::eav   [(E.) a (V⁻¹.) props]
                                            ::group (str (gensym))}]
-              (p/for [row-renderer v]
-                ~row-renderer)))))))
+              (p/for [RowRenderer v]
+                (RowRenderer.))))))))
 
-(p/defn table-picker-impl [>v props]
+(p/defn table-picker-impl [V props]
   (binding [table options-picker]
-    ~(::hf/options props)))
+    (new (::hf/options props))))
 
 (p/def spec-renderer)
-(p/defn spec-renderer-impl [>v props]
-  (let [value    ~>v
-        renderer (xp/deduping (cond (map? value)    form
+(p/defn spec-renderer-impl [V props]
+  (let [value (V.)
+        Renderer (xp/deduping (cond (map? value)    form
                                  (vector? value) table
                                  :else           default-renderer))]
-    (p/$ renderer >v props)))
+    (Renderer. V props)))
 
 (p/def user-renderer)
-(p/defn user-renderer-impl [>v props]
-  (if-let [renderer (::hf/render props)]
-    (p/$ renderer >v props)
-    (p/$ spec-renderer >v props)))
+(p/defn user-renderer-impl [V props]
+  (if-let [Renderer (::hf/render props)]
+    (Renderer. V props)
+    (spec-renderer. V props)))
 
-(p/def render #'~user-renderer)
+(p/defn render [] (user-renderer.))
 
 (defmacro with-spec-render [& body]
   `(binding [form             form-impl

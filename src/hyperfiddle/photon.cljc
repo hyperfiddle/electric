@@ -7,7 +7,7 @@
             [hyperfiddle.photon-impl.for :refer [map-by]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn $ vars main for for-by local1 local2 run run2]])))
+  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local1 local2 run run2]])))
 
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
@@ -36,9 +36,11 @@ The booting function takes
 and returning a task that runs the local reactor."
   r/eval)
 
-(defmacro def [sym & body]
-  (when-not (:js-globals &env)
-    `(~'def ~(vary-meta sym assoc :macro true ::c/node `(quote (do ~@body))))))
+(defmacro def
+  ([sym] `(hyperfiddle.photon/def ~sym ::c/unbound))
+  ([sym form]
+   (when-not (:js-globals &env)
+     `(def ~(vary-meta sym assoc :macro true ::c/node `(quote ~form))))))
 
 (def path r/path)
 
@@ -54,27 +56,24 @@ Takes a photon program and returns a pair
 ;; TODO self-refer
 (defmacro fn [args & body]
   (->> body
-    (cons (vec (interleave args c/args)))
+    (cons (vec (interleave args (next c/arg-sym))))
     (cons `let)
-    (list 'var)))
+    (list ::c/closure)))
 
 ; syntax quote doesn't qualify special forms like 'def
 (defmacro defn [sym & rest] `(hyperfiddle.photon/def ~sym (fn ~@rest)))
 
-(defmacro $ [f & args]
-  `(binding [~@(interleave c/args args)] (unquote ~f)))
-
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
-    (->> (list 'var v)
+    (->> (list `fn [] v)
       (list `map-by kf
         (->> body
           (list* `for-by kf bindings)
-          (list `let [s (second c/args)])
-          (list 'var)
-          (list `partial (list 'def (second c/args)))))
-      (list `unquote))
-    (cons 'do body)))
+          (list `let [s (second c/arg-sym)])
+          (list `fn [])
+          (list `partial (list 'def (second c/arg-sym)))))
+      (list `new))
+    (cons `do body)))
 
 (defmacro for [bindings & body]
   `(for-by identity ~bindings ~@body))

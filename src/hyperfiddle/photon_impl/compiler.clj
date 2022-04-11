@@ -1,6 +1,5 @@
 (ns hyperfiddle.photon-impl.compiler
   (:require [clojure.tools.analyzer.jvm :as clj]
-            [missionary.core :as m]
             [cljs.analyzer :as cljs]
             [hyperfiddle.photon-impl.local :as l]
             [hyperfiddle.photon-impl.runtime :as r]
@@ -9,7 +8,30 @@
   (:import cljs.tagged_literals.JSValue
            (clojure.lang Box Var)))
 
-(doto (def exception) (alter-meta! assoc :macro true ::node '(do)))
+(def arg-sym
+  (map (comp symbol
+         (partial intern *ns*)
+         (fn [i]
+           (with-meta (symbol (str "%" i))
+             {:macro true ::node ::unbound})))
+    (range)))
+
+(doto (def exception) (alter-meta! assoc :macro true ::node ::unbound))
+
+(defmacro ctor-call [class arity]
+  (let [args (repeatedly arity gensym)]
+    `(fn [~@args] (new ~class ~@args))))
+
+(defmacro method-call [method arity]
+  (let [args (repeatedly arity gensym)]
+    `(fn [inst# ~@args] (. inst# ~method ~@args))))
+
+(defmacro field-access [field]
+  `(fn [inst#] (. inst# ~(symbol (str "-" (name field))))))
+
+(defmacro js-call [template arity]
+  (let [args (repeatedly arity gensym)]
+    `(fn [~@args] (~'js* ~template ~@args))))
 
 (defn normalize-env [env]
   (if (:js-globals env)
@@ -96,7 +118,7 @@ is a macro or special form."
       (when (.-val b) (when-not (:macro v) (:name v))))
     (let [v (resolve-var env sym)]
       (or (when (instance? Var v) (when-not (or (.isMacro ^Var v)
-                                                (::node (meta v)))
+                                              (contains? (meta v) ::node))
                                     (.toSymbol ^Var v)))
         (when (instance? Class v) (symbol (.getName ^Class v)))))))
 
@@ -110,7 +132,7 @@ is a macro or special form."
 (defn analyze-global [sym]
   (case (namespace sym)
     "js"
-    [:interop (constantly sym)]
+    [:eval sym]
     [:global (global sym)]))
 
 (defn conj-res
@@ -139,8 +161,8 @@ is a macro or special form."
             s        (if (some? cljs-var)
                        (:name cljs-var) ;; cljs analyzer ast
                        (symbol (name (ns-name (:ns m))) (name (:name m))))]
-        (if-some [n (::node m)]
-          (visit-node env s n)
+        (if (contains? m ::node)
+          (visit-node env s (::node m))
           (throw (ex-info (str "Not a reactive var - " s) {}))))
       (throw (ex-info (str "Unable to resolve symbol - " sym) {})))))
 
@@ -156,8 +178,8 @@ is a macro or special form."
       (if-some [v (resolve-var env sym)]
         (let [m (meta v)
               s (symbol (name (ns-name (:ns m))) (name (:name m)))]
-          (if-some [n (::node m)]
-            [[:node (visit-node env s n)]]
+          (if (contains? m ::node)
+            [[:node (visit-node env s (::node m))]]
             (throw (ex-info "Can't take value of macro." {:symbol s}))))
         (throw (ex-info "Unable to resolve symbol." {:symbol sym}))))))
 
@@ -166,143 +188,158 @@ is a macro or special form."
    (map (partial analyze-form env))
    conj-res [[:apply]] form))
 
+(defn analyze-binding [env bs f & args]
+  (let [l (::local env)]
+    ((fn rec [env bs ns]
+       (if-some [[node form & bs] bs]
+         (-> [[:pub]]
+           (conj-res (analyze-form env form))
+           (conj-res (rec (update env ::index update l (fnil inc 0)) bs (conj ns node))))
+         (reduce-kv
+           (fn [res i n]
+             (conj-res [[:bind (resolve-node env n) (- (count ns) i)]] res))
+           (apply f env args) ns))) env (seq bs) [])))
+
 (defn analyze-sexpr [env [op & args :as form]]
-  (if (and (symbol? op) (not (contains? (:locals env) op)))
-    (case op
-      (fn* letfn* loop* recur set! ns ns* deftype* defrecord*)
-      (throw (ex-info "Unsupported operation." {:op op :args args}))
+  (case op
+    (fn* letfn* loop* recur set! ns ns* deftype* defrecord* var)
+    (throw (ex-info "Unsupported operation." {:op op :args args}))
 
-      (let*)
-      ((fn rec [env bs]
-         (if-some [[s i & bs] bs]
-           (-> [[:pub]]
-               (conj-res (analyze-form env i))
-               (conj-res (rec (with-local env s) bs)))
-           (analyze-sexpr env (cons `do (next args)))))
-       env (seq (first args)))
+    (let*)
+    ((fn rec [env bs]
+       (if-some [[s i & bs] bs]
+         (-> [[:pub]]
+           (conj-res (analyze-form env i))
+           (conj-res (rec (with-local env s) bs)))
+         (analyze-sexpr env (cons `do (next args)))))
+     env (seq (first args)))
 
-      (do)
-      (if-some [[x & xs] args]
-        (case xs
-          nil (analyze-form env x)
-          (analyze-sexpr env (list {} x (cons `do xs))))
-        [[:literal nil]])
+    (do)
+    (if-some [[x & xs] args]
+      (case xs
+        nil (analyze-form env x)
+        (analyze-sexpr env (list {} x (cons `do xs))))
+      [[:literal nil]])
 
-      (if)
-      (let [[test then else] args]
-        (analyze-form env `(case ~test (nil false) ~else ~then)))
+    (if)
+    (let [[test then else] args]
+      (analyze-form env `(case ~test (nil false) ~else ~then)))
 
-      (case clojure.core/case cljs.core/case)
-      (analyze-form env
-                    (let [clauses   (vec (next args))
-                          total?    (odd? (count clauses))
-                          partition (partition-all 2 (if total? (pop clauses) clauses))
-                          symbols   (repeatedly gensym)]
-                      (->> (when total? (list `var (peek clauses)))
-                           (list
-                            (reduce merge {}
-                                    (map (fn [p s] (zipmap (parse-clause (first p)) (repeat s)))
-                                         partition symbols))
-                            (first args))
-                           (list `let (vec (interleave symbols
-                                                       (map (fn [p] (list `var (second p)))
-                                                            partition))))
-                           (list `unquote))))
+    (case clojure.core/case cljs.core/case)
+    (analyze-form env
+      (let [clauses   (vec (next args))
+            total?    (odd? (count clauses))
+            partition (partition-all 2 (if total? (pop clauses) clauses))
+            symbols   (repeatedly gensym)]
+        (->> (when total? (list ::closure (peek clauses)))
+          (list
+            (reduce merge {}
+              (map (fn [p s] (zipmap (parse-clause (first p)) (repeat s)))
+                partition symbols))
+            (first args))
+          (list `let (vec (interleave symbols
+                            (map (fn [p] (list ::closure (second p)))
+                              partition))))
+          (list `new))))
 
-      (quote)
-      [[:literal (first args)]]
+    (quote)
+    [[:literal (first args)]]
 
-      (def)
-      (transduce (map (comp vector (partial resolve-node env)))
-                 conj-res [[:def]] args)
+    (def)
+    (transduce (map (comp vector (partial resolve-node env)))
+      conj-res [[:def]] args)
 
-      (var)
-      (let [res (analyze-form env (first args))]
-        [[:target ((void [:nop]) (pop res))] [:constant (peek res)]])
-
-      (js* new)
+    (js*)
+    (if-some [[f & args] args]
       (transduce (map (partial analyze-form env)) conj-res
-                 [[:interop (partial list op (first args))]] (next args))
+        [[:eval `(js-call ~f ~(count args))]] args)
+      (throw (ex-info "Wrong number of arguments - js*" {})))
 
-      (.)
-      (let [dot (cljs/build-dot-form [(first args) (second args) (nnext args)])]
+    (new)
+    (if-some [[f & args] args]
+      (if-some [ctor (when (symbol? f)
+                       (when-not (contains? (:locals env) f)
+                         (resolve-runtime env f)))]
         (transduce (map (partial analyze-form env)) conj-res
-                   [[:interop (case (:dot-action dot)
-                                ::cljs/call   (fn [target & args] `(. ~target ~(:method dot) ~@args))
-                                ::cljs/access (fn [target] `(. ~target ~(symbol (str "-" (name (:field dot)))))))]]
-                   (cons (:target dot) (:args dot))))
+          [[:apply [:eval `(ctor-call ~ctor ~(count args))]]] args)
+        (analyze-binding env (interleave arg-sym (cons f args))
+          (fn [_] [[:source] [:variable [:sub (inc (count args))]]])))
+      (throw (ex-info "Wrong number of arguments - new" {})))
 
-      (throw)
-      (analyze-form env `(r/fail ~(first args)))
+    (.)
+    (let [dot (cljs/build-dot-form [(first args) (second args) (nnext args)])]
+      (transduce (map (partial analyze-form env)) conj-res
+        [[:eval (case (:dot-action dot)
+                  ::cljs/call   `(method-call ~(:method dot) (count args))
+                  ::cljs/access `(field-access ~(:field dot)))]]
+        (cons (:target dot) (:args dot))))
 
-      (try)
-      (let [[forms catches finally]
-            (reduce
-             (fn [[forms catches finally] form]
-               (case finally
-                 nil (let [[op & args] (when (seq? form) form)]
-                       (case op
-                         catch   [forms (conj catches args) finally]
-                         finally [forms catches (vec args)]
-                         (case catches
-                           [] [(conj forms form) catches finally]
-                           (throw (ex-info "Invalid try block - unrecognized clause." {})))))
-                 (throw (ex-info "Invalid try block - finally must be in final position." {}))))
-             [[] () nil] args)]
-        (analyze-form env
-          `(unquote ~(reduce
-                       (fn [r f] `(r/latest-first ~r (var ~f)))
-                       (case catches
-                         [] `(var (do ~@forms))
-                         `(r/recover
-                            (some-fn
-                              ~@(map (fn [[c s & body]]
-                                       (let [f `(partial (def exception) (var (let [~s exception] ~@body)))]
-                                         (case c
-                                           (:default Throwable)
-                                           `(r/clause ~f)
-                                           `(r/clause ~f ~c)))) catches))
-                            (var (do ~@forms)))) finally))))
+    (throw)
+    (analyze-form env `(r/fail ~(first args)))
 
-      (if-some [sym (resolve-runtime env op)]
-        (case sym
-          (clojure.core/unquote cljs.core/unquote)
-          (let [res (analyze-form env (first args))]
-            (conj (conj (pop res) [:source]) [:variable (peek res)]))
+    (try)
+    (let [[forms catches finally]
+          (reduce
+            (fn [[forms catches finally] form]
+              (case finally
+                nil (let [[op & args] (when (seq? form) form)]
+                      (case op
+                        catch   [forms (conj catches args) finally]
+                        finally [forms catches (vec args)]
+                        (case catches
+                          [] [(conj forms form) catches finally]
+                          (throw (ex-info "Invalid try block - unrecognized clause." {})))))
+                (throw (ex-info "Invalid try block - finally must be in final position." {}))))
+            [[] () nil] args)]
+      (analyze-form env
+        `(new ~(reduce
+                 (fn [r f] `(r/latest-first ~r (::closure ~f)))
+                 (case catches
+                   [] `(::closure (do ~@forms))
+                   `(r/recover
+                      (some-fn
+                        ~@(map (fn [[c s & body]]
+                                 (let [f `(partial (def exception) (::closure (let [~s exception] ~@body)))]
+                                   (case c
+                                     (:default Throwable)
+                                     `(r/clause ~f)
+                                     `(r/clause ~f ~c)))) catches))
+                      (::closure (do ~@forms)))) finally))))
 
-          (clojure.core/unquote-splicing cljs.core/unquote-splicing)
-          (let [res (analyze-form (update env ::local not) (first args))]
-            [[:output (peek res)] ((void [:input]) (pop res))])
+    (::closure)
+    (let [res (analyze-form env (first args))]
+      [[:target ((void [:nop]) (pop res))] [:constant (peek res)]])
 
-          (analyze-apply env form))
-        (if-some [v (resolve-var env op)]
-          (let [m (meta v)
-                s (symbol (name (ns-name (:ns m))) (name (:name m)))]
-            (case s
-              (clojure.core/binding cljs.core/binding)
-              ((fn rec [env ns bs]
-                 (if-some [[n i & bs] bs]
-                   (let [s (gensym)]
-                     (-> [[:pub]]
-                         (conj-res (analyze-form env i))
-                         (conj-res (rec (with-local env s) (cons [n s] ns) bs))))
-                   (reduce
-                    (fn [res [n s]]
-                      (-> [[:bind (resolve-node env n)]]
-                          (conj-res (analyze-symbol env s))
-                          (conj-res res)))
-                    (analyze-sexpr env (cons `do (next args))) ns)))
-               env nil (seq (first args)))
+    (if (symbol? op)
+      (let [n (name op)
+            e (dec (count n))]
+        (case (nth n e)
+          \. (analyze-sexpr env `(new ~(symbol (namespace op) (subs n 0 e)) ~@args))
+          (if (contains? (:locals env) op)
+            (analyze-apply env form)
+            (if-some [sym (resolve-runtime env op)]
+              (case sym
+                (clojure.core/unquote-splicing cljs.core/unquote-splicing)
+                (let [res (analyze-form (update env ::local not) (first args))]
+                  [[:output (peek res)] ((void [:input]) (pop res))])
 
-              (if (::node m)
-                (analyze-apply env form)
-                (analyze-form env (apply v form (if (:js-globals env) env (:locals env)) args)))))
-          (let [desugared-form (desugar-host env form)]
-            (if (= form desugared-form)
-              ;; Nothing got desugared, this is not host interop, meaning `op` var wasn't found.
-              (throw (ex-info "Unable to resolve symbol" {:symbol op}))
-              (analyze-form env desugared-form))))))
-    (analyze-apply env form)))
+                (analyze-apply env form))
+              (if-some [v (resolve-var env op)]
+                (let [m (meta v)
+                      s (symbol (name (ns-name (:ns m))) (name (:name m)))]
+                  (case s
+                    (clojure.core/binding cljs.core/binding)
+                    (analyze-binding env (first args) analyze-sexpr (cons `do (next args)))
+
+                    (if (contains? m ::node)
+                      (analyze-apply env form)
+                      (analyze-form env (apply v form (if (:js-globals env) env (:locals env)) args)))))
+                (let [desugared-form (desugar-host env form)]
+                  (if (= form desugared-form)
+                    ;; Nothing got desugared, this is not host interop, meaning `op` var wasn't found.
+                    (throw (ex-info "Unable to resolve symbol" {:symbol op}))
+                    (analyze-form env desugared-form))))))))
+      (analyze-apply env form))))
 
 (defn analyze-map [env form]
   (analyze-form env (if-let [m (meta form)]
@@ -335,12 +372,12 @@ is a macro or special form."
       (if-some [node (-> (.get nodes) (get l) (get sym))]
         (:slot node)
         (let [sym-ns (symbol (namespace sym))
-              inst (-> env
+              inst (case form
+                     ::unbound nil
+                     (-> env
                        (assoc :locals {} :ns (if (:js-globals env) (cljs/get-namespace sym-ns) sym-ns))
                        (dissoc ::index)
-                       (analyze-form (if (and (seq? form) (= 'quote (first form)))
-                                       (second form)
-                                       form)))
+                       (analyze-form form)))
               slot (-> (.get nodes) (get l) count)]
           (.set nodes (update (.get nodes) l update sym assoc :inst inst :slot slot :rank
                               (+ slot (-> (.get nodes) (get (not l)) count)))) slot))))
@@ -361,7 +398,7 @@ is a macro or special form."
               ((fn rec [nodes]
                  (if-some [[{:keys [peer slot inst]} & nodes] (seq nodes)]
                    (if (= p peer)
-                     [:bind slot (peek inst) (rec nodes)]
+                     [:pub (peek inst) [:bind slot 1 (rec nodes)]]
                      ((void (rec nodes)) (pop inst)))
                    (if p (peek inst) ((void [:literal nil]) (pop inst)))))
                nodes)) [true false]))))
@@ -383,15 +420,18 @@ is a macro or special form."
   [[:global :a]
    [:literal nil]]
 
-  (analyze {} '~m/none) :=
-  [[:variable [:global :missionary.core/none]]
+  (doto (def Ctor) (alter-meta! assoc :macro true ::node ::unbound))
+  (analyze {} '(Ctor.)) :=
+  [[:pub [:node 0]
+    [:bind 1 1
+     [:variable [:sub 1]]]]
    [:source [:literal nil]]]
 
   (analyze {} '~@:foo) :=
   [[:input]
    [:output [:literal :foo] [:literal nil]]]
 
-  (analyze {} '#':foo) :=
+  (analyze {} '(::closure :foo)) :=
   [[:constant [:literal :foo]]
    [:target [:nop] [:literal nil]]]
 
@@ -401,93 +441,108 @@ is a macro or special form."
    [:literal nil]]
 
   (analyze {} '(case 1 2 3 (4 5) ~@6 7)) :=
-  [[:variable
-    [:pub [:constant [:literal 3]]
-     [:pub [:constant [:input]]
-      [:apply [:apply [:global :clojure.core/hash-map]
-               [:literal 2] [:sub 2]
-               [:literal 4] [:sub 1]
-               [:literal 5] [:sub 1]]
-       [:literal 1]
-       [:constant [:literal 7]]]]]]
-   [:target [:nop]
-    [:target [:output [:literal 6] [:nop]]
-     [:target [:nop] [:source [:literal nil]]]]]]
-
-  (analyze {} '(case 1 2 3 (4 5) ~@6)) :=
-  [[:variable
+  [[:pub
     [:pub
      [:constant [:literal 3]]
      [:pub
       [:constant [:input]]
-      [:apply [:apply [:global :clojure.core/hash-map]
-               [:literal 2] [:sub 2]
-               [:literal 4] [:sub 1]
-               [:literal 5] [:sub 1]]
+      [:apply
+       [:apply [:global :clojure.core/hash-map]
+        [:literal 2] [:sub 2]
+        [:literal 4] [:sub 1]
+        [:literal 5] [:sub 1]]
        [:literal 1]
-       [:literal nil]]]]]
+       [:constant [:literal 7]]]]]
+    [:bind 0 1 [:variable [:sub 1]]]]
+   [:target [:nop]
+    [:target [:output [:literal 6] [:nop]]
+     [:target [:nop]
+      [:source [:literal nil]]]]]]
+
+  (analyze {} '(case 1 2 3 (4 5) ~@6)) :=
+  [[:pub
+    [:pub
+     [:constant [:literal 3]]
+     [:pub
+      [:constant [:input]]
+      [:apply
+       [:apply [:global :clojure.core/hash-map]
+        [:literal 2] [:sub 2]
+        [:literal 4] [:sub 1]
+        [:literal 5] [:sub 1]]
+       [:literal 1]
+       [:literal nil]]]]
+    [:bind 0 1 [:variable [:sub 1]]]]
    [:target [:nop]
     [:target [:output [:literal 6] [:nop]]
      [:source [:literal nil]]]]]
 
-  (doto (def foo) (alter-meta! assoc :macro true ::node '(do)))
-  (doto (def bar) (alter-meta! assoc :macro true ::node '(do foo)))
+  (doto (def foo) (alter-meta! assoc :macro true ::node nil))
+  (doto (def bar) (alter-meta! assoc :macro true ::node 'foo))
   (analyze {} 'bar) :=
-  [[:bind 0 [:literal nil] [:bind 1 [:node 0] [:node 1]]]
+  [[:pub [:literal nil] [:bind 0 1 [:pub [:node 0] [:bind 1 1 [:node 1]]]]]
    [:literal nil]]
 
   (analyze {} '(def foo)) :=
-  [[:bind 0 [:literal nil] [:def 0]]
+  [[:pub [:literal nil] [:bind 0 1 [:def 0]]]
    [:literal nil]]
 
-  (analyze {} '(let [a 1] ~((def foo) #'~@~#'~@foo #'a))) :=
-  [[:bind 0 [:literal nil]
-    [:pub [:literal 1]
-     [:variable
-      [:apply [:def 0]
-       [:constant [:target [:output [:node 0] [:nop]] [:source [:input]]]]
-       [:constant [:sub 1]]]]]]
-   [:target [:output [:variable [:constant [:input]]] [:nop]]
-    [:target [:nop]
-     [:source [:literal nil]]]]]
-
-  (doto (def baz) (alter-meta! assoc :macro true ::node '(do #'~@foo)))
-  (analyze {} '(let [a 1] ~((def foo) #'~@~baz #'a))) :=
-  [[:bind 0 [:literal nil]
-    [:target [:output [:node 0] [:nop]]
+  (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new (::closure ~@foo))) (::closure a))))) :=
+  [[:pub [:literal nil]
+    [:bind 0 1
      [:pub [:literal 1]
-      [:variable
+      [:pub
        [:apply [:def 0]
-        [:constant [:source [:input]]]
-        [:constant [:sub 1]]]]]]]
-   [:bind 0 [:constant [:input]]
-    [:target [:output [:variable [:node 0]] [:nop]]
-     [:target [:nop] [:source [:literal nil]]]]]]
+        [:constant [:target [:output [:node 0] [:nop]] [:source [:input]]]]
+        [:constant [:sub 1]]]
+       [:bind 1 1 [:variable [:sub 1]]]]]]]
+   [:target
+    [:output [:pub [:constant [:input]] [:bind 0 1 [:variable [:sub 1]]]] [:nop]]
+    [:target [:nop] [:source [:literal nil]]]]]
+
+  (doto (def baz) (alter-meta! assoc :macro true ::node '(::closure ~@foo)))
+  (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new baz)) (::closure a))))) :=
+  [[:pub [:literal nil]
+    [:bind 0 1
+     [:target [:output [:node 0] [:nop]]
+      [:pub [:literal 1]
+       [:pub [:apply [:def 0] [:constant [:source [:input]]] [:constant [:sub 1]]]
+        [:bind 1 1 [:variable [:sub 1]]]]]]]]
+   [:pub [:constant [:input]]
+    [:bind 0 1
+     [:target [:output [:pub [:node 0] [:bind 1 1 [:variable [:sub 1]]]] [:nop]]
+      [:target [:nop] [:source [:literal nil]]]]]]]
 
   (analyze {} '(try 1 (finally 2 3 4))) :=
-  [[:variable
-    [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
-     [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
-      [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
-       [:constant [:literal 1]]
-       [:constant [:literal 2]]]
-      [:constant [:literal 3]]]
-     [:constant [:literal 4]]]]
-   [:target [:nop] [:target [:nop] [:target [:nop] [:target [:nop] [:source [:literal nil]]]]]]]
+  [[:pub [:apply
+          [:global :hyperfiddle.photon-impl.runtime/latest-first]
+          [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
+           [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
+            [:constant [:literal 1]] [:constant [:literal 2]]]
+           [:constant [:literal 3]]]
+          [:constant [:literal 4]]]
+    [:bind 0 1 [:variable [:sub 1]]]]
+   [:target [:nop]
+    [:target [:nop]
+     [:target [:nop]
+      [:target [:nop]
+       [:source [:literal nil]]]]]]]
 
   (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
-  [[:bind 0 [:literal nil]
-    [:variable
-     [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
-      [:apply [:global :hyperfiddle.photon-impl.runtime/recover]
-       [:apply [:global :clojure.core/some-fn]
-        [:apply [:global :hyperfiddle.photon-impl.runtime/clause]
-         [:apply [:global :clojure.core/partial] [:def 0]
-          [:constant [:pub [:node 0] [:literal 2]]]]
-         [:global :java.lang.Exception]]]
-       [:constant [:literal 1]]]
-      [:constant [:literal 3]]]]]
-   [:target [:nop] [:target [:nop] [:target [:nop] [:source [:literal nil]]]]]]
+  [[:pub [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
+          [:apply [:global :hyperfiddle.photon-impl.runtime/recover]
+           [:apply [:global :clojure.core/some-fn]
+            [:apply [:global :hyperfiddle.photon-impl.runtime/clause]
+             [:apply [:global :clojure.core/partial]
+              [:def 0] [:constant [:pub [:node 0] [:literal 2]]]]
+             [:global :java.lang.Exception]]]
+           [:constant [:literal 1]]]
+          [:constant [:literal 3]]]
+    [:bind 1 1 [:variable [:sub 1]]]]
+   [:target [:nop]
+    [:target [:nop]
+     [:target [:nop]
+      [:source [:literal nil]]]]]]
   )
 
 
@@ -499,14 +554,6 @@ is a macro or special form."
                                    [:apply [:global :clojure.core/hash-map] [:literal :b] [:literal 2]]]
                                   [:literal nil]]
   )
-
-(def args
-  (map (comp symbol
-         (partial intern *ns*)
-         (fn [i]
-           (with-meta (symbol (str "%" i))
-             {:macro true ::node ()})))
-    (range)))
 
 (defn resolve-runtime-throwing [env form]
   (when-not (symbol? form) (throw (ex-info "Symbol expected." {:form form})))

@@ -317,7 +317,7 @@
       :nav   [nom (let [parent     (get index (:parent point))
                         parent-sym (if (nil? parent)
                                      `hf/entity
-                                     (if (= :many (:card parent)) '% (list `unquote (:name parent))))]
+                                     (if (= :many (:card parent)) '% (list `new (:name parent))))]
                     `(hf/nav (:db hf/db) ~parent-sym ~(keyword (:form point))))]
       :call  [nom (let [[f & _args] (:form point)
                         args-name   (map symbol (map :name (spec/args f)))
@@ -329,21 +329,22 @@
                                                 (let [[_call parent] (lineage index point)
                                                       many?          (= :many (:card parent))]
                                                   (if (= '% (:form point))
-                                                    (if many? '% `(unquote ~(:name parent)))
+                                                    (if many? '% `(new ~(:name parent)))
                                                     #_(if (some? parent)
-                                                        `(unquote ~(:name parent)))
-                                                    `(unquote ~(:name point)))))))]
-                    `(var ~(cond
-                             (some? defaultsf)          `(let [[~@args-name] (p/$ ~defaultsf [~@args])]
-                                                           (p/$ ~f ~@args-name))
-                             (= `hf/link (:prop point)) `(list '~f ~@args)
-                             :else                      `(p/$ ~f ~@args))))]
+                                                        `(new ~(:name parent)))
+                                                    `(new ~(:name point)))))))]
+                    `(p/fn []
+                       ~(cond
+                          (some? defaultsf)          `(let [[~@args-name] (new ~defaultsf [~@args])]
+                                                        (new ~f ~@args-name))
+                          (= `hf/link (:prop point)) `(list '~f ~@args)
+                          :else                      `(new ~f ~@args))))]
       :arg   (when-not (= '% (:form point))
                [nom (let [form      (if-let [refs (some->> (map index (:deps point))
                                                            (remove #(:external (meta (:form %))))
                                                            (map (fn [point] [(:form point) (if (= :input (:role point))
-                                                                                             `(unquote (m/watch ~(:name point)))
-                                                                                             `(unquote ~(:name point)))]))
+                                                                                             `(new (m/watch ~(:name point)))
+                                                                                             `(new ~(:name point)))]))
                                                            (seq)
                                                            (into {}))]
                                       (replace* refs (:form point))
@@ -351,10 +352,10 @@
                                         (keyword (:form point))
                                         (:form point)))
                           defaultsf (get (:props point) ::hf/defaults)]
-                      (list 'var
-                            (cond
-                              (some? defaultsf) `(p/$ ~defaultsf ~form)
-                              :else             form)))])
+                      `(p/fn []
+                         ~(cond
+                            (some? defaultsf) `(new ~defaultsf ~form)
+                            :else             form)))])
       :input [nom `(atom nil)]
       :alias [nom (:name (get index (:parent point)))]
       :ref   nil)))
@@ -389,17 +390,17 @@
 (def ^:dynamic *index*)
 (def ^:dynamic *props?* false)
 
-(defmacro render* [e a >v props]
-  `(let [>v#    ~>v
+(defmacro render* [e a V props]
+  `(let [V#     ~V
          props# ~props]
-     (binding [hf/context (cons [~e ~a #'(p/$ hf/data >v#) props#] hf/context)]
-       (p/$ hf/render >v# props#))))
+     (binding [hf/context (cons [~e ~a (p/fn [] (new hf/data V#)) props#] hf/context)]
+       (new hf/render V# props#))))
 
-(defn var-point [form] (if *props?* form `(var ~form)))
+(defn var-point [form] (if *props?* form `(p/fn [] ~form)))
 
 (defn render-point
-  ([>v props] (render-point nil nil >v props))
-  ([e a >v props] (if *props?* >v `(render* ~(or e '(var nil)) ~a ~>v ~props))))
+  ([V props] (render-point nil nil V props))
+  ([e a V props] (if *props?* V `(render* ~(or e `(p/fn [])) ~a ~V ~props))))
 
 (defn columns [points] (mapv symbolic-key (sort-by :position (remove #(or (:prop %) (= :arg (:role %))) points)))) ;; FIXME remove predicate is flipped, columns can’t be props and should be either call or nav. 
 
@@ -420,30 +421,30 @@
                            nom))))]
       (if (and (:prop point) (not (#{`hf/options} (:prop point)))) #_*props?*
         [attr (cond
-                (= :many (:card point)) `(p/for [~'% (unquote ~nom)]
+                (= :many (:card point)) `(p/for [~'% (new ~nom)]
                                            ~(cont nil nil))
                 (seq children)          (cont nil nil)
                 :else                   (if-let [prop (:prop point)]
                                           (cond (#{`hf/link} prop)          [(list 'quote (:form point)) nom]
                                                 (#{`hf/as} prop)            (symbolic (:form point))
                                                 (not (#{`hf/options} prop)) (symbolic-prop (:form point))
-                                                :else                       `(unquote ~nom))
-                                          `(unquote ~nom)))]
+                                                :else                       `(new ~nom))
+                                          `(new ~nom)))]
         (let [props  (some->> (get-children *index* point)
                               (filter :prop)
                               (map emit-1)
                               (remove (fn [[k _v]] (#{::hf/defaults} k)))
-                              (map (fn [[k v]] [k (if false #_(#{::hf/options} k) `(var ~v) v)]))
+                              (map (fn [[k v]] [k (if false #_(#{::hf/options} k) `(p/fn [] ~v) v)]))
                               (seq)
                               (into {}))
-              parent (get *index* (:parent point) {:name (list 'var `hf/entity)})
+              parent (get *index* (:parent point) {:name `(p/fn [] hf/entity)})
               cols   (columns children)
-              next   (render-point (if (= :many (:card parent)) '(var %) (:name parent))
+              next   (render-point (if (= :many (:card parent)) `(p/fn [] ~'%) (:name parent))
                                    (symbolic (:form point))
                                    (cond
-                                     (= :many (:card point))       `(var (p/for [~'% (unquote ~nom)]
-                                                                           (var ~(cont '(var %) nil))))
-                                     (seq (remove :prop children)) `(var ~(cont nil nil))
+                                     (= :many (:card point))       `(p/fn [] (p/for [~'% (new ~nom)]
+                                                                               (p/fn [] ~(cont `(p/fn [] ~'%) nil))))
+                                     (seq (remove :prop children)) `(p/fn [] ~(cont nil nil))
                                      :else                         nom)
                                    (cond-> props
                                      (seq cols) (assoc ::hf/columns cols)))]
@@ -467,7 +468,7 @@
     {::hf/inputs inputs}))
 
 (defn emit*
-  ([point-id] (emit* point-id (list 'var `hf/entity) `hf/attribute))
+  ([point-id] (emit* point-id `(p/fn [] hf/entity) `hf/attribute))
   ([point-id e a]
    (let [points (toposort *index* (get *scopes* point-id))]
      `(let [~@(mapcat #(emit-point *index* %) (remove (fn [point] (#{`hf/defaults `hf/render} ;; FIXME kw vs sym vs meta-kw
