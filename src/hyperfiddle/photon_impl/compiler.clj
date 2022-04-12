@@ -157,7 +157,7 @@ is a macro or special form."
     (if (or (some? clj-var) (some? cljs-var))
       (let [m        (if (some? clj-var)
                        (meta clj-var)
-                       (:meta cljs-var))
+                       cljs-var)
             s        (if (some? cljs-var)
                        (:name cljs-var) ;; cljs analyzer ast
                        (symbol (name (ns-name (:ns m))) (name (:name m))))]
