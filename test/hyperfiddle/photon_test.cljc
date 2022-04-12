@@ -944,3 +944,9 @@
 ;;   ;; print 1
 ;;   % := :nil ;; :nil sent N times to other peer. Waste of resources.
 ;;   )
+
+(p/def unbounded1)
+(p/def unbounded2)
+(tests
+  (p/run (! (new (p/fn [] (binding [unbounded1 1 unbounded2 2] (+ unbounded1 unbounded2))))))
+  % := 3)
