@@ -313,8 +313,7 @@
 
 (def emit
   (let [slots (l/local)
-        init {:nodes 0
-              :inputs 0
+        init {:inputs 0
               :targets 0
               :sources 0
               :signals 0
@@ -324,52 +323,51 @@
     (letfn [(slot [k]
               (let [m (l/get-local slots), n (get m k)]
                 (l/set-local slots (assoc m k (inc n))) n))
-            (node [s]
-              (l/set-local slots (update (l/get-local slots) :nodes max (inc s))) s)
             (emit-inst [sym pub [op & args]]
               (case op
-                :nop nil
+                :nop [-1 nil]
                 :sub (let [i (- pub (first args))]
-                       (sym 'pub i))
-                :pub (let [f (emit-inst sym pub (first args))
-                           s (slot :signals)]
-                       `(let [~(sym 'pub pub) (signal ~s ~f)]
-                          ~(emit-inst sym (inc pub) (second args))))
-                :def (cons `capture (mapv node args))
-                :eval `(steady ~(first args))
-                :node (list `nth (sym 'nodes) (node (first args)))
-                :bind (let [[slot idx cont] args]
-                        (list `let [(sym 'nodes) (list `assoc (sym 'nodes) (node slot) (sym 'pub (- pub idx)))]
-                          (emit-inst sym pub cont)))
-                :apply `(latest-apply ~@(mapv (partial emit-inst sym pub) args))
-                :input (let [i (slot :inputs)] `(input ~i))
-                :output (let [f (emit-inst sym pub (first args))
+                       [-1 (sym 'pub i)])
+                :pub (let [[n f] (emit-inst sym pub (first args))
+                           s (slot :signals)
+                           [n* g] (emit-inst sym (inc pub) (second args))]
+                       [(max n n*) `(let [~(sym 'pub pub) (signal ~s ~f)] ~g)])
+                :def [(reduce max -1 args) `(capture ~@args)]
+                :eval [-1 `(steady ~(first args))]
+                :node (let [[n] args] [n `(nth ~(sym 'nodes) ~n)])
+                :bind (let [[n idx inst] args
+                            [n* form] (emit-inst sym pub inst)]
+                        [(max n n*) `(let [~(sym 'nodes) (assoc ~(sym 'nodes) ~n ~(sym 'pub (- pub idx)))] ~form)])
+                :apply (let [[ns fs] (apply map vector (mapv (partial emit-inst sym pub) args))]
+                         [(reduce max -1 ns) `(latest-apply ~@fs)])
+                :input (let [i (slot :inputs)] [-1 `(input ~i)])
+                :output (let [[n f] (emit-inst sym pub (first args))
                               o (slot :outputs)
-                              g (emit-inst sym pub (second args))]
-                          `(do (output ~o ~f) ~g))
-                :target (let [[frame {:keys [inputs targets sources signals variables outputs]}]
+                              [n* g] (emit-inst sym pub (second args))]
+                          [(max n n*) `(do (output ~o ~f) ~g)])
+                :target (let [[[n frame] {:keys [inputs targets sources signals variables outputs]}]
                               (l/with-local slots init (emit-inst sym pub (first args)))
                               t (slot :targets)
-                              g (emit-inst sym pub (second args))]
-                          `(do (target ~t ~inputs ~targets ~sources ~signals ~variables ~outputs
-                                 (fn [~(sym 'nodes)] ~frame)) ~g))
+                              [n* g] (emit-inst sym pub (second args))]
+                          [(max n n*) `(do (target ~t ~inputs ~targets ~sources ~signals ~variables ~outputs
+                                             (fn [~(sym 'nodes)] ~frame)) ~g)])
                 :source (let [s (slot :sources)
-                              f (emit-inst sym pub (first args))]
-                          `(do (source ~s ~(sym 'nodes)) ~f))
-                :global `(steady ~(symbol (first args)))
-                :literal `(steady (quote ~(first args)))
-                :constant (let [[frame {:keys [inputs targets sources signals variables outputs]}]
+                              [n f] (emit-inst sym pub (first args))]
+                          [n `(do (source ~s ~(sym 'nodes)) ~f)])
+                :global [-1 `(steady ~(symbol (first args)))]
+                :literal [-1 `(steady (quote ~(first args)))]
+                :constant (let [[[n frame] {:keys [inputs targets sources signals variables outputs]}]
                                 (l/with-local slots init (emit-inst sym pub (first args)))
                                 c (slot :constants)]
-                            `(steady (constant ~c ~inputs ~targets ~sources ~signals ~variables ~outputs
-                                       (fn [~(sym 'nodes)] ~frame))))
-                :variable (let [form (emit-inst sym pub (first args))
+                            [n `(steady (constant ~c ~inputs ~targets ~sources ~signals ~variables ~outputs
+                                          (fn [~(sym 'nodes)] ~frame)))])
+                :variable (let [[n form] (emit-inst sym pub (first args))
                                 v (slot :variables)]
-                            `(variable ~v ~(sym 'nodes) ~form))))]
+                            [n `(variable ~v ~(sym 'nodes) ~form)])))]
       (fn [sym inst]
-        (let [[form {:keys [nodes inputs targets sources signals variables outputs]}]
+        (let [[[n form] {:keys [inputs targets sources signals variables outputs]}]
               (l/with-local slots init (emit-inst sym 0 inst))]
-          `(peer ~nodes ~inputs ~targets ~sources ~signals ~variables ~outputs
+          `(peer ~(inc n) ~inputs ~targets ~sources ~signals ~variables ~outputs
              (fn [~(sym 'nodes)] ~form)))))))
 
 (tests
@@ -508,8 +506,7 @@
 
 (def eval
   (let [slots (l/local)
-        init {:nodes 0
-              :inputs 0
+        init {:inputs 0
               :targets 0
               :sources 0
               :signals 0
@@ -518,74 +515,78 @@
               :variables 0}]
     (letfn [(slot [k]
               (let [m (l/get-local slots), n (get m k)]
-                (l/set-local slots (assoc m k (inc n))) n))
-            (node [s]
-              (l/set-local slots (update (l/get-local slots) :nodes max s)) s)]
+                (l/set-local slots (assoc m k (inc n))) n))]
       (fn eval
         ([inst] (eval dynamic-resolve inst))
         ([resolvef inst]
-         (let [[f {:keys [nodes inputs targets sources signals variables outputs]}]
+         (let [[[n f] {:keys [inputs targets sources signals variables outputs]}]
                (l/with-local slots init
                  ((fn eval-inst [idx [op & args]]
                     (case op
-                      :nop (fn [_ _])
-                      :sub (let [i (- idx (first args))]
-                             (fn [pubs _] (nth pubs i)))
-                      :pub (let [f (eval-inst idx (first args))
+                      :nop [-1 (fn [_ _])]
+                      :sub (let [[i] args
+                                 p (- idx i)]
+                             [-1 (fn [pubs _] (nth pubs p))])
+                      :pub (let [[inst] args
+                                 [n f] (eval-inst idx inst)
                                  s (slot :signals)
-                                 g (eval-inst (inc idx) (second args))]
-                             (fn [pubs nodes]
-                               (g (conj pubs (signal s (f pubs nodes))) nodes)))
-                      :def (let [ns (mapv node args)]
-                             (fn [_ _] (apply capture ns)))
-                      :node (let [n (node (first args))]
-                              (fn [_ nodes] (nth nodes n)))
-                      :bind (let [n (node (first args))
-                                  i (- idx (nth args 1))
-                                  f (eval-inst idx (nth args 2))]
+                                 [n* g] (eval-inst (inc idx) (second args))]
+                             [(max n n*)
                               (fn [pubs nodes]
-                                (f pubs (assoc nodes n (nth pubs i)))))
-                      :apply (apply juxt-with latest-apply (mapv (partial eval-inst idx) args))
+                                (g (conj pubs (signal s (f pubs nodes))) nodes))])
+                      :def [(reduce max -1 args) (fn [_ _] (apply capture args))]
+                      :node (let [[n] args]
+                              [n (fn [_ nodes] (nth nodes n))])
+                      :bind (let [[n i inst] args
+                                  p (- idx i)
+                                  [n* f] (eval-inst idx inst)]
+                              [(max n n*)
+                               (fn [pubs nodes]
+                                 (f pubs (assoc nodes n (nth pubs p))))])
+                      :apply (let [[ns fs] (apply map vector (mapv (partial eval-inst idx) args))]
+                               [(reduce max -1 ns) (apply juxt-with latest-apply fs)])
                       :input (let [s (slot :inputs)]
-                               (fn [_ _] (input s)))
-                      :output (let [f (eval-inst idx (first args))
+                               [-1 (fn [_ _] (input s))])
+                      :output (let [[n f] (eval-inst idx (first args))
                                     s (slot :outputs)
-                                    g (eval-inst idx (second args))]
-                                (fn [pubs nodes]
-                                  (output s (f pubs nodes))
-                                  (g pubs nodes)))
-                      :target (let [[f {:keys [inputs targets sources signals variables outputs]}]
+                                    [n* g] (eval-inst idx (second args))]
+                                [(max n n*)
+                                 (fn [pubs nodes]
+                                   (output s (f pubs nodes))
+                                   (g pubs nodes))])
+                      :target (let [[[n f] {:keys [inputs targets sources signals variables outputs]}]
                                     (l/with-local slots init (eval-inst idx (first args)))
                                     s (slot :targets)
-                                    g (eval-inst idx (second args))]
-                                (fn [pubs nodes]
-                                  (target s inputs targets sources signals variables outputs
-                                    (fn [nodes] (f pubs nodes)))
-                                  (g pubs nodes)))
+                                    [n* g] (eval-inst idx (second args))]
+                                [(max n n*)
+                                 (fn [pubs nodes]
+                                   (target s inputs targets sources signals variables outputs
+                                     (fn [nodes] (f pubs nodes)))
+                                   (g pubs nodes))])
                       :source (let [s (slot :sources)
-                                    f (eval-inst idx (first args))]
-                                (fn [pubs nodes]
-                                  (source s nodes)
-                                  (f pubs nodes)))
+                                    [n f] (eval-inst idx (first args))]
+                                [n (fn [pubs nodes]
+                                     (source s nodes)
+                                     (f pubs nodes))])
                       :global (let [r (resolvef ::not-found (first args))]
                                 (case r
                                   ::not-found (throw (ex-info (str "Unable to resolve - "
                                                                 (symbol (first args)))
                                                        {:missing-exports (missing-exports resolvef inst)}))
-                                  (constantly (steady r))))
-                      :literal (constantly (steady (first args)))
-                      :constant (let [[f {:keys [inputs targets sources signals variables outputs]}]
+                                  [-1 (constantly (steady r))]))
+                      :literal [-1 (constantly (steady (first args)))]
+                      :constant (let [[[n f] {:keys [inputs targets sources signals variables outputs]}]
                                       (l/with-local slots init (eval-inst idx (first args)))
                                       s (slot :constants)]
-                                  (fn [pubs _]
-                                    (steady
-                                      (constant s inputs targets sources signals variables outputs
-                                        (fn [nodes] (f pubs nodes))))))
-                      :variable (let [f (eval-inst idx (first args))
+                                  [n (fn [pubs _]
+                                       (steady
+                                         (constant s inputs targets sources signals variables outputs
+                                           (fn [nodes] (f pubs nodes)))))])
+                      :variable (let [[n f] (eval-inst idx (first args))
                                       v (slot :variables)]
-                                  (fn [pubs nodes]
-                                    (variable v nodes (f pubs nodes))))
+                                  [n (fn [pubs nodes]
+                                       (variable v nodes (f pubs nodes)))])
                       (throw (ex-info (str "Unsupported operation - " op) {:op op :args args}))))
                   0 inst))]
-           (peer nodes inputs targets sources signals variables outputs
+           (peer (inc n) inputs targets sources signals variables outputs
              (fn [nodes] (f [] nodes)))))))))
