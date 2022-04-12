@@ -81,7 +81,7 @@
 
 (require '[hyperfiddle.rcf.analyzer :as ana])
 
-;; Tell RCF not to rewrite p/run. RCF rewrites clojure, p/run is photon, not Clojure.
+;; Tell RCF not to macroexpand p/run. RCF rewrites clojure, p/run is Photon.
 (defmethod ana/macroexpand-hook `p/run [_the-var _form _env args] `(p/run ~@args))
 (defmethod ana/macroexpand-hook `p/run2 [_the-var _form _env args] `(p/run2 ~@args))
 
