@@ -7,7 +7,7 @@
             [hyperfiddle.photon-impl.for :refer [map-by]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local1 local2 run run2]])))
+  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with]])))
 
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
@@ -78,31 +78,28 @@ Takes a photon program and returns a pair
 (defmacro for [bindings & body]
   `(for-by identity ~bindings ~@body))
 
-(defmacro local2
-  "2-peer loopback system with transfer. Returns boot task"
-  [vars & body]
-  `(let [[client# server#] (main ~@body)
-         server# (r/eval ~vars server#)
-         c->s# (m/rdv)
-         s->c# (m/rdv)
-         ServerReactor# (server# s->c# (m/sp (m/? (m/sleep 10 (m/? c->s#)))))
-         ClientReactor# (client# c->s# (m/sp (m/? (m/sleep 10 (m/? s->c#)))))
-         Reactors# (m/join {} ServerReactor# ClientReactor#)]
-     Reactors#))
+(cc/defn pair [c s]
+  (let [c->s (m/rdv)
+        s->c (m/rdv)]
+    (m/join {}
+      (s s->c (m/sp (m/? (m/sleep 10 (m/? c->s)))))
+      (c c->s (m/sp (m/? (m/sleep 10 (m/? s->c))))))))
 
-(defmacro local1
-  "single peer system (no transfer, ~@ is undefined). Returns boot task"
+(defmacro local
+  "Single peer loopback system without whitelist. Returns boot task."
   [& body]
   ; use compiler (client) because no need for exports
-  `(let [[client# server#] (main ~@body)
-         Reactor# (client# (constantly (m/sp)) m/never)]
-     Reactor#))
+  `(let [[client# server#] (main ~@body)]
+     (pair client# (r/eval server#))))
 
-(defmacro run "test entrypoint, single process" [& body]
-  `(let [dispose# ((local1 ~@body) (cc/fn [_#]) (cc/fn [_#]))]
-     dispose#))
-
-(defmacro run2 "test entrypoint, 2-peer loopback system"
+(defmacro local-with
+  "Single peer loopback system with whitelist. Returns boot task."
   [vars & body]
-  `(let [dispose# ((local2 ~vars ~@body) (cc/fn [_#]) (cc/fn [_#]))]
-     dispose#))
+  `(let [[client# server#] (main ~@body)]
+     (pair client# (r/eval ~vars server#))))
+
+(defmacro run "test entrypoint without whitelist." [& body]
+  `((local ~@body) (cc/fn [_#]) (cc/fn [_#])))
+
+(defmacro run-with "test entrypoint with whitelist." [vars & body]
+  `((local-with ~vars ~@body) (cc/fn [_#]) (cc/fn [_#])))

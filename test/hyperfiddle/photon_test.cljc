@@ -690,23 +690,23 @@
   (dispose))
 
 (tests
-  (p/run2 {} (! ~@~@1))
+  (p/run (! ~@~@1))
   % := 1)
 
 (p/def foo nil)
 (tests
-  (p/run2 {} (! (binding [foo 1] ~@~@foo)))
+  (p/run (! (binding [foo 1] ~@~@foo)))
   % := 1)
 
 (p/def foo nil)
 (tests
-  (p/run2 {} (! (binding [foo 1] ~@(new (p/fn [] ~@foo)))))
+  (p/run (! (binding [foo 1] ~@(new (p/fn [] ~@foo)))))
   % := 1)
 
 (p/def foo1 nil)
 (p/def Bar1 (p/fn [] ~@foo1))
 (tests
-  (p/run2 {} (! (binding [foo1 1] ~@(Bar1.))))
+  (p/run (! (binding [foo1 1] ~@(Bar1.))))
   % := 1)
 
 (tests
@@ -716,14 +716,14 @@
   % := true)
 
 (tests
-  (p/run2 {} (! (try ~@1 (catch hyperfiddle.photon-impl.runtime/Pending _ ::pending))))
+  (p/run (! (try ~@1 (catch hyperfiddle.photon-impl.runtime/Pending _ ::pending))))
   % := ::pending    ; Use try/catch to intercept special pending state
   % := 1)
 
 (tests
-  (p/run2 {} (! (try [(! 1) (! ~@2)]
-                     (catch hyperfiddle.photon-impl.runtime/Pending _
-                       ::pending))))
+  (p/run (! (try [(! 1) (! ~@2)]
+                 (catch hyperfiddle.photon-impl.runtime/Pending _
+                   ::pending))))
   % := 1
   % := ::pending
   ; do not see 1 again
@@ -731,17 +731,17 @@
   % := [1 2])
 
 ;(tests
-;  (p/run2 {} (! (try (dom/div)                              ; must be cleaned up by pending state - in dom layer. todo
-;                     (dom/div ~@1)
-;                     (catch hyperfiddle.photon-impl.runtime/Pending _
-;                       (dom/div ::pending)))))
+;  (p/run (! (try (dom/div)                              ; must be cleaned up by pending state - in dom layer. todo
+;                 (dom/div ~@1)
+;                 (catch hyperfiddle.photon-impl.runtime/Pending _
+;                   (dom/div ::pending)))))
 ;  % := ::pending
 ;  % := 1)
 
 ;(tests
-;  (p/run2 {} (! (try [~@(d/q) ~@(d/entity)]
-;                     (catch hyperfiddle.photon-impl.runtime/Pending _
-;                       ::pending))))
+;  (p/run (! (try [~@(d/q) ~@(d/entity)]
+;                 (catch hyperfiddle.photon-impl.runtime/Pending _
+;                   ::pending))))
 ;  % := ::pending
 ;  % := 1)
 
@@ -750,17 +750,17 @@
   ; Guidance: distribution should not impact the evaluated result of the expr
   (tests
     (p/defn Expr [x] x)
-    (p/run2 {} (! ~@(Expr. 1)))
+    (p/run (! ~@(Expr. 1)))
     % := 1)
 
   (tests
     (p/def Expr (p/fn [] (let [x %0] x)))
-    (p/run2 {} (! ~@(binding [%0 1] (Expr.))))                ; no binding transfer
+    (p/run (! ~@(binding [%0 1] (Expr.))))                ; no binding transfer
     % := 1)
 
   (tests
     (p/def Expr (p/fn [] (let [x %0] x)))
-    (p/run2 {} (! (binding [%0 1] ~@(Expr.))))                ; binding transfer
+    (p/run (! (binding [%0 1] ~@(Expr.))))                ; binding transfer
     % := 1))
 
 (tests
@@ -779,7 +779,7 @@
   ; is this problematic?
   ; leo says if transit encodes this then it will work for free
   ; thus keep clojure core behavior wrt metas
-  (p/run2 {}
+  (p/run
     (let [x (with-meta {} {:foo 1})]
       ; works with explicit do
       ; crashes currently
@@ -911,13 +911,13 @@
   % := [1])
 
 (tests
-  (p/run2 (p/vars vector) (prn (p/for [id ~@[1]] id))))
+  (p/run (prn (p/for [id ~@[1]] id))))
 
 ;; (tests
-;;   (r/run2 (r/vars hash-map true?) (! ~#'(when (true? true) :ok)))
+;;   (r/run (! ~#'(when (true? true) :ok)))
 ;;   % := :ok ; pass
 
-;;   (r/run2 (r/vars hash-map true?) (! ~#'(when (true? ~@ true) :ok)))
+;;   (r/run (! ~#'(when (true? ~@ true) :ok)))
 ;;   % := :ok)
 
 ;; (tests
@@ -937,7 +937,7 @@
 
 ;; (tests
 ;;   (def !value (atom 0))
-;;   (p/run2 (p/vars hash-map prn) (! (let [v ~(m/watch !value)] ~@ (do (prn v) :nil))))
+;;   (p/run (! (let [v ~(m/watch !value)] ~@ (do (prn v) :nil))))
 ;;   ;; print 0
 ;;   % := :nil
 ;;   (swap! !value inc)
