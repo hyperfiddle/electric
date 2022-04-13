@@ -950,3 +950,46 @@
 (tests
   (p/run (! (new (p/fn [] (binding [unbounded1 1 unbounded2 2] (+ unbounded1 unbounded2))))))
   % := 3)
+
+(tests
+  "understand how Clojure handles unbound vars"
+  ; In Clojure,
+  ; Is unbound var defined or undefined behavior?
+  ; What does it mean in CLJS?
+  (def ^:dynamic y_964)
+  (bound? #'y_964) := false
+  (.isBound #'y_964) := false
+  (def unbound (clojure.lang.Var$Unbound. #'y_964))
+  (instance? clojure.lang.Var$Unbound unbound) := true
+
+  ; leaking unbounded value
+  #?(:clj (instance? clojure.lang.Var$Unbound y_964) := true
+     :cljs true := true) ; no vars in cljs
+
+  ; not an error in clojure
+  (try y_964 (catch #?(:clj Exception) e nil))
+  (instance? clojure.lang.Var$Unbound *1) := true)
+
+
+(tests
+  "unbound var access in Photon should be defined as reactor crash"
+  ; in Photon, what is an unbounded reactive var?
+  ; Is it defined?
+  (ns-unmap *ns* 'x_975)
+  (p/def x_975)
+  (p/run (! x_975))                                         ; access unbound var
+  ; Leo: There is no valid use case for this, it is always a programmer error
+  % := :hyperfiddle.photon-impl.compiler/unbound        ; current behavior 2022-04-13, fixme, should not leak
+  ;% := ::rcf/timeout ; todo add way to check for reactor crash
+
+  (p/run (let [_ x_975] (! nil)))
+  ;% := ::rcf/timeout -- desired behavior
+  % := nil       ; current behavior 2022-04-13
+
+  ; This is not a catchable exception
+  (p/run (try x_975 (catch #?(:clj Exception
+                              :cljs :default) _
+                      ::userland-error)))
+  ; reactor crash is not caught by userland try
+  % := ::rcf/timeout
+  )
