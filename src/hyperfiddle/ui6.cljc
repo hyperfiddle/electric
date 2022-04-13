@@ -18,7 +18,7 @@
                                                      user-renderer user-renderer-impl
                                                      default-renderer default-renderer-impl
                                                      link link-renderer link-renderer-impl
-                                                     form form-impl form-impl*
+                                                     form form-impl
                                                      table table-impl
                                                      row row-impl
                                                      grid grid-impl
@@ -230,9 +230,6 @@
                                  (set-v! v')
                                  )))))))))
 
-;; TODO remove
-(p/def form-impl*)
-
 (p/def -table-picker-props {::cardinality ::one
                             ::group       nil
                             ::value       nil})
@@ -379,8 +376,7 @@
 
 (p/def row-picker)
 (p/defn row-picker-impl [V props]
-  (binding [form      form-impl
-            form-impl form-impl*] ;; restore binding
+  (binding [form      form-impl] ;; restore binding
     (let [color                 (db-color hf/db)
           [e⁻¹ a⁻¹ v⁻¹ props⁻¹] (::eav -table-picker-props)
           [E _ _ _]             (first hf/context)
