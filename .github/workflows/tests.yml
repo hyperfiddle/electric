@@ -42,10 +42,10 @@ jobs:
       run: clojure -A:test -P
 
     - name: Run tests
-      run: clojure -X:test :dirs "[\"src\" \"src-docs\" \"test\"]" :patterns "[\"hyperfiddle.photon-impl.compiler\" \"hyperfiddle.photon-impl.for\" \"hyperfiddle.photon-test\"]"
+      run: clojure -X:test :dirs "[\"src\" \"src-docs\" \"test\"]" :patterns "[\"hyperfiddle.photon-impl.*\" \"hyperfiddle.photon-test\"]"
         
   photon-nodejs:
-    if: ${{ false }} # Disabled until we fix the cljs test suite locally
+    # if: ${{ false }} # Disabled until we fix the cljs test suite locally
     runs-on: [ubuntu-latest]
     steps:
     - uses: actions/checkout@v2
@@ -54,7 +54,7 @@ jobs:
 
     - run: git status && ls vendor
 
-    - run: apt update && apt install maven -y
+    - run: sudo apt update && sudo apt install maven -y
     
     - uses: actions/setup-java@v2
       with:
@@ -70,6 +70,9 @@ jobs:
            ${{ runner.os }}-maven-
     
     - run: mvn --version
+
+    - name: Set Missionary version to b.27
+      run: mvn versions:set -DnewVersion=b.27-SNAPSHOT --file vendor/missionary/pom.xml
 
     - name: Install Missionary from submodule
       run: mvn -B --file vendor/missionary/pom.xml clean compile install

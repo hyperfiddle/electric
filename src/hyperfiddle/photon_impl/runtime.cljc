@@ -378,7 +378,7 @@
     [:apply [:global :clojure.core/+] [:literal 2] [:literal 3]]) :=
   `(peer 0 0 0 0 0 0 0
      (fn [~'nodes]
-       (latest-apply (steady +) (steady '2) (steady '3))))
+       (latest-apply (steady ~'clojure.core/+) (steady '2) (steady '3))))
 
   (emit (comp symbol str)
     [:pub [:literal 1]
@@ -387,7 +387,7 @@
   `(peer 0 0 0 0 1 0 0
      (fn [~'nodes]
        (let [~'pub0 (signal 0 (steady '1))]
-         (latest-apply (steady +) ~'pub0 (steady '2)))))
+         (latest-apply (steady ~'clojure.core/+) ~'pub0 (steady '2)))))
 
   (emit (comp symbol str)
     [:variable [:global :missionary.core/none]]) :=
@@ -427,7 +427,7 @@
                             (constant 1 1 0 0 0 0 0
                               (fn [~'nodes] (input 0)))))]
              (latest-apply
-               (latest-apply (steady hash-map)
+               (latest-apply (steady ~'clojure.core/hash-map)
                  (steady '2) ~'pub0
                  (steady '4) ~'pub1
                  (steady '5) ~'pub1)

@@ -2,12 +2,31 @@
   "Photon language unit tests"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
+            #?(:clj [hyperfiddle.rcf.analyzer :as ana])
             [missionary.core :as m])
   (:import missionary.Cancelled)
-  #?(:cljs (:require-macros [user.photon-test :refer [f2 my-inc my-var foo bar !' div widget g boom foo' inner outer foo1 bar1 foo2 foo3 foo4 x2
+  #?(:cljs (:require-macros [hyperfiddle.photon-test :refer [F2 My-inc my-var foo bar !' Div Widget G Boom #_foo' inner Outer foo1 Bar1 foo2 foo4 x2 unbounded1 unbounded2
                                                ;; if2 ping pong fib fib' expr
-                                               ]])))
+                                                              ]])))
 
+#?(:clj
+   (do
+
+     ;; Disable p/run and cloroutine/cr macroexpansion for RCF to rewrite their body before they macroexpand.
+     ;; Optional
+     (defmethod ana/macroexpand-hook `p/run [the-var form env args] `(p/run ~@args))
+     (defmethod ana/macroexpand-hook `p/run2 [_the-var _form _env args] `(p/run2 ~@args))
+     (defmethod ana/macroexpand-hook `cloroutine.core/cr [the-var form env args] `(cloroutine.core/cr ~@args))
+
+     ;; Don't expand `clojure.core/binding`, photon has a special case for it.
+     ;; Mandatory
+     (defmethod ana/macroexpand-hook `binding [_the-var _form _env [bindings & body]]
+       ;; tell the analyzer this form should not be macroxpanded again (prevent infinite loop).
+       ;; make the "implit do" explicit
+       (reduced
+        `(binding ~bindings (do ~@body))))
+     (defmethod ana/macroexpand-hook 'cljs.core/binding [_the-var _form _env [bindings & body]]
+       (reduced `(binding ~bindings (do ~@body))))))
 
 ;(defmacro with-disposal [task & body]
 ;  `(let [dispose# ~task]
@@ -275,7 +294,7 @@
 
 (p/def foo 1)
 (p/def bar 2)
-(tests
+#_(tests
   ; FIXME unstable
   "internal def"
   (def !a (atom 0))
@@ -951,11 +970,12 @@
   (p/run (! (new (p/fn [] (binding [unbounded1 1 unbounded2 2] (+ unbounded1 unbounded2))))))
   % := 3)
 
+#?(:clj 
 (tests
   "understand how Clojure handles unbound vars"
   ; In Clojure,
   ; Is unbound var defined or undefined behavior?
-  ; What does it mean in CLJS?
+  ; What does it mean in CLJS? No vars in cljs.
   (def ^:dynamic y_964)
   (bound? #'y_964) := false
   (.isBound #'y_964) := false
@@ -963,14 +983,14 @@
   (instance? clojure.lang.Var$Unbound unbound) := true
 
   ; leaking unbounded value
-  #?(:clj (instance? clojure.lang.Var$Unbound y_964) := true
-     :cljs true := true) ; no vars in cljs
+  (instance? clojure.lang.Var$Unbound y_964) := true
 
   ; not an error in clojure
-  (try y_964 (catch #?(:clj Exception) e nil))
+  (try y_964 (catch Exception e nil))
   (instance? clojure.lang.Var$Unbound *1) := true)
+)
 
-
+#?(:clj
 (tests
   "unbound var access in Photon should be defined as reactor crash"
   ; in Photon, what is an unbounded reactive var?
@@ -993,3 +1013,4 @@
   ; reactor crash is not caught by userland try
   % := ::rcf/timeout
   )
+)
