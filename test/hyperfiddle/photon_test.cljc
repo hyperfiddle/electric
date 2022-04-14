@@ -930,7 +930,7 @@
   % := [1])
 
 (tests
-  (p/run (prn (p/for [id ~@[1]] id))))
+  (p/run-with (p/vars vector) (prn (p/for [id ~@[1]] id))))
 
 ;; (tests
 ;;   (r/run (! ~#'(when (true? true) :ok)))
