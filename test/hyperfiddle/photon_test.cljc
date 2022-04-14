@@ -5,7 +5,7 @@
             #?(:clj [hyperfiddle.rcf.analyzer :as ana])
             [missionary.core :as m])
   (:import missionary.Cancelled)
-  #?(:cljs (:require-macros [hyperfiddle.photon-test :refer [f2 my-inc my-var foo bar !' div widget g boom foo' inner outer foo1 bar1 foo2 foo4 x2
+  #?(:cljs (:require-macros [hyperfiddle.photon-test :refer [F2 My-inc my-var foo bar !' Div Widget G Boom #_foo' inner Outer foo1 Bar1 foo2 foo4 x2 unbounded1 unbounded2
                                                ;; if2 ping pong fib fib' expr
                                                               ]])))
 
@@ -282,7 +282,7 @@
   % := -2
   (dispose))
 
-
+(p/def foo4 1)
 (tests
   "if with unwinding binding"
   (def !a (atom true))
