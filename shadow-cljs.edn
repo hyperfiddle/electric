@@ -41,8 +41,8 @@
                                                    :depends-on #{:shared}}}}
             :test     {:target           :node-test
                        :output-to        "out/node-tests.js"
-                       :ns-regexp        "^(hyperfiddle.photon-impl.for|user.lang)$"
+                       :ns-regexp        "^hyperfiddle.photon-[^dom].*$"
                        :build-options    {:cache-level :off}
-                       :modules          {:main {:entries [hfdl.lang user.lang]}}
+                       :modules          {:main {:entries [hyperfiddle.photon hyperfiddle.photon-test]}}
                        :dev              {:closure-defines {hyperfiddle.dev.logger/LEVEL "debug"}}
                        :compiler-options {:warnings {:redef-in-file false}}}}}
