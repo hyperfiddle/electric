@@ -970,11 +970,12 @@
   (p/run (! (new (p/fn [] (binding [unbounded1 1 unbounded2 2] (+ unbounded1 unbounded2))))))
   % := 3)
 
+#?(:clj 
 (tests
   "understand how Clojure handles unbound vars"
   ; In Clojure,
   ; Is unbound var defined or undefined behavior?
-  ; What does it mean in CLJS?
+  ; What does it mean in CLJS? No vars in cljs.
   (def ^:dynamic y_964)
   (bound? #'y_964) := false
   (.isBound #'y_964) := false
@@ -982,14 +983,14 @@
   (instance? clojure.lang.Var$Unbound unbound) := true
 
   ; leaking unbounded value
-  #?(:clj (instance? clojure.lang.Var$Unbound y_964) := true
-     :cljs true := true) ; no vars in cljs
+  (instance? clojure.lang.Var$Unbound y_964) := true
 
   ; not an error in clojure
-  (try y_964 (catch #?(:clj Exception) e nil))
+  (try y_964 (catch Exception e nil))
   (instance? clojure.lang.Var$Unbound *1) := true)
+)
 
-
+#?(:clj
 (tests
   "unbound var access in Photon should be defined as reactor crash"
   ; in Photon, what is an unbounded reactive var?
@@ -1012,3 +1013,4 @@
   ; reactor crash is not caught by userland try
   % := ::rcf/timeout
   )
+)
