@@ -1,4 +1,4 @@
-(ns hyperfiddle.q9.env 
+(ns hyperfiddle.hfql.env 
   (:require
    [cljs.analyzer :as cljs]
    [clojure.tools.analyzer.jvm :as clj]

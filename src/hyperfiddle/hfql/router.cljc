@@ -3,8 +3,8 @@
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-xp :as xp]
    [hyperfiddle.spec :as spec]
-   #?(:clj [hyperfiddle.q9 :as hfql])
-   #?(:clj [hyperfiddle.q9.env :as env]))
+   #?(:clj [hyperfiddle.hfql :as hfql])
+   #?(:clj [hyperfiddle.hfql.env :as env]))
   #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [not-found]]
                             [hyperfiddle.photon-xp :as xp])))
 
