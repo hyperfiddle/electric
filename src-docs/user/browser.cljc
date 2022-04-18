@@ -3,7 +3,7 @@
             [hyperfiddle.photon-xp :as xp]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui6 :as ui]
+            [hyperfiddle.ui :as ui]
             [missionary.core :as m]
             ;; #?(:clj [hyperfiddle.q9 :refer [hfql]])
             [user.gender-shirt-size :refer [submissions genders submission shirt-sizes sub-profile]]

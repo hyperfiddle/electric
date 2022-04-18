@@ -1,4 +1,4 @@
-(ns hyperfiddle.ui6
+(ns hyperfiddle.ui
   (:refer-clojure :exclude [boolean])
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-xp :as xp]
@@ -13,7 +13,7 @@
             [hyperfiddle.color :refer [color]])
   #?(:cljs (:require-macros [hyperfiddle.q9 :as hfql]
                             [hyperfiddle.photon-xp :as xp]
-                            [hyperfiddle.ui6 :refer [render
+                            [hyperfiddle.ui :refer [render
                                                      spec-renderer spec-renderer-impl
                                                      user-renderer user-renderer-impl
                                                      default-renderer default-renderer-impl
