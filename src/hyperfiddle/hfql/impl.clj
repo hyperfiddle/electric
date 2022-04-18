@@ -1,11 +1,11 @@
-(ns ;;^{:clj-kondo/config '{:lint-as {hyperfiddle.q9.impl/condf clojure.core/condp}}}
-    hyperfiddle.q9.impl
+(ns ;;^{:clj-kondo/config '{:lint-as {hyperfiddle.hfql.impl/condf clojure.core/condp}}}
+    hyperfiddle.hfql.impl
   (:refer-clojure :exclude [bound? munge ancestors])
   (:require
    [clojure.string :as str]
    [hyperfiddle.photon :as p]
    [hyperfiddle.api :as hf] ;; should it be :as-alias?
-   [hyperfiddle.q9.env :as env]
+   [hyperfiddle.hfql.env :as env]
    [hyperfiddle.spec :as spec]
    [hyperfiddle.walk :as walk]
    [missionary.core :as m])

@@ -7,11 +7,11 @@
             [hyperfiddle.spec :as spec]
             [missionary.core :as m]
             [datascript.db]
-            #?(:clj [hyperfiddle.q9 :as hfql])
+            #?(:clj [hyperfiddle.hfql :as hfql])
             #?(:clj [datahike.api :as d])
             [hyperfiddle.dev.logger :as log]
             [hyperfiddle.color :refer [color]])
-  #?(:cljs (:require-macros [hyperfiddle.q9 :as hfql]
+  #?(:cljs (:require-macros [hyperfiddle.hfql :as hfql]
                             [hyperfiddle.photon-xp :as xp]
                             [hyperfiddle.ui :refer [render
                                                      spec-renderer spec-renderer-impl

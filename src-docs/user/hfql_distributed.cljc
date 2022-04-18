@@ -4,13 +4,13 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
             [missionary.core :as m]
-            #?(:clj [hyperfiddle.q9 :refer [hfql]])
+            #?(:clj [hyperfiddle.hfql :refer [hfql]])
             [user.gender-shirt-size :refer [submissions genders shirt-sizes sub-profile]]
             [hyperfiddle.hfql.router :as router]
             [clojure.edn :as edn])
   #?(:cljs (:require-macros [user.hfql-distributed :refer [page query]]
                             [user.gender-shirt-size :refer [submissions genders shirt-sizes sub-profile]]
-                            [hyperfiddle.q9 :refer [hfql]])))
+                            [hyperfiddle.hfql :refer [hfql]])))
 
 ;; NOTE
 ;; shirt-sizes computed for each row, should we cache? could the DAG ensures deduplication?

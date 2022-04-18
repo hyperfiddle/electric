@@ -1,10 +1,10 @@
-(ns hyperfiddle.q9.tests
+(ns hyperfiddle.hfql.tests
   (:require [clojure.spec.alpha :as s]
             [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
-            ;; [hyperfiddle.q9 :refer [hfql]]
-            [hyperfiddle.q9 :refer [hfql]]
-            [hyperfiddle.q9.impl :as impl]
+            ;; [hyperfiddle.hfql :refer [hfql]]
+            [hyperfiddle.hfql :refer [hfql]]
+            [hyperfiddle.hfql.impl :as impl]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
             [user.gender-shirt-size :refer [submissions submission shirt-sizes genders]]))
 
