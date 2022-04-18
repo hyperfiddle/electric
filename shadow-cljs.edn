@@ -1,4 +1,4 @@
-{:deps     {:aliases [:dev :server]}
+{:deps     {:aliases [:dev]}
  :nrepl    {:port 9001}
  :dev-http {8000 "resources/public"}
  :builds   {:app      {:target           :browser
