@@ -1,7 +1,3 @@
-[submodule "vendor/cloroutine"]
-	path = vendor/cloroutine
-	url = git@github.com:leonoel/cloroutine.git
-	ignore = dirty
 [submodule "vendor/rcf"]
 	path = vendor/rcf
 	url = git@github.com:hyperfiddle/minitest.git

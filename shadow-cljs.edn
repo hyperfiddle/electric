@@ -20,25 +20,6 @@
                                                              shadow.cljs.bootstrap.browser]}
                                           :main   {:entries    [hyperfiddle.client]
                                                    :depends-on #{:shared}}}}
-            :examples {:target           :browser
-                       :devtools         {:watch-dir  "resources/public/examples"
-                                          :watch-path "/assets"
-                                          :hud        #{:errors :progress}}
-                       :compiler-options {#_#_:output-feature-set :es6
-                                          :infer-externs          :auto
-                                          :js-options             {:variable-renaming :off}
-                                          :anon-fn-naming-policy  :unmapped
-                                          :source-map             true
-                                          :source-map-timestamp   true
-                                          :output-feature-set     :es8}
-                       :output-dir       "resources/public/examples/js"
-                       :asset-path       "js"
-                       :modules          {:shared {:entries [;; HACK: Shadow should take care of it,
-                                                             ;; but for some reason it doesn't.
-                                                             shadow.cljs.bootstrap.env
-                                                             shadow.cljs.bootstrap.browser]}
-                                          :main   {:entries    [hyperfiddle.examples]
-                                                   :depends-on #{:shared}}}}
             :test     {:target           :node-test
                        :output-to        "out/node-tests.js"
                        :ns-regexp        "^hyperfiddle.photon-[^dom].*$"
