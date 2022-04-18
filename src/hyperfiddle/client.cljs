@@ -7,7 +7,7 @@
             [missionary.core :as m]
             user.browser
             user.hytradboi)
-  (:require-macros [hyperfiddle.ui6] ;; hot-reload p/defs on save
+  (:require-macros [hyperfiddle.ui] ;; hot-reload p/defs on save
                    ))
 
 ;; TODO reconnect on failures

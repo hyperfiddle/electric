@@ -5,7 +5,7 @@
             #?(:clj [hyperfiddle.q9 :refer [hfql]])
             [hyperfiddle.rcf :refer [tests ! %]]
             [hyperfiddle.ui.codemirror :as codemirror]
-            [hyperfiddle.ui6 :as ui]
+            [hyperfiddle.ui :as ui]
             [user.orders :refer [orders genders shirt-sizes]]
             dustin.y2022.edn-render)
   #?(:cljs (:require-macros [hyperfiddle.q9 :refer [hfql]]

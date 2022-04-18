@@ -2,7 +2,7 @@
   (:require [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui6 :as ui]
+            [hyperfiddle.ui :as ui]
             [missionary.core :as m]
             #?(:clj [hyperfiddle.q9 :refer [hfql]])
             [user.gender-shirt-size :refer [submissions genders shirt-sizes sub-profile]]
