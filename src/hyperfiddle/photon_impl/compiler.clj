@@ -85,10 +85,14 @@
     (throw (ex-info "Unsupported form." {:form form}))
     (clj/desugar-host-expr form env)))
 
+(def ^:dynamic *ns-map* nil)
+
+(defn- build-ns-map [] (or *ns-map* (clj/build-ns-map)))
+
 (defn resolve-var [env sym]
   (if (:js-globals env)
     (cljs/get-expander sym env)
-    (let [ns-map (clj/build-ns-map)
+    (let [ns-map (build-ns-map)
           sym-ns (when-let [ns (namespace sym)]
                    (symbol ns))
           full-ns (when sym-ns
@@ -333,7 +337,9 @@ is a macro or special form."
 
                     (if (contains? m ::node)
                       (analyze-apply env form)
-                      (analyze-form env (apply v form (if (:js-globals env) env (:locals env)) args)))))
+                      (let [mform (apply v form (if (:js-globals env) env (:locals env)) args)]
+                        (binding [*ns-map* (if (clj/ns-safe-macro v) *ns-map* (clj/build-ns-map))]
+                          (analyze-form env mform))))))
                 (let [desugared-form (desugar-host env form)]
                   (if (= form desugared-form)
                     ;; Nothing got desugared, this is not host interop, meaning `op` var wasn't found.
@@ -383,25 +389,26 @@ is a macro or special form."
                               (+ slot (-> (.get nodes) (get (not l)) count)))) slot))))
 
   (defn analyze [env form]
-    (let [[inst nodes]
-          (l/with-local nodes {}
-            (-> env
-                (normalize-env)
-                (assoc ::local true)
-                (analyze-form form)))
-          nodes (->> nodes
-                     (mapcat (fn [[peer nodes]]
-                               (map (partial merge {:peer peer}) (vals nodes))))
-                     (filter :inst)
-                     (sort-by :rank))]
-      (mapv (fn [p]
-              ((fn rec [nodes]
-                 (if-some [[{:keys [peer slot inst]} & nodes] (seq nodes)]
-                   (if (= p peer)
-                     [:pub (peek inst) [:bind slot 1 (rec nodes)]]
-                     ((void (rec nodes)) (pop inst)))
-                   (if p (peek inst) ((void [:literal nil]) (pop inst)))))
-               nodes)) [true false]))))
+    (binding [*ns-map* (clj/build-ns-map)]
+      (let [[inst nodes]
+            (l/with-local nodes {}
+              (-> env
+                  (normalize-env)
+                  (assoc ::local true)
+                  (analyze-form form)))
+            nodes (->> nodes
+                       (mapcat (fn [[peer nodes]]
+                                 (map (partial merge {:peer peer}) (vals nodes))))
+                       (filter :inst)
+                       (sort-by :rank))]
+        (mapv (fn [p]
+                ((fn rec [nodes]
+                   (if-some [[{:keys [peer slot inst]} & nodes] (seq nodes)]
+                     (if (= p peer)
+                       [:pub (peek inst) [:bind slot 1 (rec nodes)]]
+                       ((void (rec nodes)) (pop inst)))
+                     (if p (peek inst) ((void [:literal nil]) (pop inst)))))
+                 nodes)) [true false])))))
 
 (tests
 
