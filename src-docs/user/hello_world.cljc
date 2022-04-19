@@ -1,5 +1,5 @@
 (ns user.hello-world
-  (:require [hfdl.lang :as p]
+  (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! %]]))
 
 (tests
@@ -8,7 +8,7 @@
   % := "hello world"
   (dispose))
 
-(comment
+#_(tests
   "distributed hello world"
   (defn f [] #?(:cljs "hello" :clj "world"))
   (def dispose (p/run (! [(f) ~@(f)])))
