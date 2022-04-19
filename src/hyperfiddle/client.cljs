@@ -10,12 +10,19 @@
   (:require-macros [hyperfiddle.ui] ;; hot-reload p/defs on save
                    ))
 
+(defn heartbeat! [interval socket]
+  (js/setTimeout (fn rec []
+                   (when (= 1 (.-readyState socket))
+                     (.send socket "heartbeat")
+                     (js/setTimeout rec interval)))))
+
 ;; TODO reconnect on failures
 (defn connect [cb]
   (fn [s f]
     (let [socket (new js/WebSocket (str "ws://" (.. js/document -location -host) "/ws"))]
       (set! (.-onopen socket)
         (fn [_]
+          (heartbeat! 30000 socket)
           (set! (.-onopen socket) nil)
           (set! (.-onerror socket) nil)
           (set! (.-onclose socket) js/console.log)

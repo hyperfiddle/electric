@@ -78,8 +78,11 @@
   WebSocketListener
   (onWebSocketText [this msg]
     (log/trace "receive text" msg)
-    (set! token (session-suspend! session))
-    ((msg-str msg) this this))
+    (if (= "heartbeat" msg)
+      (log/trace "heartbeat")
+      (do
+        (set! token (session-suspend! session))
+        ((msg-str msg) this this))))
   (onWebSocketBinary [this payload offset length]
     (log/warn "received binary" {:length length})
     (set! token (session-suspend! session))
