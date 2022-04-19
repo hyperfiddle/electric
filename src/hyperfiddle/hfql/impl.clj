@@ -318,7 +318,7 @@
                         parent-sym (if (nil? parent)
                                      `hf/entity
                                      (if (= :many (:card parent)) '% (list `new (:name parent))))]
-                    `(hf/nav (:db hf/db) ~parent-sym ~(keyword (:form point))))]
+                    `(hf/nav hf/*$* ~parent-sym ~(keyword (:form point))))]
       :call  [nom (let [[f & _args] (:form point)
                         args-name   (map symbol (map :name (spec/args f)))
                         defaultsf   (get (:props point) ::hf/defaults)
@@ -475,10 +475,10 @@
                                                                    (:prop point)))
                                                       points))]
         ~(if (and (nil? point-id) (= 1 (count (remove :prop points)))) ;; no traversal, root expr, like: (hfql :db/id)
-           (second (val (first (emit-render (renderables points)))))
+           (nth (val (first (emit-render (renderables points)))) 2)
            (render-point e a (var-point (emit-render (renderables points)))
-                          (cond-> (emit-inputs points)
-                            (nil? point-id) (assoc ::hf/columns (columns (roots points))))))))))
+                         (cond-> (emit-inputs points)
+                           (nil? point-id) (assoc ::hf/columns (columns (roots points))))))))))
 
 (defn emit [points]
   (let [index (map-by :id points)]

@@ -2,7 +2,7 @@
   (:require
     [datahike.api :as d]
     [datahike.core :as dc]
-    [hyperfiddle.api :refer [*$*]]
+    [hyperfiddle.api :as hf :refer [*$*]]
     [hyperfiddle.dev.logger :as log]))
 
 
@@ -58,9 +58,12 @@
   (def conn (d/connect db-config)) ;; connect to "default"
   (let [$ (-> (d/with (d/db conn) schema)
               :db-after
-              (fixtures))]
-    #?(:clj (alter-var-root #'*$* (constantly $))
-       :cljs (set! *$* $))))
+              (fixtures))
+        db (hf/->DB "$" 0 nil $)]
+    #?(:clj (alter-var-root #'hf/*db* (constantly db))
+       :cljs (set! hf/*db* db))
+    #?(:clj (alter-var-root #'hf/*$* (constantly $))
+       :cljs (set! hf/*$* $))))
 
 ;#?(:clj (init-datomic)
 ;   :cljs (init-datascript))

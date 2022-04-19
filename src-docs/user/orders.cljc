@@ -8,10 +8,10 @@
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (p/defn genders []
-  (into [] (sort (new (hf/q '[:find [?e ...] :where [_ :order/gender ?e]] (:db hf/db))))))
+  (into [] (sort (new (hf/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*)))))
 
 (tests
-  (def dispose (p/run (binding [hf/db (hf/->DB "$" 0 nil hf/*$*)] (! (genders.)))))
+  (def dispose (p/run (! (genders.))))
   % := [1 2]
   (dispose))
 
@@ -29,7 +29,7 @@
                    [?e :order/gender ?gender]
                    [?e :db/ident ?ident]
                    [(hyperfiddle.api/includes-str? ?ident ?needle)]]
-             (:db hf/db)
+             hf/*$*
              hf/rules gender (or needle ""))
            (hf/q '[:in $ % ?needle
                    :find [?e ...]
@@ -37,11 +37,11 @@
                    [?e :order/type :order/shirt-size]
                    [?e :db/ident ?ident]
                    [(hyperfiddle.api/includes-str? ?ident ?needle)]]
-             (:db hf/db)
+             hf/*$*
              hf/rules (or needle ""))))))
 
 ;(tests
-;  (:db hf/db)
+;  hf/*$*
 ;  hf/*$*
 ;  (p/run (! (shirt-sizes. 2 "")))
 ;  %)
@@ -53,12 +53,11 @@
                  :where
                  [?e :order/email ?email]
                  [(hyperfiddle.api/includes-str? ?email ?needle)]]
-           (:db hf/db)
+           hf/*$*
            (or needle "")))))
 
 (tests
-  (p/run (binding [hf/db (hf/->DB "$" 0 nil hf/*$*)]
-           (! (orders. ""))))
+  (p/run (! (orders. "")))
   %)
 
 (s/fdef orders :args (s/cat :needle string?)

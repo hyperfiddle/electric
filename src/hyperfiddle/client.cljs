@@ -51,15 +51,12 @@
   (client
     (p/main
       (binding [dom/parent (dom/by-id "hf-ui-dev-root")]
-        ~@;; server
-            (binding [hf/db (hf/->DB "$" 0 nil hf/*$*)]
-              ~@;; client
-                  (dom/div
-                    (dom/class "browser")
-                    (dom/div
-                      (dom/class "view")
-                      (new user.browser/View)
-                      #_~user.hytradboi/view)))))))
+        (dom/div
+         (dom/class "browser")
+         (dom/div
+          (dom/class "view")
+          (new user.browser/View)
+          #_~user.hytradboi/view))))))
 
 (def ^:export reactor)
 

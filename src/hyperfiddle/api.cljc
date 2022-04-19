@@ -11,11 +11,6 @@
   #?(:cljs (:require-macros [hyperfiddle.api :refer [route db entity attribute value context refs props sequenceM render join-all data tx
                                                      ]])))
 
-;; TODO remove, use hf/db instead
-(def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
-
-(defrecord DB [name basis-t tempids db])
-
 (def route-state #?(:cljs (atom ()))) ;; Route state lives on the client.
 
 (defn- pad [val n coll] (into coll (repeat n val)))
@@ -37,7 +32,10 @@
 
 (def db-state #?(:clj (atom nil)))
 
+(defrecord DB [name basis-t tempids db])
 (p/def db nil)
+(def ^:dynamic *db*)
+(def ^:dynamic *$*)                                         ; available in cljs for HFQL datascript tests
 
 (p/def context nil)
 
@@ -84,15 +82,15 @@
 
 
 (tests
- (p/run (! (join-all. (p/fn [] [(p/fn [] 1) (p/fn [] 2) (p/fn [] 3)]))))
+ (p/run (! (join-all. [(p/fn [] 1) (p/fn [] 2) (p/fn [] 3)])))
  % := [1 2 3])
 
 (tests
- (p/run (! (join-all. (p/fn [] (list (p/fn [] 1) (p/fn [] 2) (p/fn [] 3))))))
+ (p/run (! (join-all. (list (p/fn [] 1) (p/fn [] 2) (p/fn [] 3)))))
  % := '(1 2 3))
 
 (tests
- (p/run (! (join-all. (p/fn [] {:a (p/fn [] 1), :b (p/fn [] 2), :c (p/fn [] 3)}))))
+ (p/run (! (join-all. {:a (p/fn [] 1), :b (p/fn [] 2), :c (p/fn [] 3)})))
  % := '{:a 1, :b 2, :c 3})
 
 (p/def ^:deprecated props {})
@@ -108,10 +106,10 @@
                (doto (apply d/q query args) log/debug))))
 
 (tests
- (d/q '[:find [?e ...] :where [_ :dustingetz/gender ?g] [?g :db/ident ?e]] *$*)
- := [:dustingetz/male :dustingetz/female]
- (m/? (m/reduce conj (q '[:find [?e ...] :where [_ :dustingetz/gender ?g] [?g :db/ident ?e]])))
- := [[:dustingetz/male :dustingetz/female]])
+ (d/q '[:find [?e ...] :where [_ :order/gender ?g] [?g :db/ident ?e]] *$*)
+ := [:order/female :order/male]
+ (m/? (m/reduce conj (q '[:find [?e ...] :where [_ :order/gender ?g] [?g :db/ident ?e]] *$*)))
+ := [[:order/female :order/male]])
 
 (defn nav!
   ([_ e] e)
@@ -126,10 +124,10 @@
                  (doto (nav! db e a) log/debug))))
 
 (tests
- (nav! *$* 14 :dustingetz/email)
+ (nav! *$* 9 :order/email)
  := "alice@example.com"
 
- (m/? (m/reduce conj (nav *$* 14 :dustingetz/email)))
+ (m/? (m/reduce conj (nav *$* 9 :order/email)))
  := ["alice@example.com"])
 
 (def rules

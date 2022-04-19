@@ -8,7 +8,7 @@
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (p/defn genders []
-  (into [] (new (hf/q '[:find [?e ...] :where [_ :order/gender ?e]] (:db hf/db)))))
+  (into [] (new (hf/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*))))
 
 (tests
   (def dispose (p/run (! (genders.))))
@@ -38,7 +38,7 @@
                    [?e :order/gender ?gender]
                    [?e :db/ident ?ident]
                    (hyperfiddle.api/needle-match ?ident ?needle)]
-             (:db hf/db)
+             hf/*$*
              hf/rules gender (or needle ""))))))
 
 (p/defn emails [needle]
@@ -47,7 +47,7 @@
                :where
                [?e :order/email ?email]
                (hyperfiddle.api/needle-match ?email ?needle)]
-         (:db hf/db)
+         hf/*$*
          hf/rules (or needle ""))))
 
 (s/fdef emails :args (s/cat :needle string?)
@@ -60,7 +60,7 @@
                  :where
                  [?e :order/email ?email]
                  (hyperfiddle.api/needle-match ?email ?needle)]
-           (:db hf/db)
+           hf/*$*
            hf/rules (or needle "")))))
 
 (s/fdef submissions :args (s/cat :needle string?
@@ -76,7 +76,7 @@
 
 
 (s/fdef sub-profile :args (s/cat :sub any?) :ret any?)
-(p/defn sub-profile [sub] (new (hf/nav (:db hf/db) sub :db/id)))
+(p/defn sub-profile [sub] (new (hf/nav hf/*$* sub :db/id)))
 
 (tests
   (hyperfiddle.photon/run (! (submission. "")))

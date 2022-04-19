@@ -17,7 +17,6 @@
     [hyperfiddle.api :as h]
     [hyperfiddle.photon-dom :as dom]
     [hyperfiddle.zero :as z]
-    [user.hfql-distributed :as dis]
     user.browser
     user.hytradboi
     [hyperfiddle.ui :as ui])
@@ -124,7 +123,7 @@
                               program (m/? ?read)]
                           (prn :booting-reactor #_program)
                           (m/? ((p/eval
-                                  #_(p/merge-vars p/exports h/exports dom/exports z/exports t/exports ui/exports dis/exports
+                                  #_(p/merge-vars p/exports h/exports dom/exports z/exports t/exports ui/exports
                                     user.browser/exports user.hytradboi/exports (p/vars log/js-log*))
                                   program) write ?read)))
                         (catch Cancelled _))) success failure)))))})
