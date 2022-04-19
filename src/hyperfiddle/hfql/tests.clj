@@ -4,7 +4,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql :refer [hfql]]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
-            [user.gender-shirt-size :refer [submissions submission shirt-sizes genders]]))
+            [user.orders :refer [orders order shirt-sizes genders]]))
 
 ;; (rcf/enable!)
 ;; (rcf/enable! false)
@@ -43,22 +43,22 @@
  % := {:order/gender {:db/ident :order/female}})
 
 (tests
- (p/run (! (hfql {(submission "") [:db/id]})))
- % := '{(user.gender-shirt-size/submission "") {:db/id 9}})
+ (p/run (! (hfql {(order "") [:db/id]})))
+ % := '{(user.orders/order "") {:db/id 9}})
 
 (tests
  "Two levels of nesting"
- (p/run (! (hfql {(submission "") [{:order/shirt-size [:db/ident]}]})))
- % := {'(user.gender-shirt-size/submission "") {:order/shirt-size {:db/ident :order/womens-large}}})
+ (p/run (! (hfql {(order "") [{:order/shirt-size [:db/ident]}]})))
+ % := {'(user.orders/order "") {:order/shirt-size {:db/ident :order/womens-large}}})
 
 (tests
  "multiplicity many"
- (p/run (! (hfql {(submissions "" false) [:db/id]})))
- % := {'(user.gender-shirt-size/submissions "" false) [{:db/id 9} {:db/id 10} {:db/id 11}]})
+ (p/run (! (hfql {(orders "") [:db/id]})))
+ % := {'(user.orders/orders "") [{:db/id 9} {:db/id 10} {:db/id 11}]})
 
 (tests
- (p/run (! (hfql {(submissions "" false) [(props :db/id {::hf/render string-renderer})]})))
- % := {'(user.gender-shirt-size/submissions "" false) [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
+ (p/run (! (hfql {(orders "") [(props :db/id {::hf/render string-renderer})]})))
+ % := {'(user.orders/orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
 
 
 
@@ -128,11 +128,11 @@
 (tests
  "env under card-n"
  (p/run (binding [hf/entity 9]
-          (! (hfql {(submissions "" false) [{:order/gender [(props :db/ident {::hf/as gender})]}
+          (! (hfql {(orders "") [{:order/gender [(props :db/ident {::hf/as gender})]}
                                             {(props :order/shirt-size {::hf/options (shirt-sizes gender "")
                                                                        ::hf/render shirt-sizes-renderer})
                                              [:db/ident]}]}))))
- % := '{(user.gender-shirt-size/submissions "" false)
+ % := '{(user.orders/orders "")
         [{:order/gender {:db/ident :order/female},
           :order/shirt-size
           [{:db/ident :order/womens-small}
@@ -156,16 +156,16 @@
 (tests
  "needle resolves from lexical env"
  (let [needle "alice"]
-   (p/run (! (hfql {(submissions needle false) [:db/id]}))))
- % := '{(user.gender-shirt-size/submissions needle false) [#:db{:id 9}]})
+   (p/run (! (hfql {(orders needle) [:db/id]}))))
+ % := '{(user.orders/orders needle) [#:db{:id 9}]})
 
 ;; DONE
 (tests
  "Free input"
- (p/run (! (hfql {(submissions . .) [:db/id]})))
- % := '{(user.gender-shirt-size/submissions . .) [#:db{:id 9}
-                                                #:db{:id 10}
-                                                #:db{:id 11}]})
+ (p/run (! (hfql {(orders .) [:db/id]})))
+ % := '{(user.orders/orders .) [#:db{:id 9}
+                                #:db{:id 10}
+                                #:db{:id 11}]})
 
 (p/defn render-typeahead [>v props]
   [:select {:value (new hf/join-all (new >v))}
@@ -175,14 +175,14 @@
 ;; DONE
 (tests
  "Two `needle` deep inputs. Not defined in lexical scope."
- (p/run (! (hfql {(submissions . .)
+ (p/run (! (hfql {(orders .)
                   [:db/id
                    :order/email
                    {(props :order/shirt-size {::hf/render render-typeahead
                                               ::hf/options (shirt-sizes gender .)})
                     [:db/ident]}
                    {:order/gender [(props :db/ident {::hf/as gender})]}]})))
- % := '{(user.gender-shirt-size/submissions . .)
+ % := '{(user.orders/orders .)
         [{:order/gender {:db/ident :order/female},
           :order/email "alice@example.com",
           :order/shirt-size
@@ -219,19 +219,19 @@
 (p/defn default [%] (or % "alice"))
 (tests
  "Input is defaulted"
- (p/run (! (hfql {(submissions ^{::hf/defaults default} . .) [:db/id]})))
- % := '{(user.gender-shirt-size/submissions . .) [#:db{:id 9}]})
+ (p/run (! (hfql {(orders ^{::hf/defaults default} .) [:db/id]})))
+ % := '{(user.orders/orders .) [#:db{:id 9}]})
 
 (tests
  "call is defaulted"
- (p/run (! (hfql {(props (submissions . .) {::hf/defaults (p/fn [[needle]] [(or needle "alice")])}) [:db/id]})))
- % := '{(user.gender-shirt-size/submissions . .) [#:db{:id 9}]})
+ (p/run (! (hfql {(props (orders .) {::hf/defaults (p/fn [[needle]] [(or needle "alice")])}) [:db/id]})))
+ % := '{(user.orders/orders .) [#:db{:id 9}]})
 
 ;; TODO hydrate defaults : put them in ::hf/inputs, it will compute when the client will sample the input
 #_(tests
    "Input is hydrated"
    (p/run (! (let [needle 9]
-               (hfql {(submissions {needle [:db/id :order/email]}) [:db/id]}))))
-   % := '{(user.gender-shirt-size/submissions needle) {:db/id 9}})
+               (hfql {(orders {needle [:db/id :order/email]}) [:db/id]}))))
+   % := '{(user.orders/orders needle) {:db/id 9}})
 
 ;; (rcf/enable! false)
