@@ -1,4 +1,4 @@
-(ns hyperfiddle.color
+(ns hyperfiddle.ui.color
   #?(:clj (:import (org.hsluv HUSLColorConverter))))
 
 (defn hsluv->rgb [h s l]
