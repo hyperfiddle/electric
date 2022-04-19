@@ -82,8 +82,9 @@
 (require '[hyperfiddle.rcf.analyzer :as ana])
 
 ;; Tell RCF not to macroexpand p/run. RCF rewrites clojure, p/run is Photon.
-(defmethod ana/macroexpand-hook `p/run [_the-var _form _env args] `(p/run ~@args))
-(defmethod ana/macroexpand-hook `p/run2 [_the-var _form _env args] `(p/run2 ~@args))
+(defmethod ana/macroexpand-hook `hyperfiddle.photon/run [_the-var _form _env args] (reduced `(hyperfiddle.photon/run ~@args)))
+(defmethod ana/macroexpand-hook `hyperfiddle.photon/run2 [_the-var _form _env args] (reduced `(hyperfiddle.photon/run2 ~@args)))
+(defmethod ana/macroexpand-hook `hyperfiddle.hfql/hfql [_the-var _form _env args] `(hyperfiddle.hfql/hfql ~@args))
 
 ;; Same for cloroutine.core/cr
 (defmethod ana/macroexpand-hook `cloroutine.core/cr [_the-var _form _env args] `(cloroutine.core/cr ~@args))
