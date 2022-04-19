@@ -10,7 +10,7 @@
             #?(:clj [hyperfiddle.hfql :as hfql])
             #?(:clj [datahike.api :as d])
             [hyperfiddle.dev.logger :as log]
-            [hyperfiddle.color :refer [color]])
+            [hyperfiddle.ui.color :refer [color]])
   #?(:cljs (:require-macros [hyperfiddle.hfql :as hfql]
                             [hyperfiddle.photon-xp :as xp]
                             [hyperfiddle.ui :refer [render
