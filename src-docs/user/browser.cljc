@@ -80,7 +80,7 @@
 
 (p/defn View []
   ~@;; server
-    (let [!db          (atom (hf/->DB "$" 0 nil hf/*$*))
+    (let [!db          (atom hf/*db*)
           Db           (m/watch !db)
           !stage       (atom nil)
           stage        (new (m/watch !stage))
