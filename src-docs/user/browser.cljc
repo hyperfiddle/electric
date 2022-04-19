@@ -6,7 +6,7 @@
             [hyperfiddle.ui :as ui]
             [missionary.core :as m]
             ;; #?(:clj [hyperfiddle.hfql :refer [hfql]])
-            [user.gender-shirt-size :refer [submissions genders submission shirt-sizes sub-profile]]
+            [user.orders :refer [orders genders order shirt-sizes sub-profile]]
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.zero :as z]
             [hyperfiddle.ui.codemirror :as cm]
@@ -15,7 +15,7 @@
             [clojure.pprint :as pprint]
             #?(:clj [datahike.api :as d]))
   #?(:cljs (:require-macros [user.browser :refer [View NavBar NotFoundPage BackButton]]
-                            [user.gender-shirt-size :refer [submissions sub-profile]]
+                            [user.orders :refer [orders sub-profile]]
                             [hyperfiddle.photon-xp :as xp])))
 
 ;; NOTE
@@ -76,7 +76,7 @@
     nil))
 
 ;; Set initial route state
-#?(:cljs (reset! hf/route-state `((user.gender-shirt-size/submissions "alice"))))
+#?(:cljs (reset! hf/route-state `((user.orders/orders "alice"))))
 
 (p/defn View []
   ~@;; server
@@ -101,7 +101,7 @@
                                   (router/router
                                    route
                                    {(sub-profile sub) [:db/id :order/email]}
-                                   {(submissions . .) [(props :db/id {::hf/link sub-profile})
+                                   {(orders .) [(props :db/id {::hf/link sub-profile})
                                                        :order/email
                                                        {(props :order/gender {::hf/options      (genders)
                                                                               ::hf/option-label :db/ident

@@ -69,6 +69,9 @@
 (s/fdef order :args (s/cat :needle string?) :ret number?)
 (p/defn order [needle] (first (orders. needle)))
 
+(s/fdef sub-profile :args (s/cat :sub any?) :ret any?)
+(p/defn sub-profile [sub] (new (hf/nav hf/*$* sub :db/id)))
+
 (tests
   (p/run (! (order. "")))
   %)
