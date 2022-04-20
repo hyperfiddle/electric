@@ -10,6 +10,29 @@ body {
     padding: 5vh 0vw;
 }
 
+#main[data-ws-connected="false"] > *{
+    filter:grayscale(1);
+}
+
+#main::before{
+    content: 'Websocket reconnecting…';
+    position: fixed;
+    top:0;
+    left: 0;
+    right: 0;
+    background-color: rgb(251 146 60); /* bg-orange-300 */
+    color: white;
+    text-align: center;
+    padding: 0.5rem;
+    z-index: 1;
+    font-weight: 400;
+    font-size: 1rem;
+    display: none;
+}
+#main[data-ws-connected="false"]::before{
+    display: block;
+}
+
 .browser {
     position: relative;
     width: 90vw;

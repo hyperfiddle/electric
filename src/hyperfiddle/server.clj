@@ -95,12 +95,12 @@
 
 (defn ws-paths [_config]
   {"/echo" (fn [_request]
-             (fn [remote read-str read-buf closed]
-               ((m/sp (try (loop [] (m/? (ws/write-str remote (m/? read-str))) (recur))
+             (fn [!remote read-str read-buf closed]
+               ((m/sp (try (loop [] (m/? (ws/write-str (deref !remote) (m/? read-str))) (recur))
                            (catch Cancelled _))) success failure)))
    "/ws"   (fn [_request]
-             (fn [remote read-str read-buf closed]
-               (let [el (event-loop remote)]
+             (fn [!remote read-str read-buf closed]
+               (let [el (event-loop (deref !remote))]
                  (run-via el
                    ((m/sp
                       (try
@@ -114,7 +114,7 @@
                               write (fn [x]
                                       (m/sp
                                         (try
-                                          (m/? (ws/write-str remote
+                                          (m/? (ws/write-str (deref !remote)
                                                  (try (transit/encode x)
                                                       (catch Throwable t
                                                         (log/error (ex-info "Failed to encode" {:value x} t))
