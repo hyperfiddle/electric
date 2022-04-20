@@ -13,17 +13,17 @@
                             [user.orders :refer [orders genders shirt-sizes]])))
 
 (p/defn App []
+  (binding [hf/render ui/render] ; default to dom so issues show up in test
+    (hfql
 
-  (hfql
+      {(orders .)
+       [:order/email
+        {(props :order/gender {::hf/options (genders)})
+         [:db/ident]}
+        {(props :order/shirt-size {::hf/options (shirt-sizes order/gender .)})
+         [:db/ident]}]}
 
-    {(orders .)
-     [:order/email
-      {(props :order/gender {::hf/options (genders)})
-       [:db/ident]}
-      {(props :order/shirt-size {::hf/options (shirt-sizes order/gender .)})
-       [:db/ident]}]}
-
-    ))
+      )))
 
 (p/defn view []
   (new codemirror/edn
