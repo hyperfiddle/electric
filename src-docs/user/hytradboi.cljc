@@ -6,6 +6,7 @@
             [hyperfiddle.rcf :refer [tests ! %]]
             [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui :as ui]
+            [missionary.core :as m]
             [user.orders :refer [orders genders shirt-sizes]]
             dustin.y2022.edn-render)
   #?(:cljs (:require-macros [hyperfiddle.hfql :refer [hfql]]
