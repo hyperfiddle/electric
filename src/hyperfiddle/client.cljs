@@ -32,16 +32,18 @@
                               #(let [decoded (transit/decode (.-data %))]
                                  (log/trace "🔽" decoded)
                                  (cb decoded)))
-                        (s (fn [x]
-                             (fn [s f]
-                               (try
-                                 (log/trace "🔼" x)
-                                 (.send socket (transit/encode x))
-                                 (s nil)
-                                 (catch :default e
-                                   (log/error "Failed to write on socket" e)
-                                   (f e)))
-                               #(log/info "Websocket writer canceled"))))
+                        (s (fn
+                             ([] (.close socket))
+                             ([x]
+                              (fn [s f]
+                                (try
+                                  (log/trace "🔼" x)
+                                  (.send socket (transit/encode x))
+                                  (s nil)
+                                  (catch :default e
+                                    (log/error "Failed to write on socket" e)
+                                    (f e)))
+                                #(log/info "Canceling websocket write")))))
                         (some-> js/document (.getElementById "main") (.setAttribute "data-ws-connected" "true")))
           on-close    (fn [socket]
                         (log/debug "WS close" socket)
@@ -55,15 +57,18 @@
       (.addEventListener socket "open" on-open)
       (.addEventListener socket "close" on-close)
       (.addEventListener socket "error" on-error)
-      #(do (log/info "Client teardown, closing socket")
-           (.close socket)))))
+      #(prn "TODO Cancel connection in connecting state"))))
 
 (defn client [[c s]]
   (m/sp
     (let [m (m/mbx)
-          w (m/? (connect m))]
-      (m/? (w s))
-      (m/? (c w m)))))
+          write-chan (m/? (connect m))]
+      (try (m/? (write-chan s))
+           (m/? (c write-chan m))
+           (catch :default err
+             (write-chan) ; close channel socket
+             (throw err)
+             )))))
 
 (def main
   (client
