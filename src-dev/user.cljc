@@ -50,6 +50,9 @@
   ; Make sure to eval on JVM first, then save file to trigger cljs compile and reload
   (shadow/watch :app)
 
+  ; If needed, start a server
+  (require 'shadow.cljs.devtools.server)
+  (shadow.cljs.devtools.server/start!)
   )
 
 ;; Tests
