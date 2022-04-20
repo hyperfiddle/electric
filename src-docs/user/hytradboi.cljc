@@ -26,7 +26,10 @@
     ))
 
 (p/defn view []
-  (new codemirror/edn ~@#_"server" (ui/with-spec-render (App.))))
+  (new codemirror/edn
+       ~@#_"server"
+       (binding [hf/db hf/*db*]
+         (ui/with-spec-render (App.)))))
 
 (comment
   (def !x (atom "alice"))
