@@ -87,44 +87,40 @@
           [db message] (transact! (Db.) stage)]
       (binding [hf/db (xp/deduping db)]
         ~@;; client
-          (dom/div
-           (dom/class "browser")
-           (binding [hf/route (NavBar.)]
-             hf/route ;; hack
-             (dom/div
-              (dom/class "view")
-              (let [route hf/route ;; TODO binding unification
-                    tx    ~@(ui/with-spec-render
-                              (binding [hf/render        ui/render
-                                        router/not-found NotFoundPage]
-                                (let [[_ sub] route]
-                                  (router/router
-                                   route
-                                   {(sub-profile sub) [:db/id :order/email]}
-                                   {(orders .) [(props :db/id {::hf/link sub-profile})
-                                                       :order/email
-                                                       {(props :order/gender {::hf/options      (genders)
-                                                                              ::hf/option-label :db/ident
-                                                                              ::hf/render       ui/select-options}) [(props :db/ident {::hf/as gender})]}
-                                                       {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
-                                                                                  ::hf/option-label :db/ident}) [:db/ident]}]}))))]
-                (dom/div (dom/class "hf-staging-area")
-                         (dom/div (dom/class "hf-error-wrapper")
-                                  (let [tx' (cm/CodeMirror. {:parent dom/parent} read-edn write-edn [])]
-                                    (do tx'
-                                        ~@(xp/forget (reset! !stage tx'))
+          (binding [hf/route (NavBar.)]
+            hf/route ;; hack
+            (let [route hf/route ;; TODO binding unification
+                  tx    ~@(ui/with-spec-render
+                            (binding [hf/render        ui/render
+                                      router/not-found NotFoundPage]
+                              (let [[_ sub] route]
+                                (router/router
+                                 route
+                                 {(sub-profile sub) [:db/id :order/email]}
+                                 {(orders .) [(props :db/id {::hf/link sub-profile})
+                                              :order/email
+                                              {(props :order/gender {::hf/options      (genders)
+                                                                     ::hf/option-label :db/ident
+                                                                     ::hf/render       ui/select-options}) [(props :db/ident {::hf/as gender})]}
+                                              {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
+                                                                         ::hf/option-label :db/ident}) [:db/ident]}]}))))]
+              (dom/div (dom/class "hf-staging-area")
+                       (dom/div (dom/class "hf-error-wrapper")
+                                (let [tx' (cm/CodeMirror. {:parent dom/parent} read-edn write-edn [])]
+                                  (do tx'
+                                      ~@(xp/forget (reset! !stage tx'))
                                         ;; TODO use z/fsm or z/instant
-                                        #_(let [click (dom/button (dom/text "transact!")
-                                                        (new (->> (dom/events dom/parent "click")
-                                                               (m/eduction (map (constantly true)))
-                                                               (ui/continuous))))]
-                                            ~@(xp/forget (new (->> (p/fn [] click)
-                                                                (m/eduction (filter boolean?)
-                                                                  (map (partial transact!! !db !stage)))
-                                                                (ui/continuous)))))
-                                        (dom/code (dom/class "hf-error")
-                                                  (dom/style {"margin" "1rem 0"})
-                                                  (dom/text message)))))))))))))
+                                      #_(let [click (dom/button (dom/text "transact!")
+                                                                (new (->> (dom/events dom/parent "click")
+                                                                          (m/eduction (map (constantly true)))
+                                                                          (ui/continuous))))]
+                                          ~@(xp/forget (new (->> (p/fn [] click)
+                                                                 (m/eduction (filter boolean?)
+                                                                             (map (partial transact!! !db !stage)))
+                                                                 (ui/continuous)))))
+                                      (dom/code (dom/class "hf-error")
+                                                (dom/style {"margin" "1rem 0"})
+                                                (dom/text message)))))))))))
 
 (def exports (p/vars transact! ui/continuous ui/debounce not-empty boolean? transact!!))
 
