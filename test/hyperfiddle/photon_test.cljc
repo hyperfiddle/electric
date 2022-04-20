@@ -90,7 +90,8 @@
 (tests
   "reactive addition (wrong way – two propagation frames, no sharing)"
   (def !x (atom 0))
-  (def dispose (p/run (! (let [X (m/watch !x)] (+ (X.) (X.))))))
+  (def dispose (p/run (! (let [X (m/watch !x)]
+                           (+ (X.) (X.))))))                ; bad - two instances, no sharing
   % := 0
   (swap! !x inc)
   % := 1
@@ -704,7 +705,7 @@
   % := ::rcf/timeout
   (dispose)
 
-  (def dispose (p/run (let [_ (! :bang)])))
+  (def dispose (p/run (let [_ (! :bang)])))                 ; todo, cc/let should sequence effects for cc compat
   % := ::rcf/timeout
   (dispose))
 
