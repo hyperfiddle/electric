@@ -28,16 +28,15 @@
      (defmethod ana/macroexpand-hook 'cljs.core/binding [_the-var _form _env [bindings & body]]
        (reduced `(binding ~bindings (do ~@body))))))
 
-;(defmacro with-disposal [task & body]
-;  `(let [dispose# ~task]
-;     ~@body
-;     (dispose#)))
-;
-;(tests
-;  "hello world"
-;  (with-disposal
-;    (p/run (! "hello world"))
-;    % := "hello world"))
+(defmacro with [task & body]
+  `(let [dispose# ~task]
+     ~@body
+     (dispose#)))
+
+(tests
+  "hello world"
+  (with (p/run (! "hello world"))
+    % := "hello world"))
 
 (tests
   "literals are lifted"
@@ -764,6 +763,62 @@
 ;                   ::pending))))
 ;  % := ::pending
 ;  % := 1)
+
+(defn hook [mount! unmount!]
+  (m/observe (fn [!]
+               (mount!)
+               (! nil)
+               #(unmount!))))
+
+(tests "object lifecycle"
+  (def !x (atom 0))
+  (def dispose!
+    (p/run (!
+             (let [x (new (m/watch !x))]
+               (if (even? x)
+                 (new (p/fn [x]
+                        (new (hook (partial ! 'mount) (partial ! 'unmount)))
+                        x)
+                      x))))))
+
+  % := 'mount
+  % := 0
+  (swap! !x inc)
+  % := nil                                               ; fixme, expected unmount before nil, bug?
+  % := 'unmount
+  (swap! !x inc)
+  % := 'mount
+  % := 2
+  (dispose!)
+  % := 'unmount)
+
+(comment
+  "object lifecycle, cleaner, no bug in this one"
+  (defn hook [x !]
+    (m/observe (fn [send!]
+                 (! 'mount)
+                 (send! x)
+                 #(! 'unmount))))
+
+  (p/defn Foo [x !]
+    (new (hook x !)))
+  
+  (def !x (atom 0))
+  (def dispose
+    (p/run (!
+             (let [x (new (m/watch !x))]
+               (if (even? x)
+                 (Foo. x !))))))
+  % := 'mount
+  % := 0
+  (swap! !x inc)
+  % := 'unmount
+  % := nil
+  (swap! !x inc)
+  % := 'mount
+  % := 2
+  (dispose)
+  % := 'unmount)
 
 (comment
   "photon binding transfer"
