@@ -72,6 +72,13 @@
   % := 1
   (dispose))
 
+(comment "can't boot flow from Clojure global"
+  ; Leo: this one is not supported, because there's no way to distinguish it from clojure new
+  (def !x (atom 0))
+  (def X (m/watch !x))
+  (with (p/run (! (new X)))                                 ; unsupported
+    % := 0 (swap! !x inc) % := 1))
+
 (tests
   "reactive quote escapes to flow layer"
   (def dispose
