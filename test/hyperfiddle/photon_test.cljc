@@ -1090,10 +1090,7 @@
   )
 )
 
-(defmacro with [run & body]
-  `(let [dispose# ~run]
-     ~@body
-     (dispose#)))
+
 
 (tests
  "Initial p/def binding is readily available in p/run"
