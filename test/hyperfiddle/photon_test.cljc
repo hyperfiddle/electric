@@ -5,8 +5,8 @@
             #?(:clj [hyperfiddle.rcf.analyzer :as ana])
             [missionary.core :as m])
   (:import missionary.Cancelled)
-  #?(:cljs (:require-macros [hyperfiddle.photon-test :refer [F2 My-inc my-var foo bar !' Div Widget G Boom #_foo' inner Outer foo1 Bar1 foo2 foo4 x2 unbounded1 unbounded2 X
-                                               ;; if2 ping pong fib fib' expr
+  #?(:cljs (:require-macros [hyperfiddle.photon-test :refer [F2 My-inc my-var foo bar !' Div Widget G Boom #_foo' inner Outer foo1 Bar1 foo2 foo4 x2 unbounded1 unbounded2 X X_136 X_146
+                                               If2 ;; ping pong fib fib' expr
                                                               ]])))
 
 #?(:clj
