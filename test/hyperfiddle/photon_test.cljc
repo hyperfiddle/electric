@@ -813,7 +813,7 @@
   (dispose!)
   % := 'unmount)
 
-(tests
+(comment
   "object lifecycle, cleaner, no bug in this one"
   (defn hook [x !]
     (m/observe (fn [send!]
