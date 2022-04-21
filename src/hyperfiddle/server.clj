@@ -19,6 +19,7 @@
     [hyperfiddle.zero :as z]
     user.browser
     user.hytradboi
+    user.orders-ui
     [hyperfiddle.ui :as ui])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)
