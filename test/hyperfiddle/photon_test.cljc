@@ -131,6 +131,25 @@
   % := -2
   (dispose))
 
+(tests "p/def without initial value"
+  (def !x (atom 0))
+  (p/def X_136)
+  (def dispose (p/run (! (binding [X_136 (m/watch !x)]
+                           (X_136.)))))
+  % := 0
+  (swap! !x inc)
+  % := 1
+  (dispose))
+
+(tests "p/def with initial value"
+  (def !x (atom 0))
+  (p/def X_146 (m/watch !x))
+  (def dispose (p/run (! (X_146.))))
+  % := 0
+  (swap! !x inc)
+  % := 1
+  (dispose))
+
 (tests
   "foreign clojure collections. clojure.core/map is not incremental, the arguments are"
   (def !xs (atom [1 2 3]))
