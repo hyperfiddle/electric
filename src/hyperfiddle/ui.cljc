@@ -251,11 +251,13 @@
 
 (defn set-route! [href _event] (hf/navigate! href))
 
+(defn- offload [f] #?(:clj f, :cljs #(js/setTimeout f 1))) ; HACK 
+
 (defmacro link [href on-click & body]
   `(xp/forget (dom/element "a" (dom/attribute "href" (str ~href))
-                        (unquote (->> (dom/events dom/parent "click")
+                        (new (->> (dom/events dom/parent "click")
                                       (m/eduction (map dom/stop-event!)
-                                                  (map ~on-click)
+                                                  (map (offload ~on-click)) ;; HACK offload because reactor will crash if a watched atom is swapped by `on-click` 
                                                   (map (constantly nil)))
                                       (m/reductions {} nil)
                                       (m/relieve {})))
