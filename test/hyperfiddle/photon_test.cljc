@@ -1,7 +1,7 @@
 (ns hyperfiddle.photon-test
   "Photon language unit tests"
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :as rcf :refer [tests ! %]]
+            [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             #?(:clj [hyperfiddle.rcf.analyzer :as ana])
             [missionary.core :as m])
   (:import missionary.Cancelled)
@@ -27,11 +27,6 @@
         `(binding ~bindings (do ~@body))))
      (defmethod ana/macroexpand-hook 'cljs.core/binding [_the-var _form _env [bindings & body]]
        (reduced `(binding ~bindings (do ~@body))))))
-
-(defmacro with [task & body]
-  `(let [dispose# ~task]
-     ~@body
-     (dispose#)))
 
 (tests
   "hello world"
@@ -176,7 +171,7 @@
   % := [2 3 4]
   (dispose)
 
-  "destructuring"
+  "let destructuring"
   (def dispose
     (p/run (! (let [[a] (new (m/watch (atom [:a])))] a))))
   % := :a
@@ -241,7 +236,7 @@
   % := 2
   (dispose))
 
-(comment
+(tests
   ; TBD, negotiating with Leo
   ; Leo: by eager we mean, when inside the if2 body, a and b
   ; are already evaluated (the flow has been run but not sampled)
@@ -818,7 +813,7 @@
   (dispose!)
   % := 'unmount)
 
-(comment
+(tests
   "object lifecycle, cleaner, no bug in this one"
   (defn hook [x !]
     (m/observe (fn [send!]
