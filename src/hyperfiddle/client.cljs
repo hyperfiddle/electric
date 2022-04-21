@@ -7,7 +7,8 @@
             [missionary.core :as m]
             ["reconnecting-websocket" :as ReconnectingWebSocket]
             user.browser
-            user.hytradboi)
+            user.hytradboi
+            user.orders-ui)
   (:require-macros [hyperfiddle.ui] ;; hot-reload p/defs on save
                    ))
 
@@ -80,7 +81,8 @@
          (dom/div
           (dom/class "view")
           (new user.browser/View)
-          #_~user.hytradboi/view))))))
+          #_~user.hytradboi/view
+          #_(new user.orders-ui/Orders)))))))
 
 (def ^:export reactor)
 
