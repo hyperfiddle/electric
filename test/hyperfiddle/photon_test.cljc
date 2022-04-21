@@ -5,7 +5,7 @@
             #?(:clj [hyperfiddle.rcf.analyzer :as ana])
             [missionary.core :as m])
   (:import missionary.Cancelled)
-  #?(:cljs (:require-macros [hyperfiddle.photon-test :refer [F2 My-inc my-var foo bar !' Div Widget G Boom #_foo' inner Outer foo1 Bar1 foo2 foo4 x2 unbounded1 unbounded2
+  #?(:cljs (:require-macros [hyperfiddle.photon-test :refer [F2 My-inc my-var foo bar !' Div Widget G Boom #_foo' inner Outer foo1 Bar1 foo2 foo4 x2 unbounded1 unbounded2 X
                                                ;; if2 ping pong fib fib' expr
                                                               ]])))
 
@@ -1072,16 +1072,14 @@
   "unbound var access in Photon should be defined as reactor crash"
   ; in Photon, what is an unbounded reactive var?
   ; Is it defined?
-  #_(ns-unmap *ns* 'x_975)
+
   (p/def x_975)
   (p/run (! x_975))                                         ; access unbound var
   ; Leo: There is no valid use case for this, it is always a programmer error
-  (instance? clojure.lang.Var$Unbound %) := true
-  ;% := ::rcf/timeout ; todo add way to check for reactor crash
+  % := ::rcf/timeout ; todo add way to check for reactor crash
 
   (p/run (let [_ x_975] (! nil)))
-  ;% := ::rcf/timeout -- desired behavior
-  % := nil       ; current behavior 2022-04-13
+  % := ::rcf/timeout
 
   ; This is not a catchable exception
   (p/run (try x_975 (catch #?(:clj Exception
@@ -1091,3 +1089,17 @@
   % := ::rcf/timeout
   )
 )
+
+(defmacro with [run & body]
+  `(let [dispose# ~run]
+     ~@body
+     (dispose#)))
+
+(tests
+ "Initial p/def binding is readily available in p/run"
+ (def !x (atom 0))
+ (p/def X (m/watch !x))
+ (with (p/run (! (X.)))
+       % := 0
+       (swap! !x inc)
+       % := 1))
