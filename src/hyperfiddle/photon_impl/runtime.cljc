@@ -306,7 +306,7 @@
                       (loop []
                         (let [>x (m/? (aget ctx (int 1)))]
                           (m/amb= (m/?> >x) (recur))))))
-           (m/relieve (partial map into))
+           (m/relieve (partial mapv into))
            (m/stream!)
            (foreach write)
            (m/stream!)))))))
