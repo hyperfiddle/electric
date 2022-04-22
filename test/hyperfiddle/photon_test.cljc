@@ -1100,3 +1100,9 @@
        % := 0
        (swap! !x inc)
        % := 1))
+
+(comment ;; Hangs the REPL
+ (let [n 1000]
+   (dotimes [_ 8]
+     (with (p/run (! (p/for [x (range n)] x)))
+           (count %) := n))))
