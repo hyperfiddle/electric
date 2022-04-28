@@ -38,9 +38,11 @@ and returning a task that runs the local reactor."
 
 (defmacro def
   ([sym] `(hyperfiddle.photon/def ~sym ::c/unbound))
-  ([sym form]
-   (when-not (:js-globals &env)
-     `(def ~(vary-meta sym assoc :macro true ::c/node `(quote ~form))))))
+  ([sym form] 
+   ;; GG: Expand to an unbound var with body stored in ::c/node meta.
+   ;;     Clojure compiler will analyze vars metas, which would analyze form as clojure, so we quote it.
+   ;;     ClojureScript do not have vars at runtime and will not analyze or emit vars meta. No need to quote.
+   `(def ~(vary-meta sym assoc ::c/node (if (:js-globals &env) form `(quote ~form))))))
 
 (def path r/path)
 

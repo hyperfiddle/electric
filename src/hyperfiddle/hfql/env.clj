@@ -1,29 +1,11 @@
-(ns hyperfiddle.hfql.env 
+(ns hyperfiddle.hfql.env
   (:require
    [cljs.analyzer :as cljs]
    [clojure.tools.analyzer.jvm :as clj]
+   [hyperfiddle.photon-impl.compiler :as compiler]
    [hyperfiddle.walk :as walk])
   (:import
    (clojure.lang Var Box IObj)))
-
-(defn- resolve-var [env sym]
-  (if (:js-globals env)
-    (cljs/get-expander sym env)
-    (let [ns-map (clj/build-ns-map)
-          sym-ns (when-let [ns (namespace sym)]
-                   (symbol ns))
-          full-ns (when sym-ns
-                    (or (-> ns-map (get (:ns env)) (get :aliases) (get sym-ns))
-                        (:ns (ns-map sym-ns))))]
-      (when (or (not sym-ns) full-ns)
-        (let [name        (if sym-ns (-> sym name symbol) sym)
-              mapped-name (-> ns-map
-                              (get (or full-ns (:ns env)))
-                              :mappings (get name))]
-          (if (some? mapped-name)
-            mapped-name
-            ;; java.lang is implicit so not listed in ns form or env
-            (Compiler/maybeResolveIn (the-ns (:ns env)) sym)))))))
 
 (defn- resolve-runtime "
   Returns the fully qualified symbol of the var resolved by given symbol at runtime, or nil if the var doesn't exist or
@@ -38,9 +20,9 @@
                    (throw (ex-info "Failed to resolve" {:sym sym} t))))]
       (if (.-val b)
         (:name v)
-        (when-let [^Var v (resolve-var env sym)]
+        (when-let [^Var v (compiler/resolve-var env sym)]
           (.toSymbol v))))
-    (let [v (resolve-var env sym)]
+    (let [v (compiler/resolve-var env sym)]
       (or (when (instance? Var v) (.toSymbol ^Var v))
           (when (instance? Class v) (symbol (.getName ^Class v)))))))
 
