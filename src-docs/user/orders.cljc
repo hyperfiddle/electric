@@ -2,9 +2,7 @@
   (:require [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [! % tests]])
-  #?(:cljs (:require-macros [user.orders :refer [genders shirt-sizes order orders]])))
-
+            [hyperfiddle.rcf :refer [! % tests]]))
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (p/defn genders []

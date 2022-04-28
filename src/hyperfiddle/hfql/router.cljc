@@ -4,9 +4,7 @@
    [hyperfiddle.photon-xp :as xp]
    [hyperfiddle.spec :as spec]
    #?(:clj [hyperfiddle.hfql :as hfql])
-   #?(:clj [hyperfiddle.hfql.env :as env]))
-  #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [not-found]]
-                            [hyperfiddle.photon-xp :as xp])))
+   #?(:clj [hyperfiddle.hfql.env :as env])))
 
 (defn- fncall [sexpr] (and (seq? sexpr) (symbol? (first sexpr))))
 

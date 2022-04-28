@@ -5,7 +5,6 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
             [missionary.core :as m]
-            ;; #?(:clj [hyperfiddle.hfql :refer [hfql]])
             [user.orders :refer [orders genders order shirt-sizes sub-profile]]
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.zero :as z]
@@ -13,10 +12,7 @@
             [clojure.edn :as edn]
             [hyperfiddle.dev.logger :as log]
             [clojure.pprint :as pprint]
-            #?(:clj [datahike.api :as d]))
-  #?(:cljs (:require-macros [user.browser :refer [View NavBar NotFoundPage BackButton]]
-                            [user.orders :refer [orders sub-profile]]
-                            [hyperfiddle.photon-xp :as xp])))
+            #?(:clj [datahike.api :as d])))
 
 ;; NOTE
 ;; shirt-sizes computed for each row, should we cache? could the DAG ensures deduplication?
@@ -113,16 +109,16 @@
                                       #_(let [click (dom/button (dom/text "transact!")
                                                                 (new (->> (dom/events dom/parent "click")
                                                                           (m/eduction (map (constantly true)))
-                                                                          (ui/continuous))))]
+                                                                          (xp/continuous))))]
                                           ~@(xp/forget (new (->> (p/fn [] click)
                                                                  (m/eduction (filter boolean?)
                                                                              (map (partial transact!! !db !stage)))
-                                                                 (ui/continuous)))))
+                                                                 (xp/continuous)))))
                                       (dom/code (dom/class "hf-error")
                                                 (dom/style {"margin" "1rem 0"})
                                                 (dom/text message)))))))))))
 
-(def exports (p/vars transact! ui/continuous ui/debounce not-empty boolean? transact!!))
+(def exports (p/vars transact! ui/debounce not-empty boolean? transact!!))
 
 
 (comment

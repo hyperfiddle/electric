@@ -6,9 +6,7 @@
             [hyperfiddle.todomvc :as t]
             [hyperfiddle.examples.seven-guis.counter :as counter]
             [hyperfiddle.examples.seven-guis.temperatures :as temperature]
-            [user.browser :as browser]
-            )
-  #?(:cljs (:require-macros [hyperfiddle.router :refer [router hello-world]])))
+            [user.browser :as browser]))
 
 (p/def router
   #'(dom/div (dom/style {"display"        "grid"
