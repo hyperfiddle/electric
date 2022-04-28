@@ -4,7 +4,7 @@
   (:require
    [clojure.string :as str]
    [hyperfiddle.photon :as p]
-   [hyperfiddle.api :as hf] ;; should it be :as-alias?
+   [hyperfiddle.api :as-alias hf] ;; should it be :as-alias?
    [hyperfiddle.hfql.env :as env]
    [hyperfiddle.spec :as spec]
    [hyperfiddle.walk :as walk]
