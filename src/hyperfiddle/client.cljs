@@ -8,9 +8,9 @@
             ["reconnecting-websocket" :as ReconnectingWebSocket]
             user.browser
             user.hytradboi
-            user.orders-ui)
-  (:require-macros [hyperfiddle.ui] ;; hot-reload p/defs on save
-                   ))
+            user.orders-ui
+            hyperfiddle.ui ; hot-reload p/defs on save
+            ))
 
 (defn heartbeat! [interval socket]
   (js/setTimeout (fn rec []

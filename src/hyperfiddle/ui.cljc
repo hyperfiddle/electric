@@ -7,34 +7,9 @@
             [hyperfiddle.spec :as spec]
             [missionary.core :as m]
             [datascript.db]
-            #?(:clj [hyperfiddle.hfql :as hfql])
             #?(:clj [datahike.api :as d])
             [hyperfiddle.dev.logger :as log]
-            [hyperfiddle.ui.color :refer [color]])
-  #?(:cljs (:require-macros [hyperfiddle.hfql :as hfql]
-                            [hyperfiddle.photon-xp :as xp]
-                            [hyperfiddle.ui :refer [render
-                                                     spec-renderer spec-renderer-impl
-                                                     user-renderer user-renderer-impl
-                                                     default-renderer default-renderer-impl
-                                                     link link-renderer link-renderer-impl
-                                                     form form-impl
-                                                     table table-impl
-                                                     row row-impl
-                                                     grid grid-impl
-                                                     grid-row grid-row-impl
-                                                     table-picker table-picker-impl -table-picker-props
-                                                     options-picker options-picker-impl
-                                                     row-picker row-picker-impl
-                                                     input
-                                                     ;; boolean boolean-impl
-                                                     render-inputs
-                                                     render-options
-                                                     typeahead
-                                                     select-options select-options-impl
-                                                     with-spec-render
-                                                     ;; render-mode-selector
-                                                     ]])))
+            [hyperfiddle.ui.color :refer [color]]))
 
 ;;;;;;;;;;;;;;;;;
 ;; UI ELEMENTS ;;
@@ -73,8 +48,6 @@
           (try (m/? (m/sleep delay x))
                (catch #?(:clj Exception, :cljs :default) _ (m/?> m/none))))))
 
-(defn ^:deprecated continuous [& args] (apply hyperfiddle.photon-xp/continuous args))
-
 (defn adapt-checkbox-props [props]
   (if (= "checkbox" (:dom.attribute/type props))
     (-> props
@@ -90,7 +63,7 @@
                  :else                     (dom/attribute (name k) v)))
     (new (->> (dom/events dom/parent "input")
            (m/eduction (map extractor))
-           (continuous)))))
+           (xp/continuous)))))
 
 ;; (defn set-state! [!atom v] (reset! !atom v))
 
@@ -184,7 +157,7 @@
                                              ~@(new (->> (dom/events dom/parent "input")
                                                       (m/eduction (map dom/target-value)
                                                         (map index))
-                                                      (continuous)))))))]
+                                                      (xp/continuous)))))))]
               value')]
       (hf/tx. value' props))))
 
