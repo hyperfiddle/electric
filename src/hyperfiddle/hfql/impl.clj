@@ -390,7 +390,7 @@
 (def ^:dynamic *index*)
 (def ^:dynamic *props?* false)
 
-(defmacro render* [e a V props]
+(defn render* [e a V props]
   `(let [V#     ~V
          props# ~props]
      (binding [hf/context (cons [~e ~a (p/fn [] (new hf/data V#)) props#] hf/context)]
@@ -400,7 +400,7 @@
 
 (defn render-point
   ([V props] (render-point nil nil V props))
-  ([e a V props] (if *props?* V `(render* ~(or e `(p/fn [])) ~a ~V ~props))))
+  ([e a V props] (if *props?* V `(hyperfiddle.hfql/render ~(or e `(p/fn [])) ~a ~V ~props))))
 
 (defn columns [points] (mapv symbolic-key (sort-by :position (remove #(or (:prop %) (= :arg (:role %))) points)))) ;; FIXME remove predicate is flipped, columns can’t be props and should be either call or nav. 
 

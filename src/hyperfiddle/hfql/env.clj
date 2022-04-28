@@ -32,7 +32,10 @@
   (assert (symbol? sym) (str "Can’t resolve " (pr-str sym)))
   (if (:js-globals env)
     (let [b (Box. true)
-          v (cljs/resolve-var env sym (fn [env prefix suffix] (cljs/confirm-var-exists env prefix suffix (fn [_ _ _] (set! (.-val b) false)))))]
+          v (try (with-redefs [cljs/confirm-ns (constantly nil)] ; :db/id referenced as db/id would trigger a "no such namespace: db" warning.
+                   (cljs/resolve-var env sym (fn [env prefix suffix] (cljs/confirm-var-exists env prefix suffix (fn [_ _ _] (set! (.-val b) false))))))
+                 (catch Throwable t
+                   (throw (ex-info "Failed to resolve" {:sym sym} t))))]
       (if (.-val b)
         (:name v)
         (when-let [^Var v (resolve-var env sym)]
