@@ -6,10 +6,13 @@
             [hyperfiddle.rcf :refer [tests ! %]]
             [hyperfiddle.photon :as p :refer [vars]]
             [missionary.core :as m]
+            [hyperfiddle.hfql :as hfql]
             #?(:clj [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require-macros [hyperfiddle.api :refer [route db entity attribute value context refs props sequenceM render join-all data tx
                                                      ]])))
+
+(defmacro hfql [& body] `(hfql/hfql ~@body))
 
 (def route-state #?(:cljs (atom ()))) ;; Route state lives on the client.
 
