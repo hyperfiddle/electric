@@ -1,14 +1,18 @@
 (ns hyperfiddle.photon-impl.compiler
   (:require [clojure.tools.analyzer.jvm :as clj]
             [cljs.analyzer :as cljs]
+            [cljs.util]
             [hyperfiddle.photon-impl.local :as l]
             [hyperfiddle.photon-impl.runtime :as r]
-            [hyperfiddle.rcf :refer [tests]]
-            [cljs.analyzer.api :as api])
+            [hyperfiddle.rcf :refer [tests]])
   (:import cljs.tagged_literals.JSValue
-           (clojure.lang Box Var)))
+           (clojure.lang Var)))
 
-(def arg-sym
+;; %1, %2 … %n p/def generator.
+;; A lazy seq of vars. Forcing the seq will intern them.
+;; GG: Why are %n macros?
+;;     Since they are declared in a clojure file, they must be tagged as :macro true for cljs analyzer to resolve them.
+(def arg-sym 
   (map (comp symbol
          (partial intern *ns*)
          (fn [i]
@@ -16,6 +20,8 @@
              {:macro true ::node ::unbound})))
     (range)))
 
+;; GG: Why is `exception` a macro?
+;;     Because it's declared in a clojure file, it must be tagged as :macro true for cljs analyzer to resolve it.
 (doto (def exception) (alter-meta! assoc :macro true ::node ::unbound))
 
 (defmacro ctor-call [class arity]
@@ -85,46 +91,132 @@
     (throw (ex-info "Unsupported form." {:form form}))
     (clj/desugar-host-expr form env)))
 
-(def ^:dynamic *ns-map* nil)
+;;; Resolving
 
-(defn- build-ns-map [] (or *ns-map* (clj/build-ns-map)))
+(defn resolve-ns "Builds a description of a namespace. Returns nil if no namespace can be found for the given symbol."
+  [ns-sym]
+  (when-let [ns (find-ns ns-sym)]
+    {:mappings (merge (ns-map ns) {'in-ns #'clojure.core/in-ns
+                                   'ns    #'clojure.core/ns})
+     :aliases  (reduce-kv (fn [a k v] (assoc a k (ns-name v)))
+                          {} (ns-aliases ns))
+     :ns       (ns-name ns)}))
 
-(defn resolve-var [env sym]
-  (if (:js-globals env)
-    (cljs/get-expander sym env)
-    (let [ns-map (build-ns-map)
-          sym-ns (when-let [ns (namespace sym)]
-                   (symbol ns))
-          full-ns (when sym-ns
-                    (or (-> ns-map (get (:ns env)) (get :aliases) (get sym-ns))
-                        (:ns (ns-map sym-ns))))]
-      (when (or (not sym-ns) full-ns)
-        (let [name        (if sym-ns (-> sym name symbol) sym)
-              mapped-name (-> ns-map
-                              (get (or full-ns (:ns env)))
-                              :mappings (get name))]
-          (if (some? mapped-name)
-            mapped-name
-            ;; java.lang is implicit so not listed in ns form or env
-            (clojure.lang.Compiler/maybeResolveIn (the-ns (:ns env)) sym)))))))
+;; GG: Abstraction on resolved vars.
+;;     A symbol may resolve to:
+;;     - nil
+;;     - a cljs var description (a map)
+;;     - a cljs macro var description (a map)
+;;     - a clojure var (clojure.lang.Var)
+;;     - a JVM Class
+(defprotocol IVar
+  (get-var [this])
+  (var-name [this])
+  (var-meta [this])
+  (is-macro [this])
+  (is-node [this]))
 
-(defn resolve-runtime "
-Returns the fully qualified symbol of the var resolved by given symbol at runtime, or nil if the var doesn't exist or
-is a macro or special form."
+(deftype CljVar [var]
+  IVar
+  (get-var  [_this] var)
+  (var-name [_this] (let [m (meta var)] (symbol (name (ns-name (:ns m))) (name (:name m)))))
+  (var-meta [_this] (meta var))
+  (is-macro [_this] (.isMacro ^Var var))
+  (is-node  [this] (contains? (var-meta this) ::node)))
+
+(deftype CljsVar [var]
+  IVar
+  (get-var  [_this] var)
+  (var-name [_this] (:name var))
+  (var-meta [_this] (:meta var))
+  (is-macro [this] (:macro (or (var-meta this) var)))
+  (is-node  [this] (contains? (or (var-meta this) var) ::node)))
+
+(deftype CljClass [klass]
+  IVar
+  (get-var  [_this] klass)
+  (var-name [_this] (symbol (.getName ^Class klass)))
+  (var-meta [_this] nil)
+  (is-macro [_this] false)
+  (is-node  [_this] false))
+
+(defn resolve-cljs ; GG: adapted from cljs.analyzer.api/resolve, return an IVar.
+  "Given an analysis environment resolve a var. Analogous to
+   clojure.core/resolve"
+  [env sym]
+  {:pre [(map? env) (symbol? sym)]}
+  (try
+    (binding [cljs/*private-var-access-nowarn* true]
+      (CljsVar. (cljs/resolve-var env sym (cljs/confirm-var-exists-throw))))
+    (catch Exception _e
+      (when-some [v (cljs/resolve-macro-var env sym)]
+        (CljsVar. v)))))
+
+(defn resolve-var 
+  "Resolve a clojure or clojurescript var. 
+   If the resolved clojurescript var is a macro var, return the corresponding clojure var.
+   Return an IVar or nil."
   [env sym]
   (if (:js-globals env)
-    (let [b (Box. true)
-          v (cljs/resolve-var env sym
-              (fn [env prefix suffix]
-                (cljs/confirm-var-exists env prefix suffix
-                  (fn [_ _ _] (when-not ((symbol (str prefix) (str suffix)) '#{cljs.core/unquote-splicing})
-                                (set! (.-val b) false))))))]
-      (when (.-val b) (when-not (:macro v) (:name v))))
-    (let [v (resolve-var env sym)]
-      (or (when (instance? Var v) (when-not (or (.isMacro ^Var v)
-                                              (contains? (meta v) ::node))
-                                    (.toSymbol ^Var v)))
-        (when (instance? Class v) (symbol (.getName ^Class v)))))))
+    (let [var (resolve-cljs env sym)] ; resolve cljs var decription (a map)
+      (if-let [expander (cljs/get-expander (if (some? var) (var-name var) sym) env)] ; find corresponding clojure var
+        (CljVar. expander)
+        var))
+    (let [ns       (resolve-ns (:ns env)) ; current ns
+          resolved (if (simple-symbol? sym)
+                     (get-in ns [:mappings sym]) ; resolve in current ns 
+                     (as-> sym $
+                       (symbol (namespace $)) ; extract namespace part of sym
+                       (get-in ns [:aliases $] $) ; expand to fully qualified form
+                       (get-in (resolve-ns $) [:mappings (symbol (name sym))]) ; resolve in target ns
+                       ))]
+      (if (some? resolved)
+        (cond (var? resolved)   (CljVar. resolved)
+              (class? resolved) (CljClass. resolved)
+              :else             (throw (ex-info "Symbol resolved to an unknow type" {:symbol sym
+                                                                                     :type   (type resolved)
+                                                                                     :value  resolved})))
+        ;; java.lang is implicit so not listed in ns form or env
+        (when-some [resolved (clojure.lang.Compiler/maybeResolveIn (the-ns (:ns env)) sym)]
+          (CljClass. resolved))))))
+
+(defn resolve-runtime
+  "Returns the fully qualified symbol of the var resolved by given symbol at runtime, or nil if:
+  - it cannot be resolved,
+  - it doesn't exist at runtime (is a macro),
+  - sym is a special form."
+  [env sym]
+  (letfn [(runtime-symbol [var] (when (some? var)
+                                  (when-not (or (is-macro var) (is-node var))
+                                    (var-name var))))]
+    (if (:js-globals env)
+      (if-let [v (resolve-var env sym)]
+        (cond (instance? CljsVar v) (runtime-symbol v)
+              ;; GG: if sym resolves to a clojure var, look up for the cljs-specific version.
+              ;;     Why: some vars exist in two versions (e.g. cljs.core/inc)
+              ;;          - the cljs version is a function (available at runtime),
+              ;;          - the clj version is a macro expending to optimized code (compile-time only).
+              (instance? CljVar v) (runtime-symbol (resolve-cljs env sym)))
+        ;; GG: corner case: there is not var for cljs.core/unquote-splicing.
+        (when (= 'cljs.core/unquote-splicing (:name (cljs/resolve-var env sym)))
+          'cljs.core/unquote-splicing))
+      (runtime-symbol (resolve-var env sym)))))
+
+(defn resolve-runtime-throwing [env form]
+  (when-not (symbol? form) (throw (ex-info "Symbol expected." {:form form})))
+  (doto (resolve-runtime env form)
+    (-> (when-not (throw (ex-info "Unable to resolve symbol." {:form form}))))))
+
+(defn vars [env forms]
+  (let [resolved (into {} (map (comp (juxt global identity)
+                                     (partial resolve-runtime-throwing (normalize-env env))))
+                       forms)]
+    `(fn ~'global-var-resolver [not-found# ident#]
+       (case ident#
+         ~@(mapcat identity resolved)
+         not-found#))))
+
+;;; ----
 
 (defn with-local [env sym]
   (let [l (::local env)
@@ -156,19 +248,11 @@ is a macro or special form."
 (declare analyze-form visit-node)
 
 (defn resolve-node [env sym]
-  (let [clj-var  (resolve-var env sym)
-        cljs-var (when-not (some? clj-var) (api/resolve env sym))]
-    (if (or (some? clj-var) (some? cljs-var))
-      (let [m        (if (some? clj-var)
-                       (meta clj-var)
-                       cljs-var)
-            s        (if (some? cljs-var)
-                       (:name cljs-var) ;; cljs analyzer ast
-                       (symbol (name (ns-name (:ns m))) (name (:name m))))]
-        (if (contains? m ::node)
-          (visit-node env s (::node m))
-          (throw (ex-info (str "Not a reactive var - " s) {}))))
-      (throw (ex-info (str "Unable to resolve symbol - " sym) {})))))
+  (if-let [var (resolve-var env sym)]
+    (if (is-node var)
+      (visit-node env (var-name var) (::node (var-meta var)))
+      (throw (ex-info (str "Not a reactive var - " (var-name var)) {})))
+    (throw (ex-info (str "Unable to resolve symbol - " sym) {}))))
 
 (defn analyze-symbol [env sym]
   (if (contains? (:locals env) sym)
@@ -180,11 +264,9 @@ is a macro or special form."
     (if-some [sym (resolve-runtime env sym)]
       [(analyze-global sym)]
       (if-some [v (resolve-var env sym)]
-        (let [m (meta v)
-              s (symbol (name (ns-name (:ns m))) (name (:name m)))]
-          (if (contains? m ::node)
-            [[:node (visit-node env s (::node m))]]
-            (throw (ex-info "Can't take value of macro." {:symbol s}))))
+        (if (is-node v)
+          [[:node (visit-node env (var-name v) (::node (var-meta v)))]]
+          (throw (ex-info "Can't take value of macro." {:symbol (var-name v)})))
         (throw (ex-info "Unable to resolve symbol." {:symbol sym}))))))
 
 (defn analyze-apply [env form]
@@ -326,20 +408,22 @@ is a macro or special form."
                 (clojure.core/unquote-splicing cljs.core/unquote-splicing)
                 (let [res (analyze-form (update env ::local not) (first args))]
                   [[:output (peek res)] ((void [:input]) (pop res))])
-
+                ;; else
                 (analyze-apply env form))
               (if-some [v (resolve-var env op)]
-                (let [m (meta v)
-                      s (symbol (name (ns-name (:ns m))) (name (:name m)))]
-                  (case s
-                    (clojure.core/binding cljs.core/binding)
-                    (analyze-binding env (first args) analyze-sexpr (cons `do (next args)))
+                (case (var-name v)
+                  (clojure.core/binding cljs.core/binding)
+                  (analyze-binding env (first args) analyze-sexpr (cons `do (next args)))
 
-                    (if (contains? m ::node)
-                      (analyze-apply env form)
-                      (let [mform (apply v form (if (:js-globals env) env (:locals env)) args)]
-                        (binding [*ns-map* (if (clj/ns-safe-macro v) *ns-map* (clj/build-ns-map))]
-                          (analyze-form env mform))))))
+                  (if (is-node v)
+                    (analyze-apply env form)
+                    (cond (instance? CljVar v)
+                          (analyze-form env (apply (get-var v) form (if (:js-globals env) env (:locals env)) args))
+
+                          (instance? CljsVar v) ;; TODO GG: is this case possible? A cljs macro var without a corresponding clj macro var.
+                          (throw (ex-info "Failed to resolve macro expander" {:name (var-name v)}))
+
+                          :else (throw (ex-info "Invalid call" {:form form})))))
                 (let [desugared-form (desugar-host env form)]
                   (if (= form desugared-form)
                     ;; Nothing got desugared, this is not host interop, meaning `op` var wasn't found.
@@ -370,7 +454,15 @@ is a macro or special form."
             (and (vector? form) analyze-vector)
             (and (set? form) analyze-set)
             (and (instance? JSValue form) analyze-js))]
-    (analyze env form) [[:literal form]]))
+    (try (analyze env form)
+         (catch clojure.lang.ExceptionInfo ex
+           ;; GG: Report problematic form in context.
+           ;;     Build a stack of forms as the stack unwinds, from failed form to top-level form.
+           ;;     Push current form into ex-data, then rethrow.
+           (throw (ex-info (ex-message ex) (update (ex-data ex) :in (fnil conj []) form) (ex-cause ex))))
+         (catch Throwable t ; base case
+           (throw (ex-info "Failed to analyse form" {:in [form]} t))))
+    [[:literal form]]))
 
 (let [nodes (l/local)]
   (defn visit-node [env sym form]                      ;; TODO detect cycles
@@ -380,35 +472,35 @@ is a macro or special form."
         (let [sym-ns (symbol (namespace sym))
               inst (case form
                      ::unbound nil
-                     (-> env
-                       (assoc :locals {} :ns (if (:js-globals env) (cljs/get-namespace sym-ns) sym-ns))
-                       (dissoc ::index)
-                       (analyze-form form)))
+                     (if (:js-globals env)
+                       (if-let [ns (cljs/get-namespace sym-ns)]
+                         (analyze-form (-> (assoc env :ns ns :locals {}) (dissoc ::index)) form)
+                         (throw (ex-info "Can't analyze reactive var reference: no such ClojureScript namespace. This var should be defined in a cljs or cljc file." {:symbol sym, :namespace sym-ns})))
+                       (analyze-form (-> (assoc env :ns sym-ns :locals {}) (dissoc ::index)) form)))
               slot (-> (.get nodes) (get l) count)]
           (.set nodes (update (.get nodes) l update sym assoc :inst inst :slot slot :rank
                               (+ slot (-> (.get nodes) (get (not l)) count)))) slot))))
-
+  
   (defn analyze [env form]
-    (binding [*ns-map* (clj/build-ns-map)]
-      (let [[inst nodes]
-            (l/with-local nodes {}
-              (-> env
-                  (normalize-env)
-                  (assoc ::local true)
-                  (analyze-form form)))
-            nodes (->> nodes
-                       (mapcat (fn [[peer nodes]]
-                                 (map (partial merge {:peer peer}) (vals nodes))))
-                       (filter :inst)
-                       (sort-by :rank))]
-        (mapv (fn [p]
-                ((fn rec [nodes]
-                   (if-some [[{:keys [peer slot inst]} & nodes] (seq nodes)]
-                     (if (= p peer)
-                       [:pub (peek inst) [:bind slot 1 (rec nodes)]]
-                       ((void (rec nodes)) (pop inst)))
-                     (if p (peek inst) ((void [:literal nil]) (pop inst)))))
-                 nodes)) [true false])))))
+    (let [[inst nodes]
+          (l/with-local nodes {}
+            (-> env
+                (normalize-env)
+                (assoc ::local true)
+                (analyze-form form)))
+          nodes (->> nodes
+                     (mapcat (fn [[peer nodes]]
+                               (map (partial merge {:peer peer}) (vals nodes))))
+                     (filter :inst)
+                     (sort-by :rank))]
+      (mapv (fn [p]
+              ((fn rec [nodes]
+                 (if-some [[{:keys [peer slot inst]} & nodes] (seq nodes)]
+                   (if (= p peer)
+                     [:pub (peek inst) [:bind slot 1 (rec nodes)]]
+                     ((void (rec nodes)) (pop inst)))
+                   (if p (peek inst) ((void [:literal nil]) (pop inst)))))
+               nodes)) [true false]))))
 
 (tests
 
@@ -562,17 +654,14 @@ is a macro or special form."
                                   [:literal nil]]
   )
 
-(defn resolve-runtime-throwing [env form]
-  (when-not (symbol? form) (throw (ex-info "Symbol expected." {:form form})))
-  (doto (resolve-runtime env form)
-    (-> (when-not (throw (ex-info "Unable to resolve symbol." {:form form}))))))
-
-(defn vars [env forms]
-  (let [resolved (into {} (map (comp (juxt global identity)
-                                     (partial resolve-runtime-throwing (normalize-env env))))
-                       forms)]
-    `(fn ~'global-var-resolver [not-found# ident#]
-       (case ident#
-         ~@(mapcat identity resolved)
-         not-found#))))
-
+(comment
+  ;; GG: dev only - cljs compiler error and warning messages are vague.
+  ;;    uncomment and adapt to get more info.
+  (defmethod cljs/error-message :undeclared-var
+    [warning-type info]
+    (throw (ex-info "Manual interception - undeclared var" {:info info}))
+    (str (if (:macro-present? info)
+           "Can't take value of macro "
+           "Use of undeclared Var ")
+         (:prefix info) "/" (:suffix info)))
+  )
