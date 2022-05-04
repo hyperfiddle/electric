@@ -9,7 +9,8 @@
             [datascript.db]
             #?(:clj [datahike.api :as d])
             [hyperfiddle.dev.logger :as log]
-            [hyperfiddle.ui.color :refer [color]]))
+            [hyperfiddle.ui.color :refer [color]])
+  #?(:cljs (:require-macros [hyperfiddle.ui :refer [link]])))
 
 ;;;;;;;;;;;;;;;;;
 ;; UI ELEMENTS ;;
