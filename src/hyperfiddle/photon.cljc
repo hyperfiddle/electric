@@ -63,7 +63,11 @@ Takes a photon program and returns a pair
     (list ::c/closure)))
 
 ; syntax quote doesn't qualify special forms like 'def
-(defmacro defn [sym & rest] `(hyperfiddle.photon/def ~sym (fn ~@rest)))
+(defmacro defn [sym & fdecl]
+  (let [[_defn sym & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: Support IDE documentation on hover
+    `(hyperfiddle.photon/def ~sym (fn ~@(if (string? (first fdecl)) ; GG: skip docstring
+                                          (rest fdecl)
+                                          fdecl)))))
 
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]

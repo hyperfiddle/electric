@@ -1103,3 +1103,12 @@
    (dotimes [_ 8]
      (with (p/run (! (p/for [x (range n)] x)))
            (count %) := n))))
+
+#?(:clj
+   (tests ; GG: IDE doc on hover support
+    "Vars created with p/defn have the same metas as created with cc/defn"
+    (p/defn Documented "doc" [a b c])
+    (select-keys (meta (var Documented)) [:name :doc :arglists])
+    := {:name 'Documented
+        :doc  "doc"
+        :arglists '([a b c])}))
