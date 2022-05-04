@@ -26,11 +26,8 @@
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 
-(defn back! [href _event] (when href (hf/navigate-back!)))
-
 (p/defn BackButton [prev]
-  (ui/link prev (partial back! prev)
-           (dom/text "< back")))
+  (ui/link prev hf/navigate-back! (dom/text "< back")))
 
 (p/defn NavBar []
   (let [route-state (new (m/watch hf/route-state))]

@@ -225,17 +225,16 @@
 
 (defn set-route! [href _event] (hf/navigate! href))
 
-(defn- offload [f] #?(:clj f, :cljs #(js/setTimeout f 1))) ; HACK 
-
-(defmacro link [href on-click & body]
-  `(xp/forget (dom/element "a" (dom/attribute "href" (str ~href))
-                        (new (->> (dom/events dom/parent "click")
-                                      (m/eduction (map dom/stop-event!)
-                                                  (map (offload ~on-click)) ;; HACK offload because reactor will crash if a watched atom is swapped by `on-click` 
-                                                  (map (constantly nil)))
-                                      (m/reductions {} nil)
-                                      (m/relieve {})))
-                        ~@body)))
+(defmacro link [href on-click & body] ;; GG: TODO should it be a p/def or a macro?
+  `(dom/element "a" (dom/attribute "href" (str ~href))
+                (new (->> (dom/events dom/parent "click")
+                          (m/eduction (map dom/stop-event!)
+                                      (map ~on-click)
+                                      (map (constantly nil))
+                                      (dedupe)) ; don't propagate `nil` on every click
+                          (m/reductions {} nil)
+                          (m/relieve {})))
+                ~@body))
 
 (p/def link-renderer)
 (p/defn link-renderer-impl [V props]
@@ -245,7 +244,6 @@
         href-str         (pr-str href)
         v                (pr-str (V.))]
     ~@(link href-str (partial set-route! href)
-            (dom/attribute "href" href-str)
             (dom/text v))))
 
 (p/def default-renderer)
