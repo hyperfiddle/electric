@@ -197,7 +197,7 @@
               ;;          - the cljs version is a function (available at runtime),
               ;;          - the clj version is a macro expending to optimized code (compile-time only).
               (instance? CljVar v) (runtime-symbol (resolve-cljs env sym)))
-        ;; GG: corner case: there is not var for cljs.core/unquote-splicing.
+        ;; GG: corner case: there is no var for cljs.core/unquote-splicing.
         (when (= 'cljs.core/unquote-splicing (:name (cljs/resolve-var env sym)))
           'cljs.core/unquote-splicing))
       (runtime-symbol (resolve-var env sym)))))
@@ -417,7 +417,7 @@
 
                   (if (is-node v)
                     (analyze-apply env form)
-                    (cond (instance? CljVar v)
+                    (cond (instance? CljVar v) ; "manual" macroexpansion: call the var as a function, passing it &form and the appropriate &env
                           (analyze-form env (apply (get-var v) form (if (:js-globals env) env (:locals env)) args))
 
                           (instance? CljsVar v) ;; TODO GG: is this case possible? A cljs macro var without a corresponding clj macro var.
@@ -457,7 +457,7 @@
     (try (analyze env form)
          (catch clojure.lang.ExceptionInfo ex
            ;; GG: Report problematic form in context.
-           ;;     Build a stack of forms as the stack unwinds, from failed form to top-level form.
+           ;;     Build a stack of forms as the call stack unwinds, from failed form to top-level form.
            ;;     Push current form into ex-data, then rethrow.
            (throw (ex-info (ex-message ex) (update (ex-data ex) :in (fnil conj []) form) (ex-cause ex))))
          (catch Throwable t ; base case
@@ -465,7 +465,10 @@
     [[:literal form]]))
 
 (let [nodes (l/local)]
-  (defn visit-node [env sym form]                      ;; TODO detect cycles
+  (defn visit-node
+    "Given a symbol naming a reactive var, and the form to analyze. 
+     Analyze form in the namespace context of sym."
+    [env sym form]                      ;; TODO detect cycles
     (let [l (::local env)]
       (if-some [node (-> (.get nodes) (get l) (get sym))]
         (:slot node)
@@ -473,8 +476,8 @@
               inst (case form
                      ::unbound nil
                      (if (:js-globals env)
-                       (if-let [ns (cljs/get-namespace sym-ns)]
-                         (analyze-form (-> (assoc env :ns ns :locals {}) (dissoc ::index)) form)
+                       (if-let [ns (cljs/get-namespace sym-ns)] ; get cljs namespace to analyze node in.
+                         (analyze-form (-> (assoc env :ns ns :locals {}) (dissoc ::index)) form) ; clean up locals as form is not in lexical scope of the caller.
                          (throw (ex-info "Can't analyze reactive var reference: no such ClojureScript namespace. This var should be defined in a cljs or cljc file." {:symbol sym, :namespace sym-ns})))
                        (analyze-form (-> (assoc env :ns sym-ns :locals {}) (dissoc ::index)) form)))
               slot (-> (.get nodes) (get l) count)]
