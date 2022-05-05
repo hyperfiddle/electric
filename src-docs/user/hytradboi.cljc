@@ -1,21 +1,16 @@
 (ns user.hytradboi
   (:require [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            #?(:clj [hyperfiddle.hfql :refer [hfql]])
             [hyperfiddle.rcf :refer [tests ! %]]
             [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui :as ui]
             [missionary.core :as m]
             [user.orders :refer [orders genders shirt-sizes]]
-            dustin.y2022.edn-render)
-  #?(:cljs (:require-macros [hyperfiddle.hfql :refer [hfql]]
-                            [user.hytradboi :refer [view App]]
-                            [user.orders :refer [orders genders shirt-sizes]])))
+            dustin.y2022.edn-render))
 
 (p/defn App []
   (binding [hf/render ui/render] ; default to dom so issues show up in test
-    (hfql
+    (hf/hfql
 
       {(orders .)
        [:order/email
