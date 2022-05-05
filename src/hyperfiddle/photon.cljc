@@ -109,3 +109,6 @@ Takes a photon program and returns a pair
 
 (defmacro run-with "test entrypoint with whitelist." [vars & body]
   `((local-with ~vars ~@body) (cc/fn [_#]) (cc/fn [_#])))
+
+(hyperfiddle.photon/defn Watch [!x]
+  (new (m/watch !x)))

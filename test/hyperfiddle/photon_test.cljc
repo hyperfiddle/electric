@@ -55,6 +55,22 @@
   (def dispose (p/run (! (inc (inc 1)))))
   % := 3
   (dispose)
+(tests
+  "introduce foreign atom"
+  (def !x (atom 0))
+  (with (p/run (! (p/Watch. !x)))                           ; clojure flow derived from atom
+    % := 0
+    (swap! !x inc)
+    % := 1))
+
+(tests
+  "p/def can contain Photon"
+  (def !x (atom 0))
+  (p/def x (p/Watch. !x))                                   ; just don't use it from Clojure
+  (with (p/run (! x))
+    % := 0
+    (swap! !x inc)
+    % := 1))
 
   "introduce a flow from foreign clojure call (e.g. entrypoint)"
   (def !x (atom 0))                                         ; atoms model variable inputs
