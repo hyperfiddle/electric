@@ -1,4 +1,4 @@
-(ns hyperfiddle.hfql.tests
+(ns hyperfiddle.hfql-test
   (:require [clojure.spec.alpha :as s]
             [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]

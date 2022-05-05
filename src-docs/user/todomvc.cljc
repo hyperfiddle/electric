@@ -1,11 +1,11 @@
-(ns hyperfiddle.todomvc
+(ns user.todomvc
   (:require [clojure.edn :as edn]
             [datascript.core :as d]
             [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z])
-  #?(:cljs (:require-macros [hyperfiddle.todomvc :refer [db basis-t todo-list transact!' app]])))
+  #?(:cljs (:require-macros [user.todomvc :refer [db basis-t todo-list transact!' app]])))
 
 (def auto-inc (partial swap! (atom 0) inc))
 

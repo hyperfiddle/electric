@@ -13,7 +13,7 @@
     [hyperfiddle.dev.logger :as log]
     [missionary.core :as m]
     [hyperfiddle.photon :as p]
-    [hyperfiddle.todomvc :as t]
+    [user.todomvc :as t]
     [hyperfiddle.api :as h]
     [hyperfiddle.photon-dom :as dom]
     [hyperfiddle.zero :as z]
