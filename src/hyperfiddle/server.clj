@@ -165,9 +165,3 @@
 (def default-config {:host   "localhost"
                      :port   8080
                      :scheme "http"})
-
-
-(comment
-  (def server (start-server! default-config))
-  (http/stop server)
-  )

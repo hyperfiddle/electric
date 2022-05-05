@@ -7,10 +7,3 @@
   (def dispose (p/run (! "hello world")))
   % := "hello world"
   (dispose))
-
-#_(tests
-  "distributed hello world"
-  (defn f [] #?(:cljs "hello" :clj "world"))
-  (def dispose (p/run (! [(f) ~@(f)])))
-  % := ["hello" "world"]
-  (dispose))
