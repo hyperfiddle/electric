@@ -147,4 +147,22 @@
                             (.toLowerCase (str needle))))
 ;(def datalog-rules '[[(match-str ?v ?needle) [(match-str ?v ?needle)]]])
 
-(def exports (vars rules q nav *$* quoted? ->DB))
+#?(:clj (defn transact!
+          ([db stage] (transact! db stage false))
+          ([db stage commit?]
+           (try (let [db'
+                      (if commit?
+                        (throw (ex-info "Commit not implemented yet" {}))
+                        (if (not-empty stage)
+                          (let [{:keys [tempids db-after]} (d/with (:db db) {:tx-data stage})]
+                            (-> (assoc db :tempids tempids :db db-after)
+                                (update :basis-t (fnil inc 0))))
+                          db))]
+                  #_(prn "DB =>" db')
+                  #_(prn "stage =>" stage)
+                  [db' nil])
+                (catch Throwable t
+                  [db (ex-message t)]))))
+   :cljs (defn transact! [& _] (throw (ex-info "Server side only" {}))))
+
+(def exports (vars rules q nav *$* quoted? ->DB transact!))

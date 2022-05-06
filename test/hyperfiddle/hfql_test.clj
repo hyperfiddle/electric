@@ -4,7 +4,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql :refer [hfql]]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
-            [user.orders :refer [orders order shirt-sizes genders]]))
+            [hyperfiddle.queries-test :refer [orders order shirt-sizes]]))
 
 ;; (rcf/enable!)
 ;; (rcf/enable! false)
@@ -44,21 +44,21 @@
 
 (tests
  (p/run (! (hfql {(order "") [:db/id]})))
- % := '{(user.orders/order "") {:db/id 9}})
+ % := '{(hyperfiddle.queries-test/order "") {:db/id 9}})
 
 (tests
  "Two levels of nesting"
  (p/run (! (hfql {(order "") [{:order/shirt-size [:db/ident]}]})))
- % := {'(user.orders/order "") {:order/shirt-size {:db/ident :order/womens-large}}})
+ % := {'(hyperfiddle.queries-test/order "") {:order/shirt-size {:db/ident :order/womens-large}}})
 
 (tests
  "multiplicity many"
  (p/run (! (hfql {(orders "") [:db/id]})))
- % := {'(user.orders/orders "") [{:db/id 9} {:db/id 10} {:db/id 11}]})
+ % := {'(hyperfiddle.queries-test/orders "") [{:db/id 9} {:db/id 10} {:db/id 11}]})
 
 (tests
  (p/run (! (hfql {(orders "") [(props :db/id {::hf/render string-renderer})]})))
- % := {'(user.orders/orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
+ % := {'(hyperfiddle.queries-test/orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
 
 
 
@@ -132,7 +132,7 @@
                                             {(props :order/shirt-size {::hf/options (shirt-sizes gender "")
                                                                        ::hf/render shirt-sizes-renderer})
                                              [:db/ident]}]}))))
- % := '{(user.orders/orders "")
+ % := '{(hyperfiddle.queries-test/orders "")
         [{:order/gender {:db/ident :order/female},
           :order/shirt-size
           [{:db/ident :order/womens-small}
@@ -157,13 +157,13 @@
  "needle resolves from lexical env"
  (let [needle "alice"]
    (p/run (! (hfql {(orders needle) [:db/id]}))))
- % := '{(user.orders/orders needle) [#:db{:id 9}]})
+ % := '{(hyperfiddle.queries-test/orders needle) [#:db{:id 9}]})
 
 ;; DONE
 (tests
  "Free input"
  (p/run (! (hfql {(orders .) [:db/id]})))
- % := '{(user.orders/orders .) [#:db{:id 9}
+ % := '{(hyperfiddle.queries-test/orders .) [#:db{:id 9}
                                 #:db{:id 10}
                                 #:db{:id 11}]})
 
@@ -182,7 +182,7 @@
                                               ::hf/options (shirt-sizes gender .)})
                     [:db/ident]}
                    {:order/gender [(props :db/ident {::hf/as gender})]}]})))
- % := '{(user.orders/orders .)
+ % := '{(hyperfiddle.queries-test/orders .)
         [{:order/gender {:db/ident :order/female},
           :order/email "alice@example.com",
           :order/shirt-size
@@ -220,18 +220,18 @@
 (tests
  "Input is defaulted"
  (p/run (! (hfql {(orders ^{::hf/defaults default} .) [:db/id]})))
- % := '{(user.orders/orders .) [#:db{:id 9}]})
+ % := '{(hyperfiddle.queries-test/orders .) [#:db{:id 9}]})
 
 (tests
  "call is defaulted"
  (p/run (! (hfql {(props (orders .) {::hf/defaults (p/fn [[needle]] [(or needle "alice")])}) [:db/id]})))
- % := '{(user.orders/orders .) [#:db{:id 9}]})
+ % := '{(hyperfiddle.queries-test/orders .) [#:db{:id 9}]})
 
 ;; TODO hydrate defaults : put them in ::hf/inputs, it will compute when the client will sample the input
 #_(tests
    "Input is hydrated"
    (p/run (! (let [needle 9]
                (hfql {(orders {needle [:db/id :order/email]}) [:db/id]}))))
-   % := '{(user.orders/orders needle) {:db/id 9}})
+   % := '{(hyperfiddle.queries-test/orders needle) {:db/id 9}})
 
 ;; (rcf/enable! false)

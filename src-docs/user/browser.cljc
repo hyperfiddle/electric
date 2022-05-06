@@ -5,64 +5,31 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
             [missionary.core :as m]
-            [user.orders :refer [orders genders order shirt-sizes sub-profile]]
+            [user.orders :refer [orders genders shirt-sizes one-order]]
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.zero :as z]
             [hyperfiddle.ui.codemirror :as cm]
-            [clojure.edn :as edn]
-            [hyperfiddle.dev.logger :as log]
-            [clojure.pprint :as pprint]
             #?(:clj [datahike.api :as d])))
 
 ;; NOTE
 ;; shirt-sizes computed for each row, should we cache? could the DAG ensures deduplication?
 
-
-(defn read-edn [edn-str]
-  (try (edn/read-string edn-str)
-       (catch #?(:clj Throwable :cljs :default) t
-         (hyperfiddle.dev.logger/error t)
-         nil)))
-
-(defn write-edn [edn] (with-out-str (pprint/pprint edn)))
-
-(p/defn BackButton [prev]
-  (ui/link prev hf/navigate-back! (dom/text "< back")))
-
 (p/defn NavBar []
   (let [route-state (new (m/watch hf/route-state))]
-    (dom/div
-      (dom/class "navbar")
-      (BackButton. (second route-state))
-      (dom/div (dom/class "navbar-route")
-        (cm/CodeMirror. {:parent dom/parent :inline true} read-edn write-edn (first route-state))))))
+    (dom/div (dom/class "navbar")
+             (ui/link (second route-state) hf/navigate-back! (dom/text "< back"))
+             (dom/div (dom/class "navbar-route")
+                      (cm/CodeMirror. {:parent dom/parent :inline true} cm/read-edn cm/write-edn (first route-state))))))
 
 (p/defn NotFoundPage []
   ~@(dom/div
      (dom/h1 (dom/text "Page not found"))
      (dom/code (dom/text (pr-str hf/route)))))
-#?(:clj (defn transact!
-          ([db stage] (transact! db stage false))
-          ([db stage commit?]
-           (try (let [db'
-                      (if commit?
-                        (throw (ex-info "Commit not implemented yet" {}))
-                        (if (not-empty stage)
-                          (let [{:keys [tempids db-after]} (d/with (:db db) {:tx-data stage})]
-                            (-> (assoc db :tempids tempids :db db-after)
-                                (update :basis-t (fnil inc 0))))
-                          db))]
-                  (prn "DB =>" db')
-                  (prn "stage =>" stage)
-                  [db' nil])
-                (catch Throwable t
-                  [db (ex-message t)]))))
-   :cljs (defn transact! [& _] (throw (ex-info "Server side only" {}))))
 
-(defn transact!! [!db !stage _]
+#_(defn transact!! [!db !stage _] ;; TODO persist stagging area
   (let [db    @!db
         stage @!stage
-        [db' _] (transact! db stage)]
+        [db' _] (hf/transact! db stage)]
     (when (not= db db')
       (reset! !stage nil)
       (reset! !db db'))
@@ -73,11 +40,11 @@
 
 (p/defn View []
   ~@;; server
-    (let [!db          (atom hf/*db*)
-          Db           (m/watch !db)
-          !stage       (atom nil)
-          stage        (new (m/watch !stage))
-          [db message] (transact! (Db.) stage)]
+    (let [!stage       (atom nil)
+          !db          (atom hf/*db*)
+          stage        (p/Watch !stage)
+          db           (p/Watch !db)
+          [db message] (hf/transact! db stage)]
       (binding [hf/db (xp/deduping db)]
         ~@;; client
           (binding [hf/route (NavBar.)]
@@ -89,8 +56,8 @@
                               (let [[_ sub] route]
                                 (router/router
                                  route
-                                 {(sub-profile sub) [:db/id :order/email]}
-                                 {(orders .) [(props :db/id {::hf/link sub-profile})
+                                 {(one-order sub) [:db/id :order/email]}
+                                 {(orders .) [(props :db/id {::hf/link one-order})
                                               :order/email
                                               {(props :order/gender {::hf/options      (genders)
                                                                      ::hf/option-label :db/ident
@@ -99,7 +66,7 @@
                                                                          ::hf/option-label :db/ident}) [:db/ident]}]}))))]
               (dom/div (dom/class "hf-staging-area")
                        (dom/div (dom/class "hf-error-wrapper")
-                                (let [tx' (cm/CodeMirror. {:parent dom/parent} read-edn write-edn [])]
+                                (let [tx' (cm/CodeMirror. {:parent dom/parent} cm/read-edn cm/write-edn [])]
                                   (do tx'
                                       ~@(xp/forget (reset! !stage tx'))
                                         ;; TODO use z/fsm or z/instant
@@ -115,19 +82,4 @@
                                                 (dom/style {"margin" "1rem 0"})
                                                 (dom/text message)))))))))))
 
-(def exports (p/vars transact! ui/debounce not-empty boolean? transact!!))
-
-
-(comment
-
-  (require '[hyperfiddle.photon :as p])
-  (require '[missionary.core :as m])
-  (def !input (atom (list 9 10 11)))
-
-  (defn prn-up-down [x] (m/observe (fn [!] (prn "up!" x) (! x) #(prn "down" x))))
-
-  (def dispose (p/run (prn (p/for [id (new (m/watch !input))] (new (prn-up-down id))))))
-
-  (reset! !input (list 9 10 11))
-
-  (dispose))
+(def exports (p/vars #_transact!!))

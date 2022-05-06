@@ -1,4 +1,4 @@
-(ns user.orders
+(ns hyperfiddle.queries-test
   (:require [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]

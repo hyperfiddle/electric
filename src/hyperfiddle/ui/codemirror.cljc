@@ -4,10 +4,14 @@
                      [hyperfiddle.photon :as p]
                      hyperfiddle.photon-dom
                      [hyperfiddle.photon-xp :as xp]
-                     [missionary.core :as m])
+                     [missionary.core :as m]
+                     [clojure.edn :as edn]
+                     [clojure.pprint :as pprint]
+                     [hyperfiddle.dev.logger :as log])
      :cljs (:require
-             clojure.edn
-             clojure.pprint
+             [clojure.edn :as edn]
+             [clojure.pprint :as pprint]
+             [hyperfiddle.dev.logger :as log]
              [hyperfiddle.photon :as p]
              hyperfiddle.photon-dom
              [hyperfiddle.photon-xp :as xp]
@@ -94,8 +98,12 @@
            (xp/newest (p/fn [] value))
            (xp/continuous)))))
 
-(defn read-edn [edn-str] (try (clojure.edn/read-string edn-str) (catch #?(:clj Throwable :cljs :default) t nil)))
+(defn read-edn [edn-str]
+  (try (edn/read-string edn-str)
+       (catch #?(:clj Throwable :cljs :default) t
+         (hyperfiddle.dev.logger/error t)
+         nil)))
 
-(defn write-edn [edn] (with-out-str (clojure.pprint/pprint edn)))
+(defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 
 (p/defn edn [v] (new CodeMirror {:parent hyperfiddle.photon-dom/parent} read-edn write-edn v))
