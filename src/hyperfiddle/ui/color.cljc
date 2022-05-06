@@ -40,5 +40,5 @@
              (hsluv->rgb 0 0 80)
              (hsluv->rgb (* 360 (mod (+ seed (* (hash x) golden-ratio)) 1)) ; Hue
                          50             ; Saturation
-                         70)            ; Lightness
+                         #_70 85)            ; Lightness
              ))))
