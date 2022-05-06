@@ -445,4 +445,5 @@
                      sort-inputs-by-spec
                      into-tx
                      index-by
-                     index-id))
+                     index-id
+                     debounce))
