@@ -42,8 +42,8 @@
   ~@;; server
     (let [!stage       (atom nil)
           !db          (atom hf/*db*)
-          stage        (p/Watch !stage)
-          db           (p/Watch !db)
+          stage        (p/Watch. !stage)
+          db           (p/Watch. !db)
           [db message] (hf/transact! db stage)]
       (binding [hf/db (xp/deduping db)]
         ~@;; client
