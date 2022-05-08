@@ -2,8 +2,9 @@
   (:require
     [datahike.api :as d]
     [datahike.core :as dc]
-    [hyperfiddle.api :as hf :refer [*$*]]
-    [hyperfiddle.dev.logger :as log]))
+    [hyperfiddle.api :as hf]
+    [hyperfiddle.dev.logger :as log]
+    [hyperfiddle.rcf :refer [tests % !]]))
 
 
 (defn fixtures [$]
@@ -51,8 +52,8 @@
 
 (def db-config {:store {:backend :mem, :id "default"}})
 
-(defn init-datascript []
-  (log/info "Initializing Datascript")
+(defn setup-db! []
+  (log/info "Initializing Test Database")
   (d/delete-database db-config)
   (d/create-database db-config)
   (def conn (d/connect db-config)) ;; connect to "default"
@@ -67,7 +68,7 @@
 
 ;#?(:clj (init-datomic)
 ;   :cljs (init-datascript))
-#?(:clj (init-datascript))
+#?(:clj (setup-db!))
 
 (def male    1 #_:order/male   #_17592186045418)
 (def female  2 #_:order/female #_17592186045419)
@@ -81,29 +82,56 @@
 (def bob     10 #_nil)
 (def charlie 11 #_nil)
 
-(comment
-  (dc/touch (d/entity *$* alice))
-  (dc/touch (d/entity *$* [:order/email "alice@example.com"]))
-  => {:db/id                 alice,
-      :order/email      "alice@example.com",
-      :order/gender     :order/female,
-      :order/shirt-size :order/womens-large,
-      :order/tags       #{:c :b :a}}
+(tests
+  (def e [:order/email "alice@example.com"])
 
-  (dc/touch (d/entity *$* :order/female))
-  => {:db/id           female
-      :db/ident        :order/female
-      :order/type :order/gender}
+  (tests
+    "(d/pull ['*]) is best for tests"
+    (d/pull hf/*$* ['*] e)
+    := {:db/id            9,
+        :order/email      "alice@example.com",
+        :order/shirt-size #:db{:id 8},
+        :order/gender     #:db{:id 2}
+        :order/tags [:a :b :c]})
+
+  (comment #_tests
+    "careful, entity type is not= to equivalent hashmap"
+    (dc/touch (d/entity hf/*$* e))
+    ; expected failure
+    := {:order/email      "alice@example.com",
+        :order/gender     #:db{:id 2},
+        :order/shirt-size #:db{:id 8},
+        :order/tags       #{:c :b :a},
+        :db/id            9})
+
+  (tests
+    "entities are not maps"
+    (dc/touch (d/entity hf/*$* e))
+    (type *1) := datahike.impl.entity.Entity)               ; not a map
+
+  (tests
+    "careful, entity API tests are fragile and (into {}) is insufficient"
+    (->> (dc/touch (d/entity hf/*$* e))                     ; touch is the best way to inspect an entity
+         (into {}))                                         ; but it's hard to convert to a map...
+    := #:order{#_#_:id 9                                    ; db/id is not present!
+               :email      "alice@example.com",
+               :gender     _ #_#:db{:id 2},                 ; entity ref not =
+               :shirt-size _ #_#:db{:id 8},                 ; entity ref not =
+               :tags       #{:c :b :a}}
+
+    "select keys doesn't fix the problem as it's not recursive"
+    (-> (dc/touch (d/entity hf/*$* e))
+        (select-keys [:order/email :order/shirt-size :order/gender]))
+    := #:order{:email "alice@example.com",
+               :shirt-size _ #_#:db{:id 8},                 ; still awkward, need recursive pull
+               :gender _ #_#:db{:id 2}})
+
+  "TLDR is use (d/pull ['*]) like the first example"
+  (tests
+    (d/pull hf/*$* ['*] :order/female)
+    := {:db/id female :db/ident :order/female :order/type :order/gender})
+
+  (tests
+    (d/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*)
+    := [2 1] #_[:order/male :order/female])
   )
-
-(comment
-  (tests
-   (datascript.core/q '[:find [?e ...] :where [_ :order/gender ?e]] *$*)
-   := [:order/male :order/female])
-
-  (tests
-   (hf/nav! *$* 9 :order/email)
-   := "alice@example.com"
-
-   (m/? (m/reduce conj (hf/nav 9 :order/email)))
-   := ["alice@example.com"]))
