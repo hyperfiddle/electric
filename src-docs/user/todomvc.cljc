@@ -1,4 +1,5 @@
 (ns user.todomvc
+  "doesn't currently run - uses legacy syntax"
   (:require [clojure.edn :as edn]
             [datascript.core :as d]
             [missionary.core :as m]

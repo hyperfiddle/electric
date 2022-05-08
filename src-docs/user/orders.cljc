@@ -1,4 +1,5 @@
 (ns user.orders
+  "Not idiomatic, todo move Datomic queries out of Photon fns and lose hf/q"
   (:require [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
