@@ -1,20 +1,32 @@
 (ns user.photon-2-hiccup
-  (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
-            [missionary.core :as m]
-            [user.orders :refer [orders genders shirt-sizes]]))
+  (:require [datahike.api :as d]
+            dev
+            [hyperfiddle.api :as hf]
+            [hyperfiddle.photon :as p]
+            [hyperfiddle.rcf :refer [tests ! % with]]))
+
+(defn includes-str? [v needle]
+  (clojure.string/includes? (.toLowerCase (str v))
+                            (.toLowerCase (str needle))))
+
+(defn orders [?email]
+  (sort                                                     ; stabilize tests
+    (d/q '[:find [?e ...] :in $ ?needle :where
+           [?e :order/email ?email]
+           [(user.photon-2-hiccup/includes-str? ?email ?needle)]]
+         hf/*$* (or ?email ""))))
 
 (tests
-  (with (p/run (! (orders. "")))
-    % := [9 10 11]))
+  (with (p/run (! (orders ""))) % := [9 10 11])
+  (with (p/run (! (orders "alice"))) % := [9]))
 
 (tests
   (def !state (atom {}))
   (with
     (p/run
       (!
-        (let [state (new (m/watch !state))]
-          (orders. (:email state)))))
+        (let [state (p/Watch. !state)]
+          (orders (:email state)))))
     % := [9 10 11]
     (swap! !state assoc :email "alice")
     % := [9]
@@ -23,13 +35,13 @@
 
 (p/defn App [email]
   [:table
-   (p/for [x (orders. email)]
+   (p/for [x (orders email)]
      [:tr x])])
 
 (tests
   (def !state (atom {:email nil}))
   (with (p/run
-          (let [state (new (m/watch !state))]
+          (let [state (p/Watch. !state)]
             (! (App. (:email state)))))
     % := [:table [[:tr 9] [:tr 10] [:tr 11]]]
     (swap! !state assoc :email "alice")
@@ -41,4 +53,4 @@
     ))
 
 
-; how can we prove it is reactive and skipping work?
+; Next up: how can we prove it is reactive and skipping work?
