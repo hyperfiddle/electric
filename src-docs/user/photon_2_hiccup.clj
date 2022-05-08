@@ -35,7 +35,7 @@
 
 (p/defn App [email]
   [:table
-   (p/for [x (orders email)]
+   (p/for [x (orders email)]                                ; concurrent for with diffing and stabilization
      [:tr x])])
 
 (tests

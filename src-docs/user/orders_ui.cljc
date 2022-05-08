@@ -1,4 +1,5 @@
 (ns user.orders-ui
+  "todo modernize"
   (:require [hyperfiddle.api :as hf]
             #?(:clj [hyperfiddle.hfql :refer [hfql]])
             [hyperfiddle.photon :as p]
