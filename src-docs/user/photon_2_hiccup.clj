@@ -4,22 +4,21 @@
             [hyperfiddle.rcf :refer [tests ! % with]]))
 
 
-(def db @(requiring-resolve 'dev/db))
-
 (defn includes-str? [v needle]
   (clojure.string/includes? (.toLowerCase (str v))
                             (.toLowerCase (str needle))))
 
-(defn orders [?email]
+(defn orders [db ?email]
   (sort                                                     ; stabilize tests
     (d/q '[:find [?e ...] :in $ ?needle :where
            [?e :order/email ?email]
            [(user.photon-2-hiccup/includes-str? ?email ?needle)]]
          db (or ?email ""))))
 
+(tests (def db @(requiring-resolve 'dev/db)))
 (tests
-  (with (p/run (! (orders ""))) % := [9 10 11])
-  (with (p/run (! (orders "alice"))) % := [9]))
+  (with (p/run (! (orders db ""))) % := [9 10 11])
+  (with (p/run (! (orders db "alice"))) % := [9]))
 
 (tests
   (def !state (atom {}))
@@ -27,23 +26,23 @@
     (p/run
       (!
         (let [state (p/Watch. !state)]
-          (orders (:email state)))))
+          (orders db (:email state)))))
     % := [9 10 11]
     (swap! !state assoc :email "alice")
     % := [9]
     (swap! !state assoc :email "bob")
     % := [10]))
 
-(p/defn App [email]
+(p/defn App [db email]
   [:table
-   (p/for [x (orders email)]                                ; concurrent for with diffing and stabilization
+   (p/for [x (orders db email)]                                ; concurrent for with diffing and stabilization
      [:tr x])])
 
 (tests
   (def !state (atom {:email nil}))
   (with (p/run
           (let [state (p/Watch. !state)]
-            (! (App. (:email state)))))
+            (! (App. db (:email state)))))
     % := [:table [[:tr 9] [:tr 10] [:tr 11]]]
     (swap! !state assoc :email "alice")
     % := [:table [[:tr 9]]]
