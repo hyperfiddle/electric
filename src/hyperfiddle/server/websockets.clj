@@ -1,7 +1,5 @@
 (ns hyperfiddle.server.websockets
   (:require
-    ;; [hypercrud.transit :as hc-t] ;; TODO restore
-    ;; [hyperfiddle.service.auth :as auth] ;; TODO restore
     [missionary.core :as m]
     [hyperfiddle.dev.logger :as log])
   (:import (org.eclipse.jetty.servlet ServletContextHandler ServletHolder)
@@ -11,25 +9,11 @@
            (clojure.lang IFn)
            (java.nio ByteBuffer)))
 
-(defn close! [^Session session]
-  (.close session))
-
-(defn open? [^Session session]
-  (.isOpen session))
-
 (defn nop [])
 
 (defn write-str [^RemoteEndpoint remote ^String message]
   (fn [s f]
     (.sendString remote message
-      (reify WriteCallback
-        (writeFailed [_ e] (f e))
-        (writeSuccess [_] (s nil))))
-    nop))
-
-(defn write-buf [^RemoteEndpoint remote ^ByteBuffer message]
-  (fn [s f]
-    (.sendBytes remote message
       (reify WriteCallback
         (writeFailed [_ e] (f e))
         (writeSuccess [_] (s nil))))

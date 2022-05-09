@@ -1,4 +1,5 @@
-(ns hyperfiddle.walk)
+(ns hyperfiddle.walk
+  "Like clojure.walk, but preserves metadata.")
 
 (declare has-meta?)
 #?(:clj (defn has-meta? [o] (instance? clojure.lang.IMeta o)))
