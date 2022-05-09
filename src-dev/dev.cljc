@@ -70,6 +70,8 @@
 ;   :cljs (init-datascript))
 #?(:clj (setup-db!))
 
+(def db hf/*$*)                                             ; for @(requiring-resolve 'dev/db)
+
 (def male    1 #_:order/male   #_17592186045418)
 (def female  2 #_:order/female #_17592186045419)
 (def m-sm    3  #_17592186045421)
@@ -87,7 +89,7 @@
 
   (tests
     "(d/pull ['*]) is best for tests"
-    (d/pull hf/*$* ['*] e)
+    (d/pull db ['*] e)
     := {:db/id            9,
         :order/email      "alice@example.com",
         :order/shirt-size #:db{:id 8},
@@ -96,7 +98,7 @@
 
   (comment #_tests
     "careful, entity type is not= to equivalent hashmap"
-    (dc/touch (d/entity hf/*$* e))
+    (dc/touch (d/entity db e))
     ; expected failure
     := {:order/email      "alice@example.com",
         :order/gender     #:db{:id 2},
@@ -106,12 +108,12 @@
 
   (tests
     "entities are not maps"
-    (dc/touch (d/entity hf/*$* e))
+    (dc/touch (d/entity db e))
     (type *1) := datahike.impl.entity.Entity)               ; not a map
 
   (tests
     "careful, entity API tests are fragile and (into {}) is insufficient"
-    (->> (dc/touch (d/entity hf/*$* e))                     ; touch is the best way to inspect an entity
+    (->> (dc/touch (d/entity db e))                     ; touch is the best way to inspect an entity
          (into {}))                                         ; but it's hard to convert to a map...
     := #:order{#_#_:id 9                                    ; db/id is not present!
                :email      "alice@example.com",
@@ -120,7 +122,7 @@
                :tags       #{:c :b :a}}
 
     "select keys doesn't fix the problem as it's not recursive"
-    (-> (dc/touch (d/entity hf/*$* e))
+    (-> (dc/touch (d/entity db e))
         (select-keys [:order/email :order/shirt-size :order/gender]))
     := #:order{:email "alice@example.com",
                :shirt-size _ #_#:db{:id 8},                 ; still awkward, need recursive pull
@@ -128,10 +130,10 @@
 
   "TLDR is use (d/pull ['*]) like the first example"
   (tests
-    (d/pull hf/*$* ['*] :order/female)
+    (d/pull db ['*] :order/female)
     := {:db/id female :db/ident :order/female :order/type :order/gender})
 
   (tests
-    (d/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*)
+    (d/q '[:find [?e ...] :where [_ :order/gender ?e]] db)
     := [2 1] #_[:order/male :order/female])
   )
