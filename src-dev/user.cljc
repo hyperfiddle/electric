@@ -43,6 +43,7 @@
 ;; Compile client ;;
 ;;;;;;;;;;;;;;;;;;;;
 (comment
+  (require '[shadow.cljs.devtools.api :as shadow])
   (shadow/compile :app)
   (shadow/release :app)
 
