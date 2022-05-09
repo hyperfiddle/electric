@@ -10,7 +10,7 @@
             #?(:clj [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require [hyperfiddle.dev.logger :as log]))
   #?(:cljs (:require-macros [hyperfiddle.api :refer [route db entity attribute value context refs props sequenceM render join-all data tx
-                                                     ]])))
+                                                     hfql]])))
 
 (defmacro hfql [& body] `(hfql/hfql ~@body))
 

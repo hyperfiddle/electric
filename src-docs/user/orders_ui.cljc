@@ -1,19 +1,17 @@
 (ns user.orders-ui
   "todo modernize"
   (:require [hyperfiddle.api :as hf]
-            #?(:clj [hyperfiddle.hfql :refer [hfql]])
             [hyperfiddle.photon :as p]
             [hyperfiddle.ui :as ui]
             [user.orders :refer [orders genders shirt-sizes]]
             #?(:cljs [hyperfiddle.client :refer [client]])
-            [hyperfiddle.photon-dom :as dom])
-  #?(:cljs (:require-macros [hyperfiddle.hfql :refer [hfql]])))
+            [hyperfiddle.photon-dom :as dom]))
 
 (p/defn Orders []
   ~@(ui/with-spec-render
       (binding [hf/db     hf/*db*
                 hf/render ui/render]
-        (hfql
+        (hf/hfql
          {(orders .)
           [:order/email
            {(props :order/gender {::hf/options      (genders)
