@@ -18,3 +18,5 @@ src/**/*.js
 target/
 tsconfig.tsbuildinfo
 output.calva-repl
+
+/yarn.lock
