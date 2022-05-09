@@ -6,6 +6,8 @@
             [hyperfiddle.ui :as ui]
             [missionary.core :as m]
             [user.orders :refer [orders genders shirt-sizes]]
+            #?(:cljs [hyperfiddle.client :refer [client]])
+            [hyperfiddle.photon-dom :as dom]
             dustin.y2022.edn-render))
 
 (p/defn App []
@@ -26,6 +28,18 @@
        ~@#_"server"
        (binding [hf/db hf/*db*]
          (ui/with-spec-render (App.)))))
+
+#?(:cljs
+   (def ^:export entrypoint
+     (client
+      (p/main
+       (binding [dom/parent (dom/by-id "root")]
+         (dom/div
+          (dom/attribute "id" "main")
+          (dom/class "browser")
+          (dom/div
+           (dom/class "view")
+           (new user.hytradboi/view))))))))
 
 (comment
   (def !x (atom "alice"))
