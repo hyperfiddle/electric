@@ -1,30 +1,13 @@
+;; TODO we might not need pedestal at all
 (ns hyperfiddle.server.interceptors
-  (:require ;; [cognitect.transit :as transit]
-            ;; contrib.pprint ;; TODO restore
-            ;; [hypercrud.transit :as hc-t]
-            ;; [io.pedestal.http :as http]
-            [clojure.pprint :refer [pprint]]
+  (:require [clojure.pprint :refer [pprint]]
             [clojure.string :as str]
-            ;; [io.pedestal.http.body-params :as body-params]
             [io.pedestal.http.content-negotiation :as content-negotiation]
-            ;; [io.pedestal.http.ring-middlewares :as ring-middleware]
             [io.pedestal.interceptor.helpers :as interceptor]
             [hyperfiddle.dev.logger :as log])
-  (:import [java.io #_OutputStream OutputStreamWriter]
+  (:import [java.io OutputStreamWriter]
            java.util.UUID
            org.apache.commons.lang3.StringEscapeUtils))
-
-;; For POST
-;; (def body-params (-> (body-params/body-params
-;;                       (body-params/default-parser-map
-;;                        :edn-options     {:readers *data-readers*}
-;;                        #_#_:transit-options [{:handlers @hc-t/read-handlers}]))
-;;                      (update :enter (fn [enterf]
-;;                                       (fn [context]
-;;                                         (let [{:keys [edn-params transit-params json-params body-params]} (:request (enterf context))]
-;;                                           (update context :request assoc :body-params (or json-params edn-params transit-params body-params))))))))
-
-;; (def cookies ring-middleware/cookies)
 
 (def trace (interceptor/around ::trace
                                (fn trace-request [{:keys [request] :as context}]
@@ -60,39 +43,10 @@
 
    "text/html"
    (fn [body]
-     #_(binding [clojure.pprint/*print-right-margin* 140]
-         (let [body-str (->> (with-out-str (contrib.pprint/pprint body))
-                             (StringEscapeUtils/escapeHtml4)
-                             (format "<html><body><pre>%s</pre></body></html>"))]
-           (print-fn #(.write *out* body-str))))
      (let [body-str (->> (with-out-str (pprint body))
                          (StringEscapeUtils/escapeHtml4)
                          (format "<html><body><pre>%s</pre></body></html>"))]
-       (print-fn #(.write *out* body-str))))
-
-   ;; EDN JSON, Transit only through WS.
-   ;; "application/json"
-   ;; (fn [body]
-   ;;   (print-fn #(http/json-print body)))
-
-   ;; "application/edn"
-   ;; (fn [body]
-   ;;   ;; https://github.com/hyperfiddle/hyperfiddle.net/issues/38
-   ;;   (print-fn #(pr body)))
-
-   ;; "application/transit+json"
-   ;; (fn [body]
-   ;;   (fn [^OutputStream output-stream]
-   ;;     (transit/write (transit/writer output-stream :json {:handlers @hc-t/write-handlers}) body)
-   ;;     (.flush output-stream)))
-
-   ;; "application/transit+msgpack"
-   ;; (fn [body]
-   ;;   (fn [^OutputStream output-stream]
-   ;;     (transit/write (transit/writer output-stream :msgpack {:handlers @hc-t/write-handlers}) body)
-   ;;     (.flush output-stream)))
-
-   })
+       (print-fn #(.write *out* body-str))))   })
 
 (def negociate (content-negotiation/negotiate-content (keys content-transformers)))
 
