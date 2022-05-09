@@ -165,4 +165,3 @@
                   [db (ex-message t)]))))
    :cljs (defn transact! [& _] (throw (ex-info "Server side only" {}))))
 
-(def exports (vars rules q nav *$* quoted? ->DB transact!))
