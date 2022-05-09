@@ -4,7 +4,7 @@
             user.orders-ui))
 
 (def ^:export reactor)
-(def main)
+(def main)                                                  ; assigned in index.html
 
 (defn ^:dev/before-load stop! []
   (if reactor

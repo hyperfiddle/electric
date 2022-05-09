@@ -34,6 +34,8 @@
        (cr#))
      cf#))
 
+(defmethod ana/macroexpand-hook `cloroutine.core/cr [_the-var _form _env args] `(cloroutine.core/cr ~@args))
+
 (tests
   (def six (async 6))
   (def seven (async (inc (await six))))
