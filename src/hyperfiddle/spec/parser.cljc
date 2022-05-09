@@ -1,10 +1,19 @@
 (ns hyperfiddle.spec.parser
-  (:require [clojure.spec.alpha :as s]))
+  (:require [clojure.spec.alpha :as s]
+            [cljs.spec.alpha]))
 
 (defn spec-name [spec]
   (::s/name (meta spec)))
 
-(defmulti parse-spec first)
+(defn- replace-cljs-ns [x]
+  (if-not (qualified-symbol? x)
+    x
+    (if (= "cljs.spec.alpha" (namespace x))
+      (symbol "clojure.spec.alpha" (name x))
+      x)))
+
+(defmulti parse-spec (fn [[f & _args]]
+                       (replace-cljs-ns f)))
 
 (defn parse
   "Parse a (potentially nested) spec to a tree structure where nodes might have
@@ -17,9 +26,11 @@
       (parse-spec (list `s/def (spec-name spec) (s/form spec)))
       (if-let [spec (s/get-spec spec)]
         (parse spec)
-        (if (seq? spec)
-          (parse-spec spec)
-          (parse-spec (list spec)))))))
+        (if-let [form (get @cljs.spec.alpha/registry-ref spec)]
+          (parse-spec (list `s/def spec form))
+          (if (seq? spec)
+            (parse-spec spec)
+            (parse-spec (list spec))))))))
 
 (defmethod parse-spec `s/def [[_ name value]]
   (merge {:name name}
