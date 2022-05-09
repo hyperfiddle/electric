@@ -143,5 +143,3 @@
 ; get new time basis
 ; Does d/with and d/transact return the same time basis for the same log value
 ; touch query with latest time basis
-
-(def exports (p/vars d/q d/transact! !conn transact println d/with))

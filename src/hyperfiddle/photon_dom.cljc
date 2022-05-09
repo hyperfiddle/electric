@@ -258,7 +258,3 @@
 
 (defmacro for [bindings & body]
   `(for-by identity ~bindings ~@body))
-
-(def exports (p/vars click-event mount events
-                     set-attribute! set-style! set-text-content!
-                     peer-error!))

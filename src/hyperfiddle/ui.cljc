@@ -437,13 +437,3 @@
              spec-renderer    spec-renderer-impl
              user-renderer    user-renderer-impl]
      ~@body))
-
-(def exports (p/vars nil? prn some? schema-attr cardinality conj db-color
-                     input-types argument-type spec/valueType->type
-                     assoc = gensym merge zipmap
-                     extract-refs
-                     sort-inputs-by-spec
-                     into-tx
-                     index-by
-                     index-id
-                     debounce))

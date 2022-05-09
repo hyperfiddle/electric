@@ -24,10 +24,6 @@ of this var to the value currently bound to this var.
   ([fa fb & fs]
    (reduce merge-vars (merge-vars fa fb) fs)))
 
-(def exports
-  (vars hash-map vector list concat seq sort into first next inc dec + - / * < swap! cons identity nth
-    sorted-map keys comp remove filter map constantly str coll? empty list? map? partial count ex-info some-fn
-    m/eduction m/reductions m/relieve m/watch map-by r/failure r/steady r/recover r/clause r/fail r/latest-first))
 
 (def eval "Takes a resolve map and a program, returns a booting function.
 The booting function takes

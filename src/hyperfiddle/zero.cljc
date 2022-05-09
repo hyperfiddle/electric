@@ -69,5 +69,3 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
 
 (defmacro current [form]
   `(new (m/eduction (take 1) (p/fn [] ~form))))
-
-(def exports (p/vars state))
