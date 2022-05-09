@@ -1,7 +1,7 @@
 (ns hyperfiddle.server
   (:require
     [hyperfiddle.common.transit :as transit]
-    [hyperfiddle.server.websockets :as ws]                  ;; TODO restore
+    [hyperfiddle.server.websockets :as ws]
     [hyperfiddle.server.interceptors :as i]
     [io.pedestal.http :as http]
     [io.pedestal.http.ring-middlewares :as middlewares]
@@ -11,15 +11,7 @@
     [ring.middleware.file :as file]
     [hyperfiddle.dev.logger :as log]
     [missionary.core :as m]
-    [hyperfiddle.photon :as p]
-    [user.todomvc :as t]
-    [hyperfiddle.api :as h]
-    [hyperfiddle.photon-dom :as dom]
-    [hyperfiddle.zero :as z]
-    user.browser
-    user.hytradboi
-    user.orders-ui
-    [hyperfiddle.ui :as ui])
+    [hyperfiddle.photon :as p])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler
            (org.eclipse.jetty.servlet ServletContextHandler)
            (java.util.concurrent Executors ThreadFactory Executor)
@@ -122,10 +114,7 @@
                                           (finally (m/? (m/via el))))))
                               program (m/? ?read)]
                           (prn :booting-reactor #_program)
-                          (m/? ((p/eval
-                                  #_(p/merge-vars p/exports h/exports dom/exports z/exports t/exports ui/exports
-                                    user.browser/exports user.hytradboi/exports (p/vars log/js-log*))
-                                  program) write ?read)))
+                          (m/? ((p/eval program) write ?read)))
                         (catch Cancelled _))) success failure)))))})
 
 (defn gzip-handler [& methods]
@@ -178,6 +167,8 @@
       server)
     server))
 
-(def default-config {:host   "localhost"
-                     :port   8080
-                     :scheme "http"})
+(comment
+  ;; Default config example
+  {:host   "localhost"
+   :port   8080
+   :scheme "http"})

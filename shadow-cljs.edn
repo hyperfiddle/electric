@@ -18,7 +18,7 @@
                                                              ;; but for some reason it doesn't.
                                                              shadow.cljs.bootstrap.env
                                                              shadow.cljs.bootstrap.browser]}
-                                          :main   {:entries    [hyperfiddle.client]
+                                          :main   {:entries    [user.entrypoint]
                                                    :depends-on #{:shared}}}}
             :test     {:target           :node-test
                        :output-to        "out/node-tests.js"
