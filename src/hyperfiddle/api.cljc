@@ -108,7 +108,8 @@
                (log/debug :q query args)
                (doto (apply d/q query args) log/debug))))
 
-(tests
+(comment
+  ; no dev *$* yet, and RCF might be enabled
  (d/q '[:find [?e ...] :where [_ :order/gender ?g] [?g :db/ident ?e]] *$*)
  := [:order/female :order/male]
  (m/? (m/reduce conj (q '[:find [?e ...] :where [_ :order/gender ?g] [?g :db/ident ?e]] *$*)))
@@ -126,7 +127,8 @@
                  (log/debug :nav e a)
                  (doto (nav! db e a) log/debug))))
 
-(tests
+(comment
+ ; no dev db yet, and RCF might be enabled
  (nav! *$* 9 :order/email)
  := "alice@example.com"
 
