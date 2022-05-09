@@ -2,7 +2,8 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]]))
 
-(comment (hyperfiddle.rcf/enable!))
+
+(hyperfiddle.rcf/enable!)
 
 (tests "hello world"
   (def dispose (p/run (rcf/! ::x)))

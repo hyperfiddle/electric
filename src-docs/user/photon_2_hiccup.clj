@@ -1,9 +1,10 @@
 (ns user.photon-2-hiccup
   (:require [datahike.api :as d]
-            dev
-            [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]))
+
+
+(def db @(requiring-resolve 'dev/db))
 
 (defn includes-str? [v needle]
   (clojure.string/includes? (.toLowerCase (str v))
@@ -14,7 +15,7 @@
     (d/q '[:find [?e ...] :in $ ?needle :where
            [?e :order/email ?email]
            [(user.photon-2-hiccup/includes-str? ?email ?needle)]]
-         hf/*$* (or ?email ""))))
+         db (or ?email ""))))
 
 (tests
   (with (p/run (! (orders ""))) % := [9 10 11])
