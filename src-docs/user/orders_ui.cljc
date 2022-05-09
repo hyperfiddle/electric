@@ -4,10 +4,10 @@
             #?(:clj [hyperfiddle.hfql :refer [hfql]])
             [hyperfiddle.photon :as p]
             [hyperfiddle.ui :as ui]
-            [user.orders :refer [orders genders shirt-sizes]])
-  #?(:cljs (:require-macros [hyperfiddle.hfql :refer [hfql]]
-                            [user.orders :refer [orders genders shirt-sizes]]
-                            [user.orders-ui :refer [Orders]])))
+            [user.orders :refer [orders genders shirt-sizes]]
+            #?(:cljs [hyperfiddle.client :refer [client]])
+            [hyperfiddle.photon-dom :as dom])
+  #?(:cljs (:require-macros [hyperfiddle.hfql :refer [hfql]])))
 
 (p/defn Orders []
   ~@(ui/with-spec-render
@@ -22,3 +22,15 @@
            {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
                                       ::hf/option-label :db/ident
                                       ::hf/render       ui/select-options}) [:db/ident]}]}))))
+
+#?(:cljs
+   (def ^:export entrypoint
+     (client
+      (p/main
+       (binding [dom/parent (dom/by-id "root")]
+         (dom/div
+          (dom/attribute "id" "main")
+          (dom/class "browser")
+          (dom/div
+           (dom/class "view")
+           (new user.orders-ui/Orders))))))))
