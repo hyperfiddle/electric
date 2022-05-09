@@ -3,7 +3,6 @@
     [hyperfiddle.common.transit :as transit]
     [hyperfiddle.server.websockets :as ws]                  ;; TODO restore
     [hyperfiddle.server.interceptors :as i]
-    [hyperfiddle.server.routes :as routes]
     [io.pedestal.http :as http]
     [io.pedestal.http.ring-middlewares :as middlewares]
     [io.pedestal.http.route :refer [expand-routes]]
@@ -132,13 +131,30 @@
 (defn gzip-handler [& methods]
   (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))
 
+(defn- indices [xs] (into {} (map-indexed (fn [i x] [x i])) xs))
+
+(defn sort-by-position
+  "(sort-by-position identity [:a :b :c] [:c :b :a]) => (:a :b :c)"
+  ([positions xs]
+   (sort-by-position identity positions xs))
+  ([getter positions xs]
+   (let [index-of (indices positions)]
+     (sort (comparator (fn [x y]
+                         (let [xi (index-of (getter x))
+                               yi (index-of (getter y))]
+                           (cond
+                             (and xi yi) (< xi yi)
+                             xi          true
+                             yi          false))))
+           xs))))
+
 (defn build [{:keys [host port] :as config}]
   (let [base-chain (conj interceptors (i/with-config config))]
     (merge base-config
       {::http/routes            (->> (expand-routes
                                        #{["/assets/*file-path" :get [rewrite-resources-path (middlewares/file-info) (middlewares/file "resources/public")] :route-name :serve]
                                          ["/*sexpr" :get (conj base-chain (middlewares/file-info) index-dispatch) :route-name :index #_#_:constraints {:sexpr #"(?!ws$).*$"}]})
-                                  (routes/sort-by-position :route-name [:serve :index]))
+                                  (sort-by-position :route-name [:serve :index]))
 
        ::http/router            :linear-search ;; it’s fine we’ve got 1 or 2 routes
        ::http/host              host
