@@ -1,14 +1,8 @@
 (ns hyperfiddle.client
-  (:require [hyperfiddle.api :as hf]
-            [hyperfiddle.common.transit :as transit]
+  (:require [hyperfiddle.common.transit :as transit]
             [hyperfiddle.dev.logger :as log]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
             ["reconnecting-websocket" :as ReconnectingWebSocket]
-            user.browser
-            user.hytradboi
-            user.orders-ui
             hyperfiddle.ui ; hot-reload p/defs on save
             ))
 
@@ -70,35 +64,3 @@
              (write-chan) ; close channel socket
              (throw err)
              )))))
-
-(def main
-  (client
-    (p/main
-      (binding [dom/parent (dom/by-id "hf-ui-dev-root")]
-        (dom/div
-         (dom/attribute "id" "main")
-         (dom/class "browser")
-         (dom/div
-          (dom/class "view")
-          (new user.browser/View)
-          #_~user.hytradboi/view
-          #_(new user.orders-ui/Orders)))))))
-
-(def ^:export reactor)
-
-(defn ^:dev/before-load stop! []
-  (if reactor
-    (do (log/info "Stopping reactor…")
-        (reactor) ;; dispose
-        (set! reactor nil)
-        (log/info "Reactor stopped"))
-    (log/info "Reactor already stopped")))
-
-(defn ^:dev/after-load ^:export start! []
-  (if-not reactor
-    (do (log/info "Starting reactor…")
-        (set! reactor (main js/console.log #(do (log/error "Uncaugh error in main process" %)
-                                                #_(stop!))))
-        (log/info "Reactor started."))
-    (log/info "Reactor already started") ))
-
