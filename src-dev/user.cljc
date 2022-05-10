@@ -29,8 +29,8 @@
   "start Photon app server"
   (do
     (require 'dev)                                          ; todo move into userland with #?(:clj (def db @(requiring-resolve 'dev/db)))
-    (require '[hyperfiddle.server :refer [start-server!]])
-    (def server (start-server! {:host "localhost" :port 8080 :scheme "http"}))
+    (require '[hyperfiddle.photon-server :as server])
+    (def server (server/start! {:host "localhost" :port 8080}))
     ; Wait to enable RCF after everything is loaded for fastest startup
     (hyperfiddle.rcf/enable!))
 

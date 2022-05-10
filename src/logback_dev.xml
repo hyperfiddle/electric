@@ -13,7 +13,7 @@
     </appender>
 
 
-    <logger name="hyperfiddle.server" level="DEBUG" additivity="false">
+    <logger name="hyperfiddle.photon-server" level="DEBUG" additivity="false">
         <appender-ref ref="ERGONOMIC" />
     </logger>
 

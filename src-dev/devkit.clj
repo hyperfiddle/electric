@@ -1,7 +1,7 @@
 (ns devkit)
 
 (require '[dev])
-(require '[hyperfiddle.server :refer [start-server!]])
+(require '[hyperfiddle.photon-server :as server])
 (require '[shadow.cljs.devtools.api :as shadow])
 (require 'shadow.cljs.devtools.server)
 
@@ -20,7 +20,7 @@
                       :anon-fn-naming-policy :unmapped}
    :build-options    {:cache-level :jars} ;; Recompile everything but jars.
    :output-dir       "resources/public/js"
-   :asset-path       "/assets/js"
+   :asset-path       "/js"
    :modules          {:shared {:entries [;; HACK: Shadow should take care of it
                                          'shadow.cljs.bootstrap.env
                                          'shadow.cljs.bootstrap.browser]}
@@ -28,18 +28,12 @@
                                :depends-on #{:shared}
                                :append-js (str (munge ns) ".start_BANG_();")}}})
 
-(defn run! [& {:keys [ns host port]
-               :or   {host "localhost"
-                      port 8080}
-               :as   args}]
+(defn run! [& {:keys [ns]}]
   (assert (some? ns) "\nPlease specify a namespace to load: `clj -X:devkit :ns your.namespace`. ")
   (println "\n# Compiling " ns "\n")
   (shadow.cljs.devtools.server/start!)
   (shadow/watch (build-config ns))
-  (println "\n# Starting server on " host ":" port "\n")
-  (start-server! {:host   "localhost"
-                  :port   port
-                  :scheme "http"})
-  (println (str "\n# Your app: http://" host ":" port))
+  (server/start! {:host "localhost", :port 8081})
+  (println (str "\n# Your app: http://localhost:8080"))
   (println "\n# You can connect a nREPL client to localhost:9001")
-  (println "# Edit `" ns "` and save the file to recompile and live reload.\n"))
+  (println (str "# Edit `" ns "` and save the file to recompile and live reload.\n")))
