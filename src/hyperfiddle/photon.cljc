@@ -127,11 +127,6 @@ Takes a photon program and returns a pair
 ;; guilty until proven innocent          ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; G: Experiments were moved by Léo from hyperfiddle.photon to a dedicated
-;;    hyperfiddle.photon-xp namespace. Dustin and Geoffrey decided to move them
-;;    back to hyperfiddle.photon and tag them as experimental to reduce user's
-;;    cognitive load when exploring the codebase.
-
 (cc/defn ^:no-doc continuous "EXPERIMENTAL"
   ([>x] (continuous nil >x))
   ([init >x] (m/relieve {} (m/reductions {} init >x))))
