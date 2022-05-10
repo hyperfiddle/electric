@@ -5,10 +5,12 @@
            org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"}    ;; used by photon
 
            ;; Server
-           io.pedestal/pedestal.jetty       {:mvn/version "0.5.10"}
-           io.pedestal/pedestal.service     {:mvn/version "0.5.10"}
-           org.apache.commons/commons-lang3 {:mvn/version "3.12.0"}
-           com.cognitect/transit-clj        {:mvn/version "1.0.329"}
+           org.eclipse.jetty/jetty-server                {:mvn/version "9.4.44.v20210927"}
+           org.eclipse.jetty/jetty-servlet               {:mvn/version "9.4.44.v20210927"}
+           org.eclipse.jetty.websocket/websocket-api     {:mvn/version "9.4.44.v20210927"}
+           org.eclipse.jetty.websocket/websocket-servlet {:mvn/version "9.4.44.v20210927"}
+           org.eclipse.jetty.websocket/websocket-server  {:mvn/version "9.4.44.v20210927"}
+           com.cognitect/transit-clj                     {:mvn/version "1.0.329"}
 
            ;; Client
            org.clojure/clojurescript      {:mvn/version "1.11.4"}

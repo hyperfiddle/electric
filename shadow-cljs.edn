@@ -1,6 +1,6 @@
 {:deps     {:aliases [:dev]}
  :nrepl    {:port 9001}
- :dev-http {8000 "resources/public"}
+ :dev-http {8080 {:root "resources/public"}}
  :builds   {:app      {:target           :browser
                        :devtools         {:watch-dir  "resources/public"
                                           :watch-path "/assets"

@@ -11,13 +11,18 @@
                      (.send socket "heartbeat")
                      (js/setTimeout rec interval)))))
 
+(defn server-url []
+  (let [url (.. js/window -hyperfiddle_photon_config -server_url)]
+    (assert (string? url) "Missing websocket server url.")
+    url))
+
 ;; TODO reconnect on failures
 (defn connect [cb]
   (fn [s f]
     (let [client-id   (random-uuid)
           max-retries 4
           socket      (new ReconnectingWebSocket
-                           (str "ws://" (.. js/document -location -host) "/ws?client-id=" client-id)
+                           (str (server-url) "?client-id=" client-id)
                            #js[] #js{:maxRetries (inc max-retries)})
           on-open     (fn on-open [_]
                         (heartbeat! 30000 socket)
