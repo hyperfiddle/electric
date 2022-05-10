@@ -29,8 +29,8 @@
   "start Photon app server"
   (do
     (require 'dev)                                          ; todo move into userland with #?(:clj (def db @(requiring-resolve 'dev/db)))
-    (require '[hyperfiddle.photon-server :as server])
-    (def server (server/start! {:host "localhost" :port 8080}))
+    (require '[hyperfiddle.photon :as p])
+    (def server (p/start-server! {:host "localhost" :port 8080}))
     ; Wait to enable RCF after everything is loaded for fastest startup
     (hyperfiddle.rcf/enable!))
 
@@ -38,8 +38,7 @@
   ; hard refresh
 
   "stop Photon app server"
-  (require 'io.pedestal.http)
-  (io.pedestal.http/stop server)
+  (.stop server)
   ; use logger when debugging due to concurrency which will interleave printlns
   #_(triage.logger/set-level! :debug)
   )
