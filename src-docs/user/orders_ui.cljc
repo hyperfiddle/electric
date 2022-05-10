@@ -31,7 +31,7 @@
             (dom/class "view")
             (new user.orders-ui/Orders)))))))
 
-(def ^:export reactor)
+(def reactor)
 
 (defn ^:dev/before-load stop! []
   (when reactor (reactor)) ; teardown
