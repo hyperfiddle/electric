@@ -1,6 +1,6 @@
 (ns hyperfiddle.server
   (:require
-    [hyperfiddle.common.transit :as transit]
+    [triage.transit :as transit]
     [hyperfiddle.server.websockets :as ws]
     [hyperfiddle.server.interceptors :as i]
     [io.pedestal.http :as http]

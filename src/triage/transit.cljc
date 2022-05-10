@@ -1,4 +1,4 @@
-(ns hyperfiddle.common.transit
+(ns triage.transit ;; TODO Triage should HF library provide encode, decode and extensions?
   (:require [cognitect.transit :as t]
             #?(:cljs [com.cognitect.transit.types]))
   #?(:clj (:import (java.io ByteArrayInputStream ByteArrayOutputStream))))
