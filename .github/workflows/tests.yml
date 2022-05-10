@@ -90,6 +90,9 @@ jobs:
       with:
         node-version: 14.x
 
+    - name: NPM install
+      run: npm install
+
     - name: Install Shadow
       run: npm install shadow-cljs
 
