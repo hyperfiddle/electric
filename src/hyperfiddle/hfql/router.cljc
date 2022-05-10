@@ -1,7 +1,6 @@
 (ns hyperfiddle.hfql.router
   (:require
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-xp :as xp]
    [hyperfiddle.spec :as spec]
    #?(:clj [hyperfiddle.hfql :as hfql])
    #?(:clj [hyperfiddle.hfql.env :as env])))
@@ -87,6 +86,6 @@
             `(with-route-getters ~route ~fns
                (let [routing-map#  ~routing-map]
                  (validate-route! ~route)
-                 (new (xp/deduping (get routing-map# (first ~route) not-found))))))))
+                 (new (p/deduping (get routing-map# (first ~route) not-found))))))))
 
 (p/defn not-found [] "page not found")

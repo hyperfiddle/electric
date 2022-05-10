@@ -3,7 +3,6 @@
                      clojure.pprint
                      [hyperfiddle.photon :as p]
                      hyperfiddle.photon-dom
-                     [hyperfiddle.photon-xp :as xp]
                      [missionary.core :as m]
                      [clojure.edn :as edn]
                      [clojure.pprint :as pprint]
@@ -14,7 +13,6 @@
              [triage.logger :as log]
              [hyperfiddle.photon :as p]
              hyperfiddle.photon-dom
-             [hyperfiddle.photon-xp :as xp]
              [missionary.core :as m]
              ["@codemirror/fold" :as fold]
              ["@codemirror/gutter" :refer [lineNumbers]]
@@ -95,8 +93,8 @@
     (set-editor-value! view (writef value))
     (new (->> >value
            (m/eduction (map readf))
-           (xp/newest (p/fn [] value))
-           (xp/continuous)))))
+           (p/newest (p/fn [] value))
+           (p/continuous)))))
 
 (defn read-edn [edn-str]
   (try (edn/read-string edn-str)
