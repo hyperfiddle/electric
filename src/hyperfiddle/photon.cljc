@@ -8,7 +8,7 @@
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
             #?(:cljs [hyperfiddle.photon-client]))
-  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with]])))
+  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping]])))
 
 #?(:cljs (def client hyperfiddle.photon-client/client))
 
@@ -114,3 +114,36 @@ Takes a photon program and returns a pair
 
 (defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
   [!x] `(new (m/watch ~!x)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;         EXPERIMENTAL ZONE             ;;
+;;                                       ;;
+;; Everything below should be considered ;;
+;; guilty until proven innocent          ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; G: Experiments were moved by Léo from hyperfiddle.photon to a dedicated
+;;    hyperfiddle.photon-xp namespace. Dustin and Geoffrey decided to move them
+;;    back to hyperfiddle.photon and tag them as experimental to reduce user's
+;;    cognitive load when exploring the codebase.
+
+(cc/defn ^:no-doc continuous "EXPERIMENTAL"
+  ([>x] (continuous nil >x))
+  ([init >x] (m/relieve {} (m/reductions {} init >x))))
+
+(defmacro ^:no-doc forget
+  "EXPERIMENTAL
+  Like `do` but returs `nil` once, then never return again."
+  [& body]
+  `(new (->> (p/fn [] ~@body)
+             (m/eduction (constantly nil) (dedupe))
+             (m/reductions {} nil)
+             (m/relieve {}))))
+
+(defmacro ^:no-doc deduping "EXPERIMENTAL" [x]
+  `(new (->> (p/fn [] ~x)
+             (m/eduction (dedupe))
+             (m/reductions {} nil)
+             (m/relieve {}))))
+
+(cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))

@@ -1,7 +1,6 @@
 (ns hyperfiddle.ui
   (:refer-clojure :exclude [boolean])
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-xp :as xp]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.spec :as spec]
@@ -64,7 +63,7 @@
                  :else                     (dom/attribute (name k) v)))
     (new (->> (dom/events dom/parent "input")
            (m/eduction (map extractor))
-           (xp/continuous)))))
+           (p/continuous)))))
 
 ;; (defn set-state! [!atom v] (reset! !atom v))
 
@@ -158,7 +157,7 @@
                                              ~@(new (->> (dom/events dom/parent "input")
                                                       (m/eduction (map dom/target-value)
                                                         (map index))
-                                                      (xp/continuous)))))))]
+                                                      (p/continuous)))))))]
               value')]
       (hf/tx. value' props))))
 
@@ -408,9 +407,9 @@
 (p/def spec-renderer)
 (p/defn spec-renderer-impl [V props]
   (let [value (V.)
-        Renderer (xp/deduping (cond (map? value)    form
-                                 (vector? value) table
-                                 :else           default-renderer))]
+        Renderer (p/deduping (cond (map? value)    form
+                               (vector? value) table
+                               :else           default-renderer))]
     (Renderer. V props)))
 
 (p/def user-renderer)

@@ -1,6 +1,5 @@
 (ns user.browser
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-xp :as xp]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
@@ -45,7 +44,7 @@
           stage        (p/Watch. !stage)
           db           (p/Watch. !db)
           [db message] (hf/transact! db stage)]
-      (binding [hf/db (xp/deduping db)]
+      (binding [hf/db (p/deduping db)]
         ~@;; client
           (binding [hf/route (NavBar.)]
             hf/route ;; hack
@@ -68,7 +67,7 @@
                        (dom/div (dom/class "hf-error-wrapper")
                                 (let [tx' (cm/CodeMirror. {:parent dom/parent} cm/read-edn cm/write-edn [])]
                                   (do tx'
-                                      ~@(xp/forget (reset! !stage tx'))
+                                      ~@(p/forget (reset! !stage tx'))
                                         ;; TODO use z/fsm or z/instant
                                       #_(let [click (dom/button (dom/text "transact!")
                                                                 (new (->> (dom/events dom/parent "click")
