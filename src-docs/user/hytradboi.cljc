@@ -34,7 +34,7 @@
                 (binding [hf/db hf/*db*]
                   (ui/with-spec-render (App.))))))))))
 
-(def ^:export reactor)
+(def reactor)
 
 (defn ^:dev/before-load stop! []
   (when reactor (reactor)) ; teardown
