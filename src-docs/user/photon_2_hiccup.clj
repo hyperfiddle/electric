@@ -4,6 +4,8 @@
             [hyperfiddle.rcf :refer [tests ! % with]]))
 
 
+(hyperfiddle.rcf/enable!)
+
 (defn includes-str? [v needle]
   (clojure.string/includes? (.toLowerCase (str v))
                             (.toLowerCase (str needle))))

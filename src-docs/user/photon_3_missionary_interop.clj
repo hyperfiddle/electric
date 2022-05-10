@@ -1,11 +1,14 @@
 (ns user.photon-3-missionary-interop
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]
-            [missionary.core :as m]))
+            [missionary.core :as m])
+  (:import (missionary Cancelled)))
 
+
+(hyperfiddle.rcf/enable!)
 
 (tests
-  "Missionary signals"
+  "Missionary signals quickstart"
   (def !x (atom 0))                                         ; atoms model variable inputs
   (def >x (m/watch !x))                                     ; "recipe" for a signal derived from atom
 
@@ -25,7 +28,21 @@
   (swap! !x inc)                                            ; trigger a change
   % := ::notify                                             ; flow is ready again
   @!it := 1                                                 ; sample
-  )
+  (!it)                                                     ; terminate
+  % := ::notify
+  @!it thrown? Cancelled                                    ; watch has terminated with this error
+  % := ::terminate)
+
+(tests
+  "cancel before transfer"
+  (def !x (atom 0))
+  (def >x (m/watch !x))
+  (def !it (>x (fn [] (! ::notify))
+               (fn [] (! ::terminate))))
+  % := ::notify
+  (!it)
+  @!it thrown? Cancelled
+  % := ::terminate)
 
 ; Photon programs compile down to Missionary signals and therefore Photon has native interop with Missionary primitives.
 
