@@ -12,6 +12,11 @@
 
 #?(:cljs (def client hyperfiddle.photon-client/client))
 
+#?(:clj
+   (cc/defn start-server!
+     ([] (start-server! nil))
+     ([config] ((requiring-resolve 'hyperfiddle.photon-serve/start!) config))))
+
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
 of this var to the value currently bound to this var.

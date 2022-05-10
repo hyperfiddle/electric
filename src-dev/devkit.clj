@@ -1,6 +1,6 @@
 (ns devkit
   (:require [dev]
-            [hyperfiddle.photon-server :as photon-server]
+            [hyperfiddle.photon :as p]
             [shadow.cljs.devtools.api :as shadow]
             [shadow.cljs.devtools.server :as shadow-server]))
 
@@ -19,8 +19,8 @@
   
   (println "\n# Compiling " ns "\n")
   (shadow-server/start!)
-  (shadow/watch (build-config ns))
-  (photon-server/start! {:host "localhost", :port 8081})
+  (shadow/watch (build-config ns)) ;; Assets are served by shadow
+  (p/start-server! {:host "localhost", :port 8081}) ;; Websocket only
 
   (println (str "\n# Your app: http://localhost:8080"))
   (println "\n# You can connect a nREPL client to localhost:9001")
