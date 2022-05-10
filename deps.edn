@@ -25,7 +25,7 @@
            #_#_com.datomic/datomic-free   {:mvn/version "0.9.5656"
                                            :exclusions  [org.slf4j/slf4j-nop
                                                          com.google.guava/guava]}
-           ;; Logging
+           ;; Logging ;; TODO triage, we should not force a logger
            org.clojure/tools.logging      {:mvn/version "1.2.4"}
            ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
  
@@ -58,7 +58,7 @@
                                    "-Djdk.attach.allowAttachSelf" ;; profiling
                                    "-XX:+UnlockDiagnosticVMOptions"
                                    "-XX:+DebugNonSafepoints"]
-                     :exec-fn devkit/run!
+                     :exec-fn   devkit/main
                      :exec-args {}}
 
            :scratch {:extra-paths ["scratch"]
