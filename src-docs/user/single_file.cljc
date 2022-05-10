@@ -1,8 +1,7 @@
 ;; Run this file with `clj -X:devkit :ns user.single-file`
 
 (ns user.single-file
-  (:require [hyperfiddle.client :refer [client]]
-            [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [user.orders :refer [orders]]
             [hyperfiddle.api :as hf]
@@ -15,15 +14,15 @@
                            (hf/hfql {(orders .) [:order/email]}))))))
 
 (def main
-  (client
-   (p/main
-    (binding [dom/parent (dom/by-id "root")]
-      (dom/div
-       (dom/attribute "id" "main")
-       (dom/class "browser")
-       (dom/div
-        (dom/class "view")
-        (App.)))))))
+  (p/client
+    (p/main
+      (binding [dom/parent (dom/by-id "root")]
+        (dom/div
+          (dom/attribute "id" "main")
+          (dom/class "browser")
+          (dom/div
+            (dom/class "view")
+            (App.)))))))
 
 (def ^:export reactor)
 
