@@ -55,7 +55,7 @@
   (def dispose
     (p/run
       (!
-        (let [x (p/Watch. !x)]
+        (let [x (p/watch !x)]
           (if (even? x)
             (new (ConstantObject x !)))))))                       ; Photon will unmount/destruct the flow when the if switches back
   % := ::mount

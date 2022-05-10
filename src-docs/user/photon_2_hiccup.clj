@@ -27,7 +27,7 @@
   (with
     (p/run
       (!
-        (let [state (p/Watch. !state)]
+        (let [state (p/watch !state)]
           (orders db (:email state)))))
     % := [9 10 11]
     (swap! !state assoc :email "alice")
@@ -37,13 +37,13 @@
 
 (p/defn App [db email]
   [:table
-   (p/for [x (orders db email)]                                ; concurrent for with diffing and stabilization
+   (p/for [x (orders db email)]                             ; concurrent for with diffing and stabilization
      [:tr x])])
 
 (tests
   (def !state (atom {:email nil}))
   (with (p/run
-          (let [state (p/Watch. !state)]
+          (let [state (p/watch !state)]
             (! (App. db (:email state)))))
     % := [:table [[:tr 9] [:tr 10] [:tr 11]]]
     (swap! !state assoc :email "alice")

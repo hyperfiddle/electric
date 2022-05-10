@@ -108,3 +108,6 @@ Takes a photon program and returns a pair
 
 (hyperfiddle.photon/defn Watch [!x]
   (new (m/watch !x)))
+
+(defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
+  [!x] `(new (m/watch ~!x)))

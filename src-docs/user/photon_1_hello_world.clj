@@ -12,7 +12,7 @@
 
 (tests "react based on a ref"
   (def !x (atom 0))
-  (def dispose (p/run (! (p/Watch. !x))))
+  (def dispose (p/run (! (p/watch !x))))
   % := 0
   (swap! !x inc)
   % := 1
@@ -22,7 +22,7 @@
   (def !x (atom 0))
   (def dispose
     (p/run
-      (let [x (p/Watch. !x)]                                ; one watch, shared
+      (let [x (p/watch !x)]                                 ; one watch, shared
         (! (+ x x)))))
   % := 0
   (swap! !x inc)
@@ -34,7 +34,7 @@
 (tests "broken dataflow diamond"
   (def !x (atom 0))
   (def dispose
-    (p/run (! (+ (p/Watch. !x) (p/Watch. !x)))))            ; two watches - bad
+    (p/run (! (+ (p/watch !x) (p/watch !x)))))              ; two watches - bad
   % := 0
   (swap! !x inc)                                            ; each watch fires an event, producing two propagation frames
   % := 1                                                    ; bad
@@ -49,8 +49,8 @@
   (def !f (atom +))
   (def dispose
     (p/run
-      (let [f (p/Watch. !f)
-            x (p/Watch. !x)]
+      (let [f (p/watch !f)
+            x (p/watch !x)]
         (! (f 0 x)))))
   % := 1
   (swap! !x inc)
@@ -65,8 +65,8 @@
   (def !f (atom inc))
   (def dispose
     (p/run
-      (! (let [f  (p/Watch. !f)
-               xs (p/Watch. !xs)]
+      (! (let [f  (p/watch !f)
+               xs (p/watch !xs)]
            (clojure.core/map f xs)))))
   % := [2 3 4]
   (swap! !xs conj 4)
