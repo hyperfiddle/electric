@@ -1,3 +1,4 @@
+;; Run this file with `clj -X:devkit :main user.hytradboi/main`
 (ns user.hytradboi
   (:require [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
@@ -21,27 +22,18 @@
          [:db/ident]}]})))
 
 (def main                                 ; http://localhost:8080/#user.hytradboi
-  (p/client
-    (p/main
-      (binding [dom/parent (dom/by-id "root")]
-        (dom/div
-          (dom/attribute "id" "main")
-          (dom/class "browser")
-          (dom/div
-            (dom/class "view")
-            (codemirror/edn.
-              ~@#_"server"
-                (binding [hf/db hf/*db*]
-                  (ui/with-spec-render (App.))))))))))
-
-(def reactor)
-
-(defn ^:dev/before-load stop! []
-  (when reactor (reactor)) ; teardown
-  (set! reactor nil))
-
-(defn ^:dev/after-load ^:export start! []
-  (set! reactor (main js/console.log js/console.error)))
+  #?(:cljs (p/client
+             (p/main
+               (binding [dom/parent (dom/by-id "root")]
+                 (dom/div
+                   (dom/attribute "id" "main")
+                   (dom/class "browser")
+                   (dom/div
+                     (dom/class "view")
+                     (codemirror/edn.
+                       ~@#_"server"
+                         (binding [hf/db hf/*db*]
+                           (ui/with-spec-render (App.)))))))))))
 
 (comment tests
   (def !x (atom "alice"))

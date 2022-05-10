@@ -10,12 +10,12 @@
             #?(:cljs [hyperfiddle.photon-client]))
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping]])))
 
-#?(:cljs (def client hyperfiddle.photon-client/client))
+(def client #?(:cljs hyperfiddle.photon-client/client))
 
 #?(:clj
    (cc/defn start-server!
      ([] (start-server! nil))
-     ([config] ((requiring-resolve 'hyperfiddle.photon-serve/start!) config))))
+     ([config] ((requiring-resolve 'hyperfiddle.photon-server/start!) config))))
 
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol

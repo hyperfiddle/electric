@@ -1,5 +1,5 @@
+;; Run this file with `clj -X:devkit :main user.orders-ui/main`
 (ns user.orders-ui
-  "todo modernize"
   (:require [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.ui :as ui]
@@ -20,6 +20,7 @@
                                        ::hf/option-label :db/ident
                                        ::hf/render       ui/select-options}) [:db/ident]}]}))))
 
+
 (def main
   (p/client
     (p/main
@@ -30,12 +31,3 @@
           (dom/div
             (dom/class "view")
             (new user.orders-ui/Orders)))))))
-
-(def reactor)
-
-(defn ^:dev/before-load stop! []
-  (when reactor (reactor)) ; teardown
-  (set! reactor nil))
-
-(defn ^:dev/after-load ^:export start! []
-  (set! reactor (main js/console.log js/console.error)))
