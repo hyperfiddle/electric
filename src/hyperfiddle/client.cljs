@@ -1,5 +1,5 @@
 (ns hyperfiddle.client
-  (:require [hyperfiddle.common.transit :as transit]
+  (:require [triage.transit :as transit]
             [hyperfiddle.dev.logger :as log]
             [missionary.core :as m]
             ["reconnecting-websocket" :as ReconnectingWebSocket]
