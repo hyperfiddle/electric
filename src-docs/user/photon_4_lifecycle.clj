@@ -4,6 +4,8 @@
             [missionary.core :as m]))
 
 
+(hyperfiddle.rcf/enable!)
+
 ; Missionary flows, and transitively Photon flows, have an object lifecycle (mount/unmount in React terms).
 ; Reactive computations have a "boot" phase (the expensive initial compute). Once booted, flows are incrementally
 ; maintained (a small change to an input results in a small adjustment to the output). Eventually, the program will
@@ -13,7 +15,7 @@
 
 (defn MyWatch "a watch is a signal derived from observing changes to an atom"
   [!x]
-  (->> (m/observe                                           ; missionary primitive for bridging a ref
+  (->> (m/observe                                           ; missionary primitive for bridging a stateful object
          (fn constructor! [send!]                           ; mount
            ; in ctor, setup the subscriptions to the atom
            (add-watch !x ::MyWatch (fn [k ref old new]
@@ -26,7 +28,7 @@
 
 (tests
   (def !x (atom 0))
-  (with (p/run (! (new (MyWatch !x))))                      ; functions are DAG constructors
+  (with (p/run (! (new (MyWatch !x))))                      ; Functions that return flows are "DAG constructors"
     % := 0
     (swap! !x inc)
     % := 1))
@@ -38,14 +40,15 @@
 
 ; m/observe is how you hook the Photon object lifecycle:
 
-(defn Constant "Returns a recipe for a constant flow that logs its lifecycle to provided callback"
+(defn ConstantObject "Returns a recipe for a constant signal that logs its lifecycle to provided callback"
   [x trace!]
-  (m/observe (fn [send!]
-               (trace! ::mount)
-               ; this will only ever send one value on construction
-               (send! x)
-               ; and then wait until termination
-               #(trace! ::unmount))))
+  (->> (m/observe
+         (fn constructor [send!]
+           (trace! ::mount)
+           ; signal emits initial value on construction, and then signal remains constant until termination
+           (send! x)
+           (fn destructor [] (trace! ::unmount))))
+       (m/relieve {})))
 
 (tests "object lifecycle"
   (def !x (atom 0))
@@ -54,7 +57,7 @@
       (!
         (let [x (p/Watch. !x)]
           (if (even? x)
-            (new (Constant x !)))))))                       ; Photon will unmount/destruct the flow when the if switches back
+            (new (ConstantObject x !)))))))                       ; Photon will unmount/destruct the flow when the if switches back
   % := ::mount
   % := 0
   (swap! !x inc)
