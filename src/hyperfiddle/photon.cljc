@@ -6,8 +6,11 @@
             [hyperfiddle.photon-impl.sampler :refer [sampler!]]
             [hyperfiddle.photon-impl.for :refer [map-by]]
             [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests]])
+            [hyperfiddle.rcf :refer [tests]]
+            #?(:cljs [hyperfiddle.photon-client]))
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with]])))
+
+#?(:cljs (def client hyperfiddle.photon-client/client))
 
 (defmacro vars "
 Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
