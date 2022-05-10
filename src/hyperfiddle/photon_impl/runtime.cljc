@@ -3,7 +3,7 @@
   (:require [hyperfiddle.photon-impl.yield :refer [yield]]
             [hyperfiddle.photon-impl.local :as l]
             [missionary.core :as m]
-            [hyperfiddle.dev.logger :as log]
+            [triage.logger :as log]
             [hyperfiddle.rcf :refer [tests]])
   (:import missionary.Cancelled
            #?(:clj (clojure.lang IFn IDeref))))

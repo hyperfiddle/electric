@@ -41,7 +41,7 @@
   (require 'io.pedestal.http)
   (io.pedestal.http/stop server)
   ; use logger when debugging due to concurrency which will interleave printlns
-  #_(hyperfiddle.dev.logger/set-level! :debug)
+  #_(triage.logger/set-level! :debug)
   )
 
 (comment

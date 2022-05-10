@@ -3,7 +3,7 @@
     [datahike.api :as d]
     [datahike.core :as dc]
     [hyperfiddle.api :as hf]
-    [hyperfiddle.dev.logger :as log]
+    [triage.logger :as log]
     [hyperfiddle.rcf :refer [tests % !]]))
 
 

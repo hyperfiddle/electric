@@ -1,5 +1,5 @@
 (ns user.entrypoint
-  (:require [hyperfiddle.dev.logger :as log]
+  (:require [triage.logger :as log]
             user.hytradboi
             user.orders-ui))
 

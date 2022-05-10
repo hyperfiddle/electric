@@ -9,7 +9,7 @@
     [io.pedestal.http.secure-headers :as secure-headers]
     [io.pedestal.interceptor.helpers :refer [before]]
     [ring.middleware.file :as file]
-    [hyperfiddle.dev.logger :as log]
+    [triage.logger :as log]
     [missionary.core :as m]
     [hyperfiddle.photon :as p])
   (:import org.eclipse.jetty.server.handler.gzip.GzipHandler

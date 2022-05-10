@@ -1,6 +1,6 @@
 (ns hyperfiddle.client
   (:require [triage.transit :as transit]
-            [hyperfiddle.dev.logger :as log]
+            [triage.logger :as log]
             [missionary.core :as m]
             ["reconnecting-websocket" :as ReconnectingWebSocket]
             hyperfiddle.ui ; hot-reload p/defs on save

@@ -1,7 +1,7 @@
-(ns hyperfiddle.dev.logger
+(ns triage.logger ;; TODO Triage. HF library should probably not ship with a logger.
   #?(:clj (:require [clojure.tools.logging :as log]
                     [clojure.tools.logging.impl :as impl])
-     :cljs (:require-macros [hyperfiddle.dev.logger :refer [log debug info trace warn error]])))
+     :cljs (:require-macros [triage.logger :refer [log debug info trace warn error]])))
 
 (def levels [:trace :debug :info :warn :error])
 
