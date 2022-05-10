@@ -1,7 +1,7 @@
 (ns hyperfiddle.server.websockets
   (:require
     [missionary.core :as m]
-    [hyperfiddle.dev.logger :as log])
+    [triage.logger :as log])
   (:import (org.eclipse.jetty.servlet ServletContextHandler ServletHolder)
            (org.eclipse.jetty.websocket.api RemoteEndpoint Session WebSocketConnectionListener
                                             WebSocketListener WriteCallback SuspendToken)

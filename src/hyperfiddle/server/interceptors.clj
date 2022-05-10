@@ -4,7 +4,7 @@
             [clojure.string :as str]
             [io.pedestal.http.content-negotiation :as content-negotiation]
             [io.pedestal.interceptor.helpers :as interceptor]
-            [hyperfiddle.dev.logger :as log])
+            [triage.logger :as log])
   (:import [java.io OutputStreamWriter]
            java.util.UUID
            org.apache.commons.lang3.StringEscapeUtils))
