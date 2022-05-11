@@ -452,59 +452,54 @@
    (tests 1 := 1, 1 := 1) ;; for assert count parity in reports
    )
 
-; node call (static dispatch)
-(p/def !')
-(p/defn Div [child] (!' child) [:div child])
+(p/def trace!)
+(p/defn Div [child] (trace! child) [:div child])
 (p/defn Widget [x]
   (Div. [(Div. x) (Div. :a)]))
 
 (tests
   "reactive defn"
   ; best example of this is hiccup incremental maintenance
-
   (def !x (atom 0))
-  (def dispose (p/run (! (binding [!' ! #_(r/fn [x] (! x))]
-                           (Widget. (p/watch !x))))))
-  % := 0
-  % := :a
-  % := [[:div 0] [:div :a]]
-  % := [:div [[:div 0] [:div :a]]]
-  (swap! !x inc)
-  % := 1
-  ; no :a
-  % := [[:div 1] [:div :a]]
-  % := [:div [[:div 1] [:div :a]]]
-  (dispose))
+  (with (p/run (! (binding [trace! !]
+                    (Widget. (p/watch !x)))))
+    % := 0
+    % := :a
+    % := [[:div 0] [:div :a]]
+    % := [:div [[:div 0] [:div :a]]]
+    (swap! !x inc)
+    % := 1
+    ; no :a
+    % := [[:div 1] [:div :a]]
+    % := [:div [[:div 1] [:div :a]]]))
 
 (p/def G (p/fn [x] x))                                      ; reactive fn (DAG). Compiler marks dag with meta
 (tests
   "node call vs fn call"
   (defn f [x] x)                                            ; This var is not marked with meta
   (def !x (atom 0))
-  (def dispose
+  (with
     (p/run
       (! (let [x (new (m/watch !x))]
-           [(f x) (G. x)]))))
-  % := [0 0]
-  (dispose))
+           [(f x) (G. x)])))
+    % := [0 0]))
 
 (p/def G (p/fn [x] x))
 (tests
   "higher order dags"
   (def !x (atom 0))
   (defn f [x] x)
-  (def dispose
+  (with
     (p/run
-      (! (let [ff #_(fn [x] x) identity                     ; foreign clojure fns are useful, e.g. passing callbacks to DOM
-               Gg (p/fn [x] x)                              ; you almost always want this, not fn
+      (! (let [ff #_(fn [x] x) identity                     ; foreign clojure fns are sometimes useful, e.g. passing callbacks to DOM (don't have yet cc/fn, todo)
+               Gg (p/fn [x] x)                              ; but you almost always want reactive lambda, not cc/fn
                x (new (m/watch !x))]
            [(f x)                                           ; var marked
             (G. x)                                           ; var says node
             (ff x)                                          ; Must assume interop, for compat with clojure macros
             (Gg. x)                                        ; Must mark reactive-call
-            (new (p/fn [x] x) x)]))))
-  % := [0 0 0 0 0]
-  (dispose))
+            (new (p/fn [x] x) x)])))
+    % := [0 0 0 0 0]))
 
 (tests
   "reactive closures"
