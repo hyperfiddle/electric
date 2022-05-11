@@ -1,10 +1,11 @@
-;; Run this file with `clj -X:devkit :main user.orders-ui/main`
 (ns user.orders-ui
+  "This is a self-contained example; run it with:
+  clj -X:devkit :main user.orders-ui/main"
   (:require [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
-            [user.orders :refer [orders genders shirt-sizes]]
-            [hyperfiddle.photon-dom :as dom]))
+            [user.orders :refer [orders genders shirt-sizes]]))
 
 (p/defn Orders []
   ~@(ui/with-spec-render
