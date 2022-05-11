@@ -7,8 +7,20 @@
             [hyperfiddle.photon-impl.for :refer [map-by]]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
+            #?(:clj [hyperfiddle.rcf.analyzer :as ana])     ; todo remove
             #?(:cljs [hyperfiddle.photon-client]))
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping]])))
+
+
+#?(:clj
+   (do
+     ; Optionally, tell RCF not to rewrite Photon programs.
+     (defmethod ana/macroexpand-hook `hyperfiddle.photon/run [the-var form env args] `(hyperfiddle.photon/run ~@args)) ; optional
+     ;(defmethod ana/macroexpand-hook `hyperfiddle.photon/run2 [_the-var _form _env args] `(hyperfiddle.photon/run2 ~@args))
+
+     ; Don't expand cc/binding (prevent infinite loop). Explicit implicit do
+     (defmethod ana/macroexpand-hook 'clojure.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))
+     (defmethod ana/macroexpand-hook 'cljs.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))))
 
 (def client #?(:cljs hyperfiddle.photon-client/client))
 
