@@ -1,12 +1,10 @@
 (ns user.todomvc
-  "doesn't currently run - uses legacy syntax"
   (:require [clojure.edn :as edn]
             [datascript.core :as d]
             [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.zero :as z])
-  #?(:cljs (:require-macros [user.todomvc :refer [db basis-t todo-list transact!' app]])))
+            [hyperfiddle.zero :as z]))
 
 (def auto-inc (partial swap! (atom 0) inc))
 
@@ -31,15 +29,12 @@
 
   )
 
-(p/def db)
-(p/def basis-t)
-
 (defn clear-input! [el v] (dom/set-property! el "value" "") v)
 
 #?(:cljs (defn log [x] (doto x js/console.log)))
 
-(p/def todo-list
-  #'(dom/div
+(p/defn Todo-list [db basis-t]
+    (dom/div
       (concat
         (dom/div
           (dom/text "TodoMVC")
@@ -81,46 +76,46 @@
   (prn :tx-data tx-data)
   (d/transact! !conn tx-data) 1)
 
-(p/def app
-  #'(let [!t (atom 0)]
-      (binding [basis-t ~(m/watch !t)]
-        (prn :basis-t basis-t)
-        ~@(binding [db ~(m/watch !conn)]
-            ~@(if-some [tx-data (seq ~todo-list)]
-                (swap! !t + ~@(transact tx-data))
-                (prn :idle))))))
+(p/defn app []
+  (let [!t      (atom 0)
+        basis-t (p/Watch. !t)]
+    (prn :basis-t basis-t)
+    ~@(let [db (p/Watch. !conn)]
+        ~@(if-some [tx-data (seq (Todo-list. db basis-t))]
+            (swap! !t + ~@(transact tx-data))
+            (prn :idle)))))
 
 (def !stage #?(:cljs (atom nil)))                            ; we choose stage on client
 
-(p/defn transact!' [stage]
+(p/defn Transact! [stage]
   (z/fsm nil
-    #'nil
+    (p/fn [] nil)
     ~@(do (d/transact! !conn stage) nil)))
 
 (def auto-inc-2 (let [!x (atom 0)] (fn [stage]
                                      (println ::auto-inc stage @!x)
                                      (swap! !x inc))))
 
-(p/def app-staging-fixme
-  #'(let [stage ~(m/eduction (dedupe) (m/watch !stage))]
+(p/defn app-staging-fixme [db basis-t]
+    (let [stage ~(m/eduction (dedupe) (m/watch !stage))]
       ~@(let [tx-report (d/with ~(m/watch !conn) stage)]
           (println ::tx-report tx-report)
-          (binding [db (:db-after tx-report)]
-            (let [current-tx (-> tx-report :tempids :db/current-tx)]
-              ~@(binding [basis-t (auto-inc-2 stage)]
-                  (let [tx-data (seq ~todo-list)]
-                    (when tx-data
-                      (js/console.log ::tx-data tx-data)
-                      (swap! !stage concat tx-data)))))))
+          (let [db (:db-after tx-report)
+                current-tx (-> tx-report :tempids :db/current-tx)]
+            ~@(let [basis-t (auto-inc-2 stage)]
+                (let [tx-data (seq (Todo-list. db basis-t))]
+                  (when tx-data
+                    (js/console.log ::tx-data tx-data)
+                    (swap! !stage concat tx-data))))))
 
       (dom/text "transact!")
       (when-some [click-event (dom/button
                                 (dom/text "transact!")
                                 (dom/set-attribute! dom/parent "type" "button")
-                                ~(z/fsm nil #'nil #_(m/eduction (drop 1) (m/watch !conn))
+                                ~(z/fsm nil (fn [] nil) #_(m/eduction (drop 1) (m/watch !conn))
                                       (dom/events dom/parent "click")))]
         (println ::transact! click-event)
-        (p/$ transact!' stage)
+        (Transact!. stage)
         #_~@(do (d/transact! !conn stage) nil)
         (reset! !stage []))
 
@@ -128,7 +123,7 @@
       (if-some [tx-data (dom/input
                           (dom/attribute "type" "text")
                           (dom/property "value" (pr-str stage))
-                          ~(z/fsm nil #'nil (->> (dom/events dom/parent "input")
+                          ~(z/fsm nil (fn [] nil) (->> (dom/events dom/parent "input")
                                            (m/eduction
                                              (map dom/target-value)
                                              (dedupe)))))]
