@@ -1,4 +1,5 @@
-(ns triage.logger ;; TODO Triage. HF library should probably not ship with a logger.
+(ns triage.logger
+  "This is a Photon compatible logger (backed by Clojure logger backed by Log4J); Geoffrey says the timbre macros are too heavy"
   #?(:clj (:require [clojure.tools.logging :as log]
                     [clojure.tools.logging.impl :as impl])
      :cljs (:require-macros [triage.logger :refer [log debug info trace warn error]])))
