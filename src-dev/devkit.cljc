@@ -1,5 +1,6 @@
 (ns devkit
-  #?(:clj (:require [dev]
+  "reusable entrypoint for Photon client/server apps"
+  #?(:clj (:require dev
                     [hyperfiddle.photon :as p]
                     [shadow.cljs.devtools.api :as shadow]
                     [shadow.cljs.devtools.server :as shadow-server])))
@@ -8,36 +9,25 @@
   (let [ns (symbol (namespace sym))]
     {:build-id      :app
      :target        :browser
-     :devtools      {:watch-dir       "resources/public" ; live reload CSS
+     :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                      :hud             #{:errors :progress}
-                     :ignore-warnings true ; warnings don't prevent hot-reload
-                     }
-     :build-options {:cache-level :jars} ; Recompile everything but jars.
+                     :ignore-warnings true}                 ; warnings don't prevent hot-reload
+     :build-options {:cache-level :jars}                    ; recompile everything but jars
      :output-dir    "resources/public/js"
      :asset-path    "/js"
      :modules       {:main {:entries   ['devkit ns]
                             :append-js (str "devkit.main_fn = function(){return " (munge ns) "." (munge (name sym)) "};"
-                                         "devkit.start_BANG_();")}}}))
+                                            "devkit.start_BANG_();")}}}))
 
-(def reactor)
-(def main-fn)
-
-(defn ^:dev/before-load stop! []
-  #?(:cljs (do (when reactor (reactor)) ; teardown
-             (set! reactor nil))))
-
-(defn ^:dev/after-load ^:export start! []
-  #?(:cljs (set! reactor ((main-fn) js/console.log js/console.error))))
+#?(:cljs (def main-fn))                                     ; assigned above with :append-js
+#?(:cljs (def reactor))                                     ; save for debugging
+(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor ((main-fn) js/console.log js/console.error))))
+(defn ^:dev/before-load stop! [] #?(:cljs (do (when reactor (reactor) #_"teardown") (set! reactor nil))))
 
 #?(:clj
    (defn main [& {:keys [main]}]
-     (assert (qualified-symbol? main) "\nPlease specify a main function to run: `clj -X:devkit :main your.namespace/main`. ")
-
-     (println "\n# Compiling " (namespace main) "\n")
-     (shadow-server/start!)
-     (shadow/watch (build-config main)) ;; Assets are served by shadow
-     (p/start-server! {:host "localhost", :port 8081}) ;; Websocket only
-
-     (println (str "\n# Your app: http://localhost:8080"))
-     (println "\n# You can connect a nREPL client to localhost:9001")
-     (println (str "# Edit `" (namespace main) "` and save the file to recompile and live reload.\n"))))
+     (assert (qualified-symbol? main) "\nUsage: `clj -X:devkit :main your.namespace/main`")
+     (shadow-server/start!)                                 ; shadow serves nrepl and browser assets including entrypoint
+     (shadow/watch (build-config main))
+     (p/start-websocket-server! {:host "localhost" :port 8081})
+     (println (str "\n" "http://localhost:8080"))))

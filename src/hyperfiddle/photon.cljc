@@ -13,8 +13,8 @@
 (def client #?(:cljs hyperfiddle.photon-client/client))
 
 #?(:clj
-   (cc/defn start-server!
-     ([] (start-server! nil))
+   (cc/defn start-websocket-server!
+     ([] (start-websocket-server! nil))
      ([config] ((requiring-resolve 'hyperfiddle.photon-server/start!) config))))
 
 (defmacro vars "
