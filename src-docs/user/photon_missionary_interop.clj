@@ -1,4 +1,4 @@
-(ns user.photon-3-missionary-interop
+(ns user.photon-missionary-interop
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]
             [missionary.core :as m])

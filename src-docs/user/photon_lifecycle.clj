@@ -1,4 +1,4 @@
-(ns user.photon-4-lifecycle
+(ns user.photon-lifecycle
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]
             [missionary.core :as m]))
