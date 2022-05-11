@@ -1,4 +1,5 @@
-(ns triage.transit ;; TODO Triage should HF library provide encode, decode and extensions?
+(ns triage.transit
+  "This exists to provide a unified clj/cljs interface to transit which cognitect did not provide?"
   (:require [cognitect.transit :as t]
             #?(:cljs [com.cognitect.transit.types]))
   #?(:clj (:import (java.io ByteArrayInputStream ByteArrayOutputStream))))
@@ -28,9 +29,5 @@
         (.toString out))
       :cljs
       (t/write (t/writer type opts) x))))
-
-;;;;;;;;;;;;;;;;
-;; EXTENTIONS ;;
-;;;;;;;;;;;;;;;;
 
 #?(:cljs (extend-type com.cognitect.transit.types/UUID IUUID)) ; https://github.com/hyperfiddle/hyperfiddle/issues/728
