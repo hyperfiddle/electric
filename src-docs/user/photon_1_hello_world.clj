@@ -104,14 +104,14 @@
   (p/def y (p/watch !y))
   (with (p/run (! (new (if (odd? x)
                          (p/fn [x] (* y x))
-                         (p/fn [x] (* y x)))
+                         (p/fn [x] (+ y x)))
                        x)))
     % := 10
     (swap! !x inc)
-    % := 20
-    (swap! !x inc)
-    % := 30
+    % := 12
     (swap! !y inc)
+    % := 13
+    (swap! !x inc)
     % := 33
     (swap! !y inc)
     % := 36))
