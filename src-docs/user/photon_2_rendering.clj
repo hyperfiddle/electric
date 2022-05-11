@@ -1,4 +1,4 @@
-(ns user.photon-2-hiccup
+(ns user.photon-2-rendering
   (:require [datahike.api :as d]
             [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]))
@@ -11,16 +11,20 @@
                             (.toLowerCase (str needle))))
 
 (defn orders [db ?email]
-  (sort                                                     ; stabilize tests
-    (d/q '[:find [?e ...] :in $ ?needle :where
+  (->>
+    (d/q '[:find [?email ...]
+           :in $ ?needle :where
            [?e :order/email ?email]
-           [(user.photon-2-hiccup/includes-str? ?email ?needle)]]
-         db (or ?email ""))))
+           [(user.photon-2-rendering/includes-str? ?email ?needle)]]
+         db (or ?email ""))
+    sort))                                                  ; stabilize tests
 
 (tests (def db @(requiring-resolve 'dev/db)))
 (tests
-  (with (p/run (! (orders db ""))) % := [9 10 11])
-  (with (p/run (! (orders db "alice"))) % := [9]))
+  (with (p/run (! (orders db ""))) % := ["alice@example.com"
+                                         "bob@example.com"
+                                         "charlie@example.com"])
+  (with (p/run (! (orders db "alice"))) % := ["alice@example.com"]))
 
 (tests
   (def !state (atom {}))
