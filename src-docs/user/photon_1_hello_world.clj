@@ -12,7 +12,7 @@
 
 (tests "react based on a ref"
   (def !x (atom 0))
-  (def dispose (p/run (! (p/watch !x))))
+  (def dispose (p/run (rcf/! (p/watch !x))))
   % := 0
   (swap! !x inc)
   % := 1
