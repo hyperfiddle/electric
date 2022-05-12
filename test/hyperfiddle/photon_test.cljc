@@ -1073,3 +1073,50 @@
     := {:name 'Documented
         :doc  "doc"
         :arglists '([a b c])}))
+
+(tests
+  "pentagram of death - via Kenny Tilton"
+  ; Key elements:
+  ;  - two dependency chains from some property P leading back to one property X; and
+  ;  - branching code in the derivation of P that will not travel the second dependency chain until a
+  ;    certain condition is met; and
+  ;  - by chance, propagation reaches P on the the first path before it reaches some intermediate property
+  ;    I on the second dependency chain.
+  ; The consequence is P updating once and reading (for the first time) property I, which has not yet been
+  ; updated hence is inconsistent with the new value of X. This inconsistency is temporary (hence the name
+  ; "glitch") because I will be updated soon enough and P will achieve consistency with X, but if one's
+  ; reactive engine dispatches side effects off state change -- possible trouble.
+  (def !aa (atom 1))
+  (def !a7 (atom 7))
+  (with
+    (p/run
+      (let [aa  (p/watch !aa)
+            a7  (p/watch !a7)
+            a70 (* 10 a7)
+            bb  aa
+            cc  (* 10 aa)
+            dd  (if (even? bb)
+                  (* 10 cc)
+                  42)]
+        (! (+ a70 bb (* 10000 dd)))))
+    % := 420071
+    (swap! !aa inc)
+    % := 2000072
+    (swap! !aa inc)
+    % := 420073))
+
+(tests
+  "pentagram of death reduced"
+  ; the essence of the problem is:
+  ; 1. if/case switch/change the DAG (imagine a railroad switch between two train tracks)
+  ; 2. to have a conditional where the predicate and the consequent have a common dependency
+  (def !x (atom 1))
+  (with (p/run (! (let [p       (p/watch !x)
+                        q       (! (str p))
+                        control (- p)]
+                    (case control -1 p -2 q q))))
+    % := 1                                                  ; cross
+    ; q has not been touched, no causal dependency yet
+    (swap! !x inc)
+    % := "2"                                                ; q first touched
+    % := "2"))
