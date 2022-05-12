@@ -210,19 +210,46 @@
     % := 2))
 
 (tests
-  ; TBD, negotiating with Leo
-  ; Leo: by eager we mean, when inside the if2 body, a and b
-  ; are already evaluated (the flow has been run but not sampled)
   "control flow implemented with lazy signals"
-  (p/defn If2 [x a b]
+  (p/defn If2 [x a b]                                       ; Key question - how lazy are the parameters?
     (->> (boolean x)
          (get {true (p/fn [] a)
                false (p/fn [] b)})
          (new)))
-  (with (p/run (! (If2. false (! :a) (! :b))))
-    ;% := :a
+
+  ; this test passes on May 2022 but we plan to change it
+  ; in the future, this behavior will exist under p/let, not cc/let
+  (def !x (atom false))
+  (def !a (atom :a))
+  (def !b (atom :b))
+  (with (p/run (let [x (p/watch !x)
+                     a (! (p/watch !a))                     ; lazy
+                     b (! (p/watch !b))]                    ; lazy
+                 (! (If2. x a b))))
+    ;% := :a -- a is not run
     % := :b
-    % := :b))
+    % := :b
+    (swap! !x not)
+    % := :a
+    % := :a))
+
+(comment
+  "imperative let behavior (with clojure.core compat) sequences effects in let order, breaking lazy if"
+  (def !x (m/watch false))
+  (def !a (m/watch :a))
+  (def !b (m/watch :b))
+  (with (p/run (clojure.core/let                            ; future behavior
+                 [x (p/watch !x)
+                  a (! (p/watch !a))
+                  b (! (p/watch !b))]
+                 (! (If2. x a b))))
+    % := :a    ; too eager, but desirable default for CC compat
+    % := :b
+    % := :b
+    (swap! !x not)
+    ;% := :a
+    ;% := :b
+    % := :a))
 
 (tests
   "reactive case"
