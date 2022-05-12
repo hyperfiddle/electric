@@ -25,8 +25,10 @@
          db (or ?email ""))))
 
 (tests
-  (with (p/run (! (orders db ""))) % := ["alice@example.com" "bob@example.com" "charlie@example.com"])
-  (with (p/run (! (orders db "alice"))) % := ["alice@example.com"]))
+  (orders db "") := ["alice@example.com"
+                     "bob@example.com"
+                     "charlie@example.com"]
+  (orders db "alice") := ["alice@example.com"])
 
 (tests
   (def !state (atom {}))
@@ -35,7 +37,9 @@
       (!
         (let [state (p/watch !state)]
           (orders db (:email state)))))
-    % := ["alice@example.com" "bob@example.com" "charlie@example.com"]
+    % := ["alice@example.com"
+          "bob@example.com"
+          "charlie@example.com"]
     (swap! !state assoc :email "alice")
     % := ["alice@example.com"]
     (swap! !state assoc :email "bob")
@@ -43,7 +47,7 @@
 
 (p/defn App [db email]
   [:table
-   (p/for [x (orders db email)]                             ; concurrent for with diffing and stabilization
+   (p/for [x (orders db email)]
      [:tr x])])
 
 (tests
@@ -51,7 +55,9 @@
   (with (p/run
           (let [state (p/watch !state)]
             (! (App. db (:email state)))))
-    % := [:table [[:tr "alice@example.com"] [:tr "bob@example.com"] [:tr "charlie@example.com"]]]
+    % := [:table [[:tr "alice@example.com"]
+                  [:tr "bob@example.com"]
+                  [:tr "charlie@example.com"]]]
     (swap! !state assoc :email "alice")
     % := [:table [[:tr "alice@example.com"]]]
     (swap! !state assoc :email "bob")
