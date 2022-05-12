@@ -1,0 +1,54 @@
+(ns hyperfiddle.missionary-test
+  (:require [missionary.core :as m]
+            [hyperfiddle.rcf :refer [tests ! % with]])
+  (:import (missionary Cancelled)))
+
+(tests
+  "pentagram of death - via Kenny Tilton"
+  (def !aa (atom 1))
+  (def !a7 (atom 7))
+  (with
+    ((m/reactor
+       (let [<aa  (m/signal! (m/watch !aa))
+             <a7  (m/signal! (m/watch !a7))
+             <a70 (m/signal! (m/latest (partial * 10) <a7))
+             <bb  (m/signal! <aa)
+             <cc  (m/signal! (m/latest (partial * 10) <aa))
+             <dd  (m/signal! (m/cp
+                               (try
+                                 (if (even? (m/?< <bb))
+                                   (* 10 (m/?< <cc)) 42)
+                                 (catch Cancelled _))))
+             <ee  (m/signal! (m/latest + <a70 <bb (m/latest (partial * 10000) <dd)))]
+         (m/stream!
+           (m/ap
+             (m/amb=
+               (! {'aa (m/?< <aa)})
+               (! {'a7 (m/?< <a7)})
+               (! {'a70 (m/?< <a70)})
+               (! {'bb (m/?< <bb)})
+               (! {'cc (m/?< <cc)})
+               (! {'dd (m/?< <dd)})
+               (! {'ee (m/?< <ee)}))))))
+     ! !)
+    % := {'ee 420071}
+    % := {'dd 42}
+    % := {'cc 10}
+    % := {'bb 1}
+    % := {'a70 70}
+    % := {'a7 7}
+    % := {'aa 1}
+
+    (swap! !aa inc)
+    % := {'aa 2}
+    % := {'bb 2}
+    % := {'cc 20}
+    % := {'dd 200}
+    % := {'ee 2000072}
+
+    (swap! !aa inc)
+    % := {'aa 3}
+    % := {'bb 3}
+    % := {'cc 30}
+    % := {'dd 42}
+    % := {'ee 420073}))
