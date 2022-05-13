@@ -9,7 +9,7 @@
 (p/defn App [x]
   (if (even? x)
     (pr-str (type 1))
-    ~@(pr-str (type 1))))                                   ; client/server transfer
+    ~@(pr-str (type 1))))                   ; client/server transfer
 
 #?(:cljs
    (tests
@@ -21,7 +21,7 @@
                    js/console.log js/console.error))
      % := "#object[Number]"
      (swap! !x inc)
-     % := "java.lang.Long"                                  ; holy cow
+     % := "java.lang.Long"                  ; holy cow
      (dispose)))
 
 (tests
