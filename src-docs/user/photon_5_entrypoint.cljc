@@ -7,24 +7,20 @@
             #?(:clj shadow.cljs.devtools.api)))
 
 
-(p/defn App []
+(p/defn Foo []
   (dom/div
-    (dom/text
-      ~@#_"server"
-      (pr-str (type 1)))))
+    (dom/text ~@ (pr-str (type 1)))))                       ; ~@ marks client/server transfer
 
-(def photon-entrypoint                                      ; Photon entrypoint is on the client.
-  #?(:cljs
-     (p/client                                              ; Photon client bootstraps Photon server in-band
-       (p/main
-         (binding [dom/parent (dom/by-id "root")]
-           (dom/div
-             (dom/attribute "id" "main")
-             (dom/class "browser")
-             (dom/div
-               (dom/class "view")
-               (App.))))))))
+(p/defn App []
+  (binding [dom/parent (dom/by-id "root")]
+    (dom/div
+      (dom/attribute "id" "main")
+      (dom/class "browser")
+      (dom/div
+        (dom/class "view")
+        (Foo.)))))
 
+(def photon-entrypoint #?(:cljs (p/client (p/main (App.))))) ; Photon entrypoint is on the client
 
 #?(:cljs (def reactor))                                     ; save for debugging
 (defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor (photon-entrypoint js/console.log js/console.error))))
