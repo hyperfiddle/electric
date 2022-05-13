@@ -3,7 +3,7 @@
   Adapted from `ring.adapter.jetty`."
   (:require [missionary.core :as m]
             [hyperfiddle.logger :as log]
-            [triage.transit :as transit]
+            [cognitect.transit :as t]
             [hyperfiddle.photon :as p])
   (:import [org.eclipse.jetty.server
             Request
@@ -22,6 +22,7 @@
             WebSocketListener WriteCallback SuspendToken]
            [org.eclipse.jetty.websocket.servlet WebSocketCreator WebSocketServlet]
            [clojure.lang IFn]
+           [java.io ByteArrayInputStream ByteArrayOutputStream]
            [java.nio ByteBuffer]
            [missionary Cancelled]
            [java.util.concurrent Executors ThreadFactory Executor]))
@@ -173,6 +174,13 @@
 (defn failure [^Throwable e]
   (.printStackTrace e))
 
+(defn encode "Serialize to transit json" [v]
+  (let [out (ByteArrayOutputStream.)]
+    (t/write (t/writer out :json) v)
+    (.toString out)))
+(defn decode "Parse transit json" [^String s] 
+  (t/read (t/reader (ByteArrayInputStream. (.getBytes s "UTF-8")) :json)))
+
 ;; to boot a distributed photon app
 ;; p/main is expanded on cljs side, returns a pair
 ;; first element is the compiled client version
@@ -196,7 +204,7 @@
                       (let [?read (m/sp
                                     (let [x (try (m/? read-str)
                                               (finally (m/? (m/via el))))]
-                                      (try (transit/decode x)
+                                      (try (decode x)
                                         (catch Throwable t
                                           (log/error (ex-info "Failed to decode" {:value x} t))
                                           (throw t)))))
@@ -204,7 +212,7 @@
                                     (m/sp
                                       (try
                                         (m/? (write-str (deref !remote)
-                                               (try (transit/encode x)
+                                               (try (encode x)
                                                  (catch Throwable t
                                                    (log/error (ex-info "Failed to encode" {:value x} t))
                                                    (throw t)))))

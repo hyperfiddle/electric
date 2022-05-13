@@ -1,5 +1,6 @@
 (ns hyperfiddle.photon-client
-  (:require [triage.transit :as transit]
+  (:require [cognitect.transit :as t]
+            [com.cognitect.transit.types]
             [hyperfiddle.logger :as log]
             [missionary.core :as m]
             ["reconnecting-websocket" :as ReconnectingWebSocket]
@@ -15,6 +16,11 @@
   (let [url (.. js/window -hyperfiddle_photon_config -server_url)]
     (assert (string? url) "Missing websocket server url.")
     url))
+ 
+(defn encode "Serialize to transit json" [v] (t/write (t/writer :json) v))
+(defn decode "Parse transit json" [^String s] (t/read (t/reader :json) s))
+
+(extend-type com.cognitect.transit.types/UUID IUUID) ; https://github.com/hyperfiddle/hyperfiddle/issues/728
 
 ;; TODO reconnect on failures
 (defn connect [cb]
@@ -28,7 +34,7 @@
                         (heartbeat! 30000 socket)
                         (.removeEventListener socket on-open)
                         (set! (.-onmessage socket)
-                              #(let [decoded (transit/decode (.-data %))]
+                              #(let [decoded (decode (.-data %))]
                                  (log/trace "🔽" decoded)
                                  (cb decoded)))
                         (s (fn
@@ -37,7 +43,7 @@
                               (fn [s f]
                                 (try
                                   (log/trace "🔼" x)
-                                  (.send socket (transit/encode x))
+                                  (.send socket (encode x))
                                   (s nil)
                                   (catch :default e
                                     (log/error "Failed to write on socket" e)
