@@ -51,7 +51,7 @@
   (def !x (atom 0))
 
   (with (p/run (!
-                 (new                                       ; construct flow with (new)
+                 (new                                       ; run flow from recipe with (new)
                    (m/watch !x))))                          ; recipe for a flow derived from atom
     % := 0
     (swap! !x inc)

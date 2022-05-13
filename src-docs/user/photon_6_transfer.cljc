@@ -66,5 +66,5 @@
   ; Connect browser session - localhost:8080
   (type 1)
   (println 1)                                               ; see browser console
-  (hyperfiddle.rcf/enable!)
+  (tests (pr-str (type 1)) := "#object[Number]")
   hyperfiddle.rcf/*enabled*)

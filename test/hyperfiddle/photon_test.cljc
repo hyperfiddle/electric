@@ -649,10 +649,13 @@
 (p/defn Boom [] (throw (ex-info "" {})))
 (tests
   "reactive exceptions"
-  (def dispose
-    (p/run (! (try (Boom.) (catch #?(:clj Exception, :cljs :default) _ ::inner)))))
-  % := ::inner                                              ; reactive exception caught
+  (with (p/run (! (try
+                    (Boom.)
+                    (catch #?(:clj Exception, :cljs :default) e
+                      ::inner))))
+    % := ::inner))
 
+(tests
   (def dispose
     (p/run (! (try
                 (let [Nf (try

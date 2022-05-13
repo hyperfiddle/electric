@@ -32,6 +32,7 @@
 
 #?(:clj
    (defn main [& args]
+     ; assert node_modules
      (shadow.cljs.devtools.server/start!)                   ; shadow serves nrepl and browser assets including entrypoint
      (shadow.cljs.devtools.api/watch
        {:build-id      :app
