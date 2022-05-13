@@ -50,7 +50,7 @@
             hf/route ;; hack
             (let [route hf/route ;; TODO binding unification
                   tx    ~@(ui/with-spec-render
-                            (binding [hf/render        ui/render
+                            (binding [hf/Render        ui/Render
                                       router/not-found NotFoundPage]
                               (let [[_ sub] route]
                                 (router/router

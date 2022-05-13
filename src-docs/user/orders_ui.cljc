@@ -10,7 +10,7 @@
 (p/defn Orders []
   ~@(ui/with-spec-render
       (binding [hf/db     hf/*db*
-                hf/render ui/render]
+                hf/Render ui/Render]
         (hf/hfql
           {(orders .)
            [:order/email

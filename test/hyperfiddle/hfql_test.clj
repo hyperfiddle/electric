@@ -79,7 +79,7 @@
  )
 
 (p/defn select-option-renderer [>v props]
-  (into [:select {:value (new hf/join-all (new >v))}]
+  (into [:select {:value (new hf/Join-all (new >v))}]
         (p/for [e (new (::hf/options props))]
           [:option e])))
 
@@ -168,7 +168,7 @@
                                 #:db{:id 11}]})
 
 (p/defn render-typeahead [>v props]
-  [:select {:value (new hf/join-all (new >v))}
+  [:select {:value (new hf/Join-all (new >v))}
    (p/for [e (new (::hf/options props))]
      [:option e])])
 
