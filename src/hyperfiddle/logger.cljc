@@ -1,16 +1,23 @@
-(ns triage.logger
-  "This is a Photon compatible logger (backed by Clojure logger backed by Log4J); Geoffrey says the timbre macros are too heavy"
+(ns ^:no-doc hyperfiddle.logger
+  "A Photon compatible logger. Not public API. 
+  Thin uniform macro wrapper on top of clojure.tools.logging and js/console.log|warn|error.
+  `Timbre` rely on `cc/fn`, which is not yet supported by photon. It will be at some point.
+  `cc/print` flushes to `*out*` immediatly, concurent writes produces gibberish. A proper logger
+  sequences writes.
+  To be removed when timbre (or an equivalent) is supported by photon.
+  Backed by clojure.tools.logging > backed by SLF4J > backed by logback. See logback.xml."
   #?(:clj (:require [clojure.tools.logging :as log]
                     [clojure.tools.logging.impl :as impl])
-     :cljs (:require-macros [triage.logger :refer [log debug info trace warn error]])))
+     :cljs (:require-macros [hyperfiddle.logger :refer [log debug info trace warn error]])))
 
 (def levels [:trace :debug :info :warn :error])
 
-#?(:cljs (goog-define LEVEL "trace"))
+#?(:cljs (goog-define LEVEL "trace")) ; Set log level as cljs compile time constant.
 
 (def ^:dynamic *LEVEL* #?(:clj :trace, :cljs (keyword LEVEL)))
 
-(defn ^:export set-level! [level]
+(defn ^:export set-level! "Set runtime log level. See `hyperfiddle.logger/levels`." 
+  [level]
   (let [level (if (string? level) (keyword level) level)]
     (assert ((set levels) level) "Invalid log level.")
     #?(:clj (alter-var-root #'*LEVEL* (constantly level))

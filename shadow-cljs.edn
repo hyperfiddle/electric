@@ -25,12 +25,12 @@
                        :ns-regexp        "^hyperfiddle.photon-[^dom].*$"
                        :build-options    {:cache-level :off}
                        :modules          {:main {:entries [hyperfiddle.photon hyperfiddle.photon-test]}}
-                       :dev              {:closure-defines {triage.logger/LEVEL "debug"}}
+                       :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
                        :compiler-options {:warnings {:redef-in-file false}}}
             :browser-test {:target           :karma
                            :output-to        "out/karma-tests.js"
                            :ns-regexp        "^hyperfiddle.photon-.*$"
                            :build-options    {:cache-level :off}
                            :modules          {:main {:entries [hyperfiddle.photon hyperfiddle.photon-test]}}
-                           :dev              {:closure-defines {triage.logger/LEVEL "debug"}}
+                           :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
                            :compiler-options {:warnings {:redef-in-file false}}}}}

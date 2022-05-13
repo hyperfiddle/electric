@@ -2,7 +2,7 @@
   "This is a developement server, no SSL support.
   Adapted from `ring.adapter.jetty`."
   (:require [missionary.core :as m]
-            [triage.logger :as log]
+            [hyperfiddle.logger :as log]
             [triage.transit :as transit]
             [hyperfiddle.photon :as p])
   (:import [org.eclipse.jetty.server
