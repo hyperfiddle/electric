@@ -1,4 +1,4 @@
-(ns user.photon-6-transfer
+(ns user.photon-4-transfer
   "Photon with client/server transfer at the REPL"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]
@@ -56,7 +56,7 @@
         :asset-path    "/js"
         :modules       {:main {:entries ['shadow.cljs.bootstrap.env
                                          'shadow.cljs.bootstrap.browser
-                                         'user.photon-6-transfer]}}})
+                                         'user.photon-4-transfer]}}})
      (p/start-websocket-server! {:host "localhost" :port 8081})
      (println (str "\n" "http://localhost:8080"))))
 
