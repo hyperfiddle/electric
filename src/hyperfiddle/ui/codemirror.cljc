@@ -6,11 +6,11 @@
                      [missionary.core :as m]
                      [clojure.edn :as edn]
                      [clojure.pprint :as pprint]
-                     [triage.logger :as log])
+                     [hyperfiddle.logger :as log])
      :cljs (:require
              [clojure.edn :as edn]
              [clojure.pprint :as pprint]
-             [triage.logger :as log]
+             [hyperfiddle.logger :as log]
              [hyperfiddle.photon :as p]
              hyperfiddle.photon-dom
              [missionary.core :as m]
@@ -99,7 +99,7 @@
 (defn read-edn [edn-str]
   (try (edn/read-string edn-str)
        (catch #?(:clj Throwable :cljs :default) t
-         (triage.logger/error t)
+         (hyperfiddle.logger/error t)
          nil)))
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))

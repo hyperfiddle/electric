@@ -14,7 +14,7 @@
             #?(:cljs [goog.style :as sty])
             #?(:cljs [goog.events :as events])
             [clojure.string :as str]
-            [hyperfiddle.dev.logger :as log])
+            [hyperfiddle.logger :as log])
   #?(:cljs (:require-macros [hfdl.lang :as photon :refer [vars]])))
 
 ;; TODO belongs here?

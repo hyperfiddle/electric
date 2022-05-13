@@ -1,6 +1,6 @@
 (ns hyperfiddle.photon-client
   (:require [triage.transit :as transit]
-            [triage.logger :as log]
+            [hyperfiddle.logger :as log]
             [missionary.core :as m]
             ["reconnecting-websocket" :as ReconnectingWebSocket]
             ))

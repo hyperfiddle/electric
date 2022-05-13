@@ -40,7 +40,7 @@
   "stop Photon app server"
   (.stop server)
   ; use logger when debugging due to concurrency which will interleave printlns
-  #_(triage.logger/set-level! :debug)
+  #_(hyperfiddle.logger/set-level! :debug)
   )
 
 (comment

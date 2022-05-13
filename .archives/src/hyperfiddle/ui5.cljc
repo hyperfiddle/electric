@@ -8,7 +8,7 @@
             [datascript.db]
             #?(:clj [hyperfiddle.q8 :as hfql])
             #?(:clj [datahike.api :as d])
-            [hyperfiddle.dev.logger :as log])
+            [hyperfiddle.logger :as log])
   #?(:cljs (:require-macros [hyperfiddle.q8 :as hfql]
                             [hyperfiddle.ui5 :refer [render
                                                      spec-renderer spec-renderer-impl

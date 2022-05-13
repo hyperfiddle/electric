@@ -7,7 +7,7 @@
             [missionary.core :as m]
             [datascript.db]
             #?(:clj [datahike.api :as d])
-            [triage.logger :as log]
+            [hyperfiddle.logger :as log]
             [hyperfiddle.ui.color :refer [color]])
   #?(:cljs (:require-macros [hyperfiddle.ui :refer [link]])))
 

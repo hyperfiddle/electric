@@ -7,7 +7,7 @@
             [missionary.core :as m]
             [datascript.db]
             #?(:clj [hyperfiddle.q6 :as hfql])
-            [hyperfiddle.dev.logger :as log]
+            [hyperfiddle.logger :as log]
             [hfdl.impl.runtime] ;; FIXME remove
             )
   #?(:cljs (:require-macros [hyperfiddle.q6 :as hfql]

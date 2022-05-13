@@ -7,8 +7,8 @@
             [hyperfiddle.photon :as p :refer [vars]]
             [missionary.core :as m]
             [hyperfiddle.hfql :as hfql]
-            #?(:clj [triage.logger :as log]))
-  #?(:cljs (:require [triage.logger :as log]))
+            #?(:clj [hyperfiddle.logger :as log]))
+  #?(:cljs (:require [hyperfiddle.logger :as log]))
   #?(:cljs (:require-macros [hyperfiddle.api :refer [route db entity attribute value context refs props sequenceM render join-all data tx
                                                      hfql]])))
 

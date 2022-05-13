@@ -46,7 +46,7 @@
                                                 :dom.property/style {"width" "100%"}}
                                       dom/target-value)
                        route     (edn/read-string route-str)]
-                   (hyperfiddle.dev.logger/info "route" route)
+                   (hyperfiddle.logger/info "route" route)
                    ;; (js/console.log route)
                    (when go!
                      (dom/div
