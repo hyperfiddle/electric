@@ -1,4 +1,3 @@
-;; Run this file with `clj -X:devkit :main user.hytradboi/main`
 (ns user.hytradboi
   (:require [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
@@ -9,10 +8,8 @@
             [user.orders :refer [orders genders shirt-sizes]]
             dustin.y2022.edn-render))
 
-#?(:clj (def db @(requiring-resolve 'dev/db)))
-
 (p/defn App []
-  (binding [hf/render ui/render] ; default to dom so issues show up in test
+  (binding [] ; default to dom so issues show up in test
     (hf/hfql
       {(orders .)
        [:order/email
@@ -21,7 +18,7 @@
         {(props :order/shirt-size {::hf/options (shirt-sizes order/gender .)})
          [:db/ident]}]})))
 
-(def main                                 ; http://localhost:8080/#user.hytradboi
+(def main                                 ; http://localhost:8080/
   #?(:cljs (p/client
              (p/main
                (binding [dom/parent (dom/by-id "root")]
@@ -32,21 +29,10 @@
                      (dom/class "view")
                      (codemirror/edn.
                        ~@#_"server"
-                         (binding [hf/db hf/*db*]
+                         (binding []
                            (ui/with-spec-render (App.)))))))))))
 
-(comment tests
-  (def !x (atom "alice"))
-  (with (p/run (! (App. (p/Watch !x))))
-
-    % := '{(user.orders/orders _)
-           [{:order/gender     #:db{:ident :order/female},
-             :order/email      "alice@example.com",
-             :order/shirt-size _}]}
-
-    (reset! !x "bob")
-
-    % := '{(user.orders/orders _)
-           [{:order/gender     #:db{:ident :order/male},
-             :order/email      "bob@example.com",
-             :order/shirt-size _}]}))
+(comment
+  (devkit/main :main `main)
+  "clj -X:devkit :main user.hytradboi/main"
+  )
