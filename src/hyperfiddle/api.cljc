@@ -1,17 +1,14 @@
 (ns hyperfiddle.api
   (:require #?(:clj [datahike.api :as d]
                :cljs [datascript.core :as d])
-            #?(:clj [datahike.impl.entity :as de]
-               :cljs [datascript.impl.entity :as de])
             [hyperfiddle.rcf :refer [tests ! %]]
             [hyperfiddle.photon :as p]
-            [missionary.core :as m]
-            [hyperfiddle.hfql :as hfql]
-            #?(:clj [hyperfiddle.logger :as log]))
-  #?(:cljs (:require [hyperfiddle.logger :as log]))
-  #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql route db entity attribute context tx]])))
+            [hyperfiddle.hfql :as hfql])
+  #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
 
 (defmacro hfql [& body] `(hfql/hfql ~@body))
+(def nav! #'hfql/nav!)
+(def q #'d/q) ;; datascript.api/q on client, datahike.api/q on server.
 
 ;;; Route
 
@@ -90,43 +87,6 @@
     (Join-all. (V.))))
 
 (p/defn Data [V] (binding [Render (p/fn [V _props] (Join-all. (V.)))] (Render. V)))
-
-; todo rename wrap, it's sideeffect-fn to fn-returning-flow
-(defn wrap [f] (fn [& args] #?(:clj (m/ap #_(m/? (m/via m/blk (apply f args))) ;; TODO restore and handle continuous flow initial state
-                                     (apply f args))
-                               :cljs (m/ap (apply f args))))) ; m/via not supported in cljs
-
-(def q (wrap (fn [query & args]
-               (log/debug :q query args)
-               (doto (apply d/q query args) log/debug))))
-
-(comment
-  ; no dev *$* yet, and RCF might be enabled
- (d/q '[:find [?e ...] :where [_ :order/gender ?g] [?g :db/ident ?e]] *$*)
- := [:order/female :order/male]
- (m/? (m/reduce conj (q '[:find [?e ...] :where [_ :order/gender ?g] [?g :db/ident ?e]] *$*)))
- := [[:order/female :order/male]])
-
-(defn nav!
-  ([_ e] e)
-  ([db e a] (let [v (a (if (de/entity? e) e (d/entity db e)))]
-              (if (de/entity? v)
-                (:db/id v)
-                v)))
-  ([db e a & as] (reduce (partial nav! db) (nav! db e a) as)))
-
-(def nav (wrap (fn [db e a]
-                 (log/debug :nav e a)
-                 (doto (nav! db e a) log/debug))))
-
-(comment
- ; no dev db yet, and RCF might be enabled
- (nav! *$* 9 :order/email)
- := "alice@example.com"
-
- (m/? (m/reduce conj (nav *$* 9 :order/email)))
- := ["alice@example.com"])
-
 
 #?(:clj (defn transact!
           ([db stage] (transact! db stage false))

@@ -7,7 +7,7 @@
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (p/defn genders []
-  (into [] (sort (new (hf/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*)))))
+  (into [] (sort (hf/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*))))
 
 (tests
   (def dispose (p/run (! (genders.))))
@@ -20,24 +20,24 @@
 
 (p/defn shirt-sizes [gender needle]
   (sort
-    (new (if gender
-           (hf/q '[:in $ % ?gender ?needle
-                   :find [?e ...]
-                   :where
-                   [?e :order/type :order/shirt-size]
-                   [?e :order/gender ?gender]
-                   [?e :db/ident ?ident]
-                   [(hyperfiddle.api/includes-str? ?ident ?needle)]]
-             hf/*$*
-             hf/rules gender (or needle ""))
-           (hf/q '[:in $ % ?needle
-                   :find [?e ...]
-                   :where
-                   [?e :order/type :order/shirt-size]
-                   [?e :db/ident ?ident]
-                   [(hyperfiddle.api/includes-str? ?ident ?needle)]]
-             hf/*$*
-             hf/rules (or needle ""))))))
+    (if gender
+      (hf/q '[:in $ % ?gender ?needle
+              :find [?e ...]
+              :where
+              [?e :order/type :order/shirt-size]
+              [?e :order/gender ?gender]
+              [?e :db/ident ?ident]
+              [(hyperfiddle.api/includes-str? ?ident ?needle)]]
+        hf/*$*
+        hf/rules gender (or needle ""))
+      (hf/q '[:in $ % ?needle
+              :find [?e ...]
+              :where
+              [?e :order/type :order/shirt-size]
+              [?e :db/ident ?ident]
+              [(hyperfiddle.api/includes-str? ?ident ?needle)]]
+        hf/*$*
+        hf/rules (or needle "")))))
 
 ;(tests
 ;  hf/*$*
@@ -47,13 +47,13 @@
 
 (p/defn orders [needle]
   (sort
-    (new (hf/q '[:find [?e ...]
-                 :in $ ?needle
-                 :where
-                 [?e :order/email ?email]
-                 [(hyperfiddle.api/includes-str? ?email ?needle)]]
-           hf/*$*
-           (or needle "")))))
+    (hf/q '[:find [?e ...]
+            :in $ ?needle
+            :where
+            [?e :order/email ?email]
+            [(hyperfiddle.api/includes-str? ?email ?needle)]]
+      hf/*$*
+      (or needle ""))))
 
 (tests
   (p/run (! (orders. "")))
@@ -69,7 +69,7 @@
 (p/defn order [needle] (first (orders. needle)))
 
 (s/fdef one-order :args (s/cat :sub any?) :ret any?)
-(p/defn one-order [sub] (new (hf/nav hf/*$* sub :db/id)))
+(p/defn one-order [sub] (hf/nav! hf/*$* sub :db/id))
 
 (tests
   (p/run (! (order. "")))
