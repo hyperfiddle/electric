@@ -1,4 +1,11 @@
 (ns user.photon-1-hello-world
+  "Introduction to Hyperfiddle Photon, a fully async and reactive Clojure/Script dialect,
+  designed to express a distributed client/server system in a single program, with
+  compiler-managed client/server data sync.
+
+  More info:
+    https://www.hyperfiddle.net/
+    https://twitter.com/dustingetz/status/1520397540386091009"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]))
 
@@ -126,3 +133,12 @@
     (swap! !xs conj 4)                                      ; incremental update
     % := 4                                                  ; only the new item is visited
     % := [2 3 4 5]))
+
+(p/defn Boom [] (throw (ex-info "" {})))
+(tests
+  "reactive exceptions"
+  (with (p/run (! (try
+                    (Boom.)
+                    (catch #?(:clj Exception, :cljs :default) e
+                      ::inner))))
+    % := ::inner))

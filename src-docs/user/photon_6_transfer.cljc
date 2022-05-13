@@ -5,11 +5,42 @@
             #?(:clj shadow.cljs.devtools.server)
             #?(:clj shadow.cljs.devtools.api)))
 
-; 1. Run your JVM REPL and jack-in
-; 2. Start shadow stuff
-; 3. Open a separate nrepl connected to shadow and start shadow repl
 
-#?(:clj (hyperfiddle.rcf/enable!))
+(p/defn App [x]
+  (if (even? x)
+    (pr-str (type 1))
+    ~@(pr-str (type 1))))                                   ; client/server transfer
+
+#?(:cljs
+   (tests
+     "client/server transfer, pure functional!"
+     (def !x (atom 0))
+     (def dispose ((p/client
+                     (p/main
+                       (! (App. (p/watch !x)))))
+                   js/console.log js/console.error))
+     % := "#object[Number]"
+     (swap! !x inc)
+     % := "java.lang.Long"                                  ; holy cow
+     (dispose)))
+
+(tests
+  "Pending network transfer is trapped locally with reactive try/catch"
+  (p/run (! (try [(! 1) (! ~@2)]
+                 (catch hyperfiddle.photon-impl.runtime/Pending _
+                   ::pending))))
+  % := 1
+  % := ::pending
+  ; do not see 1 again
+  % := 2
+  % := [1 2])
+
+; How to run:
+; 1. Jack into JVM REPL
+; 2. Start shadow stuff
+; 3. Open a separate nrepl connected to shadow server and start shadow/repl
+
+(hyperfiddle.rcf/enable!)
 #?(:cljs (defn ^:dev/before-load stop [] (hyperfiddle.rcf/enable! false)))
 #?(:cljs (defn ^:dev/after-load start [] (hyperfiddle.rcf/enable!)))
 
@@ -31,35 +62,9 @@
 
 (comment
   ; connect a new NREPL do not use existing JVM repl !!!
-  (shadow.cljs.devtools.api/repl :app)                      ; do not eval in your JVM repl it wont work
+  (shadow.cljs.devtools.api/repl :app)  ; do not eval in your existing JVM repl it wont work
+  ; Connect browser session - localhost:8080
   (type 1)
-  )
-
-(p/defn App [x]
-  (if (even? x)
-    (pr-str (type 1))
-    ~@(pr-str (type 1))))
-
-#?(:cljs
-   (tests
-     (def !x (atom 0))
-     (def dispose ((p/client
-                     (p/main
-                       (! (App. (p/watch !x)))))
-                   js/console.log js/console.error))
-     % := "#object[Number]"
-     (swap! !x inc)
-     % := "java.lang.Long"
-     (dispose)))
-
-; fails, bug?
-;#?(:cljs
-;   (tests
-;     (def !x (atom 0))
-;     (with ((p/client
-;              (p/main
-;                (! (App2. (p/watch !x)))))
-;            js/console.log js/console.error)
-;       % := "#object[Number]"
-;       (swap! !x inc)
-;       % := "java.lang.Long")))
+  (println 1)                                               ; see browser console
+  (hyperfiddle.rcf/enable!)
+  hyperfiddle.rcf/*enabled*)
