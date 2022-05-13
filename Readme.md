@@ -3,9 +3,10 @@
 # Setup
 ```bash
 git clone ...
+cd photon
 git submodule update --init --recursive
 pushd vendor/missionary && mvn clean && mvn compile && mvn install && popd
-npm install
+yarn       # or npm install
 ```
 
 # Standalone Examples to run
