@@ -53,7 +53,7 @@
                       ;; (dom/text)
                       ~@
                       (p/$ ui/with-spec-render
-                           #'(binding [hf/render            ui/render
+                           #'(binding [hf/Render            ui/Render
                                        #_#_router/not-found #'~@(dom/h1 (dom/text "Page not found"))]
                                (prn "route:" route)
                                (reset! hf/route route)

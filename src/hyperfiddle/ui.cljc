@@ -92,7 +92,7 @@
 (defn db-color [db] (color (str (:name db) (* 100 (:basis-t db)))))
 
 (p/defn typeahead [V props]
-  (binding [hf/render hf/sequenceM]
+  (binding [hf/Render (p/fn [V _props] (hf/Data. V))]
     (let [options     (::hf/options props)
           label       (::hf/option-label props)
           attr-type   (:dom.attribute/type props "search")
@@ -132,11 +132,11 @@
 
 (p/def select-options)
 (p/defn select-options-impl [V props]
-  (binding [hf/render hf/sequenceM]
+  (binding [hf/Render (p/fn [V _props] (hf/Data. V))]
     (let [label    (::hf/option-label props)
           disabled (::hf/disabled props)
           c        (db-color hf/db)
-          value    (hf/data. V)
+          value    (hf/Data. V)
           ;; input-value (str (if (and label value) ~(label value) value))
           value'
           ~@(let [value' (dom/select (dom/class "hf-select")
@@ -356,9 +356,9 @@
           e                     (E.)
           cardinality           (cardinality hf/*$* a⁻¹)
           group                 (::group -table-picker-props)
-          checked?              (= v⁻¹ (hf/data. V))
+          checked?              (= v⁻¹ (hf/Data. V))
           v                     (V.)]
-      (log/info "V V" (list v⁻¹ (hf/data. V)))
+      (log/info "V V" (list v⁻¹ (hf/Data. V)))
       ~@(binding [dom/parent (do e dom/parent)]
           (dom/tr
            (let [selected? (dom/td (dom/style {"border-color" color})
@@ -418,7 +418,7 @@
     (Renderer. V props)
     (spec-renderer. V props)))
 
-(p/defn render [] (user-renderer.))
+(p/defn Render [] (user-renderer.))
 
 (defmacro with-spec-render [& body]
   `(binding [form             form-impl

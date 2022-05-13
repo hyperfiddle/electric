@@ -393,8 +393,8 @@
 (defn render* [e a V props]
   `(let [V#     ~V
          props# ~props]
-     (binding [hf/context (cons [~e ~a (p/fn [] (new hf/data V#)) props#] hf/context)]
-       (new hf/render V# props#))))
+     (binding [hf/context (cons [~e ~a (p/fn [] (new hf/Data V#)) props#] hf/context)]
+       (new hf/Render V# props#))))
 
 (defn var-point [form] (if *props?* form `(p/fn [] ~form)))
 
