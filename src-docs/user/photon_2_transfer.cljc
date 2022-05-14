@@ -22,6 +22,7 @@
      % := "java.lang.Long"                  ; holy cow
      (dispose)))
 
+
 ; How to run:
 ; 1. Jack into JVM REPL
 ; 2. Start shadow stuff
@@ -41,17 +42,16 @@
         :build-options {:cache-level :jars}
         :output-dir    "resources/public/js"
         :asset-path    "/js"
-        :modules       {:main {:entries ['shadow.cljs.bootstrap.env
-                                         'shadow.cljs.bootstrap.browser
-                                         'user.photon-2-transfer]}}})
+        :modules       {:main {:entries ['user.photon-2-transfer]}}})
      (p/start-websocket-server! {:host "localhost" :port 8081})
      (println (str "\n" "http://localhost:8080"))))
 
 (comment
   ; connect a new NREPL do not use existing JVM repl !!!
   (shadow.cljs.devtools.api/repl :app)  ; do not eval in your existing JVM repl it wont work
-  ; Connect browser session - localhost:8080
-  ; browser.cljs:20 shadow-cljs: #4 ready!
+  ; Connect browser session - http://localhost:8080
+  ; Browser console: shadow-cljs: #3 ready!
   (type 1)
   (println 1)  ; see browser console
-  (tests (pr-str (type 1)) := "#object[Number]"))
+  (tests (pr-str (type 1)) := "#object[Number]")  ; see ✅ in browser console
+  )
