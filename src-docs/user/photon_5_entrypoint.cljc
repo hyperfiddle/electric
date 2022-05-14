@@ -23,8 +23,12 @@
 (def photon-entrypoint #?(:cljs (p/client (p/main (App.))))) ; Photon entrypoint is on the client
 
 #?(:cljs (def reactor))                                     ; save for debugging
-(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor (photon-entrypoint js/console.log js/console.error))))
-(defn ^:dev/before-load stop! [] #?(:cljs (do (when reactor (reactor) #_"teardown") (set! reactor nil))))
+#?(:cljs (defn ^:dev/after-load ^:export start! []
+           (set! reactor (photon-entrypoint js/console.log js/console.error))))
+#?(:cljs (defn ^:dev/before-load stop! []
+           (do (when reactor (reactor) #_"dispose") (set! reactor nil))))
+
+#?(:cljs (start!))
 
 #?(:clj
    (defn main [& args]
@@ -37,7 +41,6 @@
         :build-options {:cache-level :jars}                 ; recompile everything but jars
         :output-dir    "resources/public/js"
         :asset-path    "/js"
-        :modules       {:main {:entries   ['user.photon-5-entrypoint]
-                               :append-js (str (munge 'user.photon-5-entrypoint) ".start_BANG_();")}}})
+        :modules       {:main {:entries ['user.photon-5-entrypoint]}}})
      (p/start-websocket-server! {:host "localhost" :port 8081})
      (println (str "\n" "http://localhost:8080"))))
