@@ -3,6 +3,18 @@
             [hyperfiddle.rcf :refer [tests ! % with]])
   (:import (missionary Cancelled)))
 
+
+(tests
+  "flow cancel before transfer"
+  (def !x (atom 0))
+  (def >x (m/watch !x))
+  (def !it (>x (fn [] (! ::notify))
+               (fn [] (! ::terminate))))
+  % := ::notify
+  (!it)
+  @!it thrown? Cancelled
+  % := ::terminate)
+
 (tests
   "pentagram of death - via Kenny Tilton"
   (def !aa (atom 1))

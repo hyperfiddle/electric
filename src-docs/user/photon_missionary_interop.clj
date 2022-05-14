@@ -8,7 +8,40 @@
 (hyperfiddle.rcf/enable!)
 
 (tests
-  "Missionary signals quickstart"
+  "introduce Missionary signal to Photon program"
+  ; Photon programs compile down to Missionary signals and therefore Photon has native interop with Missionary primitives.
+  (def !x (atom 0))
+  (with (p/run (! (let [X (m/watch !x)]                     ; X is a recipe for a signal that is derived from the atom
+                    (new X))))                                 ; construct actual signal instance from the recipe with (new)
+    % := 0
+    (swap! !x inc)
+    % := 1))
+
+(tests "dataflow diamond"
+  (def !x (atom 0))
+  (with (p/run (let [X (m/watch !x)                         ; missionary flow recipes are like Haskell IO actions
+                     x (new X)]                             ; construct flow recipe once
+                 (! (+ x x))))
+    % := 0
+    (swap! !x inc)
+    % := 2
+    (swap! !x inc)
+    % := 4))
+
+(tests "broken dataflow diamond"
+  (def !x (atom 0))
+  (with (p/run (let [X (m/watch !x)]
+                 (! (+ (new X) (new X)))))                  ; bad - two separate watch instances on the same atom
+    % := 0
+    (swap! !x inc)                                          ; each instance fires an event resulting in two propagation frames
+    % := 1                                                  ; bad
+    % := 2
+    (swap! !x inc)
+    % := 3                                                  ; bad
+    % := 4))
+
+(tests
+  "What is a Missionary flow, concretely?"
   (def !x (atom 0))                                         ; atoms model variable inputs
   (def >x (m/watch !x))                                     ; "recipe" for a signal derived from atom
 
@@ -32,31 +65,3 @@
   % := ::notify
   @!it thrown? Cancelled                                    ; watch has terminated with this error
   % := ::terminate)
-
-(tests
-  "cancel before transfer"
-  (def !x (atom 0))
-  (def >x (m/watch !x))
-  (def !it (>x (fn [] (! ::notify))
-               (fn [] (! ::terminate))))
-  % := ::notify
-  (!it)
-  @!it thrown? Cancelled
-  % := ::terminate)
-
-; Photon programs compile down to Missionary signals and therefore Photon has native interop with Missionary primitives.
-
-(tests
-  "introduce foreign Missionary signal to Photon program"
-  (def !x (atom 0))
-
-  (with (p/run (!
-                 (new                                       ; run flow from recipe with (new)
-                   (m/watch !x))))                          ; recipe for a flow derived from atom
-    % := 0
-    (swap! !x inc)
-    % := 1))
-
-; Weirdly, Photon flows are "constructed" with (new)
-; Why? That's not important right now, there is a symmetry with OOP which we will explain later
-; (new) can be thought of as "await" or monadic join, but for flows
