@@ -23,22 +23,22 @@ clj -A:dev -X user.photon-5-entrypoint/main
 # Known Issues
 (updated 2022 May 14)
 
-What works? 
+What works?
+
 - See Photon test coverage; tests are passing
 - try/catch, case, if, p/fn, p/defn, p/def, binding, all work
 
-- Photon issues and language gaps
-  - No destructuring yet
-  - No recursion yet
-  - No variable fn arity yet
-  - no clojure.core/fn inside Photon blocks yet
-  - Pending will replay effects 
-  - What works has test coverage
-- HFQL is half baked
-  - what works has test coverage
+Photon issues and language gaps
+- No destructuring yet
+- No recursion yet
+- No variable fn arity yet
+- no clojure.core/fn inside Photon blocks yet
+- Pending will replay effects 
+- What works has test coverage
+- HFQL is half baked (what works has test coverage)
 - Malformed programs can hang the JVM (including HFQL which is WIP)
   - Open MacOS Activity Monitor and filter by "java" to see if your JVM is hung
-  - best to run like this until we can mitigate it
+  - best to run with Activity Monitor open until we can mitigate it
 
 # IDE setup
 Cursive:
