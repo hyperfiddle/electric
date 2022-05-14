@@ -1,4 +1,8 @@
-# Hyperfiddle Photon
+# Hyperfiddle Photon – a streaming Clojure/Script dialect with compiler-managed client/server datasync
+
+Photon lets you express frontend/backend web applications as Clojure lambda expressions that transcend the client/server boundary.
+
+> EINSTEIN: *"It seems as though we must use sometimes the one theory and sometimes the other, while at times we may use either. We are faced with a new kind of difficulty. We have two contradictory pictures of reality; separately neither of them fully explains the phenomena of light, but together they do."*
 
 # Setup
 ```bash
