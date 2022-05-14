@@ -1,4 +1,4 @@
-(ns user.photon-4-transfer
+(ns user.photon-2-transfer
   "Photon with client/server transfer at the REPL"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]
@@ -15,25 +15,12 @@
    (tests
      "client/server transfer, pure functional!"
      (def !x (atom 0))
-     (def dispose ((p/client
-                     (p/main
-                       (! (App. (p/watch !x)))))
+     (def dispose ((p/client (p/main (! (App. (p/watch !x)))))
                    js/console.log js/console.error))
      % := "#object[Number]"
      (swap! !x inc)
      % := "java.lang.Long"                  ; holy cow
      (dispose)))
-
-(tests
-  "Pending network transfer is trapped locally with reactive try/catch"
-  (p/run (! (try [(! 1) (! ~@2)]
-                 (catch hyperfiddle.photon-impl.runtime/Pending _
-                   ::pending))))
-  % := 1
-  % := ::pending
-  ; do not see 1 again
-  % := 2
-  % := [1 2])
 
 ; How to run:
 ; 1. Jack into JVM REPL
@@ -56,7 +43,7 @@
         :asset-path    "/js"
         :modules       {:main {:entries ['shadow.cljs.bootstrap.env
                                          'shadow.cljs.bootstrap.browser
-                                         'user.photon-4-transfer]}}})
+                                         'user.photon-2-transfer]}}})
      (p/start-websocket-server! {:host "localhost" :port 8081})
      (println (str "\n" "http://localhost:8080"))))
 
@@ -64,7 +51,7 @@
   ; connect a new NREPL do not use existing JVM repl !!!
   (shadow.cljs.devtools.api/repl :app)  ; do not eval in your existing JVM repl it wont work
   ; Connect browser session - localhost:8080
+  ; browser.cljs:20 shadow-cljs: #4 ready!
   (type 1)
-  (println 1)                                               ; see browser console
-  (tests (pr-str (type 1)) := "#object[Number]")
-  hyperfiddle.rcf/*enabled*)
+  (println 1)  ; see browser console
+  (tests (pr-str (type 1)) := "#object[Number]"))
