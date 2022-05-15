@@ -1,0 +1,32 @@
+(ns user.missionary-flow
+  (:require [hyperfiddle.photon :as p]
+    [hyperfiddle.rcf :refer [tests ! % with]]
+    [missionary.core :as m])
+  (:import (missionary Cancelled)))
+
+
+(tests
+  "What is a Missionary flow, concretely?"
+  (def !x (atom 0))                                         ; atoms model variable inputs
+  (def >x (m/watch !x))                                     ; "recipe" for a signal derived from atom
+
+  ; a signal is a "continuous flow" in Missionary jargon
+  ; signals (flows) are recipes, like Haskell IO actions.
+  ; Like IO actions, they are pure function values (thunks)
+  ; and do not perform side effects until you run them.
+  (fn? >x) := true                                          ; thunk (implementation detail)
+  ; The atom has not been subscribed to yet, because >x is a pure value
+
+  ; Flow thunks concretely have the structure (fn [notify! terminate!] !iterator),
+  ; see https://github.com/leonoel/flow#specification
+  (def !it (>x (fn [] (! ::notify))
+               (fn [] (! ::terminate))))
+  % := ::notify                                             ; lazy flow is ready to be sampled
+  @!it := 0                                                 ; sample
+  (swap! !x inc)                                            ; trigger a change
+  % := ::notify                                             ; flow is ready again
+  @!it := 1                                                 ; sample
+  (!it)                                                     ; terminate
+  % := ::notify
+  @!it thrown? Cancelled                                    ; watch has terminated with this error
+  % := ::terminate)
