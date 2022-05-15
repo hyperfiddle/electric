@@ -1,7 +1,8 @@
 (ns user.orders-ui
   "This is a self-contained example; run it with:
   clj -X:devkit :main user.orders-ui/main"
-  (:require [hyperfiddle.api :as hf]
+  (:require dev
+            [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
@@ -21,14 +22,13 @@
                                        ::hf/option-label :db/ident
                                        ::hf/render       ui/select-options}) [:db/ident]}]}))))
 
+(p/defn App []
+  (binding [dom/parent (dom/by-id "root")]
+    (dom/div
+      (dom/attribute "id" "main")
+      (dom/class "browser")
+      (dom/div
+        (dom/class "view")
+        (Orders.)))))
 
-(def main
-  (p/client
-    (p/main
-      (binding [dom/parent (dom/by-id "root")]
-        (dom/div
-          (dom/attribute "id" "main")
-          (dom/class "browser")
-          (dom/div
-            (dom/class "view")
-            (new user.orders-ui/Orders)))))))
+(def main (p/client (p/main (App.))))
