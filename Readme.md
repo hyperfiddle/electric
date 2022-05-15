@@ -1,8 +1,23 @@
 # Hyperfiddle Photon – a streaming Clojure/Script dialect with compiler-managed client/server datasync
 
-Photon lets you express frontend/backend web applications as Clojure lambda expressions that transcend the client/server boundary.
+Photon lets you express a frontend/backend web application as a single unified Clojure/Script expression that transcends the client/server boundary.
 
-> EINSTEIN: *"It seems as though we must use sometimes the one theory and sometimes the other, while at times we may use either. We are faced with a new kind of difficulty. We have two contradictory pictures of reality; separately neither of them fully explains the phenomena of light, but together they do."*
+```clojure
+(p/defn View [db state]
+  (p/client
+    (dom/div
+      (let [email (dom/input)]
+        (dom/h1 "Your orders")
+        (dom/table
+          (p/for [x (p/server xs (query-database db (p/client (:filter state))))]
+            (dom/tr (pr-str x))))))))
+            
+; Note: This is our target future syntax, we're not quite there yet.
+```
+
+It's called Photon, because every named binding in a Photon program can be thought of as simultaneously a reactive flow, and a value.
+
+> EINSTEIN, on the wave-particle duality: *"It seems as though we must use sometimes the one theory and sometimes the other, while at times we may use either. We are faced with a new kind of difficulty. We have two contradictory pictures of reality; separately neither of them fully explains the phenomena of light, but together they do."*
 
 # Setup
 ```bash
@@ -43,6 +58,11 @@ Photon issues and language gaps
 - Malformed programs can hang the JVM (including HFQL which is WIP)
   - Open MacOS Activity Monitor and filter by "java" to see if your JVM is hung
   - best to run with Activity Monitor open until we can mitigate it
+- photon-dom renders dom lists in reverse, stable dom rendering is WIP, eta May
+- Current transfer syntax `~@` is challenging
+  - Today you must start with working examples, there are tons of surprising edge cases and the errors are bad
+  - if you there isn't a test documenting it, don't assume it works
+  - Much better syntax is coming soon (after stable dom rendering)
 
 # IDE setup
 Cursive:
