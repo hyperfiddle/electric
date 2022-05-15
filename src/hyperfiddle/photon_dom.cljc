@@ -7,10 +7,11 @@
             #?(:cljs [goog.object :as o])
             #?(:cljs [goog.style])
             [clojure.string :as str])
+  #?(:cljs (:require-macros
+             [hyperfiddle.photon-dom :refer
+              [element fragment div span h1 table thead tbody select option context event assign! for for-by]]))
   #?(:cljs (:import (goog.events EventType KeyCodes)
-                    (goog.dom.animationFrame)))
-
-  )
+                    (goog.dom.animationFrame))))
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
