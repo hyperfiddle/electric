@@ -11,13 +11,19 @@ Photon lets you express a frontend/backend web application as a single unified C
         (dom/table
           (p/for [x (p/server xs (query-database db (p/client (:filter state))))]
             (dom/tr (pr-str x))))))))
-            
+
 ; Note: This is our target future syntax, we're not quite there yet.
 ```
 
-It's called Photon, because every named binding in a Photon program can be thought of as simultaneously a reactive flow, and a value.
+It's called Photon because every named binding in a Photon program can be thought of as simultaneously a reactive flow and a value.
 
-> EINSTEIN, on the wave-particle duality: *"It seems as though we must use sometimes the one theory and sometimes the other, while at times we may use either. We are faced with a new kind of difficulty. We have two contradictory pictures of reality; separately neither of them fully explains the phenomena of light, but together they do."*
+> Albert Einstein, on the wave-particle duality: *"It seems as though we must use sometimes the one theory and sometimes the other, while at times we may use either. We are faced with a new kind of difficulty. We have two contradictory pictures of reality; separately neither of them fully explains the phenomena of light, but together they do."*
+
+# Project status = private technical alpha
+(Updated 2022 May 15)
+* Currently we are testing the core Photon language experience (Reactive Clojure). If that goes well we will layer in basic usage of Photon-dom and client/server transfer, at the basic tutorial example level of sophistication.
+* Next — after core language rough edges are identified and worked out – we will provide TodoMVC and 7GUIs examples using photon-dom and client/server transfer. ETA = June?
+* Finally, we will test "HFQL", a UI query/render DSL built in Photon. HFQL is currently half-baked.
 
 # Setup
 ```bash
