@@ -1,7 +1,6 @@
 (ns devkit
   "reusable entrypoint for Photon client/server apps"
-  #?(:clj (:require dev
-                    [hyperfiddle.photon :as p]
+  #?(:clj (:require [hyperfiddle.photon :as p]
                     [shadow.cljs.devtools.api :as shadow]
                     [shadow.cljs.devtools.server :as shadow-server])))
 
@@ -16,12 +15,12 @@
      :output-dir    "resources/public/js"
      :asset-path    "/js"
      :modules       {:main {:entries   ['devkit ns]
-                            :append-js (str "devkit.main_fn = function(){return " (munge ns) "." (munge (name sym)) "};"
+                            :append-js (str "devkit.main = " (munge ns) "." (munge (name sym)) ";"
                                             "devkit.start_BANG_();")}}}))
 
-#?(:cljs (def main-fn))                                     ; assigned above with :append-js
+#?(:cljs (def main))                                        ; assigned above with :append-js
 #?(:cljs (def reactor))                                     ; save for debugging
-(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor ((main-fn) js/console.log js/console.error))))
+(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor (main js/console.log js/console.error))))
 (defn ^:dev/before-load stop! [] #?(:cljs (do (when reactor (reactor) #_"teardown") (set! reactor nil))))
 
 #?(:clj
@@ -29,5 +28,8 @@
      (assert (qualified-symbol? main) "\nUsage: `clj -X:devkit :main your.namespace/main`")
      (shadow-server/start!)                                 ; shadow serves nrepl and browser assets including entrypoint
      (shadow/watch (build-config main))
-     (p/start-websocket-server! {:host "localhost" :port 8081})
-     (println (str "\n" "http://localhost:8080"))))
+     (def server (p/start-websocket-server! {:host "localhost" :port 8081}))
+     (comment (.stop server))
+     server))
+
+;#?(:cljs (start!)) -- delay until after main_fn assignment
