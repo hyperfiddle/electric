@@ -35,7 +35,7 @@ pushd vendor/missionary && mvn clean && mvn compile && mvn install && popd
 yarn       # or npm install
 
 # Sanity check that it's working:
-clj -A:dev -X user.photon-5-entrypoint/main
+clj -A:devkit -X user.photon-5-entrypoint/main
 ```
 
 # Photon Tutorial

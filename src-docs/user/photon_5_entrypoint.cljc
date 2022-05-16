@@ -1,6 +1,6 @@
 (ns user.photon-5-entrypoint
   "This is a self-contained example; run it with:
-   clj -A:dev -X user.photon-5-entrypoint/main"
+   clj -A:devkit -X user.photon-5-entrypoint/main"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             #?(:clj shadow.cljs.devtools.server)
