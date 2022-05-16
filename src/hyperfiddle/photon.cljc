@@ -147,13 +147,13 @@ Takes a photon program and returns a pair
   "EXPERIMENTAL
   Like `do` but returs `nil` once, then never return again."
   [& body]
-  `(new (->> (p/fn [] ~@body)
+  `(new (->> (hyperfiddle.photon/fn [] ~@body)
              (m/eduction (constantly nil) (dedupe))
              (m/reductions {} nil)
              (m/relieve {}))))
 
 (defmacro ^:no-doc deduping "EXPERIMENTAL" [x]
-  `(new (->> (p/fn [] ~x)
+  `(new (->> (hyperfiddle.photon/fn [] ~x)
              (m/eduction (dedupe))
              (m/reductions {} nil)
              (m/relieve {}))))
