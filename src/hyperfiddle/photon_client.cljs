@@ -55,7 +55,8 @@
                         (some-> js/document (.getElementById "main") (.setAttribute "data-ws-connected" "false")))
           on-error    (fn [err]
                         (if (> (.-retryCount socket) max-retries)
-                          (when (js/confirm "Socket failed to reconnect, please refresh.")
+                          (do (js/console.error "Socket failed to reconnect, please refresh.")
+                            (some-> js/document (.getElementById "main") (.setAttribute "data-ws-failed" "true"))
                             (.close socket)
                             (f err))
                           (log/debug "WS error" err)))]
