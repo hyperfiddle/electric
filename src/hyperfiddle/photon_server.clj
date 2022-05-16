@@ -206,16 +206,16 @@
                                               (finally (m/? (m/via el))))]
                                       (try (decode x)
                                         (catch Throwable t
-                                          (log/error (ex-info "Failed to decode" {:value x} t))
-                                          (throw t)))))
+                                          #_(log/error (ex-info "Failed to decode" {:value x} t)) ; don't double log
+                                          (throw (ex-info "Failed to decode" {:value x} t))))))
                             write (fn [x]
                                     (m/sp
                                       (try
                                         (m/? (write-str (deref !remote)
                                                (try (encode x)
                                                  (catch Throwable t
-                                                   (log/error (ex-info "Failed to encode" {:value x} t))
-                                                   (throw t)))))
+                                                   #_(log/error (ex-info "Failed to encode" {:value x} t)) ; don't double log
+                                                   (throw (ex-info "Failed to encode" {:value x} t))))))
                                         (finally (m/? (m/via el))))))
                             program (m/? ?read)]
                         (prn :booting-reactor #_program)
