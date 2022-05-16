@@ -495,9 +495,9 @@
        unique-name-points
        ))
 
-(defn hfql [&env form]
+(defn hfql [env form]
   (->> form
-       (env/resolve-syms (env/make-env &env))
+       (env/resolve-syms (env/make-env env))
        parse
        analyze
        emit
