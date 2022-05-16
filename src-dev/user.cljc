@@ -59,14 +59,4 @@
   (prof/start {:framebuf 10000000})
   (prof/stop)
   )
-
-(require '[hyperfiddle.rcf.analyzer :as ana])
-
-;; Tell RCF not to macroexpand p/run. RCF rewrites clojure, p/run is Photon.
-(defmethod ana/macroexpand-hook `hyperfiddle.photon/run [_the-var _form _env args] (reduced `(hyperfiddle.photon/run ~@args)))
-(defmethod ana/macroexpand-hook `hyperfiddle.photon/run2 [_the-var _form _env args] (reduced `(hyperfiddle.photon/run2 ~@args)))
 (defmethod ana/macroexpand-hook `hyperfiddle.hfql/hfql [_the-var _form _env args] `(hyperfiddle.hfql/hfql ~@args))
-
-;; Don't expand `clojure.core/binding`, photon has a special case for it.
-(defmethod ana/macroexpand-hook `binding [_the-var _form _env [bindings & body]]
-  `(binding ~bindings (do ~@body)))
