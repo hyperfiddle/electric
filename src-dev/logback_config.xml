@@ -30,7 +30,4 @@
         <appender-ref ref="FULL" />
     </logger>
 
-    <root level="TRACE">
-        <appender-ref ref="ERGONOMIC"/>
-    </root>
 </included>
