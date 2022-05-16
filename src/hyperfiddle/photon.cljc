@@ -25,7 +25,7 @@
 (def client #?(:cljs hyperfiddle.photon-client/client))
 
 #?(:clj
-   (cc/defn start-websocket-server!
+   (cc/defn start-websocket-server! "returns server (jetty instance) for (.stop server)"
      ([] (start-websocket-server! nil))
      ([config] ((requiring-resolve 'hyperfiddle.photon-server/start!) config))))
 
