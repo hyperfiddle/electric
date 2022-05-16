@@ -1,4 +1,7 @@
 <!-- Options: http://logback.qos.ch/manual/layouts.html -->
 <configuration debug="false">
     <include file="src-dev/logback_config.xml"/>
+    <root level="INFO">
+        <appender-ref ref="ERGONOMIC"/>
+    </root>
 </configuration>

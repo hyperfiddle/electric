@@ -25,14 +25,15 @@
            #_#_com.datomic/datomic-free   {:mvn/version "0.9.5656"
                                            :exclusions  [org.slf4j/slf4j-nop
                                                          com.google.guava/guava]}
-           ;; Logging - to be removed, see `hyperfiddle.logger` 
+           
            org.clojure/tools.logging      {:mvn/version "1.2.4"}
-           ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
+           }
 
  :aliases {:dev     {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
                      :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.0-alpha1"}
                                    binaryage/devtools                       {:mvn/version "1.0.6"}
-                                   thheller/shadow-cljs                     {:mvn/version "2.18.0"}}
+                                   thheller/shadow-cljs                     {:mvn/version "2.18.0"}
+                                   ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
                      :jvm-opts    ["-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
                                    "-Dlogback.configurationFile=src-dev/logback_dev.xml"
                                    "-XX:-OmitStackTraceInFastThrow" ;; Don't mess with my stacktraces¹!
@@ -42,16 +43,20 @@
            :test    {:extra-paths ["src-dev" "test"]
                      :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true"
                                    "-XX:-OmitStackTraceInFastThrow"
-                                   "-Dlogback.configurationFile=src-dev/logback_test.xml"]
-                     :extra-deps  {io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                   "-Dlogback.configurationFile=src-dev/logback.xml"
+                                   "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"]
+                     :extra-deps  {ch.qos.logback/logback-classic {:mvn/version "1.2.11"}
+                                   io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                          :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
                      :exec-fn     cognitect.test-runner.api/test}
 
            :devkit  {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
                      :extra-deps  {binaryage/devtools   {:mvn/version "1.0.6"}
-                                   thheller/shadow-cljs {:mvn/version "2.18.0"}}
+                                   thheller/shadow-cljs {:mvn/version "2.18.0"
+                                                         :exclusions [org.slf4j/slf4j-api]}
+                                   ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
                      :jvm-opts    ["-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
-                                   "-Dlogback.configurationFile=src-dev/logback_dev.xml"
+                                   "-Dlogback.configurationFile=src-dev/logback.xml"
                                    "-XX:-OmitStackTraceInFastThrow" ;; Don't mess with my stacktraces¹!
                                    "-Djdk.attach.allowAttachSelf" ;; profiling
                                    "-XX:+UnlockDiagnosticVMOptions"
