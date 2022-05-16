@@ -7,13 +7,24 @@
 (hyperfiddle.rcf/enable!)
 
 (tests
-  "Photon thunks are Missionary flows! and therefore inherit transducers from Missionary"
+  "discard"
+  ; {}, in a missionary context pronounced "discard",
+  ; is an arity-2 fn that discards the first parameter
+  ({} 1 2) := 2)
+
+(tests
+  "Shockingly, Photon closures are concretely missionary continuous flows"
   (def !n (atom 0))
-  (with (p/run (! (let [x (p/watch !n)]
-                    (->> (p/fn [] x)                        ; lift or "reactive quote"
+  (with (p/run
+          (let [n (p/watch !n)
+                X (p/fn [x] x)                              ;
+                ; p/fn actually is not primitive. p/fn macroexpands to continuous flows with parameters injected
+                ; through dynamic scope. Therefore, F (a Photon closure) is concretely a missionary continuous flow,
+                ; whose argv must be injected by dynamic bindings, which is done by the special form (new).
+                X10 (->> X                                  ; closures are missionary continuous flows, amazingly
                          (m/eduction (map (partial * 10)))  ; flow transducer
-                         (m/relieve {})
-                         (new)))))                          ; monadic join or "reactive unquote"
+                         (m/relieve {}))]
+            (! (new X10 n))))                               ; monadic join or "reactive unquote"
     % := 0
     (swap! !n inc)
     % := 10
@@ -25,11 +36,12 @@
 (tests
   "Dedupe photon flow with transducer"
   (def !n (atom 0))
-  (with (p/run (! (let [x (p/watch !n)]
-                    (->> (p/fn [] x)
-                         (m/eduction (dedupe))
-                         (m/relieve {})
-                         (new)))))
+  (with (p/run
+          (let [x (p/watch !n)]
+            (! (->> (p/fn [] x)
+                    (m/eduction (dedupe))
+                    (m/relieve {})
+                    (new)))))
     % := 0
     (swap! !n inc)
     % := 1
