@@ -4,7 +4,8 @@
             #?(:clj [datahike.api :as d]
                :cljs [datascript.core :as d])
             #?(:clj [datahike.impl.entity :as de]
-               :cljs [datascript.impl.entity :as de]))
+               :cljs [datascript.impl.entity :as de])
+            [hyperfiddle.rcf.analyzer :as ana])
   #?(:cljs (:require-macros [hyperfiddle.hfql :refer [hfql]])))
 
 (defmacro hfql [form] (impl/hfql &env form))
@@ -20,3 +21,5 @@
                 (:db/id v)
                 v)))
   ([db e a & as] (reduce (partial nav! db) (nav! db e a) as)))
+
+(defmethod ana/macroexpand-hook `hfql [_the-var _form _env args] `(hfql ~@args))

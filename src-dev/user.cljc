@@ -59,4 +59,3 @@
   (prof/start {:framebuf 10000000})
   (prof/stop)
   )
-(defmethod ana/macroexpand-hook `hyperfiddle.hfql/hfql [_the-var _form _env args] `(hyperfiddle.hfql/hfql ~@args))
