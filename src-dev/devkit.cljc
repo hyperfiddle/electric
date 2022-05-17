@@ -15,12 +15,12 @@
      :output-dir    "resources/public/js"
      :asset-path    "/js"
      :modules       {:main {:entries   ['devkit ns]
-                            :append-js (str "devkit.main = " (munge ns) "." (munge (name sym)) ";"
+                            :append-js (str "devkit.main = function () { return " (munge ns) "." (munge (name sym)) "};"
                                             "devkit.start_BANG_();")}}}))
 
 #?(:cljs (def main))                                        ; assigned above with :append-js
 #?(:cljs (def reactor))                                     ; save for debugging
-(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor (main js/console.log js/console.error))))
+(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor ((js/devkit.main) js/console.log js/console.error))))
 (defn ^:dev/before-load stop! [] #?(:cljs (do (when reactor (reactor) #_"teardown") (set! reactor nil))))
 
 #?(:clj
