@@ -40,8 +40,8 @@
 (p/defn View [state]
   (dom/table
     (let [email (:email state)]
-      ~@(p/for [x (orders db email)]
-          ~@(dom/tr (dom/text x))))))
+      (dom/for [x ~@(orders db email)]
+        (dom/tr (dom/text x))))))
 
 (def !db #?(:clj (atom @conn)))                             ; Photon cljsbuild unable to resolve !db
 (def !state #?(:cljs (atom {:email ""})))
@@ -52,19 +52,8 @@
       ~@(binding [db (p/watch !db)]
           ~@(View. state)))))
 
-(p/defn View2 [state]
-  [:table
-   (let [email (:email state)]
-     ~@(p/for [x (orders db email)]
-         ~@[:tr x]))])
-
-(p/defn App2 []
-  (let [state (p/watch !state)]
-    ~@(binding [db (p/watch !db)]
-        ~@(View2. state))))
-
 (def main #?(:cljs (p/client (p/main (log/info "starting")
-                                     (log/info (pr-str (App2.)))))))
+                                     (log/info (pr-str (App.)))))))
 
 (comment
   #?(:clj (@(requiring-resolve 'devkit/main) :main `main))
@@ -74,8 +63,9 @@
   #?(:clj (reset! !db @conn))
 
   (shadow.cljs.devtools.api/repl :app)
-  (swap! !state assoc :email "bob")
   (type 1)
+  (swap! !state assoc :email "bob")
+  (swap! !state assoc :email "")
 
   #?(:clj (log/info "a"))
 
