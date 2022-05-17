@@ -81,7 +81,7 @@
       (do (log/debug "websocket reconnect")
         (set! session s)
         (reset! remote (.getRemote s)))
-      (do (log/debug "websocket connect")
+      (do (log/debug "websocket connect" {:client-id client-id})
         (set! session s)
         (set! remote (atom (.getRemote s)))
         (set! cancel
@@ -90,11 +90,11 @@
             (set! msg-buf (m/rdv))
             (set! close (m/dfv)))))))
   (onWebSocketClose [this s r]
-    (log/debug "websocket close" {:status s, :reason r})
+    (log/debug "websocket close" {:client-id client-id :status s, :reason r})
     (set-timeout! client-id
       30000
       (fn []
-        (log/debug "websocket did not recover, canceling reactor and cleaning up." {:client-id client-id})
+        (log/debug "websocket did not recover, harvesting session." {:client-id client-id})
         (cancel)
         (close
           (do
@@ -121,8 +121,10 @@
     (set! token (session-suspend! session))
     ((msg-buf (ByteBuffer/wrap payload offset length)) this this)))
 
+(defn req->client-id [request] (-> request (.getParameterMap) (get "client-id") first))
+
 (defn- make-reactor! [handler request]
-  (let [client-id (-> request (.getParameterMap) (get "client-id") first)]
+  (let [client-id (req->client-id request)]
     (if-let [socket (get (deref sockets) client-id)]
       (do (clear-timeout! client-id)
         socket)
@@ -168,8 +170,8 @@
         (run [_]
           (apply f args))))))
 
-(defn success [_]
-  (println "WS handler completed."))
+(defn success [client-id exit-value]
+  (log/info "websocket handler completed gracefully." {:client-id client-id}))
 
 (defn failure [^Throwable e]
   (.printStackTrace e))
@@ -191,11 +193,11 @@
 ;; boots its local reactor.
 
 (def ws-paths
-  {"/echo" (fn [_request]
+  {"/echo" (fn [request]
              (fn [!remote read-str _read-buf _closed]
                ((m/sp (try (loop [] (m/? (write-str (deref !remote) (m/? read-str))) (recur))
-                        (catch Cancelled _))) success failure)))
-   "/ws" (fn [_request]
+                        (catch Cancelled _))) (partial success (req->client-id request)) failure)))
+   "/ws" (fn [request]
            (fn [!remote read-str _read-buf _closed]
              (let [el (event-loop (deref !remote))]
                (run-via el
@@ -220,7 +222,7 @@
                             program (m/? ?read)]
                         (prn :booting-reactor #_program)
                         (m/? ((p/eval program) write ?read)))
-                      (catch Cancelled _))) success failure)))))})
+                      (catch Cancelled _))) (partial success (req->client-id request)) failure)))))})
 
 #_(defn gzip-handler [& methods]
     (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))
