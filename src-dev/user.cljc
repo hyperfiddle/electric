@@ -30,7 +30,8 @@
   (do
     (require 'dev)                                          ; todo move into userland with #?(:clj (def db @(requiring-resolve 'dev/db)))
     (require '[hyperfiddle.photon :as p])
-    (def server (p/start-websocket-server! {:host "localhost" :port 8080}))
+    (def server (p/start-websocket-server! {:host "localhost" :port 8081}))
+    (comment (.stop server))
     ; Wait to enable RCF after everything is loaded for fastest startup
     (hyperfiddle.rcf/enable!))
 
