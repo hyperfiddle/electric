@@ -1,7 +1,5 @@
 (ns user.orders-ui
-  "This is a self-contained example; run it with:
-  clj -X:devkit :main user.orders-ui/main"
-  (:require dev
+  (:require #?(:clj dev)
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
@@ -31,4 +29,9 @@
         (dom/class "view")
         (Orders.)))))
 
-(def main (p/client (p/main (App.))))
+(def main #?(:cljs (p/client (p/main (App.)))))
+
+
+(comment
+  #?(:clj (@(requiring-resolve 'devkit/main) :main `main))
+  )

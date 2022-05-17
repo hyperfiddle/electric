@@ -1,6 +1,5 @@
 (ns hyperfiddle.api
-  (:require #?(:clj [datahike.api :as d]
-               :cljs [datascript.core :as d])
+  (:require #?(:clj [datahike.api :as d])
             [hyperfiddle.rcf :refer [tests ! %]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.hfql :as hfql])
@@ -8,7 +7,6 @@
 
 (defmacro hfql [& body] `(hfql/hfql ~@body))
 (def nav! #'hfql/nav!)
-(def q #'d/q) ;; datascript.api/q on client, datahike.api/q on server.
 
 ;;; Route
 

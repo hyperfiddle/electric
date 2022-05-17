@@ -216,15 +216,17 @@
 ;;;;;;;;;;;;;;
 
 ;; DONE props on fn args
-(p/defn default [%] (or % "alice"))
+(defn default [%] (or % "alice"))
 (tests
  "Input is defaulted"
  (p/run (! (hfql {(orders ^{::hf/defaults default} .) [:db/id]})))
  % := '{(hyperfiddle.queries-test/orders .) [#:db{:id 9}]})
 
+(defn defaults [[needle]] [(or needle "alice")])
+
 (tests
  "call is defaulted"
- (p/run (! (hfql {(props (orders .) {::hf/defaults (p/fn [[needle]] [(or needle "alice")])}) [:db/id]})))
+ (p/run (! (hfql {(props (orders .) {::hf/defaults defaults}) [:db/id]})))
  % := '{(hyperfiddle.queries-test/orders .) [#:db{:id 9}]})
 
 ;; TODO hydrate defaults : put them in ::hf/inputs, it will compute when the client will sample the input

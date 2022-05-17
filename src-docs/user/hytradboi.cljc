@@ -1,5 +1,6 @@
 (ns user.hytradboi
-  (:require [hyperfiddle.api :as hf]
+  (:require #?(:clj dev)
+            [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests ! % with]]
@@ -33,6 +34,5 @@
                            (ui/with-spec-render (App.)))))))))))
 
 (comment
-  (devkit/main :main `main)
-  "clj -X:devkit :main user.hytradboi/main"
+  #?(:clj (@(requiring-resolve 'devkit/main) :main `main))
   )
