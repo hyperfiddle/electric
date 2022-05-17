@@ -55,7 +55,7 @@
         (dissoc :dom.property/value))
     props))
 
-(p/defn input [props extractor]
+(p/defn Input "if value prop, controlled else uncontrolled" [props extractor]
   (dom/input (p/for [[k v] (adapt-checkbox-props props)]
                (cond
                  (= :dom.property/style k) (dom/style v)
@@ -103,7 +103,7 @@
           value'
           ~@(dom/fragment
              (let [id     (str (gensym))
-                   value' (input. {:dom.attribute/type    attr-type
+                   value' (Input. {:dom.attribute/type    attr-type
                                    :dom.attribute/class   "hf-typeahead"
                                    :dom.property/disabled disabled
                                    :dom.property/style    {"border-color" c}
@@ -188,7 +188,7 @@
                                                                                          locked? (str " — internal reference 🔒")))
                                                          (dom/text (name arg))
                                                          (dom/attribute "for" (str id)))
-                                            (let [v' (input. {:dom.attribute/id      id,
+                                            (let [v' (Input. {:dom.attribute/id      id,
                                                               :dom.attribute/type    (input-types (argument-type (first attr) arg))
                                                               :dom.property/value    v
                                                               :dom.property/disabled locked?}
@@ -362,7 +362,7 @@
       ~@(binding [dom/parent (do e dom/parent)]
           (dom/tr
            (let [selected? (dom/td (dom/style {"border-color" color})
-                                   (input. {:dom.attribute/type   (case cardinality
+                                   (Input. {:dom.attribute/type   (case cardinality
                                                                     ::one  "radio"
                                                                     ::many "checkbox")
                                             :dom.attribute/name   group
