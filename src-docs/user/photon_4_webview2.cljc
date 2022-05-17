@@ -32,10 +32,8 @@
 
 #?(:clj
    (tests
-     (orders @conn "") := ["alice@example.com"
-                           "bob@example.com"
-                           "charlie@example.com"]
-     (orders @conn "alice") := ["alice@example.com"]))
+     (orders @conn "") := [1 2 3]
+     (orders @conn "alice") := [1]))
 
 (p/def db)
 
@@ -67,6 +65,7 @@
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))
   #?(:clj (reset! !db @conn))
 
+  "cljs"
   (shadow.cljs.devtools.api/repl :app)
   (type 1)
   (swap! !state assoc :email "bob")

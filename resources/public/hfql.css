@@ -2,7 +2,7 @@
 
 body{
     font-family: 'Open Sans', Arial, Verdana, sans-serif;
-    font-size: 0.8rem;
+    /*font-size: 0.8rem;*/
 }
 
 form {
@@ -94,7 +94,7 @@ input:not([type="radio"]):not([type="checkbox"]), select {
     box-sizing: border-box;
     /* width:100%; */
     border-width: 1px;
-    border-left-width: 0.2rem;
+    /*border-left-width: 0.2rem;*/
     border-style:solid;
     border-radius: 2px;
     padding: 0.5rem 0.5rem;
