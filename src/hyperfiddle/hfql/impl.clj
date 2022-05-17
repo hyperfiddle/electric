@@ -335,10 +335,10 @@
                                                     `(new ~(:name point)))))))]
                     `(p/fn []
                        ~(cond
-                          (some? defaultsf)          `(let [[~@args-name] (new ~defaultsf [~@args])]
-                                                        (new ~f ~@args-name))
+                          (some? defaultsf)          `(let [[~@args-name] (~defaultsf [~@args])]
+                                                        (~f ~@args-name))
                           (= `hf/link (:prop point)) `(list '~f ~@args)
-                          :else                      `(new ~f ~@args))))]
+                          :else                      `(~f ~@args))))]
       :arg   (when-not (= '% (:form point))
                [nom (let [form      (if-let [refs (some->> (map index (:deps point))
                                                            (remove #(:external (meta (:form %))))
@@ -354,7 +354,7 @@
                           defaultsf (get (:props point) ::hf/defaults)]
                       `(p/fn []
                          ~(cond
-                            (some? defaultsf) `(new ~defaultsf ~form)
+                            (some? defaultsf) `(~defaultsf ~form)
                             :else             form)))])
       :input [nom `(atom nil)]
       :alias [nom (:name (get index (:parent point)))]
@@ -428,7 +428,7 @@
                                           (cond (#{`hf/link} prop)          [(list 'quote (:form point)) nom]
                                                 (#{`hf/as} prop)            (symbolic (:form point))
                                                 (not (#{`hf/options} prop)) (symbolic-prop (:form point))
-                                                :else                       `(new ~nom))
+                                                :else                       ~nom)
                                           `(new ~nom)))]
         (let [props  (some->> (get-children *index* point)
                               (filter :prop)
