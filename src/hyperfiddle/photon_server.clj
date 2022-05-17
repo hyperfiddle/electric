@@ -174,7 +174,7 @@
   (log/info "websocket handler completed gracefully." {:client-id client-id}))
 
 (defn failure [^Throwable e]
-  (.printStackTrace e))
+  (log/error e) #_(.printStackTrace e))
 
 (defn encode "Serialize to transit json" [v]
   (let [out (ByteArrayOutputStream.)]
