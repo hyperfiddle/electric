@@ -21,13 +21,15 @@ It's called Photon because every point in a Photon form can be thought of as sim
 
 # Project status = private technical alpha
 
-Updated 2022 May 18:
+Updated 2022 May 18
+
+Validated functionality:
 
 - [x] Photon core language at CLJ REPL
 - [x] Photon core language at CLJS REPL with client/server transfer - JS/JVM [x] Cursive [ ] Emacs [ ] Calva
 - [x] Photon-dom basic tutorial level usage (bugs allowed)
 - [ ] photon-dom todomvc level usage (no bugs)
-- [ ] hot code reloading - [ ] Cursive, [ ] Emacs, [ ] Calva
+- [ ] hot code reloading - [x] Cursive, [ ] Emacs, [ ] Calva
 - [x] Photon webview with client/server transfer (query only)
 - [x] Photon webview with dom/input and transfer
 - [ ] crud forms [ ] query/view [ ] form interaction [ ] staging area
@@ -52,13 +54,16 @@ clj -X:devkit :main user.demo-healthcheck/main
 
 # Photon Demos
 
-Updated 2022 May 18:
+Updated: 2022 May 18
 
 * demo-server-toggle
 * demo-system-properties
-* orders-ui
+* demo-healthcheck
+* webview
+* ~~orders-ui~~ not working
 * ~~hytradboi~~ not working
 * ~~todomvc~~ not working
+* ~~browser~~ not working
 
 Instructions: todo
 
@@ -71,7 +76,8 @@ Instructions: todo
 * clj -X:devkit :main user.demo-system-properties/main (buggy dom cleanup)
 
 # Known Issues
-(updated 2022 May 14)
+
+updated: 2022 May 18
 
 What works?
 
@@ -80,19 +86,17 @@ What works?
 - No passing test = expect possible issues
 
 Photon issues and language gaps
-- No destructuring yet
+- No fn destructuring yet (let destructuring works)
 - No recursion yet
 - No variable fn arity yet
 - no clojure.core/fn inside Photon blocks yet
 - Pending will replay effects which is not always what you want
-- HFQL is half baked (what works has test coverage)
+- photon-dom renders dom lists in reverse, stable dom rendering is WIP, eta May
 - Malformed programs can hang the JVM (including HFQL which is WIP)
   - Open MacOS Activity Monitor and filter by "java" to see if your JVM is hung
   - best to run with Activity Monitor open until we can mitigate it
-- photon-dom renders dom lists in reverse, stable dom rendering is WIP, eta May
 - Current transfer syntax `~@` is challenging
-  - Today you must start with working examples, there are tons of surprising edge cases and the errors are bad
-  - if you there isn't a test documenting it, don't assume it works
+  - Start with a working example, there are edge cases and the error messages are often unhelpful
   - Much better syntax is coming soon (after stable dom rendering)
 
 # IDE setup
