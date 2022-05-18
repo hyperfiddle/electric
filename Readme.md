@@ -15,7 +15,7 @@ Photon lets you express a frontend/backend web application as a single unified C
 ; Note: This is our target future syntax, we're not quite there yet.
 ```
 
-It's called Photon because every named binding in a Photon program can be thought of as simultaneously a reactive flow and a value.
+It's called Photon because every point in a Photon form can be thought of as simultaneously a reactive flow and a value.
 
 > Albert Einstein, on the wave-particle duality: *"It seems as though we must use sometimes the one theory and sometimes the other, while at times we may use either. We are faced with a new kind of difficulty. We have two contradictory pictures of reality; separately neither of them fully explains the phenomena of light, but together they do."*
 
