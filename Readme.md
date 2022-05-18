@@ -44,8 +44,6 @@ Updated 2022 May 18:
 git clone ...
 cd photon
 git submodule update --init --recursive
-brew install maven
-pushd vendor/missionary && mvn clean && mvn compile && mvn install && popd
 yarn       # or npm install
 
 # Sanity check that it's working:
