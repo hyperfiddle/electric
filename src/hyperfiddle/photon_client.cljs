@@ -4,7 +4,8 @@
             [hyperfiddle.logger :as log]
             [missionary.core :as m]
             ["reconnecting-websocket" :as ReconnectingWebSocket]
-            ))
+            )
+  (:import missionary.Cancelled))
 
 (defn heartbeat! [interval socket]
   (js/setTimeout (fn rec []
@@ -67,11 +68,13 @@
 
 (defn client [[c s]]
   (m/sp
-    (let [m (m/mbx)
-          write-chan (m/? (connect m))]
-      (try (m/? (write-chan s))
-           (m/? (c write-chan m))
-           (catch :default err
-             (write-chan) ; close channel socket
-             (throw err)
-             )))))
+    (try
+      (let [m (m/mbx)
+            write-chan (m/? (connect m))]
+        (try (m/? (write-chan s))
+          (m/? (c write-chan m))
+          (catch :default err
+            (write-chan) ; close channel socket
+            (throw err))))
+      (catch Cancelled t
+        "stopped"))))

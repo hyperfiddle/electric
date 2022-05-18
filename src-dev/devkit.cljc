@@ -20,7 +20,11 @@
 
 #?(:cljs (def main))                                        ; assigned above with :append-js
 #?(:cljs (def reactor))                                     ; save for debugging
-(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor ((js/devkit.main) js/console.log js/console.error))))
+
+(defn success [value] #?(:cljs (js/console.log "Reactor success:" value)))
+(defn failure [err] #?(:cljs (js/console.error "Reactor failure:" err)))
+
+(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor ((js/devkit.main) success failure))))
 (defn ^:dev/before-load stop! [] #?(:cljs (do (when reactor (reactor) #_"teardown") (set! reactor nil))))
 
 (def server nil)
