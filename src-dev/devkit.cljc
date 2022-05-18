@@ -14,7 +14,7 @@
      :build-options {:cache-level :jars}                    ; recompile everything but jars
      :output-dir    "resources/public/js"
      :asset-path    "/js"
-     :modules       {:main {:entries   ['devkit ns]
+     :modules       {:main {:entries   ['user 'devkit ns]
                             :append-js (str "devkit.main = function () { return " (munge ns) "." (munge (name sym)) "};"
                                             "devkit.start_BANG_();")}}}))
 
