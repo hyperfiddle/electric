@@ -1,6 +1,7 @@
 (ns user
   "Photon app server build and run instructions (Clojure and ClojureScript)"
-  (:require hyperfiddle.rcf))
+  (:require clojure.string
+            [hyperfiddle.rcf :refer [tests]]))
 
 (comment
   "clean cljs state"
@@ -59,4 +60,18 @@
   ;; Navigate to http://localhost:8082
   (prof/start {:framebuf 10000000})
   (prof/stop)
+  )
+
+(defn includes-str? "used repeatedly in tutorials" [v needle]
+  (clojure.string/includes? (clojure.string/lower-case (str v))
+                            (clojure.string/lower-case (str needle))))
+
+(tests
+  (includes-str? "alice" "e") := true
+  (includes-str? "alice" "f") := false
+  (includes-str? "alice" "") := true
+  (includes-str? "alice" nil) := true
+  (includes-str? nil nil) := true
+  (includes-str? nil "") := true
+  (includes-str? "" nil) := true
   )
