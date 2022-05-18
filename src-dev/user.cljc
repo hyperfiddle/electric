@@ -22,15 +22,11 @@
   ;   the problem is sharing JVM with shadow and the JVM state is the problem.
   ;   Restart the JVM by restarting shadow.
 
-  ; Optional CLJS REPL:
-  ; need to export a nrepl port, can use `npx shadow-cljs -A:test server` if convenient, todo how to do this from JVM repl
-  ;   connect second nrepl, then eval (shadow/repl :app) for JS repl
-  ;   check repl type: eval (type 1)
-
   "start Photon app server"
   (do
     (require 'dev)                                          ; todo move into userland with #?(:clj (def db @(requiring-resolve 'dev/db)))
     (require '[hyperfiddle.photon :as p])
+    #_(hyperfiddle.logger/set-level! :debug)
     (def server (p/start-websocket-server! {:host "localhost" :port 8081}))
     (comment (.stop server))
     ; Wait to enable RCF after everything is loaded for fastest startup
@@ -39,22 +35,25 @@
   ; http://localhost:8080/
   ; hard refresh
 
-  "stop Photon app server"
-  (.stop server)
-  ; use logger when debugging due to concurrency which will interleave printlns
-  #_(hyperfiddle.logger/set-level! :debug)
+  "Optional CLJS REPL"
+  ; shadow server exports an repl
+  ; connect a secondary repl instance to this (DO NOT REUSE JVM REPL it will fail weirdly)
+  ;   check repl type: eval (type 1)
+  (shadow.cljs.devtools.api/repl :app)
+  (hyperfiddle.rcf/enable!)                                 ; again in cljs repl
+  (tests (pr-str (type 1)) := "#object[Number]")
   )
 
 (comment
-  (require 'hyperfiddle.rcf)
+  "CI tests"
   #?(:clj (alter-var-root #'hyperfiddle.rcf/*generate-tests* (constantly false)))
   (hyperfiddle.rcf/enable!)
   (require 'clojure.test)
   (clojure.test/run-all-tests #"(hyperfiddle.api|user.orders)")
   )
 
-;; Perfs
 (comment
+  "Performance profiling"
   (require '[clj-async-profiler.core :as prof])
   (prof/serve-files 8082)
   ;; Navigate to http://localhost:8082
