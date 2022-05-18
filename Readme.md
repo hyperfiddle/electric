@@ -20,10 +20,24 @@ It's called Photon because every named binding in a Photon program can be though
 > Albert Einstein, on the wave-particle duality: *"It seems as though we must use sometimes the one theory and sometimes the other, while at times we may use either. We are faced with a new kind of difficulty. We have two contradictory pictures of reality; separately neither of them fully explains the phenomena of light, but together they do."*
 
 # Project status = private technical alpha
-(Updated 2022 May 15)
-* Currently we are testing the core Photon language experience (Reactive Clojure). If that goes well we will layer in basic usage of Photon-dom and client/server transfer, at the basic tutorial example level of sophistication.
-* Next — after core language rough edges are identified and worked out – we will provide TodoMVC and 7GUIs examples using photon-dom and client/server transfer. ETA = June?
-* Finally, we will test "HFQL", a UI query/render DSL built in Photon. HFQL is currently half-baked.
+
+Updated 2022 May 18:
+
+- [x] Photon core language at CLJ REPL
+- [x] Photon core language at CLJS REPL with client/server transfer - JS/JVM [x] Cursive [ ] Emacs [ ] Calva
+- [x] Photon-dom basic tutorial level usage (bugs allowed)
+- [ ] photon-dom todomvc level usage (no bugs)
+- [ ] hot code reloading - [ ] Cursive, [ ] Emacs, [ ] Calva
+- [x] Photon webview with client/server transfer (query only)
+- [x] Photon webview with dom/input and transfer
+- [ ] crud forms [ ] query/view [ ] form interaction [ ] staging area
+- [ ] Transfer improvements
+  - [ ] Photon core language instrumented for traced IO to understand client/server transfer at REPL
+  - [ ] reactive-for with midflight transfer - todo
+  - [ ] validate transfer correctness
+- [ ] TodoMVC [ ] cljs only [ ] client/server transfer
+- [ ] 7 GUIs [ ] cljs only [ ] client/server transfer
+- [ ] HFQL - not close
 
 # Setup
 ```bash
@@ -35,10 +49,22 @@ pushd vendor/missionary && mvn clean && mvn compile && mvn install && popd
 yarn       # or npm install
 
 # Sanity check that it's working:
-clj -A:devkit -X user.photon-5-entrypoint/main
+fixme
 ```
 
-# Photon Tutorial
+# Photon Demos
+
+Updated 2022 May 18:
+
+* demo-server-toggle
+* demo-system-properties
+* orders-ui
+* ~~hytradboi~~ not working
+* ~~todomvc~~ not working
+
+Instructions: todo
+
+# Photon Language Tutorial
 * Start a JVM REPL and jack-in in your usual way
 * Read `src-docs/user/photon_*`, follow along in your REPL and see the tests pass
 
@@ -50,16 +76,16 @@ clj -A:devkit -X user.photon-5-entrypoint/main
 
 What works?
 
-- See Photon test coverage; tests are passing
-- try/catch, case, if, p/fn, p/defn, p/def, binding, all work
+- See Photon test coverage; tests are passing. 
+- try/catch, case, if, p/fn, p/defn, p/def, binding, all work with test coverage
+- No passing test = expect possible issues
 
 Photon issues and language gaps
 - No destructuring yet
 - No recursion yet
 - No variable fn arity yet
 - no clojure.core/fn inside Photon blocks yet
-- Pending will replay effects 
-- What works has test coverage
+- Pending will replay effects which is not always what you want
 - HFQL is half baked (what works has test coverage)
 - Malformed programs can hang the JVM (including HFQL which is WIP)
   - Open MacOS Activity Monitor and filter by "java" to see if your JVM is hung
@@ -83,5 +109,7 @@ Cursive:
 * Run configuration
 
 Emacs
-* cider-jack-in with deps alias `dev`
-    * (I think you need to run cider-jack-in with prefix argument to configure the alias?)
+* ? cider-jack-in with deps alias `dev`
+* ? (I think you need to run cider-jack-in with prefix argument to configure the alias?)
+* None of Team Hyperfiddle is currently running emacs and there are diverse setups
+* todo
