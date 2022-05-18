@@ -1,14 +1,13 @@
-(ns user.demo-server-toggle
+(ns user.photon-live-demo
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             devkit)
-  #?(:cljs (:require-macros user.demo-server-toggle)))      ; forces shadow hot reload to also reload JVM at the same time
+  #?(:cljs (:require-macros user.photon-live-demo)))
 
-
-(def !x #?(:clj (atom 0)))                                  ; server
+(def !x #?(:cljs (atom 0)))                                  ; server
 
 (p/defn App []
-  (let [x ~@(p/watch !x)]
+  (let [x (p/watch !x)]
     (dom/div
       (dom/h1 (dom/text "Toggle Server"))
       (dom/div (dom/text (if (odd? x)
@@ -20,9 +19,22 @@
                                  (App.))))))
 
 (comment
-  #?(:clj (def dispose (devkit/main :main `main)))
-  (swap! !x inc)
-
+  #?(:clj (devkit/main :main `main))
   (shadow.cljs.devtools.api/repl :app)
-  (type 1)
+  (swap! !x inc)
   )
+
+
+
+
+
+
+; start with a function running in the browser
+; hello world
+; dom hello world
+; table with dom/for
+; cljs atom
+; transfer java lang long
+; table of evens long, with id column and type column
+; System/getProperties with filter
+; datascript

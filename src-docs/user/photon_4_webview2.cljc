@@ -1,13 +1,11 @@
 (ns user.photon-4-webview2
   "Photon fullstack query/view composition with client/server transfer"
-  (:require [clojure.string :as string]
-            [datascript.core :as d]
-            [hyperfiddle.logger :as log]
+  (:require [datascript.core :as d]                         ; photon cljsbuild needs to see the vars, fixme
             [hyperfiddle.ui :as ui]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests ! % with]]
-            devkit)
+            user devkit)
   #?(:cljs (:require-macros user.photon-4-webview2)))       ; see readme
 
 
@@ -18,17 +16,13 @@
                            {:order/email "bob@example.com" :order/gender :order/male}
                            {:order/email "charlie@example.com" :order/gender :order/male}]))
 
-(defn includes-str? [v needle]
-  (string/includes? (string/lower-case (str v))
-                    (string/lower-case (str needle))))
-
 (defn orders [db ?email]
   #?(:clj
      (sort
        (d/q '[:find [?e ...]
               :in $ ?needle :where
               [?e :order/email ?email]
-              [(user.photon-4-webview2/includes-str? ?email ?needle)]]
+              [(user/includes-str? ?email ?needle)]]
             db (or ?email "")))))
 
 #?(:clj
@@ -56,8 +50,7 @@
       ~@(binding [db (p/watch !db)]
           ~@(View. state)))))
 
-(def main #?(:cljs (p/client (p/main (log/info "starting")
-                                     (log/info (pr-str (App.)))))))
+(def main #?(:cljs (p/client (p/main (App.)))))
 
 (comment
   #?(:clj (devkit/main :main `main))
@@ -66,7 +59,6 @@
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))
   #?(:clj (reset! !db @conn))
 
-  "cljs"
   (shadow.cljs.devtools.api/repl :app)
   (type 1)
   (swap! !state assoc :email "bob")
