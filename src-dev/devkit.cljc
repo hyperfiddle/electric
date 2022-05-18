@@ -24,7 +24,7 @@
 (defn success [value] #?(:cljs (js/console.log "Reactor success:" value)))
 (defn failure [err] #?(:cljs (js/console.error "Reactor failure:" err)))
 
-(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor ((js/devkit.main) success failure))))
+(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor (when (some? js/devkit.main) ((js/devkit.main) success failure)))))
 (defn ^:dev/before-load stop! [] #?(:cljs (do (when reactor (reactor) #_"teardown") (set! reactor nil))))
 
 (def server nil)
@@ -40,7 +40,8 @@
      (shadow/watch (build-config main))
      (when-not server
        (def server (p/start-websocket-server! {:host "localhost" :port 8081})))
-     (comment (.stop server))
-     server))
+     (fn cleanup []
+       (shadow/stop-worker :app)
+       (.stop server))))
 
 ;#?(:cljs (start!)) -- delay until after main_fn assignment

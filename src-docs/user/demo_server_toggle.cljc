@@ -20,7 +20,7 @@
                                  (App.))))))
 
 (comment
-  #?(:clj (devkit/main :main `main))
+  #?(:clj (def dispose (devkit/main :main `main)))
   (swap! !x inc)
 
   (shadow.cljs.devtools.api/repl :app)

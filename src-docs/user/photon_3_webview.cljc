@@ -5,7 +5,8 @@
             [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :refer [tests ! % with]]))
+            [hyperfiddle.rcf :refer [tests ! % with]]
+            devkit))
 
 
 (hyperfiddle.rcf/enable!)
@@ -56,7 +57,7 @@
                                      (log/info (pr-str (App.)))))))
 
 (comment
-  #?(:clj (@(requiring-resolve 'devkit/main) :main `main))
+  #?(:clj (devkit/main :main `main))
   #?(:clj (d/transact conn [{:order/email "dan@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "erin@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))
