@@ -1,12 +1,11 @@
 (ns user.photon-3-webview
   "Photon fullstack query/view composition with client/server transfer"
-  (:require [clojure.string :as string]
-            [datascript.core :as d]
+  (:require [datascript.core :as d]                         ; photon cljsbuild needs to see the vars, fixme
             [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests ! % with]]
-            devkit))
+            user devkit))
 
 
 (hyperfiddle.rcf/enable!)
@@ -16,17 +15,13 @@
                            {:order/email "bob@example.com"}
                            {:order/email "charlie@example.com"}]))
 
-(defn includes-str? [v needle]
-  (string/includes? (string/lower-case (str v))
-                    (string/lower-case (str needle))))
-
 (defn orders [db ?email]
   #?(:clj
      (sort
        (d/q '[:find [?email ...]
               :in $ ?needle :where
               [?e :order/email ?email]
-              [(user.photon-3-webview/includes-str? ?email ?needle)]]
+              [(user/includes-str? ?email ?needle)]]
             db (or ?email "")))))
 
 #?(:clj

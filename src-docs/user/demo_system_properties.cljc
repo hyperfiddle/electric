@@ -8,7 +8,7 @@
 
 (defn system-properties [?s]
   #?(:clj (->> (System/getProperties)
-               (filter (fn [[k v]] (str/includes? (str/lower-case (str k)) (or ?s ""))))
+               (filter (fn [[k v]] (str/includes? (str/lower-case (str k)) (str/lower-case (str ?s)))))
                (into {}))))
 
 (def !x #?(:clj (atom 10)))

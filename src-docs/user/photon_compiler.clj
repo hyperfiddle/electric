@@ -21,6 +21,9 @@
       ; this is a nil server program
       [:target [:target [:nop] [:nop]] [:literal nil]]]
 
+  ; p/fn is split into a constant + target (Yes p/fn, not reactive-quote)
+  ; a target is a recipe to construct a piece of DAG that is constructed on demand by the remote peer
+
   (def client (first *1))
   (def server (second *2))
 
