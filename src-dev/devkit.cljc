@@ -23,12 +23,19 @@
 (defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor ((js/devkit.main) js/console.log js/console.error))))
 (defn ^:dev/before-load stop! [] #?(:cljs (do (when reactor (reactor) #_"teardown") (set! reactor nil))))
 
+(def server nil)
+
 #?(:clj
    (defn main [& {:keys [main]}]
      (assert (qualified-symbol? main) "\nUsage: `clj -X:devkit :main your.namespace/main`")
      (shadow-server/start!)                                 ; shadow serves nrepl and browser assets including entrypoint
+     (when ((shadow/active-builds) :app)
+       (println "Devkit: Stopping watch for previous example")
+       (shadow/stop-worker :app))
+     (println "Devkit: Compiling example" main)
      (shadow/watch (build-config main))
-     (def server (p/start-websocket-server! {:host "localhost" :port 8081}))
+     (when-not server
+       (def server (p/start-websocket-server! {:host "localhost" :port 8081})))
      (comment (.stop server))
      server))
 
