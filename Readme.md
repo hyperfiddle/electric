@@ -49,7 +49,7 @@ pushd vendor/missionary && mvn clean && mvn compile && mvn install && popd
 yarn       # or npm install
 
 # Sanity check that it's working:
-fixme
+clj -X:devkit :main user.demo-healthcheck/main
 ```
 
 # Photon Demos
@@ -69,7 +69,8 @@ Instructions: todo
 * Read `src-docs/user/photon_*`, follow along in your REPL and see the tests pass
 
 # Standalone Examples to run
-* (wip) tee-shirt orders: `clj -X:devkit :main user.orders-ui/main`
+* ~~tee-shirt orders: `clj -X:devkit :main user.orders-ui/main`~~ (broken)
+* clj -X:devkit :main user.demo-system-properties/main (buggy dom cleanup)
 
 # Known Issues
 (updated 2022 May 14)
