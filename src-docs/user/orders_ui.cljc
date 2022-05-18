@@ -4,7 +4,8 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
-            [user.orders :refer [orders genders shirt-sizes]]))
+            [user.orders :refer [orders genders shirt-sizes]]
+            devkit))
 
 (p/defn Orders []
   ~@(ui/with-spec-render
@@ -33,5 +34,5 @@
 
 
 (comment
-  #?(:clj (@(requiring-resolve 'devkit/main) :main `main))
+  #?(:clj (devkit/main :main `main))
   )

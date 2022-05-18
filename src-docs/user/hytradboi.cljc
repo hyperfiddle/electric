@@ -7,7 +7,8 @@
             [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui :as ui]
             [user.orders :refer [orders genders shirt-sizes]]
-            dustin.y2022.edn-render))
+            dustin.y2022.edn-render
+            devkit))
 
 (p/defn App []
   (binding [] ; default to dom so issues show up in test
@@ -34,5 +35,5 @@
                            (ui/with-spec-render (App.)))))))))))
 
 (comment
-  #?(:clj (@(requiring-resolve 'devkit/main) :main `main))
+  #?(:clj (devkit/main :main `main))
   )

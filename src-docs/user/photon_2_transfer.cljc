@@ -2,9 +2,10 @@
   "Photon with client/server transfer at the REPL"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]
-            #?(:clj shadow.cljs.devtools.server)
-            #?(:clj shadow.cljs.devtools.api)))
+            devkit))
 
+
+(hyperfiddle.rcf/enable!)
 
 (p/defn App [x]
   (if (even? x)
@@ -22,33 +23,15 @@
      % := "java.lang.Long"                  ; holy cow
      (dispose)))
 
-
-; How to run:
-; 1. Jack into JVM REPL
-; 2. Start shadow stuff
-; 3. Open a separate nrepl connected to shadow server and start shadow/repl
-
-(hyperfiddle.rcf/enable!)
-#?(:cljs (defn ^:dev/before-load stop [] (hyperfiddle.rcf/enable! false)))
-#?(:cljs (defn ^:dev/after-load start [] (hyperfiddle.rcf/enable!)))
-
-#?(:clj
-   (do
-     (shadow.cljs.devtools.server/start!)
-     (shadow.cljs.devtools.api/watch
-       {:build-id      :app
-        :target        :browser
-        :devtools      {:watch-dir "resources/public"}
-        :build-options {:cache-level :jars}
-        :output-dir    "resources/public/js"
-        :asset-path    "/js"
-        :modules       {:main {:entries ['user.photon-2-transfer]}}})
-     (p/start-websocket-server! {:host "localhost" :port 8081})
-     (println (str "\n" "http://localhost:8080"))))
+(def main #?(:cljs (fn [s f])))
 
 (comment
+  #?(:clj (def dispose (devkit/main :main `main)))
+  #?(:clj (dispose))
+
   ; connect a new NREPL do not use existing JVM repl !!!
-  (shadow.cljs.devtools.api/repl :app)  ; do not eval in your existing JVM repl it wont work
+  ; do not eval in your existing JVM repl it wont work
+  (shadow.cljs.devtools.api/repl :app)
   ; Connect browser session - http://localhost:8080
   ; Browser console: shadow-cljs: #3 ready!
   (type 1)

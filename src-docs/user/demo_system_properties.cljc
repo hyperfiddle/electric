@@ -2,7 +2,8 @@
   (:require [clojure.string :as str]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui :as ui])
+            [hyperfiddle.ui :as ui]
+            devkit)
   #?(:cljs (:require-macros user.demo-system-properties)))
 
 (defn system-properties [?s]
@@ -28,9 +29,9 @@
                                  (App.))))))
 
 (comment
+  #?(:clj (devkit/main :main `main))
   (swap! !x dec)
-  (swap! !n-server dec)
-  #?(:clj (@(requiring-resolve 'devkit/main) :main `main))
+
   (shadow.cljs.devtools.api/repl :app)
   (type 1)
   )
