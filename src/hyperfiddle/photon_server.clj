@@ -45,22 +45,6 @@
 (defn token-resume! [^SuspendToken token]
   (.resume token))
 
-(def timeouts (atom {}))
-(defn set-timeout!
-  ([d f] (set-timeout! nil d f))
-  ([id d f]
-   (let [id (or id (random-uuid))
-         clear (m/dfv)
-         task (m/sp
-                (when (= :proceed (m/? (m/race clear (m/sleep d :proceed))))
-                  (f)))]
-     (swap! timeouts assoc id clear)
-     (future (m/? task) (swap! timeouts dissoc id))
-     id)))
-
-(defn clear-timeout! [id] (when-let [clear (get (deref timeouts) id)]
-                            (clear :canceled)))
-
 (def sockets (atom {}))
 
 (deftype Ws [client-id
@@ -89,23 +73,22 @@
             (set! msg-str (m/rdv))
             (set! msg-buf (m/rdv))
             (set! close (m/dfv)))))))
-  (onWebSocketClose [this s r]
-    (log/debug "websocket close" {:client-id client-id :status s, :reason r})
-    (set-timeout! client-id
-      30000
-      (fn []
-        (log/debug "websocket did not recover, harvesting session." {:client-id client-id})
-        (cancel)
-        (close
-          (do
-            (set! (.close this) nil)
-            (set! (.msg-str this) nil)
-            (set! (.msg-buf this) nil)
-            (merge {:status s :reason r}
-              (when-some [e error]
-                (set! (.error this) nil)
-                {:error e}))))
-        (swap! sockets dissoc client-id))))
+  (onWebSocketClose [this status reason]
+    (letfn [(close! [] 
+              (cancel) ; FIXME success or failure callback not called
+              (close (do (set! (.close this) nil)
+                       (set! (.msg-str this) nil)
+                       (set! (.msg-buf this) nil)
+                       (merge {:status status, :reason reason}
+                         (when-some [e error]
+                           (set! (.error this) nil)
+                           {:error e}))))
+              (swap! sockets dissoc client-id))]
+      (case status ; https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
+        (1000 1001) (do (log/info "Client disconnected" {:client-id client-id})
+                      (close!))
+        (do (log/error "Client socket disconnected for an unexpected reason." {:client-id client-id :status status, :reason reason})
+          (close!)))))
   (onWebSocketError [_ e]
     (log/error "Websocket error" e)
     (set! error e))
@@ -125,9 +108,7 @@
 
 (defn- make-reactor! [handler request]
   (let [client-id (req->client-id request)]
-    (if-let [socket (get (deref sockets) client-id)]
-      (do (clear-timeout! client-id)
-        socket)
+    (or (get (deref sockets) client-id)
       (let [socket (->Ws client-id (handler request) nil nil nil nil nil nil nil)]
         (swap! sockets assoc client-id socket)
         socket))))
