@@ -3,6 +3,7 @@
   Default app is healthcheck"
   (:require user.demo-healthcheck
             user.demo-server-toggle
+            user.counter
             #?(:cljs goog.object)
     ;user.demo-system-properties
     ;user.demo-webview
