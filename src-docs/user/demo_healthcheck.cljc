@@ -14,7 +14,7 @@
 
     (let [x (dom/button
               (dom/text "click me")
-              (dom/set-attribute! dom/parent "type" "button")
+              (dom/attribute "type" "button")
               (new (->> (dom/events dom/parent "click")
                         (m/eduction (map (constantly 1)))
                         (m/reductions +))))]
@@ -38,5 +38,5 @@
                                    (catch Pending _)))))))
 
 (comment
-  #?(:clj (def dispose (user/browser-main! `main)))
+  #?(:clj (user/browser-main! `main))
   )
