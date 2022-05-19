@@ -4,12 +4,16 @@
             [hyperfiddle.rcf :refer [tests ! % with]]))
 
 
+(hyperfiddle.rcf/enable!)
+
 (defn clock []
   (->> (m/ap
          (loop []
            (m/amb (m/? (m/sleep 10 1))
                   (recur))))
        (m/reductions + 0)
+       (m/relieve {})
+       
        #_(m/reductions {} nil)
        #_(m/latest (fn [_]
                      #?(:clj  (System/currentTimeMillis)
@@ -22,7 +26,6 @@
   % := ::notify
   @!it := 0
   % := ::notify
-  ;✅✅❌
-  ;expected: (= % :wip.demo-two-clocks/notify)
-  ;actual: (not (= :hyperfiddle.rcf/timeout :wip.demo-two-clocks/notify))
-  )
+  @!it := 1
+  % := ::notify
+  (!it))
