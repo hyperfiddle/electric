@@ -117,3 +117,8 @@ Emacs
 * ? (I think you need to run cider-jack-in with prefix argument to configure the alias?)
 * None of Team Hyperfiddle is currently running emacs and there are diverse setups
 * todo
+
+# FAQ
+
+* `Execution error (ClassNotFoundException) hyperfiddle.photon.Pending` - run the Clojure build step, see setup instructions
+* Cursive says `Dependency cycle: hyperfiddle.api -> hyperfiddle.hfql -> hyperfiddle.hfql.impl -> hyperfiddle.api` – Cursive is not correctly handling Clojure 1.11 :as-alias, load the file form by form instead 
