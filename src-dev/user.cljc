@@ -3,7 +3,6 @@
   Start a REPL with `clj -A:dev`, or jack in with :dev alias.
   Default app is demo-healthcheck."
   (:require #?(:cljs goog.object)
-            user.demo-counter
             user.demo-healthcheck
             user.demo-system-properties
             user.demo-webview
