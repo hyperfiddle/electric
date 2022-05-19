@@ -1,24 +1,14 @@
 {:deps     {:aliases [:dev]}
  :nrepl    {:port 9001}
  :dev-http {8080 {:root "resources/public"}}
- :builds   {:app      {:target           :browser
-                       :devtools         {:watch-dir  "resources/public"
-                                          :watch-path "/assets"
-                                          :hud        #{:errors :progress}
-                                          :ignore-warnings true ;; warnings don't prevent hot-reload
-                                          }
-                       :compiler-options {:output-feature-set    :es6
-                                          :infer-externs         :auto
-                                          :js-options            {:variable-renaming :off}
-                                          :anon-fn-naming-policy :unmapped}
-                       :build-options    {:cache-level :jars} ;; Recompile everything but jars.
-                       :output-dir       "resources/public/js"
-                       :asset-path       "/assets/js"
-                       :modules          {:main   {:entries    [user.hytradboi
-                                                                ; Shadow is supposed to add these, but
-                                                                ; for some reason it doesn't
-                                                                shadow.cljs.bootstrap.env
-                                                                shadow.cljs.bootstrap.browser]}}}
+ :builds   {:devkit   {:target        :browser
+                       :devtools      {:watch-dir       "resources/public"    ; live reload CSS
+                                       :hud             #{:errors :progress}
+                                       :ignore-warnings true}                 ; warnings don't prevent hot-reload
+                       :build-options {:cache-level :jars}                    ; recompile everything but jars
+                       :output-dir    "resources/public/js"
+                       :asset-path    "/js"
+                       :modules       {:main {:entries [user]}}}
             :test     {:target           :node-test
                        :output-to        "out/node-tests.js"
                        :ns-regexp        "^hyperfiddle.photon-[^dom].*$"

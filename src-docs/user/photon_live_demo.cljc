@@ -1,7 +1,6 @@
 (ns user.photon-live-demo
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            devkit)
+            [hyperfiddle.photon-dom :as dom])
   #?(:cljs (:require-macros user.photon-live-demo))
   (:import (hyperfiddle.photon Pending)))
 
@@ -21,8 +20,7 @@
                                  (catch Pending _))))))
 
 (comment
-  #?(:clj (devkit/main :main `main))
-  (shadow.cljs.devtools.api/repl :app)
+  (shadow.cljs.devtools.api/repl :devkit)
   (swap! !x inc)
   )
 

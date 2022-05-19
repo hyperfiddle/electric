@@ -1,65 +1,50 @@
 (ns user
   "Photon app server build and run instructions (Clojure and ClojureScript)"
   (:require clojure.string
-            [hyperfiddle.rcf :refer [tests]]))
+            [hyperfiddle.rcf :refer [tests]]
+            [hyperfiddle.photon :as p]
+            ;; Examples
+            user.orders-ui
+            user.hytradboi
+            user.demo-system-properties
+            user.demo-server-toggle
+            user.photon-live-demo
+            user.photon-tutorial-homework))
+
+; Start a REPL with `clj -A:dev`, or jack in with :dev alias.
 
 (comment
-  "clean cljs state"
-  ; % rm .cpcache .shadow-cljs
-  ; % yarn
-  ; launch JVM repl under :test deps alias
+  "Start shadow-cljs server"
   (require 'shadow.cljs.devtools.server)
   (shadow.cljs.devtools.server/start!)
 
+  "Compile devkit to javascript"
   ; Watch works. Make sure to eval on JVM first, then save file to trigger cljs compile and reload
   (require '[shadow.cljs.devtools.api :as shadow])
-  (shadow/watch :app)                                       ; depends on shadow server
-  #_(shadow/compile :app)
-  #_(shadow/release :app)
+  (shadow/watch :devkit)                                       ; depends on shadow server
+  #_(shadow/compile :devkit)
+  #_(shadow/release :devkit)
 
-  ; Warning:
-  ;   Commonly we think our macros confuse shadow. 99% of the time this is not the case.
-  ;   the problem is sharing JVM with shadow and the JVM state is the problem.
-  ;   Restart the JVM by restarting shadow.
-
-  "start Photon app server"
-  (do
-    (require 'dev)                                          ; todo move into userland with #?(:clj (def db @(requiring-resolve 'dev/db)))
-    (require '[hyperfiddle.photon :as p])
-    #_(hyperfiddle.logger/set-level! :debug)
-    (def server (p/start-websocket-server! {:host "localhost" :port 8081}))
-    (comment (.stop server))
-    ; Wait to enable RCF after everything is loaded for fastest startup
-    (hyperfiddle.rcf/enable!))
-
-  ; http://localhost:8080/
-  ; hard refresh
+  "Start Photon app server"
+  (defonce server (p/start-websocket-server! {:host "localhost" :port 8081}))
+  #_(.stop server)
 
   "Optional CLJS REPL"
   ; shadow server exports an repl
   ; connect a secondary repl instance to this (DO NOT REUSE JVM REPL it will fail weirdly)
   ;   check repl type: eval (type 1)
-  (shadow.cljs.devtools.api/repl :app)
-  (hyperfiddle.rcf/enable!)                                 ; again in cljs repl
-  (tests (pr-str (type 1)) := "#object[Number]")
-  )
+  (shadow.cljs.devtools.api/repl :devkit))
 
-(comment
-  "CI tests"
-  #?(:clj (alter-var-root #'hyperfiddle.rcf/*generate-tests* (constantly false)))
-  (hyperfiddle.rcf/enable!)
-  (require 'clojure.test)
-  (clojure.test/run-all-tests #"(hyperfiddle.api|user.orders)")
-  )
+#?(:cljs (def main user.demo-system-properties/main)) ; Client entrypoint, change to switch example
 
-(comment
-  "Performance profiling"
-  (require '[clj-async-profiler.core :as prof])
-  (prof/serve-files 8082)
-  ;; Navigate to http://localhost:8082
-  (prof/start {:framebuf 10000000})
-  (prof/stop)
-  )
+#?(:cljs (def reactor))                      ; Client process, save for debugging
+
+(defn success [value] #?(:cljs (js/console.log "Reactor success:" value)))
+(defn failure [err] #?(:cljs (js/console.error "Reactor failure:" err)))
+
+;; Start and stop reactor on hot code reload
+(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor (main success failure))))
+(defn ^:dev/before-load stop! [] #?(:cljs (do (when reactor (reactor) #_"teardown") (set! reactor nil))))
 
 (defn includes-str? "used repeatedly in tutorials" [v needle]
   (clojure.string/includes? (clojure.string/lower-case (str v))

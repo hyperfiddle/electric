@@ -2,8 +2,7 @@
   (:require [clojure.string :as str]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui :as ui]
-            devkit)
+            [hyperfiddle.ui :as ui])
   #?(:cljs (:require-macros user.demo-system-properties))
   (:import (hyperfiddle.photon Pending)))
 
@@ -32,9 +31,5 @@
                                  (catch Pending _))))))
 
 (comment
-  #?(:clj (devkit/main :main `main))
   (swap! !x dec)
-
-  (shadow.cljs.devtools.api/repl :app)
-  (type 1)
   )
