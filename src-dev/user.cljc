@@ -1,63 +1,72 @@
 (ns user
-  "Photon app server build and run instructions (Clojure and ClojureScript)"
-  (:require clojure.string
-            [hyperfiddle.rcf :refer [tests]]
-            [hyperfiddle.photon :as p]
-            ;; Examples
-            user.demo-healthcheck
+  "Photon app server build and run instructions (Clojure and ClojureScript)
+  Default app is healthcheck"
+  (:require user.demo-healthcheck
             user.demo-server-toggle
-            user.demo-system-properties
-            user.demo-webview
-            user.photon-livecoding-starter
-            wip.orders-ui
-            wip.hytradboi
+            #?(:cljs goog.object)
+    ;user.demo-system-properties
+    ;user.demo-webview
+    ;user.photon-livecoding-starter
+    ;wip.orders-ui
+    ;wip.hytradboi
             ))
 
 ; Start a REPL with `clj -A:dev`, or jack in with :dev alias.
 
+#?(:cljs (defn runtime-resolve [exported-qualified-sym]
+           (let [path-s        (str (munge (symbol (namespace exported-qualified-sym)))
+                                    "." (munge (name exported-qualified-sym)))
+                 path-segments (clojure.string/split path-s ".")]
+             (goog.object/getValueByKeys js/window (clj->js path-segments)))))
+
+#?(:cljs (defonce user-photon-main `user.demo-healthcheck/main)) ; lazy resolve
+#?(:cljs (defonce reactor nil))                             ; save for debugging
+
+(defn ^:dev/after-load ^:export start! []
+  #?(:cljs (when user-photon-main
+             (set! reactor ((runtime-resolve user-photon-main) ; Photon main recompiles every reload, must re-resolve it
+                            #(js/console.log "Reactor success:" %)
+                            #(js/console.error "Reactor failure:" %))))))
+
+(defn ^:dev/before-load stop! []
+  #?(:cljs (do (when reactor (reactor) #_"teardown")
+               (set! reactor nil))))
+
+#?(:clj  (defn browser-main! [photon-main-sym]
+           ; Save the user the trouble of getting a CLJS repl to switch photon entrypoints
+           (let [cljs-eval @(requiring-resolve 'shadow.cljs.devtools.api/cljs-eval)]
+             (cljs-eval :devkit (str `(println ::loading (quote ~photon-main-sym))) {})
+             (cljs-eval :devkit (str `(browser-main! (quote ~photon-main-sym))) {})
+             (fn dispose [] (cljs-eval :devkit `(user/stop!) {}))))
+
+   :cljs (defn browser-main! [photon-main-sym]
+           ;(println ::received-reload-command photon-main-sym (type photon-main-sym))
+           (set! user-photon-main photon-main-sym) (stop!) (start!)))
+
 (comment
-  "Start shadow-cljs server"
-  (require 'shadow.cljs.devtools.server)
-  (shadow.cljs.devtools.server/start!)
+  (browser-main! `user.demo-healthcheck/main)
+  (browser-main! `user.demo-server-toggle/main)
+  (@(requiring-resolve 'shadow.cljs.devtools.api/cljs-eval) :devkit (str "(println ::x)") {})
+  )
 
-  "Compile devkit to javascript"
-  ; Watch works. Make sure to eval on JVM first, then save file to trigger cljs compile and reload
-  (require '[shadow.cljs.devtools.api :as shadow])
-  (shadow/watch :devkit)                                       ; depends on shadow server
-  #_(shadow/compile :devkit)
-  #_(shadow/release :devkit)
+#?(:clj
+   (defn main "CLJ main" [& args]
+     "build and serve clojurescript assets"
+     (@(requiring-resolve 'shadow.cljs.devtools.server/start!)) ; serves index.html as well
+     (@(requiring-resolve 'shadow.cljs.devtools.api/watch) :devkit) ; depends on shadow server
+     #_(@(requiring-resolve 'shadow.cljs.devtools.api/compile) :devkit)
+     #_(@(requiring-resolve 'shadow.cljs.devtools.api/release) :devkit)
 
-  "Start Photon app server"
-  (defonce server (p/start-websocket-server! {:host "localhost" :port 8081}))
-  #_(.stop server)
+     "Start Photon app server"
+     (def server (@(requiring-resolve 'hyperfiddle.photon/start-websocket-server!) {:host "localhost" :port 8081}))
+     (comment (.stop server))))
 
-  "Optional CLJS REPL"
-  ; shadow server exports an repl
-  ; connect a secondary repl instance to this (DO NOT REUSE JVM REPL it will fail weirdly)
-  ;   check repl type: eval (type 1)
-  (shadow.cljs.devtools.api/repl :devkit))
+(comment
+  "Clojure REPL entrypoint"
+  (main)
 
-#?(:cljs (def main user.demo-system-properties/main)) ; Client entrypoint, change to switch example
-
-#?(:cljs (def reactor))                      ; Client process, save for debugging
-
-(defn success [value] #?(:cljs (js/console.log "Reactor success:" value)))
-(defn failure [err] #?(:cljs (js/console.error "Reactor failure:" err)))
-
-;; Start and stop reactor on hot code reload
-(defn ^:dev/after-load ^:export start! [] #?(:cljs (set! reactor (main success failure))))
-(defn ^:dev/before-load stop! [] #?(:cljs (do (when reactor (reactor) #_"teardown") (set! reactor nil))))
-
-(defn includes-str? "used repeatedly in tutorials" [v needle]
-  (clojure.string/includes? (clojure.string/lower-case (str v))
-                            (clojure.string/lower-case (str needle))))
-
-(tests
-  (includes-str? "alice" "e") := true
-  (includes-str? "alice" "f") := false
-  (includes-str? "alice" "") := true
-  (includes-str? "alice" nil) := true
-  (includes-str? nil nil) := true
-  (includes-str? nil "") := true
-  (includes-str? "" nil) := true
+  "ClojureScript REPL entrypoint"
+  ; shadow server exports an repl, connect a second REPL instance to it (DO NOT REUSE JVM REPL it will fail weirdly)
+  (shadow.cljs.devtools.api/repl :devkit)
+  (type 1)
   )

@@ -5,7 +5,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests ! % with]]
-            user)
+            user.util)
   #?(:cljs (:require-macros user.demo-webview))       ; see readme
   (:import (hyperfiddle.photon Pending)))
 
@@ -23,7 +23,7 @@
        (d/q '[:find [?e ...]
               :in $ ?needle :where
               [?e :order/email ?email]
-              [(user/includes-str? ?email ?needle)]]
+              [(user.util/includes-str? ?email ?needle)]]
             db (or ?email "")))))
 
 #?(:clj
@@ -54,7 +54,7 @@
 (def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
 
 (comment
-  #?(:clj (user/main :main `main))
+  #?(:clj (user/browser-main! :main `main))
   #?(:clj (d/transact conn [{:order/email "dan@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "erin@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))

@@ -50,7 +50,7 @@ clojure -T:build compile-java
 yarn       # or npm install
 
 # Sanity check that it's working:
-clj -X:devkit :main user.demo-healthcheck/main
+clj -A:dev -X user/main     # will display a healthcheck with millisecond time
 ```
 
 # Photon Demos
