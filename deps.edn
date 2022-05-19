@@ -49,7 +49,7 @@
                                    "-Djdk.attach.allowAttachSelf" ;; profiling
                                    "-XX:+UnlockDiagnosticVMOptions"
                                    "-XX:+DebugNonSafepoints"]}
-           :test    {:extra-paths ["src-dev" "test"]
+           :test    {:extra-paths [#_"src-dev" "test"]
                      :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true"
                                    "-XX:-OmitStackTraceInFastThrow"
                                    "-Dlogback.configurationFile=src-dev/logback.xml"
