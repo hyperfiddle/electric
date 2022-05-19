@@ -7,6 +7,7 @@
             user.demo-system-properties
             user.demo-webview
             user.photon-livecoding-starter
+            wip.demo-two-clocks
             #_wip.orders-ui
             #_wip.hytradboi
             ))
