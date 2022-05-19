@@ -1,4 +1,4 @@
-{:paths   ["src"]
+{:paths   ["src" "target/classes"]
  :deps    {org.clojure/clojure            {:mvn/version "1.11.1"}
            missionary/missionary          {:mvn/version "b.27-SNAPSHOT"}
            hyperfiddle/rcf                {:local/root "./vendor/rcf"}
@@ -29,7 +29,14 @@
            org.clojure/tools.logging      {:mvn/version "1.2.4"}
            }
 
- :aliases {:dev     {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
+ :deps/prep-lib {:ensure "target/classes"
+                 :alias :build
+                 :fn compile-java}
+
+ :aliases {:build {:extra-paths ["src-dev"]
+                   :deps {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}}
+                   :ns-default build}
+           :dev     {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
                      :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.0-alpha1"}
                                    binaryage/devtools                       {:mvn/version "1.0.6"}
                                    thheller/shadow-cljs                     {:mvn/version "2.18.0"}
