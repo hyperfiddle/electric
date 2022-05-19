@@ -4,7 +4,8 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
             devkit)
-  #?(:cljs (:require-macros user.demo-system-properties)))
+  #?(:cljs (:require-macros user.demo-system-properties))
+  (:import (hyperfiddle.photon Pending)))
 
 (defn system-properties [?s]
   #?(:clj (->> (System/getProperties)
@@ -25,8 +26,10 @@
             (dom/td (dom/text (pr-str v)))))))))
 
 (def main #?(:cljs (p/client (p/main
-                               (binding [dom/parent (dom/by-id "root")]
-                                 (App.))))))
+                               (try
+                                 (binding [dom/parent (dom/by-id "root")]
+                                   (App.))
+                                 (catch Pending _))))))
 
 (comment
   #?(:clj (devkit/main :main `main))

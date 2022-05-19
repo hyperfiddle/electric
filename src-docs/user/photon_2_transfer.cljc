@@ -2,7 +2,8 @@
   "Photon with client/server transfer at the REPL"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]
-            devkit))
+            devkit)
+  (:import (hyperfiddle.photon Pending)))
 
 
 (hyperfiddle.rcf/enable!)
@@ -16,7 +17,8 @@
    (tests
      "client/server transfer, pure functional!"
      (def !x (atom 0))
-     (def dispose ((p/client (p/main (! (App. (p/watch !x)))))
+     (def dispose ((p/client (p/main (try (! (App. (p/watch !x)))
+                                       (catch Pending _))))
                    js/console.log js/console.error))
      % := "#object[Number]"
      (swap! !x inc)

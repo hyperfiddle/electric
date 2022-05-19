@@ -8,7 +8,8 @@
             [hyperfiddle.ui :as ui]
             [user.orders :refer [orders genders shirt-sizes]]
             dustin.y2022.edn-render
-            devkit))
+            devkit)
+  (:import (hyperfiddle.photon Pending)))
 
 (p/defn App []
   (binding [] ; default to dom so issues show up in test
@@ -23,16 +24,18 @@
 (def main                                 ; http://localhost:8080/
   #?(:cljs (p/client
              (p/main
-               (binding [dom/parent (dom/by-id "root")]
-                 (dom/div
-                   (dom/attribute "id" "main")
-                   (dom/class "browser")
+               (try
+                 (binding [dom/parent (dom/by-id "root")]
                    (dom/div
-                     (dom/class "view")
-                     (codemirror/edn.
-                       ~@#_"server"
-                         (binding []
-                           (ui/with-spec-render (App.)))))))))))
+                     (dom/attribute "id" "main")
+                     (dom/class "browser")
+                     (dom/div
+                       (dom/class "view")
+                       (codemirror/edn.
+                         ~@#_"server"
+                           (binding []
+                             (ui/with-spec-render (App.)))))))
+                 (catch Pending _))))))
 
 (comment
   #?(:clj (devkit/main :main `main))

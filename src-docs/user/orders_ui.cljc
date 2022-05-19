@@ -5,7 +5,8 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
             [user.orders :refer [orders genders shirt-sizes]]
-            devkit))
+            devkit)
+  (:import (hyperfiddle.photon Pending)))
 
 (p/defn Orders []
   ~@(ui/with-spec-render
@@ -30,7 +31,7 @@
         (dom/class "view")
         (Orders.)))))
 
-(def main #?(:cljs (p/client (p/main (App.)))))
+(def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
 
 
 (comment

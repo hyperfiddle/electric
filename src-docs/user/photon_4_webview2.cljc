@@ -6,7 +6,8 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests ! % with]]
             user devkit)
-  #?(:cljs (:require-macros user.photon-4-webview2)))       ; see readme
+  #?(:cljs (:require-macros user.photon-4-webview2))       ; see readme
+  (:import (hyperfiddle.photon Pending)))
 
 
 (hyperfiddle.rcf/enable!)
@@ -50,7 +51,7 @@
       ~@(binding [db (p/watch !db)]
           ~@(View. state)))))
 
-(def main #?(:cljs (p/client (p/main (App.)))))
+(def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
 
 (comment
   #?(:clj (devkit/main :main `main))

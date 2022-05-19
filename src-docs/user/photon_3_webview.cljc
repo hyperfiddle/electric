@@ -5,7 +5,8 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests ! % with]]
-            user devkit))
+            user devkit)
+  (:import (hyperfiddle.photon Pending)))
 
 
 (hyperfiddle.rcf/enable!)
@@ -49,7 +50,9 @@
           ~@(View. state)))))
 
 (def main #?(:cljs (p/client (p/main (log/info "starting")
-                                     (log/info (pr-str (App.)))))))
+                                     (log/info (pr-str 
+                                                 (try (App.)
+                                                   (catch Pending _ :pending))))))))
 
 (comment
   #?(:clj (devkit/main :main `main))
