@@ -1,9 +1,12 @@
-(ns user.orders
+(ns wip.orders
+  "query functions used in tee-shirt orders demo"
   (:require #?(:clj [datahike.api :as d])
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [! % tests]]))
+            [hyperfiddle.rcf :refer [! % tests]]
+            user)
+  #?(:cljs (:require-macros wip.orders)))
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (defn genders []
@@ -28,7 +31,7 @@
                 [?e :order/type :order/shirt-size]
                 [?e :order/gender ?gender]
                 [?e :db/ident ?ident]
-                [(hyperfiddle.api/includes-str? ?ident ?needle)]]
+                [(user/includes-str? ?ident ?needle)]]
            hf/*$*
            hf/rules gender (or needle ""))
          (d/q '[:in $ % ?needle
@@ -36,7 +39,7 @@
                 :where
                 [?e :order/type :order/shirt-size]
                 [?e :db/ident ?ident]
-                [(hyperfiddle.api/includes-str? ?ident ?needle)]]
+                [(user/includes-str? ?ident ?needle)]]
            hf/*$*
            hf/rules (or needle ""))))))
 
@@ -53,7 +56,7 @@
               :in $ ?needle
               :where
               [?e :order/email ?email]
-              [(hyperfiddle.api/includes-str? ?email ?needle)]]
+              [(user/includes-str? ?email ?needle)]]
          hf/*$*
          (or needle "")))))
 

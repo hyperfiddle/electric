@@ -1,8 +1,7 @@
 (ns user.photon-2-transfer
   "Photon with client/server transfer at the REPL"
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests ! % with]]
-            devkit)
+            [hyperfiddle.rcf :refer [tests ! % with]])
   (:import (hyperfiddle.photon Pending)))
 
 
@@ -28,7 +27,7 @@
 (def main #?(:cljs (fn [s f])))
 
 (comment
-  #?(:clj (def dispose (devkit/main :main `main)))
+  #?(:clj (def dispose (user/main :main `main)))
   #?(:clj (dispose))
 
   ; connect a new NREPL do not use existing JVM repl !!!

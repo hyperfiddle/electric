@@ -1,7 +1,6 @@
 (ns user.missionary-flow
-  (:require [hyperfiddle.photon :as p]
-    [hyperfiddle.rcf :refer [tests ! % with]]
-    [missionary.core :as m])
+  (:require [hyperfiddle.rcf :refer [tests ! % with]]
+            [missionary.core :as m])
   (:import (missionary Cancelled)))
 
 

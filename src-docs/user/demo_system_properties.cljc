@@ -11,8 +11,6 @@
                (filter (fn [[k v]] (str/includes? (str/lower-case (str k)) (str/lower-case (str ?s)))))
                (into {}))))
 
-(def !x #?(:clj (atom 10)))
-
 (p/defn App []
   (dom/div
     (dom/h1 (dom/text "System Properties"))
@@ -31,5 +29,9 @@
                                  (catch Pending _))))))
 
 (comment
-  (swap! !x dec)
+  #?(:clj (def dispose (user/main :main `main)))
+  (swap! !x inc)
+
+  (shadow.cljs.devtools.api/repl :app)
+  (type 1)
   )

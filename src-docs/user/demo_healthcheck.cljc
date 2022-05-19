@@ -1,7 +1,6 @@
 (ns user.demo-healthcheck
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            devkit)
+            [hyperfiddle.photon-dom :as dom])
   #?(:cljs (:require-macros user.demo-healthcheck))        ; forces shadow hot reload to also reload JVM at the same time
   (:import (hyperfiddle.photon Pending)))
 
@@ -19,5 +18,5 @@
                                  (catch Pending _))))))
 
 (comment
-  #?(:clj (def dispose (devkit/main :main `main)))
+  #?(:clj (def dispose (user/main :main `main)))
   )

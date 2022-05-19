@@ -1,13 +1,13 @@
-(ns user.photon-live-demo
+(ns user.photon-livecoding-starter
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom])
-  #?(:cljs (:require-macros user.photon-live-demo))
+  #?(:cljs (:require-macros user.photon-livecoding-starter)) ; forces shadow hot reload to also reload JVM at the same time
   (:import (hyperfiddle.photon Pending)))
 
-(def !x #?(:cljs (atom 0)))                                  ; server
+(def !x #?(:clj (atom 0)))                                  ; server
 
 (p/defn App []
-  (let [x (p/watch !x)]
+  (let [x ~@(p/watch !x)]
     (dom/div
       (dom/h1 (dom/text "Toggle Server"))
       (dom/div (dom/text (if (odd? x)
@@ -20,7 +20,8 @@
                                  (catch Pending _))))))
 
 (comment
-  (shadow.cljs.devtools.api/repl :devkit)
+  #?(:clj (def dispose (user/main :main `main)))
+  (shadow.cljs.devtools.api/repl :app)
   (swap! !x inc)
   )
 

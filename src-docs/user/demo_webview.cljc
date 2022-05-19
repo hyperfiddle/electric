@@ -1,12 +1,12 @@
-(ns user.photon-4-webview2
+(ns user.demo-webview
   "Photon fullstack query/view composition with client/server transfer"
   (:require [datascript.core :as d]                         ; photon cljsbuild needs to see the vars, fixme
             [hyperfiddle.ui :as ui]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests ! % with]]
-            user devkit)
-  #?(:cljs (:require-macros user.photon-4-webview2))       ; see readme
+            user)
+  #?(:cljs (:require-macros user.demo-webview))       ; see readme
   (:import (hyperfiddle.photon Pending)))
 
 
@@ -54,7 +54,7 @@
 (def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
 
 (comment
-  #?(:clj (devkit/main :main `main))
+  #?(:clj (user/main :main `main))
   #?(:clj (d/transact conn [{:order/email "dan@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "erin@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))
