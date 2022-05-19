@@ -3,8 +3,8 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui])
-  #?(:cljs (:require-macros user.demo-system-properties))
-  (:import (hyperfiddle.photon Pending)))
+  (:import (hyperfiddle.photon Pending))
+  #?(:cljs (:require-macros user.demo-system-properties)))
 
 (defn system-properties [?s]
   #?(:clj (->> (System/getProperties)

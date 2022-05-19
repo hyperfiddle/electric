@@ -1,9 +1,9 @@
-(ns user.counter
+(ns user.demo-counter
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m])
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros user.counter)))                 ; forces shadow hot reload to also reload JVM at the same time
+  #?(:cljs (:require-macros user.demo-counter)))            ; forces shadow hot reload to also reload JVM at the same time
 
 
 (p/defn App []
@@ -20,9 +20,10 @@
         (dom/span (dom/text (str x)))))))
 
 (def main #?(:cljs (p/client (p/main
-                               (try (binding [dom/parent (dom/by-id "root")]
-                                      (App.))
-                                    (catch Pending _))))))
+                               (binding [dom/parent (dom/by-id "root")]
+                                 (try
+                                   (App.)
+                                   (catch Pending _)))))))
 
 (comment
   #?(:clj (def dispose (user/browser-main! `main)))

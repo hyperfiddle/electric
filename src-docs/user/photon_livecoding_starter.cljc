@@ -1,8 +1,9 @@
 (ns user.photon-livecoding-starter
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom])
-  #?(:cljs (:require-macros user.photon-livecoding-starter)) ; forces shadow hot reload to also reload JVM at the same time
-  (:import (hyperfiddle.photon Pending)))
+  (:import (hyperfiddle.photon Pending))
+  #?(:cljs (:require-macros user.photon-livecoding-starter))) ; forces shadow hot reload to also reload JVM at the same time
+
 
 (def !x #?(:clj (atom 0)))                                  ; server
 
@@ -15,9 +16,10 @@
                            (pr-str (type x))))))))
 
 (def main #?(:cljs (p/client (p/main
-                               (try (binding [dom/parent (dom/by-id "root")]
-                                      (App.))
-                                 (catch Pending _))))))
+                               (binding [dom/parent (dom/by-id "root")]
+                                 (try
+                                   (App.)
+                                   (catch Pending _)))))))
 
 (comment
   #?(:clj (def dispose (user/browser-main! :main `main)))

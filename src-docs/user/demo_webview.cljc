@@ -4,10 +4,10 @@
             [hyperfiddle.ui :as ui]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :refer [tests]]
             user.util)
-  #?(:cljs (:require-macros user.demo-webview))       ; see readme
-  (:import (hyperfiddle.photon Pending)))
+  (:import (hyperfiddle.photon Pending))
+  #?(:cljs (:require-macros user.demo-webview)))
 
 
 (hyperfiddle.rcf/enable!)
