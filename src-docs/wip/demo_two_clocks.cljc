@@ -6,15 +6,15 @@
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.demo-two-clocks)))         ; forces shadow hot reload to also reload JVM at the same time
 
-(def clock (fn [] (->> (m/ap
-                         (loop []
-                           (m/amb (m/? (m/sleep 100 1))
-                                  (recur))))
-                       (m/reductions + 0)
-                       #_(m/reductions {} nil)
-                       #_(m/latest (fn [_]
-                                   #?(:clj  (System/currentTimeMillis)
-                                      :cljs (js/Date.now)))))))
+(defn clock []
+  (->> (m/ap
+         (loop []
+           (m/amb (m/? (m/sleep 10 1))
+                  (recur))))
+       (m/reductions {} nil)
+       (m/latest (fn [_]
+                     #?(:clj  (System/currentTimeMillis)
+                        :cljs (js/Date.now))))))
 
 (p/def client-time)
 (p/def server-time)
