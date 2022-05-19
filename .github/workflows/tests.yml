@@ -41,6 +41,9 @@ jobs:
     - name: prep
       run: clojure -A:test -P
 
+    - name: build
+      run: clojure -T:build compile-java
+
     - name: Run tests
       run: ./ci/run_tests_jvm.sh
         
@@ -84,6 +87,9 @@ jobs:
  
     - name: prep
       run: clojure -A:test -P
+
+    - name: build
+      run: clojure -T:build compile-java
 
     - name: Use Node.js
       uses: actions/setup-node@v2
