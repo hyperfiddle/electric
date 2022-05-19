@@ -54,7 +54,7 @@
 (def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
 
 (comment
-  #?(:clj (user/browser-main! :main `main))
+  #?(:clj (user/browser-main! `main))
   #?(:clj (d/transact conn [{:order/email "dan@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "erin@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))
