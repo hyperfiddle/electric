@@ -6,6 +6,7 @@
             [hyperfiddle.logger :as log]
             [hyperfiddle.rcf :refer [tests]])
   (:import missionary.Cancelled
+           (hyperfiddle.photon Pending Remote)
            #?(:clj (clojure.lang IFn IDeref))))
 
 ;; network protocol
@@ -87,9 +88,6 @@
         (#?(:clj deref :cljs -deref) [_]
           (try @it (catch Cancelled e (->Failure e))))))))
 
-;; TODO move out of impl ns
-(deftype Pending [])
-(deftype Remote [])
 
 (def cancelled (->Failure (Cancelled.)))
 (def pending (->Failure (Pending.)))
@@ -290,8 +288,10 @@
                    (aset (int 5) {})
                    (aset (int 6) {})
                    (aset (int 7) {}))]
-         (m/stream! (allocate log ctx inputs targets sources signals variables outputs boot 0 []
-                      (vec (repeat nodes unbound))))
+         (->> (allocate log ctx inputs targets sources signals variables outputs boot 0 []
+                (vec (repeat nodes unbound)))
+           (m/latest (fn [x] (if-some [f (failure x)] (throw (.-error f)) x))) ; Willingly crash reactor on uncaugh userland exception
+           (m/stream!))
          (->> (poll ?read)
            (m/stream!)
            (m/eduction

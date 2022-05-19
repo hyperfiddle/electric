@@ -3,7 +3,8 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [missionary.core :as m])
-  (:import missionary.Cancelled))
+  (:import missionary.Cancelled
+           hyperfiddle.photon.Pending))
 
 
 (tests
@@ -646,6 +647,17 @@
     (catch #?(:clj Exception, :cljs :default) _ ::outer))
   := ::outer)
 
+(tests
+  "Reactor crashes on uncaugh exceptions"
+  (def !x (atom true))
+  (with ((p/local (! (assert (p/watch !x)))) ! !)
+    % := nil ; assert returns nil or throws
+    (swap! !x not) ; will crash the reactor
+    #?(:clj (instance? AssertionError %)
+       :cljs (instance? js/Error %)) := true
+    (swap! !x not) ; reactor will not come back.
+    % := ::rcf/timeout))
+
 (p/defn Boom [] (throw (ex-info "" {})))
 (tests
   "reactive exceptions"
@@ -725,39 +737,44 @@
 
 (tests
   "client/server transfer"
-  (p/run (! ~@~@1))
+  ; Pending state is an error state.
+  ; Pending errors will crash the reactor if not caugh
+  (p/run (try (! ~@~@1) (catch Pending _)))
   % := 1)
 
 (p/def foo nil)
 (tests
-  (p/run (! (binding [foo 1] ~@~@foo)))
+  (p/run (try (! (binding [foo 1] ~@~@foo))
+           (catch Pending _)))
   % := 1)
 
 (p/def foo nil)
 (tests
-  (p/run (! (binding [foo 1] ~@(new (p/fn [] ~@foo)))))
+  (p/run (try (! (binding [foo 1] ~@(new (p/fn [] ~@foo))))
+           (catch Pending _)))
   % := 1)
 
 (p/def foo1 nil)
 (p/def Bar1 (p/fn [] ~@foo1))
 (tests
-  (p/run (! (binding [foo1 1] ~@(Bar1.))))
+  (p/run (try (! (binding [foo1 1] ~@(Bar1.)))
+           (catch Pending _)))
   % := 1)
 
 (tests
   "reactive pending states"
   ;~(m/reductions {} hyperfiddle.photon-impl.runtime/pending m/none)
-  (def dispose (p/run (! (try true (catch hyperfiddle.photon-impl.runtime/Pending _ ::pending)))))
+  (def dispose (p/run (! (try true (catch Pending _ ::pending)))))
   % := true)
 
 (tests
-  (p/run (! (try ~@1 (catch hyperfiddle.photon-impl.runtime/Pending _ ::pending))))
+  (p/run (! (try ~@1 (catch Pending _ ::pending))))
   % := ::pending    ; Use try/catch to intercept special pending state
   % := 1)
 
 (tests
   (p/run (! (try [(! 1) (! ~@2)]
-                 (catch hyperfiddle.photon-impl.runtime/Pending _
+                 (catch Pending _
                    ::pending))))
   % := 1
   % := ::pending
@@ -768,14 +785,14 @@
 ;(tests
 ;  (p/run (! (try (dom/div)                              ; must be cleaned up by pending state - in dom layer. todo
 ;                 (dom/div ~@1)
-;                 (catch hyperfiddle.photon-impl.runtime/Pending _
+;                 (catch Pending _
 ;                   (dom/div ::pending)))))
 ;  % := ::pending
 ;  % := 1)
 
 ;(tests
 ;  (p/run (! (try [~@(d/q) ~@(d/entity)]
-;                 (catch hyperfiddle.photon-impl.runtime/Pending _
+;                 (catch Pending _
 ;                   ::pending))))
 ;  % := ::pending
 ;  % := 1)
@@ -984,15 +1001,18 @@
   (def !f (atom "hello"))
   (def e (ex-info "error" {}))
   (p/run
-    (! (try (when-not (even? (p/watch !x)) (throw e))
-            (finally (! (p/watch !f))))))
+    (! (try (if (even? (p/watch !x)) :ok (throw e))
+         (catch #?(:clj Throwable, :cljs :default) _ :caugh)
+         (finally (! (p/watch !f))))))
   % := "hello"
-  % := nil
+  % := :ok
   (swap! !x inc)
+  % := :caugh
   (reset! !f "world")
   % := "world"
+  % := :caugh
   (swap! !x inc)
-  % := nil)
+  % := :ok)
 
 (tests
   (p/run-with (p/vars vector) (prn (p/for [id ~@[1]] id))))
