@@ -35,5 +35,5 @@
 (def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
 
 (comment
-  #?(:clj (def dispose (user/main :main `main)))
+  #?(:clj (def dispose (user/browser-main! `main)))
   )
