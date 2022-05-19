@@ -5,7 +5,6 @@
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}
                                        :ignore-warnings true}                 ; warnings don't prevent hot-reload
-                       :build-options {:cache-level :jars}                    ; recompile everything but jars
                        :output-dir    "resources/public/js"
                        :asset-path    "/js"
                        :modules       {:main {:entries [user]}}}
