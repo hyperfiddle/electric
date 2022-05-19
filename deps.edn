@@ -56,13 +56,6 @@
                                    io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                          :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
                      :exec-fn     cognitect.test-runner.api/test}
-
-           :scratch {:extra-paths ["scratch"]
-                     :extra-deps  {reagent/reagent       {:mvn/version "1.0.0"}
-                                   cloroutine/cloroutine {:mvn/version "10"}
-                                   lexikon/lexikon       {:mvn/version "0.2.1"} ;; lexical env capture
-                                   funcool/lentes        {:mvn/version "1.3.3"} ;; lenses
-                                   funcool/promesa       {:mvn/version "6.0.0"} ;; promises, not used anymore
-                                   }}}}
+           }}
 
 ;; ¹ http://webcache.googleusercontent.com/search?q=cache:4Rya0J2jOb4J:yellerapp.com/posts/2015-05-11-clojure-no-stacktrace.html
