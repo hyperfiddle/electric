@@ -1,7 +1,9 @@
 {:paths   ["src" "target/classes"]
  :deps    {org.clojure/clojure            {:mvn/version "1.11.1"}
            missionary/missionary          {:mvn/version "b.27-SNAPSHOT"}
-           hyperfiddle/rcf                {:local/root "./vendor/rcf"}
+           hyperfiddle/rcf                {:git/url "https://github.com/hyperfiddle/rcf"
+                                           :sha "bcd9900d510334494708a6af7fb100ff92a8a040"
+                                           #_#_:local/root "./vendor/rcf"}
            org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"}    ;; used by photon
 
            ;; Server
