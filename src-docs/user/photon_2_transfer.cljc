@@ -27,7 +27,7 @@
 (def main #?(:cljs (fn [s f])))
 
 (comment
-  #?(:clj (def dispose (user/main :main `main)))
+  #?(:clj (def dispose (user/browser-main! :main `main)))
   #?(:clj (dispose))
 
   ; connect a new NREPL do not use existing JVM repl !!!

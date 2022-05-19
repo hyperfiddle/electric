@@ -29,7 +29,7 @@
                                  (catch Pending _))))))
 
 (comment
-  #?(:clj (def dispose (user/main :main `main)))
+  #?(:clj (def dispose (user/browser-main! :main `main)))
   (swap! !x inc)
 
   (shadow.cljs.devtools.api/repl :app)
