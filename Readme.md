@@ -21,22 +21,23 @@ It's called Photon because every point in a Photon form can be thought of as sim
 
 # Project status = private technical alpha
 
-Updated 2022 May 18
+Updated: 2022 May 19
 
 Validated functionality:
 
 - [x] Photon core language at CLJ REPL
-- [x] Photon core language at CLJS REPL with client/server transfer - JS/JVM [x] Cursive [ ] Emacs [ ] Calva
+- [x] Photon core language at CLJS REPL [x] Cursive [x] Emacs [ ] Calva
+- [x] Photon client/server transfer [x] Cursive [x] Emacs [ ] Calva
 - [x] Photon-dom basic tutorial level usage (bugs allowed)
+- [x] hot code reloading - [x] Cursive, [ ] Emacs, [ ] Calva
+- [x] Photon webview with client/server transfer (read only)
+- [x] Photon webview with client/server transfer and dom/input
 - [ ] photon-dom todomvc level usage (no bugs)
-- [ ] hot code reloading - [x] Cursive, [ ] Emacs, [ ] Calva
-- [x] Photon webview with client/server transfer (query only)
-- [x] Photon webview with dom/input and transfer
 - [ ] crud forms [ ] query/view [ ] form interaction [ ] staging area
 - [ ] Transfer improvements
-  - [ ] Photon core language instrumented for traced IO to understand client/server transfer at REPL
   - [ ] reactive-for with midflight transfer - todo
-  - [ ] validate transfer correctness
+  - [ ] let bindings not needlessly transferred (workaround - use dynamic bindings instead)
+  - [ ] validate transfer correctness with traced IO unit tests
 - [ ] TodoMVC [ ] cljs only [ ] client/server transfer
 - [ ] 7 GUIs [ ] cljs only [ ] client/server transfer
 - [ ] HFQL - not close
@@ -56,10 +57,10 @@ clj -X:devkit :main user.demo-healthcheck/main
 
 Updated: 2022 May 18
 
+* demo-healthcheck
 * demo-server-toggle
 * demo-system-properties
-* demo-healthcheck
-* webview
+* demo-webview
 * ~~orders-ui~~ not working
 * ~~hytradboi~~ not working
 * ~~todomvc~~ not working

@@ -1,11 +1,13 @@
-(ns user.orders-ui
+(ns wip.orders-ui
+  "wip - unvalidated, may be broken"
   (:require #?(:clj dev)
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
-            [user.orders :refer [orders genders shirt-sizes]])
-  (:import (hyperfiddle.photon Pending)))
+            [wip.orders :refer [orders genders shirt-sizes]])
+  (:import (hyperfiddle.photon Pending))
+  #?(:cljs (:require-macros wip.orders-ui)))
 
 (p/defn Orders []
   ~@(ui/with-spec-render
@@ -31,3 +33,7 @@
         (Orders.)))))
 
 (def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
+
+(comment
+  #?(:clj (def dispose (user/main :main `main)))
+  )

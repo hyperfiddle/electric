@@ -4,12 +4,14 @@
             [hyperfiddle.rcf :refer [tests]]
             [hyperfiddle.photon :as p]
             ;; Examples
-            user.orders-ui
-            user.hytradboi
-            user.demo-system-properties
+            user.demo-healthcheck
             user.demo-server-toggle
-            user.photon-live-demo
-            user.photon-tutorial-homework))
+            user.demo-system-properties
+            user.demo-webview
+            user.photon-livecoding-starter
+            wip.orders-ui
+            wip.hytradboi
+            ))
 
 ; Start a REPL with `clj -A:dev`, or jack in with :dev alias.
 

@@ -1,4 +1,5 @@
-(ns user.hytradboi
+(ns wip.hytradboi
+  "wip - unvalidated, may be broken"
   (:require #?(:clj dev)
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
@@ -8,7 +9,8 @@
             [hyperfiddle.ui :as ui]
             [user.orders :refer [orders genders shirt-sizes]]
             dustin.y2022.edn-render)
-  (:import (hyperfiddle.photon Pending)))
+  (:import (hyperfiddle.photon Pending))
+  #?(:cljs (:require-macros wip.hytradboi)))
 
 (p/defn App []
   (binding [] ; default to dom so issues show up in test
@@ -35,3 +37,7 @@
                            (binding []
                              (ui/with-spec-render (App.)))))))
                  (catch Pending _))))))
+
+(comment
+  #?(:clj (def dispose (user/main :main `main)))
+  )

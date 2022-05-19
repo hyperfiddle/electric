@@ -4,7 +4,8 @@
             [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.zero :as z]))
+            [hyperfiddle.zero :as z])
+  #?(:cljs (:require-macros user.todomvc)))
 
 (def auto-inc (partial swap! (atom 0) inc))
 

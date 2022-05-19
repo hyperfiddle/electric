@@ -1,4 +1,5 @@
-(ns user.browser
+(ns wip.browser
+  "broken, do not look at"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
@@ -8,7 +9,8 @@
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.zero :as z]
             [hyperfiddle.ui.codemirror :as cm]
-            #?(:clj [datahike.api :as d])))
+            #?(:clj [datahike.api :as d]))
+  #?(:cljs (:require-macros wip.browser)))
 
 ;; NOTE
 ;; shirt-sizes computed for each row, should we cache? could the DAG ensures deduplication?
