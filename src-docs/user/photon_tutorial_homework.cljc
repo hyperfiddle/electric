@@ -1,7 +1,6 @@
 (ns user.photon-tutorial-homework
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            devkit)
+            [hyperfiddle.photon-dom :as dom])
   #?(:cljs (:require-macros user.photon-tutorial-homework)) ; forces shadow hot reload to also reload JVM at the same time
   (:import (hyperfiddle.photon Pending)))
 
@@ -16,15 +15,8 @@
                                        (catch Pending _))))))
 
 (comment
-  #?(:clj (devkit/main :main `main))
   (swap! !x inc)
-
-  (shadow.cljs.devtools.api/repl :app)
-  (type 1)
   )
-
-
-
 
 ; start with a function running in the browser
 ; hello world

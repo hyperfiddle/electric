@@ -137,3 +137,18 @@
     (d/q '[:find [?e ...] :where [_ :order/gender ?e]] db)
     := [2 1] #_[:order/male :order/female])
   )
+
+(comment
+  "CI tests"
+  #?(:clj (alter-var-root #'hyperfiddle.rcf/*generate-tests* (constantly false)))
+  (hyperfiddle.rcf/enable!)
+  (require 'clojure.test)
+  (clojure.test/run-all-tests #"(hyperfiddle.api|user.orders)"))
+
+(comment
+  "Performance profiling"
+  (require '[clj-async-profiler.core :as prof])
+  (prof/serve-files 8082)
+  ;; Navigate to http://localhost:8082
+  (prof/start {:framebuf 10000000})
+  (prof/stop))

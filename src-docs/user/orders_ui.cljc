@@ -4,8 +4,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
-            [user.orders :refer [orders genders shirt-sizes]]
-            devkit)
+            [user.orders :refer [orders genders shirt-sizes]])
   (:import (hyperfiddle.photon Pending)))
 
 (p/defn Orders []
@@ -32,8 +31,3 @@
         (Orders.)))))
 
 (def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
-
-
-(comment
-  #?(:clj (devkit/main :main `main))
-  )

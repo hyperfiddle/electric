@@ -7,8 +7,7 @@
             [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui :as ui]
             [user.orders :refer [orders genders shirt-sizes]]
-            dustin.y2022.edn-render
-            devkit)
+            dustin.y2022.edn-render)
   (:import (hyperfiddle.photon Pending)))
 
 (p/defn App []
@@ -36,7 +35,3 @@
                            (binding []
                              (ui/with-spec-render (App.)))))))
                  (catch Pending _))))))
-
-(comment
-  #?(:clj (devkit/main :main `main))
-  )
