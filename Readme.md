@@ -46,7 +46,7 @@ Validated functionality:
 ```bash
 git clone ...
 cd photon
-git submodule update --init --recursive
+clojure -T:build compile-java
 yarn       # or npm install
 
 # Sanity check that it's working:
