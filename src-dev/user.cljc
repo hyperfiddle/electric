@@ -5,7 +5,6 @@
   (:require #?(:cljs goog.object)
             user.demo-counter
             user.demo-healthcheck
-            user.demo-server-toggle
             user.demo-system-properties
             user.demo-webview
             user.photon-livecoding-starter
@@ -20,8 +19,8 @@
 
   "Switch examples"
   (user/browser-main! `user.demo-healthcheck/main)
-  (user/browser-main! `user.demo-server-toggle/main)
-  (user/browser-main! `user.demo-counter/main)
+  (user/browser-main! `user.demo-system-properties/main)
+  (user/browser-main! `user.demo-webview/main)
 
   "ClojureScript REPL entrypoint"
   ; shadow server exports an repl, connect a second REPL instance to it (DO NOT REUSE JVM REPL it will fail weirdly)
