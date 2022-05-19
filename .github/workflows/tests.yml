@@ -36,7 +36,7 @@ jobs:
     - name: Install clojure tools
       uses: DeLaGuardo/setup-clojure@3.4
       with:
-        cli: 1.10.1.727
+        cli: 1.11.1.1113
  
     - name: prep
       run: clojure -A:test -P
@@ -83,7 +83,7 @@ jobs:
     - name: Install clojure tools
       uses: DeLaGuardo/setup-clojure@3.4
       with:
-        cli: 1.10.1.727
+        cli: 1.11.1.1113
  
     - name: prep
       run: clojure -A:test -P
