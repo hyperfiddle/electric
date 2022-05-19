@@ -2,7 +2,8 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             devkit)
-  #?(:cljs (:require-macros user.demo-server-toggle)))      ; forces shadow hot reload to also reload JVM at the same time
+  #?(:cljs (:require-macros user.demo-server-toggle))      ; forces shadow hot reload to also reload JVM at the same time
+  (:import (hyperfiddle.photon Pending)))
 
 
 (def !x #?(:clj (atom 0)))                                  ; server
@@ -16,8 +17,9 @@
                            (pr-str (type x))))))))
 
 (def main #?(:cljs (p/client (p/main
-                               (binding [dom/parent (dom/by-id "root")]
-                                 (App.))))))
+                               (try (binding [dom/parent (dom/by-id "root")]
+                                      (App.))
+                                 (catch Pending _))))))
 
 (comment
   #?(:clj (def dispose (devkit/main :main `main)))

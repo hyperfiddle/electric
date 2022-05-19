@@ -2,7 +2,8 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             devkit)
-  #?(:cljs (:require-macros user.photon-live-demo)))
+  #?(:cljs (:require-macros user.photon-live-demo))
+  (:import (hyperfiddle.photon Pending)))
 
 (def !x #?(:cljs (atom 0)))                                  ; server
 
@@ -15,8 +16,9 @@
                            (pr-str (type x))))))))
 
 (def main #?(:cljs (p/client (p/main
-                               (binding [dom/parent (dom/by-id "root")]
-                                 (App.))))))
+                               (try (binding [dom/parent (dom/by-id "root")]
+                                      (App.))
+                                 (catch Pending _))))))
 
 (comment
   #?(:clj (devkit/main :main `main))
