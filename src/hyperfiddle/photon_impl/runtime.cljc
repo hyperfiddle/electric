@@ -248,8 +248,8 @@
   (if-some [ctors (get (aget ^objects context (int 5)) (- target-frame))]
     (if-some [nodes (get (aget ^objects context (int 6)) (- source-frame))]
       ((aget ^objects ctors target-slot) (aget ^objects nodes source-slot))
-      (log/warn "create on dead source frame :" (- target-frame) target-slot (- source-frame) source-slot))
-    (log/warn "create on dead target frame :" (- target-frame) target-slot (- source-frame) source-slot))
+      (log/trace "create on dead source frame :" (- target-frame) target-slot (- source-frame) source-slot))
+    (log/trace "create on dead target frame :" (- target-frame) target-slot (- source-frame) source-slot))
   context)
 
 (defn cancel [context frame]
@@ -259,7 +259,7 @@
 (defn change [context [frame slot] value]
   (if-some [inputs (get (aget ^objects context (int 4)) (- frame))]
     (reset! (aget ^objects inputs slot) (read-change value))
-    (log/warn "change on dead frame :" (- frame) slot value))
+    (log/trace "change on dead frame :" (- frame) slot value))
   context)
 
 (def unbound (m/cp (throw (#?(:clj Error. :cljs js/Error. "Unbound var.")))))
