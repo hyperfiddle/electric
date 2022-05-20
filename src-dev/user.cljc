@@ -6,6 +6,7 @@
             user.demo-healthcheck
             user.demo-system-properties
             user.demo-webview
+            user.demo-counter
             user.photon-livecoding-starter
             wip.demo-two-clocks
             #_wip.orders-ui
