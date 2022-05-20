@@ -262,7 +262,7 @@
     (log/trace "change on dead frame :" (- frame) slot value))
   context)
 
-(def unbound (m/cp (throw (#?(:clj Error. :cljs js/Error. "Unbound var.")))))
+(def unbound (steady (->Failure (#?(:clj Error. :cljs js/Error.) "Unbound var."))))
 
 (defn foreach [f input]
   (m/ap (m/? (f (m/?> input)))))

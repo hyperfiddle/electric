@@ -1075,31 +1075,27 @@
   (instance? clojure.lang.Var$Unbound *1) := true)
 )
 
-#?(:clj
 (tests
-  "unbound var access in Photon should be defined as reactor crash"
-  ; in Photon, what is an unbounded reactive var?
-  ; Is it defined?
+  "In Photon, accessing an unbound var throws a userland exception"
+  ;; An unbound var is either:
+  ;; - an uninitialized p/def,
+  ;; - an unsatisfied reactive fn parameter (reactive fn called with too few arguments).
+  (p/def x)
+  (with ((p/local x) prn !)
+    (ex-message %) := "Unbound var."))
 
-  (p/def x_975)
-  (p/run (! x_975))                                         ; access unbound var
-  ; Leo: There is no valid use case for this, it is always a programmer error
-  % := ::rcf/timeout ; todo add way to check for reactor crash
+(tests
+  "Calling a reactive fn with less arguments than expected throws a userland exception"
+  (with ((p/local (new (p/fn [x] x) #_1)) prn !)
+    (ex-message %) := "Unbound var."))
 
-  (p/run (let [_ x_975] (! nil)))
-  % := ::rcf/timeout
-
-  ; This is not a catchable exception
-  (p/run (try x_975 (catch #?(:clj Exception
-                              :cljs :default) _
-                      ::userland-error)))
-  ; reactor crash is not caught by userland try
-  % := ::rcf/timeout
-  )
-)
-
-
-
+(tests
+  "Unbound var access can be caugh with try/catch"
+  (with (p/run (! (try (new (p/fn [x] x) #_1)
+                    (catch #?(:clj Error, :cljs :default) _
+                      :unbound-var-access))))
+    % := :unbound-var-access))
+    
 (tests
  "Initial p/def binding is readily available in p/run"
  (def !x (atom 0))
