@@ -239,7 +239,7 @@
          (set! raf (.requestAnimationFrame js/window callback)))
        (.now js/Date))))
 
-(defn ^:no-doc clock []
+(defn ^:no-doc clock "browser-only clock throttled by requestAnimationFrame" []
   #?(:cljs
      (fn [n t]
        (let [c (->Clock 0 nil t)]

@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon
-  (:refer-clojure :exclude [def fn for eval defn])
+  (:refer-clojure :exclude [def fn for eval defn time])
   (:require [clojure.core :as cc]
             [hyperfiddle.photon-impl.compiler :as c]
             [hyperfiddle.photon-impl.runtime :as r]
@@ -159,3 +159,9 @@ Takes a photon program and returns a pair
              (m/relieve {}))))
 
 (cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
+
+(defn time [throttle]
+  (->> (m/ap (loop [] (m/amb (m/? (m/sleep throttle)) (recur))))
+       (m/reductions {} nil)
+       (m/latest (fn [_] #?(:clj  (System/currentTimeMillis)
+                            :cljs (js/Date.now))))))
