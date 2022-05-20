@@ -305,7 +305,7 @@
   (if (:js-globals env)
     form ;; Can't desugar in cljs, pass form through.
     (if (and (seq? form) (qualified-symbol? (first form)))
-      (env/with-env {:namespaces (resolve-ns (:ns env))}
+      (env/with-env {:namespaces {(:ns env) (resolve-ns (:ns env))}}
         (clj/desugar-host-expr form env))
       (clj/desugar-host-expr form env))))
 
