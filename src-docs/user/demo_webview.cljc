@@ -1,6 +1,6 @@
 (ns user.demo-webview
   "Photon fullstack query/view composition with client/server transfer"
-  (:require #?(:clj [datascript.core :as d])                         ; photon cljsbuild needs to see the vars, fixme
+  (:require #?(:clj [datascript.core :as d])                ; photon cljsbuild needs to see the vars, fixme
             [hyperfiddle.ui :as ui]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
@@ -43,6 +43,14 @@
           (dom/td (dom/text ~@(:order/gender (d/entity db x)))))))))
 
 (def !db #?(:clj (atom @conn)))                             ; Photon cljsbuild unable to resolve !db
+
+;; db changes -> reactive UI update
+#?(:clj
+   (d/listen! conn
+              ::update-ui
+              (fn [{:keys [db-after]}]
+                (reset! !db db-after))))
+
 (def !state #?(:cljs (atom {:email ""})))
 
 (p/defn App []
@@ -54,11 +62,11 @@
 (def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
 
 (comment
+  #?(:clj (user/main))
   #?(:clj (user/browser-main! `main))
-  #?(:clj (d/transact conn [{:order/email "dan@example.com"}]))
+  #?(:clj (d/transact conn [{:order/email "dan@example.com" :order/gender :order/male}]))
   #?(:clj (d/transact conn [{:order/email "erin@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))
-  #?(:clj (reset! !db @conn))
 
   (shadow.cljs.devtools.api/repl :app)
   (type 1)
