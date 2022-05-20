@@ -10,6 +10,36 @@ body {
     padding: 5vh 0vw;
 }
 
+ol ol,
+ul ul,
+ol ul,
+ul ol {
+    margin-bottom: 0;
+}
+
+ol,
+ul,
+dl {
+    margin-top: 0;
+    margin-bottom: 1rem;
+}
+
+dl {
+    display: grid;
+    grid-template-columns: 33% auto;
+}
+
+dt {
+    grid-column: 1;
+    font-weight: 700;
+}
+
+dd {
+    grid-column: 2;
+    margin-bottom: .5rem;
+    margin-left: 0;
+}
+
 #main[data-ws-connected="false"] > *{
     filter:grayscale(1);
 }

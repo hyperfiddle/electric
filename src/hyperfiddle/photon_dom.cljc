@@ -9,7 +9,8 @@
             [clojure.string :as str])
   #?(:cljs (:require-macros
              [hyperfiddle.photon-dom :refer
-              [element fragment div span h1 table thead tbody select option context event assign! for for-by]]))
+              [element fragment div span h1 table thead tbody select option dl dt dd
+               context event assign! for for-by]]))
   #?(:cljs (:import (goog.events EventType KeyCodes)
                     (goog.dom.animationFrame))))
 
@@ -112,6 +113,10 @@
 
 (defmacro li [& body]
   `(element :li ~@body))
+
+(defmacro dl [& body] `(element :dl ~@body))
+(defmacro dt [& body] `(element :dt ~@body))
+(defmacro dd [& body] `(element :dd ~@body))
 
 (defmacro code [& body]
   `(element :code ~@body))
