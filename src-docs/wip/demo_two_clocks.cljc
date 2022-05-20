@@ -16,9 +16,6 @@
                      #?(:clj  (System/currentTimeMillis)
                         :cljs (js/Date.now))))))
 
-(p/def client-time)
-(p/def server-time)
-
 (p/defn App []
   (dom/div
     (dom/h1 (dom/text "Two Clocks"))
