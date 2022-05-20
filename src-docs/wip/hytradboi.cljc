@@ -8,7 +8,7 @@
             [hyperfiddle.ui :as ui]
             [wip.orders :refer [orders genders shirt-sizes]]
             dustin.y2022.edn-render)
-  (:import (hyperfiddle.photon Pending))
+  (:import (hyperfiddle.photon Pending Remote))
   #?(:cljs (:require-macros wip.hytradboi)))
 
 (p/defn App []
@@ -33,7 +33,8 @@
                        (dom/class "view")
                        (codemirror/edn.
                          ~@(ui/with-spec-render (App.))))))
-                 (catch Pending _))))))
+                 (catch Pending _)
+                 (catch Remote _))))))
 
 (comment
   #?(:clj (def dispose (user/browser-main! `main)))
