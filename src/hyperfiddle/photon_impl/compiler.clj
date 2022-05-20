@@ -1,5 +1,6 @@
 (ns hyperfiddle.photon-impl.compiler
   (:require [clojure.tools.analyzer.jvm :as clj]
+            [clojure.tools.analyzer.env :as env]
             [cljs.analyzer :as cljs]
             [cljs.util]
             [hyperfiddle.photon-impl.local :as l]
@@ -86,11 +87,6 @@
                    (if local (cons local params) params)) body)))
     (apply merge)))
 
-(defn desugar-host [env form]
-  (if (:js-globals env)
-    (throw (ex-info "Unsupported form." {:form form}))
-    (clj/desugar-host-expr form env)))
-
 ;;; Resolving
 
 (defn resolve-ns "Builds a description of a namespace. Returns nil if no namespace can be found for the given symbol."
@@ -100,7 +96,18 @@
                                    'ns    #'clojure.core/ns})
      :aliases  (reduce-kv (fn [a k v] (assoc a k (ns-name v)))
                           {} (ns-aliases ns))
+     :interns  (ns-interns ns)
      :ns       (ns-name ns)}))
+
+(defn resolve-sym "Expand a qualified symbol to its fully qualified form, according to ns aliases."
+  [env sym]
+  (if (simple-symbol? sym) sym
+    (let [ns (if (:js-globals env) (:name (:ns env)) (:ns env))]
+      (as-> sym $
+        (symbol (namespace $)) ; extract namespace part of sym
+        (get-in (resolve-ns ns) [:aliases $] $) ; expand to fully qualified form
+        (symbol (str $) (name sym))
+        ))))
 
 ;; GG: Abstraction on resolved vars.
 ;;     A symbol may resolve to:
@@ -140,6 +147,13 @@
   (is-macro [_this] false)
   (is-node  [_this] false))
 
+(defmacro no-warn 
+  "Localy disable a set of cljs compiler warning.
+  Usage: `(no-warn #{:undeclared-ns} (cljs/resolve env sym))`"
+  [disabled-warnings & body]
+  `(binding [cljs/*cljs-warnings* (reduce (fn [r# k#] (assoc r# k# false)) cljs/*cljs-warnings* ~disabled-warnings)]
+     ~@body))
+
 (defn resolve-cljs ; GG: adapted from cljs.analyzer.api/resolve, return an IVar.
   "Given an analysis environment resolve a var. Analogous to
    clojure.core/resolve"
@@ -147,7 +161,7 @@
   {:pre [(map? env) (symbol? sym)]}
   (try
     (binding [cljs/*private-var-access-nowarn* true]
-      (CljsVar. (cljs/resolve-var env sym (cljs/confirm-var-exists-throw))))
+      (CljsVar. (no-warn #{:undeclared-ns} (cljs/resolve-var env sym (cljs/confirm-var-exists-throw)))))
     (catch Exception _e
       (when-some [v (cljs/resolve-macro-var env sym)]
         (CljsVar. v)))))
@@ -168,7 +182,7 @@
                      (as-> sym $
                        (symbol (namespace $)) ; extract namespace part of sym
                        (get-in ns [:aliases $] $) ; expand to fully qualified form
-                       (get-in (resolve-ns $) [:mappings (symbol (name sym))]) ; resolve in target ns
+                       (get-in (resolve-ns $) [:interns (symbol (name sym))]) ; resolve declared var in target ns
                        ))]
       (if (some? resolved)
         (cond (var? resolved)   (CljVar. resolved)
@@ -267,7 +281,8 @@
         (if (is-node v)
           [[:node (visit-node env (var-name v) (::node (var-meta v)))]]
           (throw (ex-info "Can't take value of macro." {:symbol (var-name v)})))
-        (throw (ex-info "Unable to resolve symbol." {:symbol sym}))))))
+        [(analyze-global (resolve-sym env sym))] ; pass through
+        ))))
 
 (defn analyze-apply [env form]
   (transduce
@@ -285,6 +300,14 @@
            (fn [res i n]
              (conj-res [[:bind (resolve-node env n) (- (count ns) i)]] res))
            (apply f env args) ns))) env (seq bs) [])))
+
+(defn desugar-host [env form]
+  (if (:js-globals env)
+    form ;; Can't desugar in cljs, pass form through.
+    (if (and (seq? form) (qualified-symbol? (first form)))
+      (env/with-env {:namespaces (resolve-ns (:ns env))}
+        (clj/desugar-host-expr form env))
+      (clj/desugar-host-expr form env))))
 
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
@@ -427,7 +450,7 @@
                 (let [desugared-form (desugar-host env form)]
                   (if (= form desugared-form)
                     ;; Nothing got desugared, this is not host interop, meaning `op` var wasn't found.
-                    (throw (ex-info "Unable to resolve symbol" {:symbol op}))
+                    (analyze-apply env form) ; pass through
                     (analyze-form env desugared-form))))))))
       (analyze-apply env form))))
 
