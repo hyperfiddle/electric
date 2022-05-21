@@ -52,7 +52,7 @@ Emacs
 
 * see [src-docs/user/](https://github.com/hyperfiddle/photon/tree/master/src-docs/user) for demos and tutorials
 * Start a JVM REPL and jack-in in your usual way
-* App entrypoint: [src-dev/user.cljc](https://github.com/hyperfiddle/photon/blob/master/src-dev/user.cljc)
+* App entrypoint: src-dev/[user.clj](https://github.com/hyperfiddle/photon/blob/master/src-dev/user.clj), [user.cljs](https://github.com/hyperfiddle/photon/blob/master/src-dev/user.cljs)
 
 Please ask questions in slack! src-docs is a "cookbook" of examples and tutorials that we build in response to your questions.
 
