@@ -9,8 +9,8 @@
     user.demo-counter
     user.app-starter
     wip.demo-two-clocks
-    #_wip.orders-ui
-    #_wip.hytradboi))
+    wip.orders-ui
+    wip.demo-hfql))
 
 (defn runtime-resolve [exported-qualified-sym]
   (let [path-s        (str (munge (symbol (namespace exported-qualified-sym)))

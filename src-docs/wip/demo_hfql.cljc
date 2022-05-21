@@ -1,13 +1,16 @@
-(ns wip.orders-ui
+(ns wip.demo-hfql
   "wip"
   (:require #?(:clj dev)
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui :as ui]
-            [wip.orders :refer [orders genders shirt-sizes]])
+            [wip.orders :refer [orders genders shirt-sizes]]
+            dustin.y2022.edn-render)
   (:import (hyperfiddle.photon Pending Remote))
-  #?(:cljs (:require-macros wip.orders-ui)))
+  #?(:cljs (:require-macros wip.demo-hfql)))
+
 
 (p/defn Orders []
   ~@(hf/hfql
@@ -16,8 +19,8 @@
         {(props :order/gender {::hf/options      (genders)
                                ::hf/option-label :db/ident
                                ::hf/render       ui/select-options})
-         [(props :db/ident {::hf/as gender})]}
-        {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
+         [:db/ident]}
+        {(props :order/shirt-size {::hf/options      (shirt-sizes order/gender .)
                                    ::hf/option-label :db/ident
                                    ::hf/render       ui/select-options})
          [:db/ident]}]}))
@@ -28,7 +31,8 @@
     (dom/class "browser")
     (dom/div
       (dom/class "view")
-      (Orders.))))
+      (let [tx (Orders.)]
+        (codemirror/edn. tx)))))
 
 (def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]
                                             ~@(binding [hf/db     hf/*db* ; why
