@@ -9,7 +9,7 @@ Photon lets you express a frontend/backend web application as a single unified C
       (let [email (dom/input)]
         (dom/h1 "Your orders")
         (dom/table
-          (p/for [x (p/server xs (query-database db (p/client (:filter state))))]
+          (p/for [x (p/server xs (query-database db email))]
             (dom/tr (pr-str x))))))))
 
 ; Note: This is our target future syntax, we're not quite there yet.
