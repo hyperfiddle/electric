@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [empty?])
   (:require [missionary.core :as m]
             [hyperfiddle.photon :as p])
-  #?(:cljs (:require-macros [hyperfiddle.zero :refer [pick current instant]])))
+  #?(:cljs (:require-macros [hyperfiddle.zero :refer [pick current impulse]])))
 
 (defn state [init-value]
   (let [!state (atom init-value)
@@ -60,12 +60,14 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
           (m/amb e (if (m/? >control) (m/amb) (recur)))
           (m/amb))))))
 
-(defmacro instant
-  "A state machine emitting `nil`, then one value of a discreet flow `>values`.
-  Then waits for `control` to change and restarts from `nil`.
-  To be used from a photon expression."
-  [control >values]
-  `(new (fsm nil (empty? (m/eduction (drop 1) (p/fn [] ~control))) (first-or nil ~>values))))
+(defmacro impulse
+  "Translates a discrete event stream `>xs` into an equivalent continuous signal impulse. The impulse signal will stay
+   'up' until it is sampled and acknowledged by `ack`. (Thus the duration of the impulse depends on sampling rate.) Upon
+   ack, the impulse restarts from nil. Useful for modeling events in Photon's continuous time model."
+  [ack >xs]
+  `(new (fsm nil
+             (empty? (m/eduction (drop 1) (p/fn [] ~ack)))
+             (first-or nil ~>xs))))
 
 (defmacro current [form]
   `(new (m/eduction (take 1) (p/fn [] ~form))))
