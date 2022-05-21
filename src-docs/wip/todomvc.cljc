@@ -41,7 +41,7 @@
           (dom/text "TodoMVC")
           (dom/input
             (dom/attribute "type" "text")
-            (z/instant basis-t
+            (z/impulse basis-t
               (->> (dom/events dom/parent "keyup")
                 (m/eduction
                   (filter (comp #{dom/keycode-enter} dom/keycode))
@@ -57,7 +57,7 @@
                     (dom/input
                       (dom/attribute "type" "checkbox")
                       (dom/set-checked! dom/parent (#{:done} status))
-                      (z/instant basis-t
+                      (z/impulse basis-t
                         (->> (dom/events dom/parent dom/input-event)
                           (m/eduction
                             (map dom/event-target)

@@ -6,6 +6,7 @@
             user.demo-healthcheck
             user.demo-system-properties
             user.demo-webview
+            user.demo-button
             user.demo-counter
             user.app-starter
             wip.demo-two-clocks
