@@ -10,7 +10,9 @@
     user.app-starter
     wip.demo-two-clocks
     wip.orders-ui
-    wip.demo-hfql))
+    wip.demo-hfql
+    wip.todomvc
+    ))
 
 (defn runtime-resolve [exported-qualified-sym]
   (let [path-s        (str (munge (symbol (namespace exported-qualified-sym)))
