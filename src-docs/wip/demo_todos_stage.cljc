@@ -1,12 +1,13 @@
-(ns wip.todomvc
+(ns wip.demo-todos-stage
   (:require clojure.edn
+            clojure.pprint
             [datascript.core :as d]
             [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z])
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros wip.todomvc)))
+  #?(:cljs (:require-macros wip.demo-todos-stage)))
 
 (def auto-inc (partial swap! (atom 0) inc))
 
@@ -34,9 +35,9 @@
 
 (p/defn Todo-list [basis-t]
   (dom/div
+    (dom/h1 (dom/text "Todo list app"))
     (concat
       (dom/div
-        (dom/text "TodoMVC")
         (dom/input
           (dom/attribute "type" "text")
           (z/impulse basis-t
@@ -65,29 +66,15 @@
                                          :where [?e :task/status ?status]]
                                        db :active)) " items left")))))))
 
-(defn transact [tx-data] #?(:clj (do (prn `transact tx-data) (d/transact! !conn tx-data) nil)))
-
-(p/defn App "auto-transact, no staging area" []
-  (let [!t      (atom 0)
-        basis-t (p/watch !t)]
-    (prn `basis-t basis-t)
-    ~@(binding [db (p/watch !conn)]
-        ~@(if-some [tx (seq (Todo-list. basis-t))]
-            (swap! !t + (do ~@(transact tx) 1))
-            (prn :idle)))))
-
-(p/defn Transact! [stage]
-  (z/fsm nil
-         (p/fn [] nil)
-         ~@(do (d/transact! !conn stage) nil)))
-
 (def auto-inc-2 (let [!x (atom 0)] (fn [stage]
                                      (println ::auto-inc stage @!x)
                                      (swap! !x inc))))
 
 (def !stage #?(:cljs (atom nil)))                           ; we choose stage on client (not shared)
 
-(p/defn App2 []
+(defn write-edn [edn] (with-out-str (clojure.pprint/pprint edn))) ; no cc/fn in photon yet
+
+(p/defn App []
   (let [stage (new (m/eduction (dedupe) (m/watch !stage)))]
     ~@(let [tx-report  (d/with (p/watch !conn) stage)
             current-tx (-> tx-report :tempids :db/current-tx)]
@@ -99,32 +86,29 @@
                 (js/console.log ::tx-data tx)
                 (swap! !stage concat tx)))))
 
-    (dom/text "transact!")
-    (when-some [click-event (dom/button
-                              (dom/text "transact!")
-                              (dom/attribute "type" "button")
-                              (->> (dom/events dom/parent "click")
-                                   (z/impulse dom/time)))]
-      (println ::transact! click-event)
-      (Transact!. stage)
-      #_~@(do (d/transact! !conn stage) nil)
-      (reset! !stage []))
+    (dom/p
+      (when-some [event (dom/button
+                          (dom/text "transact!")
+                          (dom/attribute "type" "button")
+                          (->> (dom/events dom/parent "click")
+                               (z/impulse dom/time)))]
+        (println ::transact! event)
+        ~@(do (d/transact! !conn stage) nil)                ; todo wait for server ack to clear stage
+        (reset! !stage []))
 
-    (dom/text "staging area")
-    (if-some [tx (dom/input
-                   (dom/attribute "type" "text")
-                   (dom/property "value" (pr-str stage))
-                   (->> (dom/events dom/parent "input")
-                        (m/eduction (map dom/target-value) (dedupe))
-                        (z/impulse dom/time)))]
-      (do
-        (js/console.log ::stage tx)
-        (reset! !stage (clojure.edn/read-string tx)))
-      (do (js/console.log ::stage ::idle) nil))))
+      (if-some [tx (dom/input
+                     (dom/attribute "type" "text")
+                     (dom/property "value" (write-edn stage))
+                     (->> (dom/events dom/parent "input")
+                          (m/eduction (map dom/target-value) (dedupe))
+                          (z/impulse dom/time)))]
+        (do
+          (js/console.log ::stage tx)
+          (reset! !stage (clojure.edn/read-string tx)))
+        (do (js/console.log ::stage ::idle) nil)))))
 
 (def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]
-                                            (App.)
-                                            #_(App2.))
+                                            (App.))
                                           (catch Pending _))))))
 
 (comment (user/browser-main! `main))

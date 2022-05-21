@@ -11,7 +11,8 @@
     wip.demo-two-clocks
     wip.orders-ui
     wip.demo-hfql
-    wip.todomvc
+    wip.demo-todos-basic
+    wip.demo-todos-stage
     ))
 
 (defn runtime-resolve [exported-qualified-sym]
