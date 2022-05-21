@@ -4,12 +4,12 @@
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m])
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros wip.demo-two-clocks)))         ; forces shadow hot reload to also reload JVM at the same time
+  #?(:cljs (:require-macros wip.demo-two-clocks)))          ; forces shadow hot reload to also reload JVM at the same time
 
 (defn clock []
   (->> (m/ap
          (loop []
-           (m/amb (m/? (m/sleep 10 1))
+           (m/amb (m/? (m/sleep 10 1))                      ; deadlock in m/sleep causes this demo to freeze, fixme
                   (recur))))
        (m/reductions {} nil)
        (m/latest (fn [_]
