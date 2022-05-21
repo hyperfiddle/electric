@@ -1,7 +1,9 @@
 (ns hyperfiddle.zero
+  "Experimental Photon core library, badly named, should likely be re-exported from photon namespace."
   (:refer-clojure :exclude [empty?])
   (:require [missionary.core :as m]
-            [hyperfiddle.photon :as p])
+            [hyperfiddle.photon :as p]
+            [hyperfiddle.rcf :refer [tests]])
   #?(:cljs (:require-macros [hyperfiddle.zero :refer [pick current impulse]])))
 
 (defn state [init-value]
@@ -71,3 +73,42 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
 
 (defmacro current [form]
   `(new (m/eduction (take 1) (p/fn [] ~form))))
+
+(comment
+  "scratch related to continuous time events with slow consumers"
+  (defn differences [rf]
+    (let [state (volatile! 0)]
+      (fn
+        ([] (rf))
+        ([r] (rf r))
+        ([r x]
+         (let [d (- x @state)]
+           (assert (not (neg? d)))
+           (vreset! state x)
+           (rf r d))))))
+
+  (tests
+    "Five effects driven by CT counter where sampling is slow so discrete events were missed"
+    (sequence differences [0 2 3 5]) := [0 2 1 2])
+
+  (defn foreach-tick [<x f]
+    (->> (m/ap
+           (dotimes [x' (m/?> (m/eduction differences <x))]
+             (f)))
+         (m/reductions {} nil)                              ; run discrete flow for effect
+         (m/relieve {})))
+
+  (defmacro do-step [x & body]
+    `(foreach-tick (p/fn [] ~x)
+                   ~@body
+                   #_(fn [] ~@body)))
+
+  (def drive (comp differences (mapcat (fn [x] (repeat x nil))))) ; transducer
+  (tests (sequence drive [0 2 3 5]) := [nil nil nil nil nil])
+
+  (defn foreach-tick [<x f]
+    (->> (m/ap
+           (let [_ (m/?> (m/eduction z/drive <x))]
+             (f)))
+         (m/reductions {} nil)                              ; produce nil in discrete time for effect
+         (m/relieve {}))))
