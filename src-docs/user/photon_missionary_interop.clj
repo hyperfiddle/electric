@@ -38,3 +38,6 @@
     (swap! !x inc)
     % := 3                                                  ; bad
     % := 4))
+
+; if you don't relieve a discrete flow, sampling is determined by sampling rate
+; new only works on contoinous flows, they must have initial value otherwise photon crash
