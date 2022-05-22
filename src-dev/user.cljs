@@ -7,11 +7,11 @@
     user.demo-webview
     user.demo-button
     user.demo-counter
+    user.demo-todos-basic
     user.app-starter
     wip.demo-two-clocks
     wip.orders-ui
     wip.demo-hfql
-    wip.demo-todos-basic
     wip.demo-todos-stage
     wip.demo-logical-clock
     ))
