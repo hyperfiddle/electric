@@ -72,6 +72,7 @@ May:
 - [x] Photon-dom webview with client/server transfer (read only)
 - [x] Photon-dom uncontrolled text input
 - [x] Concurrent sessions/tabs with shared server state
+- [ ] Todos basic demo
 - [ ] Basic Photon/Missionary interop for common patterns (buttons, ...)
 
 June:
@@ -106,6 +107,7 @@ Photon
 - No recursion yet, but you can hack it with dynamic lambda bindings
 - No variable fn arity yet
 - no clojure.core/fn inside Photon blocks yet (it is well defined)
+- no interop special forms in Photon blocks, including no `js/` access
 - Current transfer syntax `~@` is challenging, you should start with a working example. Improving this is June's development priority
 - Malformed programs can hang the JVM (including HFQL which is WIP)
   - Open MacOS Activity Monitor and filter by "java" to see if your JVM is hung
@@ -125,3 +127,5 @@ Photon/Missionary interop:
 * `Execution error (ClassNotFoundException) hyperfiddle.photon.Pending` - run the Clojure build step, see setup instructions
 * Cursive says `Dependency cycle: hyperfiddle.api -> hyperfiddle.hfql -> hyperfiddle.hfql.impl -> hyperfiddle.api` – Cursive is not correctly handling Clojure 1.11 :as-alias, load the file form by form instead
 * `clojure -T:build compile-java` error `-T is no longer supported, use -A with repl, -M for main, or -X for exec` – clojure CLI is not up to date, `brew upgrade clojure`. If you can't update, try `clojure -A:build -X build/compile-java`
+* :eval opcode - probably interop syntax, or a macro like assert that expands to interop syntax
+* `Unbound var.` Usually means wrong peer, i.e. accessed server-only var on client

@@ -64,9 +64,11 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
           (m/amb))))))
 
 (defmacro impulse
-  "Translates a discrete event stream `>xs` into an equivalent continuous signal impulse. The impulse signal will stay
-   'up' until it is sampled and acknowledged by `ack`. (Thus the duration of the impulse depends on sampling rate.) Upon
-   ack, the impulse restarts from nil. Useful for modeling events in Photon's continuous time model."
+  "Translates a discrete event stream `>xs` into an equivalent continuous signal of impulses. Each impulse will stay
+   'up' until it is sampled and acknowledged by signal `ack`. (Thus the duration of the impulse depends on sampling
+   rate.) Upon ack, the impulse restarts from nil.
+
+   Useful for modeling discrete events in Photon's continuous time model."
   [ack >xs]
   `(new (fsm nil
              (empty? (m/eduction (drop 1) (p/fn [] ~ack)))
