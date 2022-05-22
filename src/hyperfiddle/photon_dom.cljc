@@ -227,34 +227,6 @@
 (defmacro assign! [prop value]
   `(set! (~(symbol (str ".-" (name prop))) parent) value))
 
-#?(:cljs
-   (deftype Clock [^:mutable ^number raf
-                   ^:mutable callback
-                   terminator]
-     IFn
-     (-invoke [_]
-       (if (zero? raf)
-         (set! callback nil)
-         (do (.cancelAnimationFrame js/window raf)
-             (terminator))))
-     IDeref
-     (-deref [_]
-       (if (nil? callback)
-         (terminator)
-         (set! raf (.requestAnimationFrame js/window callback)))
-       (.now js/Date))))
-
-(defn ^:no-doc clock "browser-only clock throttled by requestAnimationFrame" []
-  #?(:cljs
-     (fn [n t]
-       (let [c (->Clock 0 nil t)]
-         (set! (.-callback c)
-           (fn [_] (set! (.-raf c) 0) (n)))
-         (n) c))))
-
-;; The number of milliseconds elapsed since January 1, 1970
-(p/def time (new (clock)))
-
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
     `(p/for-by ~kf [~s ~v]
