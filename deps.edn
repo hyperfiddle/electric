@@ -45,7 +45,7 @@
                                    ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
                      :jvm-opts    ["-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
                                    "-Dlogback.configurationFile=src-dev/logback_dev.xml"
-                                   "-XX:-OmitStackTraceInFastThrow" ;; Don't mess with my stacktraces¹!
+                                   "-XX:-OmitStackTraceInFastThrow" ;; RCF
                                    "-Djdk.attach.allowAttachSelf" ;; profiling
                                    "-XX:+UnlockDiagnosticVMOptions"
                                    "-XX:+DebugNonSafepoints"]}

@@ -1,8 +1,8 @@
-(ns user.photon-livecoding-starter
+(ns user.app-starter
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom])
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros user.photon-livecoding-starter))) ; forces shadow hot reload to also reload JVM at the same time
+  #?(:cljs (:require-macros user.app-starter)))             ; forces shadow hot reload to also reload JVM at the same time
 
 
 (def !x #?(:clj (atom 0)))                                  ; server
