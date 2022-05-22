@@ -5,14 +5,15 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests]]
-            user.util)
+            [user.util])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-webview)))
 
 
 (hyperfiddle.rcf/enable!)
 
-#?(:clj (def conn (d/create-conn {:order/email {}})))
+(def conn
+  #?(:clj (d/create-conn {:order/email {}})))
 #?(:clj (d/transact! conn [{:order/email "alice@example.com" :order/gender :order/female}
                            {:order/email "bob@example.com" :order/gender :order/male}
                            {:order/email "charlie@example.com" :order/gender :order/male}]))
@@ -42,21 +43,12 @@
           (dom/td (dom/text ~@(:order/email (d/entity db x))))
           (dom/td (dom/text ~@(:order/gender (d/entity db x)))))))))
 
-(def !db #?(:clj (atom @conn)))                             ; Photon cljsbuild unable to resolve !db
-
-;; db changes -> reactive UI update
-#?(:clj
-   (d/listen! conn
-              ::update-ui
-              (fn [{:keys [db-after]}]
-                (reset! !db db-after))))
-
 (def !state #?(:cljs (atom {:email ""})))
 
 (p/defn App []
   (binding [dom/parent (dom/by-id "root")]
     (let [state (p/watch !state)]
-      ~@(binding [db (p/watch !db)]
+      ~@(binding [db (p/watch conn)]
           ~@(View. state)))))
 
 (def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
