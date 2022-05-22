@@ -15,7 +15,7 @@
                 (dom/text "click me")
                 (dom/attribute "type" "button")
                 (->> (dom/events dom/parent "click")
-                     (z/impulse dom/time)))]
+                     (z/impulse z/clock)))]
     (when event
       (F. event))))
 

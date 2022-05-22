@@ -13,6 +13,7 @@
     wip.demo-hfql
     wip.demo-todos-basic
     wip.demo-todos-stage
+    wip.demo-logical-clock
     ))
 
 (defn runtime-resolve [exported-qualified-sym]

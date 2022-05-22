@@ -91,7 +91,7 @@
                           (dom/text "transact!")
                           (dom/attribute "type" "button")
                           (->> (dom/events dom/parent "click")
-                               (z/impulse dom/time)))]
+                               (z/impulse z/clock)))]
         (println ::transact! event)
         ~@(do (d/transact! !conn stage) nil)                ; todo wait for server ack to clear stage
         (reset! !stage []))
@@ -101,7 +101,7 @@
                      (dom/property "value" (write-edn stage))
                      (->> (dom/events dom/parent "input")
                           (m/eduction (map dom/target-value) (dedupe))
-                          (z/impulse dom/time)))]
+                          (z/impulse z/clock)))]
         (do
           (js/console.log ::stage tx)
           (reset! !stage (clojure.edn/read-string tx)))
