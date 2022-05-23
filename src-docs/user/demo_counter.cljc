@@ -13,6 +13,7 @@
               (dom/text "click me")
               (dom/attribute "type" "button")
               (new (->> (dom/events dom/parent "click")
+                        #_(m/reductions (fn [r event] (inc r)) 0) ; no cc/fn in photon yet
                         (m/eduction (map (constantly 1)))
                         (m/reductions + 0)
                         (m/relieve {}))))]

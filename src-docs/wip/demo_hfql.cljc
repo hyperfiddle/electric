@@ -1,5 +1,5 @@
 (ns wip.demo-hfql
-  "wip"
+  "wip, unstable"
   (:require #?(:clj dev)
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
@@ -13,6 +13,7 @@
 
 
 (p/defn Orders []
+  ; Warning: HFQL is unstable
   ~@(hf/hfql
       {(orders .)
        [:order/email

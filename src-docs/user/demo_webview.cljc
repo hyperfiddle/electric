@@ -1,6 +1,6 @@
 (ns user.demo-webview
   "Photon fullstack query/view composition with client/server transfer"
-  (:require #?(:clj [datascript.core :as d])                ; photon cljsbuild needs to see the vars, fixme
+  (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.ui :as ui]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]

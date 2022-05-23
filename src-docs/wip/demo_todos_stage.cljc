@@ -35,17 +35,16 @@
 
 (p/defn Todo-list [basis-t]
   (dom/div
-    (dom/h1 (dom/text "Todo list app"))
+    (dom/h1 (dom/text "Todo list with staging area pattern"))
     (concat
-      (dom/div
-        (dom/input
-          (dom/attribute "type" "text")
-          (z/impulse basis-t
-            (->> (dom/events dom/parent "keyup")
-                 (m/eduction
-                   (filter (comp #{dom/keycode-enter} dom/keycode))
-                   (map (comp task-create dom/target-value))
-                   (map (partial clear-input! dom/parent)))))))
+      (dom/input
+        (dom/attribute "type" "text")
+        (->> (dom/events dom/parent "keyup")
+             (m/eduction
+               (filter (comp #{dom/keycode-enter} dom/keycode))
+               (map (comp task-create dom/target-value))
+               (map (partial clear-input! dom/parent)))
+             (z/impulse basis-t)))
       (dom/div
         (apply concat
                (dom/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
@@ -54,17 +53,16 @@
                      (dom/input
                        (dom/attribute "type" "checkbox")
                        (dom/set-checked! dom/parent (#{:done} ~@(:task/status (d/entity db id))))
-                       (z/impulse basis-t
-                         (->> (dom/events dom/parent dom/input-event)
-                              (m/eduction
-                                (map (comp {false :active true :done} dom/get-checked dom/event-target))
-                                (map (partial task-status id))))))
-                     (dom/span (dom/text (str id "-" ~@(:task/description (d/entity db id))))))))))
-      (dom/div
-        (dom/span
-          (dom/text (str ~@(count (d/q '[:find [?e ...] :in $ ?status
-                                         :where [?e :task/status ?status]]
-                                       db :active)) " items left")))))))
+                       (->> (dom/events dom/parent dom/input-event)
+                            (m/eduction
+                              (map (comp {false :active true :done} dom/get-checked dom/event-target))
+                              (map (partial task-status id)))
+                            (z/impulse basis-t)))
+                     (dom/span (dom/text (str ~@(:task/description (d/entity db id)) " - id: " id))))))))
+      (dom/p
+        (dom/text (str ~@(count (d/q '[:find [?e ...] :in $ ?status
+                                       :where [?e :task/status ?status]]
+                                     db :active)) " items left"))))))
 
 (def auto-inc-2 (let [!x (atom 0)] (fn [stage]
                                      (println ::auto-inc stage @!x)
@@ -91,7 +89,7 @@
                           (dom/text "transact!")
                           (dom/attribute "type" "button")
                           (->> (dom/events dom/parent "click")
-                               (z/impulse dom/time)))]
+                               (z/impulse z/clock)))]
         (println ::transact! event)
         ~@(do (d/transact! !conn stage) nil)                ; todo wait for server ack to clear stage
         (reset! !stage []))
@@ -101,7 +99,7 @@
                      (dom/property "value" (write-edn stage))
                      (->> (dom/events dom/parent "input")
                           (m/eduction (map dom/target-value) (dedupe))
-                          (z/impulse dom/time)))]
+                          (z/impulse z/clock)))]
         (do
           (js/console.log ::stage tx)
           (reset! !stage (clojure.edn/read-string tx)))

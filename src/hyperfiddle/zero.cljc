@@ -1,9 +1,10 @@
 (ns hyperfiddle.zero
-  "Experimental Photon core library, badly named, should likely be re-exported from photon namespace."
-  (:refer-clojure :exclude [empty?])
+  "Photon standard library (experimental, idioms are not established yet).
+  Badly named, should be moved into photon namespace."
+  (:refer-clojure :exclude [empty? time])
   (:require [missionary.core :as m]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests]])
+            [hyperfiddle.rcf :refer [tests ! % with]])
   #?(:cljs (:require-macros [hyperfiddle.zero :refer [pick current impulse]])))
 
 (defn state [init-value]
@@ -63,9 +64,11 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
           (m/amb))))))
 
 (defmacro impulse
-  "Translates a discrete event stream `>xs` into an equivalent continuous signal impulse. The impulse signal will stay
-   'up' until it is sampled and acknowledged by `ack`. (Thus the duration of the impulse depends on sampling rate.) Upon
-   ack, the impulse restarts from nil. Useful for modeling events in Photon's continuous time model."
+  "Translates a discrete event stream `>xs` into an equivalent continuous signal of impulses. Each impulse will stay
+   'up' until it is sampled and acknowledged by signal `ack`. (Thus the duration of the impulse depends on sampling
+   rate.) Upon ack, the impulse restarts from nil.
+
+   Useful for modeling discrete events in Photon's continuous time model."
   [ack >xs]
   `(new (fsm nil
              (empty? (m/eduction (drop 1) (p/fn [] ~ack)))
@@ -112,3 +115,60 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
              (f)))
          (m/reductions {} nil)                              ; produce nil in discrete time for effect
          (m/relieve {}))))
+
+#?(:cljs
+   (deftype Clock [^:mutable ^number raf
+                   ^:mutable callback
+                   terminator]
+     IFn                                                    ; cancel
+     (-invoke [_]
+       (if (zero? raf)
+         (set! callback nil)
+         (do (.cancelAnimationFrame js/window raf)
+             (terminator))))
+     IDeref                                                 ; sample
+     (-deref [_]
+       (if (nil? callback)
+         (terminator)
+         (set! raf (.requestAnimationFrame js/window callback)))
+       ::tick)))
+
+(def <clock "efficient logical clock.
+  In CLJS, 60hz throttled by requestAnimationFrame (browser only).
+  in CLJ, ~100hz throttled by m/sleep 10ms."
+  #?(:cljs (fn [n t]
+             (let [cancel (->Clock 0 nil t)]
+               (set! (.-callback cancel)
+                     (fn [_] (set! (.-raf cancel) 0) (n)))
+               (n) cancel))
+
+     ; Warning, m/sleep has a race condition currently
+     :clj  (->> (m/ap (loop [] (m/amb (m/? (m/sleep 10 ::tick)) (recur))))
+                (m/reductions {} ::tick)
+                (m/relieve {}))))
+
+(p/def clock #_"efficient logical clock" (new (identity <clock))) ; singleton
+
+(tests
+  "logical clock"
+  (with (p/run (! clock)) [% % %] := [::tick ::tick ::tick]))
+
+; Do we need a clock that ticks as fast as it is sampled? (setTimeout 0). Useful with z/impulse?
+
+; This ticker will skew and therefore is not useful other than as an example
+(p/def ticker (new (->> <clock
+                        (m/eduction (map (constantly 1)))
+                        (m/reductions + 0)
+                        (m/relieve {}))))
+
+(tests (with (p/run (! ticker)) [% % %] := [1 2 3]))
+
+(defn system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
+
+(p/def time #_"ms since Jan 1 1970" (new (m/latest system-time-ms <clock)))
+
+(tests
+  "millisecond time as a stable test"
+  (with (p/run (! time))
+    [% % %] := [_ _ _]
+    (map int? *1) := [true true true]))

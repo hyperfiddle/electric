@@ -159,10 +159,3 @@ Takes a photon program and returns a pair
              (m/relieve {}))))
 
 (cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
-
-(defn time [throttle]
-  ; this impl fn exists because cc/fn is not yet supported in Photon blocks
-  (->> (m/ap (loop [] (m/amb (m/? (m/sleep throttle)) (recur))))
-       (m/reductions {} nil)
-       (m/latest (fn [_] #?(:clj  (System/currentTimeMillis)
-                            :cljs (js/Date.now))))))
