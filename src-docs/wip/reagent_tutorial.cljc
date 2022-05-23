@@ -2,7 +2,8 @@
   "wip, untested. Reagent tutorial translated to Photon from https://reagent-project.github.io/"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [missionary.core :as m]))
+            [missionary.core :as m]
+            [hyperfiddle.zero :as z]))
 
 
 ; Example 1 — Static component
@@ -96,7 +97,8 @@
     (dom/attribute "value" state)                           ; todo need better controlled input OOTB
     (->> (dom/events dom/parent dom/input-event)
          (m/eduction (map dom/target-value))
-         (m/relieve {})
+         (m/reductions {} "")                               ; Photon new requires flows to have initial value
+         (m/relieve {})                                     ; relieve the dom events
          new)))
 
 (p/defn Shared-state []
@@ -108,7 +110,7 @@
 
 ; Example 9 — BMI calculator
 
-(p/defn slider [value min max]
+(p/defn slider [value min max]                              ; controlled
   (dom/input
     (dom/attribute "type" "range")
     (dom/attribute "value" value)
@@ -117,6 +119,7 @@
     (dom/style {:width "100%"})
     (->> (dom/events dom/parent dom/input-event)
          (m/eduction (map dom/target-value))
+         (m/reductions {} (z/current value))
          (m/relieve {})
          new)))
 
@@ -147,15 +150,16 @@
       (dom/style {"color" color})
       time-str)))
 
-(p/defn ColorInput []
+(p/defn ColorInput [value]
   (dom/div
     (dom/class "color-input")
     (dom/text "Time color: ")
     (dom/input
       (dom/attribute "type" "text")
-      (dom/attribute "value" "#f34")                        ; initial value
+      (dom/attribute "value" value)
       (->> (dom/events dom/parent dom/input-event)
            (m/eduction (map dom/target-value))
+           (m/reductions {} (z/current value))
            (m/relieve {})))))
 
 (p/defn ClockExample []
@@ -164,7 +168,7 @@
     (dom/div
       (dom/h1 (dom/text "Hello world, it is now"))
       (Clock. color)
-      (->> (ColorInput.)
+      (->> (ColorInput. "#f34")
            (reset! !color)))))
 
 ; Example 11 — TodoMVC

@@ -24,7 +24,7 @@
            (send! @!x)                                      ; bridge the initial value during construction
            (fn destructor! []                               ; unmount
              (remove-watch !x ::MyWatch))))                 ; unsubscribe and release resources
-       (m/relieve {})))                                     ; discard stale values
+       (m/relieve {})))                                     ; don't block producers - discard stale values
 
 (tests
   (def !x (atom 0))
