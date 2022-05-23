@@ -12,35 +12,26 @@
   ({} 1 2) := 2)
 
 (tests
-  "Shockingly, Photon closures are concretely missionary continuous flows"
+  "Dedupe photon flow with transducer"
+  ; Photon thunks compile directly to missionary continuous flows (!)
+  ; and therefore can be used with missionary API.
   (def !x (atom 0))
   (with (p/run
           (let [x (p/watch !x)
-                X (p/fn [x] x)                              ; a -> m a
-                ; p/fn actually is not primitive. p/fn macroexpands to continuous flows with parameters injected
-                ; through dynamic scope. Therefore, F (a Photon closure) is concretely a missionary continuous flow,
-                ; whose argv must be injected by dynamic bindings, which is done by the special form (new).
-                X10 (->> X                                  ; closures are missionary continuous flows, amazingly
-                         (m/eduction (map (partial * 10)))  ; flow transducer
-                         (m/relieve {}))]
-            (! (new X10 x))))                               ; "reactive unquote" or "await" (m a -> a)
-    % := 0
-    (swap! !x inc)
-    % := 10
-    (swap! !x identity)
-    % := 10
-    (swap! !x inc)
-    % := 20))
+                <x (p/fn [] x)                              ; Normally in Photon we would name a p/fn with capital X,
+                >x' (m/eduction (dedupe) <x)                ; but it is also concretely a missionary flow (!)
+                <x' (m/relieve {} >x')]                     ; fully dedupe eagerly
+            (new <x')))))                                   ; rejoin
 
 (tests
-  "Dedupe photon flow with transducer"
+  "->> is a common idiom currently"
   (def !x (atom 0))
   (with (p/run
           (let [x (p/watch !x)]
-            (! (->> (p/fn [] x)
+            (! (->> (p/fn [] x)                             ; lift :: a -> m a
                     (m/eduction (dedupe))
                     (m/relieve {})
-                    (new)))))
+                    (new)))))                               ; join :: m a -> a
     % := 0
     (swap! !x inc)
     % := 1
