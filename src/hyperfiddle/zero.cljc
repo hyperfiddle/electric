@@ -74,8 +74,10 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
              (empty? (m/eduction (drop 1) (p/fn [] ~ack)))
              (first-or nil ~>xs))))
 
-(defmacro current [form]
-  `(new (m/eduction (take 1) (p/fn [] ~form))))
+(defmacro current "Copy the current value (only) and then terminate" [x]
+  ; what does Photon do on terminate? TBD
+  ; L: terminating a continuous flow means the value won't change anymore, so that's OK
+  `(new (m/eduction (take 1) (p/fn [] ~x))))
 
 (comment
   "scratch related to continuous time events with slow consumers"
@@ -128,14 +130,13 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
              (terminator))))
      IDeref                                                 ; sample
      (-deref [_]
+       ; lazy clock, only resets once sampled
        (if (nil? callback)
          (terminator)
-         (set! raf (.requestAnimationFrame js/window callback)))
+         (set! raf (.requestAnimationFrame js/window callback))) ; RAF not called until first sampling
        ::tick)))
 
-(def <clock "efficient logical clock.
-  In CLJS, 60hz throttled by requestAnimationFrame (browser only).
-  in CLJ, ~100hz throttled by m/sleep 10ms."
+(def <clock "lazy & efficient logical clock that schedules no work unless sampled."
   #?(:cljs (fn [n t]
              (let [cancel (->Clock 0 nil t)]
                (set! (.-callback cancel)
@@ -143,25 +144,15 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
                (n) cancel))
 
      ; Warning, m/sleep has a race condition currently
-     :clj  (->> (m/ap (loop [] (m/amb (m/? (m/sleep 10 ::tick)) (recur))))
-                (m/reductions {} ::tick)
-                (m/relieve {}))))
+     :clj  (->> (m/ap (loop [] (m/amb (m/? (m/sleep 1)) (recur))))
+                (m/reductions {} nil)
+                (m/latest (constantly ::tick)))))
 
-(p/def clock #_"efficient logical clock" (new (identity <clock))) ; singleton
+(p/def clock #_"lazy logical clock" (new (identity <clock))) ; syntax gap - static def >clock could be a class on ClojureScript
 
 (tests
   "logical clock"
   (with (p/run (! clock)) [% % %] := [::tick ::tick ::tick]))
-
-; Do we need a clock that ticks as fast as it is sampled? (setTimeout 0). Useful with z/impulse?
-
-; This ticker will skew and therefore is not useful other than as an example
-(p/def ticker (new (->> <clock
-                        (m/eduction (map (constantly 1)))
-                        (m/reductions + 0)
-                        (m/relieve {}))))
-
-(tests (with (p/run (! ticker)) [% % %] := [1 2 3]))
 
 (defn system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
 
@@ -172,3 +163,12 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
   (with (p/run (! time))
     [% % %] := [_ _ _]
     (map int? *1) := [true true true]))
+
+(comment
+  ; This ticker will skew and therefore is not useful other than as an example
+  ; L: this is dangerous because if you write a program that does (prn ticker) it will run forever
+  (p/def ticker (new (->> <clock
+                          (m/eduction (map (constantly 1)))
+                          (m/reductions + 0))))
+
+  (tests (with (p/run (! ticker)) [% % %] := [1 2 3])))
