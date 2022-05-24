@@ -5,8 +5,6 @@
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [missionary.core :as m]))
 
-; I'm also not sure what can p/fn and p/defn take as arguments, must they be continuous flows?
-
 (hyperfiddle.rcf/enable!)
 
 ; Is there a missionary operation one can equivalently rewrite as a p/fn?
@@ -25,6 +23,9 @@
   % := 6
   (dispose))
 
+; Since everything is a flow in Photon, it feels like nothing is, so you don't see the types
+; (except at the missionary/photon interop boundary).
+
 (tests
   "Equivalent dataflow diamond as missionary"
   (def !x (atom 0))
@@ -40,4 +41,7 @@
   % := 4
   (swap! !x inc)
   % := 6
-  (dispose))
+  (dispose)
+  % := [::failure _]                                        ; watch cancelled
+  )
+
