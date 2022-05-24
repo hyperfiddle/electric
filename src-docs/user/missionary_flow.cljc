@@ -29,3 +29,11 @@
   % := ::notify
   @!it thrown? Cancelled                                    ; watch has terminated with this error
   % := ::terminate)
+
+(tests
+  "Aside: {} is pronounced 'discard', this is a missionary idiom"
+  ; {} is an arity-2 fn that discards the first parameter
+  ({} 1 2) := 2)
+
+; explain relieve
+; if you don't relieve a discrete flow, sampling is determined by sampling rate
