@@ -27,3 +27,9 @@
 ; is ready to transfer. so if downstream doesn't sample and upstream emits again, eduction won't
 ; poll the input because the buffer is full, and when the sampling will happen you see the value
 ; inside the buffer (not the latest). so relieve ensures the buffers are flushed.
+
+
+(comment
+  "infinite loop on construction, hangs RCF"
+  (def !x (atom 0))
+  (with (p/run (reset! !x (! (inc ~(m/watch !x)))))))
