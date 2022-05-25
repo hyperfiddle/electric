@@ -364,13 +364,17 @@
         [[:eval `(js-call ~f ~(count args))]] args)
       (throw (ex-info "Wrong number of arguments - js*" {})))
 
-    (new)
+    (new)                                                   ; argument binding + monadic join
     (if-some [[f & args] args]
-      (if-some [ctor (when (symbol? f)
+      (if-some [ctor (when (symbol? f)                      ; detect clj/cljs class
                        (when-not (contains? (:locals env) f)
                          (resolve-runtime env f)))]
+
+        ; clj/cljs class interop
         (transduce (map (partial analyze-form env)) conj-res
           [[:apply [:eval `(ctor-call ~ctor ~(count args))]]] args)
+
+        ; boot signal (monadic join), with arguments passed as dynamic scope
         (analyze-binding env (interleave arg-sym (cons f args))
           (fn [_] [[:source] [:variable [:sub (inc (count args))]]])))
       (throw (ex-info "Wrong number of arguments - new" {})))
