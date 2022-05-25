@@ -11,7 +11,7 @@
 (tests
   "Photon compiler"
   (def !x (atom 0))
-  (analyze {} '(let [x (p/watch !x)
+  (analyze {} '(let [x (new (m/watch !x))
                      a (inc x)]
                  (rcf/! (+ a (inc x)))))
   := [[:pub
