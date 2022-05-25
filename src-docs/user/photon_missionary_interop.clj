@@ -109,8 +109,8 @@
             (let [x  (p/watch !x)                           ; a photon signal (continuous)
                   X  (p/fn [] x)                            ; Normally in Photon we would name a p/fn with capital X, but in this example
                   <x (p/fn [] x)                            ; <x is an appropriate name since it has the same type as any other continuous flow value
-                  >x (m/eduction (dedupe) <x)]              ; apply lifted Photon signal <x to missionary API
-              (new >x))))                                   ; rejoin
+                  >y (m/eduction (dedupe) <x)]              ; apply lifted Photon signal <x to missionary API (implicit conversion to discrete flow, eduction is eager)
+              (new >y))))                                   ; rejoin (implicit conversion to continuous flow)
     % := 0))
 
 (tests

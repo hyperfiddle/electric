@@ -1,5 +1,6 @@
 (ns user.photon-compiler
-  (:require [hyperfiddle.photon :as p]
+  (:require [clojure.datafy :refer [datafy]]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.compiler :refer [analyze]]
             [hyperfiddle.photon-impl.runtime :as r :refer [emit]]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
@@ -27,21 +28,26 @@
 ; (except at the missionary/photon interop boundary).
 
 (tests
-  "Equivalent dataflow diamond as missionary"
+  "Approximately equivalent program as missionary, for understanding"
   (def !x (atom 0))
   (defn user []
     (let [<x (m/signal! (m/watch !x))
           <a (m/signal! (m/latest inc <x))]
       (m/latest rcf/! (m/latest + <a (m/latest inc <x)))))
   (def main (m/reactor (m/stream! (user))))                 ; entrypoint that runs for effect
-  (def dispose (main (fn [v] (rcf/! [::success v]))         ; start process, will run until disposed
-                     (fn [err] (rcf/! [::failure err]))))
+  (def dispose (main (fn [_] (rcf/! ::success))             ; start process, will run until disposed
+                     (fn [err] (rcf/! ::error) (rcf/! err))))
   % := 2
   (swap! !x inc)
   % := 4
   (swap! !x inc)
   % := 6
   (dispose)
-  % := [::failure _]                                        ; watch cancelled
-  )
+  [% (datafy %)] := [::error {:cause "Watch cancelled." :via _ :trace _}]
 
+  ; Why does reactor terminate with an error?
+  ; Generally speaking, to stop listening to a signal is a failure, because you have not reached the end of the signal.
+  ; This watch signal is infinite, so the only way to terminate is to stop listening before the end.
+  ; The watch throws on cancellation because this is how the supervision tree cleanup lifecycle works. We need to
+  ; dispose any subscriptions and prevent any pending transfers.
+  )
