@@ -62,7 +62,7 @@
 (p/defn Counting-component []
   (dom/div
     (dom/text "The atom ")
-    (dom/code "click-count")
+    (dom/code (dom/text "click-count"))
     (dom/text " has value: ")
     (dom/text (p/watch !click-count))
     (dom/text ". ")
