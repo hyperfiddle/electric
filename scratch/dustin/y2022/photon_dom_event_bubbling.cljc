@@ -1,8 +1,9 @@
-(ns dustin.y2022.photon-dom-event-bubbling
+∏(ns dustin.y2022.photon-dom-event-bubbling
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
-            [hyperfiddle.zero :as z]))
+            [hyperfiddle.zero :as z]
+            [hyperfiddle.rcf :as rcf :refer [tests]]))
 
 ; current way
 
@@ -40,6 +41,41 @@
     (dom/div
       (dom/text "count: ")
       (dom/text (new (m/reductions + 0 (p/fn [] (el ::n)))))
+      el)))
+
+(p/defn Click-counter [label]
+  (dom/div
+    (dom/span (dom/text label))
+    (dom/input (dom/attribute "type" "button"))
+    ::>n (dom/events dom/parent dom/input-event)))
+
+; next day
+
+(defn inc-rf [acc _] (inc acc))
+
+(tests
+  ((constantly 1) 1 2) := 1
+  (first 1 2) := 1
+  (inc 1 2)
+  ((comp inc) 1 2)
+  ((comp inc) 1)
+  (identity 1 2)
+  (defn id [x & _] x)
+  (defn inc' [x & _] (inc x))
+  (def id' #(do %& %1))
+
+  ((comp inc) 1 0 0)
+  ((comp inc id) 1 0 0) := 2
+  ((comp inc id') 1 0 0) := 2
+  ((comp inc #(do %& %1)) 1 0 0) := 2
+  ((comp inc #(nth %& 0)) 1 0 0) := 2
+  )
+
+(p/defn Counting-component []
+  (let [{:keys [::>n] :as el} (Click-counter. (p/watch !label))]
+    (dom/div
+      (dom/text "count: ")
+      (dom/text (new (m/reductions inc-rf 0 >n)))
       el)))
 
 (p/defn Click-counter [label]
