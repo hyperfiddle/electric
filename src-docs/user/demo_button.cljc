@@ -6,20 +6,19 @@
   #?(:cljs (:require-macros user.demo-button)))
 
 
-; This pattern works, but it is not the final idiom! Issues with this pattern:
-;  - if the button is clicked faster than the browser can render, clicks will be dropped
-;  - button should be disabled until server effect is acknowledged as successful
+(def !n #?(:clj (atom 0)))
+(p/def n (p/watch !n))                                      ; server
+
+; This "z/impulse" pattern is low level, we are still working out the idioms!
 
 (p/defn Button [F]
   (let [event (dom/button
                 (dom/text "click me")
                 (dom/attribute "type" "button")
                 (->> (dom/events dom/parent "click")
-                     (z/impulse z/clock)))]
+                     (z/impulse ~@n)))]                     ; convert discrete event stream to Photon continuous signal
     (when event
       (F. event))))
-
-(def !x #?(:clj (atom 0)))
 
 (p/defn App []
   (dom/div
@@ -27,8 +26,8 @@
     (dom/dl
       (dom/dt (dom/text "client button")) (dom/dd (Button. (p/fn [event]
                                                              (js/console.log ::clicked event)
-                                                             ~@(swap! !x inc))))
-      (dom/dt (dom/text "server atom")) (dom/dd (dom/text ~@(p/watch !x))))))
+                                                             ~@(swap! !n inc))))
+      (dom/dt (dom/text "server atom")) (dom/dd (dom/text ~@(p/watch !n))))))
 
 (def main #?(:cljs (p/client (p/main
                                (try
