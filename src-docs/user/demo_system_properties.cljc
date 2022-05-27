@@ -29,9 +29,5 @@
                                  (catch Pending _))))))
 
 (comment
-  #?(:clj (user/browser-main! `main))
-  (swap! !x inc)
-
-  (shadow.cljs.devtools.api/repl :app)
-  (type 1)
+  (user/browser-main! `main)
   )
