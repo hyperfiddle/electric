@@ -1,5 +1,6 @@
 (ns user.photon-missionary-interop
   (:require [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [missionary.core :as m]))
 
@@ -141,3 +142,19 @@
     ; % := 1 -- skipped by dedupe
     (swap! !x inc)
     % := 2))
+
+(tests
+  "crashing a missionary flow is fatal"
+  (defn boom! [x] (throw (ex-info "boom" {})) x)
+  (with (p/run (! (try (new (m/eduction (map boom!) (p/fn [] 1)))
+                       (catch Throwable t ::boom))))
+    ; % := :boom -- uncaught
+    % := ::rcf/timeout))
+
+(tests
+  "inject Photon exception from missionary flow"
+  (defn boom! [x] (r/->Failure "boom"))
+
+  (with (p/run (! (try (new (m/eduction (map boom!) (p/fn [] 1)))
+                       (catch Throwable t ::boom))))
+    % := ::boom))
