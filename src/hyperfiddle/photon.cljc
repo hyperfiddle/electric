@@ -9,7 +9,8 @@
             [hyperfiddle.rcf :refer [tests]]
             #?(:clj [hyperfiddle.rcf.analyzer :as ana])     ; todo remove
             #?(:cljs [hyperfiddle.photon-client]))
-  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping]])))
+  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping]]))
+  #?(:clj (:import (hyperfiddle.photon_impl.runtime Failure))))
 
 
 #?(:clj
@@ -159,3 +160,9 @@ Takes a photon program and returns a pair
              (m/relieve {}))))
 
 (cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
+
+(defn wrap "run slow blocking fn on a threadpool"
+  [f & args]
+  #?(:clj
+     (->> (m/ap (m/? (m/via m/cpu (apply f args))))
+          (m/reductions {} (Failure. (Pending.))))))
