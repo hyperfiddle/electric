@@ -35,11 +35,11 @@
 (p/defn View []
   (let [email (ui/Input. {} dom/target-value)]
     (dom/table
-      (dom/for [x ~@(orders db email)]
+      (dom/for [id ~@(orders db email)]
         (dom/tr
-          (dom/td (dom/text x))
-          (dom/td (dom/text ~@(:order/email (d/entity db x))))
-          (dom/td (dom/text ~@(:order/gender (d/entity db x)))))))))
+          (dom/td (dom/text id))
+          (dom/td (dom/text ~@(:order/email (d/entity db id))))
+          (dom/td (dom/text ~@(:order/gender (d/entity db id)))))))))
 
 (p/defn App []
   (binding [dom/parent (dom/by-id "root")]
