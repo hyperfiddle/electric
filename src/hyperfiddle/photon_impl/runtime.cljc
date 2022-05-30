@@ -164,7 +164,7 @@
     (aset (int 2) tier)
     (aset (int 3) slot)
     (aset (int 4) (aclone vars))
-    (aset (int 5) [])
+    (aset (int 5) {})
     (aset (int 6) (object-array 8))
     (aset (int 7) (identity (int 0)))
     (aset (int 8) {})))
