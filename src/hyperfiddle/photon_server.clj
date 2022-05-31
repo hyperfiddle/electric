@@ -19,7 +19,7 @@
            [javax.servlet.http HttpServletRequest]
            [org.eclipse.jetty.servlet ServletContextHandler ServletHolder]
            [org.eclipse.jetty.websocket.api RemoteEndpoint Session WebSocketConnectionListener
-            WebSocketPingPongListener WebSocketListener WriteCallback SuspendToken]
+                                            WebSocketPingPongListener WebSocketListener WriteCallback SuspendToken]
            [org.eclipse.jetty.websocket.servlet WebSocketCreator WebSocketServlet]
            [clojure.lang IFn]
            [java.nio ByteBuffer]

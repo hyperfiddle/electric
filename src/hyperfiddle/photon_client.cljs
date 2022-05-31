@@ -1,7 +1,7 @@
 (ns hyperfiddle.photon-client
   (:require [hyperfiddle.logger :as log]
-            [hyperfiddle.photon-impl.io :as io]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [hyperfiddle.photon-impl.io :as io])
   (:import missionary.Cancelled))
 
 (defn server-url []
@@ -12,6 +12,7 @@
 (defn connect! [socket]
   (let [deliver (m/dfv)]
     (log/info "WS Connecting …")
+    (set! (.-binaryType socket) "arraybuffer")
     (doto socket
       (.addEventListener "open" (fn [] (log/info "WS Connected.")
                                   (deliver socket)))
@@ -64,5 +65,4 @@
                          (m/? (write-chan (io/encode server))) ; bootstrap server
                          (m/? (client (io/message-writer write-chan)
                                       (io/message-reader mailbox)))) ; start client
-                       (catch Cancelled _
-                         "stopped")))))
+                       (catch Cancelled _ "stopped")))))
