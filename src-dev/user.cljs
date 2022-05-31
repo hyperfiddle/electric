@@ -11,7 +11,7 @@
     user.app-starter
     wip.demo-two-clocks
     wip.orders-ui
-    wip.demo-hfql
+    #_wip.demo-hfql ; require running `yarn` for codemirror dependency
     wip.demo-todos-stage
     wip.demo-logical-clock
     wip.example-router
