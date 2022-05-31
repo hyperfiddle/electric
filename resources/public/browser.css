@@ -40,11 +40,11 @@ dd {
     margin-left: 0;
 }
 
-#main[data-ws-connected="false"] > *{
+#root[data-ws-connected="false"] > *{
     filter:grayscale(1);
 }
 
-#main::before{
+#root::before{
     content: 'Websocket reconnecting…';
     position: fixed;
     top:0;
@@ -59,14 +59,8 @@ dd {
     font-size: 1rem;
     display: none;
 }
-#main[data-ws-connected="false"]::before{
+#root[data-ws-connected="false"]::before{
     display: block;
-}
-
-#main[data-ws-failed="true"]::before{
-    display: block;
-    content: 'Websocket failed to reconnect. Please refresh.';
-    background-color: rgb(248 113 113); /* bg-red-400 */
 }
 
 .browser {
