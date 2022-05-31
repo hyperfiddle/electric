@@ -12,7 +12,6 @@
             #?(:cljs [com.cognitect.transit.types]))
   (:import (missionary Cancelled)
            (hyperfiddle.photon Failure Pending Remote)
-           #?(:clj (java.util.function Supplier))
            #?(:clj (java.nio ByteBuffer))
            #?(:clj (java.io ByteArrayInputStream ByteArrayOutputStream))
            #?(:clj (clojure.lang IReduceInit))))

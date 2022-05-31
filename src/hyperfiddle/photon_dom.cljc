@@ -16,12 +16,6 @@
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
-(defn discard [rf]
-  (fn
-    ([] (rf))
-    ([r] (rf r))
-    ([r _] (rf r))))
-
 (defn unsupported [& _]
   (throw (ex-info (str "Not available on this peer.") {})))
 
