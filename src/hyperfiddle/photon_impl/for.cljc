@@ -98,7 +98,7 @@ flow of values matching that key in the input map.
                        (assoc c k (conj (get c k []) o)))
                      ;; append item to current list
                      (if-some [^objects h (aget state (int 3))]
-                       (let [^objects t (aget h (int 1))]
+                       (let [^objects t (aget h (int 0))]
                          (aset o (int 0) t)
                          (aset o (int 1) h)
                          (aset h (int 0) o)
@@ -135,19 +135,25 @@ flow of values matching that key in the input map.
         ([] (rf))
         ([r] (rf r))
         ([r xs]
-         ;; TODO failures
-         (let [r (reduce scan r xs)
-               r (if-some [h (aget state (int 1))]
-                   (loop [o h, r r]
-                     (let [o (aget o (int 0))
-                           r (rf r nil [o o])]
-                       (if (identical? o h)
-                         r (recur o r)))) r)]
-           (aset state (int 0) (aget state (int 2)))
-           (aset state (int 1) (aget state (int 3)))
-           (aset state (int 2) nil)
-           (aset state (int 3) nil)
-           r))))))
+         (if (instance? Failure xs)
+           (if-some [h (aget state (int 1))]
+             (loop [o h, r r]
+               (let [o (aget o (int 0))
+                     r (rf r o xs)]
+                 (if (identical? o h)
+                   r (recur o r)))) r)
+           (let [r (reduce scan r xs)
+                 r (if-some [h (aget state (int 1))]
+                     (loop [o h, r r]
+                       (let [o (aget o (int 0))
+                             r (rf r nil [o o])]
+                         (if (identical? o h)
+                           r (recur o r)))) r)]
+             (aset state (int 0) (aget state (int 2)))
+             (aset state (int 1) (aget state (int 3)))
+             (aset state (int 2) nil)
+             (aset state (int 3) nil)
+             r)))))))
 
 (defn entry [k v]
   #?(:clj (MapEntry. k v)
