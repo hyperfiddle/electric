@@ -20,7 +20,7 @@
     (let [filter (Input.)]
       (dom/div (dom/text (str "Input: " filter)))
       (dom/table
-        (dom/for [[k v] ~@(system-properties filter)]
+        (p/for [[k v] ~@(system-properties filter)]
           (dom/tr
             (dom/td (dom/text (pr-str k)))
             (dom/td (dom/text (pr-str v)))))))))
