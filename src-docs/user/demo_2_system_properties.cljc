@@ -20,10 +20,10 @@
     (let [filter (Input.)]
       (dom/div (dom/text (str "Input: " filter)))
       (dom/table
-        (p/for [[k v] ~@(system-properties filter)]
-          (dom/tr
-            (dom/td (dom/text (pr-str k)))
-            (dom/td (dom/text (pr-str v)))))))))
+        ~@(p/for [[k v] (sort-by key (system-properties filter))]
+            ~@(dom/tr
+                (dom/td (dom/text (str k)))
+                (dom/td (dom/text (str v)))))))))
 
 (def main #?(:cljs (p/client (p/main
                                (try
