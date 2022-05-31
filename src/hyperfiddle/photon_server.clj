@@ -19,7 +19,7 @@
            [javax.servlet.http HttpServletRequest]
            [org.eclipse.jetty.servlet ServletContextHandler ServletHolder]
            [org.eclipse.jetty.websocket.api RemoteEndpoint Session WebSocketConnectionListener
-            WebSocketListener WriteCallback SuspendToken]
+            WebSocketPingPongListener WebSocketListener WriteCallback SuspendToken]
            [org.eclipse.jetty.websocket.servlet WebSocketCreator WebSocketServlet]
            [clojure.lang IFn]
            [java.io ByteArrayInputStream ByteArrayOutputStream]
@@ -45,73 +45,76 @@
 (defn token-resume! [^SuspendToken token]
   (.resume token))
 
-(def sockets (atom {}))
+(defn make-heartbeat [^Session s pong-mailbox]
+  ;; Ping wisely https://developer.android.com/training/connectivity/network-access-optimization#RadioStateMachine
+  (m/sp (loop []
+          (m/? (m/sleep 15000))
+          (.sendPing (.getRemote s) (ByteBuffer/allocate 0))
+          (let [pong (m/? (m/timeout pong-mailbox 20000 :timeout))]
+            (if (= :timeout pong)
+              (.disconnect s)
+              (recur))))))
 
-(deftype Ws [client-id
-             ^:unsynchronized-mutable cancel
+(deftype Ws [^:unsynchronized-mutable cancel
              ^:unsynchronized-mutable remote
              ^:unsynchronized-mutable session
              ^:unsynchronized-mutable msg-str
              ^:unsynchronized-mutable msg-buf
              ^:unsynchronized-mutable close
              ^:unsynchronized-mutable token
-             ^:unsynchronized-mutable error]
+             ^:unsynchronized-mutable error
+             ^:unsynchronized-mutable heartbeat
+             ^:unsynchronized-mutable pong-mailbox]
   IFn
   (invoke [_ _]
     (token-resume! token))
   WebSocketConnectionListener
-  (onWebSocketConnect [_ s]
-    (if (some? remote)
-      (do (log/debug "websocket reconnect")
-        (set! session s)
-        (reset! remote (.getRemote s)))
-      (do (log/debug "websocket connect" {:client-id client-id})
-        (set! session s)
-        (set! remote (atom (.getRemote s)))
-        (set! cancel
-          (cancel remote
-            (set! msg-str (m/rdv))
-            (set! msg-buf (m/rdv))
-            (set! close (m/dfv)))))))
+  (onWebSocketConnect [this s]
+    (do (log/debug "websocket connect")
+      (set! session s)
+      (set! remote (.getRemote s))
+      (set! cancel
+        (cancel remote
+          (set! msg-str (m/rdv))
+          (set! msg-buf (m/rdv))
+          (set! close (m/dfv))))
+      (set! pong-mailbox (m/mbx))
+      (set! heartbeat ((make-heartbeat s pong-mailbox) (fn [_]) (fn [_])))))
   (onWebSocketClose [this status reason]
-    (letfn [(close! [] 
+    (letfn [(close! []
+              (heartbeat) ; cancel heartbeat
               (cancel) ; FIXME success or failure callback not called
               (close (do (set! (.close this) nil)
                        (set! (.msg-str this) nil)
                        (set! (.msg-buf this) nil)
                        (merge {:status status, :reason reason}
-                         (when-some [e error]
+                         (when-some [e (.error this)]
                            (set! (.error this) nil)
-                           {:error e}))))
-              (swap! sockets dissoc client-id))]
+                           {:error e})))))]
       (case status ; https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
-        (1000 1001) (do (log/info "Client disconnected" {:client-id client-id})
+        (1000 1001) (do (log/info "Client disconnected")
                       (close!))
-        (do (log/error "Client socket disconnected for an unexpected reason." {:client-id client-id :status status, :reason reason})
+        (do (log/error "Client socket disconnected for an unexpected reason." {:status status, :reason reason})
           (close!)))))
   (onWebSocketError [_ e]
     (log/error "Websocket error" e)
     (set! error e))
+  WebSocketPingPongListener
+  (onWebSocketPing ^void [this data]
+    (.sendPong remote data))
+  (onWebSocketPong [this data]
+    (pong-mailbox data)) ; Attack surface, mailbox could overflow if server is flooded with pong frames.
   WebSocketListener
   (onWebSocketText [this msg]
-    (if (= "heartbeat" msg)
-      (log/trace "heartbeat")
-      (do
-        (set! token (session-suspend! session))
-        ((msg-str msg) this this))))
+    (set! token (session-suspend! session))
+    ((msg-str msg) this this))
   (onWebSocketBinary [this payload offset length]
     (log/warn "received binary" {:length length})
     (set! token (session-suspend! session))
     ((msg-buf (ByteBuffer/wrap payload offset length)) this this)))
 
-(defn req->client-id [request] (-> request (.getParameterMap) (get "client-id") first))
-
 (defn- make-reactor! [handler request]
-  (let [client-id (req->client-id request)]
-    (or (get (deref sockets) client-id)
-      (let [socket (->Ws client-id (handler request) nil nil nil nil nil nil nil)]
-        (swap! sockets assoc client-id socket)
-        socket))))
+  (->Ws (handler request) nil nil nil nil nil nil nil nil nil))
 
 (def add-ws-endpoints
   (partial reduce-kv
@@ -151,8 +154,8 @@
         (run [_]
           (apply f args))))))
 
-(defn success [client-id exit-value]
-  (log/info "websocket handler completed gracefully." {:client-id client-id}))
+(defn success [exit-value]
+  (log/info "websocket handler completed gracefully."))
 
 (defn failure [^Throwable e]
   (log/error e) #_(.printStackTrace e))
@@ -175,12 +178,12 @@
 
 (def ws-paths
   {"/echo" (fn [request]
-             (fn [!remote read-str _read-buf _closed]
-               ((m/sp (try (loop [] (m/? (write-str (deref !remote) (m/? read-str))) (recur))
-                        (catch Cancelled _))) (partial success (req->client-id request)) failure)))
+             (fn [remote read-str _read-buf _closed]
+               ((m/sp (try (loop [] (m/? (write-str remote (m/? read-str))) (recur))
+                        (catch Cancelled _))) success failure)))
    "/ws" (fn [request]
-           (fn [!remote read-str _read-buf _closed]
-             (let [el (event-loop (deref !remote))]
+           (fn [remote read-str _read-buf _closed]
+             (let [el (event-loop remote)]
                (run-via el
                  ((m/sp
                     (try
@@ -194,7 +197,7 @@
                             write (fn [x]
                                     (m/sp
                                       (try
-                                        (m/? (write-str (deref !remote)
+                                        (m/? (write-str remote
                                                (try (encode x)
                                                  (catch Throwable t
                                                    #_(log/error (ex-info "Failed to encode" {:value x} t)) ; don't double log
@@ -203,10 +206,7 @@
                             program (m/? ?read)]
                         (prn :booting-reactor #_program)
                         (m/? ((p/eval program) write ?read)))
-                      (catch Cancelled _))) (partial success (req->client-id request)) failure)))))})
-
-#_(defn gzip-handler [& methods]
-    (doto (GzipHandler.) (.addIncludedMethods (into-array methods))))
+                      (catch Cancelled _))) success failure)))))})
 
 ;;; HTTP Server
 
@@ -283,7 +283,6 @@
    :configurator (fn [^Server server]
                    (let [context (new ServletContextHandler)]
                      (doto context
-                       #_(.setGzipHandler (gzip-handler "GET" "POST"))
                        (add-ws-endpoints ws-paths))
                      (.setHandler server context)))})
 
