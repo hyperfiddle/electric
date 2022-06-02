@@ -9,14 +9,14 @@
            hyperfiddle.photon.Failure
            #?(:clj (clojure.lang MapEntry))))
 
-(defn append [y]
+(defn ^:deprecated append [y]
   (fn [rf]
     (fn
       ([] (rf))
       ([r] (-> r (rf y) (unreduced) (rf)))
       ([r x] (rf r x)))))
 
-(defn diffs [- z]
+(defn ^:deprecated diffs [- z]
   (fn [rf]
     (let [state (doto (object-array 1)
                   (aset (int 0) z))]
@@ -27,7 +27,7 @@
            (aset state (int 0) x)
            (rf r (- x y))))))))
 
-(def map-diff
+(def ^:deprecated map-diff
   "Computes the diff of given two maps."
   (partial
     reduce-kv
@@ -39,7 +39,7 @@
             (dissoc diff k)
             diff))))))
 
-(def map-patch
+(def ^:deprecated map-patch
   "Patches given map with given diff."
   (partial
     reduce-kv
@@ -48,7 +48,7 @@
         ::done (dissoc m k)
         (assoc m k v)))))
 
-(defn map-vals "
+(defn ^:deprecated map-vals "
 Given a function and a continuous flow of maps, returns a continuous flow of maps with the same keyset as input map,
 where values are produced by the continuous flow returned by the function when called with the key and the continuous
 flow of values matching that key in the input map.
@@ -84,70 +84,71 @@ flow of values matching that key in the input map.
     (swap! !ms assoc :a 2)
     @it := {:a 3}))
 
-(def val-first (partial reduce-kv (fn [r _ m] (reduce (fn [r [id]] (conj r id)) r m)) []))
+(def ^:deprecated val-first (partial reduce-kv (fn [r _ m] (reduce (fn [r [id]] (conj r id)) r m)) []))
 
-(def into-vec (fnil into []))
+(def ^:deprecated into-vec (fnil into []))
 
 (defn seq-diff [kf]
   (fn [rf]
-    (let [state (object-array 4)
-          append (fn [^objects o k]
-                   (let [c (aget state (int 2))]
+    (let [state (object-array 4) ; 4 slots: [previous index, previous list, next index, next list]
+          append (fn [^objects o k] ; add to a circular doubly linked list + update index.
+                   (let [next-index (aget state (int 2))]
                      ;; add item to current index
-                     (aset state (int 2)
-                       (assoc c k (conj (get c k []) o)))
+                     (aset state (int 2) ; set next index
+                       (assoc next-index k (conj (get next-index k []) o))) ; next-index new looks like {k [?o], …}. Must map to a vector in case of keyfn collision
                      ;; append item to current list
-                     (if-some [^objects h (aget state (int 3))]
-                       (let [^objects t (aget h (int 0))]
-                         (aset o (int 0) t)
-                         (aset o (int 1) h)
-                         (aset h (int 0) o)
-                         (aset t (int 1) o))
-                       (do (aset o (int 0) o)
+                     (if-some [^objects next-head (aget state (int 3))] ; list is not empty
+                       (let [^objects next-tail (aget next-head (int 0))]
+                         (aset o (int 0) next-tail)
+                         (aset o (int 1) next-head)
+                         (aset next-head (int 0) o)
+                         (aset next-tail (int 1) o))
+                       (do (aset o (int 0) o) ; list is empty
                            (aset o (int 1) o)
                            (aset state (int 3) o)))))
           scan (fn [r x]
                  (let [k (kf x)
-                       p (aget state (int 0))
-                       h (aget state (int 1))]
-                   (if-some [[o & os] (get p k)]
-                     (let [prev (aget o (int 0))
-                           next (when-not (identical? o prev)
-                                  (aset prev (int 1)
+                       prev-index (aget state (int 0))
+                       prev-head (aget state (int 1))]
+                   (if-some [[o & os] (get prev-index k)]
+                     (let [prev (aget o (int 0)) ; element already exists
+                           next (when-not (identical? o prev) ; list is of size 1
+                                  (aset prev (int 1) ; next <- prev and prev <- next
                                     (doto (aget o (int 1))
                                       (aset (int 0) prev))))
-                           ;; if item was head, move forward
-                           r (if (identical? o h)
-                               (do (aset state (int 1) next) r)
-                               (rf r nil [o h]))
+                           r (if (identical? o prev-head) ; item didn't move
+                               (do (aset state (int 1) next) r) ; if item was head, move head forward
+                               (rf r nil [o prev-head]))  ; item moved, emit a move operation
                            ;; emit change if needed
-                           r (if (= x (aget o (int 2)))
-                               r (rf r o (aset o (int 2) x)))]
+                           r (if (= x (aget o (int 2))) r
+                               (rf r o (aset o (int 2) x)) ; value changed, emit a change operation
+                               )]
                        ;; remove from previous index
-                       (aset state (int 0) (assoc p k os))
+                       (aset state (int 0) (assoc prev-index k os))
                        (append o k) r)
-                     (let [o (object-array 3)]
+                     (let [o (object-array 3)] ; new item -> allocate 3 slots: [previous item, next item, value]
                        (append o k)
                        (-> r
-                         (rf nil [o h])
-                         (rf o (aset o (int 2) x)))))))]
+                           (rf nil [o prev-head]) ; emit move operation
+                           (rf o (aset o (int 2) x)) ; emit change operation
+                           )))))]
       (fn
         ([] (rf))
         ([r] (rf r))
         ([r xs]
          (if (instance? Failure xs)
-           (if-some [h (aget state (int 1))]
-             (loop [o h, r r]
+           (if-some [prev-head (aget state (int 1))]
+             (loop [o prev-head, r r] ; iterate tail to head
                (let [o (aget o (int 0))
-                     r (rf r o xs)]
-                 (if (identical? o h)
+                     r (rf r o (aset o (int 2) xs))] ; set branch value to failure instance, then emit change operation.
+                 (if (identical? o prev-head)
                    r (recur o r)))) r)
-           (let [r (reduce scan r xs)
-                 r (if-some [h (aget state (int 1))]
-                     (loop [o h, r r]
+           (let [r (reduce scan r xs) ; after scan we have a new list and new index
+                 r (if-some [prev-head (aget state (int 1))] ; remaining items in prev list are removals
+                     (loop [o prev-head, r r] ; iterate tail to head
                        (let [o (aget o (int 0))
-                             r (rf r nil [o o])]
-                         (if (identical? o h)
+                             r (rf r nil [o o])] ; emit removal operation
+                         (if (identical? o prev-head) ; are we at the end of the list?
                            r (recur o r)))) r)]
              (aset state (int 0) (aget state (int 2)))
              (aset state (int 1) (aget state (int 3)))
@@ -162,71 +163,95 @@ flow of values matching that key in the input map.
 (tests
   (sequence (comp (seq-diff :id) (map entry))
     [[{:id "alice" :email "alice@caramail.com"}]
+     ;; Add bob and change email for alice
      [{:id "alice" :email "alice@gmail.com"}
-      {:id "bob" :name "bob@yahoo.com"}]
+      {:id "bob" :email "bob@yahoo.com"}]
+     ;; Add a second alice before bob, moving bob to 3rd place
      [{:id "alice" :email "alice@gmail.com"}
       {:id "alice" :email "alice@msn.com"}
-      {:id "bob" :name "bob@yahoo.com"}]
+      {:id "bob" :email "bob@yahoo.com"}]
+     ;; Move second alice after bob
      [{:id "alice" :email "alice@gmail.com"}
-      {:id "bob" :name "bob@yahoo.com"}
+      {:id "bob" :email "bob@yahoo.com"}
       {:id "alice" :email "alice@msn.com"}]
-     [{:id "bob" :name "bob@yahoo.com"}
+     ;; Drop first alice
+     [{:id "bob" :email "bob@yahoo.com"}
       {:id "alice" :email "alice@msn.com"}]
+     ;; Drop all
      []]) :=
-  [[nil [?a nil]]
-   [?a {:id "alice", :email "alice@caramail.com"}]
-   [?a {:id "alice", :email "alice@gmail.com"}]
-   [nil [?b nil]]
-   [?b {:id "bob", :name "bob@yahoo.com"}]
-   [nil [?c ?b]]
-   [?c {:id "alice", :email "alice@msn.com"}]
-   [nil [?b ?c]]
-   [nil [?b ?a]]
-   [?a {:id "alice", :email "alice@msn.com"}]
-   [nil [?c ?c]]
-   [nil [?a ?a]]
-   [nil [?b ?b]]])
+  [; first change (initial)
+   [nil [?a nil]] ; if first element is nil -> movement, if it's an object -> event on an item 
+                  ; second element is a pair:
+                  ;  - first element is an identifier for the object we are moving
+                  ;  - second element is the target where to move it, nil means append at the end
+   [?a {:id "alice", :email "alice@caramail.com"}] ; set value of ?a to be {:id "alice", :email "…"}
+   ; second change
+   [?a {:id "alice", :email "alice@gmail.com"}]    ; set value of ?a again (email changed)
+   [nil [?b nil]] ; a new object appears at the end of the list
+   [?b {:id "bob", :email "bob@yahoo.com"}] ; set value of ?b to {:id "bob", :email "…"}
+   ; third change
+   [nil [?c ?b]] ; insert new object ?c before ?b
+   [?c {:id "alice", :email "alice@msn.com"}] ; set ?c to {:id "alice", :email "alice@msn.com"}
+   ; fourth change
+   [nil [?b ?c]] ; insert ?b before ?c (bob before 2nd alice)
+   ; Fifth change
+   [nil [?b ?a]] ; insert ?b before ?a
+   [?a {:id "alice", :email "alice@msn.com"}] ; set ?a to be {:id "alice", :email "alice@msn.com"}
+   [nil [?c ?c]] ; remove ?c
+   ; Last change
+   [nil [?a ?a]] ; drop ?a
+   [nil [?b ?b]] ; drop ?b
+   ])
 
 (defn insert-before [r x]
+  ; x is either a target or an anchor
   (let [{:keys [index target]} r
         n (count index)]
     (case target
-      nil (if (contains? index x)
-            (assoc r :target x)
-            (let [{:keys [keys vals]} r]
+      ;; Set target or create new target
+      nil (if (contains? index x) ; no target
+            (assoc r :target x) ; x exist, this is a move operation. Set x as current target.
+            (let [{:keys [keys vals]} r] ; this is a creation operation, allocate a slot at the end of the vector
               (assoc r
-                :vals (conj vals nil)
-                :keys (conj keys x)
-                :index (assoc index x n)
+                :vals (conj vals nil) ; initial value associated to x is `nil`
+                :keys (conj keys x)   ; add identifier (x) at the end
+                :index (assoc index x n) ; store mapping between identifier and position
                 :target x)))
-      (let [t (index target)
-            a (if (= x target) n (case x nil n (index x)))
-            f (if (< t a) (dec a) a)
-            s (compare f t)
+      ;; Move and maybe remove target
+      ;; Removal is implemented in 2 steps: 1. move target to the end of the vector, 2. shrink the vector by 1.
+      (let [start-position (index target) ; get start position from identifier
+            anchor-position (if (= x target) ; means removal
+                              n ; end of the vector 
+                              (case x
+                                nil n ; means target is moved to the end of the vector
+                                (index x)))
+            final-position (if (< start-position anchor-position) (dec anchor-position) anchor-position)
+            step (compare final-position start-position) ; 1, 0, or -1. In which way are we rotating? Do we iterate LTR or RTL?
             r (dissoc r :target)
-            r (case s
-                0 r
+            r (case step
+                0 r ; if we move a before b in [a b c], a is already just before b, nothing to do.
                 (let [{:keys [vals keys]} r
-                      v (nth vals t)]
-                  (loop [vals vals, keys keys, index index, i t]
-                    (let [j (+ i s)
+                      v (nth vals start-position)]
+                  ;; TODO since we move items one by one between start-position and final-position, use a transient or equivalent.
+                  (loop [vals vals, keys keys, index index, i start-position] ; start in start-position, end in final-position
+                    (let [j (+ i step) ; move one step to the left or right
                           k (nth keys j)
                           vals (assoc vals i (nth vals j))
                           keys (assoc keys i k)
                           index (assoc index k i)]
-                      (if (== j f)
+                      (if (== j final-position)
                         (assoc r
                           :vals (assoc vals j v)
                           :keys (assoc keys j target)
                           :index (assoc index target j))
                         (recur vals keys index j))))))]
-        (if (= x target)
-          (do (r/move (inc t))
-              (-> r
-                (update :vals pop)
+        (if (= x target) ; Removal, target is now at the end of the vector
+          (do (r/move (inc start-position)) ; notify hook
+            (-> r
+                (update :vals pop) ; shrink vector by 1
                 (update :keys pop)
                 (update :index dissoc x)))
-          (do (r/move (inc t) (inc f)) r))))))
+          (do (r/move (inc start-position) (inc final-position)) r))))))
 
 (tests
   (reduce insert-before
@@ -251,19 +276,24 @@ flow of values matching that key in the input map.
   )
 
 (defn change [{:keys [index] :as r} k v]
-  (if-some [i (index k)]
+  (if-some [i (index k)] ; look up branch id (?a, ?b, …) in [id -> position] index map
     (-> r
       (update :vals assoc i v)
       (update :failed
-        (if (instance? Failure v)
+        (if (instance? Failure v) ; if v is a Failure, store its corresponding branch position in :failed set
           conj disj) i)) r))
 
-(defn values [{:keys [vals failed]}]
+(defn values [{:keys [vals failed]}] ; Either Failure | [value]
   (if-some [[i] (seq failed)]
-    (vals i) vals))
+    (vals i) ; error value produced by branch at position i. An instance of Failure.
+    vals))
 
 (defn seq-patch
-  ([] {:vals [] :keys [] :index {} :failed (sorted-set)})
+  ([] {:vals [] ; vector of each branch result (result of the for)
+       :keys [] ; vector of the same size as :vals, containing branch identifiers (?a, ?b, ?c produced by seq-diff)
+       :index {} ; map of [branch id -> position in vector], inverse of :keys
+       :failed (sorted-set)} ; Set of positions of branches in an error state. Sorted because we want to report the first error in the same order as the input collection.
+      )
   ([r] r)
   ([r diff]
    (reduce-kv change
@@ -293,18 +323,19 @@ collection, where values are produced by the continuous flow returned by the fun
 flow of values matching the identity provided by key function, defaulting to identity."
   ([f >xs] (map-by identity f >xs))
   ([k f >xs]
-   (->> (m/ap (let [[id >x] (m/?> (->> >xs
-                                    (m/eduction (seq-diff k) (map entry))
-                                    (m/group-by key)))
-                    >x-val (m/zip val >x)]
-                (case id
-                  nil (m/zip (partial hash-map id)
-                        (m/relieve into >x-val))
-                  (m/latest (partial hash-map id)
-                    (f (m/relieve {} >x-val))))))
-     (gather merge)
-     (m/reductions seq-patch)
-     (m/latest values))))
+   (->> >xs
+        (m/eduction (seq-diff k) (map entry))
+        (m/group-by key)
+        (m/zip (fn [[id >x]]
+                 (let [>x-val (m/zip val >x)]
+                   (case id
+                     nil (m/zip (partial hash-map id)
+                           (m/relieve into >x-val))
+                     (m/latest (partial hash-map id)
+                       (f (m/relieve {} >x-val)))))))
+        (gather merge)
+        (m/reductions seq-patch)
+        (m/latest values))))
 
 (tests
 

@@ -9,29 +9,66 @@
            (hyperfiddle.photon Failure Pending Remote)
            #?(:clj (clojure.lang IFn IDeref Atom))))
 
+;; A photon program is a tree, which structure is dynamically maintained.
+;; Two peers are synchronized (through a protocol) such that the tree structure is identicaly on both peers.
+;; Two type of nodes:
+;; [Frames] : A piece of DAG with a static structure. Won't be rearanged at runtime. (AKA Static Frame)
+;;            - A set of compiled s-expressions + a set of signals weaving these expressions + N inputs + N outputs
+;;            - A frame has 2 instances, one on client, one on server.
+;;            - Server's outputs are client's inputs and vice-versa.
+;;            - Frames are processes.
+;;            - Image: a stackframe but for a DAG. A stackframe is allocated to compute the result of a function.
+;;              It is volatile (disposable) in a stack-based program. Since photon is reactive, the frame is not disposable.
+;;              «ReactiveFrame» «Distributed Reactive Frame»
+;; [Objects] : For each `new` in a frame, a managed process is created. Objects are child processes of frames. (AKA Dynamic Frame)
+;;             - Parent process of an object is always a frame.
+;;             - Parent process of a frame is alawys an object.
+;;             - Specificity: Frames have a fixed set of children, objects have a dynamic set of children, they can spawn new frames anytime.
+;;                            Child frames of an object are positioned (there is a well defined traversal order)
+;;                            Node order (positions) can change at runtime because objects can spawn dynamically (e.g.: p/for).
+;;             - Some objects don't have child frames : e.g. (new (m/watch .)), no child frames, no input, no output
+;;             - Some frames don't have child objects : e.g. a frame without any `new`, no variability.
+;;             - (image: an ordered tree with different kind of nodes at each generation)
+
+;; There is a virtual machine. Its instructions are numbers, they go by pairs.
+;; [ Frame Identifier , Argument ]
+;; If argument is a negative number, it means we are moving the frame.
+;; If argument is a positive number, it identifies a slot in the frame.
+;; Slot are stically known places, exposed to the remote frame over network, it can be :
+;; 1. A frame input address, (when the remote frame produces an output, an instruction will identify then set the addressed local frame input)
+;; 2. The address of p/fn in the remote frame (aka target)
+;; 3. The address of `new` in the remote frame (aka source)
+
+;; Creating a frame takes 2 instructions: the receipe, then the place where it should be created.
+;; 1. Location (address) of p/fn (which frame receipe do we want to instantiate)
+;; 2. Where (address) do we want the instance of p/fn to be instantiated (which object should get a new child frame )
+
+
 ;; # network protocol
 ;; After boot, both peers are allowed to send messages to each other at any point in time without coordination.
 ;; A message is a vector of arbitrary values (the data frames) ending with a vector of integers (the control frame).
-;; Each peer must process messages sequentially. Decoding a message requires a queue (input values, initially empty)
-;; and two registers (the current frame and the current target, initially undefined).
+;; Each peer must process messages sequentially. Decoding a message requires a queue (input values, initially 
+;; empty) and two registers (the current frame and the current target, initially undefined).
 ;; 1. push data frame values to the queue
-;; 2. process control frame integers as a sequence of instructions :
-;;   * if current frame is undefined :
+;; 2. process control frame integers as a sequence of instructions (for each):
+;;   * if current frame is undefined : (TODO what happens if the instruction does not resolve to a known frame?)
 ;;     1. lookup frame identified by instruction :
 ;;       * zero identifies the root frame
 ;;       * strictly positive numbers identify frames created by local sources, by birth index
 ;;       * strictly negative numbers identify frames created by local variables, by negation of birth index
 ;;     2. define it as current frame
 ;;   * if current frame is defined :
-;;     * if instruction is strictly negative :
-;;       1. move the current frame to position (+ instruction size-of-source)
+;;     * if instruction (argument) is strictly negative :
+;;       1. move the current frame to position (+ instruction size-of-source), where
+;;          - instruction is the argument
+;;          - size-of-source: count of frame's siblings + 1 (how many frame children does the parent object have)
 ;;       2. undefine current frame
 ;;     * if instruction is positive or zero :
-;;       1. lookup the current frame slot identified by instruction
+;;       1. lookup the current frame slot identified by instruction (argument)
 ;;         * if slot is an input : pull a value from the queue and assign this value to the input
 ;;         * if slot is a source :
 ;;           * if current target is defined :
-;;             1. construct a new frame from this target and insert it at the end of source
+;;             1. construct a new frame from this target and insert it at the last child of source (an object)
 ;;             2. undefine current target
 ;;           * if current target is undefined : remove frame at the end of source
 ;;         * if slot is a target : define it as current target
@@ -113,11 +150,11 @@
 (def this (l/local))
 
 ;; 0: parent object
-;; 1: position
+;; 1: position (only mutable field in a frame)
 ;; 2: id
-;; 3: proc array
-;; 4: slot array
-;; 5: tier array
+;; 3: proc object array, size infered statically from source code
+;; 4: slot object array, size infered statically from source code
+;; 5: tier object array, size infered statically from source code
 (defn make-frame [object position id procs slots tiers]
   (doto (object-array 6)
     (aset (int 0) object)
@@ -149,9 +186,9 @@
   (aget f (int 5)))
 
 ;; 0: context
-;; 1: frame id
-;; 2: frame tier
-;; 3: remote slot if local, nil otherwise
+;; 1: frame id (reference to parent frame (by id))
+;; 2: frame tier (a frame has many child object, as much as `new` statements, tier is the static position of the current object in the parent frame’s child array)
+;; 3: remote slot if local, nil otherwise (if this object is a variable, we must reference the corresponding remote source)
 ;; 4: dynamic scope
 ;; 5: extra procs
 ;; 6: buffer of child frame list
@@ -221,35 +258,36 @@
     (aset (int 1) (identity 0))
     (aset (int 2) (transient {0 root}))))
 
-(defn path
-  ([id slot] (path id slot nil))
+(defn inst ; could be called inst, return a vector meant to be sent over the wire as an instruction
+  ([id slot] (inst id slot nil))
   ([id slot <x] [id slot <x]))
 
-(defn next-local [^objects ctx]
+(defn next-local [^objects ctx] ; frames are identified by an integer. Creating a frame will increment this counter.
   (aset ctx (int 0) (inc (aget ctx (int 0)))))
 
-(defn next-remote [^objects ctx]
+(defn next-remote [^objects ctx] ; frames are identified by an integer. Creating a frame will increment this counter.
   (aset ctx (int 1) (dec (aget ctx (int 1)))))
 
-(defn append-frame-id [^objects ctx id obj]
-  (aset ctx (int 2) (assoc! (aget ctx (int 2)) id obj)))
+; add a frame in the context index, identified by id
+(defn assoc-frame-id [^objects ctx id frame]
+  (aset ctx (int 2) (assoc! (aget ctx (int 2)) id frame)))
 
 (defn lookup-frame-id [^objects ctx id]
   (get (aget ctx (int 2)) id))
 
-(defn remove-frame-id [^objects ctx id]
+(defn dissoc-frame-id [^objects ctx id]
   (aset ctx (int 2) (dissoc! (aget ctx (int 2)) id)))
 
-(defn set-remote [^objects ctx !]
-  (aset ctx (int 3) !))
+(defn set-remote [^objects ctx callback]
+  (aset ctx (int 3) callback))
 
 (defn remote [^objects ctx x]
-  (when-some [! (aget ctx (int 3))] (! x)))
+  (when-some [callback (aget ctx (int 3))] (callback x)))
 
-(defn set-values [^objects ctx xs]
+(defn set-queue [^objects ctx xs]
   (aset ctx (int 4) xs) ctx)
 
-(defn pull-value [^objects ctx]
+(defn pop-queue [^objects ctx]
   (let [[x & xs] (aget ctx (int 4))]
     (aset ctx (int 4) xs) x))
 
@@ -313,7 +351,7 @@
     (cancel-frame frame)
     (aset buf (int size) nil)
     (set-object-size obj size)
-    (remove-frame-id (object-context obj) (frame-id frame))))
+    (dissoc-frame-id (object-context obj) (frame-id frame))))
 
 (defn notify-rotate [f k]
   (let [anchor (loop [f f]
@@ -348,14 +386,14 @@
     (do (set-frame-register ctx nil)
         (when-some [f (lookup-frame-id ctx id)]
           (if (neg? inst)
-            (frame-rotate f (+ (get-object-size (frame-object f)) inst))
+            (frame-rotate f (+ (get-object-size (frame-object f)) inst)) ; frame object returns the parent
             (let [x (aget (frame-slots f) (int inst))]
               (if (instance? Atom x)
-                (reset! x (pull-value ctx))
+                (reset! x (pop-queue ctx))
                 (if (ifn? x)
                   (set-target-register ctx x)
                   (if-some [init (get-target-register ctx)]
-                    (do (init x (next-remote ctx))
+                    (do (init x (next-remote ctx)) ; next-remote assigns a new id for the new frame we are creating
                         (set-target-register ctx nil))
                     (shrink-buffer x))))))))
     (set-frame-register ctx (- inst))) ctx)
@@ -371,7 +409,7 @@
   (doto arr (aset (int k) v)))
 
 (defn frame [proc-count slot-count tier-count ctor]
-  (fn [obj id]
+  (fn [obj frame-id]
     (let [pos (get-object-size obj)
           buf (get-object-buffer obj)
           cap (alength buf)
@@ -393,32 +431,37 @@
                       (assoc m v prev)))
                   {} extra)]
       (set-object-size obj (inc pos))
-      (append-frame-id (object-context obj) id
-        (aset buf pos (make-frame obj pos id procs slots tiers)))
-      (try (ctor (object-vars obj) procs slots tiers id)
+      (assoc-frame-id (object-context obj) frame-id
+        (aset buf pos (make-frame obj pos frame-id procs slots tiers)))
+      (try (ctor vars procs slots tiers frame-id)
            (finally (reduce-kv doto-aset vars prevs))))))
 
-(defn thunk [target init]
+;; Takes an instruction identifying a target and a frame-constructor.
+;; Return a flow instantiating the frame.
+(defn thunk [target ctor]
   (fn [n t]
     (let [obj (doto (l/get-local this)
                 (assert "Unable to call thunk : not an object."))
           ctx (object-context obj)
           id (next-local ctx)]
-      (remote ctx target)
-      (remote ctx (path (object-frame obj) (object-slot obj)))
-      (try ((init obj id)
+      (remote ctx target) ; notify remote peer of frame creation
+      (remote ctx (inst (object-frame obj) (object-slot obj))) ; notify remote peer of frame mount point (on which object we want to create this frame, its parent)
+      (try ((ctor obj id)
             #(let [p (l/get-local this)]
                (l/set-local this obj)                       ;; TODO understand why we need that
                (n) (l/set-local this p))
             #(let [f (lookup-frame-id ctx id)]
                (frame-rotate f (dec (get-object-size obj)))
-               (remote ctx (path (frame-id f) -1))
-               (remote ctx (path (object-frame obj) (object-slot obj)))
+               (remote ctx (inst (frame-id f) -1))
+               (remote ctx (inst (object-frame obj) (object-slot obj)))
                (shrink-buffer obj) (t)))
            (catch #?(:clj Throwable :cljs :default) e
              (failer e n t))))))
 
 (defn move
+  "Move or delete a frame in the current object. Will search and call `hook`.
+   - Arity 1 deletes,
+   - Arity 2 moves." 
   ([from]
    (when-some [obj (l/get-local this)]
      (cancel-frame (aget (get-object-buffer obj) (int from)))))
@@ -427,7 +470,7 @@
      (let [f (aget (get-object-buffer obj) (int from))]
        (frame-rotate f to)
        (remote (object-context obj)
-         (path (frame-id f)
+         (inst (frame-id f)
            (- to (get-object-size obj))))))))
 
 (defn switch [obj <<x]
@@ -487,7 +530,7 @@
             slots (object-array slot-count)
             tiers (object-array tier-count)
             context (make-context (make-frame nil 0 0 procs slots tiers))
-            >msg (->> (m/ap
+            >msg (->> (m/ap ; FIXME outputs are sampled too fast, should be in sync with the websocket. Should sample everytime we are done writing on the socket.
                         (let [path (m/?> ##Inf (m/observe
                                                  (fn [!]
                                                    (set-remote context !)
@@ -513,7 +556,7 @@
                    (prn '< msg)
                    (try
                      (reduce decode-inst
-                       (set-values context (pop msg))
+                       (set-queue context (pop msg))
                        (peek msg))
                      (catch #?(:clj Throwable :cljs :default) e
                        (pst e)))
@@ -531,10 +574,17 @@
   (update env :stack conj (apply f env args)))
 
 (def empty-frame
-  {:tiers 0
-   :procs 0
-   :slots 0
-   :remote 0})
+  {:tiers  0 ; count of variables and sources
+   :procs  0 ; count of disposable objects (processes)
+   :slots  0 ; count of inputs, source and targets (exposed by frames)
+   :remote 0 ; count of outputs, constants (p/fn), and variables (new)
+   })
+
+;; TODO move me
+;; `new` creates a local variable and a remote source
+;; `p/fn` creates a local constant and a remote target
+;; Same duality with input and output, if there is 3 inputs locally, there is 3 outputs remotely.
+;; There is no instruction to create inputs and outputs, they are infered from unquote-splicing.
 
 (defn compile [inst {:keys [nop sub pub capture eval vget bind invoke input output
                             global literal variable source constant target main]}]
@@ -662,7 +712,7 @@
                     (signal (m/watch (aset ~(sym prefix 'slots) (int ~slot) (atom pending))))))
      :output   (fn [form slot proc cont]
                  `(do (remote ~(sym prefix 'ctx)
-                        (path ~(sym prefix 'id) ~slot
+                        (inst ~(sym prefix 'id) ~slot
                           (aset ~(sym prefix 'procs) (int ~proc)
                             (signal ~form)))) ~cont))
      :global   (fn [x] `(steady ~(symbol x)))
@@ -680,7 +730,7 @@
                             ~(sym prefix 'vars)))) ~cont))
      :constant (fn [form proc-count slot-count tier-count slot]
                  `(steady
-                    (thunk (path ~(sym prefix 'id) ~slot)
+                    (thunk (inst ~(sym prefix 'id) ~slot)
                       (frame ~proc-count ~slot-count ~tier-count
                         (fn [~(sym prefix 'vars)
                              ~(sym prefix 'procs)
@@ -749,7 +799,7 @@
      (fn [~'-ctx ~'-vars ~'-procs ~'-slots ~'-tiers]
        (let [~'-id 0]
          (steady
-           (thunk (path ~'-id 0)
+           (thunk (inst ~'-id 0)
              (frame 0 0 0
                (fn [~'-vars ~'-procs ~'-slots ~'-tiers ~'-id]
                  (steady ':foo))))))))
@@ -773,14 +823,14 @@
              (let [~'-pub-0 (aset ~'-procs (int 0)
                               (signal
                                 (steady
-                                  (thunk (path ~'-id 0)
+                                  (thunk (inst ~'-id 0)
                                     (frame 0 0 0
                                       (fn [~'-vars ~'-procs ~'-slots ~'-tiers ~'-id]
                                         (steady '3)))))))]
                (let [~'-pub-1 (aset ~'-procs (int 1)
                                 (signal
                                   (steady
-                                    (thunk (path ~'-id 1)
+                                    (thunk (inst ~'-id 1)
                                       (frame 1 1 0
                                         (fn [~'-vars ~'-procs ~'-slots ~'-tiers ~'-id]
                                           (aset ~'-procs (int 0)
@@ -792,7 +842,7 @@
                      (steady '5) ~'-pub-1)
                    (steady '1)
                    (steady
-                     (thunk (path ~'-id 2)
+                     (thunk (inst ~'-id 2)
                        (frame 0 0 0
                          (fn [~'-vars ~'-procs ~'-slots ~'-tiers ~'-id]
                            (steady '7)))))))))))))
@@ -812,12 +862,12 @@
          (let [~'-pub-0 (aset ~'-procs (int 0)
                           (signal (steady 'nil)))]
            (steady
-             (thunk (path ~'-id 0)
+             (thunk (inst ~'-id 0)
                (frame 0 0 0
                  (fn [~'-vars ~'-procs ~'-slots ~'-tiers ~'-id]
                    ~'-pub-0)))))))))
 
-(defn juxt-with
+(defn juxt-with ;; juxt = juxt-with vector, juxt-with f & gs = apply f (apply juxt gs)
   ([f]
    (fn
      ([] (f))
@@ -905,7 +955,7 @@
       :output   (fn [form slot proc cont]
                   (fn [pubs ctx vars ^objects procs slots tiers id]
                     (remote ctx
-                      (path id slot
+                      (inst id slot
                         (aset procs (int proc)
                           (signal (form pubs ctx vars procs slots tiers id)))))
                     (cont pubs ctx vars procs slots tiers id)))
@@ -931,7 +981,7 @@
       :constant (fn [form proc-count slot-count tier-count slot]
                   (fn [pubs ctx vars procs slots tiers id]
                     (steady
-                      (thunk (path id slot)
+                      (thunk (inst id slot)
                         (frame proc-count slot-count tier-count
                           (partial form pubs ctx))))))
       :target   (fn [form proc-count slot-count tier-count slot cont]
