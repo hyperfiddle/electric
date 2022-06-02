@@ -12,22 +12,29 @@
   #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
                     (goog.ui.KeyboardShortcutHandler EventType))))
 
-(p/def node nil)
+(p/def node nil) ; used to be called parent
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
 (defn unsupported [& _]
   (throw (ex-info (str "Not available on this peer.") {})))
 
-(def hook
+(def hook "See `with`"
   #?(:clj  unsupported
-     :cljs (fn ([x] (.removeChild (.-parentNode x) x))
-             ([x y] (.insertBefore (.-parentNode x) x y)))))
+     :cljs (fn ([x] (.removeChild (.-parentNode x) x))    ; unmount
+            ([x y] (.insertBefore (.-parentNode x) x y)) ; rotate siblings
+             )))
 
-(defmacro with [n & body]
-  `(binding [node ~n]
-     (new (p/hook hook node
-            (p/fn [] ~@body)))))
+(defmacro with
+  "Attach `body` to a dom node, which will be moved in the DOM when body moves in the DAG.
+  Given p/for semantics, `body` can only move sideways or be cancelled.
+  If body is cancelled, the node will be unmounted.
+  If body moves, the node will rotate with its siblings."
+  [dom-node & body]
+  `(binding [node ~dom-node]
+     (new (p/hook hook node  ; attach body frame to dom-node.
+            (p/fn [] ~@body) ; wrap body in a constant, making it a frame (static, non-variable), so it can be moved as a block.
+            ))))
 
 (defn dom-element [parent type]
   #?(:cljs (let [node (d/createElement type)]

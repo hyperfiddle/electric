@@ -52,7 +52,7 @@
 (defn encode-numbers
   "Encode a control frame to a binary segment."
   [xs]
-  (let [required (bit-shift-left (count xs) 2)]
+  (let [required (bit-shift-left (count xs) 2)] ; size of bytebuffer is 4 × (count xs), so shift by 2
     #?(:clj (set-ints (ByteBuffer/allocate required) xs)
        :cljs (doto (js/ArrayBuffer. required)
                (-> (js/DataView.) (set-ints xs))))))
