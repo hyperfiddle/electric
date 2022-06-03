@@ -38,14 +38,14 @@
 (p/defn View []
   (let [email (Input.)]
     (dom/table
-      (dom/for [id ~@(orders db email)]
+      (p/for [id ~@(orders db email)]
         (dom/tr
           (dom/td (dom/text id))
           (dom/td (dom/text ~@(:order/email (d/entity db id))))
           (dom/td (dom/text ~@(:order/gender (d/entity db id)))))))))
 
 (p/defn App []
-  (dom/with (dom/by-id "root")
+  (binding [dom/node (dom/by-id "root")]
     ~@(binding [db (p/watch conn)]                          ; server
         ~@(View.))))
 
