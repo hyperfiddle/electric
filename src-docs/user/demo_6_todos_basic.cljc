@@ -44,7 +44,7 @@
              (z/impulse basis-t)))
       (dom/div
         (apply concat
-               (dom/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
+               (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
                  (dom/div
                    (concat
                      (dom/input {:type "checkbox"
@@ -71,7 +71,7 @@
             (swap! !t + (do ~@(transact tx) 1))             ; auto-transact
             (prn :idle)))))
 
-(def main #?(:cljs (p/client (p/main (try (dom/with (dom/by-id "root")
+(def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")]
                                             (App.))
                                           (catch Pending _))))))
 
