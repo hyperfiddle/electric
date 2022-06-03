@@ -12,7 +12,7 @@
   #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
                     (goog.ui.KeyboardShortcutHandler EventType))))
 
-(p/def node nil) ; used to be called parent
+(p/def node) ; used to be called parent
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
@@ -348,3 +348,7 @@
 (defmacro var [& body] `(element :var ~@body))
 (defmacro video [& body] `(element :video ~@body))
 (defmacro wbr [& body] `(element :wbr ~@body))
+
+
+(defmacro context [type]
+  `(.getContext node ~(name type)))

@@ -97,7 +97,7 @@
           (reset! !stage (clojure.edn/read-string tx)))
         (do (js/console.log ::stage ::idle) nil)))))
 
-(def main #?(:cljs (p/client (p/main (try (dom/with (dom/by-id "root")
+(def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")]
                                             (App.))
                                           (catch Pending _))))))
 
