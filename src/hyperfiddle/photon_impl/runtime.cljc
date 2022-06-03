@@ -258,10 +258,6 @@
     (aset (int 1) (identity 0))
     (aset (int 2) (transient {0 root}))))
 
-(defn inst ; could be called inst, return a vector meant to be sent over the wire as an instruction
-  ([id slot] (inst id slot nil))
-  ([id slot <x] [id slot <x]))
-
 (defn next-local [^objects ctx] ; frames are identified by an integer. Creating a frame will increment this counter.
   (aset ctx (int 0) (inc (aget ctx (int 0)))))
 
@@ -281,8 +277,11 @@
 (defn set-remote [^objects ctx callback]
   (aset ctx (int 3) callback))
 
-(defn remote [^objects ctx x]
-  (when-some [callback (aget ctx (int 3))] (callback x)))
+(defn remote
+  ([ctx id slot] (remote ctx id slot nil))
+  ([^objects ctx id slot <x]
+   (when-some [callback (aget ctx (int 3))]
+     (callback [id slot <x]))))
 
 (defn set-queue [^objects ctx xs]
   (aset ctx (int 4) xs) ctx)
@@ -438,22 +437,22 @@
 
 ;; Takes an instruction identifying a target and a frame-constructor.
 ;; Return a flow instantiating the frame.
-(defn thunk [target ctor]
+(defn thunk [target-id target-slot ctor]
   (fn [n t]
     (let [obj (doto (l/get-local this)
                 (assert "Unable to call thunk : not an object."))
           ctx (object-context obj)
           id (next-local ctx)]
-      (remote ctx target) ; notify remote peer of frame creation
-      (remote ctx (inst (object-frame obj) (object-slot obj))) ; notify remote peer of frame mount point (on which object we want to create this frame, its parent)
+      (remote ctx target-id target-slot) ; notify remote peer of frame creation
+      (remote ctx (object-frame obj) (object-slot obj)) ; notify remote peer of frame mount point (on which object we want to create this frame, its parent)
       (try ((ctor obj id)
             #(let [p (l/get-local this)]
                (l/set-local this obj)                       ;; TODO understand why we need that
                (n) (l/set-local this p))
             #(let [f (lookup-frame-id ctx id)]
                (frame-rotate f (dec (get-object-size obj)))
-               (remote ctx (inst (frame-id f) -1))
-               (remote ctx (inst (object-frame obj) (object-slot obj)))
+               (remote ctx (frame-id f) -1)
+               (remote ctx (object-frame obj) (object-slot obj))
                (shrink-buffer obj) (t)))
            (catch #?(:clj Throwable :cljs :default) e
              (failer e n t))))))
@@ -470,8 +469,7 @@
      (let [f (aget (get-object-buffer obj) (int from))]
        (frame-rotate f to)
        (remote (object-context obj)
-         (inst (frame-id f)
-           (- to (get-object-size obj))))))))
+         (frame-id f) (- to (get-object-size obj)))))))
 
 (defn switch [obj <<x]
   (m/signal!
@@ -711,10 +709,9 @@
                  `(aset ~(sym prefix 'procs) (int ~proc)
                     (signal (m/watch (aset ~(sym prefix 'slots) (int ~slot) (atom pending))))))
      :output   (fn [form slot proc cont]
-                 `(do (remote ~(sym prefix 'ctx)
-                        (inst ~(sym prefix 'id) ~slot
-                          (aset ~(sym prefix 'procs) (int ~proc)
-                            (signal ~form)))) ~cont))
+                 `(do (remote ~(sym prefix 'ctx) ~(sym prefix 'id) ~slot
+                        (aset ~(sym prefix 'procs) (int ~proc)
+                          (signal ~form))) ~cont))
      :global   (fn [x] `(steady ~(symbol x)))
      :literal  (fn [x] `(steady (quote ~x)))
      :capture  (fn [v] `(steady (capture ~v)))
@@ -730,7 +727,7 @@
                             ~(sym prefix 'vars)))) ~cont))
      :constant (fn [form proc-count slot-count tier-count slot]
                  `(steady
-                    (thunk (inst ~(sym prefix 'id) ~slot)
+                    (thunk ~(sym prefix 'id) ~slot
                       (frame ~proc-count ~slot-count ~tier-count
                         (fn [~(sym prefix 'vars)
                              ~(sym prefix 'procs)
@@ -799,7 +796,7 @@
      (fn [~'-ctx ~'-vars ~'-procs ~'-slots ~'-tiers]
        (let [~'-id 0]
          (steady
-           (thunk (inst ~'-id 0)
+           (thunk ~'-id 0
              (frame 0 0 0
                (fn [~'-vars ~'-procs ~'-slots ~'-tiers ~'-id]
                  (steady ':foo))))))))
@@ -823,14 +820,14 @@
              (let [~'-pub-0 (aset ~'-procs (int 0)
                               (signal
                                 (steady
-                                  (thunk (inst ~'-id 0)
+                                  (thunk ~'-id 0
                                     (frame 0 0 0
                                       (fn [~'-vars ~'-procs ~'-slots ~'-tiers ~'-id]
                                         (steady '3)))))))]
                (let [~'-pub-1 (aset ~'-procs (int 1)
                                 (signal
                                   (steady
-                                    (thunk (inst ~'-id 1)
+                                    (thunk ~'-id 1
                                       (frame 1 1 0
                                         (fn [~'-vars ~'-procs ~'-slots ~'-tiers ~'-id]
                                           (aset ~'-procs (int 0)
@@ -842,7 +839,7 @@
                      (steady '5) ~'-pub-1)
                    (steady '1)
                    (steady
-                     (thunk (inst ~'-id 2)
+                     (thunk ~'-id 2
                        (frame 0 0 0
                          (fn [~'-vars ~'-procs ~'-slots ~'-tiers ~'-id]
                            (steady '7)))))))))))))
@@ -862,12 +859,12 @@
          (let [~'-pub-0 (aset ~'-procs (int 0)
                           (signal (steady 'nil)))]
            (steady
-             (thunk (inst ~'-id 0)
+             (thunk ~'-id 0
                (frame 0 0 0
                  (fn [~'-vars ~'-procs ~'-slots ~'-tiers ~'-id]
                    ~'-pub-0)))))))))
 
-(defn juxt-with ;; juxt = juxt-with vector, juxt-with f & gs = apply f (apply juxt gs)
+(defn juxt-with ;;juxt = juxt-with vector, juxt-with f & gs = apply f (apply juxt gs)
   ([f]
    (fn
      ([] (f))
@@ -954,10 +951,9 @@
                       (signal (m/watch (aset slots (int slot) (atom (Failure. (Pending.)))))))))
       :output   (fn [form slot proc cont]
                   (fn [pubs ctx vars ^objects procs slots tiers id]
-                    (remote ctx
-                      (inst id slot
-                        (aset procs (int proc)
-                          (signal (form pubs ctx vars procs slots tiers id)))))
+                    (remote ctx id slot
+                      (aset procs (int proc)
+                        (signal (form pubs ctx vars procs slots tiers id))))
                     (cont pubs ctx vars procs slots tiers id)))
       :global   (fn [x]
                   (let [r (resolvef ::not-found x)]
@@ -981,7 +977,7 @@
       :constant (fn [form proc-count slot-count tier-count slot]
                   (fn [pubs ctx vars procs slots tiers id]
                     (steady
-                      (thunk (inst id slot)
+                      (thunk id slot
                         (frame proc-count slot-count tier-count
                           (partial form pubs ctx))))))
       :target   (fn [form proc-count slot-count tier-count slot cont]
