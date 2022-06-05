@@ -1,30 +1,38 @@
-(ns wip.demo-hfql
+(ns dustin.y2022.livecoding-hfql
   "wip, unstable"
   (:require #?(:clj dev)
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.zero :as z]
             [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui :as ui]
             [wip.orders :refer [orders genders shirt-sizes]]
             dustin.y2022.edn-render)
   (:import (hyperfiddle.photon Pending Remote))
-  #?(:cljs (:require-macros wip.demo-hfql)))
+  #?(:cljs (:require-macros dustin.y2022.livecoding-hfql)))
 
 
 (p/defn Orders []
-  ; Warning: HFQL is unstable
-  ~@(hf/hfql
-      {(orders .)
-       [:order/email
-        {(props :order/gender {::hf/options      (genders)
-                               ::hf/option-label :db/ident
-                               ::hf/render       ui/select-options})
-         [:db/ident]}
-        {(props :order/shirt-size {::hf/options      (shirt-sizes order/gender .)
-                                   ::hf/option-label :db/ident
-                                   ::hf/render       ui/select-options})
-         [:db/ident]}]}))
+  (dom/h1 (dom/text "hello world")))
+
+#_(codemirror/edn. ~@(orders ""))
+#_(codemirror/edn.
+    ~@ (hf/hfql
+         {(orders .)
+          :order/email}))
+#_(binding [hf/Render ui/Render])
+#_(hf/hfql
+    {(orders .)
+     [:order/email
+      {(props :order/gender {::hf/options      (genders)
+                             ::hf/option-label :db/ident
+                             ::hf/render       ui/select-options})
+       [:db/ident]}
+      {(props :order/shirt-size {::hf/options      (shirt-sizes order/gender .)
+                                 ::hf/option-label :db/ident
+                                 ::hf/render       ui/select-options})
+       [:db/ident]}]})
 
 (p/defn App []
   (dom/div
