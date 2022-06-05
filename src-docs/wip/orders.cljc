@@ -47,15 +47,10 @@
   (shirt-sizes 2 "med") := [7])
 
 (defn orders [needle]
-  #?(:clj
-     (sort
-       (d/q '[:find [?e ...]
-              :in $ ?needle
-              :where
-              [?e :order/email ?email]
-              [(user.util/includes-str? ?email ?needle)]]
-         hf/*$*
-         (or needle "")))))
+  #?(:clj (sort (d/q '[:find [?e ...] :in $ ?needle :where
+                       [?e :order/email ?email]
+                       [(user.util/includes-str? ?email ?needle)]]
+                     hf/*$* (or needle "")))))
 
 (tests
   (orders "") := [9 10 11]
