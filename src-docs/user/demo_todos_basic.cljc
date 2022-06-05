@@ -10,11 +10,6 @@
 
 (def auto-inc (partial swap! (atom 0) inc))
 
-(defn task-create [description]
-  [{:db/id            (str "dustin-" (auto-inc))
-    :task/description description
-    :task/status      :active}])
-
 (defn task-status [id status]
   [{:db/id       id
     :task/status status}])
@@ -31,6 +26,11 @@
 (defn clear-input! [el v] (dom/set-property! el "value" "") v)
 
 (p/def db)                                                  ; server
+
+(defn task-create [description]
+  [{:db/id            (str "dustin-" (auto-inc))
+    :task/description description
+    :task/status      :active}])
 
 (p/defn Todo-list [basis-t]
   (dom/div
