@@ -91,30 +91,49 @@
   #?(:clj (t/read (t/reader (ByteArrayInputStream. (.getBytes s "UTF-8")) :json read-opts))
      :cljs (t/read (t/reader :json read-opts) s)))
 
-(defn message-reader
-  "Returns a task reading a photon message from provided task reading an individual frame."
-  [?read]
+(defn decode-str [x]
+  (try (doto (decode x) (->> (log/trace "🔽")))
+    (catch #?(:clj Throwable :cljs :default) t
+      (throw (ex-info "Failed to decode" {:value x} t)))))
+
+; Jetty rejects websocket payloads larger than 65536 bytes by default
+; We’ll chop messages if needed
+(def chunk-size (bit-shift-right 65536 2))
+
+(defn message-reader [?read]
+  "Returns a discreet flow of read photon messages from provided task, emitting individual frames."
   (m/sp
-    (loop [msg []]
+    (loop [data (transient [])]
       (let [x (m/? ?read)]
         (if (string? x)
-          (recur (conj msg
-                   (try (doto (decode x) (->> (log/trace "🔽")))
-                        (catch #?(:clj Throwable :cljs :default) t
-                          (throw (ex-info "Failed to decode" {:value x} t))))))
-          (conj msg (decode-numbers x)))))))
+          (recur (conj! data (decode-str x)))
+          (persistent!
+            (conj! data
+              (loop [x       x
+                     control (transient [])]
+                (let [xs      (decode-numbers x)
+                      control (reduce conj! control xs)]
+                  (if (< (count xs) chunk-size) ; final frame
+                    (persistent! control)
+                    (recur (m/? ?read) control)))))))))))
+
 
 (defn message-writer
   "Returns a function taking a photon message and returning a task writing it as individual frames using provided
-   function."
+   function. Might cut a message into chunks if its size would exeeds the server payload limit. 
+   An empty message (0b) is written to notify the end of frame."
   [write]
   #(m/sp
      (loop [xs (seq (pop %))]
        (if-some [[x & xs] xs]
          (do (log/trace "🔼" x)
-             (m/? (write
-                    (try (encode x)
-                         (catch #?(:clj Throwable :cljs :default) t
-                           (throw (ex-info "Failed to encode" {:value x} t))))))
-             (recur xs))
-         (m/? (write (encode-numbers (peek %))))))))
+           (m/? (write
+                  (try (encode x)
+                    (catch #?(:clj Throwable :cljs :default) t
+                      (throw (ex-info "Failed to encode" {:value x} t))))))
+           (recur xs))
+         (loop [xs (peek %)]
+           (if (>= (count xs) chunk-size)
+             (do (m/? (write (encode-numbers (subvec xs 0 chunk-size))))
+               (recur (subvec xs chunk-size)))
+             (m/? (write (encode-numbers xs)))))))))
