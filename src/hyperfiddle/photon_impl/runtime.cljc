@@ -542,8 +542,8 @@
                       out (peek msg)]
                   (-> []
                     (into (vals out))
-                    (conj (into (pop msg) cat (keys out)))
                     (doto (->> (prn '>)))
+                    (conj (into (pop msg) cat (keys out)))
                     (write) (m/?))
                   (prn :encode-ok))))
         (m/stream! (m/latest crash-failure (ctor context (object-array (repeat var-count unbound)) procs slots tiers)))
@@ -551,7 +551,7 @@
           (m/stream!)
           (m/eduction
             (map (fn [msg]
-                   (prn '< msg)
+                   (prn '< (pop msg))
                    (try
                      (reduce decode-inst
                        (set-queue context (pop msg))
