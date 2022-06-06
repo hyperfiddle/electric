@@ -584,8 +584,8 @@
 ;; Same duality with input and output, if there is 3 inputs locally, there is 3 outputs remotely.
 ;; There is no instruction to create inputs and outputs, they are infered from unquote-splicing.
 
-(defn compile [inst {:keys [nop sub pub capture eval vget bind invoke input output
-                            global literal variable source constant target main]}]
+(defn compile [inst {:keys [nop sub pub capture vget bind invoke input output
+                            global literal variable source constant target main] :as fns}]
   (-> ((fn walk [env idx [op & args]]
          (case op
            :nop (update env :stack collapse 0 nop)
@@ -604,7 +604,7 @@
                     (update :vars max v)
                     (update :stack conj (capture v))))
            :eval (let [[f] args]
-                   (update env :stack conj (eval f)))
+                   (update env :stack conj ((:eval fns) f))) ; can't shadow eval in advanced CLJS compilation
            :node (let [[v] args]
                    (-> env
                      (update :vars max v)
