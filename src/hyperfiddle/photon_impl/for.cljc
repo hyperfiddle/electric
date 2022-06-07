@@ -9,85 +9,6 @@
            hyperfiddle.photon.Failure
            #?(:clj (clojure.lang MapEntry))))
 
-(defn ^:deprecated append [y]
-  (fn [rf]
-    (fn
-      ([] (rf))
-      ([r] (-> r (rf y) (unreduced) (rf)))
-      ([r x] (rf r x)))))
-
-(defn ^:deprecated diffs [- z]
-  (fn [rf]
-    (let [state (doto (object-array 1)
-                  (aset (int 0) z))]
-      (fn
-        ([r] (rf r))
-        ([r x]
-         (let [y (aget state (int 0))]
-           (aset state (int 0) x)
-           (rf r (- x y))))))))
-
-(def ^:deprecated map-diff
-  "Computes the diff of given two maps."
-  (partial
-    reduce-kv
-    (fn [diff k prev]
-      (let [curr (get diff k ::done)]
-        (case curr
-          ::done (assoc diff k ::done)
-          (if (= prev curr)
-            (dissoc diff k)
-            diff))))))
-
-(def ^:deprecated map-patch
-  "Patches given map with given diff."
-  (partial
-    reduce-kv
-    (fn [m k v]
-      (case v
-        ::done (dissoc m k)
-        (assoc m k v)))))
-
-(defn ^:deprecated map-vals "
-Given a function and a continuous flow of maps, returns a continuous flow of maps with the same keyset as input map,
-where values are produced by the continuous flow returned by the function when called with the key and the continuous
-flow of values matching that key in the input map.
-" [f >m]
-  (->> >m
-    (m/eduction (diffs map-diff {}) cat)
-    (m/group-by key)
-    (m/eduction
-      (map (fn [[k >x]]
-             (->> >x
-               (m/eduction
-                 (map val)
-                 (take-while (complement #{::done})))
-               (m/relieve {})
-               (f k)
-               (eventually ::done)
-               (m/latest (partial hash-map k))))))
-    (gather merge)
-    (m/reductions map-patch {})))
-
-(tests
-  (let [!ms (atom {})
-        it ((map-vals
-              (fn [_k >v] (m/latest inc >v))
-              (m/watch !ms))
-            #() #())]
-    @it := {}
-    (swap! !ms assoc :a 1)
-    @it := {:a 2}
-    (swap! !ms dissoc :a)
-    @it := {}
-    (swap! !ms assoc :a 1)
-    (swap! !ms assoc :a 2)
-    @it := {:a 3}))
-
-(def ^:deprecated val-first (partial reduce-kv (fn [r _ m] (reduce (fn [r [id]] (conj r id)) r m)) []))
-
-(def ^:deprecated into-vec (fnil into []))
-
 (defn seq-diff [kf]
   (fn [rf]
     (let [state (object-array 4) ; 4 slots: [previous index, previous list, next index, next list]
@@ -104,8 +25,8 @@ flow of values matching that key in the input map.
                          (aset next-head (int 0) o)
                          (aset next-tail (int 1) o))
                        (do (aset o (int 0) o) ; list is empty
-                           (aset o (int 1) o)
-                           (aset state (int 3) o)))))
+                         (aset o (int 1) o)
+                         (aset state (int 3) o)))))
           scan (fn [r x]
                  (let [k (kf x)
                        prev-index (aget state (int 0))
@@ -129,9 +50,9 @@ flow of values matching that key in the input map.
                      (let [o (object-array 3)] ; new item -> allocate 3 slots: [previous item, next item, value]
                        (append o k)
                        (-> r
-                           (rf nil [o prev-head]) ; emit move operation
-                           (rf o (aset o (int 2) x)) ; emit change operation
-                           )))))]
+                         (rf nil [o prev-head]) ; emit move operation
+                         (rf o (aset o (int 2) x)) ; emit change operation
+                         )))))]
       (fn
         ([] (rf))
         ([r] (rf r))
@@ -248,9 +169,9 @@ flow of values matching that key in the input map.
         (if (= x target) ; Removal, target is now at the end of the vector
           (do (r/move (inc start-position)) ; notify hook
             (-> r
-                (update :vals pop) ; shrink vector by 1
-                (update :keys pop)
-                (update :index dissoc x)))
+              (update :vals pop) ; shrink vector by 1
+              (update :keys pop)
+              (update :index dissoc x)))
           (do (r/move (inc start-position) (inc final-position)) r))))))
 
 (tests
@@ -272,8 +193,7 @@ flow of values matching that key in the input map.
   (reduce insert-before
     '{:vals [b c] :keys [:b :c] :index {:b 0 :c 1}}
     [:a :b]) :=
-  '{:vals [nil b c] :keys [:a :b :c] :index {:a 0, :b 1, :c 2}}
-  )
+  '{:vals [nil b c] :keys [:a :b :c] :index {:a 0, :b 1, :c 2}})
 
 (defn change [{:keys [index] :as r} k v]
   (if-some [i (index k)] ; look up branch id (?a, ?b, …) in [id -> position] index map
@@ -324,18 +244,18 @@ flow of values matching the identity provided by key function, defaulting to ide
   ([f >xs] (map-by identity f >xs))
   ([k f >xs]
    (->> >xs
-        (m/eduction (seq-diff k) (map entry))
-        (m/group-by key)
-        (m/zip (fn [[id >x]]
-                 (let [>x-val (m/zip val >x)]
-                   (case id
-                     nil (m/zip (partial hash-map id)
-                           (m/relieve into >x-val))
-                     (m/latest (partial hash-map id)
-                       (f (m/relieve {} >x-val)))))))
-        (gather merge)
-        (m/reductions seq-patch)
-        (m/latest values))))
+     (m/eduction (seq-diff k) (map entry))
+     (m/group-by key)
+     (m/zip (fn [[id >x]]
+              (let [>x-val (m/zip val >x)]
+                (case id
+                  nil (m/zip (partial hash-map id)
+                        (m/relieve into >x-val))
+                  (m/latest (partial hash-map id)
+                    (f (m/relieve {} >x-val)))))))
+     (gather merge)
+     (m/reductions seq-patch)
+     (m/latest values))))
 
 (tests
 
@@ -357,5 +277,4 @@ flow of values matching the identity provided by key function, defaulting to ide
         (identical? (get x 0) (get y 1)) := true
         (identical? (get x 1) (get y 0)) := true
         (swap! !xs pop)
-        @it := [{:id "bob" :email "BOB@YAHOO.COM"}])))
-  )
+        @it := [{:id "bob" :email "BOB@YAHOO.COM"}]))))
