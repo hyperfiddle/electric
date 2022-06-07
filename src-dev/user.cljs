@@ -1,4 +1,4 @@
-(ns user
+(ns ^:dev/once user
   (:require
     goog.object
     ; Due to :require-macros, demos are loaded in JVM as well on shadow build
@@ -44,3 +44,5 @@
 (defn browser-main! [photon-main-sym]
   ;(println ::received-reload-command photon-main-sym (type photon-main-sym))
   (set! user-photon-main photon-main-sym) (stop!) (start! nil))
+
+(start! nil)
