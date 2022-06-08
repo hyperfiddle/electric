@@ -40,9 +40,12 @@
 
 (p/def parent)
 
-(defmacro element [type & body]
-  `(binding [parent (new (mount parent (dom-element ~(name type)) @p/path))] 
-     (do parent ~@body)))
+(defmacro element [type & [props & body]]
+  `(binding [parent (new (mount parent (dom-element ~(name type)) @p/path))]
+     parent ; touch parent to trigger mount effect when no children
+     ~@(if (map? props)
+         (cons `(props ~props) body)
+         (cons props body))))
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
@@ -50,25 +53,25 @@
 (defn set-text-content! [e t] #?(:cljs (d/setTextContent e (str t))))
 (defmacro text [& strs] `(set-text-content! (new (mount parent (text-node) @p/path)) (str ~@strs)))
 
-(defn set-style! [parent style-map]
-  #?(:cljs (goog.style/setStyle parent (clj->js style-map))))
+(defn clean-props [props]
+  (cond-> props
+    (contains? props :class) (update :class #(if (vector? %) (str/join " " %) %))))
 
-(defmacro style [style-map]
-  `(set-style! parent ~style-map))
-
-(defn set-properties! [e m] #?(:cljs (do (when-let [style (:style m)]
-                                           (set-style! e style))
-                                       (d/setProperties e (clj->js (dissoc m :style))))))
+(defn set-properties! [e m] #?(:cljs (let [styles (:style m)
+                                           props  (dissoc m :style)]
+                                       (when (seq styles) (goog.style/setStyle e (clj->js styles)))
+                                       (when (seq props) (d/setProperties e (clj->js (clean-props props)))))))
 (defmacro props [m] `(set-properties! parent ~m))
 
 (defn events* [e event-type & [xform init rf]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)]
              (cond->> (m/observe (fn [!] (e/listen e event-type !) #(e/unlisten e event-type !)))
                xform  (m/eduction xform)
-               true   (m/reductions (or rf {}) init)))))
+               true   (m/reductions (or rf {}) init)
+               true   (m/relieve {})))))
 
 (defmacro events
-  "Return a transduction of events as a discreet flow. See `clojure.core/transduce`.\n
+  "Return a transduction of events as a continuous flow. See `clojure.core/transduce`.\n
    `event-type` can be a string like `\"click\"`, or a set of strings.
    
    ```clojure
@@ -101,20 +104,20 @@
                    terminator]
      IFn
      (-invoke [_]
-              (if (zero? raf)
-                (set! callback nil)
-                (do (if (zero? Hz)
-                      (.cancelAnimationFrame js/window raf)
-                      (.clearTimeout js/window raf))
-                  (terminator))))
+       (if (zero? raf)
+         (set! callback nil)
+         (do (if (zero? Hz)
+               (.cancelAnimationFrame js/window raf)
+               (.clearTimeout js/window raf))
+           (terminator))))
      IDeref
      (-deref [_]
-             (if (nil? callback)
-               (terminator)
-               (if (zero? Hz)
-                 (set! raf (.requestAnimationFrame js/window callback))
-                 (set! raf (.setTimeout js/window callback (/ 1000 Hz)))))
-             (.now js/Date))))
+       (if (nil? callback)
+         (terminator)
+         (if (zero? Hz)
+           (set! raf (.requestAnimationFrame js/window callback))
+           (set! raf (.setTimeout js/window callback (/ 1000 Hz)))))
+       (.now js/Date))))
 
 (defn ^:no-doc clock* [Hz]
   #?(:cljs
@@ -124,8 +127,45 @@
            (fn [_] (set! (.-raf c) 0) (n)))
          (n) c))))
 
-;; The number of milliseconds elapsed since January 1, 1970, with custom frequency
-(p/defn clock [Hz] (new (clock* Hz)))
+(p/defn clock
+  "The number of milliseconds elapsed since January 1, 1970, with custom `Hz` frequency.
+  If `Hz` is 0, sample at the browser Animation Frame speed."
+  [Hz] (new (clock* Hz)))
+
+(defmacro for-by [kf bindings & body]
+  (if-some [[s v & bindings] (seq bindings)]
+    `(p/for-by ~kf [~s ~v]
+       (binding [parent (do ~s parent)]
+         (for-by ~kf ~bindings ~@body)))
+    `(do ~@body)))
+
+(defmacro for [bindings & body]
+  `(for-by identity ~bindings ~@body))
+
+(defn pack-string-litterals [xs]
+  (loop [r        []
+         [x & xs] xs]
+    (cond
+      (empty? xs) (conj r x)
+      (and (string? x) (string? (first xs))) (recur (conj r (cons `str (cons x (take-while string? xs))))
+                                               (drop-while string? xs))
+      :else (recur (conj r x) xs))))
+
+(defn hiccup* [form]
+  (cond
+    (vector? form) (if (keyword? (first form))
+                     (let [[tag & content] form
+                           [props & content] (pack-string-litterals content)]
+                       (cons (symbol "hyperfiddle.photon-dom3" (name tag))
+                         (cond (map? props) (cons props (map hiccup* content))
+                           (nil? props) (map hiccup* content)
+                           :else        (map hiccup* (cons props content)))))
+                     (mapv hiccup* form))
+    (keyword? form) `(text ~(name form))
+    (seq? form)      form
+    :else           `(text ~form)))
+
+(defmacro hiccup [form] (hiccup* form))
 
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
@@ -173,6 +213,7 @@
 (defmacro ins [& body] `(element :ins ~@body))
 (defmacro kbd [& body] `(element :kbd ~@body))
 (defmacro label [& body] `(element :label ~@body))
+(defmacro li [& body] `(element :li ~@body))
 (defmacro link [& body] `(element :link ~@body))
 (defmacro main [& body] `(element :main ~@body))
 #_(defmacro map [& body] `(element :map ~@body))
