@@ -7,10 +7,11 @@
 
 (p/defn Counter []
   (let [!state (atom 0)]
-    (dom/div
-      (dom/input (dom/props {:value (p/watch !state)}))
-      (dom/button (dom/text "Count")
-        (new (dom/events "click" (map (partial inc! !state))))))))
+    (dom/hiccup
+      [:div
+       [:input {:value (p/watch !state)}]
+       [:button "Count"
+        (new (dom/events "click" (map (partial inc! !state))))]])))
 
 (def main
   #?(:cljs (p/client
