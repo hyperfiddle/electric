@@ -17,7 +17,10 @@
     wip.hfql-links
     wip.editor
     wip.explorer
-    ))
+    wip.temperature-converter
+    wip.click-counter
+    wip.counter
+    wip.timer))
 
 (defn runtime-resolve [exported-qualified-sym]
   (assert (qualified-symbol? exported-qualified-sym))
