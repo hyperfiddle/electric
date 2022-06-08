@@ -50,10 +50,18 @@
 (defn set-text-content! [e t] #?(:cljs (d/setTextContent e (str t))))
 (defmacro text [& strs] `(set-text-content! (new (mount parent (text-node) @p/path)) (str ~@strs)))
 
-(defn set-properties! [e m] #?(:cljs (d/setProperties e (clj->js m))))
+(defn set-style! [parent style-map]
+  #?(:cljs (goog.style/setStyle parent (clj->js style-map))))
+
+(defmacro style [style-map]
+  `(set-style! parent ~style-map))
+
+(defn set-properties! [e m] #?(:cljs (do (when-let [style (:style m)]
+                                           (set-style! e style))
+                                       (d/setProperties e (clj->js (dissoc m :style))))))
 (defmacro props [m] `(set-properties! parent ~m))
 
-(defn events* [e event-type & [xform rf init]]
+(defn events* [e event-type & [xform init rf]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)]
              (cond->> (m/observe (fn [!] (e/listen e event-type !) #(e/unlisten e event-type !)))
                xform  (m/eduction xform)
@@ -85,6 +93,39 @@
     (comp (map event-type)
       (map {"focus" true, "blur" false}))
     false))
+
+#?(:cljs
+   (deftype Clock [Hz
+                   ^:mutable ^number raf
+                   ^:mutable callback
+                   terminator]
+     IFn
+     (-invoke [_]
+              (if (zero? raf)
+                (set! callback nil)
+                (do (if (zero? Hz)
+                      (.cancelAnimationFrame js/window raf)
+                      (.clearTimeout js/window raf))
+                  (terminator))))
+     IDeref
+     (-deref [_]
+             (if (nil? callback)
+               (terminator)
+               (if (zero? Hz)
+                 (set! raf (.requestAnimationFrame js/window callback))
+                 (set! raf (.setTimeout js/window callback (/ 1000 Hz)))))
+             (.now js/Date))))
+
+(defn ^:no-doc clock* [Hz]
+  #?(:cljs
+     (fn [n t]
+       (let [c (->Clock Hz 0 nil t)]
+         (set! (.-callback c)
+           (fn [_] (set! (.-raf c) 0) (n)))
+         (n) c))))
+
+;; The number of milliseconds elapsed since January 1, 1970, with custom frequency
+(p/defn clock [Hz] (new (clock* Hz)))
 
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
