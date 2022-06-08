@@ -91,7 +91,7 @@
     (Renderer. V props)
     (Join-all. (V.))))
 
-(p/defn Data [V] (binding [Render (p/fn [V _props] (Join-all. (V.)))] (Render. V)))
+(p/defn Data [V] (binding [Render (p/fn [V _props] (Join-all. (V.)))] (Render. V nil)))
 
 #?(:clj (defn transact!
           ([db stage] (transact! db stage false))
