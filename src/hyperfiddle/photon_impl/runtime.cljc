@@ -302,6 +302,24 @@
 (defn get-target-register [^objects ctx]
   (aget ctx (int 6)))
 
+(defn tree
+  "A snapshot of the tree below given frame, as nested vectors. Frame vectors start with their id."
+  [f]
+  (let [tiers (frame-tiers f)]
+    (loop [v [(frame-id f)]
+           i (int 0)]
+      (if (== i (alength tiers))
+        v (recur
+            (conj v
+              (let [tier (aget tiers i)
+                    buf (get-object-buffer tier)]
+                (loop [v []
+                       i (int 0)]
+                  (if (== i (get-object-size tier))
+                    v (recur (conj v (tree (aget buf i)))
+                        (inc i))))))
+            (inc i))))))
+
 (defn find-scope [f]
   (loop [f f
          s #{}]
