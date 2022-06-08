@@ -24,7 +24,6 @@ It's called Photon because every point in a Photon form can be thought of as sim
 git clone ...
 cd photon
 clojure -T:build compile-java
-yarn       # or npm install
 
 # Sanity check that it's working:
 clj -A:dev -X user/main     # healthcheck app http://localhost:8080
