@@ -81,6 +81,21 @@
 
 (defmacro events [t] `(events* parent ~t))
 
+(defn target-value [e] #?(:cljs (.. e -target -value)))
+
+(defn observe* "experimental" [e attr]
+  #?(:cljs (m/observe (fn [!]
+                        (let [observer (new js/MutationObserver
+                                         (fn [mutation-list observer]
+                                           (doseq [mutation (array-seq mutation-list)]
+                                             (when (= attr (.-attributeName mutation))
+                                               (! mutation)))))]
+                          (.observe observer e #js{:attributes true})
+                          (! (.getAttribute e attr))
+                          #(.disconnect observer))))))
+
+(defmacro observe "experimental" [attr] `(new (m/relieve {} (observe* parent ~attr))))
+
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
 (defmacro address [& body] `(element :address ~@body))
@@ -158,6 +173,9 @@
 (defmacro sub [& body] `(element :sub ~@body))
 (defmacro sup [& body] `(element :sup ~@body))
 (defmacro table [& body] `(element :table ~@body))
+(defmacro td [& body] `(element :td ~@body))
+(defmacro th [& body] `(element :th ~@body))
+(defmacro tr [& body] `(element :tr ~@body))
 (defmacro template [& body] `(element :template ~@body))
 (defmacro textarea [& body] `(element :textarea ~@body))
 (defmacro time [& body] `(element :time ~@body))
