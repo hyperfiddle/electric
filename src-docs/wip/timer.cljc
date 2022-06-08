@@ -18,26 +18,26 @@
         goal   (p/watch !goal)
         time   (min goal (- (new dom/clock 1) ; clock ticking at 1Hz
                             start))]
-    (dom/div (dom/style {:display     :grid
-                         :margin-left "20rem"
-                         :gap         "0 1rem"
-                         :align-items :center})
-      (dom/span (dom/text "Elapsed Time:"))
-      (dom/progress (dom/props {:max   goal
-                                :value time
-                                :style {:grid-column 2}}))
-      (dom/span (dom/text (str (seconds time) " s")))
-      (dom/span (dom/style {:grid-row 3})
-        (dom/text "Duration"))
-      (dom/input (dom/props {:type  :range
-                             :min   0
-                             :max   60000
-                             :value initial-goal
-                             :style {:grid-row 3}})
-        (new (dom/events "input" (comp (map dom/target-value) (map (partial reset! !goal))) initial-goal)))
-      (dom/button (dom/style {:grid-row 4, :grid-column "1/3"})
-        (dom/text "Reset")
-        (new (dom/events "click" (comp (map now) (map (partial reset! !start)))))))))
+    (dom/hiccup
+      [:div {:style {:display     :grid
+                     :margin-left "20rem"
+                     :grid-gap         "0 1rem"
+                     :align-items :center}}
+       [:span "Elapsed Time:"]
+       [:progress {:max   goal
+                   :value time
+                   :style {:grid-column 2}}]
+       [:span [:text (str (seconds time) " s")]]
+       [:span {:style {:grid-row 3}} "Duration"]
+       [:input {:type  :range
+                :min   0
+                :max   60000
+                :value initial-goal
+                :style {:grid-row 3}}
+        (new (dom/events "input" (comp (map dom/target-value) (map (partial reset! !goal))) initial-goal))]
+       [:button {:style {:grid-row 4, :grid-column "1/3"}}
+        "Reset"
+        (new (dom/events "click" (comp (map now) (map (partial reset! !start)))))]])))
 
 (def main
   #?(:cljs (p/client

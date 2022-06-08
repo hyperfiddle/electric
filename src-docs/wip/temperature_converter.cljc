@@ -16,24 +16,26 @@
 (def parse-input (comp (map dom/target-value) (map parse-num) (filter is-num?)))
 
 (p/defn TemperatureConverter [temperature]
-  (dom/div
-    (dom/h1 (dom/text "Temperature Converter"))
-    (dom/table
-      (dom/tr (dom/th (dom/text "Celcius"))
-              (dom/th (dom/text "Farenheit")))
-      (dom/tr [(dom/td (semicontroller :focused temperature
-                         (p/fn [temperature]
-                           (dom/input (dom/props {:type  :number
-                                                  :step "0.5"
-                                                  :value (format-num temperature)})
-                             [[:focused (not (new (dom/focus-state dom/parent)))]
-                              (new (dom/events "input" (comp parse-input (map (partial conj [:celsius])))))]))))
-               (dom/td (semicontroller :focused temperature
-                         (p/fn [temperature]
-                           (dom/input (dom/props {:type  :number
-                                                  :value (format-num (celsius->farenheit temperature))})
-                             [[:focused (not (new (dom/focus-state dom/parent)))]
-                              (new (dom/events "input" (comp parse-input (map (partial conj [:fahrenheit])))))]))))]))))
+  (dom/hiccup
+    [:div
+     [:h1 "Temperature Converter"]
+     [:table
+      [:tr
+       [:th "Celcius"]
+       [:th "Farenheit"]]
+      [:tr [[:td (semicontroller :focused temperature
+                   (p/fn [temperature]
+                     (dom/input {:type  :number
+                                 :step "0.5"
+                                 :value (format-num temperature)}
+                       [[:focused (not (new (dom/focus-state dom/parent)))]
+                        (new (dom/events "input" (comp parse-input (map (partial conj [:celsius])))))])))]
+            [:td (semicontroller :focused temperature
+                   (p/fn [temperature]
+                     (dom/input {:type  :number
+                                 :value (format-num (celsius->farenheit temperature))}
+                       [[:focused (not (new (dom/focus-state dom/parent)))]
+                        (new (dom/events "input" (comp parse-input (map (partial conj [:fahrenheit])))))])))]]]]]))
 
 (defn set-state! [!state [event-tag value :as event]]
   (prn "event:" event)
