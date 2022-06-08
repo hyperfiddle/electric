@@ -10,15 +10,15 @@
                        :modules       {:main {:entries [user]}}}
             :test     {:target           :node-test
                        :output-to        "out/node-tests.js"
-                       :ns-regexp        "^hyperfiddle.photon-[^dom].*$"
+                       :ns-regexp        "^hyperfiddle.(photon-[^dom]|core-async).*$"
                        :build-options    {:cache-level :off}
-                       :modules          {:main {:entries [hyperfiddle.photon hyperfiddle.photon-test]}}
+                       :modules          {:main {:entries [hyperfiddle.photon hyperfiddle.photon-test #_hyperfiddle.missionary-test hyperfiddle.core-async-test]}}
                        :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
                        :compiler-options {:warnings {:redef-in-file false}}}
             :browser-test {:target           :karma
                            :output-to        "out/karma-tests.js"
-                           :ns-regexp        "^hyperfiddle.photon-.*$"
+                           :ns-regexp        "^hyperfiddle.(photon-[^dom]|core-async).*$"
                            :build-options    {:cache-level :off}
-                           :modules          {:main {:entries [hyperfiddle.photon hyperfiddle.photon-test]}}
+                           :modules          {:main {:entries [hyperfiddle.photon hyperfiddle.photon-test #_hyperfiddle.missionary-test hyperfiddle.core-async-test]}}
                            :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
                            :compiler-options {:warnings {:redef-in-file false}}}}}
