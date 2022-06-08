@@ -1,6 +1,7 @@
 (ns hyperfiddle.photon-dom2
-  (:refer-clojure :exclude [class for time])
+  (:refer-clojure :exclude [time])
   (:require [hyperfiddle.photon :as p]
+            [hyperfiddle.zero :as z]
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])
@@ -8,8 +9,7 @@
             #?(:cljs [goog.style])
             [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom2 #_#_:refer [ #_[a abbr address area article aside audio b bdi bdo blockquote br button canvas cite code data datalist del details dfn dialog div dl em embed fieldset figure footer form h1 h2 h3 h4 h5 h6 header hgroup hr i iframe img input ins kbd label link main map mark math menu #_meta itemprop meter nav noscript object ol output p picture pre progress q ruby s samp script section select slot small span strong sub sup table template textarea #_time u ul var video wbr]]]))
-  #?(:cljs (:import (goog.events EventType KeyCodes)
-                    (goog.dom.animationFrame))))
+  #?(:cljs (:import (goog.events KeyCodes))))
 
 (defn before? [x y]
   (let [xl (count x)
@@ -160,6 +160,7 @@
 (defmacro table [& body] `(element :table ~@body))
 (defmacro template [& body] `(element :template ~@body))
 (defmacro textarea [& body] `(element :textarea ~@body))
+(defmacro time [& body] `(element :time ~@body))
 (defmacro u [& body] `(element :u ~@body))
 (defmacro ul [& body] `(element :ul ~@body))
 (defmacro var [& body] `(element :var ~@body))
