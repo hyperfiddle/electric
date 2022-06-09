@@ -1,20 +1,34 @@
 (ns hyperfiddle.photon
-  (:refer-clojure :exclude [eval])
-  (:require [hyperfiddle.photon-bootstrap :as p]
+  (:refer-clojure :exclude [eval def defn fn for])
+  (:require [clojure.core :as cc]
             [hyperfiddle.photon-impl.compiler :as c]
             [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.photon-impl.for :refer [map-by]]
+            #?(:clj [hyperfiddle.rcf.analyzer :as ana])     ; todo remove
             [missionary.core :as m]
             [clojure.core.async :as a]
             #?(:cljs [hyperfiddle.photon-client]))
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping]]))
-  #?(:clj (:import (hyperfiddle.photon_impl.runtime Failure)
-                   (hyperfiddle.photon Pending))))
+  (:import #?(:clj (hyperfiddle.photon_impl.runtime Failure))
+           (hyperfiddle.photon Pending)
+           (missionary Cancelled)))
+
+#?(:clj
+   (do
+                                        ; Optionally, tell RCF not to rewrite Photon programs.
+     (defmethod ana/macroexpand-hook `hyperfiddle.photon/run [the-var form env args] `(hyperfiddle.photon/run ~@args)) ; optional
+                                        ;(defmethod ana/macroexpand-hook `hyperfiddle.photon/run2 [_the-var _form _env args] `(hyperfiddle.photon/run2 ~@args))
+
+                                        ; Don't expand cc/binding (prevent infinite loop). Explicit implicit do
+     (defmethod ana/macroexpand-hook 'clojure.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))
+     (defmethod ana/macroexpand-hook 'cljs.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))))
+
+
 
 (def client #?(:cljs hyperfiddle.photon-client/client))
 
 #?(:clj
-   (defn start-websocket-server! "returns server (jetty instance) for (.stop server)"
+   (cc/defn start-websocket-server! "returns server (jetty instance) for (.stop server)"
      ([] (start-websocket-server! nil))
      ([config] ((requiring-resolve 'hyperfiddle.photon-server/start!) config))))
 
@@ -23,9 +37,9 @@
   of this var to the value currently bound to this var.
   " [& forms] (c/vars &env forms))
 
-(defn merge-vars
+(cc/defn merge-vars
   ([fa fb]
-   (fn [not-found ident]
+   (cc/fn [not-found ident]
      (let [a (fa not-found ident)]
        (if (= not-found a)
          (fb not-found ident)
@@ -52,19 +66,8 @@
       (update 0 (partial r/emit (comp symbol (partial str (gensym) '-))))
       (update 1 (partial list 'quote))))
 
-(defmacro for-by [kf bindings & body]
-  (if-some [[s v & bindings] (seq bindings)]
-    (->> (list `p/fn [] v)
-         (list `map-by kf
-               (->> body
-                    (list* `for-by kf bindings)
-                    (list `let [s (second c/arg-sym)])
-                    (list `p/fn [])
-                    (list `partial (list 'def (second c/arg-sym)))))
-         (list `new))
-    (cons `do body)))
 
-(defn pair [c s]
+(cc/defn pair [c s]
   (let [c->s (m/rdv)
         s->c (m/rdv)]
     (m/join {}
@@ -85,16 +88,11 @@
      (pair client# (r/eval ~vars server#))))
 
 (defmacro run "test entrypoint without whitelist." [& body]
-  `((local ~@body) (fn [_#]) (fn [_#])))
+  `((local ~@body) (cc/fn [_#]) (cc/fn [_#])))
 
 (defmacro run-with "test entrypoint with whitelist." [vars & body]
-  `((local-with ~vars ~@body) (fn [_#]) (fn [_#])))
+  `((local-with ~vars ~@body) (cc/fn [_#]) (cc/fn [_#])))
 
-(p/defn Watch [!x]
-  (new (m/watch !x)))
-
-(defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
-  [!x] `(new (m/watch ~!x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;         EXPERIMENTAL ZONE             ;;
@@ -103,7 +101,7 @@
 ;; guilty until proven innocent          ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn ^:no-doc continuous "EXPERIMENTAL"
+(cc/defn ^:no-doc continuous "EXPERIMENTAL"
   ([>x] (continuous nil >x))
   ([init >x] (m/relieve {} (m/reductions {} init >x))))
 
@@ -122,16 +120,97 @@
              (m/reductions {} nil)
              (m/relieve {}))))
 
-(defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
+(cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
 
-(defn wrap "run slow blocking fn on a threadpool"
+(cc/defn wrap "run slow blocking cc/fn on a threadpool"
   [f & args]
   #?(:clj
      (->> (m/ap (m/? (m/via m/cpu (apply f args))))
           (m/reductions {} (Failure. (Pending.))))))
 
+;; Core.async interop.
+;; Photon doesn't depend on core.async, this interop should move to a separate namespace or repo.
+;; Keeping it here for simple, straight-to-the-point user demos.
+
+(cc/defn chan-read
+  "Return a task taking a value from `chan`. Retrun nil if chan is closed. Does
+   not close chan, and stop reading from it when cancelled."
+  [chan]
+  (cc/fn [success failure] ; a task is a 2-args function, success and failure are callbacks.
+    (let [cancel-chan (a/chan)] ; we will put a value on this chan to cancel reading from `chan`
+      (a/go (let [[v port] (a/alts! [chan cancel-chan])] ; race between two chans
+              (if (= port cancel-chan) ; if the winning chan is the cancelation one, then task has been cancelled
+                (failure (Cancelled.)) ; task has been cancelled, must produce a failure state
+                (success v) ; complete task with value from chan
+                )))
+      ;; if this task is cancelled by its parent process, close the cancel-chan
+      ;; which will make cancel-chan produce `nil` and cause cancellation of read on `chan`.
+      #(a/close! cancel-chan))))
+
+(cc/defn chan->flow
+  "Produces a discreet flow from a core.async `channel`"
+  [channel]
+  (m/ap ; returns a discreet flow
+    (loop []
+      (if-some [x (m/? (chan-read channel))] ; read one value from `channel`, waiting until `channel` produces it
+        ;; We succesfully read a non-nil value, we use `m/amb` with two
+        ;; branches. m/amb will fork the current process (ap) and do two things
+        ;; sequencially, in two branches:
+        ;; - return x, meaning `loop` ends and return x, ap will produce x
+        ;; - recur to read the next value from chan
+        (m/amb x (recur))
+        ;; `channel` producing `nil` means it's been closed. We want to
+        ;; terminate this flow without producing any value (not even nil), we
+        ;; use (m/amb) which produces nothing and terminates immediately. The
+        ;; parent m/ap block has nothing to produce anymore and will also
+        ;; terminate.
+        (m/amb)))))
+
+(defmacro use-channel ;; TODO rename
+  ([chan] `(use-channel nil ~chan))
+  ([init chan] `(new (m/reductions {} ~init (chan->flow ~chan)))))
+
 ;; --------------------------------------
-(defmacro def [& args] `(p/def ~@args))
-(defmacro fn [& args] `(p/fn ~@args))
-(defmacro defn [& args] `(p/defn ~@args))
-(defmacro for [& args] `(p/for ~@args))
+
+(defmacro def
+  ([sym] `(hyperfiddle.photon/def ~sym ::c/unbound))
+  ([sym form]
+   ;; GG: Expand to an unbound var with body stored in ::c/node meta.
+   ;;     Clojure compiler will analyze vars metas, which would analyze form as clojure, so we quote it.
+   ;;     ClojureScript do not have vars at runtime and will not analyze or emit vars meta. No need to quote.
+   `(def ~(vary-meta sym assoc ::c/node (if (:js-globals &env) form `(quote ~form))))))
+
+;; TODO self-refer
+(defmacro fn [args & body]
+  (->> body
+    (cons (vec (interleave args (next c/arg-sym))))
+    (cons `let)
+    (list ::c/closure)))
+
+; syntax quote doesn't qualify special forms like 'def
+(defmacro defn [sym & fdecl]
+  (let [[_defn sym & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: Support IDE documentation on hover
+    `(hyperfiddle.photon/def ~sym (fn ~@(if (string? (first fdecl)) ; GG: skip docstring
+                                          (rest fdecl)
+                                          fdecl)))))
+
+(defmacro for-by [kf bindings & body]
+  (if-some [[s v & bindings] (seq bindings)]
+    (->> (list `fn [] v)
+         (list `map-by kf
+               (->> body
+                    (list* `for-by kf bindings)
+                    (list `let [s (second c/arg-sym)])
+                    (list `fn [])
+                    (list `partial (list 'def (second c/arg-sym)))))
+         (list `new))
+    (cons `do body)))
+
+(defmacro for [bindings & body]
+  `(hyperfiddle.photon/for-by identity ~bindings ~@body))
+
+(defn Watch [!x]
+  (new (m/watch !x)))
+
+(defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
+  [!x] `(new (m/watch ~!x)))
