@@ -18,7 +18,6 @@
     wip.editor
     wip.explorer
     wip.temperature-converter
-    wip.click-counter
     wip.counter
     wip.timer))
 

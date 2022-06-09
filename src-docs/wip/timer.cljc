@@ -9,7 +9,7 @@
 
 (defn seconds [milliseconds] (/ (Math/floor (/ milliseconds 100)) 10))
 
-(defn now [] (js/Date.now))
+(defn now [] #?(:cljs (js/Date.now)))
 
 (p/defn Timer []
   (let [!goal  (atom initial-goal)
@@ -21,7 +21,7 @@
     (dom/hiccup
       [:div {:style {:display     :grid
                      :margin-left "20rem"
-                     :grid-gap         "0 1rem"
+                     :grid-gap    "0 1rem"
                      :align-items :center}}
        [:span "Elapsed Time:"]
        [:progress {:max   goal
@@ -43,7 +43,7 @@
   #?(:cljs (p/client
              (p/main
                (try
-                 (binding [dom/parent (dom/by-id "root")]
+                 (binding [dom/node (dom/by-id "root")]
                    (Timer.))
                  (catch Pending _)
                  (catch Remote _))))))

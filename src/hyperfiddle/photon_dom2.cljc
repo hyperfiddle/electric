@@ -24,13 +24,13 @@
             (< xi yi)))
         (< xl yl)))))
 
-(defn mount [parent child path]
+(defn mount [node child path]
   #?(:cljs (m/observe
              (fn [!]
                (o/set child "--photon-path" path)
-               (.insertBefore parent child
+               (.insertBefore node child
                  ;; TODO sublinear anchor search. skip list ?
-                 (loop [anchor (.-firstChild parent)]
+                 (loop [anchor (.-firstChild node)]
                    (when-not (nil? anchor)
                      (if (before? (o/get anchor "--photon-path") path)
                        (recur (.-nextSibling anchor)) anchor))))
@@ -48,11 +48,11 @@
 
 (defn dom-element [tag] #?(:cljs (d/createElement tag)))
 
-(p/def parent)
+(p/def node)
 
 (defmacro element [tag & body]
   `(let [el# (dom-element ~(name tag))]
-     (binding [parent el#]
+     (binding [node el#]
        (p/forget (let [collected# (collect (p/for [x# ~(cons `list body)]
                                              (cond
                                                (instance? js/Element x#) (when-let [flow# (aget x# "--photon-dom-flow")]
@@ -64,22 +64,22 @@
        (doto el#
          (aset "--photon-dom-flow" (p/fn [p] (new (mount p el# @p/path))))))))
 
-(defmacro root [parent el] `(new (aget ~el "--photon-dom-flow") ~parent))
+(defmacro root [node el] `(new (aget ~el "--photon-dom-flow") ~node))
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
 (defn text-node [] #?(:cljs (d/createTextNode "")))
 (defn set-text-content! [e t] #?(:cljs (d/setTextContent e (str t))))
-(defmacro text [& strs] `(set-text-content! (new (mount parent (text-node) @p/path)) (str ~@strs)))
+(defmacro text [& strs] `(set-text-content! (new (mount node (text-node) @p/path)) (str ~@strs)))
 
 (defn set-properties! [e m] #?(:cljs (d/setProperties e (clj->js m))))
-(defmacro props [m] `(set-properties! parent ~m))
+(defmacro props [m] `(set-properties! node ~m))
 
 (defn events* [e t]
   #?(:cljs (let [t (if (vector? t) (to-array t) t)]
              (m/observe (fn [!] (e/listen e t !) #(e/unlisten e t !))))))
 
-(defmacro events [t] `(events* parent ~t))
+(defmacro events [t] `(events* node ~t))
 
 (defn target-value [e] #?(:cljs (.. e -target -value)))
 
@@ -94,7 +94,7 @@
                           (! (.getAttribute e attr))
                           #(.disconnect observer))))))
 
-(defmacro observe "experimental" [attr] `(new (m/relieve {} (observe* parent ~attr))))
+(defmacro observe "experimental" [attr] `(new (m/relieve {} (observe* node ~attr))))
 
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
