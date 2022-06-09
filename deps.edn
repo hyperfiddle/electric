@@ -1,4 +1,4 @@
-{:paths   ["src" "target/classes"]
+{:paths   ["src"]
  :deps    {org.clojure/clojure            {:mvn/version "1.11.1"}
            missionary/missionary          {:mvn/version "b.27-SNAPSHOT"}
            hyperfiddle/rcf                {:git/url "https://github.com/hyperfiddle/rcf"
@@ -30,10 +30,6 @@
            
            org.clojure/tools.logging      {:mvn/version "1.2.4"}
            }
-
- :deps/prep-lib {:ensure "target/classes"
-                 :alias :build
-                 :fn compile-java}
 
  :aliases {:build {:extra-paths ["src-dev"]
                    :deps {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}}
