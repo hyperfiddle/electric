@@ -25,7 +25,7 @@
 (def shadow-start! (delay @(requiring-resolve 'shadow.cljs.devtools.server/start!)))
 (def shadow-watch (delay @(requiring-resolve 'shadow.cljs.devtools.api/watch)))
 ;(def shadow-compile (delay @(requiring-resolve 'shadow.cljs.devtools.api/compile)))
-;(def shadow-release (delay @(requiring-resolve 'shadow.cljs.devtools.api/release)))
+(def shadow-release (delay @(requiring-resolve 'shadow.cljs.devtools.api/release)))
 (def photon-start-websocket-server! (delay @(requiring-resolve 'hyperfiddle.photon/start-websocket-server!)))
 
 (defn browser-main! [photon-main-sym]
@@ -44,3 +44,7 @@
   "Start Photon app server"
   (def server (@photon-start-websocket-server! {:host "localhost" :port 8081}))
   (comment (.stop server)))
+
+(defn release []
+  ; optimized artifact but with debug information available to find problems
+  (@shadow-release :app {:debug true}))
