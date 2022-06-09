@@ -22,8 +22,8 @@
       (dom/table
         ~@(p/for [[k v] (sort-by key (system-properties filter))]
             ~@(dom/tr
-                (dom/td (dom/text (str k)))
-                (dom/td (dom/text (str v)))))))))
+                (dom/td (dom/text k))
+                (dom/td (dom/text v))))))))
 
 (def main #?(:cljs (p/client (p/main
                                (try

@@ -142,18 +142,24 @@
                                                (drop-while string? xs))
       :else (recur (conj r x) xs))))
 
+(defn- new-invoke? [x]
+  (and (symbol? x) (= \. (last (name x)))))
+
 (defn hiccup* [form]
   (cond
-    (vector? form) (if (keyword? (first form))
-                     (let [[tag & content] form
-                           [props & content] (pack-string-litterals content)]
-                       (cons (symbol "hyperfiddle.photon-dom3" (name tag))
-                         (cond (map? props) (cons props (map hiccup* content))
-                           (nil? props) (map hiccup* content)
-                           :else        (map hiccup* (cons props content)))))
-                     (mapv hiccup* form))
+    (vector? form)  (cond
+                      (new-invoke? (first form)) (cons (first form) (map hiccup* (rest form)))
+                      (keyword? (first form))    (let [[tag & content]   form
+                                                       [props & content] (pack-string-litterals content)
+                                                       body              (cond (map? props) (cons props (map hiccup* content))
+                                                                               (nil? props) (map hiccup* content)
+                                                                               :else        (map hiccup* (cons props content)))]
+                                                (cond
+                                                  (= :text tag) `(text ~@body)
+                                                  :else         (list* `element (name tag) body)))
+                      :else                      (mapv hiccup* form))
     (keyword? form) `(text ~(name form))
-    (seq? form)      form
+    (seq? form)     form
     :else           `(text ~form)))
 
 (defmacro hiccup [form] (hiccup* form))
@@ -181,7 +187,9 @@
 (defmacro dfn [& body] `(element :dfn ~@body))
 (defmacro dialog [& body] `(element :dialog ~@body))
 (defmacro div [& body] `(element :div ~@body))
-(defmacro dl [& body] `(element :dl ~@body))
+(defmacro dl "The <dl> HTML element represents a description list. The element encloses a list of groups of terms (specified using the <dt> element) and descriptions (provided by <dd> elements). Common uses for this element are to implement a glossary or to display metadata (a list of key-value pairs)." [& body] `(element :dl ~@body))
+(defmacro dt "The <dt> HTML element specifies a term in a description or definition list, and as such must be used inside a <dl> element. It is usually followed by a <dd> element; however, multiple <dt> elements in a row indicate several terms that are all defined by the immediate next <dd> element." [& body] `(element :dt ~@body))
+(defmacro dd "The <dd> HTML element provides the description, definition, or value for the preceding term (<dt>) in a description list (<dl>)." [& body] `(element :dd ~@body))
 (defmacro em [& body] `(element :em ~@body))
 (defmacro embed [& body] `(element :embed ~@body))
 (defmacro fieldset [& body] `(element :fieldset ~@body))

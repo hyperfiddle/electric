@@ -13,7 +13,7 @@
   (let [event (dom/button (dom/text "click me")
                           (z/impulse ~@n (dom/>events "click")))] ; todo abstract
     (when event
-      (F. event))))
+      (Callback. event))))
 
 (p/defn App []
   (dom/div

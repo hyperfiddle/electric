@@ -33,11 +33,11 @@
   (dom/h2 (dom/text "frontend/backend webview with server push"))
   (let [email (Input.)]
     (dom/table
-      (p/for [id ~@(orders db email)]
-        (dom/tr
-          (dom/td (dom/text id))
-          (dom/td (dom/text ~@(:order/email (d/entity db id))))
-          (dom/td (dom/text ~@(:order/gender (d/entity db id)))))))))
+     ~@(p/for [id (orders db email)]
+         ~@(dom/tr
+            (dom/td (dom/text id))
+            (dom/td (dom/text ~@(:order/email (d/entity db id))))
+            (dom/td (dom/text ~@(:order/gender (d/entity db id)))))))))
 
 (p/defn App []
   (binding [dom/node (dom/by-id "root")]
@@ -48,9 +48,8 @@
 
 (comment
   #?(:clj (user/browser-main! `main))
+  #?(:clj (d/transact conn [{:db/id 2 :order/email "bob2@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "dan@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "erin@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))
-
-  #?(:clj (d/transact conn [{:db/id 2 :order/email "bob2@example.com"}]))
   )
