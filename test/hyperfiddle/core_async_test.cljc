@@ -121,3 +121,23 @@
            % := 1
            % := 2
            % := 3)))
+
+;; TODO WIP
+(comment
+  #?(:clj
+     (tests
+      "Putting values on a channel from photon"
+      (def !a (atom 0))
+      (def c (a/chan))
+      (with (p/run (! (new (onto-chan (p/fn [] (p/watch !a)) c))))
+            (a/go-loop [x (a/<! c)]
+              (when x
+                (! x)
+                (recur (a/<! c))))
+            ;; (swap! !a inc)
+            ;; (a/close! c)
+            ;; (swap! !a inc)
+            % := 0
+            % := 1
+            % := 2
+            ))))
