@@ -6,6 +6,6 @@
 
 (defn compile-java [_]
   (b/javac {:src-dirs ["src"]
-            :class-dir "target/classes"
+            :class-dir "src"
             :basis (b/create-basis {:project "deps.edn"})
             :javac-opts ["-source" "8" "-target" "8"]}))

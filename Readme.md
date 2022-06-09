@@ -23,7 +23,6 @@ It's called Photon because every point in a Photon form can be thought of as sim
 ```bash
 git clone ...
 cd photon
-clojure -T:build compile-java
 
 # Sanity check that it's working:
 clj -A:dev -X user/main     # healthcheck app http://localhost:8080
@@ -146,6 +145,5 @@ Photon/Missionary interop:
 
 * `Execution error (ClassNotFoundException) hyperfiddle.photon.Pending` - run the Clojure build step, see setup instructions
 * Cursive says `Dependency cycle: hyperfiddle.api -> hyperfiddle.hfql -> hyperfiddle.hfql.impl -> hyperfiddle.api` – Cursive is not correctly handling Clojure 1.11 :as-alias, load the file form by form instead
-* `clojure -T:build compile-java` error `-T is no longer supported, use -A with repl, -M for main, or -X for exec` – clojure CLI is not up to date, `brew upgrade clojure`. If you can't update, try `clojure -A:build -X build/compile-java`
 * :eval opcode - probably interop syntax, or a macro like assert that expands to interop syntax
 * `Unbound var.` Usually means wrong peer, i.e. accessed server-only var on client
