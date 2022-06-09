@@ -11,47 +11,48 @@
   #?(:cljs (:require-macros [hyperfiddle.photon-dom3 #_#_:refer [#_[a abbr address area article aside audio b bdi bdo blockquote br button canvas cite code data datalist del details dfn dialog div dl em embed fieldset figure footer form h1 h2 h3 h4 h5 h6 header hgroup hr i iframe img input ins kbd label link main map mark math menu #_meta itemprop meter nav noscript object ol output p picture pre progress q ruby s samp script section select slot small span strong sub sup table template textarea #_time u ul var video wbr]]]))
   #?(:cljs (:import (goog.events KeyCodes))))
 
-(defn before? [x y]
-  (let [xl (count x)
-        yl (count y)
-        ml (min xl yl)]
-    (loop [i 0]
-      (if (< i ml)
-        (let [xi (nth x i)
-              yi (nth y i)]
-          (if (== xi yi)
-            (recur (inc i))
-            (< xi yi)))
-        (< xl yl)))))
-
-(defn mount [parent child path]
-  #?(:cljs (m/observe
-             (fn [!]
-               (o/set child "--photon-path" path)
-               (.insertBefore parent child
-                 ;; TODO sublinear anchor search. skip list ?
-                 (loop [anchor (.-firstChild parent)]
-                   (when-not (nil? anchor)
-                     (if (before? (o/get anchor "--photon-path") path)
-                       (recur (.-nextSibling anchor)) anchor))))
-               (! child) #(prn 'unmount (d/removeNode child))))))
-
-(defn dom-element [tag] #?(:cljs (d/createElement tag)))
-
-(p/def parent)
-
-(defmacro element [type & [props & body]]
-  `(binding [parent (new (mount parent (dom-element ~(name type)) @p/path))]
-     parent ; touch parent to trigger mount effect when no children
-     ~@(if (map? props)
-         (cons `(props ~props) body)
-         (cons props body))))
-
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
-(defn text-node [] #?(:cljs (d/createTextNode "")))
+(p/def node)
+
+(defn dom-element [parent type]
+  #?(:cljs (let [node (d/createElement type)]
+             (.appendChild parent node) node)))
+
+(defn text-node [parent]
+  #?(:cljs (let [node (d/createTextNode "")]
+             (.appendChild parent node) node)))
+
+(defn unsupported [& _]
+  (throw (ex-info (str "Not available on this peer.") {})))
+
+(def hook "See `with`"
+  #?(:clj  unsupported
+     :cljs (fn ([x] (.removeChild (.-parentNode x) x))    ; unmount
+             ([x y] (.insertBefore (.-parentNode x) x y)) ; rotate siblings
+             )))
+
+(defmacro with
+  "Attach `body` to a dom node, which will be moved in the DOM when body moves in the DAG.
+  Given p/for semantics, `body` can only move sideways or be cancelled. If body
+  is cancelled, the node will be unmounted. If body moves, the node will rotate
+  with its siblings."
+  [dom-node & body]
+  `(binding [node ~dom-node]
+     (new (p/hook hook node  ; attach body frame to dom-node.
+                  (p/fn [] ~@body) ; wrap body in a constant, making it a frame (static, non-variable), so it can be moved as a block.
+                  ))))
+
+(defmacro element [t & [props & body]]
+  `(with (dom-element node ~(name t))
+         ~@(if (map? props)
+             (cons `(props ~props) body)
+             (cons props body))))
+
 (defn set-text-content! [e t] #?(:cljs (d/setTextContent e (str t))))
-(defmacro text [& strs] `(set-text-content! (new (mount parent (text-node) @p/path)) (str ~@strs)))
+
+(defmacro text [& strs]
+  `(with (text-node node) (set-text-content! node (str ~@strs))))
 
 (defn clean-props [props]
   (cond-> props
@@ -61,7 +62,7 @@
                                            props  (dissoc m :style)]
                                        (when (seq styles) (goog.style/setStyle e (clj->js styles)))
                                        (when (seq props) (d/setProperties e (clj->js (clean-props props)))))))
-(defmacro props [m] `(set-properties! parent ~m))
+(defmacro props [m] `(set-properties! node ~m))
 
 (defn events* [e event-type & [xform init rf]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)]
@@ -73,20 +74,20 @@
 (defmacro events
   "Return a transduction of events as a continuous flow. See `clojure.core/transduce`.\n
    `event-type` can be a string like `\"click\"`, or a set of strings.
-   
+
    ```clojure
    ;; count clicks
    (new (events \"click\" (map (constantly 1)) 0 +))
 
    ;; track focus state
-   (new (events #{\"focus\" \"blur\"} 
-        (comp (map event-type) (map {\"focus\" true, \"blur\" false})) 
+   (new (events #{\"focus\" \"blur\"}
+        (comp (map event-type) (map {\"focus\" true, \"blur\" false}))
         false))
    ```"
-  ([event-type]               `(events* parent ~event-type nil    nil   nil))
-  ([event-type xform]         `(events* parent ~event-type ~xform nil   nil))
-  ([event-type xform init]    `(events* parent ~event-type ~xform ~init nil))
-  ([event-type xform init rf] `(events* parent ~event-type ~xform ~init ~rf)))
+  ([event-type]               `(events* node ~event-type nil    nil   nil))
+  ([event-type xform]         `(events* node ~event-type ~xform nil   nil))
+  ([event-type xform init]    `(events* node ~event-type ~xform ~init nil))
+  ([event-type xform init rf] `(events* node ~event-type ~xform ~init ~rf)))
 
 (defn target-value [e] #?(:cljs (.. e -target -value)))
 (defn event-type [e] #?(:cljs (.-type e)))
@@ -131,16 +132,6 @@
   "The number of milliseconds elapsed since January 1, 1970, with custom `Hz` frequency.
   If `Hz` is 0, sample at the browser Animation Frame speed."
   [Hz] (new (clock* Hz)))
-
-(defmacro for-by [kf bindings & body]
-  (if-some [[s v & bindings] (seq bindings)]
-    `(p/for-by ~kf [~s ~v]
-       (binding [parent (do ~s parent)]
-         (for-by ~kf ~bindings ~@body)))
-    `(do ~@body)))
-
-(defmacro for [bindings & body]
-  `(for-by identity ~bindings ~@body))
 
 (defn pack-string-litterals [xs]
   (loop [r        []

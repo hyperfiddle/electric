@@ -17,7 +17,7 @@
   #?(:cljs (p/client
              (p/main
                (try
-                 (binding [dom/parent (dom/by-id "root")]
+                 (binding [dom/node (dom/by-id "root")]
                    (Counter.))
                  (catch Pending _)
                  (catch Remote _))))))
