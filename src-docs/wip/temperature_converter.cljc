@@ -28,13 +28,13 @@
                      (dom/input {:type  :number
                                  :step "0.5"
                                  :value (format-num temperature)}
-                       [[:focused (not (new (dom/focus-state dom/parent)))]
+                       [[:focused (not (new (dom/focus-state dom/node)))]
                         (new (dom/events "input" (comp parse-input (map (partial conj [:celsius])))))])))]
             [:td (semicontroller :focused temperature
                    (p/fn [temperature]
                      (dom/input {:type  :number
                                  :value (format-num (celsius->farenheit temperature))}
-                       [[:focused (not (new (dom/focus-state dom/parent)))]
+                       [[:focused (not (new (dom/focus-state dom/node)))]
                         (new (dom/events "input" (comp parse-input (map (partial conj [:fahrenheit])))))])))]]]]]))
 
 (defn set-state! [!state [event-tag value :as event]]
@@ -47,7 +47,7 @@
   #?(:cljs (p/client
              (p/main
                (try
-                 (binding [dom/parent (dom/by-id "root")]
+                 (binding [dom/node (dom/by-id "root")]
                    (let [!state (atom 0)]
                      (interpreter #{:celsius :fahrenheit} (partial set-state! !state)
                        (TemperatureConverter. (p/watch !state)))))
