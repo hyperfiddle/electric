@@ -1,43 +1,31 @@
 (ns hyperfiddle.photon
-  (:refer-clojure :exclude [def fn for eval defn time])
-  (:require [clojure.core :as cc]
+  (:refer-clojure :exclude [eval])
+  (:require [hyperfiddle.photon-bootstrap :as p]
             [hyperfiddle.photon-impl.compiler :as c]
             [hyperfiddle.photon-impl.runtime :as r]
-            [hyperfiddle.photon-impl.sampler :refer [sampler!]]
             [hyperfiddle.photon-impl.for :refer [map-by]]
             [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests]]
-            #?(:clj [hyperfiddle.rcf.analyzer :as ana])     ; todo remove
+            [clojure.core.async :as a]
             #?(:cljs [hyperfiddle.photon-client]))
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping]]))
-  #?(:clj (:import (hyperfiddle.photon_impl.runtime Failure))))
-
-
-#?(:clj
-   (do
-     ; Optionally, tell RCF not to rewrite Photon programs.
-     (defmethod ana/macroexpand-hook `hyperfiddle.photon/run [the-var form env args] `(hyperfiddle.photon/run ~@args)) ; optional
-     ;(defmethod ana/macroexpand-hook `hyperfiddle.photon/run2 [_the-var _form _env args] `(hyperfiddle.photon/run2 ~@args))
-
-     ; Don't expand cc/binding (prevent infinite loop). Explicit implicit do
-     (defmethod ana/macroexpand-hook 'clojure.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))
-     (defmethod ana/macroexpand-hook 'cljs.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))))
+  #?(:clj (:import (hyperfiddle.photon_impl.runtime Failure)
+                   (hyperfiddle.photon Pending))))
 
 (def client #?(:cljs hyperfiddle.photon-client/client))
 
 #?(:clj
-   (cc/defn start-websocket-server! "returns server (jetty instance) for (.stop server)"
+   (defn start-websocket-server! "returns server (jetty instance) for (.stop server)"
      ([] (start-websocket-server! nil))
      ([config] ((requiring-resolve 'hyperfiddle.photon-server/start!) config))))
 
 (defmacro vars "
-Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
-of this var to the value currently bound to this var.
-" [& forms] (c/vars &env forms))
+  Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
+  of this var to the value currently bound to this var.
+  " [& forms] (c/vars &env forms))
 
-(cc/defn merge-vars
+(defn merge-vars
   ([fa fb]
-   (cc/fn [not-found ident]
+   (fn [not-found ident]
      (let [a (fa not-found ident)]
        (if (= not-found a)
          (fb not-found ident)
@@ -47,71 +35,46 @@ of this var to the value currently bound to this var.
 
 
 (def eval "Takes a resolve map and a program, returns a booting function.
-The booting function takes
-* as first argument a function Any->Task[Unit] returned task writes the value on the wire.
-* as second argument a flow producing the values read on the wire.
-and returning a task that runs the local reactor."
+  The booting function takes
+  * as first argument a function Any->Task[Unit] returned task writes the value on the wire.
+  * as second argument a flow producing the values read on the wire.
+  and returning a task that runs the local reactor."
   r/eval)
-
-(defmacro def
-  ([sym] `(hyperfiddle.photon/def ~sym ::c/unbound))
-  ([sym form] 
-   ;; GG: Expand to an unbound var with body stored in ::c/node meta.
-   ;;     Clojure compiler will analyze vars metas, which would analyze form as clojure, so we quote it.
-   ;;     ClojureScript do not have vars at runtime and will not analyze or emit vars meta. No need to quote.
-   `(def ~(vary-meta sym assoc ::c/node (if (:js-globals &env) form `(quote ~form))))))
 
 (def path r/path)
 
 (defmacro main "
-Takes a photon program and returns a pair
-* the first item is the local booting function (cf eval)
-* the second item is the remote program.
-" [& body]
+  Takes a photon program and returns a pair
+  * the first item is the local booting function (cf eval)
+  * the second item is the remote program.
+  " [& body]
   (-> (c/analyze &env (cons 'do body))
-    (update 0 (partial r/emit (comp symbol (partial str (gensym) '-))))
-    (update 1 (partial list 'quote))))
-
-;; TODO self-refer
-(defmacro fn [args & body]
-  (->> body
-    (cons (vec (interleave args (next c/arg-sym))))
-    (cons `let)
-    (list ::c/closure)))
-
-; syntax quote doesn't qualify special forms like 'def
-(defmacro defn [sym & fdecl]
-  (let [[_defn sym & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: Support IDE documentation on hover
-    `(hyperfiddle.photon/def ~sym (fn ~@(if (string? (first fdecl)) ; GG: skip docstring
-                                          (rest fdecl)
-                                          fdecl)))))
+      (update 0 (partial r/emit (comp symbol (partial str (gensym) '-))))
+      (update 1 (partial list 'quote))))
 
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
-    (->> (list `fn [] v)
-      (list `map-by kf
-        (->> body
-          (list* `for-by kf bindings)
-          (list `let [s (second c/arg-sym)])
-          (list `fn [])
-          (list `partial (list 'def (second c/arg-sym)))))
-      (list `new))
+    (->> (list `p/fn [] v)
+         (list `map-by kf
+               (->> body
+                    (list* `for-by kf bindings)
+                    (list `let [s (second c/arg-sym)])
+                    (list `p/fn [])
+                    (list `partial (list 'def (second c/arg-sym)))))
+         (list `new))
     (cons `do body)))
 
-(defmacro for [bindings & body]
-  `(for-by identity ~bindings ~@body))
-
-(cc/defn pair [c s]
+(defn pair [c s]
   (let [c->s (m/rdv)
         s->c (m/rdv)]
     (m/join {}
-      (s s->c (m/sp (m/? (m/sleep 10 (m/? c->s)))))
-      (c c->s (m/sp (m/? (m/sleep 10 (m/? s->c))))))))
+            (s s->c (m/sp (m/? (m/sleep 10 (m/? c->s)))))
+            (c c->s (m/sp (m/? (m/sleep 10 (m/? s->c))))))))
 
 (defmacro local
   "Single peer loopback system without whitelist. Returns boot task."
   [& body]
-  ; use compiler (client) because no need for exports
+                                        ; use compiler (client) because no need for exports
   `(let [[client# server#] (main ~@body)]
      (pair client# (r/eval server#))))
 
@@ -122,12 +85,12 @@ Takes a photon program and returns a pair
      (pair client# (r/eval ~vars server#))))
 
 (defmacro run "test entrypoint without whitelist." [& body]
-  `((local ~@body) (cc/fn [_#]) (cc/fn [_#])))
+  `((local ~@body) (fn [_#]) (fn [_#])))
 
 (defmacro run-with "test entrypoint with whitelist." [vars & body]
-  `((local-with ~vars ~@body) (cc/fn [_#]) (cc/fn [_#])))
+  `((local-with ~vars ~@body) (fn [_#]) (fn [_#])))
 
-(hyperfiddle.photon/defn Watch [!x]
+(p/defn Watch [!x]
   (new (m/watch !x)))
 
 (defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
@@ -140,7 +103,7 @@ Takes a photon program and returns a pair
 ;; guilty until proven innocent          ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(cc/defn ^:no-doc continuous "EXPERIMENTAL"
+(defn ^:no-doc continuous "EXPERIMENTAL"
   ([>x] (continuous nil >x))
   ([init >x] (m/relieve {} (m/reductions {} init >x))))
 
@@ -159,10 +122,16 @@ Takes a photon program and returns a pair
              (m/reductions {} nil)
              (m/relieve {}))))
 
-(cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
+(defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
 
 (defn wrap "run slow blocking fn on a threadpool"
   [f & args]
   #?(:clj
      (->> (m/ap (m/? (m/via m/cpu (apply f args))))
           (m/reductions {} (Failure. (Pending.))))))
+
+;; --------------------------------------
+(defmacro def [& args] `(p/def ~@args))
+(defmacro fn [& args] `(p/fn ~@args))
+(defmacro defn [& args] `(p/defn ~@args))
+(defmacro for [& args] `(p/for ~@args))
