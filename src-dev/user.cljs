@@ -15,6 +15,7 @@
     wip.demo-todos-stage
     wip.demo-logical-clock
     wip.example-router
+    wip.hfql-links
     ))
 
 (defn runtime-resolve [exported-qualified-sym]

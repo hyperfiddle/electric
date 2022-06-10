@@ -6,7 +6,7 @@ body {
     /*min-height: 101vh; !* DEMO ONLY, force scrollbar to show up, preventing paint flashing  *!*/
     background-color: rgb(248 250 252);
     display: flex;
-    /*justify-content : center;*/
+    justify-content : center;
     padding: 5vh 0vw;
 }
 
@@ -127,6 +127,8 @@ dd {
     padding: 1rem 0.25rem;
     /* margin-bottom: 25vh; */
     position: relative;
+    display:grid;
+    gap: 1rem;
 }
 
 .hf-error-wrapper{
