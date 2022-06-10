@@ -40,7 +40,10 @@ table{
     display: inline-table;
     table-layout: fixed;
     border-collapse: collapse;
-    /* border: 1px solid; */
+    direction:rtl; /* FIXME dom-ordering hack */
+}
+table * { /* FIXME dom-ordering hack */
+    direction: initial;
 }
 th {
     border-width: 0px;
