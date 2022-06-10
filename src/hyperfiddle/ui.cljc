@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [boolean])
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom3 :as dom]
             [hyperfiddle.spec :as spec]
             [missionary.core :as m]
             [datascript.db]
@@ -56,14 +56,8 @@
     props))
 
 (p/defn Input "if value prop, controlled else uncontrolled" [props extractor]
-  (dom/input (p/for [[k v] (adapt-checkbox-props props)]
-               (cond
-                 (= :dom.property/style k) (dom/style v)
-                 (property? k)             (dom/property (name k) v)
-                 :else                     (dom/attribute (name k) v)))
-    (new (->> (dom/events dom/parent "input")
-           (m/eduction (map extractor))
-           (p/continuous)))))
+  (dom/input (dom/props (adapt-checkbox-props props))
+             (new (dom/events "input" (map extractor)))))
 
 ;; (defn set-state! [!atom v] (reset! !atom v))
 
@@ -101,7 +95,7 @@
           value       (V.)
           input-value (str (if (and label value) (new (label value)) value))
           value'
-          ~@(dom/fragment
+          ~@(dom/element "fragment"
              (let [id     (str (gensym))
                    value' (Input. {:dom.attribute/type    attr-type
                                    :dom.attribute/class   "hf-typeahead"
@@ -115,15 +109,14 @@
                    (let [options (Options.)
                          data-count (count options)]
                      ~@;; client
-                       (dom/element "datalist"
-                                    (dom/attribute "id" id)
-                                    (dom/attribute "data-count" data-count)
-                                    ~@;; server
-                                      (p/for [option options]
-                                        ~@(dom/option ;; FIXME dom nodes not unmounting here
-                                           #_(when (= ~hf/value option)
-                                               (dom/attribute "selected" true))
-                                           (dom/text ~@((or label identity) option)))))))
+                       (dom/datalist {:id         id
+                                      :data-count data-count}
+                         ~@;; server
+                          (p/for [option options]
+                            ~@(dom/option ;; FIXME dom nodes not unmounting here
+                               #_(when (= ~hf/value option)
+                                   (dom/attribute "selected" true))
+                               (dom/text ~@((or label identity) option)))))))
                value'))]
       (hf/tx. value' props))))
 
@@ -139,9 +132,9 @@
           value    (hf/Data. V)
           ;; input-value (str (if (and label value) ~(label value) value))
           value'
-          ~@(let [value' (dom/select (dom/class "hf-select")
-                                     (dom/property "disabled" disabled)
-                                     (dom/style {"border-color" c})
+          ~@(let [value' (dom/select {:class    "hf-select"
+                                      :disabled disabled
+                                      :style    {:border-color c}}
                                      ~@;; server
                                        (when-some [Options (::hf/options props)]
                                          (let [options (Options.)
@@ -149,15 +142,11 @@
                                            (do
                                              (p/for [option options]
                                                (let [selected? (= value option)]
-                                                 ~@(dom/option ;; FIXME dom nodes not unmounting here
-                                                    (when selected?
-                                                      (dom/attribute "selected" "selected"))
-                                                    (dom/attribute "value" ~@(index-id option)) ;; index-id might be platform-specific
+                                                 ~@(dom/option {:selected selected? ;; FIXME dom nodes not unmounting here
+                                                                :value ~@(index-id option)}  ;; index-id might be platform-specific
                                                     (dom/text ~@((or label identity) option)))))
-                                             ~@(new (->> (dom/events dom/parent "input")
-                                                      (m/eduction (map dom/target-value)
-                                                        (map index))
-                                                      (p/continuous)))))))]
+                                             ~@(new  (dom/events "input" (comp (map dom/target-value)
+                                                                               (map index))))))))]
               value')]
       (hf/tx. value' props))))
 
@@ -172,7 +161,7 @@
   (let [inputs (sort-inputs-by-spec (first attr) inputs)] ;; FIXME binding unification
     (do (prn "intputs" inputs)
         (log/warn 'RENDER-INPUTS attr inputs)
-        ~@(dom/div (dom/class "inputs")
+        ~@(dom/div {:class "inputs"}
                    ~@(p/for [[idx [arg [V ?!v]]] (map-indexed vector inputs)]
                        (let [locked? (nil? ?!v)
                              set-v!  (if locked? (constantly nil) (partial reset! ?!v))
@@ -183,15 +172,15 @@
                                                 extractor  (if (= "checkbox" input-type)
                                                              dom/target-checked
                                                              dom/target-value)]
-                                            (dom/element "label"
-                                                         (dom/attribute "data-tooltip" (cond-> (pr-str (:predicate arg-spec))
-                                                                                         locked? (str " — internal reference 🔒")))
-                                                         (dom/text (name arg))
-                                                         (dom/attribute "for" (str id)))
-                                            (let [v' (Input. {:dom.attribute/id      id,
-                                                              :dom.attribute/type    (input-types (argument-type (first attr) arg))
-                                                              :dom.property/value    v
-                                                              :dom.property/disabled locked?}
+                                            (dom/label {:for (str id)
+                                                        :data-tooltip
+                                                        (cond-> (pr-str (:predicate arg-spec))
+                                                          locked? (str " — internal reference 🔒"))}
+                                                       (dom/text (name arg)))
+                                            (let [v' (Input. {:id      id,
+                                                              :type    (input-types (argument-type (first attr) arg))
+                                                              :value    v
+                                                              :disabled locked?}
                                                        extractor)]
                                               (log/info "extracted" v')
                                               v'))]
@@ -225,15 +214,14 @@
 (defn set-route! [href _event] (hf/navigate! href))
 
 (defmacro link [href on-click & body] ;; GG: TODO should it be a p/def or a macro?
-  `(dom/element "a" (dom/attribute "href" (str ~href))
-                (new (->> (dom/events dom/parent "click")
-                          (m/eduction (map dom/stop-event!)
-                                      (map ~on-click)
-                                      (map (constantly nil))
-                                      (dedupe)) ; don't propagate `nil` on every click
-                          (m/reductions {} nil)
-                          (m/relieve {})))
-                ~@body))
+  (prn "link" href body)
+  `(dom/a {:href (str ~href)}
+          (new (dom/events "click" (comp (map dom/stop-event!)
+                                         (map ~on-click)
+                                         (map (constantly nil))
+                                         (dedupe))) ; don't propagate `nil` on every click
+               )
+          ~@body))
 
 (p/def link-renderer)
 (p/defn link-renderer-impl [V props]
@@ -257,36 +245,34 @@
       (if (some? valueType)
         (typeahead. V (assoc props :dom.attribute/type (input-types (spec/valueType->type valueType))))
         (let [value (pr-str value)]
-          ~@(do (dom/code (dom/class "language-clojure") (dom/text value))
+          ~@(do (dom/code {:class "language-clojure"} (dom/text value))
                 nil ;; no tx
                 ))))))
 
 (p/defn render-options [V props]
-  ~@(dom/element "fieldset"
-                 (dom/class "hf-options")
-                 (dom/element "legend" (dom/text "::hf/options"))
-                 ~@(table-picker. V props)))
+  ~@(dom/fieldset {:class "hf-options"}
+      (dom/legend (dom/text "::hf/options"))
+      ~@(table-picker. V props)))
 
 (defn into-tx [txs] (into [] cat txs))
 
 (p/def form)
 (p/defn form-impl [V props]
   (let [c  (db-color hf/db)
-        tx ~@(dom/element "form"
-                          (dom/style {"border-left-color" c})
-                          ~@(let [value (V.)]
-                              (into-tx
-                               (p/for [column (::hf/columns props)]
-                                 ~@(dom/div (dom/class "field")
-                                            (dom/style {"border-left-color" c})
-                                            (dom/element "label"
-                                                         (dom/attribute "title" (spec/parse column))
-                                                         (dom/text column))
-                                            ~@(do
-                                                (let [[_ a⁻¹ _] (second hf/context)]
-                                                  (when-let [inputs (get-in props [::hf/inputs a⁻¹ column])]
-                                                    (render-inputs. column inputs)))
-                                                (new (get value column))))))))]
+        tx ~@(dom/form
+              {:style {"border-left-color" c}}
+              ~@(let [value (V.)]
+                  (into-tx
+                   (p/for [column (::hf/columns props)]
+                     ~@(dom/div {:class "field"
+                                 :style {"border-left-color" c}}
+                                (dom/label {:title (spec/parse column)}
+                                           (dom/text column))
+                                ~@(do
+                                    (let [[_ a⁻¹ _] (second hf/context)]
+                                      (when-let [inputs (get-in props [::hf/inputs a⁻¹ column])]
+                                        (render-inputs. column inputs)))
+                                    (new (get value column))))))))]
     (when (::hf/options props)
       (render-options. V props))
     tx))
@@ -302,9 +288,9 @@
          ~@;; server
            (into-tx (p/for [col (::hf/columns props)]
                       ~@;; client
-                        (dom/td (dom/style {"border-color" c})
-                                ~@;; server
-                                    (new (get value col)))))))))
+                      (dom/td {:style {"border-color" c}}
+                              ~@;; server
+                              (new (get value col)))))))))
 
 (p/defn table-impl [V props]
   (let [columns (::hf/columns props)
@@ -313,8 +299,8 @@
        (dom/thead
         (dom/tr
          ~@(p/for [col columns]
-             ~@(dom/th (dom/style {"background-color" c}) ;; FIXME binding unification
-                       (dom/text (pr-str col))))))
+             ~@(dom/th {:style {"background-color" c}} ;; FIXME binding unification
+                 (dom/text (pr-str col))))))
        (dom/tbody
         ~@(binding [form row]
             (into-tx
@@ -326,10 +312,10 @@
         numcols (count columns)
         c       (db-color hf/db)]
     ~@(dom/table
-       (dom/class "grid")
-       (dom/style {"grid-template-columns" (str "repeat(" numcols ", auto)")})
+       {:class "grid"
+        :style {"grid-template-columns" (str "repeat(" numcols ", auto)")}}
        ~@(p/for [col columns]
-           ~@(dom/th (dom/style {"background-color" c}) ;; FIXME binding unification
+           ~@(dom/th {:style {"background-color" c}} ;; FIXME binding unification
                      (dom/text (pr-str col))))
        ~@(binding [form grid-row]
            (p/for [RowRenderer (seq (V.))]
@@ -343,9 +329,9 @@
           [_ _ _ props] (second hf/context)]
       (p/for [col (::hf/columns props)]
         ~@;; client
-          (dom/td (dom/style {"border-color" c})
-                  ~@;; server
-                      (new (get value col)))))))
+        (dom/td {:style {"border-color" c}}
+                ~@;; server
+                (new (get value col)))))))
 
 (p/def row-picker)
 (p/defn row-picker-impl [V props]
@@ -361,16 +347,16 @@
       (log/info "V V" (list v⁻¹ (hf/Data. V)))
       ~@(binding [dom/parent (do e dom/parent)]
           (dom/tr
-           (let [selected? (dom/td (dom/style {"border-color" color})
-                                   (Input. {:dom.attribute/type   (case cardinality
-                                                                    ::one  "radio"
-                                                                    ::many "checkbox")
-                                            :dom.attribute/name   group
-                                            :dom.property/checked checked?}
+           (let [selected? (dom/td {:style {"border-color" color}}
+                                   (Input. {:type   (case cardinality
+                                                      ::one  "radio"
+                                                      ::many "checkbox")
+                                            :name   group
+                                            :checked checked?}
                                      dom/target-checked))]
              (do (log/info "TX" [e⁻¹ a⁻¹ e] cardinality)
                  ~@(p/for [column (::hf/columns props⁻¹)]
-                     ~@(dom/td (dom/style {"border-color" color})
+                     ~@(dom/td {:style {"border-color" color}}
                                ~@(new (get v column))))
                  selected?)))))))
 
@@ -388,9 +374,9 @@
     ~@(dom/table
        (dom/thead
         (dom/tr
-         (dom/td (dom/class "hf-table-picker-count") (dom/text "" #_(str v-count)))
+         (dom/td {:class "hf-table-picker-count"} (dom/text "" #_(str v-count)))
          ~@(p/for [col columns]
-             ~@(dom/th (dom/style {"background-color" c})
+             ~@(dom/th {:style {"background-color" c}}
                        (dom/text (pr-str col))))))
        (dom/tbody
         ~@(let [[E a V⁻¹ _] (second hf/context)]
