@@ -25,7 +25,14 @@
 
 (defn navigate! [new-route] (swap! route-state conj new-route))
 
-(defn navigate-back! [] (swap! route-state rest))
+;; TODO improve history:
+;; - Use a vector + an index
+;; - index is initialized at 0
+;; - navigate pushes to the vector
+;; - back decrement the index
+;; - current page is vector[count(vector)-index]
+;; - if index is < 0, navigate discard the tail of the vector (after index) and pushes
+(defn navigate-back! [] (swap! route-state pop))
 
 (p/def route) ;; Continuous route value
 
