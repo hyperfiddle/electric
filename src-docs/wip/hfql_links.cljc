@@ -6,7 +6,8 @@
             [hyperfiddle.ui :as ui]
             [wip.orders :refer [orders genders shirt-sizes one-order]]
             [hyperfiddle.hfql.router :as router]
-            [wip.hfql-links-page])
+            [wip.hfql-links-page]
+            [shadow.resource :as res])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.hfql-links)))
 
@@ -21,7 +22,7 @@
              (dom/text (str "< " (some-> (first prev) name)))
              (new (dom/events "click" (map hf/navigate-back!))))
       (let [route current]
-        ~@(new wip.hfql-links-page/App route))
+        ~@(router/router route "./hfql_links.edn"))
       ))))
 
 (def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]

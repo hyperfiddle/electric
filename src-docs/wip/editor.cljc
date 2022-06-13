@@ -8,7 +8,7 @@
 (defn write! [dir-path text] #?(:clj (spit dir-path text)))
 (defn read! [file-path] #?(:clj (slurp file-path)))
 
-(def file "src-docs/wip/hfql_links_page.cljc")
+(def file "src-docs/wip/hfql_links.edn")
 
 (def main
   #?(:cljs
