@@ -5,7 +5,8 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
             [wip.orders :refer [orders genders shirt-sizes one-order]]
-            [hyperfiddle.hfql.router :as router])
+            [hyperfiddle.hfql.router :as router]
+            [wip.hfql-links-page])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.hfql-links)))
 
@@ -20,17 +21,7 @@
              (dom/text (str "< " (some-> (first prev) name)))
              (new (dom/events "click" (map hf/navigate-back!))))
       (let [route current]
-        ~@(router/router ;; router is on the server
-           route
-           {(one-order sub) [:db/id :order/email]}
-           {(orders .) [(props :db/id {::hf/link one-order})
-                        :order/email
-                        {(props :order/gender
-                                {::hf/options      (genders)
-                                 ::hf/option-label :db/ident
-                                 ::hf/render       ui/select-options}) [(props :db/ident {::hf/as gender})]}
-                        {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
-                                                   ::hf/option-label :db/ident}) [:db/ident]}]}))
+        ~@(new wip.hfql-links-page/App route))
       ))))
 
 (def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]
