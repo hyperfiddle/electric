@@ -8,6 +8,13 @@
                        :output-dir    "resources/public/js"
                        :asset-path    "/js"
                        :modules       {:main {:entries [user]}}}
+            :editor   {:target        :browser
+                       :devtools      {:watch-dir       "resources/public"    ; live reload CSS
+                                       :hud             #{:errors :progress}
+                                       :ignore-warnings true}                 ; warnings don't prevent hot-reload
+                       :output-dir    "resources/public/js/editor"
+                       :asset-path    "/js"
+                       :modules       {:main {:entries [user]}}}
             :test     {:target           :node-test
                        :output-to        "out/node-tests.js"
                        :ns-regexp        "^hyperfiddle.(photon-[^dom]|core-async).*$"

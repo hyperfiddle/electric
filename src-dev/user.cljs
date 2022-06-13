@@ -16,6 +16,7 @@
     wip.demo-logical-clock
     wip.example-router
     wip.hfql-links
+    wip.editor
     ))
 
 (defn runtime-resolve [exported-qualified-sym]
@@ -27,9 +28,12 @@
 (defonce user-photon-main `user.demo-healthcheck/main)      ; lazy resolve
 (defonce reactor nil)                                       ; save for debugging
 
-(defn ^:dev/after-load ^:export start! []
-  (when user-photon-main
-    (set! reactor ((runtime-resolve user-photon-main)       ; Photon main recompiles every reload, must re-resolve it
+(defn set-main [s]
+  (set! user-photon-main (symbol s)))
+
+(defn ^:dev/after-load ^:export start! [main]
+  (when (or user-photon-main main)
+    (set! reactor ((runtime-resolve (or main user-photon-main))       ; Photon main recompiles every reload, must re-resolve it
                    #(js/console.log "Reactor success:" %)
                    #(js/console.error "Reactor failure:" %)))))
 
@@ -39,4 +43,4 @@
 
 (defn browser-main! [photon-main-sym]
   ;(println ::received-reload-command photon-main-sym (type photon-main-sym))
-  (set! user-photon-main photon-main-sym) (stop!) (start!))
+  (set! user-photon-main photon-main-sym) (stop!) (start! nil))
