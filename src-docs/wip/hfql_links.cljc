@@ -2,7 +2,7 @@
   (:require #?(:clj dev)
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom3 :as dom]
+            [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
             [wip.orders :refer [orders genders shirt-sizes one-order]]
             [hyperfiddle.hfql.router :as router])

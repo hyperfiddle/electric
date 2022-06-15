@@ -8,9 +8,8 @@
 ; current way
 
 (p/defn Click-counter []
-  (dom/input
-    (dom/attribute "type" "button")
-    (dom/attribute "value" "Click me!")
+  (dom/input {:type "button"
+              :value "Click me!"}
     (->> (dom/events dom/parent dom/click-event)
          #_(m/reductions (fn [r event] (inc r)) 0)          ; no cc/fn in Photon yet
          (m/eduction (map (constantly 1)))
@@ -46,7 +45,7 @@
 (p/defn Click-counter [label]
   (dom/div
     (dom/span (dom/text label))
-    (dom/input (dom/attribute "type" "button"))
+    (dom/input {:type "button"})
     ::>n (dom/events dom/parent dom/input-event)))
 
 ; next day
@@ -81,5 +80,5 @@
 (p/defn Click-counter [label]
   (dom/div
     (dom/span (dom/text label))
-    (dom/input (dom/attribute "type" "button"))
+    (dom/input {:type "button"})
     ::n (if (z/impulse p/frame (dom/events dom/parent dom/input-event)) 1 0)))

@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [boolean])
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.photon-dom3 :as dom]
+            [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.spec :as spec]
             [missionary.core :as m]
             [datascript.db]

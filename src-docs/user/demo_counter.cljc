@@ -9,9 +9,8 @@
   (dom/div
     (dom/h1 (dom/text "Counter"))
 
-    (let [x (dom/button
+    (let [x (dom/button {:type "button"}
               (dom/text "click me")
-              (dom/attribute "type" "button")
               (new (->> (dom/events dom/parent "click")
                         #_(m/reductions (fn [r event] (inc r)) 0) ; no cc/fn in photon yet
                         (m/eduction (map (constantly 1)))
@@ -20,8 +19,8 @@
       (dom/div
         (dom/table
           (dom/thead
-            (dom/td (dom/style {"width" "5em"}) (dom/text "count"))
-            (dom/td (dom/style {"width" "10em"}) (dom/text "type")))
+           (dom/td {:style {"width" "5em"}} (dom/text "count"))
+           (dom/td {:style {"width" "10em"}} (dom/text "type")))
           (dom/tbody
             (dom/tr
               (dom/td (dom/text (str x)))
