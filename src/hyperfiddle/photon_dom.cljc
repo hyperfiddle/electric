@@ -61,6 +61,7 @@
                                            props  (dissoc m :style)]
                                        (when (seq styles) (goog.style/setStyle e (clj->js styles)))
                                        (when (seq props) (d/setProperties e (clj->js (clean-props props)))))))
+
 (defmacro props [m] `(set-properties! parent ~m))
 
 (defn events* [e event-type & [xform init rf]]
@@ -88,21 +89,29 @@
   ([event-type xform init]    `(events* parent ~event-type ~xform ~init nil))
   ([event-type xform init rf] `(events* parent ~event-type ~xform ~init ~rf)))
 
-(defn event-type [e] #?(:cljs (.-type e)))
+(defn getter
+  ([path] (partial getter path))
+  ([path obj] #?(:cljs (apply o/getValueByKeys obj (clj->js path)))))
 
 (defn stop-event! [event]
   (.preventDefault event)
   (.stopPropagation event)
   event)
 
-(defn target-value [e] #?(:cljs (.. e -target -value)))
-(defn target-checked [e] #?(:cljs (-> e .-target .-checked)))
+(def target-value   (getter ["target" "value"]))
+(def target-checked (getter ["target" "checked"]))
 
 (defn focus-state [e]
   (events* e #{"focus" "blur"}
-    (comp (map event-type)
+      (comp (map (getter ["type"]))
       (map {"focus" true, "blur" false}))
     false))
+
+(defn setter! [o path v]
+  #?(:cljs (if (= 1 (count path))
+             (o/set o (clj->js (first path)) v)
+             (setter! (getter (butlast path) o) (last path) v))))
+
 
 #?(:cljs
    (deftype Clock [Hz
