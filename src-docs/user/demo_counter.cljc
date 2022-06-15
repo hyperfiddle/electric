@@ -11,11 +11,7 @@
 
     (let [x (dom/button {:type "button"}
               (dom/text "click me")
-              (new (->> (dom/events dom/parent "click")
-                        #_(m/reductions (fn [r event] (inc r)) 0) ; no cc/fn in photon yet
-                        (m/eduction (map (constantly 1)))
-                        (m/reductions + 0))))]
-
+              (new (dom/events "click" (map (constantly 1)) 0 +)))]
       (dom/div
         (dom/table
           (dom/thead
