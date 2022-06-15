@@ -125,7 +125,7 @@
 (cc/defn wrap "run slow blocking cc/fn on a threadpool"
   [f & args]
   #?(:clj
-     (->> (m/ap (m/? (m/via m/cpu (apply f args))))
+     (->> (m/ap (m/? (m/via m/blk (apply f args))))
           (m/reductions {} (Failure. (Pending.))))))
 
 ;; Core.async interop.
