@@ -49,10 +49,10 @@
                (catch #?(:clj Exception, :cljs :default) _ (m/?> m/none))))))
 
 (defn adapt-checkbox-props [props]
-  (if (= "checkbox" (:dom.attribute/type props))
+  (if (= "checkbox" (:type props))
     (-> props
-        (assoc :dom.property/checked (:dom.property/value props))
-        (dissoc :dom.property/value))
+        (assoc :checked (:value props))
+        (dissoc :value))
     props))
 
 (p/defn Input "if value prop, controlled else uncontrolled" [props extractor]
