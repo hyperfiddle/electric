@@ -27,11 +27,9 @@
          [:db/ident]}]}))
 
 (p/defn App []
-  (dom/div
-    (dom/attribute "id" "main")
-    (dom/class "browser")
-    (dom/div
-      (dom/class "view")
+  (dom/div {:id "main"
+            :class "browser"}
+    (dom/div {:class "view"}
       (Orders.))))
 
 (def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]

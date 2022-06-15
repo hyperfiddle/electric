@@ -12,9 +12,8 @@
 ; This "z/impulse" pattern is low level, we are still working out the idioms!
 
 (p/defn Button [F]
-  (let [event (dom/button
+  (let [event (dom/button {:type "button"}
                 (dom/text "click me")
-                (dom/attribute "type" "button")
                 (->> (dom/events dom/parent "click")
                      (z/impulse ~@n)))]                     ; convert discrete event stream to Photon continuous signal
     (when event

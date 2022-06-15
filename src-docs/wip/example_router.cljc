@@ -12,7 +12,7 @@
 (p/defn Button [label F]
   (let [event (dom/button
                 (dom/text label)
-                (dom/attribute "type" "button")
+                {:type "button"}
                 (->> (dom/events dom/parent "click")
                      (z/impulse route)))]
     (when event

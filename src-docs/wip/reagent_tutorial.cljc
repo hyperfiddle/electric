@@ -11,10 +11,9 @@
 (p/defn Simple-component []
   (dom/div
     (dom/p (dom/text "I am a component"))
-    (dom/p
-      (dom/attribute "class" "someclass")
+    (dom/p {:class "someclass"}
       (dom/text "I have") (dom/strong "bold")
-      (dom/span (dom/style {:color "red"}) (dom/text " and red "))
+      (dom/span {:style {:color "red"}} (dom/text " and red "))
       (dom/text "text."))))
 
 ; Example 2 — Composition
@@ -47,9 +46,8 @@
 ; Example 5 — Basic reactivity
 
 (p/defn Click-counter []
-  (dom/input
-    (dom/attribute "type" "button")
-    (dom/attribute "value" "Click me!")
+  (dom/input {:type  "button"
+              :value "Click me!"}
     (->> (dom/events dom/parent dom/click-event)
          #_(m/reductions (fn [r event] (inc r)) 0)          ; no cc/fn in Photon yet
          (m/eduction (map (constantly 1)))
@@ -92,14 +90,11 @@
 ; Example 7 — controlled input
 
 (p/defn ControlledInput [state]
-  (dom/input
-    (dom/attribute "type" "text")
-    (dom/attribute "value" state)                           ; todo need better controlled input OOTB
-    (->> (dom/events dom/parent dom/input-event)
-         (m/eduction (map dom/target-value))
-         (m/reductions {} "")                               ; Photon new requires flows to have initial value
-         (m/relieve {})                                     ; relieve the dom events
-         new)))
+  (dom/input {:type "text"
+              :value state}                           ; todo need better controlled input OOTB
+             ;; listen to input events, get target value, initial value is `""`
+             (new (dom/events "input" (map dom/target-value) ""))
+             ))
 
 (p/defn Shared-state []
   (let [!state (atom "foo")]
@@ -111,17 +106,12 @@
 ; Example 9 — BMI calculator
 
 (p/defn slider [value min max]                              ; controlled
-  (dom/input
-    (dom/attribute "type" "range")
-    (dom/attribute "value" value)
-    (dom/attribute "min" min)
-    (dom/attribute "max" max)
-    (dom/style {:width "100%"})
-    (->> (dom/events dom/parent dom/input-event)
-         (m/eduction (map dom/target-value))
-         (m/reductions {} (z/current value))
-         (m/relieve {})
-         new)))
+  (dom/input {:type  "range"
+              :value value
+              :min   min
+              :max   max
+              :style {:width "100%"}}
+             (new (dom/events "input" (map dom/target-value) (z/current value)))))
 
 (comment
   ; This doesn't work - no p/rec for a while
@@ -148,22 +138,16 @@
 
 (p/defn Clock [color]
   (let [time-str (-> (new <time) .toTimeString (clojure.string/split " ") first)]
-    (dom/div
-      (dom/class "example-clock")
-      (dom/style {"color" color})
+    (dom/div {:class "example-clock"
+              :style {"color" color}}
       time-str)))
 
 (p/defn ColorInput [value]
-  (dom/div
-    (dom/class "color-input")
+  (dom/div {:class "color-input"}
     (dom/text "Time color: ")
-    (dom/input
-      (dom/attribute "type" "text")
-      (dom/attribute "value" value)
-      (->> (dom/events dom/parent dom/input-event)
-           (m/eduction (map dom/target-value))
-           (m/reductions {} (z/current value))
-           (m/relieve {})))))
+    (dom/input {:type "text"
+                :value value}
+               (new (dom/events "input" (map dom/target-value) (z/current value))))))
 
 (p/defn ClockExample []
   (let [!color (atom nil)

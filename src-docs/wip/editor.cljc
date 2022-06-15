@@ -1,6 +1,6 @@
 (ns wip.editor
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom3 :as dom]
+            [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
             #?(:clj [clojure.java.io :as io]))
   (:import (hyperfiddle.photon Pending)

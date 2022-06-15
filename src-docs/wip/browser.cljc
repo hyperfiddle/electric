@@ -17,9 +17,9 @@
 
 (p/defn NavBar []
   (let [route-state (new (m/watch hf/route-state))]
-    (dom/div (dom/class "navbar")
+    (dom/div {:class "navbar"}
              (ui/link (second route-state) hf/navigate-back! (dom/text "< back"))
-             (dom/div (dom/class "navbar-route")
+             (dom/div {:class "navbar-route"}
                       (cm/CodeMirror. {:parent dom/parent :inline true} cm/read-edn cm/write-edn (first route-state))))))
 
 (p/defn NotFoundPage []
@@ -65,8 +65,8 @@
                                                                      ::hf/render       ui/select-options}) [(props :db/ident {::hf/as gender})]}
                                               {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
                                                                          ::hf/option-label :db/ident}) [:db/ident]}]}))))]
-              (dom/div (dom/class "hf-staging-area")
-                       (dom/div (dom/class "hf-error-wrapper")
+              (dom/div {:class "hf-staging-area"}
+                       (dom/div {:class "hf-error-wrapper"}
                                 (let [tx' (cm/CodeMirror. {:parent dom/parent} cm/read-edn cm/write-edn [])]
                                   (do tx'
                                       ~@(p/forget (reset! !stage tx'))
@@ -79,6 +79,6 @@
                                                                  (m/eduction (filter boolean?)
                                                                              (map (partial transact!! !db !stage)))
                                                                  (xp/continuous)))))
-                                      (dom/code (dom/class "hf-error")
-                                                (dom/style {"margin" "1rem 0"})
+                                      (dom/code {:class "hf-error"
+                                                 :style {"margin" "1rem 0"}}
                                                 (dom/text message)))))))))))
