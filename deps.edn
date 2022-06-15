@@ -5,6 +5,7 @@
                                            :sha "bcd9900d510334494708a6af7fb100ff92a8a040"
                                            #_#_:local/root "./vendor/rcf"}
            org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"}    ;; used by photon
+           borkdude/edamame               {:mvn/version "1.0.0"} ;; configurable edn parser
 
            ;; Server
            org.eclipse.jetty/jetty-server                {:mvn/version "9.4.44.v20210927"}

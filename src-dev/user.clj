@@ -10,6 +10,8 @@
   "Photon Clojure REPL entrypoint"
   (main)
 
+  (shadow.cljs.devtools.api/compile :editor)
+
   "Switch examples"
   (user/browser-main! `user.demo-healthcheck/main)
   (user/browser-main! `user.demo-system-properties/main)

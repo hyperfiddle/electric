@@ -105,3 +105,4 @@
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 
 (p/defn edn [v] (new CodeMirror {:parent hyperfiddle.photon-dom/parent} read-edn write-edn v))
+(p/defn string [v] (new CodeMirror {:parent hyperfiddle.photon-dom/parent} identity identity v))

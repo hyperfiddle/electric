@@ -2,8 +2,11 @@
   (:require
    [hyperfiddle.photon :as p]
    [hyperfiddle.spec :as spec]
+   #?(:clj [shadow.resource :as res])
+   #?(:clj [edamame.core :as edn])
    #?(:clj [hyperfiddle.hfql :as hfql])
-   #?(:clj [hyperfiddle.hfql.env :as env])))
+   #?(:clj [hyperfiddle.hfql.env :as env]))
+  #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [router]])))
 
 (defn- fncall [sexpr] (and (seq? sexpr) (symbol? (first sexpr))))
 
@@ -60,6 +63,12 @@
            ~@(mapcat (fn [arg] [(symbol arg) `(arg-getter ~indices-sym ~arg ~route)]) all-args)]
        ~@body)))
 
+#?(:clj (defn load-page [env page]
+          (let [opts {:auto-resolve (assoc (-> env :ns :requires) :current (-> env :ns :name))}]
+            (if (string? page)
+              (edn/parse-string-all (res/slurp-resource env page) opts)
+              [page]))))
+
 ;;* Router
 ;;
 ;;  Takes:
@@ -77,15 +86,16 @@
 ;;            {(page2) [:db/id]})
 ;;  #+end_src
 ;;
-#?(:clj (defmacro router [route & pages] ;; pages are HFQL exprs, they must all have a
-          (assert (symbol? route))
-          (validate-pages! pages)
-          (let [env         (env/make-env &env)
-                routing-map (routing-map env pages)
-                fns         (set (map (partial page-identifier env) pages))]
-            `(with-route-getters ~route ~fns
-               (let [routing-map#  ~routing-map]
-                 (validate-route! ~route)
-                 (new (p/deduping (get routing-map# (first ~route) not-found))))))))
+(defmacro router [route & pages] ;; pages are HFQL exprs, they must all have a
+  (assert (symbol? route))
+  (let [pages (mapcat (partial load-page &env) pages)]
+    (validate-pages! pages)
+    (let [env         (env/make-env &env)
+          routing-map (routing-map env pages)
+          fns         (set (map (partial page-identifier env) pages))]
+      `(with-route-getters ~route ~fns
+         (let [routing-map# ~routing-map]
+           (validate-route! ~route)
+           (new (p/deduping (get routing-map# (first ~route) not-found))))))))
 
 (p/defn not-found [] "page not found")
