@@ -38,9 +38,8 @@
     (dom/h1 (dom/text "Todo list with staging area pattern"))
     (concat
       (dom/input {:type "text"}
-        (->> (dom/events dom/parent "keyup")
+             (->> (dom/>keychord-events dom/parent #{"ENTER"})
              (m/eduction
-               (filter (comp #{dom/keycode-enter} (dom/getter ["keyCode"])))
                (map (comp task-create dom/target-value))
                (map (partial clear-input! dom/parent)))
              (z/impulse basis-t)))
