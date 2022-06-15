@@ -2,7 +2,7 @@
   #?(:clj  (:require clojure.edn
                      clojure.pprint
                      [hyperfiddle.photon :as p]
-                     hyperfiddle.photon-dom3
+                     hyperfiddle.photon-dom
                      [missionary.core :as m]
                      [clojure.edn :as edn]
                      [clojure.pprint :as pprint]
@@ -104,5 +104,5 @@
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 
-(p/defn edn [v] (new CodeMirror {:parent hyperfiddle.photon-dom3/parent} read-edn write-edn v))
-(p/defn string [v] (new CodeMirror {:parent hyperfiddle.photon-dom3/parent} identity identity v))
+(p/defn edn [v] (new CodeMirror {:parent hyperfiddle.photon-dom/parent} read-edn write-edn v))
+(p/defn string [v] (new CodeMirror {:parent hyperfiddle.photon-dom/parent} identity identity v))
