@@ -66,7 +66,7 @@
 #?(:clj (defn load-page [env page]
           (let [opts {:auto-resolve (assoc (-> env :ns :requires) :current (-> env :ns :name))}]
             (if (string? page)
-              (edn/parse-string (res/slurp-resource env page) opts)
+              (edn/parse-string-all (res/slurp-resource env page) opts)
               [page]))))
 
 ;;* Router
