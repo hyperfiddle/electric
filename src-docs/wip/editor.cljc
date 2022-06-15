@@ -1,6 +1,6 @@
 (ns wip.editor
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom3 :as dom]
+            [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui.codemirror :as codemirror]
             [missionary.core :as m]
             [hyperfiddle.zero :as z])
@@ -15,11 +15,6 @@
 (def !ack (atom 0))
 (p/def ack (p/watch !ack))
 
-(defn shift-enter? [event]
-  #?(:cljs
-     (and (= "Enter" (.-key event))
-          (.-ctrlKey event))))
-
 
 (def main
   #?(:cljs
@@ -30,11 +25,8 @@
                   ~@(let [text (dom/div {:style {:width "100vw"}}
                                         (let [text (new codemirror/string content)]
                                           text
-                                          (let [parent dom/parent]
-                                            (z/impulse ~@ack
-                                                       (->> (dom/>events parent "keypress")
-                                                            (m/eduction (filter shift-enter?)
-                                                                        (map (constantly text))))))))]
+                                          (z/impulse ~@ack (dom/>keychord-events dom/parent #{"meta+s" "ctrl+s"}
+                                                                                 (map (constantly text))))))]
                       (prn "Text" text)
                       (when text
                         ~@(do (swap! !ack inc)
