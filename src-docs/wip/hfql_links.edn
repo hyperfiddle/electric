@@ -2,14 +2,14 @@
 {(orders .)
  [(props :db/id {::hf/link one-order})
   :order/email
-  {(props :order/gender {::hf/options      (genders)
+  {(props :order/gender {::hf/options (genders)
                          ::hf/option-label :db/ident
-                         ::hf/render        ui/select-options})
+                         ::hf/render ui/select-options})
    [:db/ident]}
   
-  {(props :order/shirt-size {::hf/options      (shirt-sizes order/gender .)
+  {(props :order/shirt-size {::hf/options (shirt-sizes order/gender .)
                              ::hf/option-label :db/ident
-                             ::hf/render       ui/typeahead})
+                             ::hf/render ui/select-options})
    [:db/ident]}]}
 
 
