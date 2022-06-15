@@ -84,33 +84,32 @@
                init?  (m/reductions (or rf {}) init)))))
 
 (defn >keychord-events
-  "Produce a discreet flow of key combo events.
-  `keychords` is a set of strings describing a keychord.
-  A keychord looks like:
-  - `\"A\"`
+  "Produce a discreet flow of key combo events. `keychord` is a string or a set of
+  strings describing keychords, which looks like:
   - `\"a\"`
-  - `\"T E S T\"`
   - `\"t e s t\"`
-  - `\"SHIFT_F12\"`
   - `\"shift+f12\"`
-  - `\"SHIFT_F11 C\"`
   - `\"shift+f11 c\"`
-  - `\"META_Y\"`
   - `\"meta+y\"`
-  - `\"G S\"`
-  - `\"g s\"`
-  - `\"S\"`
-  - `\"s\"`
   @see https://github.com/google/closure-library/blob/master/closure/goog/demos/keyboardshortcuts.html
   "
-  [node keychords & [xform init rf :as args]]
+  ;; TODO This implementation ignores focused form elements. For instance,
+  ;; pressing SPACE on a button simulates a click and should not be tampered
+  ;; with for accessibility reasons. In the meantime, please register keychords
+  ;; at the right place in the dom tree to avoid event bubbling messing with
+  ;; accessibility.
+  [node keychord & [xform init rf :as args]]
+  (assert (or (string? keychord) (coll? keychord)))
   #?(:cljs (let [init? (>= (count args) 2)]
              (cond->> (m/observe (fn [!]
                                    (let [^js handler (new KeyboardShortcutHandler node)]
-                                     (doseq [chord keychords]
-                                       (.registerShortcut handler chord))
-                                     (e/listen handler (.-SHORTCUT_TRIGGERED EventType) !)
-                                     #(e/unlisten handler (.-SHORTCUT_TRIGGERED EventType) !))))
+                                     (doseq [chord (if (string? keychord) #{keychord} keychord)]
+                                       (.registerShortcut handler chord chord))
+                                     ;; FIXME, desired behavior is `setModifierShortcutsAreGlobal` but it
+                                     ;; doesn’t work with codemirror
+                                     (.setAllShortcutsAreGlobal handler true)
+                                     (e/listen handler "shortcut" !)
+                                     #(e/unlisten handler "shortcut" !))))
                xform (m/eduction xform)
                init? (m/reductions (or rf {}) init)))))
 
