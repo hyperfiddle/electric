@@ -1,7 +1,6 @@
 (ns user.demo-webview
   "Photon fullstack query/view composition with client/server transfer"
   (:require #?(:clj [datascript.core :as d])
-            [hyperfiddle.ui :as ui]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests]]
@@ -32,8 +31,12 @@
 
 (p/def db)                                                  ; server
 
+(p/defn Input []
+  (dom/input {:type :search, :placeholder "Filter…"}
+             (new (dom/events "input" (map (dom/getter ["target" "value"])) ""))))
+
 (p/defn View []
-  (let [email (ui/Input. {} dom/target-value)]
+  (let [email (Input.)]
     (dom/table
       (dom/for [id ~@(orders db email)]
         (dom/tr

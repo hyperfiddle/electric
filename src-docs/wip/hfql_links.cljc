@@ -5,11 +5,17 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
             [wip.orders :refer [orders genders shirt-sizes one-order]]
-            [hyperfiddle.hfql.router :as router])
+            [hyperfiddle.hfql.router :as router]
+            [shadow.resource :as res])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.hfql-links)))
 
-#?(:cljs (reset! hf/route-state `((wip.orders/orders "alice")))) ;; set initial (client-side) route state
+
+(defonce flag (atom false))
+
+#?(:cljs (when-not @flag
+           (reset! flag true)
+           (reset! hf/route-state `((wip.orders/orders "alice"))))) ;; set initial (client-side) route state
 
 (p/defn App []
   (dom/div {:id "main", :class "browser"}
@@ -20,17 +26,7 @@
              (dom/text (str "< " (some-> (first prev) name)))
              (new (dom/events "click" (map hf/navigate-back!))))
       (let [route current]
-        ~@(router/router ;; router is on the server
-           route
-           {(one-order sub) [:db/id :order/email]}
-           {(orders .) [(props :db/id {::hf/link one-order})
-                        :order/email
-                        {(props :order/gender
-                                {::hf/options      (genders)
-                                 ::hf/option-label :db/ident
-                                 ::hf/render       ui/select-options}) [(props :db/ident {::hf/as gender})]}
-                        {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
-                                                   ::hf/option-label :db/ident}) [:db/ident]}]}))
+        ~@(router/router route "./hfql_links.edn"))
       ))))
 
 (def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]

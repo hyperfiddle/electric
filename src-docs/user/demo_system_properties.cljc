@@ -1,8 +1,7 @@
 (ns user.demo-system-properties
   (:require [clojure.string :as str]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui :as ui])
+            [hyperfiddle.photon-dom :as dom])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-system-properties)))
 
@@ -11,10 +10,14 @@
                (filter (fn [[k v]] (str/includes? (str/lower-case (str k)) (str/lower-case (str ?s)))))
                (into {}))))
 
+(p/defn Input []
+  (dom/input {:type :search, :placeholder "Filter…"}
+             (new (dom/events "input" (map (dom/getter ["target" "value"])) ""))))
+
 (p/defn App []
   (dom/div
     (dom/h1 (dom/text "System Properties"))
-    (let [filter (ui/Input. {} dom/target-value)]
+    (let [filter (Input.)]
       (dom/div (dom/text (str "Input: " filter)))
       (dom/table
         (dom/for [[k v] ~@(system-properties filter)]
