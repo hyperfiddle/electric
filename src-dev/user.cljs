@@ -25,7 +25,7 @@
         path-segments (clojure.string/split path-s ".")]
     (goog.object/getValueByKeys js/window (clj->js path-segments))))
 
-(defonce user-photon-main `user.demo-healthcheck/main)      ; lazy resolve
+(defonce user-photon-main `wip.hfql-links/main)      ; lazy resolve
 (defonce reactor nil)                                       ; save for debugging
 
 (defn set-main [s]

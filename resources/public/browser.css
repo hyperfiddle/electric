@@ -6,7 +6,7 @@ body {
     /*min-height: 101vh; !* DEMO ONLY, force scrollbar to show up, preventing paint flashing  *!*/
     background-color: rgb(248 250 252);
     display: flex;
-    justify-content : center;
+    /* justify-content : center; */
     padding: 5vh 0vw;
 }
 

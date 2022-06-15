@@ -2,7 +2,7 @@
 
 body{
     font-family: 'Open Sans', Arial, Verdana, sans-serif;
-    /*font-size: 0.8rem;*/
+    /* font-size: 0.8rem; */
 }
 
 form {
@@ -40,10 +40,10 @@ table{
     display: inline-table;
     table-layout: fixed;
     border-collapse: collapse;
-    direction:rtl; /* FIXME dom-ordering hack */
+    /* direction:rtl; */ /* FIXME dom-ordering hack */
 }
 table * { /* FIXME dom-ordering hack */
-    direction: initial;
+    /* direction: initial; */
 }
 th {
     border-width: 0px;

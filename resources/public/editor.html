@@ -18,25 +18,35 @@
         <style>
          body{
              flex-direction: column;
+             padding: 0;
+             margin: 0;
+             font-size: 0.9rem;
+         }
+         .cm-line{
+             font-size: 0.9rem !important;
          }
          #editor-root {
              display:grid;
              grid-auto-flow: columns;
-             grid-template-columns: 1fr 1fr;
+             flex-direction: column-reverse;
+             grid-template-columns: 0.95fr 1fr;
              grid-row:2;
+             background-color: white;
          }
          .pannel {
              width:100%;
              min-height: 100vh;
              overflow: scroll;
+             border: none;
+             padding: none;
          }
         </style>
     </head>
     <body>
-        <p style="grid-row:1">Compile editor with <code>shadow-cljs compile :editor</code></p>
+        <!-- <p style="grid-row:1">Compile editor with <code>shadow-cljs compile :editor</code></p> -->
         <div id="editor-root">
-            <div id="root" class="pannel"></div>
             <iframe class="pannel" title="editor" src="output.html"></iframe>
+            <div id="root" class="pannel"></div>
         </div>
 
         <script>

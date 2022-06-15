@@ -8,7 +8,7 @@
             [missionary.core :as m]
             [clojure.core.async :as a]
             #?(:cljs [hyperfiddle.photon-client]))
-  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping]]))
+  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping debounce]]))
   (:import #?(:clj (hyperfiddle.photon_impl.runtime Failure))
            (hyperfiddle.photon Pending)
            (missionary Cancelled)))
@@ -214,3 +214,16 @@
 
 (defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
   [!x] `(new (m/watch ~!x)))
+
+(cc/defn debounce-discreet
+  ([delay flow] (debounce-discreet delay nil flow))
+  ([delay init flow] (m/reductions {} init (m/ap (let [x (m/?< flow)]
+                                                   (try (m/? (m/sleep delay x))
+                                                        (catch Cancelled _ (m/amb))))))) )
+
+(defmacro debounce
+  "Debounce a continous flow by `delay` milliseconds."
+  [delay flow]
+  `(new (->> (fn [] ~flow)
+             (debounce-discreet ~delay)
+             (m/relieve {}))))
