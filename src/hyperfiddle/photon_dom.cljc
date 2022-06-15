@@ -64,30 +64,42 @@
 
 (defmacro props [m] `(set-properties! parent ~m))
 
-(defn events* [e event-type & [xform init rf]]
-  #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)]
-             (cond->> (m/observe (fn [!] (e/listen e event-type !) #(e/unlisten e event-type !)))
+(defn >events
+  "Produce a discreet flow of dom events of `event-type` on `node`.
+  `event-type` can be a string naming the event or a set of event names.
+  If provided:
+  - `xform` will be applied as an eduction,
+  - `init`  will be the initial value of the flow,
+  - `rf`    will be used as a reducing function over the flow, defaulting to `{}`.
+  Also:
+  - if `init` is not provided, the flow will not have an initial value,
+  - `rf` is applied only if `init` is provided,
+  - if `xform`, `init` and `rf` are provided, they form a transduction."
+  [node event-type & [xform init rf :as args]]
+  #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
+                 init?      (>= (count args) 2)]
+             (cond->> (m/observe (fn [!] (e/listen node event-type !) #(e/unlisten node event-type !)))
                xform  (m/eduction xform)
-               true   (m/reductions (or rf {}) init)
-               true   (m/relieve {})))))
+               init?  (m/reductions (or rf {}) init)))))
 
 (defmacro events
   "Return a transduction of events as a continuous flow. See `clojure.core/transduce`.\n
    `event-type` can be a string like `\"click\"`, or a set of strings.
-   
+
    ```clojure
    ;; count clicks
    (new (events \"click\" (map (constantly 1)) 0 +))
 
    ;; track focus state
-   (new (events #{\"focus\" \"blur\"} 
-        (comp (map event-type) (map {\"focus\" true, \"blur\" false})) 
+   (new (events #{\"focus\" \"blur\"}
+        (comp (map event-type) (map {\"focus\" true, \"blur\" false}))
         false))
    ```"
-  ([event-type]               `(events* parent ~event-type nil    nil   nil))
-  ([event-type xform]         `(events* parent ~event-type ~xform nil   nil))
-  ([event-type xform init]    `(events* parent ~event-type ~xform ~init nil))
-  ([event-type xform init rf] `(events* parent ~event-type ~xform ~init ~rf)))
+  ([event-type]                    `(m/relieve {} (>events parent ~event-type nil    nil   nil)))
+  ([event-type xform]              `(m/relieve {} (>events parent ~event-type ~xform nil   nil)))
+  ([event-type xform init]         `(m/relieve {} (>events parent ~event-type ~xform ~init nil)))
+  ([event-type xform init rf]      `(m/relieve {} (>events parent ~event-type ~xform ~init ~rf)))
+  ([node event-type xform init rf] `(m/relieve {} (>events ~node  ~event-type ~xform ~init ~rf))))
 
 (defn getter
   ([path] (partial getter path))
@@ -102,7 +114,7 @@
 (def target-checked (getter ["target" "checked"]))
 
 (defn focus-state [e]
-  (events* e #{"focus" "blur"}
+  (>events e #{"focus" "blur"}
       (comp (map (getter ["type"]))
       (map {"focus" true, "blur" false}))
     false))

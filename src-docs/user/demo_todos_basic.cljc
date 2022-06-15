@@ -50,7 +50,7 @@
                    (concat
                      (dom/input {:type "checkbox"
                                  :checked (#{:done} ~@(:task/status (d/entity db id)))}
-                       (->> (dom/>events "input"
+                       (->> (dom/>events dom/parent "input"
                                          (comp
                                           (map (comp {false :active true :done} (dom/getter ["target" "checked"])))
                                           (map (partial task-status id))))
