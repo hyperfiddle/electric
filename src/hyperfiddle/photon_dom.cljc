@@ -9,7 +9,8 @@
             #?(:cljs [goog.style])
             [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom #_#_:refer [#_[a abbr address area article aside audio b bdi bdo blockquote br button canvas cite code data datalist del details dfn dialog div dl em embed fieldset figure footer form h1 h2 h3 h4 h5 h6 header hgroup hr i iframe img input ins kbd label link main map mark math menu #_meta itemprop meter nav noscript object ol output p picture pre progress q ruby s samp script section select slot small span strong sub sup table template textarea #_time u ul var video wbr]]]))
-  #?(:cljs (:import (goog.events KeyCodes))))
+  #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
+                    (goog.ui.KeyboardShortcutHandler EventType))))
 
 (defn before? [x y]
   (let [xl (count x)
@@ -81,6 +82,37 @@
              (cond->> (m/observe (fn [!] (e/listen node event-type !) #(e/unlisten node event-type !)))
                xform  (m/eduction xform)
                init?  (m/reductions (or rf {}) init)))))
+
+(defn >keychord-events
+  "Produce a discreet flow of key combo events.
+  `keychords` is a set of strings describing a keychord.
+  A keychord looks like:
+  - `\"A\"`
+  - `\"a\"`
+  - `\"T E S T\"`
+  - `\"t e s t\"`
+  - `\"SHIFT_F12\"`
+  - `\"shift+f12\"`
+  - `\"SHIFT_F11 C\"`
+  - `\"shift+f11 c\"`
+  - `\"META_Y\"`
+  - `\"meta+y\"`
+  - `\"G S\"`
+  - `\"g s\"`
+  - `\"S\"`
+  - `\"s\"`
+  @see https://github.com/google/closure-library/blob/master/closure/goog/demos/keyboardshortcuts.html
+  "
+  [node keychords & [xform init rf :as args]]
+  #?(:cljs (let [init? (>= (count args) 2)]
+             (cond->> (m/observe (fn [!]
+                                   (let [^js handler (new KeyboardShortcutHandler node)]
+                                     (doseq [chord keychords]
+                                       (.registerShortcut handler chord))
+                                     (e/listen handler (.-SHORTCUT_TRIGGERED EventType) !)
+                                     #(e/unlisten handler (.-SHORTCUT_TRIGGERED EventType) !))))
+               xform (m/eduction xform)
+               init? (m/reductions (or rf {}) init)))))
 
 (defmacro events
   "Return a transduction of events as a continuous flow. See `clojure.core/transduce`.\n
