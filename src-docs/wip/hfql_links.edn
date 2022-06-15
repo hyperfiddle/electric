@@ -1,10 +1,19 @@
-[{(one-order sub) [:db/id :order/email]}
- {(orders .) [(props :db/id {::hf/link one-order})
-              :order/email
-              {(props :order/gender
-                      {::hf/options      (genders)
-                       ::hf/option-label :db/ident
-                       ::hf/render       ui/select-options}) [(props :db/ident {::hf/as gender})]}
-              {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
-                                         ::hf/option-label :db/ident
-                                         ::hf/render ui/typeahead}) [:db/ident]}]}]
+
+{(orders .)
+ [(props :db/id {::hf/link one-order})
+  :order/email
+  {(props :order/gender
+     {::hf/options      (genders)
+      ::hf/option-label :db/ident
+      ::hf/render       ui/select-options})
+   [(props :db/ident {::hf/as gender})]}
+  
+  {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
+                             ::hf/option-label :db/ident
+                             ::hf/render       ui/typeahead})
+   [:db/ident]}]}
+
+
+{(one-order sub)
+ [:db/id
+  :order/email]}

@@ -6,12 +6,16 @@
             [hyperfiddle.ui :as ui]
             [wip.orders :refer [orders genders shirt-sizes one-order]]
             [hyperfiddle.hfql.router :as router]
-            [wip.hfql-links-page]
             [shadow.resource :as res])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.hfql-links)))
 
-#?(:cljs (reset! hf/route-state `((wip.orders/orders "alice")))) ;; set initial (client-side) route state
+
+(defonce flag (atom false))
+
+#?(:cljs (when-not @flag
+           (reset! flag true)
+           (reset! hf/route-state `((wip.orders/orders "alice"))))) ;; set initial (client-side) route state
 
 (p/defn App []
   (dom/div {:id "main", :class "browser"}
