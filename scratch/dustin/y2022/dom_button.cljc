@@ -9,9 +9,8 @@
 (def !x #?(:clj (atom 0)))
 
 (defmacro button [& body]
-  `(new (let [step (dom/button
+  `(new (let [step (dom/button {:type "button"}
                      (dom/text "click me")
-                     (dom/attribute "type" "button")
                      (new (->> (dom/events dom/parent "click")
                                (m/eduction (map (constantly 1)))
                                (m/reductions +)
@@ -23,9 +22,8 @@
     (dom/div
       (dom/h1 (dom/text "Toggle Server"))
 
-      (let [step (dom/button
+      (let [step (dom/button {:type "button"}
                    (dom/text "click me")
-                   (dom/attribute "type" "button")
                    (new (->> (dom/events dom/parent "click")
                              (m/eduction (map (constantly 1)))
                              (m/reductions +)

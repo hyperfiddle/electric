@@ -23,7 +23,7 @@
   (d/q '[:find ?s . :in $ ?e :where [?e :task/status ?s]] @!conn 1)
   := :active)
 
-(defn clear-input! [el v] (dom/set-property! el "value" "") v)
+(defn clear-input! [el v] (dom/set-properties! el {:value ""}) v)
 
 (p/def db)                                                  ; server
 
@@ -36,11 +36,10 @@
   (dom/div
     (dom/h1 (dom/text "Todo list - basic"))
     (concat
-      (dom/input
-        (dom/attribute "type" "text")
+      (dom/input {:type "text"}
         (->> (dom/events dom/parent "keyup")
              (m/eduction
-               (filter (comp #{dom/keycode-enter} dom/keycode))
+               (filter (comp #{dom/keycode-enter} (dom/getter ["keyCode"])))
                (map (comp task-create dom/target-value))
                (map (partial clear-input! dom/parent)))
              (z/impulse basis-t)))
@@ -49,13 +48,12 @@
                (dom/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
                  (dom/div
                    (concat
-                     (dom/input
-                       (dom/attribute "type" "checkbox")
-                       (dom/set-checked! dom/parent (#{:done} ~@(:task/status (d/entity db id))))
-                       (->> (dom/events dom/parent dom/input-event)
-                            (m/eduction
-                              (map (comp {false :active true :done} dom/get-checked dom/event-target))
-                              (map (partial task-status id)))
+                     (dom/input {:type "checkbox"
+                                 :checked (#{:done} ~@(:task/status (d/entity db id)))}
+                       (->> (dom/>events "input"
+                                         (comp
+                                          (map (comp {false :active true :done} (dom/getter ["target" "checked"])))
+                                          (map (partial task-status id))))
                             (z/impulse basis-t)))
                      (dom/span (dom/text (str ~@(:task/description (d/entity db id))))))))))
       (dom/p

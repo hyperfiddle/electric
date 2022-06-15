@@ -11,9 +11,8 @@
 (p/def x ~@(p/watch !x))
 
 (p/defn Button [F]
-  (let [[t event] (dom/button
+  (let [[t event] (dom/button {:type "button"}
                     (dom/text "click me")
-                    (dom/attribute "type" "button")
                     ; damage the DAG on purpose with a foreign clojure collection
                     [z/time
                      (->> (dom/events dom/parent "click")
