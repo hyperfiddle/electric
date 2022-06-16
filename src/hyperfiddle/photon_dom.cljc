@@ -8,7 +8,7 @@
             #?(:cljs [goog.object :as o])
             #?(:cljs [goog.style])
             [clojure.string :as str])
-  #?(:cljs (:require-macros [hyperfiddle.photon-dom #_#_:refer [#_[a abbr address area article aside audio b bdi bdo blockquote br button canvas cite code data datalist del details dfn dialog div dl em embed fieldset figure footer form h1 h2 h3 h4 h5 h6 header hgroup hr i iframe img input ins kbd label link main map mark math menu #_meta itemprop meter nav noscript object ol output p picture pre progress q ruby s samp script section select slot small span strong sub sup table template textarea #_time u ul var video wbr]]]))
+  #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [oget]]))
   #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
                     (goog.ui.KeyboardShortcutHandler EventType))))
 
@@ -138,29 +138,52 @@
   ([event-type xform init rf]      `(new (m/relieve {} (>events* parent ~event-type ~xform ~init ~rf))))
   ([node event-type xform init rf] `(new (m/relieve {} (>events* ~node  ~event-type ~xform ~init ~rf)))))
 
-(defn getter
-  ([path] (partial getter path))
-  ([path obj] #?(:cljs (apply o/getValueByKeys obj (clj->js path)))))
+(defn- flip [f] (fn [& args] (apply f (reverse args))))
+
+(defn oget* [obj ks]
+  #?(:clj  (get-in obj ks)
+     :cljs (apply o/getValueByKeys obj (clj->js ks))))
+
+(defn- path-ident? [x] (or (string? x) (simple-keyword? x)))
+
+(defmacro oget
+  "Like `aget`, but for js objects.
+  Can be used in two ways:
+  - direct call:         `(oget js-obj \"k1\" \"k2\" …)`
+  - partial application: `(oget \"k1\" \"k2\" …)`"
+  ;; TODO instead of calling `oget*`, expands to direct field access
+  ;;      e.g.: obj["k1"]["k2"] -> obj.k1.k2
+  [& args]
+  (if (path-ident? (first args))
+    (do (assert (every? path-ident? args))
+        `(partial (flip oget*) [~@args]))
+    (do (assert (every? path-ident? (rest args)))
+        `(oget* ~(last args) ~@(butlast args)))))
+
+(defn oset!* [obj path val]
+  #?(:clj  (assoc-in obj path val)
+     :cljs (do (if (= 1 (count path))
+                 (o/set obj (clj->js (first path)) val)
+                 (oset!* (oget* obj (butlast path)) [(last path)] val))
+               obj)))
+
+(defmacro oset! [& args]
+  (if (path-ident? (first args))
+    (do (assert (every? path-ident? (butlast args)))
+        `(partial (flip oset!) ~(last args) [~@(butlast args)]))
+    (do (assert (every? path-ident? (butlast (rest args))))
+        `(oset!* ~(first args) [~@(butlast (rest args))] ~(last args)))))
 
 (defn stop-event! [event]
   (.preventDefault event)
   (.stopPropagation event)
   event)
 
-(def target-value   (getter ["target" "value"]))
-(def target-checked (getter ["target" "checked"]))
-
 (defn focus-state [e]
   (>events* e #{"focus" "blur"}
-      (comp (map (getter ["type"]))
+      (comp (map (oget :type))
             (map {"focus" true, "blur" false}))
     false))
-
-(defn setter! [o path v]
-  #?(:cljs (if (= 1 (count path))
-             (o/set o (clj->js (first path)) v)
-             (setter! (getter (butlast path) o) (last path) v))))
-
 
 #?(:cljs
    (deftype Clock [Hz
