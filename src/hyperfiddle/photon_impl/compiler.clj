@@ -161,7 +161,10 @@
   {:pre [(map? env) (symbol? sym)]}
   (try
     (binding [cljs/*private-var-access-nowarn* true]
-      (CljsVar. (no-warn #{:undeclared-ns} (cljs/resolve-var env sym (cljs/confirm-var-exists-throw)))))
+      (let [klass (clojure.lang.Compiler/maybeResolveIn (the-ns (:name (:ns env))) sym)]
+        (if (class? klass)
+          (CljClass. klass)
+          (CljsVar. (no-warn #{:undeclared-ns} (cljs/resolve-var env sym (cljs/confirm-var-exists-throw)))))))
     (catch Exception _e
       (when-some [v (cljs/resolve-macro-var env sym)]
         (CljsVar. v)))))
@@ -206,6 +209,7 @@
     (if (:js-globals env)
       (if-let [v (resolve-var env sym)]
         (cond (instance? CljsVar v) (runtime-symbol v)
+              (instance? CljClass v) (runtime-symbol v)
               ;; GG: if sym resolves to a clojure var, look up for the cljs-specific version.
               ;;     Why: some vars exist in two versions (e.g. cljs.core/inc)
               ;;          - the cljs version is a function (available at runtime),
