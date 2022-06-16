@@ -1,9 +1,9 @@
-(ns user.demo-button
+(ns user.demo-5-button
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z])
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros user.demo-button)))
+  #?(:cljs (:require-macros user.demo-5-button)))
 
 
 (def !n #?(:clj (atom 0)))

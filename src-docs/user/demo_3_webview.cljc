@@ -1,4 +1,4 @@
-(ns user.demo-webview
+(ns user.demo-3-webview
   "Photon fullstack query/view composition with client/server transfer"
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
@@ -6,7 +6,7 @@
             [hyperfiddle.rcf :refer [tests]]
             user.util)
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros user.demo-webview)))
+  #?(:cljs (:require-macros user.demo-3-webview)))
 
 
 (defonce conn #?(:cljs nil                                  ; state survives reload
