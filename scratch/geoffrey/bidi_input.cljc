@@ -20,7 +20,7 @@
         output ~(->> #'(dom/input {:value (new (m/relieve {} >input))}
                                   (dom/events "focus" (map (partial toggle! !switch false)))
                                   (dom/events "blur" (map (partial toggle! !switch true)))
-                                  (dom/events "input" (map dom/target-value)
+                                  (dom/events "input" (map (dom/oget :target :value))
                                               (new (m/relieve {} (m/eduction (take 1) >input)))))
                      (m/eduction (dedupe))
                      (m/reductions {} nil)

@@ -40,7 +40,7 @@
       (dom/input {:type "text"}
              (->> (dom/>keychord-events #{"enter"})
              (m/eduction
-               (map (comp task-create dom/target-value))
+               (map (comp task-create (dom/oget :target :value)))
                (map (partial clear-input! dom/parent)))
              (z/impulse basis-t)))
       (dom/div
@@ -52,7 +52,7 @@
                                  :checked (#{:done} ~@(:task/status (d/entity db id)))}
                        (->> (dom/>events "input"
                                          (comp
-                                          (map (comp {false :active true :done} (dom/getter ["target" "checked"])))
+                                          (map (comp {false :active true :done} (dom/oget :target :checked)))
                                           (map (partial task-status id))))
                             (z/impulse basis-t)))
                      (dom/span (dom/text (str ~@(:task/description (d/entity db id)) " - id: " id))))))))
@@ -91,7 +91,7 @@
 
       (if-some [tx (dom/input {:type "text"
                                :value (write-edn stage)}
-                     (z/impulse z/clock (dom/>events "input" (comp (dedupe) (map (dom/getter ["target" "value"]))))))]
+                     (z/impulse z/clock (dom/>events "input" (comp (dedupe) (map (dom/oget :target :value))))))]
         (do
           (js/console.log ::stage tx)
           (reset! !stage (clojure.edn/read-string tx)))
