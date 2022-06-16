@@ -103,7 +103,7 @@
                                    :dom.property/style    {"border-color" c}
                                    :dom.property/value    input-value
                                    :dom.attribute/list    id}
-                            dom/target-value)]
+                            (dom/oget :target :value))]
                ~@;; server
                  (when-some [Options (::hf/options props)]
                    (let [options (Options.)
@@ -145,7 +145,7 @@
                                                  ~@(dom/option {:selected selected? ;; FIXME dom nodes not unmounting here
                                                                 :value ~@(index-id option)}  ;; index-id might be platform-specific
                                                     (dom/text ~@((or label identity) option)))))
-                                             ~@(dom/events "input" (comp (map dom/target-value)
+                                             ~@(dom/events "input" (comp (map (dom/oget :target :value))
                                                                          (map index)))))))]
               value')]
       (hf/tx. value' props))))
@@ -170,8 +170,8 @@
                                                 arg-spec   (spec/arg (first attr) arg)
                                                 input-type (input-types (argument-type (first attr) arg))
                                                 extractor  (if (= "checkbox" input-type)
-                                                             dom/target-checked
-                                                             dom/target-value)]
+                                                             (dom/oget :target :checked)
+                                                             (dom/oget :target :value))]
                                             (dom/label {:for (str id)
                                                         :data-tooltip
                                                         (cond-> (pr-str (:predicate arg-spec))
@@ -352,7 +352,7 @@
                                                       ::many "checkbox")
                                             :name   group
                                             :checked checked?}
-                                     dom/target-checked))]
+                                     (dom/oget :target :checked)))]
              (do (log/info "TX" [e⁻¹ a⁻¹ e] cardinality)
                  ~@(p/for [column (::hf/columns props⁻¹)]
                      ~@(dom/td {:style {"border-color" color}}

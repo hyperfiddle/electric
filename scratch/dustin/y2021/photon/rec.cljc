@@ -7,12 +7,12 @@
 (r/def weight 10)
 
 (r/defn slider [fv min max]
-  (d/input (d/attribute "type" "range")
-           (d/attribute "value" (f bmi))
-           (d/attribute "min" min)
-           (d/attribute "max" max)
-           (d/style {:width "100%"})
-           (d/target-value ~(m/relieve {} (d/events d/parent "input")))))
+  (d/input {"type"  "range"
+            "value" (f bmi)
+            "min"   min
+            "max"   max
+            :style  {:width "100%"}}
+           (d/events "input" (map (dom/oget :target :value)))))
 
 (r/defn bmi-component []
   (let [height (r/$ slider 170 100 220)]
