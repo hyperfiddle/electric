@@ -33,7 +33,7 @@
 
 (p/defn Input []
   (dom/input {:type :search, :placeholder "Filter…"}
-             (dom/events "input" (map (dom/getter ["target" "value"])) "")))
+             (dom/events "input" (map (dom/oget :target :value)) "")))
 
 (p/defn View []
   (let [email (Input.)]
