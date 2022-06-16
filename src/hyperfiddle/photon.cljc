@@ -7,8 +7,9 @@
             #?(:clj [hyperfiddle.rcf.analyzer :as ana])     ; todo remove
             [missionary.core :as m]
             [clojure.core.async :as a]
+            [hyperfiddle.logger :as log]
             #?(:cljs [hyperfiddle.photon-client]))
-  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping debounce]]))
+  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping debounce wrap]]))
   (:import #?(:clj (hyperfiddle.photon_impl.runtime Failure))
            (hyperfiddle.photon Pending)
            (missionary Cancelled)))
@@ -122,11 +123,17 @@
 
 (cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
 
-(cc/defn wrap "run slow blocking cc/fn on a threadpool"
-  [f & args]
+(cc/defn wrap* [f & args]
   #?(:clj
-     (->> (m/ap (m/? (m/via m/blk (apply f args))))
-          (m/reductions {} (Failure. (Pending.))))))
+     (->> (m/ap (m/? (m/via m/blk (try (apply f args)
+                                       (catch InterruptedException err
+                                         (log/debug "Blocking task cancelled:" f err))))))
+          (m/reductions {} (Failure. (Pending.)))
+          (m/relieve {}))))
+
+(defmacro wrap "Run blocking function (io-bound) on a threadpool"
+  [f & args]
+  `(new (wrap* ~f ~@args)))
 
 ;; Core.async interop.
 ;; Photon doesn't depend on core.async, this interop should move to a separate namespace or repo.
