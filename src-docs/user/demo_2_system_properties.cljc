@@ -1,9 +1,9 @@
-(ns user.demo-system-properties
+(ns user.demo-2-system-properties
   (:require [clojure.string :as str]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom])
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros user.demo-system-properties)))
+  #?(:cljs (:require-macros user.demo-2-system-properties)))
 
 (defn system-properties [?s]
   #?(:clj (->> (System/getProperties)

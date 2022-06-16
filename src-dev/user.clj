@@ -13,9 +13,9 @@
   (shadow.cljs.devtools.api/compile :editor)
 
   "Switch examples"
-  (user/browser-main! `user.demo-healthcheck/main)
-  (user/browser-main! `user.demo-system-properties/main)
-  (user/browser-main! `user.demo-webview/main)
+  (user/browser-main! `user.demo-1-healthcheck/main)
+  (user/browser-main! `user.demo-2-system-properties/main)
+  (user/browser-main! `user.demo-3-webview/main)
 
   "ClojureScript REPL entrypoint"
   ; shadow server exports an repl, connect a second REPL instance to it (DO NOT REUSE JVM REPL it will fail weirdly)
