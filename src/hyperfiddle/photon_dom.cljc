@@ -65,8 +65,15 @@
 
 (defmacro props [m] `(set-properties! parent ~m))
 
-(defn >events
-  "Produce a discreet flow of dom events of `event-type` on `node`.
+(defn >events* [node event-type & [xform init rf :as args]]
+  #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
+                 init?      (>= (count args) 2)]
+             (cond->> (m/observe (fn [!] (e/listen node event-type !) #(e/unlisten node event-type !)))
+               xform  (m/eduction xform)
+               init?  (m/reductions (or rf {}) init)))))
+
+(defmacro >events
+  "Produce a discreet flow of dom events of `event-type` on the current dom parent.
   `event-type` can be a string naming the event or a set of event names.
   If provided:
   - `xform` will be applied as an eduction,
@@ -76,29 +83,10 @@
   - if `init` is not provided, the flow will not have an initial value,
   - `rf` is applied only if `init` is provided,
   - if `xform`, `init` and `rf` are provided, they form a transduction."
-  [node event-type & [xform init rf :as args]]
-  #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
-                 init?      (>= (count args) 2)]
-             (cond->> (m/observe (fn [!] (e/listen node event-type !) #(e/unlisten node event-type !)))
-               xform  (m/eduction xform)
-               init?  (m/reductions (or rf {}) init)))))
+  [event-type & [xform init rf :as args]]
+  (list* `>events* `parent event-type args))
 
-(defn >keychord-events
-  "Produce a discreet flow of key combo events. `keychord` is a string or a set of
-  strings describing keychords, which looks like:
-  - `\"a\"`
-  - `\"t e s t\"`
-  - `\"shift+f12\"`
-  - `\"shift+f11 c\"`
-  - `\"meta+y\"`
-  @see https://github.com/google/closure-library/blob/master/closure/goog/demos/keyboardshortcuts.html
-  "
-  ;; TODO This implementation ignores focused form elements. For instance,
-  ;; pressing SPACE on a button simulates a click and should not be tampered
-  ;; with for accessibility reasons. In the meantime, please register keychords
-  ;; at the right place in the dom tree to avoid event bubbling messing with
-  ;; accessibility.
-  [node keychord & [xform init rf :as args]]
+(defn >keychord-events* [node keychord & [xform init rf :as args]]
   (assert (or (string? keychord) (coll? keychord)))
   #?(:cljs (let [init? (>= (count args) 2)]
              (cond->> (m/observe (fn [!]
@@ -113,6 +101,24 @@
                xform (m/eduction xform)
                init? (m/reductions (or rf {}) init)))))
 
+(defmacro >keychord-events
+  "Produce a discreet flow of key combo events. `keychord` is a string or a set of
+  strings describing keychords, which looks like:
+  - `\"a\"`
+  - `\"t e s t\"`
+  - `\"shift+f12\"`
+  - `\"shift+f11 c\"`
+  - `\"meta+y\"`
+  @see https://github.com/google/closure-library/blob/master/closure/goog/demos/keyboardshortcuts.html
+  "
+  ;; TODO This implementation ignores focused form elements. For instance,
+  ;; pressing SPACE on a button simulates a click and should not be tampered
+  ;; with for accessibility reasons. In the meantime, please register keychords
+  ;; at the right place in the dom tree to avoid event bubbling messing with
+  ;; accessibility.
+  [keychord & [xform init rf :as args]]
+  (list* `>keychord-events* `parent keychord args))
+
 (defmacro events
   "Return a transduction of events as a continuous flow. See `clojure.core/transduce`.\n
    `event-type` can be a string like `\"click\"`, or a set of strings.
@@ -126,11 +132,11 @@
         (comp (map event-type) (map {\"focus\" true, \"blur\" false}))
         false))
    ```"
-  ([event-type]                    `(m/relieve {} (>events parent ~event-type nil    nil   nil)))
-  ([event-type xform]              `(m/relieve {} (>events parent ~event-type ~xform nil   nil)))
-  ([event-type xform init]         `(m/relieve {} (>events parent ~event-type ~xform ~init nil)))
-  ([event-type xform init rf]      `(m/relieve {} (>events parent ~event-type ~xform ~init ~rf)))
-  ([node event-type xform init rf] `(m/relieve {} (>events ~node  ~event-type ~xform ~init ~rf))))
+  ([event-type]                    `(new (m/relieve {} (>events* parent ~event-type nil    nil   nil))))
+  ([event-type xform]              `(new (m/relieve {} (>events* parent ~event-type ~xform nil   nil))))
+  ([event-type xform init]         `(new (m/relieve {} (>events* parent ~event-type ~xform ~init nil))))
+  ([event-type xform init rf]      `(new (m/relieve {} (>events* parent ~event-type ~xform ~init ~rf))))
+  ([node event-type xform init rf] `(new (m/relieve {} (>events* ~node  ~event-type ~xform ~init ~rf)))))
 
 (defn getter
   ([path] (partial getter path))
@@ -145,9 +151,9 @@
 (def target-checked (getter ["target" "checked"]))
 
 (defn focus-state [e]
-  (>events e #{"focus" "blur"}
+  (>events* e #{"focus" "blur"}
       (comp (map (getter ["type"]))
-      (map {"focus" true, "blur" false}))
+            (map {"focus" true, "blur" false}))
     false))
 
 (defn setter! [o path v]
