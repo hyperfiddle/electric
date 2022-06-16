@@ -3,6 +3,7 @@ on: [push]
 jobs:
   photon-jvm:
     runs-on: [ubuntu-latest]
+    timeout-minutes: 5
     steps:
     - uses: actions/checkout@v2
       with:
@@ -50,6 +51,7 @@ jobs:
   photon-nodejs:
     # if: ${{ false }} # Disabled until we fix the cljs test suite locally
     runs-on: [ubuntu-latest]
+    timeout-minutes: 5
     steps:
     - uses: actions/checkout@v2
       with:
