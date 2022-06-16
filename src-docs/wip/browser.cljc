@@ -72,9 +72,7 @@
                                       ~@(p/forget (reset! !stage tx'))
                                         ;; TODO use z/fsm or z/instant
                                       #_(let [click (dom/button (dom/text "transact!")
-                                                                (new (->> (dom/events dom/parent "click")
-                                                                          (m/eduction (map (constantly true)))
-                                                                          (xp/continuous))))]
+                                                                (dom/events "click" (map (constantly true))))]
                                           ~@(xp/forget (new (->> (p/fn [] click)
                                                                  (m/eduction (filter boolean?)
                                                                              (map (partial transact!! !db !stage)))

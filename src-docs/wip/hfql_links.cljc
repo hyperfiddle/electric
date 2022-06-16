@@ -24,7 +24,7 @@
       (dom/button {:disabled (not (some? prev))
                    :style    {:grid-row 1, :justify-self :flex-start}}
              (dom/text (str "< " (some-> (first prev) name)))
-             (new (dom/events "click" (map hf/navigate-back!))))
+             (dom/events "click" (map hf/navigate-back!)))
       (let [route current]
         ~@(router/router route "./hfql_links.edn"))
       ))))

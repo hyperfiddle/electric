@@ -13,7 +13,7 @@
 
 (p/defn Button [F]
   (let [event (dom/button (dom/text "click me")
-                (z/impulse ~@n (dom/>events dom/parent "click")))]    ; convert discrete event stream to Photon continuous signal
+                (z/impulse ~@n (dom/>events "click")))]    ; convert discrete event stream to Photon continuous signal
     (when event
       (F. event))))
 

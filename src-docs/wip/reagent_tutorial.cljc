@@ -48,12 +48,7 @@
 (p/defn Click-counter []
   (dom/input {:type  "button"
               :value "Click me!"}
-    (->> (dom/events dom/parent dom/click-event)
-         #_(m/reductions (fn [r event] (inc r)) 0)          ; no cc/fn in Photon yet
-         (m/eduction (map (constantly 1)))
-         (m/reductions + 0)
-         (m/relieve {})
-         new)))
+    (dom/events "click" (map (constantly 1)) 0 +)))
 
 (def !click-count (atom 0))
 
@@ -93,7 +88,7 @@
   (dom/input {:type "text"
               :value state}                           ; todo need better controlled input OOTB
              ;; listen to input events, get target value, initial value is `""`
-             (new (dom/events "input" (map dom/target-value) ""))
+             (dom/events "input" (map dom/target-value) "")
              ))
 
 (p/defn Shared-state []
@@ -111,7 +106,7 @@
               :min   min
               :max   max
               :style {:width "100%"}}
-             (new (dom/events "input" (map dom/target-value) (z/current value)))))
+             (dom/events "input" (map dom/target-value) (z/current value))))
 
 (comment
   ; This doesn't work - no p/rec for a while
@@ -147,7 +142,7 @@
     (dom/text "Time color: ")
     (dom/input {:type "text"
                 :value value}
-               (new (dom/events "input" (map dom/target-value) (z/current value))))))
+               (dom/events "input" (map dom/target-value) (z/current value)))))
 
 (p/defn ClockExample []
   (let [!color (atom nil)

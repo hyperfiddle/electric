@@ -11,7 +11,7 @@
 
     (let [x (dom/button {:type "button"}
               (dom/text "click me")
-              (new (dom/events "click" (map (constantly 1)) 0 +)))]
+              (dom/events "click" (map (constantly 1)) 0 +))]
       (dom/div
         (dom/table
           (dom/thead
