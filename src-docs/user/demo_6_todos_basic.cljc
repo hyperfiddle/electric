@@ -1,4 +1,4 @@
-(ns user.demo-todos-basic
+(ns user.demo-6-todos-basic
   (:require clojure.edn
             [datascript.core :as d]
             [missionary.core :as m]
@@ -6,7 +6,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z])
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros user.demo-todos-basic)))
+  #?(:cljs (:require-macros user.demo-6-todos-basic)))
 
 (def auto-inc (partial swap! (atom 0) inc))
 
@@ -75,4 +75,6 @@
                                             (App.))
                                           (catch Pending _))))))
 
-(comment (user/browser-main! `main))
+(comment
+  (user/browser-main! `main)
+  )
