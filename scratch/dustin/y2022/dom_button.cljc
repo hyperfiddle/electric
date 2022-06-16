@@ -11,10 +11,7 @@
 (defmacro button [& body]
   `(new (let [step (dom/button {:type "button"}
                      (dom/text "click me")
-                     (new (->> (dom/events dom/parent "click")
-                               (m/eduction (map (constantly 1)))
-                               (m/reductions +)
-                               (m/relieve {}))))]
+                     (dom/events "click" (map (constantly 1)) 0 +))]
           (z/do-step step ~@body))))
 
 (p/defn App []
@@ -24,16 +21,13 @@
 
       (let [step (dom/button {:type "button"}
                    (dom/text "click me")
-                   (new (->> (dom/events dom/parent "click")
-                             (m/eduction (map (constantly 1)))
-                             (m/reductions +)
-                             (m/relieve {})))
+                   (dom/events "click" (map (constantly 1)) 0 +)
 
-                   #_(new (->> (m/ap (let [e (dom/events dom/parent "click")]
+                   #_(new (->> (m/ap (let [e (dom/events "click")]
                                        ~@(swap! !x inc)))
                                (m/relieve {})))
 
-                   #_(->> (dom/events dom/parent "click")
+                   #_(->> (dom/events "click")
                           (z/impulse x)))]
 
         (button (partial println ::clicked))

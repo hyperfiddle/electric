@@ -25,7 +25,7 @@
                   ~@(let [text (dom/div {:style {:width "100vw"}}
                                         (let [text (new codemirror/string content)]
                                           text
-                                          (z/impulse ~@ack (dom/>keychord-events dom/parent #{"meta+s" "ctrl+s"}
+                                          (z/impulse ~@ack (dom/>keychord-events #{"meta+s" "ctrl+s"}
                                                                                  (map (constantly text))))))]
                       (prn "Text" text)
                       (when text
