@@ -37,7 +37,7 @@
     (dom/h1 (dom/text "Todo list - basic"))
     (concat
       (dom/input {:type "text"}
-             (->> (dom/>keychord-events dom/parent #{"ENTER"})
+             (->> (dom/>keychord-events #{"enter"})
              (m/eduction
                (map (comp task-create dom/target-value))
                (map (partial clear-input! dom/parent)))
@@ -49,7 +49,7 @@
                    (concat
                      (dom/input {:type "checkbox"
                                  :checked (#{:done} ~@(:task/status (d/entity db id)))}
-                       (->> (dom/>events dom/parent "input"
+                       (->> (dom/>events "input"
                                          (comp
                                           (map (comp {false :active true :done} (dom/getter ["target" "checked"])))
                                           (map (partial task-status id))))

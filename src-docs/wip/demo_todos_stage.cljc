@@ -38,7 +38,7 @@
     (dom/h1 (dom/text "Todo list with staging area pattern"))
     (concat
       (dom/input {:type "text"}
-             (->> (dom/>keychord-events dom/parent #{"ENTER"})
+             (->> (dom/>keychord-events #{"enter"})
              (m/eduction
                (map (comp task-create dom/target-value))
                (map (partial clear-input! dom/parent)))
@@ -50,7 +50,7 @@
                    (concat
                      (dom/input {:type "checkbox"
                                  :checked (#{:done} ~@(:task/status (d/entity db id)))}
-                       (->> (dom/>events dom/parent "input"
+                       (->> (dom/>events "input"
                                          (comp
                                           (map (comp {false :active true :done} (dom/getter ["target" "checked"])))
                                           (map (partial task-status id))))
@@ -84,17 +84,14 @@
     (dom/p
       (when-some [event (dom/button {:type "button"}
                           (dom/text "transact!")
-                          (->> (dom/events dom/parent "click")
-                               (z/impulse z/clock)))]
+                          (z/impulse z/clock (dom/>events "click")))]
         (println ::transact! event)
         ~@(do (d/transact! !conn stage) nil)                ; todo wait for server ack to clear stage
         (reset! !stage []))
 
       (if-some [tx (dom/input {:type "text"
                                :value (write-edn stage)}
-                     (->> (dom/events dom/parent "input")
-                          (m/eduction (map dom/target-value) (dedupe))
-                          (z/impulse z/clock)))]
+                     (z/impulse z/clock (dom/>events "input" (comp (dedupe) (map (dom/getter ["target" "value"]))))))]
         (do
           (js/console.log ::stage tx)
           (reset! !stage (clojure.edn/read-string tx)))

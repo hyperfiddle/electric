@@ -57,7 +57,7 @@
 
 (p/defn Input "if value prop, controlled else uncontrolled" [props extractor]
   (dom/input (dom/props (adapt-checkbox-props props))
-             (new (dom/events "input" (map extractor)))))
+             (dom/events "input" (map extractor))))
 
 ;; (defn set-state! [!atom v] (reset! !atom v))
 
@@ -65,13 +65,13 @@
 ;;   (let [state (atom ::hfql/default)]
 ;;     (dom/div (dom/class "hf-render-mode-selector")
 ;;              (dom/button (dom/text "default")
-;;                          ~(->> (dom/events dom/parent "click")
+;;                          ~(->> (dom/events "click")
 ;;                                (m/eduction (map (constantly ::hfql/default))
 ;;                                            (map (partial set-state! state)))
 ;;                                (m/reductions {} nil)
 ;;                                (m/relieve {})))
 ;;              (dom/button (dom/text "user")
-;;                          ~(->> (dom/events dom/parent "click")
+;;                          ~(->> (dom/events "click")
 ;;                                (m/eduction (map (constantly ::hfql/user))
 ;;                                            (map (partial set-state! state)))
 ;;                                (m/reductions {} nil)
@@ -145,8 +145,8 @@
                                                  ~@(dom/option {:selected selected? ;; FIXME dom nodes not unmounting here
                                                                 :value ~@(index-id option)}  ;; index-id might be platform-specific
                                                     (dom/text ~@((or label identity) option)))))
-                                             ~@(new  (dom/events "input" (comp (map dom/target-value)
-                                                                               (map index))))))))]
+                                             ~@(dom/events "input" (comp (map dom/target-value)
+                                                                         (map index)))))))]
               value')]
       (hf/tx. value' props))))
 
@@ -216,11 +216,10 @@
 (defmacro link [href on-click & body] ;; GG: TODO should it be a p/def or a macro?
   (prn "link" href body)
   `(dom/a {:href (str ~href)}
-          (new (dom/events "click" (comp (map dom/stop-event!)
-                                         (map ~on-click)
-                                         (map (constantly nil))
-                                         (dedupe))) ; don't propagate `nil` on every click
-               )
+          (dom/events "click" (comp (map dom/stop-event!)
+                                    (map ~on-click)
+                                    (map (constantly nil))
+                                    (dedupe))) ; don't propagate `nil` on every click
           ~@body))
 
 (p/def link-renderer)
