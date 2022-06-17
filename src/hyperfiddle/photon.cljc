@@ -216,11 +216,19 @@
 (defmacro for [bindings & body]
   `(hyperfiddle.photon/for-by identity ~bindings ~@body))
 
+(cc/defn ^:no-doc watchable? [x]
+  #?(:clj (instance? clojure.lang.IRef x)
+     :cljs (satisfies? IWatchable x)))
+
+(cc/defn ^:no-doc checked-watch [!x]
+  (assert (watchable? !x) "Provided argument is not Watchable.")
+  (m/watch !x))
+
 (defn Watch [!x]
-  (new (m/watch !x)))
+  (new (checked-watch !x)))
 
 (defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
-  [!x] `(new (m/watch ~!x)))
+  [!x] `(new (checked-watch ~!x)))
 
 (cc/defn debounce-discreet
   ([delay flow] (debounce-discreet delay nil flow))
