@@ -7,7 +7,6 @@
             #?(:clj [hyperfiddle.rcf.analyzer :as ana])     ; todo remove
             [missionary.core :as m]
             [clojure.core.async :as a]
-            [hyperfiddle.logger :as log]
             #?(:cljs [hyperfiddle.photon-client]))
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping debounce wrap]]))
   (:import #?(:clj (hyperfiddle.photon_impl.runtime Failure))
@@ -125,9 +124,7 @@
 
 (cc/defn wrap* [f & args]
   #?(:clj
-     (->> (m/ap (m/? (m/via m/blk (try (apply f args)
-                                       (catch InterruptedException err
-                                         (log/debug "Blocking task cancelled:" f err))))))
+     (->> (m/ap (m/? (m/via m/blk (apply f args))))
           (m/reductions {} (Failure. (Pending.)))
           (m/relieve {}))))
 
