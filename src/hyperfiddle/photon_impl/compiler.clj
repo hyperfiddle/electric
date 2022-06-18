@@ -410,10 +410,10 @@
             [[] () nil] args)]
       (analyze-form env
         `(new ~(reduce
-                 (fn [r f] `(r/latest-first ~r (::closure ~f)))
+                 (fn [r f] `(r/latest-first ~r (::lift ~f)))
                  (case catches
-                   [] `(::closure (do ~@forms))
-                   `(r/recover
+                   [] `(::lift (do ~@forms))
+                   `(r/bind r/recover
                       (some-fn
                         ~@(map (fn [[c s & body]]
                                  (let [f `(partial (def exception) (::closure (let [~s exception] ~@body)))]
@@ -421,7 +421,10 @@
                                      (:default Throwable)
                                      `(r/clause ~f)
                                      `(r/clause ~f ~c)))) catches))
-                      (::closure (do ~@forms)))) finally))))
+                      (::lift (do ~@forms)))) finally))))
+
+    (::lift)
+    (conj-res [[:lift]] (analyze-form env (first args)))
 
     (::closure)
     (let [res (analyze-form env (first args))]
@@ -651,31 +654,25 @@
           [:global :hyperfiddle.photon-impl.runtime/latest-first]
           [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
            [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
-            [:constant [:literal 1]] [:constant [:literal 2]]]
-           [:constant [:literal 3]]]
-          [:constant [:literal 4]]]
+            [:lift [:literal 1]] [:lift [:literal 2]]]
+           [:lift [:literal 3]]]
+          [:lift [:literal 4]]]
     [:bind 0 1 [:variable [:sub 1]]]]
-   [:target [:nop]
-    [:target [:nop]
-     [:target [:nop]
-      [:target [:nop]
-       [:source [:literal nil]]]]]]]
+   [:source [:literal nil]]]
 
   (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
   [[:pub [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
-          [:apply [:global :hyperfiddle.photon-impl.runtime/recover]
+          [:apply [:global :hyperfiddle.photon-impl.runtime/bind]
+           [:global :hyperfiddle.photon-impl.runtime/recover]
            [:apply [:global :clojure.core/some-fn]
             [:apply [:global :hyperfiddle.photon-impl.runtime/clause]
              [:apply [:global :clojure.core/partial]
               [:def 0] [:constant [:pub [:node 0] [:literal 2]]]]
              [:global :java.lang.Exception]]]
-           [:constant [:literal 1]]]
-          [:constant [:literal 3]]]
+           [:lift [:literal 1]]]
+          [:lift [:literal 3]]]
     [:bind 1 1 [:variable [:sub 1]]]]
-   [:target [:nop]
-    [:target [:nop]
-     [:target [:nop]
-      [:source [:literal nil]]]]]]
+   [:target [:nop] [:source [:literal nil]]]]
   )
 
 
