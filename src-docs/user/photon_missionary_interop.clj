@@ -2,7 +2,8 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
-            [missionary.core :as m]))
+            [missionary.core :as m])
+  (:import hyperfiddle.photon.Failure))
 
 
 (hyperfiddle.rcf/enable!)
@@ -153,7 +154,7 @@
 
 (tests
   "inject Photon exception from missionary flow"
-  (defn boom! [x] (r/->Failure "boom"))
+  (defn boom! [x] (Failure. (r/error "boom")))
 
   (with (p/run (! (try (new (m/eduction (map boom!) (p/fn [] 1)))
                        (catch Throwable t ::boom))))
