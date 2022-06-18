@@ -12,6 +12,10 @@
   #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
                     (goog.ui.KeyboardShortcutHandler EventType))))
 
+
+(def nil-subject (fn [!] (! nil) #()))
+(p/def keepalive (new (m/observe nil-subject)))
+
 (p/def node) ; used to be called parent
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
@@ -33,7 +37,7 @@
   [dom-node & body]
   `(binding [node ~dom-node]
      (new (p/hook hook node  ; attach body frame to dom-node.
-            (p/fn [] ~@body) ; wrap body in a constant, making it a frame (static, non-variable), so it can be moved as a block.
+            (p/fn [] keepalive ~@body) ; wrap body in a constant, making it a frame (static, non-variable), so it can be moved as a block.
             ))))
 
 (defn dom-element [parent type]
