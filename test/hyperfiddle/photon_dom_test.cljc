@@ -11,7 +11,7 @@
 (tests
   (def !x (atom false))
   (p/run
-    (binding [dom/parent body]
+    (binding [dom/node body]
       (dom/text "a")
       (if (new (m/watch !x))
         (dom/text "b")
@@ -29,9 +29,9 @@
 (tests
   (def !xs (atom ["b" "c"]))
   (p/run
-    (binding [dom/parent body]
+    (binding [dom/node body]
       (dom/text "a")
-      (dom/for [x ~(m/watch !xs)]
+      (p/for [x ~(m/watch !xs)]
         (dom/text x))
       (dom/text "d"))
     (! (text-content body)))
