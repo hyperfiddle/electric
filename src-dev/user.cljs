@@ -16,6 +16,7 @@
     wip.example-router
     wip.hfql-links
     wip.editor
+    wip.explorer
     ))
 
 (defn runtime-resolve [exported-qualified-sym]
