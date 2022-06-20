@@ -9,7 +9,7 @@
             [clojure.core.async :as a]
             #?(:cljs [hyperfiddle.photon-client]))
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping debounce wrap]]))
-  (:import (clojure.lang IDeref)
+  (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.photon Pending Failure)
            (missionary Cancelled)))
 

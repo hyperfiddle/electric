@@ -20,7 +20,7 @@
     (dom/div {:class "navbar"}
              (ui/link (second route-state) hf/navigate-back! (dom/text "< back"))
              (dom/div {:class "navbar-route"}
-                      (cm/CodeMirror. {:parent dom/parent :inline true} cm/read-edn cm/write-edn (first route-state))))))
+                      (cm/CodeMirror. {:parent dom/node :inline true} cm/read-edn cm/write-edn (first route-state))))))
 
 (p/defn NotFoundPage []
   ~@(dom/div

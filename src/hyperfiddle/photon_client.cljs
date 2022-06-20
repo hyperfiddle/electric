@@ -27,14 +27,12 @@
     ret))
 
 (defn make-write-chan [socket mailbox]
-  (.addEventListener socket "message" #(let [decoded (decode (.-data %))]
-                                         (log/trace "🔽" decoded)
-                                         (mailbox decoded)))
+  (.addEventListener socket "message" #(mailbox (.-data %)))
   (fn [value]
     (fn [success failure]
       (try
         (log/trace "🔼" value)
-        (.send socket (encode value))
+        (.send socket value)
         (success nil)
         (catch :default e
           (log/error "Failed to write on socket" e)
@@ -64,6 +62,7 @@
                              write-chan (m/?< (connect mailbox))]
                          (log/info "Starting Photon Client")
                          (m/? (write-chan (io/encode server))) ; bootstrap server
-                         (m/? (client (io/message-reader write-chan) (io/message-reader mailbox)))) ; start client
+                         (m/? (client (io/message-writer write-chan)
+                                      (io/message-reader mailbox)))) ; start client
                        (catch Cancelled _
                          "stopped")))))
