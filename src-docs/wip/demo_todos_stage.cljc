@@ -45,7 +45,7 @@
              (z/impulse basis-t)))
       (dom/div
         (apply concat
-               (dom/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
+               (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
                  (dom/div
                    (concat
                      (dom/input {:type "checkbox"
