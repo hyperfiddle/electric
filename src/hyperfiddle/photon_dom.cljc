@@ -49,8 +49,6 @@
                                           (cons `(props ~props) body)
                                           (cons props body))))
 
-(defn by-id [id] #?(:cljs (js/document.getElementById id)))
-
 (defn text-node [parent]
   #?(:cljs (let [node (d/createTextNode "")]
              (.appendChild parent node) node)))
