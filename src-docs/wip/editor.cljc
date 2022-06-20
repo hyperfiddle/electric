@@ -20,7 +20,7 @@
   #?(:cljs
      (p/client
       (p/main
-       (try (binding [dom/parent (dom/by-id "root")]
+       (try (binding [dom/node (dom/by-id "root")]
               ~@(let [content (read! file)]
                   ~@(let [text (dom/div {:style {:width "100vw"}}
                                         (let [text (new codemirror/string content)]

@@ -29,7 +29,7 @@
         ~@(router/router route "./hfql_links.edn"))
       ))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]
+(def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")]
                                             ~@(binding [hf/db     hf/*db*
                                                         hf/Render ui/Render]
                                                 (ui/with-spec-render

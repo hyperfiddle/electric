@@ -40,7 +40,7 @@
              (->> (dom/>keychord-events #{"enter"})
              (m/eduction
                (map (comp task-create (dom/oget :target :value)))
-               (map (partial clear-input! dom/parent)))
+               (map (partial clear-input! dom/node)))
              (z/impulse basis-t)))
       (dom/div
         (apply concat
