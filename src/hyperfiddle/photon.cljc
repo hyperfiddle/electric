@@ -56,6 +56,8 @@
   r/eval)
 
 (def hook r/hook)
+(def bind r/bind)
+(def with r/with)
 
 (defmacro def
   ([sym] `(hyperfiddle.photon/def ~sym ::c/unbound))
