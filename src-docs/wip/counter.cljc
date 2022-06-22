@@ -1,17 +1,18 @@
 (ns wip.counter
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom3 :as dom])
+            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.ui2 :as ui])
  (:import (hyperfiddle.photon Pending Remote)))
 
-(defn inc! [!state] (swap! !state inc))
+(defn inc! [!state _js-event]
+  (swap! !state inc))
 
 (p/defn Counter []
   (let [!state (atom 0)]
-    (dom/hiccup
-      [:div
-       [:input {:value (p/watch !state)}]
-       [:button "Count"
-        (new (dom/events "click" (map (partial inc! !state))))]])))
+    (dom/div
+     (ui/input {:value (p/watch !state)})
+     (ui/button {:on-click (map (partial inc! !state))}
+                (dom/text "Count2")))))
 
 (def main
   #?(:cljs (p/client
@@ -23,4 +24,5 @@
                  (catch Remote _))))))
 
 (comment
-  #?(:clj (def dispose (user/browser-main! `main))))
+  #?(:clj (user/browser-main! `main))
+  )
