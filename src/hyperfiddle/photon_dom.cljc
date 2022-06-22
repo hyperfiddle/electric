@@ -58,16 +58,20 @@
 (defmacro text [& strs]
   `(with (text-node node) (set-text-content! node (str ~@strs))))
 
-(defn clean-props [props]
-  (cond-> props
-    (contains? props :class) (update :class #(if (vector? %) (str/join " " %) %))))
+(defn set-style! [node k v]
+  #?(:cljs (goog.style/setStyle node (name k) (clj->js v))))
 
-(defn set-properties! [e m] #?(:cljs (let [styles (:style m)
-                                           props  (dissoc m :style)]
-                                       (when (seq styles) (goog.style/setStyle e (clj->js styles)))
-                                       (when (seq props) (d/setProperties e (clj->js (clean-props props)))))))
+(defn set-property! [node k v]
+  #?(:cljs (case k
+             :style (goog.style/setStyle node (clj->js v))
+             :list  (.setAttribute node "list" (str v))
+             :class (d/setProperties node (clj->js {"class" (if (coll? v) (str/join " " v) v)}))
+             (d/setProperties node (clj->js {k v})))))
 
-(defmacro props [m] `(set-properties! node ~m))
+(defmacro props [m]
+  `(p/for [[k# v#] ~m]
+     ;; TODO diff on :style too
+     (set-property! node k# v#)))
 
 (defn >events* [node event-type & [xform init rf :as args]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
@@ -142,7 +146,7 @@
   ([event-type xform init rf]      `(new (m/relieve {} (>events* node ~event-type ~xform ~init ~rf))))
   ([node event-type xform init rf] `(new (m/relieve {} (>events* ~node  ~event-type ~xform ~init ~rf)))))
 
-(defn- flip [f] (fn [& args] (apply f (reverse args))))
+(defn flip [f] (fn [& args] (apply f (reverse args))))
 
 (defn oget* [obj ks]
   #?(:clj  (get-in obj ks)

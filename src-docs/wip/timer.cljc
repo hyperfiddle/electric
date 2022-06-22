@@ -1,8 +1,8 @@
 (ns wip.timer
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom3 :as dom]
-            [wip.semicontroller])
-  #?(:require-macros [wip.semicontroller :refer [interpreter]])
+            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.ui2 :as ui])
+  #?(:require-macros [wip.timer])
   (:import (hyperfiddle.photon Pending Remote)))
 
 (def initial-goal 10000)
@@ -29,15 +29,17 @@
                    :style {:grid-column 2}}]
        [:span [:text (str (seconds time) " s")]]
        [:span {:style {:grid-row 3}} "Duration"]
-       [:input {:type  :range
-                :min   0
-                :max   60000
-                :value initial-goal
-                :style {:grid-row 3}}
-        (new (dom/events "input" (comp (map dom/target-value) (map (partial reset! !goal))) initial-goal))]
-       [:button {:style {:grid-row 4, :grid-column "1/3"}}
-        "Reset"
-        (new (dom/events "click" (comp (map now) (map (partial reset! !start)))))]])))
+       (ui/input {:type  :range
+                  :min   0
+                  :max   60000
+                  :value initial-goal
+                  :style {:grid-row 3}
+                  :on-input (comp (map (dom/oget :target :value)) (map (partial reset! !goal)))})
+       (let [on-off (ui/checkbox {:checked true})]
+         (dom/text "on?" on-off))
+       (ui/button {:style {:grid-row 4, :grid-column "1/3"}
+                   :on-click (comp (map now) (map (partial reset! !start)))}
+                  (dom/text "Reset"))])))
 
 (def main
   #?(:cljs (p/client
