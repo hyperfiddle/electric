@@ -1,6 +1,6 @@
 (ns user.demo-4-counter
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom3 :as dom]
+            [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-4-counter)))           ; forces shadow hot reload to also reload JVM at the same time

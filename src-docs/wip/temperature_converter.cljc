@@ -1,19 +1,12 @@
 (ns wip.temperature-converter
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom3 :as dom]
-            #?(:cljs [goog.string.format])
-            #?(:cljs [goog.string :refer [format]])
-            [wip.semicontroller])
-  #?(:cljs (:require-macros [wip.semicontroller :refer [semicontroller interpreter]]))
+            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.ui2 :as ui]
+            [clojure.string :as str])
   (:import (hyperfiddle.photon Pending Remote)))
 
 (defn celsius->farenheit [c] (+ (* c (/ 9 5)) 32))
 (defn farenheit->celsius [f] (* (- f 32) (/ 5 9)))
-
-(defn format-num [x] #?(:cljs (format "%.2f" x)))
-(defn parse-num [x] #?(:cljs (-> (js/parseFloat x) (* 100) (js/Math.round) (/ 100))))
-(defn is-num? [x] #?(:cljs (not (js/isNaN x))))
-(def parse-input (comp (map dom/target-value) (map parse-num) (filter is-num?)))
 
 (p/defn TemperatureConverter [temperature]
   (dom/hiccup
@@ -23,19 +16,13 @@
       [:tr
        [:th "Celcius"]
        [:th "Farenheit"]]
-      [:tr [[:td (semicontroller :focused temperature
-                   (p/fn [temperature]
-                     (dom/input {:type  :number
-                                 :step "0.5"
-                                 :value (format-num temperature)}
-                       [[:focused (not (new (dom/focus-state dom/node)))]
-                        (new (dom/events "input" (comp parse-input (map (partial conj [:celsius])))))])))]
-            [:td (semicontroller :focused temperature
-                   (p/fn [temperature]
-                     (dom/input {:type  :number
-                                 :value (format-num (celsius->farenheit temperature))}
-                       [[:focused (not (new (dom/focus-state dom/node)))]
-                        (new (dom/events "input" (comp parse-input (map (partial conj [:fahrenheit])))))])))]]]]]))
+      [:tr [[:td (ui/numeric-input {:value    temperature
+                                    :step     "0.5"
+                                    :format   "%.2f"
+                                    :on-input (map (partial conj [:celsius]))})]
+            [:td (ui/numeric-input {:value    (celsius->farenheit temperature)
+                                    :step     "0.5"
+                                    :on-input (map (partial conj [:fahrenheit]))})]]]]]))
 
 (defn set-state! [!state [event-tag value :as event]]
   (prn "event:" event)
@@ -49,8 +36,8 @@
                (try
                  (binding [dom/node (dom/by-id "root")]
                    (let [!state (atom 0)]
-                     (interpreter #{:celsius :fahrenheit} (partial set-state! !state)
-                       (TemperatureConverter. (p/watch !state)))))
+                     (ui/interpreter #{:celsius :fahrenheit} (partial set-state! !state)
+                        (TemperatureConverter. (p/watch !state)))))
                  (catch Pending _)
                  (catch Remote _))))))
 
