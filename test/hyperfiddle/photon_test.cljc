@@ -1215,3 +1215,16 @@
     % := [1]
     % := [2 nil]
     % := ["2"]))
+
+(tests
+  (def !t (atom true))
+  (p/run
+    (! (try (let [t (p/watch !t)]
+              (when t t ~@t))
+            (catch Pending _ :pending)
+            (catch Cancelled _ :cancelled))))
+  % := :pending
+  % := true
+  (swap! !t not)
+  % := :cancelled
+  % := nil)
