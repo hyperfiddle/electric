@@ -9,11 +9,9 @@
 (def !n #?(:clj (atom 0)))
 (p/def n (p/watch !n))                                      ; server
 
-; This "z/impulse" pattern is low level, we are still working out the idioms!
-
 (p/defn Button [F]
   (let [event (dom/button (dom/text "click me")
-                (z/impulse ~@n (dom/>events "click")))]    ; convert discrete event stream to Photon continuous signal
+                          (z/impulse ~@n (dom/>events "click")))] ; todo abstract
     (when event
       (F. event))))
 
@@ -21,10 +19,19 @@
   (dom/div
     (dom/h1 (dom/text "Button with server callback"))
     (dom/dl
-      (dom/dt (dom/text "client button")) (dom/dd (Button. (p/fn [event]
-                                                             (js/console.log ::clicked event)
-                                                             ~@(swap! !n inc))))
-      (dom/dt (dom/text "server atom")) (dom/dd (dom/text ~@(p/watch !n))))))
+      (dom/dt (dom/text "client button"))
+      (dom/dd (Button. (p/fn [event]
+                         (js/console.log ::clicked event)
+                         ~@(swap! !n inc))))                ; client/server transfer
+
+      (dom/dt (dom/text "server atom"))
+      (dom/dd (dom/text ~@n))                               ; client/server transfer
+
+      (let [odd ~@(odd? n)]                                 ; client/server transfer
+        (dom/dt (dom/text (if odd "client" "server")))
+        (dom/dd (dom/text (if odd
+                            (pr-str (type ~@n))             ; client/server transfer
+                            ~@(pr-str (type n)))))))))      ; client/server transfer
 
 (def main #?(:cljs (p/client (p/main
                                (try
@@ -34,4 +41,5 @@
 
 (comment
   (user/browser-main! `main)
+  (reset! !n 0)
   )
