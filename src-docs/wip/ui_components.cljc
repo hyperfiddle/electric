@@ -1,10 +1,21 @@
 (ns wip.ui-components
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.zero :as z]
-            [hyperfiddle.ui2 :as ui])
+            [hyperfiddle.ui2 :as ui]
+            [clojure.string :as str])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.ui-components)))        ; forces shadow hot reload to also reload JVM at the same time
+
+(defn query-names [needle]
+  (->> [{:id 1, :text "alice"},
+        {:id 2, :text "bob"}
+        {:id 3, :text "charlie"}]
+       (filter #(str/includes? (:text %) needle))))
+
+(defn run-long-task! []
+  (prn "Running long task")
+  #?(:clj (Thread/sleep 1000))
+  :result)
 
 (p/defn App []
   (dom/hiccup
@@ -13,13 +24,23 @@
     [:hr]
     [:h2 "Button"]
 
-    (ui/button {:on-click (map (partial js/alert "hello"))}
-               (dom/text "log to console"))
+    (when-let [event (ui/button {} (dom/text "log to console"))]
+      (prn "clicked! " event))
+
+    [:hr]
+    [:h2 "Button with pending state"]
+
+    (when-let [event (ui/suspense (ui/button {:on-click (p/fn [event]
+                                                          [:click ~@(p/wrap run-long-task!)])}
+                                             (dom/text "Long running task")))]
+      (prn "clicked! " event))
+
+
     [:hr]
     [:h2 "Checkbox"]
 
     [:label
-     (let [checked? (ui/checkbox {:checked true})]
+     (let [checked? (ui/checkbox {::ui/value true})]
        (dom/text " Checked? " checked?))]
 
     [:hr]
@@ -32,9 +53,10 @@
 
     [:hr]
     [:h2 "Text input"]
-    [:span (let [num (ui/input {:placeholder "Text …"
-                                :value       ""})]
-             (dom/text " value: " num))]
+    [:span (let [value (ui/input {:placeholder   "Text …"
+                                  :value         "init"
+                                  ::ui/on-change (p/fn [value] value)})]
+             (dom/text value))]
 
     [:hr]
     [:h2 "Date"]
@@ -44,21 +66,17 @@
 
     [:hr]
     [:h2 "Select"]
-    [:span (let [selected (ui/select {:value   1
+    [:span (let [selected (ui/select {:value   {:value 0, :text "Initial"}
                                       :options [{:value 1, :text "One"}
                                                 {:value 2, :text "Two"}
                                                 {:value 3, :text "Three"}]})]
              (dom/text " value: " (pr-str selected)))]
 
     [:hr]
-    [:h2 "Typeahead"]
+    [:h2 "Native Typeahead"]
 
-    [:span (let [value (ui/typeahead {:placeholder "Search…"
-                                      :options (p/fn [needle]
-                                                 [{:value 1, :text "One"}
-                                                  {:value 2, :text "Two"}
-                                                  {:value 3, :text "Three"}
-                                                  {:value 4, :text needle}])})]
+    [:span (let [value (ui/native-typeahead {:placeholder "Search…"
+                                             :options     (p/fn [needle] (query-names (or needle "")))})]
              (dom/text " value: " value))]
 
     ]))
@@ -68,6 +86,7 @@
                                 (binding [dom/node (dom/by-id "root")]
                                   (App.))
                                 (catch Pending _))))))
+
 
 (comment
   #?(:clj (user/browser-main! `main))

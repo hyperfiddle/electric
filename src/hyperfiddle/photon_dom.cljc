@@ -62,16 +62,24 @@
   #?(:cljs (goog.style/setStyle node (name k) (clj->js v))))
 
 (defn set-property! [node k v]
-  #?(:cljs (case k
-             :style (goog.style/setStyle node (clj->js v))
-             :list  (.setAttribute node "list" (str v))
-             :class (d/setProperties node (clj->js {"class" (if (coll? v) (str/join " " v) v)}))
-             (d/setProperties node (clj->js {k v})))))
+  #?(:cljs
+     (if (some? v)
+       (case k
+         :style (goog.style/setStyle node (clj->js v))
+         :list  (.setAttribute node "list" (str v))
+         :class (d/setProperties node (clj->js {"class" (if (coll? v) (str/join " " v) v)}))
+         (d/setProperties node (clj->js {k v})))
+       (.removeAttribute node (name k)))))
+
+(defmacro style [m]
+  `(p/for-by first [sty# (vec ~m)]
+     (set-style! node (key sty#) (val sty#))))
 
 (defmacro props [m]
-  `(p/for [[k# v#] ~m]
-     ;; TODO diff on :style too
-     (set-property! node k# v#)))
+  `(p/for-by key [prop# (vec ~m)]
+     (if (= :style (key prop#))
+       (style (val prop#))
+       (set-property! node (key prop#) (val prop#)))))
 
 (defn >events* [node event-type & [xform init rf :as args]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
@@ -166,7 +174,7 @@
     (do (assert (every? path-ident? args))
         `(partial (flip oget*) [~@args]))
     (do (assert (every? path-ident? (rest args)))
-        `(oget* ~(last args) ~@(butlast args)))))
+        `(oget* ~(first args) [~@(rest args)]))))
 
 (defn oset!* [obj path val]
   #?(:clj  (assoc-in obj path val)

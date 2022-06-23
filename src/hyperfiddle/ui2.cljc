@@ -7,12 +7,16 @@
             [hyperfiddle.logger :as log]
             [clojure.string :as str]
             #?(:cljs [goog.string.format])
-            #?(:cljs [goog.string :refer [format]]))
-  #?(:cljs (:require-macros [hyperfiddle.ui2 :refer [interpreter semicontroller component input]]))
-  (:import (hyperfiddle.photon Pending Remote)))
+            #?(:cljs [goog.string :refer [format]])
+            [clojure.set :as set])
+  #?(:cljs (:require-macros [hyperfiddle.ui2 :refer [interpreter semicontroller input]]))
+  (:import (hyperfiddle.photon Pending Remote)
+           (missionary Cancelled)))
 
 (comment
   (rcf/enable!))
+
+(declare dedupe-n)
 
 ;; events looks like:
 ;; - [:db/add e a v]
@@ -26,9 +30,9 @@
         ([] (xf))
         ([result] (xf result))
         ([result input]
-         (if (matches? input)
-           (do (f input) result)
-           (xf result input)))))))
+         (doseq [match (filter matches? (dedupe-n input))]
+           (f match))
+         (xf result (remove matches? input)))))))
 
 (tests
   "Unmatched events passes through"
@@ -93,7 +97,7 @@
   [event-tag input Body]
   `(let [!switch# (atom true)]
      (->> (p/fn [] (check-interpretable! (new ~Body (new (m/eduction (filter (partial deref' !switch#)) (p/fn [] ~input))))))
-          (m/eduction (dedupe-n) cat (interpret #{~event-tag} (partial set-switch! !switch#)))
+          (m/eduction #_(dedupe-n) #_cat (interpret #{~event-tag} (partial set-switch! !switch#)))
           (m/reductions {} nil)
           (new))))
 
@@ -119,23 +123,25 @@
 
 (defn signal->event [sig] (str/replace (name sig) #"^on-" ""))
 
-(defmacro component [f value-key value-val props & body]
-  `(let [props# ~props]
-     (semicontroller :focused ~value-val
-                     (p/fn [value-val#]
-                       (~f (p/forget (dom/props props#))
-                        (when-let [k# ~value-key]
-                          (p/forget (dom/props {~value-key value-val#})))
-                        (into [[:focused (not (new (dom/focus-state dom/node)))]]
-                              (into (p/for [sig# (signals props#)]
-                                      (dom/events (signal->event sig#) (get props# sig#)))
-                                    (do ~@body))))))))
-
 (defmacro input [props]
-  `(let [props#    ~props
-         on-input# (get props# :on-input (map (dom/oget :target :value)))]
-     (component dom/input :value (:value props#) (-> props# (dissoc :value)
-                                                     (assoc :on-input on-input#)))))
+  `(let [props# ~props
+         props# (default props# ::on-change (p/fn [x] x))]
+     (::value
+      (into {} (semicontroller
+                ::focused (:value props#)
+                (p/fn [value#]
+                  (dom/input (p/forget (dom/props props#))
+                             (p/forget (dom/props {:value value#}))
+                             (into [[::value   value#]
+                                    [::focused (not (new (dom/focus-state dom/node)))]]
+                                   (p/for [sig# (signals props#)]
+                                     (if (= ::on-change sig#)
+                                       [::value (new (get props# ::on-change)
+                                                    (dom/events "input" (map (dom/oget :target :value))
+                                                                value#))]
+                                       (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
+                                         (let [res# (new (get props# sig#) event#)]
+                                           (when (vector? res#) res#)))))))))))))
 
 (defn format-num [format-str x] #?(:cljs (if format-str
                                            (format format-str x)
@@ -145,59 +151,167 @@
 (def parse-input (comp (map (dom/oget :target :value)) (map parse-num) (filter is-num?)))
 
 (defmacro numeric-input [props]
-  `(let [props#    ~props
-         on-input# (if-let [on-input# (get props# :on-input)]
-                     (comp parse-input on-input#)
-                     parse-input)]
-     (component dom/input :value (format-num (:format props#) (:value props#))
-                (-> props#
-                    (assoc :type :number)
-                    (dissoc :value :format)
-                    (assoc :on-input on-input#))
-                [(:value props#)])))
+  `(let [props# ~props
+         props# (default props# ::on-change (p/fn [x] x))
+         value# (:value props#)]
+     (::value
+      (into {} (semicontroller
+                ::focused value#
+                (p/fn [value#]
+                  (dom/input (p/forget (dom/props props#))
+                             (p/forget (dom/props {:value (format-num (:format props#) value#)
+                                                   :type :number}))
+                             (into [[::value   value#]
+                                    [::focused (not (new (dom/focus-state dom/node)))]]
+                                   (p/for [sig# (signals props#)]
+                                     (if (= ::on-change sig#)
+                                       [::value (new (get props# ::on-change)
+                                                     (dom/events "input" parse-input value#))]
+                                       (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
+                                         (let [res# (new (get props# sig#) event#)]
+                                           (when (vector? res#) res#)))))))))))))
+
+(defn safe-body [xs]
+  (cond (vector? xs) (into {} xs)
+        (map? xs)    xs
+        :else        {}))
+
+(defn default [m k v]
+  (if (contains? m k) m (assoc m k v)))
+
+(comment
+  (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
+    (let [res# (new (get props# sig#) event#)]
+      (when (vector? res#) res#)))
+  )
+
+;; (defmacro pending-impulse [props sig]
+;;   `(let [toogle!# (atom false)
+;;          e#       (z/impulse z/time (dom/>events (signal->event ~sig)))]
+;;      (when (p/deduping (boolean (or e# (p/watch toogle!#))))
+;;        (reset! toogle!# true)
+;;        (try (when-let [result# (new (get ~props ~sig) e#)]
+;;               (do (reset! toogle!# false)
+;;                   (dom/set-property! dom/node :data-pending nil)
+;;                   (p/deduping result#)))
+;;             (catch Pending err
+;;               (dom/set-property! dom/node :data-pending true))))))
+
+(defn do-and-ret [f v]
+  (m/ap (m/amb v (do (f) (m/amb)))))
+
+(defmacro suspense [& body]
+  `(let [!pending# (atom nil)]
+     (dom/div {:data-hf-pending (p/watch !pending#)}
+              (try (let [res# (do ~@body)]
+                     (new (do-and-ret (partial reset! !pending# nil) res#)))
+                   (catch Pending _
+                     (prn "Suspense pending …")
+                     (reset! !pending# true)
+                     nil)
+                   (catch Cancelled _
+                     (prn "cancelled"))))))
+
+(defmacro pending-impulse [flow form]
+  `(let [!pending# (atom 0)
+         val# (z/impulse (p/watch !pending#) ~form)]
+     (try
+       (when (some? val#)
+         (let [res# (new ~flow val#)]
+           (new (do-and-ret (partial swap! !pending# inc) res#))))
+       (catch Pending err
+         (prn "Pending impulse…")
+         (throw err)))))
 
 (defmacro button [props & body]
-  `(component dom/button nil nil ~props ~@body))
+  `(let [props# ~props
+         props# (default props# :on-click (p/fn [x] [:click true]))]
+     (:click (dom/button (p/forget (dom/props props#))
+                         (into (safe-body (do ~@body))
+                               (p/for [sig# (signals props#)]
+                                 (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                   (when (vector? res#) res#))
+                                 #_(when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
+                                   (let [res# (new (get props# sig#) event#)]
+                                     (when (vector? res#) res#)))
+                                 ))))))
 
 (defmacro checkbox [props]
-  `(let [props#    ~props
-         on-input# (get props# :on-input (map (dom/oget :target :checked)))]
-     (component dom/input :checked (:checked props#) (-> props# (dissoc :value)
-                                                         (assoc :type :checkbox)
-                                                         (assoc :on-input on-input#))
-                [(:checked props#)])))
+  `(let [props# ~props
+         props# (default props# ::on-change (p/fn [x] [::value x]))
+         value# (::value props#)]
+     (::value (dom/input (p/forget (dom/props props#))
+                         (dom/props {:type    :checkbox
+                                     :checked value#})
+                         (into {::value value#}
+                               (p/for [sig# (signals props#)]
+                                 (if (= ::on-change sig#)
+                                   (new (get props# ::on-change)
+                                        (dom/events "change" (map (dom/oget :target :checked)) value#))
+                                   (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
+                                     (let [res# (new (get props# sig#) event#)]
+                                       (when (vector? res#) res#))))))))))
 
-(defn- lookup [kf x xs] (first (filter #(= x (kf %)) xs)))
+(defn- index-of [vec val] (.indexOf vec val))
 
 (defmacro select [props]
-  `(let [props#     ~props
-         options#   (vec (:options props#))
-         value#     (:value props#)
-         on-change# (get props# :on-change (comp (map (dom/oget :target :value))
-                                                 (map parse-num)
-                                                 (map (partial get options#))))]
-     (component dom/select :value (:value props#) (-> props#
-                                                      (dissoc :value :options)
-                                                      (assoc :on-change on-change#))
-                (p/for [[idx# option#] (map-indexed vector options#)]
-                  (dom/option {:value idx#}
-                              (when (= (:value option#) value#
-                                       (dom/props {:selected true})))
-                              (dom/text (:text option#))))
-                [(lookup :value value# options#)])))
-
-(defmacro typeahead [props]
   `(let [props#    ~props
-         ;; value#    (:value props#)
-         on-input# (get props# :on-input (comp (map (dom/oget :target :value))))
-         list-id   (str (gensym))]
-     (let [value#   (component dom/input :value (:value props#) (-> props#
-                                                                    (dissoc :value :options)
-                                                                    (assoc :on-input on-input#
-                                                                           :list list-id
-                                                                           :type :search)))
-           options# (new (:options props#) value#)]
-       (dom/datalist {:id list-id}
-                     (p/for [option# options#]
-                       (dom/option (dom/text (:text option#)))))
-       value#)))
+         props#    (default props# ::on-change (p/fn [x] x))
+         options#  (vec (:options props#))
+         value#    (:value props#)
+         selected# (index-of options# value#) ; TODO accept a keyfn prop instead of comparing with `=`.
+         ]
+     (::value
+      (into {} (dom/select (p/forget (dom/props props#))
+                           (p/forget (dom/props {:value value#}))
+                           (when (= -1 selected#)
+                             (dom/option {:disabled true
+                                          :selected true}
+                                         (dom/text (:text value#))))
+                           (p/for [[idx# option#] (map-indexed vector options#)]
+                             (dom/option {:value idx#}
+                                         (when (= selected# idx#)
+                                           (dom/props {:selected true}))
+                                         (dom/text (:text option#))))
+                           (into [[::value   value#]]
+                                 (p/for [sig# (signals props#)]
+                                   (if (= ::on-change sig#)
+                                     [::value (new (get props# ::on-change)
+                                                   (dom/events "change" (comp (map (dom/oget :target :value))
+                                                                             (map parse-num)
+                                                                             (map (partial get options#)))
+                                                               value#))]
+                                     (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
+                                       (let [res# (new (get props# sig#) event#)]
+                                         (when (vector? res#) res#)))))))))))
+
+(defmacro native-typeahead [props]
+  (let [list-id (str (gensym))]
+    `(let [props# ~props
+           props# (default props# ::on-change (p/fn [x] x))]
+       (::value
+        (into {} (semicontroller
+                  ::focused (:value props#)
+                  (p/fn [value#]
+                    (let [res#     (into {} (dom/input (p/forget (dom/props props#))
+                                                       (p/forget (dom/props {:type :search
+                                                                             :value value#
+                                                                             :list  ~list-id}))
+                                                       (into [[::value   value#]
+                                                              [::focused (not (new (dom/focus-state dom/node)))]]
+                                                             (p/for [sig# (signals props#)]
+                                                               (if (= ::on-change sig#)
+                                                                 [::value (new (get props# ::on-change)
+                                                                               (dom/events "input" (map (dom/oget :target :value))
+                                                                                           value#))]
+                                                                 (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
+                                                                   (let [res# (new (get props# sig#) event#)]
+                                                                     (when (vector? res#) res#))))))))
+                          needle#  (::value res#)
+                          options# (when-let [options# (:options props#)]
+                                     (new options# needle#))]
+                      (dom/datalist {:id ~list-id}
+                                    (p/for [option# options#]
+                                      (dom/option {:id (:value option#)} (dom/text (:text option#)))))
+                      (vec res#)))))))))
+
