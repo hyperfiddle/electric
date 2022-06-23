@@ -623,7 +623,7 @@
 (defn bind [f & args]
   (fn [n t]
     (if-some [tier (l/get-local this)]
-      ((apply f tier args) n t)
+      ((apply f tier args) n t)    ; hook tier and pass to userland !
       (failer (error "Unable to bind - not an object.") n t))))
 
 (defn with [tier <x]
