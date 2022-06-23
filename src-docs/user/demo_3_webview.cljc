@@ -8,6 +8,9 @@
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-3-webview)))
 
+(p/defn Input []
+  (dom/input {:type :search, :placeholder "Filter…"}
+             (dom/events "input" (map (dom/oget :target :value)) "")))
 
 (defonce conn #?(:cljs nil                                  ; state survives reload
                  :clj  (doto (d/create-conn {:order/email {}})
@@ -24,18 +27,10 @@
               [(user.util/includes-str? ?email ?needle)]]
             db (or ?email "")))))
 
-#?(:clj
-   (tests
-     (orders @conn "") := [1 2 3]
-     (orders @conn "alice") := [1]))
-
 (p/def db)                                                  ; server
 
-(p/defn Input []
-  (dom/input {:type :search, :placeholder "Filter…"}
-             (dom/events "input" (map (dom/oget :target :value)) "")))
-
 (p/defn View []
+  (dom/h2 (dom/text "frontend/backend webview with server push"))
   (let [email (Input.)]
     (dom/table
       (p/for [id ~@(orders db email)]
@@ -56,5 +51,6 @@
   #?(:clj (d/transact conn [{:order/email "dan@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "erin@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))
+
   #?(:clj (d/transact conn [{:db/id 2 :order/email "bob2@example.com"}]))
   )
