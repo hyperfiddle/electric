@@ -1195,3 +1195,23 @@
     % := :even
     (swap! !x inc)
     % := :odd))
+
+(tests
+  "simultaneous add and remove in a for with a nested hook"
+  (def !xs (atom [1]))
+  (defn hook
+    ([x] (! [x]))
+    ([x y] (! [x y])))
+  (with
+    (p/run
+      (! (new (p/hook hook 0
+                (p/fn []
+                  (p/for [x (new (m/watch !xs))]
+                    (new (p/hook hook x
+                           (p/fn [] (str x))))))))))
+    % := [1 nil]
+    % := ["1"]
+    (reset! !xs [2])
+    % := [1]
+    % := [2 nil]
+    % := ["2"]))
