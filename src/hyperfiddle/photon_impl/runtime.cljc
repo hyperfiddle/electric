@@ -174,21 +174,47 @@
 (defn get-target-register [^objects ctx]
   (aget ctx (int 8)))
 
-(defn make-context "
-0: root frame
-1: local counter id
-2: remote counter id
-3: id -> frame
-4: remote callback
-5: output callback
-6: decoder stack
-7: decoder frame register
-8: decoder target register
-" []
-  (doto (object-array 9)
-    (aset (int 1) (identity 0))
-    (aset (int 2) (identity 0))
-    (aset (int 3) (transient {}))))
+(defn tier-parent [^objects t]
+  (aget t (int 0)))
+
+(defn tier-position [^objects t]
+  (aget t (int 1)))
+
+(defn get-tier-buffer ^objects [^objects t]
+  (aget t (int 2)))
+
+(defn set-tier-buffer ^objects [^objects t x]
+  (aset t (int 2) x))
+
+(defn get-tier-size [^objects t]
+  (aget t (int 3)))
+
+(defn set-tier-size [^objects t x]
+  (aset t (int 3) x))
+
+(defn get-tier-foreigns [^objects t]
+  (aget t (int 4)))
+
+(defn set-tier-foreigns [^objects t ps]
+  (aset t (int 4) ps))
+
+(defn get-tier-hooks [^objects t]
+  (aget t (int 5)))
+
+(defn set-tier-hooks [^objects t x]
+  (aset t (int 5) x))
+
+(defn get-tier-vars ^objects [^objects t]
+  (aget t (int 6)))
+
+(defn set-tier-vars ^objects [^objects t x]
+  (aset t (int 6) x))
+
+(defn get-tier-remote [^objects t]
+  (aget t (int 7)))
+
+(defn set-tier-remote [^objects t x]
+  (aset t (int 7) x))
 
 (defn get-frame-position [^objects f]
   (aget f (int 0)))
@@ -238,6 +264,41 @@
 (defn doto-aset [^objects arr k v]
   (doto arr (aset (int k) v)))
 
+(defn make-context "
+0: root frame
+1: local counter id
+2: remote counter id
+3: id -> frame
+4: remote callback
+5: output callback
+6: decoder stack
+7: decoder frame register
+8: decoder target register
+" []
+  (doto (object-array 9)
+    (aset (int 1) (identity 0))
+    (aset (int 2) (identity 0))
+    (aset (int 3) (transient {}))))
+
+(defn make-tier "
+0: parent frame
+1: tier position (a frame has many child tiers, as much as `new` statements, this is the static position of the current tier in the parent frame’s child array)
+2: buffer of child frame list
+3: size of child frame list
+4: hook map
+5: foreign flow map
+6: dynamic vars
+7: remote slot (if this tier is a variable, we must reference the corresponding remote source)
+" [parent position]
+  (aset (frame-tiers parent) (int position)
+    (doto (object-array 8)
+      (aset (int 0) parent)
+      (aset (int 1) position)
+      (aset (int 2) (object-array 8))
+      (aset (int 3) (identity (int 0)))
+      (aset (int 4) {})
+      (aset (int 5) {}))))
+
 (defn make-frame "
 0 : position. The index of the frame among its siblings.
 1 : context. Immutable.
@@ -255,7 +316,8 @@
 12: constant count. Immutable.
 13: output count. Immutable
 " [buffer position id parent context ^objects vars foreign static dynamic variable-count source-count constant-count target-count output-count input-count boot]
-  (let [frame (doto (object-array 14)
+  (let [tier-count (+ variable-count source-count)
+        frame (doto (object-array 14)
                 (aset (int 0) position)
                 (aset (int 1) id)
                 (aset (int 2) parent)
@@ -267,9 +329,10 @@
                 (aset (int 8) (object-array source-count))
                 (aset (int 9) (object-array target-count))
                 (aset (int 10) (object-array input-count))
-                (aset (int 11) (object-array (+ variable-count source-count)))
+                (aset (int 11) (object-array tier-count))
                 (aset (int 12) (object-array constant-count))
                 (aset (int 13) output-count))]
+    (dotimes [i tier-count] (make-tier frame i))
     (aset buffer (int position) frame)
     (assoc-frame-id context id frame)
     (let [prevs (reduce-kv
@@ -289,63 +352,6 @@
       (let [result (boot frame vars)]
         (reduce-kv doto-aset vars prevs)
         result))))
-
-(defn tier-parent [^objects t]
-  (aget t (int 0)))
-
-(defn tier-vars ^objects [^objects t]
-  (aget t (int 1)))
-
-(defn tier-position [^objects t]
-  (aget t (int 2)))
-
-(defn tier-remote [^objects t]
-  (aget t (int 3)))
-
-(defn get-tier-buffer ^objects [^objects t]
-  (aget t (int 4)))
-
-(defn set-tier-buffer ^objects [^objects t x]
-  (aset t (int 4) x))
-
-(defn get-tier-size [^objects t]
-  (aget t (int 5)))
-
-(defn set-tier-size [^objects t x]
-  (aset t (int 5) x))
-
-(defn get-tier-foreigns [^objects t]
-  (aget t (int 6)))
-
-(defn set-tier-foreigns [^objects t ps]
-  (aset t (int 6) ps))
-
-(defn get-tier-hooks [^objects t]
-  (aget t (int 7)))
-
-(defn set-tier-hooks [^objects t x]
-  (aset t (int 7) x))
-
-(defn make-tier "
-0: parent frame
-1: dynamic scope
-2: tier position (a frame has many child tiers, as much as `new` statements, this is the static position of the current tier in the parent frame’s child array)
-3: remote slot (if this tier is a variable, we must reference the corresponding remote source)
-4: foreign flow map
-5: buffer of child frame list
-6: size of child frame list
-7: hook map
-" [parent vars position remote]
-  (aset (frame-tiers parent) (int position)
-    (doto (object-array 8)
-      (aset (int 0) parent)
-      (aset (int 1) (aclone vars))
-      (aset (int 2) position)
-      (aset (int 3) remote)
-      (aset (int 4) (object-array 8))
-      (aset (int 5) (identity (int 0)))
-      (aset (int 6) {})
-      (aset (int 7) {}))))
 
 (deftype InputIterator [^objects i]
   IFn
@@ -561,8 +567,10 @@
                         (acopy buf cap))))]
       (set-tier-size tier (inc pos))
       (make-frame buf pos id tier
-        (frame-context (tier-parent tier)) (tier-vars tier)
-        (get-tier-foreigns tier) static dynamic
+        (frame-context (tier-parent tier))
+        (get-tier-vars tier)
+        (get-tier-foreigns tier)
+        static dynamic
         variable-count source-count
         constant-count target-count
         output-count input-count boot))))
@@ -590,7 +598,7 @@
                 (remote par
                   (+ (frame-output-count par)
                     (alength (frame-constants par))
-                    (tier-remote tier)))                  ; notify remote peer of frame mount point (on which tier we want to create this frame, its parent)
+                    (get-tier-remote tier)))              ; notify remote peer of frame mount point (on which tier we want to create this frame, its parent)
                 (let [<x (ctor tier id)
                       f (lookup-frame-id ctx id)]
                   (->FrameIterator f
@@ -635,7 +643,9 @@
                (with tier <c)))) <x))
 
 (defn variable [frame vars position slot <<x]
-  (let [tier (make-tier frame vars position slot)]
+  (let [tier (aget (frame-tiers frame) (int position))]
+    (set-tier-remote tier slot)
+    (set-tier-vars tier (aclone vars))
     (aset (frame-variables frame) (int slot)
       (m/signal!
         (m/cp (try (let [<x (m/?< <<x)]
@@ -646,7 +656,8 @@
 
 (defn source [frame vars position slot]
   (aset (frame-sources frame) (int slot)
-    (make-tier frame vars position slot)))
+    (doto (aget (frame-tiers frame) (int position))
+      (set-tier-vars (aclone vars)))))
 
 (defn target [frame slot ctor]
   (aset (frame-targets frame) (int slot) ctor))
