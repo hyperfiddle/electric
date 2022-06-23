@@ -5,7 +5,8 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z])
-  (:import [hyperfiddle.photon Pending])
+  (:import [hyperfiddle.photon Pending]
+           missionary.Cancelled)
   #?(:cljs (:require-macros user.demo-6-todos-basic)))
 
 (def auto-inc (partial swap! (atom 0) inc))
@@ -73,7 +74,8 @@
 
 (def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")]
                                             (App.))
-                                          (catch Pending _))))))
+                                          (catch Pending _)
+                                          (catch Cancelled _))))))
 
 (comment
   (user/browser-main! `main)
