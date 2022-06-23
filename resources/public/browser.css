@@ -175,3 +175,26 @@ dd {
     backdrop-filter: blur(10px);
     box-shadow: 0 0 1rem 0.5rem rgb(0 0 0 / 0.25);
 }
+
+
+[data-hf-pending="true"]{
+    filter: grayscale(1);
+    opacity: 0.95;
+    cursor: progress;
+}
+
+[data-hf-pending="true"] * {
+    pointer-events: none;
+}
+
+/* [data-hf-pending="true"]::before{ */
+/*     content: " "; */
+/*     width: 1rem; */
+/*     height: 1rem; */
+/*     position: absolute; */
+/*     border: 2px red solid; */
+/*     border-right: none; */
+/*     border-bottom: none; */
+/*     border-radius: 50%; */
+/*     box-sizing: border-box; */
+/* } */
