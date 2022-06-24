@@ -30,9 +30,11 @@
     [:hr]
     [:h2 "Button with pending state"]
 
-    (when-let [event (ui/suspense (ui/button {:on-click (p/fn [event]
-                                                          [:click ~@(p/wrap run-long-task!)])}
-                                             (dom/text "Long running task")))]
+    (when-let [event (ui/suspense
+                      (p/fn [Effect]
+                        (ui/button {:on-click (p/fn [event] [:click ~@(p/wrap run-long-task!)])}
+                                   (Effect. (p/fn [pending?] (dom/props {:disabled pending?})))
+                                   (dom/text "Long running task"))))]
       (prn "clicked! " event))
 
 
