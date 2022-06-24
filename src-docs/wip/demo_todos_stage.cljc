@@ -29,7 +29,7 @@
   (d/q '[:find ?s . :in $ ?e :where [?e :task/status ?s]] @!conn 1)
   := :active)
 
-(defn clear-input! [el v] (dom/set-properties! el {:value ""}) v)
+(defn clear-input! [el v] (dom/set-property! el :value "") v)
 
 (p/def db)                                                  ; server
 

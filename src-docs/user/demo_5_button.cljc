@@ -1,7 +1,7 @@
 (ns user.demo-5-button
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.zero :as z])
+            [hyperfiddle.photon-ui :as ui])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-5-button)))
 
@@ -9,21 +9,16 @@
 (def !n #?(:clj (atom 0)))
 (p/def n (p/watch !n))                                      ; server
 
-(p/defn Button [F]
-  (let [event (dom/button (dom/text "click me")
-                          (z/impulse ~@n (dom/>events "click")))] ; todo abstract
-    (when event
-      (F. event))))
-
 (p/defn App []
   (dom/div
     (dom/h1 (dom/text "Button with server callback"))
     (dom/dl
       (dom/dt (dom/text "client button"))
-      (dom/dd (Button. (p/fn [event]
-                         (js/console.log ::clicked event)
-                         ~@(swap! !n inc))))                ; client/server transfer
-
+      (dom/dd
+        (ui/button {:on-click (p/fn [event]
+                                (js/console.log ::clicked event)
+                                ~@(swap! !n inc))}          ; client/server transfer
+                   (dom/text "click me")))
       (dom/dt (dom/text "server atom"))
       (dom/dd (dom/text ~@n))                               ; client/server transfer
 
