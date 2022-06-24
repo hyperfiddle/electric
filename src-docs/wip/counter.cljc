@@ -1,7 +1,7 @@
 (ns wip.counter
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui2 :as ui])
+            [hyperfiddle.photon-ui :as ui])
  (:import (hyperfiddle.photon Pending Remote)))
 
 (defn inc! [!state _js-event]

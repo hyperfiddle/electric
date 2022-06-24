@@ -1,7 +1,7 @@
 (ns wip.temperature-converter
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui2 :as ui]
+            [hyperfiddle.photon-ui :as ui]
             [clojure.string :as str])
   (:import (hyperfiddle.photon Pending Remote)))
 

@@ -1,7 +1,7 @@
 (ns wip.ui-components
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui2 :as ui]
+            [hyperfiddle.photon-ui :as ui]
             [clojure.string :as str])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.ui-components)))        ; forces shadow hot reload to also reload JVM at the same time
