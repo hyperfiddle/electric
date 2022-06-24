@@ -58,16 +58,28 @@
 (defmacro text [& strs]
   `(with (text-node node) (set-text-content! node (str ~@strs))))
 
-(defn clean-props [props]
-  (cond-> props
-    (contains? props :class) (update :class #(if (vector? %) (str/join " " %) %))))
+(defn set-style! [node k v]
+  #?(:cljs (goog.style/setStyle node (name k) (clj->js v))))
 
-(defn set-properties! [e m] #?(:cljs (let [styles (:style m)
-                                           props  (dissoc m :style)]
-                                       (when (seq styles) (goog.style/setStyle e (clj->js styles)))
-                                       (when (seq props) (d/setProperties e (clj->js (clean-props props)))))))
+(defn set-property! [node k v]
+  #?(:cljs
+     (if (some? v)
+       (case k
+         :style (goog.style/setStyle node (clj->js v))
+         :list  (.setAttribute node "list" (str v))
+         :class (d/setProperties node (clj->js {"class" (if (coll? v) (str/join " " v) v)}))
+         (d/setProperties node (clj->js {k v})))
+       (.removeAttribute node (name k)))))
 
-(defmacro props [m] `(set-properties! node ~m))
+(defmacro style [m]
+  `(p/for-by first [sty# (vec ~m)]
+     (set-style! node (key sty#) (val sty#))))
+
+(defmacro props [m]
+  `(p/for-by key [prop# (vec ~m)]
+     (if (= :style (key prop#))
+       (style (val prop#))
+       (set-property! node (key prop#) (val prop#)))))
 
 (defn >events* [node event-type & [xform init rf :as args]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
@@ -142,7 +154,7 @@
   ([event-type xform init rf]      `(new (m/relieve {} (>events* node ~event-type ~xform ~init ~rf))))
   ([node event-type xform init rf] `(new (m/relieve {} (>events* ~node  ~event-type ~xform ~init ~rf)))))
 
-(defn- flip [f] (fn [& args] (apply f (reverse args))))
+(defn flip [f] (fn [& args] (apply f (reverse args))))
 
 (defn oget* [obj ks]
   #?(:clj  (get-in obj ks)
@@ -162,7 +174,7 @@
     (do (assert (every? path-ident? args))
         `(partial (flip oget*) [~@args]))
     (do (assert (every? path-ident? (rest args)))
-        `(oget* ~(last args) ~@(butlast args)))))
+        `(oget* ~(first args) [~@(rest args)]))))
 
 (defn oset!* [obj path val]
   #?(:clj  (assoc-in obj path val)

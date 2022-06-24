@@ -7,7 +7,10 @@
             [missionary.core :as m]
             [datascript.db]
             [hyperfiddle.logger :as log]
-            [hyperfiddle.ui.color :refer [color]])
+            [hyperfiddle.ui.color :refer [color]]
+            [clojure.edn :as edn]
+            [hyperfiddle.zero :as z]
+            [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.ui :refer [link]])))
 
 ;;;;;;;;;;;;;;;;;
@@ -54,9 +57,45 @@
         (dissoc :value))
     props))
 
-(p/defn Input "if value prop, controlled else uncontrolled" [props extractor]
-  (dom/input (dom/props (adapt-checkbox-props props))
-             (dom/events "input" (map extractor))))
+(defn signals [props] (->> props keys (filter #(str/starts-with? (name %) "on")) set))
+
+(defn signal->event [sig] (str/replace (name sig) #"^on-" ""))
+
+(p/defn Input "if value prop, controlled else uncontrolled" [props]
+  (dom/input (dom/props (adapt-checkbox-props (dissoc props :signals)))
+             (p/for [sig (signals props)]
+               [sig (dom/events (signal->event sig) (map (get-in props [:signals sig])))])))
+
+(defn read-edn [str]
+  #?(:cljs (try (prn "reading" str)
+                (edn/read-string str)
+                (catch :default t
+                  (prn "Invalid EDN" str)
+                  nil))))
+
+(p/defn DataInput [props]
+  (dom/input (dom/props props)
+             (dom/events "input" (comp (map (dom/oget :target :value))
+                                       (map read-edn)))))
+
+(defmacro button [props & body]
+  `(let [props# ~props
+         ack# (:acknowledge props# z/time)]
+     (dom/button (dom/props (dissoc props# :acknowledge :value))
+                 ~@body
+                 (z/impulse ack# (dom/>events "click" (map (constantly (:value props# true))))))))
+
+(p/defn Slider [props]
+  (let [list-id (or (:list props) (str (gensym)))
+        value (:value props)]
+    (when-let [ticks (:tickmarks props)]
+      (dom/datalist {:id list-id}
+                    (p/for [tick ticks]
+                      (dom/option {:value tick}))))
+    (dom/input (dom/props (assoc props :list list-id, :type :range))
+                 (dom/events "input" (map (dom/oget :target :value)) value))))
+
+
 
 ;; (defn set-state! [!atom v] (reset! !atom v))
 
