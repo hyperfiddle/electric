@@ -244,17 +244,17 @@
       (into {} (semicontroller
                 ::focused (:value props#)
                 (p/fn [value#]
-                  (dom/input (p/forget (dom/props props#))
+                  (dom/input (p/forget (dom/props (dissoc props# :value)))
                              (p/forget (dom/props {:value value#}))
-                             (into [[::value   value#]
-                                    [::focused (not (new (dom/focus-state dom/node)))]]
+                             (into {::value   value#
+                                    ::focused (not (new (dom/focus-state dom/node)))}
                                    (p/for [sig# (signals props#)]
                                      (if (= ::on-change sig#)
-                                       [::value (new (get props# ::on-change)
-                                                    (dom/events "input" (map (dom/oget :target :value))
-                                                                value#))]
-                                       (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
-                                         (when (vector? res#) res#))))))))))))
+                                         [::value (new (get props# ::on-change)
+                                                       (dom/events "input" (map (dom/oget :target :value))
+                                                                   value#))]
+                                         (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                           (when (vector? res#) res#))))))))))))
 
 (defn format-num [format-str x] #?(:cljs (if format-str
                                            (format format-str x)
