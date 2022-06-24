@@ -32,7 +32,7 @@
 
     (when-let [event (ui/suspense
                       (p/fn [Effect]
-                        (ui/button {:on-click (p/fn [event] [:click ~@(p/wrap run-long-task!)])}
+                        (ui/button {:on-click (p/fn [event] ~@(p/wrap run-long-task!))}
                                    (Effect. (p/fn [pending?] (dom/props {:disabled pending?})))
                                    (dom/text "Long running task"))))]
       (prn "clicked! " event))
@@ -48,7 +48,7 @@
     [:hr]
     [:h2 "Numeric input"]
 
-    [:span (let [num (ui/numeric-input {:format "%.2f"
+    #_[:span (let [num (ui/numeric-input {:format "%.2f"
                                         :step   0.5
                                         :value  (/ 10 3)})]
              (dom/text " value: " num))]
@@ -68,7 +68,7 @@
 
     [:hr]
     [:h2 "Select"]
-    [:span (let [selected (ui/select {:value   {:value 0, :text "Initial"}
+    #_[:span (let [selected (ui/select {:value   {:value 0, :text "Initial"}
                                       :options [{:value 1, :text "One"}
                                                 {:value 2, :text "Two"}
                                                 {:value 3, :text "Three"}]})]
@@ -77,7 +77,7 @@
     [:hr]
     [:h2 "Native Typeahead"]
 
-    [:span (let [value (ui/native-typeahead {:placeholder "Search…"
+    #_[:span (let [value (ui/native-typeahead {:placeholder "Search…"
                                              :options     (p/fn [needle] (query-names (or needle "")))})]
              (dom/text " value: " value))]
 
