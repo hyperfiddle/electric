@@ -1,7 +1,7 @@
 (ns wip.timer
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui2 :as ui])
+            [hyperfiddle.photon-ui :as ui])
   #?(:require-macros [wip.timer])
   (:import (hyperfiddle.photon Pending Remote)))
 

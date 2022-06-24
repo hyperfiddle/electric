@@ -1,4 +1,4 @@
-(ns hyperfiddle.ui2
+(ns hyperfiddle.photon-ui
   (:require [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
@@ -9,7 +9,7 @@
             #?(:cljs [goog.string.format])
             #?(:cljs [goog.string :refer [format]])
             [clojure.set :as set])
-  #?(:cljs (:require-macros [hyperfiddle.ui2 :refer [interpreter semicontroller input]]))
+  #?(:cljs (:require-macros [hyperfiddle.photon-ui :refer [interpreter semicontroller input]]))
   (:import (hyperfiddle.photon Pending Remote)
            (missionary Cancelled)))
 

@@ -2,7 +2,7 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z]
-            [hyperfiddle.ui2 :as ui])
+            [hyperfiddle.photon-ui :as ui])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.crud)))
 
