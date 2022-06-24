@@ -17,7 +17,12 @@
     wip.hfql-links
     wip.editor
     wip.explorer
-    ))
+    wip.temperature-converter
+    wip.counter
+    wip.timer
+    wip.demo-color
+    wip.ui-components
+    wip.crud))
 
 (defn runtime-resolve [exported-qualified-sym]
   (assert (qualified-symbol? exported-qualified-sym))

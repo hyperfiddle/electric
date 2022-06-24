@@ -3,14 +3,10 @@
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :refer [tests]]
+            [hyperfiddle.photon-ui :as ui]
             user.util)
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-3-webview)))
-
-(p/defn Input []
-  (dom/input {:type :search, :placeholder "Filter…"}
-             (dom/events "input" (map (dom/oget :target :value)) "")))
 
 (defonce conn #?(:cljs nil                                  ; state survives reload
                  :clj  (doto (d/create-conn {:order/email {}})
@@ -31,13 +27,13 @@
 
 (p/defn View []
   (dom/h2 (dom/text "frontend/backend webview with server push"))
-  (let [email (Input.)]
+  (let [email (ui/input {:type :search, :placeholder "Filter…"})]
     (dom/table
-      (p/for [id ~@(orders db email)]
-        (dom/tr
-          (dom/td (dom/text id))
-          (dom/td (dom/text ~@(:order/email (d/entity db id))))
-          (dom/td (dom/text ~@(:order/gender (d/entity db id)))))))))
+     ~@(p/for [id (orders db email)]
+         ~@(dom/tr
+            (dom/td (dom/text id))
+            (dom/td (dom/text ~@(:order/email (d/entity db id))))
+            (dom/td (dom/text ~@(:order/gender (d/entity db id)))))))))
 
 (p/defn App []
   (binding [dom/node (dom/by-id "root")]
@@ -48,9 +44,8 @@
 
 (comment
   #?(:clj (user/browser-main! `main))
+  #?(:clj (d/transact conn [{:db/id 2 :order/email "bob2@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "dan@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "erin@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))
-
-  #?(:clj (d/transact conn [{:db/id 2 :order/email "bob2@example.com"}]))
   )
