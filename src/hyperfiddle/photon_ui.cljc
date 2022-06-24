@@ -22,16 +22,16 @@
 ;; - [:dom.input/focus true]
 ;; - [:browser/navigate url]
 (defn interpret [event-tags f]
-  (letfn [(matches? [event] (and (vector? event)
-                              ((set event-tags) (first event))))]
-    (fn [xf]
-      (fn
-        ([] (xf))
-        ([result] (xf result))
-        ([result input]
-         (doseq [match (filter matches? (dedupe-n input))]
-           (f match))
-         (xf result (remove matches? input)))))))
+  (let [event-tags (set event-tags)
+        matches? (fn [event] (and (vector? event)
+                                  ((set event-tags) (first event))))]
+    (comp (map (fn [event]
+                 ;; (prn "seen event" event)
+                 (if (matches? event)
+                   (do (f event)
+                       ::nil)
+                   event)))
+          (remove #{::nil}))))
 
 (tests
   "Unmatched events passes through"
@@ -46,6 +46,26 @@
      [:dom.input/focus true]])
   := '([:browser/navigate "url"])
   (deref !focus) := true)
+
+(defn interpreter* [event-tags f]
+  (let [xf (interpret event-tags f)]
+    (comp #_(map (fn [xs] (prn "=>" xs) xs))
+          (map (fn [events] (doall (sequence xf events)))
+               #_(partial sequence xf)))))
+
+(tests
+ "Unmatched events passes through"
+ (sequence (interpreter* #{:dom.input/focus} (fn [_])) [[[:browser/navigate "url"]]])
+ := '(([:browser/navigate "url"])))
+
+(tests
+ "xf is called with matched events"
+ (def !focus (atom false))
+ (sequence (interpreter* #{:dom.input/focus} (fn [[_ focus?]] (reset! !focus focus?)))
+           [[[:browser/navigate "url"]
+             [:dom.input/focus true]]])
+ := '(([:browser/navigate "url"]))
+ (deref !focus) := true)
 
 (defn set-switch! [!switch [event-tag open?]]
   (reset! !switch (boolean open?)))
@@ -73,19 +93,46 @@
                   result)))))))))
   ([coll] (sequence (dedupe-n) coll)))
 
+(defn dedupe-by
+  "Returns a lazy sequence removing consecutive duplicates in coll.
+  Returns a transducer when no collection is provided."
+  {:added "1.7"}
+  ([f]
+   (fn [rf]
+     (let [pv (volatile! {})]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (let [[nv new-events] (loop [seen (transient @pv)
+                                       r    (transient [])
+                                       xs   input]
+                                  (if (seq xs)
+                                    (let [x (first xs)
+                                          k (f x)]
+                                      (if (and (contains? seen k) (= (get seen k) x))
+                                        (recur seen r (rest xs))
+                                        (recur (assoc! seen k x) (conj! r x) (rest xs))))
+                                    [(persistent! seen) (persistent! r)]))]
+            (vreset! pv nv)
+            (if (pos? (count new-events))
+              (rf result (into (empty input) new-events))
+              result)))))))
+  ([f coll] (sequence (dedupe-by f) coll)))
+
 (tests
-  (dedupe-n [[1 "2"] [1 "3"] [2 "3"]])
-  := '((1 "2") ("3") (2)))
+  (dedupe-by key [{:a 1} {:a 1, :b 2}, {:a 1} {:a 2}])
+  := [{:a 1} {:b 2} {:a 2}])
 
 (defn check-interpretable! [x]
-  (if-not (vector? x)
-    (do (log/error "Semicontroller expects a vector of events. Received:" (pr-str x))
+  (if-not (or (map? x) (every? vector? x))
+    (do (log/error "Semicontroller expects a seq vector of events. Received:" (pr-str x))
       nil)
     x))
 
 (defmacro interpreter [event-tags f & body]
   `(->> (p/fn [] ~@body)
-        (m/eduction (dedupe-n) cat (interpret ~event-tags ~f))
+        (m/eduction #_(dedupe-n) #_cat (dedupe-by key) (interpreter* ~event-tags ~f))
         (m/reductions {} nil)
         (m/relieve {})
         (new)))
@@ -96,7 +143,8 @@
   [event-tag input Body]
   `(let [!switch# (atom true)]
      (->> (p/fn [] (check-interpretable! (new ~Body (new (m/eduction (filter (partial deref' !switch#)) (p/fn [] ~input))))))
-          (m/eduction #_(dedupe-n) #_cat (interpret #{~event-tag} (partial set-switch! !switch#)))
+          (m/eduction #_(dedupe-n) #_cat (dedupe-by key) (interpreter* #{~event-tag} (partial set-switch! !switch#))
+                      (filter seq))
           (m/reductions {} nil)
           (new))))
 
@@ -106,17 +154,25 @@
   (with (p/run (semicontroller :switch/set (new (m/watch !input))
                  (p/fn [input]
                    (! input)
-                   [(p/watch !event)])))
+                   (p/watch !event))))
     % := 0
     (swap! !input inc)
     % := 1
-    (reset! !event [:switch/set false])
+    (reset! !event {:switch/set false})
     (swap! !input inc)
     % := ::rcf/timeout
     (rcf/set-timeout! 1200) ;; rcf issue, extend timeout
-    (reset! !event [:switch/set true])
+    (reset! !event {:switch/set true})
     (swap! !input inc)
     % := 3))
+
+(defmacro merge-events [& events]
+  `(->> (p/fn [] (apply merge ~@events))
+        (m/eduction (dedupe-by key)
+                    (filter seq))
+        (m/reductions {} nil)
+        (m/relieve {})
+        (new)))
 
 (defn signals [props] (->> props keys (filter #(str/starts-with? (name %) "on")) set))
 
@@ -209,23 +265,21 @@
 
 (defmacro numeric-input [props]
   `(let [props# ~props
-         props# (default props# ::on-change (p/fn [x] x))
          value# (:value props#)]
-     (::value
-      (into {} (semicontroller
-                ::focused value#
-                (p/fn [value#]
-                  (dom/input (p/forget (dom/props props#))
-                             (p/forget (dom/props {:value (format-num (:format props#) value#)
-                                                   :type :number}))
-                             (into [[::value   value#]
-                                    [::focused (not (new (dom/focus-state dom/node)))]]
-                                   (p/for [sig# (signals props#)]
-                                     (if (= ::on-change sig#)
-                                       [::value (new (get props# ::on-change)
-                                                     (dom/events "input" parse-input value#))]
-                                       (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
-                                         (when (vector? res#) res#))))))))))))
+     (into {} (semicontroller
+               ::focused value#
+               (p/fn [value#]
+                 (dom/input (p/forget (dom/props props#))
+                            (p/forget (dom/props {:value (format-num (:format props#) value#)
+                                                  :type  :number}))
+                            (into {::value   value#
+                                   ::focused (not (new (dom/focus-state dom/node)))}
+                                  (p/for [sig# (signals props#)]
+                                    (if (= :on-change sig#)
+                                      (let [res# (pending-impulse (get props# sig#) (dom/>events "input" parse-input))]
+                                        (when (vector? res#) res#))
+                                      (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                        (when (vector? res#) res#)))))))))))
 
 (defmacro checkbox [props]
   `(let [props# ~props

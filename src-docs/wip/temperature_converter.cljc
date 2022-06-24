@@ -3,43 +3,33 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [clojure.string :as str])
-  (:import (hyperfiddle.photon Pending Remote)))
+  (:import (hyperfiddle.photon Pending)
+           ))
 
 (defn celsius->farenheit [c] (+ (* c (/ 9 5)) 32))
 (defn farenheit->celsius [f] (* (- f 32) (/ 5 9)))
-
-(p/defn TemperatureConverter [temperature]
-  (dom/hiccup
-    [:div
-     [:h1 "Temperature Converter"]
-     [:table
-      [:tr
-       [:th "Celcius"]
-       [:th "Farenheit"]]
-      [:tr [[:td (ui/numeric-input {:value    temperature
-                                    :step     "0.5"
-                                    :format   "%.2f"
-                                    :on-input (map (partial conj [:celsius]))})]
-            [:td (ui/numeric-input {:value    (celsius->farenheit temperature)
-                                    :step     "0.5"
-                                    :on-input (map (partial conj [:fahrenheit]))})]]]]]))
-
-(defn set-state! [!state [event-tag value :as event]]
-  (prn "event:" event)
-  (case event-tag
-    :celsius    (reset! !state value)
-    :fahrenheit (reset! !state (farenheit->celsius value))))
 
 (def main
   #?(:cljs (p/client
              (p/main
                (try
                  (binding [dom/node (dom/by-id "root")]
-                   (let [!state (atom 0)]
-                     (ui/interpreter #{:celsius :fahrenheit} (partial set-state! !state)
-                        (TemperatureConverter. (p/watch !state)))))
-                 (catch Pending _)
-                 (catch Remote _))))))
+                   (let [!state      (atom 0)
+                         temperature (p/watch !state)]
+                     (dom/div
+                      (dom/h1 (dom/text "Temperature Converter"))
+                      (dom/dl
+                       (dom/dt (dom/text "Celcius"))
+                       (dom/dd (ui/numeric-input {:value     temperature
+                                                  :step      "0.5"
+                                                  :format    "%.2f"
+                                                  :on-change (p/fn [value] (reset! !state value) nil)}))
+                       (dom/dt (dom/text "Farenheit"))
+                       (dom/dd (ui/numeric-input {:value     (celsius->farenheit temperature)
+                                                  :step      "0.5"
+                                                  :on-change (p/fn [value] (reset! !state (farenheit->celsius value)) nil)}))))))
+                 (catch Pending _))))))
 
 (comment
-  #?(:clj (def dispose (user/browser-main! `main))))
+  #?(:clj (def dispose (user/browser-main! `main)))
+  )
