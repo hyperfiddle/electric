@@ -6,7 +6,6 @@
             [hyperfiddle.spec :as spec]
             [missionary.core :as m]
             [datascript.db]
-            #?(:clj [datahike.api :as d])
             [hyperfiddle.logger :as log]
             [hyperfiddle.ui.color :refer [color]])
   #?(:cljs (:require-macros [hyperfiddle.ui :refer [link]])))
@@ -201,7 +200,7 @@
     (do (log/debug "Query DB schema for attr " ?a)
         #?(:clj (condp = (type db)
                   datascript.db.DB (get (:schema db) ?a)
-                  datahike.db.DB (or (d/entity hf/*$* ?a)
+                  #_#_datahike.db.DB (or (d/entity hf/*$* ?a)
                                      (do (log/info "Unknown attr" ?a)
                                          nil)))))))
 
@@ -239,7 +238,10 @@
     :else
     (let [value       (V.)
           [_>e a _>v] (first hf/context)
-          valueType   (:db/valueType (schema-attr hf/*$* a))]
+          valueType   (let [attr (schema-attr hf/*$* a)]
+                        (or (:db/valueType attr)
+                            (:hf/valueType attr) ; datascript rejects valueType other than ref.
+                            ))]
       (log/info "DEFAULT valueType" valueType)
       (if (some? valueType)
         (typeahead. V (assoc props :dom.attribute/type (input-types (spec/valueType->type valueType))))

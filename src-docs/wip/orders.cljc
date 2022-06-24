@@ -1,6 +1,6 @@
 (ns wip.orders
   "query functions used in tee-shirt orders demo"
-  (:require #?(:clj [datahike.api :as d])
+  (:require #?(:clj [datascript.core :as d])
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [! % tests]]

@@ -1,5 +1,5 @@
 (ns hyperfiddle.api
-  (:require #?(:clj [datahike.api :as d])
+  (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.rcf :refer [tests ! %]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.hfql :as hfql])
