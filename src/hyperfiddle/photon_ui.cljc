@@ -185,42 +185,39 @@
       (when (vector? res#) res#)))
   )
 
-;; (defmacro pending-impulse [props sig]
-;;   `(let [toogle!# (atom false)
-;;          e#       (z/impulse z/time (dom/>events (signal->event ~sig)))]
-;;      (when (p/deduping (boolean (or e# (p/watch toogle!#))))
-;;        (reset! toogle!# true)
-;;        (try (when-let [result# (new (get ~props ~sig) e#)]
-;;               (do (reset! toogle!# false)
-;;                   (dom/set-property! dom/node :data-pending nil)
-;;                   (p/deduping result#)))
-;;             (catch Pending err
-;;               (dom/set-property! dom/node :data-pending true))))))
-
 (defn do-and-ret [f v]
   (m/ap (m/amb v (do (f) (m/amb)))))
 
-(defmacro suspense [& body]
-  `(let [!pending# (atom nil)]
-     (dom/div {:data-hf-pending (p/watch !pending#)}
-              (try (let [res# (do ~@body)]
-                     (new (do-and-ret (partial reset! !pending# nil) res#)))
-                   (catch Pending _
-                     (prn "Suspense pending …")
-                     (reset! !pending# true)
-                     nil)
-                   (catch Cancelled _
-                     (prn "cancelled"))))))
+;; (defmacro suspense [& body]
+;;   `(let [!pending# (atom nil)]
+;;      (dom/div {:data-hf-pending (p/watch !pending#)}
+;;               (try (let [res# (do ~@body)]
+;;                      (new (do-and-ret (partial reset! !pending# nil) res#)))
+;;                    (catch Pending _
+;;                      (prn "Suspense pending …")
+;;                      (reset! !pending# true)
+;;                      nil)
+;;                    (catch Cancelled _
+;;                      (prn "cancelled"))))))
 
-(defmacro pending-impulse [flow form]
+(defmacro suspense [Callback]
+  `(let [!pending# (atom nil)
+         effect# (p/fn [F] (p/forget (new F (p/watch !pending#))))]
+     (try (let [res# (new ~Callback effect#)]
+           (new (do-and-ret (partial reset! !pending# nil) res#)))
+         (catch Pending _
+           (reset! !pending# true)
+           nil)
+         (catch Cancelled _))))
+
+(defmacro pending-impulse [Ack >xs]
   `(let [!pending# (atom 0)
-         val# (z/impulse (p/watch !pending#) ~form)]
+         val#      (z/impulse (p/watch !pending#) ~>xs)]
      (try
        (when (some? val#)
-         (let [res# (new ~flow val#)]
+         (let [res# (new ~Ack val#)]
            (new (do-and-ret (partial swap! !pending# inc) res#))))
        (catch Pending err
-         (prn "Pending impulse…")
          (throw err)))))
 
 (defmacro button [props & body]
