@@ -9,7 +9,7 @@
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.zero :as z]
             [hyperfiddle.ui.codemirror :as cm]
-            #?(:clj [datahike.api :as d]))
+            )
   #?(:cljs (:require-macros wip.browser)))
 
 ;; NOTE
