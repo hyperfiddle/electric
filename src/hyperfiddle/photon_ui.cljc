@@ -7,10 +7,9 @@
             [hyperfiddle.logger :as log]
             [clojure.string :as str]
             #?(:cljs [goog.string.format])
-            #?(:cljs [goog.string :refer [format]])
-            [clojure.set :as set])
+            #?(:cljs [goog.string :refer [format]]))
   #?(:cljs (:require-macros [hyperfiddle.photon-ui :refer [interpreter semicontroller input]]))
-  (:import (hyperfiddle.photon Pending Remote)
+  (:import (hyperfiddle.photon Pending)
            (missionary Cancelled)))
 
 (comment
@@ -123,54 +122,6 @@
 
 (defn signal->event [sig] (str/replace (name sig) #"^on-" ""))
 
-(defmacro input [props]
-  `(let [props# ~props
-         props# (default props# ::on-change (p/fn [x] x))]
-     (::value
-      (into {} (semicontroller
-                ::focused (:value props#)
-                (p/fn [value#]
-                  (dom/input (p/forget (dom/props props#))
-                             (p/forget (dom/props {:value value#}))
-                             (into [[::value   value#]
-                                    [::focused (not (new (dom/focus-state dom/node)))]]
-                                   (p/for [sig# (signals props#)]
-                                     (if (= ::on-change sig#)
-                                       [::value (new (get props# ::on-change)
-                                                    (dom/events "input" (map (dom/oget :target :value))
-                                                                value#))]
-                                       (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
-                                         (let [res# (new (get props# sig#) event#)]
-                                           (when (vector? res#) res#)))))))))))))
-
-(defn format-num [format-str x] #?(:cljs (if format-str
-                                           (format format-str x)
-                                           (pr-str x))))
-(defn parse-num [x] #?(:cljs (-> (js/parseFloat x) (* 100) (js/Math.round) (/ 100))))
-(defn is-num? [x] #?(:cljs (not (js/isNaN x))))
-(def parse-input (comp (map (dom/oget :target :value)) (map parse-num) (filter is-num?)))
-
-(defmacro numeric-input [props]
-  `(let [props# ~props
-         props# (default props# ::on-change (p/fn [x] x))
-         value# (:value props#)]
-     (::value
-      (into {} (semicontroller
-                ::focused value#
-                (p/fn [value#]
-                  (dom/input (p/forget (dom/props props#))
-                             (p/forget (dom/props {:value (format-num (:format props#) value#)
-                                                   :type :number}))
-                             (into [[::value   value#]
-                                    [::focused (not (new (dom/focus-state dom/node)))]]
-                                   (p/for [sig# (signals props#)]
-                                     (if (= ::on-change sig#)
-                                       [::value (new (get props# ::on-change)
-                                                     (dom/events "input" parse-input value#))]
-                                       (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
-                                         (let [res# (new (get props# sig#) event#)]
-                                           (when (vector? res#) res#)))))))))))))
-
 (defn safe-body [xs]
   (cond (vector? xs) (into {} xs)
         (map? xs)    xs
@@ -227,11 +178,54 @@
                          (into (safe-body (do ~@body))
                                (p/for [sig# (signals props#)]
                                  (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
-                                   (when (vector? res#) res#))
-                                 #_(when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
-                                   (let [res# (new (get props# sig#) event#)]
-                                     (when (vector? res#) res#)))
-                                 ))))))
+                                   (when (vector? res#) res#))))))))
+
+
+(defmacro input [props]
+  `(let [props# ~props
+         props# (default props# ::on-change (p/fn [x] x))]
+     (::value
+      (into {} (semicontroller
+                ::focused (:value props#)
+                (p/fn [value#]
+                  (dom/input (p/forget (dom/props props#))
+                             (p/forget (dom/props {:value value#}))
+                             (into [[::value   value#]
+                                    [::focused (not (new (dom/focus-state dom/node)))]]
+                                   (p/for [sig# (signals props#)]
+                                     (if (= ::on-change sig#)
+                                       [::value (new (get props# ::on-change)
+                                                    (dom/events "input" (map (dom/oget :target :value))
+                                                                value#))]
+                                       (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                         (when (vector? res#) res#))))))))))))
+
+(defn format-num [format-str x] #?(:cljs (if format-str
+                                           (format format-str x)
+                                           (pr-str x))))
+(defn parse-num [x] #?(:cljs (-> (js/parseFloat x) (* 100) (js/Math.round) (/ 100))))
+(defn is-num? [x] #?(:cljs (not (js/isNaN x))))
+(def parse-input (comp (map (dom/oget :target :value)) (map parse-num) (filter is-num?)))
+
+(defmacro numeric-input [props]
+  `(let [props# ~props
+         props# (default props# ::on-change (p/fn [x] x))
+         value# (:value props#)]
+     (::value
+      (into {} (semicontroller
+                ::focused value#
+                (p/fn [value#]
+                  (dom/input (p/forget (dom/props props#))
+                             (p/forget (dom/props {:value (format-num (:format props#) value#)
+                                                   :type :number}))
+                             (into [[::value   value#]
+                                    [::focused (not (new (dom/focus-state dom/node)))]]
+                                   (p/for [sig# (signals props#)]
+                                     (if (= ::on-change sig#)
+                                       [::value (new (get props# ::on-change)
+                                                     (dom/events "input" parse-input value#))]
+                                       (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                         (when (vector? res#) res#))))))))))))
 
 (defmacro checkbox [props]
   `(let [props# ~props
@@ -245,9 +239,8 @@
                                  (if (= ::on-change sig#)
                                    (new (get props# ::on-change)
                                         (dom/events "change" (map (dom/oget :target :checked)) value#))
-                                   (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
-                                     (let [res# (new (get props# sig#) event#)]
-                                       (when (vector? res#) res#))))))))))
+                                   (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                     (when (vector? res#) res#)))))))))
 
 (defn- index-of [vec val] (.indexOf vec val))
 
@@ -278,9 +271,8 @@
                                                                              (map parse-num)
                                                                              (map (partial get options#)))
                                                                value#))]
-                                     (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
-                                       (let [res# (new (get props# sig#) event#)]
-                                         (when (vector? res#) res#)))))))))))
+                                     (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                       (when (vector? res#) res#))))))))))
 
 (defmacro native-typeahead [props]
   (let [list-id (str (gensym))]
@@ -301,9 +293,8 @@
                                                                  [::value (new (get props# ::on-change)
                                                                                (dom/events "input" (map (dom/oget :target :value))
                                                                                            value#))]
-                                                                 (when-let [event# (z/impulse z/time (dom/>events (signal->event sig#)))]
-                                                                   (let [res# (new (get props# sig#) event#)]
-                                                                     (when (vector? res#) res#))))))))
+                                                                 (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                                                   (when (vector? res#) res#)))))))
                           needle#  (::value res#)
                           options# (when-let [options# (:options props#)]
                                      (new options# needle#))]
