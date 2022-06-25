@@ -3,7 +3,8 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z]
             [user.util :refer [includes-str?]])
-  (:import (hyperfiddle.photon Pending))
+  (:import (hyperfiddle.photon Pending)
+           (missionary Cancelled))
   #?(:cljs (:require-macros wip.explorer)))
 
 (p/defn Input []
@@ -39,7 +40,8 @@
                                (try
                                  (binding [dom/node (dom/by-id "root")]
                                    (App.))
-                                 (catch Pending _))))))
+                                 (catch Pending _)
+                                 (catch Cancelled _))))))
 
 (comment
   #?(:clj (user/browser-main! `main))
