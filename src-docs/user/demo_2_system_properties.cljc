@@ -14,13 +14,13 @@
 (p/defn App []
   (dom/div
     (dom/h1 (dom/text "System Properties"))
-    (let [filter (ui/input {:type :search, :placeholder "Filter…"})]
+    (let [filter (ui/input {:type :search, :placeholder "java.home"})]
       (dom/div (dom/text (str "Input: " filter)))
       (dom/table
         ~@(p/for [[k v] (sort-by key (system-properties filter))]
             ~@(dom/tr
                 (dom/td (dom/text k))
-                (dom/td (dom/text v))))))))
+                (dom/td (dom/text v) (dom/style {"white-space" "nowrap"}))))))))
 
 (def main #?(:cljs (p/client (p/main
                                (try
