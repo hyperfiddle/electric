@@ -9,7 +9,7 @@
             #?(:cljs [goog.string.format])
             #?(:cljs [goog.string :refer [format]]))
   #?(:cljs (:require-macros [hyperfiddle.photon-ui :refer [interpreter semicontroller input]]))
-  (:import (hyperfiddle.photon Pending)
+  (:import (hyperfiddle.photon Pending Failure)
            (missionary Cancelled)))
 
 (comment
@@ -104,20 +104,22 @@
          ([] (rf))
          ([result] (rf result))
          ([result input]
-          (let [[nv new-events] (loop [seen (transient @pv)
-                                       r    (transient [])
-                                       xs   input]
-                                  (if (seq xs)
-                                    (let [x (first xs)
-                                          k (f x)]
-                                      (if (and (contains? seen k) (= (get seen k) x))
-                                        (recur seen r (rest xs))
-                                        (recur (assoc! seen k x) (conj! r x) (rest xs))))
-                                    [(persistent! seen) (persistent! r)]))]
-            (vreset! pv nv)
-            (if (pos? (count new-events))
-              (rf result (into (empty input) new-events))
-              result)))))))
+          (if (instance? Failure input) ; HACK FIXME we should not see instances of Failure here
+            (throw input)
+            (let [[nv new-events] (loop [seen (transient @pv)
+                                         r    (transient [])
+                                         xs   input]
+                                    (if (seq xs)
+                                      (let [x (first xs)
+                                            k (f x)]
+                                        (if (and (contains? seen k) (= (get seen k) x))
+                                          (recur seen r (rest xs))
+                                          (recur (assoc! seen k x) (conj! r x) (rest xs))))
+                                      [(persistent! seen) (persistent! r)]))]
+              (vreset! pv nv)
+              (if (pos? (count new-events))
+                (rf result (into (empty input) new-events))
+                result))))))))
   ([f coll] (sequence (dedupe-by f) coll)))
 
 (tests
@@ -316,12 +318,12 @@
                                          (dom/text (:text option#))))
                            (into [[::value   value#]]
                                  (p/for [sig# (signals props#)]
-                                   (if (= ::on-change sig#)
-                                     [::value (new (get props# ::on-change)
-                                                   (dom/events "change" (comp (map (dom/oget :target :value))
-                                                                             (map parse-num)
-                                                                             (map (partial get options#)))
-                                                               value#))]
+                                   (if (= :on-change sig#)
+                                     (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)
+                                                                                                (comp (map (dom/oget :target :value))
+                                                                                                      (map parse-num)
+                                                                                                      (map (partial get options#)))))]
+                                       (when (vector? res#) res#))
                                      (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
                                        (when (vector? res#) res#))))))))))
 
