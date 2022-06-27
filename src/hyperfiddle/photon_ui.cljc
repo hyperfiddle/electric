@@ -192,14 +192,11 @@
       (when (vector? res#) res#)))
   )
 
-(defn do-and-ret [f v]
-  (m/ap (m/amb v (do (f) (m/amb)))))
-
 ;; (defmacro suspense [& body]
 ;;   `(let [!pending# (atom nil)]
 ;;      (dom/div {:data-hf-pending (p/watch !pending#)}
 ;;               (try (let [res# (do ~@body)]
-;;                      (new (do-and-ret (partial reset! !pending# nil) res#)))
+;;                      (new (return-then-run! res# (partial reset! !pending# nil))))
 ;;                    (catch Pending _
 ;;                      (prn "Suspense pending …")
 ;;                      (reset! !pending# true)
@@ -211,21 +208,21 @@
   `(let [!pending# (atom nil)
          effect# (p/fn [F] (p/forget (new F (p/watch !pending#))))]
      (try (let [res# (new ~Callback effect#)]
-           (new (do-and-ret (partial reset! !pending# nil) res#)))
+           (new (return-then-run! res# (partial reset! !pending# nil))))
          (catch Pending _
            (reset! !pending# true)
            nil)
          (catch Cancelled _))))
 
+(defn return-then-run! [v f]
+  (m/ap (m/amb v (do (f) (m/amb)))))
+
 (defmacro pending-impulse [Ack >xs]
   `(let [!pending# (atom 0)
          val#      (z/impulse (p/watch !pending#) ~>xs)]
-     (try
-       (when (some? val#)
-         (let [res# (new ~Ack val#)]
-           (new (do-and-ret (partial swap! !pending# inc) res#))))
-       (catch Pending err
-         (throw err)))))
+     (when (some? val#)
+       (let [res# (new ~Ack val#)]
+         (new (return-then-run! res# (partial swap! !pending# inc)))))))
 
 (defmacro button [props & body]
   `(let [props# ~props
