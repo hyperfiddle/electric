@@ -13,21 +13,28 @@
            (missionary Cancelled))
   #?(:cljs (:require-macros user.demo-0-entrypoint)))      ; forces shadow hot reload to also reload JVM at the same time
 
+(def default-demo {:value 1, :text "1 - Healthcheck"})
+
+(defonce !selected-demo (atom default-demo))
+
 (p/defn App []
-  (dom/div
-   (dom/h1 (dom/text "Photon Demos"))
-   (dom/p (dom/text "Pick a demo. Also take a look at the source in (src-docs/user/demo-{1,2,3…}….cljc)."))
-   (let [default-demo {:value 1, :text "1 - Healthcheck"}
-         choice       (:value (ui/select {:value   default-demo
-                                          :options [default-demo
-                                                    {:value 2, :text "2 - System Properties"}
-                                                    {:value 3, :text "3 - Webview"}
-                                                    {:value 4, :text "4 - Counter"}
-                                                    {:value 5, :text "5 - Button"}
-                                                    {:value 6, :text "6 - Basic Todo"}]}))]
+  (let [selected-demo (p/watch !selected-demo)]
+    selected-demo
+    (dom/div
+     (dom/h1 (dom/text "Photon Demos"))
+     (dom/p (dom/text "Pick a demo. Also take a look at the source in (src-docs/user/demo-{1,2,3…}….cljc)."))
+     (ui/select {:value     selected-demo
+                 :options   [default-demo
+                             {:value 2, :text "2 - System Properties"}
+                             {:value 3, :text "3 - Webview"}
+                             {:value 4, :text "4 - Counter"}
+                             {:value 5, :text "5 - Button"}
+                             {:value 6, :text "6 - Basic Todo"}]
+                 :on-change (p/fn [selected] (reset! !selected-demo selected))})
+     (dom/p (dom/code (dom/text "Selected:" selected-demo)))
      (dom/div {:style {:max-width  "90vw"
                        :overflow-x :auto}}
-              (case choice
+              (case (:value selected-demo)
                 1 (healthcheck/App.)
                 2 (system-properties/App.)
                 3 (webview/App.)
