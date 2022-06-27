@@ -34,7 +34,7 @@
                           (file-is-file f)
                           (when (includes-str? (file-get-name f) s)
                             ~@(dom/li (dom/text ~@(file-get-name f))))))]
-          ~@(dom/ul ~@(Foo. (clojure.java.io/file "/Users/dustin/Desktop/photon/src")))))))
+          ~@(dom/ul ~@(Foo. (clojure.java.io/file "src")))))))
 
 (def main #?(:cljs (p/client (p/main
                                (try
