@@ -68,7 +68,7 @@
 
     [:hr]
     [:h2 "Select"]
-    #_[:span (let [selected (ui/select {:value   {:value 0, :text "Initial"}
+    [:span (let [selected (ui/select {:value   {:value 0, :text "Initial"}
                                       :options [{:value 1, :text "One"}
                                                 {:value 2, :text "Two"}
                                                 {:value 3, :text "Three"}]})]
