@@ -2,6 +2,7 @@
   (:require
     goog.object
     ; Due to :require-macros, demos are loaded in JVM as well on shadow build
+    user.demo-0-entrypoint
     user.demo-1-healthcheck
     user.demo-2-system-properties
     user.demo-3-webview
@@ -31,7 +32,7 @@
         path-segments (clojure.string/split path-s ".")]
     (goog.object/getValueByKeys js/window (clj->js path-segments))))
 
-(defonce user-photon-main `user.demo-1-healthcheck/main)    ; lazy resolve
+(defonce user-photon-main `user.demo-0-entrypoint/main)    ; lazy resolve
 (defonce reactor nil)                                       ; save for debugging
 
 (defn set-main [s]

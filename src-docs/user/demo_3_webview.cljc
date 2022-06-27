@@ -26,21 +26,21 @@
 (p/def db)                                                  ; server
 
 (p/defn View []
-  (dom/h2 (dom/text "frontend/backend webview with server push"))
-  (let [email (ui/input {:type :search, :placeholder "Filter…"})]
-    (dom/table
-     ~@(p/for [id (orders db email)]
-         ~@(dom/tr
-            (dom/td (dom/text id))
-            (dom/td (dom/text ~@(:order/email (d/entity db id))))
-            (dom/td (dom/text ~@(:order/gender (d/entity db id)))))))))
+  (dom/div
+   (dom/h2 (dom/text "frontend/backend webview with server push"))
+   (let [email (ui/input {:type :search, :placeholder "Filter…"})]
+     (dom/table
+      ~@(p/for [id (orders db email)]
+          ~@(dom/tr
+             (dom/td (dom/text id))
+             (dom/td (dom/text ~@(:order/email (d/entity db id))))
+             (dom/td (dom/text ~@(:order/gender (d/entity db id))))))))))
 
 (p/defn App []
-  (binding [dom/node (dom/by-id "root")]
-    ~@(binding [db (p/watch conn)]                          ; server
-        ~@(View.))))
+  ~@(binding [db (p/watch conn)]                          ; server
+      ~@(View.)))
 
-(def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
+(def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")] (App.)) (catch Pending _))))))
 
 (comment
   #?(:clj (user/browser-main! `main))
