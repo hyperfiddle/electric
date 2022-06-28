@@ -178,7 +178,9 @@
     (let [var (resolve-cljs env sym)] ; resolve cljs var decription (a map)
       (if-let [expander (cljs/get-expander (if (some? var) (var-name var) sym) env)] ; find corresponding clojure var
         (CljVar. expander)
-        var))
+        (if (and (instance? CljsVar var) (not (::local env)))
+          (resolve-var (-> env (dissoc :js-globals) (assoc :ns (:name (:ns env)))) sym)
+          var)))
     (let [ns       (resolve-ns (:ns env)) ; current ns
           resolved (if (simple-symbol? sym)
                      (get-in ns [:mappings sym]) ; resolve in current ns 

@@ -1106,6 +1106,10 @@
   ([resolvef inst]
    (compile inst
      {:nop      (constantly nil)
+      ;; FIXME Eval is a security hazard, client should not send any program to
+      ;;       eval on server. Solution is for server to compile and store
+      ;;       programs, client address them by unique name (hash).
+      :eval     (fn [form] (constantly (pure (clojure.core/eval form))))
       :sub      (fn [idx]
                   (fn [pubs frame vars]
                     (nth pubs idx)))
