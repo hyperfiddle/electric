@@ -9,7 +9,10 @@
     user.demo-4-counter
     user.demo-5-button
     user.demo-6-todos-basic
-    user.seven-gui-crud
+    user.seven-gui-1-counter
+    user.seven-gui-2-temperature-converter
+    user.seven-gui-4-timer
+    user.seven-gui-5-crud
     wip.demo-two-clocks
     wip.orders-ui
     #_wip.demo-hfql ; require running `yarn` for codemirror dependency
@@ -19,9 +22,6 @@
     wip.hfql-links
     wip.editor
     wip.explorer
-    wip.temperature-converter
-    wip.counter
-    wip.timer
     wip.demo-color
     wip.ui-components))
 

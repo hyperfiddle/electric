@@ -1,4 +1,4 @@
-(ns wip.counter
+(ns user.seven-gui-1-counter
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui])

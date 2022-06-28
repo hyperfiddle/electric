@@ -1,4 +1,4 @@
-(ns wip.temperature-converter
+(ns user.seven-gui-2-temperature-converter
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui])
