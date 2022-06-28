@@ -9,6 +9,7 @@
     user.demo-4-counter
     user.demo-5-button
     user.demo-6-todos-basic
+    user.seven-gui-crud
     wip.demo-two-clocks
     wip.orders-ui
     #_wip.demo-hfql ; require running `yarn` for codemirror dependency
@@ -22,8 +23,7 @@
     wip.counter
     wip.timer
     wip.demo-color
-    wip.ui-components
-    wip.crud))
+    wip.ui-components))
 
 (defn runtime-resolve [exported-qualified-sym]
   (assert (qualified-symbol? exported-qualified-sym))

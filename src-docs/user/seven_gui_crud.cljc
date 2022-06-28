@@ -1,10 +1,10 @@
-(ns wip.crud
+(ns user.seven-gui-crud
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [clojure.string :as str])
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros wip.crud)))
+  #?(:cljs (:require-macros user.seven-gui-crud)))
 
 ;;; Instructions
 ;; https://eugenkiss.github.io/7guis/tasks#crud
