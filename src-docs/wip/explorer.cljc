@@ -1,14 +1,15 @@
 (ns wip.explorer
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.zero :as z]
+            [hyperfiddle.photon-ui :as ui]
             [user.util :refer [includes-str?]])
   (:import (hyperfiddle.photon Pending)
            (missionary Cancelled))
   #?(:cljs (:require-macros wip.explorer)))
 
 (p/defn Input []
-  (dom/input {:type :search, :placeholder "Filter…"}
+  (dom/input {:type  :search, :placeholder "Filter…"
+              :style {:width "20rem"}}
              (dom/events "input" (map (dom/oget :target :value)) "")))
 
 ; wrap java interop (hack)
@@ -23,7 +24,7 @@
 (p/defn App []
   (dom/div
     (dom/h1 (dom/text "Explorer"))
-    (let [s (Input.)]
+    (let [s (ui/input {:type  :search, :placeholder "Filter…", :style {:width "20rem"}})]
       ~@(binding [Foo (p/fn [f]
                         (cond
                           (file-is-dir f)
