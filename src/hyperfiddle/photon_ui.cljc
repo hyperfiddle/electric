@@ -219,12 +219,12 @@
 (defn return-then-run! [v f]
   (m/ap (m/amb v (do (f) (m/amb)))))
 
-(defmacro pending-impulse [Ack >xs]
-  `(let [!pending# (atom 0)
-         val#      (z/impulse (p/watch !pending#) ~>xs)]
+(defmacro auto-impulse [Ack >xs]
+  `(let [!ack# (atom 0)
+         val#      (z/impulse (p/watch !ack#) ~>xs)]
      (when (some? val#)
        (let [res# (new ~Ack val#)]
-         (new (return-then-run! res# (partial swap! !pending# inc)))))))
+         (new (return-then-run! res# (partial swap! !ack# inc)))))))
 
 (defmacro button [props & body]
   `(let [props# ~props
@@ -232,7 +232,7 @@
      (:click (dom/button (p/forget (dom/props props#))
                          (into (safe-body (do ~@body))
                                (p/for [sig# (signals props#)]
-                                 (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                 (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
                                    (when (vector? res#) res#))))))))
 
 
@@ -252,7 +252,7 @@
                                          [::value (new (get props# ::on-change)
                                                        (dom/events "input" (map (dom/oget :target :value))
                                                                    value#))]
-                                         (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                         (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
                                            (when (vector? res#) res#))))))))))))
 
 (defn format-num [format-str x] #?(:cljs (if format-str
@@ -275,9 +275,9 @@
                                    ::focused (not (new (dom/focus-state dom/node)))}
                                   (p/for [sig# (signals props#)]
                                     (if (= :on-change sig#)
-                                      (let [res# (pending-impulse (get props# sig#) (dom/>events "input" parse-input))]
+                                      (let [res# (auto-impulse (get props# sig#) (dom/>events "input" parse-input))]
                                         (when (vector? res#) res#))
-                                      (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                      (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
                                         (when (vector? res#) res#)))))))))))
 
 (defmacro checkbox [props]
@@ -292,7 +292,7 @@
                                  (if (= ::on-change sig#)
                                    (new (get props# ::on-change)
                                         (dom/events "change" (map (dom/oget :target :checked)) value#))
-                                   (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                   (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
                                      (when (vector? res#) res#)))))))))
 
 (defn- index-of [vec val] (.indexOf vec val))
@@ -319,12 +319,12 @@
                            (into [[::value   value#]]
                                  (p/for [sig# (signals props#)]
                                    (if (= :on-change sig#)
-                                     (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)
+                                     (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)
                                                                                                 (comp (map (dom/oget :target :value))
                                                                                                       (map parse-num)
                                                                                                       (map (partial get options#)))))]
                                        (when (vector? res#) res#))
-                                     (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                     (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
                                        (when (vector? res#) res#))))))))))
 
 (defmacro native-typeahead [props]
@@ -346,7 +346,7 @@
                                                                  [::value (new (get props# ::on-change)
                                                                                (dom/events "input" (map (dom/oget :target :value))
                                                                                            value#))]
-                                                                 (let [res# (pending-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                                                                 (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
                                                                    (when (vector? res#) res#)))))))
                           needle#  (::value res#)
                           options# (when-let [options# (:options props#)]
