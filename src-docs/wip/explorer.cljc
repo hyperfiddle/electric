@@ -32,7 +32,7 @@
                                       ~@(p/for [x (file-list-files f)]
                                           (Foo. x))))
                           (file-is-file f)
-                          (when (includes-str? (file-get-name f) s)
+                          (when (p/deduping (includes-str? (file-get-name f) s))
                             ~@(dom/li (dom/text ~@(file-get-name f))))))]
           ~@(dom/ul ~@(Foo. (clojure.java.io/file "src")))))))
 
