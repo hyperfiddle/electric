@@ -15,15 +15,17 @@
     user.seven-gui-5-crud
     wip.demo-two-clocks
     wip.orders-ui
-    #_wip.demo-hfql ; require running `yarn` for codemirror dependency
     wip.demo-todos-stage
     wip.demo-logical-clock
     wip.example-router
     wip.hfql-links
-    wip.editor
     wip.explorer
     wip.demo-color
-    wip.ui-components))
+    wip.ui-components
+    ;; requires running `yarn` for codemirror dependency
+    ;; wip.demo-hfql
+    ;; wip.editor
+    ))
 
 (defn runtime-resolve [exported-qualified-sym]
   (assert (qualified-symbol? exported-qualified-sym))
