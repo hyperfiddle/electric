@@ -226,15 +226,17 @@
        (let [res# (new ~Ack val#)]
          (new (return-then-run! res# (partial swap! !ack# inc)))))))
 
-(defmacro button [props & body]
+(defmacro element [tag props & body]
   `(let [props# ~props
-         props# (default props# :on-click (p/fn [x] [:click true]))]
-     (:click (dom/button (p/forget (dom/props props#))
-                         (into (safe-body (do ~@body))
-                               (p/for [sig# (signals props#)]
-                                 (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
-                                   (when (vector? res#) res#))))))))
+         props# (-> (default props# :on-click (p/fn [x] [:click true])))]
+     (~tag (p/forget (dom/props props#))
+      (into (safe-body (do ~@body))
+            (p/for [sig# (signals props#)]
+              (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+                (when (vector? res#) res#)))))))
 
+(defmacro button [props & body]
+  `(element dom/button ~props ~@body))
 
 (defmacro input [props]
   `(let [props# ~props
