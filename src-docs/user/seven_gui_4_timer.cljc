@@ -1,8 +1,8 @@
-(ns wip.timer
+(ns user.seven-gui-4-timer
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui])
-  #?(:require-macros [wip.timer])
+  #?(:require-macros [user.seven-gui-4-timer])
   (:import (hyperfiddle.photon Pending)))
 
 ;; https://eugenkiss.github.io/7guis/tasks#timer
