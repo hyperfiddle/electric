@@ -2,17 +2,16 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui])
- (:import (hyperfiddle.photon Pending Remote)))
+ (:import (hyperfiddle.photon Pending)))
 
-(defn inc! [!state _js-event]
-  (swap! !state inc))
+;; https://eugenkiss.github.io/7guis/tasks#counter
 
 (p/defn Counter []
   (let [!state (atom 0)]
     (dom/div
-     (ui/input {:value (p/watch !state)})
-     (ui/button {:on-click (map (partial inc! !state))}
-                (dom/text "Count2")))))
+     (dom/p (dom/text (p/watch !state)))
+     (ui/button {:on-click (p/fn [_] (swap! !state inc) nil)}
+                (dom/text "Count")))))
 
 (def main
   #?(:cljs (p/client
@@ -20,8 +19,7 @@
                (try
                  (binding [dom/node (dom/by-id "root")]
                    (Counter.))
-                 (catch Pending _)
-                 (catch Remote _))))))
+                 (catch Pending _))))))
 
 (comment
   #?(:clj (user/browser-main! `main))

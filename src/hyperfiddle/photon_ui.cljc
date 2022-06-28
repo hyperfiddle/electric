@@ -266,7 +266,8 @@
 
 (defmacro numeric-input [props]
   `(let [props# ~props
-         value# (:value props#)]
+         value# (:value props#)
+         props# (p/deduping (dissoc props# :value))]
      (into {} (semicontroller
                ::focused value#
                (p/fn [value#]
