@@ -219,9 +219,14 @@
 (defn return-then-run! [v f]
   (m/ap (m/amb v (do (f) (m/amb)))))
 
+(defmacro impulse [ack F >xs]
+  `(let [val# (z/impulse ~ack ~>xs)]
+     (do (prn "impulse val# is" val#)
+         (new ~F val#))))
+
 (defmacro auto-impulse [Ack >xs]
   `(let [!ack# (atom 0)
-         val#      (z/impulse (p/watch !ack#) ~>xs)]
+         val#  (z/impulse (p/watch !ack#) ~>xs)]
      (when (some? val#)
        (let [res# (new ~Ack val#)]
          (new (return-then-run! res# (partial swap! !ack# inc)))))))
@@ -238,24 +243,64 @@
 (defmacro button [props & body]
   `(element dom/button ~props ~@body))
 
+(defn event
+  "Take an arbitrary key and arbitrary value, the resulting event (a pair) will be
+  returned by the ui component."
+  [key value] ^{:tag ::event} [key value])
+(defn event? [x] (= ::event (:tag (meta x))))
+
+(defn gen-event-handlers [props]
+  (map (fn [signal]
+         (case signal
+           :on-keychord (let [callback (get props signal)
+                              [ack keychord callback] (case (count callback)
+                                                        2 [nil (first callback) (second callback)]
+                                                        3 callback)]
+                          (if (some? ack)
+                            `(impulse ~ack ~callback (dom/>keychord-events ~keychord))
+                            `(auto-impulse ~callback (dom/>keychord-events ~keychord))))
+           (let [callback       (get props signal)
+                 [ack callback] (if (vector? callback) callback [nil callback])]
+             (if (some? ack)
+               `(impulse ~ack ~callback (dom/>events ~(signal->event signal)))
+               `(auto-impulse ~callback (dom/>events ~(signal->event signal)))))))
+       (signals props)))
+
+(defn parse-props [valuef props]
+  (assert (map? props))
+  (let [sigs (signals props)]
+    [(valuef props)
+     (gen-event-handlers props)
+     (apply dissoc props :value sigs)]))
+
 (defmacro input [props]
-  `(let [props# ~props
-         props# (default props# ::on-change (p/fn [x] x))]
-     (::value
-      (into {} (semicontroller
-                ::focused (:value props#)
-                (p/fn [value#]
-                  (dom/input (p/forget (dom/props (dissoc props# :value)))
-                             (p/forget (dom/props {:value value#}))
-                             (into {::value   value#
-                                    ::focused (not (new (dom/focus-state dom/node)))}
-                                   (p/for [sig# (signals props#)]
-                                     (if (= ::on-change sig#)
-                                         [::value (new (get props# ::on-change)
-                                                       (dom/events "input" (map (dom/oget :target :value))
-                                                                   value#))]
-                                         (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
-                                           (when (vector? res#) res#))))))))))))
+  (let [[value events props'] (parse-props :value props)
+        auto-value            (gensym "value_")]
+    `(into {} (semicontroller
+               ::focused ~value
+               (p/fn [~auto-value]
+                 (dom/input (p/forget (dom/props ~props'))
+                            (p/forget (dom/props {:value ~auto-value})) ;; TODO should it pulse?
+                            (into
+                             ~(merge (when (::value props)
+                                       {:value `(new ~(get props ::value `(p/fn [x#] x#))
+                                                     (dom/events "input" (map (dom/oget :target :value)) ~auto-value))})
+                                     `{::focused (not (new (dom/focus-state dom/node)))})
+                             (filter event? [~@events]))))))))
+
+(defmacro checkbox [props]
+  (let [[value events props'] (parse-props :checked props)
+        auto-value            (gensym "value_")]
+    `(let [~auto-value ~value]
+       (into {} (dom/input (p/forget (dom/props ~props'))
+                           (p/forget (dom/props {:type    :checkbox
+                                                 :checked ~auto-value}))
+                           (into
+                            ~(merge {}
+                                    (when (::value props)
+                                      {:value `(new ~(get props ::value `(p/fn [x#] x#))
+                                                    (dom/events "input" (map (dom/oget :target :checked)) ~auto-value))}))
+                            (filter event? [~@events])))))))
 
 (defn format-num [format-str x] #?(:cljs (if format-str
                                            (format format-str x)
@@ -282,21 +327,6 @@
                                         (when (vector? res#) res#))
                                       (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
                                         (when (vector? res#) res#)))))))))))
-
-(defmacro checkbox [props]
-  `(let [props# ~props
-         props# (default props# ::on-change (p/fn [x] [::value x]))
-         value# (::value props#)]
-     (::value (dom/input (p/forget (dom/props props#))
-                         (dom/props {:type    :checkbox
-                                     :checked value#})
-                         (into {::value value#}
-                               (p/for [sig# (signals props#)]
-                                 (if (= ::on-change sig#)
-                                   (new (get props# ::on-change)
-                                        (dom/events "change" (map (dom/oget :target :checked)) value#))
-                                   (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
-                                     (when (vector? res#) res#)))))))))
 
 (defn- index-of [vec val] (.indexOf vec val))
 
