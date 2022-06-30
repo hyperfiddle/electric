@@ -1,4 +1,0 @@
-[submodule "vendor/rcf"]
-	path = vendor/rcf
-	url = git@github.com:hyperfiddle/rcf.git
-	ignore = dirty
