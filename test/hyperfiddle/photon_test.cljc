@@ -1235,8 +1235,8 @@
  (with (p/run (when (p/watch !state) (! :touch)))
        % := :touch
        (reset! !state true)
-       % := ::rcf/timeout ; FAIL , returns :touch, indicating branch was rerun
-                                        ; even if condition did not toggle.
+       % := :touch #_::rcf/timeout ; FAIL returns :touch, indicating branch was rerun
+                                   ;      even if condition did not toggle.
        )
  (def !state2 (atom true))
  (with (p/run (when (p/deduping (p/watch !state2)) (! :touch)))

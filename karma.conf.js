@@ -1,7 +1,7 @@
-process.env.CHROMIUM_BIN = require('puppeteer').executablePath()
+process.env.CHROME_BIN = require('puppeteer').executablePath()
 module.exports = function (config) {
     config.set({
-        browsers: ['ChromiumHeadless'],
+        browsers: ['Chrome_CI'],
         // The directory where the output file lives
         basePath: 'out',
         // The file itself
@@ -13,6 +13,12 @@ module.exports = function (config) {
         client: {
             args: ["shadow.test.karma.init"],
             singleRun: true
+        },
+        customLaunchers: {
+            Chrome_CI: {
+                base: 'ChromeHeadless',
+                flags: ['--no-sandbox']
+            }
         }
     });
 };
