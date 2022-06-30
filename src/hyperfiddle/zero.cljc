@@ -155,7 +155,9 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
 
 (tests
   "logical clock"
-  (with (p/run (! clock)) [% % %] := [::tick ::tick ::tick]))
+  (let [dispose (p/run (! clock))]
+    [% % %] := [::tick ::tick ::tick]
+    (dispose)))
 
 (defn system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
 
@@ -163,9 +165,10 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
 
 (tests
   "millisecond time as a stable test"
-  (with (p/run (! time))
+  (let [dispose (p/run (! time))]
     [% % %] := [_ _ _]
-    (map int? *1) := [true true true]))
+    (map int? *1) := [true true true]
+    (dispose)))
 
 (comment
   ; This ticker will skew and therefore is not useful other than as an example
