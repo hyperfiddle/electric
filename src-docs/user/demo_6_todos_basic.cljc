@@ -57,7 +57,7 @@
                ;; datascript transaction.
                (ui/input {:placeholder "Press enter to create a new item"
                           :on-keychord
-                          [time-basis ; acknowledgement
+                          [time-basis ; acknowledgement ; TODO remove from userland
                            #{"enter"} ; key combo(s) to listen to
                            (p/fn [js-event]
                              ;; dom event callbacks returned values are
