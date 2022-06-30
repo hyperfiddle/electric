@@ -231,76 +231,86 @@
        (let [res# (new ~Ack val#)]
          (new (return-then-run! res# (partial swap! !ack# inc)))))))
 
-(defmacro element [tag props & body]
-  `(let [props# ~props
-         props# (-> (default props# :on-click (p/fn [x] [:click true])))]
-     (~tag (p/forget (dom/props props#))
-      (into (safe-body (do ~@body))
-            (p/for [sig# (signals props#)]
-              (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
-                (when (vector? res#) res#)))))))
-
-(defmacro button [props & body]
-  `(element dom/button ~props ~@body))
-
 (defn event
   "Take an arbitrary key and arbitrary value, the resulting event (a pair) will be
   returned by the ui component."
   [key value] ^{:tag ::event} [key value])
 (defn event? [x] (= ::event (:tag (meta x))))
 
-(defn gen-event-handlers [props]
-  (map (fn [signal]
-         (case signal
-           :on-keychord (let [callback (get props signal)
-                              [ack keychord callback] (case (count callback)
-                                                        2 [nil (first callback) (second callback)]
-                                                        3 callback)]
-                          (if (some? ack)
-                            `(impulse ~ack ~callback (dom/>keychord-events ~keychord))
-                            `(auto-impulse ~callback (dom/>keychord-events ~keychord))))
-           (let [callback       (get props signal)
-                 [ack callback] (if (vector? callback) callback [nil callback])]
-             (if (some? ack)
-               `(impulse ~ack ~callback (dom/>events ~(signal->event signal)))
-               `(auto-impulse ~callback (dom/>events ~(signal->event signal)))))))
-       (signals props)))
+(defn gen-event-handlers
+  ([props] (gen-event-handlers props {}))
+  ([props transducers]
+   (map (fn [signal]
+          (case signal
+            :on-keychord (let [callback                (get props signal)
+                               [ack keychord callback] (case (count callback)
+                                                         2 [nil (first callback) (second callback)]
+                                                         3 callback)]
+                           (if (some? ack)
+                             `(impulse ~ack ~callback (dom/>keychord-events ~keychord))
+                             `(auto-impulse ~callback (dom/>keychord-events ~keychord))))
+            (let [callback       (get props signal)
+                  [ack callback] (if (vector? callback) callback [nil callback])
+                  xf             (get transducers signal)]
+              (if (some? ack)
+                `(impulse ~ack ~callback (dom/>events ~(signal->event signal) ~xf))
+                `(auto-impulse ~callback (dom/>events ~(signal->event signal) ~xf))))))
+     (signals props))))
 
-(defn parse-props [valuef props]
+(defn parse-props [valuef props transducers]
   (assert (map? props))
   (let [sigs (signals props)]
     [(valuef props)
-     (gen-event-handlers props)
+     (gen-event-handlers props transducers)
      (apply dissoc props :value sigs)]))
 
 (defmacro input [props]
-  (let [[value events props'] (parse-props :value props)
+  (let [[value events props'] (parse-props :value props {})
         auto-value            (gensym "value_")]
-    `(into {} (semicontroller
-               ::focused ~value
-               (p/fn [~auto-value]
-                 (dom/input (p/forget (dom/props ~props'))
-                            (p/forget (dom/props {:value ~auto-value})) ;; TODO should it pulse?
-                            (into
-                             ~(merge (when (::value props)
-                                       {:value `(new ~(get props ::value `(p/fn [x#] x#))
-                                                     (dom/events "input" (map (dom/oget :target :value)) ~auto-value))})
-                                     `{::focused (not (new (dom/focus-state dom/node)))})
-                             (filter event? [~@events]))))))))
+    `(into {}
+       (semicontroller
+         ::focused ~value
+         (p/fn [~auto-value]
+           (dom/input (p/forget (dom/props ~props'))
+             (p/forget (dom/props {:value ~auto-value})) ;; TODO should it pulse?
+             (into ~(merge (when (::value props)
+                             {:value `(new ~(get props ::value `(p/fn [x#] x#))
+                                        (dom/events "input" (map (dom/oget :target :value)) ~auto-value))})
+                      `{::focused (not (new (dom/focus-state dom/node)))})
+               (filter event? [~@events]))))))))
 
 (defmacro checkbox [props]
-  (let [[value events props'] (parse-props :checked props)
+  (let [[value events props'] (parse-props :checked props {})
         auto-value            (gensym "value_")]
     `(let [~auto-value ~value]
-       (into {} (dom/input (p/forget (dom/props ~props'))
-                           (p/forget (dom/props {:type    :checkbox
-                                                 :checked ~auto-value}))
-                           (into
-                            ~(merge {}
-                                    (when (::value props)
-                                      {:value `(new ~(get props ::value `(p/fn [x#] x#))
-                                                    (dom/events "input" (map (dom/oget :target :checked)) ~auto-value))}))
-                            (filter event? [~@events])))))))
+       (dom/input (p/forget (dom/props ~props'))
+         (p/forget (dom/props {:type    :checkbox
+                               :checked ~auto-value}))
+         (into ~(merge {}
+                  (when (::value props)
+                    {:value `(new ~(get props ::value `(p/fn [x#] x#))
+                               (dom/events "input" (map (dom/oget :target :checked)) ~auto-value))}))
+           (filter event? [~@events]))))))
+
+(defmacro element [tag props & body]
+  (let [[_ events props] (parse-props (constantly nil) props {})]
+    `(let []
+       (~tag (p/forget (dom/props ~props))
+        (into (safe-body (do ~@body))   ; coerced to a map
+          (filter event? [~@events]))))))
+
+#_
+(defmacro element [tag props & body]
+  `(let [props# ~props
+         props# (-> (default props# :on-click (p/fn [x] x)))]
+     (~tag (p/forget (dom/props props#))
+      (into (safe-body (do ~@body))
+        (p/for [sig# (signals props#)]
+          (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
+            (when (vector? res#) res#)))))))
+
+(defmacro button [props & body]
+  `(element dom/button ~props ~@body))
 
 (defn format-num [format-str x] #?(:cljs (if format-str
                                            (format format-str x)
@@ -310,82 +320,99 @@
 (def parse-input (comp (map (dom/oget :target :value)) (map parse-num) (filter is-num?)))
 
 (defmacro numeric-input [props]
-  `(let [props# ~props
-         value# (:value props#)
-         props# (p/deduping (dissoc props# :value))]
-     (into {} (semicontroller
-               ::focused value#
-               (p/fn [value#]
-                 (dom/input (p/forget (dom/props props#))
-                            (p/forget (dom/props {:value (format-num (:format props#) value#)
-                                                  :type  :number}))
-                            (into {::value   value#
-                                   ::focused (not (new (dom/focus-state dom/node)))}
-                                  (p/for [sig# (signals props#)]
-                                    (if (= :on-change sig#)
-                                      (let [res# (auto-impulse (get props# sig#) (dom/>events "input" parse-input))]
-                                        (when (vector? res#) res#))
-                                      (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
-                                        (when (vector? res#) res#)))))))))))
+  (let [[value events props'] (parse-props :value props {})
+        auto-value            (gensym "value_")]
+    `(into {}
+       (semicontroller
+         ::focused ~value
+         (p/fn [~auto-value]
+           (dom/input (p/forget (dom/props ~props'))
+             (p/forget (dom/props {:value (format-num ~(:format props') ~auto-value)
+                                   :type  :number})) ;; TODO should it pulse?
+             (into ~(merge (when (::value props)
+                             {:value `(new ~(get props ::value `(p/fn [x#] x#))
+                                        (dom/events "input" parse-input ~auto-value))})
+                      `{::focused (not (new (dom/focus-state dom/node)))})
+               (filter event? [~@events]))))))))
 
 (defn- index-of [vec val] (.indexOf vec val))
 
+(defn parse-select-value [options] (prn "options" options) (comp (map (dom/oget :target :value)) (map parse-num) (map (partial get options))))
+
 (defmacro select [props]
-  `(let [props#    ~props
-         props#    (default props# ::on-change (p/fn [x] x))
-         options#  (vec (:options props#))
-         value#    (:value props#)
-         selected# (index-of options# value#) ; TODO accept a keyfn prop instead of comparing with `=`.
-         ]
-     (::value
-      (into {} (dom/select (p/forget (dom/props props#))
-                           (p/forget (dom/props {:value value#}))
-                           (when (= -1 selected#)
-                             (dom/option {:disabled true
-                                          :selected true}
-                                         (dom/text (:text value#))))
-                           (p/for [[idx# option#] (map-indexed vector options#)]
-                             (dom/option {:value idx#}
-                                         (when (= selected# idx#)
-                                           (dom/props {:selected true}))
-                                         (dom/text (:text option#))))
-                           (into [[::value   value#]]
-                                 (p/for [sig# (signals props#)]
-                                   (if (= :on-change sig#)
-                                     (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)
-                                                                                                (comp (map (dom/oget :target :value))
-                                                                                                      (map parse-num)
-                                                                                                      (map (partial get options#)))))]
-                                       (when (vector? res#) res#))
-                                     (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
-                                       (when (vector? res#) res#))))))))))
+  (let [[value events props] (parse-props :value props {})
+        options              (vec (:options props))
+        props                (dissoc props :options)
+        auto-value           (gensym "value_")
+        auto-options         (gensym "options_")]
+    `(let [~auto-options ~options
+           ~auto-value   ~value
+           selected#     (index-of ~auto-options ~auto-value) ; TODO accept a keyfn prop instead of comparing with `=`.
+           ]
+       (dom/select (p/forget (dom/props ~props))
+         (p/forget (dom/props {:value ~auto-value}))
+         (when (= -1 selected#)
+           (dom/option {:disabled true
+                        :selected true}
+             (dom/text (:text ~auto-value))))
+         (p/for [[idx# option#] (map-indexed vector ~auto-options)]
+           (dom/option {:value idx#}
+             (when (= selected# idx#)
+               (dom/props {:selected true}))
+             (dom/text (:text option#))))
+         (into ~(merge {}
+                  (when (::value props)
+                    {:value `(new ~(get props ::value `(p/fn [x#] x#))
+                               (dom/events "input" (parse-select-value ~auto-options) ~auto-value))}))
+           (filter event? [~@events]))))))
 
 (defmacro native-typeahead [props]
-  (let [list-id (str (gensym))]
-    `(let [props# ~props
-           props# (default props# ::on-change (p/fn [x] x))]
-       (::value
-        (into {} (semicontroller
-                  ::focused (:value props#)
-                  (p/fn [value#]
-                    (let [res#     (into {} (dom/input (p/forget (dom/props props#))
-                                                       (p/forget (dom/props {:type :search
-                                                                             :value value#
-                                                                             :list  ~list-id}))
-                                                       (into [[::value   value#]
-                                                              [::focused (not (new (dom/focus-state dom/node)))]]
-                                                             (p/for [sig# (signals props#)]
-                                                               (if (= ::on-change sig#)
-                                                                 [::value (new (get props# ::on-change)
-                                                                               (dom/events "input" (map (dom/oget :target :value))
-                                                                                           value#))]
-                                                                 (let [res# (auto-impulse (get props# sig#) (dom/>events (signal->event sig#)))]
-                                                                   (when (vector? res#) res#)))))))
-                          needle#  (::value res#)
-                          options# (when-let [options# (:options props#)]
-                                     (new options# needle#))]
-                      (dom/datalist {:id ~list-id}
-                                    (p/for [option# options#]
-                                      (dom/option {:id (:value option#)} (dom/text (:text option#)))))
-                      (vec res#)))))))))
+  (let [[value events props'] (parse-props :value props {})
+        auto-value            (gensym "value_")
+        auto-list             (str (gensym "list_"))]
+    `(into {}
+       (semicontroller
+         ::focused ~value
+         (p/fn [~auto-value]
+           (let [res#     (dom/input (p/forget (dom/props ~props'))
+                            (p/forget (dom/props {:type  :search
+                                                  :list  ~auto-list
+                                                  :value ~auto-value}))
+                            (into ~(merge {:value `(new ~(get props ::value `(p/fn [x#] x#))
+                                                     (dom/events "input" (map (dom/oget :target :value)) ~auto-value))}
+                                     `{::focused (not (new (dom/focus-state dom/node)))})
+                              (filter event? [~@events])))
+                 needle#  (:value res#)
+                 options# (when-let [options# ~(:options props `(p/fn [_#] nil))]
+                            (new options# needle#))]
+             (dom/datalist {:id ~auto-list}
+               (p/for [option# options#]
+                 (dom/option {:id (:value option#)} (dom/text (:text option#)))))
+             (vec res#)))))))
 
+;;;;;;;;;;;;;;;;;;
+;; scratch zone ;;
+;;;;;;;;;;;;;;;;;;
+
+(comment
+  (defn map-by
+    "Create a map from a collection `xs`, indexed by `kf`."
+    [kf xs] (into {} (map (juxt kf identity)) xs))
+
+  (defn sorted-map-by*
+    "Like `sorted-map-by`, but can compare on an arbitrary map value using `kf`."
+    ;; Handy to present sorted inforamation (e.g. UI) without sacrificing direct access.
+    ([kf m] (sorted-map-by* compare kf m))
+    ([comparator kf m] (into (sorted-map-by (fn [x y] (comparator (kf (get m x)) (kf (get m y))))) m)))
+
+  (tests
+    (->> [{:id 0 :name "Charlie"}         ; reversed lexicographic order
+          {:id 1 :name "Bob"}
+          {:id 2 :name "Alice"}]
+      (map-by :id)                        ; {0 {:id 0, :name "Charlie"}, 1 …, 2 …}
+      (sorted-map-by* :name)              ; {2 {:id 2, :name "Alice"}, 1 …, 0 …}
+      (vals)
+      (map :name))
+    := '("Alice" "Bob" "Charlie"))
+
+  )
