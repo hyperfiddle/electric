@@ -1,18 +1,14 @@
 name: Photon Test Suite
 on: [push]
 jobs:
-  photon-jvm:
+  jvm:
     runs-on: [ubuntu-latest]
     timeout-minutes: 5
     steps:
     - uses: actions/checkout@v2
-      with:
-        submodules: 'recursive'
 
-    - run: git status && ls vendor
+    - run: git status
 
-    - run: sudo apt update && sudo apt install maven -y
-    
     - uses: actions/setup-java@v2
       with:
         distribution: 'temurin'
@@ -25,42 +21,28 @@ jobs:
          key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn') }}
          restore-keys: |
            ${{ runner.os }}-maven-
-    
-    - run: mvn --version
-
-    - name: Set Missionary version to b.27
-      run: mvn versions:set -DnewVersion=b.27-SNAPSHOT --file vendor/missionary/pom.xml
-
-    - name: Install Missionary from submodule
-      run: mvn -B --file vendor/missionary/pom.xml clean compile install
 
     - name: Install clojure tools
       uses: DeLaGuardo/setup-clojure@3.4
       with:
         cli: 1.11.1.1113
- 
+
     - name: prep
       run: clojure -A:test -P
 
-    - name: build
-      run: clojure -T:build compile-java
-
     - name: Run tests
       run: ./ci/run_tests_jvm.sh
-        
-  photon-nodejs:
+
+  browser:
     # if: ${{ false }} # Disabled until we fix the cljs test suite locally
     runs-on: [ubuntu-latest]
     timeout-minutes: 5
     steps:
+
     - uses: actions/checkout@v2
-      with:
-        submodules: 'recursive'
 
-    - run: git status && ls vendor
+    - run: git status
 
-    - run: sudo apt update && sudo apt install maven -y
-    
     - uses: actions/setup-java@v2
       with:
         distribution: 'temurin'
@@ -73,36 +55,81 @@ jobs:
          key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn') }}
          restore-keys: |
            ${{ runner.os }}-maven-
-    
-    - run: mvn --version
-
-    - name: Set Missionary version to b.27
-      run: mvn versions:set -DnewVersion=b.27-SNAPSHOT --file vendor/missionary/pom.xml
-
-    - name: Install Missionary from submodule
-      run: mvn -B --file vendor/missionary/pom.xml clean compile install
 
     - name: Install clojure tools
       uses: DeLaGuardo/setup-clojure@3.4
       with:
         cli: 1.11.1.1113
- 
+
     - name: prep
       run: clojure -A:test -P
-
-    - name: build
-      run: clojure -T:build compile-java
 
     - name: Use Node.js
       uses: actions/setup-node@v2
       with:
-        node-version: 14.x
+        node-version: 18.x
 
     - name: NPM install
-      run: npm install
+      run: npm install --include=dev
 
     - name: Install Shadow
       run: npm install shadow-cljs
 
+   
+    # Install chrome and dependencies, puppeteer fails otherwise 
+    - run: apt-get update && apt-get install -y wget gnupg
+    - run: wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
+    - run: apt-get update && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 --no-install-recommends
+    - run: rm -rf /var/lib/apt/lists/*
+
+
     - name: Run Tests
-      run: ./ci/run_tests_node.sh
+      run: ./ci/run_tests_browser.sh
+
+# We used to run CI tests on node, but we are now relying on browser features
+# like requestAnimationFrame.
+
+# nodejs:
+#   # if: ${{ false }} # Disabled until we fix the cljs test suite locally
+#   runs-on: [ubuntu-latest]
+#   timeout-minutes: 5
+#   steps:
+#   - uses: actions/checkout@v2
+
+#   - run: git status
+
+#   - uses: actions/setup-java@v2
+#     with:
+#       distribution: 'temurin'
+#       java-version: '11'
+
+#   - name: Cache local Maven repository
+#     uses: actions/cache@v2
+#     with:
+#        path: ~/.m2/repository
+#        key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn') }}
+#        restore-keys: |
+#          ${{ runner.os }}-maven-
+
+#   - name: Install clojure tools
+#     uses: DeLaGuardo/setup-clojure@3.4
+#     with:
+#       cli: 1.11.1.1113
+
+#   - name: prep
+#     run: clojure -A:test -P
+
+#   - name: Use Node.js
+#     uses: actions/setup-node@v2
+#     with:
+#       node-version: 18.x
+
+#   - name: NPM install
+#     run: npm install
+
+#   - name: Install Shadow
+#     run: npm install shadow-cljs
+
+#   - name: Run Tests
+#     run: ./ci/run_tests_node.sh
+
