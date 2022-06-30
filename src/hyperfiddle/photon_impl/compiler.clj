@@ -699,3 +699,15 @@
            "Use of undeclared Var ")
          (:prefix info) "/" (:suffix info)))
   )
+
+(tests
+  "Var resolution"
+  (get-var (resolve-var (normalize-env {}) 'inc)) :=  #'clojure.core/inc
+  (get-var (resolve-var (normalize-env {}) 'java.lang.Integer)) := java.lang.Integer
+
+  ;; requires cljs.core to be on the JVM
+  #_(binding [cljs.env/*compiler* (cljs.env/default-compiler-env)]
+      (get-var (resolve-var (normalize-env (cljs.analyzer/empty-env)) 'inc)) := #'cljs.core/inc)
+
+  ;; TODO improve coverage of clj(s) var resolution
+  )
