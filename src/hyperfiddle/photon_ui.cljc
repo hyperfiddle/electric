@@ -222,8 +222,7 @@
 
 (defmacro impulse [ack F >xs]
   `(let [val# (z/impulse ~ack ~>xs)]
-     (do (prn "impulse val# is" val#)
-         (new ~F val#))))
+     (new ~F val#)))
 
 (defmacro auto-impulse [Ack >xs]
   `(let [!ack# (atom 0)
@@ -273,7 +272,7 @@
          ::focused ~value
          (p/fn [~auto-value]
            (dom/input (p/forget (dom/props ~props'))
-             (p/forget (dom/props {:value ~auto-value})) ;; TODO should it pulse?
+             (p/forget (dom/props {:value (str ~auto-value)})) ;; TODO should it pulse?
              (into ~(merge (when (::value props)
                              {:value `(new ~(get props ::value `(p/fn [x#] x#))
                                         (dom/events "input" (map (dom/oget :target :value)) ~auto-value))})
@@ -338,14 +337,14 @@
 
 (defn- index-of [vec val] (.indexOf vec val))
 
-(defn parse-select-value [options] (prn "options" options) (comp (map (dom/oget :target :value)) (map parse-num) (map (partial get options))))
+(defn parse-select-value [options] (comp (map (dom/oget :target :value)) (map parse-num) (map (partial get options))))
 
 (defmacro select [props]
-  (let [[value events props] (parse-props :value props {})
+  (let [auto-options         (gensym "options_")
+        [value events props] (parse-props :value props {:on-change `(parse-select-value ~auto-options)})
         options              (vec (:options props))
         props                (dissoc props :options)
-        auto-value           (gensym "value_")
-        auto-options         (gensym "options_")]
+        auto-value           (gensym "value_")]
     `(let [~auto-options ~options
            ~auto-value   ~value
            selected#     (index-of ~auto-options ~auto-value) ; TODO accept a keyfn prop instead of comparing with `=`.
