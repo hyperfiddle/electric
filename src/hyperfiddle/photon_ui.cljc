@@ -153,10 +153,10 @@
 (tests
   (def !event (atom nil))
   (def !input (atom 0))
-  (with (p/run (semicontroller :switch/set (new (m/watch !input))
-                 (p/fn [input]
-                   (! input)
-                   (p/watch !event))))
+  (let [dispose (p/run (semicontroller :switch/set (new (m/watch !input))
+                         (p/fn [input]
+                           (! input)
+                           (p/watch !event))))]
     % := 0
     (swap! !input inc)
     % := 1
@@ -166,7 +166,8 @@
     (rcf/set-timeout! 1200) ;; rcf issue, extend timeout
     (reset! !event {:switch/set true})
     (swap! !input inc)
-    % := 3))
+    % := 3
+    (dispose)))
 
 (defmacro merge-events [& events]
   `(->> (p/fn [] (apply merge ~@events))
