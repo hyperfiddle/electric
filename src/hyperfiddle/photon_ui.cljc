@@ -285,7 +285,7 @@
         auto-value            (gensym "value_")]
     `(dom/bubble
        (into {}
-         (let [~auto-value ~value]
+         (let [~auto-value (or ~value false)]
            (dom/input (p/forget (dom/props ~props'))
              (p/forget (dom/props {:type    :checkbox
                                    :checked ~auto-value}))
