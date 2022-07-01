@@ -7,11 +7,76 @@
             #?(:cljs [goog.events :as e])
             #?(:cljs [goog.object :as o])
             #?(:cljs [goog.style])
+            [hyperfiddle.rcf :as rcf :refer [tests]]
             [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [with oget]]))
   #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
                     (goog.ui.KeyboardShortcutHandler EventType))))
 
+(defn statement? "A statement is either a map or vector of size 2 or more: {:a 1} | [:keyword val*]"
+  [x]
+  (or (map? x)
+    (and (vector? x)
+      (>= (count x) 2)
+      (keyword? (first x)))))
+
+(defn bubble "Tag a map as being a bubble" [x] (assert (map? x)) (vary-meta x assoc ::bubble true))
+(defn bubble? [x] (and (map? x) (::bubble (meta x))) )
+
+(defn mappend
+  "Merge transactions (collection of statements) into a single transaction. Operate
+  at the data level, not information level (statements are not interpreted).
+  Resulting transaction can contain duplicates or opposite statements."
+  ([] [])
+  ([tx] (cond
+          (bubble? tx) (mappend (vec (vals tx)))
+          (vector? tx) (if (every? vector? tx)
+                         (if-some [stmts (seq (filter statement? (mapcat identity tx)))]
+                           (apply mappend [(vec stmts)])
+                           (into [] (filter statement?) tx))
+                         (into [] (filter statement?) tx))
+          :else        []))
+  ([tx & txs]
+   (reduce (fn [txa txb] (into txa (filter statement?) txb)) (mappend tx) (map mappend txs))))
+
+(tests
+  ;; boundaries
+  (mappend)                               := []
+  (mappend nil)                           := []
+  (mappend [])                            := []
+  (mappend {})                            := []
+  (mappend ())                            := []
+  (mappend #{})                           := []
+  (mappend nil nil)                       := []
+
+  (mappend (bubble {}))                   := []
+  (mappend (bubble {:a 1}))               := []
+
+
+  ;; correctness
+  (mappend [[:a 1]])                      := [[:a 1]]
+  (mappend [[:a 1]] nil)                  := [[:a 1]]
+  (mappend [[:a 1]] [])                   := [[:a 1]]
+  (mappend [[:a 1]] [[:b 2]])             := [[:a 1] [:b 2]]
+  (mappend [{:a 1}] [{:b 2}] [[:c 3]])    := [{:a 1} {:b 2} [:c 3]]
+  (mappend (bubble {:a [:b 1]}))               := [[:b 1]]
+  (mappend [[:a 1]] (bubble {:b [:c 1]})) := [[:a 1] [:c 1]]
+
+  ;; inverse
+  (mappend nil [[:a 1]])                  := [[:a 1]]
+  (mappend [] [[:a 1]])                   := [[:a 1]]
+  (mappend [[:a 1]] [[:b 2]])             := [[:a 1] [:b 2]]
+  (mappend [{:a 1}] [{:b 2}] [[:c 3]])    := [{:a 1} {:b 2} [:c 3]]
+  (mappend (bubble {:b [:c 1]}) [[:a 1]]) := [[:c 1] [:a 1]]
+
+  ;; Nesting
+  (mappend [[[:a 1]]])                    := [[:a 1]]
+  (mappend [[[:a 1]]] [[[:b 2]]])         := [[:a 1] [:b 2]]
+  )
+
+(defmacro bubbling [& body]
+  #_`(p/deduping) ; TODO maybe dedupe? by statement? by tx?
+  `(mappend ~@body))
 
 (def nil-subject (fn [!] (! nil) #()))
 (p/def keepalive (new (m/observe nil-subject)))
@@ -45,15 +110,16 @@
              (.appendChild parent node) node)))
 
 (defmacro element [t & [props & body]]
-  `(with (dom-element node ~(name t)) ~@(if (map? props)
-                                          (cons `(props ~props) body)
-                                          (cons props body))))
+  `(with (dom-element node ~(name t))
+     (bubbling ~@(if (map? props)
+                   (cons `(props ~props) body)
+                   (cons props body)))))
 
 (defn text-node [parent]
   #?(:cljs (let [node (d/createTextNode "")]
              (.appendChild parent node) node)))
 
-(defn set-text-content! [e t] #?(:cljs (d/setTextContent e (str t))))
+(defn set-text-content! [e t] #?(:cljs (do (d/setTextContent e (str t)) t)))
 
 (defmacro text [& strs]
   `(with (text-node node) (set-text-content! node (str ~@strs))))
