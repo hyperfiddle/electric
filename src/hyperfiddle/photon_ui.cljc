@@ -123,18 +123,18 @@
   ([f coll] (sequence (dedupe-by f) coll)))
 
 (tests
-  (dedupe-by key [{:a 1} {:a 1, :b 2}, {:a 1} {:a 2}])
+  (dedupe-by first [{:a 1} {:a 1, :b 2}, {:a 1} {:a 2}])
   := [{:a 1} {:b 2} {:a 2}])
 
 (defn check-interpretable! [x]
   (if-not (or (map? x) (every? vector? x))
-    (do (log/error "Semicontroller expects a seq vector of events. Received:" (pr-str x))
+    (do (log/error "Semicontroller expects a vector of events. Received:" (pr-str x))
       nil)
     x))
 
 (defmacro interpreter [event-tags f & body]
   `(->> (p/fn [] ~@body)
-        (m/eduction #_(dedupe-n) #_cat (dedupe-by key) (interpreter* ~event-tags ~f))
+        (m/eduction #_(dedupe-n) #_cat (dedupe-by first) (interpreter* ~event-tags ~f))
         (m/reductions {} nil)
         (m/relieve {})
         (new)))
@@ -145,7 +145,7 @@
   [event-tag input Body]
   `(let [!switch# (atom true)]
      (->> (p/fn [] (check-interpretable! (new ~Body (new (m/eduction (filter (partial deref' !switch#)) (p/fn [] ~input))))))
-          (m/eduction #_(dedupe-n) #_cat (dedupe-by key) (interpreter* #{~event-tag} (partial set-switch! !switch#))
+          (m/eduction #_(dedupe-n) #_cat (dedupe-by first) (interpreter* #{~event-tag} (partial set-switch! !switch#))
                       (filter seq))
           (m/reductions {} nil)
           (new))))
@@ -171,7 +171,7 @@
 
 (defmacro merge-events [& events]
   `(->> (p/fn [] (apply merge ~@events))
-        (m/eduction (dedupe-by key)
+        (m/eduction (dedupe-by first)
                     (filter seq))
         (m/reductions {} nil)
         (m/relieve {})
@@ -247,14 +247,14 @@
                                                          2 [nil (first callback) (second callback)]
                                                          3 callback)]
                            (if (some? ack)
-                             `(impulse ~ack ~callback (dom/>keychord-events ~keychord))
-                             `(auto-impulse ~callback (dom/>keychord-events ~keychord))))
+                             `[~signal (impulse ~ack ~callback (dom/>keychord-events ~keychord))]
+                             `[~signal (auto-impulse ~callback (dom/>keychord-events ~keychord))]))
             (let [callback       (get props signal)
                   [ack callback] (if (vector? callback) callback [nil callback])
                   xf             (get transducers signal)]
               (if (some? ack)
-                `(impulse ~ack ~callback (dom/>events ~(signal->event signal) ~xf))
-                `(auto-impulse ~callback (dom/>events ~(signal->event signal) ~xf))))))
+                `[~signal (impulse ~ack ~callback (dom/>events ~(signal->event signal) ~xf))]
+                `[~signal (auto-impulse ~callback (dom/>events ~(signal->event signal) ~xf))]))))
      (signals props))))
 
 (defn parse-props [valuef props transducers]
@@ -267,30 +267,32 @@
 (defmacro input [props]
   (let [[value events props'] (parse-props :value props {})
         auto-value            (gensym "value_")]
-    `(into {}
-       (semicontroller
-         ::focused ~value
-         (p/fn [~auto-value]
-           (dom/input (p/forget (dom/props ~props'))
-             (p/forget (dom/props {:value (str ~auto-value)})) ;; TODO should it pulse?
-             (into ~(merge (when (::value props)
-                             {:value `(new ~(get props ::value `(p/fn [x#] x#))
-                                        (dom/events "input" (map (dom/oget :target :value)) ~auto-value))})
-                      `{::focused (not (new (dom/focus-state dom/node)))})
-               (filter event? [~@events]))))))))
+    `(dom/bubble
+       (into {}
+         (semicontroller
+           ::focused ~value
+           (p/fn [~auto-value]
+             (dom/input (p/forget (dom/props ~props'))
+               (p/forget (dom/props {:value (str ~auto-value)})) ;; TODO should it pulse?
+               (into [[::focused (not (new (dom/focus-state dom/node)))]
+                      ~(when (::value props)
+                         [:value `(new ~(get props ::value `(p/fn [x#] x#))
+                                    (dom/events "input" (map (dom/oget :target :value)) ~auto-value))])]
+                 [~@events]))))))))
 
 (defmacro checkbox [props]
   (let [[value events props'] (parse-props :checked props {})
         auto-value            (gensym "value_")]
-    `(let [~auto-value ~value]
-       (dom/input (p/forget (dom/props ~props'))
-         (p/forget (dom/props {:type    :checkbox
-                               :checked ~auto-value}))
-         (into ~(merge {}
-                  (when (::value props)
-                    {:value `(new ~(get props ::value `(p/fn [x#] x#))
-                               (dom/events "input" (map (dom/oget :target :checked)) ~auto-value))}))
-           (filter event? [~@events]))))))
+    `(dom/bubble
+       (into {}
+         (let [~auto-value ~value]
+           (dom/input (p/forget (dom/props ~props'))
+             (p/forget (dom/props {:type    :checkbox
+                                   :checked ~auto-value}))
+             (into [~(when (::value props)
+                       [:value `(new ~(get props ::value `(p/fn [x#] x#))
+                                  (dom/events "input" (map (dom/oget :target :checked)) ~auto-value))])]
+               [~@events])))))))
 
 (defmacro element [tag props & body]
   (let [[_ events props] (parse-props (constantly nil) props {})]
