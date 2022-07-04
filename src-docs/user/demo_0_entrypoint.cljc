@@ -7,7 +7,8 @@
             [user.demo-3-webview :as webview]
             [user.demo-4-counter :as counter]
             [user.demo-5-button :as button]
-            [user.demo-6-todos-basic :as todos-basic]
+            [user.demo-6-bubbles :as bubbles]
+            [user.demo-7-todos-basic :as todos-basic]
             )
   (:import (hyperfiddle.photon Pending)
            (missionary Cancelled))
@@ -29,7 +30,8 @@
                              {:value 3, :text "3 - Webview"}
                              {:value 4, :text "4 - Counter"}
                              {:value 5, :text "5 - Button"}
-                             {:value 6, :text "6 - Basic Todo"}]
+                             {:value 6, :text "6 - Bubbles"}
+                             {:value 7, :text "7 - Basic Todo"}]
                  :on-change (p/fn [selected] (reset! !selected-demo selected))})
      (dom/p (dom/code (dom/text "Selected:" selected-demo)))
      (dom/div {:style {:max-width  "90vw"
@@ -40,7 +42,8 @@
                 3 (webview/App.)
                 4 (counter/App.)
                 5 (button/App.)
-                6 (todos-basic/App.))))))
+                6 (bubbles/App.)
+                7 (todos-basic/App.))))))
 
 (def main #?(:cljs (p/client (p/main
                               (try
