@@ -8,7 +8,8 @@
     user.demo-3-webview
     user.demo-4-counter
     user.demo-5-button
-    user.demo-6-todos-basic
+    user.demo-6-bubbles
+    user.demo-7-todos-basic
     user.seven-gui-1-counter
     user.seven-gui-2-temperature-converter
     user.seven-gui-4-timer

@@ -1,4 +1,4 @@
-(ns user.demo-6-todos-basic
+(ns user.demo-7-todos-basic
   (:require clojure.edn
             [datascript.core :as d]
             [hyperfiddle.photon :as p]
@@ -6,7 +6,7 @@
             [hyperfiddle.photon-ui :as ui])
   (:import [hyperfiddle.photon Pending]
            missionary.Cancelled)
-  #?(:cljs (:require-macros user.demo-6-todos-basic)))
+  #?(:cljs (:require-macros user.demo-7-todos-basic)))
 
 ;;; Business logic
 
