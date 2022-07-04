@@ -13,7 +13,7 @@
 (def auto-inc (partial swap! (atom 0) inc)) ; when called, swaps the atom and return the swapped value, so 1, then 2, then 3, …
 
 (defn task-create [description]
-  {:db/id            1 #_(auto-inc) ; FIXME Network transfer causes duplicates, so this causes an infinite loop
+  {:db/id            (auto-inc)
    :task/description description
    :task/status      :active})
 
@@ -56,7 +56,7 @@
                         (let [dom-node    (dom/oget js-event :target)
                               description (get-input-value dom-node)]
                           (clear-input! dom-node)
-                          [:create-task description]
+                          [:statement (task-create description)]
                           )))]})
         (dom/div
           (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
@@ -71,7 +71,7 @@
                                 (let [checked? (dom/oget js-event :target :checked)]
                                   ;; Return a task-status tx. It is returned by
                                   ;; ui/checkbox and will bubble up to the top.
-                                  [:set-status [id (if checked? :done :active)]])))]})
+                                  [:statement (task-status id (if checked? :done :active))])))]})
               (dom/span (dom/text (str ~@(:task/description (d/entity db id))))))))
         (dom/p
           (dom/text (str ~@(count (d/q '[:find [?e ...] :in $ ?status
@@ -87,13 +87,10 @@
   [command]
   (let [[tag value] command]
     (case tag
-      :create-task (task-create value)
-      :set-status  (let [[id status] value]
-                     (task-status id status)))))
+      :statement value)))
 
 (p/defn App []
-  ~@(if-some [tx (p/deduping (seq (->> (Todo-list. (p/watch !conn))
-                                    (map command->statement))))]
+  ~@(if-some [tx (p/deduping (seq (map command->statement (Todo-list. (p/watch !conn)))))]
       (transact tx) ; auto-transact, prints server-side
       (prn :idle)))
 
