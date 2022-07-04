@@ -276,8 +276,8 @@
                (p/forget (dom/props {:value (str ~auto-value)})) ;; TODO should it pulse?
                (into [[::focused (not (new (dom/focus-state dom/node)))]
                       ~(when (::value props)
-                         [:value `(new ~(get props ::value `(p/fn [x#] x#))
-                                    (dom/events "input" (map (dom/oget :target :value)) ~auto-value))])]
+                         [::value `(new ~(get props ::value `(p/fn [x#] x#))
+                                     (dom/events "input" (map (dom/oget :target :value)) ~auto-value))])]
                  [~@events]))))))))
 
 (defmacro checkbox [props]

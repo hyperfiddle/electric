@@ -1,7 +1,6 @@
 (ns hyperfiddle.photon-dom
   (:refer-clojure :exclude [time for])
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.zero :as z]
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])
@@ -13,70 +12,67 @@
   #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
                     (goog.ui.KeyboardShortcutHandler EventType))))
 
-(defn statement? "A statement is either a map or vector of size 2 or more: {:a 1} | [:keyword val*]"
+(defn command? "A command is a pair [:keyword any-value], describing an action."
   [x]
-  (or (map? x)
-    (and (vector? x)
-      (>= (count x) 2)
-      (keyword? (first x)))))
+  (and (vector? x)
+    (= (count x) 2)
+    (keyword? (first x))))
 
 (defn bubble "Tag a map as being a bubble" [x] (assert (map? x)) (vary-meta x assoc ::bubble true))
-(defn bubble? [x] (and (map? x) (::bubble (meta x))) )
+(defn bubble? [x] (and (map? x) (::bubble (meta x))))
+
+(defn extract-commands [xs]
+  (cond
+    (command? xs)  [xs]
+    (bubble? xs)     (extract-commands (vals xs))
+    (sequential? xs) (transduce (comp (map extract-commands) (remove nil?) ) into [] xs)
+    :else            []))
 
 (defn mappend
-  "Merge transactions (collection of statements) into a single transaction. Operate
-  at the data level, not information level (statements are not interpreted).
-  Resulting transaction can contain duplicates or opposite statements."
+  "Merge collection of commands."
   ([] [])
-  ([tx] (cond
-          (bubble? tx) (mappend (vec (vals tx)))
-          (vector? tx) (if (every? vector? tx)
-                         (if-some [stmts (seq (filter statement? (mapcat identity tx)))]
-                           (apply mappend [(vec stmts)])
-                           (into [] (filter statement?) tx))
-                         (into [] (filter statement?) tx))
-          :else        []))
+  ([tx] (extract-commands tx))
   ([tx & txs]
-   (reduce (fn [txa txb] (into txa (filter statement?) txb)) (mappend tx) (map mappend txs))))
+   (reduce into (mappend tx) (map mappend txs))))
 
 (tests
   ;; boundaries
-  (mappend)                               := []
-  (mappend nil)                           := []
-  (mappend [])                            := []
-  (mappend {})                            := []
-  (mappend ())                            := []
-  (mappend #{})                           := []
-  (mappend nil nil)                       := []
-
-  (mappend (bubble {}))                   := []
-  (mappend (bubble {:a 1}))               := []
-
+  (mappend)                       := []
+  (mappend nil)                   := []
+  (mappend [])                    := []
+  (mappend {})                    := []
+  (mappend ())                    := []
+  (mappend #{})                   := []
+  (mappend nil nil)               := []
+  (mappend (bubble {}))           := []
 
   ;; correctness
-  (mappend [[:a 1]])                      := [[:a 1]]
-  (mappend [[:a 1]] nil)                  := [[:a 1]]
-  (mappend [[:a 1]] [])                   := [[:a 1]]
-  (mappend [[:a 1]] [[:b 2]])             := [[:a 1] [:b 2]]
-  (mappend [{:a 1}] [{:b 2}] [[:c 3]])    := [{:a 1} {:b 2} [:c 3]]
-  (mappend (bubble {:a [:b 1]}))               := [[:b 1]]
-  (mappend [[:a 1]] (bubble {:b [:c 1]})) := [[:a 1] [:c 1]]
+  (mappend [[:a 1]])              := [[:a 1]]
+  (mappend [[:a {:b 1}]])         := [[:a {:b 1}]]
+  (mappend [[:a 1]] nil)          := [[:a 1]]
+  (mappend [[:a 1]] [])           := [[:a 1]]
+  (mappend [[:a 1]] [[:b 2]])     := [[:a 1] [:b 2]]
+  (mappend (bubble {:a 1}))       := []
+  (mappend (bubble {:a [:b 1]}))  := [[:b 1]]
+  (mappend (bubble {:a [:b 1]})
+           (bubble {:b [:c 2]}))  := [[:b 1] [:c 2]]
 
   ;; inverse
-  (mappend nil [[:a 1]])                  := [[:a 1]]
-  (mappend [] [[:a 1]])                   := [[:a 1]]
-  (mappend [[:a 1]] [[:b 2]])             := [[:a 1] [:b 2]]
-  (mappend [{:a 1}] [{:b 2}] [[:c 3]])    := [{:a 1} {:b 2} [:c 3]]
-  (mappend (bubble {:b [:c 1]}) [[:a 1]]) := [[:c 1] [:a 1]]
+  (mappend nil [[:a 1]])          := [[:a 1]]
+  (mappend [] [[:a 1]])           := [[:a 1]]
+  (mappend [[:a 1]] [[:b 2]])     := [[:a 1] [:b 2]]
 
   ;; Nesting
-  (mappend [[[:a 1]]])                    := [[:a 1]]
-  (mappend [[[:a 1]]] [[[:b 2]]])         := [[:a 1] [:b 2]]
+  (mappend [[[:a 1]]])            := [[:a 1]]
+  (mappend [[[:a 1]]] [[[:b 2]]]) := [[:a 1] [:b 2]]
+  (mappend [[[:a 1]]]
+    [[[(bubble {:a 1, :b [:c 3]})]]]
+    [[[:b 2]]])                   := [[:a 1] [:c 3] [:b 2]]
   )
 
 (defmacro bubbling [& body]
-  #_`(p/deduping) ; TODO maybe dedupe? by statement? by tx?
-  `(mappend ~@body))
+  `(p/deduping ; TODO maybe dedupe? by command? by tx?
+     (mappend ~@body)))
 
 (def nil-subject (fn [!] (! nil) #()))
 (p/def keepalive (new (m/observe nil-subject)))

@@ -13,13 +13,13 @@
 (def auto-inc (partial swap! (atom 0) inc)) ; when called, swaps the atom and return the swapped value, so 1, then 2, then 3, …
 
 (defn task-create [description]
-  [{:db/id            (auto-inc)
-    :task/description description
-    :task/status      :active}])
+  {:db/id            1 #_(auto-inc) ; FIXME Network transfer causes duplicates, so this causes an infinite loop
+   :task/description description
+   :task/status      :active})
 
 (defn task-status [id status]
-  [{:db/id       id
-    :task/status status}])
+  {:db/id       id
+   :task/status status})
 
 (defn task-remove [id])                 ; todo
 
@@ -43,8 +43,6 @@
 
 ;;; Photon App
 
-(p/def db)                              ; will be bound on server
-
 (p/defn Todo-list [db]
   (let [time-basis (:max-tx db)]        ; latest tx time, used to acknowledge a value has been saved (transacted) on server
     ~@(dom/div
@@ -58,9 +56,7 @@
                         (let [dom-node    (dom/oget js-event :target)
                               description (get-input-value dom-node)]
                           (clear-input! dom-node)
-                          ;; Create a task-create transaction. It is returned by
-                          ;; ui/input and will bubble up to the top.
-                          (task-create description)
+                          [:create-task description]
                           )))]})
         (dom/div
           (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
@@ -75,7 +71,7 @@
                                 (let [checked? (dom/oget js-event :target :checked)]
                                   ;; Return a task-status tx. It is returned by
                                   ;; ui/checkbox and will bubble up to the top.
-                                  (task-status id (if checked? :done :active)))))]})
+                                  [:set-status [id (if checked? :done :active)]])))]})
               (dom/span (dom/text (str ~@(:task/description (d/entity db id))))))))
         (dom/p
           (dom/text (str ~@(count (d/q '[:find [?e ...] :in $ ?status
@@ -86,10 +82,19 @@
                                      (d/transact! !conn tx-data)
                                      nil)))
 
+(defn command->statement
+  "Map a UI command to a datomic transaction statement"
+  [command]
+  (let [[tag value] command]
+    (case tag
+      :create-task (task-create value)
+      :set-status  (let [[id status] value]
+                     (task-status id status)))))
 
 (p/defn App []
-  ~@(if-some [tx (p/deduping (seq (Todo-list. (p/watch !conn))))]
-      (do (prn "TX:" tx) (transact tx)) ; auto-transact, prints server-side
+  ~@(if-some [tx (p/deduping (seq (->> (Todo-list. (p/watch !conn))
+                                    (map command->statement))))]
+      (transact tx) ; auto-transact, prints server-side
       (prn :idle)))
 
 (def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")]
@@ -100,30 +105,3 @@
 (comment
   (user/browser-main! `main)
   )
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; (comment
-;;   (def !ack (atom 0))
-
-;;   ;; Works
-;;   (def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")]
-;;                                               ~@(when-some [v ~@(dom/button {} (z/impulse ~@(p/watch !ack)
-;;                                                                                  (dom/>events "click" (map (constantly :click)))))]
-;;                                                   (do (prn "got" v)
-;;                                                       (swap! !ack inc))))
-;;                                             (catch Pending _)
-;;                                             (catch Cancelled _))))))
-
-;;   (p/defn UI [ack]
-;;     (dom/button {} (z/impulse ack (dom/>events "click" (map (constantly :click))))))
-
-;;   ;; Infinite loop
-;;   #_(def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")]
-;;                                                 ~@(when-some [v ~@(UI. ~@(p/watch !ack))]
-;;                                                     (do (prn "got" v)
-;;                                                         (swap! !ack inc))))
-;;                                               (catch Pending _)
-;;                                               (catch Cancelled _)))))))
-
