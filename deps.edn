@@ -8,12 +8,9 @@
            borkdude/edamame               {:mvn/version "1.0.0"} ;; configurable edn parser
 
            ;; Server
-           org.eclipse.jetty/jetty-server                {:mvn/version "9.4.44.v20210927"}
-           org.eclipse.jetty/jetty-servlet               {:mvn/version "9.4.44.v20210927"}
-           org.eclipse.jetty.websocket/websocket-api     {:mvn/version "9.4.44.v20210927"}
-           org.eclipse.jetty.websocket/websocket-servlet {:mvn/version "9.4.44.v20210927"}
-           org.eclipse.jetty.websocket/websocket-server  {:mvn/version "9.4.44.v20210927"}
-           com.cognitect/transit-clj                     {:mvn/version "1.0.329"}
+           info.sunng/ring-jetty9-adapter {:mvn/version "0.17.7"
+                                           :exclusions  [org.slf4j/slf4j-api]} ;; TODO bloated dependency, extract minimal feature set.
+           com.cognitect/transit-clj      {:mvn/version "1.0.329"}
 
            ;; Client
            org.clojure/clojurescript      {:mvn/version "1.11.4"}

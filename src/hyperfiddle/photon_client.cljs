@@ -5,9 +5,13 @@
   (:import missionary.Cancelled))
 
 (defn server-url []
-  (let [url (.. js/window -hyperfiddle_photon_config -server_url)]
-    (assert (string? url) "Missing websocket server url.")
-    url))
+  (let [proto (.. js/window -location -protocol)]
+    (str (case proto
+           "http:" "ws:"
+           "https:" "wss:"
+           (throw (ex-info "Unexpected protocol" proto)))
+      "//"
+      (.. js/window -location -host))))
 
 (defn connect! [socket]
   (let [deliver (m/dfv)]
