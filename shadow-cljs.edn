@@ -1,6 +1,5 @@
 {:deps     {:aliases [:dev]}
  :nrepl    {:port 9001}
- :dev-http {8080 {:root "resources/public"}}
  :builds   {:devkit   {:target        :browser
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}

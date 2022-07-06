@@ -28,7 +28,7 @@
 (def shadow-watch (delay @(requiring-resolve 'shadow.cljs.devtools.api/watch)))
 ;(def shadow-compile (delay @(requiring-resolve 'shadow.cljs.devtools.api/compile)))
 (def shadow-release (delay @(requiring-resolve 'shadow.cljs.devtools.api/release)))
-(def photon-start-websocket-server! (delay @(requiring-resolve 'hyperfiddle.photon/start-websocket-server!)))
+(def start-server! (delay (requiring-resolve 'server/start-server!)))
 
 (defn browser-main! [photon-main-sym]
   ; Save the user the trouble of getting a CLJS repl to switch photon entrypoints
@@ -44,7 +44,10 @@
   (@shadow-watch :devkit)                                   ; depends on shadow server
 
   "Start Photon app server"
-  (def server (@photon-start-websocket-server! {:host "localhost" :port 8081}))
+  (def server (@start-server! {:host "localhost", :port 8080}))
+  (println (str "\n👉 App available at http://localhost:" (-> server (.getConnectors) first (.getPort))
+             "\n"))
+
   (comment (.stop server)))
 
 (defn release []
