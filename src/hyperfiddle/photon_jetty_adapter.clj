@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon-jetty-adapter
-  (:require [ring.adapter.jetty9 :as jetty] ;; TODO bloated dependency, extract minimal feature set.
+  (:require [ring.adapter.jetty9 :as jetty]
             [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
             [missionary.core :as m]

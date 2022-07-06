@@ -1,11 +1,11 @@
 (ns server
   (:require [ring.middleware.file :refer [wrap-file]]
             [ring.adapter.jetty9 :as ring]
-            [hyperfiddle.photon-jetty-adapter :as adapter])
+            [hyperfiddle.photon-jetty-adapter :as adapter]
+            [hyperfiddle.logger :as log])
   (:import [java.io IOException]
            [java.net BindException]
            ))
-
 
 (defn wrap-photon [next-handler]
   (fn [ring-request]
@@ -23,7 +23,7 @@
       (merge {:port 8080, :join? false} config))
     (catch IOException err
       (if (instance? BindException (ex-cause err))
-        (do (hyperfiddle.logger/warn "Port" (:port config) "was not available, retrying with" (inc (:port config)))
+        (do (log/warn "Port" (:port config) "was not available, retrying with" (inc (:port config)))
           (start-server! (update config :port inc)))
         (throw err)))))
 
