@@ -76,16 +76,16 @@
                        :cancel!   (photon-ws-message-handler ws messages)  ; Start photon process
                        :heartbeat ((make-heartbeat session pong-mailbox) (fn [_]) (fn [_])))))
      :on-close   (fn on-close [ws status-code reason]
-                   (let [close!* (fn []
-                                   ((:heartbeat @state)) ; cancel heartbeat
-                                   ((:cancel! @state))   ; cancel (terminate) photon process
-                                   )
-                         status  {:status status-code, :reason reason}]
-                     (case status-code ; https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
-                       (1000 1001) (do (log/info "Client disconnected" status)
-                                       (close!*))
-                       (do (log/error "Client socket disconnected for an unexpected reason." status)
-                           (close!*)))))
+                   (let [status  {:status status-code, :reason reason}]
+                     (case status-code ; https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
+                       1000 (log/debug "Client disconnected gracefully" status)
+                       1001 (log/debug "Client navigated away" status)
+                       ;; 1005 is the default close code set by Chrome an FF unless specified.
+                       1005 (log/info  "Client disconnected for an unknown reason (browser default close code)" status)
+                       (log/error "Client socket disconnected for an unexpected reason." status))
+                     ((:heartbeat @state)) ; cancel heartbeat
+                     ((:cancel! @state))   ; cancel (terminate) photon process
+                     ))
      :on-error   (fn on-error [ws err]
                    (log/error "Websocket error" err))
      :on-ping    (fn on-ping [ws bytebuffer]) ; Ignore client ping, no use case.
@@ -112,7 +112,7 @@
                              :write-success (fn write-success [] (s nil))})
     #()))
 
-(defn success [exit-value] (log/info "Websocket handler completed gracefully." exit-value))
+(defn success [exit-value] (log/debug "Websocket handler completed gracefully." {:exit-value exit-value}))
 (defn failure [^Throwable e] (log/error "Websocket handler failure" e))
 
 (defn photon-ws-message-handler

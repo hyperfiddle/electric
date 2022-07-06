@@ -49,7 +49,9 @@
                    (m/amb (do (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "true"))
                             (make-write-chan socket mailbox))
                      (do (log/info "WS Waiting for close…")
-                       (m/? (wait-for-close socket))
+                       (try (m/? (wait-for-close socket))
+                            (catch Cancelled _ ; process is cancelled, client should gracefully close socket
+                              (.close socket 1000 "gracefull shutdown")))
                        (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "false"))
                        (log/info "WS Closed.")
                        (log/info "WS Retry in 2 seconds…")
