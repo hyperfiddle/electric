@@ -27,11 +27,6 @@
 
 (def client #?(:cljs hyperfiddle.photon-client/client))
 
-#?(:clj
-   (cc/defn start-websocket-server! "returns server (jetty instance) for (.stop server)"
-     ([] (start-websocket-server! nil))
-     ([config] ((requiring-resolve 'hyperfiddle.photon-server/start!) config))))
-
 (defmacro vars "
   Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
   of this var to the value currently bound to this var.

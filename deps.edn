@@ -8,8 +8,10 @@
            borkdude/edamame               {:mvn/version "1.0.0"} ;; configurable edn parser
 
            ;; Server
-           info.sunng/ring-jetty9-adapter {:mvn/version "0.17.7"
-                                           :exclusions  [org.slf4j/slf4j-api]} ;; TODO bloated dependency, extract minimal feature set.
+           info.sunng/ring-jetty9-adapter {:mvn/version "0.17.7" ; badly named, actually jetty v10
+                                           :exclusions  [org.slf4j/slf4j-api
+                                                         info.sunng/ring-jetty9-adapter-http3 ; no need
+                                                         ]}
            com.cognitect/transit-clj      {:mvn/version "1.0.329"}
 
            ;; Client
