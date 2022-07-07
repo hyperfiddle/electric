@@ -10,16 +10,18 @@
 
 ;;; Business logic
 
-(def auto-inc (partial swap! (atom 0) inc)) ; when called, swaps the atom and return the swapped value, so 1, then 2, then 3, …
+(def auto-inc
+  "A statefull function returning 1, then 2, then 3, and so on."
+  (partial swap! (atom 0) inc))
 
 (defn task-create [description]
   {:db/id            (auto-inc)
    :task/description description
    :task/status      :active})
 
-(defn task-status [id status]
+(defn task-status [id done?]
   {:db/id       id
-   :task/status status})
+   :task/status (if done? :done :active)})
 
 (defn task-remove [id])                 ; todo
 
@@ -47,31 +49,32 @@
   (let [time-basis (:max-tx db)]        ; latest tx time, used to acknowledge a value has been saved (transacted) on server
     ~@(dom/div
         (dom/h1 (dom/text "Todo list - basic"))
-        (ui/input {:placeholder "Press enter to create a new item"
-                   :on-keychord
-                   [time-basis     ; acknowledgement ; TODO remove from userland
-                    #{"enter"}     ; key combo(s) to listen to
-                    (p/fn [js-event]
-                      (when js-event
-                        (let [dom-node    (dom/oget js-event :target)
-                              description (get-input-value dom-node)]
-                          (clear-input! dom-node)
-                          [:statement (task-create description)]
-                          )))]})
+        (let [{:keys [on-keychord]} (ui/input {:placeholder "Press enter to create a new item"
+                                               :on-keychord
+                                               [time-basis ; acknowledgement ; TODO remove from userland
+                                                #{"enter"} ; key combo(s) to listen to
+                                                (p/fn [js-event]
+                                                  (when js-event
+                                                    (let [dom-node    (dom/oget js-event :target)
+                                                          description (get-input-value dom-node)]
+                                                      (clear-input! dom-node)
+                                                      description)))]})]
+          (when on-keychord
+            [::tx-statement (task-create on-keychord)]))
         (dom/div
           (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
             (dom/label {:style {:display :block}}
-              (ui/checkbox
-                {:checked  (case ~@(:task/status (d/entity db id))
-                             :active false
-                             :done   true)
-                 :on-input [time-basis   ; acknowledgement
-                            (p/fn [js-event]
-                              (when js-event
-                                (let [checked? (dom/oget js-event :target :checked)]
-                                  ;; Return a task-status tx. It is returned by
-                                  ;; ui/checkbox and will bubble up to the top.
-                                  [:statement (task-status id (if checked? :done :active))])))]})
+              (let [{:keys [on-input]} (ui/checkbox
+                                         {:checked  (case ~@(:task/status (d/entity db id))
+                                                      :active false
+                                                      :done   true)
+                                          :on-input [time-basis ; acknowledgement
+                                                     (p/fn [js-event]
+                                                       (when js-event
+                                                         (dom/oget js-event :target :checked) ; boolean
+                                                         ))]})]
+                (when-not (nil? on-input) ; nil | true | false
+                  [::tx-statement (task-status id on-input)]))
               (dom/span (dom/text (str ~@(:task/description (d/entity db id))))))))
         (dom/p
           (dom/text (str ~@(count (d/q '[:find [?e ...] :in $ ?status
@@ -82,15 +85,19 @@
                                      (d/transact! !conn tx-data)
                                      nil)))
 
-(defn command->statement
-  "Map a UI command to a datomic transaction statement"
-  [command]
-  (let [[tag value] command]
-    (case tag
-      :statement value)))
+(defn commands->tx
+  "Return a datomic transaction from a set of ui commands"
+  [commands]
+  (->> commands
+    (map (fn [[name value]]
+           (case name
+             ::tx-statement value
+             nil)))
+    (remove nil?)
+    (vec)))
 
 (p/defn App []
-  ~@(if-some [tx (p/deduping (seq (map command->statement (Todo-list. (p/watch !conn)))))]
+  ~@(if-some [tx (seq (commands->tx (p/deduping (Todo-list. (p/watch !conn)))))]
       (transact tx) ; auto-transact, prints server-side
       (prn :idle)))
 
