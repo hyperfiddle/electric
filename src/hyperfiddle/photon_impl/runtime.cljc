@@ -5,7 +5,8 @@
             [hyperfiddle.photon-impl.local :as l]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [hyperfiddle.logger :as log])
   (:import missionary.Cancelled
            (hyperfiddle.photon Failure Pending Remote)
            #?(:clj (clojure.lang IFn IDeref Atom))))
@@ -717,7 +718,7 @@
           (m/stream!)
           (m/eduction
             (map (fn [msg]
-                   (prn '< (pop msg))
+                   (log/trace '< (pop msg))
                    (reduce decode-inst
                      (set-queue context (pop msg))
                      (peek msg)))))
@@ -737,7 +738,7 @@
             (m/ap (let [[inst data done] (m/?> >events)]
                     (-> []
                       (into (vals data))
-                      (doto (->> (prn '>)))
+                      (doto (->> (log/trace '>)))
                       (conj (-> inst
                               (into cat (keys data))
                               (into cat done)))
