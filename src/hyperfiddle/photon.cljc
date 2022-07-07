@@ -118,9 +118,14 @@
              (m/reductions {} nil)
              (m/relieve {}))))
 
+(cc/defn pending? [x]
+  (or (instance? Pending x)
+    (and (instance? Failure x)
+      (instance? Pending #?(:clj (.error x) :cljs (.-error x))))))
+
 (defmacro ^:no-doc deduping "EXPERIMENTAL" [x]
   `(new (->> (hyperfiddle.photon/fn [] ~x)
-             (m/eduction (dedupe))
+             (m/eduction (remove pending?) (dedupe))
              (m/reductions {} nil)
              (m/relieve {}))))
 
