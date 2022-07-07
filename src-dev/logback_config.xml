@@ -12,6 +12,7 @@
     </appender>
 
     <logger name="hyperfiddle" level="DEBUG" additivity="false"><appender-ref ref="ERGONOMIC" /></logger>
+    <logger name="hyperfiddle.photon-impl.runtime" level="DEBUG" additivity="false"><appender-ref ref="ERGONOMIC" /></logger>
     <logger name="hyperfiddle.photon-jetty-adapter" level="DEBUG" additivity="false"><appender-ref ref="ERGONOMIC" /></logger>
 
     <logger name="org.jboss" level="WARN" additivity="false"><appender-ref ref="FULL" /></logger>
