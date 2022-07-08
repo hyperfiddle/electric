@@ -2,7 +2,8 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui])
-  (:import (hyperfiddle.photon Pending))
+  (:import (hyperfiddle.photon Pending)
+           (missionary Cancelled))
   #?(:cljs (:require-macros user.demo-5-button)))
 
 
@@ -32,7 +33,8 @@
                                (try
                                  (binding [dom/node (dom/by-id "root")]
                                    (App.))
-                                 (catch Pending _))))))
+                                 (catch Pending _)
+                                 (catch Cancelled _))))))
 
 (comment
   (user/browser-main! `main)
