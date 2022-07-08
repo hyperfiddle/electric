@@ -104,8 +104,8 @@
          ([] (rf))
          ([result] (rf result))
          ([result input]
-          (if (instance? Failure input) ; HACK FIXME we should not see instances of Failure here
-            (throw input)
+          (if (instance? Failure input)
+            (rf result)
             (let [[nv new-events] (loop [seen (transient @pv)
                                          r    (transient [])
                                          xs   input]
