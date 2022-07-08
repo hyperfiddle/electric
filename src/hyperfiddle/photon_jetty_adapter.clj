@@ -113,7 +113,9 @@
     #()))
 
 (defn success [exit-value] (log/debug "Websocket handler completed gracefully." {:exit-value exit-value}))
-(defn failure [^Throwable e] (log/error "Websocket handler failure" e))
+(defn failure [ws ^Throwable e]
+  (log/error "Websocket handler failure" e)
+  (jetty/close! ws 1011 "Server process crash"))
 
 (defn photon-ws-message-handler
   "Given a websocket instance and a missionary task reading a message, run a photon
@@ -132,4 +134,4 @@
                  (io/message-writer writef)
                  (io/message-reader read-task)))
            (catch Cancelled _)))
-       success failure))))
+       success (partial failure ws)))))
