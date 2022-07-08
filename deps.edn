@@ -8,7 +8,9 @@
            borkdude/edamame               {:mvn/version "1.0.0"} ;; configurable edn parser
 
            ;; Server
-           info.sunng/ring-jetty9-adapter {:mvn/version "0.17.7" ; badly named, actually jetty v10
+           ;; "0.14.3" is Jetty 9 and Java 8 compatible.
+           ;; "0.17.7" is Jetty 10 and not Java 8 compatible (artifact name is poorly chosen)
+           info.sunng/ring-jetty9-adapter {:mvn/version "0.14.3"
                                            :exclusions  [org.slf4j/slf4j-api
                                                          info.sunng/ring-jetty9-adapter-http3 ; no need
                                                          ]}

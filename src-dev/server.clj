@@ -7,7 +7,8 @@
            [java.net BindException]
            ))
 
-(defn wrap-photon [next-handler]
+#_
+(defn wrap-photon [next-handler]        ; Jetty 10 allows such handler
   (fn [ring-request]
     (if (ring/ws-upgrade-request? ring-request)
       (ring/ws-upgrade-response (adapter/photon-ws-adapter adapter/photon-ws-message-handler))
@@ -19,8 +20,14 @@
 
 (defn start-server! [config]
   (try
-    (ring/run-jetty (-> default-handler (wrap-file "resources/public") (wrap-photon))
-      (merge {:port 8080, :join? false} config))
+    (ring/run-jetty (-> default-handler
+                      (wrap-file "resources/public")
+                      #_(wrap-photon))
+      ;; Jetty 9 forces us to declare WS paths out of a ring handler.
+      (merge {:port       8080
+              :join?      false
+              :websockets {"/" (adapter/photon-ws-adapter adapter/photon-ws-message-handler)}}
+        config))
     (catch IOException err
       (if (instance? BindException (ex-cause err))
         (do (log/warn "Port" (:port config) "was not available, retrying with" (inc (:port config)))
