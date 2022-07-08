@@ -28,7 +28,7 @@
 
 (defn wait-for-close [socket]
   (let [ret (m/dfv)]
-    (.addEventListener socket "close" (fn [_] (ret nil)))
+    (.addEventListener socket "close" (fn [^js event] (ret [(.-code event) (.-reason event)])))
     ret))
 
 (defn make-write-chan [socket mailbox]
@@ -49,14 +49,19 @@
                    (m/amb (do (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "true"))
                             (make-write-chan socket mailbox))
                      (do (log/info "WS Waiting for close…")
-                       (try (m/? (wait-for-close socket))
-                            (catch Cancelled _ ; process is cancelled, client should gracefully close socket
-                              (.close socket 1000 "gracefull shutdown")))
-                       (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "false"))
-                       (log/info "WS Closed.")
-                       (log/info "WS Retry in 2 seconds…")
-                       (m/? (m/sleep 2000))
-                       (recur)))
+                       (when (try (let [[code reason] (m/? (wait-for-close socket))]
+                                    (case code
+                                      1011 (do (log/error "WS closed" code reason)
+                                               false)
+                                      true))
+                                  (catch Cancelled _ ; process is cancelled, client should gracefully close socket
+                                    (.close socket 1000 "gracefull shutdown")
+                                    false))
+                         (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "false"))
+                         (log/info "WS Closed.")
+                         (log/info "WS Retry in 2 seconds…")
+                         (m/? (m/sleep 2000))
+                         (recur))))
                    (do (log/info "WS Failed to connect, retrying in 2 seconds…")
                      (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "false"))
                      (m/? (m/sleep 2000))
