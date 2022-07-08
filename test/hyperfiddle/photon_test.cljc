@@ -1244,3 +1244,29 @@
        (reset! !state true)
        % := ::rcf/timeout) ; PASS because of deduping
  )
+
+(tests
+  "p/for in a conditional"              ; FAIL
+  (def !state (atom true))
+  (with (p/run (! (if (p/watch !state) 1 (p/for [_ []]))))
+    % := 1
+    (swap! !state not)
+    % := []
+    (swap! !state not)
+    % := 1)                             ; FAIL timeout
+  )
+
+
+(comment                                ; we are not sure if this test has value. It is not minimized.
+  (tests
+    "Hack for p/for in a conditional. Passes by accident" ; PASS
+    (def !state (atom true))
+    (with (p/run (! (if (p/watch !state) 1 (try (p/for [_ []])
+                                                (catch Throwable t (throw t))))))
+      % := 1
+      (swap! !state not)
+      % := []
+      (swap! !state not)
+      % := 1)
+    ))
+
