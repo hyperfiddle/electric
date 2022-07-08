@@ -5,7 +5,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui])
   (:import [hyperfiddle.photon Pending]
-           missionary.Cancelled)
+           (missionary Cancelled))
   #?(:cljs (:require-macros user.demo-7-todos-basic)))
 
 ;;; Business logic
