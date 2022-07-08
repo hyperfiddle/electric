@@ -2,7 +2,8 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z])
-  (:import (hyperfiddle.photon Pending))
+  (:import (hyperfiddle.photon Pending)
+           (missionary Cancelled))
   #?(:cljs (:require-macros user.demo-1-healthcheck)))      ; forces shadow hot reload to also reload JVM at the same time
 
 (p/defn App []
@@ -17,7 +18,8 @@
                                (try
                                  (binding [dom/node (dom/by-id "root")]
                                    (App.))
-                                 (catch Pending _))))))
+                                 (catch Pending _)
+                                 (catch Cancelled _))))))
 
 (comment
   #?(:clj (user/browser-main! `main))
