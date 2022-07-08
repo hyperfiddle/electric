@@ -254,21 +254,21 @@ flow of values matching the identity provided by key function, defaulting to ide
    (->> >xs
      (m/eduction (seq-diff k) (map entry))
      (m/group-by key)
-     (m/zip (fn [[id >x]]
-              (case id
-                nil (->> >x
-                      (m/eduction
-                        (map val)
-                        (insert-before tier)
-                        (map vector))
-                      (m/relieve into)
-                      (m/zip (partial hash-map id)))
-                (->> >x
-                  (m/eduction (map val))
-                  (m/relieve {})
-                  (f)
-                  (r/with tier)
-                  (m/latest (partial hash-map id))))))
+     (m/sample (fn [[id >x]]
+                 (case id
+                   nil (->> >x
+                         (m/eduction
+                           (map val)
+                           (insert-before tier)
+                           (map vector))
+                         (m/relieve into)
+                         (m/sample (partial hash-map id)))
+                   (->> >x
+                     (m/eduction (map val))
+                     (m/relieve {})
+                     (f)
+                     (r/with tier)
+                     (m/latest (partial hash-map id))))))
      (gather merge)
      (m/reductions seq-patch)
      (m/latest values))))
