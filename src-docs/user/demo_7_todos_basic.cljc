@@ -64,10 +64,9 @@
         (dom/div
           (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
             (dom/label {:style {:display :block}}
-              (let [{:keys [on-input]} (ui/checkbox
-                                         {:checked  (case ~@(:task/status (d/entity db id))
-                                                      :active false
-                                                      :done   true)
+              (let [status             ~@(:task/status (d/entity db id)) ; could be inlined, temporary hack for https://www.notion.so/hyperfiddle/Bug-Nested-p-for-with-transfers-times-out-887c3de8a0e04462b173728869c9da6a
+                    {:keys [on-input]} (ui/checkbox
+                                         {:checked  (case status :active false, :done true)
                                           :on-input [time-basis ; acknowledgement
                                                      (p/fn [js-event]
                                                        (when js-event
