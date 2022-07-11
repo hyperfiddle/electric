@@ -70,10 +70,11 @@
 (defn client [[client server]]
   (m/reduce {} nil (m/ap
                      (try
-                       (let [mailbox    (m/mbx)
-                             write-chan (m/?< (connect mailbox))]
-                         (log/info "Starting Photon Client")
-                         (m/? (write-chan (io/encode server))) ; bootstrap server
-                         (m/? (client (io/message-writer write-chan)
-                                      (io/message-reader mailbox)))) ; start client
+                       (let [mailbox (m/mbx)]
+                         (if-let [write-chan (m/?< (connect mailbox))]
+                           (do (log/info "Starting Photon Client")
+                               (m/? (write-chan (io/encode server))) ; bootstrap server
+                               (m/? (client (io/message-writer write-chan)
+                                      (io/message-reader mailbox))))
+                           (log/info "Stopping Photon Client")))
                        (catch Cancelled _ "stopped")))))
