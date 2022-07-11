@@ -1270,3 +1270,18 @@
       % := 1)
     ))
 
+(tests
+  "Nested p/for with transfer"
+  (def !state (atom [1]))
+  (p/def state (p/watch !state))
+  (let [dispose (p/run (try (p/for [x ~@state]
+                              (p/for [y ~@state]
+                                (! [x y])))
+                            (catch Cancelled _
+                              (prn "cancelled"))
+                            (catch Pending _
+                              (prn "pending"))))]
+    % := [1 1]
+    (reset! !state [3])
+    % := [3 3]                          ; FAIL timeout
+    (dispose)))
