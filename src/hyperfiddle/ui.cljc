@@ -252,7 +252,6 @@
 (defn set-route! [href _event] (hf/navigate! href))
 
 (defmacro link [href on-click & body] ;; GG: TODO should it be a p/def or a macro?
-  (prn "link" href body)
   `(dom/a {:href (str ~href)}
           (dom/events "click" (comp (map dom/stop-event!)
                                     (map ~on-click)
