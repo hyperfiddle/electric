@@ -238,6 +238,17 @@
     (do (assert (every? path-ident? (rest args)))
         `(oget* ~(first args) [~@(rest args)]))))
 
+;; Allows `get`, `get-in`, and keyword lookup on js objects, backed by
+;; goog.object/getValueByKeys. Does not alter the global js Object prototype
+;; (this is clean). Prefer `.-` or `..` access for performances.
+;; E.g.: (:foo #js {:foo 1})
+#?(:cljs
+   (extend-protocol ILookup
+     object
+     (-lookup
+       ([m k] (oget* m [k]))
+       ([m k not-found] (or (oget* m [k]) not-found)))))
+
 (defn oset!* [obj path val]
   #?(:clj  (assoc-in obj path val)
      :cljs (do (if (= 1 (count path))
