@@ -10,6 +10,9 @@
   "Photon Clojure REPL entrypoint"
   (main)
 
+  "turn on RCF (after all transitive dependencies have loaded)"
+  (hyperfiddle.rcf/enable!)
+
   (shadow.cljs.devtools.api/compile :editor)
 
   "Switch examples"
