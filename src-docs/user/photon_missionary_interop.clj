@@ -3,7 +3,8 @@
             [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [missionary.core :as m])
-  (:import hyperfiddle.photon.Failure))
+  (:import hyperfiddle.photon.Failure
+           (clojure.lang IFn IDeref)))
 
 
 (hyperfiddle.rcf/enable!)
@@ -159,3 +160,35 @@
   (with (p/run (! (try (new (m/eduction (map boom!) (p/fn [] 1)))
                        (catch Throwable t ::boom))))
     % := ::boom))
+
+
+; raw missionary flow - see https://github.com/leonoel/flow
+(def >F (fn [n t]
+          (n)                                               ; notify 42 is ready
+          (reify
+            IFn (invoke [_])                                ; no resources to release
+            IDeref (deref [this] 42))))                     ; never notify again
+
+(tests
+  "raw missionary flow called from photon"
+  (def !it (>F #(! ::notify)
+               #(! ::terminate)))
+  % := ::notify
+  @!it := 42
+  (!it))
+
+(tests
+  ; (p/run (new >F)) -- fails due to syntax collision with Clojure new
+  (with (p/run (! (new (identity >F))))                     ; workaround syntax gap
+    % := 42))
+
+(comment
+  ; Explanation of Clojure syntax
+  ; Clojure constructor syntax is defined only on static classes
+  (new java.lang.Long 1)                                    ; works
+  (new (identity java.lang.Long) 1)                         ; fails
+  (let [Klass java.lang.Long] (new Klass 1))                ; fails
+  ; therefore Photon can shadow the entire dynamic usage of new without
+  ; colliding with Clojure functionality.
+  ; That's how it works today. Todo improve the coverage with additional syntax.
+  )
