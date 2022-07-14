@@ -88,15 +88,15 @@
                 (new >y)))))                                ; join discrete flow value
     % := 1))
 
+(defn sleep-emit [delays]
+  (m/ap (let [n (m/?< (m/seed delays))]
+          (m/? (m/sleep n n)))))
+
 (tests
   "Joining a discrete flow without an initial value is undefined"
-  (defn sleep-emit [delays]
-    (m/ap (let [n (m/?< (m/seed delays))]
-            (m/? (m/sleep n n)))))
-
   (with (p/run
           (!
-            (let [>x (sleep-emit [10 20])]
+            (let [>x (sleep-emit [10 20])]                  ; event at t=10 and t=20, nothing at t=0
               (new
                 (p/fn [x] (inc x))
                 (new >x)))))
@@ -104,7 +104,7 @@
     % := ::rcf/timeout))
 
 (tests
-  "Photon thunks compile to missionary continuous flows (!)
+  "Photon thunks compile to missionary continuous flows (!!)
   therefore they can be passed to Missionary's API"
   (def !x (atom 0))
   (with (p/run
