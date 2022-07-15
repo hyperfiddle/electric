@@ -1212,9 +1212,10 @@
     % := [1 nil]
     % := ["1"]
     (reset! !xs [2])
-    % := [1]
     % := [2 nil]
-    % := ["2"]))
+    % := ["2"]
+    % := [1]              ;; unmount on next frame ???
+    ))
 
 (tests
   (def !t (atom true))
@@ -1226,7 +1227,6 @@
   % := :pending
   % := true
   (swap! !t not)
-  % := :cancelled
   % := nil)
 
 
