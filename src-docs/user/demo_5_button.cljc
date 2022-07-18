@@ -16,10 +16,10 @@
     (dom/dl
       (dom/dt (dom/text "client button"))
       (dom/dd
-        (ui/button {:on-click (p/fn [event]
-                                (js/console.log ::clicked event)
-                                ~@(swap! !n inc))}          ; client/server transfer
-                   (dom/text "click me")))
+        (ui/button {::ui/click-event (p/fn [event]
+                                       (js/console.log ::clicked event)
+                                       ~@(swap! !n inc))}   ; client/server transfer
+          (dom/text "click me")))
       (dom/dt (dom/text "server atom"))
       (dom/dd (dom/text ~@n))                               ; client/server transfer
 
