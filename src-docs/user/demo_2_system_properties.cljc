@@ -15,8 +15,8 @@
 (p/defn App []
   (dom/div
     (dom/h1 (dom/text "System Properties"))
-    (let [filter (::ui/value (ui/input {:type :search, :placeholder "java.home"
-                                    ::ui/value (p/fn [x] x)}))]
+    (let [filter (::ui/value (ui/input {:dom/type        :search
+                                        :dom/placeholder "java.home"}))]
       (dom/div (dom/text (str "Input: " filter)))
       (dom/table
         ~@(p/for [[k v] (sort-by key (system-properties filter))]

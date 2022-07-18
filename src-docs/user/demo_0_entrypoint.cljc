@@ -24,15 +24,17 @@
     (dom/div
      (dom/h1 (dom/text "Photon Demos"))
      (dom/p (dom/text "Pick a demo. Also take a look at the source in (src-docs/user/demo-{1,2,3…}….cljc)."))
-     (ui/select {:value     selected-demo
-                 :options   [default-demo
-                             {:value 2, :text "2 - System Properties"}
-                             {:value 3, :text "3 - Webview"}
-                             {:value 4, :text "4 - Counter"}
-                             {:value 5, :text "5 - Button"}
-                             {:value 6, :text "6 - Bubbles"}
-                             {:value 7, :text "7 - Basic Todo"}]
-                 :on-change (p/fn [selected] (reset! !selected-demo selected))})
+     (ui/select {::ui/value   selected-demo
+                 ::ui/options [default-demo
+                               {:value 2, :text "2 - System Properties"}
+                               {:value 3, :text "3 - Webview"}
+                               {:value 4, :text "4 - Counter"}
+                               {:value 5, :text "5 - Button"}
+                               {:value 6, :text "6 - Bubbles"}
+                               {:value 7, :text "7 - Basic Todo"}]
+                 ::ui/change-event (p/fn [[event value]] (when (some? event)
+                                                           (prn "reseted" (reset! !selected-demo value))
+                                                           nil))})
      (dom/p (dom/code (dom/text "Selected:" selected-demo)))
      (dom/div {:style {:max-width  "90vw"
                        :overflow-x :auto}}

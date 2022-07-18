@@ -25,19 +25,19 @@
     (dom/p (dom/text "Photon-dom elements collect and return statements."))
     (let [commands (dom/div
                      [:statement "a statement is a pair"]
-                     (let [[_tag value] (::ui/value (ui/input {:value     "initial"
-                                                               ::ui/value (p/fn [value]
-                                                                            ;; we can return them from event callbacks
-                                                                            [:input-value value])}))]
+                     (let [[_tag value] (::ui/value (ui/input {::ui/value     "initial"
+                                                               ::ui/input-event (p/fn [event]
+                                                                                  ;; we can return them from event callbacks
+                                                                                  [[:input-value (-> event :target :value)]])}))]
                        [:intercepted value])
                      [[:statement 1] [:statement 2]] ; they can be grouped
                      (dom/ul
                        [:location :nested-in-ul] ; they bubble up from children dom nodes
                        (p/for [x [1 2 3]]
                          (dom/li (dom/label
-                                   (ui/checkbox {::ui/value (p/fn [checked?]
-                                                              [:set-checked {:checkbox/id      x
-                                                                             :checkbox/checked checked?}])})
+                                   (ui/checkbox {::ui/change-event (p/fn [event]
+                                                                     [[:set-checked {:checkbox/id      x
+                                                                                     :checkbox/checked (-> event :target :checked)}]])})
                                    (dom/text " " x))))))]
       (dom/p (dom/text "Statements:"))
       (dom/pre
