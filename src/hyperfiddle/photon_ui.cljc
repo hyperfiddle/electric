@@ -270,11 +270,15 @@
 
 (defn- index-of [vec val] (.indexOf vec val))
 
-(defn parse-select-value [options] (comp (map (dom/oget :target :value)) (map parse-num) (map (partial get options))))
+(defn parse-select-value [options]
+  (fn [event]
+    (get options (parse-num (dom/oget event :target :value)))))
+
+;; (defn parse-select-value [options] (comp (map (dom/oget :target :value)) (map parse-num) (map (partial get options))))
 
 (defmacro select [props]
   (let [auto-options          (gensym "options_")
-        [value events props'] (parse-props ::value props {::change-event `(parse-select-value ~auto-options)})
+        [value events props'] (parse-props ::value props {::change-event `(map (juxt identity (parse-select-value ~auto-options)))})
         options               (vec (::options props))
         auto-value            (gensym "value_")]
     `(let [~auto-options ~options
@@ -294,7 +298,7 @@
                  (when (= selected# idx#)
                    (dom/props {:selected true}))
                  (dom/text (:text option#))))
-             (into [[::value (dom/events "change" (parse-select-value ~auto-options) ~auto-value)]]
+             (into [[::value (dom/events "change" (map (parse-select-value ~auto-options)) ~auto-value)]]
                [~@events])))))))
 
 (defmacro native-typeahead [props]

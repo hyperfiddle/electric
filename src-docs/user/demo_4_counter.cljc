@@ -11,14 +11,13 @@
     (dom/h1 (dom/text "Counter"))
     (let [!counter (atom 0)
           x        (p/watch !counter)]
-      (ui/button {:type     "button"
-                   :on-click (p/fn [_] (swap! !counter inc))}
+      (ui/button {::ui/click-event (p/fn [_] (swap! !counter inc))}
                   (dom/text "click me"))
       (dom/div
        (dom/table
         (dom/thead
-         (dom/td {:style {"width" "5em"}} (dom/text "count"))
-         (dom/td {:style {"width" "10em"}} (dom/text "type")))
+          (dom/td {:style {"width" "5em"}} (dom/text "count"))
+          (dom/td {:style {"width" "10em"}} (dom/text "type")))
         (dom/tbody
          (dom/tr
           (dom/td (dom/text (str x)))
