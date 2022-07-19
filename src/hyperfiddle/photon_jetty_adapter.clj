@@ -6,27 +6,7 @@
             [hyperfiddle.photon-impl.io :as io])
   (:import [missionary Cancelled]
            [java.nio ByteBuffer]
-           [java.util.concurrent Executors ThreadFactory Executor]
            [org.eclipse.jetty.websocket.api Session SuspendToken]))
-
-(def event-loop ; TODO remove, not necessary with a deadlock-free reactor.
-  (let [procs (.availableProcessors (Runtime/getRuntime))
-        execs (into []
-                (map (fn [i]
-                       (Executors/newSingleThreadExecutor
-                         (reify ThreadFactory
-                           (newThread [_ r]
-                             (doto (Thread. r (str "hf-eventloop-" i))
-                               (.setDaemon true)))))))
-                (range procs))]
-    (fn [x] (nth execs (mod (hash x) procs)))))
-
-(defn run-via [^Executor e f] ; TODO remove, not necessary with a deadlock-free reactor.
-  (fn [& args]
-    (.execute e
-      (reify Runnable
-        (run [_]
-          (apply f args))))))
 
 (defn make-heartbeat
   "Ping the client to prevent connection timeout and detect unexpected disconnects.
@@ -122,16 +102,10 @@
   program named by the client. Original HTTP upgrade ring request map is
   accessible using `(ring.adapter.jetty9/req-of ws)`."
   [ws read-msg]
-  (let [el        (event-loop ws)
-        read-task (m/sp (try (m/? read-msg) ; read next message from rendez-vous
-                               (finally (m/? (m/via el)))))
-        writef    #(m/sp (try (m/? (write-msg ws %))
-                           (finally (m/? (m/via el)))))]
-    (run-via el
-      ((m/sp
-         (try
-           (m/? ((p/eval (io/decode (m/? read-task))) ; read and eval photon program sent by client
-                 (io/message-writer writef)
-                 (io/message-reader read-task)))
-           (catch Cancelled _)))
-       success (partial failure ws)))))
+  ((m/sp
+     (try
+       (m/? ((p/eval (io/decode (m/? read-msg)))            ; read and eval photon program sent by client
+             (io/message-writer (partial write-msg ws))
+             (io/message-reader read-msg)))
+       (catch Cancelled _)))
+   success (partial failure ws)))
