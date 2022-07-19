@@ -27,6 +27,10 @@
   (type 1)
   )
 
+(defmacro get-default-demo []
+  (list 'quote (or (some-> (System/getenv "HF_DEMO") symbol)
+                 `user.demo-0-entrypoint/main)))
+
 (def cljs-eval (delay @(requiring-resolve 'shadow.cljs.devtools.api/cljs-eval)))
 (def shadow-start! (delay @(requiring-resolve 'shadow.cljs.devtools.server/start!)))
 (def shadow-watch (delay @(requiring-resolve 'shadow.cljs.devtools.api/watch)))
