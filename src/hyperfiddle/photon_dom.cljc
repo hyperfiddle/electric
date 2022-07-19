@@ -133,10 +133,15 @@
          (d/setProperties node (clj->js {k v})))
        (.removeAttribute node (name k)))))
 
-(defmacro style [m]
+;; FIXME use `with` to unmount property, needed to support dynamic keyset
+;; TODO remove legacy api, use dom/set-style! or properties map syntax sugar
+(defmacro ^:deprecated style [m]
   `(p/for-by first [sty# (vec ~m)]
      (set-style! node (key sty#) (val sty#))))
 
+;; TODO desugare to direct call to set-property! if m is statically known to be
+;; a map. Also JS runtimes intern litteral strings, so call `name` on keywords
+;; at macroexpension.
 (defmacro props [m]
   `(p/for-by key [prop# (vec ~m)]
      (if (= :style (key prop#))
