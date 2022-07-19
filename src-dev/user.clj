@@ -54,7 +54,7 @@
   "build and serve clojurescript assets"
   (@shadow-start!)                                          ; serves index.html as well
   (@shadow-watch :devkit)                                   ; depends on shadow server
-
+  (serve!)
   (comment (.stop server)))
 
 (defn compile []
