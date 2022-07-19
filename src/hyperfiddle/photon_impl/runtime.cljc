@@ -718,7 +718,6 @@
           (m/stream!)
           (m/eduction
             (map (fn [msg]
-                   (log/trace '< (pop msg))
                    (reduce decode-inst
                      (set-queue context (pop msg))
                      (peek msg)))))
@@ -738,7 +737,6 @@
             (m/ap (let [[inst data done] (m/?> >events)]
                     (-> []
                       (into (vals data))
-                      (doto (->> (log/trace '>)))
                       (conj (-> inst
                               (into cat (keys data))
                               (into cat done)))
