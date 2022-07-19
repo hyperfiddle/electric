@@ -5,8 +5,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             user.util)
-  (:import (hyperfiddle.photon Pending)
-           (missionary Cancelled))
+  (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-3-webview)))
 
 (defonce conn #?(:cljs nil                                  ; state survives reload
@@ -43,8 +42,7 @@
       ~@(View.)))
 
 (def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")] (App.))
-                                          (catch Pending _)
-                                          (catch Cancelled _))))))
+                                          (catch Pending _))))))
 
 (comment
   #?(:clj (user/browser-main! `main))
