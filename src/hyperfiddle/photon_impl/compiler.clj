@@ -496,7 +496,9 @@
            ;; GG: Report problematic form in context.
            ;;     Build a stack of forms as the call stack unwinds, from failed form to top-level form.
            ;;     Push current form into ex-data, then rethrow.
-           (throw (ex-info (ex-message ex) (update (ex-data ex) :in (fnil conj []) form) (ex-cause ex))))
+           (throw (ex-info (ex-message ex) (update (ex-data ex) :in #(if (< (count %) 10)
+                                                                       (conj (or % []) form)
+                                                                       %)) (ex-cause ex))))
          (catch Throwable t ; base case
            (throw (ex-info "Failed to analyse form" {:in [form]} t))))
     [[:literal form]]))
