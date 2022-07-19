@@ -19,7 +19,7 @@
                                        (js/console.log ::clicked event)
                                        ~@(swap! !n inc))}   ; client/server transfer
           (dom/text "click me")))
-      (dom/dt (dom/text "server atom"))
+      (dom/dt (dom/text "server counter"))
       (dom/dd (dom/text ~@n))                               ; client/server transfer
 
       (let [odd ~@(odd? n)]                                 ; client/server transfer
