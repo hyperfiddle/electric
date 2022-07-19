@@ -72,3 +72,6 @@
 (defn boot! []
   (compile)
   (serve!))
+
+(when (get (System/getenv) "REPLIT_ENVIRONMENT")
+  (boot!))
