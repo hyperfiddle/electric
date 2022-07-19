@@ -3,8 +3,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui])
-  (:import (hyperfiddle.photon Pending)
-           (missionary Cancelled))
+  (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-2-system-properties)))
 
 (defn system-properties [?s]
@@ -30,8 +29,7 @@
                                (try
                                  (binding [dom/node (dom/by-id "root")]
                                    (App.))
-                                 (catch Pending _)
-                                 (catch Cancelled _))))))
+                                 (catch Pending _))))))
 
 (comment
   (user/browser-main! `main)
