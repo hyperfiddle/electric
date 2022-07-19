@@ -3,8 +3,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [clojure.pprint :as pprint])
-  (:import (hyperfiddle.photon Pending)
-           (missionary Cancelled))
+  (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-6-bubbles)))
 
 (defn pprint-str [x]
@@ -50,8 +49,7 @@
                                (try
                                  (binding [dom/node (dom/by-id "root")]
                                    (App.))
-                                 (catch Pending _)
-                                 (catch Cancelled _))))))
+                                 (catch Pending _))))))
 
 (comment
   #?(:clj (user/browser-main! `main))
