@@ -3,7 +3,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [clojure.string :as str]
-            [goog.date.DateTime :as dt])
+            #?(:cljs [goog.date.DateTime :as dt]))
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.ui-components)))        ; forces shadow hot reload to also reload JVM at the same time
 
