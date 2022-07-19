@@ -26,7 +26,7 @@
       ;; Jetty 9 forces us to declare WS paths out of a ring handler.
       (merge {:port       8080
               :join?      false
-              :websockets {"/" (adapter/photon-ws-adapter adapter/photon-ws-message-handler)}}
+              :websockets {"/" (fn [ring-req] (adapter/photon-ws-adapter adapter/photon-ws-message-handler))}}
         config))
     (catch IOException err
       (if (instance? BindException (ex-cause err))
