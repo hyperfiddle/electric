@@ -26,7 +26,8 @@
     ;; requires running `yarn` for codemirror dependency
     ;; wip.demo-hfql
     ;; wip.editor
-    ))
+    )
+  (:require-macros [user :refer [get-default-demo]]))
 
 (defn runtime-resolve [exported-qualified-sym]
   (assert (qualified-symbol? exported-qualified-sym))
@@ -35,7 +36,7 @@
         path-segments (clojure.string/split path-s ".")]
     (goog.object/getValueByKeys js/window (clj->js path-segments))))
 
-(defonce user-photon-main `user.demo-0-entrypoint/main)    ; lazy resolve
+(defonce user-photon-main (get-default-demo))              ; lazy resolve
 (defonce reactor nil)                                       ; save for debugging
 
 (defn set-main [s]
