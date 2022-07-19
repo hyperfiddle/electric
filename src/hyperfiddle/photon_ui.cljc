@@ -188,13 +188,13 @@
   ([props transducers]
    (map (fn [signal]
           (case signal
-            :on-keychord (let [callback                (get props signal)
-                               [ack keychord callback] (case (count callback)
-                                                         2 [nil (first callback) (second callback)]
-                                                         3 callback)]
-                           (if (some? ack)
-                             `[~signal (impulse ~ack ~callback (dom/>keychord-events ~keychord))]
-                             `[~signal (auto-impulse ~callback (dom/>keychord-events ~keychord))]))
+            ::keychord-event (let [callback                (get props signal)
+                                   [ack keychord callback] (case (count callback)
+                                                             2 [nil (first callback) (second callback)]
+                                                             3 callback)]
+                               (if (some? ack)
+                                 `[~signal (impulse ~ack ~callback (dom/>keychord-events ~keychord))]
+                                 `[~signal (auto-impulse ~callback (dom/>keychord-events ~keychord))]))
             (let [callback       (get props signal)
                   [ack callback] (if (vector? callback) callback [nil callback])
                   xf             (get transducers signal)]

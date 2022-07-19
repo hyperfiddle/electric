@@ -14,6 +14,7 @@
     user.seven-gui-2-temperature-converter
     user.seven-gui-4-timer
     user.seven-gui-5-crud
+    user.replit
     wip.demo-two-clocks
     wip.orders-ui
     wip.demo-todos-stage
