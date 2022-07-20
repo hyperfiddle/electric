@@ -249,3 +249,5 @@
   `(new (->> (fn [] ~flow)
              (debounce-discreet ~delay)
              (m/relieve {}))))
+
+(defmacro remote [& body] `(unquote-splicing ~@body))
