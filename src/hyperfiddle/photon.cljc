@@ -210,14 +210,14 @@
 
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
-    (->> (list ::c/lift v)
-         (list `r/bind `map-by kf
-               (->> body
-                    (list* `for-by kf bindings)
-                    (list `let [s (second c/arg-sym)])
-                    (list `fn [])
-                    (list `partial (list 'def (second c/arg-sym)))))
-         (list `new))
+    `(let [xs# ~v]
+       (new (r/bind map-by ~kf
+              ~(->> body
+                 (list* `for-by kf bindings)
+                 (list `let [s (second c/arg-sym)])
+                 (list `fn [])
+                 (list `partial (list 'def (second c/arg-sym))))
+              (::c/lift xs#))))
     (cons `do body)))
 
 (defmacro for [bindings & body]

@@ -356,31 +356,22 @@
 
 (deftype InputIterator [^objects i]
   IFn
-  (#?(:clj invoke :cljs -invoke) [_]
-    (when-some [n (aget i (int 0))]
-      (aset i (int 0) nil)
-      (if (identical? (aget i (int 2)) i)
-        (n) (aset i (int 2) i))))
+  (#?(:clj invoke :cljs -invoke) [_])
   IDeref
   (#?(:clj deref :cljs -deref) [_]
     (let [x (aget i (int 2))]
-      (when (identical? x i)
-        (aset i (int 0) nil)
-        ((aget i (int 1)))
-        (throw (Cancelled. "Input cancelled.")))
       (aset i (int 2) i)
       (when (nil? (aget i (int 0)))
         ((aget i (int 1)))) x)))
 
 (defn input [frame slot]
-  (m/signal!
-    (fn [n t]
-      (n) (->InputIterator
-            (aset (frame-inputs frame) (int slot)
-              (doto (object-array 3)
-                (aset (int 0) n)
-                (aset (int 1) t)
-                (aset (int 2) pending)))))))
+  (fn [n t]
+    (n) (->InputIterator
+          (aset (frame-inputs frame) (int slot)
+            (doto (object-array 3)
+              (aset (int 0) n)
+              (aset (int 1) t)
+              (aset (int 2) pending))))))
 
 (defn input-change [^objects i x]
   (when-some [n (aget i (int 0))]
@@ -624,7 +615,9 @@
 (defn bind [f & args]
   (fn [n t]
     (if-some [tier (l/get-local this)]
-      ((apply f tier args) n t)    ; hook tier and pass to userland !
+      (try ((apply f tier args) n t) ; hook tier and pass to userland !
+           (catch #?(:clj Throwable :cljs :default) e
+             (failer e n t)))
       (failer (error "Unable to bind - not an object.") n t))))
 
 (defn with [tier <x]
@@ -904,7 +897,7 @@
      :static   (fn [i] `(static ~(sym prefix 'frame) ~i))
      :dynamic  (fn [i] `(dynamic ~(sym prefix 'frame) ~i))
      :eval     (fn [f] `(pure ~f))
-     :lift     (fn [form] `(pure (signal ~form)))
+     :lift     (fn [f] `(pure ~f))
      :vget     (fn [v] `(aget ~(sym prefix 'vars) (int ~v)))
      :bind     (fn [form slot idx]
                  `(let [~(sym prefix 'prev) (aget ~(sym prefix 'vars) ~slot)]
@@ -1118,7 +1111,7 @@
                       (latest-last pub (cont (conj pubs pub) frame vars)))))
       :lift     (fn [form]
                   (fn [pubs frame vars]
-                    (pure (signal (form pubs frame vars)))))
+                    (pure (form pubs frame vars))))
       :vget     (fn [slot]
                   (fn [pubs frame ^objects vars]
                     (aget vars (int slot))))
