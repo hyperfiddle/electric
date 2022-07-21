@@ -250,4 +250,7 @@
              (debounce-discreet ~delay)
              (m/relieve {}))))
 
-(defmacro remote [& body] `(unquote-splicing ~@body))
+(defmacro remote [& body]
+  (if (= 1 (count body))
+    `(unquote-splicing ~@body)
+    `(unquote-splicing (do ~@body))))
