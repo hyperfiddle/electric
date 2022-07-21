@@ -36,7 +36,7 @@
 (def shadow-watch (delay @(requiring-resolve 'shadow.cljs.devtools.api/watch)))
 (def shadow-compile (delay @(requiring-resolve 'shadow.cljs.devtools.api/compile)))
 (def shadow-release (delay @(requiring-resolve 'shadow.cljs.devtools.api/release)))
-(def start-server! (delay (requiring-resolve 'server/start-server!)))
+(def start-server! (delay (requiring-resolve 'hyperfiddle.photon-jetty-server/start-server!)))
 
 (defn browser-main! [photon-main-sym]
   ; Save the user the trouble of getting a CLJS repl to switch photon entrypoints
@@ -50,7 +50,7 @@
   "Start Photon app server"
   []
   (let [host "0.0.0.0"]
-    (def server (@start-server! {:host host, :port 8080}))
+    (def server (@start-server! {:host host, :port 8080, :resources-path "resources/public"}))
     (println (str "\n👉 App available at http://" host ":" (-> server (.getConnectors) first (.getPort))
              "\n"))))
 
