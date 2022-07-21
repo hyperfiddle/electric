@@ -1277,10 +1277,8 @@
   (let [dispose (p/run (try (p/for [x ~@state]
                               (p/for [y ~@state]
                                 (! [x y])))
-                            (catch Cancelled _
-                              (prn "cancelled"))
-                            (catch Pending _
-                              (prn "pending"))))]
+                            (catch Cancelled _)
+                            (catch Pending _)))]
     % := [1 1]
     (reset! !state [3])
     % := [3 3]                          ; FAIL timeout
