@@ -410,12 +410,13 @@
                           [] [(conj forms form) catches finally]
                           (throw (ex-info "Invalid try block - unrecognized clause." {})))))
                 (throw (ex-info "Invalid try block - finally must be in final position." {}))))
-            [[] () nil] args)]
+            [[] () nil] args)
+          body `(::closure (do ~@forms))]
       (analyze-form env
         `(new ~(reduce
-                 (fn [r f] `(r/latest-first ~r (::lift ~f)))
+                 (fn [r f] `(r/latest-first ~r (::closure ~f)))
                  (case catches
-                   [] `(::lift (do ~@forms))
+                   [] body
                    `(r/bind r/recover
                       (some-fn
                         ~@(map (fn [[c s & body]]
@@ -424,7 +425,7 @@
                                      (:default Throwable)
                                      `(r/clause ~f)
                                      `(r/clause ~f ~c)))) catches))
-                      (::lift (do ~@forms)))) finally))))
+                      ~body)) finally))))
 
     (::lift)
     (conj-res [[:lift]] (analyze-form env (first args)))
@@ -659,11 +660,15 @@
           [:global :hyperfiddle.photon-impl.runtime/latest-first]
           [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
            [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
-            [:lift [:literal 1]] [:lift [:literal 2]]]
-           [:lift [:literal 3]]]
-          [:lift [:literal 4]]]
+            [:constant [:literal 1]] [:constant [:literal 2]]]
+           [:constant [:literal 3]]]
+          [:constant [:literal 4]]]
     [:bind 0 1 [:variable [:sub 1]]]]
-   [:source [:literal nil]]]
+   [:target [:nop]
+    [:target [:nop]
+     [:target [:nop]
+      [:target [:nop]
+       [:source [:literal nil]]]]]]]
 
   (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
   [[:pub [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
@@ -674,10 +679,13 @@
              [:apply [:global :clojure.core/partial]
               [:def 0] [:constant [:pub [:node 0] [:literal 2]]]]
              [:global :java.lang.Exception]]]
-           [:lift [:literal 1]]]
-          [:lift [:literal 3]]]
+           [:constant [:literal 1]]]
+          [:constant [:literal 3]]]
     [:bind 1 1 [:variable [:sub 1]]]]
-   [:target [:nop] [:source [:literal nil]]]]
+   [:target [:nop]
+    [:target [:nop]
+     [:target [:nop]
+      [:source [:literal nil]]]]]]
   )
 
 
