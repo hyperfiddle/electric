@@ -21,9 +21,7 @@
         ~@(p/for [[k v] (sort-by key (system-properties filter))]
             ~@(dom/tr
                 (dom/td (dom/text k))
-                (dom/td (dom/text v)
-                        #_(dom/style {"white-space" "nowrap"}) ; crash
-                        (dom/set-style! dom/node :white-space "nowrap"))))))))
+                (dom/td (dom/text v) (dom/style {"white-space" "nowrap"}))))))))
 
 (def main #?(:cljs (p/client (p/main
                                (try
