@@ -16,8 +16,8 @@
    (tests
      "client/server transfer, pure functional!"
      (def !x (atom 0))
-     (def dispose ((p/client (p/main (try (! (App. (p/watch !x)))
-                                       (catch Pending _))))
+     (def dispose ((p/boot (try (! (App. (p/watch !x)))
+                                (catch Pending _)))
                    js/console.log js/console.error))
      % := "#object[Number]"
      (swap! !x inc)

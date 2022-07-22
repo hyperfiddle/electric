@@ -14,12 +14,11 @@
                 (dom/text "Count")))))
 
 (def main
-  #?(:cljs (p/client
-             (p/main
-               (try
-                 (binding [dom/node (dom/by-id "root")]
-                   (Counter.))
-                 (catch Pending _))))))
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (Counter.))
+               (catch Pending _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

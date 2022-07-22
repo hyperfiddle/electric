@@ -21,14 +21,15 @@
          (dom/tr
           (dom/td (dom/text (str x)))
           (dom/td (dom/text (if (odd? x)
-                              ~@(pr-str (type x))
+                              (p/server (pr-str (type x)))
                               (pr-str (type x))))))))))))
 
-(def main #?(:cljs (p/client (p/main
-                               (try
-                                 (binding [dom/node (dom/by-id "root")]
-                                   (App.))
-                                 (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

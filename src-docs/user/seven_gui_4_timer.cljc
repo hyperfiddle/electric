@@ -43,12 +43,11 @@
                         (dom/text "Reset")))))
 
 (def main
-  #?(:cljs (p/client
-             (p/main
-               (try
-                 (binding [dom/node (dom/by-id "root")]
-                   (Timer.))
-                 (catch Pending _))))))
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (Timer.))
+               (catch Pending _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

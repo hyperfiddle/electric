@@ -32,11 +32,12 @@
       (dom/p (dom/span (dom/text "latency: "))
              (dom/span (dom/text (- c s)))))))
 
-(def main #?(:cljs (p/client (p/main
-                               (try
-                                 (binding [dom/node (dom/by-id "root")]
-                                   (App.))
-                                 (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)))))
 
 (comment
   ; List in user.cljc for cljs compiler

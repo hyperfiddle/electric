@@ -91,11 +91,12 @@
 
     ]))
 
-(def main #?(:cljs (p/client (p/main
-                              (try
-                                (binding [dom/node (dom/by-id "root")]
-                                  (App.))
-                                (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)))))
 
 
 (comment
