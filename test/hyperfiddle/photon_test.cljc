@@ -15,20 +15,24 @@
 (tests
   "literals are lifted"
   (with (p/run (! 1))
-    % := 1)
+    % := 1))
 
+(tests
   "data literals"
   (with (p/run (! {:a 1}))
-    % := {:a 1})
+    % := {:a 1}))
 
+(tests
   "globals lifted"
   (def a 1)
   (with (p/run (! a))
-    % := 1)
+    % := 1))
 
+(tests
   (with (p/run (! inc))
-    % := inc)
+    % := inc))
 
+(tests
   "clojure call"
   (with (p/run (! (inc (inc 1))))
     % := 3))
@@ -650,7 +654,7 @@
     % := nil ; assert returns nil or throws
     (swap! !x not) ; will crash the reactor
     #?(:clj (instance? AssertionError %)
-       :cljs (instance? js/Error %)) := true
+       :cljs (instance? js/Error %)) := true  ; FAIL in cljs, get ::rcf/timeout instead of Error instance
     (swap! !x not) ; reactor will not come back.
     % := ::rcf/timeout))
 
