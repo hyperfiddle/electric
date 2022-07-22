@@ -122,7 +122,7 @@ running on a remote host.
   Like `do` but returs `nil` once, then never return again."
   [& body]
   `(new (->> (hyperfiddle.photon/fn [] ~@body)
-             (m/eduction (constantly nil) (dedupe))
+             (m/eduction (map (constantly nil)) (dedupe))
              (m/reductions {} nil)
              (m/relieve {}))))
 
