@@ -91,13 +91,13 @@ running on a remote host.
   [& body]
                                         ; use compiler (client) because no need for exports
   (let [[client server] (c/analyze &env `(do ~@body))]
-    `(pair ~(r/emit client (gensym)) (r/eval (quote ~server)))))
+    `(pair ~(r/emit (gensym) client) (r/eval (quote ~server)))))
 
 (defmacro local-with
   "Single peer loopback system with whitelist. Returns boot task."
   [vars & body]
   (let [[client server] (c/analyze &env `(do ~@body))]
-    `(pair ~(r/emit client (gensym)) (r/eval ~vars (quote ~server)))))
+    `(pair ~(r/emit (gensym) client) (r/eval ~vars (quote ~server)))))
 
 (defmacro run "test entrypoint without whitelist." [& body]
   `((local ~@body) (cc/fn [_#]) (cc/fn [_#])))
