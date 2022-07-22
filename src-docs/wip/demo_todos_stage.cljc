@@ -97,9 +97,11 @@
           (reset! !stage (clojure.edn/read-string tx)))
         (do (js/console.log ::stage ::idle) nil)))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")]
-                                            (App.))
-                                          (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try (binding [dom/node (dom/by-id "root")]
+                    (App.))
+                  (catch Pending _)))))
 
 (comment (user/browser-main! `main))
 

@@ -67,7 +67,7 @@
                      (m/? (m/sleep 2000))
                      (recur))))))
 
-(defn client [[client server]]
+(defn client [client server]
   (m/reduce {} nil (m/ap
                      (try
                        (let [mailbox (m/mbx)]

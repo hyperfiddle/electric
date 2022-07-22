@@ -44,6 +44,6 @@
         (dom/p (dom/text (str ~@(count (d/q '[:find [?e ...] :in $ ?status :where [?e :task/status ?status]] db :active))
                               " items left"))))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")]
-                                            ~@(Todo-list.))
-                                          (catch Pending _))))))
+(def main #?(:cljs (p/boot (try (binding [dom/node (dom/by-id "root")]
+                                  ~@(Todo-list.))
+                                (catch Pending _)))))

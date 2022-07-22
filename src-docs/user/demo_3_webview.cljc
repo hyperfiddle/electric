@@ -31,18 +31,23 @@
    (let [email (::ui/value (ui/input {:dom/type        :search
                                       :dom/placeholder "Filter…"}))]
      (dom/table
-      ~@(p/for [id (orders db email)]
-          ~@(dom/tr
-             (dom/td (dom/text id))
-             (dom/td (dom/text ~@(:order/email (d/entity db id))))
-             (dom/td (dom/text ~@(:order/gender (d/entity db id))))))))))
+       (p/server
+         (p/for [id (orders db email)]
+           (p/client
+             (dom/tr
+               (dom/td (dom/text id))
+               (dom/td (dom/text ~@(:order/email (d/entity db id))))
+               (dom/td (dom/text ~@(:order/gender (d/entity db id))))))))))))
 
 (p/defn App []
-  ~@(binding [db (p/watch conn)]                          ; server
-      ~@(View.)))
+  (p/server
+    (binding [db (p/watch conn)]                    ; server
+      (p/client (View.)))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")] (App.))
-                                          (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try (binding [dom/node (dom/by-id "root")] (App.))
+                  (catch Pending _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))
