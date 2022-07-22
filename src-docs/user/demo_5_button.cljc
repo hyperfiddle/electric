@@ -17,22 +17,23 @@
       (dom/dd
         (ui/button {::ui/click-event (p/fn [event]
                                        (js/console.log ::clicked event)
-                                       ~@(swap! !n inc))}   ; client/server transfer
+                                       (p/server (swap! !n inc)))}   ; client/server transfer
           (dom/text "click me")))
       (dom/dt (dom/text "server counter"))
-      (dom/dd (dom/text ~@n))                               ; client/server transfer
+      (dom/dd (dom/text (p/server n)))                               ; client/server transfer
 
-      (let [odd ~@(odd? n)]                                 ; client/server transfer
+      (let [odd (p/server (odd? n))]                        ; client/server transfer
         (dom/dt (dom/text (if odd "client" "server")))
         (dom/dd (dom/text (if odd
-                            (pr-str (type ~@n))             ; client/server transfer
-                            ~@(pr-str (type n)))))))))      ; client/server transfer
+                            (pr-str (type (p/server n)))             ; client/server transfer
+                            (p/server (pr-str (type n))))))))))      ; client/server transfer
 
-(def main #?(:cljs (p/client (p/main
-                               (try
-                                 (binding [dom/node (dom/by-id "root")]
-                                   (App.))
-                                 (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)))))
 
 (comment
   (user/browser-main! `main)

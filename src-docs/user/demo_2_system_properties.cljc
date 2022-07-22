@@ -18,16 +18,19 @@
                                         :dom/placeholder "java.home"}))]
       (dom/div (dom/text (str "Input: " filter)))
       (dom/table
-        ~@(p/for [[k v] (sort-by key (system-properties filter))]
-            ~@(dom/tr
+        (p/server
+          (p/for [[k v] (sort-by key (system-properties filter))]
+            (p/client
+              (dom/tr
                 (dom/td (dom/text k))
-                (dom/td (dom/text v) (dom/style {"white-space" "nowrap"}))))))))
+                (dom/td (dom/text v) (dom/style {"white-space" "nowrap"}))))))))))
 
-(def main #?(:cljs (p/client (p/main
-                               (try
-                                 (binding [dom/node (dom/by-id "root")]
-                                   (App.))
-                                 (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)))))
 
 (comment
   (user/browser-main! `main)

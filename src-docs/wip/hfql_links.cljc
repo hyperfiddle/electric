@@ -29,12 +29,14 @@
         ~@(router/router route "./hfql_links.edn"))
       ))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/node (dom/by-id "root")]
-                                            ~@(binding [hf/db     hf/*db*
-                                                        hf/Render ui/Render]
-                                                (ui/with-spec-render
-                                                  ~@(App.))))
-                                          (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try (binding [dom/node (dom/by-id "root")]
+                    ~@(binding [hf/db     hf/*db*
+                                hf/Render ui/Render]
+                        (ui/with-spec-render
+                          ~@(App.))))
+                  (catch Pending _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

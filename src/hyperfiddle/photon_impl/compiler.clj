@@ -316,6 +316,10 @@
         (clj/desugar-host-expr form env))
       (clj/desugar-host-expr form env))))
 
+(defn toggle [env form]
+  (let [res (analyze-form (update env ::local not) form)]
+    [[:output (peek res)] ((void [:input]) (pop res))]))
+
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
     (fn* letfn* loop* recur set! ns ns* deftype* defrecord* var)
@@ -434,6 +438,12 @@
     (let [res (analyze-form env (first args))]
       [[:target ((void [:nop]) (pop res))] [:constant (peek res)]])
 
+    (::client)
+    ((if (::local env) analyze-form toggle) env (first args))
+
+    (::server)
+    ((if (::local env) toggle analyze-form) env (first args))
+
     (if (symbol? op)
       (let [n (name op)
             e (dec (count n))]
@@ -443,10 +453,7 @@
             (analyze-apply env form)
             (if-some [sym (resolve-runtime env op)]
               (case sym
-                (clojure.core/unquote-splicing cljs.core/unquote-splicing)
-                (let [res (analyze-form (update env ::local not) (first args))]
-                  [[:output (peek res)] ((void [:input]) (pop res))])
-                ;; else
+                (clojure.core/unquote-splicing cljs.core/unquote-splicing) (toggle env (first args))
                 (analyze-apply env form))
               (if-some [v (resolve-var env op)]
                 (case (var-name v)

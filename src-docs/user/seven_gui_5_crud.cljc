@@ -103,11 +103,12 @@
                                   :on-click (p/fn [_] (delete!) nil)}
                                  (dom/text "Delete"))))))
 
-(def main #?(:cljs (p/client (p/main
-                              (try
-                                (binding [dom/node (dom/by-id "root")]
-                                  (App.))
-                                (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

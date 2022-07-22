@@ -37,12 +37,13 @@
                             ~@(dom/li (dom/text ~@(file-get-name f))))))]
           ~@(dom/ul ~@(Foo. (clojure.java.io/file "src")))))))
 
-(def main #?(:cljs (p/client (p/main
-                               (try
-                                 (binding [dom/node (dom/by-id "root")]
-                                   (App.))
-                                 (catch Pending _)
-                                 (catch Cancelled _))))))
+(def main
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)
+               (catch Cancelled _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

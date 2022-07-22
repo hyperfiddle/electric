@@ -12,14 +12,15 @@
     (dom/dl
       (dom/dt (dom/text "time"))   (dom/dd (dom/text z/time))
       (dom/dt (dom/text "client")) (dom/dd (dom/text (pr-str (type 1))))
-      (dom/dt (dom/text "server")) (dom/dd (dom/text ~@(pr-str (type 1)))))))
+      (dom/dt (dom/text "server")) (dom/dd (dom/text (p/server (pr-str (type 1))))))))
 
-(def main #?(:cljs (p/client (p/main
-                               (try
-                                 (binding [dom/node (dom/by-id "root")]
-                                   (App.))
-                                 (catch Pending _)
-                                 (catch Cancelled _))))))
+(def main
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)
+               (catch Cancelled _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

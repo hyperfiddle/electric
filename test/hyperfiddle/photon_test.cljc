@@ -735,25 +735,25 @@
   "client/server transfer"
   ; Pending state is an error state.
   ; Pending errors will crash the reactor if not caugh
-  (p/run (try (! ~@~@1) (catch Pending _)))
+  (p/run (try (! (p/server (p/client 1))) (catch Pending _)))
   % := 1)
 
 (p/def foo nil)
 (tests
-  (p/run (try (! (binding [foo 1] ~@~@foo))
+  (p/run (try (! (binding [foo 1] (p/server (p/client foo))))
            (catch Pending _)))
   % := 1)
 
 (p/def foo nil)
 (tests
-  (p/run (try (! (binding [foo 1] ~@(new (p/fn [] ~@foo))))
+  (p/run (try (! (binding [foo 1] (p/server (new (p/fn [] (p/client foo))))))
            (catch Pending _)))
   % := 1)
 
 (p/def foo1 nil)
-(p/def Bar1 (p/fn [] ~@foo1))
+(p/def Bar1 (p/fn [] (p/client foo1)))
 (tests
-  (p/run (try (! (binding [foo1 1] ~@(Bar1.)))
+  (p/run (try (! (binding [foo1 1] (p/server (Bar1.))))
            (catch Pending _)))
   % := 1)
 
@@ -764,12 +764,12 @@
   % := true)
 
 (tests
-  (p/run (! (try ~@1 (catch Pending _ ::pending))))
+  (p/run (! (try (p/server 1) (catch Pending _ ::pending))))
   % := ::pending    ; Use try/catch to intercept special pending state
   % := 1)
 
 (tests
-  (p/run (! (try [(! 1) (! ~@2)]
+  (p/run (! (try [(! 1) (! (p/server 2))]
                  (catch Pending _
                    ::pending))))
   % := 1
@@ -886,7 +886,7 @@
   ; Guidance: distribution should not impact the evaluated result of the expr
   (tests
     (p/defn Expr [x] x)
-    (p/run (! ~@(Expr. 1)))
+    (p/run (! (p/server (Expr. 1))))
     % := 1)
 
   (tests
@@ -896,7 +896,7 @@
 
   (tests
     (p/def Expr (p/fn [] (let [x %0] x)))
-    (p/run (! (binding [%0 1] ~@(Expr.))))                ; binding transfer
+    (p/run (! (binding [%0 1] (p/server (Expr.)))))                ; binding transfer
     % := 1))
 
 (tests
@@ -1015,7 +1015,7 @@
   % := :ok)
 
 (tests
-  (p/run-with (p/vars vector) (prn (p/for [id ~@[1]] id))))
+  (p/run-with (p/vars vector) (prn (p/for [id (p/server [1])] id))))
 
 ;; (tests
 ;;   (r/run (! ~#'(when (true? true) :ok)))
@@ -1221,7 +1221,7 @@
   (def !t (atom true))
   (p/run
     (! (try (let [t (p/watch !t)]
-              (when t t ~@t))
+              (when t t (p/server t)))
             (catch Pending _ :pending)
             (catch Cancelled _ :cancelled))))
   % := :pending
@@ -1274,8 +1274,8 @@
   "Nested p/for with transfer"
   (def !state (atom [1]))
   (p/def state (p/watch !state))
-  (let [dispose (p/run (try (p/for [x ~@state]
-                              (p/for [y ~@state]
+  (let [dispose (p/run (try (p/for [x (p/server state)]
+                              (p/for [y (p/server state)]
                                 (! [x y])))
                             (catch Cancelled _)
                             (catch Pending _)))]

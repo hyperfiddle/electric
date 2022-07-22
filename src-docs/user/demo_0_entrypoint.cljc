@@ -49,12 +49,12 @@
 
 (def ^:export                           ; makes this entrypoint available under advanced compilation
   main
-  #?(:cljs (p/client (p/main
-                       (try
-                         (binding [dom/node (dom/by-id "root")]
-                           (App.))
-                         (catch Pending _)
-                         (catch Cancelled _))))))
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)
+               (catch Cancelled _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

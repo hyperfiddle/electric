@@ -26,12 +26,11 @@
                                  :on-change (p/fn [value] (reset! !state (farenheit->celsius value)) nil)}))))))
 
 (def main
-  #?(:cljs (p/client
-             (p/main
-               (try
-                 (binding [dom/node (dom/by-id "root")]
-                   (App.))
-                 (catch Pending _))))))
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

@@ -8,7 +8,7 @@
             [missionary.core :as m]
             [clojure.core.async :as a]
             #?(:cljs [hyperfiddle.photon-client]))
-  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars main for for-by local local-with run run-with forget deduping debounce wrap]]))
+  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars boot for for-by local local-with run run-with forget deduping debounce wrap]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.photon Pending Failure)
            (missionary Cancelled)))
@@ -25,7 +25,15 @@
 
 
 
-(def client #?(:cljs hyperfiddle.photon-client/client))
+(defmacro boot "
+Takes a photon program and returns a task setting up the full system with client part running locally and server part
+running on a remote host.
+" [& body]
+  (assert (:js-globals &env))
+  (let [[client server] (c/analyze &env `(do ~@body))]
+    `(hyperfiddle.photon-client/client
+       ~(r/emit (gensym) client)
+       (quote ~server))))
 
 (defmacro vars "
   Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
@@ -62,7 +70,7 @@
    ;;     ClojureScript do not have vars at runtime and will not analyze or emit vars meta. No need to quote.
    `(def ~(vary-meta sym assoc ::c/node (if (:js-globals &env) form `(quote ~form))))))
 
-(defmacro main "
+(defmacro ^:deprecated main "
   Takes a photon program and returns a pair
   * the first item is the local booting function (cf eval)
   * the second item is the remote program.
@@ -82,14 +90,14 @@
   "Single peer loopback system without whitelist. Returns boot task."
   [& body]
                                         ; use compiler (client) because no need for exports
-  `(let [[client# server#] (main ~@body)]
-     (pair client# (r/eval server#))))
+  (let [[client server] (c/analyze &env `(do ~@body))]
+    `(pair ~(r/emit client (gensym)) (r/eval (quote ~server)))))
 
 (defmacro local-with
   "Single peer loopback system with whitelist. Returns boot task."
   [vars & body]
-  `(let [[client# server#] (main ~@body)]
-     (pair client# (r/eval ~vars server#))))
+  (let [[client server] (c/analyze &env `(do ~@body))]
+    `(pair ~(r/emit client (gensym)) (r/eval ~vars (quote ~server)))))
 
 (defmacro run "test entrypoint without whitelist." [& body]
   `((local ~@body) (cc/fn [_#]) (cc/fn [_#])))
@@ -254,3 +262,9 @@
   (if (= 1 (count body))
     `(unquote-splicing ~@body)
     `(unquote-splicing (do ~@body))))
+
+(defmacro client [& body]
+  `(::c/client (do ~@body)))
+
+(defmacro server [& body]
+  `(::c/server (do ~@body)))
