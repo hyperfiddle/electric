@@ -158,11 +158,11 @@
       (! (let [f (new (m/watch (atom inc)))
                xs (new (m/watch (atom [1 2 3])))]
            (->> xs (map f)))))
-    % := [2 3 4])
+    % := [2 3 4]))
 
-  "let destructuring"
-  (with (p/run (! (let [[a] (new (m/watch (atom [:a])))] a)))
-    % := :a))
+
+
+
 
 (comment
   "reactor termination"
@@ -1287,3 +1287,38 @@
     (reset! !state [3])
     % := [3 3]                          ; FAIL timeout
     (dispose)))
+
+(tests
+  "Static call"
+  (with (p/run (! (Math/abs -1)))
+    % := 1))
+
+#?(:clj
+   (tests
+     "Dot syntax works (clj only)"
+     (with (p/run (! (. Math abs -1)))
+       % := 1)))
+
+(tests
+  "Sequential destructuring"
+  (with (p/run (! (let [[x y & zs :as coll] [:a :b :c :d]] [x y zs coll])))
+    % := [:a :b '(:c :d) [:a :b :c :d]]))
+
+(tests
+  "Associative destructuring"
+  (with (p/run (! (let [{:keys [a ns/b d]
+                         :as m
+                         :or {d 4}}
+                        {:a 1, :ns/b 2 :c 3}] [a b d m])))
+    % := [1 2 4 {:a 1, :ns/b 2, :c 3}]))
+
+(tests
+  "Associative destructuring with various keys"
+  (with (p/run (! (let [{:keys    [a]
+                         :ns/keys [b]
+                         :syms    [c]
+                         :ns/syms [d]
+                         :strs    [e]}
+                        {:a 1, :ns/b 2, 'c 3, 'ns/d 4, "e" 5}]
+                    [a b c d e])))
+    % := [1 2 3 4 5]))
