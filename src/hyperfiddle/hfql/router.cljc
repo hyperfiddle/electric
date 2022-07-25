@@ -5,7 +5,8 @@
    #?(:clj [shadow.resource :as res])
    #?(:clj [edamame.core :as edn])
    #?(:clj [hyperfiddle.hfql :as hfql])
-   #?(:clj [hyperfiddle.hfql.env :as env]))
+   #?(:clj [hyperfiddle.hfql.env :as env])
+   #?(:clj [hyperfiddle.logger :as log]))
   #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [router]])))
 
 (defn- fncall [sexpr] (and (seq? sexpr) (symbol? (first sexpr))))
@@ -51,9 +52,7 @@
      (if-let [index# (get-in ~indices [f# ~arg])]
        (when (< index# (count args#))
          (nth args# index#))
-       (prn (ex-info "Unknown route arg" {:f f#
-                                          :arg ~arg
-                                          :indices ~indices})))))
+       (log/debug "Unknown route arg" {:f f# :arg ~arg :indices ~indices}))))
 
 (defmacro with-route-getters [route fns & body]
   (let [indices-sym (gensym "indices")
@@ -96,6 +95,6 @@
       `(with-route-getters ~route ~fns
          (let [routing-map# ~routing-map]
            (validate-route! ~route)
-           (new (p/deduping (get routing-map# (first ~route) not-found))))))))
+           (new (get routing-map# (p/deduping (first ~route)) not-found)))))))
 
 (p/defn not-found [] "page not found")
