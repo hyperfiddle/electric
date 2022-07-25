@@ -29,6 +29,10 @@
   (let [args (repeatedly arity gensym)]
     `(fn [~@args] (new ~class ~@args))))
 
+(defmacro static-call [klass method arity]
+  (let [args (repeatedly arity gensym)]
+    `(fn [~@args] (. ~klass ~method ~@args))))
+
 (defmacro method-call [method arity]
   (let [args (repeatedly arity gensym)]
     `(fn [inst# ~@args] (. inst# ~method ~@args))))
@@ -391,12 +395,19 @@
       (throw (ex-info "Wrong number of arguments - new" {})))
 
     (.)
-    (let [dot (cljs/build-dot-form [(first args) (second args) (nnext args)])]
+    (let [dot (cljs/build-dot-form [(first args) (second args) (nnext args)])
+          target (if (class? (:target dot))
+                   (CljClass. (:target dot))
+                   (resolve-var env (:target dot)))]
       (transduce (map (partial analyze-form env)) conj-res
-        [[:eval (case (:dot-action dot)
-                  ::cljs/call   `(method-call ~(:method dot) (count args))
-                  ::cljs/access `(field-access ~(:field dot)))]]
-        (cons (:target dot) (:args dot))))
+        [[:apply [:eval (if (instance? CljClass target)
+                          `(static-call ~(var-name target) ~(:method dot) ~(count (:args dot)))
+                          (case (:dot-action dot)
+                            ::cljs/call   `(method-call ~(:method dot) ~(count (:args dot)))
+                            ::cljs/access `(field-access ~(:field dot))))]]]
+        (if (instance? CljClass target)
+          (:args dot)
+          (cons (:target dot) (:args dot)))))
 
     (throw)
     (analyze-form env `(r/fail ~(first args)))
@@ -727,4 +738,12 @@
       (get-var (resolve-var (normalize-env (cljs.analyzer/empty-env)) 'inc)) := #'cljs.core/inc)
 
   ;; TODO improve coverage of clj(s) var resolution
+  )
+
+(tests "method access"
+  (analyze {} '(. Math abs -1)) :=
+  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)] [:literal -1]] [:literal nil]]
+
+  (analyze {} '(Math/abs -1)) :=
+  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)] [:literal -1]] [:literal nil]]
   )
