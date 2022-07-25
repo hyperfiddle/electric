@@ -4,7 +4,6 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui :as ui]
             [wip.orders :refer [orders genders shirt-sizes]]
             dustin.y2022.edn-render)
@@ -13,8 +12,9 @@
 
 
 (p/defn Orders []
-  ; Warning: HFQL is unstable
-  ~@(hf/hfql
+  ;; Warning: HFQL is unstable
+  (p/server
+    (hf/hfql
       {(orders .)
        [:order/email
         {(props :order/gender {::hf/options      (genders)
@@ -24,7 +24,7 @@
         {(props :order/shirt-size {::hf/options      (shirt-sizes order/gender .)
                                    ::hf/option-label :db/ident
                                    ::hf/render       ui/select-options})
-         [:db/ident]}]}))
+         [:db/ident]}]})))
 
 (p/defn App []
   (dom/div {:id "main"
@@ -35,10 +35,11 @@
 (def main
   #?(:cljs (p/boot
              (try (binding [dom/node (dom/by-id "root")]
-                    ~@(binding [hf/db     hf/*db* ; why
+                    (p/server
+                      (binding [hf/db     hf/*db*    ; why
                                 hf/Render ui/Render] ; remove for livecoding demo
                         (ui/with-spec-render
-                          ~@(App.))))
+                          (p/client (App.))))))
                   (catch Pending _)
                   (catch Remote _)))))
 

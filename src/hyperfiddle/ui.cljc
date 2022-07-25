@@ -3,6 +3,7 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.spec :as spec]
             [missionary.core :as m]
             [datascript.db]
@@ -206,26 +207,25 @@
                              v       (V.)]
                          (when-some [v' ~@(let [id         (str (gensym))
                                                 arg-spec   (spec/arg (first attr) arg)
-                                                input-type (input-types (argument-type (first attr) arg))
-                                                extractor  (if (= "checkbox" input-type)
-                                                             (dom/oget :target :checked)
-                                                             (dom/oget :target :value))]
+                                                input-type (input-types (argument-type (first attr) arg))]
                                             (dom/label {:for (str id)
                                                         :data-tooltip
                                                         (cond-> (pr-str (:predicate arg-spec))
                                                           locked? (str " — internal reference 🔒"))}
                                                        (dom/text (name arg)))
-                                            (let [v' (Input. {:id      id,
-                                                              :type    (input-types (argument-type (first attr) arg))
-                                                              :value    v
-                                                              :disabled locked?}
-                                                       extractor)]
-                                              (log/info "extracted" v')
-                                              v'))]
+                                            (::ui/value
+                                             (if (= "checkbox" input-type)
+                                               (ui/checkbox {:dom/id       id
+                                                             :dom/disabled locked?
+                                                             ::ui/value    v})
+                                               (ui/input {:dom/id       id
+                                                          :dom/type     (input-types (argument-type (first attr) arg))
+                                                          ::ui/value    v
+                                                          :dom/disabled locked?}))))]
                            (log/info "ARG" arg v "->" v')
                            (if (= v v')
-                             (prn "same as before")
-                             (do (prn "new value")
+                             (log/debug "same as before")
+                             (do (log/debug "new value" v')
                                  ~@(hf/set-route-arg! (inc idx) v')
                                  (set-v! v')
                                  )))))))))
