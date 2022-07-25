@@ -38,7 +38,8 @@
            }
 
  :aliases {:build {:extra-paths ["src-dev"]
-                   :deps {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}}
+                   :deps {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
+                          io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}
                    :ns-default build}
            :dev     {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
                      :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.0-alpha1"}
