@@ -2,8 +2,8 @@
  :deps    {org.clojure/clojure            {:mvn/version "1.11.1"}
            missionary/missionary          {:mvn/version "b.27-SNAPSHOT"}
            hyperfiddle/rcf                {:git/url "https://github.com/hyperfiddle/rcf"
-                                           :sha "e31fec8b334eb44900f7f8459c6e1faca73d4300"
-                                           #_#_:local/root "./vendor/rcf"}
+                                           :sha "21f38ce1d15787b83696e6797be41f762619814f"
+                                           #_#_:local/root "../rcf"}
            org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"}    ;; used by photon
            borkdude/edamame               {:mvn/version "1.0.0"} ;; configurable edn parser
 
