@@ -15,7 +15,6 @@
 
 (defn command->statement [[tag value]] (case tag
                                          :set-checked value
-                                         :intercepted {:input/value value}
                                          nil))
 
 (p/defn App []
@@ -24,19 +23,15 @@
     (dom/p (dom/text "Photon-dom elements collect and return statements."))
     (let [commands (dom/div
                      [:statement "a statement is a pair"]
-                     (let [[_tag value] (::ui/value (ui/input {::ui/value     "initial"
-                                                               ::ui/input-event (p/fn [event]
-                                                                                  ;; we can return them from event callbacks
-                                                                                  [[:input-value (-> event :target :value)]])}))]
-                       [:intercepted value])
+                     (let [{:keys [::ui/value]} (ui/input {::ui/value "initial"})]
+                       [:set-text value])
                      [[:statement 1] [:statement 2]] ; they can be grouped
                      (dom/ul
                        [:location :nested-in-ul] ; they bubble up from children dom nodes
                        (p/for [x [1 2 3]]
                          (dom/li (dom/label
-                                   (ui/checkbox {::ui/change-event (p/fn [event]
-                                                                     [[:set-checked {:checkbox/id      x
-                                                                                     :checkbox/checked (-> event :target :checked)}]])})
+                                   [:set-checked {:checkbox/id    x
+                                                  :checkbox/value (::ui/value (ui/checkbox {}))}]
                                    (dom/text " " x))))))]
       (dom/p (dom/text "Statements:"))
       (dom/pre

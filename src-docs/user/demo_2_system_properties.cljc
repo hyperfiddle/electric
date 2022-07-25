@@ -23,7 +23,8 @@
             (p/client
               (dom/tr
                 (dom/td (dom/text k))
-                (dom/td (dom/text v) (dom/style {"white-space" "nowrap"}))))))))))
+                (dom/td {:style {:white-space :nowrap}}
+                  (dom/text v))))))))))
 
 (def main
   #?(:cljs (p/boot
