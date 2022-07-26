@@ -144,7 +144,7 @@
 ;; at macroexpension.
 (defmacro props [m]
   `(p/for-by key [prop# (vec ~m)]
-     (if (#{:style :dom/style} (key prop#)) ;; TODO disambiguate
+     (if (#{:style ::style} (key prop#)) ;; TODO disambiguate
        (style (val prop#))
        (set-property! node (key prop#) (val prop#)))))
 

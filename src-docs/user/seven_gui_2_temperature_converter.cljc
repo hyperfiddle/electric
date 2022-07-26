@@ -16,14 +16,20 @@
      (dom/h1 (dom/text "Temperature Converter"))
      (dom/dl
       (dom/dt (dom/text "Celcius"))
-      (dom/dd (ui/numeric-input {:value     temperature
-                                 :step      "0.5"
-                                 :format    "%.2f"
-                                 :on-change (p/fn [value] (reset! !state value) nil)}))
+      (dom/dd (ui/numeric-input {::ui/value       temperature
+                                 ::dom/step       0.5
+                                 ::ui/format      "%.2f"
+                                 ::ui/input-event (p/fn [event]
+                                                    (reset! !state (-> event :target :value js/parseFloat))
+                                                    nil)}))
       (dom/dt (dom/text "Farenheit"))
-      (dom/dd (ui/numeric-input {:value     (celsius->farenheit temperature)
-                                 :step      "0.5"
-                                 :on-change (p/fn [value] (reset! !state (farenheit->celsius value)) nil)}))))))
+      (dom/dd (ui/numeric-input {::ui/value       (celsius->farenheit temperature)
+                                 ::dom/step       0.5
+                                 ::ui/input-event (p/fn [event]
+                                                    (reset! !state
+                                                      (farenheit->celsius
+                                                        (-> event :target :value js/parseFloat)))
+                                                    nil)}))))))
 
 (def main
   #?(:cljs (p/boot
