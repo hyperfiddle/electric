@@ -15,8 +15,6 @@
 (comment
   (rcf/enable!))
 
-(declare dedupe-n)
-
 ;; events looks like:
 ;; - [:db/add e a v]
 ;; - [:dom.input/focus true]
@@ -202,19 +200,21 @@
   (assert (map? props))
   [(valuef props nil)
    (gen-event-handlers props transducers)
-
-(defmacro checkbox [props]
-  (let [[value events props'] (parse-props ::value props {})
-        auto-value            (gensym "value_")]
-    `(dom/bubble
-       (into {}
-         (let [~auto-value (or ~value false)]
-           (dom/input (p/forget (dom/props ~props'))
-             (p/forget (dom/props {:type    :checkbox
-                                   :checked ~auto-value}))
-             (into [[::value (dom/events "change" (map (dom/oget :target :checked)) ~auto-value)]]
-               [~@events])))))))
    (select-ns :hyperfiddle.photon-dom props)])
+
+(defmacro checkbox
+  ([] `(checkbox {}))
+  ([props]
+     (let [[value events props'] (parse-props ::value props {})
+           auto-value            (gensym "value_")]
+       `(dom/bubble
+          (into {}
+            (let [~auto-value (or ~value false)]
+              (dom/input (p/forget (dom/props ~props'))
+                (p/forget (dom/props {:type    :checkbox
+                                      :checked ~auto-value}))
+                (into [[::value (dom/events "change" (map (dom/oget :target :checked)) ~auto-value)]]
+                  [~@events]))))))))
 
 (defmacro element [tag props & body]
   (let [[_ events props] (parse-props (constantly nil) props {})]
