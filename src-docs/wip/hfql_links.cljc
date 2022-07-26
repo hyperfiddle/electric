@@ -21,8 +21,8 @@
   (dom/div {:id "main", :class "browser"}
     (let [[current-route prev] (p/watch hf/route-state)]
       (dom/div {:class "view"}
-        (photon-ui/button {:dom/disabled           (not (some? prev))
-                           :dom/style              {:grid-row 1, :justify-self :flex-start}
+        (photon-ui/button {::dom/disabled           (not (some? prev))
+                           ::dom/style              {:grid-row 1, :justify-self :flex-start}
                            ::photon-ui/click-event (p/fn [e] () (when e (hf/navigate-back!)))}
              (dom/text "< " (some-> (first prev) name)))
         (p/server

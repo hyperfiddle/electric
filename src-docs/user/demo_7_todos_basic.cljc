@@ -49,8 +49,8 @@
     ~@(dom/div
         (dom/h1 (dom/text "Todo list - basic"))
         (let [{:keys [::ui/keychord-event]}
-              (ui/input {:dom/placeholder "Press enter to create a new item"
-                         ::ui/keychords #{"enter"} ; key combo(s) to listen to
+              (ui/input {::dom/placeholder "Press enter to create a new item"
+                         ::ui/keychords    #{"enter"} ; key combo(s) to listen to
                          ::ui/keychord-event
                          [time-basis ; acknowledgement ; TODO remove from userland
                           (p/fn [js-event]
@@ -66,7 +66,7 @@
             (dom/label {:style {:display :block}}
               (let [status             ~@(:task/status (d/entity db id)) ; could be inlined, temporary hack for https://www.notion.so/hyperfiddle/Bug-Nested-p-for-with-transfers-times-out-887c3de8a0e04462b173728869c9da6a
                     {:keys [::ui/change-event]} (ui/checkbox
-                                                  {:dom/checked      (case status :active false, :done true)
+                                                  {::dom/checked      (case status :active false, :done true)
                                                    ::ui/change-event [time-basis ; acknowledgement
                                                                       (p/fn [js-event]
                                                                         (when js-event
