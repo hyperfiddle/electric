@@ -27,12 +27,12 @@
 (def main #?(:cljs (fn [s f])))
 
 (comment
-  #?(:clj (def dispose (user/browser-main! :main `main)))
+  #?(:clj (def dispose (user/browser-main! `main)))
   #?(:clj (dispose))
 
   ; connect a new NREPL do not use existing JVM repl !!!
   ; do not eval in your existing JVM repl it wont work
-  (shadow.cljs.devtools.api/repl :app)
+  (shadow.cljs.devtools.api/repl :devkit)
   ; Connect browser session - http://localhost:8080
   ; Browser console: shadow-cljs: #3 ready!
   (type 1)

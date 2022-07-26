@@ -32,9 +32,7 @@
                                {:value 5, :text "5 - Button"}
                                {:value 6, :text "6 - Bubbles"}
                                {:value 7, :text "7 - Basic Todo"}]
-                 ::ui/change-event (p/fn [[event value]] (when (some? event)
-                                                           (prn "reseted" (reset! !selected-demo value))
-                                                           nil))})
+                 ::ui/change-event (p/fn [[event value]] (reset! !selected-demo value) nil)})
      (dom/p (dom/code (dom/text "Selected:" selected-demo)))
      (dom/div {:style {:max-width  "90vw"
                        :overflow-x :auto}}

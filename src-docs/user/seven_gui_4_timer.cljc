@@ -21,7 +21,7 @@
         goal   (p/watch !goal)
         start  (p/watch !start)
         time   (min goal (- (second-precision (new dom/clock 1)) ; clock ticking at 1Hz
-                            start))]
+                           start))]
     (dom/div {:style {:display     :grid
                       :margin-left "20rem"
                       :grid-gap    "0 1rem"
