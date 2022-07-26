@@ -27,6 +27,7 @@
     ;; requires running `yarn` for codemirror dependency
     ;; wip.demo-hfql
     ;; wip.editor
+    hyperfiddle.photon-dom-test
     )
   (:require-macros [user :refer [get-default-demo]]))
 
