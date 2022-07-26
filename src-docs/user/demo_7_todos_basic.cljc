@@ -50,9 +50,9 @@
         (dom/h1 (dom/text "Todo list - basic"))
         (let [{:keys [::ui/keychord-event]}
               (ui/input {:dom/placeholder "Press enter to create a new item"
+                         ::ui/keychords #{"enter"} ; key combo(s) to listen to
                          ::ui/keychord-event
                          [time-basis ; acknowledgement ; TODO remove from userland
-                          #{"enter"} ; key combo(s) to listen to
                           (p/fn [js-event]
                             (when js-event
                               (let [dom-node    (dom/oget js-event :target)
