@@ -32,14 +32,14 @@
                             :style {:grid-column 2}})
              (dom/span (dom/text (str (seconds time) " s")))
              (dom/span {:style {:grid-row 3}} (dom/text "Duration"))
-             (ui/input {:type     :range
-                        :min      0
-                        :max      60
-                        :value    (/ initial-goal 1000)
-                        :style    {:grid-row 3}
-                        :on-input (p/fn [event] (reset! !goal (* 1000 (js/parseInt (dom/oget event :target :value)))) nil)})
-             (ui/button {:style    {:grid-row 4, :grid-column "1/3"}
-                         :on-click (p/fn [_] (reset! !start (now)))}
+             (ui/input {::ui/value       (/ initial-goal 1000)
+                        ::ui/input-event (p/fn [event] (reset! !goal (* 1000 (js/parseInt (dom/oget event :target :value)))) nil)
+                        ::dom/type       :range
+                        ::dom/min        0
+                        ::dom/max        60
+                        ::dom/style      {:grid-row 3}})
+             (ui/button {::dom/style      {:grid-row 4, :grid-column "1/3"}
+                         ::ui/click-event (p/fn [_] (reset! !start (now)))}
                         (dom/text "Reset")))))
 
 (def main

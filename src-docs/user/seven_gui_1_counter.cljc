@@ -10,7 +10,7 @@
   (let [!state (atom 0)]
     (dom/div
      (dom/p (dom/text (p/watch !state)))
-     (ui/button {:on-click (p/fn [_] (swap! !state inc) nil)}
+     (ui/button {::ui/click-event (p/fn [_] (swap! !state inc) nil)}
                 (dom/text "Count")))))
 
 (def main

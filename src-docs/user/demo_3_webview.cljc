@@ -28,8 +28,8 @@
 (p/defn View []
   (dom/div
    (dom/h2 (dom/text "frontend/backend webview with server push"))
-   (let [email (::ui/value (ui/input {:dom/type        :search
-                                      :dom/placeholder "Filter…"}))]
+   (let [email (::ui/value (ui/input {::dom/type        :search
+                                      ::dom/placeholder "Filter…"}))]
      (dom/table
        (p/server
          (p/for [id (orders db email)]

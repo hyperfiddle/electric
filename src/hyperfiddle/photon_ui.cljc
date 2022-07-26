@@ -202,7 +202,6 @@
   (assert (map? props))
   [(valuef props nil)
    (gen-event-handlers props transducers)
-   (select-ns :dom props)])
 
 (defmacro checkbox [props]
   (let [[value events props'] (parse-props ::value props {})
@@ -215,6 +214,7 @@
                                    :checked ~auto-value}))
              (into [[::value (dom/events "change" (map (dom/oget :target :checked)) ~auto-value)]]
                [~@events])))))))
+   (select-ns :hyperfiddle.photon-dom props)])
 
 (defmacro element [tag props & body]
   (let [[_ events props] (parse-props (constantly nil) props {})]
@@ -257,7 +257,7 @@
            ::focused ~value
            (p/fn [~auto-value]
              (dom/input (p/forget (dom/props ~props'))
-               (p/forget (dom/props {:value (format-num ~(:dom/format props') ~auto-value)
+               (p/forget (dom/props {:value (format-num ~(::format props') ~auto-value)
                                      :type  :number})) ;; TODO should it pulse?
                (into [[::focused (not (new (dom/focus-state dom/node)))]
                       [::value (dom/events "input" parse-input ~auto-value)]]
