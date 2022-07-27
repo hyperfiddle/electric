@@ -181,7 +181,7 @@
   (sequence insert-before [[:b nil] [:c nil] [:a :b]]) :=
   [[:b] [:c] [:a] [:a :c :b]])
 
-(defn apply-cycle [{:keys [index vals] :as r} [x & ys]]
+(defn apply-cycle [{:keys [vals index failed] :as r} [x & ys]]
   (if-some [[y & ys] ys]
     (let [i (index x)
           v (vals i)]
@@ -201,6 +201,7 @@
     (if-some [i (index x)]
       (do (assert (== (inc i) (count index)))
           (assoc r
+            :failed (disj failed x)
             :index (dissoc index x)
             :vals (pop vals)))
       (assoc r
@@ -212,17 +213,17 @@
     (assoc r
       :vals (assoc vals i v)
       :failed ((if (instance? Failure v) ; if v is a Failure, store its corresponding branch position in :failed set
-                 conj disj) failed i)) r))
+                 conj disj) failed k)) r))
 
-(defn values [{:keys [vals failed]}] ; Either Failure | [value]
-  (if-some [[i] (seq failed)]
-    (vals i) ; error value produced by branch at position i. An instance of Failure.
+(defn values [{:keys [vals index failed]}] ; Either Failure | [value]
+  (if-some [[i] (seq (sort (mapv index failed)))]    ; Sorted because we want to report the first error in the same order as the input collection.
+    (vals i)               ; error value produced by branch k. An instance of Failure.
     vals))
 
 (defn seq-patch
   ([] {:vals [] ; vector of each branch result (result of the for)
        :index {} ; map of [branch id -> position in vector]
-       :failed (sorted-set)}) ; Set of positions of branches in an error state. Sorted because we want to report the first error in the same order as the input collection.
+       :failed #{}}) ; Set of positions of branches in an error state.
   ([r] r)
   ([r diff]
    (reduce-kv apply-change
