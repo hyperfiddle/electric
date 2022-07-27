@@ -1329,7 +1329,7 @@
     (p/run
       (! (try (p/for [x (p/watch !xs)]
                 (assert x))
-              (catch Error _ :error))))
+              (catch #?(:clj Error :cljs js/Error) _ :error))))
     % := :error
     (reset! !xs [])
     % := []))
