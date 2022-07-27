@@ -1,69 +1,152 @@
 (ns hyperfiddle.photon-dom
   (:refer-clojure :exclude [time for])
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.zero :as z]
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])
             #?(:cljs [goog.object :as o])
             #?(:cljs [goog.style])
+            [hyperfiddle.rcf :as rcf :refer [tests]]
             [clojure.string :as str])
-  #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [oget]]))
+  #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [with oget]]))
   #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
                     (goog.ui.KeyboardShortcutHandler EventType))))
 
-(defn before? [x y]
-  (let [xl (count x)
-        yl (count y)
-        ml (min xl yl)]
-    (loop [i 0]
-      (if (< i ml)
-        (let [xi (nth x i)
-              yi (nth y i)]
-          (if (== xi yi)
-            (recur (inc i))
-            (< xi yi)))
-        (< xl yl)))))
+(defn command? "A command is a pair [:keyword any-value], describing an action."
+  [x]
+  (and (vector? x)
+    (= (count x) 2)
+    (keyword? (first x))))
 
-(defn mount [parent child path]
-  #?(:cljs (m/observe
-             (fn [!]
-               (o/set child "--photon-path" path)
-               (.insertBefore parent child
-                 ;; TODO sublinear anchor search. skip list ?
-                 (loop [anchor (.-firstChild parent)]
-                   (when-not (nil? anchor)
-                     (if (before? (o/get anchor "--photon-path") path)
-                       (recur (.-nextSibling anchor)) anchor))))
-               (! child) #(prn 'unmount (d/removeNode child))))))
+(defn bubble "Tag a map as being a bubble" [x] (assert (map? x)) (vary-meta x assoc ::bubble true))
+(defn bubble? [x] (and (map? x) (::bubble (meta x))))
 
-(defn dom-element [tag] #?(:cljs (d/createElement tag)))
+(defn extract-commands [xs]
+  (cond
+    (command? xs)  [xs]
+    (bubble? xs)     (extract-commands (vals xs))
+    (sequential? xs) (transduce (comp (map extract-commands) (remove nil?) ) into [] xs)
+    :else            []))
 
-(p/def parent)
+(defn mappend
+  "Merge collection of commands."
+  ([] [])
+  ([tx] (extract-commands tx))
+  ([tx & txs]
+   (reduce into (mappend tx) (map mappend txs))))
 
-(defmacro element [type & [props & body]]
-  `(binding [parent (new (mount parent (dom-element ~(name type)) @p/path))]
-     parent ; touch parent to trigger mount effect when no children
-     ~@(if (map? props)
-         (cons `(props ~props) body)
-         (cons props body))))
+(tests
+  ;; boundaries
+  (mappend)                       := []
+  (mappend nil)                   := []
+  (mappend [])                    := []
+  (mappend {})                    := []
+  (mappend ())                    := []
+  (mappend #{})                   := []
+  (mappend nil nil)               := []
+  (mappend (bubble {}))           := []
+
+  ;; correctness
+  (mappend [[:a 1]])              := [[:a 1]]
+  (mappend [[:a {:b 1}]])         := [[:a {:b 1}]]
+  (mappend [[:a 1]] nil)          := [[:a 1]]
+  (mappend [[:a 1]] [])           := [[:a 1]]
+  (mappend [[:a 1]] [[:b 2]])     := [[:a 1] [:b 2]]
+  (mappend (bubble {:a 1}))       := []
+  (mappend (bubble {:a [:b 1]}))  := [[:b 1]]
+  (mappend (bubble {:a [:b 1]})
+           (bubble {:b [:c 2]}))  := [[:b 1] [:c 2]]
+
+  ;; inverse
+  (mappend nil [[:a 1]])          := [[:a 1]]
+  (mappend [] [[:a 1]])           := [[:a 1]]
+  (mappend [[:a 1]] [[:b 2]])     := [[:a 1] [:b 2]]
+
+  ;; Nesting
+  (mappend [[[:a 1]]])            := [[:a 1]]
+  (mappend [[[:a 1]]] [[[:b 2]]]) := [[:a 1] [:b 2]]
+  (mappend [[[:a 1]]]
+    [[[(bubble {:a 1, :b [:c 3]})]]]
+    [[[:b 2]]])                   := [[:a 1] [:c 3] [:b 2]]
+  )
+
+(defmacro bubbling [& body]
+  `(p/deduping ; TODO maybe dedupe? by command? by tx?
+     (mappend ~@body)))
+
+(def nil-subject (fn [!] (! nil) #()))
+(p/def keepalive (new (m/observe nil-subject)))
+
+(p/def node) ; used to be called parent
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
-(defn text-node [] #?(:cljs (d/createTextNode "")))
-(defn set-text-content! [e t] #?(:cljs (d/setTextContent e (str t))))
-(defmacro text [& strs] `(set-text-content! (new (mount parent (text-node) @p/path)) (str ~@strs)))
+(defn unsupported [& _]
+  (throw (ex-info (str "Not available on this peer.") {})))
 
-(defn clean-props [props]
-  (cond-> props
-    (contains? props :class) (update :class #(if (vector? %) (str/join " " %) %))))
+(def hook "See `with`"
+  #?(:clj  unsupported
+     :cljs (fn ([x] (.removeChild (.-parentNode x) x))    ; unmount
+            ([x y] (.insertBefore (.-parentNode x) x y)) ; rotate siblings
+             )))
 
-(defn set-properties! [e m] #?(:cljs (let [styles (:style m)
-                                           props  (dissoc m :style)]
-                                       (when (seq styles) (goog.style/setStyle e (clj->js styles)))
-                                       (when (seq props) (d/setProperties e (clj->js (clean-props props)))))))
+(defmacro with
+  "Attach `body` to a dom node, which will be moved in the DOM when body moves in the DAG.
+  Given p/for semantics, `body` can only move sideways or be cancelled.
+  If body is cancelled, the node will be unmounted.
+  If body moves, the node will rotate with its siblings."
+  [dom-node & body]
+  `(binding [node ~dom-node]
+     (new (p/hook hook node  ; attach body frame to dom-node.
+            (p/fn [] keepalive ~@body) ; wrap body in a constant, making it a frame (static, non-variable), so it can be moved as a block.
+            ))))
 
-(defmacro props [m] `(set-properties! parent ~m))
+(defn dom-element [parent type]
+  #?(:cljs (let [node (d/createElement type)]
+             (.appendChild parent node) node)))
+
+(defmacro element [t & [props & body]]
+  `(with (dom-element node ~(name t))
+     (bubbling ~@(if (map? props)
+                   (cons `(props ~props) body)
+                   (cons props body)))))
+
+(defn text-node [parent]
+  #?(:cljs (let [node (d/createTextNode "")]
+             (.appendChild parent node) node)))
+
+(defn set-text-content! [e t] #?(:cljs (do (d/setTextContent e (str t)) t)))
+
+(defmacro text [& strs]
+  `(with (text-node node) (set-text-content! node (str ~@strs))))
+
+(defn set-style! [node k v]
+  #?(:cljs (goog.style/setStyle node (name k) (clj->js v))))
+
+(defn set-property! [node k v]
+  #?(:cljs
+     (if (some? v)
+       (case k
+         :style (goog.style/setStyle node (clj->js v))
+         :list  (.setAttribute node "list" (str v))
+         :class (d/setProperties node (clj->js {"class" (if (coll? v) (str/join " " v) v)}))
+         (d/setProperties node (clj->js {k v})))
+       (.removeAttribute node (name k)))))
+
+;; FIXME use `with` to unmount property, needed to support dynamic keyset
+;; TODO remove legacy api, use dom/set-style! or properties map syntax sugar
+(defmacro ^:deprecated style [m]
+  `(p/for-by first [sty# (vec ~m)]
+     (set-style! node (key sty#) (val sty#))))
+
+;; TODO desugare to direct call to set-property! if m is statically known to be
+;; a map. Also JS runtimes intern litteral strings, so call `name` on keywords
+;; at macroexpension.
+(defmacro props [m]
+  `(p/for-by key [prop# (vec ~m)]
+     (if (#{:style ::style} (key prop#)) ;; TODO disambiguate
+       (style (val prop#))
+       (set-property! node (key prop#) (val prop#)))))
 
 (defn >events* [node event-type & [xform init rf :as args]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
@@ -73,7 +156,7 @@
                init?  (m/reductions (or rf {}) init)))))
 
 (defmacro >events
-  "Produce a discreet flow of dom events of `event-type` on the current dom parent.
+  "Produce a discreet flow of dom events of `event-type` on the current dom node.
   `event-type` can be a string naming the event or a set of event names.
   If provided:
   - `xform` will be applied as an eduction,
@@ -84,7 +167,7 @@
   - `rf` is applied only if `init` is provided,
   - if `xform`, `init` and `rf` are provided, they form a transduction."
   [event-type & [xform init rf :as args]]
-  (list* `>events* `parent event-type args))
+  (list* `>events* `node event-type args))
 
 (defn >keychord-events* [node keychord & [xform init rf :as args]]
   (assert (or (string? keychord) (coll? keychord)))
@@ -117,7 +200,7 @@
   ;; at the right place in the dom tree to avoid event bubbling messing with
   ;; accessibility.
   [keychord & [xform init rf :as args]]
-  (list* `>keychord-events* `parent keychord args))
+  (list* `>keychord-events* `node keychord args))
 
 (defmacro events
   "Return a transduction of events as a continuous flow. See `clojure.core/transduce`.\n
@@ -132,13 +215,13 @@
         (comp (map event-type) (map {\"focus\" true, \"blur\" false}))
         false))
    ```"
-  ([event-type]                    `(new (m/relieve {} (>events* parent ~event-type nil    nil   nil))))
-  ([event-type xform]              `(new (m/relieve {} (>events* parent ~event-type ~xform nil   nil))))
-  ([event-type xform init]         `(new (m/relieve {} (>events* parent ~event-type ~xform ~init nil))))
-  ([event-type xform init rf]      `(new (m/relieve {} (>events* parent ~event-type ~xform ~init ~rf))))
+  ([event-type]                    `(new (m/relieve {} (>events* node ~event-type nil    nil   nil))))
+  ([event-type xform]              `(new (m/relieve {} (>events* node ~event-type ~xform nil   nil))))
+  ([event-type xform init]         `(new (m/relieve {} (>events* node ~event-type ~xform ~init nil))))
+  ([event-type xform init rf]      `(new (m/relieve {} (>events* node ~event-type ~xform ~init ~rf))))
   ([node event-type xform init rf] `(new (m/relieve {} (>events* ~node  ~event-type ~xform ~init ~rf)))))
 
-(defn- flip [f] (fn [& args] (apply f (reverse args))))
+(defn flip [f] (fn [& args] (apply f (reverse args))))
 
 (defn oget* [obj ks]
   #?(:clj  (get-in obj ks)
@@ -158,7 +241,18 @@
     (do (assert (every? path-ident? args))
         `(partial (flip oget*) [~@args]))
     (do (assert (every? path-ident? (rest args)))
-        `(oget* ~(last args) ~@(butlast args)))))
+        `(oget* ~(first args) [~@(rest args)]))))
+
+;; Allows `get`, `get-in`, and keyword lookup on js objects, backed by
+;; goog.object/getValueByKeys. Does not alter the global js Object prototype
+;; (this is clean). Prefer `.-` or `..` access for performances.
+;; E.g.: (:foo #js {:foo 1})
+#?(:cljs
+   (extend-protocol ILookup
+     object
+     (-lookup
+       ([m k] (oget* m [k]))
+       ([m k not-found] (or (oget* m [k]) not-found)))))
 
 (defn oset!* [obj path val]
   #?(:clj  (assoc-in obj path val)
@@ -219,16 +313,6 @@
   "The number of milliseconds elapsed since January 1, 1970, with custom `Hz` frequency.
   If `Hz` is 0, sample at the browser Animation Frame speed."
   [Hz] (new (clock* Hz)))
-
-(defmacro for-by [kf bindings & body]
-  (if-some [[s v & bindings] (seq bindings)]
-    `(p/for-by ~kf [~s ~v]
-       (binding [parent (do ~s parent)]
-         (for-by ~kf ~bindings ~@body)))
-    `(do ~@body)))
-
-(defmacro for [bindings & body]
-  `(for-by identity ~bindings ~@body))
 
 (defn pack-string-litterals [xs]
   (loop [r        []
@@ -356,3 +440,7 @@
 (defmacro var [& body] `(element :var ~@body))
 (defmacro video [& body] `(element :video ~@body))
 (defmacro wbr [& body] `(element :wbr ~@body))
+
+
+(defmacro context [type]
+  `(.getContext node ~(name type)))

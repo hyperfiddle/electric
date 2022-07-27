@@ -16,7 +16,7 @@
                            (pr-str (type x))))))))
 
 (def main #?(:cljs (p/client (p/main
-                               (binding [dom/parent (dom/by-id "root")]
+                               (binding [dom/node (dom/by-id "root")]
                                  (try
                                    (App.)
                                    (catch Pending _)))))))
@@ -35,7 +35,7 @@
 ; start with a function running in the browser
 ; hello world
 ; dom hello world
-; table with dom/for
+; table with p/for
 ; cljs atom
 ; transfer java lang long
 ; table of evens long, with id column and type column

@@ -162,12 +162,13 @@
     % := 4                                                  ; only the new item is visited
     % := [2 3 4 5]))
 
-(tests
-  "p/for is concurrent like pmap"
-  (mapv #(! (inc %)) (range 3))
-  [% % %] := [1 2 3]
-  (pmap #(! (inc %)) (range 3))
-  (hash-set % % %) := #{2 1 3})
+#?(:clj
+   (tests
+    "p/for is concurrent like pmap"
+    (mapv #(! (inc %)) (range 3))
+    [% % %] := [1 2 3]
+    (pmap #(! (inc %)) (range 3))
+    (hash-set % % %) := #{2 1 3}))
 
 (tests
   "reactive exceptions"

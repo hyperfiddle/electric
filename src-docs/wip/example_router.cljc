@@ -43,11 +43,12 @@
     (dom/dl
       (dom/dt (dom/text "route")) (dom/dd (dom/text route)))))
 
-(def main #?(:cljs (p/client (p/main
-                               (try
-                                 (binding [dom/parent (dom/by-id "root")]
-                                   (App.))
-                                 (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try
+               (binding [dom/node (dom/by-id "root")]
+                 (App.))
+               (catch Pending _)))))
 
 (comment
   (user/browser-main! `main)

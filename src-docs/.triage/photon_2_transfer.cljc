@@ -16,8 +16,8 @@
    (tests
      "client/server transfer, pure functional!"
      (def !x (atom 0))
-     (def dispose ((p/client (p/main (try (! (App. (p/watch !x)))
-                                       (catch Pending _))))
+     (def dispose ((p/boot (try (! (App. (p/watch !x)))
+                                (catch Pending _)))
                    js/console.log js/console.error))
      % := "#object[Number]"
      (swap! !x inc)
@@ -27,12 +27,12 @@
 (def main #?(:cljs (fn [s f])))
 
 (comment
-  #?(:clj (def dispose (user/browser-main! :main `main)))
+  #?(:clj (def dispose (user/browser-main! `main)))
   #?(:clj (dispose))
 
   ; connect a new NREPL do not use existing JVM repl !!!
   ; do not eval in your existing JVM repl it wont work
-  (shadow.cljs.devtools.api/repl :app)
+  (shadow.cljs.devtools.api/repl :devkit)
   ; Connect browser session - http://localhost:8080
   ; Browser console: shadow-cljs: #3 ready!
   (type 1)

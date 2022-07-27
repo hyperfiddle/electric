@@ -35,7 +35,7 @@
 
 (p/defn Lister [items]
   (dom/ul
-    (dom/for-by identity [item items]
+    (p/for-by identity [item items]
       (dom/li (dom/text "Item ") item))))
 
 (p/defn Lister-user []

@@ -1,8 +1,0 @@
-[submodule "vendor/rcf"]
-	path = vendor/rcf
-	url = git@github.com:hyperfiddle/rcf.git
-	ignore = dirty
-[submodule "vendor/missionary"]
-	path = vendor/missionary
-	url = git@github.com:leonoel/missionary.git
-	ignore = dirty
