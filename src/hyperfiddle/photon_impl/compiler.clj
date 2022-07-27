@@ -29,6 +29,10 @@
   (let [args (repeatedly arity gensym)]
     `(fn [~@args] (new ~class ~@args))))
 
+(defmacro static-call [klass method arity]
+  (let [args (repeatedly arity gensym)]
+    `(fn [~@args] (. ~klass ~method ~@args))))
+
 (defmacro method-call [method arity]
   (let [args (repeatedly arity gensym)]
     `(fn [inst# ~@args] (. inst# ~method ~@args))))
@@ -178,7 +182,10 @@
     (let [var (resolve-cljs env sym)] ; resolve cljs var decription (a map)
       (if-let [expander (cljs/get-expander (if (some? var) (var-name var) sym) env)] ; find corresponding clojure var
         (CljVar. expander)
-        var))
+        (if (and (instance? CljsVar var) (not (::local env)))
+          (or (resolve-var (-> env (dissoc :js-globals) (assoc :ns (:name (:ns env)))) sym)
+            var)
+          var)))
     (let [ns       (resolve-ns (:ns env)) ; current ns
           resolved (if (simple-symbol? sym)
                      (get-in ns [:mappings sym]) ; resolve in current ns 
@@ -313,6 +320,10 @@
         (clj/desugar-host-expr form env))
       (clj/desugar-host-expr form env))))
 
+(defn toggle [env form]
+  (let [res (analyze-form (update env ::local not) form)]
+    [[:output (peek res)] ((void [:input]) (pop res))]))
+
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
     (fn* letfn* loop* recur set! ns ns* deftype* defrecord* var)
@@ -384,12 +395,19 @@
       (throw (ex-info "Wrong number of arguments - new" {})))
 
     (.)
-    (let [dot (cljs/build-dot-form [(first args) (second args) (nnext args)])]
+    (let [dot (cljs/build-dot-form [(first args) (second args) (nnext args)])
+          target (if (class? (:target dot))
+                   (CljClass. (:target dot))
+                   (resolve-var env (:target dot)))]
       (transduce (map (partial analyze-form env)) conj-res
-        [[:eval (case (:dot-action dot)
-                  ::cljs/call   `(method-call ~(:method dot) (count args))
-                  ::cljs/access `(field-access ~(:field dot)))]]
-        (cons (:target dot) (:args dot))))
+        [[:apply [:eval (if (instance? CljClass target)
+                          `(static-call ~(var-name target) ~(:method dot) ~(count (:args dot)))
+                          (case (:dot-action dot)
+                            ::cljs/call   `(method-call ~(:method dot) ~(count (:args dot)))
+                            ::cljs/access `(field-access ~(:field dot))))]]]
+        (if (instance? CljClass target)
+          (:args dot)
+          (cons (:target dot) (:args dot)))))
 
     (throw)
     (analyze-form env `(r/fail ~(first args)))
@@ -407,13 +425,14 @@
                           [] [(conj forms form) catches finally]
                           (throw (ex-info "Invalid try block - unrecognized clause." {})))))
                 (throw (ex-info "Invalid try block - finally must be in final position." {}))))
-            [[] () nil] args)]
+            [[] () nil] args)
+          body `(::closure (do ~@forms))]
       (analyze-form env
         `(new ~(reduce
                  (fn [r f] `(r/latest-first ~r (::closure ~f)))
                  (case catches
-                   [] `(::closure (do ~@forms))
-                   `(r/recover
+                   [] body
+                   `(r/bind r/recover
                       (some-fn
                         ~@(map (fn [[c s & body]]
                                  (let [f `(partial (def exception) (::closure (let [~s exception] ~@body)))]
@@ -421,11 +440,20 @@
                                      (:default Throwable)
                                      `(r/clause ~f)
                                      `(r/clause ~f ~c)))) catches))
-                      (::closure (do ~@forms)))) finally))))
+                      ~body)) finally))))
+
+    (::lift)
+    (conj-res [[:lift]] (analyze-form env (first args)))
 
     (::closure)
     (let [res (analyze-form env (first args))]
       [[:target ((void [:nop]) (pop res))] [:constant (peek res)]])
+
+    (::client)
+    ((if (::local env) analyze-form toggle) env (first args))
+
+    (::server)
+    ((if (::local env) toggle analyze-form) env (first args))
 
     (if (symbol? op)
       (let [n (name op)
@@ -436,10 +464,7 @@
             (analyze-apply env form)
             (if-some [sym (resolve-runtime env op)]
               (case sym
-                (clojure.core/unquote-splicing cljs.core/unquote-splicing)
-                (let [res (analyze-form (update env ::local not) (first args))]
-                  [[:output (peek res)] ((void [:input]) (pop res))])
-                ;; else
+                (clojure.core/unquote-splicing cljs.core/unquote-splicing) (toggle env (first args))
                 (analyze-apply env form))
               (if-some [v (resolve-var env op)]
                 (case (var-name v)
@@ -490,7 +515,9 @@
            ;; GG: Report problematic form in context.
            ;;     Build a stack of forms as the call stack unwinds, from failed form to top-level form.
            ;;     Push current form into ex-data, then rethrow.
-           (throw (ex-info (ex-message ex) (update (ex-data ex) :in (fnil conj []) form) (ex-cause ex))))
+           (throw (ex-info (ex-message ex) (update (ex-data ex) :in #(if (< (count %) 10)
+                                                                       (conj (or % []) form)
+                                                                       %)) (ex-cause ex))))
          (catch Throwable t ; base case
            (throw (ex-info "Failed to analyse form" {:in [form]} t))))
     [[:literal form]]))
@@ -663,7 +690,8 @@
 
   (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
   [[:pub [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
-          [:apply [:global :hyperfiddle.photon-impl.runtime/recover]
+          [:apply [:global :hyperfiddle.photon-impl.runtime/bind]
+           [:global :hyperfiddle.photon-impl.runtime/recover]
            [:apply [:global :clojure.core/some-fn]
             [:apply [:global :hyperfiddle.photon-impl.runtime/clause]
              [:apply [:global :clojure.core/partial]
@@ -698,4 +726,24 @@
            "Can't take value of macro "
            "Use of undeclared Var ")
          (:prefix info) "/" (:suffix info)))
+  )
+
+(tests
+  "Var resolution"
+  (get-var (resolve-var (normalize-env {}) 'inc)) :=  #'clojure.core/inc
+  (get-var (resolve-var (normalize-env {}) 'java.lang.Integer)) := java.lang.Integer
+
+  ;; requires cljs.core to be on the JVM
+  #_(binding [cljs.env/*compiler* (cljs.env/default-compiler-env)]
+      (get-var (resolve-var (normalize-env (cljs.analyzer/empty-env)) 'inc)) := #'cljs.core/inc)
+
+  ;; TODO improve coverage of clj(s) var resolution
+  )
+
+(tests "method access"
+  (analyze {} '(. Math abs -1)) :=
+  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)] [:literal -1]] [:literal nil]]
+
+  (analyze {} '(Math/abs -1)) :=
+  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)] [:literal -1]] [:literal nil]]
   )

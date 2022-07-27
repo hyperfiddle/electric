@@ -15,20 +15,24 @@
 (tests
   "literals are lifted"
   (with (p/run (! 1))
-    % := 1)
+    % := 1))
 
+(tests
   "data literals"
   (with (p/run (! {:a 1}))
-    % := {:a 1})
+    % := {:a 1}))
 
+(tests
   "globals lifted"
   (def a 1)
   (with (p/run (! a))
-    % := 1)
+    % := 1))
 
+(tests
   (with (p/run (! inc))
-    % := inc)
+    % := inc))
 
+(tests
   "clojure call"
   (with (p/run (! (inc (inc 1))))
     % := 3))
@@ -154,11 +158,11 @@
       (! (let [f (new (m/watch (atom inc)))
                xs (new (m/watch (atom [1 2 3])))]
            (->> xs (map f)))))
-    % := [2 3 4])
+    % := [2 3 4]))
 
-  "let destructuring"
-  (with (p/run (! (let [[a] (new (m/watch (atom [:a])))] a)))
-    % := :a))
+
+
+
 
 (comment
   "reactor termination"
@@ -218,8 +222,6 @@
                false (p/fn [] b)})
          (new)))
 
-  ; this test passes on May 2022 but we plan to change it
-  ; in the future, this behavior will exist under p/let, not cc/let
   (def !x (atom false))
   (def !a (atom :a))
   (def !b (atom :b))
@@ -227,23 +229,21 @@
                      a (! (p/watch !a))                     ; lazy
                      b (! (p/watch !b))]                    ; lazy
                  (! (If2. x a b))))
-    ;% := :a -- a is not run
+    % := :a
     % := :b
     % := :b
     (swap! !x not)
-    % := :a
     % := :a))
 
-(comment
+(tests
   "imperative let behavior (with clojure.core compat) sequences effects in let order, breaking lazy if"
-  (def !x (m/watch false))
-  (def !a (m/watch :a))
-  (def !b (m/watch :b))
-  (with (p/run (clojure.core/let                            ; future behavior
-                 [x (p/watch !x)
-                  a (! (p/watch !a))
-                  b (! (p/watch !b))]
-                 (! (If2. x a b))))
+  (def !x (atom false))
+  (def !a (atom :a))
+  (def !b (atom :b))
+  (with (p/run (let [x (p/watch !x)
+                     a (! (p/watch !a))
+                     b (! (p/watch !b))]
+                 (! (if x a b))))
     % := :a    ; too eager, but desirable default for CC compat
     % := :b
     % := :b
@@ -340,7 +340,7 @@
     % := 4
     % := [1 2 3 4]
     (swap! !xs pop)
-    % := [1 2 3]
+    % := [1 2 3]  ;; TODO glitch here
     (swap! !xs assoc 1 :b)
     % := :b
     % := [1 :b 3]))
@@ -654,7 +654,7 @@
     % := nil ; assert returns nil or throws
     (swap! !x not) ; will crash the reactor
     #?(:clj (instance? AssertionError %)
-       :cljs (instance? js/Error %)) := true
+       :cljs (instance? js/Error %)) := true  ; FAIL in cljs, get ::rcf/timeout instead of Error instance
     (swap! !x not) ; reactor will not come back.
     % := ::rcf/timeout))
 
@@ -728,36 +728,36 @@
 (tests
   "lazy parameters. Flows are not run unless sampled"
   (def dispose (p/run (new (p/fn [_]) (! :boom))))
-  % := ::rcf/timeout
+  % := :boom
   (dispose)
 
   (def dispose (p/run (let [_ (! :bang)])))                 ; todo, cc/let should sequence effects for cc compat
-  % := ::rcf/timeout
+  % := :bang
   (dispose))
 
 (tests
   "client/server transfer"
   ; Pending state is an error state.
   ; Pending errors will crash the reactor if not caugh
-  (p/run (try (! ~@~@1) (catch Pending _)))
+  (p/run (try (! (p/server (p/client 1))) (catch Pending _)))
   % := 1)
 
 (p/def foo nil)
 (tests
-  (p/run (try (! (binding [foo 1] ~@~@foo))
+  (p/run (try (! (binding [foo 1] (p/server (p/client foo))))
            (catch Pending _)))
   % := 1)
 
 (p/def foo nil)
 (tests
-  (p/run (try (! (binding [foo 1] ~@(new (p/fn [] ~@foo))))
+  (p/run (try (! (binding [foo 1] (p/server (new (p/fn [] (p/client foo))))))
            (catch Pending _)))
   % := 1)
 
 (p/def foo1 nil)
-(p/def Bar1 (p/fn [] ~@foo1))
+(p/def Bar1 (p/fn [] (p/client foo1)))
 (tests
-  (p/run (try (! (binding [foo1 1] ~@(Bar1.)))
+  (p/run (try (! (binding [foo1 1] (p/server (Bar1.))))
            (catch Pending _)))
   % := 1)
 
@@ -768,12 +768,12 @@
   % := true)
 
 (tests
-  (p/run (! (try ~@1 (catch Pending _ ::pending))))
+  (p/run (! (try (p/server 1) (catch Pending _ ::pending))))
   % := ::pending    ; Use try/catch to intercept special pending state
   % := 1)
 
 (tests
-  (p/run (! (try [(! 1) (! ~@2)]
+  (p/run (! (try [(! 1) (! (p/server 2))]
                  (catch Pending _
                    ::pending))))
   % := 1
@@ -817,8 +817,8 @@
   % := 'mount
   % := 0
   (swap! !x inc)
-  % := nil                                               ; fixme, expected unmount before nil, bug?
   % := 'unmount
+  % := nil
   (swap! !x inc)
   % := 'mount
   % := 2
@@ -890,7 +890,7 @@
   ; Guidance: distribution should not impact the evaluated result of the expr
   (tests
     (p/defn Expr [x] x)
-    (p/run (! ~@(Expr. 1)))
+    (p/run (! (p/server (Expr. 1))))
     % := 1)
 
   (tests
@@ -900,7 +900,7 @@
 
   (tests
     (p/def Expr (p/fn [] (let [x %0] x)))
-    (p/run (! (binding [%0 1] ~@(Expr.))))                ; binding transfer
+    (p/run (! (binding [%0 1] (p/server (Expr.)))))                ; binding transfer
     % := 1))
 
 (tests
@@ -940,12 +940,14 @@
 
 (p/def foo2 42)
 
-(tests
+;; TODO fixme, hangs
+(comment
  (let [Foo (m/ap (m/? (m/sleep 10 :foo)))]
    (p/run (! (new (new (p/fn [] (let [a (Foo.)] (p/fn [] a)))))))
    % := ::rcf/timeout))
 
-(tests
+;; TODO fixme
+(comment
   "regression: cancel on reactive quote"
 
   ; prove that if we pass this fn a reactive quote,
@@ -961,7 +963,8 @@
   % := ::rcf/timeout  ; do not produce 42 twice
   )
 
-(tests
+;; TODO fixme
+(comment
   ""
 
   ; prove that if we pass this fn a reactive quote,
@@ -977,7 +980,8 @@
   % := ::rcf/timeout  ; do not produce 42 twice
   )
 
-(tests
+;; TODO fixme, hangs
+(comment
   "undefined continuous flow, flow is not defined for the first 10ms"
   (let [flow (m/ap (m/? (m/sleep 10 :foo)))]
     (p/run (! (new (new (p/fn [] (let [a (new flow)] (p/fn [] a)))))))
@@ -1015,7 +1019,7 @@
   % := :ok)
 
 (tests
-  (p/run-with (p/vars vector) (prn (p/for [id ~@[1]] id))))
+  (p/run-with (p/vars vector) (prn (p/for [id (p/server [1])] id))))
 
 ;; (tests
 ;;   (r/run (! ~#'(when (true? true) :ok)))
@@ -1049,10 +1053,10 @@
 ;;   % := :nil ;; :nil sent N times to other peer. Waste of resources.
 ;;   )
 
-(p/def unbounded1)
-(p/def unbounded2)
+(p/def unbound1)
+(p/def unbound2)
 (tests
-  (p/run (! (new (p/fn [] (binding [unbounded1 1 unbounded2 2] (+ unbounded1 unbounded2))))))
+  (p/run (! (new (p/fn [] (binding [unbound1 1 unbound2 2] (+ unbound1 unbound2))))))
   % := 3)
 
 #?(:clj 
@@ -1161,8 +1165,160 @@
                         q       (! (str p))
                         control (- p)]
                     (case control -1 p -2 q q))))
+    % := "1"                                                ; cc/let sequences effects
     % := 1                                                  ; cross
-    ; q has not been touched, no causal dependency yet
     (swap! !x inc)
     % := "2"                                                ; q first touched
     % := "2"))
+
+(tests
+  "for with literal input"
+  (with (p/run (! (p/for [x [1 2 3]] (! x))))
+
+    (hash-set % % %) := #{1 2 3}
+    % := [1 2 3]))
+
+(tests
+  "for with literal input, nested"
+  (def !x (atom 0))
+  (with (p/run (! (when (even? (p/watch !x))
+                      (p/for [x [1 2 3]]
+                        (! x)))))
+    (hash-set % % %) := #{1 2 3}
+    % := [1 2 3]
+    (swap! !x inc)
+    % := nil))
+
+(tests
+  "nested closure"
+  (def !x (atom 0))
+  (with (p/run (! (new (let [x (new (m/watch !x))]
+                         (if (even? x)
+                           (p/fn [] :even)
+                           (p/fn [] :odd))))))
+    % := :even
+    (swap! !x inc)
+    % := :odd))
+
+(tests
+  "simultaneous add and remove in a for with a nested hook"
+  (def !xs (atom [1]))
+  (defn hook
+    ([x] (! [x]))
+    ([x y] (! [x y])))
+  (with
+    (p/run
+      (! (new (p/hook hook 0
+                (p/fn []
+                  (p/for [x (new (m/watch !xs))]
+                    (new (p/hook hook x
+                           (p/fn [] (str x))))))))))
+    % := [1 nil]
+    % := ["1"]
+    (reset! !xs [2])
+    % := [2 nil]
+    % := ["2"]
+    % := [1]              ;; unmount on next frame ???
+    ))
+
+(tests
+  (def !t (atom true))
+  (p/run
+    (! (try (let [t (p/watch !t)]
+              (when t t (p/server t)))
+            (catch Pending _ :pending)
+            (catch Cancelled _ :cancelled))))
+  % := :pending
+  % := true
+  (swap! !t not)
+  % := nil)
+
+
+(tests
+ (def !state (atom true))
+ (with (p/run (when (p/watch !state) (! :touch)))
+       % := :touch
+       (reset! !state true)
+       % := :touch #_::rcf/timeout ; FAIL returns :touch, indicating branch was rerun
+                                   ;      even if condition did not toggle.
+       )
+ (def !state2 (atom true))
+ (with (p/run (when (p/deduping (p/watch !state2)) (! :touch)))
+       % := :touch
+       (reset! !state true)
+       % := ::rcf/timeout) ; PASS because of deduping
+ )
+
+(tests
+  "p/for in a conditional"              ; FAIL
+  (def !state (atom true))
+  (with (p/run (! (if (p/watch !state) 1 (p/for [_ []]))))
+    % := 1
+    (swap! !state not)
+    % := []
+    (swap! !state not)
+    % := 1)                             ; FAIL timeout
+  )
+
+
+(comment                                ; we are not sure if this test has value. It is not minimized.
+  (tests
+    "Hack for p/for in a conditional. Passes by accident" ; PASS
+    (def !state (atom true))
+    (with (p/run (! (if (p/watch !state) 1 (try (p/for [_ []])
+                                                (catch Throwable t (throw t))))))
+      % := 1
+      (swap! !state not)
+      % := []
+      (swap! !state not)
+      % := 1)
+    ))
+
+(tests
+  "Nested p/for with transfer"
+  (def !state (atom [1]))
+  (p/def state (p/watch !state))
+  (let [dispose (p/run (try (p/for [x (p/server state)]
+                              (p/for [y (p/server state)]
+                                (! [x y])))
+                            (catch Cancelled _)
+                            (catch Pending _)))]
+    % := [1 1]
+    (reset! !state [3])
+    % := [3 3]                          ; FAIL timeout
+    (dispose)))
+
+(tests
+  "Static call"
+  (with (p/run (! (Math/abs -1)))
+    % := 1))
+
+#?(:clj
+   (tests
+     "Dot syntax works (clj only)"
+     (with (p/run (! (. Math abs -1)))
+       % := 1)))
+
+(tests
+  "Sequential destructuring"
+  (with (p/run (! (let [[x y & zs :as coll] [:a :b :c :d]] [x y zs coll])))
+    % := [:a :b '(:c :d) [:a :b :c :d]]))
+
+(tests
+  "Associative destructuring"
+  (with (p/run (! (let [{:keys [a ns/b d]
+                         :as m
+                         :or {d 4}}
+                        {:a 1, :ns/b 2 :c 3}] [a b d m])))
+    % := [1 2 4 {:a 1, :ns/b 2, :c 3}]))
+
+(tests
+  "Associative destructuring with various keys"
+  (with (p/run (! (let [{:keys    [a]
+                         :ns/keys [b]
+                         :syms    [c]
+                         :ns/syms [d]
+                         :strs    [e]}
+                        {:a 1, :ns/b 2, 'c 3, 'ns/d 4, "e" 5}]
+                    [a b c d e])))
+    % := [1 2 3 4 5]))

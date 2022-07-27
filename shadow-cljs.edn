@@ -1,13 +1,13 @@
 {:deps     {:aliases [:dev]}
  :nrepl    {:port 9001}
- :dev-http {8080 {:root "resources/public"}}
  :builds   {:devkit   {:target        :browser
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}
                                        :ignore-warnings true}                 ; warnings don't prevent hot-reload
                        :output-dir    "resources/public/js"
                        :asset-path    "/js"
-                       :modules       {:main {:entries [user]}}}
+                       :modules       {:main {:entries [user]}}
+                       :build-hooks   [(shadow.cljs.build-report/hook {:output-to "target/build_report.html"})]}
             :editor   {:target        :browser
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}
@@ -17,15 +17,15 @@
                        :modules       {:main {:entries [user]}}}
             :test     {:target           :node-test
                        :output-to        "out/node-tests.js"
-                       :ns-regexp        "^hyperfiddle.(photon-[^dom]|core-async).*$"
+                       :ns-regexp        "^hyperfiddle.(photon-[^dom]|core-async|zero).*$"
                        :build-options    {:cache-level :off}
-                       :modules          {:main {:entries [hyperfiddle.photon hyperfiddle.photon-test #_hyperfiddle.missionary-test hyperfiddle.core-async-test]}}
+                       :modules          {:main {:entries [hyperfiddle.zero hyperfiddle.photon hyperfiddle.photon-test #_hyperfiddle.missionary-test hyperfiddle.core-async-test]}}
                        :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
                        :compiler-options {:warnings {:redef-in-file false}}}
             :browser-test {:target           :karma
                            :output-to        "out/karma-tests.js"
-                           :ns-regexp        "^hyperfiddle.(photon-[^dom]|core-async).*$"
+                           :ns-regexp        "^hyperfiddle.(photon-[^dom]|core-async|zero|dedupe).*$"
                            :build-options    {:cache-level :off}
-                           :modules          {:main {:entries [hyperfiddle.photon hyperfiddle.photon-test #_hyperfiddle.missionary-test hyperfiddle.core-async-test]}}
+                           :modules          {:main {:entries [hyperfiddle.zero hyperfiddle.photon hyperfiddle.photon-test #_hyperfiddle.missionary-test hyperfiddle.core-async-test]}}
                            :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
                            :compiler-options {:warnings {:redef-in-file false}}}}}

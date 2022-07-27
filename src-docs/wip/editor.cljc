@@ -18,20 +18,19 @@
 
 (def main
   #?(:cljs
-     (p/client
-      (p/main
-       (try (binding [dom/parent (dom/by-id "root")]
+     (p/boot
+       (try (binding [dom/node (dom/by-id "root")]
               ~@(let [content (read! file)]
                   ~@(let [text (dom/div {:style {:width "100vw"}}
-                                        (let [text (new codemirror/string content)]
-                                          text
-                                          (z/impulse ~@ack (dom/>keychord-events #{"meta+s" "ctrl+s"}
-                                                                                 (map (constantly text))))))]
+                                 (let [text (new codemirror/string content)]
+                                   text
+                                   (z/impulse ~@ack (dom/>keychord-events #{"meta+s" "ctrl+s"}
+                                                      (map (constantly text))))))]
                       (prn "Text" text)
                       (when text
                         ~@(do (swap! !ack inc)
                               (write! file text))))))
-            (catch Pending _))))))
+            (catch Pending _)))))
 
 (comment
   (user/browser-main! `main)

@@ -29,7 +29,7 @@
   (d/q '[:find ?s . :in $ ?e :where [?e :task/status ?s]] @!conn 1)
   := :active)
 
-(defn clear-input! [el v] (dom/set-properties! el {:value ""}) v)
+(defn clear-input! [el v] (dom/set-property! el :value "") v)
 
 (p/def db)                                                  ; server
 
@@ -41,11 +41,11 @@
              (->> (dom/>keychord-events #{"enter"})
              (m/eduction
                (map (comp task-create (dom/oget :target :value)))
-               (map (partial clear-input! dom/parent)))
+               (map (partial clear-input! dom/node)))
              (z/impulse basis-t)))
       (dom/div
         (apply concat
-               (dom/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
+               (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
                  (dom/div
                    (concat
                      (dom/input {:type "checkbox"
@@ -97,9 +97,11 @@
           (reset! !stage (clojure.edn/read-string tx)))
         (do (js/console.log ::stage ::idle) nil)))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]
-                                            (App.))
-                                          (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try (binding [dom/node (dom/by-id "root")]
+                    (App.))
+                  (catch Pending _)))))
 
 (comment (user/browser-main! `main))
 

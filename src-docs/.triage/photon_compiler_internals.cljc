@@ -1,7 +1,7 @@
 (ns user.photon-compiler-internals
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-impl.compiler :refer [analyze]]
-            [hyperfiddle.photon-impl.runtime :as r :refer [emit]]
+            #?(:clj [hyperfiddle.photon-impl.compiler :refer [analyze]])
+            #?(:clj [hyperfiddle.photon-impl.runtime :as r :refer [emit]])
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [missionary.core :as m]))
 
@@ -29,7 +29,7 @@
   (def server (second *2))
 
   "emitted target is approximately the missionary program"
-  (emit (comp symbol str) client) :=
+  (emit nil client) :=
   `(r/peer
      1 0 0 0 3 1 0
      (fn [~'nodes]
@@ -41,7 +41,7 @@
                            (r/latest-apply (r/steady +) ~'pub1
                                            (r/latest-apply (r/steady inc) ~'pub0)))))))
 
-  (emit (comp symbol str) server) :=
+  (emit nil server) :=
   `(r/peer
      0 0 0 1 0 0 0
      (fn [~'nodes]

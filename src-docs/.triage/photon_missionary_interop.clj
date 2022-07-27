@@ -2,7 +2,9 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
-            [missionary.core :as m]))
+            [missionary.core :as m])
+  (:import hyperfiddle.photon.Failure
+           (clojure.lang IFn IDeref)))
 
 
 (hyperfiddle.rcf/enable!)
@@ -86,15 +88,15 @@
                 (new >y)))))                                ; join discrete flow value
     % := 1))
 
+(defn sleep-emit [delays]
+  (m/ap (let [n (m/?< (m/seed delays))]
+          (m/? (m/sleep n n)))))
+
 (tests
   "Joining a discrete flow without an initial value is undefined"
-  (defn sleep-emit [delays]
-    (m/ap (let [n (m/?< (m/seed delays))]
-            (m/? (m/sleep n n)))))
-
   (with (p/run
           (!
-            (let [>x (sleep-emit [10 20])]
+            (let [>x (sleep-emit [10 20])]                  ; event at t=10 and t=20, nothing at t=0
               (new
                 (p/fn [x] (inc x))
                 (new >x)))))
@@ -102,7 +104,7 @@
     % := ::rcf/timeout))
 
 (tests
-  "Photon thunks compile to missionary continuous flows (!)
+  "Photon thunks compile to missionary continuous flows (!!)
   therefore they can be passed to Missionary's API"
   (def !x (atom 0))
   (with (p/run
@@ -153,8 +155,40 @@
 
 (tests
   "inject Photon exception from missionary flow"
-  (defn boom! [x] (r/->Failure "boom"))
+  (defn boom! [x] (Failure. (r/error "boom")))
 
   (with (p/run (! (try (new (m/eduction (map boom!) (p/fn [] 1)))
                        (catch Throwable t ::boom))))
     % := ::boom))
+
+
+; raw missionary flow - see https://github.com/leonoel/flow
+(def >F (fn [n t]
+          (n)                                               ; notify 42 is ready
+          (reify
+            IFn (invoke [_])                                ; no resources to release
+            IDeref (deref [this] 42))))                     ; never notify again
+
+(tests
+  "raw missionary flow called from photon"
+  (def !it (>F #(! ::notify)
+               #(! ::terminate)))
+  % := ::notify
+  @!it := 42
+  (!it))
+
+(tests
+  ; (p/run (new >F)) -- fails due to syntax collision with Clojure new
+  (with (p/run (! (new (identity >F))))                     ; workaround syntax gap
+    % := 42))
+
+(comment
+  ; Explanation of Clojure syntax
+  ; Clojure constructor syntax is defined only on static classes
+  (new java.lang.Long 1)                                    ; works
+  (new (identity java.lang.Long) 1)                         ; fails
+  (let [Klass java.lang.Long] (new Klass 1))                ; fails
+  ; therefore Photon can shadow the entire dynamic usage of new without
+  ; colliding with Clojure functionality.
+  ; That's how it works today. Todo improve the coverage with additional syntax.
+  )

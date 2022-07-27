@@ -3,11 +3,10 @@
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :refer [tests]]
+            [hyperfiddle.photon-ui :as ui]
             user.util)
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-3-webview)))
-
 
 (defonce conn #?(:cljs nil                                  ; state survives reload
                  :clj  (doto (d/create-conn {:order/email {}})
@@ -24,37 +23,36 @@
               [(user.util/includes-str? ?email ?needle)]]
             db (or ?email "")))))
 
-#?(:clj
-   (tests
-     (orders @conn "") := [1 2 3]
-     (orders @conn "alice") := [1]))
-
 (p/def db)                                                  ; server
 
-(p/defn Input []
-  (dom/input {:type :search, :placeholder "Filter…"}
-             (dom/events "input" (map (dom/oget :target :value)) "")))
-
 (p/defn View []
-  (let [email (Input.)]
-    (dom/table
-      (dom/for [id ~@(orders db email)]
-        (dom/tr
-          (dom/td (dom/text id))
-          (dom/td (dom/text ~@(:order/email (d/entity db id))))
-          (dom/td (dom/text ~@(:order/gender (d/entity db id)))))))))
+  (dom/div
+   (dom/h2 (dom/text "frontend/backend webview with server push"))
+   (let [email (::ui/value (ui/input {::dom/type        :search
+                                      ::dom/placeholder "Filter…"}))]
+     (dom/table
+       (p/server
+         (p/for [id (orders db email)]
+           (p/client
+             (dom/tr
+               (dom/td (dom/text id))
+               (dom/td (dom/text ~@(:order/email (d/entity db id))))
+               (dom/td (dom/text ~@(:order/gender (d/entity db id))))))))))))
 
 (p/defn App []
-  (binding [dom/parent (dom/by-id "root")]
-    ~@(binding [db (p/watch conn)]                          ; server
-        ~@(View.))))
+  (p/server
+    (binding [db (p/watch conn)]                    ; server
+      (p/client (View.)))))
 
-(def main #?(:cljs (p/client (p/main (try (App.) (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try (binding [dom/node (dom/by-id "root")] (App.))
+                  (catch Pending _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))
+  #?(:clj (d/transact conn [{:db/id 2 :order/email "bob2@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "dan@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "erin@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "frank@example.com"}]))
-  #?(:clj (d/transact conn [{:db/id 2 :order/email "bob2@example.com"}]))
   )

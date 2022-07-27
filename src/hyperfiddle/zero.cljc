@@ -63,6 +63,11 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
           (m/amb e (if (m/? >control) (m/amb) (recur)))
           (m/amb))))))
 
+(defn impulse* [tier >ack >xs]
+  (fsm nil
+    (empty? (m/eduction (drop 1) (p/with tier >ack)))
+    (first-or nil >xs)))
+
 (defmacro impulse
   "Translates a discrete event stream `>xs` into an equivalent continuous signal of impulses. Each impulse will stay
    'up' until it is sampled and acknowledged by signal `ack`. (Thus the duration of the impulse depends on sampling
@@ -70,9 +75,7 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
 
    Useful for modeling discrete events in Photon's continuous time model."
   [ack >xs]
-  `(new (fsm nil
-             (empty? (m/eduction (drop 1) (p/fn [] ~ack)))
-             (first-or nil ~>xs))))
+  `(new (p/bind impulse* (p/fn [] ~ack) ~>xs)))
 
 (defmacro current "Copy the current value (only) and then terminate" [x]
   ; what does Photon do on terminate? TBD
@@ -152,7 +155,9 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
 
 (tests
   "logical clock"
-  (with (p/run (! clock)) [% % %] := [::tick ::tick ::tick]))
+  (let [dispose (p/run (! clock))]
+    [% % %] := [::tick ::tick ::tick]
+    (dispose)))
 
 (defn system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
 
@@ -160,9 +165,10 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
 
 (tests
   "millisecond time as a stable test"
-  (with (p/run (! time))
+  (let [dispose (p/run (! time))]
     [% % %] := [_ _ _]
-    (map int? *1) := [true true true]))
+    (map int? *1) := [true true true]
+    (dispose)))
 
 (comment
   ; This ticker will skew and therefore is not useful other than as an example

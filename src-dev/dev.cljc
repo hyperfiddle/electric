@@ -1,7 +1,6 @@
 (ns dev
   (:require
-    [datahike.api :as d]
-    [datahike.core :as dc]
+    [datascript.core :as d]
     [hyperfiddle.api :as hf]
     [hyperfiddle.logger :as log]
     [hyperfiddle.rcf :refer [tests % !]]))
@@ -53,21 +52,23 @@
 (def db-config {:store {:backend :mem, :id "default"}})
 
 (defn setup-db! []
+  (def schema
+    ;; FIXME Datascript doesn’t support :db/valueType, using :hf/valueType in the meantime
+    {:order/email      {:hf/valueType :db.type/string :db/cardinality :db.cardinality/one :db/unique :db.unique/identity}
+     :order/gender     {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+     :order/shirt-size {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+     :order/type       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
+     :order/tags       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
+     :db/ident         {:db/unique :db.unique/identity}})
   (log/info "Initializing Test Database")
-  (d/delete-database db-config)
-  (d/create-database db-config)
-  (def conn (d/connect db-config)) ;; connect to "default"
-  (let [$ (-> (d/with (d/db conn) schema)
-              :db-after
-              (fixtures))
+  (def conn (d/create-conn schema))
+  (let [$  (-> conn d/db fixtures)
         db (hf/->DB "$" 0 nil $)]
     #?(:clj (alter-var-root #'hf/*db* (constantly db))
        :cljs (set! hf/*db* db))
     #?(:clj (alter-var-root #'hf/*$* (constantly $))
        :cljs (set! hf/*$* $))))
 
-;#?(:clj (init-datomic)
-;   :cljs (init-datascript))
 #?(:clj (setup-db!))
 
 (def db hf/*$*)                                             ; for @(requiring-resolve 'dev/db)
@@ -98,7 +99,7 @@
 
   (comment #_tests
     "careful, entity type is not= to equivalent hashmap"
-    (dc/touch (d/entity db e))
+    (d/touch (d/entity db e))
     ; expected failure
     := {:order/email      "alice@example.com",
         :order/gender     #:db{:id 2},
@@ -108,12 +109,12 @@
 
   (tests
     "entities are not maps"
-    (dc/touch (d/entity db e))
-    (type *1) := datahike.impl.entity.Entity)               ; not a map
+    (type (d/touch (d/entity db e)))
+    (type *1) := datascript.impl.entity.Entity)             ; not a map
 
   (tests
     "careful, entity API tests are fragile and (into {}) is insufficient"
-    (->> (dc/touch (d/entity db e))                     ; touch is the best way to inspect an entity
+    (->> (d/touch (d/entity db e))                      ; touch is the best way to inspect an entity
          (into {}))                                         ; but it's hard to convert to a map...
     := #:order{#_#_:id 9                                    ; db/id is not present!
                :email      "alice@example.com",
@@ -122,7 +123,7 @@
                :tags       #{:c :b :a}}
 
     "select keys doesn't fix the problem as it's not recursive"
-    (-> (dc/touch (d/entity db e))
+    (-> (d/touch (d/entity db e))
         (select-keys [:order/email :order/shirt-size :order/gender]))
     := #:order{:email "alice@example.com",
                :shirt-size _ #_#:db{:id 8},                 ; still awkward, need recursive pull
