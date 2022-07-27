@@ -1,7 +1,9 @@
-(ns user.missionary-flow
+(ns user.reference.missionary-flow
   (:require [hyperfiddle.rcf :refer [tests ! % with]]
             [missionary.core :as m])
   (:import (missionary Cancelled)))
+
+(hyperfiddle.rcf/enable!)
 
 
 (tests

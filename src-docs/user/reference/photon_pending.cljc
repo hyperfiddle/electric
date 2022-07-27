@@ -1,4 +1,4 @@
-(ns user.photon-pending
+(ns user.reference.photon-pending
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]])
   (:import (hyperfiddle.photon Pending)))
