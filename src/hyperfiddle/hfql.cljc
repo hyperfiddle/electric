@@ -1,10 +1,8 @@
 (ns hyperfiddle.hfql
   (:require #?(:clj [hyperfiddle.hfql.impl :as impl])
             #?(:clj [hyperfiddle.hfql.env :as env])
-            #?(:clj [datahike.api :as d]
-               :cljs [datascript.core :as d])
-            #?(:clj [datahike.impl.entity :as de]
-               :cljs [datascript.impl.entity :as de])
+            [datascript.core :as d]
+            [datascript.impl.entity :as de]
             #?(:clj [hyperfiddle.rcf.analyzer :as ana]))
   #?(:cljs (:require-macros [hyperfiddle.hfql :refer [hfql]])))
 

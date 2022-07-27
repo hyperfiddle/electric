@@ -9,7 +9,7 @@
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.zero :as z]
             [hyperfiddle.ui.codemirror :as cm]
-            #?(:clj [datahike.api :as d]))
+            )
   #?(:cljs (:require-macros wip.browser)))
 
 ;; NOTE
@@ -20,7 +20,7 @@
     (dom/div {:class "navbar"}
              (ui/link (second route-state) hf/navigate-back! (dom/text "< back"))
              (dom/div {:class "navbar-route"}
-                      (cm/CodeMirror. {:parent dom/parent :inline true} cm/read-edn cm/write-edn (first route-state))))))
+                      (cm/CodeMirror. {:parent dom/node :inline true} cm/read-edn cm/write-edn (first route-state))))))
 
 (p/defn NotFoundPage []
   ~@(dom/div
@@ -67,7 +67,7 @@
                                                                          ::hf/option-label :db/ident}) [:db/ident]}]}))))]
               (dom/div {:class "hf-staging-area"}
                        (dom/div {:class "hf-error-wrapper"}
-                                (let [tx' (cm/CodeMirror. {:parent dom/parent} cm/read-edn cm/write-edn [])]
+                                (let [tx' (cm/CodeMirror. {:parent dom/node} cm/read-edn cm/write-edn [])]
                                   (do tx'
                                       ~@(p/forget (reset! !stage tx'))
                                         ;; TODO use z/fsm or z/instant

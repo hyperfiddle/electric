@@ -2,26 +2,63 @@
   (:require [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :refer [tests % !]]))
+            [hyperfiddle.rcf :refer [tests % !]]
+            [clojure.test :as t]))
 
-(def body (.-body js/document))
-(defn text-content [e]
-  (.-textContent e))
+(def CONTAINER (dom/by-id "test-bench"))
+(defn text-content [e] (.-textContent e))
+
+(t/use-fixtures :each {:before (fn [] (set! (.-innerHTML CONTAINER) ""))})
 
 (tests
-  (def !x (atom false))
+  (text-content CONTAINER) := ""
+  (let [dispose (p/run (binding [dom/node CONTAINER]
+                          (dom/text "hello")
+                          (! (text-content CONTAINER))))]
+    % := "hello"
+    (dispose)
+    (text-content CONTAINER) := ""))
+
+(tests
+  (def !x (atom true))
   (p/run
-    (binding [dom/parent body]
+    (binding [dom/node CONTAINER]
       (dom/text "a")
-      (if (new (m/watch !x))
+      (if (p/watch !x)
         (dom/text "b")
         (dom/text "c"))
       (dom/text "d"))
-    (! (text-content body)))
+    (! (text-content CONTAINER)))
 
   % := "abd"
   (swap! !x not)
   % := "acd"
   (swap! !x not)
   % := "abd"
+  )
+
+(tests
+  (def !xs (atom ["b" "c"]))
+  (p/run
+    (binding [dom/node CONTAINER]
+      (dom/text "a")
+      (p/for [x ~(m/watch !xs)]
+        (dom/text x))
+      (dom/text "d"))
+    (! (text-content CONTAINER)))
+
+  % := "abcd"
+  (swap! !xs reverse)
+  % := "acbd"
+  (swap! !xs reverse)
+  % := "abcd"
+  )
+
+
+(comment
+  ;; CLJ
+  (alter-var-root #'hyperfiddle.rcf/*generate-tests* (constantly true))
+  (shadow.cljs.devtools.api/repl :devkit)
+  ;; CLJS
+  (t/run-tests)
   )

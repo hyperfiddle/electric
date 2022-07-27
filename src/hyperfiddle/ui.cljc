@@ -3,12 +3,15 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.spec :as spec]
             [missionary.core :as m]
             [datascript.db]
-            #?(:clj [datahike.api :as d])
             [hyperfiddle.logger :as log]
-            [hyperfiddle.ui.color :refer [color]])
+            [hyperfiddle.ui.color :refer [color]]
+            [clojure.edn :as edn]
+            [hyperfiddle.zero :as z]
+            [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.ui :refer [link]])))
 
 ;;;;;;;;;;;;;;;;;
@@ -55,9 +58,45 @@
         (dissoc :value))
     props))
 
-(p/defn Input "if value prop, controlled else uncontrolled" [props extractor]
-  (dom/input (dom/props (adapt-checkbox-props props))
-             (dom/events "input" (map extractor))))
+(defn signals [props] (->> props keys (filter #(str/starts-with? (name %) "on")) set))
+
+(defn signal->event [sig] (str/replace (name sig) #"^on-" ""))
+
+(p/defn Input "if value prop, controlled else uncontrolled" [props]
+  (dom/input (dom/props (adapt-checkbox-props (dissoc props :signals)))
+             (p/for [sig (signals props)]
+               [sig (dom/events (signal->event sig) (map (get-in props [:signals sig])))])))
+
+(defn read-edn [str]
+  #?(:cljs (try (prn "reading" str)
+                (edn/read-string str)
+                (catch :default t
+                  (prn "Invalid EDN" str)
+                  nil))))
+
+(p/defn DataInput [props]
+  (dom/input (dom/props props)
+             (dom/events "input" (comp (map (dom/oget :target :value))
+                                       (map read-edn)))))
+
+(defmacro button [props & body]
+  `(let [props# ~props
+         ack# (:acknowledge props# z/time)]
+     (dom/button (dom/props (dissoc props# :acknowledge :value))
+                 ~@body
+                 (z/impulse ack# (dom/>events "click" (map (constantly (:value props# true))))))))
+
+(p/defn Slider [props]
+  (let [list-id (or (:list props) (str (gensym)))
+        value (:value props)]
+    (when-let [ticks (:tickmarks props)]
+      (dom/datalist {:id list-id}
+                    (p/for [tick ticks]
+                      (dom/option {:value tick}))))
+    (dom/input (dom/props (assoc props :list list-id, :type :range))
+                 (dom/events "input" (map (dom/oget :target :value)) value))))
+
+
 
 ;; (defn set-state! [!atom v] (reset! !atom v))
 
@@ -168,26 +207,25 @@
                              v       (V.)]
                          (when-some [v' ~@(let [id         (str (gensym))
                                                 arg-spec   (spec/arg (first attr) arg)
-                                                input-type (input-types (argument-type (first attr) arg))
-                                                extractor  (if (= "checkbox" input-type)
-                                                             (dom/oget :target :checked)
-                                                             (dom/oget :target :value))]
+                                                input-type (input-types (argument-type (first attr) arg))]
                                             (dom/label {:for (str id)
                                                         :data-tooltip
                                                         (cond-> (pr-str (:predicate arg-spec))
                                                           locked? (str " — internal reference 🔒"))}
                                                        (dom/text (name arg)))
-                                            (let [v' (Input. {:id      id,
-                                                              :type    (input-types (argument-type (first attr) arg))
-                                                              :value    v
-                                                              :disabled locked?}
-                                                       extractor)]
-                                              (log/info "extracted" v')
-                                              v'))]
+                                            (::ui/value
+                                             (if (= "checkbox" input-type)
+                                               (ui/checkbox {:dom/id       id
+                                                             :dom/disabled locked?
+                                                             ::ui/value    v})
+                                               (ui/input {:dom/id       id
+                                                          :dom/type     (input-types (argument-type (first attr) arg))
+                                                          ::ui/value    v
+                                                          :dom/disabled locked?}))))]
                            (log/info "ARG" arg v "->" v')
                            (if (= v v')
-                             (prn "same as before")
-                             (do (prn "new value")
+                             (log/debug "same as before")
+                             (do (log/debug "new value" v')
                                  ~@(hf/set-route-arg! (inc idx) v')
                                  (set-v! v')
                                  )))))))))
@@ -201,7 +239,7 @@
     (do (log/debug "Query DB schema for attr " ?a)
         #?(:clj (condp = (type db)
                   datascript.db.DB (get (:schema db) ?a)
-                  datahike.db.DB (or (d/entity hf/*$* ?a)
+                  #_#_datahike.db.DB (or (d/entity hf/*$* ?a)
                                      (do (log/info "Unknown attr" ?a)
                                          nil)))))))
 
@@ -214,7 +252,6 @@
 (defn set-route! [href _event] (hf/navigate! href))
 
 (defmacro link [href on-click & body] ;; GG: TODO should it be a p/def or a macro?
-  (prn "link" href body)
   `(dom/a {:href (str ~href)}
           (dom/events "click" (comp (map dom/stop-event!)
                                     (map ~on-click)
@@ -239,7 +276,10 @@
     :else
     (let [value       (V.)
           [_>e a _>v] (first hf/context)
-          valueType   (:db/valueType (schema-attr hf/*$* a))]
+          valueType   (let [attr (schema-attr hf/*$* a)]
+                        (or (:db/valueType attr)
+                            (:hf/valueType attr) ; datascript rejects valueType other than ref.
+                            ))]
       (log/info "DEFAULT valueType" valueType)
       (if (some? valueType)
         (typeahead. V (assoc props :dom.attribute/type (input-types (spec/valueType->type valueType))))
@@ -344,7 +384,7 @@
           checked?              (= v⁻¹ (hf/Data. V))
           v                     (V.)]
       (log/info "V V" (list v⁻¹ (hf/Data. V)))
-      ~@(binding [dom/parent (do e dom/parent)]
+      ~@(binding [dom/node (do e dom/node)]
           (dom/tr
            (let [selected? (dom/td {:style {"border-color" color}}
                                    (Input. {:type   (case cardinality

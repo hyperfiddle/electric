@@ -1,0 +1,10 @@
+run = "HF_DEMO=user.replit/main clj -A:dev"
+
+[env]
+CLJ_CONFIG = "/home/runner/.clojure"
+
+[languages.clojure]
+pattern = "**/*.clj"
+
+[languages.clojure.languageServer]
+start = ["clojure-lsp"]

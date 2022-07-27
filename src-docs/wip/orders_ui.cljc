@@ -28,13 +28,15 @@
     (dom/div {:class "view"}
       (Orders.))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]
-                                            ~@(binding [hf/db     hf/*db* ; why
-                                                        hf/Render ui/Render]
-                                                (ui/with-spec-render
-                                                  ~@(App.))))
-                                          (catch Pending _)
-                                          (catch Remote _))))))
+(def main
+  #?(:cljs (p/boot
+             (try (binding [dom/node (dom/by-id "root")]
+                    ~@(binding [hf/db     hf/*db* ; why
+                                hf/Render ui/Render]
+                        (ui/with-spec-render
+                          ~@(App.))))
+                  (catch Pending _)
+                  (catch Remote _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

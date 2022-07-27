@@ -4,9 +4,9 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
+            [hyperfiddle.photon-ui :as photon-ui]
             [wip.orders :refer [orders genders shirt-sizes one-order]]
-            [hyperfiddle.hfql.router :as router]
-            [shadow.resource :as res])
+            [hyperfiddle.hfql.router :as router])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.hfql-links)))
 
@@ -19,22 +19,24 @@
 
 (p/defn App []
   (dom/div {:id "main", :class "browser"}
-   (let [[current prev] (p/watch hf/route-state)]
-     (dom/div {:class "view"}
-      (dom/button {:disabled (not (some? prev))
-                   :style    {:grid-row 1, :justify-self :flex-start}}
-             (dom/text (str "< " (some-> (first prev) name)))
-             (dom/events "click" (map hf/navigate-back!)))
-      (let [route current]
-        ~@(router/router route "./hfql_links.edn"))
-      ))))
+    (let [[current-route prev] (p/watch hf/route-state)]
+      (dom/div {:class "view"}
+        (photon-ui/button {::dom/disabled           (not (some? prev))
+                           ::dom/style              {:grid-row 1, :justify-self :flex-start}
+                           ::photon-ui/click-event (p/fn [e] () (when e (hf/navigate-back!)))}
+             (dom/text "< " (some-> (first prev) name)))
+        (p/server
+          (router/router current-route "./hfql_links.edn"))))))
 
-(def main #?(:cljs (p/client (p/main (try (binding [dom/parent (dom/by-id "root")]
-                                            ~@(binding [hf/db     hf/*db*
-                                                        hf/Render ui/Render]
-                                                (ui/with-spec-render
-                                                  ~@(App.))))
-                                          (catch Pending _))))))
+(def main
+  #?(:cljs (p/boot
+             (try (binding [dom/node (dom/by-id "root")]
+                    (p/server
+                      (binding [hf/db     hf/*db*
+                                hf/Render ui/Render]
+                        (ui/with-spec-render
+                          (p/client (App.))))))
+                  (catch Pending _)))))
 
 (comment
   #?(:clj (user/browser-main! `main))

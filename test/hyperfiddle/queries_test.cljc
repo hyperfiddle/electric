@@ -1,5 +1,5 @@
 (ns hyperfiddle.queries-test
-  (:require #?(:clj [datahike.api :as d])
+  (:require [datascript.core :as d]
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]

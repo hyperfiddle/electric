@@ -1,23 +1,22 @@
 (ns hyperfiddle.photon-client
-  (:require [cognitect.transit :as t]
-            [com.cognitect.transit.types]
-            [hyperfiddle.logger :as log]
-            [missionary.core :as m])
+  (:require [hyperfiddle.logger :as log]
+            [missionary.core :as m]
+            [hyperfiddle.photon-impl.io :as io])
   (:import missionary.Cancelled))
 
 (defn server-url []
-  (let [url (.. js/window -hyperfiddle_photon_config -server_url)]
-    (assert (string? url) "Missing websocket server url.")
-    url))
-
-(defn encode "Serialize to transit json" [v] (t/write (t/writer :json) v))
-(defn decode "Parse transit json" [^String s] (t/read (t/reader :json) s))
-
-(extend-type com.cognitect.transit.types/UUID IUUID) ; https://github.com/hyperfiddle/hyperfiddle/issues/728
+  (let [proto (.. js/window -location -protocol)]
+    (str (case proto
+           "http:" "ws:"
+           "https:" "wss:"
+           (throw (ex-info "Unexpected protocol" proto)))
+      "//"
+      (.. js/window -location -host))))
 
 (defn connect! [socket]
   (let [deliver (m/dfv)]
     (log/info "WS Connecting …")
+    (set! (.-binaryType socket) "arraybuffer")
     (doto socket
       (.addEventListener "open" (fn [] (log/info "WS Connected.")
                                   (deliver socket)))
@@ -29,18 +28,16 @@
 
 (defn wait-for-close [socket]
   (let [ret (m/dfv)]
-    (.addEventListener socket "close" (fn [_] (ret nil)))
+    (.addEventListener socket "close" (fn [^js event] (ret [(.-code event) (.-reason event)])))
     ret))
 
 (defn make-write-chan [socket mailbox]
-  (.addEventListener socket "message" #(let [decoded (decode (.-data %))]
-                                         (log/trace "🔽" decoded)
-                                         (mailbox decoded)))
+  (.addEventListener socket "message" #(mailbox (.-data %)))
   (fn [value]
     (fn [success failure]
       (try
         (log/trace "🔼" value)
-        (.send socket (encode value))
+        (.send socket value)
         (success nil)
         (catch :default e
           (log/error "Failed to write on socket" e)
@@ -52,24 +49,32 @@
                    (m/amb (do (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "true"))
                             (make-write-chan socket mailbox))
                      (do (log/info "WS Waiting for close…")
-                       (m/? (wait-for-close socket))
-                       (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "false"))
-                       (log/info "WS Closed.")
-                       (log/info "WS Retry in 2 seconds…")
-                       (m/? (m/sleep 2000))
-                       (recur)))
+                       (when (try (let [[code reason] (m/? (wait-for-close socket))]
+                                    (case code
+                                      1011 (do (log/error "WS closed" code reason)
+                                               false)
+                                      true))
+                                  (catch Cancelled _ ; process is cancelled, client should gracefully close socket
+                                    (.close socket 1000 "gracefull shutdown")
+                                    false))
+                         (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "false"))
+                         (log/info "WS Closed.")
+                         (log/info "WS Retry in 2 seconds…")
+                         (m/? (m/sleep 2000))
+                         (recur))))
                    (do (log/info "WS Failed to connect, retrying in 2 seconds…")
                      (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "false"))
                      (m/? (m/sleep 2000))
                      (recur))))))
 
-(defn client [[client server]]
+(defn client [client server]
   (m/reduce {} nil (m/ap
                      (try
-                       (let [mailbox    (m/mbx)
-                             write-chan (m/?< (connect mailbox))]
-                         (log/info "Starting Photon Client")
-                         (m/? (write-chan server)) ; bootstrap server
-                         (m/? (client write-chan mailbox))) ; start client
-                       (catch Cancelled _
-                         "stopped")))))
+                       (let [mailbox (m/mbx)]
+                         (if-let [write-chan (m/?< (connect mailbox))]
+                           (do (log/info "Starting Photon Client")
+                               (m/? (write-chan (io/encode server))) ; bootstrap server
+                               (m/? (client (io/message-writer write-chan)
+                                      (io/message-reader mailbox))))
+                           (log/info "Stopping Photon Client")))
+                       (catch Cancelled _ "stopped")))))
