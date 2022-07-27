@@ -18,13 +18,9 @@
     (= (count x) 2)
     (keyword? (first x))))
 
-(defn bubble "Tag a map as being a bubble" [x] (assert (map? x)) (vary-meta x assoc ::bubble true))
-(defn bubble? [x] (and (map? x) (::bubble (meta x))))
-
 (defn extract-commands [xs]
   (cond
     (command? xs)  [xs]
-    (bubble? xs)     (extract-commands (vals xs))
     (sequential? xs) (transduce (comp (map extract-commands) (remove nil?) ) into [] xs)
     :else            []))
 
@@ -44,7 +40,6 @@
   (mappend ())                    := []
   (mappend #{})                   := []
   (mappend nil nil)               := []
-  (mappend (bubble {}))           := []
 
   ;; correctness
   (mappend [[:a 1]])              := [[:a 1]]
@@ -52,10 +47,6 @@
   (mappend [[:a 1]] nil)          := [[:a 1]]
   (mappend [[:a 1]] [])           := [[:a 1]]
   (mappend [[:a 1]] [[:b 2]])     := [[:a 1] [:b 2]]
-  (mappend (bubble {:a 1}))       := []
-  (mappend (bubble {:a [:b 1]}))  := [[:b 1]]
-  (mappend (bubble {:a [:b 1]})
-           (bubble {:b [:c 2]}))  := [[:b 1] [:c 2]]
 
   ;; inverse
   (mappend nil [[:a 1]])          := [[:a 1]]
@@ -65,9 +56,6 @@
   ;; Nesting
   (mappend [[[:a 1]]])            := [[:a 1]]
   (mappend [[[:a 1]]] [[[:b 2]]]) := [[:a 1] [:b 2]]
-  (mappend [[[:a 1]]]
-    [[[(bubble {:a 1, :b [:c 3]})]]]
-    [[[:b 2]]])                   := [[:a 1] [:c 3] [:b 2]]
   )
 
 (defmacro bubbling [& body]
