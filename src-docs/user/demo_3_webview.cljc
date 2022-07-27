@@ -1,6 +1,6 @@
 (ns user.demo-3-webview
   "Photon fullstack query/view composition with client/server transfer"
-  (:require #?(:clj [datascript.core :as d])
+  (:require [datascript.core :as d]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
@@ -36,8 +36,8 @@
            (p/client
              (dom/tr
                (dom/td (dom/text id))
-               (dom/td (dom/text ~@(:order/email (d/entity db id))))
-               (dom/td (dom/text ~@(:order/gender (d/entity db id))))))))))))
+               (dom/td (dom/text (p/server (:order/email (d/entity db id)))))
+               (dom/td (dom/text (p/server (:order/gender (d/entity db id)))))))))))))
 
 (p/defn App []
   (p/server
