@@ -315,13 +315,14 @@
 
 (p/def foo 1)
 (p/def bar 2)
-#_(tests
-  ; FIXME unstable
-  "internal def"
-  (def !a (atom 0))
-  (with (p/run (! (new ((def bar) (p/fn [] [foo bar]) (m/watch !a)))))
-    % := [1 0] ;; FAIL with [nil 0] in cljs
-    ))
+
+#?(:clj
+   (tests
+     ; FIXME cljs throws `Not a reactive var - hyperfiddle.photon-test/bar`
+     "internal def"
+     (def !a (atom 0))
+     (with (p/run (! (new ((def bar) (p/fn [] [foo bar]) (m/watch !a)))))
+       % := [1 0])))
 
 (tests
   "reactive for"
@@ -649,7 +650,7 @@
     % := nil ; assert returns nil or throws
     (swap! !x not) ; will crash the reactor
     #?(:clj (instance? AssertionError %)
-       :cljs (instance? js/Error %)) := true  ; FAIL in cljs, get ::rcf/timeout instead of Error instance
+       :cljs (instance? js/Error %)) := true
     (swap! !x not) ; reactor will not come back.
     % := ::rcf/timeout))
 
@@ -991,12 +992,11 @@
   % := ::rcf/timeout  ; do not produce 42 twice
   )
 
-;; TODO fixme, hangs
-(comment
+(tests
   "undefined continuous flow, flow is not defined for the first 10ms"
   (let [flow (m/ap (m/? (m/sleep 10 :foo)))]
-    (p/run (! (new (new (p/fn [] (let [a (new flow)] (p/fn [] a)))))))
-    % := ::rcf/timeout ;; FAIL should throw, does nothing instead
+    ((p/local (! (new (new (p/fn [] (let [a (new flow)] (p/fn [] a))))))) ! !)
+    (ex-message %) := "Undefined continuous flow."
     ))
 
 (tests
@@ -1120,11 +1120,11 @@
        (swap! !x inc)
        % := 1))
 
-(comment ;; Hangs the REPL
- (let [n 1000]
-   (dotimes [_ 8]
-     (with (p/run (! (p/for [x (range n)] x)))
-           (count %) := n))))
+(tests                                  ; Used to hang REPL, now passing
+  (let [n 1000]
+    (dotimes [_ 8]
+      (with (p/run (! (p/for [x (range n)] x)))
+        (count %) := n))))
 
 #?(:clj
    (tests ; GG: IDE doc on hover support
@@ -1261,14 +1261,14 @@
  )
 
 (tests
-  "p/for in a conditional"              ; FAIL
+  "p/for in a conditional"
   (def !state (atom true))
   (with (p/run (! (if (p/watch !state) 1 (p/for [_ []]))))
     % := 1
     (swap! !state not)
     % := []
     (swap! !state not)
-    % := 1)                             ; FAIL timeout
+    % := 1)
   )
 
 
@@ -1296,7 +1296,7 @@
                             (catch Pending _)))]
     % := [1 1]
     (reset! !state [3])
-    % := [3 3]                          ; FAIL timeout
+    % := [3 3]
     (dispose)))
 
 (tests
