@@ -104,8 +104,8 @@
   "Given a websocket instance and a missionary task reading a message, run a photon
   program named by the client. Original HTTP upgrade ring request map is
   accessible using `(ring.adapter.jetty9/req-of ws)`."
-  [ws read-msg]
-  (binding [hf/*http-request* (jetty/req-of ws)]
+  [ring-req ws read-msg]
+  (binding [hf/*http-request* ring-req]
     (let [resolvef (bound-fn [not-found x] (r/dynamic-resolve not-found x))]
       ((m/sp
          (try
