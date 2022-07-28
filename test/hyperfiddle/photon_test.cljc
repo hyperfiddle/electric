@@ -1322,3 +1322,14 @@
                         {:a 1, :ns/b 2, 'c 3, 'ns/d 4, "e" 5}]
                     [a b c d e])))
     % := [1 2 3 4 5]))
+
+(tests
+  (def !xs (atom [false]))
+  (with
+    (p/run
+      (! (try (p/for [x (p/watch !xs)]
+                (assert x))
+              (catch #?(:clj Error :cljs js/Error) _ :error))))
+    % := :error
+    (reset! !xs [])
+    % := []))
