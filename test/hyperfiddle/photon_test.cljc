@@ -2,7 +2,8 @@
   "Photon language unit tests"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [clojure.test :as t])
   (:import missionary.Cancelled
            hyperfiddle.photon.Pending))
 
@@ -318,9 +319,9 @@
   ; FIXME unstable
   "internal def"
   (def !a (atom 0))
-  (def dispose (p/run (! (new ((def bar) (p/fn [] [foo bar]) (m/watch !a))))))
-  % := [1 0] ;; FAIL with [nil 0] in cljs
-  (dispose))
+  (with (p/run (! (new ((def bar) (p/fn [] [foo bar]) (m/watch !a)))))
+    % := [1 0] ;; FAIL with [nil 0] in cljs
+    ))
 
 (tests
   "reactive for"
@@ -444,22 +445,19 @@
     (defn Ref [] (new Object))
     (def !z (atom 0))
     (def !xx (atom 0))
-    (def dispose2
-      (p/run
-        #_(doto (element "input")
-            (set-attribute! "type" "text")
-            (set-attribute! "value" x))
-        (! (doto (MutableMap)                                 ; the doto is incrementalized
-             (PutMap "a" (swap! !z inc))                      ; detect effect
-             (PutMap "b" (new (m/watch !xx)))))))
-    % := {"a" 1 "b" 0}
-    (swap! !xx inc)
-                                        ;% := ::rcf/timeout       ; old design no further sample, the map hasn't changed
-    % := {"a" 1 "b" 1} ; alternative (desired) design will sample again
-    (dispose2))
-   :cljs
-   (tests 1 := 1, 1 := 1) ;; for assert count parity in reports
-   )
+    (with (p/run
+            #_(doto (element "input")
+                (set-attribute! "type" "text")
+                (set-attribute! "value" x))
+            (! (doto (MutableMap)                                 ; the doto is incrementalized
+                 (PutMap "a" (swap! !z inc))                      ; detect effect
+                 (PutMap "b" (new (m/watch !xx))))))
+      % := {"a" 1 "b" 0}
+      (swap! !xx inc)
+                                       ;% := ::rcf/timeout       ; old design no further sample, the map hasn't changed
+      % := {"a" 1 "b" 1} ; alternative (desired) design will sample again
+      )))
+
 
 (p/def trace!)
 (p/defn Div [child] (trace! child) [:div child])
@@ -551,7 +549,7 @@
   "reactive clojure.core/fn"
   (def !x (atom 0))
   (def !y (atom 0))
-  (def dispose
+  (with
     (p/run
       (! (let [x (new (m/watch !x))
                y (new (m/watch !y))
@@ -561,13 +559,12 @@
            ; the lambda is as variable as the var it closes over
            ; well defined. It's not allowed to use dataflow inside FN. Compiler can never reach it
            ; compiler will walk it to detect the free variables only
-           (f x)))))
-  % := 0
-  (swap! !y inc)
-  % := 1
-  (swap! !x inc)
-  % := 2
-  (dispose))
+           (f x))))
+    % := 0
+    (swap! !y inc)
+    % := 1
+    (swap! !x inc)
+    % := 2))
 
 ; if we really want to be able to close over reactive values we
 ; need to solve the problem of dynamic extent. if a node closes over a
@@ -580,19 +577,19 @@
   "reactive closure over discarded var"
   (def !a (atom false))
   (def !b (atom 1))
-  (def dispose
+  (with
     (p/run
       (! (new                                               ; call a closure from outside the extent of its parent
            (let [!n (atom (p/fn [] 0))]
              (when (new (m/watch !a))
                (let [x (new (m/watch !b))]
                  (reset! !n (p/fn [] x))))                  ; use mutation to escape the extent of the closure
-             (new (m/watch !n)))))))
-  := 0
-  (swap! !a not)
-  := 1
-  (swap! !a not)                                            ; watch !b is discarded
-  := ::rcf/timeout)
+             (new (m/watch !n))))))
+    := 0
+    (swap! !a not)
+    := 1
+    (swap! !a not)                                            ; watch !b is discarded
+    := ::rcf/timeout))
 
 (comment
   "reactive recursion"
@@ -603,12 +600,11 @@
       (+ (new fib (- n 2))                                        ; self recur
          (new fib (- n 1)))))
   (def !x (atom 5))
-  (def dispose (p/run (! (fib (new (m/watch !x))))))
-  % := 5
-  (swap! !x inc)
-  ; this will reuse the topmost frame, it is still naive though
-  % := 8
-  (dispose))
+  (with (p/run (! (fib (new (m/watch !x)))))
+    % := 5
+    (swap! !x inc)
+    % := 8         ; this will reuse the topmost frame, it is still naive though
+    ))
 
 (comment
   "recur special form"
@@ -618,12 +614,12 @@
       (+ (recur (- n 2)) ; todo
          (recur (- n 1)))))
   (def !x (atom 5))
-  (def dispose (p/run (! (fib' (new (m/watch !x))))))
-  % := 5
-  (swap! !x inc)
-  ; this will reuse the topmost frame, it is still naive though
-  % := 8
-  (dispose))
+  (with (p/run (! (fib' (new (m/watch !x)))))
+    % := 5
+    (swap! !x inc)
+
+    % := 8         ; this will reuse the topmost frame, it is still naive though
+    ))
 
 ; todo loop recur
 
@@ -633,9 +629,8 @@
   (p/defn Ping [x] (case x 0 :done (Pong. (dec x))))
   ; can static call infer $ here? Leo needs to think
   (p/defn Pong [x] (Ping. x))
-  (def dispose (p/run (! (Ping. 3))))
-  % := :done
-  (dispose))
+  (with (p/run (! (Ping. 3)))
+    % := :done))
 
 (tests
   "For reference, Clojure exceptions have dynamic scope"
@@ -668,38 +663,36 @@
     % := ::inner))
 
 (tests
-  (def dispose
+  (with
     (p/run (! (try
                 (let [Nf (try
                            (p/fn [] (Boom.))             ; reactive exception uncaught
                            (catch #?(:clj Exception, :cljs :default) _ ::inner))]
                   (Nf.))
-                (catch #?(:clj Exception, :cljs :default) _ ::outer)))))
-  % := ::outer)
+                (catch #?(:clj Exception, :cljs :default) _ ::outer))))
+    % := ::outer))
 
 ; dumb test
 ;(comment
 ;  "can take value of bind (previously couldn't)"
 ;  (p/def nf)
-;  (def dispose
-;    (p/run (! (binding [nf 1] nf))))
-;  % := 1                                        ; runtime error
-;  (dispose))
+; (with
+;  (p/run (! (binding [nf 1] nf)))
+;  % := 1))                                        ; runtime error
+
 
 (p/def inner)
 (p/def Outer (p/fn [] inner))
 (tests
   "dynamic scope (note that try/catch has the same structure)"
-  (def dispose (p/run (! (binding [inner ::inner] (Outer.)))))
-  % := ::inner
-  (dispose)
+  (with (p/run (! (binding [inner ::inner] (Outer.))))
+    % := ::inner)
 
-  (def dispose (p/run (! (binding [inner ::outer]
+  (with (p/run (! (binding [inner ::outer]
                            (let [Nf (binding [inner ::inner]
                                       (p/fn [] (Outer.)))]     ; binding out of scope
-                             (Nf.))))))
-  % := ::outer
-  (dispose))
+                             (Nf.)))))
+    % := ::outer))
 
 (comment
   "reactive interop with clojure dynamic scope? Watch out for performance gotchas"
@@ -727,13 +720,11 @@
 
 (tests
   "lazy parameters. Flows are not run unless sampled"
-  (def dispose (p/run (new (p/fn [_]) (! :boom))))
-  % := :boom
-  (dispose)
+  (with (p/run (new (p/fn [_]) (! :boom)))
+    % := :boom)
 
-  (def dispose (p/run (let [_ (! :bang)])))                 ; todo, cc/let should sequence effects for cc compat
-  % := :bang
-  (dispose))
+  (with (p/run (let [_ (! :bang)]))                 ; todo, cc/let should sequence effects for cc compat
+    % := :bang))
 
 (tests
   "client/server transfer"
@@ -764,13 +755,13 @@
 (tests
   "reactive pending states"
   ;~(m/reductions {} hyperfiddle.photon-impl.runtime/pending m/none)
-  (def dispose (p/run (! (try true (catch Pending _ ::pending)))))
-  % := true)
+  (with (p/run (! (try true (catch Pending _ ::pending))))
+    % := true))
 
 (tests
-  (p/run (! (try (p/server 1) (catch Pending _ ::pending))))
-  % := ::pending    ; Use try/catch to intercept special pending state
-  % := 1)
+  (with (p/run (! (try (p/server 1) (catch Pending _ ::pending))))
+    % := ::pending    ; Use try/catch to intercept special pending state
+    % := 1))
 
 (tests
   (p/run (! (try [(! 1) (! (p/server 2))]
@@ -797,33 +788,32 @@
 ;  % := ::pending
 ;  % := 1)
 
-(defn hook [mount! unmount!]
-  (m/observe (fn [!]
-               (mount!)
-               (! nil)
-               #(unmount!))))
-
 (tests "object lifecycle"
   (def !x (atom 0))
-  (def dispose!
-    (p/run (!
-             (let [x (new (m/watch !x))]
-               (if (even? x)
-                 (new (p/fn [x]
-                        (new (hook (partial ! 'mount) (partial ! 'unmount)))
-                        x)
-                      x))))))
+  (let [hook (fn [mount! unmount!]
+               (m/observe (fn [!]
+                            (mount!)
+                            (! nil)
+                            #(unmount!))))
+        dispose!
+        (p/run (!
+                 (let [x (new (m/watch !x))]
+                   (if (even? x)
+                     (new (p/fn [x]
+                            (new (hook (partial ! 'mount) (partial ! 'unmount)))
+                            x)
+                       x)))))]
 
-  % := 'mount
-  % := 0
-  (swap! !x inc)
-  % := 'unmount
-  % := nil
-  (swap! !x inc)
-  % := 'mount
-  % := 2
-  (dispose!)
-  % := 'unmount)
+    % := 'mount
+    % := 0
+    (swap! !x inc)
+    % := 'unmount
+    % := nil
+    (swap! !x inc)
+    % := 'mount
+    % := 2
+    (dispose!)
+    % := 'unmount))
 
 (comment
   "object lifecycle 2, cleaner, no bug in this one"
@@ -837,21 +827,21 @@
     (new (hook x !)))
   
   (def !x (atom 0))
-  (def dispose
-    (p/run (!
-             (let [x (new (m/watch !x))]
-               (if (even? x)
-                 (Foo. x !))))))
-  % := 'mount
-  % := 0
-  (swap! !x inc)
-  % := 'unmount
-  % := nil
-  (swap! !x inc)
-  % := 'mount
-  % := 2
-  (dispose)
-  % := 'unmount)
+  (let [dispose
+        (p/run (!
+                 (let [x (new (m/watch !x))]
+                   (if (even? x)
+                     (Foo. x !)))))]
+    % := 'mount
+    % := 0
+    (swap! !x inc)
+    % := 'unmount
+    % := nil
+    (swap! !x inc)
+    % := 'mount
+    % := 2
+    (dispose)
+    % := 'unmount))
 
 (tests
   "object lifecycle 3"
@@ -1333,3 +1323,8 @@
     % := :error
     (reset! !xs [])
     % := []))
+
+;; HACK sequences cljs async tests. Symptomatic of an RCF issue.
+;; Ticket: https://www.notion.so/hyperfiddle/cljs-test-suite-can-produce-false-failures-0b3799f6d2104d698eb6a956b6c51e48
+#?(:cljs (t/use-fixtures :each {:after #(t/async done (js/setTimeout done 1))}))
+
