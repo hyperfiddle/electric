@@ -123,3 +123,5 @@
 (defn includes-str? [v needle]
   (clojure.string/includes? (.toLowerCase (str v))
     (.toLowerCase (str needle))))
+
+(def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)
