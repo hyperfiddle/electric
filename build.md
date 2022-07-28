@@ -25,14 +25,14 @@ clojure -T:build install :version '"'$HYPERFIDDLE_PHOTON_DATE'"'
 
 ## Test local maven repo
 ```clojure
-{:deps {org.clojure/clojure {:mvn/version "1.11.1"}
-        com.hyperfiddle/rcf {:mvn/version "$HYPERFIDDLE_PHOTON_DATE"}}} ; replace value
+{:deps {org.clojure/clojure    {:mvn/version "1.11.1"}
+        com.hyperfiddle/photon {:mvn/version "$HYPERFIDDLE_PHOTON_DATE"}}} ; replace value
 ```
 
 ## Deploy
 
 ```shell
-CLOJARS_USERNAME=dustingetz CLOJARS_PASSWORD=<token> clojure -T:build deploy :version '"'$HYPERFIDDLE_RCF_DATE'"'
+CLOJARS_USERNAME=dustingetz CLOJARS_PASSWORD=<token> clojure -T:build deploy :version '"'$HYPERFIDDLE_PHOTON_DATE'"'
 ```
 
 - `CLOJARS_USERNAME` is your account username.
