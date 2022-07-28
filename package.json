@@ -22,6 +22,6 @@
         "karma-chrome-launcher": "3.1.1",
         "karma-cljs-test": "0.1.0",
         "puppeteer": "15.2.0",
-        "shadow-cljs": "2.16.4"
+        "shadow-cljs": "2.18.0"
     }
 }
