@@ -2,14 +2,9 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
-            [clojure.pprint :as pprint])
+            [user.util :refer [pprint-str]])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-6-bubbles)))
-
-(defn pprint-str [x]
-  (with-out-str
-    (pprint/with-pprint-dispatch pprint/code-dispatch
-      (pprint/pprint x))))
 
 (defn map-commands [f xs] (into [] (comp (map f) (remove nil?)) xs))
 
