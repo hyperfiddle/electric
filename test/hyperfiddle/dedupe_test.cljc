@@ -1,6 +1,6 @@
 (ns hyperfiddle.dedupe-test
   (:require  [missionary.core :as m]
-             [hyperfiddle.rcf :as rcf :refer [tests ! %]]
+             [hyperfiddle.rcf :as rcf :refer [tests with ! %]]
              [hyperfiddle.photon :as p])
   (:import [hyperfiddle.photon Pending Failure])
   #?(:cljs (:require-macros hyperfiddle.dedupe-test)))
@@ -57,22 +57,19 @@
   (dispose)
   )
 
+(tests
+  (def !atom (atom 0))
+  (with (p/run (! (try (deduping (p/server (p/watch !atom)))
+                      (catch Pending _ ::pending))))
+    % := ::pending
+    % := 0
 
-;; https://www.notion.so/hyperfiddle/Different-transfer-behavior-between-clj-and-cljs-example-43b59e02d5ea4d20a79225e23410dda1
-#?(:clj                                ; Guarded until bug fixed, not a blocker.
-   (tests
-     (def !atom (atom 0))
-     (def dispose (p/run (! (try (deduping (p/server (p/watch !atom)))
-                                 (catch Pending _ ::pending)))))
-     % := ::pending
-     % := 0                             ; FAIL in cljs, sees ::rcf/timeout
+    (swap! !atom inc)
+    % := 1
 
-     (swap! !atom inc)
-     % := 1                             ; FAIL in cljs, sees ::rcf/timeout
-
-     (swap! !atom identity)
-     % := ::rcf/timeout
-     (dispose)))
+    (swap! !atom identity)
+    % := ::rcf/timeout
+    (dispose)))
 
 
 ;; https://www.notion.so/hyperfiddle/distribution-glitch-stale-local-cache-of-remote-value-should-be-invalidated-pending-47f5e425d6cf43fd9a37981c9d80d2af
