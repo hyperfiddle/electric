@@ -1,9 +1,11 @@
 (ns hyperfiddle.photon-jetty-adapter
   (:require [ring.adapter.jetty9 :as jetty]
+            [hyperfiddle.api :as hf]
             [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
             [missionary.core :as m]
-            [hyperfiddle.photon-impl.io :as io])
+            [hyperfiddle.photon-impl.io :as io]
+            [hyperfiddle.photon-impl.runtime :as r])
   (:import [missionary Cancelled]
            [java.nio ByteBuffer]
            [org.eclipse.jetty.websocket.api Session SuspendToken]))
@@ -103,10 +105,12 @@
   program named by the client. Original HTTP upgrade ring request map is
   accessible using `(ring.adapter.jetty9/req-of ws)`."
   [ws read-msg]
-  ((m/sp
-     (try
-       (m/? ((p/eval (io/decode (m/? read-msg)))            ; read and eval photon program sent by client
-             (io/message-writer (partial write-msg ws))
-             (io/message-reader read-msg)))
-       (catch Cancelled _)))
-   success (partial failure ws)))
+  (binding [hf/*http-request* (jetty/req-of ws)]
+    (let [resolvef (bound-fn [not-found x] (r/dynamic-resolve not-found x))]
+      ((m/sp
+         (try
+           (m/? ((p/eval resolvef (io/decode (m/? read-msg)))            ; read and eval photon program sent by client
+                 (io/message-writer (partial write-msg ws))
+                 (io/message-reader read-msg)))
+           (catch Cancelled _)))
+       success (partial failure ws)))))
