@@ -5,7 +5,7 @@
             [missionary.core :as m]
             [clojure.test :as t])
   (:import missionary.Cancelled
-           hyperfiddle.photon.Pending))
+           [hyperfiddle.photon Pending Failure]))
 
 
 (tests
@@ -858,6 +858,27 @@
     % := [:up 2]
     (reset! !state [3])
     (hash-set % % %) := #{[:up 3] [:down 1] [:down 2]}))
+
+(tests
+  "object lifecycle 3 with pending state"
+  (defn observer [x]
+    (fn mount [f]
+      (f (! [:up x]))
+      (fn unmount [] (! [:down x]))))
+
+  (def !state (atom [1]))
+  (let [dispose (p/run (try
+                         (p/for [x (p/watch !state)] ; pending state should not trash p/for branches
+                           (new (m/observe (observer x))))
+                         (catch Pending _)))]
+    % := [:up 1]
+    (reset! !state [2])
+    (hash-set % %) := #{[:up 2] [:down 1]}
+    (reset! !state (Failure. (Pending.)))  ; simulate pending state, we cannot use p/server due to distributed glitch
+    % := [:down 2]                         ; FAIL p/for unmounted the branch
+    (reset! !state [2])
+    % := [:up 2]                           ; branch is back up
+    (dispose)))
 
 (p/def x2 1)
 (tests
