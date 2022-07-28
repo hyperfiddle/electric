@@ -15,6 +15,7 @@
                                                          info.sunng/ring-jetty9-adapter-http3 ; no need
                                                          ]}
            com.cognitect/transit-clj      {:mvn/version "1.0.329"}
+           ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
 
            ;; Client
            org.clojure/clojurescript      {:mvn/version "1.11.4"}
