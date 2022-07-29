@@ -60,10 +60,11 @@
     [:hr]
     [:h2 "Numeric input"]
 
-    [:span (let [value (ui/numeric-input {:dom/format        "%.2f"
-                                          :dom/step          0.5
-                                          ::ui/value         (/ 10 3)
-                                          ::ui/value-changed (p/fn [value] value)})]
+    [:span (let [value (ui/input {::ui/type          :number
+                                  :dom/format        "%.2f"
+                                  :dom/step          0.5
+                                  ::ui/value         (/ 10 3)
+                                  ::ui/value-changed (p/fn [value] value)})]
              (dom/text value))]
 
     [:hr]

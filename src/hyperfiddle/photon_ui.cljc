@@ -200,7 +200,10 @@
   (assert (map? props))
   [(valuef props nil)
    (gen-event-handlers props transducers)
-   (select-ns :hyperfiddle.photon-dom props)])
+   (let [dom-props (select-ns :hyperfiddle.photon-dom props)]
+     (if-let [type (::type props)]
+       (assoc dom-props :type type)
+       dom-props))])
 
 (defmacro checkbox
   ([] `(checkbox {}))
@@ -225,19 +228,6 @@
 (defmacro button [props & body]
   `(element dom/button ~props ~@body))
 
-(defmacro input [props]
-  (let [[value events props'] (parse-props ::value props {})
-        auto-value            (gensym "value_")]
-    `(into {}
-       (semicontroller
-         ::focused ~value
-         (p/fn [~auto-value]
-           (dom/input (p/forget (dom/props ~props'))
-             (p/forget (dom/props {:value ~auto-value})) ;; TODO should it pulse?
-             (into [[::focused (not (new (dom/focus-state dom/node)))]
-                    [::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]]
-               [~@events])))))))
-
 (defn format-num [format-str x] #?(:cljs (if format-str
                                            (format format-str x)
                                            (pr-str x))))
@@ -258,6 +248,24 @@
              (into [[::focused (not (new (dom/focus-state dom/node)))]
                     [::value (dom/events "input" parse-input ~auto-value)]]
                [~@events])))))))
+
+(defmacro input
+  ([] `(input {}))
+  ([props]
+   (case (::type props)
+     :number   `(numeric-input ~props)
+     :checkbox `(checkbox ~props)
+     (let [[value events props'] (parse-props ::value props {})
+           auto-value            (gensym "value_")]
+       `(into {}
+          (semicontroller
+            ::focused ~value
+            (p/fn [~auto-value]
+              (dom/input (p/forget (dom/props ~props'))
+                (p/forget (dom/props {:value ~auto-value})) ;; TODO should it pulse?
+                (into [[::focused (not (new (dom/focus-state dom/node)))]
+                       [::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]]
+                  [~@events])))))))))
 
 (defn- index-of [vec val] (.indexOf vec val))
 
