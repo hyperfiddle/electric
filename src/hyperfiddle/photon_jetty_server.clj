@@ -4,11 +4,13 @@
             [ring.adapter.jetty9 :as ring]
             [hyperfiddle.photon-jetty-adapter :as adapter]
             [hyperfiddle.logger :as log]
-            [ring.middleware.basic-authentication :refer [wrap-basic-authentication]]
-            [ring.middleware.cookies :refer [wrap-cookies]]
+            [ring.middleware.basic-authentication :as auth]
+            [ring.middleware.cookies :as cookies]
             [ring.util.response :as res])
   (:import [java.io IOException]
            [java.net BindException]))
+
+(defn authenticate [username password] username) ; demo (accept-all) authentication
 
 (defn wrap-demo-authentication [next-handler]
   ;; Authentication demo, accept any user/password, stores the username in a cookie
@@ -17,8 +19,8 @@
           (if-let [username (:basic-authentication ring-req)]
             (res/set-cookie res "username" username {:http-only true})
             res)))
-    (wrap-cookies)
-    (wrap-basic-authentication (fn [username password] username))))
+    (cookies/wrap-cookies)
+    (auth/wrap-basic-authentication authenticate)))
 
 (defn wrap-default-page [next-handler]
   (fn [ring-req]
@@ -52,9 +54,12 @@
       ;; Jetty 9 forces us to declare WS paths out of a ring handler.
       (merge {:port       8080
               :join?      false
-              :websockets {"/" (wrap-demo-authentication
-                                 (fn [ring-req]
-                                   (adapter/photon-ws-adapter (partial adapter/photon-ws-message-handler ring-req))))}}
+              :websockets {"/" (fn [ring-req]
+                                 (adapter/photon-ws-adapter
+                                   (partial adapter/photon-ws-message-handler
+                                     (-> ring-req
+                                       (auth/basic-authentication-request authenticate)
+                                       (cookies/cookies-request)))))}}
         config))
     (catch IOException err
       (if (instance? BindException (ex-cause err))
