@@ -37,7 +37,7 @@
 
 (defn photon-ws-adapter
   "Start and manage a photon server process hooked onto a websocket."
-  [photon-ws-message-handler]
+  [handler-f]
   (let [state        (atom {:session   nil ; jetty session object
                             :cancel!   nil ; a function cancelling the current photon process
                             :token     nil ; a session suspend token, used to resume a jetty session
@@ -55,7 +55,7 @@
                    (let [session (.getSession ws)]
                      (swap! state assoc
                        :session   session
-                       :cancel!   (photon-ws-message-handler ws messages)  ; Start photon process
+                       :cancel!   (handler-f ws messages)  ; Start photon process
                        :heartbeat ((make-heartbeat session pong-mailbox) (fn [_]) (fn [_])))))
      :on-close   (fn on-close [ws status-code reason]
                    (let [status  {:status status-code, :reason reason}]
