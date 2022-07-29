@@ -46,7 +46,8 @@
 
 (p/defn Todo-list [db]
   (let [time-basis (:max-tx db)]        ; latest tx time, used to acknowledge a value has been saved (transacted) on server
-    ~@(dom/div
+    (p/client
+      (dom/div
         (dom/h1 (dom/text "Todo list - basic"))
         (let [{:keys [::ui/keychord-event]}
               (ui/input {::dom/placeholder "Press enter to create a new item"
@@ -62,11 +63,11 @@
           (when keychord-event
             [::tx-statement (task-create keychord-event)]))
         (dom/div
-          (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
+          (p/for [id (p/server (d/q '[:find [?e ...] :in $ :where [?e :task/status]] db))]
             (dom/label {:style {:display :block}}
-              (let [status             ~@(:task/status (d/entity db id)) ; could be inlined, temporary hack for https://www.notion.so/hyperfiddle/Bug-Nested-p-for-with-transfers-times-out-887c3de8a0e04462b173728869c9da6a
+              (let [status             (p/server (:task/status (d/entity db id))) ; could be inlined, temporary hack for https://www.notion.so/hyperfiddle/Bug-Nested-p-for-with-transfers-times-out-887c3de8a0e04462b173728869c9da6a
                     {:keys [::ui/change-event]} (ui/checkbox
-                                                  {::dom/checked      (case status :active false, :done true)
+                                                  {::ui/value        (case status :active false, :done true)
                                                    ::ui/change-event [time-basis ; acknowledgement
                                                                       (p/fn [js-event]
                                                                         (when js-event
@@ -74,11 +75,11 @@
                                                                           ))]})]
                 (when-not (nil? change-event) ; nil | true | false
                   [::tx-statement (task-status id change-event)]))
-              (dom/span (dom/text (str ~@(:task/description (d/entity db id))))))))
+              (dom/span (dom/text (str (p/server (:task/description (d/entity db id)))))))))
         (dom/p
-          (dom/text (str ~@(count (d/q '[:find [?e ...] :in $ ?status
-                                         :where [?e :task/status ?status]]
-                                    db :active)) " items left"))))))
+          (dom/text (str (p/server (count (d/q '[:find [?e ...] :in $ ?status
+                                                 :where [?e :task/status ?status]]
+                                            db :active))) " items left")))))))
 
 (defn transact [tx-data] #?(:clj (do (prn `transact tx-data)
                                      (d/transact! !conn tx-data)
@@ -96,9 +97,10 @@
     (vec)))
 
 (p/defn App []
-  ~@(if-some [tx (seq (commands->tx (p/deduping (Todo-list. (p/watch !conn)))))]
+  (p/server
+    (if-some [tx (seq (commands->tx (p/deduping (Todo-list. (p/watch !conn)))))]
       (transact tx) ; auto-transact, prints server-side
-      (prn :idle)))
+      (prn :idle))))
 
 (def main
   #?(:cljs (p/boot
