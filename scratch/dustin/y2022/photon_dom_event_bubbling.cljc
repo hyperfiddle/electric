@@ -46,8 +46,6 @@
 
 ; next day
 
-(defn inc-rf [acc _] (inc acc))
-
 (tests
   ((constantly 1) 1 2) := 1
   (first 1 2) := 1
@@ -66,11 +64,13 @@
   ((comp inc #(nth %& 0)) 1 0 0) := 2
   )
 
+(defn inc-rf [acc _] (inc acc))
+
 (p/defn Counting-component []
-  (let [{:keys [::>n] :as el} (Click-counter. (p/watch !label))]
+  (let [{:keys [::<n] :as el} (Click-counter. (p/watch !label))]
     (dom/div
       (dom/text "count: ")
-      (dom/text (new (m/reductions inc-rf 0 >n)))
+      (dom/text (new (m/reductions inc-rf 0 <n)))
       el)))
 
 (p/defn Click-counter [label]
