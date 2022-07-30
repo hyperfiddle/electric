@@ -106,6 +106,7 @@
   accessible using `(ring.adapter.jetty9/req-of ws)`."
   [ring-req ws read-msg]
   (binding [hf/*http-request* ring-req]
+    ; Photon can resolve any dynamic var bound at this point
     (let [resolvef (bound-fn [not-found x] (r/dynamic-resolve not-found x))]
       ((m/sp
          (try
