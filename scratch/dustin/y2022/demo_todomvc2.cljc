@@ -1,11 +1,9 @@
 (ns dustin.y2022.demo-todomvc2
-  (:require clojure.edn
-            [datascript.core :as d]
+  (:require [datascript.core :as d]
             [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-ui :as ui]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.zero :as z])
+            [hyperfiddle.photon-dom :as dom])
   (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros dustin.y2022.demo-todomvc2)))
 
@@ -39,16 +37,9 @@
            ; emit next filter value
            target)))
 
-;(defmacro collect [& body] `(m/ap (m/amb=)))
-
-(defn collect
-  ([a b] (m/ap (m/amb= (m/?> a) (m/?> b))))
-  ([a b c] (m/ap (m/amb= (m/?> a) (m/?> b) (m/?> c)))))
-
 (p/defn TodoStats [state]                                   ; returns tx for cleared todos
   (let [active (p/server (todo-count db :active))
-        done (p/server (todo-count db :done))
-        #_#_[active done] (mapv (partial todo-count db) [:active :done])]
+        done (p/server (todo-count db :done))]
     (println `active active)
     (println `done done)
     (dom/div
@@ -57,28 +48,23 @@
         (dom/strong (dom/text active))
         (dom/span (dom/text (str " " (case active 1 "item" "items") " left"))))
 
-      (concat                                               ; collect tx
-        (let [filter' (dom/ul
-                             {:class "filters"}
-                             (->>
-                               (collect
-                                 (p/fn [] (dom/li (Filter-control. (::filter state) :all "All")))
-                                 (p/fn [] (dom/li (Filter-control. (::filter state) :active "Active")))
-                                 (p/fn [] (dom/li (Filter-control. (::filter state) :done "Completed"))))
-                               (m/relieve {})
-                               new))]
-          (println `filter filter')
-          ; careful to dedupe state, this can infinite loop otherwise
-          #_(swap! !state assoc ::filter filter')
-          nil)        ; don't accidentally emit a tx
+      (when-let [filter' (dom/ul
+                           {:class "filters"}
+                           (dom/li (Filter-control. (::filter state) :all "All"))
+                           (dom/li (Filter-control. (::filter state) :active "Active"))
+                           (dom/li (Filter-control. (::filter state) :done "Completed")))]
 
-        (when (pos? done)
-          (dom/button
-            {:class "clear-completed"}
-            (dom/text (str "Clear completed " done))
-            (when (dom/events "click")                      ; bug - stays up too long if more todos complete
-              (p/for [id (p/server (query-todos db :done))]
-                {:db/id id :task/status :done}))))))))
+        (println `filter filter')
+        (swap! !state assoc ::filter filter')               ; dedupe state at root
+        nil)                                                ; don't accidentally emit a tx
+
+      (when (pos? done)
+        (dom/button
+          {:class "clear-completed"}
+          (dom/text (str "Clear completed " done))
+          (when (dom/events "click")                        ; bug - stays up too long if more todos complete
+            (p/for [id (p/server (query-todos db :done))]
+              {:db/id id :task/status :done})))))))
 
 (p/defn TodoItem [id]
   (p/server
@@ -92,8 +78,7 @@
                         ::ui/input-event (p/fn [e]
                                            [{:db/id id :task/status (case (-> e :target :checked)
                                                                       false :active
-                                                                      true :done)}]
-                                           #_(reset! !running))})
+                                                                      true :done)}])})
           (dom/span (dom/text (str description))))))))
 
 (p/defn TodoList [state]
@@ -101,29 +86,18 @@
     (let [active (p/server (todo-count db :active))]
       (dom/section
         {:class "main"}
+        (ui/checkbox {:class           "toggle-all"
+                      ::ui/value       (zero? active)
+                      ::ui/input-event (p/fn [e]
+                                         ; Toggle all to done, unless everything is already done, in which case toggle all to active.
+                                         (let [status' (if (pos? active) :done :active)]
+                                           (p/for [id (p/server (query-todos db :active))]
+                                             {:db/id id :task/status status'})))})
         (dom/ul
           {:class "todo-list"}
           ;(apply concat)                                    ; merge txes
-          (p/for [id (p/server (query-todos db :active #_(::filter state)))]
-            (TodoItem. id)))
-
-        #_(->>
-            (collect
-              (p/fn []
-                (ui/checkbox {:class           "toggle-all"
-                              ::ui/value       (zero? active)
-                              ::ui/input-event (p/fn [e]
-                                                 ; Toggle all to done, unless everything is already done, in which case toggle all to active.
-                                                 (let [status' (if (pos? active) :done :active)]
-                                                   (p/for [id (p/server (query-todos db :active))]
-                                                     {:db/id id :task/status status'})))}))
-              (p/fn []
-                (dom/ul
-                  {:class "todo-list"}
-                  (apply concat                             ; merge txes
-                         (p/for [id (p/server (query-todos db (::filter state)))]
-                           (TodoItem. id)))))
-              ) (m/relieve {}) new)))))
+          (p/for [id (p/server (query-todos db (::filter state)))]
+            (TodoItem. id)))))))
 
 (p/defn CreateTodo []
   (ui/input
