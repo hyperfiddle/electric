@@ -9,8 +9,6 @@
 
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))       ; server
 (p/def db)                                                  ; server
-(p/def next-id!)                                            ; client
-(p/def basis-t)                                             ; client
 (def !state #?(:cljs (atom {::filter :all})))               ; client
 
 (defn query-todos [db filter]
@@ -31,44 +29,46 @@
       (or 0)))
 
 (p/defn Filter-control [state target label]
-  (dom/a {:class (if (= state target) "selected")}
-         (dom/text label)
-         (when (dom/events "click")
-           ; emit next filter value
-           target)))
+  (dom/button
+    {:class (if (= state target) "selected")}
+    (dom/text label)
+    (when (dom/events "click")
+      #_target ; emit next filter value
+      (swap! !state assoc ::filter (p/deduping target))
+      nil)))
 
-(p/defn TodoStats [state]                                   ; returns tx for cleared todos
+(defn transact! "prevent remote errors (attempt to serialize and move d/transact return value)"
+  [!conn tx]
+  #?(:clj (do (d/transact! !conn tx) nil)
+     :cljs (assert false "transact from wrong peer (called on: client)")))
+
+(p/defn TodoStats [state]
   (let [active (p/server (todo-count db :active))
         done (p/server (todo-count db :done))]
-    (println `active active)
-    (println `done done)
     (dom/div
       (dom/span
         {:class "todo-count"}
         (dom/strong (dom/text active))
         (dom/span (dom/text (str " " (case active 1 "item" "items") " left"))))
 
-      (when-let [filter' (dom/ul
-                           {:class "filters"}
-                           (dom/li (Filter-control. (::filter state) :all "All"))
-                           (dom/li (Filter-control. (::filter state) :active "Active"))
-                           (dom/li (Filter-control. (::filter state) :done "Completed")))]
-
-        (println `filter filter')
-        (swap! !state assoc ::filter filter')               ; dedupe state at root
-        nil)                                                ; don't accidentally emit a tx
+      (dom/ul
+        {:class "filters"}
+        (dom/li (Filter-control. (::filter state) :all "All"))
+        (dom/li (Filter-control. (::filter state) :active "Active"))
+        (dom/li (Filter-control. (::filter state) :done "Completed")))
 
       (when (pos? done)
         (dom/button
           {:class "clear-completed"}
           (dom/text (str "Clear completed " done))
           (when (dom/events "click")                        ; bug - stays up too long if more todos complete
-            (p/for [id (p/server (query-todos db :done))]
-              {:db/id id :task/status :done})))))))
+            (let [tx (p/for [id (p/server (query-todos db :done))]
+                       [:db/retractEntity id])]
+              (p/server (transact! !conn tx)))))))))
 
 (p/defn TodoItem [id]
   (p/server
-    (let [x #_{:keys [:task/status :task/description]} (d/entity db id)
+    (let [x #_{:keys [:task/status :task/description]} (d/entity db id) ; Unable to resolve - clojure.core/--destructure-map
           status (:task/status x)
           description (:task/description x)]
       (p/client
@@ -76,28 +76,28 @@
           {:class (case status :done "completed" :active "editing")}
           (ui/checkbox {::ui/value       (#{:done} status)
                         ::ui/input-event (p/fn [e]
-                                           [{:db/id id :task/status (case (-> e :target :checked)
-                                                                      false :active
-                                                                      true :done)}])})
+                                           (let [tx [{:db/id id :task/status (case (-> e :target :checked)
+                                                                               false :active true :done)}]]
+                                             (p/server (transact! !conn tx))))})
           (dom/span (dom/text (str description))))))))
 
 (p/defn TodoList [state]
   (p/client
-    (let [active (p/server (todo-count db :active))]
-      (dom/section
-        {:class "main"}
+    (dom/section
+      {:class "main"}
+      (let [active (p/server (todo-count db :active))]
         (ui/checkbox {:class           "toggle-all"
                       ::ui/value       (zero? active)
                       ::ui/input-event (p/fn [e]
                                          ; Toggle all to done, unless everything is already done, in which case toggle all to active.
-                                         (let [status' (if (pos? active) :done :active)]
-                                           (p/for [id (p/server (query-todos db :active))]
-                                             {:db/id id :task/status status'})))})
-        (dom/ul
-          {:class "todo-list"}
-          ;(apply concat)                                    ; merge txes
-          (p/for [id (p/server (query-todos db (::filter state)))]
-            (TodoItem. id)))))))
+                                         (let [status' (if (pos? active) :done :active)
+                                               tx (p/for [id (p/server (query-todos db :active))]
+                                                    {:db/id id :task/status status'})]
+                                           (p/server (transact! !conn tx))))}))
+      (dom/ul
+        {:class "todo-list"}
+        (p/for [id (p/server (query-todos db (::filter state)))]
+          (TodoItem. id))))))
 
 (p/defn CreateTodo []
   (ui/input
@@ -106,14 +106,12 @@
      ::ui/keychord-event (p/fn [e]
                            (let [description (dom/oget dom/node :value)]
                              (dom/oset! dom/node :value "")
-                             [{:task/description description
-                               :task/status      :active
-                               :db/id            (str ::tempid "-" (next-id!))}]))}))
+                             (p/server (transact! !conn [{:task/description description
+                                                          :task/status      :active}]))))}))
 
 (p/defn TodoMVC "returns transactions" [state]
   (p/client
     (dom/div
-      ;(concat)
       (dom/section
         {:class "todoapp"}
         (dom/header
@@ -130,30 +128,21 @@
 
       (dom/footer
         {:class "info"}
-        (dom/p (dom/text "Double-click to edit a todo")))
-
-      (dom/div
-        (dom/dl
-          (dom/dt (dom/text "count :all")) (dom/dd (dom/text (pr-str (p/server (todo-count db :all)))))
-          (dom/dt (dom/text "query :all")) (dom/dd (dom/text (pr-str (p/server (query-todos db :all)))))
-          (dom/dt (dom/text "state")) (dom/dd (dom/text (pr-str state))))))))
-
-(defn transact [tx] #?(:clj (do (prn `transact tx) (d/transact! !conn tx) nil)))
+        (dom/p (dom/text "Double-click to edit a todo"))))))
 
 (p/defn App []
   (p/client
-    (let [!t (atom 0)
-          state (->> (m/watch !state) (m/eduction (dedupe)) (m/relieve {}) new)] ; prevent infinite loop on setting same filter
-      (binding [basis-t (p/watch !t)                        ; basis-t is used to ack completed transact to controls
-                next-id! (partial swap! (atom 0) inc)]
-        (prn `basis-t basis-t)
-        (p/server
-          (binding [db (p/watch !conn)]
-            (p/client
-              (let [el (TodoMVC. state)]
-                (if-some [tx (seq (::ui/keychord-event el))]
-                  (swap! !t + (do (p/server (transact tx)) 1)) ; auto-transact
-                  (prn :idle))))))))))
+    (let [state (p/watch !state)]
+      (p/server
+        (binding [db (p/watch !conn)]
+          (p/client
+            (TodoMVC. state)
+            (dom/h1 (dom/text "Diagnostics"))
+            (dom/div
+              (dom/dl
+                (dom/dt (dom/text "count :all")) (dom/dd (dom/text (pr-str (p/server (todo-count db :all)))))
+                (dom/dt (dom/text "query :all")) (dom/dd (dom/text (pr-str (p/server (query-todos db :all)))))
+                (dom/dt (dom/text "state")) (dom/dd (dom/text (pr-str state)))))))))))
 
 (def main #?(:cljs (p/boot (try (binding [dom/node (dom/by-id "root")] (App.)) (catch Pending _)))))
 
