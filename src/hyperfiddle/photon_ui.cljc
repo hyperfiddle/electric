@@ -211,10 +211,11 @@
      (let [[value events props'] (parse-props ::value props {})
            auto-value            (gensym "value_")]
        `(into {}
-          (let [~auto-value (or ~value false)]
+          (let [~auto-value ~value]
             (dom/input (p/forget (dom/props ~props'))
-              (p/forget (dom/props {:type    :checkbox
-                                    :checked ~auto-value}))
+              (p/forget (dom/props {:type          :checkbox
+                                    :checked       ~auto-value
+                                    :indeterminate (nil? ~auto-value)}))
               (into [[::value (dom/events "change" (map (dom/oget :target :checked)) ~auto-value)]]
                 [~@events])))))))
 
