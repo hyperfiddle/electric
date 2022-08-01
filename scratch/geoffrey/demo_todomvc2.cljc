@@ -64,6 +64,8 @@
           (when click-event
             [::clear :done]))))))
 
+(defn focus! [node] (.focus node))
+
 (p/defn TodoItem [state id]
   (p/server
     (let [x           #_ {:keys [:task/status :task/description]} (d/entity db id) ; Unable to resolve - clojure.core/--destructure-map
@@ -89,14 +91,21 @@
                 [::editing id])))
 
           (when (= id (::editing state))
-                (let [{:keys [::ui/keychord-event]} (ui/input {::dom/class         "edit"
-                                                               ::ui/value          description
-                                                               ::ui/keychords      #{"enter"}
-                                                               ::ui/keychord-event (p/fn [e] (-> e :target :value))})]
-                  (when keychord-event
-                    [[::set-description [id keychord-event]]
-                     [::done-editing nil]])))
-          (let [{:keys [::ui/click-event]} (ui/button {::dom/class "destroy"
+            (let [{:keys [::ui/keychord-event]} (ui/input {::dom/class         "edit"
+                                                           ::dom/autofocus     true
+                                                           ::ui/value          description
+                                                           ::ui/keychords      #{"enter" "esc"}
+                                                           ::ui/keychord-event (p/fn [e]
+                                                                                 {:identifier (:identifier e)
+                                                                                  :value      (-> e :target :value)})}
+                                                  (focus! dom/node))]
+              (when keychord-event
+                (let [{:keys [identifier value]} keychord-event]
+                  (case identifier
+                    "esc" [::done-editing nil]
+                    "enter" [[::set-description [id value]]
+                             [::done-editing nil]])))))
+          (let [{:keys [::ui/click-event]} (ui/button {::dom/class      "destroy"
                                                        ::ui/click-event (p/fn [_] true)})]
             (when click-event
               [::destroy id])))))))
