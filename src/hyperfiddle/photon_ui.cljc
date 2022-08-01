@@ -152,7 +152,8 @@
 
 (defmacro impulse [ack F >xs]
   `(let [val# (z/impulse ~ack ~>xs)]
-     (new ~F val#)))
+     (when (some? val#)
+       (new ~F val#))))
 
 (defmacro auto-impulse [Ack >xs]
   `(let [!ack# (atom 0)
