@@ -13,7 +13,8 @@
 (p/defn App []
   (dom/h1 (dom/text "10k dom elements"))
   (let [!running (atom true) running? (p/watch !running)
-        t (if running? z/time 0)]
+        t (p/deduping (if running? z/time 0))
+        #_#_t (if running? (dom/clock. 5) 0)]
     (ui/checkbox {::dom/id         "checkbox-running"
                   ::ui/value       running?
                   ::ui/input-event (p/fn [e] (reset! !running (-> e :target :checked)))})
@@ -22,12 +23,14 @@
           height (Math/floor (* width 0.64))]
       (dom/div (dom/text (* width height)) (dom/text " elements"))
       (dom/div
-        {:style {:font-family "courier" :font-size "9px" :margin 0 :padding 0}}
+        {:style {:font-family "monospace" :font-size "9px" :margin 0 :padding 0}}
         (p/for [y (range 0 height)]
           (dom/div
             (p/for [x (range 0 width)]
               (let [v (foo t)]
-                (dom/span {:style {:color (case v 0 "red" "#ccc")}}
+                (dom/span {:style {:font-variant-numeric "tabular-nums"
+                                   :width "1em"
+                                   :color ({0 "red"} v "#ccc")}}
                           (dom/text v))))))))))
 
 (def main
