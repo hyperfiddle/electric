@@ -253,7 +253,7 @@
 
 (defmacro input
   ([] `(input {}))
-  ([props]
+  ([props & body]
    (case (::type props)
      :number   `(numeric-input ~props)
      :checkbox `(checkbox ~props)
@@ -265,7 +265,8 @@
             (p/fn [~auto-value]
               (dom/input (p/forget (dom/props ~props'))
                 (p/forget (dom/props {:value ~auto-value})) ;; TODO should it pulse?
-                (into [[::focused (not (new (dom/focus-state dom/node)))]
+                (into [(do ~@body)
+                       [::focused (not (new (dom/focus-state dom/node)))]
                        [::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]]
                   [~@events])))))))))
 
