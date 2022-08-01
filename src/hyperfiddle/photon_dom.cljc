@@ -7,6 +7,7 @@
             #?(:cljs [goog.object :as o])
             #?(:cljs [goog.style])
             [hyperfiddle.rcf :as rcf :refer [tests]]
+            [hyperfiddle.logger :as log]
             [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [with oget]]))
   #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
@@ -168,7 +169,9 @@
              (cond->> (m/observe (fn [!]
                                    (let [^js handler (new KeyboardShortcutHandler node)]
                                      (doseq [chord (if (string? keychord) #{keychord} keychord)]
-                                       (.registerShortcut handler chord chord))
+                                       (try (.registerShortcut handler chord chord)
+                                            (catch :default err
+                                              (log/error (.-message err) ". Example of keychord identifiers: esc, enter, shift+a"))))
                                      ;; FIXME, desired behavior is `setModifierShortcutsAreGlobal` but it
                                      ;; doesn’t work with codemirror
                                      (.setAllShortcutsAreGlobal handler true)
