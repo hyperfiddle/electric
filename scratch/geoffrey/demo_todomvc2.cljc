@@ -75,7 +75,17 @@
                                            (let [tx [{:db/id id :task/status (case (-> e :target :checked)
                                                                                false :active true :done)}]]
                                              (p/server (transact! !conn tx))))})
-          (dom/span (dom/text (str description))))))))
+          (let [!editing (atom false)]
+            (if (p/watch !editing)
+              (ui/input {::ui/value          description
+                         ::ui/keychords      #{"enter"}
+                         ::ui/keychord-event (p/fn [_]
+                                               (let [tx [{:db/id id, :task/description (:value dom/node)}]]
+                                                 (p/server (transact! !conn tx))))})
+              (ui/element dom/span
+                {::ui/dblclick-event (p/fn [_]
+                                       (reset! !editing true))}
+                (dom/text (str description))))))))))
 
 (p/defn TodoList [state]
   (p/client
