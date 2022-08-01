@@ -29,12 +29,11 @@
       (or 0)))
 
 (p/defn Filter-control [state target label]
-  (dom/label
-    (let [{:keys [::ui/change-event]} (ui/checkbox {::ui/value        (= state target)
-                                                    ::ui/change-event (p/fn [_] target)})]
-      (when change-event
-        [::set-filter target]))
-    (dom/text label)))
+  (let [{:keys [::ui/click-event]} (ui/element dom/a {::dom/class (when (= state target) "selected")
+                                                      ::ui/click-event (p/fn [_] target)}
+                                     (dom/text label))]
+    (when click-event
+      [::set-filter target])))
 
 (defn transact! "prevent remote errors (attempt to serialize and move d/transact return value)"
   [!conn tx]
@@ -46,19 +45,19 @@
         done   (p/server (todo-count db :done))]
     (dom/div
       (dom/span
-        {:class "todo-count"}
+        {:id "todo-count"}
         (dom/strong (dom/text active))
         (dom/span (dom/text (str " " (case active 1 "item" "items") " left"))))
 
       (dom/ul
-        {:class "filters"}
+        {:id "filters"}
         (dom/li (Filter-control. (::filter state) :all "All"))
         (dom/li (Filter-control. (::filter state) :active "Active"))
         (dom/li (Filter-control. (::filter state) :done "Completed")))
 
       (when (pos? done)
         (let [{:keys [::ui/click-event]} (ui/button
-                                           {::dom/class "clear-completed"
+                                           {::dom/id "clear-completed"
                                             ::ui/click-event (p/fn [_] ; bug - stays up too long if more todos complete
                                                                true)}
                                            (dom/text (str "Clear completed " done)))]
@@ -72,50 +71,58 @@
           description (:task/description x)]
       (p/client
         (dom/li
-          {:class (case status :done "completed" :active "editing")}
-          (let [{:keys [::ui/input-event]} (ui/checkbox {::ui/value       (= :done status)
-                                                         ::ui/input-event (p/fn [e] (-> e :target :checked))})]
-            (case input-event
-              true  [::set-done id]
-              false [::set-active id]
-              nil))
-          (if (= id (::editing state))
-            (let [{:keys [::ui/keychord-event]} (ui/input {::ui/value          description
-                                                           ::ui/keychords      #{"enter"}
-                                                           ::ui/keychord-event (p/fn [e] (-> e :target :value))})]
-              (when keychord-event
-                [[::set-description [id keychord-event]]
-                 [::done-editing nil]]))
-            (let [{:keys [::ui/dblclick-event]} (ui/element dom/span
+          {:class [(when (= :done status) "completed")
+                   (when (= id (::editing state)) "editing")]}
+          (dom/div {:class "view"}
+            (let [{:keys [::ui/input-event]} (ui/checkbox {::dom/class      "toggle"
+                                                           ::ui/value       (= :done status)
+                                                           ::ui/input-event (p/fn [e] (-> e :target :checked))})]
+              (case input-event
+                true  [::set-done id]
+                false [::set-active id]
+                nil))
+
+            (let [{:keys [::ui/dblclick-event]} (ui/element dom/label
                                                   {::ui/dblclick-event (p/fn [_] true)}
                                                   (dom/text (str description)))]
               (when dblclick-event
-                [::editing id]))))))))
+                [::editing id])))
+
+          (when (= id (::editing state))
+                (let [{:keys [::ui/keychord-event]} (ui/input {::dom/class         "edit"
+                                                               ::ui/value          description
+                                                               ::ui/keychords      #{"enter"}
+                                                               ::ui/keychord-event (p/fn [e] (-> e :target :value))})]
+                  (when keychord-event
+                    [[::set-description [id keychord-event]]
+                     [::done-editing nil]]))))))))
 
 (p/defn TodoList [state]
   (p/client
-    (dom/section
-      {:class "main"}
-      (let [active                     (p/server (todo-count db :active))
-            all                        (p/server (todo-count db :all))
-            done                       (p/server (todo-count db :done))
-            {:keys [::ui/input-event]} (ui/checkbox {::dom/class      "toggle-all"
-                                                     ::ui/value       (cond
-                                                                        (= all done)   true
-                                                                        (= all active) false
-                                                                        :else          nil)
-                                                     ::ui/input-event (p/fn [_] true)})]
-        (when input-event
-          (if (= all done) [::toggle-all :active] [::toggle-all :done])))
-      (dom/ul
-        {:class "todo-list"}
-        (p/for [id (p/server (sort (query-todos db (::filter state))))]
-          (TodoItem. state id))))))
+    (dom/div
+      (dom/section
+        {:id "main"}
+        (let [active                     (p/server (todo-count db :active))
+              all                        (p/server (todo-count db :all))
+              done                       (p/server (todo-count db :done))
+              {:keys [::ui/input-event]} (ui/checkbox {::dom/id         "toggle-all"
+                                                       ::ui/value       (cond
+                                                                          (= all done)   true
+                                                                          (= all active) false
+                                                                          :else          nil)
+                                                       ::ui/input-event (p/fn [_] true)})]
+          (dom/label {:for "toggle-all"} (dom/text "Mark all as complete"))
+          (when input-event
+            (if (= all done) [::toggle-all :active] [::toggle-all :done])))
+        (dom/ul {:id "todo-list"}
+          (p/for [id (p/server (sort (query-todos db (::filter state))))]
+            (TodoItem. state id)))))))
 
 (p/defn CreateTodo []
   (let [{:keys [::ui/keychord-event]}
         (ui/input
-          {::dom/placeholder   "What needs to be done?"
+          {::dom/id "new-todo"
+           ::dom/placeholder   "What needs to be done?"
            ::ui/keychords      #{"enter"}
            ::ui/keychord-event (p/fn [e]
                                  (let [description (dom/oget dom/node :value)]
@@ -128,21 +135,21 @@
   (p/client
     (dom/div
       (dom/section
-        {:class "todoapp"}
+        {:id "todoapp"}
         (dom/header
-          {:class "header"}
+          {:id "header"}
           (dom/h1 (dom/text "TodoMVC"))
-          (CreateTodo.)))
+          (CreateTodo.))
 
-      (when (p/server (pos? (todo-count db :all)))
-        (TodoList. state))
+        (when (p/server (pos? (todo-count db :all)))
+          (TodoList. state))
+
+        (dom/footer
+          {:id "footer"}
+          (TodoStats. state)))
 
       (dom/footer
-        {:class "footer"}
-        (TodoStats. state))
-
-      (dom/footer
-        {:class "info"}
+        {:id "info"}
         (dom/p (dom/text "Double-click to edit a todo"))))))
 
 (defn commands->tx
@@ -181,6 +188,7 @@
       (p/server
         (binding [db (p/watch !conn)]
           (p/client
+            (dom/link {:rel :stylesheet, :href "todomvc.css"})
             (let [commands (p/deduping (TodoMVC. state))]  ; FIXME deduping impacted by Pending
               (dom/h1 (dom/text "Diagnostics"))
               (dom/div
