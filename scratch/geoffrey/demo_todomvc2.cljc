@@ -95,7 +95,11 @@
                                                                ::ui/keychord-event (p/fn [e] (-> e :target :value))})]
                   (when keychord-event
                     [[::set-description [id keychord-event]]
-                     [::done-editing nil]]))))))))
+                     [::done-editing nil]])))
+          (let [{:keys [::ui/click-event]} (ui/button {::dom/class "destroy"
+                                                       ::ui/click-event (p/fn [_] true)})]
+            (when click-event
+              [::destroy id])))))))
 
 (p/defn TodoList [state]
   (p/client
@@ -167,7 +171,8 @@
                                 ;; Toggle all to done, unless everything is already done, in which case toggle all to active.
                                 ::toggle-all      (when (#{:done :active} value)
                                                     (let [ids (query-todos db (if (= :done value) :active :done))]
-                                                      (map (fn [id] {:db/id id, :task/status value}) ids))))))
+                                                      (map (fn [id] {:db/id id, :task/status value}) ids)))
+                                ::destroy         [[:db/retractEntity value]])))
     (filter some?)
     (vec)))
 
