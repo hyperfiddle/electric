@@ -211,21 +211,23 @@
   ([props]
      (let [[value events props'] (parse-props ::value props {})
            auto-value            (gensym "value_")]
-       `(into {}
-          (let [~auto-value ~value]
-            (dom/input (p/forget (dom/props ~props'))
-              (p/forget (dom/props {:type          :checkbox
-                                    :checked       ~auto-value
-                                    :indeterminate (nil? ~auto-value)}))
-              (into [[::value (dom/events "change" (map (dom/oget :target :checked)) ~auto-value)]]
-                [~@events])))))))
+       `(dom/bubble
+          (into {}
+            (let [~auto-value ~value]
+              (dom/input (p/forget (dom/props ~props'))
+                (p/forget (dom/props {:type          :checkbox
+                                      :checked       ~auto-value
+                                      :indeterminate (nil? ~auto-value)}))
+                (into [[::value (dom/events "change" (map (dom/oget :target :checked)) ~auto-value)]]
+                  [~@events]))))))))
 
 (defmacro element [tag props & body]
   (let [[_ events props] (parse-props (constantly nil) props {})]
-    `(into {}
-       (~tag (p/forget (dom/props ~props))
-        (into [(do ~@body)]           ; coerced to a map
-          [~@events])))))
+    `(dom/bubble
+       (into {}
+         (~tag (p/forget (dom/props ~props))
+          (into [(do ~@body)]           ; coerced to a map
+            [~@events]))))))
 
 (defmacro button [props & body]
   `(element dom/button ~props ~@body))
@@ -240,16 +242,17 @@
 (defmacro numeric-input [props]
   (let [[value events props'] (parse-props ::value props {})
         auto-value            (gensym "value_")]
-    `(into {}
-       (semicontroller
-         ::focused ~value
-         (p/fn [~auto-value]
-           (dom/input (p/forget (dom/props ~props'))
-             (p/forget (dom/props {:value (format-num ~(::format props') ~auto-value)
-                                   :type  :number})) ;; TODO should it pulse?
-             (into [[::focused (not (new (dom/focus-state dom/node)))]
-                    [::value (dom/events "input" parse-input ~auto-value)]]
-               [~@events])))))))
+    `(dom/bubble
+       (into {}
+         (semicontroller
+           ::focused ~value
+           (p/fn [~auto-value]
+             (dom/input (p/forget (dom/props ~props'))
+               (p/forget (dom/props {:value (format-num ~(::format props') ~auto-value)
+                                     :type  :number})) ;; TODO should it pulse?
+               (into [[::focused (not (new (dom/focus-state dom/node)))]
+                      [::value (dom/events "input" parse-input ~auto-value)]]
+                 [~@events]))))))))
 
 (defmacro input
   ([] `(input {}))
@@ -259,16 +262,17 @@
      :checkbox `(checkbox ~props)
      (let [[value events props'] (parse-props ::value props {})
            auto-value            (gensym "value_")]
-       `(into {}
-          (semicontroller
-            ::focused ~value
-            (p/fn [~auto-value]
-              (dom/input (p/forget (dom/props ~props'))
-                (p/forget (dom/props {:value ~auto-value})) ;; TODO should it pulse?
-                (into [(do ~@body)
-                       [::focused (not (new (dom/focus-state dom/node)))]
-                       [::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]]
-                  [~@events])))))))))
+       `(dom/bubble
+          (into {}
+            (semicontroller
+              ::focused ~value
+              (p/fn [~auto-value]
+                (dom/input (p/forget (dom/props ~props'))
+                  (p/forget (dom/props {:value ~auto-value})) ;; TODO should it pulse?
+                  (into [(do ~@body)
+                         [::focused (not (new (dom/focus-state dom/node)))]
+                         [::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]]
+                    [~@events]))))))))))
 
 (defn- index-of [vec val] (.indexOf vec val))
 
@@ -287,44 +291,46 @@
            ~auto-value   ~value
            selected#     (index-of ~auto-options ~auto-value) ; TODO accept a keyfn prop instead of comparing with `=`.
            ]
-       (into {}
-         (dom/select (p/forget (dom/props ~props'))
-           (p/forget (dom/props {:value ~auto-value}))
-           (when (= -1 selected#)
-             (dom/option {:disabled true
-                          :selected true}
-               (dom/text (:text ~auto-value))))
-           (p/for [[idx# option#] (map-indexed vector ~auto-options)]
-             (dom/option {:value idx#}
-               (when (= selected# idx#)
-                 (dom/props {:selected true}))
-               (dom/text (:text option#))))
-           (into [[::value (dom/events "change" (map (parse-select-value ~auto-options)) ~auto-value)]]
-             [~@events]))))))
+       (dom/bubble
+         (into {}
+           (dom/select (p/forget (dom/props ~props'))
+             (p/forget (dom/props {:value ~auto-value}))
+             (when (= -1 selected#)
+               (dom/option {:disabled true
+                            :selected true}
+                 (dom/text (:text ~auto-value))))
+             (p/for [[idx# option#] (map-indexed vector ~auto-options)]
+               (dom/option {:value idx#}
+                 (when (= selected# idx#)
+                   (dom/props {:selected true}))
+                 (dom/text (:text option#))))
+             (into [[::value (dom/events "change" (map (parse-select-value ~auto-options)) ~auto-value)]]
+               [~@events])))))))
 
 (defmacro native-typeahead [props]
   (let [[value events props'] (parse-props ::value props {})
         auto-value            (gensym "value_")
         auto-list             (str (gensym "list_"))]
-    `(into {}
-       (semicontroller
-         ::focused ~value
-         (p/fn [~auto-value]
-           (let [res#     (into {}
-                            (dom/input (p/forget (dom/props ~props'))
-                              (p/forget (dom/props {:type  :search
-                                                    :list  ~auto-list
-                                                    :value ~auto-value}))
-                              (into [[::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]
-                                     [::focused (not (new (dom/focus-state dom/node)))]]
-                                [~@events])))
-                 needle#  (::value res#)
-                 options# (when-let [options# ~(::options props `(p/fn [_#] nil))]
-                            (new options# needle#))]
-             (dom/datalist {:id ~auto-list}
-               (p/for [option# options#]
-                 (dom/option {:id (:value option#)} (dom/text (:text option#)))))
-             (vec res#)))))))
+    `(dom/bubble
+       (into {}
+         (semicontroller
+           ::focused ~value
+           (p/fn [~auto-value]
+             (let [res#     (into {}
+                              (dom/input (p/forget (dom/props ~props'))
+                                (p/forget (dom/props {:type  :search
+                                                      :list  ~auto-list
+                                                      :value ~auto-value}))
+                                (into [[::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]
+                                       [::focused (not (new (dom/focus-state dom/node)))]]
+                                  [~@events])))
+                   needle#  (::value res#)
+                   options# (when-let [options# ~(::options props `(p/fn [_#] nil))]
+                              (new options# needle#))]
+               (dom/datalist {:id ~auto-list}
+                 (p/for [option# options#]
+                   (dom/option {:id (:value option#)} (dom/text (:text option#)))))
+               (vec res#))))))))
 
 ;;;;;;;;;;;;;;;;;;
 ;; scratch zone ;;
