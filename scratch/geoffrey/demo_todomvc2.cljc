@@ -29,11 +29,9 @@
       (or 0)))
 
 (p/defn Filter-control [state target label]
-  (let [{:keys [::ui/click-event]} (ui/element dom/a {::dom/class (when (= state target) "selected")
-                                                      ::ui/click-event (p/fn [_] target)}
-                                     (dom/text label))]
-    (when click-event
-      [::set-filter target])))
+  (ui/element dom/a {::dom/class (when (= state target) "selected")
+                     ::ui/click-event (p/fn [_] [::set-filter target])}
+    (dom/text label)))
 
 (defn transact! "prevent remote errors (attempt to serialize and move d/transact return value)"
   [!conn tx]
@@ -44,25 +42,19 @@
   (let [active (p/server (todo-count db :active))
         done   (p/server (todo-count db :done))]
     (dom/div
-      (dom/span
-        {:id "todo-count"}
+      (dom/span {:id "todo-count"}
         (dom/strong (dom/text active))
         (dom/span (dom/text (str " " (case active 1 "item" "items") " left"))))
 
-      (dom/ul
-        {:id "filters"}
+      (dom/ul {:id "filters"}
         (dom/li (Filter-control. (::filter state) :all "All"))
         (dom/li (Filter-control. (::filter state) :active "Active"))
         (dom/li (Filter-control. (::filter state) :done "Completed")))
 
       (when (pos? done)
-        (let [{:keys [::ui/click-event]} (ui/button
-                                           {::dom/id "clear-completed"
-                                            ::ui/click-event (p/fn [_] ; bug - stays up too long if more todos complete
-                                                               true)}
-                                           (dom/text (str "Clear completed " done)))]
-          (when click-event
-            [::clear :done]))))))
+        (ui/button {::dom/id         "clear-completed"
+                    ::ui/click-event (p/fn [_] [::clear :done])}
+          (dom/text (str "Clear completed " done)))))))
 
 (defn focus! [node] (.focus node))
 
@@ -76,73 +68,52 @@
           {:class [(when (= :done status) "completed")
                    (when (= id (::editing state)) "editing")]}
           (dom/div {:class "view"}
-            (let [{:keys [::ui/input-event]} (ui/checkbox {::dom/class      "toggle"
-                                                           ::ui/value       (= :done status)
-                                                           ::ui/input-event (p/fn [e] (-> e :target :checked))})]
-              (case input-event
-                true  [::set-done id]
-                false [::set-active id]
-                nil))
-
-            (let [{:keys [::ui/dblclick-event]} (ui/element dom/label
-                                                  {::ui/dblclick-event (p/fn [_] true)}
-                                                  (dom/text (str description)))]
-              (when dblclick-event
-                [::editing id])))
-
+            (ui/checkbox {::dom/class      "toggle"
+                          ::ui/value       (= :done status)
+                          ::ui/input-event (p/fn [e] (case (-> e :target :checked)
+                                                       true  [::set-done id]
+                                                       false [::set-active id]
+                                                       nil))})
+            (ui/element dom/label {::ui/dblclick-event (p/fn [_] [::editing id])}
+              (dom/text (str description))))
           (when (= id (::editing state))
-            (let [{:keys [::ui/keychord-event]} (ui/input {::dom/class         "edit"
-                                                           ::dom/autofocus     true
-                                                           ::ui/value          description
-                                                           ::ui/keychords      #{"enter" "esc"}
-                                                           ::ui/keychord-event (p/fn [e]
-                                                                                 {:identifier (:identifier e)
-                                                                                  :value      (-> e :target :value)})}
-                                                  (focus! dom/node))]
-              (when keychord-event
-                (let [{:keys [identifier value]} keychord-event]
-                  (case identifier
-                    "esc" [::done-editing nil]
-                    "enter" [[::set-description [id value]]
-                             [::done-editing nil]])))))
-          (let [{:keys [::ui/click-event]} (ui/button {::dom/class      "destroy"
-                                                       ::ui/click-event (p/fn [_] true)})]
-            (when click-event
-              [::destroy id])))))))
+            (ui/input {::dom/class         "edit"
+                       ::dom/autofocus     true
+                       ::ui/value          description
+                       ::ui/keychords      #{"enter" "esc"}
+                       ::ui/keychord-event (p/fn [e] (case (:identifier e)
+                                                       "esc"   [::done-editing nil]
+                                                       "enter" [[::set-description [id (-> e :target :value)]]
+                                                                [::done-editing nil]]))}
+              (focus! dom/node)))
+          (ui/button {::dom/class      "destroy"
+                      ::ui/click-event (p/fn [_] [::destroy id])}))))))
 
 (p/defn TodoList [state]
   (p/client
     (dom/div
-      (dom/section
-        {:id "main"}
+      (dom/section {:id "main"}
         (let [active                     (p/server (todo-count db :active))
               all                        (p/server (todo-count db :all))
-              done                       (p/server (todo-count db :done))
-              {:keys [::ui/input-event]} (ui/checkbox {::dom/id         "toggle-all"
-                                                       ::ui/value       (cond
-                                                                          (= all done)   true
-                                                                          (= all active) false
-                                                                          :else          nil)
-                                                       ::ui/input-event (p/fn [_] true)})]
-          (dom/label {:for "toggle-all"} (dom/text "Mark all as complete"))
-          (when input-event
-            (if (= all done) [::toggle-all :active] [::toggle-all :done])))
+              done                       (p/server (todo-count db :done))]
+          (ui/checkbox {::dom/id         "toggle-all"
+                        ::ui/value       (cond (= all done)   true
+                                               (= all active) false
+                                               :else          nil)
+                        ::ui/input-event (p/fn [_] (if (= all done) [::toggle-all :active] [::toggle-all :done]))}))
+        (dom/label {:for "toggle-all"} (dom/text "Mark all as complete"))
         (dom/ul {:id "todo-list"}
           (p/for [id (p/server (sort (query-todos db (::filter state))))]
             (TodoItem. state id)))))))
 
 (p/defn CreateTodo []
-  (let [{:keys [::ui/keychord-event]}
-        (ui/input
-          {::dom/id "new-todo"
-           ::dom/placeholder   "What needs to be done?"
-           ::ui/keychords      #{"enter"}
-           ::ui/keychord-event (p/fn [e]
-                                 (let [description (dom/oget dom/node :value)]
-                                   (dom/oset! dom/node :value "")
-                                   description))})]
-    (when (some? keychord-event)
-      [::create-todo keychord-event])))
+  (ui/input
+    {::dom/id            "new-todo"
+     ::dom/placeholder   "What needs to be done?"
+     ::ui/keychords      #{"enter"}
+     ::ui/keychord-event (p/fn [e] (let [description (:value dom/node)]
+                                     (dom/oset! dom/node :value "")
+                                     [::create-todo description]))}))
 
 (p/defn TodoMVC "returns transactions" [state]
   (p/client
