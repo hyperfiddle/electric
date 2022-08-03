@@ -157,9 +157,9 @@
 
 (defmacro auto-impulse [Ack >xs]
   `(let [!ack# (atom 0)
-         val#  (z/impulse (p/watch !ack#) ~>xs)]
+         val#  (z/impulse (p/watch !ack#) ~>xs)]            ; letrec ?
      (when (some? val#)
-       (let [res# (new ~Ack val#)]
+       (let [res# (new ~Ack val#)]                          ; pending source is here
          (new (return-then-run! res# (partial swap! !ack# inc)))))))
 
 (defn has-ns?
