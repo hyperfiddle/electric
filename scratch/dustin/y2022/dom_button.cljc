@@ -28,7 +28,7 @@
                                (m/relieve {})))
 
                    #_(->> (dom/events "click")
-                          (z/impulse x)))]
+                          (p/impulse x)))]
 
         (button (partial println ::clicked))
         #_(button (partial swap! !x inc))

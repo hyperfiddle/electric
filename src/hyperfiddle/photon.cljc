@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon
-  (:refer-clojure :exclude [eval def defn fn for])
+  (:refer-clojure :exclude [eval def defn fn for empty?])
   (:require [clojure.core :as cc]
             [hyperfiddle.photon-impl.compiler :as c]
             [hyperfiddle.photon-impl.runtime :as r]
@@ -188,6 +188,69 @@ running on a remote host.
 (defmacro wrap "Run blocking function (io-bound) on a threadpool"
   [f & args]
   `(new (wrap* ~f ~@args)))
+
+(cc/defn ^:no-doc empty?
+  "A task completing with true on first successful transfer of given flow, or false
+if it completes without producing any value."
+  [& args]
+  (apply m/reduce (constantly (reduced false)) true args))
+
+(cc/defn ^:no-doc first-or "A task completing with the value of the first successful transfer of given flow,
+or a provided value if it completes without producing any value."
+  [& args]
+  (apply m/reduce (comp reduced {}) args))
+
+(cc/defn ^:no-doc fsm
+  "A continuous time impulse as a discreet flow. This is a state machine. It first
+  emit `init`, then the first value of the `>values` discreet flow, called the
+  impulse. The impulse is expected to be acknowledge soon by a new value in
+  `>control`, at which point it restart emitting `init`.
+
+   Start ———> 1. emit `init`
+          |   2. listen to `>values`, wait for a value
+          |
+          |   3. emit first value of `>values`           |
+          |    . stop listening to `>values`             | Toggles
+          |    . listen to `>control`, wait for a value  |
+          |
+           —— 4. stop listening to `>control`
+               . discard value
+               . GOTO 1.
+
+   Time ——————— 0 ———— 1 ———— 2 ————3——————————>
+                |
+               -|       ————————————
+   >values      |      |            |
+               -|——————              ——————————
+               -|               —————————
+   >control     |              |         |
+               -|——————————————           —————
+             v -|       ———————      ————
+   result       |      |       |    |    |
+          init -|——————         ————      —————
+                |
+  "
+  [init >control >values]
+  (m/ap
+    (loop []
+      (m/amb init
+        (if-some [e (m/? >values)]
+          (m/amb e (if (m/? >control) (m/amb) (recur)))
+          (m/amb))))))
+
+(cc/defn ^:no-doc impulse* [tier >ack >xs]
+  (fsm nil
+    (empty? (m/eduction (drop 1) (with tier >ack)))
+    (first-or nil >xs)))
+
+(defmacro impulse
+  "Translates a discrete event stream `>xs` into an equivalent continuous signal of impulses. Each impulse will stay
+   'up' until it is sampled and acknowledged by signal `ack`. (Thus the duration of the impulse depends on sampling
+   rate.) Upon ack, the impulse restarts from nil.
+
+   Useful for modeling discrete events in Photon's continuous time model."
+  [ack >xs]
+  `(new (bind impulse* (hyperfiddle.photon/fn [] ~ack) ~>xs)))
 
 ;; Core.async interop.
 ;; Photon doesn't depend on core.async, this interop should move to a separate namespace or repo.

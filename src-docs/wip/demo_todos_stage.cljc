@@ -42,7 +42,7 @@
              (m/eduction
                (map (comp task-create (dom/oget :target :value)))
                (map (partial clear-input! dom/node)))
-             (z/impulse basis-t)))
+             (p/impulse basis-t)))
       (dom/div
         (apply concat
                (p/for [id ~@(d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
@@ -54,7 +54,7 @@
                                          (comp
                                           (map (comp {false :active true :done} (dom/oget :target :checked)))
                                           (map (partial task-status id))))
-                            (z/impulse basis-t)))
+                            (p/impulse basis-t)))
                      (dom/span (dom/text (str ~@(:task/description (d/entity db id)) " - id: " id))))))))
       (dom/p
         (dom/text (str ~@(count (d/q '[:find [?e ...] :in $ ?status
@@ -84,14 +84,14 @@
     (dom/p
       (when-some [event (dom/button {:type "button"}
                           (dom/text "transact!")
-                          (z/impulse z/clock (dom/>events "click")))]
+                          (p/impulse z/clock (dom/>events "click")))]
         (println ::transact! event)
         ~@(do (d/transact! !conn stage) nil)                ; todo wait for server ack to clear stage
         (reset! !stage []))
 
       (if-some [tx (dom/input {:type "text"
                                :value (write-edn stage)}
-                     (z/impulse z/clock (dom/>events "input" (comp (dedupe) (map (dom/oget :target :value))))))]
+                     (p/impulse z/clock (dom/>events "input" (comp (dedupe) (map (dom/oget :target :value))))))]
         (do
           (js/console.log ::stage tx)
           (reset! !stage (clojure.edn/read-string tx)))

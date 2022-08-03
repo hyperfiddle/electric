@@ -13,7 +13,7 @@
   (with
     (p/run
       (let [x (new (m/watch !x))]
-        (! (z/impulse x (m/observe sub)))))
+        (! (p/impulse x (m/observe sub)))))
     % := nil
     (@!e 1)
     % := 1
