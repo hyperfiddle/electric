@@ -1,4 +1,4 @@
-(ns user.reference.photon-recursion
+(ns user.photon.photon-recursion
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]))
 

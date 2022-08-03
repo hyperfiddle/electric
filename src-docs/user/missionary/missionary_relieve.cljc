@@ -1,4 +1,4 @@
-(ns user.reference.missionary-relieve
+(ns user.missionary.missionary-relieve
   (:require [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [missionary.core :as m]))
 

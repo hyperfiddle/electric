@@ -1,4 +1,4 @@
-(ns wip.photon-advanced
+(ns user.photon.photon-advanced
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]
             [missionary.core :as m]))

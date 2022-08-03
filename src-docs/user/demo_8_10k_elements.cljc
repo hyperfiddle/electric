@@ -1,11 +1,11 @@
-(ns user.demo-10k-elements
+(ns user.demo-8-10k-elements
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.zero :as z]
             [missionary.core :as m])
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros user.demo-10k-elements)))
+  #?(:cljs (:require-macros user.demo-8-10k-elements)))
 
 (defn foo [t]
   (rand-int 10))
@@ -38,14 +38,3 @@
               (dom/span {:style {:font-variant-numeric "tabular-nums" :width "1em"
                                  :color                ({0 "red"} v "#ccc")}}
                         (dom/text v)))))))))
-
-(def main
-  #?(:cljs (p/boot
-             (try
-               (binding [dom/node (dom/by-id "root")]
-                 (App.))
-               (catch Pending _)))))
-
-(comment
-  #?(:clj (user/browser-main! `main))
-  )
