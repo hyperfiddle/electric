@@ -157,8 +157,8 @@
 
 (defmacro auto-impulse [Callback >xs]
   `(let [!ack# (atom false)
-         val#  (p/impulse (p/watch !ack#) ~>xs)             ; letrec ?
-         [result# ack#] (when (some? val#) [(new ~Callback val#) ::ack])] ; FIXME what if >xs produces nil?. DG: pending source is here
+         val#  (p/impulse ::down (p/watch !ack#) ~>xs)      ; letrec?
+         [result# ack#] (when (not= ::down val#) [(new ~Callback val#) ::ack])] ; DG: pending source is here
      (when ack# (swap! !ack# not)) ; don’t rely on callback result, it might be `nil`
      result#))
 
