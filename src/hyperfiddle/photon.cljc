@@ -238,10 +238,10 @@ or a provided value if it completes without producing any value."
           (m/amb e (if (m/? >control) (m/amb) (recur)))
           (m/amb))))))
 
-(cc/defn ^:no-doc impulse* [tier >ack >xs]
-  (fsm nil
+(cc/defn ^:no-doc impulse* [down-value tier >ack >xs]
+  (fsm down-value
     (empty? (m/eduction (drop 1) (with tier >ack)))
-    (first-or nil >xs)))
+    (first-or down-value >xs)))
 
 (defmacro impulse
   "Translates a discrete event stream `>xs` into an equivalent continuous signal of impulses. Each impulse will stay
@@ -249,8 +249,10 @@ or a provided value if it completes without producing any value."
    rate.) Upon ack, the impulse restarts from nil.
 
    Useful for modeling discrete events in Photon's continuous time model."
-  [ack >xs]
-  `(new (bind impulse* (hyperfiddle.photon/fn [] ~ack) ~>xs)))
+  ([ack >xs]
+   `(impulse nil ~ack ~>xs))
+  ([down-value ack >xs]
+   `(new (bind (partial impulse* ~down-value) (hyperfiddle.photon/fn [] ~ack) ~>xs))))
 
 ;; Core.async interop.
 ;; Photon doesn't depend on core.async, this interop should move to a separate namespace or repo.
