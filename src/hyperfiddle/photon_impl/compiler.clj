@@ -276,8 +276,8 @@
   (if-let [var (resolve-var env sym)]
     (if (is-node var)
       (visit-node env (var-name var) (::node (var-meta var)))
-      (throw (ex-info (str "Not a reactive var - " (var-name var)) {})))
-    (throw (ex-info (str "Unable to resolve symbol - " sym) {}))))
+      (throw (ex-info (str "Not a reactive var: " (var-name var)) {})))
+    (throw (ex-info (str "Unable to resolve symbol: " sym) {}))))
 
 (defn analyze-symbol [env sym]
   (if (contains? (:locals env) sym)
