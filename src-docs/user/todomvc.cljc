@@ -1,10 +1,10 @@
-(ns geoffrey.demo-todomvc2
+(ns user.todomvc
   (:require [datascript.core :as d]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.photon-dom :as dom])
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros geoffrey.demo-todomvc2)))
+  #?(:cljs (:require-macros user.todomvc)))
 
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))       ; server
 (p/def db)                                                  ; server

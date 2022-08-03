@@ -1,4 +1,4 @@
-(ns user.demo-3-webview
+(ns user.demo-4-webview
   "Photon fullstack query/view composition with client/server transfer"
   (:require [datascript.core :as d]
             [hyperfiddle.photon :as p]
@@ -6,7 +6,7 @@
             [hyperfiddle.photon-ui :as ui]
             user.util)
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros user.demo-3-webview)))
+  #?(:cljs (:require-macros user.demo-4-webview)))
 
 (defonce conn #?(:cljs nil                                  ; state survives reload
                  :clj  (doto (d/create-conn {:order/email {}})
@@ -41,16 +41,10 @@
 
 (p/defn App []
   (p/server
-    (binding [db (p/watch conn)]                    ; server
+    (binding [db (p/watch conn)]
       (p/client (View.)))))
 
-(def main
-  #?(:cljs (p/boot
-             (try (binding [dom/node (dom/by-id "root")] (App.))
-                  (catch Pending _)))))
-
 (comment
-  #?(:clj (user/browser-main! `main))
   #?(:clj (d/transact conn [{:db/id 2 :order/email "bob2@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "dan@example.com"}]))
   #?(:clj (d/transact conn [{:order/email "erin@example.com"}]))

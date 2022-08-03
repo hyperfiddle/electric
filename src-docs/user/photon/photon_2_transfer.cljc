@@ -1,4 +1,4 @@
-(ns user.reference.photon-2-transfer
+(ns user.photon.photon-2-transfer
   "Photon with client/server transfer at the REPL"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]])

@@ -1,4 +1,4 @@
-(ns user.reference.photon-1-lang
+(ns user.photon.photon-1-lang
   "Introduction to Hyperfiddle Photon, a fully async and reactive Clojure/Script dialect,
   designed to express a distributed client/server system in a single program, with
   compiler-managed client/server data sync.

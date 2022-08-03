@@ -1,4 +1,4 @@
-(ns wip.photon-call-semanatics
+(ns user.photon.photon-call-semanatics
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]]))
 

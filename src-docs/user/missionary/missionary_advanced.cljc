@@ -1,4 +1,4 @@
-(ns wip.missionary-advanced
+(ns user.missionary.missionary-advanced
   (:require [hyperfiddle.rcf :refer [tests ! % with]]
             [missionary.core :as m]))
 

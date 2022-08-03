@@ -1,4 +1,4 @@
-(ns user.reference.photon-missionary-interop
+(ns user.photon.photon-missionary-interop
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
