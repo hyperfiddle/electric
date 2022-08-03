@@ -156,11 +156,11 @@
        (new ~F val#))))
 
 (defmacro auto-impulse [Ack >xs]
-  `(let [!ack# (atom 0)
-         val#  (z/impulse (p/watch !ack#) ~>xs)]            ; letrec ?
-     (when (some? val#)
-       (let [res# (new ~Ack val#)]                          ; pending source is here
-         (new (return-then-run! res# (partial swap! !ack# inc)))))))
+  `(let [!ack# (atom false)
+         val#  (p/impulse (p/watch !ack#) ~>xs)             ; letrec ?
+         [result# ack#] (when (some? val#) [(new ~Ack val#) ::ack])] ; FIXME what if >xs produces nil?. DG: pending source is here
+     (when ack# (swap! !ack# not)) ; don’t rely on callback result, it might be `nil`
+     result#))
 
 (defn has-ns?
   "State if a `named` value (keyword or symbol) has such namespace `ns`.
