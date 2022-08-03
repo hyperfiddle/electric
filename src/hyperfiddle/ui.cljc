@@ -84,7 +84,7 @@
          ack# (:acknowledge props# z/time)]
      (dom/button (dom/props (dissoc props# :acknowledge :value))
                  ~@body
-                 (z/impulse ack# (dom/>events "click" (map (constantly (:value props# true))))))))
+                 (p/impulse ack# (dom/>events "click" (map (constantly (:value props# true))))))))
 
 (p/defn Slider [props]
   (let [list-id (or (:list props) (str (gensym)))

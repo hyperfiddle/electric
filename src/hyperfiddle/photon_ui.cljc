@@ -151,7 +151,7 @@
   (m/ap (m/amb v (do (f) (m/amb)))))
 
 (defmacro impulse [ack F >xs]
-  `(let [val# (z/impulse ~ack ~>xs)]
+  `(let [val# (p/impulse ~ack ~>xs)]
      (when (some? val#)
        (new ~F val#))))
 
