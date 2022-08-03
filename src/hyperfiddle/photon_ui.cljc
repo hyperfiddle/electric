@@ -150,15 +150,15 @@
 (defn return-then-run! [v f]
   (m/ap (m/amb v (do (f) (m/amb)))))
 
-(defmacro impulse [ack F >xs]
+(defmacro impulse [ack Callback >xs]
   `(let [val# (p/impulse ~ack ~>xs)]
      (when (some? val#)
-       (new ~F val#))))
+       (new ~Callback val#))))
 
-(defmacro auto-impulse [Ack >xs]
+(defmacro auto-impulse [Callback >xs]
   `(let [!ack# (atom false)
          val#  (p/impulse (p/watch !ack#) ~>xs)             ; letrec ?
-         [result# ack#] (when (some? val#) [(new ~Ack val#) ::ack])] ; FIXME what if >xs produces nil?. DG: pending source is here
+         [result# ack#] (when (some? val#) [(new ~Callback val#) ::ack])] ; FIXME what if >xs produces nil?. DG: pending source is here
      (when ack# (swap! !ack# not)) ; don’t rely on callback result, it might be `nil`
      result#))
 
