@@ -134,25 +134,31 @@
          (d/setProperties node (clj->js {k v})))
        (.removeAttribute node (name k)))))
 
-;; FIXME use `with` to unmount property, needed to support dynamic keyset
-;; TODO remove legacy api, use dom/set-style! or properties map syntax sugar
-(defmacro ^:deprecated style [m]
-  (if (map? m)
-    (cons 'do (map (fn [[k v]] `(set-style! node ~k ~v)) m)) ; static keyset
-    `(p/for-by first [sty# (vec ~m)]
-       (set-style! node (key sty#) (val sty#)))))
+(defn set-state-hook [setter key]
+  #?(:clj unsupported
+     :cljs (fn ([node] (setter node key nil))
+             ([node-a node-b] nil) ; This arity is used for dom nodes position swap, no use here.
+             )))
 
-;; TODO desugare to direct call to set-property! if m is statically known to be
-;; a map. Also JS runtimes intern litteral strings, so call `name` on keywords
-;; at macroexpension.
+(defmacro style [m]
+  (if (map? m)
+    (cons 'do (map (fn [[k v]] `(new (p/hook (set-state-hook set-style! ~k) node (p/fn [] keepalive (set-style! node ~k ~v))))) m)) ; static keyset
+    `(p/for-by first [sty# (vec ~m)]
+       (new (p/hook (set-state-hook set-style! (key sty#)) node (p/fn [] keepalive (set-style! node (key sty#) (val sty#))))))))
+
+;; TODO JS runtimes intern litteral strings, so call `name` on keywords at
+;; macroexpension.
 (defmacro props [m]
   (let [style? #{:style ::style}]       ; TODO disambiguate
     (if (map? m)
-      (cons 'do (map (fn [[k v]] (if (style? k) `(style ~v) `(set-property! node ~k ~v))) m)) ; static keyset
+      (cons 'do (map (fn [[k v]] (if (style? k) ; static keyset
+                                   `(style ~v)
+                                   `(new (p/hook (set-state-hook set-property! ~k) node (p/fn [] keepalive (set-property! node ~k ~v))))))
+                  m))
       `(p/for-by key [prop# (vec ~m)]
          (if (~style? (key prop#))
            (style (val prop#))
-           (set-property! node (key prop#) (val prop#)))))))
+           (new (p/hook (set-state-hook set-property! (key prop#)) node (p/fn [] (set-property! node (key prop#) (val prop#))))))))))
 
 (defn >events* [node event-type & [xform init rf :as args]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
