@@ -35,7 +35,7 @@
   (dom/a (dom/class (if (= state target) "selected"))
          (dom/text label)
          (when (->> (dom/events dom/parent "click")
-                    (z/impulse z/clock))
+                    (p/impulse z/clock))
            ; emit next filter value
            target)))
 
@@ -75,7 +75,7 @@
             (dom/class "clear-completed")
             (dom/text (str "Clear completed " done))
             (when (->> (dom/events dom/parent "click")
-                       (z/impulse basis-t))                 ; bug - stays up too long if more todos complete
+                       (p/impulse basis-t))                 ; bug - stays up too long if more todos complete
               (p/for [id ~@(query-todos db :done)]
                 {:db/id id :task/status :done}))))))))
 
@@ -94,7 +94,7 @@
                                       (m/eduction (map (comp {false :active true :done}
                                                              dom/get-checked
                                                              dom/event-target)))
-                                      (z/impulse basis-t))]
+                                      (p/impulse basis-t))]
                 [{:db/id id :task/status status'}]))
             (dom/span (dom/text (str description)))))))
 
@@ -110,7 +110,7 @@
               (dom/attribute "type" "checkbox")
               (dom/set-checked! dom/parent (zero? active))
               (when (->> (dom/events dom/parent dom/input-event)
-                         (z/impulse basis-t))
+                         (p/impulse basis-t))
                 ; Toggle all to done, unless everything is already done, in which case toggle all to active.
                 (let [status' (case (pos? active) :done :active)]
                   (p/for [id ~@(query-todos db :active)]
@@ -131,7 +131,7 @@
                       (m/eduction
                         (filter (comp #{dom/keycode-enter} dom/keycode))
                         (map dom/target-value))
-                      (z/impulse basis-t))]
+                      (p/impulse basis-t))]
       (dom/set-property! dom/parent "value" "")
       [{:task/description s
         :task/status      :active

@@ -14,7 +14,7 @@
   (let [[t event] (dom/button {:type "button"}
                     (dom/text "click me")
                     ; damage the DAG on purpose with a foreign clojure collection
-                    [z/time (z/impulse x (dom/>events "click"))])]                 ; x has latency
+                    [z/time (p/impulse x (dom/>events "click"))])]                 ; x has latency
     (when event
       ; this will update N times due to latency being slower than z/time
       (F. event))))

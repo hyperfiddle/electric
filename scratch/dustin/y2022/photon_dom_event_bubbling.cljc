@@ -77,4 +77,4 @@
   (dom/div
     (dom/span (dom/text label))
     (dom/input {:type "button"})
-    ::n (if (z/impulse p/frame (dom/>events "input")) 1 0)))
+    ::n (if (p/impulse p/frame (dom/>events "input")) 1 0)))

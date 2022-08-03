@@ -13,7 +13,7 @@
   (let [event (dom/button
                 (dom/text label)
                 {:type "button"}
-                (z/impulse route (dom/>events "click")))]
+                (p/impulse route (dom/>events "click")))]
     (when event
       (F. event))))
 
