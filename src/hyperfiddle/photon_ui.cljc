@@ -248,7 +248,7 @@
            ::focused ~value
            (p/fn [~auto-value]
              (dom/input (p/forget (dom/props ~props'))
-               (p/forget (dom/props {:value (format-num ~(::format props') ~auto-value)
+               (p/forget (dom/props {:value (format-num ~(::format props) ~auto-value)
                                      :type  :number})) ;; TODO should it pulse?
                (into [[::focused (not (new (dom/focus-state dom/node)))]
                       [::value (dom/events "input" parse-input ~auto-value)]]
