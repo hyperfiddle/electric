@@ -1138,7 +1138,7 @@
       :global   (fn [x]
                   (let [r (resolvef ::not-found x)]
                     (case r
-                      ::not-found (throw (ex-info (str "Unable to resolve - " (symbol x)) {}))
+                      ::not-found (throw (ex-info (str "Unable to resolve symbol: " (symbol x)) {}))
                       (constantly (pure r)))))
       :literal  (fn [x] (constantly (pure x)))
       :inject   (fn [slot] (constantly (pure (inject slot))))
