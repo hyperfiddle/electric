@@ -1,4 +1,4 @@
-(ns user.reference.photon-compiler
+(ns user.photon.photon-compiler
   (:require [clojure.datafy :refer [datafy]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.compiler :refer [analyze]]

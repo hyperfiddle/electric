@@ -1,10 +1,10 @@
-(ns user.demo-6-bubbles
+(ns wip.demo-bubbles
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [user.util :refer [pprint-str]])
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros user.demo-6-bubbles)))
+  #?(:cljs (:require-macros wip.demo-bubbles)))
 
 (defn map-commands [f xs] (into [] (comp (map f) (remove nil?)) xs))
 

@@ -1,33 +1,35 @@
 (ns ^:dev/once user
   (:require
     goog.object
+    hyperfiddle.photon-dom-test
+    hyperfiddle.rcf
     ; Due to :require-macros, demos are loaded in JVM as well on shadow build
-    user.demo-0-entrypoint
-    user.demo-1-healthcheck
-    user.demo-2-system-properties
-    user.demo-3-webview
-    user.demo-4-counter
-    user.demo-5-button
-    user.demo-6-bubbles
-    user.demo-7-todos-basic
+    user.demo-entrypoint
+    user.demo-1-counter
+    user.demo-2-chat
+    user.demo-3-system-properties
+    user.demo-4-webview
+    user.demo-5-todos-basic
+    user.demo-6-two-clocks
+    user.demo-7-explorer
+    user.demo-8-10k-elements
     user.seven-gui-1-counter
     user.seven-gui-2-temperature-converter
     user.seven-gui-4-timer
     user.seven-gui-5-crud
-    wip.demo-two-clocks
-    wip.orders-ui
+    user.todomvc
+    geoffrey.popover
+    wip.demo-bubbles
+    ;wip.orders-ui
+    wip.demo-bubbles
+    wip.demo-color
+    #_wip.demo-hfql        ; npm install
+    #_wip.editor           ; npm install
     wip.demo-todos-stage
     wip.demo-logical-clock
     wip.example-router
     wip.hfql-links
-    wip.explorer
-    wip.demo-color
-    wip.ui-components
-    ;; requires running `yarn` for codemirror dependency
-    ;; wip.demo-hfql
-    ;; wip.editor
-    hyperfiddle.photon-dom-test
-    )
+    wip.ui-components)
   (:require-macros [user :refer [get-default-demo]]))
 
 (defn runtime-resolve [exported-qualified-sym]

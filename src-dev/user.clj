@@ -16,10 +16,8 @@
 
   (shadow.cljs.devtools.api/compile :editor)
 
-  "Switch examples"
-  (user/browser-main! `user.demo-1-healthcheck/main)
-  (user/browser-main! `user.demo-2-system-properties/main)
-  (user/browser-main! `user.demo-3-webview/main)
+  "Switch entrypoints"
+  (user/browser-main! `user.demo-entrypoint/main)           ; demos are composed here now
 
   "ClojureScript REPL entrypoint"
   ; shadow server exports an repl, connect a second REPL instance to it (DO NOT REUSE JVM REPL it will fail weirdly)
@@ -29,7 +27,7 @@
 
 (defmacro get-default-demo []
   (list 'quote (or (some-> (System/getenv "HF_DEMO") symbol)
-                 `user.demo-0-entrypoint/main)))
+                   `user.demo-entrypoint/main)))
 
 (def cljs-eval (delay @(requiring-resolve 'shadow.cljs.devtools.api/cljs-eval)))
 (def shadow-start! (delay @(requiring-resolve 'shadow.cljs.devtools.server/start!)))

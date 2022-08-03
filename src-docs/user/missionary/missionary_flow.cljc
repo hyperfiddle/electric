@@ -1,4 +1,4 @@
-(ns user.reference.missionary-flow
+(ns user.missionary.missionary-flow
   (:require [hyperfiddle.rcf :refer [tests ! % with]]
             [missionary.core :as m])
   (:import (missionary Cancelled)))

@@ -1,4 +1,4 @@
-(ns user.reference.photon-compiler-internals
+(ns user.photon.photon-compiler-internals
   (:require [hyperfiddle.photon :as p]
             #?(:clj [hyperfiddle.photon-impl.compiler :refer [analyze]])
             #?(:clj [hyperfiddle.photon-impl.runtime :as r :refer [emit]])
