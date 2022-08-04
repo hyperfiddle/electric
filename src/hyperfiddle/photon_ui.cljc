@@ -189,30 +189,45 @@
 
 (defn signal->event [sig] (str/replace (name sig) #"-event$" ""))
 
+(def xf-ignore-aria-disabled
+  "Discard dom events performed on an aria-disabled element or a descendant of an
+aria-disabled element.
+  The dom attribute `disabled` is technically rigid and damaging user experience by:
+  - preventing any event to be fired (we want cancel events to undo the disabled
+    state)
+  - removing the element from keyboard focus flow (bad accessibility)
+  - hardcoding CSS
+
+  We semantically mark an element as aria-disabled, while still
+  allowing some events and keyboard navigation."
+  #?(:cljs (remove (fn [^js event] (.. event -target (closest "[aria-disabled=true]"))))))
+
 (defn gen-event-handlers
-  ([props] (gen-event-handlers nil props {}))
-  ([props transducers]
-   (gen-event-handlers nil props transducers))
-  ([cancel-sym props transducers]
-   (map (fn [signal]
-          (let [callback       (get props signal)
-                [ack callback] (if (vector? callback) callback [nil callback])
-                xf             (get transducers signal)
-                event          (if (= ::keychord-event signal)
-                                 `(dom/>keychord-events ~(::keychords props))
-                                 `(dom/>events ~(signal->event signal) ~xf))]
-            (if (some? ack)
-              `[~signal (impulse ~ack ~callback ~event)]
-              `[~signal (auto-impulse ~cancel-sym ~callback ~event)])))
-     (signals props))))
+  [cancel-sym props transducers {:keys [ignore-aria-disabled]}]
+  (map (fn [signal]
+         (let [callback       (get props signal)
+               [ack callback] (if (vector? callback) callback [nil callback])
+               xf             (let [xf (get transducers signal)]
+                                (cond ignore-aria-disabled xf
+                                      xf                   `(comp xf-ignore-aria-disabled ~xf)
+                                      :else                `xf-ignore-aria-disabled))
+               event          (if (= ::keychord-event signal)
+                                `(dom/>keychord-events ~(::keychords props) ~xf)
+                                `(dom/>events ~(signal->event signal) ~xf))]
+           (if (some? ack)
+             `[~signal (impulse ~ack ~callback ~event)]
+             `[~signal (auto-impulse ~cancel-sym ~callback ~event)])))
+    (signals props)))
 
 (defn parse-props
   ([valuef props transducers]
    (parse-props valuef props transducers nil))
   ([valuef props transducers cancel-sym]
+   (parse-props valuef props transducers cancel-sym {}))
+  ([valuef props transducers cancel-sym opts]
    (assert (map? props))
    [(valuef props nil)
-    (gen-event-handlers cancel-sym props transducers)
+    (gen-event-handlers cancel-sym props transducers opts)
     (let [dom-props (select-ns :hyperfiddle.photon-dom props)]
       (if-let [type (::type props)]
         (assoc dom-props :type type)
@@ -232,12 +247,26 @@
               (into [[::value (dom/events "change" (map (dom/oget :target :checked)) ~auto-value)]]
                 [~@events])))))))
 
+(defn ^:no-doc swap!* [!atom f & _]
+  (swap! !atom f))
+
+(def events (comp dom/mappend dom/bubble dom/mappend))
+
 (defmacro element [tag props & body]
-  (let [[_ events props] (parse-props (constantly nil) props {})]
+  (let [cancel-impulse   (gensym "cancel-impulse_")
+        [_ pending-events pending-props] (parse-props (constantly nil) (::pending props {}) {} cancel-impulse
+                                           {:ignore-aria-disabled true})
+        [_ events props] (parse-props (constantly nil) props {} cancel-impulse)]
     `(dom/bubble
        (~tag (p/forget (dom/props ~props))
-        (into [(do ~@body)]           ; coerced to a map
-          [~@events])))))
+        (let [!cancel#        (atom false)
+              ~cancel-impulse (p/watch !cancel#)
+              ret#            (into [(do ~@body)]
+                                [~@events])]
+          (try (p/deduping p/pending? ret#) ; prevent subsequent pendings to unmount/remount catch Pending branch
+               (catch Pending _
+                 (dom/props ~pending-props)
+                 (interpreter #{::cancel} (partial swap!* !cancel# not) (events [~@pending-events])))))))))
 
 (defmacro button [props & body]
   `(element dom/button ~props ~@body))
