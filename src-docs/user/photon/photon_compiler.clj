@@ -1,22 +1,17 @@
 (ns user.photon.photon-compiler
   (:require [clojure.datafy :refer [datafy]]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-impl.compiler :refer [analyze]]
-            [hyperfiddle.photon-impl.runtime :as r :refer [emit]]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [missionary.core :as m]))
 
 (hyperfiddle.rcf/enable!)
 
-; Is there a missionary operation one can equivalently rewrite as a p/fn?
-; Like instead of doing an m/eduction one brings the data into the photon side of world and does the same there?
-
 (tests "Photon baseline program - a dataflow diamond"
   (def !x (atom 0))
   (def dispose (p/run
-                 (let [x (p/watch !x)
-                       a (inc x)]
-                   (rcf/! (+ a (inc x))))))
+                 (let [x (p/watch !x)                       ; reactive x
+                       a (inc x)]                           ; reactive a depends on reactive x
+                   (! (+ a (inc x))))))                     ; reactive +
   % := 2
   (swap! !x inc)
   % := 4
@@ -24,8 +19,8 @@
   % := 6
   (dispose))
 
-; Since everything is a flow in Photon, it feels like nothing is, so you don't see the types
-; (except at the missionary/photon interop boundary).
+; Since in Photon everything is a missionary flow, it feels like nothing is, so you don't see the flow types.
+; (except at the missionary/photon interop boundary)
 
 (tests
   "Approximately equivalent program as missionary, for understanding"
