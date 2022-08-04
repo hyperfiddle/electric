@@ -59,8 +59,7 @@
                         :overflow-x :auto}}
                (if-let [{::keys [::value]} selected]
                  (new (p/deduping value))
-                 (user.demo-5-todos-basic/Todo-list.)
-                 #_(user.healthcheck/App.))))))               ; work around broken default state
+                 (user.healthcheck/App.))))))               ; work around broken default state
 
 (def ^:export main #?(:cljs (p/boot
                               (try
