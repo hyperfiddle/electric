@@ -15,8 +15,9 @@
 
 (defn run-long-task! []
   (prn "Running long task")
-  #?(:clj (Thread/sleep 1000))
-  :result)
+  #?(:clj (try (Thread/sleep 2000)
+               :result
+               (catch InterruptedException _ (prn :interrupted)))))
 
 (p/defn App []
   (dom/hiccup
@@ -32,17 +33,25 @@
     [:hr]
     [:h2 "Button with pending state"]
 
-    (when-let [event (let [disabled? (atom nil)]
-                       (ui/button {::ui/click-event (p/fn [event]
-                                                      (try (let [res ~@(p/wrap run-long-task!)]
-                                                             ;; HACK ui/return-then-run! should not be necessary. `do`semantics should be enough.
-                                                             (new (ui/return-then-run! res (partial reset! disabled? nil))))
-                                                           (catch Pending t
-                                                             (reset! disabled? true)
-                                                             (throw t))))
-                                   ::dom/disabled    (p/watch disabled?)}
-                         (dom/text "Long running task (log to console)")))]
+    (let [event (ui/button {::ui/click-event (p/fn [e] (p/server (p/wrap run-long-task!)))
+                            ::ui/pending {::dom/disabled true}}
+                  (dom/text "Long running task (log to console)"))]
       (prn "clicked! " event))
+
+    [:h2 "Button with cancelable pending state"]
+
+    (let [event (ui/button {;; Won’t fire if element is aria-disabled or an descendant of an aria disabled
+                            ::ui/click-event (p/fn [event] (p/server (p/wrap run-long-task!)))
+                            ::ui/pending {;; These props are set when button enters pending state
+                                          ::dom/aria-busy     true
+                                          ::dom/aria-disabled true
+                                          ::ui/click-event    (p/fn [_] [::ui/cancel true])
+                                          ::ui/keychords      #{"esc"}
+                                          ;; This event will fire even if the element is aria-disabled
+                                          ::ui/keychord-event (p/fn [_] [::ui/cancel true])  ; cancel pending state
+                                          }}
+                  (dom/text "Long running task (log to console)"))]
+      (prn "clicked! 2 " event))
 
     [:hr]
     [:h2 "Checkbox"]
