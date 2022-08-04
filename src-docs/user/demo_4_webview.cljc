@@ -5,7 +5,6 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             user.util)
-  (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-4-webview)))
 
 (defonce conn #?(:cljs nil                                  ; state survives reload
