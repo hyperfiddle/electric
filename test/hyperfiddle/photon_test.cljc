@@ -1345,6 +1345,20 @@
     (reset! !xs [])
     % := []))
 
+(tests
+  "All Pending instances are equal"
+  (= (Pending.) (Pending.)) := true)
+
+(tests
+  "Failure instances are equal if the errors they convey are equal"
+  (= (Failure. (Pending.)) (Failure. (Pending.))) := true
+
+  (let [err (ex-info "error" {})]
+    (= err err) := true
+    (= (Failure. err) (Failure. err)) := true
+    (= (ex-info "a" {}) (ex-info "a" {})) := false
+    (= (Failure. (ex-info "err" {})) (Failure. (ex-info "err" {}))) := false))
+
 ;; HACK sequences cljs async tests. Symptomatic of an RCF issue.
 ;; Ticket: https://www.notion.so/hyperfiddle/cljs-test-suite-can-produce-false-failures-0b3799f6d2104d698eb6a956b6c51e48
 #?(:cljs (t/use-fixtures :each {:after #(t/async done (js/setTimeout done 1))}))

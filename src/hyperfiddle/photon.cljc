@@ -13,6 +13,21 @@
            (hyperfiddle.photon Pending Failure)
            (missionary Cancelled)))
 
+;; Equality semantics for Failure and Pending
+;; For JVM, defined in java class.
+#?(:cljs
+   (extend-type Pending
+     IEquiv
+     (-equiv [this other]
+       (instance? Pending other))))
+
+#?(:cljs
+   (extend-type Failure
+     IEquiv
+     (-equiv [this other]
+       (and (instance? Failure other)
+            (= (.-error this) (.-error other))))))
+
 #?(:clj
    (do
                                         ; Optionally, tell RCF not to rewrite Photon programs.
