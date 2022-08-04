@@ -155,9 +155,16 @@
      (when (some? val#)
        (new ~Callback val#))))
 
-(defmacro auto-impulse [Callback >xs]
+(defn merge-flows
+  "Produces a flow returning values of both flows as soon as they are available."
+  [fa fb]
+  (->> (m/ap (m/amb= (m/?< fa) (m/?< fb)))
+    (m/reductions {} nil)
+    (m/relieve {})))
+
+(defmacro auto-impulse [cancel-sym Callback >xs]
   `(let [!ack# (atom false)
-         val#  (p/impulse ::down (p/watch !ack#) ~>xs)      ; letrec?
+         val#  (p/impulse ::down (new (merge-flows (p/fn [] (p/watch !ack#)) (p/fn [] ~cancel-sym))) ~>xs) ; letrec?
          [result# ack#] (when (not= ::down val#) [(new ~Callback val#) ::ack])] ; DG: pending source is here
      (when ack# (swap! !ack# not)) ; don’t rely on callback result, it might be `nil`
      result#))
@@ -183,8 +190,10 @@
 (defn signal->event [sig] (str/replace (name sig) #"-event$" ""))
 
 (defn gen-event-handlers
-  ([props] (gen-event-handlers props {}))
+  ([props] (gen-event-handlers nil props {}))
   ([props transducers]
+   (gen-event-handlers nil props transducers))
+  ([cancel-sym props transducers]
    (map (fn [signal]
           (let [callback       (get props signal)
                 [ack callback] (if (vector? callback) callback [nil callback])
@@ -194,17 +203,20 @@
                                  `(dom/>events ~(signal->event signal) ~xf))]
             (if (some? ack)
               `[~signal (impulse ~ack ~callback ~event)]
-              `[~signal (auto-impulse ~callback ~event)])))
+              `[~signal (auto-impulse ~cancel-sym ~callback ~event)])))
      (signals props))))
 
-(defn parse-props [valuef props transducers]
-  (assert (map? props))
-  [(valuef props nil)
-   (gen-event-handlers props transducers)
-   (let [dom-props (select-ns :hyperfiddle.photon-dom props)]
-     (if-let [type (::type props)]
-       (assoc dom-props :type type)
-       dom-props))])
+(defn parse-props
+  ([valuef props transducers]
+   (parse-props valuef props transducers nil))
+  ([valuef props transducers cancel-sym]
+   (assert (map? props))
+   [(valuef props nil)
+    (gen-event-handlers cancel-sym props transducers)
+    (let [dom-props (select-ns :hyperfiddle.photon-dom props)]
+      (if-let [type (::type props)]
+        (assoc dom-props :type type)
+        dom-props))]))
 
 (defmacro checkbox
   ([] `(checkbox {}))
