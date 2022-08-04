@@ -48,8 +48,8 @@
 (defn interpreter* [event-tags f]
   (let [xf (interpret event-tags f)]
     (comp #_(map (fn [xs] (prn "=>" xs) xs))
-          (map (fn [events] (doall (sequence xf events)))
-               #_(partial sequence xf)))))
+      (map (fn [events] (if (instance? Failure events) events (doall (sequence xf events))))
+        #_(partial sequence xf)))))
 
 (tests
  "Unmatched events passes through"
@@ -82,7 +82,7 @@
          ([result] (rf result))
          ([result input]
           (if (instance? Failure input)
-            (rf result)
+            (rf result input)
             (let [[nv new-events] (loop [seen (transient @pv)
                                          r    (transient [])
                                          xs   input]
