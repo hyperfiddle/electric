@@ -1,0 +1,37 @@
+button[aria-disabled=true], input[type="button"][aria-disabled="true"]{
+    color: GrayText;
+}
+
+button[aria-busy=true]{
+    cursor:wait;
+    position: relative;
+}
+
+/* Button spinner */
+button[aria-busy=true]::before{
+    content:"";
+    position:absolute;
+    width: 0.9em;
+    height: 0.9em;
+    margin: auto;
+    top:0;
+    bottom:0;
+    left:0;
+    right:0;
+    animation: spin 1s linear infinite;
+    border-width: 2px;
+    border-style: solid;
+    border-left-color: transparent;
+    border-radius: 50%;
+}
+
+/* Button spinner color */
+button[aria-busy=true]::before{
+    border-color: initial;
+    border-left-color: transparent;
+}
+
+@keyframes spin{
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
