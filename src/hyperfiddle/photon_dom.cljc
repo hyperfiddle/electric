@@ -19,7 +19,7 @@
     (= (count x) 2)
     (keyword? (first x))))
 
-(defn bubble "Tag a map as being a bubble" [x] (assert (map? x)) (vary-meta x assoc ::bubble true))
+(defn bubble "Coerces to a map and tag it as bubble" [x] (vary-meta (into {} x) assoc ::bubble true))
 (defn bubble? [x] (and (map? x) (::bubble (meta x))))
 
 (defn extract-commands [xs]
