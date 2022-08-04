@@ -215,13 +215,13 @@
                                                        (dom/text (name arg)))
                                             (::ui/value
                                              (if (= "checkbox" input-type)
-                                               (ui/checkbox {:dom/id       id
-                                                             :dom/disabled locked?
+                                               (ui/checkbox {::dom/id       id
+                                                             ::dom/disabled locked?
                                                              ::ui/value    v})
-                                               (ui/input {:dom/id       id
-                                                          :dom/type     (input-types (argument-type (first attr) arg))
+                                               (ui/input {::dom/id       id
+                                                          ::dom/type     (input-types (argument-type (first attr) arg))
                                                           ::ui/value    v
-                                                          :dom/disabled locked?}))))]
+                                                          ::dom/disabled locked?}))))]
                            (log/info "ARG" arg v "->" v')
                            (if (= v v')
                              (log/debug "same as before")
