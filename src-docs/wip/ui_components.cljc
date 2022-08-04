@@ -40,7 +40,7 @@
                                                            (catch Pending t
                                                              (reset! disabled? true)
                                                              (throw t))))
-                                   :dom/disabled    (p/watch disabled?)}
+                                   ::dom/disabled    (p/watch disabled?)}
                          (dom/text "Long running task (log to console)")))]
       (prn "clicked! " event))
 
@@ -48,12 +48,12 @@
     [:h2 "Checkbox"]
 
     [:label
-     (let [checked? (ui/checkbox {::ui/value true})]
+     (let [checked? (ui/checkbox)]
        (dom/text " Checked? " checked?))]
 
     [:hr]
     [:h2 "Text input"]
-    [:span (let [value (ui/input {:dom/placeholder "Text …"
+    [:span (let [value (ui/input {::dom/placeholder "Text …"
                                   ::ui/value       "init"})]
              (dom/text value))]
 
@@ -61,16 +61,16 @@
     [:h2 "Numeric input"]
 
     [:span (let [value (ui/input {::ui/type          :number
-                                  :dom/format        "%.2f"
-                                  :dom/step          0.5
+                                  ::ui/format        "%.2f"
+                                  ::dom/step          0.5
                                   ::ui/value         (/ 10 3)
                                   ::ui/value-changed (p/fn [value] value)})]
              (dom/text value))]
 
     [:hr]
     [:h2 "Date"]
-    [:span (let [input (ui/input {:dom/placeholder "Date …"
-                                  :dom/type        :datetime-local})]
+    [:span (let [input (ui/input {::dom/placeholder "Date …"
+                                  ::dom/type        :datetime-local})]
              (dom/text (if (some? (::ui/value input))
                          (pr-str (:date (dt/fromIsoString (::ui/value input))))
                          "Invalid date")))]
@@ -86,7 +86,7 @@
     [:hr]
     [:h2 "Native Typeahead"]
 
-    [:span (let [value (ui/native-typeahead {:dom/placeholder "Search…"
+    [:span (let [value (ui/native-typeahead {::dom/placeholder "Search…"
                                              ::ui/options     (p/fn [needle] (query-names (or needle "")))})]
              (dom/text value))]
 
