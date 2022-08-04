@@ -53,6 +53,10 @@
 
 (defn ^:dev/before-load stop! []
   (when reactor (reactor) #_"teardown")
+  ;; HACK reactor teardown might not complete and leave some dom nodes behind if
+  ;; websocket closes before the reactor cancels all branches. Ticket:
+  ;; https://www.notion.so/hyperfiddle/app-can-hang-during-shutdown-switching-entrypoint-or-hot-code-reloading-due-to-network-shutting-do-12929d7df44841e59ae7f246f676d137
+  (.. js/document (getElementById "root") (replaceChildren))  ; empty root node
   (set! reactor nil))
 
 (defn browser-main! [photon-main-sym]
