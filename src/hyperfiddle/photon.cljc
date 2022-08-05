@@ -171,6 +171,21 @@ running on a remote host.
            (m/reductions {} nil)
            (m/relieve {})))))
 
+(cc/defn failure? [x] (instance? Failure x))
+
+(cc/defn bypass-on "Return a transducer feeding values into `xf` only if they match `pred`, return them unchanged otherwise."
+  ([pred xf]
+   (cc/fn [rf]
+     (let [xf (xf rf)]
+       (cc/fn
+         ([] (xf))
+         ([result] (xf result))
+         ([result input]
+          (if (pred input)
+            (rf result input)
+            (xf result input)))))))
+  ([pred xf coll] (sequence (bypass-on pred xf) coll)))
+
 (cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
 
 (cc/defn wrap* [f & args]
