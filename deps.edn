@@ -47,7 +47,8 @@
                                    binaryage/devtools                       {:mvn/version "1.0.6"}
                                    thheller/shadow-cljs                     {:mvn/version "2.18.0"}
                                    ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
-                     :jvm-opts    ["-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
+                     :jvm-opts    ["-Xss2m"                 ; https://github.com/hyperfiddle/photon/issues/11
+                                   "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
                                    "-Dlogback.configurationFile=src-dev/logback_dev.xml"
                                    "-XX:-OmitStackTraceInFastThrow" ;; RCF
                                    "-Djdk.attach.allowAttachSelf" ;; profiling
