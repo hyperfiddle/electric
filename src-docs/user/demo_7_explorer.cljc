@@ -21,7 +21,7 @@
                                            (dom/ul (p/server (p/for [x (file-list-files handle)]
                                                                (FooRecur. x s))))))
                          (file-is-file handle)
-                         (when (p/deduping (includes-str? (file-get-name handle) s))
+                         (when (includes-str? (file-get-name handle) s)
                            (p/client (dom/li (dom/text (p/server (file-get-name handle))))))))]
     (FooRecur. handle s)))
 
