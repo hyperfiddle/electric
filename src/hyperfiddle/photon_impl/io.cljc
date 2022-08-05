@@ -80,10 +80,14 @@
 (defn encode
   "Encode a data frame to transit json"
   [x]
-  #?(:clj (let [out (ByteArrayOutputStream.)]
-            (t/write (t/writer out :json write-opts) x)
-            (.toString out))
-     :cljs (t/write (t/writer :json write-opts) x)))
+  (try
+    #?(:clj (let [out (ByteArrayOutputStream.)]
+              (t/write (t/writer out :json write-opts) x)
+              (.toString out))
+       :cljs (t/write (t/writer :json write-opts) x))
+    (catch #?(:clj Throwable, :cljs :default) err
+      (do (log/debug "Failed to serialize value to transit." {:value x} err)
+          (encode nil)))))
 
 (defn decode
   "Decode a data frame from transit json"
