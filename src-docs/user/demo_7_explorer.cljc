@@ -28,6 +28,7 @@
 (p/defn App []
   (dom/div
     (dom/h1 (dom/text "Explorer"))
-    (let [s (::ui/value (ui/input {:type :search, :placeholder "Filter…", :style {:width "20rem"}}))]
-      (p/server
-        (p/client (dom/ul (p/server (Foo. (clojure.java.io/file "src") s))))))))
+    (let [!s (atom "") s (p/watch !s)]
+      (ui/input {::dom/placeholder "Filter" ::dom/type "search" :style {:width "20rem"}
+                 ::ui/input-event (p/fn [e] (reset! !s (:value dom/node)))})
+      (dom/ul (p/server (Foo. (clojure.java.io/file "src") s))))))
