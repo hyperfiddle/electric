@@ -1370,6 +1370,12 @@
   (p/dedupe-by odd?  [1 1 2 1]) := '(1 2 1)
   )
 
+(tests
+  "p/bypass-on applies a given transducer on values only if they match a predicate."
+  (p/bypass-on odd? (map identity) [1 2 3]) := '(1 2 3)
+  (p/bypass-on odd? (map inc) [1 2 3])      := '(1 3 3) ; 1 and 3 bypassed, 2 passed to next transducer
+  )
+
 ;; HACK sequences cljs async tests. Symptomatic of an RCF issue.
 ;; Ticket: https://www.notion.so/hyperfiddle/cljs-test-suite-can-produce-false-failures-0b3799f6d2104d698eb6a956b6c51e48
 #?(:cljs (t/use-fixtures :each {:after #(t/async done (js/setTimeout done 1))}))
