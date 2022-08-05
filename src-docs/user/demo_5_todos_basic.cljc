@@ -30,9 +30,8 @@
                       ::ui/input-event (p/fn [js-event]
                                          (let [status (-> js-event :target :checked)]
                                            (p/server
-                                             (d/transact! !conn [{:db/id       (p/deduping id)
-                                                                  :task/status (if status :done :active)}])
-                                             nil)))})
+                                             (d/transact! !conn [{:db/id id
+                                                                  :task/status (if status :done :active)}]))))})
         (dom/label {::dom/for id} (dom/text (str (p/server (:task/description e)))))))))
 
 (defn todo-count [db]
