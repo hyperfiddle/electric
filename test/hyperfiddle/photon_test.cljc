@@ -455,9 +455,7 @@
                  (PutMap "b" (new (m/watch !xx))))))
       % := {"a" 1 "b" 0}
       (swap! !xx inc)
-                                       ;% := ::rcf/timeout       ; old design no further sample, the map hasn't changed
-      % := {"a" 1 "b" 1} ; alternative (desired) design will sample again
-      )))
+      % := ::rcf/timeout)))
 
 
 (p/def trace!)
@@ -948,7 +946,7 @@
   (p/run (! (meta (let [x (with-meta [] {:foo (new (m/watch !x))})] x))))
   % := {:foo 0}
   (swap! !x inc)
-  % := {:foo 1})
+  % := ::rcf/timeout)
 
 (p/def foo2 42)
 
@@ -1025,7 +1023,6 @@
   % := :caugh
   (reset! !f "world")
   % := "world"
-  % := :caugh
   (swap! !x inc)
   % := :ok)
 
