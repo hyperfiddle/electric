@@ -23,7 +23,9 @@
   #?(:cljs (:require-macros user.demo-entrypoint)))
 
 
-(defonce !demo (atom {:text "counter" ::value user.demo-1-counter/App}))              ; broken initial state
+(defonce !demo #?(:cljs  (atom nil #_{:text "counter" ::value user.demo-1-counter/App})
+                  :clj nil))
+(p/def demo (p/client (p/watch !demo)))
 
 (p/defn Username []
   ;; Optional. Browse to `/auth`` to authenticate, any user/password will do.
@@ -32,33 +34,33 @@
            (dom/span {:style {:font-weight :bold}} (dom/text username)))))
 
 (p/defn App []
-  (let [selected (p/watch !demo)]
-    (dom/div
-      (Username.)
-      (dom/h1 (dom/text "Photon Demos"))
-      (dom/p (dom/text "Pick a demo. See source code in src-docs."))
-      (ui/select {::ui/value        selected
-                  ::ui/options      [{:text "counter" ::value user.demo-1-counter/App}
-                                     {:text "two clocks" ::value user.demo-6-two-clocks/App}
-                                     {:text "chat" ::value user.demo-2-chat/App}
-                                     {:text "system properties" ::value user.demo-3-system-properties/App}
-                                     {:text "webview" ::value user.demo-4-webview/App}
-                                     {:text "todos basic" ::value user.demo-5-todos-basic/Todo-list}
-                                     {:text "todomvc" ::value user.todomvc/App}
-                                     {:text "explorer" ::value user.demo-7-explorer/App}
-                                     {:text "10k elements" ::value user.demo-8-10k-elements/App}
-                                     {:text "7GUIs - counter" ::value user.seven-gui-1-counter}
-                                     {:text "7GUIs - temperature converter" ::value user.seven-gui-2-temperature-converter}
-                                     {:text "7GUIs - timer" ::value user.seven-gui-4-timer}
-                                     {:text "7GUIs - crud" ::value user.seven-gui-5-crud}
-                                     {:text "bubbles" ::value wip.demo-bubbles/App}
-                                     {:text "color" ::value wip.demo-color/App}
-                                     {:text "healthcheck" ::value user.healthcheck/App}]
-                  ::ui/change-event (p/fn [[event value]] (reset! !demo value) nil)})
-      (dom/div {:style {:max-width  "90vw"
-                        :overflow-x :auto}}
-               (let [{::keys [::value]} selected]
-                 (when value (new value))
+  (dom/div
+    (Username.)
+    (dom/h1 (dom/text "Photon Demos"))
+    (dom/p (dom/text "Pick a demo. See source code in src-docs."))
+    (ui/select {::ui/value        demo
+                ::ui/options      [{:text "counter" ::value user.demo-1-counter/App}
+                                   {:text "two clocks" ::value user.demo-6-two-clocks/App}
+                                   {:text "chat" ::value user.demo-2-chat/App}
+                                   {:text "system properties" ::value user.demo-3-system-properties/App}
+                                   {:text "webview" ::value user.demo-4-webview/App}
+                                   {:text "todos basic" ::value user.demo-5-todos-basic/Todo-list} ; css fixes
+                                   {:text "todomvc" ::value user.todomvc/App}
+                                   {:text "explorer" ::value user.demo-7-explorer/App}
+                                   {:text "10k elements" ::value user.demo-8-10k-elements/App}
+                                   ;{:text "7GUIs - counter" ::value user.seven-gui-1-counter}
+                                   ;{:text "7GUIs - temperature converter" ::value user.seven-gui-2-temperature-converter}
+                                   ;{:text "7GUIs - timer" ::value user.seven-gui-4-timer}
+                                   ;{:text "7GUIs - crud" ::value user.seven-gui-5-crud}
+                                   ;{:text "bubbles" ::value wip.demo-bubbles/App}
+                                   ;{:text "color" ::value wip.demo-color/App}
+                                   {:text "healthcheck" ::value user.healthcheck/App}]
+                ::ui/change-event (p/fn [[event value]] (reset! !demo value))})
+    (dom/div {:style {:max-width  "90vw"
+                      :overflow-x :auto}}
+             (let [{::keys [::value]} demo]
+               (if (some? value)
+                 (new value)
                  (user.healthcheck/App.))))))               ; work around broken default state
 
 (def ^:export main #?(:cljs (p/boot
