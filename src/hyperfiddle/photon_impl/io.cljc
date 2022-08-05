@@ -86,7 +86,12 @@
               (.toString out))
        :cljs (t/write (t/writer :json write-opts) x))
     (catch #?(:clj Throwable, :cljs :default) err
-      (do (log/debug "Failed to serialize value to transit." {:value x} err)
+      ; 13:49:25.848 DEBUG h.p.io [qtp966786773-114] - Unserializable reference transfer:  datascript.db.TxReport@a1a5e94a
+      ; {:value #datascript.db.TxReport{:db-before #datascript/DB {:schema {}, :datoms [[1 :task/description buy milk  ...
+      (do (log/debug "Unserializable reference transfer: "
+                     (str #_pr-str x)                       ; i.e. "datascript.db.TxReport@b532aead"
+                     #_{:value x}                           ; don't ask logger to pr-str the entire datascript database
+                     #_err)                                 ; don't spam log with scary error
           (encode nil)))))
 
 (defn decode
