@@ -14,7 +14,7 @@
                ::ui/keychords    #{"enter"}
                ::ui/keychord-event (p/fn [e]
                                      (let [v (:value dom/node)]
-                                       (p/server (swap! !state conj v) #_nil))
+                                       (p/server (swap! !state conj v)))
                                      (dom/oset! dom/node :value ""))})
     (dom/ul
       (p/server

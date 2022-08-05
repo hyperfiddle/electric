@@ -16,8 +16,7 @@
                                    (p/client
                                      (let [value (:value dom/node)]
                                        (p/server (d/transact! !conn [{:task/description value
-                                                                      :task/status      :active}])
-                                                 nil #_"don't transfer the ref which transact! returns")
+                                                                      :task/status      :active}]))
                                        (dom/oset! dom/node :value ""))))}))
 
 (p/defn TodoItem [id]
