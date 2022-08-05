@@ -14,8 +14,9 @@
 (p/defn App []
   (dom/div
     (dom/h1 (dom/text "System Properties"))
-    (let [filter (::ui/value (ui/input {::dom/type        :search
-                                        ::dom/placeholder "java.home"}))]
+    (let [!filter (atom "") filter (p/watch !filter)]
+      (ui/input {::dom/type :search ::dom/placeholder "java.home"
+                 ::ui/input-event (p/fn [e] (reset! !filter (:value dom/node)))})
       (dom/div (dom/text (str "Input: " filter)))
       (dom/table
         (p/server

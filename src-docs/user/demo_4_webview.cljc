@@ -26,17 +26,18 @@
 
 (p/defn View []
   (dom/div
-   (dom/h2 (dom/text "frontend/backend webview with server push"))
-   (let [email (::ui/value (ui/input {::dom/type        :search
-                                      ::dom/placeholder "Filter…"}))]
-     (dom/table
-       (p/server
-         (p/for [id (orders db email)]
-           (p/client
-             (dom/tr
-               (dom/td (dom/text id))
-               (dom/td (dom/text (p/server (:order/email (d/entity db id)))))
-               (dom/td (dom/text (p/server (:order/gender (d/entity db id)))))))))))))
+    (dom/h2 (dom/text "frontend/backend webview with server push"))
+    (let [!filter (atom "") filter (p/watch !filter)]
+      (ui/input {::dom/type       :search ::dom/placeholder "Filter…"
+                 ::ui/input-event (p/fn [e] (reset! !filter (:value dom/node)))})
+      (dom/table
+        (p/server
+          (p/for [id (orders db filter)]
+            (p/client
+              (dom/tr
+                (dom/td (dom/text id))
+                (dom/td (dom/text (p/server (:order/email (d/entity db id)))))
+                (dom/td (dom/text (p/server (:order/gender (d/entity db id)))))))))))))
 
 (p/defn App []
   (p/server
