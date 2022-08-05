@@ -13,7 +13,7 @@
   (let [!running (atom true) running? (p/watch !running)
         !width (atom 10) width (clamp (p/watch !width) 1 150) ; n=125 is 10k elements; too big number OOMs the tab
         height (Math/floor (* width 0.64))
-        t (p/deduping (if running? z/time 0))]
+        t (if running? z/time 0)]
 
     (dom/dl
       (dom/dt (dom/label {::dom/for "field-running"} (dom/text " running?")))
