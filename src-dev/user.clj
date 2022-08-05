@@ -17,7 +17,7 @@
   (shadow.cljs.devtools.api/compile :editor)
 
   "Switch entrypoints"
-  (user/browser-main! `user.demo-entrypoint/main)           ; demos are composed here now
+  (user/browser-main! `user/demo-main)
 
   "ClojureScript REPL entrypoint"
   ; shadow server exports an repl, connect a second REPL instance to it (DO NOT REUSE JVM REPL it will fail weirdly)
@@ -25,9 +25,8 @@
   (type 1)
   )
 
-(defmacro get-default-demo []
-  (list 'quote (or (some-> (System/getenv "HF_DEMO") symbol)
-                   `user.demo-entrypoint/main)))
+(defmacro get-main [default]
+  (list 'quote (or (some-> (System/getenv "HF_DEMO") symbol) default)))
 
 (def cljs-eval (delay @(requiring-resolve 'shadow.cljs.devtools.api/cljs-eval)))
 (def shadow-start! (delay @(requiring-resolve 'shadow.cljs.devtools.server/start!)))
@@ -36,7 +35,7 @@
 (def shadow-release (delay @(requiring-resolve 'shadow.cljs.devtools.api/release)))
 (def start-server! (delay (requiring-resolve 'hyperfiddle.photon-jetty-server/start-server!)))
 
-(defn browser-main! [photon-main-sym]
+(defn browser-main! "hot switch reactor entrypoint from CLJ REPL" [photon-main-sym]
   ; Save the user the trouble of getting a CLJS repl to switch photon entrypoints
   (@cljs-eval :devkit (str `(println ::loading (quote ~photon-main-sym))) {})
   (@cljs-eval :devkit (str `(browser-main! (quote ~photon-main-sym))) {})
@@ -44,9 +43,7 @@
 
 (comment (@(requiring-resolve 'shadow.cljs.devtools.api/cljs-eval) :devkit (str "(println ::x)") {}))
 
-(defn serve!
-  "Start Photon app server"
-  []
+(defn serve! "Start Photon app server" []
   (let [host "0.0.0.0"]
     (def server (@start-server! {:host host, :port 8080, :resources-path "resources/public"}))
     (println (str "\n👉 App available at http://" host ":" (-> server (.getConnectors) first (.getPort))
