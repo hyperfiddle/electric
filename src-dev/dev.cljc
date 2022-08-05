@@ -60,7 +60,7 @@
      :order/type       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
      :order/tags       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
      :db/ident         {:db/unique :db.unique/identity}})
-  (log/info "Initializing Test Database")
+  ;(log/info "Initializing Test Database")
   (def conn (d/create-conn schema))
   (let [$  (-> conn d/db fixtures)
         db (hf/->DB "$" 0 nil $)]
