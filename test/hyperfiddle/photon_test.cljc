@@ -1363,6 +1363,13 @@
     (= (ex-info "a" {}) (ex-info "a" {})) := false
     (= (Failure. (ex-info "err" {})) (Failure. (ex-info "err" {}))) := false))
 
+(tests
+  "p/dedupe-by deduplicates values matching predicate"
+  (p/dedupe-by odd?  [1 1])     := '(1)
+  (p/dedupe-by even? [1 1])     := '(1 1)
+  (p/dedupe-by odd?  [1 1 2 1]) := '(1 2 1)
+  )
+
 ;; HACK sequences cljs async tests. Symptomatic of an RCF issue.
 ;; Ticket: https://www.notion.so/hyperfiddle/cljs-test-suite-can-produce-false-failures-0b3799f6d2104d698eb6a956b6c51e48
 #?(:cljs (t/use-fixtures :each {:after #(t/async done (js/setTimeout done 1))}))

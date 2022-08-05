@@ -162,12 +162,6 @@ running on a remote host.
               (rf result input))))))))
   ([pred coll] (sequence (dedupe-by pred) coll)))
 
-(comment                                ; TODO rcf test
-  (dedupe-by odd?  [1 1])     := '(1)
-  (dedupe-by even? [1 1])     := '(1 1)
-  (dedupe-by odd?  [1 1 2 1]) := '(1 2 1)
-  )
-
 (defmacro ^:no-doc deduping "EXPERIMENTAL"
   ([x]
    `(deduping (complement pending?) ~x))  ; Pending passes through
