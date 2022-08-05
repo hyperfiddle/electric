@@ -1,10 +1,14 @@
 (ns ^:dev/once user
   (:require
+    clojure.string
     goog.object
+    [hyperfiddle.photon :as p]
+    [hyperfiddle.photon-dom :as dom]
     hyperfiddle.photon-dom-test
     hyperfiddle.rcf
-    ; Due to :require-macros, demos are loaded in JVM as well on shadow build
     user.demo-entrypoint
+
+    ; Due to :require-macros, demos are loaded in JVM as well on shadow build
     user.demo-1-counter
     user.demo-2-chat
     user.demo-3-system-properties
@@ -30,7 +34,8 @@
     wip.example-router
     wip.hfql-links
     wip.ui-components)
-  (:require-macros [user :refer [get-default-demo]]))
+  (:import [hyperfiddle.photon Pending])
+  (:require-macros [user :refer [get-main]]))
 
 (defn runtime-resolve [exported-qualified-sym]
   (assert (qualified-symbol? exported-qualified-sym))
@@ -39,11 +44,16 @@
         path-segments (clojure.string/split path-s ".")]
     (goog.object/getValueByKeys js/window (clj->js path-segments))))
 
-(defonce user-photon-main (get-default-demo))              ; lazy resolve
-(defonce reactor nil)                                       ; save for debugging
+(def ^:export demo-main
+  (p/boot
+    (try
+      (binding [dom/node (dom/by-id "root")]
+        (user.demo-entrypoint/App.))
+      (catch Pending _))))
 
-(defn set-main [s]
-  (set! user-photon-main (symbol s)))
+(defonce user-photon-main (get-main user/demo-main)) ; lazy resolve
+(defn set-main [s] (set! user-photon-main (symbol s)))
+(defonce reactor nil)
 
 (defn ^:dev/after-load ^:export start! [main]
   (when (or user-photon-main main)
@@ -56,7 +66,7 @@
   (.. js/document (getElementById "root") (replaceChildren)) ; temporary workaround for https://github.com/hyperfiddle/photon/issues/10
   (set! reactor nil))
 
-(defn browser-main! [photon-main-sym]
+(defn browser-main! "hot switch reactor entrypoint from CLJS REPL" [photon-main-sym]
   ;(println ::received-reload-command photon-main-sym (type photon-main-sym))
   (set! user-photon-main photon-main-sym) (stop!) (start! nil))
 
