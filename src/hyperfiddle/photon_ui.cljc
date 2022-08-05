@@ -235,43 +235,50 @@ aria-disabled element.
         (assoc dom-props :type type)
         dom-props))]))
 
-(defmacro checkbox
-  ([] `(checkbox {}))
-  ([props]
-     (let [[value events props'] (parse-props ::value props {})
-           auto-value            (gensym "value_")]
-       `(dom/bubble
-          (let [~auto-value ~value]
-            (dom/input (p/forget (dom/props ~props'))
-              (p/forget (dom/props {:type          :checkbox
-                                    :checked       ~auto-value
-                                    :indeterminate (nil? ~auto-value)}))
-              (into [[::value (dom/events "change" (map (dom/oget :target :checked)) ~auto-value)]]
-                [~@events])))))))
-
 (defn ^:no-doc swap!* [!atom f & _]
   (swap! !atom f))
 
 (def events (comp dom/mappend dom/bubble dom/mappend))
 
+#?(:clj
+   (defn element* [tag props pending-props events pending-events cancel-impulse-sym & body]
+     `(dom/bubble
+        (~tag (p/forget (dom/props ~props))
+         (let [!cancel#            (atom false)
+               ~cancel-impulse-sym (p/watch !cancel#)
+               ret#                (into [(do ~@body)]
+                                 [~@events])]
+           (try (p/deduping p/pending? ret#) ; prevent subsequent pendings to unmount/remount catch Pending branch
+                (catch Pending _
+                  (dom/props ~pending-props)
+                  (interpreter #{::cancel} (partial swap!* !cancel# not) (events [~@pending-events])))))))))
+
 (defmacro element [tag props & body]
-  (let [cancel-impulse   (gensym "cancel-impulse_")
-        [_ pending-events pending-props] (parse-props (constantly nil) (::pending props {}) {} cancel-impulse
+  (let [cancel-impulse-sym               (gensym "cancel-impulse_")
+        [_ pending-events pending-props] (parse-props (constantly nil) (::pending props {}) {} cancel-impulse-sym
                                            {:ignore-aria-disabled true})
-        [_ events props] (parse-props (constantly nil) props {} cancel-impulse)]
-    `(dom/bubble
-       (~tag (p/forget (dom/props ~props))
-        (let [!cancel#        (atom false)
-              ~cancel-impulse (p/watch !cancel#)
-              ret#            (into [(do ~@body)]
-                                [~@events])]
-          (try (p/deduping p/pending? ret#) ; prevent subsequent pendings to unmount/remount catch Pending branch
-               (catch Pending _
-                 (dom/props ~pending-props)
-                 (interpreter #{::cancel} (partial swap!* !cancel# not) (events [~@pending-events])))))))))
+        [_ events props]                 (parse-props (constantly nil) props {} cancel-impulse-sym)]
+    (apply element* tag props pending-props events pending-events cancel-impulse-sym body)))
 
 (defmacro button [props & body]
   `(element dom/button ~props ~@body))
+
+(defmacro checkbox
+  ([] `(checkbox {}))
+  ([props]
+   (let [cancel-impulse-sym               (gensym "cancel-impulse_")
+         [_ pending-events pending-props] (parse-props (constantly nil) (::pending props {}) {} cancel-impulse-sym
+                                            {:ignore-aria-disabled true})
+         [value events props]                 (parse-props (constantly nil) props {} cancel-impulse-sym)]
+     (apply element* `dom/input
+       (merge props {::dom/type          :checkbox
+                     ::dom/checked       value
+                     ::dom/indeterminate `(nil? ~value)})
+       pending-props
+       events
+       pending-events
+       cancel-impulse-sym
+       nil))))
 
 (defn format-num [format-str x] #?(:cljs (if format-str
                                            (format format-str x)
