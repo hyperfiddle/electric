@@ -19,7 +19,6 @@
             wip.demo-bubbles
             wip.demo-color
             user.healthcheck)
-  (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-entrypoint)))
 
 
@@ -37,7 +36,7 @@
   (dom/div
     (Username.)
     (dom/h1 (dom/text "Photon Demos"))
-    (dom/p (dom/text "Pick a demo. See source code in src-docs."))
+    (dom/p (dom/text "See source code in src-docs."))
     (ui/select {::ui/value        demo
                 ::ui/options      [{:text "counter" ::value user.demo-1-counter/App}
                                    {:text "two clocks" ::value user.demo-6-two-clocks/App}
@@ -56,19 +55,8 @@
                                    ;{:text "color" ::value wip.demo-color/App}
                                    {:text "healthcheck" ::value user.healthcheck/App}]
                 ::ui/change-event (p/fn [[event value]] (reset! !demo value))})
-    (dom/div {:style {:max-width  "90vw"
-                      :overflow-x :auto}}
+    (dom/div {:style {:max-width  "90vw" :overflow-x :auto}}
              (let [{::keys [::value]} demo]
                (if (some? value)
                  (new value)
                  (user.healthcheck/App.))))))               ; work around broken default state
-
-(def ^:export main #?(:cljs (p/boot
-                              (try
-                                (binding [dom/node (dom/by-id "root")]
-                                  (App.))
-                                (catch Pending _)))))
-
-(comment
-  #?(:clj (user/browser-main! `main))
-  )
