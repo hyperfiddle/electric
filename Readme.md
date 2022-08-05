@@ -1,18 +1,18 @@
-# Hyperfiddle Photon – a streaming Clojure/Script dialect with compiler-managed client/server datasync
+# Hyperfiddle Photon – a multi-tier Clojure/Script dialect for fullstack web apps with managed server data-fetching
 
 Photon lets you express a frontend/backend web application as a single unified Clojure/Script expression that transcends the client/server boundary.
 
 ```clojure
-(p/defn View [db state]
+(p/defn Teeshirt-orders [db]
   (p/client
     (dom/div
-      (let [email (dom/input)]
-        (dom/h1 "Your orders")
+      (let [!email (atom "") email (p/watch !email)]
+        (ui/input {::ui/input-event (p/fn [e] (reset! !email (:value dom/node)))})
+        (dom/h1 "Your tee-shirt orders")
         (dom/table
-          (p/for [x (p/server xs (query-database db email))]
-            (dom/tr (pr-str x))))))))
-
-; Note: This is our target future syntax, we're not quite there yet.
+          (p/server
+            (p/for [x (query-teeshirt-orders db email)]
+              (p/client (dom/tr (pr-str x))))))))))
 ```
 
 It's called Photon because every point in a Photon form can be thought of as simultaneously a reactive flow and a value.
