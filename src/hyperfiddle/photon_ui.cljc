@@ -123,7 +123,8 @@
   `(let [!switch# (atom true)]
      (->> (p/fn [] (check-interpretable! (new ~Body (new (m/eduction (filter (partial deref' !switch#)) (p/fn [] ~input))))))
           (m/eduction #_cat (dedupe-by first) (interpreter* #{~event-tag} (partial set-switch! !switch#))
-                      (filter seq))
+                      #_(filter seq) ; FIXME transducers sees instances of Failure, not seqable, crashes recator.
+                      )
           (m/reductions {} nil)
           (new))))
 
