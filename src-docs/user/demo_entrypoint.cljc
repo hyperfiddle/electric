@@ -9,7 +9,7 @@
             user.demo-4-webview
             user.demo-5-todos-basic
             user.demo-6-two-clocks
-            ;user.todomvc
+            user.todomvc
             user.demo-7-explorer
             user.demo-8-10k-elements
             user.seven-gui-1-counter
@@ -44,7 +44,7 @@
                                      {:text "system properties" ::value user.demo-3-system-properties/App}
                                      {:text "webview" ::value user.demo-4-webview/App}
                                      {:text "todos basic" ::value user.demo-5-todos-basic/Todo-list}
-                                     ;{:text "todomvc" ::value user.todomvc/App}
+                                     {:text "todomvc" ::value user.todomvc/App}
                                      {:text "explorer" ::value user.demo-7-explorer/App}
                                      {:text "10k elements" ::value user.demo-8-10k-elements/App}
                                      {:text "7GUIs - counter" ::value user.seven-gui-1-counter}
