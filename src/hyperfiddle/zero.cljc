@@ -91,10 +91,7 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
                      (fn [_] (set! (.-raf cancel) 0) (n)))
                (n) cancel))
 
-     ; Warning, m/sleep has a race condition currently
-     :clj  (->> (m/ap (loop [] (m/amb (m/? (m/sleep 1)) (recur))))
-                (m/reductions {} nil)
-                (m/latest (constantly ::tick)))))
+     :clj  (m/ap (loop [] (m/amb ::tick (do (m/? (m/sleep 1)) (recur)))))))
 
 (p/def clock #_"lazy logical clock" (new (identity <clock))) ; syntax gap - static def >clock could be a class on ClojureScript
 
@@ -106,7 +103,7 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
 
 (defn system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
 
-(p/def time #_"ms since Jan 1 1970" (new (m/latest system-time-ms <clock)))
+(p/def time #_"ms since Jan 1 1970" (new (m/sample system-time-ms <clock)))
 
 (tests
   "millisecond time as a stable test"
