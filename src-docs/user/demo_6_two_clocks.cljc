@@ -9,10 +9,10 @@
 (defn clock []
   (->> (m/ap
          (loop []
-           (m/amb (m/? (m/sleep 10 1))
-                  (recur))))
-       (m/reductions {} nil)
-       (m/latest (fn [_]
+           (m/amb nil
+             (do (m/? (m/sleep 10))
+                 (recur)))))
+    (m/sample (fn [_]
                    #?(:clj  (System/currentTimeMillis)
                       :cljs (js/Date.now))))))
 
