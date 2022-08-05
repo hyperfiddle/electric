@@ -1,4 +1,6 @@
 (ns user.todomvc
+  "Requires -Xss2m to compile. default 1m JVM ThreadStackSize is exceeded by photon compiler due to large macroexpansion
+  resulting in false StackOverflowError during analysis."
   (:require [datascript.core :as d]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-ui :as ui]
