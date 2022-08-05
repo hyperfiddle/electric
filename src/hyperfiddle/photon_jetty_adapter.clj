@@ -8,7 +8,7 @@
             [hyperfiddle.photon-impl.runtime :as r])
   (:import [missionary Cancelled]
            [java.nio ByteBuffer]
-           [org.eclipse.jetty.websocket.api Session SuspendToken]))
+           [org.eclipse.jetty.websocket.api Session SuspendToken WebSocketAdapter]))
 
 (defn make-heartbeat
   "Ping the client to prevent connection timeout and detect unexpected disconnects.
@@ -95,10 +95,10 @@
     #()))
 
 (defn success [exit-value] (log/debug "Websocket handler completed gracefully." {:exit-value exit-value}))
-(defn failure [ws ^Throwable e]
+(defn failure [^WebSocketAdapter ws ^Throwable e]
   (log/error "Websocket handler failure" e)
   ;; jetty/close! is missing arity 3 for jetty 9. Call close directly to get arity 3.
-  (.. ws (getSession) (close 1011 "Server process crash")))
+  (.close (.getSession ws) 1011 "Server process crash"))
 
 (defn photon-ws-message-handler
   "Given a websocket instance and a missionary task reading a message, run a photon
