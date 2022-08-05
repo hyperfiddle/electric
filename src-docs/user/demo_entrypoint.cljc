@@ -23,7 +23,7 @@
   #?(:cljs (:require-macros user.demo-entrypoint)))
 
 
-(defonce !demo (atom user.demo-1-counter/App))              ; broken initial state
+(defonce !demo (atom {:text "counter" ::value user.demo-1-counter/App}))              ; broken initial state
 
 (p/defn Username []
   ;; Optional. Browse to `/auth`` to authenticate, any user/password will do.
@@ -57,8 +57,8 @@
                   ::ui/change-event (p/fn [[event value]] (reset! !demo value) nil)})
       (dom/div {:style {:max-width  "90vw"
                         :overflow-x :auto}}
-               (if-let [{::keys [::value]} selected]
-                 (new (p/deduping value))
+               (let [{::keys [::value]} selected]
+                 (when value (new value))
                  (user.healthcheck/App.))))))               ; work around broken default state
 
 (def ^:export main #?(:cljs (p/boot
