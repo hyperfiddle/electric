@@ -19,7 +19,7 @@
         !start (atom (now))
         goal   (p/watch !goal)
         start  (p/watch !start)
-        time   (min goal (- (second-precision (new dom/clock 1)) ; clock ticking at 1Hz
+        time   (min goal (- (second-precision (new dom/Clock 1)) ; clock ticking at 1Hz
                            start))]
     (dom/div {:style {:display     :grid
                       :margin-left "20rem"

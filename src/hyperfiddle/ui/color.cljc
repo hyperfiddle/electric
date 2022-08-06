@@ -22,6 +22,10 @@
      (int (* g 256))
      (int (* b 256))]))
 
+(comment
+  (hsv->rgb (/ 60 360) 1 0.9) := [230 230 0]
+  )
+
 (defn rgb [r g b] (str "rgb("r","g","b")"))
 
 (defn color "Hash a value into an harmonious color. https://www.hsluv.org/"

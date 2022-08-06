@@ -22,12 +22,12 @@
     (pprint/with-pprint-dispatch pprint/code-dispatch
       (pprint/pprint x))))
 
-(defn clamp [n min max] (Math/min (Math/max n min) max))
-
-(tests
-  (clamp 51 10 50) := 50
-  (clamp 50 10 50) := 50
-  (clamp 49 10 50) := 49
-  (clamp 11 10 50) := 11
-  (clamp 10 10 50) := 10
-  (clamp 9  10 50) := 10)
+;(defn clamp [n min max] (Math/min (Math/max n min) max))
+;
+;(tests
+;  (clamp 51 10 50) := 50
+;  (clamp 50 10 50) := 50
+;  (clamp 49 10 50) := 49
+;  (clamp 11 10 50) := 11
+;  (clamp 10 10 50) := 10
+;  (clamp 9  10 50) := 10)
