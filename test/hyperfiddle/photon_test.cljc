@@ -1,6 +1,7 @@
 (ns hyperfiddle.photon-test
   "Photon language unit tests"
   (:require [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-impl.io :as photon-io]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [missionary.core :as m]
             [clojure.test :as t])
@@ -1365,6 +1366,26 @@
   (p/bypass-on odd? (map identity) [1 2 3]) := '(1 2 3)
   (p/bypass-on odd? (map inc) [1 2 3])      := '(1 3 3) ; 1 and 3 bypassed, 2 passed to next transducer
   )
+
+(tests          ; temporary test because p/run does not serilize to transit.
+  "Photon transit layer serilizes unserializable values to nil"
+  (photon-io/decode (photon-io/encode 1)) := 1
+  (photon-io/decode (photon-io/encode (type 1))) := nil)
+
+(comment          ; p/run doesn’t serialize values between the two mocked peers.
+  (tests
+    "p/server return nil on unserializable value"
+    (with (p/run (try (! (p/server (! (type 1))))
+                      (catch Pending _)))
+      % := (type 1)
+      % := nil))
+
+  (tests
+    "p/client return nil on unserializable value"
+    (with (p/run (try (p/server (! (p/client (! (type 1)))))
+                      (catch Pending _)))
+      % := (type 1)
+      % := nil)))
 
 ;; HACK sequences cljs async tests. Symptomatic of an RCF issue.
 ;; Ticket: https://www.notion.so/hyperfiddle/cljs-test-suite-can-produce-false-failures-0b3799f6d2104d698eb6a956b6c51e48
