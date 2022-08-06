@@ -246,8 +246,7 @@ aria-disabled element.
         (~tag (p/forget (dom/props ~props))
          (let [!cancel#            (atom false)
                ~cancel-impulse-sym (p/watch !cancel#)
-               ret#                (into [(do ~@body)]
-                                 [~@events])]
+               ret#                (into [(do ~@body)] [~@events])]
            (try (p/deduping p/pending? ret#) ; prevent subsequent pendings to unmount/remount catch Pending branch
                 (catch Pending _
                   (dom/props ~pending-props)
@@ -269,7 +268,7 @@ aria-disabled element.
    (let [cancel-impulse-sym               (gensym "cancel-impulse_")
          [_ pending-events pending-props] (parse-props (constantly nil) (::pending props {}) {} cancel-impulse-sym
                                             {:ignore-aria-disabled true})
-         [value events props]                 (parse-props (constantly nil) props {} cancel-impulse-sym)]
+         [value events props]                 (parse-props ::value props {} cancel-impulse-sym)]
      (apply element* `dom/input
        (merge props {::dom/type          :checkbox
                      ::dom/checked       value
@@ -307,18 +306,24 @@ aria-disabled element.
    (case (::type props)
      :number   `(numeric-input ~props)
      :checkbox `(checkbox ~props)
-     (let [[value events props'] (parse-props ::value props {})
-           auto-value            (gensym "value_")]
+     (let [cancel-impulse-sym               (gensym "cancel-impulse_")
+           [_ pending-events pending-props] (parse-props (constantly nil) (::pending props {}) {} cancel-impulse-sym
+                                              {:ignore-aria-disabled true})
+           [value events props]             (parse-props ::value props {} cancel-impulse-sym)
+           auto-value                       (gensym "value_")]
        `(dom/bubble
           (semicontroller
             ::focused ~value
             (p/fn [~auto-value]
-              (dom/input (p/forget (dom/props ~props'))
-                (p/forget (dom/props {:value ~auto-value})) ;; TODO should it pulse?
-                (into [(do ~@body)
-                       [::focused (not (new (dom/focus-state dom/node)))]
-                       [::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]]
-                  [~@events])))))))))
+              ~(apply element* `dom/input
+                 (assoc props ::dom/value auto-value)
+                 pending-props
+                 (into `[[::focused (not (new (dom/focus-state dom/node)))]
+                         [::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]]
+                   events)
+                 pending-events
+                 cancel-impulse-sym
+                 body))))))))
 
 (defn- index-of [vec val] (.indexOf vec val))
 
