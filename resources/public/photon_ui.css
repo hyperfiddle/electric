@@ -2,15 +2,21 @@ button[aria-disabled=true], input[type="button"][aria-disabled="true"]{
     color: GrayText;
 }
 
-button[aria-busy=true], input[type=checkbox][aria-busy=true]{
+button[aria-busy=true]
+, input[type=checkbox][aria-busy=true]
+{
     cursor:wait;
     position: relative;
 }
 
 /* Button spinner */
-button[aria-busy=true]::before,  input[type=checkbox][aria-busy=true]::before{
+button[aria-busy=true]::before
+, input[type=checkbox][aria-busy=true]::after
+, .input-load-mask[aria-busy=true]::after
+{
     content:"";
     position:absolute;
+    z-index: 1;
     width: 0.9em;
     height: 0.9em;
     margin: auto;
@@ -23,6 +29,14 @@ button[aria-busy=true]::before,  input[type=checkbox][aria-busy=true]::before{
     border-style: solid;
     border-left-color: transparent;
     border-radius: 50%;
+}
+
+.input-load-mask[aria-busy=true] {
+    position: relative;
+}
+.input-load-mask[aria-busy=true]::after{
+    left: auto;
+    right: 1rem;
 }
 
 /* Button spinner color */

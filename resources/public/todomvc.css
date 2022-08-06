@@ -224,7 +224,7 @@ label[for='toggle-all'] {
 	appearance: none;
 }
 
-#todo-list li .toggle:after {
+#todo-list li .toggle:before {
 	content: '✔';
 	/* 40 + a couple of pixels visual adjustment */
 	line-height: 43px;
@@ -233,7 +233,7 @@ label[for='toggle-all'] {
 	text-shadow: 0 -1px 0 #bfbfbf;
 }
 
-#todo-list li .toggle:checked:after {
+#todo-list li .toggle:checked:before {
 	color: #85ada7;
 	text-shadow: 0 1px 0 #669991;
 	bottom: 1px;
@@ -283,7 +283,8 @@ label[for='toggle-all'] {
 	content: '✖';
 }
 
-#todo-list li:hover .destroy {
+#todo-list li:hover .destroy
+, #todo-list .destroy[aria-busy=true] {
 	display: block;
 }
 
