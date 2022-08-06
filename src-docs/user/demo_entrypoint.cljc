@@ -19,6 +19,7 @@
             wip.demo-bubbles
             wip.demo-color
             wip.demo-hfql
+            wip.popover
             user.healthcheck)
   #?(:cljs (:require-macros user.demo-entrypoint)))
 
@@ -55,6 +56,7 @@
                                    {:text "10k elements" ::value user.demo-8-10k-elements/App}
                                    {:text "bubbles" ::value wip.demo-bubbles/App}
                                    {:text "color" ::value wip.demo-color/App}
+                                   ;{:text "popover" ::value wip.popover/App}
                                    {:text "healthcheck" ::value user.healthcheck/App}]
                 ::ui/change-event (p/fn [[event value]] (reset! !demo value))})
     (dom/div {:style {:max-width  "90vw" :overflow-x :auto}}

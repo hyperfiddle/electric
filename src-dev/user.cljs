@@ -33,7 +33,8 @@
     wip.demo-logical-clock
     wip.example-router
     wip.hfql-links
-    wip.ui-components)
+    wip.ui-components
+    wip.popover)
   (:import [hyperfiddle.photon Pending])
   (:require-macros [user :refer [get-main]]))
 
