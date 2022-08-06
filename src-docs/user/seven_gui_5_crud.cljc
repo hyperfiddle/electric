@@ -3,7 +3,6 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [clojure.string :as str])
-  (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.seven-gui-5-crud)))
 
 ;;; Instructions
@@ -102,14 +101,3 @@
         (ui/button {::dom/disabled   (when-not selected true)
                     ::ui/click-event (p/fn [_] (delete!) nil)}
           (dom/text "Delete"))))))
-
-(def main
-  #?(:cljs (p/boot
-             (try
-               (binding [dom/node (dom/by-id "root")]
-                 (App.))
-               (catch Pending _)))))
-
-(comment
-  #?(:clj (user/browser-main! `main))
-  )
