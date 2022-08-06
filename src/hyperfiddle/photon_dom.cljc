@@ -323,7 +323,7 @@
            (fn [_] (set! (.-raf c) 0) (n)))
          (n) c))))
 
-(p/defn clock
+(p/defn Clock
   "The number of milliseconds elapsed since January 1, 1970, with custom `Hz` frequency.
   If `Hz` is 0, sample at the browser Animation Frame speed."
   [Hz] (new (clock* Hz)))
