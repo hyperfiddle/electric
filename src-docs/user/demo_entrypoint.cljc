@@ -18,6 +18,7 @@
             user.seven-gui-5-crud
             wip.demo-bubbles
             wip.demo-color
+            wip.demo-hfql
             user.healthcheck)
   #?(:cljs (:require-macros user.demo-entrypoint)))
 
@@ -46,17 +47,16 @@
                                    {:text "todos basic" ::value user.demo-5-todos-basic/Todo-list} ; css fixes
                                    {:text "todomvc" ::value user.todomvc/App}
                                    {:text "explorer" ::value user.demo-7-explorer/App}
-                                   {:text "10k elements" ::value user.demo-8-10k-elements/App}
-                                   ;{:text "bubbles" ::value wip.demo-bubbles/App}
-                                   ;{:text "color" ::value wip.demo-color/App}
                                    {:text "7GUIs - counter" ::value user.seven-gui-1-counter/Counter}
                                    {:text "7GUIs - temperature converter" ::value user.seven-gui-2-temperature-converter/App}
                                    {:text "7GUIs - timer" ::value user.seven-gui-4-timer/Timer}
                                    {:text "7GUIs - crud" ::value user.seven-gui-5-crud/App}
+                                   {:text "HFQL" ::value wip.demo-hfql/App}
+                                   {:text "10k elements" ::value user.demo-8-10k-elements/App}
+                                   {:text "bubbles" ::value wip.demo-bubbles/App}
+                                   {:text "color" ::value wip.demo-color/App}
                                    {:text "healthcheck" ::value user.healthcheck/App}]
                 ::ui/change-event (p/fn [[event value]] (reset! !demo value))})
     (dom/div {:style {:max-width  "90vw" :overflow-x :auto}}
              (let [{::keys [::value]} demo]
-               (if (some? value)
-                 (new value)
-                 (user.healthcheck/App.))))))               ; work around broken default state
+               (new (or value user.healthcheck/App))))))     ; work around broken default state

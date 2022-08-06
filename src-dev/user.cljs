@@ -27,7 +27,7 @@
     ;wip.orders-ui
     wip.demo-bubbles
     wip.demo-color
-    #_wip.demo-hfql        ; npm install
+    wip.demo-hfql
     #_wip.editor           ; npm install
     wip.demo-todos-stage
     wip.demo-logical-clock
