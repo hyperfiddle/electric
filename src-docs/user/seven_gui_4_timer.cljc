@@ -2,8 +2,7 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui])
-  #?(:require-macros [user.seven-gui-4-timer])
-  (:import (hyperfiddle.photon Pending)))
+  #?(:cljs (:require-macros user.seven-gui-4-timer)))
 
 ;; https://eugenkiss.github.io/7guis/tasks#timer
 
@@ -41,14 +40,3 @@
              (ui/button {::dom/style      {:grid-row 4, :grid-column "1/3"}
                          ::ui/click-event (p/fn [_] (reset! !start (now)))}
                         (dom/text "Reset")))))
-
-(def main
-  #?(:cljs (p/boot
-             (try
-               (binding [dom/node (dom/by-id "root")]
-                 (Timer.))
-               (catch Pending _)))))
-
-(comment
-  #?(:clj (user/browser-main! `main))
-  )
