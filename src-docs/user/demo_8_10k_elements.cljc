@@ -11,7 +11,7 @@
 (p/defn App []
   (dom/h1 (dom/text "10k dom elements"))
   (let [!running (atom true) running? (p/watch !running)
-        !width (atom 10) width (clamp (p/watch !width) 1 150) ; n=125 is 10k elements; too big number OOMs the tab
+        !width (atom 10) width (p/watch !width)
         height (Math/floor (* width 0.64))
         t (if running? z/time 0)]
 
@@ -23,7 +23,9 @@
       (dom/dt (dom/label {::dom/for "field-width"} (dom/text "width")))
       (dom/dd (ui/input {::dom/id "field-width" ::ui/type :number ::dom/format "%.2f"
                          ::dom/step 5 ::ui/value width
-                         ::ui/input-event (p/fn [e] (reset! !width (:value dom/node)))}))
+                         ::ui/input-event (p/fn [e]
+                                            ; n=125 is 10k elements; too big number OOMs the tab
+                                            (reset! !width (clamp (:value dom/node) 1 50)))}))
       (dom/dt (dom/label (dom/text "elements"))) (dom/dd (dom/text (* width height))))
 
     (dom/div
