@@ -2,7 +2,7 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui])
-  (:import (hyperfiddle.photon Pending)))
+  #?(:cljs (:require-macros user.seven-gui-2-temperature-converter)))
 
 ;; https://eugenkiss.github.io/7guis/tasks#temp
 
@@ -32,14 +32,3 @@
                                               (farenheit->celsius
                                                 (-> event :target :value js/parseFloat)))
                                             nil)}))))))
-
-(def main
-  #?(:cljs (p/boot
-             (try
-               (binding [dom/node (dom/by-id "root")]
-                 (App.))
-               (catch Pending _)))))
-
-(comment
-  #?(:clj (user/browser-main! `main))
-  )
