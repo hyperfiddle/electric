@@ -6,8 +6,6 @@
             [missionary.core :as m])
   #?(:cljs (:require-macros user.demo-8-10k-elements)))
 
-(defn rand-int! [t n] (rand-int n))
-
 (defn state! [width height]
   (vec (for [y (range height) x (range width)]
          (atom 0))))
@@ -20,7 +18,7 @@
 
 (defn perturb! [t n state]
   (dotimes [_ (Math/floor (/ n 100))]
-    (reset! (get state (rand-int! t n)) 9)))
+    (reset! (get state (rand-int n)) 9)))
 
 (p/defn App []
   (dom/h1 (dom/text "10k dom elements"))
