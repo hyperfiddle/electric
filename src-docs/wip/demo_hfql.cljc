@@ -5,13 +5,11 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui :as ui]
-            [wip.orders :refer [orders genders shirt-sizes]]
-            dustin.y2022.edn-render)
-  (:import (hyperfiddle.photon Pending Remote))
+            [wip.orders :refer [orders genders shirt-sizes]])
   #?(:cljs (:require-macros wip.demo-hfql)))
 
 
-(p/defn Orders []
+(p/defn Tee-shirt-orders []
   ;; Warning: HFQL is unstable
   (p/server
     (hf/hfql
@@ -26,26 +24,20 @@
                                    ::hf/render       ui/select-options})
          [:db/ident]}]})))
 
+(p/defn Browser []
+  (dom/div
+    {::dom/id    "main"
+     ::dom/class "browser"}
+    (dom/div
+      {::dom/class "view"}
+      (Tee-shirt-orders.))))
+
 (p/defn App []
-  (dom/div {:id "main"
-            :class "browser"}
-    (dom/div {:class "view"}
-      (Orders.))))
-
-(def main
-  #?(:cljs (p/boot
-             (try (binding [dom/node (dom/by-id "root")]
-                    (p/server
-                      (binding [hf/db     hf/*db*    ; why
-                                hf/Render ui/Render] ; remove for livecoding demo
-                        (ui/with-spec-render
-                          (p/client (App.))))))
-                  (catch Pending _)
-                  (catch Remote _)))))
-
-(comment
-  #?(:clj (user/browser-main! `main))
-  )
+  (p/server
+    (binding [hf/db hf/*db*               ; why
+              hf/Render ui/Render]        ; remove for livecoding demo
+      (ui/with-spec-render
+        (p/client (Browser.))))))
 
 ; Takeaways:
 ; 1. no REST, no GraphQL, all client/server network management handled automatically. Eliminates BFF problem
