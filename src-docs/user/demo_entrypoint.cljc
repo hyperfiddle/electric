@@ -54,9 +54,9 @@
                                    {:text "7GUIs - crud" ::value user.seven-gui-5-crud/App}
                                    {:text "HFQL" ::value wip.demo-hfql/App}
                                    {:text "10k elements" ::value user.demo-8-10k-elements/App}
-                                   {:text "bubbles" ::value wip.demo-bubbles/App}
-                                   {:text "color" ::value wip.demo-color/App}
                                    ;{:text "popover" ::value wip.popover/App}
+                                   ;{:text "bubbles" ::value wip.demo-bubbles/App}
+                                   ;{:text "color" ::value wip.demo-color/App}
                                    {:text "healthcheck" ::value user.healthcheck/App}]
                 ::ui/change-event (p/fn [[event value]] (reset! !demo value))})
     (dom/div {:style {:max-width  "90vw" :overflow-x :auto}}
