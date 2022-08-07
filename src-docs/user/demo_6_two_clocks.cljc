@@ -3,7 +3,6 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m])
-  (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros user.demo-6-two-clocks)))
 
 (defn clock []
