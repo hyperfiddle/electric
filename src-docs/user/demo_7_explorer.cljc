@@ -38,18 +38,21 @@
                                (p/client (dom/li (dom/text fname))))))))]
     (p/client (dom/ul (p/server (FooRecur. handle s))))))
 
-(def !r #?(:cljs (atom "") :clj nil))
-(p/def r (p/client (p/watch !r)))
+(def !target #?(:cljs (atom "src") :clj nil)) (p/def target (p/client (p/watch !target)))
+(def !search #?(:cljs (atom "") :clj nil)) (p/def search (p/client (p/watch !search)))
 
 (p/defn App []
   (dom/div
     (dom/h1 (dom/text "Explorer"))
-    (ui/input {::dom/placeholder "Filter" ::dom/type "search" :style {:width "20rem"}
-               ::ui/input-event  (p/fn [e] (reset! !r (:value dom/node)))})
-    (p/server (Foo. (clojure.java.io/file "src") (p/client r)))))
+    (dom/div
+      (ui/button {::ui/click-event (p/fn [e] (reset! !target "src"))} (dom/text "src"))
+      (ui/button {::ui/click-event (p/fn [e] (reset! !target "node_modules")) ::dom/disabled true} (dom/text "node_modules (todo)")))
+    (ui/input {::dom/placeholder "Search files by name" ::dom/type "search" :style {:width "40rem"}
+               ::ui/input-event  (p/fn [e] (reset! !search (:value dom/node)))})
+    (p/server (Foo. (clojure.java.io/file (p/client target)) (p/client search)))))
 
 (comment
-  !r
-  (reset! !r "LICENSE")
-  (reset! !r "")
+  !search
+  (reset! !search "LICENSE")
+  (reset! !search "")
   )
