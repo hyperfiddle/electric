@@ -21,14 +21,12 @@
                          ::dom/step       0.5
                          ::ui/format      "%.2f"
                          ::ui/input-event (p/fn [event]
-                                            (reset! !state (-> event :target :value js/parseFloat))
-                                            nil)}))
+                                            (let [f (-> event :target :value js/parseFloat)]
+                                              (reset! !state f)))}))
       (dom/dt (dom/text "Farenheit"))
       (dom/dd (ui/input {::ui/type        :number
                          ::ui/value       (celsius->farenheit temperature)
                          ::dom/step       0.5
                          ::ui/input-event (p/fn [event]
-                                            (reset! !state
-                                              (farenheit->celsius
-                                                (-> event :target :value js/parseFloat)))
-                                            nil)}))))))
+                                            (let [f (-> event :target :value js/parseFloat)]
+                                              (reset! !state (farenheit->celsius f))))}))))))
