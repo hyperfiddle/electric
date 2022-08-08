@@ -27,11 +27,9 @@
                        (p/server
                          (cond
                            (file-is-dir x)
-                           (let [fname (file-get-name x)
-                                 xs (file-list-files x)]
-                             (p/client (dom/li (dom/text fname))
-                                       (dom/ul (p/server (p/for [x (take 50 xs)] ; limit length, fixme
-                                                           (FooRecur. x s))))))
+                           (p/client (dom/li (dom/text (p/server (file-get-name x))))
+                                     (dom/ul (p/server (p/for [x (take 100 (file-list-files x))]
+                                                         (FooRecur. x s)))))
                            (file-is-file x)
                            (let [fname (file-get-name x)]
                              (when (includes-str? fname s)
