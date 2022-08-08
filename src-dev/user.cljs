@@ -56,13 +56,15 @@
 (defn set-main [s] (set! user-photon-main (symbol s)))
 (defonce reactor nil)
 
-(defn ^:dev/after-load ^:export start! [main]
+;^:dev/after-load -- temporarily disable hot code reloading
+(defn ^:export start! [main]
   (when (or user-photon-main main)
     (set! reactor ((runtime-resolve (or main user-photon-main))       ; Photon main recompiles every reload, must re-resolve it
                    #(js/console.log "Reactor success:" %)
                    #(js/console.error "Reactor failure:" %)))))
 
-(defn ^:dev/before-load stop! []
+;^:dev/before-load -- temporarily disable hot code reloading
+(defn stop! []
   (when reactor (reactor) #_"teardown")
   (.. js/document (getElementById "root") (replaceChildren)) ; temporary workaround for https://github.com/hyperfiddle/photon/issues/10
   (set! reactor nil))
