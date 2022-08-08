@@ -6,7 +6,7 @@
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.photon-dom :as dom])
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros user.todomvc)))
+  #?(:cljs (:require-macros user.demo-5-todomvc)))
 
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))       ; server
 (p/def db)                                                  ; server
