@@ -59,8 +59,6 @@
         !!state (state! width height)
         n (* width height)]
 
-    (dom/pre (dom/text (pr-str running?)))
-
     (when-let [t (if running? (dom/Clock. 10) nil)]
       (perturb! t n !!state))
 

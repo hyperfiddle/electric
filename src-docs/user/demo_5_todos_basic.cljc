@@ -5,6 +5,9 @@
             [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros user.demo-5-todos-basic)))
 
+; Todo fix css
+; Todo logic is inverted
+
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))
 (p/def db (p/watch !conn))
 
