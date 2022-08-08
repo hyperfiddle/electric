@@ -24,7 +24,8 @@
   (dom/dl
     (dom/dt (dom/label {::dom/for "field-running"} (dom/text " running?")))
     (dom/dd (ui/checkbox {::dom/id         "field-running"
-                          ::ui/input-event (p/fn [e] (reset! !running (:value dom/node)))}))
+                          ::ui/value (p/watch !running)
+                          ::ui/input-event (p/fn [e] (reset! !running (-> e :target :checked)))}))
     (dom/dt (dom/label {::dom/for "field-width"} (dom/text "width")))
     (dom/dd
       (dom/div
@@ -33,7 +34,7 @@
         (ui/button {::ui/click-event (p/fn [e] (reset! !width 89))} (dom/text "10k (wait for it, ~10s, 1g allocated)"))))
     (dom/dt (dom/label (dom/text "cells"))) (dom/dd (dom/text n) (dom/text " (total dom elements roughly double due to text nodes)"))))
 
-(p/defn Board [!!state width height n]
+(p/defn Board [!!state running? width height n]
   (dom/div
     {:style {:font-family "monospace" :font-size "9px" :margin 0 :padding 0}}
     (p/for [y (range 0 height)]
@@ -47,7 +48,7 @@
                                                                             0.95))
                                                        "#ddd")}}
                       (dom/text x))
-            (when (> x 0)
+            (when (and running? (> x 0))
               (new (animate! !x)))))))))
 
 (p/defn App []
@@ -58,8 +59,10 @@
         !!state (state! width height)
         n (* width height)]
 
+    (dom/pre (dom/text (pr-str running?)))
+
     (when-let [t (if running? (dom/Clock. 10) nil)]
       (perturb! t n !!state))
 
     (Controls. !running !width n)
-    (Board. !!state width height n)))
+    (Board. !!state running? width height n)))
