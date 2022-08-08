@@ -22,11 +22,11 @@
     (let [c (p/client (new (clock)))
           s (p/server (new (clock)))]
 
-      (dom/p (dom/span (dom/text "client time: "))
-             (dom/span (dom/text c)))
+      (dom/div (dom/span (dom/text "client time: "))
+               (dom/span (dom/text c)))
 
-      (dom/p (dom/span (dom/text "server time: "))
-             (dom/span (dom/text s)))
+      (dom/div (dom/span (dom/text "server time: "))
+               (dom/span (dom/text s)))
 
-      (dom/p (dom/span (dom/text "latency: "))
-             (dom/span (dom/text (- c s)))))))
+      (dom/div (dom/span (dom/text "latency: "))
+               (dom/span (dom/text (- c s)))))))

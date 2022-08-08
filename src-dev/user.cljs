@@ -9,11 +9,13 @@
     user.demo-entrypoint
 
     ; Due to :require-macros, demos are loaded in JVM as well on shadow build
-    user.demo-1-counter
-    user.demo-2-chat
+    user.demo-1-hello-world
+    user.demo-2-toggle
     user.demo-3-system-properties
+    user.demo-4-chat
     user.demo-4-webview
     user.demo-5-todos-basic
+    user.demo-5-todomvc
     user.demo-6-two-clocks
     user.demo-7-explorer
     user.demo-8-10k-elements
@@ -21,7 +23,6 @@
     user.seven-gui-2-temperature-converter
     user.seven-gui-4-timer
     user.seven-gui-5-crud
-    user.todomvc
     geoffrey.popover
     wip.demo-bubbles
     ;wip.orders-ui
