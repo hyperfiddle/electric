@@ -246,7 +246,7 @@ aria-disabled element.
         (~tag (p/forget (dom/props ~props))
          (let [!cancel#            (atom false)
                ~cancel-impulse-sym (p/watch !cancel#)
-               ret#                (into [(do ~@body)] [~@events])]
+               ret#                (into [(do ~@(dom/handle-text body))] [~@events])]
            (try (p/deduping p/pending? ret#) ; prevent subsequent pendings to unmount/remount catch Pending branch
                 (catch Pending _
                   (dom/props ~pending-props)
