@@ -73,8 +73,9 @@
   )
 
 (defmacro bubbling [& body]
-  `(p/deduping ; TODO maybe dedupe? by command? by tx?
-     (mappend ~@body)))
+  (when (seq body)
+    `(p/deduping ; TODO maybe dedupe? by command? by tx?
+       (mappend ~@body))))
 
 (def nil-subject (fn [!] (! nil) #()))
 (p/def keepalive (new (m/observe nil-subject)))
@@ -107,12 +108,6 @@
   #?(:cljs (let [node (d/createElement type)]
              (.appendChild parent node) node)))
 
-(defmacro element [t & [props & body]]
-  `(with (dom-element node ~(name t))
-     (bubbling ~@(if (map? props)
-                   (cons `(props ~props) body)
-                   (cons props body)))))
-
 (defn text-node [parent]
   #?(:cljs (let [node (d/createTextNode "")]
              (.appendChild parent node) node)))
@@ -121,6 +116,21 @@
 
 (defmacro text [& strs]
   `(with (text-node node) (set-text-content! node (str ~@strs))))
+
+(defn handle-text [body]
+  (some->> (filter some? body)
+    (map (fn [form] (if (string? form)
+                      `(dom/text ~form)
+                      form ; TODO handle dynamic string case (could makes DAG ×2 larger)
+                      )))))
+
+(defmacro element [t & [props & body]]
+  (let [[props body] (if (map? props) [props body] [nil (seq (cons props body))])
+        body         (handle-text body)]
+    `(with (dom-element node ~(name t))
+       (bubbling ~@(cond (map? props)  (cons `(props ~props) body)
+                         (some? props) (cons props body)
+                         :else         body)))))
 
 (defn set-style! [node k v]
   #?(:cljs (goog.style/setStyle node (name k) (clj->js v))))
