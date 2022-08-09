@@ -13,9 +13,9 @@
   (let [!state      (atom 0)
         temperature (p/watch !state)]
     (dom/div
-     (dom/h1 (dom/text "Temperature Converter"))
+     (dom/h1 "Temperature Converter")
      (dom/dl
-      (dom/dt (dom/text "Celcius"))
+      (dom/dt "Celcius")
       (dom/dd (ui/input {::ui/type        :number
                          ::ui/value       temperature
                          ::dom/step       0.5
@@ -23,7 +23,7 @@
                          ::ui/input-event (p/fn [event]
                                             (let [f (-> event :target :value js/parseFloat)]
                                               (reset! !state f)))}))
-      (dom/dt (dom/text "Farenheit"))
+      (dom/dt "Farenheit")
       (dom/dd (ui/input {::ui/type        :number
                          ::ui/value       (celsius->farenheit temperature)
                          ::dom/step       0.5

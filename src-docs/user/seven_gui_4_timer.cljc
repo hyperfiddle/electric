@@ -25,12 +25,12 @@
                       :margin-left "20rem"
                       :grid-gap    "0 1rem"
                       :align-items :center}}
-             (dom/span (dom/text "Elapsed Time:"))
+             (dom/span "Elapsed Time:")
              (dom/progress {:max   goal
                             :value time
                             :style {:grid-column 2}})
-             (dom/span (dom/text (str (seconds time) " s")))
-             (dom/span {:style {:grid-row 3}} (dom/text "Duration"))
+             (dom/span (dom/text (seconds time) " s"))
+             (dom/span {:style {:grid-row 3}} "Duration")
              (ui/input {::ui/value       (/ initial-goal 1000)
                         ::ui/input-event (p/fn [event] (reset! !goal (* 1000 (js/parseInt (dom/oget event :target :value)))) nil)
                         ::dom/type       :range
@@ -39,4 +39,4 @@
                         ::dom/style      {:grid-row 3}})
              (ui/button {::dom/style      {:grid-row 4, :grid-column "1/3"}
                          ::ui/click-event (p/fn [_] (reset! !start (now)))}
-                        (dom/text "Reset")))))
+                        "Reset"))))
