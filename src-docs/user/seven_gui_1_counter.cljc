@@ -11,4 +11,4 @@
     (dom/div
       (dom/p (dom/text (p/watch !state)))
       (ui/button {::ui/click-event (p/fn [_] (swap! !state inc) nil)}
-        (dom/text "Count")))))
+        "Count"))))

@@ -64,7 +64,7 @@
                                        (p/server (when-some [ids (seq (query-todos db :done))]
                                                    (p/wrap transact! !conn (mapv retract-entity ids)))))
                     ::ui/pending     {::dom/aria-busy true}}
-          (dom/text (str "Clear completed " done)))))))
+          "Clear completed " done)))))
 
 (defn focus! [node] (.focus node))
 
@@ -136,7 +136,7 @@
                                            (let [status (if (= all done) :active :done)]
                                              (p/server (p/wrap transact! !conn (toggle-all! db status)))))
                         ::ui/pending     {::dom/aria-busy true}}))
-        (dom/label {:for "toggle-all"} (dom/text "Mark all as complete"))
+        (dom/label {:for "toggle-all"} "Mark all as complete")
         (dom/ul {:id "todo-list"}
           (p/for [id (p/server (sort (query-todos db (::filter state))))]
             (TodoItem. state id)))))))
@@ -161,7 +161,7 @@
         {:id "todoapp"}
         (dom/header
           {:id "header"}
-          (dom/h1 (dom/text "TodoMVC"))
+          (dom/h1 "TodoMVC")
           (CreateTodo.))
 
         (when (p/server (pos? (todo-count db :all)))
@@ -173,7 +173,7 @@
 
       (dom/footer
         {:id "info"}
-        (dom/p (dom/text "Double-click to edit a todo"))))))
+        (dom/p "Double-click to edit a todo")))))
 
 (p/defn App []
   (p/client
@@ -183,12 +183,12 @@
           (p/client
             (dom/link {:rel :stylesheet, :href "todomvc.css"})
             (TodoMVC. state)  ; FIXME deduping impacted by Pending
-            (dom/h1 (dom/text "Diagnostics"))
+            (dom/h1 "Diagnostics")
             (dom/div
               (dom/dl
-                (dom/dt (dom/text "count :all")) (dom/dd (dom/text (pr-str (p/server (todo-count db :all)))))
-                (dom/dt (dom/text "query :all")) (dom/dd (dom/text (pr-str (p/server (query-todos db :all)))))
-                (dom/dt (dom/text "state")) (dom/dd (dom/text (pr-str state)))))))))))
+                (dom/dt "count :all") (dom/dd (dom/text (pr-str (p/server (todo-count db :all)))))
+                (dom/dt "query :all") (dom/dd (dom/text (pr-str (p/server (query-todos db :all)))))
+                (dom/dt "state") (dom/dd (dom/text (pr-str state)))))))))))
 
 (def main #?(:cljs (p/boot (try (binding [dom/node (dom/by-id "root")] (App.)) (catch Pending _)))))
 

@@ -63,7 +63,7 @@
                                             'd d i i'\n
                                             'j j j j'"}}
       (dom/span {:style {:grid-area "a"}}
-                       (dom/text "Filter prefix:"))
+                "Filter prefix:")
       (let [needle (::ui/value (ui/input {:style {:grid-area "b"}}))]
         (dom/ul {:style {:grid-area        "d"
                          :background-color :white
@@ -81,11 +81,11 @@
                                                                  :padding          "0.1rem 0.5rem"}}
                                        (dom/text (:surname value) ", " (:name value)))))))
       (let [stage (cursor state [:stage])]
-        (dom/span {:style {:grid-area "e"}} (dom/text "Name:"))
+        (dom/span {:style {:grid-area "e"}} "Name:")
         (ui/input {::ui/value       (:name stage)
                    ::ui/input-event (p/fn [event] (set-name! (dom/oget event :target :value)))
                    ::dom/style      {:grid-area "f"}})
-        (dom/span {:style {:grid-area "g"}} (dom/text "Surname:"))
+        (dom/span {:style {:grid-area "g"}} "Surname:")
         (ui/input {::ui/value       (:surname stage)
                    ::ui/input-event (p/fn [event] (set-surname! (dom/oget event :target :value)))
                    ::dom/style      {:grid-area "h"}}))
@@ -94,10 +94,10 @@
                         :grid-gap              "0.5rem"
                         :grid-template-columns "auto auto auto 1fr"}}
         (ui/button {::ui/click-event (p/fn [_] (create!) nil)}
-          (dom/text "Create"))
+          "Create")
         (ui/button {::dom/disabled   (when-not selected true)
                     ::ui/click-event (p/fn [_] (update!) nil)}
-          (dom/text "Update"))
+          "Update")
         (ui/button {::dom/disabled   (when-not selected true)
                     ::ui/click-event (p/fn [_] (delete!) nil)}
-          (dom/text "Delete"))))))
+          "Delete")))))

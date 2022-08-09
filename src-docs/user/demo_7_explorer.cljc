@@ -41,12 +41,11 @@
 
 (p/defn App []
   (dom/div
-    (dom/h1 (dom/text "Folder Explorer"))
-    (dom/div
-      (dom/text "Folder: ")
-      (ui/button {::ui/click-event (p/fn [e] (reset! !target "src"))} (dom/text "src"))
-      (ui/button {::ui/click-event (p/fn [e] (reset! !target "node_modules")) ::dom/disabled true} (dom/text "node_modules (todo)")))
-    (dom/p (dom/text "Try typing \"compiler\""))
+    (dom/h1 "Folder Explorer")
+    (dom/div "Folder: "
+      (ui/button {::ui/click-event (p/fn [e] (reset! !target "src"))} "src")
+      (ui/button {::ui/click-event (p/fn [e] (reset! !target "node_modules")) ::dom/disabled true} "node_modules (todo)"))
+    (dom/p "Try typing \"compiler\"")
     (ui/input {::dom/placeholder "Search files by name" ::dom/type "search" :style {:width "40rem"}
                ::ui/input-event  (p/fn [e] (reset! !search (:value dom/node)))})
     (p/server (Foo. (clojure.java.io/file (p/client target)) (p/client search)))))

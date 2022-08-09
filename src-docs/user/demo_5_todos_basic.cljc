@@ -52,4 +52,4 @@
       (dom/p
         {::dom/class "counter"}
         (dom/span {::dom/class "count"} (dom/text (p/server (todo-count db))))
-        (dom/text " items left")))))
+        " items left"))))
