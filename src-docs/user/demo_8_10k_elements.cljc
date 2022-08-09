@@ -22,17 +22,17 @@
 
 (p/defn Controls [!running !width n]
   (dom/dl
-    (dom/dt (dom/label {::dom/for "field-running"} (dom/text " running?")))
+    (dom/dt (dom/label {::dom/for "field-running"} " running?"))
     (dom/dd (ui/checkbox {::dom/id         "field-running"
                           ::ui/value (p/watch !running)
                           ::ui/input-event (p/fn [e] (reset! !running (-> e :target :checked)))}))
-    (dom/dt (dom/label {::dom/for "field-width"} (dom/text "width")))
+    (dom/dt (dom/label {::dom/for "field-width"} "width"))
     (dom/dd
       (dom/div
-        (ui/button {::ui/click-event (p/fn [e] (reset! !width 29))} (dom/text "1k"))
-        (ui/button {::ui/click-event (p/fn [e] (reset! !width 45))} (dom/text "2.5k"))
-        (ui/button {::ui/click-event (p/fn [e] (reset! !width 89))} (dom/text "10k (wait for it, ~10s, 1g allocated)"))))
-    (dom/dt (dom/label (dom/text "cells"))) (dom/dd (dom/text n) (dom/text " (total dom elements roughly double due to text nodes)"))))
+        (ui/button {::ui/click-event (p/fn [e] (reset! !width 29))} "1k")
+        (ui/button {::ui/click-event (p/fn [e] (reset! !width 45))} "2.5k")
+        (ui/button {::ui/click-event (p/fn [e] (reset! !width 89))} "10k (wait for it, ~10s, 1g allocated)")))
+    (dom/dt (dom/label "cells")) (dom/dd (dom/text n) " (total dom elements roughly double due to text nodes)")))
 
 (p/defn Board [!!state running? width height n]
   (dom/div
@@ -52,7 +52,7 @@
               (new (animate! !x)))))))))
 
 (p/defn App []
-  (dom/h1 (dom/text "10k dom elements"))
+  (dom/h1 "10k dom elements")
   (let [!running (atom true) running? (p/watch !running)
         !width (atom 30) width (p/watch !width)
         height (Math/floor (* width 0.64))
