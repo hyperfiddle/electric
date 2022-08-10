@@ -1,6 +1,5 @@
 (ns user.demo-entrypoint
-  (:require [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             user.demo-1-hello-world
@@ -29,15 +28,8 @@
                   :clj nil))
 (p/def demo (p/client (p/watch !demo)))
 
-(p/defn Username []
-  ;; Optional. Browse to `/auth`` to authenticate, any user/password will do.
-  (when-let [username (p/server (get-in hf/*http-request* [:cookies "username" :value]))]
-    (dom/p "Authenticated as "
-           (dom/span {:style {:font-weight :bold}} username))))
-
 (p/defn App []
   (dom/div
-    (Username.)
     (dom/h1 "Photon Demos")
     (dom/p "See source code in src-docs.")
     (ui/select {::ui/value        demo
@@ -52,6 +44,7 @@
                                    {:text "explorer" ::value user.demo-7-explorer/App}
                                    {:text "10k elements" ::value user.demo-8-10k-elements/App}
                                    {:text "HFQL" ::value wip.demo-hfql/App}
+                                   {:text "Authentication" ::value user.auth/App}
 
                                    {:text "7GUIs - counter" ::value user.seven-gui-1-counter/Counter}
                                    {:text "7GUIs - temperature converter" ::value user.seven-gui-2-temperature-converter/App}

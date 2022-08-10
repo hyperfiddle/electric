@@ -19,6 +19,7 @@
     user.demo-6-two-clocks
     user.demo-7-explorer
     user.demo-8-10k-elements
+    user.auth
     user.seven-gui-1-counter
     user.seven-gui-2-temperature-converter
     user.seven-gui-4-timer
