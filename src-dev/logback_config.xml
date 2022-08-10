@@ -1,13 +1,13 @@
 <included>
     <appender name="ERGONOMIC" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %cyan(%logger{15}) %white([%thread]) - %msg%n</pattern>
+            <pattern>%highlight(%-5level) %logger: %msg%n</pattern>
         </encoder>
     </appender>
 
     <appender name="FULL" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %logger [%thread] - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %cyan(%logger{15}) %white([%thread]) - %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -19,6 +19,5 @@
     <logger name="org.xnio" level="WARN" additivity="false"><appender-ref ref="FULL" /></logger>
     <logger name="io.undertow" level="WARN" additivity="false"><appender-ref ref="FULL" /></logger>
     <logger name="org.eclipse.jetty" level="WARN" additivity="false"><appender-ref ref="FULL" /></logger>
-    <logger name="io.pedestal" level="WARN" additivity="false"><appender-ref ref="FULL" /></logger>
 
 </included>
