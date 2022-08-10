@@ -1396,8 +1396,26 @@
   (p/run
     (try
       (let [x (p/watch !x)]
+        ; check eager network does not beat the switch
         (if x (p/server (! x)) x))
       (catch Pending _)))
   % := true
   (swap! !x not)
+  ; the remote tap on the switch has been removed
   % := ::rcf/timeout)
+
+(tests
+  (def !x (atom true))
+  (p/def x (p/server (p/watch !x)))
+  (p/run
+    (try
+      (if (p/server x)  ; to be consistent, client should see x first and switch
+        (p/server (! x))  ; but test shows that the server sees x change before client
+        (p/server x))
+      (catch Pending _)))
+  % := true
+  (swap! !x not)
+  % := false #_ ::rcf/timeout
+  ; we have to choose: consistency or less latency?
+  ; current behavior - Dustin likes, Leo does not like
+  )
