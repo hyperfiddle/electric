@@ -33,7 +33,7 @@
 (p/defn Filter-control [state target label]
   (ui/element dom/a {::dom/class (when (= state target) "selected")
                      ::ui/click-event (p/fn [_] (swap! !state assoc ::filter target))}
-    (dom/text label)))
+    label))
 
 (defn transact! "prevent remote errors (attempt to serialize and move d/transact return value)"
   [!conn tx]
@@ -50,8 +50,8 @@
         done   (p/server (todo-count db :done))]
     (dom/div
       (dom/span {:id "todo-count"}
-        (dom/strong (dom/text active))
-        (dom/span (dom/text (str " " (case active 1 "item" "items") " left"))))
+        (dom/strong active)
+        (dom/span " " (case active 1 "item" "items") " left"))
 
       (dom/ul {:id "filters"}
         (dom/li (Filter-control. (::filter state) :all "All"))
@@ -95,7 +95,7 @@
                                                              nil)))))
                           ::ui/pending {::dom/aria-busy true}})
             (ui/element dom/label {::ui/dblclick-event (p/fn [_] (swap! !state assoc ::editing id))}
-              (dom/text (str description))))
+              description))
           (when (= id (::editing state))
             (ui/element dom/span {::dom/class  ["input-load-mask"] ; input does not support CSS pseudoelements
                                   ::ui/pending {::dom/aria-busy true}}
@@ -186,9 +186,9 @@
             (dom/h1 "Diagnostics")
             (dom/div
               (dom/dl
-                (dom/dt "count :all") (dom/dd (dom/text (pr-str (p/server (todo-count db :all)))))
-                (dom/dt "query :all") (dom/dd (dom/text (pr-str (p/server (query-todos db :all)))))
-                (dom/dt "state") (dom/dd (dom/text (pr-str state)))))))))))
+                (dom/dt "count :all") (dom/dd (pr-str (p/server (todo-count db :all))))
+                (dom/dt "query :all") (dom/dd (pr-str (p/server (query-todos db :all))))
+                (dom/dt "state")      (dom/dd (pr-str state))))))))))
 
 (def main #?(:cljs (p/boot (try (binding [dom/node (dom/by-id "root")] (App.)) (catch Pending _)))))
 

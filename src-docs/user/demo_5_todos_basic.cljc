@@ -34,7 +34,7 @@
                                            (p/server
                                              (d/transact! !conn [{:db/id id
                                                                   :task/status (if status :done :active)}]))))})
-        (dom/label {::dom/for id} (dom/text (str (p/server (:task/description e)))))))))
+        (dom/label {::dom/for id} (p/server (:task/description e)))))))
 
 (defn todo-count [db]
   #?(:clj (count (d/q '[:find [?e ...] :in $ ?status :where [?e :task/status ?status]] db :active))))
@@ -51,5 +51,5 @@
             (TodoItem. id))))
       (dom/p
         {::dom/class "counter"}
-        (dom/span {::dom/class "count"} (dom/text (p/server (todo-count db))))
+        (dom/span {::dom/class "count"} (p/server (todo-count db)))
         " items left"))))

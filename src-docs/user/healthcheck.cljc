@@ -7,11 +7,11 @@
 
 (p/defn App []
   (dom/div
-    (dom/h1 (dom/text "Healthcheck"))
+    (dom/h1 "Healthcheck")
     (dom/dl
-      (dom/dt (dom/text "time"))   (dom/dd (dom/text z/time))
-      (dom/dt (dom/text "client")) (dom/dd (dom/text (p/client (pr-str (type 1)))))
-      (dom/dt (dom/text "server")) (dom/dd (dom/text (p/server (pr-str (type 1))))))))
+      (dom/dt "time")   (dom/dd z/time)
+      (dom/dt "client") (dom/dd (p/client (pr-str (type 1))))
+      (dom/dt "server") (dom/dd (p/server (pr-str (type 1)))))))
 
 (def main
   #?(:cljs (p/boot

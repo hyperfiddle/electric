@@ -32,7 +32,7 @@
         (ui/button {::ui/click-event (p/fn [e] (reset! !width 29))} "1k")
         (ui/button {::ui/click-event (p/fn [e] (reset! !width 45))} "2.5k")
         (ui/button {::ui/click-event (p/fn [e] (reset! !width 89))} "10k (wait for it, ~10s, 1g allocated)")))
-    (dom/dt (dom/label "cells")) (dom/dd (dom/text n) " (total dom elements roughly double due to text nodes)")))
+    (dom/dt (dom/label "cells")) (dom/dd n " (total dom elements roughly double due to text nodes)")))
 
 (p/defn Board [!!state running? width height n]
   (dom/div
@@ -47,7 +47,7 @@
                                                                             (-> x (/ 7.5) (* 1.33))
                                                                             0.95))
                                                        "#ddd")}}
-                      (dom/text x))
+                      x)
             (when (and running? (> x 0))
               (new (animate! !x)))))))))
 
