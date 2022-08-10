@@ -53,6 +53,7 @@
     {:on-connect (fn on-connect [ws]
                    (log/debug "WS connect" (jetty/req-of ws))
                    (let [session (.getSession ws)]
+                     (.setMaxTextMessageSize (.getPolicy session) (* 100 1024 1024))  ; Allow large value paylods, temporary.
                      (swap! state assoc
                        :session   session
                        :cancel!   (handler-f ws messages)  ; Start photon process
