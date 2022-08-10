@@ -24,8 +24,8 @@
   #?(:cljs (:require-macros user.demo-entrypoint)))
 
 
-(defonce !demo #?(:cljs  (atom nil #_{:text "counter" ::value user.demo-1-counter/App})
-                  :clj nil))
+;(defonce !demo #?(:cljs (atom {::value user.demo-1-hello-world/App}) :clj nil))
+(p/def !demo (p/client (atom {:text "hello world" ::value user.demo-1-hello-world/App})))
 (p/def demo (p/client (p/watch !demo)))
 
 (p/defn App []
@@ -59,4 +59,4 @@
     (dom/hr)
     (dom/div {:style {:max-width  "90vw" :overflow-x :auto}}
              (let [{::keys [::value]} demo]
-               (new (or value user.demo-1-hello-world/App))))))     ; work around broken default state
+               (new (or value user.demo-1-hello-world/App))))))
