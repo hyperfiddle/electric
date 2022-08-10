@@ -284,6 +284,7 @@ aria-disabled element.
                                            (pr-str x))))
 (defn parse-num [x] #?(:cljs (-> (js/parseFloat x) (* 100) (js/Math.round) (/ 100))))
 (defn is-num? [x] #?(:cljs (not (js/isNaN x))))
+(defn numeric-value [x] (let [num (parse-num x)] (when (is-num? num) num)))
 (def parse-input (comp (map (dom/oget :target :value)) (map parse-num) (filter is-num?)))
 
 (defmacro numeric-input [props]

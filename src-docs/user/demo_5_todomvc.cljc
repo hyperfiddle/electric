@@ -11,7 +11,8 @@
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))       ; server
 (p/def db)                                                  ; server
 (def !state #?(:cljs (atom {::filter :all                   ; client
-                            ::editing nil})))
+                            ::editing nil
+                            ::delay   0})))
 
 (defn query-todos [db filter]
   {:pre [filter]}
@@ -36,12 +37,16 @@
     label))
 
 (defn transact! "prevent remote errors (attempt to serialize and move d/transact return value)"
-  [!conn tx]
-  #?(:clj (try (Thread/sleep 1000)      ; artificial latency
+  [!conn tx delay]
+  #?(:clj (try (Thread/sleep delay)      ; artificial latency
                (d/transact! !conn tx) nil
                (catch InterruptedException _
                  (prn "d/transact! interrupted")))
      :cljs (assert false "transact from wrong peer (called on: client)")))
+
+(p/def tx-delay 0)
+
+(p/defn Transact [tx] (p/wrap transact! !conn tx tx-delay))
 
 (defn retract-entity [id] [:db/retractEntity id])
 
@@ -62,7 +67,7 @@
         (ui/button {::dom/id         "clear-completed"
                     ::ui/click-event (p/fn [_]
                                        (p/server (when-some [ids (seq (query-todos db :done))]
-                                                   (p/wrap transact! !conn (mapv retract-entity ids)))))
+                                                   (Transact. (mapv retract-entity ids)))))
                     ::ui/pending     {::dom/aria-busy true}}
           "Clear completed " done)))))
 
@@ -88,7 +93,7 @@
                           ::ui/value       (= :done status)
                           ::ui/input-event (p/fn [e]
                                              (let [checked? (-> e :target :checked)]
-                                               (p/server (p/wrap transact! !conn
+                                               (p/server (Transact.
                                                            (case checked?
                                                              true  [{:db/id id, :task/status :done}]
                                                              false [{:db/id id, :task/status :active}]
@@ -107,13 +112,13 @@
                                                (case (:identifier e)
                                                  "enter" (let [description (-> e :target :value)]
                                                            (p/server
-                                                             (let [[_ done] [(p/wrap transact! !conn [{:db/id id, :task/description description}]) nil]]
+                                                             (let [[_ done] [(Transact. [{:db/id id, :task/description description}]) nil]]
                                                                ;; causal dependency. `transact!` runs, then we swap! state.
                                                                (p/client (swap! !state assoc ::editing done)))))
                                                  "esc"   (swap! !state assoc ::editing nil)))}
                 (focus! dom/node))))
           (ui/button {::dom/class      "destroy"
-                      ::ui/click-event (p/fn [_] (p/server (p/wrap transact! !conn [[:db/retractEntity id]])))
+                      ::ui/click-event (p/fn [_] (p/server (Transact. [[:db/retractEntity id]])))
                       ::ui/pending     {::dom/aria-busy true}}))))))
 
 (defn toggle-all! [db status]
@@ -134,7 +139,7 @@
                                                :else          nil)
                         ::ui/input-event (p/fn [_]
                                            (let [status (if (= all done) :active :done)]
-                                             (p/server (p/wrap transact! !conn (toggle-all! db status)))))
+                                             (p/server (Transact. (toggle-all! db status)))))
                         ::ui/pending     {::dom/aria-busy true}}))
         (dom/label {:for "toggle-all"} "Mark all as complete")
         (dom/ul {:id "todo-list"}
@@ -150,7 +155,7 @@
        ::ui/keychords      #{"enter"}
        ::ui/keychord-event (p/fn [event]
                              (let [description (:value dom/node)]
-                               (let [done (p/server (p/wrap transact! !conn [{:task/description description, :task/status :active}]))]
+                               (let [done (p/server (Transact. [{:task/description description, :task/status :active}]))]
                                  ;; causal dependency - empty input after transaction success
                                  (dom/oset! dom/node :value ({} done "")))))})))
 
@@ -179,7 +184,8 @@
   (p/client
     (let [state (p/watch !state)]
       (p/server
-        (binding [db (p/watch !conn)]
+        (binding [db       (p/watch !conn)
+                  tx-delay (::delay state)]
           (p/client
             (dom/link {:rel :stylesheet, :href "todomvc.css"})
             (TodoMVC. state)  ; FIXME deduping impacted by Pending
@@ -188,7 +194,17 @@
               (dom/dl
                 (dom/dt "count :all") (dom/dd (pr-str (p/server (todo-count db :all))))
                 (dom/dt "query :all") (dom/dd (pr-str (p/server (query-todos db :all))))
-                (dom/dt "state")      (dom/dd (pr-str state))))))))))
+                (dom/dt "state")      (dom/dd (pr-str state))
+                (dom/dt "delay")  (dom/dd
+                                    (ui/input {::ui/type        :number
+                                               ::ui/value       (::delay state)
+                                               ::dom/step       1
+                                               ::dom/min        0
+                                               ::dom/style      {:width :min-content}
+                                               ::ui/input-event (p/fn [e]
+                                                                  (when-let [value (ui/numeric-value (-> e :target :value))]
+                                                                    (swap! !state assoc ::delay value)))})
+                                    " ms")))))))))
 
 (def main #?(:cljs (p/boot (try (binding [dom/node (dom/by-id "root")] (App.)) (catch Pending _)))))
 
