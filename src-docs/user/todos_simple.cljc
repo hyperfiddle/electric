@@ -1,9 +1,9 @@
-(ns user.demo-5-todos-basic
+(ns user.todos-simple
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui])
-  #?(:cljs (:require-macros user.demo-5-todos-basic)))
+  #?(:cljs (:require-macros user.todos-simple)))
 
 ; Todo fix css
 ; Todo logic is inverted
