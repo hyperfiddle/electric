@@ -9,6 +9,6 @@
 (p/defn Counter []
   (let [!state (atom 0)]
     (dom/div
-      (dom/p (dom/text (p/watch !state)))
+      (dom/p (p/watch !state))
       (ui/button {::ui/click-event (p/fn [_] (swap! !state inc) nil)}
         "Count"))))

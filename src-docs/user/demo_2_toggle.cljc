@@ -15,5 +15,5 @@
   (dom/p
     "Number type is: "
     (if (p/server x)
-      (dom/text (p/client (pr-str (type 1))))               ; javascript number type
-      (dom/text (p/server (pr-str (type 1)))))))         ; java number type
+      (p/client (pr-str (type 1)))      ; javascript number type
+      (p/server (pr-str (type 1))))))   ; java number type

@@ -79,7 +79,7 @@
                                                                  :color            (if (= selected id) :white :inherit)
                                                                  :background-color (if (= selected id) :blue :inherit)
                                                                  :padding          "0.1rem 0.5rem"}}
-                                       (dom/text (:surname value) ", " (:name value)))))))
+                                       (:surname value) ", " (:name value))))))
       (let [stage (cursor state [:stage])]
         (dom/span {:style {:grid-area "e"}} "Name:")
         (ui/input {::ui/value       (:name stage)
