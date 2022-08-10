@@ -51,46 +51,39 @@ Emacs:
 * append ":dev" to end of the command string like "-M:cider/nrepl:dev"
 
 # Project status = private technical alpha
+Updated: 2022 August 9
 
-Updated: 2022 August 4
-
-Current focus is addressing feedback from beta users.
+Current focus is TodoMVC and odopms
 
 - [x] Photon core language at CLJ REPL
-- [x] Photon core language at CLJS REPL [x] Cursive [x] Emacs [ ] Calva
-- [x] Photon client/server transfer [x] Cursive [x] Emacs [ ] Calva
+- [x] Photon core language at CLJS REPL [x] Cursive [x] Emacs [x] Calva
+- [x] Photon client/server transfer [x] Cursive [x] Emacs [x] Calva
 - [x] Photon-dom basic tutorial level usage (bugs allowed)
-- [x] hot code reloading - [x] Cursive, [ ] Emacs, [ ] Calva
+- [x] Photon-dom hot code reloading - [x] Cursive, [x] Emacs, [x] Calva
 - [x] Photon-dom webview with client/server transfer (read only)
-- [x] Photon-dom uncontrolled text input
-- [x] client/server transfer stress tests
 - [x] Concurrent sessions/tabs with shared server state
-- [x] Todos basic demo
-- [x] Basic Photon/Missionary interop for common patterns (buttons, ...)
-- [x] photon-dom todo app (no bugs)
-- [x] TodoMVC (full example) [x] client/server transfer 
-- [x] Photon-dom controlled text input [ ] stabilized for network latency
-- [*] Photon idioms and component library for common patterns
-- [ ] 7 GUIs [ ] cljs only [ ] client/server transfer
+- [x] Photon-dom controlled text input [*] stabilized for network latency
+- [x] TodoMVC [x] client/server transfer
+- [x] client/server transfer stress tests
+- [x] Photon/Missionary interop
+- [*] 7 GUIs
+- [*] pending states and error handling - robust idioms
 - [ ] tee-shirt orders example app with select options
 - [ ] HFQL spec-driven forms with user interaction and staging area
 
-# Known issues, gaps, gotchas
+# Known issues, feature gaps, gotchas
+Updated: 2022 August 9
 
-Updated: 2022 August 4
-
-Broadly, patterns that work are documented with examples and test cases. No reference pattern = expect issues
-
-Current issues and missing features:
-- no clojure.core/fn yet inside Photon blocks, it's coming. Use `partial` for now
-- no fn destructuring yet
-- no recursion yet - see workaround in [demo_7_explorer.cljc](https://github.com/hyperfiddle/photon/tree/master/src-docs/user/demo_7_explorer.cljc) 
-- vno ariable fn arity yet
+- no `clojure.core/fn` yet inside Photon blocks, it's coming. Use `partial` for now
+- no fn destructuring yet, no variable fn arity yet
+- no recursion yet - see workaround in [demo_7_explorer.cljc](https://github.com/hyperfiddle/photon/tree/master/src-docs/user/demo_7_explorer.cljc)
 - no interop special forms in Photon blocks, including no `js/` access
-- "duplicate effects" – you'll know it when you see it, fix is active WIP
-- `Pending` state is getting redesigned
 
 Errors
 * Cursive says `Dependency cycle: hyperfiddle.api -> hyperfiddle.hfql -> hyperfiddle.hfql.impl -> hyperfiddle.api` – Cursive is not correctly handling Clojure 1.11 :as-alias, load the file form by form instead
 * :eval opcode - probably interop syntax, or a macro like assert that expands to interop syntax
 * `Unbound var.` Usually means wrong peer, i.e. accessed server-only var on client
+
+# References
+* http://conal.net/papers/compiling-to-categories/compiling-to-categories.pdf
+* 

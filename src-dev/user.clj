@@ -34,6 +34,7 @@
 (def shadow-compile (delay @(requiring-resolve 'shadow.cljs.devtools.api/compile)))
 (def shadow-release (delay @(requiring-resolve 'shadow.cljs.devtools.api/release)))
 (def start-server! (delay (requiring-resolve 'hyperfiddle.photon-jetty-server/start-server!)))
+(def rcf-enable! (delay (requiring-resolve 'hyperfiddle.rcf/enable!)))
 
 (defn browser-main! "hot switch reactor entrypoint from CLJ REPL" [photon-main-sym]
   ; Save the user the trouble of getting a CLJS repl to switch photon entrypoints
@@ -54,6 +55,7 @@
   (@shadow-start!)                                          ; serves index.html as well
   (@shadow-watch :devkit)                                   ; depends on shadow server
   (serve!)
+  (@rcf-enable!)
   (comment (.stop server)))
 
 (defn compile []

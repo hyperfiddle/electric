@@ -8,17 +8,17 @@
             user.demo-4-chat
             user.demo-4-webview
             user.demo-5-todomvc
-            user.todos-simple
             user.demo-6-two-clocks
             user.demo-7-explorer
             user.demo-8-10k-elements
+            user.demo-hfql
+            user.todos-simple
             user.seven-gui-1-counter
             user.seven-gui-2-temperature-converter
             user.seven-gui-4-timer
             user.seven-gui-5-crud
             wip.demo-bubbles
             wip.demo-color
-            wip.demo-hfql
             wip.popover
             user.healthcheck)
   #?(:cljs (:require-macros user.demo-entrypoint)))
@@ -38,12 +38,12 @@
                                    {:text "system properties" ::value user.demo-3-system-properties/App}
                                    {:text "chat" ::value user.demo-4-chat/App}
                                    {:text "webview" ::value user.demo-4-webview/App}
-                                   #_{:text "todos basic" ::value user.todos-simple/Todo-list} ; css fixes
+                                   #_{:text "todos simple" ::value user.todos-simple/Todo-list} ; css fixes
                                    {:text "todomvc" ::value user.demo-5-todomvc/App}
                                    {:text "two clocks" ::value user.demo-6-two-clocks/App}
                                    {:text "explorer" ::value user.demo-7-explorer/App}
                                    {:text "10k elements" ::value user.demo-8-10k-elements/App}
-                                   {:text "HFQL" ::value wip.demo-hfql/App}
+                                   {:text "HFQL" ::value user.demo-hfql/App}
                                    {:text "Authentication" ::value user.auth/App}
 
                                    {:text "7GUIs - counter" ::value user.seven-gui-1-counter/Counter}
