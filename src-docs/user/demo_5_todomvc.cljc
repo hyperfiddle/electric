@@ -206,10 +206,7 @@
                                                                     (swap! !state assoc ::delay value)))})
                                     " ms")))))))))
 
-(def main #?(:cljs (p/boot (try (binding [dom/node (dom/by-id "root")] (App.)) (catch Pending _)))))
-
 (comment
-  (user/browser-main! `main)
   (todo-count @!conn :all)
   (todo-count @!conn :active)
   (todo-count @!conn :done)

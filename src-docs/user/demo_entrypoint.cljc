@@ -8,7 +8,7 @@
             user.demo-4-chat
             user.demo-4-webview
             user.demo-5-todomvc
-            user.demo-5-todos-basic
+            user.todos-simple
             user.demo-6-two-clocks
             user.demo-7-explorer
             user.demo-8-10k-elements
@@ -38,7 +38,7 @@
                                    {:text "system properties" ::value user.demo-3-system-properties/App}
                                    {:text "chat" ::value user.demo-4-chat/App}
                                    {:text "webview" ::value user.demo-4-webview/App}
-                                   #_{:text "todos basic" ::value user.demo-5-todos-basic/Todo-list} ; css fixes
+                                   #_{:text "todos basic" ::value user.todos-simple/Todo-list} ; css fixes
                                    {:text "todomvc" ::value user.demo-5-todomvc/App}
                                    {:text "two clocks" ::value user.demo-6-two-clocks/App}
                                    {:text "explorer" ::value user.demo-7-explorer/App}
