@@ -112,17 +112,22 @@
   #?(:cljs (let [node (d/createTextNode "")]
              (.appendChild parent node) node)))
 
-(defn set-text-content! [e t] #?(:cljs (do (d/setTextContent e (str t)) t)))
+(defn set-text-content! [e & strs] #?(:cljs (d/setTextContent e (apply str strs))))
 
 (defmacro text [& strs]
-  `(with (text-node node) (set-text-content! node (str ~@strs))))
+  `(with (text-node node) (set-text-content! node ~@strs)))
 
-(defn handle-text [body]
-  (some->> (filter some? body)
-    (map (fn [form] (if (string? form)
-                      `(dom/text ~form)
-                      form ; TODO handle dynamic string case (could makes DAG ×2 larger)
-                      )))))
+(def text-literal? (some-fn string? number? char? boolean? ident?))
+
+#?(:clj
+   (defn handle-text [body]
+     (some->> (filter some? body)
+       (map (fn [form] (if (text-literal? form) ; TODO optimize further, detect dom/text and ^String tag meta
+                         `(dom/text ~form)
+                         `(let [res# ~form]
+                            (if (text-literal? res#)
+                              (dom/text res#)
+                              res#))))))))
 
 (defmacro element [t & [props & body]]
   (let [[props body] (if (map? props) [props body] [nil (seq (cons props body))])
