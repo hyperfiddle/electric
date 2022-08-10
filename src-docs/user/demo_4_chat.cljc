@@ -4,7 +4,7 @@
             [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros user.demo-4-chat)))
 
-(defonce !state #?(:clj (atom ()) :cljs nil))
+(defonce !state #?(:clj (atom []) :cljs nil))
 (p/def state (p/server (p/watch !state)))
 
 (p/defn App []
