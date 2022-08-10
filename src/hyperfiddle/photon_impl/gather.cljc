@@ -1,6 +1,5 @@
 (ns hyperfiddle.photon-impl.gather
-  (:require [hyperfiddle.photon-impl.runtime :as r]
-            [missionary.core :as m])
+  (:require [hyperfiddle.photon-impl.failer :as failer])
   #?(:clj (:import (clojure.lang IDeref IFn)))
   #?(:cljs (:require-macros [hyperfiddle.photon-impl.gather :refer [aget-aset]])))
 
@@ -106,7 +105,7 @@
             (aset item (int 0)
               (try (@(aget main (int 0)) n t)
                    (catch #?(:clj Throwable :cljs :default) e
-                     (r/failer e n t))))
+                     (failer/run e n t))))
             (if (aget main (int 5))
               (when idle ((.-notifier it)))
               (aset main (int 5) idle))))

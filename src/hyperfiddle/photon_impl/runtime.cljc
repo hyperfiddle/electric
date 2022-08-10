@@ -1,12 +1,13 @@
 (ns ^:no-doc hyperfiddle.photon-impl.runtime
   (:refer-clojure :exclude [eval compile])
   (:require [hyperfiddle.photon-impl.yield :refer [yield]]
+            [hyperfiddle.photon-impl.gather :refer [gather]]
+            [hyperfiddle.photon-impl.failer :as failer]
             [hyperfiddle.photon-impl.eventually :refer [eventually]]
             [hyperfiddle.photon-impl.local :as l]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
-            [clojure.string :as str]
-            [hyperfiddle.logger :as log])
+            [clojure.string :as str])
   (:import missionary.Cancelled
            (hyperfiddle.photon Failure Pending Remote)
            #?(:clj (clojure.lang IFn IDeref Atom))))
@@ -86,11 +87,6 @@
 
 (defn error [^String msg]
   (#?(:clj Error. :cljs js/Error.) msg))
-
-(defn failer [e n t]
-  (n) (reify
-        IFn (#?(:clj invoke :cljs -invoke) [_])
-        IDeref (#?(:clj deref :cljs -deref) [_] (t) (throw e))))
 
 (def latest-apply
   (partial m/latest
@@ -600,7 +596,7 @@
                                    (alength (frame-constants f))
                                    (alength (frame-variables f))))
                                (dissoc-frame-id ctx id) (t))))))
-              (failer (error "Unable to build frame - not an object.") n t))))))))
+              (failer/run (error "Unable to build frame - not an object.") n t))))))))
 
 (defn inject [v]
   (fn [<x <y]
@@ -610,15 +606,15 @@
         (let [foreigns (get-tier-foreigns tier)]
           (set-tier-foreigns tier (assoc foreigns v <y))
           (try (<x n t) (finally (set-tier-foreigns tier foreigns))))
-        (failer (error "Unable to inject - not an object.") n t)))))
+        (failer/run (error "Unable to inject - not an object.") n t)))))
 
 (defn bind [f & args]
   (fn [n t]
     (if-some [tier (l/get-local this)]
       (try ((apply f tier args) n t) ; hook tier and pass to userland !
            (catch #?(:clj Throwable :cljs :default) e
-             (failer e n t)))
-      (failer (error "Unable to bind - not an object.") n t))))
+             (failer/run e n t)))
+      (failer/run (error "Unable to bind - not an object.") n t))))
 
 (defn with [tier <x]
   (fn [n t]
@@ -673,7 +669,7 @@
         (set-tier-hooks tier (assoc (get-tier-hooks tier) k v))
         (<x n #(do (set-tier-hooks tier (dissoc (get-tier-hooks tier) k))
                    (k v) (t))))
-      (failer (error "Unable to hook - not an object.") n t))))
+      (failer/run (error "Unable to hook - not an object.") n t))))
 
 (def unbound (pure (Failure. (error "Unbound var."))))
 
@@ -681,6 +677,9 @@
   #?(:clj (.printStackTrace ^Throwable e)
      :cljs (js/console.error e)))
 
+(defn remote-event [x] [x {} #{}])
+(defn change-event [path x] [[] {path x} #{}])
+(defn terminate-event [path] [[] {} #{path}])
 (def merge-events (partial mapv into))
 
 (defn crash-failure [x]
@@ -715,16 +714,14 @@
                      (set-queue context (pop msg))
                      (peek msg)))))
           (m/stream!))
-        (let [>events (->> (m/ap                            ; FIXME outputs are sampled too fast, should be in sync with the websocket. Should sample everytime we are done writing on the socket.
-                             (m/amb=
-                               [(m/?> >remote) {} #{}]
-                               (let [m (m/?> ##Inf >output)
-                                     [path <out] (m/?> (count m) (m/seed m))
-                                     x (m/?> (eventually context <out))]
-                                 (if (identical? x context)
-                                   [[] {} #{path}]
-                                   [[] {path x} #{}]))))
-                        (m/relieve merge-events)
+        (let [>events (->> (m/ap
+                             (m/amb
+                               (m/sample remote-event >remote)
+                               (let [m (m/?> >output)
+                                     [path <out] (m/?> (count m) (m/seed m))]
+                                 (eventually (terminate-event path)
+                                   (m/latest (partial change-event path) <out)))))
+                        (gather merge-events)
                         (m/stream!))]
           (m/stream!
             (m/ap (let [[inst data done] (m/?> >events)]
