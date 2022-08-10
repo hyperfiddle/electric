@@ -51,7 +51,7 @@
     (dom/div
       (dom/span {:id "todo-count"}
         (dom/strong active)
-        (dom/span " " (case active 1 "item" "items") " left"))
+        (dom/span " " (str (case active 1 "item" "items")) " left"))
 
       (dom/ul {:id "filters"}
         (dom/li (Filter-control. (::filter state) :all "All"))
