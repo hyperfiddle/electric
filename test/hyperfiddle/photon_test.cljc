@@ -1391,3 +1391,13 @@
 ;; Ticket: https://www.notion.so/hyperfiddle/cljs-test-suite-can-produce-false-failures-0b3799f6d2104d698eb6a956b6c51e48
 #?(:cljs (t/use-fixtures :each {:after #(t/async done (js/setTimeout done 1))}))
 
+(tests
+  (def !x (atom true))
+  (p/run
+    (try
+      (let [x (p/watch !x)]
+        (if x (p/server (! x)) x))
+      (catch Pending _)))
+  % := true
+  (swap! !x not)
+  % := ::rcf/timeout)
