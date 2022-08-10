@@ -13,7 +13,7 @@
                                        {:order/email "bob@example.com" :order/gender :order/male}
                                        {:order/email "charlie@example.com" :order/gender :order/male}]))))
 
-(defn orders [db ?email]
+(defn teeshirt-orders [db ?email]
   #?(:clj
      (sort
        (d/q '[:find [?e ...]
@@ -24,7 +24,7 @@
 
 (p/def db)                                                  ; server
 
-(p/defn View []
+(p/defn Teeshirt-orders-view []
   (dom/div
     (dom/h2 "frontend/backend webview with server push")
     (let [!filter (atom "") filter (p/watch !filter)]
@@ -32,7 +32,7 @@
                  ::ui/input-event (p/fn [e] (reset! !filter (:value dom/node)))})
       (dom/table
         (p/server
-          (p/for [id (orders db filter)]
+          (p/for [id (teeshirt-orders db filter)]
             (p/client
               (dom/tr
                 (dom/td id)
@@ -42,7 +42,7 @@
 (p/defn App []
   (p/server
     (binding [db (p/watch conn)]
-      (p/client (View.)))))
+      (p/client (Teeshirt-orders-view.)))))
 
 (comment
   #?(:clj (d/transact conn [{:db/id 2 :order/email "bob2@example.com"}]))

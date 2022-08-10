@@ -20,16 +20,16 @@
     user.demo-8-10k-elements
     user.todos-simple
     user.auth
+    user.demo-hfql
     user.seven-gui-1-counter
     user.seven-gui-2-temperature-converter
     user.seven-gui-4-timer
     user.seven-gui-5-crud
     geoffrey.popover
-    wip.demo-bubbles
     ;wip.orders-ui
     wip.demo-bubbles
+    wip.demo-bubbles
     wip.demo-color
-    wip.demo-hfql
     #_wip.editor           ; npm install
     wip.demo-todos-stage
     wip.demo-logical-clock
