@@ -13,13 +13,13 @@
 (p/defn App []
   (dom/div
     (dom/h1 "System Properties")
-    (let [!filter (atom "") filter (p/watch !filter)]
+    (let [!search (atom "") search (p/watch !search)]
       (ui/input {::dom/type :search ::dom/placeholder "java.home"
-                 ::ui/input-event (p/fn [e] (reset! !filter (:value dom/node)))})
-      (dom/div "Input: " filter)
+                 ::ui/input-event (p/fn [e] (reset! !search (:value dom/node)))})
+      (dom/div "Input: " search)
       (dom/table
         (p/server
-          (p/for [[k v] (sort-by key (system-properties filter))]
+          (p/for [[k v] (sort-by key (system-properties search))]
             (p/client
               (dom/tr
                 (dom/td k)
