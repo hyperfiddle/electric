@@ -17,8 +17,9 @@
 
   ; we analyze the DAG for connections - by analyzing dependencies in the AST
 
-  ; Intermediate Language for DAGs
-  ; first element is the client DAG, second element is server DAG
+  ; Intermediate Language for DAGs.
+  ; first element is the client DAG,
+  ; second element is server DAG
   := [[:pub
        [:pub
         [:apply [:global :missionary.core/watch] [:global :user.photon.photon-compiler-internals/!x]]
