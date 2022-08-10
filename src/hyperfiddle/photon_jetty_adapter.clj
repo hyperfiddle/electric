@@ -64,8 +64,8 @@
                        1000 (log/debug "Client disconnected gracefully" status)
                        1001 (log/debug "Client navigated away" status)
                        ;; 1005 is the default close code set by Chrome an FF unless specified.
-                       1005 (log/info  "Client disconnected for an unknown reason (browser default close code)" status)
-                       (log/error "Client socket disconnected for an unexpected reason." status))
+                       1005 (log/debug  "Client disconnected for an unknown reason (browser default close code)" status)
+                       (log/debug "Client disconnected for an unexpected reason." status))
                      ((:heartbeat @state)) ; cancel heartbeat
                      ((:cancel! @state))   ; cancel (terminate) photon process
                      ))
