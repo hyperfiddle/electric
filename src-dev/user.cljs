@@ -14,11 +14,11 @@
     user.demo-3-system-properties
     user.demo-4-chat
     user.demo-4-webview
-    user.demo-5-todos-basic
     user.demo-5-todomvc
     user.demo-6-two-clocks
     user.demo-7-explorer
     user.demo-8-10k-elements
+    user.todos-simple
     user.auth
     user.seven-gui-1-counter
     user.seven-gui-2-temperature-converter
