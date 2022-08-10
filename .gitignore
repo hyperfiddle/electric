@@ -2,6 +2,7 @@
 .cpcache
 .idea
 .shadow-cljs
+.env
 /.clj-kondo/.cache
 /.lsp
 /.nrepl-port
