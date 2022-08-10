@@ -23,10 +23,10 @@
           s (p/server (new (clock)))]
 
       (dom/div (dom/span "client time: ")
-               (dom/span (dom/text c)))
+               (dom/span c))
 
       (dom/div (dom/span "server time: ")
-               (dom/span (dom/text s)))
+               (dom/span s))
 
       (dom/div (dom/span "latency: ")
-               (dom/span (dom/text (- c s)))))))
+               (dom/span (- c s))))))

@@ -32,14 +32,14 @@
 (p/defn Username []
   ;; Optional. Browse to `/auth`` to authenticate, any user/password will do.
   (when-let [username (p/server (get-in hf/*http-request* [:cookies "username" :value]))]
-    (dom/p (dom/text "Authenticated as ")
-           (dom/span {:style {:font-weight :bold}} (dom/text username)))))
+    (dom/p "Authenticated as "
+           (dom/span {:style {:font-weight :bold}} username))))
 
 (p/defn App []
   (dom/div
     (Username.)
-    (dom/h1 (dom/text "Photon Demos"))
-    (dom/p (dom/text "See source code in src-docs."))
+    (dom/h1 "Photon Demos")
+    (dom/p "See source code in src-docs.")
     (ui/select {::ui/value        demo
                 ::ui/options      [{:text "hello world" ::value user.demo-1-hello-world/App}
                                    {:text "toggle" ::value user.demo-2-toggle/App}

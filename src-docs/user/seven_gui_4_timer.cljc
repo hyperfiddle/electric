@@ -29,7 +29,7 @@
              (dom/progress {:max   goal
                             :value time
                             :style {:grid-column 2}})
-             (dom/span (dom/text (seconds time) " s"))
+             (dom/span (seconds time) " s")
              (dom/span {:style {:grid-row 3}} "Duration")
              (ui/input {::ui/value       (/ initial-goal 1000)
                         ::ui/input-event (p/fn [event] (reset! !goal (* 1000 (js/parseInt (dom/oget event :target :value)))) nil)

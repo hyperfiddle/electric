@@ -35,9 +35,9 @@
           (p/for [id (orders db filter)]
             (p/client
               (dom/tr
-                (dom/td (dom/text id))
-                (dom/td (dom/text (p/server (:order/email (d/entity db id)))))
-                (dom/td (dom/text (p/server (:order/gender (d/entity db id)))))))))))))
+                (dom/td id)
+                (dom/td (p/server (:order/email (d/entity db id))))
+                (dom/td (p/server (:order/gender (d/entity db id))))))))))))
 
 (p/defn App []
   (p/server

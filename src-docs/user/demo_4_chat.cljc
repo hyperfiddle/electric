@@ -21,4 +21,4 @@
       (p/server
         (p/for [msg (take 10 state)]
           (p/client
-            (dom/li (dom/text msg))))))))
+            (dom/li msg)))))))

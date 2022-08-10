@@ -16,12 +16,11 @@
     (let [!filter (atom "") filter (p/watch !filter)]
       (ui/input {::dom/type :search ::dom/placeholder "java.home"
                  ::ui/input-event (p/fn [e] (reset! !filter (:value dom/node)))})
-      (dom/div (dom/text "Input: " filter))
+      (dom/div "Input: " filter)
       (dom/table
         (p/server
           (p/for [[k v] (sort-by key (system-properties filter))]
             (p/client
               (dom/tr
-                (dom/td (dom/text k))
-                (dom/td {:style {:white-space :nowrap}}
-                  (dom/text v))))))))))
+                (dom/td k)
+                (dom/td {:style {:white-space :nowrap}} v)))))))))

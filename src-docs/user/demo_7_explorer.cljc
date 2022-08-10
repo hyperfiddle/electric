@@ -27,13 +27,13 @@
                        (p/server
                          (cond
                            (file-is-dir x)
-                           (p/client (dom/li (dom/text (p/server (file-get-name x))))
+                           (p/client (dom/li (p/server (file-get-name x)))
                                      (dom/ul (p/server (p/for [x (take 100 (file-list-files x))]
                                                          (FooRecur. x s)))))
                            (file-is-file x)
                            (let [fname (file-get-name x)]
                              (when (includes-str? fname s)
-                               (p/client (dom/li (dom/text fname))))))))]
+                               (p/client (dom/li fname)))))))]
     (p/client (dom/ul (p/server (FooRecur. handle s))))))
 
 (def !target #?(:cljs (atom "src") :clj nil)) (p/def target (p/client (p/watch !target)))
