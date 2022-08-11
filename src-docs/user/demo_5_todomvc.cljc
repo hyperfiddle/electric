@@ -1,7 +1,7 @@
 (ns user.demo-5-todomvc
   "Requires -Xss2m to compile. default 1m JVM ThreadStackSize is exceeded by photon compiler due to large macroexpansion
   resulting in false StackOverflowError during analysis."
-  (:require [datascript.core :as d]
+  (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.photon-dom :as dom])
@@ -13,22 +13,24 @@
                             ::editing nil
                             ::delay   0})))
 
-(defn query-todos [db filter]
-  {:pre [filter]}
-  (case filter
-    :active (d/q '[:find [?e ...] :where [?e :task/status :active]] db)
-    :done   (d/q '[:find [?e ...] :where [?e :task/status :done]] db)
-    :all    (d/q '[:find [?e ...] :where [?e :task/status]] db)))
+#?(:clj
+   (defn query-todos [db filter]
+     {:pre [filter]}
+     (case filter
+       :active (d/q '[:find [?e ...] :where [?e :task/status :active]] db)
+       :done   (d/q '[:find [?e ...] :where [?e :task/status :done]] db)
+       :all    (d/q '[:find [?e ...] :where [?e :task/status]] db))))
 
-(defn todo-count [db filter]
-  {:pre  [filter]
-   :post [(number? %)]}
-  (-> (case filter
-        :active (d/q '[:find (count ?e) . :where [?e :task/status :active]] db)
-        :done   (d/q '[:find (count ?e) . :where [?e :task/status :done]] db)
-        :all    (d/q '[:find (count ?e) . :where [?e :task/status]] db))
-      ; datascript can return nil wtf
-      (or 0)))
+#?(:clj
+   (defn todo-count [db filter]
+     {:pre  [filter]
+      :post [(number? %)]}
+     (-> (case filter
+           :active (d/q '[:find (count ?e) . :where [?e :task/status :active]] db)
+           :done   (d/q '[:find (count ?e) . :where [?e :task/status :done]] db)
+           :all    (d/q '[:find (count ?e) . :where [?e :task/status]] db))
+                                        ; datascript can return nil wtf
+       (or 0))))
 
 (p/defn Filter-control [state target label]
   ; wrapping dom/a with ui/element here gives us the ::ui/click-event (with managed pending state).
@@ -110,10 +112,11 @@
                       ::ui/click-event (p/fn [_] (p/server (Transact. [[:db/retractEntity id]])))
                       ::ui/pending     {::dom/aria-busy true}}))))))
 
-(defn toggle-all! [db status]
-  (when (#{:done :active} status)
-    (let [ids (query-todos db (if (= :done status) :active :done))]
-      (map (fn [id] {:db/id id, :task/status status}) ids))))
+#?(:clj
+   (defn toggle-all! [db status]
+     (when (#{:done :active} status)
+       (let [ids (query-todos db (if (= :done status) :active :done))]
+         (map (fn [id] {:db/id id, :task/status status}) ids)))))
 
 (p/defn TodoList [state]
   (p/client

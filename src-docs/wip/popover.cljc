@@ -1,5 +1,5 @@
 (ns wip.popover
-  (:require [datascript.core :as d]
+  (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
