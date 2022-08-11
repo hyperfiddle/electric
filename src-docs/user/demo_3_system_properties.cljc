@@ -14,7 +14,8 @@
   (dom/div
     (dom/h1 "System Properties")
     (let [!search (atom "") search (p/watch !search)]
-      (ui/input {::dom/type :search ::dom/placeholder "java.home"
+      (ui/input {::dom/type :search
+                 ::dom/placeholder "java.home"
                  ::ui/input-event (p/fn [e] (reset! !search (:value dom/node)))})
       (dom/div "Input: " search)
       (dom/table
