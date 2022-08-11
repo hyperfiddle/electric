@@ -45,7 +45,7 @@ Takes a photon program and returns a task setting up the full system with client
 running on a remote host.
 " [& body]
   (assert (:js-globals &env))
-  (let [[client server] (c/analyze &env `(do ~@body))]
+  (let [[client server] (c/analyze (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj}) `(do ~@body))]
     `(hyperfiddle.photon-client/client
        ~(r/emit (gensym) client)
        (quote ~server))))
