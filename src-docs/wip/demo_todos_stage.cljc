@@ -1,7 +1,7 @@
 (ns wip.demo-todos-stage
   (:require clojure.edn
             clojure.pprint
-            [datascript.core :as d]
+            #?(:clj [datascript.core :as d])
             [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
