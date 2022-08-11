@@ -28,8 +28,9 @@
   (dom/div
     (dom/h2 "frontend/backend webview with server push")
     (let [!filter (atom "") filter (p/watch !filter)]
-      (ui/input {::dom/type       :search ::dom/placeholder "Filter…"
-                 ::ui/input-event (p/fn [e] (reset! !filter (:value dom/node)))})
+      (ui/input {::dom/type        :search
+                 ::dom/placeholder "Filter…"
+                 ::ui/input-event  (p/fn [e] (reset! !filter (:value dom/node)))})
       (dom/table
         (p/server
           (p/for [id (teeshirt-orders db filter)]
