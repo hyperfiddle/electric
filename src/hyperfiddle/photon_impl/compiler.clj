@@ -45,8 +45,17 @@
     `(fn [~@args] (~'js* ~template ~@args))))
 
 (defn normalize-env [env]
-  (if (:js-globals env)
-    env {:ns (ns-name *ns*) :locals env}))
+  (let [peers-config (or (::peers-config env) (if (:js-globals env) {::local :cljs, ::remote :cljs} {::local :clj, ::remote :clj}))]
+    (if (:js-globals env)
+      (assoc env ::peers-config peers-config)
+      {:ns            (ns-name *ns*)
+       :locals        (dissoc env ::peers-config)
+       ::peers-config peers-config})))
+
+(defn clj-env [?cljs-env]
+  (if (:js-globals ?cljs-env)
+    (-> ?cljs-env (dissoc :js-globals) (assoc :ns (:name (:ns ?cljs-env))))
+    ?cljs-env))
 
 (defn parse-decl [decl]
   (map (fn [[args & body]] (cons (cons `do body) args))
@@ -173,36 +182,39 @@
       (when-some [v (cljs/resolve-macro-var env sym)]
         (CljsVar. v)))))
 
-(defn resolve-var 
-  "Resolve a clojure or clojurescript var. 
+(defn peer-language [env]
+  (case (::local env)
+    (true nil) (get-in env [::peers-config ::local])
+    false      (get-in env [::peers-config ::remote])))
+
+(defn resolve-var
+  "Resolve a clojure or clojurescript var, given these rules:
    If the resolved clojurescript var is a macro var, return the corresponding clojure var.
    Return an IVar or nil."
   [env sym]
-  (if (:js-globals env)
-    (let [var (resolve-cljs env sym)] ; resolve cljs var decription (a map)
-      (if-let [expander (cljs/get-expander (if (some? var) (var-name var) sym) env)] ; find corresponding clojure var
-        (CljVar. expander)
-        (if (and (instance? CljsVar var) (not (::local env)))
-          (or (resolve-var (-> env (dissoc :js-globals) (assoc :ns (:name (:ns env)))) sym)
-            var)
-          var)))
-    (let [ns       (resolve-ns (:ns env)) ; current ns
-          resolved (if (simple-symbol? sym)
-                     (get-in ns [:mappings sym]) ; resolve in current ns 
-                     (as-> sym $
-                       (symbol (namespace $)) ; extract namespace part of sym
-                       (get-in ns [:aliases $] $) ; expand to fully qualified form
-                       (get-in (resolve-ns $) [:interns (symbol (name sym))]) ; resolve declared var in target ns
-                       ))]
-      (if (some? resolved)
-        (cond (var? resolved)   (CljVar. resolved)
-              (class? resolved) (CljClass. resolved)
-              :else             (throw (ex-info "Symbol resolved to an unknow type" {:symbol sym
-                                                                                     :type   (type resolved)
-                                                                                     :value  resolved})))
-        ;; java.lang is implicit so not listed in ns form or env
-        (when-some [resolved (clojure.lang.Compiler/maybeResolveIn (the-ns (:ns env)) sym)]
-          (CljClass. resolved))))))
+  (case (peer-language env)
+    :clj  (let [env      (clj-env env)
+                ns       (resolve-ns (:ns env)) ; current ns
+                resolved (if (simple-symbol? sym)
+                           (get-in ns [:mappings sym]) ; resolve in current ns
+                           (as-> sym $
+                             (symbol (namespace $)) ; extract namespace part of sym
+                             (get-in ns [:aliases $] $) ; expand to fully qualified form
+                             (get-in (resolve-ns $) [:interns (symbol (name sym))]) ; resolve declared var in target ns
+                             ))]
+           (if (some? resolved)
+             (cond (var? resolved)   (CljVar. resolved)
+                   (class? resolved) (CljClass. resolved)
+                   :else             (throw (ex-info "Symbol resolved to an unknow type" {:symbol sym
+                                                                                          :type   (type resolved)
+                                                                                          :value  resolved})))
+             ;; java.lang is implicit so not listed in ns form or env
+             (when-some [resolved (clojure.lang.Compiler/maybeResolveIn (the-ns (:ns env)) sym)]
+               (CljClass. resolved))))
+    :cljs (let [var (resolve-cljs env sym)] ; resolve cljs var decription (a map)
+            (if-let [expander (cljs/get-expander (if (some? var) (var-name var) sym) env)] ; find corresponding clojure var
+              (CljVar. expander)
+              var))))
 
 (defn resolve-runtime
   "Returns the fully qualified symbol of the var resolved by given symbol at runtime, or nil if:
@@ -213,19 +225,19 @@
   (letfn [(runtime-symbol [var] (when (some? var)
                                   (when-not (or (is-macro var) (is-node var))
                                     (var-name var))))]
-    (if (:js-globals env)
-      (if-let [v (resolve-var env sym)]
-        (cond (instance? CljsVar v) (runtime-symbol v)
-              (instance? CljClass v) (runtime-symbol v)
-              ;; GG: if sym resolves to a clojure var, look up for the cljs-specific version.
-              ;;     Why: some vars exist in two versions (e.g. cljs.core/inc)
-              ;;          - the cljs version is a function (available at runtime),
-              ;;          - the clj version is a macro expending to optimized code (compile-time only).
-              (instance? CljVar v) (runtime-symbol (resolve-cljs env sym)))
-        ;; GG: corner case: there is no var for cljs.core/unquote-splicing.
-        (when (= 'cljs.core/unquote-splicing (:name (cljs/resolve-var env sym)))
-          'cljs.core/unquote-splicing))
-      (runtime-symbol (resolve-var env sym)))))
+    (case (peer-language env)
+      :clj  (runtime-symbol (resolve-var env sym))
+      :cljs (if-let [v (resolve-var env sym)]
+              (cond (instance? CljsVar v)  (runtime-symbol v)
+                    (instance? CljClass v) (runtime-symbol v)
+                    ;; GG: if sym resolves to a clojure var, look up for the cljs-specific version.
+                    ;;     Why: some vars exist in two versions (e.g. cljs.core/inc)
+                    ;;          - the cljs version is a function (available at runtime),
+                    ;;          - the clj version is a macro expending to optimized code (compile-time only).
+                    (instance? CljVar v)   (runtime-symbol (resolve-cljs env sym)))
+              ;; GG: corner case: there is no var for cljs.core/unquote-splicing.
+              (when (= 'cljs.core/unquote-splicing (:name (cljs/resolve-var env sym)))
+                'cljs.core/unquote-splicing)))))
 
 (defn resolve-runtime-throwing [env form]
   (when-not (symbol? form) (throw (ex-info "Symbol expected." {:form form})))
@@ -313,12 +325,12 @@
            (apply f env args) ns))) env (seq bs) [])))
 
 (defn desugar-host [env form]
-  (if (:js-globals env)
-    form ;; Can't desugar in cljs, pass form through.
-    (if (and (seq? form) (qualified-symbol? (first form)))
-      (env/with-env {:namespaces {(:ns env) (resolve-ns (:ns env))}}
-        (clj/desugar-host-expr form env))
-      (clj/desugar-host-expr form env))))
+  (case (peer-language env)
+    :cljs form ;; Can't desugar in cljs, pass form through.
+    :clj (if (and (seq? form) (qualified-symbol? (first form)))
+           (env/with-env {:namespaces {(:ns env) (resolve-ns (:ns (clj-env env)))}}
+             (clj/desugar-host-expr form env))
+           (clj/desugar-host-expr form env))))
 
 (defn toggle [env form]
   (let [res (analyze-form (update env ::local not) form)]
@@ -730,14 +742,39 @@
 
 (tests
   "Var resolution"
-  (get-var (resolve-var (normalize-env {}) 'inc)) :=  #'clojure.core/inc
-  (get-var (resolve-var (normalize-env {}) 'java.lang.Integer)) := java.lang.Integer
+  ;; resolve on the default peer (local) with default compiler env (clj)
+  (-> (normalize-env {})
+    (resolve-var 'inc)
+    get-var)
+  :=  #'clojure.core/inc
 
-  ;; requires cljs.core to be on the JVM
-  #_(binding [cljs.env/*compiler* (cljs.env/default-compiler-env)]
-      (get-var (resolve-var (normalize-env (cljs.analyzer/empty-env)) 'inc)) := #'cljs.core/inc)
+  (-> (normalize-env {})
+    (resolve-var 'java.lang.Integer)
+    get-var)
+  := java.lang.Integer
 
-  ;; TODO improve coverage of clj(s) var resolution
+  (require 'cljs.core)
+  ;; resolve on the local (cljs) peer
+  (binding [cljs.env/*compiler* (cljs.env/default-compiler-env)]
+    (-> (cljs.analyzer/empty-env)
+      (assoc ::peers-config {::local :cljs ::remote :clj})
+      (normalize-env)
+      (assoc ::local true)            ; set current peer to local
+      (resolve-var 'inc)
+      get-var))
+  := (resolve 'cljs.core/inc)
+
+
+  ;; resolve on the remote (clj) peer
+  (binding [cljs.env/*compiler* (cljs.env/default-compiler-env)]
+    (-> (cljs.analyzer/empty-env)
+      (assoc-in [:ns :name] (ns-name *ns*))  ; default cljs ns is cljs.user, which is not a thing.
+      (assoc ::peers-config {::local :cljs ::remote :clj})
+      (normalize-env)
+      (assoc ::local false)               ; set current peer to remote
+      (resolve-var 'inc)
+      get-var))
+  := #'clojure.core/inc
   )
 
 (tests "method access"
