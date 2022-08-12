@@ -78,7 +78,9 @@
 
 (p/defn TodoItem [state id]
   (p/server
-    (let [{:keys [:task/status :task/description]} (d/entity db id)]
+    (let [x           #_ {:keys [:task/status :task/description]} (d/entity db id) ; Unable to resolve - clojure.core/--destructure-map
+          status      (:task/status x)
+          description (:task/description x)]
       (p/client
         (dom/li
           {:class [(when (= :done status) "completed")

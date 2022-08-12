@@ -1,5 +1,5 @@
 (ns ^:no-doc hyperfiddle.photon-impl.runtime
-  (:refer-clojure :exclude [eval compile --destructure-map])
+  (:refer-clojure :exclude [eval compile])
   (:require [hyperfiddle.photon-impl.yield :refer [yield]]
             [hyperfiddle.photon-impl.gather :refer [gather]]
             [hyperfiddle.photon-impl.failer :as failer]
@@ -1085,28 +1085,9 @@
       (map second)
       (map symbol))))
 
-(defn --destructure-map
-  ;; Temporary fix. Long term fix is to macroexpand server macros as clojure and client macros as cljs.
-  ;; A runtime equivalent of a clojure `cc/destructure` macroexpansion on map destructuring.
-  ;; Cljs compiler expands map destructuring differently than clj.
-  ;; https://www.notion.so/hyperfiddle/Unable-to-resolve-clojure-core-destructure-map-TodoMVC-2c9da9493d3b4239bb9e5aa11a6f3d20
-  ;; https://github.com/clojure/clojurescript/blob/b236032061bc3c68c18adab4e5bcc3e47404d65c/src/main/cljs/cljs/core.cljs#L4014
-  [gmap]
-  #?(:cljs (cljs.core/--destructure-map gmap)
-     :clj (if (seq? gmap)
-            (if (next gmap)
-              (clojure.lang.PersistentArrayMap/createAsIfByAssoc (to-array gmap))
-              (if (seq gmap)
-                (first gmap)
-                clojure.lang.PersistentArrayMap/EMPTY))
-            gmap)))
-
-(def redef-var `{clojure.core/--destructure-map --destructure-map})
-
 (defn dynamic-resolve [nf x]
-  #?(:clj (let [x (symbol x)]
-            (try (clojure.core/eval (redef-var x x))
-                 (catch clojure.lang.Compiler$CompilerException _ nf)))
+  #?(:clj (try (clojure.core/eval (symbol x))
+               (catch clojure.lang.Compiler$CompilerException _ nf))
      :cljs nf))
 
 (defn eval
