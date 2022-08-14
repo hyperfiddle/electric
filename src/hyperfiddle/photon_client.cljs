@@ -44,8 +44,8 @@
           (failure e)))
       #(log/info "Canceling websocket write"))))
 
-(defn connect [mailbox]
-  (m/ap (loop [] (if-let [socket (m/? (connect! (new js/WebSocket (server-url))))]
+(defn connect [mailbox ws-server-url]
+  (m/ap (loop [] (if-let [socket (m/? (connect! (new js/WebSocket ws-server-url)))]
                    (m/amb (do (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "true"))
                             (make-write-chan socket mailbox))
                      (do (log/info "WS Waiting for close…")
@@ -67,11 +67,13 @@
                      (m/? (m/sleep 2000))
                      (recur))))))
 
+(def ^:dynamic *ws-server-url* (server-url))
+
 (defn client [client server]
   (m/reduce {} nil (m/ap
                      (try
                        (let [mailbox (m/mbx)]
-                         (if-let [write-chan (m/?< (connect mailbox))]
+                         (if-let [write-chan (m/?< (connect mailbox *ws-server-url*))]
                            (do (log/info "Starting Photon Client")
                                (m/? (write-chan (io/encode server))) ; bootstrap server
                                (m/? (client (io/message-writer write-chan)
