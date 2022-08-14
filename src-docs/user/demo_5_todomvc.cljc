@@ -5,7 +5,6 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.photon-dom :as dom])
-  (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros user.demo-5-todomvc)))
 
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))       ; server
@@ -32,6 +31,8 @@
       (or 0)))
 
 (p/defn Filter-control [state target label]
+  ; wrapping dom/a with ui/element here gives us the ::ui/click-event (with managed pending state).
+  ; Likely the photon-ui functionality should merge into photon-dom directly.
   (ui/element dom/a {::dom/class (when (= state target) "selected")
                      ::ui/click-event (p/fn [_] (swap! !state assoc ::filter target))}
     label))
@@ -73,12 +74,6 @@
 
 (defn focus! [node] (.focus node))
 
-(defn set-checked [id checked?]
-  (case checked?
-    true  [{:db/id id, :task/status :done}]
-    false [{:db/id id, :task/status :active}]
-    nil))
-
 (p/defn TodoItem [state id]
   (p/server
     (let [{:keys [:task/status :task/description]} (d/entity db id)]
@@ -90,13 +85,9 @@
             (ui/checkbox {::dom/class      "toggle"
                           ::ui/value       (= :done status)
                           ::ui/input-event (p/fn [e]
-                                             (let [checked? (-> e :target :checked)]
-                                               (p/server (Transact.
-                                                           (case checked?
-                                                             true  [{:db/id id, :task/status :done}]
-                                                             false [{:db/id id, :task/status :active}]
-                                                             nil)))))
-                          ::ui/pending {::dom/aria-busy true}})
+                                             (let [status (case (-> e :target :checked) true :done, false :active, nil)]
+                                               (p/server (Transact. [{:db/id id, :task/status status}]))))
+                          ::ui/pending     {::dom/aria-busy true}})
             (ui/element dom/label {::ui/dblclick-event (p/fn [_] (swap! !state assoc ::editing id))}
               description))
           (when (= id (::editing state))
