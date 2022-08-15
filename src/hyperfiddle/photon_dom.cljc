@@ -163,11 +163,17 @@
              ([node-a node-b] nil) ; This arity is used for dom nodes position swap, no use here.
              )))
 
+(defn prop-node [node k v]
+  (m/observe (fn [!]
+               (! nil)
+               (set-property! node k v)
+               #(set-property! node k nil))))
+
 (defmacro style [m]
   (if (map? m)
-    (cons 'do (map (fn [[k v]] `(new (p/hook (set-state-hook set-style! ~k) node (p/fn [] keepalive (set-style! node ~k ~v))))) m)) ; static keyset
+    (cons 'do (map (fn [[k v]] `(new (prop-node node "style" {~k ~v}))) m)) ; static keyset
     `(p/for-by first [sty# (vec ~m)]
-       (new (p/hook (set-state-hook set-style! (key sty#)) node (p/fn [] keepalive (set-style! node (key sty#) (val sty#))))))))
+       (new (prop-node node "style" {(key sty#) (val sty#)})))))
 
 ;; TODO JS runtimes intern litteral strings, so call `name` on keywords at
 ;; macroexpension.
@@ -176,12 +182,12 @@
     (if (map? m)
       (cons 'do (map (fn [[k v]] (if (style? k) ; static keyset
                                    `(style ~v)
-                                   `(new (p/hook (set-state-hook set-property! ~k) node (p/fn [] keepalive (set-property! node ~k ~v))))))
+                                   `(new (prop-node node ~k ~v))))
                   m))
       `(p/for-by key [prop# (vec ~m)]
          (if (~style? (key prop#))
            (style (val prop#))
-           (new (p/hook (set-state-hook set-property! (key prop#)) node (p/fn [] (set-property! node (key prop#) (val prop#))))))))))
+           (new (prop-node node (key prop#) (val prop#))))))))
 
 (defn >events* [node event-type & [xform init rf :as args]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
