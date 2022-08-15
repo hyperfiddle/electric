@@ -74,8 +74,7 @@
 
 (defmacro bubbling [& body]
   (when (seq body)
-    `(p/deduping ; TODO maybe dedupe? by command? by tx?
-       (mappend ~@body))))
+    `(mappend ~@body)))
 
 (def nil-subject (fn [!] (! nil) #()))
 (p/def keepalive (new (m/observe nil-subject)))

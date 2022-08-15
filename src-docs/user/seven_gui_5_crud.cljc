@@ -47,13 +47,11 @@
                      (dissoc r k)))
                  names-map names-map))))
 
-(defmacro cursor [val path] `(p/deduping (get-in ~val ~path)))
-
 ;;; Presentation
 
 (p/defn App []
   (let [state    (p/watch !state)
-        selected (cursor state [:selected])]
+        selected (:selected state)]
     (dom/div {:style {:display             :grid
                       :grid-gap            "0.5rem"
                       :align-items         :baseline
@@ -71,7 +69,7 @@
                          :padding          0
                          :border           "1px gray solid"
                          :height           "100%"}}
-                       (p/for [entry (filter-names (cursor state [:names]) needle)]
+                       (p/for [entry (filter-names (:names state) needle)]
                          (let [id    (key entry)
                                value (val entry)]
                            (ui/element dom/li {::ui/click-event (p/fn [_] (select! id))
@@ -80,7 +78,7 @@
                                                                  :background-color (if (= selected id) :blue :inherit)
                                                                  :padding          "0.1rem 0.5rem"}}
                                        (:surname value) ", " (:name value))))))
-      (let [stage (cursor state [:stage])]
+      (let [stage (:stage state)]
         (dom/span {:style {:grid-area "e"}} "Name:")
         (ui/input {::ui/value       (:name stage)
                    ::ui/input-event (p/fn [event] (set-name! (dom/oget event :target :value)))
