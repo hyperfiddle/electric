@@ -10,12 +10,6 @@
   (vec (for [y (range height) x (range width)]
          (atom 0))))
 
-(defn animate! [!x]
-  (m/ap (m/amb 0 (loop []
-                   (m/? (m/sleep 100))
-                   (swap! !x dec)
-                   (m/amb (recur))))))
-
 (defn perturb! [t n state]
   (dotimes [_ (Math/floor (/ n 100))]
     (reset! (get state (rand-int n)) 9)))
@@ -29,38 +23,48 @@
     (dom/dt (dom/label {::dom/for "field-width"} "width"))
     (dom/dd
       (dom/div
-        (ui/button {::ui/click-event (p/fn [e] (reset! !width 29))} "1k")
         (ui/button {::ui/click-event (p/fn [e] (reset! !width 45))} "2.5k")
-        (ui/button {::ui/click-event (p/fn [e] (reset! !width 89))} "10k (wait for it, ~10s, 1g allocated)")))
+        (ui/button {::ui/click-event (p/fn [e] (reset! !width 89))} "10k (wait for it)")))
     (dom/dt (dom/label "cells")) (dom/dd n " (total dom elements roughly double due to text nodes)")))
+
+(defn countdown [x]                     ; Count down to 0 then terminate.
+  (m/relieve {} (m/ap (loop [x x]
+                        (m/amb x
+                          (if (pos? x)
+                            (do (m/? (m/sleep 100))
+                                (recur (dec x)))
+                            x))))))
+
+(defn cell-color [x]
+  (if (> x 1) ; In photon-land, this conditional would introduce a switch and trigger a ws message for client-server frame coordination.
+    (apply rgb (hsv->rgb (/ 0 360)
+                 (-> x (/ 7.5) (* 1.33))
+                 0.95))
+    "#ddd"))
 
 (p/defn Board [!!state running? width height n]
   (dom/div
-    {:style {:font-family "monospace" :font-size "9px" :margin 0 :padding 0}}
+    {:class "board"
+     :style {:font-family "monospace" :font-size "9px" :margin 0 :padding 0}}
     (p/for [y (range 0 height)]
       (dom/div
         (p/for [x (range 0 width)]
           (let [i (+ x (* y height))
-                !x (get !!state i) x (p/watch !x)]
-            (dom/span {:style {:color                (if (> x 1)
-                                                       (apply rgb (hsv->rgb (/ 0 360) #_(/ i n)
-                                                                            (-> x (/ 7.5) (* 1.33))
-                                                                            0.95))
-                                                       "#ddd")}}
-                      x)
-            (when (and running? (> x 0))
-              (new (animate! !x)))))))))
+                !x (get !!state i) x (new (countdown (p/watch !x)))]
+            (dom/span {:style {:color (cell-color x)}}
+              x)))))))
 
 (p/defn App []
   (dom/h1 "10k dom elements")
+  (dom/element "style" ".board span { display: inline-block; }") ; prevent layout shifts
   (let [!running (atom true) running? (p/watch !running)
-        !width (atom 30) width (p/watch !width)
+        !width (atom 45) width (p/watch !width)
         height (Math/floor (* width 0.64))
         !!state (state! width height)
         n (* width height)]
 
-    (when-let [t (if running? (dom/Clock. 10) nil)]
-      (perturb! t n !!state))
+    (when running?
+      (perturb! (dom/Clock. 10) n !!state))
 
     (Controls. !running !width n)
     (Board. !!state running? width height n)))
