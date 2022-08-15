@@ -95,6 +95,6 @@
       `(with-route-getters ~route ~fns
          (let [routing-map# ~routing-map]
            (validate-route! ~route)
-           (new (get routing-map# (p/deduping (first ~route)) not-found)))))))
+           (new (get routing-map# (first ~route) not-found)))))))
 
 (p/defn not-found [] "page not found")

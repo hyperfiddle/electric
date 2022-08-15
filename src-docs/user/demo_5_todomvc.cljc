@@ -177,7 +177,7 @@
                   tx-delay (::delay state)]
           (p/client
             (dom/link {:rel :stylesheet, :href "todomvc.css"})
-            (TodoMVC. state)  ; FIXME deduping impacted by Pending
+            (TodoMVC. state)
             (dom/h1 "Diagnostics")
             (dom/div
               (dom/dl
