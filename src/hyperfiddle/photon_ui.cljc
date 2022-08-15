@@ -245,9 +245,8 @@ aria-disabled element.
      `(dom/bubble
         (~tag (p/forget (dom/props ~props))
          (let [!cancel#            (atom false)
-               ~cancel-impulse-sym (p/watch !cancel#)
-               ret#                (into [(do ~@(dom/handle-text body))] [~@events])]
-           (try (p/deduping p/pending? ret#) ; prevent subsequent pendings to unmount/remount catch Pending branch
+               ~cancel-impulse-sym (p/watch !cancel#)]
+           (try (into [(do ~@(dom/handle-text body))] [~@events])
                 (catch Pending _
                   (dom/props ~pending-props)
                   (interpreter #{::cancel} (partial swap!* !cancel# not) (events [~@pending-events])))))))))
