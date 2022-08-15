@@ -142,13 +142,20 @@
 
 (defn set-property! [node k v]
   #?(:cljs
-     (if (some? v)
-       (case k
-         :style (goog.style/setStyle node (clj->js v))
-         :list  (.setAttribute node "list" (str v))
-         :class (d/setProperties node (clj->js {"class" (if (coll? v) (str/join " " v) v)}))
-         (d/setProperties node (clj->js {k v})))
-       (.removeAttribute node (name k)))))
+     (let [k (name k)
+           v (clj->js v)]
+       (if (and (nil? v) (.hasAttribute node k))
+         (.removeAttribute node k)
+         (case k
+           "style" (goog.style/setStyle node v)
+           "class" (set! (.-className node) (if (array? v) (.join v " ") v))
+           "for"   (set! (.-htmlFor node) v)
+           "list"  (.setAttribute node k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
+           (if-let [k (o/get d/DIRECT_ATTRIBUTE_MAP_ k)]
+             (.setAttribute node k v)
+             (if (o/containsKey node k) ; is there an object property for this key?
+               (o/set node k v)
+               (.setAttribute node k v))))))))
 
 (defn set-state-hook [setter key]
   #?(:clj unsupported
