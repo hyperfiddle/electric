@@ -34,7 +34,7 @@
     (dom/text label)
     (when (dom/events "click")
       #_target ; emit next filter value
-      (swap! !state assoc ::filter (p/deduping target))
+      (swap! !state assoc ::filter target)
       nil)))
 
 (defn transact! "prevent remote errors (attempt to serialize and move d/transact return value)"

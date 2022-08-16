@@ -432,9 +432,9 @@
 (p/def spec-renderer)
 (p/defn spec-renderer-impl [V props]
   (let [value (V.)
-        Renderer (p/deduping (cond (map? value)    form
-                               (vector? value) table
-                               :else           default-renderer))]
+        Renderer (cond (map? value)    form
+                       (vector? value) table
+                       :else           default-renderer)]
     (Renderer. V props)))
 
 (p/def user-renderer)

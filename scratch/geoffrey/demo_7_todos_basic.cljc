@@ -98,7 +98,7 @@
 
 (p/defn App []
   (p/server
-    (if-some [tx (seq (commands->tx (p/deduping (Todo-list. (p/watch !conn)))))]
+    (if-some [tx (seq (commands->tx (Todo-list. (p/watch !conn))))]
       (transact tx) ; auto-transact, prints server-side
       (prn :idle))))
 

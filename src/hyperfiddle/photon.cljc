@@ -8,7 +8,7 @@
             [missionary.core :as m]
             [clojure.core.async :as a]
             #?(:cljs [hyperfiddle.photon-client]))
-  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars boot for for-by local local-with run run-with forget deduping debounce wrap]]))
+  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars boot for for-by local local-with run run-with forget debounce wrap]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.photon Pending Failure)
            (missionary Cancelled)))
@@ -140,36 +140,6 @@ running on a remote host.
              (m/eduction (map (constantly nil)) (dedupe))
              (m/reductions {} nil)
              (m/relieve {}))))
-
-(cc/defn pending? [x]
-  (or (instance? Pending x)
-    (and (instance? Failure x)
-      (instance? Pending #?(:clj (.error x) :cljs (.-error x))))))
-
-(cc/defn dedupe-by
-  "Like cc/dedupe, but only dedupe values matching `pred`."
-  ([pred]
-   (cc/fn [rf]
-     (let [pv (volatile! ::none)]
-       (cc/fn
-         ([] (rf))
-         ([result] (rf result))
-         ([result input]
-          (let [prior @pv]
-            (vreset! pv input)
-            (if (and (pred input) (= prior input))
-              result
-              (rf result input))))))))
-  ([pred coll] (sequence (dedupe-by pred) coll)))
-
-(defmacro ^:no-doc deduping "EXPERIMENTAL"
-  ([x]
-   `(deduping (complement pending?) ~x))  ; Pending passes through
-  ([pred x]
-   `(new (->> (hyperfiddle.photon/fn [] ~x)
-           (m/eduction (dedupe-by ~pred))
-           (m/reductions {} nil)
-           (m/relieve {})))))
 
 (cc/defn failure? [x] (instance? Failure x))
 

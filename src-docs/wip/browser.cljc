@@ -46,7 +46,7 @@
           stage        (p/Watch. !stage)
           db           (p/Watch. !db)
           [db message] (hf/transact! db stage)]
-      (binding [hf/db (p/deduping db)]
+      (binding [hf/db db]
         ~@;; client
           (binding [hf/route (NavBar.)]
             hf/route ;; hack
