@@ -5,7 +5,8 @@
             [cljs.util]
             [hyperfiddle.photon-impl.local :as l]
             [hyperfiddle.photon-impl.runtime :as r]
-            [hyperfiddle.rcf :refer [tests]])
+            [hyperfiddle.rcf :refer [tests]]
+            [clojure.string :as str])
   (:import cljs.tagged_literals.JSValue
            (clojure.lang Var)))
 
@@ -187,30 +188,36 @@
     (true nil) (get-in env [::peers-config ::local])
     false      (get-in env [::peers-config ::remote])))
 
+(defn is-cljs-file? [env]
+  (and (:js-globals env)
+    (str/ends-with? (:file (:meta (:ns env))) ".cljs")))
+
 (defn resolve-var
   "Resolve a clojure or clojurescript var, given these rules:
    If the resolved clojurescript var is a macro var, return the corresponding clojure var.
    Return an IVar or nil."
   [env sym]
   (case (peer-language env)
-    :clj  (let [env      (clj-env env)
-                ns       (resolve-ns (:ns env)) ; current ns
-                resolved (if (simple-symbol? sym)
-                           (get-in ns [:mappings sym]) ; resolve in current ns
-                           (as-> sym $
-                             (symbol (namespace $)) ; extract namespace part of sym
-                             (get-in ns [:aliases $] $) ; expand to fully qualified form
-                             (get-in (resolve-ns $) [:interns (symbol (name sym))]) ; resolve declared var in target ns
-                             ))]
-           (if (some? resolved)
-             (cond (var? resolved)   (CljVar. resolved)
-                   (class? resolved) (CljClass. resolved)
-                   :else             (throw (ex-info "Symbol resolved to an unknow type" {:symbol sym
-                                                                                          :type   (type resolved)
-                                                                                          :value  resolved})))
-             ;; java.lang is implicit so not listed in ns form or env
-             (when-some [resolved (clojure.lang.Compiler/maybeResolveIn (the-ns (:ns env)) sym)]
-               (CljClass. resolved))))
+    :clj  (if (is-cljs-file? env)
+            (throw (ex-info "Cannot resolve a Clojure expression from a cljs namespace. Use a .cljc file." {:file (:file (:meta (:ns env)))}))
+            (let [env      (clj-env env)
+                  ns       (resolve-ns (:ns env)) ; current ns
+                  resolved (if (simple-symbol? sym)
+                             (get-in ns [:mappings sym]) ; resolve in current ns
+                             (as-> sym $
+                               (symbol (namespace $)) ; extract namespace part of sym
+                               (get-in ns [:aliases $] $) ; expand to fully qualified form
+                               (get-in (resolve-ns $) [:interns (symbol (name sym))]) ; resolve declared var in target ns
+                               ))]
+              (if (some? resolved)
+                (cond (var? resolved)   (CljVar. resolved)
+                      (class? resolved) (CljClass. resolved)
+                      :else             (throw (ex-info "Symbol resolved to an unknow type" {:symbol sym
+                                                                                             :type   (type resolved)
+                                                                                             :value  resolved})))
+                ;; java.lang is implicit so not listed in ns form or env
+                (when-some [resolved (clojure.lang.Compiler/maybeResolveIn (the-ns (:ns env)) sym)]
+                  (CljClass. resolved)))))
     :cljs (let [var (resolve-cljs env sym)] ; resolve cljs var decription (a map)
             (if-let [expander (cljs/get-expander (if (some? var) (var-name var) sym) env)] ; find corresponding clojure var
               (CljVar. expander)
