@@ -1,5 +1,6 @@
 (ns hyperfiddle.photon-jetty-server
-  (:require [ring.middleware.file :refer [wrap-file]]
+  (:require [clojure.java.io :as io]
+            [ring.middleware.file :refer [wrap-file]]
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.adapter.jetty9 :as ring]
             [hyperfiddle.photon-jetty-adapter :as adapter]
@@ -44,12 +45,15 @@
   {:status 404
    :body "not found"})
 
-(defn start-server! [config]
+(defn file-exsist? [path] (.exists (io/as-file path)))
+
+(defn start-server! [{:keys [resources-path port] :as config
+                      :or   {resources-path "resources/public"}}]
   (try
-    (ring/run-jetty (-> default-handler
-                      (wrap-file (or (:resources-path config) "resources/public"))
-                      (wrap-content-type)
-                      (wrap-default-page)
+    (ring/run-jetty (cond-> #'default-handler
+                      (file-exsist? resources-path) (wrap-file resources-path)
+                      true                          (wrap-content-type)
+                      true                          (wrap-default-page)
                       #_(wrap-photon))
       ;; Jetty 9 forces us to declare WS paths out of a ring handler.
       (merge {:port       8080
@@ -63,7 +67,7 @@
         config))
     (catch IOException err
       (if (instance? BindException (ex-cause err))
-        (do (log/warn "Port" (:port config) "was not available, retrying with" (inc (:port config)))
-          (start-server! (update config :port inc)))
+        (do (log/warn "Port" port "was not available, retrying with" (inc port))
+            (start-server! (update config :port inc)))
         (throw err)))))
 
