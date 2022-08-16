@@ -25,9 +25,7 @@
                                            :sha     "699a445ebf2767f41fd0b6eeed5a008511702be6"}
 
            ;; Databases
-           datascript/datascript          {#_#_:mvn/version "1.3.12"  ; Temporary coordinates. See https://github.com/tonsky/datascript/issues/433
-                                           :git/url "https://github.com/hyperfiddle/datascript"
-                                           :sha "c319336f599b26fe255b46a3d33aa4baa9111d31"}
+           datascript/datascript          {:mvn/version "1.3.14"}
            #_#_com.datomic/datomic-free   {:mvn/version "0.9.5656"
                                            :exclusions  [org.slf4j/slf4j-nop
                                                          com.google.guava/guava]}
