@@ -7,7 +7,8 @@
             #?(:clj [hyperfiddle.rcf.analyzer :as ana])     ; todo remove
             [missionary.core :as m]
             [clojure.core.async :as a]
-            #?(:cljs [hyperfiddle.photon-client]))
+            #?(:cljs [hyperfiddle.photon-client])
+            [hyperfiddle.photon-impl.io :as io])
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars boot for for-by local local-with run run-with forget debounce wrap]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.photon Pending Failure)
@@ -98,8 +99,8 @@ running on a remote host.
   (let [c->s (m/rdv)
         s->c (m/rdv)]
     (m/join {}
-            (s s->c (m/sp (m/? (m/sleep 10 (m/? c->s)))))
-            (c c->s (m/sp (m/? (m/sleep 10 (m/? s->c))))))))
+      (s (comp s->c io/encode) (m/join io/decode c->s))
+      (c (comp c->s io/encode) (m/join io/decode s->c)))))
 
 (defmacro local
   "Single peer loopback system without whitelist. Returns boot task."
