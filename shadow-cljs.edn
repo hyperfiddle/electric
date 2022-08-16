@@ -24,7 +24,7 @@
                        :compiler-options {:warnings {:redef-in-file false}}}
             :browser-test {:target           :karma
                            :output-to        "out/karma-tests.js"
-                           :ns-regexp        "^hyperfiddle.(photon-[^dom]|core-async|zero|dedupe).*$"
+                           :ns-regexp        "^hyperfiddle.(photon-[^dom]|core-async|zero).*$"
                            :build-options    {:cache-level :off}
                            :modules          {:main {:entries [hyperfiddle.zero hyperfiddle.photon hyperfiddle.photon-test #_hyperfiddle.missionary-test hyperfiddle.core-async-test]}}
                            :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
