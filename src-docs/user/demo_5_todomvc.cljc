@@ -116,24 +116,24 @@
 
 #?(:clj
    (defn toggle-all! [db status]
-     (when (#{:done :active} status)
-       (let [ids (query-todos db (if (= :done status) :active :done))]
-         (map (fn [id] {:db/id id, :task/status status}) ids)))))
+     (let [ids    (query-todos db (if (= :done status) :active :done))]
+       (map (fn [id] {:db/id id, :task/status status}) ids))))
 
 (p/defn TodoList [state]
   (p/client
     (dom/div
       (dom/section {:id "main"}
-        (let [active                     (p/server (todo-count db :active))
-              all                        (p/server (todo-count db :all))
-              done                       (p/server (todo-count db :done))]
+        (let [active (p/server (todo-count db :active))
+              all    (p/server (todo-count db :all))
+              done   (p/server (todo-count db :done))]
           (ui/checkbox {::dom/id         "toggle-all"
                         ::ui/value       (cond (= all done)   true
                                                (= all active) false
                                                :else          nil)
-                        ::ui/input-event (p/fn [_]
-                                           (let [status (if (= all done) :active :done)]
-                                             (p/server (Transact. (toggle-all! db status)))))
+                        ::ui/input-event (p/fn [e] (let [status (case (-> e :target :checked)
+                                                                  (true nil) :done
+                                                                  false      :active)]
+                                                     (p/server (Transact. (toggle-all! db status)))))
                         ::ui/pending     {::dom/aria-busy true}}))
         (dom/label {:for "toggle-all"} "Mark all as complete")
         (dom/ul {:id "todo-list"}
