@@ -1355,13 +1355,6 @@
     (= (Failure. (ex-info "err" {})) (Failure. (ex-info "err" {}))) := false))
 
 (tests
-  "p/dedupe-by deduplicates values matching predicate"
-  (p/dedupe-by odd?  [1 1])     := '(1)
-  (p/dedupe-by even? [1 1])     := '(1 1)
-  (p/dedupe-by odd?  [1 1 2 1]) := '(1 2 1)
-  )
-
-(tests
   "p/bypass-on applies a given transducer on values only if they match a predicate."
   (p/bypass-on odd? (map identity) [1 2 3]) := '(1 2 3)
   (p/bypass-on odd? (map inc) [1 2 3])      := '(1 3 3) ; 1 and 3 bypassed, 2 passed to next transducer
@@ -1418,4 +1411,30 @@
   % := false #_ ::rcf/timeout
   ; we have to choose: consistency or less latency?
   ; current behavior - Dustin likes, Leo does not like
+  )
+
+
+;; https://www.notion.so/hyperfiddle/distribution-glitch-stale-local-cache-of-remote-value-should-be-invalidated-pending-47f5e425d6cf43fd9a37981c9d80d2af
+#_
+(defmacro deduping [& body] `(new (m/relieve {} (m/eduction (dedupe) (p/fn [] ~@body)))))
+#_
+(tests                                  ; FAIL will be adressed later
+  "Distributed glitch"
+  (def !atom (atom 0))
+  (p/def x (p/watch !atom))
+  (def dispose (p/run (! (try (deduping (let [y x] (p/server y)))
+                              (catch Pending _ ::pending)))))
+
+  % := ::pending
+  % := 0
+
+  (swap! !atom inc)
+  % := ::pending
+  % := 1
+
+  (swap! !atom identity)
+  % := ::pending
+  % := 1                                ; We should not see duplicates
+  (dispose)
+
   )
