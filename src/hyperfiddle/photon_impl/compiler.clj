@@ -190,7 +190,7 @@
 
 (defn is-cljs-file? [env]
   (and (:js-globals env)
-    (str/ends-with? (:file (:meta (:ns env))) ".cljs")))
+    (some-> env :ns :meta :file (str/ends-with? ".cljs"))))
 
 (defn resolve-var
   "Resolve a clojure or clojurescript var, given these rules:
