@@ -36,7 +36,8 @@
     wip.example-router
     wip.hfql-links
     wip.ui-components
-    wip.popover)
+    wip.popover
+    wip.photon-tree)
   (:import [hyperfiddle.photon Pending])
   (:require-macros [user :refer [get-main]]))
 
