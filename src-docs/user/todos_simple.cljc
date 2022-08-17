@@ -36,20 +36,19 @@
                                                                   :task/status (if status :done :active)}]))))})
         (dom/label {::dom/for id} (p/server (:task/description e)))))))
 
-(defn todo-count [db]
-  #?(:clj (count (d/q '[:find [?e ...] :in $ ?status :where [?e :task/status ?status]] db :active))))
+#?(:clj
+   (defn todo-count [db]
+     (count (d/q '[:find [?e ...] :in $ ?status :where [?e :task/status ?status]] db :active))))
 
 (p/defn Todo-list []
   (p/client
-    (dom/div
-      {::dom/class "todo-list"}
+    (dom/div {::dom/class "todo-list"}
       (TodoCreate.)
-      (dom/div
-        {::dom/class "todo-items"}
+      (dom/div {::dom/class "todo-items"}
         (p/server
           (p/for [id (d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
             (TodoItem. id))))
-      (dom/p
-        {::dom/class "counter"}
+      (dom/p {::dom/class "counter"}
         (dom/span {::dom/class "count"} (p/server (todo-count db)))
         " items left"))))
+

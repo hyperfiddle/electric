@@ -4,6 +4,12 @@ body {
 	padding: 0;
 }
 
+div#root {
+	width: 65vw;
+	margin-left: auto;
+	margin-right: auto;
+}
+
 button {
 	margin: 0;
 	padding: 0;
