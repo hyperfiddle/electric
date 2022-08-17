@@ -11,7 +11,7 @@
 (p/def db)                                                  ; server
 (def !state #?(:cljs (atom {::filter :all                   ; client
                             ::editing nil
-                            ::delay   0})))
+                            ::delay   1000})))
 
 #?(:clj
    (defn query-todos [db filter]
@@ -156,22 +156,18 @@
 (p/defn TodoMVC [state]
   (p/client
     (dom/div
-      (dom/section
-        {:id "todoapp"}
-        (dom/header
-          {:id "header"}
+      (dom/section {:id "todoapp"}
+        (dom/header {:id "header"}
           (dom/h1 "TodoMVC")
           (CreateTodo.))
 
         (when (p/server (pos? (todo-count db :all)))
           (TodoList. state))
 
-        (dom/footer
-          {:id "footer"}
+        (dom/footer {:id "footer"}
           (TodoStats. state)))
 
-      (dom/footer
-        {:id "info"}
+      (dom/footer {:id "info"}
         (dom/p "Double-click to edit a todo")))))
 
 (p/defn App []
@@ -183,8 +179,9 @@
           (p/client
             (dom/link {:rel :stylesheet, :href "todomvc.css"})
             (TodoMVC. state)
-            (dom/h1 "Diagnostics")
+
             (dom/div
+              (dom/h1 "Diagnostics")
               (dom/dl
                 (dom/dt "count :all") (dom/dd (pr-str (p/server (todo-count db :all))))
                 (dom/dt "query :all") (dom/dd (pr-str (p/server (query-todos db :all))))
