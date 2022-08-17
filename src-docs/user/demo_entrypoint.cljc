@@ -44,6 +44,7 @@
    `user.seven-gui-2-temperature-converter/App user.seven-gui-2-temperature-converter/App
    `user.seven-gui-4-timer/Timer               user.seven-gui-4-timer/Timer
    `user.seven-gui-5-crud/App                  user.seven-gui-5-crud/App
+   `wip.photon-tree/App                        wip.photon-tree/App
    ;`wip.popover/App                            wip.popover/App
    ;`wip.demo-bubbles/App                       wip.demo-bubbles/App
    ;`wip.demo-color/App                         wip.demo-color/App
@@ -70,6 +71,7 @@
                                  {:text "7GUIs - temperature converter" ::value `user.seven-gui-2-temperature-converter/App}
                                  {:text "7GUIs - timer" ::value `user.seven-gui-4-timer/Timer}
                                  {:text "7GUIs - crud" ::value `user.seven-gui-5-crud/App}
+                                 #_{:text "TreeView" ::value `wip.photon-tree/App}
                                  #_{:text "popover" ::value `wip.popover/App}
                                  #_{:text "bubbles" ::value `wip.demo-bubbles/App}
                                  #_{:text "color" ::value `wip.demo-color/App}
