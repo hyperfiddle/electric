@@ -1,7 +1,7 @@
 (ns wip.photon-tree
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [missionary.core :as m])
+            [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros wip.photon-tree)))
 
 (def tree '{:deps     true
@@ -23,76 +23,56 @@
 (p/def MapEntryView)
 (p/def MapView)
 
-(defn create-toggle
-  [a]
-  (fn [e]
-    (prn :toggle)
-    (.stopPropagation e)
-    (swap! a not)))
+#?(:cljs (defn stopPropagation [e] (.stopPropagation e))) ; Photon doesn't have interop syntax yet
 
 (p/defn App
   []
+  (dom/link {:rel :stylesheet, :href "photon_tree.css"})
   ;; use dynamic bindings because the compiler doesn't support mutual recursion
   ;; in `p/defn` yet
   (binding [View (p/fn [data]
                    (cond
                      (map? data) (MapView. data)
                      (coll? data) (CollView. data)
-                     :else (dom/text (pr-str data))))
+                     :else (pr-str data)))
             CollView (p/fn [data]
                        (let [[begin end] (cond
                                            (vector? data) "[]"
                                            (set? data) ["#{" "}"]
                                            :else "()")
-                             *expanded? (atom false)
-                             toggle (create-toggle *expanded?)]
-                         (dom/li
-                           (dom/attribute "role" "treeitem")
-                           (new (->> (dom/events dom/parent "click")
-                                     (m/eduction (map toggle))
-
-                                     (p/continuous)))
-                           (dom/ul
-                             (dom/attribute "class" "view coll-view")
-                             (dom/attribute "role" "group")
-                             (if (p/watch *expanded?)
-                               (dom/attribute "aria-expanded" "true")
-                               (dom/attribute "aria-expanded" "false"))
-                             (dom/text begin)
-                             (dom/for [x data]
-                                      (dom/li
-                                        (dom/attribute "role" "treeitem")
-                                        (View. x)))
-                             (dom/text end)))))
+                             *expanded? (atom false)]
+                         (ui/element dom/li {::dom/role "treeitem"
+                                             ::ui/click-event (p/fn [e]
+                                                                (prn :toggle)
+                                                                (stopPropagation e)
+                                                                (swap! *expanded? not))}
+                           (dom/ul {::dom/class "view coll-view"
+                                    ::dom/role "group"
+                                    ::dom/aria-expanded (p/watch *expanded?)}
+                             begin
+                             (p/for [x data]
+                               (dom/li {::dom/role "treeitem"}
+                                 (View. x)))
+                             end))))
             MapEntryView (p/fn [k v]
-                           (dom/li
-                             (dom/attribute "role" "treeitem")
-                             (dom/ul
-                               (dom/attribute "class" "view map-entry-view")
-                               (dom/attribute "role" "group")
-                               (View. k)
-                               (View. v))))
+                           (dom/li {::dom/role "treeitem"}
+                             (dom/ul {::dom/class "view map-entry-view"
+                                      ::dom/role "group"}
+                               (View. k) " " (View. v))))
             MapView (p/fn [data]
-                      (let [*expanded? (atom false)
-                            toggle (create-toggle *expanded?)]
-                        (dom/li
-                          (dom/attribute "role" "treeitem")
-                          (new (->> (dom/events dom/parent "click")
-                                    (m/eduction (map toggle))
-                                    (p/continuous)))
-                          (dom/ul
-                            (dom/attribute "class" "view map-view")
-                            (dom/attribute "role" "group")
-                            (if (p/watch *expanded?)
-                              (dom/attribute "aria-expanded" "true")
-                              (dom/attribute "aria-expanded" "false"))
-                            (dom/text "{")
-                            (dom/for [e data]
-                                     (MapEntryView. (key e) (val e)))
-                            (dom/text "}")))))]
+                      (let [*expanded? (atom false)]
+                        (ui/element dom/li {::dom/role "treeitem"
+                                            ::ui/click-event (p/fn [e]
+                                                               (prn :toggle)
+                                                               (stopPropagation e)
+                                                               (swap! *expanded? not))}
+                          (dom/ul {::dom/class "view map-view"
+                                   ::dom/role "group"
+                                   ::dom/aria-expanded (p/watch *expanded?)}
+                            "{" (p/for [e data]
+                                  (MapEntryView. (key e) (val e)))
+                            "}"))))]
     (dom/div
-      (dom/h1 (dom/text "Tree view"))
-      (dom/ul
-        (dom/attribute "class" "view")
-        (dom/attribute "role" "tree")
+      (dom/h1 "Tree view")
+      (dom/ul {::dom/class "view" ::dom/role "tree"}
         (View. tree)))))
