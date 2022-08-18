@@ -100,10 +100,6 @@
   (partial m/latest
     (fn [x y] (if (instance? Failure y) y x))))
 
-(def latest-last
-  (partial m/latest
-    (fn [x y] (if (instance? Failure x) x y))))
-
 (defn pure [x] (m/cp x))
 
 (def lift-cancelled
@@ -121,55 +117,58 @@
 
 (def this (l/local))
 
+(defn shutdown [^objects ctx]
+  (aget ctx (int 1)))
+
 (defn next-local [^objects ctx] ; frames are identified by an integer. Creating a frame will increment this counter.
-  (aset ctx (int 1) (inc (aget ctx (int 1)))))
+  (aset ctx (int 2) (inc (aget ctx (int 2)))))
 
 (defn next-remote [^objects ctx] ; frames are identified by an integer. Creating a frame will increment this counter.
-  (aset ctx (int 2) (dec (aget ctx (int 2)))))
+  (aset ctx (int 3) (dec (aget ctx (int 3)))))
 
 ; add a frame in the context index, identified by id
 (defn assoc-frame-id [^objects ctx id frame]
-  (aset ctx (int 3) (assoc! (aget ctx (int 3)) id frame)))
+  (aset ctx (int 4) (assoc! (aget ctx (int 4)) id frame)))
 
 (defn lookup-frame-id [^objects ctx id]
-  (get (aget ctx (int 3)) id))
+  (get (aget ctx (int 4)) id))
 
 (defn dissoc-frame-id [^objects ctx id]
-  (aset ctx (int 3) (dissoc! (aget ctx (int 3)) id)))
+  (aset ctx (int 4) (dissoc! (aget ctx (int 4)) id)))
 
 (defn set-remote [^objects ctx callback]
-  (aset ctx (int 4) callback))
-
-(defn get-remote [^objects ctx]
-  (aget ctx (int 4)))
-
-(defn get-output [^objects ctx]
-  (aget ctx (int 5)))
-
-(defn set-output [^objects ctx callback]
   (aset ctx (int 5) callback))
 
+(defn get-remote [^objects ctx]
+  (aget ctx (int 5)))
+
+(defn get-output [^objects ctx]
+  (aget ctx (int 6)))
+
+(defn set-output [^objects ctx callback]
+  (aset ctx (int 6) callback))
+
 (defn empty-queue? [^objects ctx]
-  (nil? (aget ctx (int 6))))
+  (nil? (aget ctx (int 7))))
 
 (defn set-queue [^objects ctx xs]
-  (aset ctx (int 6) (seq xs)) ctx)
+  (aset ctx (int 7) (seq xs)) ctx)
 
 (defn pop-queue [^objects ctx]
-  (let [[x & xs] (aget ctx (int 6))]
-    (aset ctx (int 6) xs) x))
+  (let [[x & xs] (aget ctx (int 7))]
+    (aset ctx (int 7) xs) x))
 
 (defn set-frame-register [^objects ctx x]
-  (aset ctx (int 7) x))
-
-(defn get-frame-register [^objects ctx]
-  (aget ctx (int 7)))
-
-(defn set-target-register [^objects ctx x]
   (aset ctx (int 8) x))
 
-(defn get-target-register [^objects ctx]
+(defn get-frame-register [^objects ctx]
   (aget ctx (int 8)))
+
+(defn set-target-register [^objects ctx x]
+  (aset ctx (int 9) x))
+
+(defn get-target-register [^objects ctx]
+  (aget ctx (int 9)))
 
 (defn tier-parent [^objects t]
   (aget t (int 0)))
@@ -263,19 +262,21 @@
 
 (defn make-context "
 0: root frame
-1: local counter id
-2: remote counter id
-3: id -> frame
-4: remote callback
-5: output callback
-6: decoder stack
-7: decoder frame register
-8: decoder target register
+1: shutdown signal
+2: local counter id
+3: remote counter id
+4: id -> frame
+5: remote callback
+6: output callback
+7: decoder stack
+8: decoder frame register
+9: decoder target register
 " []
-  (doto (object-array 9)
-    (aset (int 1) (identity 0))
+  (doto (object-array 10)
+    (aset (int 1) (m/dfv))
     (aset (int 2) (identity 0))
-    (aset (int 3) (transient {}))))
+    (aset (int 3) (identity 0))
+    (aset (int 4) (transient {}))))
 
 (defn make-tier "
 0: parent frame
@@ -465,6 +466,14 @@
   (dotimes [i (alength arr)]
     ((aget arr i))))
 
+(defn frame-dispose [f]
+  (set-frame-position f nil)
+  (array-call (frame-static f))
+  (array-call (frame-dynamic f))
+  (array-call (frame-foreign f))
+  (array-call (frame-variables f))
+  (array-call (frame-constants f)))
+
 (defn frame-rotate [f to]
   (let [from (get-frame-position f)
         step (compare to from)
@@ -479,14 +488,9 @@
               (set-frame-position y i)
               (aset buf (int i) y)
               (recur j))))
-        (set-frame-position f nil)
         (set-tier-size tier size)
         (aset buf (int size) nil)
-        (array-call (frame-static f))
-        (array-call (frame-dynamic f))
-        (array-call (frame-foreign f))
-        (array-call (frame-variables f))
-        (array-call (frame-constants f)))
+        (frame-dispose f))
       (do (loop [i from]
             (let [j (+ i step)
                   y (aget buf (int j))]
@@ -509,6 +513,11 @@
   (when-some [pos (get-frame-position f)]
     (remote f (- pos (get-tier-size (frame-parent f))))
     (frame-rotate f pos)))
+
+(defn kill-context [^objects ctx]
+  ((shutdown ctx) nil)
+  (when-some [cb (get-remote ctx)] (cb nil))
+  (when-some [cb (get-output ctx)] (cb nil)))
 
 (defn decode-inst [ctx inst]
   (if-some [id (get-frame-register ctx)]
@@ -537,7 +546,8 @@
                           target (get-target-register ctx)]
                       (set-target-register ctx nil)
                       (target source (next-remote ctx)))
-                    (dissoc-frame-id ctx id)))))))))
+                    (when (zero? (count (dissoc-frame-id ctx id)))
+                      (kill-context ctx))))))))))
     (set-frame-register ctx (- inst))) ctx)
 
 (defn acopy [dest src size]
@@ -641,7 +651,7 @@
         (m/cp (try (let [<x (m/?< <<x)]
                      (if (failure <x)
                        <x (m/?< (with tier <x))))
-                   (catch Cancelled e
+                   (catch #?(:clj Throwable :cljs :default) e
                      (Failure. e))))))))
 
 (defn source [frame vars position slot]
@@ -682,55 +692,77 @@
 (defn terminate-event [path] [[] {} #{path}])
 (def merge-events (partial mapv into))
 
-(defn crash-failure [x]
-  (if (instance? Failure x)
-    (throw (.-error ^Failure x)) x))
-
 (defn peer [var-count dynamic variable-count source-count constant-count target-count output-count input-count ctor]
   (fn [write ?read]
-    (m/reactor
-      (let [context (make-context)
-            >remote (->> (m/observe
-                           (fn [!]
-                             (set-remote context !)
-                             #(set-remote context nil)))
-                      (m/relieve into)
-                      (m/stream!))
-            >output (->> (m/observe
-                           (fn [!]
-                             (set-output context !)
-                             #(set-output context nil)))
-                      (m/relieve merge)
-                      (m/stream!))]
-        (m/stream!
-          (m/latest crash-failure
-            (make-frame context 0 0 nil context (object-array (repeat var-count unbound)) {} [] dynamic
-              variable-count source-count constant-count target-count output-count input-count ctor)))
-        (->> (m/ap (m/? (m/?> (m/seed (repeat ?read)))))
-          (m/stream!)
-          (m/eduction
-            (map (fn [msg]
+    (fn [s f]
+      (let [result (m/dfv)]
+        ((m/reactor
+           (let [context (make-context)
+                 >remote (->> (m/observe
+                                (fn [!]
+                                  (set-remote context !)
+                                  #(set-remote context nil)))
+                           (m/eduction (take-while some?))
+                           (m/relieve into)
+                           (m/stream!))
+                 >output (->> (m/observe
+                                (fn [!]
+                                  (set-output context !)
+                                  #(set-output context nil)))
+                           (m/eduction (take-while some?))
+                           (m/relieve merge)
+                           (m/stream!))]
+             (when-some [<root (make-frame context 0 0 nil context (object-array (repeat var-count unbound))
+                                 {} [] dynamic variable-count source-count constant-count
+                                 target-count output-count input-count ctor)]
+               (let [>root (m/stream! <root)
+                     >term (m/stream! (m/ap (m/? result)))]
+                 (->> (m/ap
+                        (result
+                          (m/? (m/race
+                                 (m/reduce {} nil >term)
+                                 (m/reduce
+                                   (fn [_ x]
+                                     (if (instance? Failure x)
+                                       (reduced x) x))
+                                   nil >root))))
+                        (frame-dispose (aget context 0))
+                        (m/? (m/reduce {} nil >root))
+                        (remote (aget context 0) (+ output-count constant-count variable-count))
+                        (kill-context context))
+                   (m/stream!))))
+             (->> (m/ap (m/? (m/?> (m/seed (repeat (m/race (shutdown context) ?read))))))
+               (m/eduction (take-while some?))
+               (m/stream!)
+               (m/sample
+                 (fn [msg]
                    (reduce decode-inst
                      (set-queue context (pop msg))
-                     (peek msg)))))
-          (m/stream!))
-        (let [>events (->> (m/ap
-                             (m/amb
-                               (m/sample remote-event >remote)
-                               (let [m (m/?> >output)
-                                     [path <out] (m/?> (count m) (m/seed m))]
-                                 (eventually (terminate-event path)
-                                   (m/latest (partial change-event path) <out)))))
-                        (gather merge-events)
-                        (m/stream!))]
-          (m/stream!
-            (m/ap (let [[inst data done] (m/?> >events)]
-                    (-> []
-                      (into (vals data))
-                      (conj (-> inst
-                              (into cat (keys data))
-                              (into cat done)))
-                      (write) (m/?))))))))))
+                     (peek msg))))
+               (m/stream!))
+             (let [>events (->> (m/ap
+                                  (m/amb
+                                    (m/sample remote-event >remote)
+                                    (let [m (m/?> >output)
+                                          [path <out] (m/?> (m/seed m))]
+                                      (eventually (terminate-event path)
+                                        (m/latest (partial change-event path) <out)))))
+                             (gather merge-events)
+                             (m/stream!))]
+               (->> (m/ap (let [[inst data done] (m/?> >events)]
+                            (-> []
+                              (into (vals data))
+                              (conj (-> inst
+                                      (into cat (keys data))
+                                      (into cat done)))
+                              (write) (m/?))))
+                 (m/stream!)) nil)))
+         (fn [x]
+           (let [r (result x)]
+             (if (instance? Failure r)
+               (f (.-error ^Failure r))
+               (s r)))) f)
+        #(result (Failure. (Cancelled. "Peer cancelled.")))))))
 
 (defn collapse [s n f & args]
   (->> (iterate pop s)
@@ -889,8 +921,7 @@
     {:nop      nil
      :sub      (fn [idx] (sym prefix 'pub idx))
      :pub      (fn [form cont idx]
-                 `(let [~(sym prefix 'pub idx) (signal ~form)]
-                    (latest-last ~(sym prefix 'pub idx) ~cont)))
+                 `(let [~(sym prefix 'pub idx) (signal ~form)] ~cont))
      :static   (fn [i] `(static ~(sym prefix 'frame) ~i))
      :dynamic  (fn [i] `(dynamic ~(sym prefix 'frame) ~i))
      :eval     (fn [f] `(pure ~f))
@@ -958,8 +989,7 @@
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (let [~'-pub-0 (signal (pure '1))]
-         (latest-last ~'-pub-0
-           (latest-apply (pure ~'clojure.core/+) ~'-pub-0 (pure '2))))))
+         (latest-apply (pure ~'clojure.core/+) ~'-pub-0 (pure '2)))))
 
   (emit nil
     [:variable [:global :missionary.core/none]]) :=
@@ -998,23 +1028,21 @@
                             (constructor [] [] 0 0 0 0 0 0
                               (fn [~'-frame ~'-vars]
                                 (pure '3)))))]
-           (latest-last ~'-pub-0
-             (let [~'-pub-1 (signal
-                              (constant ~'-frame 1
-                                (constructor [] [] 0 0 0 0 0 1
-                                  (fn [~'-frame ~'-vars]
-                                    (input ~'-frame 0)))))]
-               (latest-last ~'-pub-1
-                 (latest-apply
-                   (latest-apply (pure ~'clojure.core/hash-map)
-                     (pure '2) ~'-pub-0
-                     (pure '4) ~'-pub-1
-                     (pure '5) ~'-pub-1)
-                   (pure '1)
-                   (constant ~'-frame 2
-                     (constructor [] [] 0 0 0 0 0 0
-                       (fn [~'-frame ~'-vars]
-                         (pure '7))))))))))))
+           (let [~'-pub-1 (signal
+                            (constant ~'-frame 1
+                              (constructor [] [] 0 0 0 0 0 1
+                                (fn [~'-frame ~'-vars]
+                                  (input ~'-frame 0)))))]
+             (latest-apply
+               (latest-apply (pure ~'clojure.core/hash-map)
+                 (pure '2) ~'-pub-0
+                 (pure '4) ~'-pub-1
+                 (pure '5) ~'-pub-1)
+               (pure '1)
+               (constant ~'-frame 2
+                 (constructor [] [] 0 0 0 0 0 0
+                   (fn [~'-frame ~'-vars]
+                     (pure '7))))))))))
 
   (emit nil [:def 0]) :=
   `(peer 1 [] 0 0 0 0 0 0
@@ -1027,11 +1055,10 @@
   `(peer 0 [] 0 0 1 0 0 0
      (fn [~'-frame ~'-vars]
        (let [~'-pub-0 (signal (pure 'nil))]
-         (latest-last ~'-pub-0
-           (constant ~'-frame 0
-             (constructor [~'-pub-0] [] 0 0 0 0 0 0
-               (fn [~'-frame ~'-vars]
-                 (static ~'-frame 0)))))))))
+         (constant ~'-frame 0
+           (constructor [~'-pub-0] [] 0 0 0 0 0 0
+             (fn [~'-frame ~'-vars]
+               (static ~'-frame 0))))))))
 
 (defn juxt-with ;;juxt = juxt-with vector, juxt-with f & gs = apply f (apply juxt gs)
   ([f]
@@ -1104,8 +1131,7 @@
                     (nth pubs idx)))
       :pub      (fn [form cont _]
                   (fn [pubs frame vars]
-                    (let [pub (signal (form pubs frame vars))]
-                      (latest-last pub (cont (conj pubs pub) frame vars)))))
+                    (cont (conj pubs (signal (form pubs frame vars))) frame vars)))
       :lift     (fn [form]
                   (fn [pubs frame vars]
                     (pure (form pubs frame vars))))

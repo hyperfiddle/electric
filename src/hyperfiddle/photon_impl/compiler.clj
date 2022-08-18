@@ -327,7 +327,8 @@
        (if-some [[node form & bs] bs]
          (-> [[:pub]]
            (conj-res (analyze-form env form))
-           (conj-res (rec (update env ::index update l (fnil inc 0)) bs (conj ns node))))
+           (conj-res (conj-res [[:apply [:literal {}] [:sub 1]]]
+                       (rec (update env ::index update l (fnil inc 0)) bs (conj ns node)))))
          (reduce-kv
            (fn [res i n]
              (conj-res [[:bind (resolve-node env n) (- (count ns) i)]] res))
@@ -358,7 +359,8 @@
        (if-some [[s i & bs] bs]
          (-> [[:pub]]
            (conj-res (analyze-form env i))
-           (conj-res (rec (with-local env s) bs)))
+           (conj-res (conj-res [[:apply [:literal {}] [:sub 1]]]
+                       (rec (with-local env s) bs))))
          (analyze-sexpr env (cons `do (next args)))))
      env (seq (first args)))
 
@@ -366,7 +368,9 @@
     (if-some [[x & xs] args]
       (case xs
         nil (analyze-form env x)
-        (analyze-sexpr env (list {} x (cons `do xs))))
+        (-> [[:apply [:literal {}]]]
+          (conj-res (analyze-form env x))
+          (conj-res (analyze-sexpr env (cons `do xs)))))
       [[:literal nil]])
 
     (if)
@@ -585,105 +589,118 @@
                    (if (= p peer)
                      [:pub (peek inst) [:bind slot 1 (rec nodes)]]
                      ((void (rec nodes)) (pop inst)))
-                   (if p (peek inst) ((void [:literal nil]) (pop inst)))))
+                   (if p (peek inst) ((void [:nop]) (pop inst)))))
                nodes)) [true false]))))
 
 (tests
 
   (analyze {} '5) :=
-  [[:literal 5] [:literal nil]]
+  [[:literal 5] [:nop]]
 
   (analyze {} '(+ 2 3)) :=
   [[:apply [:global :clojure.core/+] [:literal 2] [:literal 3]]
-   [:literal nil]]
+   [:nop]]
 
   (analyze {} '(let [a 1] (+ a 2))) :=
-  [[:pub [:literal 1] [:apply [:global :clojure.core/+] [:sub 1] [:literal 2]]]
-   [:literal nil]]
+  [[:pub [:literal 1]
+    [:apply [:literal {}] [:sub 1]
+     [:apply [:global :clojure.core/+]
+      [:sub 1] [:literal 2]]]]
+   [:nop]]
 
   (analyze '{a nil} 'a) :=
   [[:global :a]
-   [:literal nil]]
+   [:nop]]
 
   (doto (def Ctor) (alter-meta! assoc :macro true ::node ::unbound))
   (analyze {} '(Ctor.)) :=
   [[:pub [:node 0]
-    [:bind 1 1
-     [:variable [:sub 1]]]]
-   [:source [:literal nil]]]
+    [:apply [:literal {}] [:sub 1]
+     [:bind 1 1 [:variable [:sub 1]]]]]
+   [:source [:nop]]]
 
   (analyze {} '~@:foo) :=
   [[:input]
-   [:output [:literal :foo] [:literal nil]]]
+   [:output [:literal :foo] [:nop]]]
 
   (analyze {} '(::closure :foo)) :=
   [[:constant [:literal :foo]]
-   [:target [:nop] [:literal nil]]]
+   [:target [:nop] [:nop]]]
 
   (analyze {} '(do :a :b)) :=
-  [[:apply [:apply [:global :clojure.core/hash-map]]
+  [[:apply [:literal {}]
     [:literal :a] [:literal :b]]
-   [:literal nil]]
+   [:nop]]
 
   (analyze {} '(case 1 2 3 (4 5) ~@6 7)) :=
   [[:pub
     [:pub
      [:constant [:literal 3]]
-     [:pub
-      [:constant [:input]]
-      [:apply
-       [:apply [:global :clojure.core/hash-map]
-        [:literal 2] [:sub 2]
-        [:literal 4] [:sub 1]
-        [:literal 5] [:sub 1]]
-       [:literal 1]
-       [:constant [:literal 7]]]]]
-    [:bind 0 1 [:variable [:sub 1]]]]
+     [:apply [:literal {}] [:sub 1]
+      [:pub
+       [:constant [:input]]
+       [:apply [:literal {}] [:sub 1]
+        [:apply
+         [:apply [:global :clojure.core/hash-map]
+          [:literal 2] [:sub 2]
+          [:literal 4] [:sub 1]
+          [:literal 5] [:sub 1]]
+         [:literal 1]
+         [:constant [:literal 7]]]]]]]
+    [:apply [:literal {}] [:sub 1]
+     [:bind 0 1 [:variable [:sub 1]]]]]
    [:target [:nop]
     [:target [:output [:literal 6] [:nop]]
      [:target [:nop]
-      [:source [:literal nil]]]]]]
+      [:source [:nop]]]]]]
 
   (analyze {} '(case 1 2 3 (4 5) ~@6)) :=
   [[:pub
     [:pub
      [:constant [:literal 3]]
-     [:pub
-      [:constant [:input]]
-      [:apply
-       [:apply [:global :clojure.core/hash-map]
-        [:literal 2] [:sub 2]
-        [:literal 4] [:sub 1]
-        [:literal 5] [:sub 1]]
-       [:literal 1]
-       [:literal nil]]]]
-    [:bind 0 1 [:variable [:sub 1]]]]
+     [:apply [:literal {}] [:sub 1]
+      [:pub
+       [:constant [:input]]
+       [:apply [:literal {}] [:sub 1]
+        [:apply
+         [:apply [:global :clojure.core/hash-map]
+          [:literal 2] [:sub 2]
+          [:literal 4] [:sub 1]
+          [:literal 5] [:sub 1]]
+         [:literal 1]
+         [:literal nil]]]]]]
+    [:apply [:literal {}] [:sub 1]
+     [:bind 0 1 [:variable [:sub 1]]]]]
    [:target [:nop]
     [:target [:output [:literal 6] [:nop]]
-     [:source [:literal nil]]]]]
+     [:source [:nop]]]]]
 
   (doto (def foo) (alter-meta! assoc :macro true ::node nil))
   (doto (def bar) (alter-meta! assoc :macro true ::node 'foo))
   (analyze {} 'bar) :=
   [[:pub [:literal nil] [:bind 0 1 [:pub [:node 0] [:bind 1 1 [:node 1]]]]]
-   [:literal nil]]
+   [:nop]]
 
   (analyze {} '(def foo)) :=
   [[:pub [:literal nil] [:bind 0 1 [:def 0]]]
-   [:literal nil]]
+   [:nop]]
 
   (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new (::closure ~@foo))) (::closure a))))) :=
   [[:pub [:literal nil]
     [:bind 0 1
      [:pub [:literal 1]
-      [:pub
-       [:apply [:def 0]
-        [:constant [:target [:output [:node 0] [:nop]] [:source [:input]]]]
-        [:constant [:sub 1]]]
-       [:bind 1 1 [:variable [:sub 1]]]]]]]
+      [:apply [:literal {}] [:sub 1]
+       [:pub
+        [:apply [:def 0]
+         [:constant [:target [:output [:node 0] [:nop]] [:source [:input]]]]
+         [:constant [:sub 1]]]
+        [:apply [:literal {}] [:sub 1]
+         [:bind 1 1 [:variable [:sub 1]]]]]]]]]
    [:target
-    [:output [:pub [:constant [:input]] [:bind 0 1 [:variable [:sub 1]]]] [:nop]]
-    [:target [:nop] [:source [:literal nil]]]]]
+    [:output [:pub [:constant [:input]]
+              [:apply [:literal {}] [:sub 1]
+               [:bind 0 1 [:variable [:sub 1]]]]] [:nop]]
+    [:target [:nop] [:source [:nop]]]]]
 
   (doto (def baz) (alter-meta! assoc :macro true ::node '(::closure ~@foo)))
   (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new baz)) (::closure a))))) :=
@@ -691,54 +708,62 @@
     [:bind 0 1
      [:target [:output [:node 0] [:nop]]
       [:pub [:literal 1]
-       [:pub [:apply [:def 0] [:constant [:source [:input]]] [:constant [:sub 1]]]
-        [:bind 1 1 [:variable [:sub 1]]]]]]]]
+       [:apply [:literal {}] [:sub 1]
+        [:pub [:apply [:def 0] [:constant [:source [:input]]] [:constant [:sub 1]]]
+         [:apply [:literal {}] [:sub 1]
+          [:bind 1 1 [:variable [:sub 1]]]]]]]]]]
    [:pub [:constant [:input]]
     [:bind 0 1
-     [:target [:output [:pub [:node 0] [:bind 1 1 [:variable [:sub 1]]]] [:nop]]
-      [:target [:nop] [:source [:literal nil]]]]]]]
+     [:target [:output [:pub [:node 0]
+                        [:apply [:literal {}] [:sub 1]
+                         [:bind 1 1 [:variable [:sub 1]]]]] [:nop]]
+      [:target [:nop] [:source [:nop]]]]]]]
 
   (analyze {} '(try 1 (finally 2 3 4))) :=
   [[:pub [:apply
-          [:global :hyperfiddle.photon-impl.runtime/latest-first]
-          [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
-           [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
+          [:global ::r/latest-first]
+          [:apply [:global ::r/latest-first]
+           [:apply [:global ::r/latest-first]
             [:constant [:literal 1]] [:constant [:literal 2]]]
            [:constant [:literal 3]]]
           [:constant [:literal 4]]]
-    [:bind 0 1 [:variable [:sub 1]]]]
+    [:apply [:literal {}] [:sub 1]
+     [:bind 0 1 [:variable [:sub 1]]]]]
    [:target [:nop]
     [:target [:nop]
      [:target [:nop]
       [:target [:nop]
-       [:source [:literal nil]]]]]]]
+       [:source [:nop]]]]]]]
 
   (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
-  [[:pub [:apply [:global :hyperfiddle.photon-impl.runtime/latest-first]
-          [:apply [:global :hyperfiddle.photon-impl.runtime/bind]
-           [:global :hyperfiddle.photon-impl.runtime/recover]
+  [[:pub [:apply [:global ::r/latest-first]
+          [:apply [:global ::r/bind]
+           [:global ::r/recover]
            [:apply [:global :clojure.core/some-fn]
-            [:apply [:global :hyperfiddle.photon-impl.runtime/clause]
+            [:apply [:global ::r/clause]
              [:apply [:global :clojure.core/partial]
-              [:def 0] [:constant [:pub [:node 0] [:literal 2]]]]
+              [:def 0] [:constant [:pub [:node 0]
+                                   [:apply [:literal {}] [:sub 1]
+                                    [:literal 2]]]]]
              [:global :java.lang.Exception]]]
            [:constant [:literal 1]]]
           [:constant [:literal 3]]]
-    [:bind 1 1 [:variable [:sub 1]]]]
+    [:apply [:literal {}] [:sub 1]
+     [:bind 1 1 [:variable [:sub 1]]]]]
    [:target [:nop]
     [:target [:nop]
      [:target [:nop]
-      [:source [:literal nil]]]]]]
+      [:source [:nop]]]]]]
   )
 
 
 (tests "literals"
-  (analyze {} {:a 1}) := [[:apply [:global :clojure.core/hash-map] [:literal :a] [:literal 1]] [:literal nil]]
+  (analyze {} {:a 1}) := [[:apply [:global :clojure.core/hash-map] [:literal :a] [:literal 1]] [:nop]]
   (analyze {} ^{:b 2} {:a 1}) := [[:apply
                                    [:global :clojure.core/with-meta]
                                    [:apply [:global :clojure.core/hash-map] [:literal :a] [:literal 1]]
                                    [:apply [:global :clojure.core/hash-map] [:literal :b] [:literal 2]]]
-                                  [:literal nil]]
+                                  [:nop]]
   )
 
 (comment
@@ -792,8 +817,8 @@
 
 (tests "method access"
   (analyze {} '(. Math abs -1)) :=
-  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)] [:literal -1]] [:literal nil]]
+  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)] [:literal -1]] [:nop]]
 
   (analyze {} '(Math/abs -1)) :=
-  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)] [:literal -1]] [:literal nil]]
+  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)] [:literal -1]] [:nop]]
   )
