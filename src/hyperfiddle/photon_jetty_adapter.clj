@@ -99,7 +99,7 @@
 (defn failure [^WebSocketAdapter ws ^Throwable e]
   (log/error "Websocket handler failure" e)
   ;; jetty/close! is missing arity 3 for jetty 9. Call close directly to get arity 3.
-  (.close (.getSession ws) 1011 "Server process crash"))
+  (when-some [s (.getSession ws)] (.close s 1011 "Server process crash")))
 
 (defn photon-ws-message-handler
   "Given a websocket instance and a missionary task reading a message, run a photon
