@@ -12,6 +12,7 @@
 (def !state #?(:cljs (atom {::filter :all                   ; client
                             ::editing nil
                             ::delay   1000})))
+(p/def tx-delay 0)
 
 #?(:clj
    (defn query-todos [db filter]
@@ -29,12 +30,9 @@
            :active (d/q '[:find (count ?e) . :where [?e :task/status :active]] db)
            :done   (d/q '[:find (count ?e) . :where [?e :task/status :done]] db)
            :all    (d/q '[:find (count ?e) . :where [?e :task/status]] db))
-                                        ; datascript can return nil wtf
-       (or 0))))
+       (or 0)))) ; datascript can return nil wtf
 
 (p/defn Filter-control [state target label]
-  ; wrapping dom/a with ui/element here gives us the ::ui/click-event (with managed pending state).
-  ; Likely the photon-ui functionality should merge into photon-dom directly.
   (ui/element dom/a {::dom/class (when (= state target) "selected")
                      ::ui/click-event (p/fn [_] (swap! !state assoc ::filter target))}
     label))
@@ -46,8 +44,6 @@
                (catch InterruptedException _
                  (prn "d/transact! interrupted")))
      :cljs (assert false "transact from wrong peer (called on: client)")))
-
-(p/def tx-delay 0)
 
 (p/defn Transact [tx] (p/wrap transact! !conn tx tx-delay))
 
@@ -78,9 +74,7 @@
 
 (p/defn TodoItem [state id]
   (p/server
-    (let [x           #_ {:keys [:task/status :task/description]} (d/entity db id) ; Unable to resolve - clojure.core/--destructure-map
-          status      (:task/status x)
-          description (:task/description x)]
+    (let [{:keys [:task/status :task/description]} (d/entity db id)]
       (p/client
         (dom/li
           {:class [(when (= :done status) "completed")
