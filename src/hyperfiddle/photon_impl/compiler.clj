@@ -219,9 +219,11 @@
                 (when-some [resolved (clojure.lang.Compiler/maybeResolveIn (the-ns (:ns env)) sym)]
                   (CljClass. resolved)))))
     :cljs (let [var (resolve-cljs env sym)] ; resolve cljs var decription (a map)
-            (if-let [expander (cljs/get-expander (if (some? var) (var-name var) sym) env)] ; find corresponding clojure var
-              (CljVar. expander)
-              var))))
+            (if (and var (= :local (:op (get-var var)))) ; if lexical binding
+              nil
+              (if-let [expander (cljs/get-expander (if (some? var) (var-name var) sym) env)] ; find corresponding clojure var
+                (CljVar. expander)
+                var)))))
 
 (defn resolve-runtime
   "Returns the fully qualified symbol of the var resolved by given symbol at runtime, or nil if:
@@ -333,7 +335,10 @@
 
 (defn desugar-host [env form]
   (case (peer-language env)
-    :cljs form ;; Can't desugar in cljs, pass form through.
+    :cljs (if (and (seq? form) (cljs/dotted-symbol? (first form)))
+            (let [[op target & args] form]
+              (list* '. target (symbol (subs (name op) 1)) args))
+            form)
     :clj (if (and (seq? form) (qualified-symbol? (first form)))
            (env/with-env {:namespaces {(:ns env) (resolve-ns (:ns (clj-env env)))}}
              (clj/desugar-host-expr form env))
@@ -414,10 +419,11 @@
       (throw (ex-info "Wrong number of arguments - new" {})))
 
     (.)
-    (let [dot (cljs/build-dot-form [(first args) (second args) (nnext args)])
-          target (if (class? (:target dot))
-                   (CljClass. (:target dot))
-                   (resolve-var env (:target dot)))]
+    (let [dot    (cljs/build-dot-form [(first args) (second args) (nnext args)])
+          target (:target dot)
+          target (cond (class? target)  (CljClass. (:target dot))
+                       (symbol? target) (resolve-var env (:target dot))
+                       :else            target)]
       (transduce (map (partial analyze-form env)) conj-res
         [[:apply [:eval (if (instance? CljClass target)
                           `(static-call ~(var-name target) ~(:method dot) ~(count (:args dot)))
@@ -477,8 +483,8 @@
     (if (symbol? op)
       (let [n (name op)
             e (dec (count n))]
-        (case (nth n e)
-          \. (analyze-sexpr env `(new ~(symbol (namespace op) (subs n 0 e)) ~@args))
+        (if (and (not= ".." n) (= \. (nth n e))) ; "Class.", leave cljs.core$macros/.. alone
+          (analyze-sexpr env `(new ~(symbol (namespace op) (subs n 0 e)) ~@args))
           (if (contains? (:locals env) op)
             (analyze-apply env form)
             (if-some [sym (resolve-runtime env op)]
