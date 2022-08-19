@@ -5,19 +5,13 @@
             [user.util :refer [includes-str?]])
   #?(:cljs (:require-macros user.demo-7-explorer)))
 
-; wrap java interop (hack)
-(defn file-is-dir [handle] #?(:clj (.isDirectory handle)))
-(defn file-is-file [handle] #?(:clj (.isFile handle)))
-(defn file-list-files [handle] #?(:clj (seq (.listFiles handle))))
-(defn file-get-name [handle] #?(:clj (.getName handle)))
-
 (comment
   (def h (clojure.java.io/file "node_modules/"))
-  (file-get-name h)
-  (file-is-dir h)
-  (file-list-files h)
-  (for [x (take 5 (file-list-files h))]
-    (file-get-name x))
+  (.getName h)
+  (.isDirectory h)
+  (.listFiles h)
+  (for [x (take 5 (.listFiles h))]
+    (.getName x))
   )
 
 (p/def FooRecur)
@@ -26,12 +20,12 @@
   (binding [FooRecur (p/fn [x s]                            ; only call from server due to https://github.com/hyperfiddle/photon/issues/12
                        (p/server
                          (cond
-                           (file-is-dir x)
-                           (p/client (dom/li (p/server (file-get-name x)))
-                                     (dom/ul (p/server (p/for [x (take 100 (file-list-files x))]
+                           (.isDirectory x)
+                           (p/client (dom/li (p/server (.getName x)))
+                                     (dom/ul (p/server (p/for [x (take 100 (.listFiles x))]
                                                          (FooRecur. x s)))))
-                           (file-is-file x)
-                           (let [fname (file-get-name x)]
+                           (.isFile x)
+                           (let [fname (.getName x)]
                              (when (includes-str? fname s)
                                (p/client (dom/li fname)))))))]
     (p/client (dom/ul (p/server (FooRecur. handle s))))))
