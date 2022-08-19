@@ -40,7 +40,7 @@
  ;; -- temporarily disable hot code reloading
 (defn ^:dev/before-load stop! []
   (when reactor (reactor) #_"teardown")
-  ;; (.. js/document (getElementById "root") (replaceChildren)) ; temporary workaround for https://github.com/hyperfiddle/photon/issues/10
+  (.. js/document (getElementById "root") (replaceChildren)) ; temporary workaround for https://github.com/hyperfiddle/photon/issues/10
   (set! reactor nil))
 
 (defn browser-main! "hot switch reactor entrypoint from CLJS REPL" [photon-main-sym]
