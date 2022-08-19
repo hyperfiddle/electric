@@ -20,7 +20,8 @@
             wip.demo-bubbles
             wip.demo-color
             wip.popover
-            user.healthcheck)
+            user.healthcheck
+            wip.typeahead)
   #?(:cljs (:require-macros user.demo-entrypoint)))
 
 (defonce !demo #?(:clj (atom {:text "hello world" ::value `user.demo-1-hello-world/App}) :cljs nil))
@@ -45,6 +46,7 @@
    `user.seven-gui-4-timer/Timer               user.seven-gui-4-timer/Timer
    `user.seven-gui-5-crud/App                  user.seven-gui-5-crud/App
    `wip.photon-tree/App                        wip.photon-tree/App
+   `wip.typeahead/App                        wip.typeahead/App
    ;`wip.popover/App                            wip.popover/App
    ;`wip.demo-bubbles/App                       wip.demo-bubbles/App
    ;`wip.demo-color/App                         wip.demo-color/App
@@ -71,6 +73,7 @@
                                  {:text "7GUIs - temperature converter" ::value `user.seven-gui-2-temperature-converter/App}
                                  {:text "7GUIs - timer" ::value `user.seven-gui-4-timer/Timer}
                                  {:text "7GUIs - crud" ::value `user.seven-gui-5-crud/App}
+                                 {:text "Typeahead" ::value `wip.typeahead/App}
                                  #_{:text "TreeView" ::value `wip.photon-tree/App}
                                  #_{:text "popover" ::value `wip.popover/App}
                                  #_{:text "bubbles" ::value `wip.demo-bubbles/App}
