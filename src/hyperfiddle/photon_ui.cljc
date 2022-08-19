@@ -247,9 +247,10 @@ aria-disabled element.
          (let [!cancel#            (atom false)
                ~cancel-impulse-sym (p/watch !cancel#)]
            (try (into [(do ~@(dom/handle-text body))] [~@events])
-                (catch Pending _
+                (catch Pending t
                   (dom/props ~pending-props)
-                  (interpreter #{::cancel} (partial swap!* !cancel# not) (events [~@pending-events])))))))))
+                  (interpreter #{::cancel} (partial swap!* !cancel# not) (events [~@pending-events]))
+                  (throw t))))))))
 
 (defmacro element [tag props & body]
   (let [cancel-impulse-sym               (gensym "cancel-impulse_")
