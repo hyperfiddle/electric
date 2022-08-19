@@ -19,10 +19,6 @@
   ;; #?(:clj (Thread/sleep 100))
   (filterv #(str/includes? (:name %) needle) data))
 
-;; (.foo x) not working in photon forms
-(defn prevent-default [e] (.preventDefault e))
-(defn focus [node] (.focus node))
-
 ;; react hooks similiarity
 (defmacro state [val] `(let [val# ~val, atm# (atom val#)] [atm# (p/watch atm#)]))
 
@@ -34,7 +30,7 @@
         suggestions (when show-suggestions? (p/server (query input)))
         [!idx idx] (state 0)
         idx (mod idx (count suggestions))]
-    (ui/input {::ui/input-event (p/fn [e] (reset! !input (-> e :target :value)))
+    (ui/input {::ui/input-event (p/fn [e] (reset! !input (.. e -target -value)))
                ::ui/focus-event (p/fn [_] (reset! !show-suggestions? true))
                ::ui/value input
                ::ui/keychords #{"enter" "tab" "esc" "up" "down"}
@@ -54,12 +50,12 @@
                                        ("esc") (do (reset! !input "") (dom/oset! dom/node :value ""))))
                ::ui/blur-event (p/fn [_] (reset! !show-suggestions? false))
                ::dom/placeholder (or placeholder "")}
-      (when autofocus? (focus dom/node)))
+      (when autofocus? (.focus dom/node)))
     (ui/element dom/div {::dom/style {:display (if show-suggestions? "block" "none")}
                          ::ui/pending {::dom/style {:background-color "red"}}}
       (p/for [[i sug] (map-indexed vector suggestions)]
         (ui/element dom/div {::ui/click-event (p/fn [e]
-                                                (prevent-default e)
+                                                (.preventDefault e)
                                                 (on-pick sug)
                                                 (reset! !input (value-fn sug)))
                              ::dom/style {:background-color (when (= i idx) "gray")}}
@@ -67,4 +63,4 @@
 
 (p/defn App []
   (Typeahead. {:placeholder "HI" :on-pick println :template-fn (p/fn [sug] (:name sug)) :value-fn :name
-               :on-create (partial println "creating") :autofocus? false}))
+               :on-create (partial println "creating") :autofocus? true}))
