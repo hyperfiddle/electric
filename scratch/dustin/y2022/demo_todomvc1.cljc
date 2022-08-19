@@ -35,7 +35,7 @@
   (dom/a (dom/class (if (= state target) "selected"))
          (dom/text label)
          (when (->> (dom/events dom/parent "click")
-                    (p/impulse z/clock))
+                    (p/impulse z/time))
            ; emit next filter value
            target)))
 

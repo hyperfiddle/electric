@@ -84,14 +84,14 @@
     (dom/p
       (when-some [event (dom/button {:type "button"}
                           (dom/text "transact!")
-                          (p/impulse z/clock (dom/>events "click")))]
+                          (p/impulse z/time (dom/>events "click")))]
         (println ::transact! event)
         ~@(do (d/transact! !conn stage) nil)                ; todo wait for server ack to clear stage
         (reset! !stage []))
 
       (if-some [tx (dom/input {:type "text"
                                :value (write-edn stage)}
-                     (p/impulse z/clock (dom/>events "input" (comp (dedupe) (map (dom/oget :target :value))))))]
+                     (p/impulse z/time (dom/>events "input" (comp (dedupe) (map (dom/oget :target :value))))))]
         (do
           (js/console.log ::stage tx)
           (reset! !stage (clojure.edn/read-string tx)))
