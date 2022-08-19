@@ -807,8 +807,7 @@
     % := 'mount
     % := 0
     (swap! !x inc)
-    % := 'unmount
-    % := nil
+    (hash-set % %) := '#{unmount nil}       ;; should ordering matter here ?
     (swap! !x inc)
     % := 'mount
     % := 2
