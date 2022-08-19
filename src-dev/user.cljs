@@ -1,4 +1,4 @@
-(ns ^:dev/once user
+(ns ^:dev/always user
   (:require
     clojure.string
     goog.object
@@ -8,36 +8,7 @@
     hyperfiddle.rcf
     user.demo-entrypoint
 
-    ; Due to :require-macros, demos are loaded in JVM as well on shadow build
-    user.demo-1-hello-world
-    user.demo-2-toggle
-    user.demo-3-system-properties
-    user.demo-4-chat
-    user.demo-4-webview
-    user.demo-5-todomvc
-    user.demo-6-two-clocks
-    user.demo-7-explorer
-    user.demo-8-10k-elements
-    user.todos-simple
-    user.auth
-    user.demo-hfql
-    user.seven-gui-1-counter
-    user.seven-gui-2-temperature-converter
-    user.seven-gui-4-timer
-    user.seven-gui-5-crud
-    geoffrey.popover
-    ;wip.orders-ui
-    wip.demo-bubbles
-    wip.demo-bubbles
-    wip.demo-color
-    #_wip.editor           ; npm install
-    wip.demo-todos-stage
-    wip.demo-logical-clock
-    wip.example-router
-    wip.hfql-links
-    wip.ui-components
-    wip.popover
-    wip.photon-tree)
+    )
   (:import [hyperfiddle.photon Pending])
   (:require-macros [user :refer [get-main]]))
 
@@ -66,10 +37,10 @@
                    #(js/console.log "Reactor success:" %)
                    #(js/console.error "Reactor failure:" %)))))
 
-;^:dev/before-load -- temporarily disable hot code reloading
-(defn stop! []
+ ;; -- temporarily disable hot code reloading
+(defn ^:dev/before-load stop! []
   (when reactor (reactor) #_"teardown")
-  (.. js/document (getElementById "root") (replaceChildren)) ; temporary workaround for https://github.com/hyperfiddle/photon/issues/10
+  ;; (.. js/document (getElementById "root") (replaceChildren)) ; temporary workaround for https://github.com/hyperfiddle/photon/issues/10
   (set! reactor nil))
 
 (defn browser-main! "hot switch reactor entrypoint from CLJS REPL" [photon-main-sym]

@@ -12,6 +12,7 @@
             user.demo-7-explorer
             user.demo-8-10k-elements
             user.demo-hfql
+            user.auth
             user.todos-simple
             user.seven-gui-1-counter
             user.seven-gui-2-temperature-converter
@@ -19,6 +20,7 @@
             user.seven-gui-5-crud
             wip.demo-bubbles
             wip.demo-color
+            ;; wip.photon-tree
             wip.popover
             user.healthcheck
             wip.typeahead)
@@ -45,7 +47,7 @@
    `user.seven-gui-2-temperature-converter/App user.seven-gui-2-temperature-converter/App
    `user.seven-gui-4-timer/Timer               user.seven-gui-4-timer/Timer
    `user.seven-gui-5-crud/App                  user.seven-gui-5-crud/App
-   `wip.photon-tree/App                        wip.photon-tree/App
+   ;; `wip.photon-tree/App                        wip.photon-tree/App
    `wip.typeahead/App                        wip.typeahead/App
    ;`wip.popover/App                            wip.popover/App
    ;`wip.demo-bubbles/App                       wip.demo-bubbles/App
