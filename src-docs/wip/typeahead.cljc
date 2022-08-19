@@ -22,10 +22,8 @@
 ;; react hooks similiarity
 (defmacro state [val] `(let [val# ~val, atm# (atom val#)] [atm# (p/watch atm#)]))
 
-(p/defn Typeahead [opts]
-  ;; destructuring in defn args not working in photon yet
-  (let [{:keys [placeholder on-pick on-create template-fn value-fn autofocus?]} opts
-        [!show-suggestions? show-suggestions?] (state autofocus?)
+(p/defn Typeahead [{:keys [placeholder on-pick on-create template-fn value-fn autofocus?]}]
+  (let [[!show-suggestions? show-suggestions?] (state autofocus?)
         [!input input] (state "")
         suggestions (when show-suggestions? (p/server (query input)))
         [!idx idx] (state 0)
