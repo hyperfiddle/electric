@@ -93,14 +93,6 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
 
      :clj  (m/ap (loop [] (m/amb ::tick (do (m/? (m/sleep 1)) (recur)))))))
 
-(p/def clock #_"lazy logical clock" (new (identity <clock))) ; syntax gap - static def >clock could be a class on ClojureScript
-
-(tests
-  "logical clock"
-  (let [dispose (p/run (! clock))]
-    [% % %] := [::tick ::tick ::tick]
-    (dispose)))
-
 (defn system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
 
 (p/def time #_"ms since Jan 1 1970" (new (m/sample system-time-ms <clock)))

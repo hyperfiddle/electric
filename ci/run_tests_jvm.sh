@@ -6,6 +6,7 @@ clojure -X:test \
     :patterns                                \
     "[\"hyperfiddle.photon-impl.*\"          \
       \"hyperfiddle.photon-test\"            \
+      \"hyperfiddle.zero\"                   \
       \"hyperfiddle.missionary-test\"        \
       \"hyperfiddle.logger-test\"            \
       \"hyperfiddle.core-async-test\"]"
