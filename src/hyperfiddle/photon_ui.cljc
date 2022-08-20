@@ -134,7 +134,7 @@ aria-disabled element.
 #?(:clj
    (defn element* [tag props pending-props events pending-events cancel-impulse-sym & body]
      `(dom/bubble
-        (~tag (p/forget (dom/props ~props))
+        (~tag (dom/props ~props)
          (let [!cancel#            (atom false)
                ~cancel-impulse-sym (p/watch !cancel#)]
            (try (into [(do ~@(dom/handle-text body))] [~@events])
@@ -181,9 +181,9 @@ aria-disabled element.
 (defmacro numeric-input [props]
   (let [[value events props'] (parse-props ::value props {})]
     `(dom/bubble
-       (dom/input (p/forget (dom/props ~props'))
-         (p/forget (dom/props {:value (format-num ~(::format props) ~value)
-                               :type  :number}))
+       (dom/input (dom/props ~props')
+         (dom/props {:value (format-num ~(::format props) ~value)
+                     :type  :number})
          (into [[::value (dom/events "input" parse-input ~value)]]
            [~@events])))))
 
@@ -225,8 +225,8 @@ aria-disabled element.
            selected#     (index-of ~auto-options ~auto-value) ; TODO accept a keyfn prop instead of comparing with `=`.
            ]
        (dom/bubble
-         (dom/select (p/forget (dom/props ~props'))
-           (p/forget (dom/props {:value ~auto-value}))
+         (dom/select (dom/props ~props')
+           (dom/props {:value ~auto-value})
            (when (= -1 selected#)
              (dom/option {:disabled true
                           :selected true}
@@ -243,10 +243,10 @@ aria-disabled element.
   (let [[value events props'] (parse-props ::value props {})
         auto-list             (str (gensym "list_"))]
     `(dom/bubble
-       (let [res#     (dom/input (p/forget (dom/props ~props'))
-                        (p/forget (dom/props {:type  :search
-                                              :list  ~auto-list
-                                              :value ~value}))
+       (let [res#     (dom/input (dom/props ~props')
+                        (dom/props {:type  :search
+                                    :list  ~auto-list
+                                    :value ~value})
                         (into [[::value (dom/events "input" (map (dom/oget :target :value)) ~value)]]
                           [~@events]))
              needle#  (::value res#)

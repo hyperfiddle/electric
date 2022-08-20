@@ -162,27 +162,31 @@
 
 (defmacro style [m]
   (if (map? m)
-    (cons 'do (mapcat (fn [[k v]] [`(set-property! node "style" {~k ~v})
-                                   `(new (unmount-prop node "style" {~k nil}))]) m)) ; static keyset
+    `(do ~@(mapcat (fn [[k v]] [`(set-property! node "style" {~k ~v})
+                                `(new (unmount-prop node "style" {~k nil}))]) m)
+         nil) ; static keyset
     `(p/for-by first [sty# (vec ~m)]
        (set-property! node "style" {(key sty#) (val sty#)})
-       (new (unmount-prop node {(key sty#) nil})))))
+       (new (unmount-prop node {(key sty#) nil}))
+       nil)))
 
 ;; TODO JS runtimes intern litteral strings, so call `name` on keywords at
 ;; macroexpension.
 (defmacro props [m]
   (let [style? #{:style ::style}]       ; TODO disambiguate
     (if (map? m)
-      (cons 'do (mapcat (fn [[k v]] (if (style? k) ; static keyset
-                                      [`(style ~v)]
-                                      [`(set-property! node ~k ~v)
-                                       `(new (unmount-prop node ~k nil))]))
-                  m))
+      `(do ~@(mapcat (fn [[k v]] (if (style? k) ; static keyset
+                                   [`(style ~v)]
+                                   [`(set-property! node ~k ~v)
+                                    `(new (unmount-prop node ~k nil))]))
+               m)
+           nil)
       `(p/for-by key [prop# (vec ~m)]
          (if (~style? (key prop#))
            (style (val prop#))
            (do (set-property! node (key prop#) (val prop#))
-             (new (unmount-prop node (key prop#) nil))))))))
+             (new (unmount-prop node (key prop#) nil))
+             nil))))))
 
 (defn >events* [node event-type & [xform init rf :as args]]
   #?(:cljs (let [event-type (if (coll? event-type) (to-array event-type) event-type)
