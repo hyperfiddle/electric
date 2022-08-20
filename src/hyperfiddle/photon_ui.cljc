@@ -7,105 +7,41 @@
             [clojure.string :as str]
             #?(:cljs [goog.string.format])
             #?(:cljs [goog.string :refer [format]]))
-  #?(:cljs (:require-macros [hyperfiddle.photon-ui :refer [interpreter input]]))
+  #?(:cljs (:require-macros hyperfiddle.photon-ui))
   (:import (hyperfiddle.photon Pending Failure)
            (missionary Cancelled)))
 
 (comment
   (rcf/enable!))
 
-;; events looks like:
-;; - [:db/add e a v]
-;; - [:dom.input/focus true]
-;; - [:browser/navigate url]
-(defn interpret [event-tags f]
-  (let [event-tags (set event-tags)
-        matches? (fn [event] (and (vector? event)
-                                  ((set event-tags) (first event))))]
-    (comp (map (fn [event]
-                 ;; (prn "seen event" event)
-                 (if (matches? event)
-                   (do (f event)
-                       ::nil)
-                   event)))
-          (remove #{::nil}))))
+(defn apply-some "call f with arg iff arg is non-nil" [f arg] (some-> arg f))
+(defn find-if-non-nil [m k]
+  (when-let [entry (find m k)]
+    (when (some? (val entry))
+      entry)))
+
+(defmacro handle "Calls f if body produces any of event-tags" [event-tags f & body]
+  (let [event-map (gensym "event-map_")
+        fsym      (gensym "f_")]
+    `(let [events#    ~(if (= 1 (count body)) (first body) `(do ~@body))
+           ~event-map (into {} events#)
+           ~fsym         ~f]
+       ~@(map (fn [tag] `(apply-some ~fsym (find-if-non-nil ~event-map ~tag))) event-tags)
+       (remove (comp ~event-tags first) events#))))
 
 (tests
   "Unmatched events passes through"
-  (sequence (interpret #{:dom.input/focus} (fn [_])) [[:browser/navigate "url"]])
+  (handle #{:dom.input/focus} (fn [_]) [[:browser/navigate "url"]])
   := '([:browser/navigate "url"]))
 
 (tests
   "xf is called with matched events"
   (def !focus (atom false))
-  (sequence (interpret #{:dom.input/focus} (fn [[_ focus?]] (reset! !focus focus?)))
+  (handle #{:dom.input/focus} (fn [[_ focus?]] (reset! !focus focus?))
     [[:browser/navigate "url"]
      [:dom.input/focus true]])
   := '([:browser/navigate "url"])
   (deref !focus) := true)
-
-(defn interpreter* [event-tags f]
-  (let [xf (interpret event-tags f)]
-    (comp #_(map (fn [xs] (prn "=>" xs) xs))
-      (map (fn [events] (if (instance? Failure events) events (doall (sequence xf events))))
-        #_(partial sequence xf)))))
-
-(tests
- "Unmatched events passes through"
- (sequence (interpreter* #{:dom.input/focus} (fn [_])) [[[:browser/navigate "url"]]])
- := '(([:browser/navigate "url"])))
-
-(tests
- "xf is called with matched events"
- (def !focus (atom false))
- (sequence (interpreter* #{:dom.input/focus} (fn [[_ focus?]] (reset! !focus focus?)))
-           [[[:browser/navigate "url"]
-             [:dom.input/focus true]]])
- := '(([:browser/navigate "url"]))
- (deref !focus) := true)
-
-(defn dedupe-by
-  "Returns a lazy sequence removing consecutive duplicates in coll.
-  Returns a transducer when no collection is provided."
-  {:added "1.7"}
-  ([f]
-   (fn [rf]
-     (let [pv (volatile! {})]
-       (fn
-         ([] (rf))
-         ([result] (rf result))
-         ([result input]
-          (if (instance? Failure input)
-            (rf result input)
-            (let [[nv new-events] (loop [seen (transient @pv)
-                                         r    (transient [])
-                                         xs   input]
-                                    (if (seq xs)
-                                      (let [x (first xs)
-                                            k (f x)]
-                                        (if (and (contains? seen k) (= (get seen k) x))
-                                          (recur seen r (rest xs))
-                                          (recur (assoc! seen k x) (conj! r x) (rest xs))))
-                                      [(persistent! seen) (persistent! r)]))]
-              (vreset! pv nv)
-              (if (pos? (count new-events))
-                (rf result (into (empty input) new-events))
-                result))))))))
-  ([f coll] (sequence (dedupe-by f) coll)))
-
-(tests
-  (dedupe-by first [{:a 1} {:a 1, :b 2}, {:a 1} {:a 2}])
-  := [{:a 1} {:b 2} {:a 2}])
-
-
-(defn interpreter** [event-tags f >body]
-  (->> >body
-    (m/eduction (p/bypass-on p/failure? (comp (dedupe-by first) (interpreter* event-tags f))))
-    (m/reductions {} nil)
-    (m/relieve {})))
-
-(defmacro interpreter [event-tags f & body]  ; TODO could be simplified given work-skipping m/cp
-  `(new (interpreter** ~event-tags ~f (p/fn [] ~@body))))
 
 (defmacro impulse [ack Callback >xs]
   `(let [val# (p/impulse ~ack ~>xs)]
@@ -204,7 +140,7 @@ aria-disabled element.
            (try (into [(do ~@(dom/handle-text body))] [~@events])
                 (catch Pending t
                   (dom/props ~pending-props)
-                  (interpreter #{::cancel} (partial swap!* !cancel# not) (events [~@pending-events]))
+                  (handle #{::cancel} (partial swap!* !cancel# not) (events [~@pending-events]))
                   (throw t))))))))
 
 (defmacro element [tag props & body]
