@@ -2,13 +2,12 @@
   (:require [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.zero :as z]
             [missionary.core :as m]
             [hyperfiddle.logger :as log]
             [clojure.string :as str]
             #?(:cljs [goog.string.format])
             #?(:cljs [goog.string :refer [format]]))
-  #?(:cljs (:require-macros [hyperfiddle.photon-ui :refer [interpreter semicontroller input]]))
+  #?(:cljs (:require-macros [hyperfiddle.photon-ui :refer [interpreter input]]))
   (:import (hyperfiddle.photon Pending Failure)
            (missionary Cancelled)))
 
@@ -65,11 +64,6 @@
  := '(([:browser/navigate "url"]))
  (deref !focus) := true)
 
-(defn set-switch! [!switch [event-tag open?]]
-  (reset! !switch (boolean open?)))
-
-(defn deref' [!atom & _] (deref !atom))
-
 (defn dedupe-by
   "Returns a lazy sequence removing consecutive duplicates in coll.
   Returns a transducer when no collection is provided."
@@ -103,54 +97,15 @@
   (dedupe-by first [{:a 1} {:a 1, :b 2}, {:a 1} {:a 2}])
   := [{:a 1} {:b 2} {:a 2}])
 
-(defn check-interpretable! [x]
-  (if-not (or (map? x) (every? vector? x))
-    (do (log/error "Semicontroller expects a vector of events. Received:" (pr-str x))
-      nil)
-    x))
 
-(defmacro interpreter [event-tags f & body]
-  `(->> (p/fn [] ~@body)
-        (m/eduction #_cat (dedupe-by first) (interpreter* ~event-tags ~f))
-        (m/reductions {} nil)
-        (m/relieve {})
-        (new)))
+(defn interpreter** [event-tags f >body]
+  (->> >body
+    (m/eduction (p/bypass-on p/failure? (comp (dedupe-by first) (interpreter* event-tags f))))
+    (m/reductions {} nil)
+    (m/relieve {})))
 
-(defmacro semicontroller
-  "Act like a switch, prevent input to flow forward when in `open` state.
-  Open or closed state is toggled by a boolean event of `event-tag`, produced by the `Body` reactive function."
-  [event-tag input Body]
-  `(let [!switch# (atom true)]
-     (->> (p/fn [] (check-interpretable! (new ~Body (new (m/eduction (filter (partial deref' !switch#)) (p/fn [] ~input))))))
-          (m/eduction (p/bypass-on p/failure?
-                        (comp (dedupe-by first)
-                          (interpreter* #{~event-tag} (partial set-switch! !switch#))
-                          (filter seq))))
-          (m/reductions {} nil)
-          (new))))
-
-(tests
-  (def !event (atom nil))
-  (def !input (atom 0))
-  (let [dispose (p/run (semicontroller :switch/set (new (m/watch !input))
-                         (p/fn [input]
-                           (! input)
-                           (p/watch !event))))]
-    % := 0
-    (swap! !input inc)
-    % := 1
-    (reset! !event [[:switch/set false]])
-    (swap! !input inc)
-    % := ::rcf/timeout
-    (rcf/set-timeout! 1200) ;; rcf issue, extend timeout
-    (reset! !event [[:switch/set true]])
-    (swap! !input inc)
-    % := 3
-    (dispose)))
-
-
-(defn return-then-run! [v f]
-  (m/ap (m/amb v (do (f) (m/amb)))))
+(defmacro interpreter [event-tags f & body]  ; TODO could be simplified given work-skipping m/cp
+  `(new (interpreter** ~event-tags ~f (p/fn [] ~@body))))
 
 (defmacro impulse [ack Callback >xs]
   `(let [val# (p/impulse ~ack ~>xs)]
@@ -288,18 +243,13 @@ aria-disabled element.
 (def parse-input (comp (map (dom/oget :target :value)) (map parse-num) (filter is-num?)))
 
 (defmacro numeric-input [props]
-  (let [[value events props'] (parse-props ::value props {})
-        auto-value            (gensym "value_")]
+  (let [[value events props'] (parse-props ::value props {})]
     `(dom/bubble
-       (semicontroller
-         ::focused ~value
-         (p/fn [~auto-value]
-           (dom/input (p/forget (dom/props ~props'))
-             (p/forget (dom/props {:value (format-num ~(::format props) ~auto-value)
-                                   :type  :number})) ;; TODO should it pulse?
-             (into [[::focused (not (new (dom/focus-state dom/node)))]
-                    [::value (dom/events "input" parse-input ~auto-value)]]
-               [~@events])))))))
+       (dom/input (p/forget (dom/props ~props'))
+         (p/forget (dom/props {:value (format-num ~(::format props) ~value)
+                               :type  :number}))
+         (into [[::value (dom/events "input" parse-input ~value)]]
+           [~@events])))))
 
 (defmacro input
   ([] `(input {}))
@@ -310,21 +260,16 @@ aria-disabled element.
      (let [cancel-impulse-sym               (gensym "cancel-impulse_")
            [_ pending-events pending-props] (parse-props (constantly nil) (::pending props {}) {} cancel-impulse-sym
                                               {:ignore-aria-disabled true})
-           [value events props]             (parse-props ::value props {} cancel-impulse-sym)
-           auto-value                       (gensym "value_")]
+           [value events props]             (parse-props ::value props {} cancel-impulse-sym)]
        `(dom/bubble
-          (semicontroller
-            ::focused ~value
-            (p/fn [~auto-value]
-              ~(apply element* `dom/input
-                 (assoc props ::dom/value auto-value)
-                 pending-props
-                 (into `[[::focused (not (new (dom/focus-state dom/node)))]
-                         [::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]]
-                   events)
-                 pending-events
-                 cancel-impulse-sym
-                 body))))))))
+          ~(apply element* `dom/input
+             (assoc props ::dom/value value)
+             pending-props
+             (into `[[::value (dom/events "input" (map (dom/oget :target :value)) ~value)]]
+               events)
+             pending-events
+             cancel-impulse-sym
+             body))))))
 
 (defn- index-of [vec val] (.indexOf vec val))
 
@@ -360,27 +305,21 @@ aria-disabled element.
 
 (defmacro native-typeahead [props]
   (let [[value events props'] (parse-props ::value props {})
-        auto-value            (gensym "value_")
         auto-list             (str (gensym "list_"))]
     `(dom/bubble
-       (semicontroller
-         ::focused ~value
-         (p/fn [~auto-value]
-           (let [res#     (into {}
-                            (dom/input (p/forget (dom/props ~props'))
-                              (p/forget (dom/props {:type  :search
-                                                    :list  ~auto-list
-                                                    :value ~auto-value}))
-                              (into [[::value (dom/events "input" (map (dom/oget :target :value)) ~auto-value)]
-                                     [::focused (not (new (dom/focus-state dom/node)))]]
-                                [~@events])))
-                 needle#  (::value res#)
-                 options# (when-let [options# ~(::options props `(p/fn [_#] nil))]
-                            (new options# needle#))]
-             (dom/datalist {:id ~auto-list}
-               (p/for [option# options#]
-                 (dom/option {:id (:value option#)} (dom/text (:text option#)))))
-             (vec res#)))))))
+       (let [res#     (dom/input (p/forget (dom/props ~props'))
+                        (p/forget (dom/props {:type  :search
+                                              :list  ~auto-list
+                                              :value ~value}))
+                        (into [[::value (dom/events "input" (map (dom/oget :target :value)) ~value)]]
+                          [~@events]))
+             needle#  (::value res#)
+             options# (when-let [options# ~(::options props `(p/fn [_#] nil))]
+                        (new options# needle#))]
+         (dom/datalist {:id ~auto-list}
+           (p/for [option# options#]
+             (dom/option {:id (:value option#)} (dom/text (:text option#)))))
+         (vec res#)))))
 
 ;;;;;;;;;;;;;;;;;;
 ;; scratch zone ;;
