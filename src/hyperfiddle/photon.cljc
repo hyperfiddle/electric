@@ -159,6 +159,12 @@ running on a remote host.
 
 (cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
 
+(def current* (partial m/eduction (take 1)))
+(defmacro current "Copy the current value (only) and then terminate" [x]  ; TODO rename `constant`, `stable`?
+  ;; what does Photon do on terminate? TBD
+  ;; L: terminating a continuous flow means the value won't change anymore, so that's OK
+  `(new (current* (p/fn [] ~x))))
+
 (cc/defn wrap* [f & args]
   #?(:clj
      (->> (m/ap (m/? (m/via m/blk (apply f args))))

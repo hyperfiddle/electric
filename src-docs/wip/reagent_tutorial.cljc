@@ -106,7 +106,7 @@
               :min   min
               :max   max
               :style {:width "100%"}}
-             (dom/events "input" (map (dom/oget :target :value)) (z/current value))))
+             (dom/events "input" (map (dom/oget :target :value)) (p/current value))))
 
 (comment
   ; This doesn't work - no p/rec for a while
@@ -142,7 +142,7 @@
     (dom/text "Time color: ")
     (dom/input {:type "text"
                 :value value}
-               (dom/events "input" (map (dom/oget :target :value)) (z/current value)))))
+               (dom/events "input" (map (dom/oget :target :value)) (p/current value)))))
 
 (p/defn ClockExample []
   (let [!color (atom nil)
