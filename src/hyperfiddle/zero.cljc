@@ -5,7 +5,7 @@
   (:require [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests ! % with]])
-  #?(:cljs (:require-macros [hyperfiddle.zero :refer [pick current]])))
+  #?(:cljs (:require-macros [hyperfiddle.zero :refer [pick]])))
 
 (defn state [init-value]
   (let [!state (atom init-value)
@@ -20,12 +20,6 @@
 return nothing (you return nil) but in flows nothing is different than nil." [t]
   `(let [x# (m/? t)]
      (case x# ::empty (m/amb) x#)))
-
-
-(defmacro current "Copy the current value (only) and then terminate" [x]
-  ; what does Photon do on terminate? TBD
-  ; L: terminating a continuous flow means the value won't change anymore, so that's OK
-  `(new (m/eduction (take 1) (p/fn [] ~x))))
 
 (comment
   "scratch related to continuous time events with slow consumers"
