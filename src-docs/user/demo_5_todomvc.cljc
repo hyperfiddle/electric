@@ -11,7 +11,7 @@
 (p/def db)                                                  ; server
 (def !state #?(:cljs (atom {::filter :all                   ; client
                             ::editing nil
-                            ::delay   1000})))
+                            ::delay   0})))
 (p/def tx-delay 0)
 
 #?(:clj
@@ -53,17 +53,17 @@
   (let [active (p/server (todo-count db :active))
         done   (p/server (todo-count db :done))]
     (dom/div
-      (dom/span {:id "todo-count"}
+      (dom/span {:class "todo-count"}
         (dom/strong active)
         (dom/span " " (str (case active 1 "item" "items")) " left"))
 
-      (dom/ul {:id "filters"}
+      (dom/ul {:class "filters"}
         (dom/li (Filter-control. (::filter state) :all "All"))
         (dom/li (Filter-control. (::filter state) :active "Active"))
         (dom/li (Filter-control. (::filter state) :done "Completed")))
 
       (when (pos? done)
-        (ui/button {::dom/id         "clear-completed"
+        (ui/button {::dom/class      "clear-completed"
                     ::ui/click-event (p/fn [_]
                                        (p/server (when-some [ids (seq (query-todos db :done))]
                                                    (Transact. (mapv retract-entity ids)))))
@@ -116,11 +116,11 @@
 (p/defn TodoList [state]
   (p/client
     (dom/div
-      (dom/section {:id "main"}
+      (dom/section {:class "main"}
         (let [active (p/server (todo-count db :active))
               all    (p/server (todo-count db :all))
               done   (p/server (todo-count db :done))]
-          (ui/checkbox {::dom/id         "toggle-all"
+          (ui/checkbox {::dom/class      "toggle-all"
                         ::ui/value       (cond (= all done)   true
                                                (= all active) false
                                                :else          nil)
@@ -130,7 +130,7 @@
                                                      (p/server (Transact. (toggle-all! db status)))))
                         ::ui/pending     {::dom/aria-busy true}}))
         (dom/label {:for "toggle-all"} "Mark all as complete")
-        (dom/ul {:id "todo-list"}
+        (dom/ul {:class "todo-list"}
           (p/for [id (p/server (sort (query-todos db (::filter state))))]
             (TodoItem. state id)))))))
 
@@ -138,7 +138,7 @@
   (ui/element dom/span {::dom/class  ["input-load-mask"] ; input does not support CSS pseudoelements
                         ::ui/pending {::dom/aria-busy true}}
     (ui/input
-      {::dom/id            "new-todo"
+      {::dom/class         "new-todo"
        ::dom/placeholder   "What needs to be done?"
        ::ui/keychords      #{"enter"}
        ::ui/keychord-event (p/fn [event]
@@ -149,20 +149,37 @@
 
 (p/defn TodoMVC [state]
   (p/client
-    (dom/div
-      (dom/section {:id "todoapp"}
-        (dom/header {:id "header"}
+    (dom/div {:class "todomvc"}
+      (dom/section {:class "todoapp"}
+        (dom/header {:class "header"}
           (dom/h1 "TodoMVC")
           (CreateTodo.))
 
         (when (p/server (pos? (todo-count db :all)))
           (TodoList. state))
 
-        (dom/footer {:id "footer"}
+        (dom/footer {:class "footer"}
           (TodoStats. state)))
 
-      (dom/footer {:id "info"}
+      (dom/footer {:class "info"}
         (dom/p "Double-click to edit a todo")))))
+
+(p/defn Diagnostics [state]
+  (dom/h1 "Diagnostics")
+  (dom/dl
+    (dom/dt "count :all") (dom/dd (pr-str (p/server (todo-count db :all))))
+    (dom/dt "query :all") (dom/dd (pr-str (p/server (query-todos db :all))))
+    (dom/dt "state") (dom/dd (pr-str state))
+    (dom/dt "delay") (dom/dd
+                       (ui/input {::ui/type :number
+                                  ::ui/value (::delay state)
+                                  ::dom/step 1
+                                  ::dom/min 0
+                                  ::dom/style {:width :min-content}
+                                  ::ui/input-event (p/fn [e]
+                                                     (when-let [value (ui/numeric-value (-> e :target :value))]
+                                                       (swap! !state assoc ::delay value)))})
+                       " ms")))
 
 (p/defn App []
   (p/client
@@ -173,23 +190,7 @@
           (p/client
             (dom/link {:rel :stylesheet, :href "todomvc.css"})
             (TodoMVC. state)
-
-            (dom/div
-              (dom/h1 "Diagnostics")
-              (dom/dl
-                (dom/dt "count :all") (dom/dd (pr-str (p/server (todo-count db :all))))
-                (dom/dt "query :all") (dom/dd (pr-str (p/server (query-todos db :all))))
-                (dom/dt "state")      (dom/dd (pr-str state))
-                (dom/dt "delay")  (dom/dd
-                                    (ui/input {::ui/type        :number
-                                               ::ui/value       (::delay state)
-                                               ::dom/step       1
-                                               ::dom/min        0
-                                               ::dom/style      {:width :min-content}
-                                               ::ui/input-event (p/fn [e]
-                                                                  (when-let [value (ui/numeric-value (-> e :target :value))]
-                                                                    (swap! !state assoc ::delay value)))})
-                                    " ms")))))))))
+            (Diagnostics. state)))))))
 
 (comment
   (todo-count @!conn :all)
