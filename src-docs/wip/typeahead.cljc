@@ -38,14 +38,11 @@
                                                          (if picked
                                                            (do
                                                              (on-pick picked)
-                                                             (reset! !input (value-fn picked))
-                                                             ;; this is needed because ui/input
-                                                             ;; is not listening for ::ui/value when it's focused
-                                                             (dom/oset! dom/node :value (value-fn picked)))
+                                                             (reset! !input (value-fn picked)))
                                                            (on-create input)))
-                                       ("up") (swap! !idx dec)
-                                       ("down") (swap! !idx inc)
-                                       ("esc") (do (reset! !input "") (dom/oset! dom/node :value ""))))
+                                       ("up")          (swap! !idx dec)
+                                       ("down")        (swap! !idx inc)
+                                       ("esc")         (reset! !input "")))
                ::ui/blur-event (p/fn [_] (reset! !show-suggestions? false))
                ::dom/placeholder (or placeholder "")}
       (when autofocus? (.focus dom/node)))
