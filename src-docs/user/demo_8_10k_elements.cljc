@@ -6,26 +6,18 @@
             [missionary.core :as m])
   #?(:cljs (:require-macros user.demo-8-10k-elements)))
 
-(defn state! [width height]
-  (vec (for [y (range height) x (range width)]
-         (atom 0))))
 
-(defn perturb! [t n state]
-  (dotimes [_ (Math/floor (/ n 100))]
-    (reset! (get state (rand-int n)) 9)))
-
-(p/defn Controls [!running !width n]
+(p/defn Controls [!n n]
   (dom/dl
-    (dom/dt (dom/label {::dom/for "field-running"} " running?"))
-    (dom/dd (ui/checkbox {::dom/id         "field-running"
-                          ::ui/value (p/watch !running)
-                          ::ui/input-event (p/fn [e] (reset! !running (-> e :target :checked)))}))
-    (dom/dt (dom/label {::dom/for "field-width"} "width"))
+    (dom/dt (dom/label {::dom/for "field-width"} "cells"))
     (dom/dd
       (dom/div
-        (ui/button {::ui/click-event (p/fn [e] (reset! !width 45))} "2.5k")
-        (ui/button {::ui/click-event (p/fn [e] (reset! !width 89))} "10k (wait for it)")))
-    (dom/dt (dom/label "cells")) (dom/dd n " (total dom elements roughly double due to text nodes)")))
+        (ui/button {::ui/click-event (p/fn [e] (reset! !n 1000))} "1k")
+        (ui/button {::ui/click-event (p/fn [e] (reset! !n 10000))} "10k (wait for it)")
+        (ui/button {::ui/click-event (p/fn [e] (swap! !n + 5000))} "+5k")
+        (ui/input {::ui/type :number ::ui/value n
+                   ::dom/disabled true
+                   ::ui/input-event (p/fn [e] (reset! !n (.. e -target -value)))})))))
 
 (defn countdown [x]                     ; Count down to 0 then terminate.
   (m/relieve {} (m/ap (loop [x x]
@@ -40,31 +32,27 @@
     (apply rgb (hsv->rgb (/ 0 360)
                  (-> x (/ 7.5) (* 1.33))
                  0.95))
-    "#ddd"))
+    "#eee"))
 
-(p/defn Board [!!state running? width height n]
-  (dom/div
-    {:class "board"
-     :style {:font-family "monospace" :font-size "9px" :margin 0 :padding 0}}
-    (p/for [y (range 0 height)]
-      (dom/div
-        (p/for [x (range 0 width)]
-          (let [i (+ x (* y height))
-                !x (get !!state i) x (new (countdown (p/watch !x)))]
-            (dom/span {:style {:color (cell-color x)}}
-              x)))))))
+;#?(:cljs (defn x [!el]
+;           (m/observe (fn mount [!]
+;                        (let [!o (js/MutationObserver !)]
+;                          (.observe !o !el #js {"attributes" true})
+;                          (fn unmount [] (.disconnect !o)))))))
+
+(p/defn Board [n]
+  ; fixed width font + inline-block optimizes browser layout
+  (dom/element "style" ".board div { width: 1em; height: 1em; display: inline-block; border: 1px #eee solid; }")
+  (dom/div {:class "board" :style {:font-family "monospace" :font-size "7px" ; font-size is pixel size
+                                   :margin 0 :padding 0 :line-height 0}}
+    (p/for [_ (range 0 n)]
+      (ui/element dom/div {::ui/mouseover-event (p/fn [e]
+                                                  #_(new (countdown 9))
+                                                  (dom/set-property! dom/node "style" {:background-color (cell-color 2)}))}
+        #_"don't allocate text node"))))
 
 (p/defn App []
   (dom/h1 "10k dom elements")
-  (dom/element "style" ".board span { display: inline-block; }") ; prevent layout shifts
-  (let [!running (atom true) running? (p/watch !running)
-        !width (atom 45) width (p/watch !width)
-        height (Math/floor (* width 0.64))
-        !!state (state! width height)
-        n (* width height)]
-
-    (when running?
-      (perturb! (dom/Clock. 10) n !!state))
-
-    (Controls. !running !width n)
-    (Board. !!state running? width height n)))
+  (let [!n (atom 1000) n (p/watch !n)]
+    (Controls. !n n)
+    (Board. n)))
