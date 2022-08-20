@@ -1,4 +1,4 @@
-(ns ^:dev/always user
+(ns ^:dev/always user ; recompile Photon entrypoint when Photon source changes
   (:require
     clojure.string
     goog.object
@@ -30,21 +30,17 @@
 (defn set-main [s] (set! user-photon-main (symbol s)))
 (defonce reactor nil)
 
-;^:dev/after-load -- temporarily disable hot code reloading
-(defn ^:export start! [main]
+(defn ^:dev/after-load ^:export start! [main]
   (when (or user-photon-main main)
     (set! reactor ((runtime-resolve (or main user-photon-main))       ; Photon main recompiles every reload, must re-resolve it
                    #(js/console.log "Reactor success:" %)
-                   #(js/console.error "Reactor failure:" %)))))
+                   #(js/console.error "Reactor failure:" %))))
+  (hyperfiddle.rcf/enable!))
 
- ;; -- temporarily disable hot code reloading
 (defn ^:dev/before-load stop! []
   (when reactor (reactor) #_"teardown")
-  (.. js/document (getElementById "root") (replaceChildren)) ; temporary workaround for https://github.com/hyperfiddle/photon/issues/10
   (set! reactor nil))
 
 (defn browser-main! "hot switch reactor entrypoint from CLJS REPL" [photon-main-sym]
   ;(println ::received-reload-command photon-main-sym (type photon-main-sym))
   (set! user-photon-main photon-main-sym) (stop!) (start! nil))
-
-(start! nil)

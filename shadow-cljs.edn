@@ -6,7 +6,8 @@
                                        :ignore-warnings true}                 ; warnings don't prevent hot-reload
                        :output-dir    "resources/public/js"
                        :asset-path    "/js"
-                       :modules       {:main {:entries [user]}}
+                       :modules       {:main {:entries [user]
+                                              :init-fn user/start!}}
                        :build-hooks   [(shadow.cljs.build-report/hook {:output-to "target/build_report.html"})]}
             :editor   {:target        :browser
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
