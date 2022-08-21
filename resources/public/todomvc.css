@@ -5,9 +5,9 @@ body {
 }
 
 div#root {
-	width: 65vw;
-	margin-left: auto;
-	margin-right: auto;
+	/*width: 65vw;*/
+	/*margin-left: auto;*/
+	/*margin-right: auto;*/
 }
 
 button {
@@ -31,8 +31,8 @@ body {
 	background: #eaeaea;
 	/* background: #eaeaea url('bg.png'); */
 	color: #4d4d4d;
-	width: 550px;
-	margin: 0 auto;
+	/*width: 550px;*/
+	/*margin: 0 auto;*/
 	-webkit-font-smoothing: antialiased;
 	-moz-font-smoothing: antialiased;
 	-ms-font-smoothing: antialiased;
@@ -48,7 +48,7 @@ input[type="checkbox"] {
 .todoapp {
 	background: #fff;
 	background: rgba(255, 255, 255, 0.9);
-	margin: 130px 0 40px 0;
+	/*margin: 130px 0 40px 0;*/
 	border: 1px solid #ccc;
 	position: relative;
 	border-top-left-radius: 2px;
@@ -77,9 +77,13 @@ input[type="checkbox"] {
 	color: #a9a9a9;
 }
 
-.todoapp h1 {
-	position: absolute;
-	top: -120px;
+.todomvc {
+	position: relative;
+}
+
+.todomvc h1 {
+	/*position: absolute;*/
+	/*top: -120px;*/
 	width: 100%;
 	font-size: 70px;
 	font-weight: bold;

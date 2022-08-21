@@ -8,6 +8,7 @@
             user.demo-4-chat
             user.demo-4-webview
             user.demo-5-todomvc
+            user.demo-todomvc-composed
             user.demo-6-two-clocks
             user.demo-7-explorer
             user.demo-8-10k-elements
@@ -38,6 +39,7 @@
    `user.demo-4-webview/App                    user.demo-4-webview/App
    ;`user.todos-simple/Todo-list                user.todos-simple/Todo-list
    `user.demo-5-todomvc/App                    user.demo-5-todomvc/App
+   `user.demo-todomvc-composed/App             user.demo-todomvc-composed/App
    `user.demo-6-two-clocks/App                 user.demo-6-two-clocks/App
    `user.demo-7-explorer/App                   user.demo-7-explorer/App
    `user.demo-8-10k-elements/App               user.demo-8-10k-elements/App
@@ -66,6 +68,7 @@
                                  {:text "webview" ::value `user.demo-4-webview/App}
                                  #_{:text "todos simple" ::value `user.todos-simple/Todo-list} ; css fixes
                                  {:text "todomvc" ::value `user.demo-5-todomvc/App}
+                                 {:text "todomvc composed" ::value `user.demo-todomvc-composed/App}
                                  {:text "two clocks" ::value `user.demo-6-two-clocks/App}
                                  {:text "explorer" ::value `user.demo-7-explorer/App}
                                  {:text "10k elements" ::value `user.demo-8-10k-elements/App}
