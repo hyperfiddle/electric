@@ -281,6 +281,12 @@
     % := 2))
 
 (tests
+  "binding - fn and p/fn"
+  (p/def foo)
+  (with (p/run (! (binding [foo (partial !)]      (foo  1)))) % := 1)
+  (with (p/run (! (binding [foo (p/fn [x] (! x))] (foo. 1)))) % := 1))
+
+(tests
   "lexical closure"
   (with (p/run (! (new (let [a 1] (p/fn [] a)))))
     % := 1))
