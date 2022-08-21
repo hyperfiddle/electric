@@ -9,9 +9,10 @@
 
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))       ; server
 (p/def db)                                                  ; server
+(p/def transact!) ; server
 (def !state #?(:cljs (atom {::filter :all                   ; client
                             ::editing nil
-                            ::delay   0})))
+                            ::delay   300})))
 (p/def tx-delay 0)
 
 #?(:clj
@@ -37,15 +38,6 @@
                      ::ui/click-event (p/fn [_] (swap! !state assoc ::filter target))}
     label))
 
-(defn transact! "prevent remote errors (attempt to serialize and move d/transact return value)"
-  [!conn tx delay]
-  #?(:clj (try (Thread/sleep delay)      ; artificial latency
-               (d/transact! !conn tx) nil
-               (catch InterruptedException _
-                 (prn "d/transact! interrupted")))
-     :cljs (assert false "transact from wrong peer (called on: client)")))
-
-(p/defn Transact [tx] (p/wrap transact! !conn tx tx-delay))
 
 (defn retract-entity [id] [:db/retractEntity id])
 
@@ -66,11 +58,9 @@
         (ui/button {::dom/class      "clear-completed"
                     ::ui/click-event (p/fn [_]
                                        (p/server (when-some [ids (seq (query-todos db :done))]
-                                                   (Transact. (mapv retract-entity ids)))))
+                                                   (transact! (mapv retract-entity ids)))))
                     ::ui/pending     {::dom/aria-busy true}}
           "Clear completed " done)))))
-
-(defn focus! [node] (.focus node))
 
 (p/defn TodoItem [state id]
   (p/server
@@ -84,7 +74,7 @@
                           ::ui/value       (= :done status)
                           ::ui/input-event (p/fn [e]
                                              (let [status (case (-> e :target :checked) true :done, false :active, nil)]
-                                               (p/server (Transact. [{:db/id id, :task/status status}]))))
+                                               (p/server (transact! [{:db/id id, :task/status status}]))))
                           ::ui/pending     {::dom/aria-busy true}})
             (ui/element dom/label {::ui/dblclick-event (p/fn [_] (swap! !state assoc ::editing id))}
               description))
@@ -99,13 +89,13 @@
                                                (case (:identifier e)
                                                  "enter" (let [description (-> e :target :value)]
                                                            (p/server
-                                                             (let [[_ done] [(Transact. [{:db/id id, :task/description description}]) nil]]
+                                                             (let [[_ done] [(transact! [{:db/id id, :task/description description}]) nil]]
                                                                ;; causal dependency. `transact!` runs, then we swap! state.
                                                                (p/client (swap! !state assoc ::editing done)))))
                                                  "esc"   (swap! !state assoc ::editing nil)))}
-                (focus! dom/node))))
+                (.focus dom/node))))
           (ui/button {::dom/class      "destroy"
-                      ::ui/click-event (p/fn [_] (p/server (Transact. [[:db/retractEntity id]])))
+                      ::ui/click-event (p/fn [_] (p/server (transact! [[:db/retractEntity id]])))
                       ::ui/pending     {::dom/aria-busy true}}))))))
 
 #?(:clj
@@ -127,7 +117,7 @@
                         ::ui/input-event (p/fn [e] (let [status (case (-> e :target :checked)
                                                                   (true nil) :done
                                                                   false      :active)]
-                                                     (p/server (Transact. (toggle-all! db status)))))
+                                                     (p/server (transact! (toggle-all! db status)))))
                         ::ui/pending     {::dom/aria-busy true}}))
         (dom/label {:for "toggle-all"} "Mark all as complete")
         (dom/ul {:class "todo-list"}
@@ -141,28 +131,27 @@
       {::dom/class         "new-todo"
        ::dom/placeholder   "What needs to be done?"
        ::ui/keychords      #{"enter"}
-       ::ui/keychord-event (p/fn [event]
+       ::ui/keychord-event (p/fn [e]
                              (let [description (:value dom/node)]
-                               (let [done (p/server (Transact. [{:task/description description, :task/status :active}]))]
+                               (let [done (p/server (transact! [{:task/description description, :task/status :active}]))]
                                  ;; causal dependency - empty input after transaction success
                                  (dom/oset! dom/node :value ({} done "")))))})))
 
+(p/defn TodoApp [state]
+  (dom/section {:class "todoapp"}
+    (dom/header {:class "header"}
+      (CreateTodo.))
+    (when (p/server (pos? (todo-count db :all)))
+      (TodoList. state))
+    (dom/footer {:class "footer"}
+      (TodoStats. state))))
+
 (p/defn TodoMVC [state]
-  (p/client
-    (dom/div {:class "todomvc"}
-      (dom/section {:class "todoapp"}
-        (dom/header {:class "header"}
-          (dom/h1 "TodoMVC")
-          (CreateTodo.))
-
-        (when (p/server (pos? (todo-count db :all)))
-          (TodoList. state))
-
-        (dom/footer {:class "footer"}
-          (TodoStats. state)))
-
-      (dom/footer {:class "info"}
-        (dom/p "Double-click to edit a todo")))))
+  (dom/div {:class "todomvc"}
+    (dom/h1 "TodoMVC")
+    (TodoApp. state)
+    (dom/footer {:class "info"}
+      (dom/p "Double-click to edit a todo"))))
 
 (p/defn Diagnostics [state]
   (dom/h1 "Diagnostics")
@@ -181,12 +170,20 @@
                                                        (swap! !state assoc ::delay value)))})
                        " ms")))
 
+#?(:clj
+   (defn slow-transact!
+     ([!conn delay] (fn [tx] (slow-transact! !conn delay tx)))
+     ([!conn delay tx]
+      (try (Thread/sleep delay) ; artificial latency
+           (d/transact! !conn tx)
+           (catch InterruptedException _)))))
+
 (p/defn App []
   (p/client
     (let [state (p/watch !state)]
       (p/server
-        (binding [db       (p/watch !conn)
-                  tx-delay (::delay state)]
+        (binding [db (p/watch !conn)
+                  transact! (partial slow-transact! !conn (p/client (::delay state)))]
           (p/client
             (dom/link {:rel :stylesheet, :href "todomvc.css"})
             (TodoMVC. state)
