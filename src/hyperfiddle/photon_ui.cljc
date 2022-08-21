@@ -95,7 +95,7 @@ aria-disabled element.
   allowing some events and keyboard navigation."
   #?(:cljs (remove (fn [^js event] (.. event -target (closest "[aria-disabled=true]"))))))
 
-(defn gen-event-handlers
+(defn gen-event-handlers "The rule is ::ui/<dom event name>-event adds a dom event listener."
   [cancel-sym props transducers {:keys [ignore-aria-disabled]}]
   (map (fn [signal]
          (let [callback       (get props signal)

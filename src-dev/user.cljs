@@ -6,9 +6,7 @@
     [hyperfiddle.photon-dom :as dom]
     hyperfiddle.photon-dom-test
     hyperfiddle.rcf
-    user.demo-entrypoint
-
-    )
+    user.demo-entrypoint)
   (:import [hyperfiddle.photon Pending])
   (:require-macros [user :refer [get-main]]))
 
