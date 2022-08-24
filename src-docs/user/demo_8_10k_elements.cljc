@@ -43,8 +43,8 @@
 (p/defn Board []
   ; fixed width font + inline-block optimizes browser layout
   (dom/element "style" ".board div { width: 1em; height: 1em; display: inline-block; border: 1px #eee solid; }")
-  (dom/div {:class "board" :style {:font-family "monospace" :font-size "7px" ; font-size is pixel size
-                                   :margin 0 :padding 0 :line-height 0}}
+  (dom/element "style" ".board { font-family: monospace; font-size: 7px; margin: 0; padding: 0; line-height: 0; }")
+  (dom/div {:class "board"}
     (p/for [i (range 0 board-size)]
       (ui/element dom/div {::ui/mouseover-event (p/fn [e] (p/server (swap! !moves conj i)))}))
 
