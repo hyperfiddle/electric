@@ -27,7 +27,7 @@
 (p/defn Browser []
   (dom/div
     {::dom/id    "main"
-     ::dom/class "browser"}
+     ::dom/class "browser hyperfiddle-hfql"}
     (dom/div
       {::dom/class "view"}
       (Tee-shirt-orders.))))

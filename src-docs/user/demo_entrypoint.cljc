@@ -86,6 +86,5 @@
                                  #_{:text "healthcheck" ::value `user.healthcheck/App}]
               ::ui/change-event (p/fn [[event value]] (p/server (reset! !demo value)))})
   (dom/hr)
-  (dom/div
-    {:style {:max-width "90vw" :overflow-x :auto}}
+  (dom/div {:style {:max-width "90vw"}}
     (new (get demos (p/server (::value demo))))))

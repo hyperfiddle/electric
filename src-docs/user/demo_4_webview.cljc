@@ -25,7 +25,7 @@
 (p/def db)                                                  ; server
 
 (p/defn Teeshirt-orders-view []
-  (dom/div
+  (dom/div {:class "hyperfiddle-hfql"}
     (dom/h2 "frontend/backend webview with server push")
     (let [!filter (atom "") filter (p/watch !filter)]
       (ui/input {::dom/type        :search
