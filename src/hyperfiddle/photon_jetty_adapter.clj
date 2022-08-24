@@ -95,11 +95,18 @@
                              :write-success (fn write-success [] (s nil))})
     #()))
 
+(defn -silenced-exception? [e]
+  ; silence harmless error to prevent user confusion until fixed
+  ; https://www.notion.so/hyperfiddle/Cannot-invoke-org-eclipse-jetty-websocket-api-RemoteEndpoint-sendString-String-org-eclipse-jetty-w-489a9529bf75444993c23d66f88c7104
+  (and (instance? NullPointerException e)
+       (clojure.string/includes? (.getMessage e) "org.eclipse.jetty.websocket.api.RemoteEndpoint.sendString")))
+
 (defn success [exit-value] (log/debug "Websocket handler completed gracefully." {:exit-value exit-value}))
 (defn failure [^WebSocketAdapter ws ^Throwable e]
-  (log/error "Websocket handler failure" e)
-  ;; jetty/close! is missing arity 3 for jetty 9. Call close directly to get arity 3.
-  (when-some [s (.getSession ws)] (.close s 1011 "Server process crash")))
+  (when-not (-silenced-exception? e) ; sorry
+    (log/error "Websocket handler failure" e)
+    ;; jetty/close! is missing arity 3 for jetty 9. Call close directly to get arity 3.
+    (when-some [s (.getSession ws)] (.close s 1011 "Server process crash"))))
 
 (defn photon-ws-message-handler
   "Given a websocket instance and a missionary task reading a message, run a photon
