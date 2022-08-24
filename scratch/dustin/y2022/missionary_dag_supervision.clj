@@ -19,6 +19,19 @@
        [(inc x) b]
        [b (dec y)]))
 
+
+  (defn node [delay & deps]
+    (m/cp (m/amb nil (m/? (m/sleep delay (m/? (apply m/join vector deps)))))))
+
+  (m/cp
+    (let [a (node 1)
+          b (share (node 1))
+          c (node 100)
+          d (node 100 a b)
+          e (node 1   b c)
+          f (node 1   d e)]
+      (m/?< f)))
+
   ; 1
   (m/sp
     (let [b (m/? (m/join vector x y))]                      ; introduces causality/ordering that is not present in the DAG
