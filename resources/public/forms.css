@@ -1,0 +1,30 @@
+input:not([type="radio"]):not([type="checkbox"]), select {
+    box-sizing: border-box;
+    /* width:100%; */
+    border-width: 1px;
+    /*border-left-width: 0.2rem;*/
+    border-style:solid;
+    border-radius: 2px;
+    padding: 0.5rem 0.5rem;
+    width: 100%;
+}
+
+input[type="checkbox"]{
+    margin:0;
+    width: 1rem;
+    height: 1rem;
+}
+
+.inputs{
+    display:grid;
+    grid-template-columns: auto 1fr;
+    grid-gap: 0.5rem 1rem;
+    align-items: baseline;
+    align-items: center;
+    /* justify-content: flex-start; */
+}
+
+table {
+    table-layout: fixed;
+    border-collapse: collapse;
+}
