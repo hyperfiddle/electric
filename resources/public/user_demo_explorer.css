@@ -1,0 +1,4 @@
+.photon-demo-explorer tr:nth-child(even) { background-color: #f2f2f2; }
+.photon-demo-explorer td { padding-left: 3px; padding-right: 3px; }
+.photon-demo-explorer .title { font-size: 1.5em; }
+.photon-demo-explorer { width: 50vw; margin-left: auto; margin-right: auto; }
