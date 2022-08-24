@@ -171,12 +171,10 @@
                        " ms")))
 
 #?(:clj
-   (defn slow-transact!
-     ([!conn delay] (fn [tx] (slow-transact! !conn delay tx)))
-     ([!conn delay tx]
-      (try (Thread/sleep delay) ; artificial latency
-           (d/transact! !conn tx)
-           (catch InterruptedException _)))))
+   (defn slow-transact! [!conn delay tx]
+     (try (Thread/sleep delay) ; artificial latency
+          (d/transact! !conn tx)
+          (catch InterruptedException _))))
 
 (p/defn App []
   (p/client
