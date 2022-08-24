@@ -17,7 +17,6 @@
       (ui/input {::dom/type :search
                  ::dom/placeholder "java.home"
                  ::ui/input-event (p/fn [e] (reset! !search (:value dom/node)))})
-      (dom/div "Input: " search)
       (dom/table
         (p/server
           (p/for [[k v] (sort-by key (system-properties search))]

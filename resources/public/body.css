@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap');
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Open Sans', Arial, Verdana, sans-serif;
+    /* font-size: 0.8rem; */
+}
+
+body {
+    /*min-height: 101vh; !* DEMO ONLY, force scrollbar to show up, preventing paint flashing  *!*/
+    background-color: rgb(248 250 252);
+    display: flex;
+    /* justify-content : center; */
+    padding: 5vh 0vw;
+}
+
+ol ol,
+ul ul,
+ol ul,
+ul ol {
+    margin-bottom: 0;
+}
+
+ol,
+ul,
+dl {
+    margin-top: 0;
+    margin-bottom: 1rem;
+}
+
+dl {
+    display: grid;
+    grid-template-columns: 33% auto;
+}
+
+dt {
+    grid-column: 1;
+    font-weight: 700;
+}
+
+dd {
+    grid-column: 2;
+    margin-bottom: .5rem;
+    margin-left: 0;
+}
