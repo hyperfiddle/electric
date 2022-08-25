@@ -9,6 +9,7 @@
   (:require [missionary.core :as m]
             [cognitect.transit :as t]
             [hyperfiddle.logger :as log]
+            [hyperfiddle.photon.debug :as dbg]
             #?(:cljs [com.cognitect.transit.types]))
   (:import (missionary Cancelled)
            (hyperfiddle.photon Failure Pending Remote)
@@ -24,22 +25,23 @@
     (t/write-handler
       (fn [_] "failure")
       (fn [x]
-        (let [e (.-error ^Failure x)]
-          (if (instance? Cancelled e)
-            :cancelled
-            (if (instance? Pending e)
-              :pending
-              (do (log/error e)
-                  :remote))))))}})
+        (let [err (.-error ^Failure x)]
+          (cond (instance? Cancelled err) [:cancelled]
+                (instance? Pending err)   [:pending]
+                (instance? Remote err)    [:remote (dbg/serializable (ex-data err))]
+                :else                     [:exception (ex-message err) (dbg/serializable (ex-data err))]))))}})
 
 (def read-opts
   {:handlers
    {"failure"
     (t/read-handler
-      (fn [x]
-        (case x
-          :remote (Failure. (Remote.))
-          :pending (Failure. (Pending.))
+      (fn [[tag & args]]
+        (case tag
+          :exception (let [[message data] args]
+                       (dbg/error (ex-info message data)))
+          :remote    (let [[data] args]
+                       (Failure. (ex-info "Remote error" data)))
+          :pending   (Failure. (Pending.))
           :cancelled (Failure. (Cancelled.)))))}})
 
 (def set-ints
@@ -92,7 +94,10 @@
                      (str #_pr-str x)                       ; i.e. "datascript.db.TxReport@b532aead"
                      #_{:value x}                           ; don't ask logger to pr-str the entire datascript database
                      #_err)                                 ; don't spam log with scary error
-          (encode nil)))))
+
+          (if (instance? Failure x)
+            (encode (Failure. (Remote.))) ; Failed to encode this exception, send a stub.
+            (encode nil))))))
 
 (defn decode
   "Decode a data frame from transit json"

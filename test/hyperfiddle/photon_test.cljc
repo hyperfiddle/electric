@@ -6,7 +6,8 @@
             [missionary.core :as m]
             [clojure.test :as t])
   (:import missionary.Cancelled
-           [hyperfiddle.photon Pending Failure]))
+           [hyperfiddle.photon Pending Failure]
+           #?(:clj [clojure.lang ExceptionInfo])))
 
 
 (tests
@@ -654,28 +655,43 @@
   (with ((p/local (! (assert (p/watch !x)))) ! !)
     % := nil ; assert returns nil or throws
     (swap! !x not) ; will crash the reactor
-    #?(:clj (instance? AssertionError %)
-       :cljs (instance? js/Error %)) := true
+    #?(:clj (instance? clojure.lang.ExceptionInfo %)
+       :cljs (instance? ExceptionInfo %)) := true
     (swap! !x not) ; reactor will not come back.
     % := ::rcf/timeout))
 
-(p/defn Boom [] (throw (ex-info "" {})))
+(p/defn Boom [] (assert false))
 (tests
   "reactive exceptions"
   (with (p/run (! (try
                     (Boom.)
-                    (catch #?(:clj Exception, :cljs :default) e
-                      ::inner))))
-    % := ::inner))
+                    (catch #?(:clj AssertionError, :cljs js/Error) e
+                      e))))
+    #?(:clj  (instance? AssertionError %)
+       :cljs (instance? js/Error %)) := true))
+
+(tests
+  "Stack trace"
+  (let [dispose (p/run (try
+                         (Boom.)
+                         (catch #?(:clj AssertionError, :cljs js/Error) ex
+                           (! [ex p/trace]))))]
+    (let [[ex trace] %]
+      (instance? #?(:clj AssertionError, :cljs js/Error) ex) := true
+      (instance? ExceptionInfo trace) := true
+      (= ex (ex-cause trace)) := true
+      (contains? (ex-data trace) :hyperfiddle.photon.debug/trace) := true)
+    := _                                ; HACK RCF cljs bug: % resolves to nil outside of assertion
+    (dispose)))
 
 (tests
   (with
     (p/run (! (try
                 (let [Nf (try
                            (p/fn [] (Boom.))             ; reactive exception uncaught
-                           (catch #?(:clj Exception, :cljs :default) _ ::inner))]
+                           (catch #?(:clj AssertionError, :cljs :default) _ ::inner))]
                   (Nf.))
-                (catch #?(:clj Exception, :cljs :default) _ ::outer))))
+                (catch #?(:clj AssertionError, :cljs :default) _ ::outer))))
     % := ::outer))
 
 ; dumb test
@@ -1100,12 +1116,12 @@
   ;; - an unsatisfied reactive fn parameter (reactive fn called with too few arguments).
   (p/def x)
   (with ((p/local x) prn !)
-    (ex-message %) := "Unbound var."))
+    (ex-message %) := "Unbound var `hyperfiddle.photon-test/x`"))
 
 (tests
   "Calling a reactive fn with less arguments than expected throws a userland exception"
   (with ((p/local (new (p/fn [x] x) #_1)) prn !)
-    (ex-message %) := "Unbound var."))
+    (ex-message %) := "Unbound var `hyperfiddle.photon-impl.compiler/%1`"))
 
 (tests
   "Unbound var access can be caugh with try/catch"
