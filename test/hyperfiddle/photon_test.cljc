@@ -1123,11 +1123,11 @@
        (swap! !x inc)
        % := 1))
 
-;; Seems to randomly fail in CI only (either hang or fail). Reruning the job make it pass.
-;; Fails with:
+;; Unstable in automated test runs, randomly fails with:
 ;; expected: (hyperfiddle.rcf/= (count (RCF__%)) n)
 ;;   actual: java.lang.UnsupportedOperationException: count not supported on this type: Keyword
-(tests                                  ; Used to hang REPL, now passing
+#_
+(tests
   (let [n 1000]
     (dotimes [_ 8]
       (with (p/run (! (p/for [x (range n)] x)))
