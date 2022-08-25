@@ -5,6 +5,7 @@
             [hyperfiddle.photon-impl.failer :as failer]
             [hyperfiddle.photon-impl.eventually :refer [eventually]]
             [hyperfiddle.photon-impl.local :as l]
+            [hyperfiddle.photon.debug :as dbg]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str])
@@ -85,16 +86,19 @@
 
 (def pending (Failure. (Pending.)))
 
-(defn error [^String msg]
+(defn error [^String msg] ; Could be ex-info (ExceptionInfo inherits Error or js/Error)
   (#?(:clj Error. :cljs js/Error.) msg))
 
-(def latest-apply
-  (partial m/latest
-    (fn [f & args]
-      (or (apply failure f args)
-        (try (apply f args)
-             (catch #?(:clj Throwable :cljs :default) e
-               (Failure. e)))))))
+(defn latest-apply
+  ([] (latest-apply nil))
+  ([debug-info]
+   (partial m/latest
+     (fn [f & args]
+       (if-let [err (apply failure f args)]
+         (dbg/error (assoc debug-info ::dbg/args args) err)
+         (try (apply f args)
+              (catch #?(:clj Throwable :cljs :default) e
+                (dbg/error (assoc debug-info ::dbg/args args) (Failure. e)))))))))
 
 (def latest-first
   (partial m/latest
@@ -386,15 +390,25 @@
   (when-some [callback (get-remote (frame-context frame))]
     (callback [(frame-id frame) slot])))
 
-(defn output [frame slot <x]
+(defn- check-unbound-var [debug-info value]
+  (if (= ::unbound value)
+    (Failure. (error (str "Unbound var `" (::dbg/name debug-info) "`")))
+    value))
+
+(defn check-failure [debug-info value]
+  (if (instance? Failure value)
+    (dbg/error debug-info value)
+    value))
+
+(defn output [frame slot <x debug-info]
   (when-some [callback (get-output (frame-context frame))]
-    (callback {[(frame-id frame) slot] (signal <x)})))
+    (callback {[(frame-id frame) slot] (m/latest (partial check-failure debug-info) (signal <x))})))
 
 (defn static [frame slot]
   (aget (frame-static frame) (int slot)))
 
-(defn dynamic [frame slot]
-  (aget (frame-dynamic frame) (int slot)))
+(defn dynamic [frame slot debug-info]
+  (m/latest (partial check-unbound-var debug-info) (aget (frame-dynamic frame) (int slot))))
 
 (defn tree
   "A snapshot of the tree below given frame, as nested vectors. Frame vectors start with their id."
@@ -634,7 +648,7 @@
 
 (defn clause
   ([f] (fn [e] (f (pure e))))
-  ([f c] (fn [e] (when (instance? c e) (f (pure e))))))
+  ([f c] (fn [e] (when (instance? c (dbg/unwrap e)) (f (pure e))))))
 
 (defn recover [tier catch <x]
   (yield (fn [x]
@@ -681,7 +695,7 @@
                    (k v) (t))))
       (failer/run (error "Unable to hook - not an object.") n t))))
 
-(def unbound (pure (Failure. (error "Unbound var."))))
+(def unbound (pure ::unbound))
 
 (defn pst [e]
   #?(:clj (.printStackTrace ^Throwable e)
@@ -787,6 +801,16 @@
    :static   {}
    :dynamic  {}})
 
+(defn extract-apply-debug-info [[op & _args]]
+  (let [[type val debug-info] op]
+    (case type
+      :global  (merge {::dbg/type :apply, ::dbg/name (symbol val)} debug-info)
+      :node    (assoc debug-info ::dbg/type :apply)
+      :literal {::dbg/type :apply ::dbg/name val}
+      :eval    {::dbg/type :apply   ; TODO constructor call, method/field access
+                ::dbg/name (list 'quote val)}
+      {::dbg/type :unknown-apply, :op op})))
+
 ;; TODO move me
 ;; `new` creates a local variable and a remote source
 ;; `p/fn` creates a local constant and a remote target
@@ -822,7 +846,7 @@
                      (update :stack collapse 1 lift)))
            :eval (let [[f] args]
                    (update env :stack conj ((:eval fns) f))) ; can't shadow eval in advanced CLJS compilation
-           :node (let [[v] args
+           :node (let [[v debug-info] args
                        env (update env :vars max v)]
                    (if (dyn v)
                      (update env :stack conj (vget v))
@@ -830,25 +854,25 @@
                            i (d v (count d))]
                        (-> env
                          (assoc :dynamic (assoc d v i))
-                         (update :stack conj (dynamic i))))))
+                         (update :stack conj (dynamic i debug-info))))))
            :bind (let [[v s inst] args]
                    (-> env
                      (update :vars max v)
                      (walk off idx (conj dyn v) inst)
                      (update :stack collapse 1 bind v (- idx s))))
            :apply (-> (reduce (fn [env arg] (walk env off idx dyn arg)) env args)
-                    (update :stack collapse (count args) invoke))
+                      (update :stack collapse (count args) (partial invoke (extract-apply-debug-info args))))
            :input (-> env
                     (snapshot :input)
                     (update :input inc)
                     (update :stack collapse 1 input))
-           :output (let [[inst cont] args]
+           :output (let [[debug-info inst cont] args]
                      (-> env
                        (walk off idx dyn inst)
                        (snapshot :output)
                        (update :output inc)
                        (walk off idx dyn cont)
-                       (update :stack collapse 3 output)))
+                       (update :stack collapse 3 #(output %1 %2 %3 debug-info))))
            :global (let [[x] args]
                      (update env :stack conj (global x)))
            :literal (let [[x] args]
@@ -867,7 +891,7 @@
                        (update :source inc)
                        (walk off idx dyn cont)
                        (update :stack collapse 3 source)))
-           :constant (let [[inst] args]
+           :constant (let [[inst debug-info] args]
                        (-> env
                          (merge empty-frame)
                          (walk idx idx #{} inst)
@@ -882,7 +906,7 @@
                          (merge (select-keys env (keys empty-frame)))
                          (snapshot :constant)
                          (update :constant inc)
-                         (update :stack collapse 10 constant)))
+                         (update :stack collapse 10 (partial constant debug-info))))
            :target (let [[inst cont] args]
                      (-> env
                        (merge empty-frame)
@@ -923,7 +947,7 @@
      :pub      (fn [form cont idx]
                  `(let [~(sym prefix 'pub idx) (signal ~form)] ~cont))
      :static   (fn [i] `(static ~(sym prefix 'frame) ~i))
-     :dynamic  (fn [i] `(dynamic ~(sym prefix 'frame) ~i))
+     :dynamic  (fn [i debug-info] `(dynamic ~(sym prefix 'frame) ~i '~debug-info))
      :eval     (fn [f] `(pure ~f))
      :lift     (fn [f] `(pure ~f))
      :vget     (fn [v] `(aget ~(sym prefix 'vars) (int ~v)))
@@ -933,10 +957,10 @@
                     (let [~(sym prefix 'res) ~form]
                       (aset ~(sym prefix 'vars) (int ~slot) ~(sym prefix 'prev))
                       ~(sym prefix 'res))))
-     :invoke   (fn [& forms] `(latest-apply ~@forms))
+     :invoke   (fn [debug-info & forms] `((latest-apply '~debug-info) ~@forms))
      :input    (fn [slot] `(input ~(sym prefix 'frame) ~slot))
-     :output   (fn [form slot cont]
-                 `(do (output ~(sym prefix 'frame) ~slot ~form) ~cont))
+     :output   (fn [form slot cont debug-info]
+                 `(do (output ~(sym prefix 'frame) ~slot ~form '~debug-info) ~cont))
      :global   (fn [x] `(pure ~(symbol x)))
      :literal  (fn [x] `(pure (quote ~x)))
      :inject   (fn [v] `(pure (inject ~v)))
@@ -944,7 +968,7 @@
                  `(variable ~(sym prefix 'frame) ~(sym prefix 'vars) ~(+ remote slot) ~slot ~form))
      :source   (fn [remote slot cont]
                  `(do (source ~(sym prefix 'frame) ~(sym prefix 'vars) ~(+ remote slot) ~slot) ~cont))
-     :constant (fn [form static dynamic variable-count source-count constant-count target-count output-count input-count slot]
+     :constant (fn [debug-info form static dynamic variable-count source-count constant-count target-count output-count input-count slot]
                  `(constant ~(sym prefix 'frame) ~slot
                     (constructor ~(mapv (fn [p] (sym prefix 'pub p)) static) ~dynamic
                       ~variable-count ~source-count
@@ -952,7 +976,7 @@
                       ~output-count ~input-count
                       (fn [~(sym prefix 'frame)
                            ~(sym prefix 'vars)]
-                        ~form))))
+                        (m/latest (partial check-failure '~debug-info) ~form)))))
      :target   (fn [form static dynamic variable-count source-count constant-count target-count output-count input-count slot cont]
                  `(do (target ~(sym prefix 'frame) ~slot
                         (constructor ~(mapv (fn [p] (sym prefix 'pub p)) static) ~dynamic
@@ -980,7 +1004,10 @@
   (emit nil [:apply [:global :clojure.core/+] [:literal 2] [:literal 3]]) :=
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
-       (latest-apply (pure ~'clojure.core/+) (pure '2) (pure '3))))
+       ((latest-apply '{::dbg/type :apply, ::dbg/name ~'clojure.core/+})
+        (pure ~'clojure.core/+)
+        (pure '2)
+        (pure '3))))
 
   (emit nil
     [:pub [:literal 1]
@@ -989,7 +1016,7 @@
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (let [~'-pub-0 (signal (pure '1))]
-         (latest-apply (pure ~'clojure.core/+) ~'-pub-0 (pure '2)))))
+         ((latest-apply '{::dbg/type :apply, ::dbg/name ~'clojure.core/+}) (pure ~'clojure.core/+) ~'-pub-0 (pure '2)))))
 
   (emit nil
     [:variable [:global :missionary.core/none]]) :=
@@ -1008,18 +1035,19 @@
        (constant ~'-frame 0
          (constructor [] [] 0 0 0 0 0 0
            (fn [~'-frame ~'-vars]
-             (pure ':foo))))))
+             (m/latest (partial check-failure 'nil)
+               (pure ':foo)))))))
 
   (emit nil
     [:variable
      [:pub [:constant [:literal 3]]
       [:pub [:constant [:input]]
-       [:apply [:apply [:global :clojure.core/hash-map]
+       [:apply [:apply [:global :clojure.core/hash-map nil]
                 [:literal 2] [:sub 2]
                 [:literal 4] [:sub 1]
                 [:literal 5] [:sub 1]]
         [:literal 1]
-        [:constant [:literal 7]]]]]]) :=
+        [:constant [:literal 7]]]]]])
   `(peer 0 [] 1 0 3 0 0 0
      (fn [~'-frame ~'-vars]
        (variable ~'-frame ~'-vars 0 0
@@ -1027,22 +1055,34 @@
                           (constant ~'-frame 0
                             (constructor [] [] 0 0 0 0 0 0
                               (fn [~'-frame ~'-vars]
-                                (pure '3)))))]
+                                (m/latest (partial check-failure 'nil) (pure '3))))))] ; FIXME check-failure should be ma -> mb
            (let [~'-pub-1 (signal
                             (constant ~'-frame 1
                               (constructor [] [] 0 0 0 0 0 1
                                 (fn [~'-frame ~'-vars]
-                                  (input ~'-frame 0)))))]
-             (latest-apply
-               (latest-apply (pure ~'clojure.core/hash-map)
-                 (pure '2) ~'-pub-0
-                 (pure '4) ~'-pub-1
-                 (pure '5) ~'-pub-1)
-               (pure '1)
-               (constant ~'-frame 2
-                 (constructor [] [] 0 0 0 0 0 0
-                   (fn [~'-frame ~'-vars]
-                     (pure '7))))))))))
+                                  (m/latest (partial check-failure 'nil) ; FIXME check-failure should be ma -> mb
+                                    (input ~'-frame 0))))))]
+             ((latest-apply '{::dbg/type :unknown-apply, ; FIXME remove this debug noise
+                              :op
+                              [:apply
+                               [:global :clojure.core/hash-map nil]
+                               [:literal 2]
+                               [:sub 2]
+                               [:literal 4]
+                               [:sub 1]
+                               [:literal 5]
+                               [:sub 1]]})
+              ((latest-apply '{::dbg/type :apply,
+                               ::dbg/name clojure.core/hash-map})
+               (pure hash-map)
+               (pure '2) ~'-pub-0
+               (pure '4) ~'-pub-1
+               (pure '5) ~'-pub-1)
+              (pure '1)
+              (constant ~'-frame 2
+                (constructor [] [] 0 0 0 0 0 0
+                  (fn [~'-frame ~'-vars]
+                    (m/latest (partial check-failure 'nil) (pure '7)))))))))))
 
   (emit nil [:def 0]) :=
   `(peer 1 [] 0 0 0 0 0 0
@@ -1058,7 +1098,8 @@
          (constant ~'-frame 0
            (constructor [~'-pub-0] [] 0 0 0 0 0 0
              (fn [~'-frame ~'-vars]
-               (static ~'-frame 0))))))))
+               (m/latest (partial check-failure 'nil)
+                 (static ~'-frame 0)))))))))
 
 (defn juxt-with ;;juxt = juxt-with vector, juxt-with f & gs = apply f (apply juxt gs)
   ([f]
@@ -1141,22 +1182,22 @@
       :static   (fn [slot]
                   (fn [pubs frame vars]
                     (static frame slot)))
-      :dynamic  (fn [slot]
+      :dynamic  (fn [slot debug-info]
                   (fn [pubs frame vars]
-                    (dynamic frame slot)))
+                    (dynamic frame slot debug-info)))
       :bind     (fn [form slot s]
                   (fn [pubs frame ^objects vars]
                     (let [prev (aget vars (int slot))]
                       (aset vars (int slot) (nth pubs s))
                       (let [res (form pubs frame vars)]
                         (aset vars (int slot) prev) res))))
-      :invoke   (fn [& forms] (apply juxt-with latest-apply forms))
+      :invoke   (fn [debug-info & forms] (apply juxt-with (latest-apply debug-info) forms))
       :input    (fn [slot]
                   (fn [pubs frame vars]
                     (input frame slot)))
-      :output   (fn [form slot cont]
+      :output   (fn [form slot cont debug-info]
                   (fn [pubs frame vars]
-                    (output frame slot (form pubs frame vars))
+                    (output frame slot (form pubs frame vars) debug-info)
                     (cont pubs frame vars)))
       :global   (fn [x]
                   (let [r (resolvef ::not-found x)]
@@ -1173,11 +1214,12 @@
                   (fn [pubs frame vars]
                     (source frame vars (+ remote slot) slot)
                     (cont pubs frame vars)))
-      :constant (fn [form static dynamic variable-count source-count constant-count target-count output-count input-count slot]
+      :constant (fn [debug-info form static dynamic variable-count source-count constant-count target-count output-count input-count slot]
                   (fn [pubs frame vars]
                     (constant frame slot
                       (constructor (mapv pubs static) dynamic variable-count source-count constant-count target-count output-count input-count
-                        (partial form pubs)))))
+                        (fn [& args]
+                          (m/latest (partial check-failure debug-info) (apply form pubs args)))))))
       :target   (fn [form static dynamic variable-count source-count constant-count target-count output-count input-count slot cont]
                   (fn [pubs frame vars]
                     (target frame slot
