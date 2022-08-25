@@ -8,7 +8,8 @@
             [missionary.core :as m]
             [clojure.core.async :as a]
             #?(:cljs [hyperfiddle.photon-client])
-            [hyperfiddle.photon-impl.io :as io])
+            [hyperfiddle.photon-impl.io :as io]
+            [hyperfiddle.photon.debug :as dbg])
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars boot for for-by local local-with run run-with forget debounce wrap]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.photon Pending Failure)
@@ -77,14 +78,6 @@ running on a remote host.
 (def hook r/hook)
 (def bind r/bind)
 (def with r/with)
-
-(defmacro def
-  ([sym] `(hyperfiddle.photon/def ~sym ::c/unbound))
-  ([sym form] 
-   ;; GG: Expand to an unbound var with body stored in ::c/node meta.
-   ;;     Clojure compiler will analyze vars metas, which would analyze form as clojure, so we quote it.
-   ;;     ClojureScript do not have vars at runtime and will not analyze or emit vars meta. No need to quote.
-   `(def ~(vary-meta sym assoc ::c/node (if (:js-globals &env) form `(quote ~form))))))
 
 (defmacro ^:deprecated main "
   Takes a photon program and returns a pair
@@ -293,19 +286,25 @@ or a provided value if it completes without producing any value."
    `(def ~(vary-meta sym assoc ::c/node (if (:js-globals &env) form `(quote ~form))))))
 
 ;; TODO self-refer
-(defmacro fn [args & body]
-  (->> body
-    (cons (vec (interleave args (next c/arg-sym))))
-    (cons `let)
-    (list ::c/closure)))
+(defmacro fn [name? & [args & body]]
+  (let [[name? args body] (if (symbol? name?) [name? args body]
+                              [nil name? (cons args body)])]
+    `(::c/closure
+      (let [~@(interleave args (next c/arg-sym))]
+        ~@body)
+      ~(merge {::dbg/name name?, ::dbg/args args, ::dbg/type :reactive-fn}
+         (select-keys (meta &form) [:file :line])
+         (select-keys (meta name?) [::dbg/type :file :line])))))
 
 ; syntax quote doesn't qualify special forms like 'def
 (defmacro defn [sym & fdecl]
-  (let [[_defn sym & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: Support IDE documentation on hover
-    `(hyperfiddle.photon/def ~sym (hyperfiddle.photon/fn
-                                    ~@(if (string? (first fdecl)) ; GG: skip docstring
-                                        (rest fdecl)
-                                        fdecl)))))
+  (let [[_defn sym' & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: Support IDE documentation on hover
+    `(hyperfiddle.photon/def ~sym' (hyperfiddle.photon/fn ~(vary-meta sym' merge {::dbg/type :reactive-defn}
+                                                             (meta &form)
+                                                             (meta sym))
+                                     ~@(if (string? (first fdecl)) ; GG: skip docstring
+                                         (rest fdecl)
+                                         fdecl)))))
 
 (defmacro for-by [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
@@ -355,7 +354,10 @@ or a provided value if it completes without producing any value."
     `(unquote-splicing (do ~@body))))
 
 (defmacro client [& body]
-  `(::c/client (do ~@body)))
+  `(::c/client (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name `client)))
 
 (defmacro server [& body]
-  `(::c/server (do ~@body)))
+  `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name `server)))
+
+(hyperfiddle.photon/def ^{:doc
+                          "In a `catch` block, bound by the runtime to the current stacktrace. A photon stacktrace is an ExceptionInfo. Use `hyperfiddle.photon.debug/stack-trace` to get a string representation."} trace nil)

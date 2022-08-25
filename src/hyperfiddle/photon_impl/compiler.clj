@@ -5,6 +5,7 @@
             [cljs.util]
             [hyperfiddle.photon-impl.local :as l]
             [hyperfiddle.photon-impl.runtime :as r]
+            [hyperfiddle.photon.debug :as dbg]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str])
   (:import cljs.tagged_literals.JSValue
@@ -121,6 +122,7 @@
         (symbol (namespace $)) ; extract namespace part of sym
         (get-in (resolve-ns ns) [:aliases $] $) ; expand to fully qualified form
         (symbol (str $) (name sym))
+        (with-meta $ (meta sym))
         ))))
 
 ;; GG: Abstraction on resolved vars.
@@ -233,7 +235,7 @@
   [env sym]
   (letfn [(runtime-symbol [var] (when (some? var)
                                   (when-not (or (is-macro var) (is-node var))
-                                    (var-name var))))]
+                                    (with-meta (var-name var) (meta sym)))))]
     (case (peer-language env)
       :clj  (runtime-symbol (resolve-var env sym))
       :cljs (if-let [v (resolve-var env sym)]
@@ -275,7 +277,7 @@
   (case (namespace sym)
     "js"
     [:eval sym]
-    [:global (global sym)]))
+    [:global (global sym) (meta sym)]))
 
 (defn conj-res
   ([x] x)
@@ -305,13 +307,13 @@
     (if-some [[p i] (::pub (get (:locals env) sym))]
       (let [s [:sub (- (get (::index env) p) i)]]
         (if (= p (::local env))
-          [s] [[:output s] [:input]]))
-      [[:global (keyword sym)]])
+          [s] [[:output nil s] [:input]]))
+      [[:global (keyword sym) (meta sym)]])
     (if-some [sym (resolve-runtime env sym)]
       [(analyze-global sym)]
       (if-some [v (resolve-var env sym)]
         (if (is-node v)
-          [[:node (visit-node env (var-name v) (::node (var-meta v)))]]
+          [[:node (visit-node env (var-name v) (::node (var-meta v))) {::dbg/name (var-name v)}]]
           (throw (ex-info "Can't take value of macro." {:symbol (var-name v)})))
         [(analyze-global (resolve-sym env sym))] ; pass through
         ))))
@@ -345,9 +347,9 @@
              (clj/desugar-host-expr form env))
            (clj/desugar-host-expr form env))))
 
-(defn toggle [env form]
+(defn toggle [env form debug-info]
   (let [res (analyze-form (update env ::local not) form)]
-    [[:output (peek res)] ((void [:input]) (pop res))]))
+    [[:output debug-info (peek res)] ((void [:input]) (pop res))]))
 
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
@@ -383,14 +385,15 @@
             total?    (odd? (count clauses))
             partition (partition-all 2 (if total? (pop clauses) clauses))
             symbols   (repeatedly gensym)]
-        (->> (when total? (list ::closure (peek clauses)))
+        (->> (when total? (list ::closure (peek clauses) {::dbg/type :case-default}))
           (list
             (reduce merge {}
               (map (fn [p s] (zipmap (parse-clause (first p)) (repeat s)))
                 partition symbols))
             (first args))
           (list `let (vec (interleave symbols
-                            (map (fn [p] (list ::closure (second p)))
+                            (map (fn [p] (list ::closure (second p) (merge {::dbg/type :case-clause, ::dbg/args [(first p)]}
+                                                                      (meta op))))
                               partition))))
           (list `new))))
 
@@ -455,16 +458,20 @@
                           (throw (ex-info "Invalid try block - unrecognized clause." {})))))
                 (throw (ex-info "Invalid try block - finally must be in final position." {}))))
             [[] [] nil] args)
-          body `(::closure (do ~@forms))]
+          body `(::closure (do ~@forms) ~(merge {::dbg/type :try} (meta op)))]
       (analyze-form env
         `(new ~(reduce
-                 (fn [r f] `(r/latest-first ~r (::closure ~f)))
+                 (fn [r f] `(r/latest-first ~r (::closure ~f {::dbg/type :finally})))
                  (case catches
                    [] body
                    `(r/bind r/recover
                       (some-fn
                         ~@(map (fn [[c s & body]]
-                                 (let [f `(partial (def exception) (::closure (let [~s exception] ~@body)))]
+                                 (let [f `(partial (def exception) (::closure
+                                                                    (let [~s (dbg/unwrap exception)]
+                                                                      (binding [hyperfiddle.photon/trace exception]
+                                                                        ~@body))
+                                                                    {::dbg/type :catch, ::dbg/args [~c ~s]}))]
                                    (case c
                                      (:default Throwable)
                                      `(r/clause ~f)
@@ -475,14 +482,17 @@
     (conj-res [[:lift]] (analyze-form env (first args)))
 
     (::closure)
-    (let [res (analyze-form env (first args))]
-      [[:target ((void [:nop]) (pop res))] [:constant (peek res)]])
+    (let [[form debug-info] args
+          res               (analyze-form env form)]
+      [[:target ((void [:nop]) (pop res))] [:constant (peek res) debug-info]])
 
     (::client)
-    ((if (::local env) analyze-form toggle) env (first args))
+    (let [[form debug-info] args]
+      ((if (::local env) analyze-form #(toggle %1 %2 debug-info)) env form))
 
     (::server)
-    ((if (::local env) toggle analyze-form) env (first args))
+    (let [[form debug-info] args]
+      ((if (::local env) #(toggle %1 %2 debug-info) analyze-form) env form))
 
     (if (symbol? op)
       (let [n (name op)
@@ -493,7 +503,7 @@
             (analyze-apply env form)
             (if-some [sym (resolve-runtime env op)]
               (case sym
-                (clojure.core/unquote-splicing cljs.core/unquote-splicing) (toggle env (first args))
+                (clojure.core/unquote-splicing cljs.core/unquote-splicing) (toggle env (first args) (merge (meta form) {::dbg/type :toggle}))
                 (analyze-apply env form))
               (if-some [v (resolve-var env op)]
                 (case (var-name v)
@@ -598,33 +608,33 @@
   [[:literal 5] [:nop]]
 
   (analyze {} '(+ 2 3)) :=
-  [[:apply [:global :clojure.core/+] [:literal 2] [:literal 3]]
+  [[:apply [:global :clojure.core/+ nil] [:literal 2] [:literal 3]]
    [:nop]]
 
   (analyze {} '(let [a 1] (+ a 2))) :=
   [[:pub [:literal 1]
     [:apply [:literal {}] [:sub 1]
-     [:apply [:global :clojure.core/+]
+     [:apply [:global :clojure.core/+ nil]
       [:sub 1] [:literal 2]]]]
    [:nop]]
 
   (analyze '{a nil} 'a) :=
-  [[:global :a]
+  [[:global :a nil]
    [:nop]]
 
   (doto (def Ctor) (alter-meta! assoc :macro true ::node ::unbound))
   (analyze {} '(Ctor.)) :=
-  [[:pub [:node 0]
+  [[:pub [:node 0 {::dbg/name `Ctor}]
     [:apply [:literal {}] [:sub 1]
      [:bind 1 1 [:variable [:sub 1]]]]]
    [:source [:nop]]]
 
   (analyze {} '~@:foo) :=
   [[:input]
-   [:output [:literal :foo] [:nop]]]
+   [:output {::dbg/type :toggle} [:literal :foo] [:nop]]]  ; TODO debug info would be better placed last
 
   (analyze {} '(::closure :foo)) :=
-  [[:constant [:literal :foo]]
+  [[:constant [:literal :foo] nil]
    [:target [:nop] [:nop]]]
 
   (analyze {} '(do :a :b)) :=
@@ -633,37 +643,37 @@
    [:nop]]
 
   (analyze {} '(case 1 2 3 (4 5) ~@6 7)) :=
-  [[:pub
-    [:pub
-     [:constant [:literal 3]]
+  '[[:pub
+     [:pub
+      [:constant [:literal 3] {::dbg/type :case-clause, ::dbg/args [2]}]
+      [:apply [:literal {}] [:sub 1]
+       [:pub
+        [:constant [:input] {::dbg/type :case-clause, ::dbg/args [(4 5)]}]
+        [:apply [:literal {}] [:sub 1]
+         [:apply
+          [:apply [:global :clojure.core/hash-map nil]
+           [:literal 2] [:sub 2]
+           [:literal 4] [:sub 1]
+           [:literal 5] [:sub 1]]
+          [:literal 1]
+          [:constant [:literal 7] {::dbg/type :case-default}]]]]]]
      [:apply [:literal {}] [:sub 1]
-      [:pub
-       [:constant [:input]]
-       [:apply [:literal {}] [:sub 1]
-        [:apply
-         [:apply [:global :clojure.core/hash-map]
-          [:literal 2] [:sub 2]
-          [:literal 4] [:sub 1]
-          [:literal 5] [:sub 1]]
-         [:literal 1]
-         [:constant [:literal 7]]]]]]]
-    [:apply [:literal {}] [:sub 1]
-     [:bind 0 1 [:variable [:sub 1]]]]]
-   [:target [:nop]
-    [:target [:output [:literal 6] [:nop]]
-     [:target [:nop]
-      [:source [:nop]]]]]]
+      [:bind 0 1 [:variable [:sub 1]]]]]
+    [:target [:nop]
+     [:target [:output {::dbg/type :toggle} [:literal 6] [:nop]]
+      [:target [:nop]
+       [:source [:nop]]]]]]
 
   (analyze {} '(case 1 2 3 (4 5) ~@6)) :=
   [[:pub
     [:pub
-     [:constant [:literal 3]]
+     [:constant [:literal 3] {::dbg/type :case-clause, ::dbg/args [2]}]
      [:apply [:literal {}] [:sub 1]
       [:pub
-       [:constant [:input]]
+       [:constant [:input] {::dbg/type :case-clause, ::dbg/args ['(4 5)]}]
        [:apply [:literal {}] [:sub 1]
         [:apply
-         [:apply [:global :clojure.core/hash-map]
+         [:apply [:global :clojure.core/hash-map nil]
           [:literal 2] [:sub 2]
           [:literal 4] [:sub 1]
           [:literal 5] [:sub 1]]
@@ -672,61 +682,63 @@
     [:apply [:literal {}] [:sub 1]
      [:bind 0 1 [:variable [:sub 1]]]]]
    [:target [:nop]
-    [:target [:output [:literal 6] [:nop]]
+    [:target [:output {::dbg/type :toggle} [:literal 6] [:nop]]
      [:source [:nop]]]]]
 
   (doto (def foo) (alter-meta! assoc :macro true ::node nil))
   (doto (def bar) (alter-meta! assoc :macro true ::node 'foo))
   (analyze {} 'bar) :=
-  [[:pub [:literal nil] [:bind 0 1 [:pub [:node 0] [:bind 1 1 [:node 1]]]]]
+  [[:pub [:literal nil] [:bind 0 1 [:pub [:node 0 {::dbg/name `foo}] [:bind 1 1 [:node 1 {::dbg/name `bar}]]]]]
    [:nop]]
 
   (analyze {} '(def foo)) :=
   [[:pub [:literal nil] [:bind 0 1 [:def 0]]]
    [:nop]]
 
-  (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new (::closure ~@foo))) (::closure a))))) :=
+  (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new (::closure ~@foo))) (::closure a)))))
+  :=
   [[:pub [:literal nil]
     [:bind 0 1
      [:pub [:literal 1]
       [:apply [:literal {}] [:sub 1]
        [:pub
         [:apply [:def 0]
-         [:constant [:target [:output [:node 0] [:nop]] [:source [:input]]]]
-         [:constant [:sub 1]]]
+         [:constant [:target [:output {::dbg/type :toggle} [:node 0 {::dbg/name `foo}] [:nop]] [:source [:input]]] nil]
+         [:constant [:sub 1] nil]]
         [:apply [:literal {}] [:sub 1]
          [:bind 1 1 [:variable [:sub 1]]]]]]]]]
    [:target
-    [:output [:pub [:constant [:input]]
-              [:apply [:literal {}] [:sub 1]
-               [:bind 0 1 [:variable [:sub 1]]]]] [:nop]]
+    [:output {::dbg/type :toggle}
+     [:pub [:constant [:input] nil]
+      [:apply [:literal {}] [:sub 1]
+       [:bind 0 1 [:variable [:sub 1]]]]] [:nop]]
     [:target [:nop] [:source [:nop]]]]]
 
   (doto (def baz) (alter-meta! assoc :macro true ::node '(::closure ~@foo)))
   (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new baz)) (::closure a))))) :=
   [[:pub [:literal nil]
     [:bind 0 1
-     [:target [:output [:node 0] [:nop]]
+     [:target [:output {::dbg/type :toggle} [:node 0 {::dbg/name `foo}] [:nop]]
       [:pub [:literal 1]
        [:apply [:literal {}] [:sub 1]
-        [:pub [:apply [:def 0] [:constant [:source [:input]]] [:constant [:sub 1]]]
+        [:pub [:apply [:def 0] [:constant [:source [:input]] nil] [:constant [:sub 1] nil]]
          [:apply [:literal {}] [:sub 1]
           [:bind 1 1 [:variable [:sub 1]]]]]]]]]]
-   [:pub [:constant [:input]]
+   [:pub [:constant [:input] nil]
     [:bind 0 1
-     [:target [:output [:pub [:node 0]
-                        [:apply [:literal {}] [:sub 1]
-                         [:bind 1 1 [:variable [:sub 1]]]]] [:nop]]
+     [:target [:output {::dbg/type :toggle} [:pub [:node 0 {::dbg/name `baz}]
+                                             [:apply [:literal {}] [:sub 1]
+                                              [:bind 1 1 [:variable [:sub 1]]]]] [:nop]]
       [:target [:nop] [:source [:nop]]]]]]]
 
   (analyze {} '(try 1 (finally 2 3 4))) :=
   [[:pub [:apply
-          [:global ::r/latest-first]
-          [:apply [:global ::r/latest-first]
-           [:apply [:global ::r/latest-first]
-            [:constant [:literal 1]] [:constant [:literal 2]]]
-           [:constant [:literal 3]]]
-          [:constant [:literal 4]]]
+          [:global ::r/latest-first nil]
+          [:apply [:global ::r/latest-first nil]
+           [:apply [:global ::r/latest-first nil]
+            [:constant [:literal 1] {::dbg/type :try}] [:constant [:literal 2] {::dbg/type :finally}]]
+           [:constant [:literal 3] {::dbg/type :finally}]]
+          [:constant [:literal 4] {::dbg/type :finally}]]
     [:apply [:literal {}] [:sub 1]
      [:bind 0 1 [:variable [:sub 1]]]]]
    [:target [:nop]
@@ -736,20 +748,25 @@
        [:source [:nop]]]]]]]
 
   (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
-  [[:pub [:apply [:global ::r/latest-first]
-          [:apply [:global ::r/bind]
-           [:global ::r/recover]
-           [:apply [:global :clojure.core/some-fn]
-            [:apply [:global ::r/clause]
-             [:apply [:global :clojure.core/partial]
-              [:def 0] [:constant [:pub [:node 0]
-                                   [:apply [:literal {}] [:sub 1]
-                                    [:literal 2]]]]]
-             [:global :java.lang.Exception]]]
-           [:constant [:literal 1]]]
-          [:constant [:literal 3]]]
-    [:apply [:literal {}] [:sub 1]
-     [:bind 1 1 [:variable [:sub 1]]]]]
+  [[:pub [:literal nil] [:bind 1 1
+                         [:pub [:apply [:global ::r/latest-first nil]
+                                [:apply [:global ::r/bind nil]
+                                 [:global ::r/recover nil]
+                                 [:apply [:global :clojure.core/some-fn nil]
+                                  [:apply [:global ::r/clause nil]
+                                   [:apply [:global :clojure.core/partial nil]
+                                    [:def 0] [:constant [:pub [:apply [:global :hyperfiddle.photon.debug/unwrap nil]
+                                                               [:node 0 {::dbg/name `exception}]]
+                                                         [:apply [:literal {}] [:sub 1]
+                                                          [:pub [:node 0 {::dbg/name `exception}]
+                                                           [:apply [:literal {}] [:sub 1]
+                                                            [:bind 1 1 [:literal 2]]]]]]
+                                              {::dbg/type :catch, ::dbg/args '[Exception e]}]]
+                                   [:global :java.lang.Exception nil]]]
+                                 [:constant [:literal 1] {::dbg/type :try}]]
+                                [:constant [:literal 3] {::dbg/type :finally}]]
+                          [:apply [:literal {}] [:sub 1]
+                           [:bind 2 1 [:variable [:sub 1]]]]]]]
    [:target [:nop]
     [:target [:nop]
      [:target [:nop]
@@ -758,11 +775,11 @@
 
 
 (tests "literals"
-  (analyze {} {:a 1}) := [[:apply [:global :clojure.core/hash-map] [:literal :a] [:literal 1]] [:nop]]
+  (analyze {} {:a 1}) := [[:apply [:global :clojure.core/hash-map nil] [:literal :a] [:literal 1]] [:nop]]
   (analyze {} ^{:b 2} {:a 1}) := [[:apply
-                                   [:global :clojure.core/with-meta]
-                                   [:apply [:global :clojure.core/hash-map] [:literal :a] [:literal 1]]
-                                   [:apply [:global :clojure.core/hash-map] [:literal :b] [:literal 2]]]
+                                   [:global :clojure.core/with-meta nil]
+                                   [:apply [:global :clojure.core/hash-map nil] [:literal :a] [:literal 1]]
+                                   [:apply [:global :clojure.core/hash-map nil] [:literal :b] [:literal 2]]]
                                   [:nop]]
   )
 
