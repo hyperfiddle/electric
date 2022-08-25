@@ -454,7 +454,7 @@
                           [] [(conj forms form) catches finally]
                           (throw (ex-info "Invalid try block - unrecognized clause." {})))))
                 (throw (ex-info "Invalid try block - finally must be in final position." {}))))
-            [[] () nil] args)
+            [[] [] nil] args)
           body `(::closure (do ~@forms))]
       (analyze-form env
         `(new ~(reduce
