@@ -278,6 +278,16 @@ or a provided value if it completes without producing any value."
         ;; terminate.
         (m/amb)))))
 
+(cc/defn chan->task [ch]
+  ; for streaming database results into a vector at the repl
+  ; which is not great
+  (->> (chan->flow ch)
+       (m/reduce into [])))
+
+(cc/defn task->cp [!x]
+  (->> (m/ap (m/? !x))
+       (m/reductions {} (Failure. (Pending.)))))
+
 (defmacro use-channel ;; TODO rename
   ([chan] `(use-channel nil ~chan))
   ([init chan] `(new (m/reductions {} ~init (chan->flow ~chan)))))
