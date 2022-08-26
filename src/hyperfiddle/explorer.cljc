@@ -14,15 +14,20 @@
 (p/def Format)
 (p/def indent-level (p/client 0))
 
-(p/defn Render-row [m]
-  (let [[namek & ks] cols]
+(p/def x)
+(p/def m)
+(p/def a)
+(p/def v)
+
+(p/defn Render-row [x m]
+  (let [[a & as] cols]
     (p/client
       (dom/tr
         (dom/td {:style {:padding-left (-> indent-level (* 10) (str "px"))}}
-          (p/server (namek m)))
+          (p/server (binding [a a v (a m)] (Format. x m a v))))
         (p/server
-          (p/for [k ks]
-            (-> (p/client (dom/td (p/server (Format. k (k m)))))
+          (p/for [a as]
+            (-> (p/client (dom/td (p/server (binding [a a v (a m)] (Format. x m a v)))))
                 (do nil)))))))) ; hack transfer issue
 
 (p/def TreeTableBody')
@@ -38,12 +43,13 @@
                                    (when (seq Xs)
                                      ; don't render bottom up; thunk it for later top-down pass
                                      (p/fn []
-                                       (Render-row. m) ; omit folder row if no descendents matched filter
+                                       (binding [x x m m]
+                                         (Render-row. x m)) ; omit folder row if no descendents matched filter
                                        (p/client
                                          (binding [indent-level (inc indent-level)]
                                            (p/server (p/for [X Xs] (X.))))))))
                                  (when (includes-str? (search-attr m) search) ; return nil to remove level
-                                   (p/fn [] (Render-row. m))))))
+                                   (p/fn [] (binding [x x m m] (Render-row. x m)))))))
                            (remove nil?)))]
     (TreeTableBody'. xs search)))
 

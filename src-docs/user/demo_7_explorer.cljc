@@ -8,23 +8,34 @@
             [user.datafy-fs #?(:clj :as :cljs :as-alias) fs])
   #?(:cljs (:require-macros user.demo-7-explorer)))
 
-(def !target #?(:cljs (atom "src") :clj nil))
+(def !target #?(:clj (atom (clojure.java.io/file "src")) ; "node_modules"
+                :cljs nil))
+
+(p/defn Navigate! [x] (reset! !target x))
+
+(p/defn Nav-link [label x]
+  (p/client
+    (ui/element dom/a {::dom/href ""
+                       ::ui/click-event (p/fn [e]
+                                          (.preventDefault e)
+                                          (p/server (Navigate!. x)))} label)))
 
 (p/defn App []
   (dom/div
     (dom/h1 "Explorer")
     (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
-    #_(dom/div "Folder: " (ui/button {::ui/click-event (p/fn [e] (reset! !target "node_modules"))} "node_modules"))
     (p/server
-      (let [h (clojure.java.io/file (p/client (p/watch !target)))]
+      (let [h (p/watch !target)]
         (binding
-          [;explorer/Render-row (p/fn [m])
-           explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]
-           ;explorer/children ::fs/children
+          [explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]
+           explorer/children ::fs/children
            explorer/search-attr ::fs/name
-           explorer/Format (p/fn [k v]
+           explorer/Format (p/fn [x m a v]
                              (p/client
-                               (case k
+                               (case a
+                                 ::fs/name (p/server (case (::fs/kind m)
+                                                       ::fs/dir (Nav-link. v x)
+                                                       v))
                                  ::fs/modified (.toLocaleDateString v)
                                  ::fs/kind (name v)
                                  (str v))))]

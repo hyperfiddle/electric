@@ -36,10 +36,9 @@
         [;explorer/Title (p/fn [m] (:db/id m))
          explorer/cols [:db/id :db/txInstant]
          explorer/search-attr :db/id
-         explorer/Format (p/fn [k v] (pr-str v))]
+         explorer/Format (p/fn [x m a v] (pr-str v))]
         (Explorer. (->> (new (p/task->cp (query '[:find (pull ?tx [:db/id :db/txInstant])
                                                   :where [?tx :db/txInstant]] db)))
                         (take 5)
                         (map first))
-                   #_[{:db/id 1 :db/txInstant #inst "1970-01-01T00:00:00.000-00:00"}]
                    "title")))))
