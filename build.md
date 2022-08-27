@@ -22,7 +22,7 @@ clojure -T:build install :version '"'$HYPERFIDDLE_PHOTON_DATE'"'
 ## Test local maven repo
 ```clojure
 {:deps {org.clojure/clojure    {:mvn/version "1.11.1"}
-        com.hyperfiddle/photon {:mvn/version "$HYPERFIDDLE_PHOTON_DATE"}}} ; replace value
+        com.hyperfiddle/photon {:mvn/version $HYPERFIDDLE_PHOTON_DATE}}}
 ```
 ```shell 
 clj -A:dev -X user/main :replace-deps '{:deps {com.hyperfiddle/photon {:mvn/version "'$HYPERFIDDLE_PHOTON_DATE'"}}}'
