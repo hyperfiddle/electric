@@ -12,10 +12,10 @@ Versioning scheme is the artifact build time in UTC:
 
 ```shell
 HYPERFIDDLE_PHOTON_DATE=`date -u '+%Y%m%d-%H%M%S'`
-rm -rf ./resources/public/js
-clj -T:build clean
-clojure -T:build jar :version '"'$HYPERFIDDLE_PHOTON_DATE'"'
 git tag v$HYPERFIDDLE_PHOTON_DATE
+rm -rf ./resources/public/js
+clojure -T:build clean
+clojure -T:build jar :version '"'$HYPERFIDDLE_PHOTON_DATE'"'
 clojure -T:build install :version '"'$HYPERFIDDLE_PHOTON_DATE'"'
 ```
 
