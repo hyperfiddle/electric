@@ -390,25 +390,27 @@
   (when-some [callback (get-remote (frame-context frame))]
     (callback [(frame-id frame) slot])))
 
-(defn- check-unbound-var [debug-info value]
-  (if (= ::unbound value)
-    (Failure. (error (str "Unbound var `" (::dbg/name debug-info) "`")))
-    value))
+(defn check-unbound-var [debug-info <x]
+  (m/latest (fn [x]
+              (if (= ::unbound x)
+                (Failure. (error (str "Unbound var `" (::dbg/name debug-info) "`")))
+                x)) <x))
 
-(defn check-failure [debug-info value]
-  (if (instance? Failure value)
-    (dbg/error debug-info value)
-    value))
+(defn check-failure [debug-info <x]
+  (m/latest (fn [x]
+              (if (instance? Failure x)
+                (dbg/error debug-info x)
+                x)) <x))
 
 (defn output [frame slot <x debug-info]
   (when-some [callback (get-output (frame-context frame))]
-    (callback {[(frame-id frame) slot] (m/latest (partial check-failure debug-info) (signal <x))})))
+    (callback {[(frame-id frame) slot] (check-failure debug-info (signal <x))})))
 
 (defn static [frame slot]
   (aget (frame-static frame) (int slot)))
 
 (defn dynamic [frame slot debug-info]
-  (m/latest (partial check-unbound-var debug-info) (aget (frame-dynamic frame) (int slot))))
+  (check-unbound-var debug-info (aget (frame-dynamic frame) (int slot))))
 
 (defn tree
   "A snapshot of the tree below given frame, as nested vectors. Frame vectors start with their id."
@@ -976,7 +978,7 @@
                       ~output-count ~input-count
                       (fn [~(sym prefix 'frame)
                            ~(sym prefix 'vars)]
-                        (m/latest (partial check-failure '~debug-info) ~form)))))
+                        (check-failure '~debug-info ~form)))))
      :target   (fn [form static dynamic variable-count source-count constant-count target-count output-count input-count slot cont]
                  `(do (target ~(sym prefix 'frame) ~slot
                         (constructor ~(mapv (fn [p] (sym prefix 'pub p)) static) ~dynamic
@@ -1035,8 +1037,7 @@
        (constant ~'-frame 0
          (constructor [] [] 0 0 0 0 0 0
            (fn [~'-frame ~'-vars]
-             (m/latest (partial check-failure 'nil)
-               (pure ':foo)))))))
+             (check-failure 'nil (pure ':foo)))))))
 
   (emit nil
     [:variable
@@ -1055,13 +1056,12 @@
                           (constant ~'-frame 0
                             (constructor [] [] 0 0 0 0 0 0
                               (fn [~'-frame ~'-vars]
-                                (m/latest (partial check-failure 'nil) (pure '3))))))] ; FIXME check-failure should be ma -> mb
+                                (check-failure 'nil (pure '3))))))]
            (let [~'-pub-1 (signal
                             (constant ~'-frame 1
                               (constructor [] [] 0 0 0 0 0 1
                                 (fn [~'-frame ~'-vars]
-                                  (m/latest (partial check-failure 'nil) ; FIXME check-failure should be ma -> mb
-                                    (input ~'-frame 0))))))]
+                                  (check-failure 'nil (input ~'-frame 0))))))]
              ((latest-apply '{::dbg/type :unknown-apply, ; FIXME remove this debug noise
                               :op
                               [:apply
@@ -1082,7 +1082,7 @@
               (constant ~'-frame 2
                 (constructor [] [] 0 0 0 0 0 0
                   (fn [~'-frame ~'-vars]
-                    (m/latest (partial check-failure 'nil) (pure '7)))))))))))
+                    (check-failure 'nil (pure '7)))))))))))
 
   (emit nil [:def 0]) :=
   `(peer 1 [] 0 0 0 0 0 0
@@ -1098,8 +1098,7 @@
          (constant ~'-frame 0
            (constructor [~'-pub-0] [] 0 0 0 0 0 0
              (fn [~'-frame ~'-vars]
-               (m/latest (partial check-failure 'nil)
-                 (static ~'-frame 0)))))))))
+               (check-failure 'nil (static ~'-frame 0)))))))))
 
 (defn juxt-with ;;juxt = juxt-with vector, juxt-with f & gs = apply f (apply juxt gs)
   ([f]
@@ -1219,7 +1218,7 @@
                     (constant frame slot
                       (constructor (mapv pubs static) dynamic variable-count source-count constant-count target-count output-count input-count
                         (fn [& args]
-                          (m/latest (partial check-failure debug-info) (apply form pubs args)))))))
+                          (check-failure debug-info (apply form pubs args)))))))
       :target   (fn [form static dynamic variable-count source-count constant-count target-count output-count input-count slot cont]
                   (fn [pubs frame vars]
                     (target frame slot
