@@ -89,16 +89,15 @@
 (defn error [^String msg] ; Could be ex-info (ExceptionInfo inherits Error or js/Error)
   (#?(:clj Error. :cljs js/Error.) msg))
 
-(defn latest-apply
-  ([] (latest-apply nil))
-  ([debug-info]
-   (partial m/latest
-     (fn [f & args]
-       (if-let [err (apply failure f args)]
-         (dbg/error (assoc debug-info ::dbg/args args) err)
-         (try (apply f args)
-              (catch #?(:clj Throwable :cljs :default) e
-                (dbg/error (assoc debug-info ::dbg/args args) (Failure. e)))))))))
+(defn latest-apply [debug-info & args]
+  (apply m/latest
+    (fn [f & args]
+      (if-let [err (apply failure f args)]
+        (dbg/error (assoc debug-info ::dbg/args args) err)
+        (try (apply f args)
+             (catch #?(:clj Throwable :cljs :default) e
+               (dbg/error (assoc debug-info ::dbg/args args) (Failure. e))))))
+    args))
 
 (def latest-first
   (partial m/latest
@@ -959,7 +958,7 @@
                     (let [~(sym prefix 'res) ~form]
                       (aset ~(sym prefix 'vars) (int ~slot) ~(sym prefix 'prev))
                       ~(sym prefix 'res))))
-     :invoke   (fn [debug-info & forms] `((latest-apply '~debug-info) ~@forms))
+     :invoke   (fn [debug-info & forms] `(latest-apply '~debug-info ~@forms))
      :input    (fn [slot] `(input ~(sym prefix 'frame) ~slot))
      :output   (fn [form slot cont debug-info]
                  `(do (output ~(sym prefix 'frame) ~slot ~form '~debug-info) ~cont))
@@ -1006,10 +1005,10 @@
   (emit nil [:apply [:global :clojure.core/+] [:literal 2] [:literal 3]]) :=
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
-       ((latest-apply '{::dbg/type :apply, ::dbg/name ~'clojure.core/+})
-        (pure ~'clojure.core/+)
-        (pure '2)
-        (pure '3))))
+       (latest-apply '{::dbg/type :apply, ::dbg/name ~'clojure.core/+}
+         (pure ~'clojure.core/+)
+         (pure '2)
+         (pure '3))))
 
   (emit nil
     [:pub [:literal 1]
@@ -1018,7 +1017,7 @@
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (let [~'-pub-0 (signal (pure '1))]
-         ((latest-apply '{::dbg/type :apply, ::dbg/name ~'clojure.core/+}) (pure ~'clojure.core/+) ~'-pub-0 (pure '2)))))
+         (latest-apply '{::dbg/type :apply, ::dbg/name ~'clojure.core/+} (pure ~'clojure.core/+) ~'-pub-0 (pure '2)))))
 
   (emit nil
     [:variable [:global :missionary.core/none]]) :=
@@ -1062,27 +1061,27 @@
                               (constructor [] [] 0 0 0 0 0 1
                                 (fn [~'-frame ~'-vars]
                                   (check-failure 'nil (input ~'-frame 0))))))]
-             ((latest-apply '{::dbg/type :unknown-apply, ; FIXME remove this debug noise
-                              :op
-                              [:apply
-                               [:global :clojure.core/hash-map nil]
-                               [:literal 2]
-                               [:sub 2]
-                               [:literal 4]
-                               [:sub 1]
-                               [:literal 5]
-                               [:sub 1]]})
-              ((latest-apply '{::dbg/type :apply,
-                               ::dbg/name clojure.core/hash-map})
-               (pure hash-map)
-               (pure '2) ~'-pub-0
-               (pure '4) ~'-pub-1
-               (pure '5) ~'-pub-1)
-              (pure '1)
-              (constant ~'-frame 2
-                (constructor [] [] 0 0 0 0 0 0
-                  (fn [~'-frame ~'-vars]
-                    (check-failure 'nil (pure '7)))))))))))
+             (latest-apply '{::dbg/type :unknown-apply, ; FIXME remove this debug noise
+                             :op
+                             [:apply
+                              [:global :clojure.core/hash-map nil]
+                              [:literal 2]
+                              [:sub 2]
+                              [:literal 4]
+                              [:sub 1]
+                              [:literal 5]
+                              [:sub 1]]}
+               (latest-apply '{::dbg/type :apply,
+                               ::dbg/name clojure.core/hash-map}
+                 (pure hash-map)
+                 (pure '2) ~'-pub-0
+                 (pure '4) ~'-pub-1
+                 (pure '5) ~'-pub-1)
+               (pure '1)
+               (constant ~'-frame 2
+                 (constructor [] [] 0 0 0 0 0 0
+                   (fn [~'-frame ~'-vars]
+                     (check-failure 'nil (pure '7)))))))))))
 
   (emit nil [:def 0]) :=
   `(peer 1 [] 0 0 0 0 0 0
@@ -1190,7 +1189,7 @@
                       (aset vars (int slot) (nth pubs s))
                       (let [res (form pubs frame vars)]
                         (aset vars (int slot) prev) res))))
-      :invoke   (fn [debug-info & forms] (apply juxt-with (latest-apply debug-info) forms))
+      :invoke   (fn [debug-info & forms] (apply juxt-with (partial latest-apply debug-info) forms))
       :input    (fn [slot]
                   (fn [pubs frame vars]
                     (input frame slot)))
