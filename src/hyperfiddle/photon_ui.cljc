@@ -197,15 +197,14 @@ aria-disabled element.
            [_ pending-events pending-props] (parse-props (constantly nil) (::pending props {}) {} cancel-impulse-sym
                                               {:ignore-aria-disabled true})
            [value events props]             (parse-props ::value props {} cancel-impulse-sym)]
-       `(dom/bubble
-          ~(apply element* `dom/input
-             (assoc props ::dom/value value)
-             pending-props
-             (into `[[::value (dom/events "input" (map (dom/oget :target :value)) ~value)]]
-               events)
-             pending-events
-             cancel-impulse-sym
-             body))))))
+       (apply element* `dom/input
+         (assoc props ::dom/value value)
+         pending-props
+         (into `[[::value (dom/events "input" (map (dom/oget :target :value)) ~value)]]
+           events)
+         pending-events
+         cancel-impulse-sym
+         body)))))
 
 (defn- index-of [vec val] (.indexOf vec val))
 
