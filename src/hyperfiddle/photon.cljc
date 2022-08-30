@@ -278,12 +278,15 @@ or a provided value if it completes without producing any value."
 ;; --------------------------------------
 
 (defmacro def
-  ([sym] `(hyperfiddle.photon/def ~sym ::c/unbound))
-  ([sym form]
+  ([symbol] `(hyperfiddle.photon/def ~symbol ::c/unbound))
+  ([symbol docstring init]
+   (assert (string? docstring))
+   (#'def &form &env (vary-meta symbol assoc :doc docstring) init))
+  ([symbol init]
    ;; GG: Expand to an unbound var with body stored in ::c/node meta.
    ;;     Clojure compiler will analyze vars metas, which would analyze form as clojure, so we quote it.
    ;;     ClojureScript do not have vars at runtime and will not analyze or emit vars meta. No need to quote.
-   `(def ~(vary-meta sym assoc ::c/node (if (:js-globals &env) form `(quote ~form))))))
+   `(def ~(vary-meta symbol assoc ::c/node (if (:js-globals &env) init `(quote ~init))))))
 
 ;; TODO self-refer
 (defmacro fn [name? & [args & body]]
@@ -359,5 +362,4 @@ or a provided value if it completes without producing any value."
 (defmacro server [& body]
   `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name `server)))
 
-(hyperfiddle.photon/def ^{:doc
-                          "In a `catch` block, bound by the runtime to the current stacktrace. A photon stacktrace is an ExceptionInfo. Use `hyperfiddle.photon.debug/stack-trace` to get a string representation."} trace nil)
+(hyperfiddle.photon/def trace "In a `catch` block, bound by the runtime to the current stacktrace. A photon stacktrace is an ExceptionInfo. Use `hyperfiddle.photon.debug/stack-trace` to get a string representation." nil)
