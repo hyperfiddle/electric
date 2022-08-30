@@ -1151,6 +1151,14 @@
 
 #?(:clj
    (tests ; GG: IDE doc on hover support
+     "Vars created with p/def have the same metas as created with cc/def"
+     (p/def Documented "p/def" :init)
+     (select-keys (meta (var Documented)) [:name :doc])
+     := {:name 'Documented
+         :doc  "p/def"}))
+
+#?(:clj
+   (tests ; GG: IDE doc on hover support
     "Vars created with p/defn have the same metas as created with cc/defn"
     (p/defn Documented "doc" [a b c])
     (select-keys (meta (var Documented)) [:name :doc :arglists])
