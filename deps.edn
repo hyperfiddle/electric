@@ -1,7 +1,7 @@
 {:paths   ["src"]
  :deps    {org.clojure/clojure            {:mvn/version "1.11.1"}
            missionary/missionary          {:mvn/version "b.27-SNAPSHOT"}
-           com.hyperfiddle/rcf            {:mvn/version "20220827-151056"}
+           com.hyperfiddle/rcf            {:mvn/version "20220902-130636"}
            org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"}    ;; used by photon
            borkdude/edamame               {:mvn/version "1.0.0"} ;; configurable edn parser
 

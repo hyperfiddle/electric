@@ -7,7 +7,8 @@
             [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.photon.debug :as dbg]
             [hyperfiddle.rcf :refer [tests]]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [hyperfiddle.photon-impl.analyzer :as ana])
   (:import cljs.tagged_literals.JSValue
            (clojure.lang Var)))
 
@@ -45,6 +46,8 @@
 (defmacro js-call [template arity]
   (let [args (repeatedly arity gensym)]
     `(fn [~@args] (~'js* ~template ~@args))))
+
+(defmacro fn-call [f args] `(fn [~@args] ~f))
 
 (defn normalize-env [env]
   (let [peers-config (or (::peers-config env) (if (:js-globals env) {::local :cljs, ::remote :cljs} {::local :clj, ::remote :clj}))]
@@ -273,6 +276,36 @@
       (update ::index assoc l (inc i))
       (update :locals assoc sym {::pub [l i]}))))
 
+(defn qualify-sym "If ast node is `:var`, update :form to be a fully qualified symbol" [env ast]
+  (if (= :var (:op ast))
+    (assoc ast :form (case (peer-language env)
+                       :clj  (symbol (str (:ns (:meta ast))) (str (:name (:meta ast))))
+                       :cljs (:name (:info ast))))
+    ast))
+
+(defn provided-bindings [env form]
+  (let [bindings         (volatile! {})
+        provided?        (fn [ast-info] (or (::provided? ast-info) (some? (::node (:meta ast-info)))))
+        record-provided! (fn [{:keys [form] :as ast}]
+                           (if (contains? @bindings form)
+                             (assoc ast :form (get @bindings form))
+                             (let [safe-name (gensym (name form))]
+                               (vswap! bindings assoc form safe-name)
+                               (assoc ast :form safe-name))))
+        env              (update env :locals update-vals #(if (map? %) (assoc %  ::provided? true) {::provided? true}))]
+    [(case (peer-language env)
+       :clj  (-> (ana/analyze-clj (clj-env env) form)
+               (ana/walk-clj (fn [ast] (if (provided? ast)
+                                         (record-provided! ast)
+                                         (qualify-sym env ast))))
+               (ana/emit-clj))
+       :cljs (-> (ana/analyze-cljs env form)
+               (ana/walk-cljs (fn [ast] (if (provided? (:info ast))
+                                          (record-provided! ast)
+                                          (qualify-sym env ast))))
+               ana/emit-cljs))
+     @bindings]))
+
 (defn source-map
   ([env debug-info]
    (let [file (if (:js-globals env) (:file (:meta (:ns env)))
@@ -361,7 +394,7 @@
 
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
-    (fn* letfn* loop* recur set! ns ns* deftype* defrecord* var)
+    (letfn* loop* recur set! ns ns* deftype* defrecord* var)
     (throw (ex-info "Unsupported operation." {:op op :args args}))
 
     (let*)
@@ -417,6 +450,12 @@
       (transduce (map (partial analyze-form env)) conj-res
         [[:eval `(js-call ~f ~(count args))]] args)
       (throw (ex-info "Wrong number of arguments - js*" {})))
+
+    (fn*)
+    (let [sym              (and (symbol? (first args)) (first args))
+          [form bindings] (provided-bindings env form)]
+      (transduce (map (partial analyze-form env)) conj-res
+        [[:apply [:eval `(fn-call ~form ~(vals bindings)) (when sym {::dbg/name sym})]]] (keys bindings)))
 
     (new)                                                   ; argument binding + monadic join
     (if-some [[f & args] args]
