@@ -301,10 +301,10 @@ or a provided value if it completes without producing any value."
 
 ; syntax quote doesn't qualify special forms like 'def
 (defmacro defn [sym & fdecl]
-  (let [[_defn sym' & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: Support IDE documentation on hover
+  (let [[_defn sym' & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: docstring support
     `(hyperfiddle.photon/def ~sym' (hyperfiddle.photon/fn ~(vary-meta sym' merge {::dbg/type :reactive-defn}
                                                              (meta &form)
-                                                             (meta sym))
+                                                             (meta sym'))
                                      ~@(if (string? (first fdecl)) ; GG: skip docstring
                                          (rest fdecl)
                                          fdecl)))))
