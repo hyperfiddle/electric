@@ -273,11 +273,19 @@
       (update ::index assoc l (inc i))
       (update :locals assoc sym {::pub [l i]}))))
 
-(defn analyze-global [sym]
+(defn source-map
+  ([env debug-info]
+   (let [file (if (:js-globals env) (:file (:meta (:ns env)))
+                  (:file (meta (find-ns (:ns env)))))]
+     (if (some? file)
+       (merge {:file file} debug-info)
+       debug-info))))
+
+(defn analyze-global [env sym]
   (case (namespace sym)
     "js"
     [:eval sym]
-    [:global (global sym) (meta sym)]))
+    [:global (global sym) (source-map env (meta sym))]))
 
 (defn conj-res
   ([x] x)
@@ -310,12 +318,12 @@
           [s] [[:output nil s] [:input (assoc (meta sym) ::dbg/name sym ::dbg/scope :dynamic)]]))
       [[:global (keyword sym) (meta sym)]])
     (if-some [sym (resolve-runtime env sym)]
-      [(analyze-global sym)]
+      [(analyze-global env sym)]
       (if-some [v (resolve-var env sym)]
         (if (is-node v)
           [[:node (visit-node env (var-name v) (::node (var-meta v))) {::dbg/name (var-name v) ::dbg/scope :dynamic}]]
           (throw (ex-info "Can't take value of macro." {:symbol (var-name v)})))
-        [(analyze-global (resolve-sym env sym))] ; pass through
+        [(analyze-global env (resolve-sym env sym))] ; pass through
         ))))
 
 (defn analyze-apply [env form]
@@ -497,11 +505,11 @@
 
     (::client)
     (let [[form debug-info] args]
-      ((if (::local env) analyze-form #(toggle %1 %2 debug-info)) env form))
+      ((if (::local env) analyze-form #(toggle %1 %2 (source-map env debug-info))) env form))
 
     (::server)
     (let [[form debug-info] args]
-      ((if (::local env) #(toggle %1 %2 debug-info) analyze-form) env form))
+      ((if (::local env) #(toggle %1 %2 (source-map env debug-info)) analyze-form) env form))
 
     (if (symbol? op)
       (let [n (name op)
