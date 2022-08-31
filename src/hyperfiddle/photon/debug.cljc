@@ -59,11 +59,15 @@
     (reduce (fn [r frame]
               (if (string? frame)
                 (conj r frame)
-                (let [{::keys [origin type name args macro]} frame]
+                (let [{::keys [origin type name args macro scope]} frame]
                   (conj r
                     (into [(when (and (not= PEER-ID origin)
                                    (not (#{:transfer :toggle} type))
-                                   "remote"))]
+                                   "remote"))
+                           (case scope
+                             :lexical "lexically bound"
+                             :dynamic "dynamically bound"
+                             nil)]
                       (into
                         (case type
                           :apply         `["(" ~(case name

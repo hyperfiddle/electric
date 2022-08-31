@@ -305,15 +305,15 @@
 (defn analyze-symbol [env sym]
   (if (contains? (:locals env) sym)
     (if-some [[p i] (::pub (get (:locals env) sym))]
-      (let [s [:sub (- (get (::index env) p) i)]]
+      (let [s [:sub (- (get (::index env) p) i) (assoc (meta sym) ::dbg/name sym ::dbg/scope :lexical)]]
         (if (= p (::local env))
-          [s] [[:output nil s] [:input]]))
+          [s] [[:output nil s] [:input (assoc (meta sym) ::dbg/name sym ::dbg/scope :dynamic)]]))
       [[:global (keyword sym) (meta sym)]])
     (if-some [sym (resolve-runtime env sym)]
       [(analyze-global sym)]
       (if-some [v (resolve-var env sym)]
         (if (is-node v)
-          [[:node (visit-node env (var-name v) (::node (var-meta v))) {::dbg/name (var-name v)}]]
+          [[:node (visit-node env (var-name v) (::node (var-meta v))) {::dbg/name (var-name v) ::dbg/scope :dynamic}]]
           (throw (ex-info "Can't take value of macro." {:symbol (var-name v)})))
         [(analyze-global (resolve-sym env sym))] ; pass through
         ))))
@@ -443,7 +443,7 @@
                                     (case (:dot-action dot)
                                       ::cljs/call   :call
                                       ::cljs/access :field-access))
-                     ::dbg/target (:target dot)
+                     ::dbg/target (if (satisfies? IVar target) (var-name target) target)
                      ::dbg/method (or (:method dot) (:field dot))
                      ::dbg/args   (:args dot)})]]]
         (if (instance? CljClass target)
@@ -624,7 +624,7 @@
   [[:pub [:literal 1]
     [:apply [:literal {}] [:sub 1]
      [:apply [:global :clojure.core/+ nil]
-      [:sub 1] [:literal 2]]]]
+      [:sub 1 {::dbg/name 'a ::dbg/scope :lexical}] [:literal 2]]]]
    [:nop]]
 
   (analyze '{a nil} 'a) :=
@@ -633,7 +633,7 @@
 
   (doto (def Ctor) (alter-meta! assoc :macro true ::node ::unbound))
   (analyze {} '(Ctor.)) :=
-  [[:pub [:node 0 {::dbg/name `Ctor}]
+  [[:pub [:node 0 {::dbg/name `Ctor, ::dbg/scope :dynamic}]
     [:apply [:literal {}] [:sub 1]
      [:bind 1 1 [:variable [:sub 1]]]]]
    [:source [:nop]]]
@@ -652,18 +652,18 @@
    [:nop]]
 
   (analyze {} '(case 1 2 3 (4 5) ~@6 7)) :=
-  '[[:pub
+  [[:pub
      [:pub
       [:constant [:literal 3] {::dbg/type :case-clause, ::dbg/args [2]}]
       [:apply [:literal {}] [:sub 1]
        [:pub
-        [:constant [:input] {::dbg/type :case-clause, ::dbg/args [(4 5)]}]
+        [:constant [:input] {::dbg/type :case-clause, ::dbg/args ['(4 5)]}]
         [:apply [:literal {}] [:sub 1]
          [:apply
           [:apply [:global :clojure.core/hash-map nil]
-           [:literal 2] [:sub 2]
-           [:literal 4] [:sub 1]
-           [:literal 5] [:sub 1]]
+           [:literal 2] [:sub 2 {::dbg/name _  ::dbg/scope :lexical}]
+           [:literal 4] [:sub 1 {::dbg/name ?x ::dbg/scope :lexical}]
+           [:literal 5] [:sub 1 {::dbg/name ?x ::dbg/scope :lexical}]]
           [:literal 1]
           [:constant [:literal 7] {::dbg/type :case-default}]]]]]]
      [:apply [:literal {}] [:sub 1]
@@ -683,9 +683,9 @@
        [:apply [:literal {}] [:sub 1]
         [:apply
          [:apply [:global :clojure.core/hash-map nil]
-          [:literal 2] [:sub 2]
-          [:literal 4] [:sub 1]
-          [:literal 5] [:sub 1]]
+          [:literal 2] [:sub 2 {::dbg/name _  ::dbg/scope :lexical}]
+          [:literal 4] [:sub 1 {::dbg/name ?x ::dbg/scope :lexical}]
+          [:literal 5] [:sub 1 {::dbg/name ?x ::dbg/scope :lexical}]]
          [:literal 1]
          [:literal nil]]]]]]
     [:apply [:literal {}] [:sub 1]
@@ -697,7 +697,8 @@
   (doto (def foo) (alter-meta! assoc :macro true ::node nil))
   (doto (def bar) (alter-meta! assoc :macro true ::node 'foo))
   (analyze {} 'bar) :=
-  [[:pub [:literal nil] [:bind 0 1 [:pub [:node 0 {::dbg/name `foo}] [:bind 1 1 [:node 1 {::dbg/name `bar}]]]]]
+  [[:pub [:literal nil] [:bind 0 1 [:pub [:node 0 {::dbg/name `foo ::dbg/scope :dynamic}]
+                                    [:bind 1 1 [:node 1 {::dbg/name `bar ::dbg/scope :dynamic}]]]]]
    [:nop]]
 
   (analyze {} '(def foo)) :=
@@ -712,8 +713,8 @@
       [:apply [:literal {}] [:sub 1]
        [:pub
         [:apply [:def 0]
-         [:constant [:target [:output {::dbg/type :toggle} [:node 0 {::dbg/name `foo}] [:nop]] [:source [:input]]] nil]
-         [:constant [:sub 1] nil]]
+         [:constant [:target [:output {::dbg/type :toggle} [:node 0 {::dbg/name `foo, ::dbg/scope :dynamic}] [:nop]] [:source [:input]]] nil]
+         [:constant [:sub 1 {::dbg/name 'a, ::dbg/scope :lexical}] nil]]
         [:apply [:literal {}] [:sub 1]
          [:bind 1 1 [:variable [:sub 1]]]]]]]]]
    [:target
@@ -727,15 +728,15 @@
   (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new baz)) (::closure a))))) :=
   [[:pub [:literal nil]
     [:bind 0 1
-     [:target [:output {::dbg/type :toggle} [:node 0 {::dbg/name `foo}] [:nop]]
+     [:target [:output {::dbg/type :toggle} [:node 0 {::dbg/name `foo ::dbg/scope :dynamic}] [:nop]]
       [:pub [:literal 1]
        [:apply [:literal {}] [:sub 1]
-        [:pub [:apply [:def 0] [:constant [:source [:input]] nil] [:constant [:sub 1] nil]]
+        [:pub [:apply [:def 0] [:constant [:source [:input]] nil] [:constant [:sub 1 {::dbg/name 'a ::dbg/scope :lexical}] nil]]
          [:apply [:literal {}] [:sub 1]
           [:bind 1 1 [:variable [:sub 1]]]]]]]]]]
    [:pub [:constant [:input] nil]
     [:bind 0 1
-     [:target [:output {::dbg/type :toggle} [:pub [:node 0 {::dbg/name `baz}]
+     [:target [:output {::dbg/type :toggle} [:pub [:node 0 {::dbg/name `baz, ::dbg/scope :dynamic}]
                                              [:apply [:literal {}] [:sub 1]
                                               [:bind 1 1 [:variable [:sub 1]]]]] [:nop]]
       [:target [:nop] [:source [:nop]]]]]]]
@@ -765,9 +766,9 @@
                                   [:apply [:global ::r/clause nil]
                                    [:apply [:global :clojure.core/partial nil]
                                     [:def 0] [:constant [:pub [:apply [:global :hyperfiddle.photon.debug/unwrap nil]
-                                                               [:node 0 {::dbg/name `exception}]]
+                                                               [:node 0 {::dbg/name `exception ::dbg/scope :dynamic}]]
                                                          [:apply [:literal {}] [:sub 1]
-                                                          [:pub [:node 0 {::dbg/name `exception}]
+                                                          [:pub [:node 0 {::dbg/name `exception ::dbg/scope :dynamic}]
                                                            [:apply [:literal {}] [:sub 1]
                                                             [:bind 1 1 [:literal 2]]]]]]
                                               {::dbg/type :catch, ::dbg/args '[Exception e]}]]
@@ -842,9 +843,21 @@
   )
 
 (tests "method access"
-  (analyze {} '(. Math abs -1)) :=
-  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)] [:literal -1]] [:nop]]
+  (analyze {} '(. Math abs -1))  :=
+  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1) {:line _,
+                                                                                        :column 16,
+                                                                                        :hyperfiddle.photon.debug/action :static-call,
+                                                                                        :hyperfiddle.photon.debug/target 'java.lang.Math,
+                                                                                        :hyperfiddle.photon.debug/method 'abs,
+                                                                                        :hyperfiddle.photon.debug/args '(-1)}]
+    [:literal -1]] [:nop]]
 
-  (analyze {} '(Math/abs -1)) :=
-  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)] [:literal -1]] [:nop]]
+  (analyze {} '(Math/abs -1))  :=
+  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1) {:line _,
+                                                                                        :column 16,
+                                                                                        :hyperfiddle.photon.debug/action :static-call,
+                                                                                        :hyperfiddle.photon.debug/target 'java.lang.Math,
+                                                                                        :hyperfiddle.photon.debug/method 'abs,
+                                                                                        :hyperfiddle.photon.debug/args '(-1)}]
+    [:literal -1]] [:nop]]
   )
