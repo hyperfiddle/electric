@@ -809,6 +809,8 @@
       :node    (assoc debug-info ::dbg/type :apply)
       :literal {::dbg/type :apply ::dbg/name val}
       :eval    (assoc debug-info ::dbg/type :eval)
+      :sub     (assoc debug-info ::dbg/type :apply)
+      :input   (assoc val ::dbg/type :apply) ; No value for :input, debug-info shifted by 1
       {::dbg/type :unknown-apply, :op op})))
 
 ;; TODO move me
