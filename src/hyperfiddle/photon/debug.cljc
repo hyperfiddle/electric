@@ -70,6 +70,12 @@
                                                   hyperfiddle.photon-impl.runtime/fail 'throw
                                                   name)
                                            ~@(map render-arg args) ")"]
+                          :eval (let [{::keys [action target method args]} frame]
+                                  (case action
+                                    :field-access ["(" (str ".-" method) target ")"]
+                                    :static-call  `["(" ~(str target "/" method) ~@(map render-arg (rest args)) ")"]
+                                    :call         `["(" ~(str "." method) ~target ~@(map render-arg (rest args))")"]
+                                    ["<unknown interop>" frame]))
                           :reactive-fn   ["reactive" (if (some? name)
                                                        `(~'fn ~name ~args ~'...)
                                                        `(~'fn ~args ~'...))]

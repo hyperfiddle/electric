@@ -436,7 +436,16 @@
                           `(static-call ~(var-name target) ~(:method dot) ~(count (:args dot)))
                           (case (:dot-action dot)
                             ::cljs/call   `(method-call ~(:method dot) ~(count (:args dot)))
-                            ::cljs/access `(field-access ~(:field dot))))]]]
+                            ::cljs/access `(field-access ~(:field dot))))
+                  (merge (meta form)
+                    {::dbg/action (if (instance? CljClass target)
+                                    :static-call
+                                    (case (:dot-action dot)
+                                      ::cljs/call   :call
+                                      ::cljs/access :field-access))
+                     ::dbg/target (:target dot)
+                     ::dbg/method (or (:method dot) (:field dot))
+                     ::dbg/args   (:args dot)})]]]
         (if (instance? CljClass target)
           (:args dot)
           (cons (:target dot) (:args dot)))))

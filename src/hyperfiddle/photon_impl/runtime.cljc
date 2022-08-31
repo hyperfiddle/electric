@@ -805,11 +805,10 @@
 (defn extract-apply-debug-info [[op & _args]]
   (let [[type val debug-info] op]
     (case type
-      :global  (merge {::dbg/type :apply, ::dbg/name (symbol val)} debug-info)
+      :global  (assoc debug-info ::dbg/type :apply, ::dbg/name (symbol val))
       :node    (assoc debug-info ::dbg/type :apply)
       :literal {::dbg/type :apply ::dbg/name val}
-      :eval    {::dbg/type :apply   ; TODO constructor call, method/field access
-                ::dbg/name (list 'quote val)}
+      :eval    (assoc debug-info ::dbg/type :eval)
       {::dbg/type :unknown-apply, :op op})))
 
 ;; TODO move me
