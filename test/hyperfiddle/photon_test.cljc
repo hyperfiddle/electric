@@ -1467,3 +1467,39 @@
   (dispose)
 
   )
+
+(tests
+  "Inline cc/fn support"
+  (def !state (atom 0))
+  (p/def global [:global (p/watch !state)])
+  (with (p/run (let [state (p/watch !state)
+                     local [:local state]
+                     f     (fn ([a] [a local hyperfiddle.photon-test/global])
+                             ([a b] [a b local global])
+                             ([a b & cs] [a b cs local global]))
+                     ]
+                 (! (f state))
+                 (! (f state :b))
+                 (! (f state :b :c :d))))
+    % := [0 [:local 0] [:global 0]]
+    % := [0 :b [:local 0] [:global 0]]
+    % := [0 :b '(:c :d) [:local 0] [:global 0]]
+    ))
+
+(tests
+  "cc/fn lexical bindings are untouched"
+  (with (p/run (let [a 1
+                     b 2
+                     f (fn [a] (let [b 3] [a b]))]
+                 (! (f 2))))
+    % := [2 3]))
+
+
+(tests
+  "Inline cc/fn shorthand support"
+  (with (p/run (! (let [f (fn ([a] (inc a))
+                            ([a b] [a b]))]
+                    (! (#(inc %) 1)))))
+    % := 2))
+
+;; (hyperfiddle.rcf/enable!)
