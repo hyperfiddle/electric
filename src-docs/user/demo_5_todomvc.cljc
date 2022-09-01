@@ -39,8 +39,6 @@
     label))
 
 
-(defn retract-entity [id] [:db/retractEntity id])
-
 (p/defn TodoStats [state]
   (let [active (p/server (todo-count db :active))
         done   (p/server (todo-count db :done))]
@@ -58,7 +56,7 @@
         (ui/button {::dom/class      "clear-completed"
                     ::ui/click-event (p/fn [_]
                                        (p/server (when-some [ids (seq (query-todos db :done))]
-                                                   (transact! (mapv retract-entity ids)))))
+                                                   (transact! (mapv (fn [id] [:db/retractEntity id]) ids)))))
                     ::ui/pending     {::dom/aria-busy true}}
           "Clear completed " done)))))
 
