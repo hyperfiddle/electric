@@ -34,7 +34,7 @@
                ::ui/keychords #{"enter" "tab" "esc" "up" "down"}
                ::ui/keychord-event (p/fn [e]
                                      (case (:identifier e)
-                                       ("enter" "tab") (let [picked (nth suggestions idx)]
+                                       ("enter" "tab") (let [picked (get suggestions idx)]
                                                          (if picked
                                                            (do
                                                              (on-pick picked)
@@ -58,4 +58,4 @@
 
 (p/defn App []
   (Typeahead. {:placeholder "HI" :on-pick println :template-fn (p/fn [sug] (:name sug)) :value-fn :name
-               :on-create (partial println "creating") :autofocus? true}))
+               :on-create (fn [value] (println "creating" value)) :autofocus? true}))
