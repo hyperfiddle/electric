@@ -357,10 +357,10 @@ or a provided value if it completes without producing any value."
     `(unquote-splicing (do ~@body))))
 
 (defmacro client [& body]
-  `(::c/client (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name `client)))
+  `(::c/client (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::client)))
 
 (defmacro server [& body]
-  `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name `server)))
+  `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::server)))
 
 (hyperfiddle.photon/def trace "In a `catch` block, bound by the runtime to the current stacktrace. A photon stacktrace is an ExceptionInfo. Use `hyperfiddle.photon.debug/stack-trace` to get a string representation." nil)
 
