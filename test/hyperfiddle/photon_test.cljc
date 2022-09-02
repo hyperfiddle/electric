@@ -2,7 +2,7 @@
   "Photon language unit tests"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.io :as photon-io]
-            [hyperfiddle.rcf :as rcf :refer [tests tap ! % with]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]
             [clojure.test :as t])
   (:import missionary.Cancelled
@@ -1549,19 +1549,23 @@
 (tests
   "Inline cc/fn support"
   (def !state (atom 0))
-  (p/def global [:global (p/watch !state)])
+  (p/def global)
   (with (p/run (let [state (p/watch !state)
                      local [:local state]
-                     f     (fn ([a] [a local hyperfiddle.photon-test/global])
-                             ([a b] [a b local global])
-                             ([a b & cs] [a b cs local global]))
-                     ]
+                     f     (binding [global [:global state]]
+                             (fn ([a] [a local hyperfiddle.photon-test/global])
+                               ([a b] [a b local global])
+                               ([a b & cs] [a b cs local global])))]
                  (tap (f state))
                  (tap (f state :b))
                  (tap (f state :b :c :d))))
     % := [0 [:local 0] [:global 0]]
     % := [0 :b [:local 0] [:global 0]]
     % := [0 :b '(:c :d) [:local 0] [:global 0]]
+    (swap! !state inc)
+    % := [1 [:local 1] [:global 1]]
+    % := [1 :b [:local 1] [:global 1]]
+    % := [1 :b '(:c :d) [:local 1] [:global 1]]
     ))
 
 (tests
@@ -1575,12 +1579,60 @@
 
 (tests
   "Inline cc/fn shorthand support"
-  (with (p/run (tap (let [f (fn ([a] (inc a))
-                            ([a b] [a b]))]
-                    (tap (#(inc %) 1)))))
+  (with (p/run (tap (#(inc %) 1)))
     % := 2))
 
-;; (hyperfiddle.rcf/enable!)
+(tests
+  "inline m/observe support"
+  (let [!state (atom 0)]
+    (with (p/run (let [state     (p/watch !state)
+                       lifecycle (m/observe (fn [push]
+                                              (tap :up)
+                                              (push state)
+                                              #(tap :down)))
+                       val       (new lifecycle)]
+                   (tap val)))
+      % := :up
+      % := 0
+      (swap! !state inc)
+      % := :down
+      % := :up
+      % := 1)
+    % := :down))
+
+(tests
+  "Inline letfn support"
+  (with (p/run (tap (letfn [(descent  [x] (cond (pos? x) (dec x)
+                                              (neg? x) (inc x)
+                                              :else    x))
+                          (is-even? [x] (if (zero? x) true  (is-odd?  (descent x))))
+                          (is-odd?  [x] (if (zero? x) false (is-even? (descent x))))]
+                    (tap [(is-even? 0) (is-even? 1) (is-even? 2) (is-even? -2)])
+                    (tap [(is-odd?  0) (is-odd?  2) (is-odd?  3) (is-odd? -3)]))))
+    % := [true false true true]
+    % := [false false true true]))
+
+(tests
+  "Inline letfn support"
+  (def !state (atom 0))
+  (p/def global)
+  (with (p/run (let [state (p/watch !state)
+                     local [:local state]]
+                 (binding [global [:global state]]
+                   (letfn [(f ([a] [a local hyperfiddle.photon-test/global])
+                             ([a b] [a b local global])
+                             ([a b & cs] [a b cs local global]))]
+                     (tap (f state))
+                     (tap (f state :b))
+                     (tap (f state :b :c :d))))))
+    % := [0 [:local 0] [:global 0]]
+    % := [0 :b [:local 0] [:global 0]]
+    % := [0 :b '(:c :d) [:local 0] [:global 0]]
+    (swap! !state inc)
+    % := [1 [:local 1] [:global 1]]
+    % := [1 :b [:local 1] [:global 1]]
+    % := [1 :b '(:c :d) [:local 1] [:global 1]]
+    ))
 
 (tests
   "p/fn is undefined in clojure-land"
@@ -1628,3 +1680,34 @@
   (with (p/run (tap (new (p/fn [x] (if (zero? (tap x)) ::zero (recur (dec x)))) 3)))
     % := 3, % := 2, % := 1, % := 0, % := ::zero)
   )
+
+(tests
+  "inline m/cp support"
+  (let [!state (atom 0)]
+    (with (p/run (let [state (p/watch !state)]
+                   (tap (new (m/cp state)))))
+      % := 0
+      (swap! !state inc)
+      % := 1))
+
+  "inline m/ap support"
+  (let [!state (atom [1])]
+    (with (p/run (let [coll (p/watch !state)]
+                   (tap (new (m/ap (tap (m/?< (m/seed coll))))))))
+      % := 1
+      % := 1
+      (swap! !state conj 2)
+      % := 1
+      % := 2
+      % := 2)))
+
+(tests
+  "inline m/sp support"
+  (let [!state (atom 0)]
+    (with (p/run (let [val  (p/watch !state)
+                       task (m/sp val)]
+                   (tap (new (m/relieve {} (m/reductions {} :init (m/ap (m/? task))))))))
+      % := 0
+      (swap! !state inc)
+      % := 1
+      )))

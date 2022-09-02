@@ -2,7 +2,7 @@
   "Utilities to analyze and transform clojure/script code. Not photon code.
   Use case: support `clojure.core/fn` in a photon program.
   Long term goal is to build a unified clojure/script code walker and get rid of tools.analyzer deps."
-  (:require [clojure.tools.analyzer.passes.emit-form :as emit-form]
+  (:require [clojure.tools.analyzer.passes.jvm.emit-form :as emit-form]
             [clojure.tools.analyzer.ast :as clj-ast]
             [clojure.tools.analyzer.jvm :as clj]
             [cljs.analyzer.api :as cljs]
