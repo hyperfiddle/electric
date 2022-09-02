@@ -437,7 +437,7 @@
 
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
-    (letfn* set! ns ns* deftype* defrecord* var)
+    (set! ns ns* deftype* defrecord* var)
     (throw (ex-info "Unsupported operation." {:op op :args args}))
 
     (let*)
@@ -495,6 +495,17 @@
       (transduce (map (partial analyze-form env)) conj-res
         [[:apply [:eval `(fn-call ~form ~(vals bindings)) (merge {::dbg/action :fn-call, ::dbg/params ['…]} ; TODO add parameters to debug info
                                                             (when sym {::dbg/name sym}))]]] (keys bindings)))
+
+    (letfn*)
+    (let [[bindings & body] args
+          names             (mapv first (partition 2 bindings))]
+      (analyze-sexpr env `(let [~names (::letfn ~bindings ~names)] ~@body)))
+
+    (::letfn)
+    (let [[bindings & body] args
+          [form bindings]  (provided-bindings env `(letfn* ~bindings ~@body))]
+      (transduce (map (partial analyze-form env)) conj-res
+        [[:apply [:eval `(fn-call ~form ~(vals bindings)) {::dbg/type :letfn}]]] (keys bindings)))
 
     (new)                                                   ; argument binding + monadic join
     (if-some [[f & args] args]
