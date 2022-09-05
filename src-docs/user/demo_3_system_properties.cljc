@@ -13,14 +13,19 @@
 (p/defn App []
   (dom/div
     (dom/h1 "System Properties")
-    (let [!search (atom "") search (p/watch !search)]
-      (ui/input {::dom/type :search
-                 ::dom/placeholder "java.home"
-                 ::ui/input-event (p/fn [e] (reset! !search (:value dom/node)))})
-      (dom/table
-        (p/server
-          (p/for [[k v] (sort-by key (system-properties search))]
-            (p/client
-              (dom/tr
-                (dom/td k)
-                (dom/td {:style {:white-space :nowrap}} v)))))))))
+    (let [!search (atom ""), search (p/watch !search)]
+      (p/server
+        (let [system-props (sort-by key (system-properties search))
+              matched-count (count system-props)]
+          (p/client
+            (dom/div {:style {:color "gray"}} matched-count " matches")
+            (ui/input {::dom/type        :search
+                       ::dom/placeholder "java.home"
+                       ::ui/input-event  (p/fn [e] (reset! !search (:value dom/node)))})
+            (dom/table
+              (p/server
+                (p/for [[k v] system-props]
+                  (p/client
+                    (dom/tr
+                      (dom/td k)
+                      (dom/td {:style {:white-space :nowrap}} v))))))))))))
