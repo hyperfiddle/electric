@@ -1469,6 +1469,25 @@
   )
 
 (tests
+  "java interop"
+  (tests
+    "static method call"
+    (with (p/run (! (Math/max 2 1)))
+      % := 2))
+
+  (tests
+    "static method call in p/server"
+    (with (p/run (! (p/server (Math/max 2 1))))
+      % := 2))
+
+  (tests
+    "static method call in p/client"
+    (with (p/run (! (p/server (subvec (vec (range 10))
+                                      (Math/min 1 1)
+                                      (Math/min 3 3)))))
+      % := [1 2])))
+
+(tests
   "Inline cc/fn support"
   (def !state (atom 0))
   (p/def global [:global (p/watch !state)])
