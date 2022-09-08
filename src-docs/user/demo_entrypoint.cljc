@@ -19,6 +19,8 @@
             user.seven-gui-2-temperature-converter
             user.seven-gui-4-timer
             user.seven-gui-5-crud
+            #_user.datomic-browser ; requires datomic dep
+            hyperfiddle.scrollview
             hyperfiddle.scrollview
             wip.demo-bubbles
             wip.demo-color
@@ -46,6 +48,8 @@
    `user.demo-8-10k-elements/App               user.demo-8-10k-elements/App
    `user.demo-hfql/App                         user.demo-hfql/App
    `user.auth/App                              user.auth/App
+   ;`user.datomic-browser/App                   user.datomic-browser/App
+   `hyperfiddle.scrollview/Demo                hyperfiddle.scrollview/Demo
    `user.seven-gui-1-counter/Counter           user.seven-gui-1-counter/Counter
    `user.seven-gui-2-temperature-converter/App user.seven-gui-2-temperature-converter/App
    `user.seven-gui-4-timer/Timer               user.seven-gui-4-timer/Timer
@@ -75,6 +79,8 @@
                                  {:text "10k elements" ::value `user.demo-8-10k-elements/App}
                                  {:text "HFQL" ::value `user.demo-hfql/App}
                                  {:text "Authentication" ::value `user.auth/App}
+                                 {:text "Scroll view" ::value `hyperfiddle.scrollview/Demo}
+                                 ;{:text "Datomic browser" ::value `user.datomic-browser/App}
                                  {:text "7GUIs - counter" ::value `user.seven-gui-1-counter/Counter}
                                  {:text "7GUIs - temperature converter" ::value `user.seven-gui-2-temperature-converter/App}
                                  {:text "7GUIs - timer" ::value `user.seven-gui-4-timer/Timer}
@@ -87,5 +93,5 @@
                                  #_{:text "healthcheck" ::value `user.healthcheck/App}]
               ::ui/change-event (p/fn [[event value]] (p/server (reset! !demo value)))})
   (dom/hr)
-  (dom/div {:style {:max-width "90vw"}}
+  (dom/div {:style {:width "90vw"}}
     (new (get demos (p/server (::value demo))))))
