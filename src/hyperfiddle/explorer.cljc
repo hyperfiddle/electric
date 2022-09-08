@@ -1,71 +1,63 @@
 (ns hyperfiddle.explorer
-  (:require [clojure.datafy :refer [datafy]]
-            [clojure.core.protocols :refer [nav]]
+  (:require [contrib.data :refer [unqualify]]
+            [clojure.datafy :refer [datafy]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
-            [user.util :refer [includes-str?]])
+            [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet RenderTableInfinite]]
+            [hyperfiddle.rcf :refer [tests ! % with]]
+            [user.util :refer [pprint-str]])
   #?(:cljs (:require-macros hyperfiddle.explorer)))
 
 ; all explorer bindings and p/fns must be called from server
-(p/def children)
+(p/def Children (p/fn [m] nil))
+(p/def Search? (p/fn [m s] true)) ; could be clojure fn
+
+(p/def TreeList')
+(p/defn TreeList [xs needle]
+  ; Pre-walk the tree and filter bottom-up, to omit layers with no descendents that match.
+  ; Returns a flattened list of [depth x] for linear pagination and rendering.
+  (binding [TreeList' (p/fn [depth xs needle] ; recur via binding until Photon gets proper recursion
+                        (->> (p/for [x (datafy xs)] ; xs can be an intrusive collection
+                               (let [m (datafy x)]
+                                 ; prewalk, omit parent if no descendents matched
+                                 (if-let [xs (seq (Children. m))] ; if open
+                                   ; omit level if no descendents matched filter
+                                   (when-let [rows (seq (TreeList'. (inc depth) xs needle))]
+                                     (cons [depth m] rows)) ; expand children inline
+                                   (when (Search?. m needle) [[depth m]])))) ; filter bottom up
+                             (remove nil?)
+                             (mapcat identity)))]
+    (TreeList'. 0 xs needle)))
+
+#?(:clj
+   (tests
+     (with (p/run (! (binding [Children (p/fn [x] (if (vector? x) x))
+                               Search? (p/fn [x needle] (odd? x))]
+                       (TreeList. [1 2 [3 4] [5 [6 [7]]]] ""))))
+       % := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]])))
+
+(p/def Navigate! (p/server (p/fn [x] (assert false (str `Navigate! "unimplemented")))))
 (p/def cols nil)
-(p/def search-attr) ; server
-(p/def Format)
-(p/defn Title [m] (pr-str m))
-(p/def indent-level (p/client 0))
+(p/def Format (p/server (p/fn [m a v] (pr-str v))))
 
-(p/defn Render-row [m]
-  (let [[namek & ks] cols]
-    (p/client
-      (dom/tr
-        (dom/td {:style {:padding-left (-> indent-level (* 10) (str "px"))}}
-          (p/server (namek m)))
-        (p/server
-          (p/for [k ks]
-            (-> (p/client (dom/td (p/server (Format. k (k m)))))
-                (do nil)))))))) ; hack transfer issue
-
-(p/defn Indent [Xs]
+(p/defn Explorer [title xs props] ; o is an entity with recursive children
   (p/client
-    (binding [indent-level (inc indent-level)]
-      ; top-down render pass
-      (p/server (p/for [X Xs] ; rows at this indent level
-                  (X.))))))
-
-(p/def Tree)
-(p/defn Explorer [h]
-  (let [m (datafy h)]
-    (assert (children m))
-    (p/client
-      (let [!search (atom "") search (p/watch !search)]
-        (dom/div {:class "photon-demo-explorer"}
-          (dom/div {:class "title"} (p/server (Title. m)))
-          (ui/input {::dom/placeholder "Search files by name" ::dom/type "search"
-                     ::ui/input-event (p/fn [e] (reset! !search (.. e -target -value)))})
-          (dom/hr)
-          (dom/table
-            (p/server
-              (binding [cols (or cols (keys m))
-                        Tree (p/fn [m] ; recur via binding until Photon gets proper recursion syntax
-                               (->> (p/for [x (datafy (nav m children (children m)))]
-                                      (let [m (datafy x)]
-                                        (if (children m)
-                                          (let [Xs (Tree. m)] ; prewalk
-                                            (when (seq Xs)
-                                              ; don't render bottom up; thunk it for later top-down pass
-                                              (p/fn []
-                                                (Render-row. m) ; omit folder row if no descendents matched filter
-                                                (Indent. Xs))))
-                                          (when (includes-str? (search-attr m) search) ; return nil to remove level
-                                            (p/fn [] (Render-row. m))))))
-                                    (remove nil?)))]
-
-                (p/client
-                  (dom/thead (p/for [k (p/server cols)] (dom/td (name k))))
-                  (dom/tbody
-                    ;(Render-row. h) -- never render target folder
-                    (p/server
-                      (if-let [Xs (seq (Tree. m))]
-                        (Indent. Xs)
-                        (p/client (dom/div {:class "no-results"} "no results matched"))))))))))))))
+    (let [!search (atom "") search (p/watch !search)]
+      #_(dom/dl
+        (dom/dt "scroll debug state")
+        (dom/dd (dom/pre (pprint-str (update-keys (p/watch hyperfiddle.scrollview/!scrollStateDebug) unqualify)))))
+      (dom/div {:class "title"} (p/server title))
+      (ui/input {::dom/placeholder "Search files by name" ::dom/type "search"
+                 ::ui/input-event (p/fn [e] (reset! !search (.. e -target -value)))})
+      (dom/hr)
+      (p/server
+        (binding [gridsheet/Format Format]
+          (GridSheet.
+            #_RenderTableInfinite.
+            #_TableSheet. ; deprecated, use page-size 100
+            (TreeList. xs search)
+            (merge {:row-height 24
+                    :page-size 20
+                    :columns cols}
+                   props)))))))
