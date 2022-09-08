@@ -304,11 +304,15 @@
                obj)))
 
 (defmacro oset! [& args]
-  (if (path-ident? (first args))
+  (if (path-ident? (first args)) ; partial application code path
     (do (assert (every? path-ident? (butlast args)))
         `(partial (flip oset!) ~(last args) [~@(butlast args)]))
     (do (assert (every? path-ident? (butlast (rest args))))
-        `(oset!* ~(first args) [~@(butlast (rest args))] ~(last args)))))
+        `(oset!* ~(first args) ; dom/node
+                 [~@(butlast (rest args))] ; paths
+                 ~(last args))))) ; value
+
+(comment (dom/oset! dom/node :value ""))
 
 (defn stop-event! [event]
   (.preventDefault event)
