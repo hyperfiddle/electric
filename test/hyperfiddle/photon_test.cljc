@@ -269,6 +269,18 @@
     (reset! !q :qq)
     % := :qq))
 
+(comment
+  ; https://www.notion.so/hyperfiddle/photon-case-should-not-evaluate-symbols-it-should-quote-the-expr-b2ee622dfc26436a9b247e639c09a901
+  (tests "case on symbols"
+    (def !x (atom 'foo))
+    (with (p/run (! (case (p/watch !x)
+                      'foo 1 2)))
+      % := 1))
+
+  (tests
+    (with (p/run (! (case 2 1 1)))
+      % := 1)))
+
 (p/def my-var 1)
 (tests
   "def"
