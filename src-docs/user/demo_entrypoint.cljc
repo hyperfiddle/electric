@@ -19,6 +19,7 @@
             user.seven-gui-2-temperature-converter
             user.seven-gui-4-timer
             user.seven-gui-5-crud
+            hyperfiddle.scrollview
             wip.demo-bubbles
             wip.demo-color
             ;; wip.photon-tree
