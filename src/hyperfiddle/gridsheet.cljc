@@ -65,7 +65,7 @@
                                       :height (str row-height "px")}}
                       (some-> ?Render (new a)))))))
 
-            (dom/div {:style {:padding-bottom (str max-height "px")}}) ; scrollbar
+            (dom/div {:style {:padding-bottom (str (- max-height clientHeight) "px")}}) ; scrollbar
 
             (p/server
               (let [xs (->> rows (drop start-row) (take page-size))]
