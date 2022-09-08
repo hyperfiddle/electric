@@ -61,6 +61,9 @@
                                    io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                          :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
                      :exec-fn     cognitect.test-runner.api/test}
-           }}
+           :scratch {:extra-paths []
+                     :extra-deps {com.datomic/dev-local {:mvn/version "1.0.243"}
+                                  ; fix datomic/shadow conflict
+                                  com.google.guava/guava {:mvn/version "31.1-jre"}}}}}
 
 ;; ¹ http://webcache.googleusercontent.com/search?q=cache:4Rya0J2jOb4J:yellerapp.com/posts/2015-05-11-clojure-no-stacktrace.html

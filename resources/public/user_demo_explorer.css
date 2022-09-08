@@ -1,7 +1,15 @@
-.photon-demo-explorer { width: 50vw; margin-left: auto; margin-right: auto; }
+.photon-demo-explorer { width: 80vw; margin-left: auto; margin-right: auto; }
 .photon-demo-explorer .title { font-size: 1.5em; }
-.photon-demo-explorer table > tbody > tr:nth-child(even) { background-color: #f2f2f2; }
-.photon-demo-explorer table > tbody > tr:hover { background-color: #ddd; }
-.photon-demo-explorer table > tbody > tr > td { padding-left: 3px; padding-right: 3px; white-space: nowrap;}
-.photon-demo-explorer table > thead > td { text-decoration: underline; }
+
+/*.photon-demo-explorer table > thead > td { text-decoration: underline; }*/
+/*.photon-demo-explorer table > tbody > tr:nth-child(even) { background-color: #f2f2f2; }*/
+/*.photon-demo-explorer table > tbody > tr:hover { background-color: #ddd; }*/
+/*.photon-demo-explorer table > tbody > tr > td { padding-left: 3px; padding-right: 3px; white-space: nowrap;}*/
+/*.photon-demo-explorer table > tbody > tr > td:first-child { width: 20em; }*/
 /*.photon-demo-explorer table > tbody > .no-results { text-align: center; }*/
+
+.photon-demo-explorer > [role=grid] { height: 500px; }
+.photon-demo-explorer > [role=grid] > [role=columnheader] { text-decoration: underline; }
+.photon-demo-explorer > [role=grid] > [role=group]:nth-child(even) > div { background-color: #f2f2f2; > }
+.photon-demo-explorer > [role=grid] > [role=group]:hover > div { background-color: #ddd; }
+.photon-demo-explorer > [role=grid] > [role=group] > [role=gridcell] { white-space: nowrap;}
