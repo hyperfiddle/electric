@@ -16,7 +16,7 @@
            ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
 
            ;; Client
-           org.clojure/clojurescript      {:mvn/version "1.11.4"}
+           org.clojure/clojurescript      {:mvn/version "1.11.60"}
            com.cognitect/transit-cljs     {:mvn/version "0.8.269"}
            org.hsluv/hsluv                {:mvn/version "0.2"} ;; human friendly random colors
            nextjournal/clojure-mode       {:git/url "https://github.com/nextjournal/clojure-mode" ; clojure codemirror support
@@ -43,7 +43,7 @@
            :dev     {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
                      :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.0-alpha1"}
                                    binaryage/devtools                       {:mvn/version "1.0.6"}
-                                   thheller/shadow-cljs                     {:mvn/version "2.18.0"}
+                                   thheller/shadow-cljs                     {:mvn/version "2.20.1"}
                                    ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
                      :jvm-opts    ["-Xss2m"                 ; https://github.com/hyperfiddle/photon/issues/11
                                    "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
