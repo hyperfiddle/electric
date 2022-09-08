@@ -9,6 +9,20 @@
 
 (hyperfiddle.rcf/enable!)
 
+
+(comment
+  (as-> (datafy *ns*) % (nav % :publics (:publics %)))
+
+  (as-> (datafy (type 1)) % (nav % :members (:members %)))
+
+  (as-> java.lang.Long % (datafy %)
+        (nav % :members (:members %)) (datafy %)
+        (get % 'BYTES) (datafy %)
+        (get % 0) (datafy %)
+        #_(:declaring-class %)
+        (nav % :declaring-class (:declaring-class %)) (datafy %))
+  )
+
 (defn sortmap [m]
   (into (sorted-map) m))
 
