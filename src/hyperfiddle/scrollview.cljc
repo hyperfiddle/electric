@@ -38,7 +38,7 @@
   (p/server
     (let [row-count 500
           xs (vec (range row-count)) ; counted
-          page-size 20
+          page-size 100
           row-height 22] ; todo use relative measurement (browser zoom impacts px height)
       (p/client
         (dom/div {:class "viewport" :style {:overflowX "hidden" :overflowY "auto"}}
@@ -63,7 +63,7 @@
   []
   (p/server
     (let [xs (range) ; infinite
-          page-size 50]
+          page-size 100]
       (p/client
         (dom/div {:class "viewport"}
           (let [!pages (atom 1) pages (p/watch !pages)
