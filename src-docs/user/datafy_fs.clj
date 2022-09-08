@@ -16,36 +16,36 @@
 (s/def ::created inst?)
 (s/def ::accessed inst?)
 (s/def ::size string?)
-(s/def ::kind qualified-keyword?) ; extension as well?
+(s/def ::kind (s/nilable qualified-keyword?))
 (s/def ::file (s/keys :opt [::name ::absolute-path ::modified ::created ::accessed ::size ::kind]))
 (s/def ::children (s/coll-of ::file))
 
-(defn get-extension [path]
-  (let [found (last (re-find #"(\.[a-zA-Z0-9]+)$" path))
-        ext (and found (subs found 1))]
-    (or ext nil)))
+(defn get-extension [?path]
+  (when ?path
+    (when-not (= \. (first ?path)) ; hidden
+      (some-> (last (re-find #"(\.[a-zA-Z0-9]+)$" ?path))
+              (subs 1)))))
 
 (tests
   "get-extension"
-
-  (tests
-    "empty"
-    (get-extension "") := nil
-    (get-extension ".") := nil
-    (get-extension "..") := nil
-    (get-extension "image") := nil
-    (get-extension "image.") := nil
-    (get-extension "image..") := nil)
-
-  (tests
-    "found"
-    (get-extension "image.png") := "png"
-    (get-extension "image.blah.png") := "png"
-    (get-extension "image.blah..png") := "png"))
+  (get-extension nil) := nil
+  (get-extension "") := nil
+  (get-extension ".") := nil
+  (get-extension "..") := nil
+  (get-extension "image") := nil
+  (get-extension "image.") := nil
+  (get-extension "image..") := nil
+  (get-extension "image.png") := "png"
+  (get-extension "image.blah.png") := "png"
+  (get-extension "image.blah..png") := "png"
+  (get-extension ".gitignore") := nil)
 
 (comment
   "java.io.File interop"
-  (def h (clojure.java.io/file "src/"))
+  (def h (clojure.java.io/file "node_modules/"))
+
+  (sort (.listFiles h))
+
   (.getName h) := "src"
   (.getPath h) := "src"
   (.isDirectory h) := true
@@ -104,17 +104,17 @@
       (as-> {::name n
              ::kind (cond (.isDirectory attrs) ::dir
                           (.isSymbolicLink attrs) ::symlink
+                          (.isOther attrs) ::other
                           (.isRegularFile attrs) (if-let [s (get-extension n)]
-                                                   (keyword (namespace ::foo) s)
-                                                   ::unknown-file-type)
-                          (.isOther attrs) ::other)
+                                                   (keyword (namespace ::foo) s))
+                          () ::unknown-kind)
              ::absolute-path (-> f .getAbsolutePath)
              ::created (-> attrs .creationTime .toInstant java.util.Date/from)
              ::accessed (-> attrs .lastAccessTime .toInstant java.util.Date/from)
              ::modified (-> attrs .lastModifiedTime .toInstant java.util.Date/from)
              ::size (.size attrs)} %
             (merge % (if (= ::dir (::kind %))
-                       {::children (lazy-seq (.listFiles f))
+                       {::children (lazy-seq (sort (.listFiles f)))
                         ::parent `...}))
             (with-meta % {`ccp/nav
                           (fn [xs k v]
