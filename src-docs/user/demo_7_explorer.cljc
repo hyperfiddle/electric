@@ -18,12 +18,14 @@
   (reset! !route [::fs/dir (clojure.java.io/file "node_modules")])
   (-> @!route second datafy))
 
+(p/def Navigate!)
+
 (p/defn Nav-link [label x]
   (p/client
     (ui/element dom/a {::dom/href ""
                        ::ui/click-event (p/fn [e]
                                           (.preventDefault e)
-                                          (p/server (explorer/Navigate!. x)))} label)))
+                                          (p/server (Navigate!. x)))} label)))
 
 (p/defn Dir [x]
   (binding
@@ -47,7 +49,7 @@
 
 (p/defn App []
   (p/server
-    (binding [explorer/Navigate! (p/fn [x] (p/server (reset! !route x)))]
+    (binding [Navigate! (p/fn [x] (p/server (reset! !route x)))]
       (p/client
         (dom/div {:class "photon-demo-explorer"}
           (dom/h1 "Explorer")
