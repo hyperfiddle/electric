@@ -2,6 +2,7 @@
   (:require clojure.math
             [contrib.data :refer [unqualify auto-props round-floor]]
             [clojure.spec.alpha :as s]
+            [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             #?(:cljs [hyperfiddle.scrollview :as scrollview :refer [scroll-state<]])
@@ -28,7 +29,7 @@
                         :grid-template-columns (or (::grid-template-columns props)
                                                    (->> (repeat (p/server (count columns)) "1fr")
                                                         (interpose " ") (apply str)))}}
-        (let [[scrollTop scrollHeight clientHeight] (doto (new (scrollview/scroll-state< dom/node)) println)
+        (let [[scrollTop scrollHeight clientHeight] (new (scrollview/scroll-state< dom/node))
               max-height (* row-count row-height)
 
               ; don't scroll past the end
@@ -40,7 +41,8 @@
               ; (does reducing network even help or just making loads happen offscreen?)
               ; clamp start to the nearest page
               start-row-page-aligned (round-floor start-row page-size)]
-          (println [:start-row start-row :start-row-page-aligned start-row-page-aligned
+          #_(println [:scrollTop scrollTop :scrollHeight scrollHeight :clientHeight clientHeight
+                    :start-row start-row :start-row-page-aligned start-row-page-aligned
                     :take page-size :max-height max-height])
 
           (p/for [k columns]
@@ -88,8 +90,8 @@
         row-count (count rows)]
     (p/client
       (dom/table {:style {:display "block" :overflowY "auto"
-                          :height "500px"}}
-        (let [[scrollTop scrollHeight clientHeight] (doto (new (scrollview/scroll-state< dom/node)) println)
+                          :height "500px"}} ; fixme
+        (let [[scrollTop scrollHeight clientHeight] (new (scrollview/scroll-state< dom/node))
               max-height (* row-count row-height)
 
               ; don't scroll past the end
@@ -106,12 +108,11 @@
               ;padding-bottom (- max-height padding-top clientHeight)
               padding-top #_clamped-scroll-top (* start-row row-height)
               padding-bottom (- max-height padding-top clientHeight)]
-          (println [:start-record start-row-page-aligned
-                    :start-row start-row
-                    :take page-size
-                    ; padding  not needed if max-height is set
-                    :padding-top padding-top :padding-bottom padding-bottom
-                    :max-height max-height])
+          #_(println [:scrollTop scrollTop :scrollHeight scrollHeight :clientHeight clientHeight
+                      :start-record start-row-page-aligned :start-row start-row :take page-size
+                      ; padding  not needed if max-height is set
+                      :max-height max-height
+                      :padding-top padding-top :padding-bottom padding-bottom])
 
           (dom/thead {:style {:position "sticky" #_"fixed" :top "0"
                               ; :position breaks column layout - detaches thead from tbody layout
@@ -120,7 +121,6 @@
 
           (dom/tbody {:style {:height (str max-height "px")}}
             (let [!!rows (vec (repeatedly page-size (partial atom nil)))]
-              (println (get-in !!rows [0]))
               #_(dom/div {:style {:padding-top (str padding-top "px")}})
               (p/for [i (range page-size)]
                 (dom/tr {:style {:position "fixed"
