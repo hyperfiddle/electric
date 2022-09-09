@@ -1,5 +1,6 @@
 (ns hyperfiddle.explorer
-  (:require [contrib.data :refer [unqualify]]
+  (:require [clojure.set :refer [rename-keys]]
+            [contrib.data :refer [unqualify auto-props]]
             [clojure.datafy :refer [datafy]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
@@ -46,7 +47,7 @@
       #_(dom/dl
         (dom/dt "scroll debug state")
         (dom/dd (dom/pre (pprint-str (update-keys (p/watch hyperfiddle.scrollview/!scrollStateDebug) unqualify)))))
-      (dom/div {:class "title"} (p/server title))
+      (dom/div {:class "hyperfiddle-explorer-title"} (p/server title))
       (ui/input {::dom/placeholder "Search files by name" ::dom/type "search"
                  ::ui/input-event (p/fn [e] (reset! !search (.. e -target -value)))})
       (dom/hr)
@@ -56,7 +57,10 @@
             #_RenderTableInfinite.
             #_TableSheet. ; deprecated, use page-size 100
             (TreeList. xs search)
-            (merge {:row-height 24
-                    :page-size 20
-                    :columns cols}
-                   props)))))))
+            (-> (auto-props (str *ns*) props {})
+                (rename-keys {::row-height ::gridsheet/row-height
+                              ::page-size ::gridsheet/page-size
+                              ::columns ::gridsheet/columns})
+                (->> (merge {::gridsheet/row-height 24
+                             ::gridsheet/page-size 20
+                             ::gridsheet/columns cols})))))))))

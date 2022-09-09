@@ -1,0 +1,9 @@
+.user-datomic-browser { width: 80vw; margin-left: auto; margin-right: auto; }
+.user-datomic-browser .hyperfiddle-explorer-title { font-size: 1.5em; }
+.user-datomic-browser > [role=grid] { height: 500px; }
+.user-datomic-browser > [role=grid] > [role=columnheader] { text-decoration: underline; }
+.user-datomic-browser > [role=grid] > [role=group]:nth-child(even) > div { background-color: #f2f2f2; > }
+.user-datomic-browser > [role=grid] > [role=group]:hover > div { background-color: #ddd; }
+.user-datomic-browser > [role=grid] > [role=group] > [role=gridcell] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.user-datomic-browser-recent-tx[role=grid] { height: calc(11 * 24px); }
