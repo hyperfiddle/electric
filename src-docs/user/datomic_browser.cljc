@@ -28,7 +28,7 @@
                 (sort-by :db/txInstant)
                 reverse))))
 
-#?(:clj (comment (m/? (transactions! db [:db/id :db/txInstant]))
+#?(:clj (comment (take 3 (m/? (transactions! db [:db/id :db/txInstant])))
                  := [[#:db{:id _, :txInstant _}] & ?rest]))
 
 #?(:clj (defn entity! [e db] (p/chan-read (d/pull db {:eid e :selector '[*]}))))
@@ -37,25 +37,27 @@
   (m/? (entity! 13194139533314 db))
   := #:db{:id 13194139533314, :txInstant _})
 
+(p/def Navigate!)
+
 (p/defn Nav-link [x label]
   (p/client
     (ui/element dom/a {::dom/href ""
                        ::ui/click-event (p/fn [e]
                                           (.preventDefault e)
-                                          (p/server (explorer/Navigate!. x)))} label)))
+                                          (p/server (Navigate!. x)))} label)))
 
 (p/defn RecentTransactions []
   (binding [explorer/cols [:db/id :db/txInstant]
             explorer/Search? (p/fn [m s] (includes-str? (:db/id m) s))
             explorer/Format (p/fn [m a v]
                               (case a
-                                :db/id (Nav-link. [::entity v] v)
+                                :db/id (Nav-link. [::tx v] v)
                                 :db/txInstant (p/client (.toLocaleDateString v))
                                 (pr-str v)))]
-    (time (Explorer.
-            "Recent Txs"
-            (new (p/task->cp (transactions! db [:db/id :db/txInstant])))
-            {::gridsheet/grid-template-columns "10em 10em"}))))
+    (Explorer.
+      "Recent Txs"
+      (new (p/task->cp (transactions! db [:db/id :db/txInstant])))
+      {::gridsheet/grid-template-columns "10em 10em"})))
 
 #?(:clj
    (defn attributes [db pull-pattern]
@@ -65,17 +67,17 @@
                                       :where [?e :db/valueType _]]
                              :args [db pull-pattern]})))
                 (map first)
-                (sort-by :db/ident)
-                #_(paginate limit page)))))
+                (sort-by :db/ident)))))
 
-(comment (time (m/? (attributes db [:db/ident] 3 0))))
+(comment (time (take 3 (m/? (attributes db [:db/ident])))))
 
 (p/defn Attributes []
-  (binding [explorer/cols [:db/ident :db/valueType :db/cardinality :db/unique]
+  (binding [explorer/cols [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent
+                           #_#_#_#_:db/fulltext :db/tupleType :db/tupleTypes :db/tupleAttrs]
             explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
             explorer/Format (p/fn [m a v]
                               (case a
-                                :db/ident (Nav-link. [::entity v] v)
+                                :db/ident (Nav-link. [::attribute v] v)
                                 :db/valueType (some-> v :db/ident name)
                                 :db/cardinality (some-> v :db/ident name)
                                 :db/unique (some-> v :db/ident name)
@@ -83,36 +85,121 @@
     (Explorer.
       "Attributes"
       (new (p/task->cp (attributes db explorer/cols)))
-      {::gridsheet/grid-template-columns "auto 8em 8em 8em"})))
+      {::gridsheet/grid-template-columns "auto 8em 8em 8em 8em"})))
 
-(p/defn Entity [x]
-  (p/client
-    (dom/dl
-      (p/server
-        (p/for [[k x] (datafy (new (p/task->cp (entity! x db))))]
-          (p/client
-            (dom/dt (pr-str k))
-            (dom/dd (pr-str (p/server (datafy (nav x k x)))))))))))
+#?(:clj
+   (defn render-datoms [db !datoms]
+     (m/sp (let [datoms (m/? !datoms) ; ?
+                 ref-attr? (->> (m/? (p/chan->task (d/q {:query '[:find ?e :where [?e :db/valueType :db.type/ref]]
+                                                         :args [db]})))
+                                (map first) set)
+                 datoms-id? (set (concat (map #(nth % 0) datoms)
+                                         (map #(nth % 1) datoms)
+                                         (->> datoms
+                                              (filter #(ref-attr? (nth % 1)))
+                                              (map #(nth % 2)))))
+                 id->ident (into {} (m/? (p/chan->task (d/q {:query '[:find ?e ?v
+                                                                      :in $ ?datoms-id?
+                                                                      :where
+                                                                      [?e :db/ident ?v]
+                                                                      [(contains? ?datoms-id? ?e)]]
+                                                             :args [db datoms-id?]}))))]
+             (->> datoms (map (fn [[e a v t]]
+                                {:e (get id->ident e e)
+                                 :a (get id->ident a a)
+                                 :v (get id->ident v v)
+                                 :tx t})))))))
 
-(def !route #?(:clj (atom [::transactions])))
+#?(:clj
+   (defn tx-datoms [conn txid]
+     ; https://docs.datomic.com/client-api/datomic.client.api.async.html#var-tx-range
+     (->> (p/chan->flow (d/tx-range conn {:start txid, :end (inc txid)}))
+          (m/eduction (take 1)) ; terminate flow after 1 tx (? why)
+          (m/eduction (map :data))
+          (m/reduce into []))))
+
 (comment
-  (reset! !route [::transactions])
+  (take 3 (m/? (tx-datoms datomic-conn 13194139534022)))
+  (time (take 3 (m/? (render-datoms db (tx-datoms datomic-conn 13194139534022)))))
+  
+  (time (take 3 (m/? (tx-datoms datomic-conn 13194139534018))))
+  (time (take 3 (m/? (render-datoms db (tx-datoms datomic-conn 13194139534018))))))
+
+#?(:clj (defn entity-details [db e] (p/chan->task (d/datoms db {:index :eavt, :components [e]}))))
+
+(comment
+  (m/? (entity-details db 1))
+  (m/? (entity-details db :db/ident))
+  (m/? (render-datoms db (entity-details db :db/ident))))
+
+(p/defn EntityDetails [e]
+  (binding [explorer/cols [:a :v :tx]
+            explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
+            explorer/Format (p/fn [m a v]
+                              (case a
+                                :a (Nav-link. [::attribute v] v)
+                                :v (some-> v pr-str)
+                                :tx (Nav-link. [::tx v] v)
+                                :db/unique (some-> v :db/ident name)
+                                (str v)))]
+    (Explorer.
+      (str "Entity Details: " e)
+      (new (p/task->cp (render-datoms db (entity-details db e))))
+      {::gridsheet/grid-template-columns "15em calc(100% - 15em - 9em) 9em"})))
+
+#?(:clj (defn a-overview [db a] (p/chan->task (d/datoms db {:index :aevt, :components [a]}))))
+
+(comment
+  (m/? (a-overview db :db/ident))
+  (m/? (render-datoms db (a-overview db :db/ident))))
+
+(p/defn AttributeOverview [a]
+  (binding [explorer/cols [:e :a :v :tx]
+            explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
+            explorer/Format (p/fn [m a v]
+                              (case a
+                                :e (Nav-link. [::entity v] v)
+                                :v (some-> v pr-str)
+                                :tx (Nav-link. [::tx v] v)
+                                (str v)))]
+    (Explorer.
+      (str "Attribute Overview: " a)
+      (new (p/task->cp (render-datoms db (a-overview db a))))
+      {::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
+
+(p/defn TxOverview [e]
+  (binding [explorer/cols [:e :a :v :tx]
+            explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
+            explorer/Format (p/fn [m a v]
+                              (case a
+                                :e (Nav-link. [::entity v] v)
+                                :a (Nav-link. [::attribute v] v)
+                                :v (some-> v pr-str)
+                                (str v)))]
+    (Explorer.
+      (str "Tx Overview: " e)
+      (new (p/task->cp (render-datoms db (tx-datoms datomic-conn e)))) ; global
+      {::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
+
+(defonce !route #?(:cljs nil :clj (atom [::summary])))
+(comment
+  (reset! !route [::summary])
   (reset! !route [::entity 13194139533314]))
 
 (p/defn App []
   (p/server
-    (binding [explorer/Navigate! (p/fn [x] (p/server (reset! !route x)))]
+    (binding [Navigate! (p/fn [x] (p/server (reset! !route x)))]
       (p/client
         (dom/div {:class "photon-demo-explorer"}
           (dom/h1 "Explorer")
           (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
           (dom/div "Nav: "
-            (Nav-link. [::transactions] "txs") " "
-            (Nav-link. [::attributes] "attrs"))
+            (Nav-link. [::summary] "home"))
           (p/server
-            (let [[page x] (p/watch !route)]
+            (let [[page x :as route] (p/watch !route)]
               (case page
-                ::transactions (RecentTransactions.)
-                ::attributes (Attributes.)
-                ::entity (Entity. x)
-                (str "no matching route, page: " page)))))))))
+                ::summary (do (RecentTransactions.) (Attributes.))
+                ::attribute (AttributeOverview. x)
+                ::tx (TxOverview. x)
+                ::entity (EntityDetails. x)
+                (str "no matching route: " (pr-str route))))))))))
