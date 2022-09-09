@@ -25,6 +25,7 @@
     (assert columns)
     (p/client
       (dom/div {:role "grid"
+                :class (::dom/class props)
                 :style {:display "grid" :overflowY "auto"
                         :grid-template-columns (or (::grid-template-columns props)
                                                    (->> (repeat (p/server (count columns)) "1fr")

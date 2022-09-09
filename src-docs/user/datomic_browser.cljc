@@ -52,12 +52,15 @@
             explorer/Format (p/fn [m a v]
                               (case a
                                 :db/id (Nav-link. [::tx v] v)
-                                :db/txInstant (p/client (.toLocaleDateString v))
+                                :db/txInstant (p/client (pr-str v) #_(.toLocaleDateString v))
                                 (pr-str v)))]
     (Explorer.
       "Recent Txs"
       (new (p/task->cp (transactions! db [:db/id :db/txInstant])))
-      {::gridsheet/grid-template-columns "10em 10em"})))
+      {::dom/class "user-datomic-browser-recent-tx"
+       ::explorer/page-size 10
+       ::explorer/row-height 24
+       ::gridsheet/grid-template-columns "10em auto"})))
 
 #?(:clj
    (defn attributes [db pull-pattern]
@@ -85,7 +88,9 @@
     (Explorer.
       "Attributes"
       (new (p/task->cp (attributes db explorer/cols)))
-      {::gridsheet/grid-template-columns "auto 8em 8em 8em 8em"})))
+      {::explorer/page-size 20
+       ::explorer/row-height 24
+       ::gridsheet/grid-template-columns "auto 8em 8em 8em 8em"})))
 
 #?(:clj
    (defn render-datoms [db !datoms]
@@ -145,7 +150,9 @@
     (Explorer.
       (str "Entity Details: " e)
       (new (p/task->cp (render-datoms db (entity-details db e))))
-      {::gridsheet/grid-template-columns "15em calc(100% - 15em - 9em) 9em"})))
+      {::explorer/page-size 20
+       ::explorer/row-height 24
+       ::gridsheet/grid-template-columns "15em calc(100% - 15em - 9em) 9em"})))
 
 #?(:clj (defn a-overview [db a] (p/chan->task (d/datoms db {:index :aevt, :components [a]}))))
 
@@ -165,7 +172,9 @@
     (Explorer.
       (str "Attribute Overview: " a)
       (new (p/task->cp (render-datoms db (a-overview db a))))
-      {::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
+      {::explorer/page-size 20
+       ::explorer/row-height 24
+       ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
 (p/defn TxOverview [e]
   (binding [explorer/cols [:e :a :v :tx]
@@ -179,7 +188,9 @@
     (Explorer.
       (str "Tx Overview: " e)
       (new (p/task->cp (render-datoms db (tx-datoms datomic-conn e)))) ; global
-      {::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
+      {::explorer/page-size 20
+       ::explorer/row-height 24
+       ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
 (defonce !route #?(:cljs nil :clj (atom [::summary])))
 (comment
@@ -190,9 +201,9 @@
   (p/server
     (binding [Navigate! (p/fn [x] (p/server (reset! !route x)))]
       (p/client
-        (dom/div {:class "photon-demo-explorer"}
-          (dom/h1 "Explorer")
-          (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
+        (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
+        (dom/div {:class "user-datomic-browser"}
+          (dom/h1 "Datomic browser")
           (dom/div "Nav: "
             (Nav-link. [::summary] "home"))
           (p/server
