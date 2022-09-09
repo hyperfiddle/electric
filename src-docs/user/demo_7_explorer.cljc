@@ -4,6 +4,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
+            [hyperfiddle.gridsheet :as-alias gridsheet]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
             [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]
             [user.util :refer [includes-str? pprint-str]])
@@ -32,7 +33,7 @@
     (let [m (datafy x)
           xs (nav m ::fs/children (::fs/children m))]
       (Explorer. (::fs/absolute-path m) xs
-                 {::explorer/grid-template-columns "auto 8em 5em 3em"}))))
+                 {::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
 
 (p/defn File [x]
   (binding
