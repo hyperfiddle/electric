@@ -25,7 +25,7 @@
             wip.demo-bubbles
             wip.demo-color
             ;; wip.photon-tree
-            wip.popover
+            user.popover
             user.healthcheck
             wip.typeahead)
   #?(:cljs (:require-macros user.demo-entrypoint)))
@@ -56,7 +56,7 @@
    `user.seven-gui-5-crud/App                  user.seven-gui-5-crud/App
    ;; `wip.photon-tree/App                        wip.photon-tree/App
    `wip.typeahead/App                        wip.typeahead/App
-   ;`wip.popover/App                            wip.popover/App
+   ;`user.popover/App                           user.popover/App
    ;`wip.demo-bubbles/App                       wip.demo-bubbles/App
    ;`wip.demo-color/App                         wip.demo-color/App
    ;`user.healthcheck/App                       user.healthcheck/App
@@ -87,7 +87,7 @@
                                  {:text "7GUIs - crud" ::value `user.seven-gui-5-crud/App}
                                  {:text "Typeahead" ::value `wip.typeahead/App}
                                  #_{:text "TreeView" ::value `wip.photon-tree/App}
-                                 #_{:text "popover" ::value `wip.popover/App}
+                                 #_{:text "popover" ::value `user.popover/App}
                                  #_{:text "bubbles" ::value `wip.demo-bubbles/App}
                                  #_{:text "color" ::value `wip.demo-color/App}
                                  #_{:text "healthcheck" ::value `user.healthcheck/App}]
