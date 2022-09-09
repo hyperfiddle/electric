@@ -206,6 +206,21 @@ aria-disabled element.
          cancel-impulse-sym
          body)))))
 
+(defmacro textarea
+  ([] `(textarea {}))
+  ([props & body]
+   (let [cancel-impulse-sym               (gensym "cancel-impulse_")
+         [_ pending-events pending-props] (parse-props (constantly nil) (::pending props {}) {} cancel-impulse-sym
+                                                       {:ignore-aria-disabled true})
+         [value events props]             (parse-props ::value props {} cancel-impulse-sym)]
+     (apply element* `dom/textarea
+       (assoc props ::dom/value value)
+       pending-props
+       (into `[[::value (dom/events "input" (map (dom/oget :target :value)) ~value)]] events)
+       pending-events
+       cancel-impulse-sym
+       body))))
+
 (defn- index-of [vec val] (.indexOf vec val))
 
 (defn parse-select-value [options]
