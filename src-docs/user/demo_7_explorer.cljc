@@ -56,17 +56,16 @@
           (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
           (p/server
             (binding [explorer/Format (p/fn [m a v]
-                                        (p/client
-                                          (case a
-                                            ::fs/name (p/server (case (::fs/kind m)
-                                                                  ::fs/dir (Nav-link. v [::fs/dir (:clojure.datafy/obj (meta m))])
-                                                                  (::fs/other ::fs/symlink ::fs/unknown-kind) v
-                                                                  (Nav-link. v [::fs/file (:clojure.datafy/obj (meta m))])))
-                                            ::fs/modified (.toLocaleDateString v)
-                                            ::fs/kind (p/server (case (::fs/kind m)
-                                                                  ::fs/dir unicode-folder
-                                                                  (some-> v name)))
-                                            (str v))))]
+                                        (case a
+                                          ::fs/name (p/server (case (::fs/kind m)
+                                                                ::fs/dir (Nav-link. v [::fs/dir (:clojure.datafy/obj (meta m))])
+                                                                (::fs/other ::fs/symlink ::fs/unknown-kind) v
+                                                                (Nav-link. v [::fs/file (:clojure.datafy/obj (meta m))])))
+                                          ::fs/modified (p/client (some-> v .toLocaleDateString))
+                                          ::fs/kind (p/server (case (::fs/kind m)
+                                                                ::fs/dir unicode-folder
+                                                                (some-> v name)))
+                                          (str v)))]
               (let [[page x] (p/watch !route)]
                 (case page
                   ::fs/file (File. x)
