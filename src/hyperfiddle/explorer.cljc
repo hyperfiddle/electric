@@ -27,7 +27,6 @@
                                    (when-let [rows (seq (TreeList'. (inc depth) xs needle))]
                                      (cons [depth m] rows)) ; expand children inline
                                    (when (Search?. m needle) [[depth m]])))) ; filter bottom up
-                             (remove nil?)
                              (mapcat identity)))]
     (TreeList'. 0 xs needle)))
 
