@@ -130,14 +130,14 @@
   (time (take 3 (m/? (tx-datoms datomic-conn 13194139534018))))
   (time (take 3 (m/? (render-datoms db (tx-datoms datomic-conn 13194139534018))))))
 
-#?(:clj (defn entity-details [db e] (p/chan->task (d/datoms db {:index :eavt, :components [e]}))))
+#?(:clj (defn entity-datoms [db e] (p/chan->task (d/datoms db {:index :eavt, :components [e]}))))
 
 (comment
-  (m/? (entity-details db 1))
-  (m/? (entity-details db :db/ident))
-  (m/? (render-datoms db (entity-details db :db/ident))))
+  (m/? (entity-datoms db 1))
+  (m/? (entity-datoms db :db/ident))
+  (m/? (render-datoms db (entity-datoms db :db/ident))))
 
-(p/defn EntityDetails [e]
+(p/defn EntityDetail [e]
   (binding [explorer/cols [:a :v :tx]
             explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
             explorer/Format (p/fn [m a v]
@@ -148,19 +148,19 @@
                                 :db/unique (some-> v :db/ident name)
                                 (str v)))]
     (Explorer.
-      (str "Entity Details: " e)
-      (new (p/task->cp (render-datoms db (entity-details db e))))
+      (str "Entity detail: " e)
+      (new (p/task->cp (render-datoms db (entity-datoms db e))))
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em calc(100% - 15em - 9em) 9em"})))
 
-#?(:clj (defn a-overview [db a] (p/chan->task (d/datoms db {:index :aevt, :components [a]}))))
+#?(:clj (defn attr-datoms [db a] (p/chan->task (d/datoms db {:index :aevt, :components [a]}))))
 
 (comment
-  (m/? (a-overview db :db/ident))
-  (m/? (render-datoms db (a-overview db :db/ident))))
+  (m/? (attr-datoms db :db/ident))
+  (m/? (render-datoms db (attr-datoms db :db/ident))))
 
-(p/defn AttributeOverview [a]
+(p/defn AttributeDetail [a]
   (binding [explorer/cols [:e :a :v :tx]
             explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
             explorer/Format (p/fn [m a v]
@@ -170,13 +170,13 @@
                                 :tx (Nav-link. [::tx v] v)
                                 (str v)))]
     (Explorer.
-      (str "Attribute Overview: " a)
-      (new (p/task->cp (render-datoms db (a-overview db a))))
+      (str "Attribute detail: " a)
+      (new (p/task->cp (render-datoms db (attr-datoms db a))))
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
-(p/defn TxOverview [e]
+(p/defn TxDetail [e]
   (binding [explorer/cols [:e :a :v :tx]
             explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
             explorer/Format (p/fn [m a v]
@@ -186,7 +186,7 @@
                                 :v (some-> v pr-str)
                                 (str v)))]
     (Explorer.
-      (str "Tx Overview: " e)
+      (str "Tx detail: " e)
       (new (p/task->cp (render-datoms db (tx-datoms datomic-conn e)))) ; global
       {::explorer/page-size 20
        ::explorer/row-height 24
@@ -210,7 +210,7 @@
             (let [[page x :as route] (p/watch !route)]
               (case page
                 ::summary (do (RecentTransactions.) (Attributes.))
-                ::attribute (AttributeOverview. x)
-                ::tx (TxOverview. x)
-                ::entity (EntityDetails. x)
+                ::attribute (AttributeDetail. x)
+                ::tx (TxDetail. x)
+                ::entity (EntityDetail. x)
                 (str "no matching route: " (pr-str route))))))))))
