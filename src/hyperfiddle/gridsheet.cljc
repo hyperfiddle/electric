@@ -72,11 +72,10 @@
 
             (p/server
               (let [xs (->> rows (drop start-row) (take page-size))]
-                (p/for-by first [[i [depth m]] (map vector (range) xs)]
-                  (let [[a & as] columns]
-                    (p/client
-                      (reset! (get-in !!rows [i])
-                              [depth (p/fn [a] (p/server (Format. m a (a m))))])))))))))
+                (p/for-by first [[i [depth m]] (map-indexed vector xs)]
+                  (p/client
+                    (reset! (get-in !!rows [i])
+                            [depth (p/fn [a] (p/server (Format. m a (a m))))]))))))))
       (dom/div (pr-str {:count row-count})))))
 
 (p/defn ^:deprecated TableSheet
