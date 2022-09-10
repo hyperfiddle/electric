@@ -71,11 +71,12 @@
             (dom/div {:style {:padding-bottom (str (- max-height clientHeight) "px")}}) ; scrollbar
 
             (p/server
-              (let [xs (->> rows (drop start-row) (take page-size))]
-                (p/for-by first [[i [depth m]] (map-indexed vector xs)]
-                  (p/client
-                    (reset! (get-in !!rows [i])
-                            [depth (p/fn [a] (p/server (Format. m a (a m))))]))))))))
+              (let [xs (vec (->> rows (drop start-row) (take page-size)))]
+                (p/for [i (range page-size)]
+                  (let [[depth m] (get xs i)]
+                    (p/client
+                      (reset! (get-in !!rows [i]) [depth (if (p/server (contains? xs i)) ; unmount stale renderers
+                                                           (p/fn [a] (p/server (Format. m a (a m)))))])))))))))
       (dom/div (pr-str {:count row-count})))))
 
 (p/defn ^:deprecated TableSheet
