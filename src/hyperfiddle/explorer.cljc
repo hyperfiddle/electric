@@ -7,12 +7,12 @@
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet RenderTableInfinite]]
             [hyperfiddle.rcf :refer [tests ! % with]]
-            [user.util :refer [pprint-str]])
+            [user.util :refer [includes-str? pprint-str]])
   #?(:cljs (:require-macros hyperfiddle.explorer)))
 
 ; all explorer bindings and p/fns must be called from server
 (p/def Children (p/fn [m] nil))
-(p/def Search? (p/fn [m s] true)) ; could be clojure fn
+(p/def Search? (p/fn [m s] (includes-str? m s))) ; could be clojure fn
 
 (p/def TreeList')
 (p/defn TreeList [xs needle]

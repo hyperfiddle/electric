@@ -48,7 +48,6 @@
 
 (p/defn RecentTransactions []
   (binding [explorer/cols [:db/id :db/txInstant]
-            explorer/Search? (p/fn [m s] (includes-str? (:db/id m) s))
             explorer/Format (p/fn [m a v]
                               (case a
                                 :db/id (Nav-link. [::tx v] v)
@@ -77,7 +76,6 @@
 (p/defn Attributes []
   (binding [explorer/cols [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent
                            #_#_#_#_:db/fulltext :db/tupleType :db/tupleTypes :db/tupleAttrs]
-            explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
             explorer/Format (p/fn [m a v]
                               (case a
                                 :db/ident (Nav-link. [::attribute v] v)
@@ -139,7 +137,6 @@
 
 (p/defn EntityDetail [e]
   (binding [explorer/cols [:a :v :tx]
-            explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
             explorer/Format (p/fn [m a v]
                               (case a
                                 :a (Nav-link. [::attribute v] v)
@@ -162,7 +159,6 @@
 
 (p/defn AttributeDetail [a]
   (binding [explorer/cols [:e :a :v :tx]
-            explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
             explorer/Format (p/fn [m a v]
                               (case a
                                 :e (Nav-link. [::entity v] v)
@@ -178,7 +174,6 @@
 
 (p/defn TxDetail [e]
   (binding [explorer/cols [:e :a :v :tx]
-            explorer/Search? (p/fn [m s] (includes-str? (:db/ident m) s))
             explorer/Format (p/fn [m a v]
                               (case a
                                 :e (Nav-link. [::entity v] v)
