@@ -9,7 +9,7 @@
 /*.photon-demo-explorer table > tbody > .no-results { text-align: center; }*/
 
 .photon-demo-explorer > [role=grid] { height: 500px; }
-.photon-demo-explorer > [role=grid] > [role=columnheader] { text-decoration: underline; }
+.photon-demo-explorer > [role=grid] > [role=columnheader] { white-space: nowrap; overflow-x: clip; text-overflow: ellipsis; }
 .photon-demo-explorer > [role=grid] > [role=group]:nth-child(even) > div { background-color: #f2f2f2; > }
 .photon-demo-explorer > [role=grid] > [role=group]:hover > div { background-color: #ddd; }
 .photon-demo-explorer > [role=grid] > [role=group] > [role=gridcell] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

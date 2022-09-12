@@ -24,12 +24,13 @@
     (assert page-size)
     (assert columns)
     (p/client
-      (dom/div {:role "grid"
-                :class (::dom/class props)
-                :style {:display "grid" :overflowY "auto"
-                        :grid-template-columns (or (::grid-template-columns props)
-                                                   (->> (repeat (p/server (count columns)) "1fr")
-                                                        (interpose " ") (apply str)))}}
+      (dom/div {::dom/role "grid"
+                ::dom/class (::dom/class props)
+                ::dom/style (merge (::dom/style props)
+                                   {:display "grid" :overflowY "auto"
+                                    :grid-template-columns (or (::grid-template-columns props)
+                                                               (->> (repeat (p/server (count columns)) "1fr")
+                                                                    (interpose " ") (apply str)))})}
         (let [[scrollTop scrollHeight clientHeight] (new (scrollview/scroll-state< dom/node))
               max-height (* row-count row-height)
 
