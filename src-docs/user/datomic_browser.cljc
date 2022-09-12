@@ -56,7 +56,7 @@
     (Explorer.
       "Recent Txs"
       (new (p/task->cp (transactions! db [:db/id :db/txInstant])))
-      {::dom/class "user-datomic-browser-recent-tx"
+      {::dom/style {:height "calc((10 + 1) * 24px)"}
        ::explorer/page-size 10
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em auto"})))
@@ -86,9 +86,10 @@
     (Explorer.
       "Attributes"
       (new (p/task->cp (attributes db explorer/cols)))
-      {::explorer/page-size 20
+      {::dom/style {:height "calc((15 + 1) * 24px)"}
+       ::explorer/page-size 15
        ::explorer/row-height 24
-       ::gridsheet/grid-template-columns "auto 8em 8em 8em 8em"})))
+       ::gridsheet/grid-template-columns "auto 6em 4em 4em 4em"})))
 
 #?(:clj
    (defn render-datoms [db !datoms]
