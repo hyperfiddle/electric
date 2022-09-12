@@ -164,25 +164,30 @@ label[for='toggle-all'] {
 	display: none;
 }
 
-.toggle-all {
+.toggle-all + label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 45px;
+	height: 65px;
+	font-size: 0;
 	position: absolute;
-	top: -42px;
-	left: -4px;
-	width: 40px;
-	text-align: center;
-	/* Mobile Safari */
-	border: none;
+	top: -65px;
+	left: -0;
 }
 
-.toggle-all:before {
-	content: '»';
-	font-size: 28px;
-	color: #d9d9d9;
-	padding: 0 25px 7px;
+.toggle-all + label:before {
+	content: '❯';
+	display: inline-block;
+	font-size: 22px;
+	color: #949494;
+	padding: 10px 27px 10px 27px;
+	-webkit-transform: rotate(90deg);
+	transform: rotate(90deg);
 }
 
-.toggle-all:checked:before {
-	color: #737373;
+.toggle-all:checked + label:before {
+	color: #484848;
 }
 
 .todo-list {
