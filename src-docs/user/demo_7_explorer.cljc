@@ -35,7 +35,10 @@
     (let [m (datafy x)
           xs (nav m ::fs/children (::fs/children m))]
       (Explorer. (::fs/absolute-path m) xs
-                 {::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
+                 {::dom/style {:height "calc((20 + 1) * 24px)"}
+                  ::explorer/page-size 20
+                  ::explorer/row-height 24
+                  ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
 
 (p/defn File [x]
   (binding
@@ -43,7 +46,11 @@
      explorer/Search? (p/fn [m s] (includes-str? (::fs/name m) s))]
     (let [m (datafy x)
           xs [m]]
-      (Explorer. (::fs/absolute-path m) xs {}))))
+      (Explorer. (::fs/absolute-path m) xs
+                 {::dom/style {:height "calc((20 + 1) * 24px)"}
+                  ::explorer/page-size 20
+                  ::explorer/row-height 24
+                  ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
 
 (def unicode-folder "\uD83D\uDCC2") ; 📂
 
