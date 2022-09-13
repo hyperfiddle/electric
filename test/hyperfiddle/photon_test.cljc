@@ -1500,6 +1500,32 @@
   )
 
 (tests
+  "Document desired binding unification and binding transfer:"
+  (tests
+    "passes"
+    (with (p/run (p/server
+                   (let [foo 1]
+                     (! foo)
+                     (! (p/client foo)))))
+      % := 1
+      % := 1))
+
+  (tests
+    "Today, bindings fail to transfer, resulting in unbound var exception. This will be fixed"
+    ; https://www.notion.so/hyperfiddle/photon-binding-transfer-unification-of-client-server-binding-7e56d9329d224433a1ee3057e96541d1
+    (p/def foo)
+    (with (p/run (try
+                   (p/server
+                     (binding [foo 1]
+                       (! foo)
+                       (! (p/client foo))))
+                   (catch ExceptionInfo e
+                     (! e))))
+      % := 1
+      ; % := 1 -- target future behavior
+      (type %) := clojure.lang.ExceptionInfo)))
+
+(tests
   "java interop"
   (tests
     "static method call"
