@@ -1480,6 +1480,25 @@
 
   )
 
+(comment
+  ; https://www.notion.so/hyperfiddle/p-fn-transfer-d43869c673574390b186ccb4df824b39
+  (p/run
+    (p/server
+      (let [Foo (p/fn [] (type 1))]
+        (! (Foo.))
+        (! (p/client (Foo.))))))
+  % := "class java.lang.Long"
+  % := "class #object[Number]"
+
+  ; implications - all ~p/fns~ neutral photon expressions are compiled for both peers, including
+  ; the parts that don't make sense, because you don't know in advance which peer will
+  ; run which function
+
+  ; costs:
+  ; increases size of compiler artifacts
+  ; increases compile times
+  )
+
 (tests
   "java interop"
   (tests
