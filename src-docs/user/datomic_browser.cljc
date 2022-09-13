@@ -148,7 +148,8 @@
     (Explorer.
       (str "Entity detail: " e)
       (new (p/task->cp (render-datoms db (entity-datoms db e))))
-      {::explorer/page-size 20
+      {::dom/style {:height "calc((20 + 1) * 24px)"}
+       ::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em calc(100% - 15em - 9em) 9em"})))
 
@@ -169,7 +170,8 @@
     (Explorer.
       (str "Attribute detail: " a)
       (new (p/task->cp (render-datoms db (attr-datoms db a))))
-      {::explorer/page-size 20
+      {::dom/style {:height "calc((20 + 1) * 24px)"}
+       ::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
@@ -184,7 +186,8 @@
     (Explorer.
       (str "Tx detail: " e)
       (new (p/task->cp (render-datoms db (tx-datoms datomic-conn e)))) ; global
-      {::explorer/page-size 20
+      {::dom/style {:height "calc((20 + 1) * 24px)"}
+       ::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
