@@ -1,4 +1,5 @@
 (ns user
+  ; Must be ".clj" file, Clojure will not auto-run user.cljc
   "Photon app server build and run instructions (Clojure and ClojureScript).
   Start a REPL with `clj -A:dev`, or jack in with :dev alias.
   Default app is demo-healthcheck."
