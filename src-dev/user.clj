@@ -53,6 +53,7 @@
 (defn main "CLJ main" [& args]
   "build and serve clojurescript assets"
   (@shadow-start!)                                          ; serves index.html as well
+  (@rcf-enable! false) ; don't run cljs tests on compile - in case user enabled at the REPL
   (@shadow-watch :devkit)                                   ; depends on shadow server
   (serve!)
   (@rcf-enable!)
