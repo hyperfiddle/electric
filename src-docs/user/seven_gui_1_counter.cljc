@@ -7,8 +7,8 @@
 ;; https://eugenkiss.github.io/7guis/tasks#counter
 
 (p/defn Counter []
-  (let [!state (atom 0)]
-    (dom/div
+  (p/client
+    (let [!state (atom 0)]
       (dom/p (p/watch !state))
       (ui/button {::ui/click-event (p/fn [_] (swap! !state inc) nil)}
         "Count"))))

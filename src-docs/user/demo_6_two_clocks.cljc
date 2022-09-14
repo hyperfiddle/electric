@@ -16,17 +16,12 @@
                       :cljs (js/Date.now))))))
 
 (p/defn App []
-  (dom/div
+  (p/client
     (dom/h1 "Two Clocks")
 
     (let [c (p/client (new (clock)))
           s (p/server (new (clock)))]
 
-      (dom/div (dom/span "client time: ")
-               (dom/span c))
-
-      (dom/div (dom/span "server time: ")
-               (dom/span s))
-
-      (dom/div (dom/span "latency: ")
-               (dom/span (- c s))))))
+      (dom/div "client time: " c)
+      (dom/div "server time: " s)
+      (dom/div "latency: " (- c s)))))
