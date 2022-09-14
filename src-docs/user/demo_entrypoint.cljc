@@ -21,7 +21,6 @@
             user.seven-gui-5-crud
             #_user.datomic-browser ; requires datomic dep
             hyperfiddle.scrollview
-            hyperfiddle.scrollview
             wip.demo-bubbles
             wip.demo-color
             ;; wip.photon-tree
