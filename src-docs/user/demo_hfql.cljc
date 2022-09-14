@@ -11,33 +11,30 @@
 
 (p/defn Tee-shirt-orders []
   ;; Warning: HFQL is unstable
-  (p/server
-    (hf/hfql
-      {(orders .)
-       [:order/email
-        {(props :order/gender {::hf/options      (genders)
-                               ::hf/option-label :db/ident
-                               ::hf/render       ui/select-options})
-         [:db/ident]}
-        {(props :order/shirt-size {::hf/options      (shirt-sizes order/gender .)
-                                   ::hf/option-label :db/ident
-                                   ::hf/render       ui/select-options})
-         [:db/ident]}]})))
+  (hf/hfql
+    {(orders .)
+     [:order/email
+      {(props :order/gender {::hf/options (genders)
+                             ::hf/option-label :db/ident
+                             ::hf/render ui/select-options})
+       [:db/ident]}
+      {(props :order/shirt-size {::hf/options (shirt-sizes order/gender .)
+                                 ::hf/option-label :db/ident
+                                 ::hf/render ui/select-options})
+       [:db/ident]}]}))
 
 (p/defn Browser []
-  (dom/div
-    {::dom/id    "main"
-     ::dom/class "browser hyperfiddle-hfql"}
-    (dom/div
-      {::dom/class "view"}
-      (Tee-shirt-orders.))))
+  (p/client
+    (dom/div {::dom/id "main"
+              ::dom/class "browser hyperfiddle-hfql"}
+      (dom/div {::dom/class "view"}
+        (p/server (Tee-shirt-orders.))))))
 
 (p/defn App []
-  (p/server
-    (binding [hf/db hf/*db*               ; why
-              hf/Render ui/Render]        ; remove for livecoding demo
-      (ui/with-spec-render
-        (p/client (Browser.))))))
+  (binding [hf/db hf/*db* ; why
+            hf/Render ui/Render] ; remove for livecoding demo
+    (ui/with-spec-render
+      (Browser.))))
 
 ; Takeaways:
 ; 1. no REST, no GraphQL, all client/server network management handled automatically. Eliminates BFF problem

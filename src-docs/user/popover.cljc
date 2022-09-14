@@ -87,20 +87,21 @@
                   (p/server (StagingArea. stage !stage)))))))))))
 
 (p/defn App []
-  (dom/h2 "Time travel demo - tee shirt orders and popovers")
-  (dom/element "style" "textarea.stage {display: block; width: 100%; height: 20em;}")
-  (p/server
-    (let [!stage (atom [])               ; root
-          stage  (p/watch !stage)]
-      (binding [db (:db-after (d/with (p/watch !conn) stage))
-                stage! (partial swap! !stage concat)]
-        (p/client
-          (dom/div
-            (when-let [tx (Popover. Teeshirt-orders-view)]
-              (p/server (swap! !stage concat tx)))
-            (Teeshirt-orders-view.)
-            (dom/p "Root stage")
-            (p/server (StagingArea. stage !stage))))))))
+  (p/client
+    (dom/h2 "Time travel demo - tee shirt orders and popovers")
+    (dom/element "style" "textarea.stage {display: block; width: 100%; height: 20em;}")
+    (p/server
+      (let [!stage (atom []) ; root
+            stage (p/watch !stage)]
+        (binding [db (:db-after (d/with (p/watch !conn) stage))
+                  stage! (partial swap! !stage concat)]
+          (p/client
+            (dom/div
+              (when-let [tx (Popover. Teeshirt-orders-view)]
+                (p/server (swap! !stage concat tx)))
+              (Teeshirt-orders-view.)
+              (dom/p "Root stage")
+              (p/server (StagingArea. stage !stage)))))))))
 
 (comment
   (d/transact! !conn [[:db/retractEntity id]])

@@ -63,35 +63,36 @@
    })
 
 (p/defn App []
-  (dom/h1 "Photon Demos")
-  (dom/p "See source code in src-docs.")
-  (ui/select {::ui/value        (p/server demo)
-              ::ui/options      [{:text "hello world" ::value `user.demo-1-hello-world/App}
-                                 {:text "toggle" ::value `user.demo-2-toggle/App}
-                                 {:text "system properties" ::value `user.demo-3-system-properties/App}
-                                 {:text "chat" ::value `user.demo-4-chat/App}
-                                 {:text "webview" ::value `user.demo-4-webview/App}
-                                 #_{:text "todos simple" ::value `user.todos-simple/Todo-list} ; css fixes
-                                 {:text "todomvc" ::value `user.demo-5-todomvc/App}
-                                 {:text "todomvc composed" ::value `user.demo-todomvc-composed/App}
-                                 {:text "two clocks" ::value `user.demo-6-two-clocks/App}
-                                 {:text "explorer" ::value `user.demo-7-explorer/App}
-                                 {:text "10k elements" ::value `user.demo-8-10k-elements/App}
-                                 {:text "HFQL" ::value `user.demo-hfql/App}
-                                 {:text "Authentication" ::value `user.auth/App}
-                                 {:text "Scroll view" ::value `hyperfiddle.scrollview/Demo}
-                                 ;{:text "Datomic browser" ::value `user.datomic-browser/App}
-                                 {:text "7GUIs - counter" ::value `user.seven-gui-1-counter/Counter}
-                                 {:text "7GUIs - temperature converter" ::value `user.seven-gui-2-temperature-converter/App}
-                                 {:text "7GUIs - timer" ::value `user.seven-gui-4-timer/Timer}
-                                 {:text "7GUIs - crud" ::value `user.seven-gui-5-crud/App}
-                                 {:text "Typeahead" ::value `wip.typeahead/App}
-                                 #_{:text "TreeView" ::value `wip.photon-tree/App}
-                                 #_{:text "popover" ::value `user.popover/App}
-                                 #_{:text "bubbles" ::value `wip.demo-bubbles/App}
-                                 #_{:text "color" ::value `wip.demo-color/App}
-                                 #_{:text "healthcheck" ::value `user.healthcheck/App}]
-              ::ui/change-event (p/fn [[event value]] (p/server (reset! !demo value)))})
-  (dom/hr)
-  (dom/div {:style {:width "90vw"}}
-    (new (get demos (p/server (::value demo))))))
+  (p/client
+    (dom/h1 "Photon Demos")
+    (dom/p "See source code in src-docs.")
+    (ui/select {::ui/value (p/server demo)
+                ::ui/options [{:text "hello world" ::value `user.demo-1-hello-world/App}
+                              {:text "toggle" ::value `user.demo-2-toggle/App}
+                              {:text "system properties" ::value `user.demo-3-system-properties/App}
+                              {:text "chat" ::value `user.demo-4-chat/App}
+                              {:text "webview" ::value `user.demo-4-webview/App}
+                              #_{:text "todos simple" ::value `user.todos-simple/Todo-list} ; css fixes
+                              {:text "todomvc" ::value `user.demo-5-todomvc/App}
+                              {:text "todomvc composed" ::value `user.demo-todomvc-composed/App}
+                              {:text "two clocks" ::value `user.demo-6-two-clocks/App}
+                              {:text "explorer" ::value `user.demo-7-explorer/App}
+                              {:text "10k elements" ::value `user.demo-8-10k-elements/App}
+                              {:text "HFQL" ::value `user.demo-hfql/App}
+                              {:text "Authentication" ::value `user.auth/App}
+                              {:text "Scroll view" ::value `hyperfiddle.scrollview/Demo}
+                              ;{:text "Datomic browser" ::value `user.datomic-browser/App}
+                              {:text "7GUIs - counter" ::value `user.seven-gui-1-counter/Counter}
+                              {:text "7GUIs - temperature converter" ::value `user.seven-gui-2-temperature-converter/App}
+                              {:text "7GUIs - timer" ::value `user.seven-gui-4-timer/Timer}
+                              {:text "7GUIs - crud" ::value `user.seven-gui-5-crud/App}
+                              {:text "Typeahead" ::value `wip.typeahead/App}
+                              #_{:text "TreeView" ::value `wip.photon-tree/App}
+                              #_{:text "popover" ::value `user.popover/App}
+                              #_{:text "bubbles" ::value `wip.demo-bubbles/App}
+                              #_{:text "color" ::value `wip.demo-color/App}
+                              #_{:text "healthcheck" ::value `user.healthcheck/App}]
+                ::ui/change-event (p/fn [[event value]] (p/server (reset! !demo value)))})
+    (dom/hr)
+    (dom/div {:style {:width "90vw"}}
+      (p/server (new (get demos (::value demo)))))))
