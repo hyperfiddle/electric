@@ -2,7 +2,6 @@
   (:require clojure.math
             [contrib.data :refer [unqualify auto-props round-floor]]
             [clojure.spec.alpha :as s]
-            [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             #?(:cljs [hyperfiddle.scrollview :as scrollview :refer [scroll-state<]])
