@@ -1523,7 +1523,7 @@
                      (! e))))
       % := 1
       ; % := 1 -- target future behavior
-      (type %) := clojure.lang.ExceptionInfo)))
+      (type %) := ExceptionInfo)))
 
 (tests
   "java interop"
