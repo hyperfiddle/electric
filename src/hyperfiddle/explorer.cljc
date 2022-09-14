@@ -46,7 +46,7 @@
       #_(dom/dl
         (dom/dt "scroll debug state")
         (dom/dd (dom/pre (pprint-str (update-keys (p/watch hyperfiddle.scrollview/!scrollStateDebug) unqualify)))))
-      (dom/div {:class "hyperfiddle-explorer-title"} (p/server title))
+      (dom/div {:class "hyperfiddle-explorer-title"} title)
       (ui/input {::dom/placeholder "Search files by name" ::dom/type "search"
                  ::ui/input-event (p/fn [e] (reset! !search (.. e -target -value)))})
       (dom/hr)

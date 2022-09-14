@@ -57,5 +57,6 @@
           (template-fn. sug))))))
 
 (p/defn App []
-  (Typeahead. {:placeholder "HI" :on-pick println :template-fn (p/fn [sug] (:name sug)) :value-fn :name
-               :on-create (fn [value] (println "creating" value)) :autofocus? true}))
+  (p/client
+    (Typeahead. {:placeholder "HI" :on-pick println :template-fn (p/fn [sug] (:name sug)) :value-fn :name
+                 :on-create (fn [value] (println "creating" value)) :autofocus? true})))

@@ -197,19 +197,18 @@
   (reset! !route [::entity 13194139533314]))
 
 (p/defn App []
-  (p/server
-    (binding [Navigate! (p/fn [x] (p/server (reset! !route x)))]
-      (p/client
-        (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
-        (dom/div {:class "user-datomic-browser"}
-          (dom/h1 "Datomic browser")
-          (dom/div "Nav: "
-            (Nav-link. [::summary] "home"))
-          (p/server
-            (let [[page x :as route] (p/watch !route)]
-              (case page
-                ::summary (do (RecentTransactions.) (Attributes.))
-                ::attribute (AttributeDetail. x)
-                ::tx (TxDetail. x)
-                ::entity (EntityDetail. x)
-                (str "no matching route: " (pr-str route))))))))))
+  (binding [Navigate! (p/fn [x] (reset! !route x))]
+    (p/client
+      (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
+      (dom/div {:class "user-datomic-browser"}
+        (dom/h1 "Datomic browser")
+        (dom/div "Nav: "
+          (Nav-link. [::summary] "home"))
+        (p/server
+          (let [[page x :as route] (p/watch !route)]
+            (case page
+              ::summary (do (RecentTransactions.) (Attributes.))
+              ::attribute (AttributeDetail. x)
+              ::tx (TxDetail. x)
+              ::entity (EntityDetail. x)
+              (str "no matching route: " (pr-str route)))))))))
