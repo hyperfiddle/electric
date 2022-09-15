@@ -56,7 +56,7 @@
     (Explorer.
       "Recent Txs"
       (new (p/task->cp (transactions! db [:db/id :db/txInstant])))
-      {::dom/class "user-datomic-browser-recent-tx"
+      {::dom/style {:height "calc((10 + 1) * 24px)"}
        ::explorer/page-size 10
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em auto"})))
@@ -86,9 +86,10 @@
     (Explorer.
       "Attributes"
       (new (p/task->cp (attributes db explorer/cols)))
-      {::explorer/page-size 20
+      {::dom/style {:height "calc((15 + 1) * 24px)"}
+       ::explorer/page-size 15
        ::explorer/row-height 24
-       ::gridsheet/grid-template-columns "auto 8em 8em 8em 8em"})))
+       ::gridsheet/grid-template-columns "auto 6em 4em 4em 4em"})))
 
 #?(:clj
    (defn render-datoms [db !datoms]
@@ -147,7 +148,8 @@
     (Explorer.
       (str "Entity detail: " e)
       (new (p/task->cp (render-datoms db (entity-datoms db e))))
-      {::explorer/page-size 20
+      {::dom/style {:height "calc((20 + 1) * 24px)"}
+       ::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em calc(100% - 15em - 9em) 9em"})))
 
@@ -168,7 +170,8 @@
     (Explorer.
       (str "Attribute detail: " a)
       (new (p/task->cp (render-datoms db (attr-datoms db a))))
-      {::explorer/page-size 20
+      {::dom/style {:height "calc((20 + 1) * 24px)"}
+       ::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
@@ -183,7 +186,8 @@
     (Explorer.
       (str "Tx detail: " e)
       (new (p/task->cp (render-datoms db (tx-datoms datomic-conn e)))) ; global
-      {::explorer/page-size 20
+      {::dom/style {:height "calc((20 + 1) * 24px)"}
+       ::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
@@ -193,19 +197,18 @@
   (reset! !route [::entity 13194139533314]))
 
 (p/defn App []
-  (p/server
-    (binding [Navigate! (p/fn [x] (p/server (reset! !route x)))]
-      (p/client
-        (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
-        (dom/div {:class "user-datomic-browser"}
-          (dom/h1 "Datomic browser")
-          (dom/div "Nav: "
-            (Nav-link. [::summary] "home"))
-          (p/server
-            (let [[page x :as route] (p/watch !route)]
-              (case page
-                ::summary (do (RecentTransactions.) (Attributes.))
-                ::attribute (AttributeDetail. x)
-                ::tx (TxDetail. x)
-                ::entity (EntityDetail. x)
-                (str "no matching route: " (pr-str route))))))))))
+  (binding [Navigate! (p/fn [x] (reset! !route x))]
+    (p/client
+      (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
+      (dom/div {:class "user-datomic-browser"}
+        (dom/h1 "Datomic browser")
+        (dom/div "Nav: "
+          (Nav-link. [::summary] "home"))
+        (p/server
+          (let [[page x :as route] (p/watch !route)]
+            (case page
+              ::summary (do (RecentTransactions.) (Attributes.))
+              ::attribute (AttributeDetail. x)
+              ::tx (TxDetail. x)
+              ::entity (EntityDetail. x)
+              (str "no matching route: " (pr-str route)))))))))

@@ -1480,6 +1480,51 @@
 
   )
 
+(comment
+  ; https://www.notion.so/hyperfiddle/p-fn-transfer-d43869c673574390b186ccb4df824b39
+  (p/run
+    (p/server
+      (let [Foo (p/fn [] (type 1))]
+        (! (Foo.))
+        (! (p/client (Foo.))))))
+  % := "class java.lang.Long"
+  % := "class #object[Number]"
+
+  ; implications - all ~p/fns~ neutral photon expressions are compiled for both peers, including
+  ; the parts that don't make sense, because you don't know in advance which peer will
+  ; run which function
+
+  ; costs:
+  ; increases size of compiler artifacts
+  ; increases compile times
+  )
+
+(tests
+  "Document desired binding unification and binding transfer:"
+  (tests
+    "passes"
+    (with (p/run (p/server
+                   (let [foo 1]
+                     (! foo)
+                     (! (p/client foo)))))
+      % := 1
+      % := 1))
+
+  (tests
+    "Today, bindings fail to transfer, resulting in unbound var exception. This will be fixed"
+    ; https://www.notion.so/hyperfiddle/photon-binding-transfer-unification-of-client-server-binding-7e56d9329d224433a1ee3057e96541d1
+    (p/def foo)
+    (with (p/run (try
+                   (p/server
+                     (binding [foo 1]
+                       (! foo)
+                       (! (p/client foo))))
+                   (catch ExceptionInfo e
+                     (! e))))
+      % := 1
+      ; % := 1 -- target future behavior
+      (type %) := ExceptionInfo)))
+
 (tests
   "java interop"
   (tests

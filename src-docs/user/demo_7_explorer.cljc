@@ -20,7 +20,7 @@
 
 (p/def Navigate!)
 
-(p/defn Nav-link [label x]
+(p/defn Nav-link [x label]
   (p/client
     (ui/element dom/a {::dom/href ""
                        ::ui/click-event (p/fn [e]
@@ -35,7 +35,10 @@
     (let [m (datafy x)
           xs (nav m ::fs/children (::fs/children m))]
       (Explorer. (::fs/absolute-path m) xs
-                 {::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
+                 {::dom/style {:height "calc((20 + 1) * 24px)"}
+                  ::explorer/page-size 20
+                  ::explorer/row-height 24
+                  ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
 
 (p/defn File [x]
   (binding
@@ -43,37 +46,40 @@
      explorer/Search? (p/fn [m s] (includes-str? (::fs/name m) s))]
     (let [m (datafy x)
           xs [m]]
-      (Explorer. (::fs/absolute-path m) xs {}))))
+      (Explorer. (::fs/absolute-path m) xs
+                 {::dom/style {:height "calc((20 + 1) * 24px)"}
+                  ::explorer/page-size 20
+                  ::explorer/row-height 24
+                  ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
 
 (def unicode-folder "\uD83D\uDCC2") ; 📂
 
 (p/defn App []
-  (p/server
-    (binding [Navigate! (p/fn [x] (p/server (reset! !route x)))]
-      (p/client
-        (dom/div {:class "photon-demo-explorer"}
-          (dom/h1 "Explorer")
-          (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
-          (p/server
-            (binding [explorer/Format (p/fn [m a v]
+  (binding [Navigate! (p/fn [x] (reset! !route x))]
+    (p/client
+      (dom/h1 "Explorer")
+      (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
+      (dom/div {:class "photon-demo-explorer"}
+        (p/server
+          (binding [explorer/Format (p/fn [m a v]
+                                      (let [x (:clojure.datafy/obj (meta m))]
                                         (case a
-                                          ::fs/name (p/server (case (::fs/kind m)
-                                                                ::fs/dir (Nav-link. v [::fs/dir (:clojure.datafy/obj (meta m))])
-                                                                (::fs/other ::fs/symlink ::fs/unknown-kind) v
-                                                                (Nav-link. v [::fs/file (:clojure.datafy/obj (meta m))])))
+                                          ::fs/name (case (::fs/kind m)
+                                                      ::fs/dir (Nav-link. [::fs/dir x] v)
+                                                      (::fs/other ::fs/symlink ::fs/unknown-kind) v
+                                                      (Nav-link. [::fs/file x] v))
                                           ::fs/modified (p/client (some-> v .toLocaleDateString))
-                                          ::fs/kind (p/server (case (::fs/kind m)
-                                                                ::fs/dir unicode-folder
-                                                                (some-> v name)))
-                                          (str v)))]
-              (let [[page x] (p/watch !route)]
-                (case page
-                  ::fs/file (File. x)
-                  ::fs/dir (Dir. x))))))))))
+                                          ::fs/kind (case (::fs/kind m)
+                                                      ::fs/dir unicode-folder
+                                                      (some-> v name))
+                                          (str v))))]
+            (let [[page x] (p/watch !route)]
+              (case page
+                ::fs/file (File. x)
+                ::fs/dir (Dir. x)))))))))
 
 ; Improvements
 ; Native search
 ; reduce amount of dom nodes (avoid p/hook)
-;   grid instead of table
-;   lazy folding/unfolding directories (no need for pagination)
+; lazy folding/unfolding directories (no need for pagination)
 ; forms (currently table hardcoded with recursive pull)

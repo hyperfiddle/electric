@@ -2,7 +2,6 @@
   (:require clojure.math
             [contrib.data :refer [unqualify auto-props round-floor]]
             [clojure.spec.alpha :as s]
-            [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             #?(:cljs [hyperfiddle.scrollview :as scrollview :refer [scroll-state<]])
@@ -24,12 +23,13 @@
     (assert page-size)
     (assert columns)
     (p/client
-      (dom/div {:role "grid"
-                :class (::dom/class props)
-                :style {:display "grid" :overflowY "auto"
-                        :grid-template-columns (or (::grid-template-columns props)
-                                                   (->> (repeat (p/server (count columns)) "1fr")
-                                                        (interpose " ") (apply str)))}}
+      (dom/div {::dom/role "grid"
+                ::dom/class (::dom/class props)
+                ::dom/style (merge (::dom/style props)
+                                   {:display "grid" :overflowY "auto"
+                                    :grid-template-columns (or (::grid-template-columns props)
+                                                               (->> (repeat (p/server (count columns)) "1fr")
+                                                                    (interpose " ") (apply str)))})}
         (let [[scrollTop scrollHeight clientHeight] (new (scrollview/scroll-state< dom/node))
               max-height (* row-count row-height)
 

@@ -10,34 +10,32 @@
 (defn farenheit->celsius [f] (* (- f 32) (/ 5 9)))
 
 (p/defn App []
-  (let [!state      (atom 0)
-        temperature (p/watch !state)]
-    (dom/div
-     (dom/h1 "Temperature Converter")
-     (dom/dl
-      (dom/dt "Celcius")
-      (dom/dd
-        (let [!idle (atom false)
-              idle  (p/watch !idle)]
-          (ui/input {::ui/type        :number
-                     ::ui/value       (if idle (p/current temperature) temperature)
-                     ::dom/step       0.5
-                     ::ui/format      "%.2f"
-                     ::ui/input-event (p/fn [event]
-                                        (let [f (-> event :target :value js/parseFloat)]
-                                          (reset! !state f)))
-                     ::ui/focus-event (p/fn [_] (reset! !idle true))
-                     ::ui/blur-event  (p/fn [_] (reset! !idle false))})))
-      (dom/dt "Farenheit")
-      (dom/dd
-        (let [!idle (atom false)
-              idle  (p/watch !idle)]
-          (ui/input {::ui/type        :number
-                     ::ui/value       (let [f (celsius->farenheit temperature)]
-                                        (if idle (p/current f) f))
-                     ::dom/step       0.5
-                     ::ui/focus-event (p/fn [_] (reset! !idle true))
-                     ::ui/blur-event  (p/fn [_] (reset! !idle false))
-                     ::ui/input-event (p/fn [event]
-                                        (let [f (-> event :target :value js/parseFloat)]
-                                          (reset! !state (farenheit->celsius f))))})))))))
+  (p/client
+    (dom/h1 "Temperature Converter")
+    (let [!state (atom 0)
+          temperature (p/watch !state)]
+      (dom/dl
+        (dom/dt "Celcius")
+        (dom/dd (let [!idle (atom false)
+                      idle (p/watch !idle)]
+                  (ui/input {::ui/type :number
+                             ::ui/value (if idle (p/current temperature) temperature)
+                             ::dom/step 0.5
+                             ::ui/format "%.2f"
+                             ::ui/input-event (p/fn [e]
+                                                (let [f (-> e :target :value js/parseFloat)]
+                                                  (reset! !state f)))
+                             ::ui/focus-event (p/fn [_] (reset! !idle true))
+                             ::ui/blur-event (p/fn [_] (reset! !idle false))})))
+        (dom/dt "Farenheit")
+        (dom/dd (let [!idle (atom false)
+                      idle (p/watch !idle)]
+                  (ui/input {::ui/type :number
+                             ::ui/value (let [f (celsius->farenheit temperature)]
+                                          (if idle (p/current f) f))
+                             ::dom/step 0.5
+                             ::ui/focus-event (p/fn [_] (reset! !idle true))
+                             ::ui/blur-event (p/fn [_] (reset! !idle false))
+                             ::ui/input-event (p/fn [e]
+                                                (let [f (-> e :target :value js/parseFloat)]
+                                                  (reset! !state (farenheit->celsius f))))})))))))

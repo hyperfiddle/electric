@@ -22,28 +22,26 @@
               [(user.util/includes-str? ?email ?needle)]]
             db (or ?email "")))))
 
-(p/def db)                                                  ; server
-
-(p/defn Teeshirt-orders-view []
-  (dom/div {:class "hyperfiddle-hfql"}
-    (dom/h2 "frontend/backend webview with server push")
-    (let [!filter (atom ""), filter (p/watch !filter)]
-      (ui/input {::dom/type        :search
-                 ::dom/placeholder "Filter…"
-                 ::ui/input-event  (p/fn [e] (reset! !filter (.. e -target -value)))})
-      (dom/table
-        (p/server
-          (p/for [id (teeshirt-orders db filter)]
-            (p/client
-              (dom/tr
-                (dom/td id)
-                (dom/td (p/server (:order/email (d/entity db id))))
-                (dom/td (p/server (:order/gender (d/entity db id))))))))))))
+(p/defn Teeshirt-orders-view [db]
+  (p/client
+    (dom/div {:class "hyperfiddle-hfql"}
+      (dom/h2 "frontend/backend webview with server push")
+      (let [!filter (atom ""), filter (p/watch !filter)]
+        (ui/input {::dom/type :search
+                   ::dom/placeholder "Filter…"
+                   ::ui/input-event (p/fn [e] (reset! !filter (.. e -target -value)))})
+        (dom/table
+          (p/server
+            (p/for [id (teeshirt-orders db filter)]
+              (p/client
+                (dom/tr
+                  (dom/td id)
+                  (dom/td (p/server (:order/email (d/entity db id))))
+                  (dom/td (p/server (:order/gender (d/entity db id)))))))))))))
 
 (p/defn App []
-  (p/server
-    (binding [db (p/watch conn)]
-      (p/client (Teeshirt-orders-view.)))))
+  (let [db (p/watch conn)]
+    (Teeshirt-orders-view. db)))
 
 (comment
   #?(:clj (d/transact conn [{:db/id 2 :order/email "bob2@example.com"}]))

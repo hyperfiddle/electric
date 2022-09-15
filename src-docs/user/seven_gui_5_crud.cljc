@@ -50,52 +50,54 @@
 ;;; Presentation
 
 (p/defn App []
-  (let [state    (p/watch !state)
-        selected (:selected state)]
-    (dom/div {:style {:display             :grid
-                      :grid-gap            "0.5rem"
-                      :align-items         :baseline
-                      :grid-template-areas "'a b c c'\n
+  (p/client
+    (dom/h1 "7 GUIs: CRUD") 
+    (let [state (p/watch !state)
+          selected (:selected state)]
+      (dom/div {:style {:display :grid
+                        :grid-gap "0.5rem"
+                        :align-items :baseline
+                        :grid-template-areas "'a b c c'\n
                                             'd d e f'\n
                                             'd d g h'\n
                                             'd d i i'\n
                                             'j j j j'"}}
-      (dom/span {:style {:grid-area "a"}}
-                "Filter prefix:")
-      (let [needle (::ui/value (ui/input {:style {:grid-area "b"}}))]
-        (dom/ul {:style {:grid-area        "d"
-                         :background-color :white
-                         :list-style-type  :none
-                         :padding          0
-                         :border           "1px gray solid"
-                         :height           "100%"}}
-                       (p/for [entry (filter-names (:names state) needle)]
-                         (let [id    (key entry)
-                               value (val entry)]
-                           (ui/element dom/li {::ui/click-event (p/fn [_] (select! id))
-                                               ::dom/style      {:cursor           :pointer
-                                                                 :color            (if (= selected id) :white :inherit)
-                                                                 :background-color (if (= selected id) :blue :inherit)
-                                                                 :padding          "0.1rem 0.5rem"}}
-                                       (:surname value) ", " (:name value))))))
-      (let [stage (:stage state)]
-        (dom/span {:style {:grid-area "e"}} "Name:")
-        (ui/input {::ui/value       (:name stage)
-                   ::ui/input-event (p/fn [event] (set-name! (dom/oget event :target :value)))
-                   ::dom/style      {:grid-area "f"}})
-        (dom/span {:style {:grid-area "g"}} "Surname:")
-        (ui/input {::ui/value       (:surname stage)
-                   ::ui/input-event (p/fn [event] (set-surname! (dom/oget event :target :value)))
-                   ::dom/style      {:grid-area "h"}}))
-      (dom/div {:style {:grid-area             "j"
-                        :display               :grid
-                        :grid-gap              "0.5rem"
-                        :grid-template-columns "auto auto auto 1fr"}}
-        (ui/button {::ui/click-event (p/fn [_] (create!) nil)}
-          "Create")
-        (ui/button {::dom/disabled   (when-not selected true)
-                    ::ui/click-event (p/fn [_] (update!) nil)}
-          "Update")
-        (ui/button {::dom/disabled   (when-not selected true)
-                    ::ui/click-event (p/fn [_] (delete!) nil)}
-          "Delete")))))
+        (dom/span {:style {:grid-area "a"}}
+                  "Filter prefix:")
+        (let [needle (::ui/value (ui/input {:style {:grid-area "b"}}))]
+          (dom/ul {:style {:grid-area "d"
+                           :background-color :white
+                           :list-style-type :none
+                           :padding 0
+                           :border "1px gray solid"
+                           :height "100%"}}
+            (p/for [entry (filter-names (:names state) needle)]
+              (let [id (key entry)
+                    value (val entry)]
+                (ui/element dom/li {::ui/click-event (p/fn [_] (select! id))
+                                    ::dom/style {:cursor :pointer
+                                                 :color (if (= selected id) :white :inherit)
+                                                 :background-color (if (= selected id) :blue :inherit)
+                                                 :padding "0.1rem 0.5rem"}}
+                  (:surname value) ", " (:name value))))))
+        (let [stage (:stage state)]
+          (dom/span {:style {:grid-area "e"}} "Name:")
+          (ui/input {::ui/value (:name stage)
+                     ::ui/input-event (p/fn [event] (set-name! (dom/oget event :target :value)))
+                     ::dom/style {:grid-area "f"}})
+          (dom/span {:style {:grid-area "g"}} "Surname:")
+          (ui/input {::ui/value (:surname stage)
+                     ::ui/input-event (p/fn [event] (set-surname! (dom/oget event :target :value)))
+                     ::dom/style {:grid-area "h"}}))
+        (dom/div {:style {:grid-area "j"
+                          :display :grid
+                          :grid-gap "0.5rem"
+                          :grid-template-columns "auto auto auto 1fr"}}
+          (ui/button {::ui/click-event (p/fn [_] (create!) nil)}
+            "Create")
+          (ui/button {::dom/disabled (when-not selected true)
+                      ::ui/click-event (p/fn [_] (update!) nil)}
+            "Update")
+          (ui/button {::dom/disabled (when-not selected true)
+                      ::ui/click-event (p/fn [_] (delete!) nil)}
+            "Delete"))))))

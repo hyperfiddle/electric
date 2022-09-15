@@ -15,28 +15,31 @@
 (defn now [] #?(:cljs (second-precision (js/Date.now))))
 
 (p/defn Timer []
-  (let [!goal  (atom initial-goal)
-        !start (atom (now))
-        goal   (p/watch !goal)
-        start  (p/watch !start)
-        time   (min goal (- (second-precision (new dom/Clock 1)) ; clock ticking at 1Hz
-                           start))]
-    (dom/div {:style {:display     :grid
-                      :margin-left "20rem"
-                      :grid-gap    "0 1rem"
-                      :align-items :center}}
-             (dom/span "Elapsed Time:")
-             (dom/progress {:max   goal
-                            :value time
-                            :style {:grid-column 2}})
-             (dom/span (seconds time) " s")
-             (dom/span {:style {:grid-row 3}} "Duration")
-             (ui/input {::ui/value       (/ initial-goal 1000)
-                        ::ui/input-event (p/fn [event] (reset! !goal (* 1000 (js/parseInt (dom/oget event :target :value)))) nil)
-                        ::dom/type       :range
-                        ::dom/min        0
-                        ::dom/max        60
-                        ::dom/style      {:grid-row 3}})
-             (ui/button {::dom/style      {:grid-row 4, :grid-column "1/3"}
-                         ::ui/click-event (p/fn [_] (reset! !start (now)))}
-                        "Reset"))))
+  (p/client
+    (dom/h1 "7 GUIs: Timer")
+    (let [!goal (atom initial-goal)
+          !start (atom (now))
+          goal (p/watch !goal)
+          start (p/watch !start)
+          time (min goal (- (second-precision (new dom/Clock 1)) ; clock ticking at 1Hz
+                            start))]
+      (dom/div {:style {:display :grid
+                        ;:margin-left "20rem"
+                        :width "20em"
+                        :grid-gap "0 1rem"
+                        :align-items :center}}
+        (dom/span "Elapsed Time:")
+        (dom/progress {:max goal
+                       :value time
+                       :style {:grid-column 2}})
+        (dom/span (seconds time) " s")
+        (dom/span {:style {:grid-row 3}} "Duration")
+        (ui/input {::ui/value (/ initial-goal 1000)
+                   ::ui/input-event (p/fn [event] (reset! !goal (* 1000 (js/parseInt (dom/oget event :target :value)))) nil)
+                   ::dom/type :range
+                   ::dom/min 0
+                   ::dom/max 60
+                   ::dom/style {:grid-row 3}})
+        (ui/button {::dom/style {:grid-row 4, :grid-column "1/3"}
+                    ::ui/click-event (p/fn [_] (reset! !start (now)))}
+          "Reset")))))

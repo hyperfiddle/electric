@@ -1,4 +1,5 @@
 (ns user
+  ; Must be ".clj" file, Clojure will not auto-run user.cljc
   "Photon app server build and run instructions (Clojure and ClojureScript).
   Start a REPL with `clj -A:dev`, or jack in with :dev alias.
   Default app is demo-healthcheck."
@@ -53,6 +54,7 @@
 (defn main "CLJ main" [& args]
   "build and serve clojurescript assets"
   (@shadow-start!)                                          ; serves index.html as well
+  (@rcf-enable! false) ; don't run cljs tests on compile - in case user enabled at the REPL
   (@shadow-watch :devkit)                                   ; depends on shadow server
   (serve!)
   (@rcf-enable!)
