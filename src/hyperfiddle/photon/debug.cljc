@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon.debug
-  (:require [hyperfiddle.photon-impl.runtime :as-alias r]
+  (:require #_[hyperfiddle.photon-impl.runtime :as-alias r]
             [clojure.string :as str])
   (:import (hyperfiddle.photon Failure Pending)
            (missionary Cancelled)
