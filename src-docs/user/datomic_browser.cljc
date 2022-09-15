@@ -56,8 +56,7 @@
     (Explorer.
       "Recent Txs"
       (new (p/task->cp (transactions! db [:db/id :db/txInstant])))
-      {::dom/style {:height "calc((10 + 1) * 24px)"}
-       ::explorer/page-size 10
+      {::explorer/page-size 10
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em auto"})))
 
@@ -86,8 +85,7 @@
     (Explorer.
       "Attributes"
       (new (p/task->cp (attributes db explorer/cols)))
-      {::dom/style {:height "calc((15 + 1) * 24px)"}
-       ::explorer/page-size 15
+      {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "auto 6em 4em 4em 4em"})))
 
@@ -148,8 +146,7 @@
     (Explorer.
       (str "Entity detail: " e)
       (new (p/task->cp (render-datoms db (entity-datoms db e))))
-      {::dom/style {:height "calc((20 + 1) * 24px)"}
-       ::explorer/page-size 20
+      {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em calc(100% - 15em - 9em) 9em"})))
 
@@ -170,8 +167,7 @@
     (Explorer.
       (str "Attribute detail: " a)
       (new (p/task->cp (render-datoms db (attr-datoms db a))))
-      {::dom/style {:height "calc((20 + 1) * 24px)"}
-       ::explorer/page-size 20
+      {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
@@ -186,8 +182,7 @@
     (Explorer.
       (str "Tx detail: " e)
       (new (p/task->cp (render-datoms db (tx-datoms datomic-conn e)))) ; global
-      {::dom/style {:height "calc((20 + 1) * 24px)"}
-       ::explorer/page-size 20
+      {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 

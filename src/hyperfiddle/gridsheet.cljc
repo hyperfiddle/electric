@@ -17,6 +17,7 @@
                 ::row-height ; px, same unit as scrollTop
                 ::page-size]} ; tight
         (auto-props (namespace ::x) props {})
+        client-height (* (inc page-size) row-height)
         rows (seq xs)
         row-count (count rows)]
     (assert row-height)
@@ -26,15 +27,17 @@
       (dom/div {::dom/role "grid"
                 ::dom/class (::dom/class props)
                 ::dom/style (merge (::dom/style props)
-                                   {:display "grid" :overflowY "auto"
+                                   {:height (str client-height "px")
+                                    :display "grid" :overflowY "auto"
                                     :grid-template-columns (or (::grid-template-columns props)
                                                                (->> (repeat (p/server (count columns)) "1fr")
                                                                     (interpose " ") (apply str)))})}
-        (let [[scrollTop scrollHeight clientHeight] (new (scrollview/scroll-state< dom/node))
+        (let [[scroll-top scroll-height client-height'] (new (scrollview/scroll-state< dom/node))
               max-height (* row-count row-height)
+              padding-bottom (js/Math.max (- max-height client-height) 0)
 
               ; don't scroll past the end
-              clamped-scroll-top (js/Math.min scrollTop (- max-height clientHeight))
+              clamped-scroll-top (js/Math.min scroll-top padding-bottom)
 
               start-row (clojure.math/ceil (/ clamped-scroll-top row-height))
 
@@ -42,7 +45,8 @@
               ; (does reducing network even help or just making loads happen offscreen?)
               ; clamp start to the nearest page
               start-row-page-aligned (round-floor start-row page-size)]
-          #_(println [:scrollTop scrollTop :scrollHeight scrollHeight :clientHeight clientHeight
+          #_(println [:scrollTop scroll-top :scrollHeight scroll-height :clientHeight client-height
+                    :padding-bottom padding-bottom
                     :start-row start-row :start-row-page-aligned start-row-page-aligned
                     :take page-size :max-height max-height])
 
@@ -68,7 +72,7 @@
                                       :height (str row-height "px")}}
                       (some-> ?Render (new a)))))))
 
-            (dom/div {:style {:padding-bottom (str (- max-height clientHeight) "px")}}) ; scrollbar
+            (dom/div {:style {:padding-bottom (str padding-bottom "px")}}) ; scrollbar
 
             (p/server
               (let [xs (vec (->> rows (drop start-row) (take page-size)))]
