@@ -25,7 +25,12 @@
     (ui/element dom/a {::dom/href ""
                        ::ui/click-event (p/fn [e]
                                           (.preventDefault e)
-                                          (p/server (Navigate!. x)))} label)))
+                                          (p/server
+                                            (let [x (p/current x)] ; prevent race between pending click-event and
+                                              ; server-side router updating x. (The server wins, causing double navigation)
+                                              (p/client (println "nav-link clicked, route: " (p/server (str x))))
+                                              (Navigate!. x))))}
+      label)))
 
 (p/defn Dir [x]
   (binding
