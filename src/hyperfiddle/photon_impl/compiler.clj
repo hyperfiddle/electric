@@ -12,6 +12,8 @@
   (:import cljs.tagged_literals.JSValue
            (clojure.lang Var)))
 
+(def ^{:dynamic true, :doc "Bound to Photon compiler env when macroexpension is managed by Photon."} *env*)
+
 ;; %1, %2 … %n p/def generator.
 ;; A lazy seq of vars. Forcing the seq will intern them.
 ;; GG: Why are %n macros?
@@ -569,7 +571,9 @@
                   (if (is-node v)
                     (analyze-apply env form)
                     (cond (instance? CljVar v) ; "manual" macroexpansion: call the var as a function, passing it &form and the appropriate &env
-                          (analyze-form env (apply (get-var v) form (if (:js-globals env) env (:locals env)) args))
+                          (analyze-form env
+                            (binding [*env* env]
+                              (apply (get-var v) form (if (:js-globals env) env (:locals env)) args)))
 
                           (instance? CljsVar v) ;; TODO GG: is this case possible? A cljs macro var without a corresponding clj macro var.
                           (throw (ex-info "Failed to resolve macro expander" {:name (var-name v)}))
