@@ -33,7 +33,7 @@
 #?(:clj
    (do
                                         ; Optionally, tell RCF not to rewrite Photon programs.
-     (defmethod ana/macroexpand-hook `hyperfiddle.photon/run [the-var form env args] `(hyperfiddle.photon/run ~@args)) ; optional
+     (defmethod ana/macroexpand-hook `hyperfiddle.photon/run [the-var form env args] (reduced `(hyperfiddle.photon/run ~@args))) ; optional
                                         ;(defmethod ana/macroexpand-hook `hyperfiddle.photon/run2 [_the-var _form _env args] `(hyperfiddle.photon/run2 ~@args))
 
                                         ; Don't expand cc/binding (prevent infinite loop). Explicit implicit do
@@ -302,12 +302,14 @@ or a provided value if it completes without producing any value."
 (defmacro fn [name? & [args & body]]
   (let [[name? args body] (if (symbol? name?) [name? args body]
                               [nil name? (cons args body)])]
-    `(::c/closure
-      (let [~@(interleave args (next c/arg-sym))]
-        ~@body)
-      ~(merge {::dbg/name name?, ::dbg/args args, ::dbg/type :reactive-fn}
-         (select-keys (meta &form) [:file :line])
-         (select-keys (meta name?) [::dbg/type :file :line])))))
+    (if (bound? #'c/*env*)
+      `(::c/closure
+         (let [~@(interleave args (next c/arg-sym))]
+           ~@body)
+         ~(merge {::dbg/name name?, ::dbg/args args, ::dbg/type :reactive-fn}
+            (select-keys (meta &form) [:file :line])
+            (select-keys (meta name?) [::dbg/type :file :line])))
+      `(throw (ex-info "Reactive functions are only defined in Photon, not in Clojure(script)." ~(into {} (meta &form)))))))
 
 ; syntax quote doesn't qualify special forms like 'def
 (defmacro defn [sym & fdecl]
@@ -367,10 +369,14 @@ or a provided value if it completes without producing any value."
     `(unquote-splicing (do ~@body))))
 
 (defmacro client [& body]
-  `(::c/client (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::client)))
+  (if (bound? #'c/*env*)
+    `(::c/client (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::client))
+    `(throw (ex-info "Transfering control to client is only defined in Photon, not in Clojure(script)." ~(into {} (meta &form))))))
 
 (defmacro server [& body]
-  `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::server)))
+  (if (bound? #'c/*env*)
+    `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::server))
+    `(throw (ex-info "Transfering control to server is only defined in Photon, not in Clojure(script)." ~(into {} (meta &form))))))
 
 (hyperfiddle.photon/def trace "In a `catch` block, bound by the runtime to the current stacktrace. A photon stacktrace is an ExceptionInfo. Use `hyperfiddle.photon.debug/stack-trace` to get a string representation." nil)
 
