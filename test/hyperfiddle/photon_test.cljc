@@ -1579,3 +1579,21 @@
     % := 2))
 
 ;; (hyperfiddle.rcf/enable!)
+
+(tests
+  "p/fn is undefined in clojure-land"
+  (with (p/run (try (! ((fn [] (p/fn []))))
+                    (catch Throwable t (! (ex-message t)))))
+    % := "Reactive functions are only defined in Photon, not in Clojure(script)."))
+
+(tests
+  "p/client is undefined in clojure-land"
+  (with (p/run (try (! ((fn [] (p/client 1))))
+                    (catch Throwable t (! (ex-message t)))))
+    % := "Transfering control to client is only defined in Photon, not in Clojure(script)."))
+
+(tests
+  "p/server is undefined in clojure-land"
+  (with (p/run (try (! ((fn [] (p/server 1))))
+                    (catch Throwable t (! (ex-message t)))))
+    % := "Transfering control to server is only defined in Photon, not in Clojure(script)."))
