@@ -59,7 +59,7 @@
     (reduce (fn [r frame]
               (if (string? frame)
                 (conj r frame)
-                (let [{::keys [origin type name args macro scope]} frame]
+                (let [{::keys [origin type name params args macro scope]} frame]
                   (conj r
                     (into [(when (and (not= PEER-ID origin)
                                    (not (#{:transfer :toggle} type))
@@ -79,6 +79,10 @@
                                     :field-access ["(" (str ".-" method) target ")"]
                                     :static-call  `["(" ~(str target "/" method) ~@(map render-arg (rest args)) ")"]
                                     :call         `["(" ~(str "." method) ~target ~@(map render-arg (rest args))")"]
+                                    :fn-call      (if (some? name)
+                                                    `["(" (clojure.core/fn ~name [~@params] ~'…) ~@(map render-arg args) ")"]
+                                                    `["(" (clojure.core/fn [~@params] ~'…) ~@(map render-arg args) ")"])
+
                                     ["<unknown interop>" frame]))
                           :reactive-fn   ["reactive" (if (some? name)
                                                        `(~'fn ~name ~args ~'...)
