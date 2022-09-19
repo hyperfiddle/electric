@@ -26,14 +26,7 @@
 (p/defn Nav-link [x label]
   (p/client
     (ui/element dom/a {::dom/href ""
-                       ::ui/click-event (p/fn [e]
-                                          (.preventDefault e)
-                                          (p/server (Navigate!. x))
-                                          #_(p/server
-                                            (let [x (p/current x)] ; prevent race between pending click-event and
-                                              ; server-side router updating x. (The server wins, causing double navigation)
-                                              (p/client (println "nav-link clicked, route: " (p/server (str x))))
-                                              (Navigate!. x))))} label)))
+                       ::ui/click-event (p/fn [e] (.preventDefault e) (Navigate!. x))} label)))
 
 ;#?(:clj
 ;   (defn transactions! [db pull-pattern]
@@ -365,22 +358,22 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
-(defonce !route #?(:cljs nil :clj (atom [::summary])))
-(comment
-  (reset! !route [::summary])
-  (reset! !route [::entity 13194139533314]))
+#?(:cljs (def !route (atom [::summary])))
 
 (p/defn App []
-  (binding [Navigate! (p/fn [x] (reset! !route x))]
-    (p/client
+  (p/client
+    (binding [Navigate! (p/fn [x]
+                          (println "Navigate!. route: " x)
+                          (reset! !route x))]
       (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
+      (dom/h1 "Datomic browser")
       (dom/div {:class "user-datomic-browser"}
-        (dom/h1 "Datomic browser")
-        (dom/pre (pr-str (p/server (p/watch !route))))
+        (dom/pre (pr-str (p/watch !route)))
         (dom/div "Nav: "
           (Nav-link. [::summary] "home"))
         (p/server
-          (let [[page x :as route] (p/watch !route)]
+          ; x transfers, don't use a ref
+          (let [[page x :as route] (p/client (p/watch !route))]
             (case page
               ::summary (do (RecentTransactions.) (Attributes.))
               ::attribute (AttributeDetail. x)
