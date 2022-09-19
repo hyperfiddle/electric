@@ -78,7 +78,7 @@
    (tests
      "Turn a channel into a discreet flow"
      (let [c (a/chan)
-           f (p/chan->flow c)
+           f (p/chan->ap c)
            it (f #(tap :ready) #(tap :done))]
        (a/put! c 1)
        ;; chan-read rely on a go block, which will run its body in another thread.
@@ -92,7 +92,7 @@
      (def c (a/chan))
      (future (tap (m/? (m/reduce conj ; just run the flow until it terminates
                                (m/ap (m/amb= (m/?> (onto-chan (m/seed [1 2]) c))
-                                             (m/?> (p/chan->flow c))))))))
+                                             (m/?> (p/chan->ap c))))))))
      (a/close! c)
      % := [1 2]))
 
@@ -102,8 +102,8 @@
      (def input (a/chan))
      (def c (a/chan))
      (future (m/? (m/reduce {} nil ; just run the flow until it terminates
-                            (m/ap (m/amb= (tap [:success (m/?> (p/chan->flow c))])
-                                          (tap [:failure (m/?> (onto-chan (p/chan->flow input) c))]))))))
+                            (m/ap (m/amb= (tap [:success (m/?> (p/chan->ap c))])
+                                          (tap [:failure (m/?> (onto-chan (p/chan->ap input) c))]))))))
      (a/>!! input 1) ; put 1 on input, which transfers to a flow, then is put onto c.
      (Thread/sleep 100) ; even if >!! is blocking, go blocks might race with the next instruction
      (a/close! c)
