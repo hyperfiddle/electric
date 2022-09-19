@@ -80,7 +80,7 @@
                   (let [[depth m] (get xs i)]
                     (p/client
                       (reset! (get-in !!rows [i]) [depth (if (p/server (contains? xs i)) ; unmount stale renderers
-                                                           (p/fn [a] (p/server (Format. m a (a m)))))])))))))))
+                                                           (p/fn [a] (p/server (Format. m a))))])))))))))
       (dom/div (pr-str {:count row-count})))))
 
 (p/defn ^:deprecated TableSheet
