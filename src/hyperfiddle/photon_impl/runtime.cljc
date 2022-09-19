@@ -811,6 +811,9 @@
       :eval    (assoc debug-info ::dbg/type :eval)
       :sub     (assoc debug-info ::dbg/type :apply)
       :input   (assoc val ::dbg/type :apply) ; No value for :input, debug-info shifted by 1
+      :apply   (if (vector? val)
+                 (extract-apply-debug-info [val])
+                 {::dbg/type :unknown-apply, :op op})
       {::dbg/type :unknown-apply, :op op})))
 
 ;; TODO move me
