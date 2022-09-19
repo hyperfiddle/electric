@@ -1,6 +1,6 @@
 (ns user.photon.photon-recursion
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests ! % with]]))
+            [hyperfiddle.rcf :refer [tests tap % with]]))
 
 (hyperfiddle.rcf/enable!)
 
@@ -14,8 +14,8 @@
   "recursion"
   (def !x (atom 0))
   (with (p/run
-          (binding [Ping (p/fn [x] (case (! x) 0 :done (Ping. (dec x))))]
-            (! (Ping. (p/watch !x)))))
+          (binding [Ping (p/fn [x] (case (tap x) 0 :done (Ping. (dec x))))]
+            (tap (Ping. (p/watch !x)))))
     [% %] := [0 :done]
     (swap! !x inc)
     [% % %] := [1 0 :done]
@@ -27,9 +27,9 @@
   "mutual recursion"
   (def !x (atom 1))
   (with (p/run
-          (binding [Ping (p/fn [x] (case (! x) 0 :done (Pong. (dec x))))
+          (binding [Ping (p/fn [x] (case (tap x) 0 :done (Pong. (dec x))))
                     Pong (p/fn [x] (Ping. x))]
-            (! (Ping. (p/watch !x)))))
+            (tap (Ping. (p/watch !x)))))
     [% % %] := [1 0 :done]
     (swap! !x inc)
     [% % % %] := [2 1 0 :done]))
@@ -43,7 +43,7 @@
                                  0 0 1 1
                                  (+ (Fib. (- n 2))       ; self recur
                                     (Fib. (- n 1)))))]
-                 (! (Fib. (p/watch !x)))))
+                 (tap (Fib. (p/watch !x)))))
     % := 5
     (swap! !x inc)
     ; reactive engine will reuse the topmost frame, it is still naive fib though

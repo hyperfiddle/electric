@@ -1,5 +1,5 @@
 (ns hyperfiddle.zero-test
-  (:require [hyperfiddle.rcf :refer [tests ! % with]]
+  (:require [hyperfiddle.rcf :refer [tests tap % with]]
             [hyperfiddle.zero :as z]
             [hyperfiddle.photon :as p]
             [missionary.core :as m]))
@@ -13,7 +13,7 @@
   (with
     (p/run
       (let [x (new (m/watch !x))]
-        (! (p/impulse x (m/observe sub)))))
+        (tap (p/impulse x (m/observe sub)))))
     % := nil
     (@!e 1)
     % := 1

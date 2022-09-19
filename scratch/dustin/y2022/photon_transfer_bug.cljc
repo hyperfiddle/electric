@@ -1,6 +1,6 @@
 (ns dustin.y2022.photon-transfer-bug
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :refer [tests tap % with]]
             [hyperfiddle.photon-impl.compiler :refer [analyze]]
             [hyperfiddle.photon-impl.runtime :as r :refer [emit]]
             [missionary.core :as m]))
@@ -124,7 +124,7 @@
    (tests
      "client/server transfer, pure functional!"
      (def !x (atom 0))
-     (def dispose ((p/client (p/main (! (App.))))
+     (def dispose ((p/client (p/main (tap (App.))))
                    js/console.log js/console.error))
      % := "#object[Number]"
      (swap! !x inc)

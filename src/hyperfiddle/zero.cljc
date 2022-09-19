@@ -4,7 +4,7 @@
   (:refer-clojure :exclude [empty? time])
   (:require [missionary.core :as m]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests ! % with]])
+            [hyperfiddle.rcf :refer [tests tap % with]])
   #?(:cljs (:require-macros [hyperfiddle.zero :refer [pick]])))
 
 (defn state [init-value]
@@ -93,7 +93,7 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
 
 (tests
   "millisecond time as a stable test"
-  (let [dispose (p/run (! time))]
+  (let [dispose (p/run (tap time))]
     [% % %] := [_ _ _]
     (map int? *1) := [true true true]
     (dispose)))
@@ -105,4 +105,4 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
                           (m/eduction (map (constantly 1)))
                           (m/reductions + 0))))
 
-  (tests (with (p/run (! ticker)) [% % %] := [1 2 3])))
+  (tests (with (p/run (tap ticker)) [% % %] := [1 2 3])))

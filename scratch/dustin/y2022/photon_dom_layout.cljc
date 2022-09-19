@@ -3,7 +3,7 @@
             [clojure.core.async :as a]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]])
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]])
   (:import [hyperfiddle.photon Pending Failure]
            (missionary Cancelled)))
 

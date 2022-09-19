@@ -3,7 +3,7 @@
   (:require #?(:clj [datascript.core :as d])
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.rcf :refer [! % tests]]
+            [hyperfiddle.rcf :refer [tap % tests]]
             user.util)
   #?(:cljs (:require-macros wip.orders)))
 

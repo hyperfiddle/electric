@@ -1,5 +1,5 @@
 (ns dustin.y2022.notebooks.photon-clerk
-  (:require [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
+  (:require [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]
             [nextjournal.clerk :as clerk]))
 

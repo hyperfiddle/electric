@@ -4,7 +4,7 @@
             [hyperfiddle.api :as hf :refer [hfql]]
             [hfdl.lang :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :as rcf :refer [tests ! %]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap %]]
             [missionary.core :as m]
 
             [user.gender-shirt-size :refer [genders shirt-sizes submissions submission]]

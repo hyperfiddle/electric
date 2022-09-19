@@ -1,6 +1,6 @@
 (ns dustin.y2022.missionary-cp
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]))
 
 (hyperfiddle.rcf/enable!)
@@ -20,11 +20,11 @@
 
 (tests
   (def !atom (atom 0))
-  (p/run (! (new (odd-flow (p/watch !atom))))))
+  (p/run (tap (new (odd-flow (p/watch !atom))))))
 
 (tests
   (let [!atom (atom 0)]
-    (with (p/run (! (new (odd-flow (p/watch !atom)))))
+    (with (p/run (tap (new (odd-flow (p/watch !atom)))))
       % := 0
       (swap! !atom inc)
       % := 1

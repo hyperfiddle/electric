@@ -1,6 +1,6 @@
 (ns user.photon.photon-lifecycle
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :refer [tests tap % with]]
             [missionary.core :as m]))
 
 
@@ -28,7 +28,7 @@
 
 (tests
   (def !x (atom 0))
-  (with (p/run (! (new (MyWatch !x))))                      ; Functions that return flows are "DAG constructors"
+  (with (p/run (tap (new (MyWatch !x))))                      ; Functions that return flows are "DAG constructors"
     % := 0
     (swap! !x inc)
     % := 1))
@@ -54,10 +54,10 @@
   (def !x (atom 0))
   (def dispose
     (p/run
-      (!
+      (tap
         (let [x (p/watch !x)]
           (if (even? x)
-            (new (ConstantObject x !)))))))                       ; Photon will unmount/destruct the flow when the if switches back
+            (new (ConstantObject x tap)))))))                       ; Photon will unmount/destruct the flow when the if switches back
   % := ::mount
   % := 0
   (swap! !x inc)

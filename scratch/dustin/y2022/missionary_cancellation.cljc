@@ -3,7 +3,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.compiler :refer [analyze]]
             [hyperfiddle.photon-impl.runtime :as r :refer [emit]]
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m])
   (:import (missionary Cancelled)))
 
@@ -17,7 +17,7 @@
   ; consider:
 
   (def !x (atom 1))
-  (def dispose (p/run (! (let [x (new (m/watch !x))]
+  (def dispose (p/run (tap (let [x (new (m/watch !x))]
                            (if (pos? x)
                              (/ 1 x)                        ; guard div by zero
                              x)))))                         ; define it at zero
@@ -62,13 +62,13 @@
           ;(if (pos? x) (/ 1 x) x)
           <<x (m/latest {true  (m/latest / (m/cp 1) <x)
                          false <x} (m/latest pos? <x))]
-      (m/latest rcf/!
+      (m/latest rcf/tap
                 (m/cp (try (m/?< (m/?< <<x))
-                           (catch Cancelled e (! ::cancelled)))))))
+                           (catch Cancelled e (tap ::cancelled)))))))
 
   (def main (m/reactor (m/stream! (user))))
-  (def dispose (main (fn [v] (rcf/! [::success v]))
-                     (fn [err] (rcf/! [::failure err]))))
+  (def dispose (main (fn [v] (rcf/tap [::success v]))
+                     (fn [err] (rcf/tap [::failure err]))))
   % := 1
   (swap! !x dec)
   ; (m/latest / (m/cp 1) <x) is cancelled by m/cp due to <<x becoming ready
