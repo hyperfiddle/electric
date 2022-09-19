@@ -252,7 +252,7 @@ or a provided value if it completes without producing any value."
       ;; which will make cancel-chan produce `nil` and cause cancellation of read on `chan`.
       #(a/close! cancel-chan))))
 
-(cc/defn chan->flow
+(cc/defn chan->ap
   "Produces a discreet flow from a core.async `channel`"
   [channel]
   (m/ap ; returns a discreet flow
@@ -274,16 +274,20 @@ or a provided value if it completes without producing any value."
 (cc/defn chan->task [ch]
   ; for streaming database results into a vector at the repl
   ; which is not great
-  (->> (chan->flow ch)
+  (->> (chan->ap ch)
        (m/reduce into [])))
 
 (cc/defn task->cp [!x]
   (->> (m/ap (m/? !x))
        (m/reductions {} (Failure. (Pending.)))))
 
+;(cc/defn chan->cp [ch]
+;  (->> (chan->ap ch)
+;       (m/reductions into [])))
+
 (defmacro use-channel ;; TODO rename
   ([chan] `(use-channel nil ~chan))
-  ([init chan] `(new (m/reductions {} ~init (chan->flow ~chan)))))
+  ([init chan] `(new (m/reductions {} ~init (chan->ap ~chan)))))
 
 ;; --------------------------------------
 
