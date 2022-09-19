@@ -3,7 +3,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             #?(:clj [hyperfiddle.hfql :refer [hfql]])
-            [hyperfiddle.rcf :refer [tests ! %]]
+            [hyperfiddle.rcf :refer [tests tap %]]
             [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui :as ui]
             [user.persons :refer [persons genders shirt-sizes]]
@@ -54,7 +54,7 @@
 (tests
   (p/run
     (binding [hf/db (hf/->DB "$" 0 nil hf/*$*)]
-      (! (p/$ App "bob"))))
+      (tap (p/$ App "bob"))))
   % := '{(user.persons/persons .)
          [{:dustingetz/gender     #:db{:id 1, :ident :dustingetz/male},
            :dustingetz/email      "bob@example.com",

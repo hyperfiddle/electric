@@ -1,13 +1,13 @@
 (ns user.photon.photon-advanced
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :refer [tests tap % with]]
             [missionary.core :as m]))
 
 (tests
   "Photon lambdas of non-zero arity also compile to missionary continuous flows (not just thunks)"
   (def !x (atom 0))
   (with (p/run
-          (! (->> (p/fn [y] y)                              ; this Photon lambda is also a missionary continuous flow
+          (tap (->> (p/fn [y] y)                              ; this Photon lambda is also a missionary continuous flow
                   (m/eduction (dedupe))
                   (m/relieve {})
                   (new (p/watch !x)))))                     ; so long as you bind the parameters on construction, when the flow eventually runs the parameters are present
@@ -32,4 +32,4 @@
 (comment
   "infinite loop on construction, hangs RCF"
   (def !x (atom 0))
-  (with (p/run (reset! !x (! (inc ~(m/watch !x)))))))
+  (with (p/run (reset! !x (tap (inc ~(m/watch !x)))))))

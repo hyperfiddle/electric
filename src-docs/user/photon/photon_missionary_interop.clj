@@ -1,7 +1,7 @@
 (ns user.photon.photon-missionary-interop
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.runtime :as r]
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m])
   (:import hyperfiddle.photon.Failure
            (clojure.lang IFn IDeref)))
@@ -13,7 +13,7 @@
   "introduce Missionary signal to Photon program"
   ; Photon programs compile down to Missionary signals and therefore Photon has native interop with Missionary primitives.
   (def !x (atom 0))
-  (with (p/run (! (let [X (m/watch !x)]                     ; X is a recipe for a signal that is derived from the atom
+  (with (p/run (tap (let [X (m/watch !x)]                     ; X is a recipe for a signal that is derived from the atom
                     (new X))))                              ; construct actual signal instance from the recipe with (new)
     % := 0
     (swap! !x inc)
@@ -23,7 +23,7 @@
   (def !x (atom 0))
   (with (p/run (let [X (m/watch !x)                         ; missionary flow recipes are like Haskell IO actions
                      x (new X)]                             ; construct flow recipe once
-                 (! (+ x x))))
+                 (tap (+ x x))))
     % := 0
     (swap! !x inc)
     % := 2
@@ -33,7 +33,7 @@
 (tests "broken dataflow diamond"
   (def !x (atom 0))
   (with (p/run (let [X (m/watch !x)]
-                 (! (+ (new X) (new X)))))                  ; bad - two separate watch instances on the same atom
+                 (tap (+ (new X) (new X)))))                  ; bad - two separate watch instances on the same atom
     % := 0
     (swap! !x inc)                                          ; each instance fires an event resulting in two propagation frames
     % := 1                                                  ; bad
@@ -48,7 +48,7 @@
   "You can only call a photon fn with a photon flow. (Literals and foreign globals are auto-lifted by compiler)"
   (def !x (atom 0))
   (with (p/run
-          (!
+          (tap
             (new                                            ; call photon fn with new
               (p/fn [x y] (+ x y))
               (p/watch !x)                                  ; Photon flow from atom
@@ -58,7 +58,7 @@
   "To call a photon fn with a missionary flow, first join the missionary flow into photon with (new)
   and then call the photon function with the joined flow."
   (with (p/run
-          (!
+          (tap
             (new                                            ; call photon fn with new
               (p/fn [x y] (+ x y))
               (new                                          ; join missionary flow into Photon with new
@@ -68,7 +68,7 @@
 
   "call a photon function with a missionary flow from an eduction"
   (with (p/run
-          (!
+          (tap
             (new
               (p/fn [x y] (+ x y))
               (new                                          ; join missionary flow to Photon
@@ -79,7 +79,7 @@
 (tests
   "Photon can join both discrete and continuous missionary flows, but they must have an initial value"
   (with (p/run
-          (!
+          (tap
             (let [<x (m/watch !x)                           ; continuous flow as a value
                   >y (m/eduction (map inc) <x)]             ; discrete flow as a value
               (new
@@ -95,7 +95,7 @@
 (tests
   "Joining a discrete flow without an initial value is undefined"
   (with (p/run
-          (!
+          (tap
             (let [>x (sleep-emit [10 20])]                  ; event at t=10 and t=20, nothing at t=0
               (new
                 (p/fn [x] (inc x))
@@ -108,7 +108,7 @@
   therefore they can be passed to Missionary's API"
   (def !x (atom 0))
   (with (p/run
-          (!
+          (tap
             (let [x  (p/watch !x)                           ; a photon signal (continuous)
                   X  (p/fn [] x)                            ; Normally in Photon we would name a p/fn with capital X, but in this example
                   <x (p/fn [] x)                            ; <x is an appropriate name since it has the same type as any other continuous flow value
@@ -120,7 +120,7 @@
   "Therefore, photon thunk is monadic lift, new is monadic join"
   (def !x (atom 0))
   (with (p/run
-          (!
+          (tap
             (let [x   (p/watch !x)                          ; x :: m a
                   <x  (p/fn [] x)                           ; <x :: m m a
                   <<x (p/fn [] <x)                          ; <<x :: m m m a
@@ -134,7 +134,7 @@
   (def !x (atom 0))
   (with (p/run
           (let [x (p/watch !x)]
-            (! (->> (p/fn [] x)                             ; lift
+            (tap (->> (p/fn [] x)                             ; lift
                     (m/eduction (dedupe))                   ; pass lifted value to missionary
                     (new)))))                               ; join back
     % := 0
@@ -148,7 +148,7 @@
 (tests
   "crashing a missionary flow is fatal"
   (defn boom! [x] (throw (ex-info "boom" {})) x)
-  (with (p/run (! (try (new (m/eduction (map boom!) (p/fn [] 1)))
+  (with (p/run (tap (try (new (m/eduction (map boom!) (p/fn [] 1)))
                        (catch Throwable t ::boom))))
     ; % := :boom -- uncaught
     % := ::rcf/timeout))
@@ -157,7 +157,7 @@
   "inject Photon exception from missionary flow"
   (defn boom! [x] (Failure. (r/error "boom")))
 
-  (with (p/run (! (try (new (m/eduction (map boom!) (p/fn [] 1)))
+  (with (p/run (tap (try (new (m/eduction (map boom!) (p/fn [] 1)))
                        (catch Throwable t ::boom))))
     % := ::boom))
 
@@ -171,15 +171,15 @@
 
 (tests
   "raw missionary flow called from photon"
-  (def !it (>F #(! ::notify)
-               #(! ::terminate)))
+  (def !it (>F #(tap ::notify)
+               #(tap ::terminate)))
   % := ::notify
   @!it := 42
   (!it))
 
 (tests
   ; (p/run (new >F)) -- fails due to syntax collision with Clojure new
-  (with (p/run (! (new (identity >F))))                     ; workaround syntax gap
+  (with (p/run (tap (new (identity >F))))                     ; workaround syntax gap
     % := 42))
 
 (comment

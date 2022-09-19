@@ -3,14 +3,14 @@
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [! % tests]]))
+            [hyperfiddle.rcf :refer [tap % tests]]))
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (defn genders []
   #?(:clj (into [] (sort (d/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*)))))
 
 (tests
-  (def dispose (p/run (! (genders))))
+  (def dispose (p/run (tap (genders))))
   % := [1 2]
   (dispose))
 
@@ -58,7 +58,7 @@
          (or needle "")))))
 
 (tests
-  (p/run (! (orders "")))
+  (p/run (tap (orders "")))
   %)
 
 (s/fdef orders :args (s/cat :needle string?)
@@ -74,15 +74,15 @@
 (defn one-order [sub] (hf/nav! hf/*$* sub :db/id))
 
 (tests
-  (p/run (! (order "")))
+  (p/run (tap (order "")))
   %)
 
 (tests
   (def dispose
     (p/run
-      (! (orders ""))
-      (! (orders "example"))
-      (! (orders "b"))))
+      (tap (orders ""))
+      (tap (orders "example"))
+      (tap (orders "b"))))
   % := [9 10 11]
   % := [9 10 11]
   % := [10]

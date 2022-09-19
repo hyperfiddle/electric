@@ -1,6 +1,6 @@
 (ns user.photon.photon-call-semanatics
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests ! % with]]))
+            [hyperfiddle.rcf :refer [tests tap % with]]))
 
 (p/def trace! println)
 
@@ -17,8 +17,8 @@
 (tests
   (def !n (atom 3))
   (with (p/run
-          (binding [trace! !]
-            (! (Bar. 5 (p/watch !n)))))
+          (binding [trace! tap]
+            (tap (Bar. 5 (p/watch !n)))))
     % := 7
     % := [7 8 9]
     (swap! !n inc)

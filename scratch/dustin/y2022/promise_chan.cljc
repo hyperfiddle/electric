@@ -1,7 +1,7 @@
 (ns dustin.y2022.scratch
   (:require [missionary.core :as m]
             [clojure.core.async :as a]
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]])
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]])
   (:import [hyperfiddle.photon Pending Failure]
            (missionary Cancelled)))
 
@@ -46,7 +46,7 @@
      "Turn a channel into a discreet flow"
      (let [c (a/chan)
            f (p/chan->flow c)
-           it (f #(! :ready) #(! :done))]
+           it (f #(tap :ready) #(tap :done))]
        (a/put! c 1)
        ;; chan-read rely on a go block, which will run its body in another thread.
        ;; We can not assume flow is immediately ready. Hence we await for :ready with %

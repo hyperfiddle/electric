@@ -1,6 +1,6 @@
 (ns hyperfiddle.missionary-test
   (:require [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests ! % with]])
+            [hyperfiddle.rcf :refer [tests tap % with]])
   (:import (missionary Cancelled)))
 
 
@@ -8,8 +8,8 @@
   "flow cancel before transfer"
   (def !x (atom 0))
   (def >x (m/watch !x))
-  (def !it (>x (fn [] (! ::notify))
-               (fn [] (! ::terminate))))
+  (def !it (>x (fn [] (tap ::notify))
+               (fn [] (tap ::terminate))))
   % := ::notify
   (!it)
   @!it thrown? Cancelled
@@ -35,14 +35,14 @@
          (m/stream!
            (m/ap
              (m/amb=
-               (! {'aa (m/?< <aa)})
-               (! {'a7 (m/?< <a7)})
-               (! {'a70 (m/?< <a70)})
-               (! {'bb (m/?< <bb)})
-               (! {'cc (m/?< <cc)})
-               (! {'dd (m/?< <dd)})
-               (! {'ee (m/?< <ee)}))))))
-     ! !)
+               (tap {'aa (m/?< <aa)})
+               (tap {'a7 (m/?< <a7)})
+               (tap {'a70 (m/?< <a70)})
+               (tap {'bb (m/?< <bb)})
+               (tap {'cc (m/?< <cc)})
+               (tap {'dd (m/?< <dd)})
+               (tap {'ee (m/?< <ee)}))))))
+     tap tap)
     % := {'ee 420071}
     % := {'dd 42}
     % := {'cc 10}

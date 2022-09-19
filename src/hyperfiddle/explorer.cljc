@@ -6,7 +6,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet RenderTableInfinite]]
-            [hyperfiddle.rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :refer [tests tap % with]]
             [user.util :refer [includes-str? pprint-str]])
   #?(:cljs (:require-macros hyperfiddle.explorer)))
 
@@ -32,7 +32,7 @@
 
 #?(:clj
    (tests
-     (with (p/run (! (binding [Children (p/fn [x] (if (vector? x) x))
+     (with (p/run (tap (binding [Children (p/fn [x] (if (vector? x) x))
                                Search? (p/fn [x needle] (odd? x))]
                        (TreeList. [1 2 [3 4] [5 [6 [7]]]] ""))))
        % := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]])))

@@ -1,7 +1,7 @@
 (ns dustin.missionary.missionary
   (:require
     [missionary.core :as m]
-    [hyperfiddle.rcf :refer [tests ! %]]))
+    [hyperfiddle.rcf :refer [tests tap %]]))
 
 (tests
     (def hello-task (m/sp (println "Hello")))

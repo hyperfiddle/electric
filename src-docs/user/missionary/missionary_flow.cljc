@@ -1,5 +1,5 @@
 (ns user.missionary.missionary-flow
-  (:require [hyperfiddle.rcf :refer [tests ! % with]]
+  (:require [hyperfiddle.rcf :refer [tests tap % with]]
             [missionary.core :as m])
   (:import (missionary Cancelled)))
 
@@ -20,8 +20,8 @@
 
   ; Flow thunks concretely have the structure (fn [notify! terminate!] !iterator),
   ; see https://github.com/leonoel/flow#specification
-  (def !it (>x (fn [] (! ::notify))
-               (fn [] (! ::terminate))))
+  (def !it (>x (fn [] (tap ::notify))
+               (fn [] (tap ::terminate))))
   % := ::notify                                             ; lazy flow is ready to be sampled
   @!it := 0                                                 ; sample
   (swap! !x inc)                                            ; trigger a change

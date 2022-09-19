@@ -2,7 +2,7 @@
   (:require [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.rcf :refer [tests % !]]
+            [hyperfiddle.rcf :refer [tests % tap]]
             [clojure.test :as t]))
 
 (def CONTAINER (dom/by-id "test-bench"))
@@ -14,7 +14,7 @@
   (text-content CONTAINER) := ""
   (let [dispose (p/run (binding [dom/node CONTAINER]
                           (dom/text "hello")
-                          (! (text-content CONTAINER))))]
+                          (tap (text-content CONTAINER))))]
     % := "hello"
     (dispose)
     (text-content CONTAINER) := ""))
@@ -28,7 +28,7 @@
         (dom/text "b")
         (dom/text "c"))
       (dom/text "d"))
-    (! (text-content CONTAINER)))
+    (tap (text-content CONTAINER)))
 
   % := "abd"
   (swap! !x not)
@@ -45,7 +45,7 @@
       (p/for [x ~(m/watch !xs)]
         (dom/text x))
       (dom/text "d"))
-    (! (text-content CONTAINER)))
+    (tap (text-content CONTAINER)))
 
   % := "abcd"
   (swap! !xs reverse)

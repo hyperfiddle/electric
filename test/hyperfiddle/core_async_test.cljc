@@ -2,7 +2,7 @@
 (ns hyperfiddle.core-async-test
   "Photon language unit tests"
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [clojure.core.async :as a]
             [missionary.core :as m])
   (:import missionary.Cancelled))
@@ -47,7 +47,7 @@
      "Reading a value from a channel blocks until a value is available."
      (let [c (a/chan)
            t (p/chan-read c)]
-       (future (! (m/? t))) ; don't block main (repl) thread
+       (future (tap (m/? t))) ; don't block main (repl) thread
        (a/put! c 1)
        % := 1)))
 
@@ -56,7 +56,7 @@
      "Write a value to a channel"
      (let [c (a/chan)
            t (chan-write c 1)]
-       (a/take! c !)
+       (a/take! c tap)
        (m/? t) := true
        % := 1)))
 
@@ -69,8 +69,8 @@
        (Thread/sleep 100)
        (future (m/? t) := true)
        (Thread/sleep 100)
-       (a/take! c !)
-       (a/take! c !)
+       (a/take! c tap)
+       (a/take! c tap)
        % := 1
        % := 2)))
 
@@ -79,7 +79,7 @@
      "Turn a channel into a discreet flow"
      (let [c (a/chan)
            f (p/chan->flow c)
-           it (f #(! :ready) #(! :done))]
+           it (f #(tap :ready) #(tap :done))]
        (a/put! c 1)
        ;; chan-read rely on a go block, which will run its body in another thread.
        ;; We can not assume flow is immediately ready. Hence we await for :ready with %
@@ -90,7 +90,7 @@
    (tests
      "Put values of a flow onto a channel, and read it back as a flow."
      (def c (a/chan))
-     (future (! (m/? (m/reduce conj ; just run the flow until it terminates
+     (future (tap (m/? (m/reduce conj ; just run the flow until it terminates
                                (m/ap (m/amb= (m/?> (onto-chan (m/seed [1 2]) c))
                                              (m/?> (p/chan->flow c))))))))
      (a/close! c)
@@ -102,8 +102,8 @@
      (def input (a/chan))
      (def c (a/chan))
      (future (m/? (m/reduce {} nil ; just run the flow until it terminates
-                            (m/ap (m/amb= (! [:success (m/?> (p/chan->flow c))])
-                                          (! [:failure (m/?> (onto-chan (p/chan->flow input) c))]))))))
+                            (m/ap (m/amb= (tap [:success (m/?> (p/chan->flow c))])
+                                          (tap [:failure (m/?> (onto-chan (p/chan->flow input) c))]))))))
      (a/>!! input 1) ; put 1 on input, which transfers to a flow, then is put onto c.
      (Thread/sleep 100) ; even if >!! is blocking, go blocks might race with the next instruction
      (a/close! c)
@@ -116,7 +116,7 @@
    (tests
      "Using a core.async channel from Photon"
      (def c (a/to-chan [1 2 3]))
-     (with (p/run (! (p/use-channel c)))
+     (with (p/run (tap (p/use-channel c)))
            % := nil
            % := 1
            % := 2
@@ -129,10 +129,10 @@
       "Putting values on a channel from photon"
       (def !a (atom 0))
       (def c (a/chan))
-      (with (p/run (! (new (onto-chan (p/fn [] (p/watch !a)) c))))
+      (with (p/run (tap (new (onto-chan (p/fn [] (p/watch !a)) c))))
             (a/go-loop [x (a/<! c)]
               (when x
-                (! x)
+                (tap x)
                 (recur (a/<! c))))
             ;; (swap! !a inc)
             ;; (a/close! c)

@@ -1,6 +1,6 @@
 (ns hyperfiddle.api
   (:require #?(:clj [datascript.core :as d])
-            [hyperfiddle.rcf :refer [tests ! %]]
+            [hyperfiddle.rcf :refer [tests tap %]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.hfql :as hfql])
   #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
@@ -73,15 +73,15 @@
     :else       v))
 
 (tests
-  (p/run (! (Join-all. [(p/fn [] 1) (p/fn [] 2) (p/fn [] 3)])))
+  (p/run (tap (Join-all. [(p/fn [] 1) (p/fn [] 2) (p/fn [] 3)])))
   % := [1 2 3])
 
 (tests
-  (p/run (! (Join-all. (list (p/fn [] 1) (p/fn [] 2) (p/fn [] 3)))))
+  (p/run (tap (Join-all. (list (p/fn [] 1) (p/fn [] 2) (p/fn [] 3)))))
   % := '(1 2 3))
 
 (tests
-  (p/run (! (Join-all. {:a (p/fn [] 1), :b (p/fn [] 2), :c (p/fn [] 3)})))
+  (p/run (tap (Join-all. {:a (p/fn [] 1), :b (p/fn [] 2), :c (p/fn [] 3)})))
   % := '{:a 1, :b 2, :c 3})
 
 (declare Render)
