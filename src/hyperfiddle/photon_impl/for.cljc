@@ -81,47 +81,40 @@
      :cljs (->MapEntry k v nil)))
 
 (tests
-  (sequence (comp (seq-diff :id) (map entry))
-    [[{:id "alice" :email "alice@caramail.com"}]
-     ;; Add bob and change email for alice
-     [{:id "alice" :email "alice@gmail.com"}
-      {:id "bob" :email "bob@yahoo.com"}]
-     ;; Add a second alice before bob, moving bob to 3rd place
-     [{:id "alice" :email "alice@gmail.com"}
-      {:id "alice" :email "alice@msn.com"}
-      {:id "bob" :email "bob@yahoo.com"}]
-     ;; Move second alice after bob
-     [{:id "alice" :email "alice@gmail.com"}
-      {:id "bob" :email "bob@yahoo.com"}
-      {:id "alice" :email "alice@msn.com"}]
-     ;; Drop first alice
-     [{:id "bob" :email "bob@yahoo.com"}
-      {:id "alice" :email "alice@msn.com"}]
-     ;; Drop all
-     []]) :=
-  [; first change (initial)
-   [?a {:id "alice", :email "alice@caramail.com"}] ; set value of ?a to be {:id "alice", :email "…"}
-   [nil [?a nil]] ; if first element is nil -> movement, if it's an object -> event on an item
-                  ; second element is a pair:
-                  ;  - first element is an identifier for the object we are moving
-                  ;  - second element is the target where to move it, nil means append at the end
-   ; second change
-   [?a {:id "alice", :email "alice@gmail.com"}]    ; set value of ?a again (email changed)
-   [?b {:id "bob", :email "bob@yahoo.com"}] ; set value of ?b to {:id "bob", :email "…"}
-   [nil [?b nil]] ; a new object appears at the end of the list
-   ; third change
-   [?c {:id "alice", :email "alice@msn.com"}] ; set ?c to {:id "alice", :email "alice@msn.com"}
-   [nil [?c ?b]] ; insert new object ?c before ?b
-   ; fourth change
-   [nil [?b ?c]] ; insert ?b before ?c (bob before 2nd alice)
-   ; Fifth change
-   [nil [?b ?a]] ; insert ?b before ?a
-   [?a {:id "alice", :email "alice@msn.com"}] ; set ?a to be {:id "alice", :email "alice@msn.com"}
-   [nil [?c ?c]] ; remove ?c
-   ; Last change
-   [nil [?a ?a]] ; drop ?a
-   [nil [?b ?b]] ; drop ?b
-   ])
+  (let [alice-caramail {:id "alice" :email "alice@caramail.com"}
+        alice-gmail    {:id "alice" :email "alice@gmail.com"}
+        bob            {:id "bob" :email "bob@yahoo.com"}
+        alice-msn      {:id "alice" :email "alice@msn.com"}]
+    (sequence (comp (seq-diff :id) (map entry))
+      [[alice-caramail]
+       [alice-gmail bob]
+       [alice-gmail alice-msn bob]
+       [alice-gmail bob alice-msn]
+       [bob alice-msn]
+       []]) :=
+    [                    ; first change (initial)
+     [?a alice-caramail] ; set value of ?a to be {:id "alice", :email "…"}
+     [nil [?a nil]]      ; if first element is nil -> movement, if it's an object -> event on an item
+                         ; second element is a pair:
+                         ;  - first element is an identifier for the object we are moving
+                         ;  - second element is the target where to move it, nil means append at the end
+                         ; second change
+     [?a alice-gmail]    ; set value of ?a again (email changed)
+     [?b bob]            ; set value of ?b to bob
+     [nil [?b nil]]      ; a new object appears at the end of the list
+                         ; third change
+     [?c alice-msn]      ; set ?c to alice-msn
+     [nil [?c ?b]]       ; insert new object ?c before ?b
+                         ; fourth change
+     [nil [?b ?c]]       ; insert ?b before ?c (bob before 2nd alice)
+                         ; Fifth change
+     [nil [?b ?a]]       ; insert ?b before ?a
+     [?a alice-msn]      ; set ?a to be alice-msn
+     [nil [?c ?c]]       ; remove ?c
+                         ; Last change
+     [nil [?a ?a]]       ; drop ?a
+     [nil [?b ?b]]       ; drop ?b
+     ]))
 
 (defn insert-before [tier]
   (fn [rf]
