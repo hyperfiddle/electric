@@ -1,7 +1,7 @@
 (ns user.photon.photon-2-transfer
   "Photon with client/server transfer at the REPL"
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests ! % with]])
+            [hyperfiddle.rcf :refer [tests tap % with]])
   (:import (hyperfiddle.photon Pending)))
 
 
@@ -16,7 +16,7 @@
    (tests
      "client/server transfer, pure functional!"
      (def !x (atom 0))
-     (def dispose ((p/boot (try (! (App. (p/watch !x)))
+     (def dispose ((p/boot (try (tap (App. (p/watch !x)))
                                 (catch Pending _)))
                    js/console.log js/console.error))
      % := "#object[Number]"

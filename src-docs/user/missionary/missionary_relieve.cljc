@@ -1,5 +1,5 @@
 (ns user.missionary.missionary-relieve
-  (:require [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
+  (:require [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]))
 
 (hyperfiddle.rcf/enable!)
@@ -20,7 +20,7 @@
     (->> (m/ap (loop [] (m/amb (m/? (m/sleep 0 1)) (recur))))
          (m/reductions + 0)
          (m/relieve {})))
-  (def !it (<spinner #(! ::notify) #(! ::terminate)))
+  (def !it (<spinner #(tap ::notify) #(tap ::terminate)))
   % := ::notify
   @!it := 1
   % := ::notify
@@ -37,7 +37,7 @@
     (->> (m/ap (loop [] (m/amb (m/? (m/sleep 0 1)) (recur))))
          (m/reductions + 0)
          (m/latest identity)))
-  (def !it (<counter #(! ::notify) #(! ::terminate)))
+  (def !it (<counter #(tap ::notify) #(tap ::terminate)))
   % := ::notify
   @!it := 1
   % := ::notify

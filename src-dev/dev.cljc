@@ -3,7 +3,7 @@
     [datascript.core :as d]
     [hyperfiddle.api :as hf]
     [hyperfiddle.logger :as log]
-    [hyperfiddle.rcf :refer [tests % !]]))
+    [hyperfiddle.rcf :refer [tests % tap]]))
 
 
 (defn fixtures [$]

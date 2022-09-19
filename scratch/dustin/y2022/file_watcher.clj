@@ -6,7 +6,7 @@
                                       read-edn-forms
                                       watch-file
                                       path]]
-            [hyperfiddle.rcf :as rcf :refer [tests % !]]
+            [hyperfiddle.rcf :as rcf :refer [tests % tap]]
             [missionary.core :as m]))
 
 (def !x (atom nil))

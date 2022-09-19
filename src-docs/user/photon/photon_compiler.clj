@@ -1,7 +1,7 @@
 (ns user.photon.photon-compiler
   (:require [clojure.datafy :refer [datafy]]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]))
 
 (hyperfiddle.rcf/enable!)
@@ -11,7 +11,7 @@
   (def dispose (p/run
                  (let [x (p/watch !x)                       ; reactive x
                        a (inc x)]                           ; reactive a depends on reactive x
-                   (! (+ a (inc x))))))                     ; reactive +
+                   (tap (+ a (inc x))))))                     ; reactive +
   % := 2
   (swap! !x inc)
   % := 4
@@ -28,10 +28,10 @@
   (defn user []
     (let [<x (m/signal! (m/watch !x))
           <a (m/signal! (m/latest inc <x))]
-      (m/latest rcf/! (m/latest + <a (m/latest inc <x)))))
+      (m/latest rcf/tap (m/latest + <a (m/latest inc <x)))))
   (def main (m/reactor (m/stream! (user))))                 ; entrypoint that runs for effect
-  (def dispose (main (fn [_] (rcf/! ::success))             ; start process, will run until disposed
-                     (fn [err] (rcf/! ::error) (rcf/! err))))
+  (def dispose (main (fn [_] (rcf/tap ::success))             ; start process, will run until disposed
+                     (fn [err] (rcf/tap ::error) (rcf/tap err))))
   % := 2
   (swap! !x inc)
   % := 4

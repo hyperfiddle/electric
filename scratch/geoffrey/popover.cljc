@@ -3,7 +3,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]])
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]])
   (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros geoffrey.popover)))
 

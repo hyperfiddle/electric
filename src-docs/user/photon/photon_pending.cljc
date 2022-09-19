@@ -1,6 +1,6 @@
 (ns user.photon.photon-pending
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests ! % with]])
+            [hyperfiddle.rcf :refer [tests tap % with]])
   (:import (hyperfiddle.photon Pending)))
 
 
@@ -8,8 +8,8 @@
 
 (tests
   "Pending network transfer is trapped locally with reactive try/catch"
-  (with (p/run (! (try [(! 1)
-                        (! (p/server 2))]
+  (with (p/run (tap (try [(tap 1)
+                        (tap (p/server 2))]
                        (catch Pending _
                          ::pending))))
     % := 1

@@ -3,7 +3,7 @@
   (:require [clojure.test :as t]
             [datascript.core :as d]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m])
   (:import [hyperfiddle.photon Pending Failure]
            [missionary Cancelled]))
@@ -18,7 +18,7 @@
   (p/def db (p/watch !conn))
   (with (p/run (p/for [id (query-todos db)]
                  (let [{:keys [:task/status :task/description]} (d/entity @!conn id)]
-                   (! status)
-                   (! description))))
+                   (tap status)
+                   (tap description))))
     % := :done
     % := "buy milk"))

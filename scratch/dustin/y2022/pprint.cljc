@@ -2,7 +2,7 @@
   "for debugging cljs browser apps in production at the browser console without a repl"
   (:require
     clojure.pprint
-    [hyperfiddle.rcf :refer [tests ! %]]))
+    [hyperfiddle.rcf :refer [tests tap %]]))
 
 
 (defn pprint-str [x]

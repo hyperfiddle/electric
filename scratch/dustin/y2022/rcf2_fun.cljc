@@ -1,6 +1,6 @@
 (ns dustin.y2022.rcf2-fun
   (:require [clojure.test]
-            [hyperfiddle.rcf :as rcf :refer [tests ! %]]))
+            [hyperfiddle.rcf :as rcf :refer [tests tap %]]))
 
 (hyperfiddle.rcf/enable!)
 #?(:clj (defmethod clojure.test/assert-expr `= [msg form] (rcf/assert-= nil msg form)))

@@ -1,6 +1,6 @@
 (ns dustin.fix
   (:require [hfdl.lang :as r :refer [defnode node]]
-            [hyperfiddle.rcf :as rcf :refer [tests ! %]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap %]]
             [missionary.core :as m]))
 
 ; fix :: (a -> a) -> a
@@ -39,7 +39,7 @@
 
 (tests
   "ArrowLoop"
-  (def dispose (r/run (! 1)))
+  (def dispose (r/run (tap 1)))
   % := 1
   (dispose))
 

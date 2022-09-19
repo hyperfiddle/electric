@@ -2,7 +2,7 @@
   (:require [hfdl.impl
              [compiler :refer [analyze emit emit-inst]]
              [util :refer [with-local]]]
-            [hyperfiddle.rcf :refer [tests ! %]]))
+            [hyperfiddle.rcf :refer [tests tap %]]))
 
 (defn emit' [asm]
   (with-local

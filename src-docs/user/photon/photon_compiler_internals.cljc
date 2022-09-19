@@ -2,7 +2,7 @@
   (:require [hyperfiddle.photon :as p]
             #?(:clj [hyperfiddle.photon-impl.compiler :refer [analyze]])
             #?(:clj [hyperfiddle.photon-impl.runtime :as r :refer [emit]])
-            [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]))
 
 (tests
