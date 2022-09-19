@@ -291,33 +291,28 @@
   @it
   (it))
 
-#?(:clj
-   (defn entity-history-datoms< [db ?e ?a]
-     ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
-     (->> (entity-history-datoms> db ?e ?a)
-          (m/reductions conj []) ; track a running count as well
-          (m/latest identity)))) ; fixme buffer
-
 (p/defn EntityHistory [e]
   (assert e)
-  (binding [explorer/cols [:e :a :v :tx]
+  (binding [explorer/cols [::e ::a ::op ::v ::tx-instant ::tx]
             explorer/Format (p/fn [[e aa v tx op] a]
                               (case a
-                                :e (Nav-link. [::entity e] e)
-                                :a (some-> aa pr-str)
-                                :v (some-> v pr-str)
-                                :tx (Nav-link. [::tx tx] tx)
+                                ::op (name (case op true :db/add false :db/retract))
+                                ::e (Nav-link. [::entity e] e)
+                                ::a (if (some? aa)
+                                      (:db/ident (new (p/task->cp (pull! db aa [:db/ident])))))
+                                ::v (some-> v pr-str)
+                                ::tx (Nav-link. [::tx tx] tx)
+                                ::tx-instant (pr-str (:db/txInstant (new (p/task->cp (pull! db tx [:db/txInstant])))))
                                 (str v)))]
     (Explorer.
       (str "Entity history: " (pr-str e))
-      (new (entity-history-datoms< db e nil))
+      ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
+      (new (->> (entity-history-datoms> db e nil)
+                (m/reductions conj []) ; track a running count as well?
+                (m/latest identity))) ; fixme buffer
       {::explorer/page-size 20
        ::explorer/row-height 24
-       ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
-
-(comment
-  ;(attr-datoms< db :label/name)
-  )
+       ::gridsheet/grid-template-columns "10em 10em 3em calc(100% - 10em - 10em - 3em - 9em - 9em) 9em 9em"})))
 
 (p/defn AttributeDetail [a]
   (binding [explorer/cols [:e :a :v :tx]
