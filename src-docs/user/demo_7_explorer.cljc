@@ -10,13 +10,7 @@
             [user.util :refer [includes-str? pprint-str]])
   #?(:cljs (:require-macros user.demo-7-explorer)))
 
-; route on the server means we can pass references in the route
-; "node_modules"
-(def !route #?(:clj (atom [::fs/dir (clojure.java.io/file "src")])))
-(comment
-  (reset! !route [::fs/dir (clojure.java.io/file "src")])
-  (reset! !route [::fs/dir (clojure.java.io/file "node_modules")])
-  (-> @!route second datafy))
+#?(:cljs (def !route (atom [::fs/dir "node_modules"])))
 
 (p/def Navigate!)
 
@@ -25,12 +19,7 @@
     (ui/element dom/a {::dom/href ""
                        ::ui/click-event (p/fn [e]
                                           (.preventDefault e)
-                                          (p/server
-                                            (let [x (p/current x)] ; prevent race between pending click-event and
-                                              ; server-side router updating x. (The server wins, causing double navigation)
-                                              (p/client (println "nav-link clicked, route: " (p/server (str x))))
-                                              (Navigate!. x))))}
-      label)))
+                                          (Navigate!. x))} label)))
 
 (p/defn Dir [x]
   (binding
@@ -60,31 +49,34 @@
 (def unicode-folder "\uD83D\uDCC2") ; 📂
 
 (p/defn App []
-  (binding [Navigate! (p/fn [x] (reset! !route x))]
-    (p/client
+  (p/client
+    (binding [Navigate! (p/fn [x]
+                          (println "Navigate!. route: " x)
+                          (reset! !route x))]
       (dom/h1 "Explorer")
       (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
       (dom/div {:class "photon-demo-explorer"}
         (p/server
-          (binding [explorer/Format (p/fn [m a v]
-                                      (let [x (:clojure.datafy/obj (meta m))]
+          (binding [explorer/Format (p/fn [m a]
+                                      (let [v (a m)
+                                            x (:clojure.datafy/obj (meta m))
+                                            #_#__ (clojure.java.io/file "node_modules")]
                                         (case a
                                           ::fs/name (case (::fs/kind m)
-                                                      ::fs/dir (Nav-link. [::fs/dir x] v)
+                                                      ::fs/dir v #_(Nav-link. [::fs/dir x] v)
                                                       (::fs/other ::fs/symlink ::fs/unknown-kind) v
-                                                      (Nav-link. [::fs/file x] v))
+                                                      v #_(Nav-link. [::fs/file x] v))
                                           ::fs/modified (p/client (some-> v .toLocaleDateString))
                                           ::fs/kind (case (::fs/kind m)
                                                       ::fs/dir unicode-folder
                                                       (some-> v name))
                                           (str v))))]
-            (let [[page x] (p/watch !route)]
+            (let [[page x] (p/client (p/watch !route))]
               (case page
-                ::fs/file (File. x)
-                ::fs/dir (Dir. x)))))))))
+                ::fs/file (File. (clojure.java.io/file x))
+                ::fs/dir (Dir. (clojure.java.io/file x))))))))))
 
 ; Improvements
 ; Native search
-; reduce amount of dom nodes (avoid p/hook)
 ; lazy folding/unfolding directories (no need for pagination)
 ; forms (currently table hardcoded with recursive pull)
