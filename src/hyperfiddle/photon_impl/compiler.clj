@@ -450,14 +450,15 @@
     (js*)
     (if-some [[f & args] args]
       (transduce (map (partial analyze-form env)) conj-res
-        [[:eval `(js-call ~f ~(count args))]] args)
+        [[:eval `(js-call ~f ~(count args)) {::dbg/action :js-call}]] args)
       (throw (ex-info "Wrong number of arguments - js*" {})))
 
     (fn*)
     (let [sym              (and (symbol? (first args)) (first args))
           [form bindings] (provided-bindings env form)]
       (transduce (map (partial analyze-form env)) conj-res
-        [[:apply [:eval `(fn-call ~form ~(vals bindings)) (when sym {::dbg/name sym})]]] (keys bindings)))
+        [[:apply [:eval `(fn-call ~form ~(vals bindings)) (merge {::dbg/action :fn-call, ::dbg/params ['…]} ; TODO add parameters to debug info
+                                                            (when sym {::dbg/name sym}))]]] (keys bindings)))
 
     (new)                                                   ; argument binding + monadic join
     (if-some [[f & args] args]
