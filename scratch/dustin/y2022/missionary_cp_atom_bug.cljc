@@ -12,7 +12,6 @@
               (if (< x 10)
                 (reset! !x (inc x)) x))))
   (def it (<x #() #()))
-  @it := 1
   @it := 10
   (it))
 ; ❌ FAIL in () (scratch.cljc:10)
