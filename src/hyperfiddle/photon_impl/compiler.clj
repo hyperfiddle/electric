@@ -8,7 +8,9 @@
             [hyperfiddle.photon.debug :as dbg]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str]
-            [hyperfiddle.photon-impl.analyzer :as ana])
+            [hyperfiddle.photon-impl.analyzer :as ana]
+            [hyperfiddle.logger :as log]
+            [clojure.tools.analyzer.jvm.utils :refer [maybe-class-from-string]])
   (:import cljs.tagged_literals.JSValue
            (clojure.lang Var)))
 
@@ -314,13 +316,21 @@
                   (:file (meta (find-ns (:ns env)))))]
      (if (some? file)
        (merge {:file file} debug-info)
-       debug-info))))
+       (or debug-info {})))))
 
 (defn analyze-global [env sym]
   (case (namespace sym)
-    "js"
-    [:eval sym]
-    [:global (global sym) (source-map env (meta sym))]))
+    "js" [:eval sym]
+    (let [sym (if-some [var (resolve-var env sym)]
+                (var-name var)
+                (case (peer-language env)
+                  :clj  (if (and (namespace sym) (maybe-class-from-string (namespace sym))) ; static field
+                          sym
+                          (throw (ex-info (str "Unable to resolve symbol: " sym) (source-map env (meta sym)))))
+                  :cljs (do (log/warn "Use of undeclared var" (symbol (or (namespace sym) (name (:name (:ns env)))) (name sym))
+                              (source-map env (meta sym)))
+                            sym)))]
+      [:global (global sym) (source-map env (meta sym))])))
 
 (defn conj-res
   ([x] x)
@@ -351,7 +361,7 @@
       (let [s [:sub (- (get (::index env) p) i) (assoc (meta sym) ::dbg/name sym ::dbg/scope :lexical)]]
         (if (= p (::local env))
           [s] [[:output nil s] [:input (assoc (meta sym) ::dbg/name sym ::dbg/scope :dynamic)]]))
-      [[:global (keyword sym) (meta sym)]])
+      [[:global (keyword sym) (source-map env (meta sym))]])
     (if-some [sym (resolve-runtime env sym)]
       [(analyze-global env sym)]
       (if-some [v (resolve-var env sym)]
@@ -469,12 +479,22 @@
                          (resolve-runtime env f)))]
 
         ; clj/cljs class interop
-        (transduce (map (partial analyze-form env)) conj-res
-          [[:apply [:eval `(ctor-call ~ctor ~(count args))]]] args)
+        (if (or (= :cljs (peer-language env))
+              (instance? CljClass (resolve-var env f)))
+          (transduce (map (partial analyze-form env)) conj-res
+            [[:apply [:eval `(ctor-call ~ctor ~(count args))]]] args)
+          (throw (ex-info (str "Cannot call `new` on " f) (source-map env (meta form)))))
 
         ; boot signal (monadic join), with arguments passed as dynamic scope
-        (analyze-binding env (interleave arg-sym (cons f args))
-          (fn [_] [[:source] [:variable [:sub (inc (count args))]]])))
+        (let [sym (if (or (contains? (:locals env) f)
+                          (not (symbol? f))) ; e.g. (new (identity Foo))
+                    f
+                    (if-some [var (resolve-var env f)]
+                      (if (is-node var)
+                        (var-name var)
+                        (throw (ex-info (str "Not a reactive def: " f) (source-map env (meta form)))))
+                      (throw (ex-info (str "Unable to resolve symbol: " f) (source-map env (meta form))))))]
+          (analyze-binding env (interleave arg-sym (cons sym args)) (fn [_] [[:source] [:variable [:sub (inc (count args))]]]))))
       (throw (ex-info "Wrong number of arguments - new" {})))
 
     (.)
@@ -559,7 +579,7 @@
       (let [n (name op)
             e (dec (count n))]
         (if (and (not= ".." n) (= \. (nth n e))) ; "Class.", leave cljs.core$macros/.. alone
-          (analyze-sexpr env `(new ~(symbol (namespace op) (subs n 0 e)) ~@args))
+          (analyze-sexpr env (with-meta `(new ~(symbol (namespace op) (subs n 0 e)) ~@args) (meta form)))
           (if (contains? (:locals env) op)
             (analyze-apply env form)
             (if-some [sym (resolve-runtime env op)]
@@ -671,18 +691,18 @@
   [[:literal 5] [:nop]]
 
   (analyze {} '(+ 2 3)) :=
-  [[:apply [:global :clojure.core/+ nil] [:literal 2] [:literal 3]]
+  [[:apply [:global :clojure.core/+ {}] [:literal 2] [:literal 3]]
    [:nop]]
 
   (analyze {} '(let [a 1] (+ a 2))) :=
   [[:pub [:literal 1]
     [:apply [:literal {}] [:sub 1]
-     [:apply [:global :clojure.core/+ nil]
+     [:apply [:global :clojure.core/+ {}]
       [:sub 1 {::dbg/name 'a ::dbg/scope :lexical}] [:literal 2]]]]
    [:nop]]
 
   (analyze '{a nil} 'a) :=
-  [[:global :a nil]
+  [[:global :a {}]
    [:nop]]
 
   (doto (def Ctor) (alter-meta! assoc :macro true ::node ::unbound))
@@ -797,9 +817,9 @@
 
   (analyze {} '(try 1 (finally 2 3 4))) :=
   [[:pub [:apply
-          [:global ::r/latest-first nil]
-          [:apply [:global ::r/latest-first nil]
-           [:apply [:global ::r/latest-first nil]
+          [:global ::r/latest-first {}]
+          [:apply [:global ::r/latest-first {}]
+           [:apply [:global ::r/latest-first {}]
             [:constant [:literal 1] {::dbg/type :try}] [:constant [:literal 2] {::dbg/type :finally}]]
            [:constant [:literal 3] {::dbg/type :finally}]]
           [:constant [:literal 4] {::dbg/type :finally}]]
@@ -813,20 +833,20 @@
 
   (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
   [[:pub [:literal nil] [:bind 1 1
-                         [:pub [:apply [:global ::r/latest-first nil]
-                                [:apply [:global ::r/bind nil]
-                                 [:global ::r/recover nil]
-                                 [:apply [:global :clojure.core/some-fn nil]
-                                  [:apply [:global ::r/clause nil]
-                                   [:apply [:global :clojure.core/partial nil]
-                                    [:def 0] [:constant [:pub [:apply [:global :hyperfiddle.photon.debug/unwrap nil]
+                         [:pub [:apply [:global ::r/latest-first {}]
+                                [:apply [:global ::r/bind {}]
+                                 [:global ::r/recover {}]
+                                 [:apply [:global :clojure.core/some-fn {}]
+                                  [:apply [:global ::r/clause {}]
+                                   [:apply [:global :clojure.core/partial {}]
+                                    [:def 0] [:constant [:pub [:apply [:global :hyperfiddle.photon.debug/unwrap {}]
                                                                [:node 0 {::dbg/name `exception ::dbg/scope :dynamic}]]
                                                          [:apply [:literal {}] [:sub 1]
                                                           [:pub [:node 0 {::dbg/name `exception ::dbg/scope :dynamic}]
                                                            [:apply [:literal {}] [:sub 1]
                                                             [:bind 1 1 [:literal 2]]]]]]
                                               {::dbg/type :catch, ::dbg/args '[Exception e]}]]
-                                   [:global :java.lang.Exception nil]]]
+                                   [:global :java.lang.Exception {}]]]
                                  [:constant [:literal 1] {::dbg/type :try}]]
                                 [:constant [:literal 3] {::dbg/type :finally}]]
                           [:apply [:literal {}] [:sub 1]
@@ -839,11 +859,11 @@
 
 
 (tests "literals"
-  (analyze {} {:a 1}) := [[:apply [:global :clojure.core/hash-map nil] [:literal :a] [:literal 1]] [:nop]]
+  (analyze {} {:a 1}) := [[:apply [:global :clojure.core/hash-map {}] [:literal :a] [:literal 1]] [:nop]]
   (analyze {} ^{:b 2} {:a 1}) := [[:apply
-                                   [:global :clojure.core/with-meta nil]
-                                   [:apply [:global :clojure.core/hash-map nil] [:literal :a] [:literal 1]]
-                                   [:apply [:global :clojure.core/hash-map nil] [:literal :b] [:literal 2]]]
+                                   [:global :clojure.core/with-meta {}]
+                                   [:apply [:global :clojure.core/hash-map {}] [:literal :a] [:literal 1]]
+                                   [:apply [:global :clojure.core/hash-map {}] [:literal :b] [:literal 2]]]
                                   [:nop]]
   )
 
@@ -915,3 +935,26 @@
                                                                                         :hyperfiddle.photon.debug/args '(-1)}]
     [:literal -1]] [:nop]]
   )
+
+(tests
+  "undeclared vars"
+  (try (analyze {} 'Foo)
+       (catch clojure.lang.ExceptionInfo e
+         (ex-message e) := "Unable to resolve symbol: Foo"))
+
+  (try (analyze {} '(Foo.))
+       (catch clojure.lang.ExceptionInfo e
+         (ex-message e) := "Unable to resolve symbol: Foo")))
+
+(tests
+  "Incorrect usage of `new`"
+  (declare not-a-class)                 ; available at runtime but not a class
+  (try (analyze {} '(not-a-class.))
+       (catch clojure.lang.ExceptionInfo e
+         (ex-message e) := "Cannot call `new` on not-a-class"))
+
+  (def ^:macro not-a-reactive-def)    ; not available at runtime and not a p/def
+  (try (analyze {} '(not-a-reactive-def.))
+       (catch clojure.lang.ExceptionInfo e
+         (ex-message e) := "Not a reactive def: not-a-reactive-def")))
+
