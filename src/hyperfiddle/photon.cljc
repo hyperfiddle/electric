@@ -309,7 +309,7 @@ or a provided value if it completes without producing any value."
          ~(merge {::dbg/name name?, ::dbg/args args, ::dbg/type :reactive-fn}
             (select-keys (meta &form) [:file :line])
             (select-keys (meta name?) [::dbg/type :file :line])))
-      `(throw (ex-info "Reactive functions are only defined in Photon, not in Clojure(script)." ~(into {} (meta &form)))))))
+      `(throw (ex-info "Invalid p/fn in Clojure code block (use from Photon code only)" ~(into {} (meta &form)))))))
 
 ; syntax quote doesn't qualify special forms like 'def
 (defmacro defn [sym & fdecl]
@@ -371,12 +371,12 @@ or a provided value if it completes without producing any value."
 (defmacro client [& body]
   (if (bound? #'c/*env*)
     `(::c/client (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::client))
-    `(throw (ex-info "Transfering control to client is only defined in Photon, not in Clojure(script)." ~(into {} (meta &form))))))
+    `(throw (ex-info "Invalid p/client in Clojure code block (use from Photon code only)" ~(into {} (meta &form))))))
 
 (defmacro server [& body]
   (if (bound? #'c/*env*)
     `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::server))
-    `(throw (ex-info "Transfering control to server is only defined in Photon, not in Clojure(script)." ~(into {} (meta &form))))))
+    `(throw (ex-info "Invalid p/server in Clojure code block (use from Photon code only)" ~(into {} (meta &form))))))
 
 (hyperfiddle.photon/def trace "In a `catch` block, bound by the runtime to the current stacktrace. A photon stacktrace is an ExceptionInfo. Use `hyperfiddle.photon.debug/stack-trace` to get a string representation." nil)
 
