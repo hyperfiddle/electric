@@ -1584,16 +1584,16 @@
   "p/fn is undefined in clojure-land"
   (with (p/run (try (tap ((fn [] (p/fn []))))
                     (catch Throwable t (tap (ex-message t)))))
-    % := "Reactive functions are only defined in Photon, not in Clojure(script)."))
+    % := "Invalid p/fn in Clojure code block (use from Photon code only)"))
 
 (tests
   "p/client is undefined in clojure-land"
   (with (p/run (try (tap ((fn [] (p/client 1))))
                     (catch Throwable t (tap (ex-message t)))))
-    % := "Transfering control to client is only defined in Photon, not in Clojure(script)."))
+    % := "Invalid p/client in Clojure code block (use from Photon code only)"))
 
 (tests
   "p/server is undefined in clojure-land"
   (with (p/run (try (tap ((fn [] (p/server 1))))
                     (catch Throwable t (tap (ex-message t)))))
-    % := "Transfering control to server is only defined in Photon, not in Clojure(script)."))
+    % := "Invalid p/server in Clojure code block (use from Photon code only)"))
