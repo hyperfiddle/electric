@@ -347,13 +347,13 @@ or a provided value if it completes without producing any value."
 (defn Watch [!x]
   (new (checked-watch !x)))
 
-(def ^:private invalid-watch-usage-message "Invalid p/watch (use from Photon code only, maybe you forgot a p/def?)")
+(def -invalid-watch-usage-message "Invalid p/watch (use from Photon code only, maybe you forgot a p/def?)")
 
 (defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
   [!x]
   (if (bound? #'c/*env*)
     `(new (checked-watch ~!x))
-    `(throw (ex-info invalid-watch-usage-message ~(into {} (meta &form))))))
+    `(throw (ex-info -invalid-watch-usage-message ~(into {} (meta &form))))))
 
 (cc/defn debounce-discreet
   ([delay flow] (debounce-discreet delay nil flow))
