@@ -269,17 +269,21 @@
     (reset! !q :qq)
     % := :qq))
 
-(comment
-  ; https://www.notion.so/hyperfiddle/photon-case-should-not-evaluate-symbols-it-should-quote-the-expr-b2ee622dfc26436a9b247e639c09a901
-  (tests "case on symbols"
-    (def !x (atom 'foo))
-    (with (p/run (tap (case (p/watch !x)
-                      'foo 1 2)))
-      % := 1))
+(tests "case on symbols"
+  (def !x (atom 'foo))
+  (with (p/run (tap (case (p/watch !x)
+                      foo 1 2)))
+    % := 1))
 
+(comment
+  ;; https://www.notion.so/hyperfiddle/photon-case-throws-incorrect-exception-on-no-matching-clause-82c7fe79c4ce4b2ca07f8b7936a052d3
   (tests
-    (with (p/run (tap (case 2 1 1)))
-      % := 1)))
+    (with (p/run (try (case 2 1 1)
+                      (catch IllegalArgumentException e
+                        (tap (ex-message e)))
+                      (catch NullPointerException e
+                        (tap :wrong-exception-type))))
+      % := "No matching clause: 2")))
 
 (p/def my-var 1)
 (tests
