@@ -5,13 +5,49 @@
   #?(:cljs (:require-macros dustin.scratch)))
 
 (tests
-  (with (p/run (let [!F (atom (p/fn [] ::init)), F (p/watch !F)]
-                 (do
-                   (let [x (! (new F))]
-                     #_(let [y (do x 0)])
-                     (reset! !F (p/fn [] x))))))
+  (with (p/run (let [!F (atom (p/fn [] ::init))]
+                 (let [F (p/watch !F)
+                       x (! (new F))]
+                   (reset! !F (p/fn [] x)))))
     % := ::init
     % := 0))
+;✅❌ FAIL in () (photon_atom_cycle.cljc:7)
+;expected: (= % 0)
+;  actual: (not (= :hyperfiddle.rcf/timeout 0))
+
+
+; Same bug
+(tests
+  (with (p/run (let [!F (atom (p/fn [] ::init)), F (p/watch !F)]
+                 (! (new F))
+                 (let [y 0]
+                   (reset! !F (p/fn [] y)))))
+    % := ::init
+    % := 0))
+;✅❌ FAIL in () (photon_atom_cycle.cljc:7)
+;expected: (= % 0)
+;actual: (not (= :hyperfiddle.rcf/timeout 0))
+
+
+(tests
+  (def !main (m/reactor
+              (m/stream!
+                (let [!F (atom (m/cp ::init))]
+                  (let [<<x (m/signal! (m/watch !F))
+                        <x (m/signal! (m/cp (! (m/?< (m/?< <<x)))))]
+                    (m/latest {} <x (m/latest (partial reset! !F) (m/cp <x))))))))
+  (def it (!main #(! [::success %]) #(! [::failure %])))
+  % := ::init
+  % := 0
+  (it))
+;✅❌ FAIL in () (photon_atom_cycle.cljc:32)
+;expected: (= % 0)
+;  actual: (not (= [:dustin.scratch/failure #error {
+; :cause "Subscription failure : self subscription."
+; :via
+; [{:type java.lang.Error
+;   :message "Subscription failure : self subscription."
+;   :at [missionary.impl.Reactor subscribe "Reactor.java" 326]}] ...
 
 (comment
   (let-rec [F (p/fn [] (or x ::init))
