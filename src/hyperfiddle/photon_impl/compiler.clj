@@ -385,10 +385,12 @@
             (let [[op target & args] form]
               (list* '. target (symbol (subs (name op) 1)) args))
             form)
-    :clj (if (and (seq? form) (qualified-symbol? (first form)))
-           (env/with-env {:namespaces {(:ns env) (resolve-ns (:ns (clj-env env)))}}
-             (clj/desugar-host-expr form env))
-           (clj/desugar-host-expr form env))))
+    :clj (let [env (clj-env env)]
+           (binding [*ns* (the-ns (:ns env))] ; tools.analyzer use *ns* to resolve implicit imports (java.lang …)
+             (if (and (seq? form) (qualified-symbol? (first form)))
+               (env/with-env {:namespaces {(:ns env) (resolve-ns (:ns env))}}
+                 (clj/desugar-host-expr form env))
+               (clj/desugar-host-expr form env))))))
 
 (defn toggle [env form debug-info]
   (let [res (analyze-form (update env ::local not) form)]
