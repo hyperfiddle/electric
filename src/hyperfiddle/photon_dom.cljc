@@ -139,6 +139,26 @@
 (defn set-style! [node k v]
   #?(:cljs (goog.style/setStyle node (name k) (clj->js v))))
 
+(defn class-str [v]
+  (cond
+    (or (string? v) (keyword? v)) (name v)
+    (seq v)                       (str/join " " (eduction (remove nil?) (map name) v))
+    :else                         ""))
+
+(tests
+  (class-str nil)                    := ""
+  (class-str [])                     := ""
+  (class-str "x")                    := "x"
+  (class-str ["x"])                  := "x"
+  (class-str ["x" "y"])              := "x y"
+  (class-str [nil])                  := ""
+  (class-str ["x" nil "y"])          := "x y"
+  (class-str [nil nil nil])          := ""
+  (class-str (into-array [nil "x"])) := "x"
+  (class-str [:x "y"])               := "x y"
+
+  (println "\n---"))
+
 (defn set-property! [node k v]
   #?(:cljs
      (let [k (name k)
@@ -147,7 +167,7 @@
          (.removeAttribute node k)
          (case k
            "style" (goog.style/setStyle node v)
-           "class" (set! (.-className node) (if (array? v) (.join v " ") v))
+           "class" (set! (.-className node) (class-str v))
            "for"   (set! (.-htmlFor node) v)
            "list"  (.setAttribute node k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
            (if-let [k (o/get d/DIRECT_ATTRIBUTE_MAP_ k)]
