@@ -1601,3 +1601,13 @@
   (with (p/run (try (tap ((fn [] (p/server 1))))
                     (catch Throwable t (tap (ex-message t)))))
     % := "Invalid p/server in Clojure code block (use from Photon code only)"))
+
+(tests
+  (try (p/watch (atom :nomatter))
+       (catch ExceptionInfo e
+         (ex-message e) := p/-invalid-watch-usage-message))
+
+  (with (p/run (try (p/watch (atom :nomatter))
+                    (tap :ok)
+                    (catch ExceptionInfo e (tap (ex-message e)))))
+    % := :ok))
