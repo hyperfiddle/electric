@@ -1,8 +1,7 @@
 (ns user.datomic-browser
   (:require [clojure.datafy :refer [datafy]]
             [clojure.core.protocols :refer [nav]]
-            #?(:clj datomic.client.api)
-            #?(:clj [datomic.client.api.async :as d])
+            [user.datomic-missionary #?(:clj :as :cljs :as-alias) d]
             [missionary.core :as m]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
             [hyperfiddle.gridsheet :as-alias gridsheet]
@@ -13,128 +12,68 @@
             [user.util :refer [includes-str? pprint-str]])
   #?(:cljs (:require-macros user.datomic-browser)))
 
-#?(:clj (def datomic-client (datomic.client.api/client {:server-type :dev-local :system "datomic-samples"})))
-#?(:clj (def datomic-conn (datomic.client.api/connect datomic-client {:db-name "mbrainz-subset"})))
+#?(:clj (def datomic-client (d/client {:server-type :dev-local :system "datomic-samples"})))
+#?(:clj (def datomic-conn (d/connect datomic-client {:db-name "mbrainz-subset"})))
 #?(:clj (def db (d/db datomic-conn)))
 
-#?(:clj (defn pull! [db e selector] (p/chan-read (d/pull db {:eid e :selector selector}))))
+(comment
+  (def cobblestone 536561674378709)
+  "pulls are sorted at top layer"
+  (take 3 (keys (m/? (d/pull! user/db {:eid cobblestone :selector '[*]}))))
+  := [:db/id :label/country :label/gid] ; sorted!
 
-(comment (m/? (pull! db 13194139533314 '[*])))
+  "pulls are sorted at intermedate layers"
+  todo)
 
 (p/def Navigate!)
 
 (p/defn Nav-link [x label]
   (p/client
     (ui/element dom/a {::dom/href ""
-                       ::ui/click-event (p/fn [e] (.preventDefault e) (Navigate!. x))} label)))
-
-;#?(:clj
-;   (defn transactions! [db pull-pattern]
-;     (m/sp (->> (m/? (p/chan->task
-;                       (d/q {:query '[:find (pull ?tx pattern)
-;                                      :in $ pattern
-;                                      :where [?tx :db/txInstant]]
-;                             :args [db pull-pattern]})))
-;                (map first)
-;                (sort-by :db/txInstant)
-;                reverse))))
-
-;#?(:clj (defn transactions'! [db]))
-
-;#?(:clj (defn transactions>
-;          ; tx-range has pagination, as does datoms
-;          ([conn]
-;           (->> (p/chan->ap (d/tx-range conn {:start nil :end nil}))
-;                (m/eduction (map :data))))
-;          #_([db pull-pattern])))
-;
-;#?(:clj (defn transactions< [db]))
-
-(comment
-  #_(take 3 (m/? (transactions! db [:db/id :db/txInstant])))
-  #_(take 5 (drop 20 (m/? (m/reduce conj [] (transactions> datomic-conn))))))
-
-#?(:clj (defn attr-datoms! [db a] (p/chan->task (d/datoms db {:index :aevt, :components [a]}))))
-#?(:clj (defn attr-datoms> [db a] (->> (p/chan->ap (d/datoms db {:index :aevt, :components [a]}))
-                                       (m/eduction (mapcat identity)))))
-#?(:clj (defn attr-datoms< [db a] (->> (attr-datoms> db a)
-                                       (m/reductions conj [])
-                                       (m/latest identity)))) ; FIXME BUFFER
-
-(comment
-  (m/? (attr-datoms! db :db/ident))
-  (take 3 (m/? (m/reduce conj [] (attr-datoms> db :db/ident))))
-  (take 3 (m/? (m/reduce conj [] (attr-datoms> db :db/txInstant)))))
+                       ::ui/click-event (p/fn [e]
+                                          (.preventDefault e)
+                                          (println "nav-link clicked, route: " x)
+                                          (Navigate!. x))} label)))
 
 (p/defn RecentTransactions []
   (binding [explorer/cols [:db/id :db/txInstant]
-            explorer/Format (p/fn [[e _ v tx op] a]
-                              (let [m (new (p/task->cp (pull! db e explorer/cols)))
-                                    v (a m)]
-                                (case a
-                                  :db/id (Nav-link. [::tx v] v)
-                                  :db/txInstant (pr-str v) #_(p/client (.toLocaleDateString v))
-                                  (pr-str v))))]
+            explorer/Format (p/fn [[e _ v tx op :as record] a]
+                              (case a
+                                :db/id (Nav-link. [::tx tx] tx)
+                                :db/txInstant (pr-str v) #_(p/client (.toLocaleDateString v))))]
     (Explorer.
       "Recent Txs"
-      (new (attr-datoms< db :db/txInstant))
+      (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
+                (m/reductions conj [])
+                (m/latest identity))) ; fixme buffer
       {::explorer/page-size 10
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em auto"})))
 
-;#?(:clj (defn attributes! [db pull-pattern]
-;          (m/sp (->> (m/? (p/chan->task
-;                            (d/q {:query '[:find (pull ?e pattern)
-;                                           :in $ pattern
-;                                           :where [?e :db/valueType _]]
-;                                  :args [db pull-pattern]})))
-;                     (map first)
-;                     (sort-by :db/ident)))))
-;
-;(comment (time (take 3 (m/? (attributes! db [:db/ident])))))
-
 #?(:clj (defn attributes>
           ([db]
-           (m/ap (->> (m/?> (p/chan->ap
-                              (d/q {:query '[:find ?e :where [?e :db/valueType _]]
-                                    :args [db]})))
+           (m/ap (->> (m/?> (d/qseq {:query '[:find ?e :where [?e :db/valueType _]]
+                                   :args [db]}))
                       (map first))))
           ([db pull-pattern]
-           (m/ap (->> (m/?> (p/chan->ap
-                              (d/q {:query '[:find (pull ?e pattern)
-                                             :in $ pattern
-                                             :where [?e :db/valueType _]]
-                                    :args [db pull-pattern]})))
-                      (map first)
-                      #_(sort-by :db/ident))))))
+           (m/ap (->> (m/?> (d/qseq {:query '[:find (pull ?e pattern)
+                                            :in $ pattern
+                                            :where [?e :db/valueType _]]
+                                   :args [db pull-pattern]}))
+                      (map first))))))
 
 (comment
-  (time (m/? (m/reduce into [] (attributes> db [:db/ident]))))
-  (time (m/? (m/reduce into [] (attributes> db)))))
-
-#?(:clj (defn attributes<
-          ([db]
-           (->> (attributes> db)
-                (m/eduction (mapcat identity)) ; ?
-                (m/reductions conj [])
-                (m/latest identity)))
-          ([db pull-pattern]
-           (->> (attributes> db pull-pattern)
-                (m/eduction (mapcat identity)) ; ?
-                (m/reductions conj [])
-                (m/latest identity)))))
-
-(comment
-  (time (m/? (m/reduce into [] (attributes< db [:db/ident]))))
-  (time (m/? (m/reduce into [] (attributes< db)))))
+  (time (m/? (m/reduce into [] (attributes> user/db [:db/ident]))))
+  (time (m/? (m/reduce into [] (attributes> user/db))))
+  (m/? (d/pull! user/db {:eid 50 :selector [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent]})))
 
 (p/defn Attributes []
   (binding [explorer/cols [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent
                            #_#_#_#_:db/fulltext :db/tupleType :db/tupleTypes :db/tupleAttrs]
-            explorer/Format (p/fn [e a _]
-                              (let [x (new (p/task->cp (pull! db e explorer/cols)))
-                                    v (a x)]
-                                (case a
+            explorer/Format (p/fn [a col]
+                              (let [x (new (p/task->cp (d/pull! db {:eid a :selector explorer/cols})))
+                                    v (col x)]
+                                (case col
                                   :db/ident (Nav-link. [::attribute v] v)
                                   :db/valueType (some-> v :db/ident name)
                                   :db/cardinality (some-> v :db/ident name)
@@ -142,124 +81,34 @@
                                   (str v))))]
     (Explorer.
       "Attributes"
-      (new (attributes< db)) ; why bother? d/q has task semantics right?
+      (new (->> (attributes> db) ; todo this query has task semantics, can it be optimized?
+                (m/eduction cat)
+                (m/reductions conj [])
+                (m/latest identity)))
       {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "auto 6em 4em 4em 4em"})))
 
-;#?(:clj
-;   (defn render-datoms [db datoms]
-;     (m/sp (let [ref-attr? (->> (m/? (p/chan->task (d/q {:query '[:find ?e :where [?e :db/valueType :db.type/ref]]
-;                                                         :args [db]})))
-;                                (map first) set)
-;                 datoms-id? (set (concat (map #(nth % 0) datoms)
-;                                         (map #(nth % 1) datoms)
-;                                         (->> datoms
-;                                              (filter #(ref-attr? (nth % 1)))
-;                                              (map #(nth % 2)))))
-;                 id->ident (into {} (m/? (p/chan->task (d/q {:query '[:find ?e ?v
-;                                                                      :in $ ?datoms-id?
-;                                                                      :where
-;                                                                      [?e :db/ident ?v]
-;                                                                      [(contains? ?datoms-id? ?e)]]
-;                                                             :args [db datoms-id?]}))))]
-;             (->> datoms (map (fn [[e a v t]]
-;                                {:e (get id->ident e e)
-;                                 :a (get id->ident a a)
-;                                 :v (get id->ident v v)
-;                                 :tx t})))))))
-
-;#?(:clj (defn ident> [db e]))
-
-#?(:clj (defn ident! [db ?e]
-          {:pre [db]}
-          (m/sp
-            (if ?e
-              (let [[[k]] (m/? (p/chan->task (d/q {:query '[:find ?k :in $ ?e :where [?e :db/ident ?k]]
-                                                   :args [db ?e]})))]
-                (or k ?e))))))
-
 (comment
-  (m/? (ident! db 17)) := :db.excise/beforeT
-  (m/? (ident! db nil)) := nil)
-
-; ap - query an ident
-; cp - reduce them into a map, as a cache
-; return an async ident, which maybe loads from query
-
-;#?(:clj
-;   (defn render-datom> [db [e a v t]]
-;     ; doesn't need to be async - extract the queries
-;     (m/ap
-;       (let [ref-attr? (->> (m/? (p/chan->task (d/q {:query '[:find ?e :where [?e :db/valueType :db.type/ref]]
-;                                                     :args [db]})))
-;                            (map first) set)
-;             datoms-id? (->> [e a (if (ref-attr? a) v)] (remove nil?) set)
-;             id->ident (into {} (m/? (p/chan->task (d/q {:query '[:find ?e ?v
-;                                                                  :in $ ?datoms-id?
-;                                                                  :where
-;                                                                  [?e :db/ident ?v]
-;                                                                  [(contains? ?datoms-id? ?e)]]
-;                                                         :args [db datoms-id?]}))))]
-;         {:e (get id->ident e e)
-;          :a (get id->ident a a)
-;          :v (get id->ident v v)
-;          :tx t}))))
-;
-;(comment
-;  (def it ((m/ap (m/?> (render-datom> db (m/?> (tx-datoms> datomic-conn 13194139534022)))))
-;           #(println ::notify) #(println ::terminate)))
-;  @it
-;  (it))
-
-#?(:clj (defn tx-datoms> [conn txid]
-          (->> (p/chan->ap (d/tx-range conn {:start txid, :end (inc txid)}))
-               (m/eduction (comp (map :data) (mapcat identity))))))
-(comment (take 3 (m/? (m/reduce conj [] (tx-datoms> datomic-conn 13194139534022)))))
-
-#?(:clj
-   (defn tx-datoms [conn txid]
-     ; https://docs.datomic.com/client-api/datomic.client.api.async.html#var-tx-range
-     (->> (tx-datoms> conn txid)
-          (m/eduction (take 1)) ; terminate flow after 1 tx (? why)
-          (m/eduction (map :data))
-          (m/reduce into []))))
-
-(comment
-  (take 3 (m/? (tx-datoms datomic-conn 13194139534022)))
-  (time (take 3 (m/? (m/sp (m/? (render-datoms db (m/? (tx-datoms datomic-conn 13194139534022))))))))
-
-  (time (take 3 (m/? (tx-datoms datomic-conn 13194139534018))))
-  (time (take 3 (m/? (m/sp (m/? (render-datoms db (m/? (tx-datoms datomic-conn 13194139534018)))))))))
-
-#?(:clj (defn entity-datoms! [db e] (p/chan->task (d/datoms db {:index :eavt, :components [e]}))))
-#?(:clj (defn entity-datoms> [db e] (->> (p/chan->ap (d/datoms db {:index :eavt, :components [e]}))
-                                         (m/eduction (mapcat identity)))))
-#?(:clj (defn entity-datoms< [db a] (->> (entity-datoms> db a)
-                                         (m/reductions conj [])
-                                         (m/latest identity)))) ; FIXME BUFFER
-
-(comment
-  (m/? (entity-datoms! db 1))
-  (m/? (entity-datoms! db :db/ident))
-  (take 3 (m/? (m/reduce conj [] (entity-datoms> db :db/ident))))
-  #_(m/? (m/sp (m/? (render-datoms db (m/? (entity-datoms! db :db/ident)))))))
+  (def cobblestone 536561674378709)
+  (m/? (d/pull! db {:eid cobblestone :selector ['*]})))
 
 (p/defn EntityDetail [e]
   (assert e)
-  (binding [explorer/cols [:a :v :tx]
-            explorer/Format (p/fn [[e aa v tx op] a]
-                              (case a
-                                :a (let [aa (new (p/task->cp (ident! db aa)))]
-                                     (Nav-link. [::attribute aa] aa))
-                                :v (some-> v pr-str)
-                                :tx (Nav-link. [::tx tx] tx)))]
+  (binding [explorer/cols [::a ::v]
+            explorer/Children (p/fn [[a v :as row]] (if (map? v) (into (sorted-map) v))) ; todo move sort into pull
+            explorer/Search? (p/fn [[a v :as row] s] (or (includes-str? a s)
+                                                         (includes-str? (if-not (map? v) v) s)))
+            explorer/Format (p/fn [[a v :as row] col]
+                              (case col
+                                ::a (Nav-link. [::attribute a] a)
+                                ::v (if (some? v) (if-not (map? v) (pr-str v)))))]
     (Explorer.
-      (str "Entity detail: " e)
-      (new (entity-datoms< db e)) ; walk the entity graph rather
+      (str "Entity detail: " e) ; treeview on the entity
+      (new (p/task->cp (d/pull! db {:eid e :selector ['*] ::d/compare compare}))) ; todo inject sort
       {::explorer/page-size 15
        ::explorer/row-height 24
-       ::gridsheet/grid-template-columns "15em calc(100% - 15em - 9em) 9em"})))
+       ::gridsheet/grid-template-columns "15em auto"})))
 
 ;#?(:clj (defn before? [^java.util.Date a ^java.util.Date b] (<= (.getTime a) (.getTime b))))
 ;(defn- xf-filter-before-date [before] #?(:clj (filter (fn [[tx e a v added?]] (before? t before)))))
@@ -277,11 +126,9 @@
      (->> (m/ap
             (let [history (d/history db)
                   ; (sequence #_(comp (xf-filter-before-date before)))
-                  >fwd-xs (p/chan->ap (d/datoms history {:index :eavt :components [?e ?a]}))
-                  >rev-xs (p/chan->ap (d/datoms history {:index :vaet :components [?e ?a]}))]
-              ; returns chunks, not individual datoms
-              (m/amb= (m/?> >fwd-xs) (m/?> >rev-xs))))
-          (m/eduction (mapcat identity)))))
+                  >fwd-xs (d/datoms> history {:index :eavt :components [?e ?a]})
+                  >rev-xs (d/datoms> history {:index :vaet :components [?e ?a]})]
+              (m/amb= (m/?> >fwd-xs) (m/?> >rev-xs)))))))
 
 (comment
   (time (m/? (m/reduce conj [] (entity-history-datoms> db 74766790739005 nil))))
@@ -294,16 +141,17 @@
 (p/defn EntityHistory [e]
   (assert e)
   (binding [explorer/cols [::e ::a ::op ::v ::tx-instant ::tx]
-            explorer/Format (p/fn [[e aa v tx op] a]
-                              (case a
-                                ::op (name (case op true :db/add false :db/retract))
-                                ::e (Nav-link. [::entity e] e)
-                                ::a (if (some? aa)
-                                      (:db/ident (new (p/task->cp (pull! db aa [:db/ident])))))
-                                ::v (some-> v pr-str)
-                                ::tx (Nav-link. [::tx tx] tx)
-                                ::tx-instant (pr-str (:db/txInstant (new (p/task->cp (pull! db tx [:db/txInstant])))))
-                                (str v)))]
+            explorer/Format (p/fn [[e aa v tx op :as row] a]
+                              (when row ; when this view unmounts, somehow this fires as nil
+                                (case a
+                                  ::op (name (case op true :db/add false :db/retract))
+                                  ::e (Nav-link. [::entity e] e)
+                                  ::a (if (some? aa)
+                                        (:db/ident (new (p/task->cp (d/pull! db {:eid aa :selector [:db/ident]})))))
+                                  ::v (some-> v pr-str)
+                                  ::tx (Nav-link. [::tx tx] tx)
+                                  ::tx-instant (pr-str (:db/txInstant (new (p/task->cp (d/pull! db {:eid tx :selector [:db/txInstant]})))))
+                                  (str v))))]
     (Explorer.
       (str "Entity history: " (pr-str e))
       ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
@@ -312,7 +160,7 @@
                 (m/latest identity))) ; fixme buffer
       {::explorer/page-size 20
        ::explorer/row-height 24
-       ::gridsheet/grid-template-columns "10em 10em 3em calc(100% - 10em - 10em - 3em - 9em - 9em) 9em 9em"})))
+       ::gridsheet/grid-template-columns "10em 10em 3em auto auto 9em"})))
 
 (p/defn AttributeDetail [a]
   (binding [explorer/cols [:e :a :v :tx]
@@ -324,15 +172,25 @@
                                 :tx (Nav-link. [::tx tx] tx)))]
     (Explorer.
       (str "Attribute detail: " a)
-      (new (attr-datoms< db a))
+      (new (->> (d/datoms> db {:index :aevt, :components [a]})
+                (m/reductions conj [])
+                (m/latest identity)))
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
-#?(:clj (defn tx-datoms< [!conn db]
-          (->> (tx-datoms> !conn db)
-               (m/reductions conj []) ; track a running count as well
-               (m/latest identity)))) ; fixme don't buffer
+#?(:clj (defn ident! [db ?e]
+          {:pre [db]}
+          ; future work - cache idents?
+          (m/sp
+            (if ?e
+              (let [[[k]] (m/? (d/q! {:query '[:find ?k :in $ ?e :where [?e :db/ident ?k]]
+                                       :args [db ?e]}))]
+                (or k ?e))))))
+
+(comment
+  (m/? (ident! db 17)) := :db.excise/beforeT
+  (m/? (ident! db nil)) := nil)
 
 (p/defn TxDetail [e]
   (binding [explorer/cols [:e :a :v :tx]
@@ -341,19 +199,18 @@
                                 :e (let [e (new (p/task->cp (ident! db e)))] (Nav-link. [::entity e] e))
                                 :a (let [aa (new (p/task->cp (ident! db aa)))] (Nav-link. [::attribute aa] aa))
                                 :v (pr-str v)
-                                ; these are mostly not refs, ints are simple values
-                                #_(if v (let [v' (new (p/task->cp (ident! db v)))]
-                                           (str (pr-str v)
-                                                (if (not= v v') (str " (" (pr-str v') ")")))))
                                 (str tx)))]
     (Explorer.
       (str "Tx detail: " e)
-      (new (tx-datoms< datomic-conn e))               ; global
+      (new (->> (d/tx-range> datomic-conn {:start e, :end (inc e)}) ; global
+                (m/eduction (map :data) cat)
+                (m/reductions conj []) ; track a running count as well
+                (m/latest identity))) ; fixme buffer
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
-#?(:cljs (def !route (atom [::summary])))
+#?(:cljs (def !route (atom [::summary] #_[::entity 536561674378709])))
 
 (p/defn App []
   (p/client
@@ -367,11 +224,11 @@
         (dom/div "Nav: "
           (Nav-link. [::summary] "home"))
         (p/server
-          ; x transfers, don't use a ref
+          ; x transfers, don't use a ref in the route
           (let [[page x :as route] (p/client (p/watch !route))]
             (case page
               ::summary (do (RecentTransactions.) (Attributes.))
               ::attribute (AttributeDetail. x)
               ::tx (TxDetail. x)
-              ::entity (do #_(EntityDetail. x) (EntityHistory. x))
+              ::entity (do (EntityDetail. x) (EntityHistory. x))
               (str "no matching route: " (pr-str route)))))))))
