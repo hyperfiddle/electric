@@ -346,6 +346,9 @@
     false))
 
 #?(:cljs
+   ; Leo: Hz is anti-pattern. Instead truncate the time to the nearest second,
+   ; work skipping will prevent flickering and the browser will automatically
+   ; pause raf when rendering is not needed
    (deftype Clock [Hz
                    ^:mutable ^number raf
                    ^:mutable callback
