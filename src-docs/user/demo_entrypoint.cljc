@@ -29,69 +29,44 @@
             wip.typeahead)
   #?(:cljs (:require-macros user.demo-entrypoint)))
 
-(defonce !demo #?(:clj (atom {:text "hello world" ::value `user.demo-1-hello-world/App}) :cljs nil))
-;(p/def !demo (p/server (atom {:text "hello world" ::value user.demo-1-hello-world/App})))
-(p/def demo (p/server (p/watch !demo)))
+(defonce !demo-index #?(:clj (atom 0) :cljs nil))
+;(p/def !demo-index (p/server (atom {:text "hello world" ::value user.demo-1-hello-world/App})))
+(p/def index (p/server (p/watch !demo-index)))
 
-(p/def demos                                                ; help
-  {`user.demo-1-hello-world/App                user.demo-1-hello-world/App
-   `user.demo-2-toggle/App                     user.demo-2-toggle/App
-   `user.demo-3-system-properties/App          user.demo-3-system-properties/App
-   `user.demo-4-chat/App                       user.demo-4-chat/App
-   `user.demo-4-webview/App                    user.demo-4-webview/App
-   ;`user.todos-simple/Todo-list                user.todos-simple/Todo-list
-   `user.demo-5-todomvc/App                    user.demo-5-todomvc/App
-   `user.demo-todomvc-composed/App             user.demo-todomvc-composed/App
-   `user.demo-6-two-clocks/App                 user.demo-6-two-clocks/App
-   `user.demo-7-explorer/App                   user.demo-7-explorer/App
-   `user.demo-8-10k-elements/App               user.demo-8-10k-elements/App
-   `user.demo-hfql/App                         user.demo-hfql/App
-   `user.auth/App                              user.auth/App
-   ;`user.datomic-browser/App                   user.datomic-browser/App
-   `hyperfiddle.scrollview/Demo                hyperfiddle.scrollview/Demo
-   `user.seven-gui-1-counter/Counter           user.seven-gui-1-counter/Counter
-   `user.seven-gui-2-temperature-converter/App user.seven-gui-2-temperature-converter/App
-   `user.seven-gui-4-timer/Timer               user.seven-gui-4-timer/Timer
-   `user.seven-gui-5-crud/App                  user.seven-gui-5-crud/App
-   ;; `wip.photon-tree/App                        wip.photon-tree/App
-   `wip.typeahead/App                        wip.typeahead/App
-   ;`user.popover/App                           user.popover/App
-   ;`wip.demo-bubbles/App                       wip.demo-bubbles/App
-   ;`wip.demo-color/App                         wip.demo-color/App
-   ;`user.healthcheck/App                       user.healthcheck/App
-   })
+(p/def demos [{:text "hello world" ::value user.demo-1-hello-world/App}
+              {:text "toggle" ::value user.demo-2-toggle/App}
+              {:text "system properties" ::value user.demo-3-system-properties/App}
+              {:text "chat" ::value user.demo-4-chat/App}
+              {:text "webview" ::value user.demo-4-webview/App}
+              #_{:text "todos simple" ::value user.todos-simple/Todo-list} ; css fixes
+              {:text "todomvc" ::value user.demo-5-todomvc/App}
+              {:text "todomvc composed" ::value user.demo-todomvc-composed/App}
+              {:text "two clocks" ::value user.demo-6-two-clocks/App}
+              {:text "explorer" ::value user.demo-7-explorer/App}
+              {:text "10k elements" ::value user.demo-8-10k-elements/App}
+              {:text "HFQL" ::value user.demo-hfql/App}
+              {:text "Authentication" ::value user.auth/App}
+              {:text "Scroll view" ::value hyperfiddle.scrollview/Demo}
+              ; {:text "Datomic browser" ::value user.datomic-browser/App}
+              {:text "7GUIs - counter" ::value user.seven-gui-1-counter/Counter}
+              {:text "7GUIs - temperature converter" ::value user.seven-gui-2-temperature-converter/App}
+              {:text "7GUIs - timer" ::value user.seven-gui-4-timer/Timer}
+              {:text "7GUIs - crud" ::value user.seven-gui-5-crud/App}
+              {:text "Typeahead" ::value wip.typeahead/App}
+              #_{:text "TreeView" ::value wip.photon-tree/App}
+              #_{:text "popover" ::value user.popover/App}
+              #_{:text "bubbles" ::value wip.demo-bubbles/App}
+              #_{:text "color" ::value wip.demo-color/App}
+              #_{:text "healthcheck" ::value user.healthcheck/App}])
 
 (p/defn App []
   (p/client
     (dom/h1 "Photon Demos")
     (dom/p "See source code in src-docs.")
-    (ui/select {::ui/value (p/server demo)
-                ::ui/options [{:text "hello world" ::value `user.demo-1-hello-world/App}
-                              {:text "toggle" ::value `user.demo-2-toggle/App}
-                              {:text "system properties" ::value `user.demo-3-system-properties/App}
-                              {:text "chat" ::value `user.demo-4-chat/App}
-                              {:text "webview" ::value `user.demo-4-webview/App}
-                              #_{:text "todos simple" ::value `user.todos-simple/Todo-list} ; css fixes
-                              {:text "todomvc" ::value `user.demo-5-todomvc/App}
-                              {:text "todomvc composed" ::value `user.demo-todomvc-composed/App}
-                              {:text "two clocks" ::value `user.demo-6-two-clocks/App}
-                              {:text "explorer" ::value `user.demo-7-explorer/App}
-                              {:text "10k elements" ::value `user.demo-8-10k-elements/App}
-                              {:text "HFQL" ::value `user.demo-hfql/App}
-                              {:text "Authentication" ::value `user.auth/App}
-                              {:text "Scroll view" ::value `hyperfiddle.scrollview/Demo}
-                              ;{:text "Datomic browser" ::value `user.datomic-browser/App}
-                              {:text "7GUIs - counter" ::value `user.seven-gui-1-counter/Counter}
-                              {:text "7GUIs - temperature converter" ::value `user.seven-gui-2-temperature-converter/App}
-                              {:text "7GUIs - timer" ::value `user.seven-gui-4-timer/Timer}
-                              {:text "7GUIs - crud" ::value `user.seven-gui-5-crud/App}
-                              {:text "Typeahead" ::value `wip.typeahead/App}
-                              #_{:text "TreeView" ::value `wip.photon-tree/App}
-                              #_{:text "popover" ::value `user.popover/App}
-                              #_{:text "bubbles" ::value `wip.demo-bubbles/App}
-                              #_{:text "color" ::value `wip.demo-color/App}
-                              #_{:text "healthcheck" ::value `user.healthcheck/App}]
-                ::ui/change-event (p/fn [[event value]] (p/server (reset! !demo value)))})
+    (ui/select {::ui/value        (get demos (p/server index))
+                ::ui/options      demos
+                ::ui/change-event (p/fn [[event value]] (let [index (.indexOf demos value)]
+                                                          (p/server (reset! !demo-index index))))})
     (dom/hr)
     (dom/div {:style {:width "90vw"}}
-      (p/server (new (get demos (::value demo)))))))
+      (p/server (new (::value (get demos index)))))))
