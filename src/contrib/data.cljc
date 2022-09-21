@@ -30,14 +30,28 @@
 (tests
   (unqualify ::x) := :x
   (unqualify nil) := nil
-  (unqualify "") :throws AssertionError)
+  (unqualify "") :throws #?(:clj AssertionError :cljs js/Error))
+
+(defn omit-keys-ns [ns ?m]
+  {:pre [(some? ns)]}
+  (when ?m
+    (reduce-kv (fn [m k v] (if (= (name ns) (namespace k))
+                             m (assoc m k v))) {} ?m)))
+
+(tests
+  (omit-keys-ns :c {::a 1 :b 2 :c/c 3}) := {::a 1 :b 2}
+  (omit-keys-ns :c {::a 1 :b 2 :c/c 3}) := {::a 1 :b 2}
+  (omit-keys-ns :c nil) := nil
+  ;(omit-keys-ns nil {::a 1 :b 2 :c/c 3}) :throws #?(:clj AssertionError :cljs js/Error)
+  ;(omit-keys-ns nil nil) :throws #?(:clj AssertionError :cljs js/Error)
+  )
 
 (defn auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
   [ns props defaults-qualified]
   (merge defaults-qualified (update-keys props (partial qualify ns))))
 
 (tests
-  (auto-props (namespace ::x) {:a 1 ::b 2} {::b 0 ::c 0}) := {::a 1 ::b 2 ::c 0})
+  (auto-props (namespace ::this) {:a 1 ::b 2} {::b 0 ::c 0}) := {::a 1 ::b 2 ::c 0})
 
 (defn round-floor [n base] (* base (clojure.math/floor (/ n base))))
 
