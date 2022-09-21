@@ -273,6 +273,10 @@
   (def !x (atom 'foo))
   (with (p/run (tap (case (p/watch !x)
                       foo 1 2)))
+    % := 1)
+
+  (with (p/run (tap (case '[a b]
+                      [a b] 1 2)))
     % := 1))
 
 (comment
