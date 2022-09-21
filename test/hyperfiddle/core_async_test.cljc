@@ -38,7 +38,7 @@
    (tests
      "Read a value from a channel"
      (let [c (a/chan)
-           t (p/chan-read c)]
+           t (p/chan-read! c)]
        (a/put! c 1)
        (m/? t) := 1)))
 
@@ -46,7 +46,7 @@
    (tests
      "Reading a value from a channel blocks until a value is available."
      (let [c (a/chan)
-           t (p/chan-read c)]
+           t (p/chan-read! c)]
        (future (tap (m/? t))) ; don't block main (repl) thread
        (a/put! c 1)
        % := 1)))
