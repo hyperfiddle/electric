@@ -900,25 +900,26 @@
     (reset! !state [3])
     (hash-set % % %) := #{[:up 3] [:down 1] [:down 2]}))
 
+(defn observer [tap x]
+  (fn mount [f]
+    (tap [::mount x])
+    (f nil)
+    (fn unmount [] (tap [::unmount x]))))
+
 (tests
   "object lifecycle 3 with pending state"
-  (defn observer [x]
-    (fn mount [f]
-      (f (tap [:up x]))
-      (fn unmount [] (tap [:down x]))))
-
   (def !state (atom [1]))
   (let [dispose (p/run (try
                          (p/for [x (p/watch !state)] ; pending state should not trash p/for branches
-                           (new (m/observe (observer x))))
+                           (new (m/observe (observer tap x)))) ; depends on x, which is pending
                          (catch Pending _)))]
-    % := [:up 1]
+    % := [::mount 1]
     (reset! !state [2])
-    (hash-set % %) := #{[:up 2] [:down 1]}
+    (hash-set % %) := #{[::mount 2] [::unmount 1]}
     (reset! !state (Failure. (Pending.)))  ; simulate pending state, we cannot use p/server due to distributed glitch
-    % := [:down 2]                         ; FAIL p/for unmounted the branch
+    % := [::unmount 2]                     ; FAIL p/for unmounted the branch
     (reset! !state [2])
-    % := [:up 2]                           ; branch is back up
+    % := [::mount 2]                       ; branch is back up
     (dispose)))
 
 (p/def x2 1)
