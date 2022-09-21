@@ -22,15 +22,15 @@
   "Strip namespace from keyword, discarding it and return unqualified keyword. Nil-safe.
   (unqualify :db.type/ref) -> :ref"
   [?qualified-kw]
-  {:pre [#_(keyword? ?qualified-kw)]}
+  {:pre [(or (nil? ?qualified-kw)
+             (qualified-keyword? ?qualified-kw))]}
   (if ?qualified-kw
     (keyword (name ?qualified-kw))))
 
 (tests
   (unqualify ::x) := :x
   (unqualify nil) := nil
-  ;(unqualify "") :! AssertionError
-  )
+  (unqualify "") :throws AssertionError)
 
 (defn auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
   [ns props defaults-qualified]
