@@ -269,6 +269,10 @@
     (reset! !q :qq)
     % := :qq))
 
+(tests "symbols in photon"
+  (with (p/run (tap 'x)) % := 'x)
+  (with (p/run (tap '[x])) % := '[x]))
+
 (tests "case on symbols"
   (def !x (atom 'foo))
   (with (p/run (tap (case (p/watch !x)
