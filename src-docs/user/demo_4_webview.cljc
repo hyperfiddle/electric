@@ -33,11 +33,12 @@
         (dom/table
           (p/server
             (p/for [id (teeshirt-orders db filter)]
-              (p/client
-                (dom/tr
-                  (dom/td id)
-                  (dom/td (p/server (:order/email (d/entity db id))))
-                  (dom/td (p/server (:order/gender (d/entity db id)))))))))))))
+              (let [!e (d/entity db id)]
+                (p/client
+                  (dom/tr
+                    (dom/td id)
+                    (dom/td (p/server (:order/email !e)))
+                    (dom/td (p/server (:order/gender !e)))))))))))))
 
 (p/defn App []
   (let [db (p/watch conn)]
