@@ -237,7 +237,7 @@ or a provided value if it completes without producing any value."
 ;; Photon doesn't depend on core.async, this interop should move to a separate namespace or repo.
 ;; Keeping it here for simple, straight-to-the-point user demos.
 
-(cc/defn chan-read
+(cc/defn chan-read!
   "Return a task taking a value from `chan`. Retrun nil if chan is closed. Does
    not close chan, and stop reading from it when cancelled."
   [chan]
@@ -257,7 +257,7 @@ or a provided value if it completes without producing any value."
   [channel]
   (m/ap ; returns a discreet flow
     (loop []
-      (if-some [x (m/? (chan-read channel))] ; read one value from `channel`, waiting until `channel` produces it
+      (if-some [x (m/? (chan-read! channel))] ; read one value from `channel`, waiting until `channel` produces it
         ;; We succesfully read a non-nil value, we use `m/amb` with two
         ;; branches. m/amb will fork the current process (ap) and do two things
         ;; sequencially, in two branches:
