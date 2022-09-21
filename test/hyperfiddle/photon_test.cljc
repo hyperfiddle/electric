@@ -279,15 +279,11 @@
                       [a b] 1 2)))
     % := 1))
 
-(comment
-  ;; https://www.notion.so/hyperfiddle/photon-case-throws-incorrect-exception-on-no-matching-clause-82c7fe79c4ce4b2ca07f8b7936a052d3
-  (tests
-    (with (p/run (try (case 2 1 1)
-                      (catch IllegalArgumentException e
-                        (tap (ex-message e)))
-                      (catch NullPointerException e
-                        (tap :wrong-exception-type))))
-      % := "No matching clause: 2")))
+(tests
+  (with (p/run (try (case 2 1 1)
+                    (catch #?(:clj IllegalArgumentException :cljs js/Error) e (tap (ex-message e)))
+                    (catch #?(:clj Throwable :cljs :default) _ (tap :wrong-exception-type)))))
+  % := "No matching clause: 2")
 
 (p/def my-var 1)
 (tests

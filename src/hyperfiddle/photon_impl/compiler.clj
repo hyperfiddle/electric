@@ -406,6 +406,20 @@
   (let [res (analyze-form (update env ::local not) form)]
     [[:output debug-info (peek res)] ((void [:input]) (pop res))]))
 
+(defn- ?add-default-throw [clauses env switch-val-sym]
+  (cond-> clauses
+    (even? (count clauses))
+    (conj `(throw (new ~(if (= (peer-language env) :clj) 'IllegalArgumentException 'js/Error)
+                    (str "No matching clause: " ~switch-val-sym))))))
+
+(defn- ->case-clause [op]
+  (fn [[test expr]] `(::closure ~expr ~(merge #::dbg{:type :case-clause, :args [test]} (meta op)))))
+
+(defn- case-vals->v [partition symbols]
+  (reduce merge {}
+    (map (fn [p s] (zipmap (parse-clause (first p)) (repeat s)))
+      partition symbols)))
+
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
     (letfn* loop* recur set! ns ns* deftype* defrecord* var)
@@ -436,21 +450,16 @@
 
     (case clojure.core/case cljs.core/case)
     (analyze-form env
-      (let [clauses   (vec (next args))
-            total?    (odd? (count clauses))
-            partition (partition-all 2 (if total? (pop clauses) clauses))
-            symbols   (repeatedly gensym)]
-        (->> (when total? (list ::closure (peek clauses) {::dbg/type :case-default}))
-          (list
-            (reduce merge {}
-              (map (fn [p s] (zipmap (parse-clause (first p)) (repeat s)))
-                partition symbols))
-            (first args))
-          (list `let (vec (interleave symbols
-                            (map (fn [p] (list ::closure (second p) (merge {::dbg/type :case-clause, ::dbg/args [(first p)]}
-                                                                      (meta op))))
-                              partition))))
-          (list `new))))
+      (let [clauses        (vec (next args))
+            switch-val-sym (gensym)
+            clauses        (?add-default-throw clauses env switch-val-sym)
+            partition      (partition-all 2 (pop clauses))
+            symbols        (repeatedly gensym)
+            default        (list ::closure (peek clauses) {::dbg/type :case-default})]
+        `(new
+           (let [~switch-val-sym ~(first args)
+                 ~@(interleave symbols (map (->case-clause op) partition))]
+             (~(case-vals->v partition symbols) ~switch-val-sym ~default)))))
 
     (quote)
     [[:literal (first args)]]
@@ -466,7 +475,7 @@
       (throw (ex-info "Wrong number of arguments - js*" {})))
 
     (fn*)
-    (let [sym              (and (symbol? (first args)) (first args))
+    (let [sym             (and (symbol? (first args)) (first args))
           [form bindings] (provided-bindings env form)]
       (transduce (map (partial analyze-form env)) conj-res
         [[:apply [:eval `(fn-call ~form ~(vals bindings)) (merge {::dbg/action :fn-call, ::dbg/params ['…]} ; TODO add parameters to debug info
@@ -478,16 +487,16 @@
                        (when-not (contains? (:locals env) f)
                          (resolve-runtime env f)))]
 
-        ; clj/cljs class interop
+                                        ; clj/cljs class interop
         (if (or (= :cljs (peer-language env))
               (instance? CljClass (resolve-var env f)))
           (transduce (map (partial analyze-form env)) conj-res
             [[:apply [:eval `(ctor-call ~ctor ~(count args))]]] args)
           (throw (ex-info (str "Cannot call `new` on " f) (source-map env (meta form)))))
 
-        ; boot signal (monadic join), with arguments passed as dynamic scope
+                                        ; boot signal (monadic join), with arguments passed as dynamic scope
         (let [sym (if (or (contains? (:locals env) f)
-                          (not (symbol? f))) ; e.g. (new (identity Foo))
+                        (not (symbol? f))) ; e.g. (new (identity Foo))
                     f
                     (if-some [var (resolve-var env f)]
                       (if (is-node var)
@@ -714,7 +723,7 @@
 
   (analyze {} '~@:foo) :=
   [[:input]
-   [:output {::dbg/type :toggle} [:literal :foo] [:nop]]]  ; TODO debug info would be better placed last
+   [:output {::dbg/type :toggle} [:literal :foo] [:nop]]] ; TODO debug info would be better placed last
 
   (analyze {} '(::closure :foo)) :=
   [[:constant [:literal :foo] nil]
@@ -725,48 +734,67 @@
     [:literal :a] [:literal :b]]
    [:nop]]
 
-  (analyze {} '(case 1 2 3 (4 5) ~@6 7)) :=
+  (analyze {} '(case 1 2 3 (4 5) ~@6 7))
+  :=
   [[:pub
-     [:pub
-      [:constant [:literal 3] {::dbg/type :case-clause, ::dbg/args [2]}]
-      [:apply [:literal {}] [:sub 1]
-       [:pub
-        [:constant [:input] {::dbg/type :case-clause, ::dbg/args ['(4 5)]}]
-        [:apply [:literal {}] [:sub 1]
-         [:apply
-          [:apply [:global :clojure.core/hash-map nil]
-           [:literal 2] [:sub 2 {::dbg/name _  ::dbg/scope :lexical}]
-           [:literal 4] [:sub 1 {::dbg/name ?x ::dbg/scope :lexical}]
-           [:literal 5] [:sub 1 {::dbg/name ?x ::dbg/scope :lexical}]]
-          [:literal 1]
-          [:constant [:literal 7] {::dbg/type :case-default}]]]]]]
-     [:apply [:literal {}] [:sub 1]
-      [:bind 0 1 [:variable [:sub 1]]]]]
-    [:target [:nop]
-     [:target [:output {::dbg/type :toggle} [:literal 6] [:nop]]
-      [:target [:nop]
-       [:source [:nop]]]]]]
+    [:pub
+     [:literal 1]
+     [:apply [:literal {}]
+      [:sub 1]
+      [:pub [:constant [:literal 3] #::dbg{:type :case-clause , :args [2]}]
+       [:apply [:literal {}]
+        [:sub 1]
+        [:pub [:constant [:input] #::dbg{:type :case-clause , :args ['(4 5)]}]
+         [:apply [:literal {}]
+          [:sub 1]
+          [:apply
+           [:apply [:global :clojure.core/hash-map {}]
+            [:literal 2] [:sub 2 #::dbg{:name _, :scope :lexical}]
+            [:literal 4] [:sub 1 #::dbg{:name ?x, :scope :lexical}]
+            [:literal 5] [:sub 1 #::dbg{:name ?x, :scope :lexical}]]
+           [:sub 3 #::dbg{:name _, :scope :lexical}]
+           [:constant [:literal 7] #::dbg{:type :case-default}]]]]]]]]
+    [:apply [:literal {}]
+     [:sub 1]
+     [:bind 0 1 [:variable [:sub 1]]]]]
+   [:target
+    [:nop]
+    [:target [:output #::dbg{:type :toggle} [:literal 6] [:nop]]
+     [:target [:nop]
+      [:source [:nop]]]]]] 
 
   (analyze {} '(case 1 2 3 (4 5) ~@6)) :=
   [[:pub
     [:pub
-     [:constant [:literal 3] {::dbg/type :case-clause, ::dbg/args [2]}]
+     [:literal 1]
      [:apply [:literal {}] [:sub 1]
       [:pub
-       [:constant [:input] {::dbg/type :case-clause, ::dbg/args ['(4 5)]}]
+       [:constant [:literal 3] #::dbg{:type :case-clause, :args [2]}]
        [:apply [:literal {}] [:sub 1]
-        [:apply
-         [:apply [:global :clojure.core/hash-map nil]
-          [:literal 2] [:sub 2 {::dbg/name _  ::dbg/scope :lexical}]
-          [:literal 4] [:sub 1 {::dbg/name ?x ::dbg/scope :lexical}]
-          [:literal 5] [:sub 1 {::dbg/name ?x ::dbg/scope :lexical}]]
-         [:literal 1]
-         [:literal nil]]]]]]
-    [:apply [:literal {}] [:sub 1]
+        [:pub
+         [:constant [:input] #::dbg{:type :case-clause, :args ['(4 5)]}]
+         [:apply [:literal {}] [:sub 1]
+          [:apply
+           [:apply [:global :clojure.core/hash-map {}]
+            [:literal 2] [:sub 2 #::dbg{:name _, :scope :lexical}]
+            [:literal 4] [:sub 1 #::dbg{:name ?x, :scope :lexical}]
+            [:literal 5] [:sub 1 #::dbg{:name ?x, :scope :lexical}]]
+           [:sub 3 #::dbg{:name _, :scope :lexical}]
+           [:constant
+            [:apply [:global :hyperfiddle.photon-impl.runtime/fail {}]
+             [:apply
+              [:eval '(hyperfiddle.photon-impl.compiler/ctor-call java.lang.IllegalArgumentException 1)]
+              [:apply [:global :clojure.core/str {}]
+               [:literal "No matching clause: "]
+               [:sub 3 #::dbg{:name _, :scope :lexical}]]]]
+            #::dbg{:type :case-default}]]]]]]]]
+    [:apply [:literal {}]
+     [:sub 1]
      [:bind 0 1 [:variable [:sub 1]]]]]
-   [:target [:nop]
-    [:target [:output {::dbg/type :toggle} [:literal 6] [:nop]]
-     [:source [:nop]]]]]
+   [:target
+    [:nop]
+    [:target [:output #::dbg{:type :toggle} [:literal 6] [:nop]]
+     [:target [:nop] [:source [:nop]]]]]]
 
   (doto (def foo) (alter-meta! assoc :macro true ::node nil))
   (doto (def bar) (alter-meta! assoc :macro true ::node 'foo))
@@ -957,4 +985,3 @@
   (try (analyze {} '(not-a-reactive-def.))
        (catch clojure.lang.ExceptionInfo e
          (ex-message e) := "Not a reactive def: not-a-reactive-def")))
-
