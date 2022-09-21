@@ -1460,29 +1460,22 @@
 
 
 ;; https://www.notion.so/hyperfiddle/distribution-glitch-stale-local-cache-of-remote-value-should-be-invalidated-pending-47f5e425d6cf43fd9a37981c9d80d2af
-#_
-(defmacro deduping [& body] `(new (m/relieve {} (m/eduction (dedupe) (p/fn [] ~@body)))))
-#_
-(tests                                  ; FAIL will be adressed later
-  "Distributed glitch"
-  (def !atom (atom 0))
-  (p/def x (p/watch !atom))
-  (def dispose (p/run (! (try (deduping (let [y x] (p/server y)))
+(tests
+  "glitch - stale local cache of remote value should be invalidated/pending"
+  (def !x (atom 0))
+  (def dispose (p/run (! (try (let [x (new (m/watch !x))]
+                                ; should always be either pending or true
+                                ; but today local-x can be ahead
+                                [x (p/server x)])
                               (catch Pending _ ::pending)))))
-
   % := ::pending
-  % := 0
-
-  (swap! !atom inc)
-  % := ::pending
-  % := 1
-
-  (swap! !atom identity)
-  % := ::pending
-  % := 1                                ; We should not see duplicates
-  (dispose)
-
-  )
+  % := [0 0]
+  (swap! !x inc)
+  ;% := ::pending  -- bug #1, this pending should happen
+  % := [1 0]     ; -- bug #2 - local x is ahead of remote x, Leo says this is a glitch
+  ; Leo says: the remote x should be marked dirty, and eval as pending
+  % := [1 1]
+  (dispose))
 
 (comment
   ; https://www.notion.so/hyperfiddle/p-fn-transfer-d43869c673574390b186ccb4df824b39
