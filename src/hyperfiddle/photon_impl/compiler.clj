@@ -71,7 +71,7 @@
     (when decl (if (vector? (first decl)) (list decl) decl))))
 
 (defn parse-clause [clause]
-  (set (map #(if (symbol? %) (list 'quote %) %) (if (seq? clause) clause (list clause)))))
+  (set (map #(list 'quote %) (if (seq? clause) clause (list clause)))))
 
 (defn global [s]
   (keyword
