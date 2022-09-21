@@ -52,6 +52,7 @@
              "\n"))))
 
 (defn main "CLJ main" [& args]
+  (println "Starting Photon compiler and server...")
   "build and serve clojurescript assets"
   (@shadow-start!)                                          ; serves index.html as well
   (@rcf-enable! false) ; don't run cljs tests on compile - in case user enabled at the REPL
