@@ -232,9 +232,9 @@ aria-disabled element.
 (defmacro select [props]
   (let [auto-options          (gensym "options_")
         [value events props'] (parse-props ::value props {::change-event `(map (juxt identity (parse-select-value ~auto-options)))})
-        options               (vec (::options props))
+        options               (::options props)
         auto-value            (gensym "value_")]
-    `(let [~auto-options ~options
+    `(let [~auto-options (vec ~options)
            ~auto-value   ~value
            selected#     (index-of ~auto-options ~auto-value) ; TODO accept a keyfn prop instead of comparing with `=`.
            ]
