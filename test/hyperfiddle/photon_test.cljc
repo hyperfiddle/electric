@@ -2,7 +2,7 @@
   "Photon language unit tests"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.io :as photon-io]
-            [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap ! % with]]
             [missionary.core :as m]
             [clojure.test :as t])
   (:import missionary.Cancelled
@@ -1468,7 +1468,7 @@
 (tests
   "glitch - stale local cache of remote value should be invalidated/pending"
   (def !x (atom 0))
-  (def dispose (p/run (! (try (let [x (new (m/watch !x))]
+  (def dispose (p/run (tap (try (let [x (new (m/watch !x))]
                                 ; should always be either pending or true
                                 ; but today local-x can be ahead
                                 [x (p/server x)])
