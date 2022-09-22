@@ -50,10 +50,7 @@
        ::gridsheet/grid-template-columns "10em auto"})))
 
 #?(:clj (defn attributes>
-          ([db]
-           (m/ap (->> (m/?> (d/qseq {:query '[:find ?e :where [?e :db/valueType _]]
-                                   :args [db]}))
-                      (map first))))
+          ([db] (attributes> :db/ident))
           ([db pull-pattern]
            (m/ap (->> (m/?> (d/qseq {:query '[:find (pull ?e pattern)
                                             :in $ pattern
@@ -69,9 +66,8 @@
 (p/defn Attributes []
   (binding [explorer/cols [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent
                            #_#_#_#_:db/fulltext :db/tupleType :db/tupleTypes :db/tupleAttrs]
-            explorer/Format (p/fn [a col]
-                              (let [x (new (p/task->cp (d/pull! db {:eid a :selector explorer/cols})))
-                                    v (col x)]
+            explorer/Format (p/fn [row col]
+                              (let [v (col row)]
                                 (case col
                                   :db/ident (Nav-link. [::attribute v] v)
                                   :db/valueType (some-> v :db/ident name)
@@ -80,10 +76,11 @@
                                   (str v))))]
     (Explorer.
       "Attributes"
-      (new (->> (attributes> db) ; todo this query has task semantics, can it be optimized?
-                (m/eduction cat)
-                (m/reductions conj [])
-                (m/latest identity)))
+      (->> (attributes> db explorer/cols)
+           (m/eduction cat)
+           (m/reductions conj [])
+           new
+           (sort-by :db/ident)) ; sort by db/ident which isn't available
       {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "auto 6em 4em 4em 4em"})))
