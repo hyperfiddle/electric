@@ -23,7 +23,16 @@
   "ClojureScript REPL entrypoint"
   ; shadow server exports an repl, connect a second REPL instance to it (DO NOT REUSE JVM REPL it will fail weirdly)
   (shadow.cljs.devtools.api/repl :devkit)
-  (type 1))
+  (type 1)
+
+  "Datomic Cloud (requires :scratch alias)"
+  (do
+    (def d-client (delay (requiring-resolve 'datomic.client.api/client)))
+    (def d-connect (delay (requiring-resolve 'datomic.client.api/connect)))
+    (def d-db (delay (requiring-resolve 'datomic.client.api.async/db)))
+    (def datomic-client (@d-client {:server-type :dev-local :system "datomic-samples"}))
+    (def datomic-conn (@d-connect datomic-client {:db-name "mbrainz-subset"}))
+    (def db (@d-db datomic-conn))))
 
 (defmacro get-main [default]
   (list 'quote (or (some-> (System/getenv "HF_DEMO") symbol) default)))
@@ -33,8 +42,8 @@
 (def shadow-watch (delay @(requiring-resolve 'shadow.cljs.devtools.api/watch)))
 (def shadow-compile (delay @(requiring-resolve 'shadow.cljs.devtools.api/compile)))
 (def shadow-release (delay @(requiring-resolve 'shadow.cljs.devtools.api/release)))
-(def start-server! (delay (requiring-resolve 'hyperfiddle.photon-jetty-server/start-server!)))
-(def rcf-enable! (delay (requiring-resolve 'hyperfiddle.rcf/enable!)))
+(def start-server! (delay @(requiring-resolve 'hyperfiddle.photon-jetty-server/start-server!)))
+(def rcf-enable! (delay @(requiring-resolve 'hyperfiddle.rcf/enable!)))
 
 (defn browser-main! "hot switch reactor entrypoint from CLJ REPL" [photon-main-sym]
   ; Save the user the trouble of getting a CLJS repl to switch photon entrypoints
