@@ -56,6 +56,11 @@
                               :background-color "rgb(248 250 252)" :box-shadow "0 1px gray"}}
               (name k)))
 
+          ; userland could format the row, no need
+          ; for grid to be aware of columns, it's just vertical scroll.
+          ; horizontal scroll changes things.
+          ; except for the tricky styles ...
+
           (let [!!rows (vec (repeatedly page-size (partial atom nil)))]
             (p/for [i (range page-size)]
               (dom/div {:role "group" :style {:display "contents"}}
