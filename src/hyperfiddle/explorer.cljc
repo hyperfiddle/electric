@@ -63,3 +63,6 @@
                 (->> (merge {::gridsheet/row-height 24
                              ::gridsheet/page-size 20
                              ::gridsheet/columns cols})))))))))
+
+; Sorting – we should not sort here, we must provide userland with sort directives
+; to implement efficiently along with pagination directives
