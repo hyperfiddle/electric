@@ -26,7 +26,13 @@
 (defn datoms! [db arg-map] ; waits for completion before returning, for repl only really
   (p/chan->task (d/datoms db arg-map)))
 
-(comment (count (m/? (datoms! user/db {:index :aevt, :components [:db/ident]}))))
+(comment
+  (count (m/? (datoms! user/db {:index :aevt, :components [:db/ident]})))
+
+  "Recent TX"
+  (->> (datoms> user/db {:index :aevt, :components [:db/txInstant]})
+       (m/reduce conj ()) m/?
+       (take 5)))
 
 (defn tx-range> [conn arg-map] ; has pagination
   (p/chan->ap (d/tx-range conn arg-map)))
