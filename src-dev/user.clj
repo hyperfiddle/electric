@@ -18,13 +18,12 @@
   (shadow.cljs.devtools.api/compile :editor)
 
   "Switch entrypoints"
-  (user/browser-main! `user/demo-main)
+  (user/browser-main! `user/demo-main) ; see user.cljs
 
   "ClojureScript REPL entrypoint"
   ; shadow server exports an repl, connect a second REPL instance to it (DO NOT REUSE JVM REPL it will fail weirdly)
   (shadow.cljs.devtools.api/repl :devkit)
-  (type 1)
-  )
+  (type 1))
 
 (defmacro get-main [default]
   (list 'quote (or (some-> (System/getenv "HF_DEMO") symbol) default)))
