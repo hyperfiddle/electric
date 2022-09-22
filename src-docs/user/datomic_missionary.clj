@@ -12,8 +12,9 @@
 ;(defn entity! [db e] (reify ...))
 ;(defn touch! [db e] (pull! db e ['*]))
 
-; qseq
-; db-stats
+(defn db-stats [db] (p/chan-read! (d/db-stats db)))
+
+(comment (m/? (db-stats user/db)))
 
 (defn datoms> [db arg-map]
   (->> (p/chan->ap (d/datoms db arg-map))
