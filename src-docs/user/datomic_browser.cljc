@@ -34,7 +34,7 @@
                                           (println "nav-link clicked, route: " x)
                                           (Navigate!. x))} label)))
 
-(p/defn RecentTransactions []
+(p/defn RecentTx []
   (binding [explorer/cols [:db/id :db/txInstant]
             explorer/Format (p/fn [[e _ v tx op :as record] a]
                               (case a
@@ -45,7 +45,7 @@
       (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
                 (m/reductions conj ())
                 (m/latest identity))) ; fixme buffer
-      {::explorer/page-size 10
+      {::explorer/page-size 30
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em auto"})))
 
@@ -209,6 +209,19 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
+(p/defn DbStats []
+  (binding [explorer/cols [::k ::v]
+            explorer/Children (p/fn [[k v :as row]] (if (map? v) (into (sorted-map) v))) ; todo move sort into pull
+            explorer/Search? (p/fn [[k v :as row] s] (or (includes-str? k s)
+                                                         (includes-str? (if-not (map? v) v) s)))
+            explorer/Format (p/fn [[k v :as row] col] (case col ::k k ::v v))]
+    (Explorer.
+      (str "Db Stats:")
+      (new (p/task->cp (d/db-stats db))) ; todo inject sort
+      {::explorer/page-size 20
+       ::explorer/row-height 24
+       ::gridsheet/grid-template-columns "20em auto"})))
+
 #?(:cljs (def !route (atom [::summary] #_[::entity 536561674378709])))
 
 (p/defn App []
@@ -223,13 +236,17 @@
           (dom/div {:class "user-datomic-browser"}
             (dom/pre (pr-str (p/watch !route)))
             (dom/div "Nav: "
-              (Nav-link. [::summary] "home"))
+              (Nav-link. [::summary] "home") " "
+              (Nav-link. [::db-stats] "db-stats") " "
+              (Nav-link. [::recent-tx] "recent-tx"))
             (p/server
               ; x transfers, don't use a ref in the route
               (let [[page x :as route] (p/client (p/watch !route))]
                 (case page
-                  ::summary (do (RecentTransactions.) (Attributes.))
+                  ::summary (do (Attributes.))
                   ::attribute (AttributeDetail. x)
                   ::tx (TxDetail. x)
                   ::entity (do (EntityDetail. x) (EntityHistory. x))
+                  ::db-stats (DbStats.)
+                  ::recent-tx (RecentTx.)
                   (str "no matching route: " (pr-str route)))))))))))
