@@ -12,9 +12,8 @@
             [user.util :refer [includes-str? pprint-str]])
   #?(:cljs (:require-macros user.datomic-browser)))
 
-#?(:clj (def datomic-client (d/client {:server-type :dev-local :system "datomic-samples"})))
-#?(:clj (def datomic-conn (d/connect datomic-client {:db-name "mbrainz-subset"})))
-#?(:clj (def db (d/db datomic-conn)))
+(p/def conn)
+(p/def db)
 
 (comment
   (def cobblestone 536561674378709)
@@ -91,7 +90,7 @@
 
 (comment
   (def cobblestone 536561674378709)
-  (m/? (d/pull! db {:eid cobblestone :selector ['*]})))
+  (m/? (d/pull! user/db {:eid cobblestone :selector ['*]})))
 
 (p/defn EntityDetail [e]
   (assert e)
@@ -131,9 +130,9 @@
               (m/amb= (m/?> >fwd-xs) (m/?> >rev-xs)))))))
 
 (comment
-  (time (m/? (m/reduce conj [] (entity-history-datoms> db 74766790739005 nil))))
-  (time (count (m/? (m/reduce conj [] (entity-history-datoms> db nil nil)))))
-  (def it ((entity-history-datoms> db 74766790739005 nil)
+  (time (m/? (m/reduce conj [] (entity-history-datoms> user/db 74766790739005 nil))))
+  (time (count (m/? (m/reduce conj [] (entity-history-datoms> user/db nil nil)))))
+  (def it ((entity-history-datoms> user/db 74766790739005 nil)
            #(println ::notify) #(println ::terminate)))
   @it
   (it))
@@ -189,8 +188,8 @@
                 (or k ?e))))))
 
 (comment
-  (m/? (ident! db 17)) := :db.excise/beforeT
-  (m/? (ident! db nil)) := nil)
+  (m/? (ident! user/db 17)) := :db.excise/beforeT
+  (m/? (ident! user/db nil)) := nil)
 
 (p/defn TxDetail [e]
   (binding [explorer/cols [:e :a :v :tx]
@@ -202,7 +201,7 @@
                                 (str tx)))]
     (Explorer.
       (str "Tx detail: " e)
-      (new (->> (d/tx-range> datomic-conn {:start e, :end (inc e)}) ; global
+      (new (->> (d/tx-range> conn {:start e, :end (inc e)}) ; global
                 (m/eduction (map :data) cat)
                 (m/reductions conj []) ; track a running count as well
                 (m/latest identity))) ; fixme buffer
@@ -213,22 +212,24 @@
 #?(:cljs (def !route (atom [::summary] #_[::entity 536561674378709])))
 
 (p/defn App []
-  (p/client
-    (binding [Navigate! (p/fn [x]
-                          (println "Navigate!. route: " x)
-                          (reset! !route x))]
-      (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
-      (dom/h1 "Datomic browser")
-      (dom/div {:class "user-datomic-browser"}
-        (dom/pre (pr-str (p/watch !route)))
-        (dom/div "Nav: "
-          (Nav-link. [::summary] "home"))
-        (p/server
-          ; x transfers, don't use a ref in the route
-          (let [[page x :as route] (p/client (p/watch !route))]
-            (case page
-              ::summary (do (RecentTransactions.) (Attributes.))
-              ::attribute (AttributeDetail. x)
-              ::tx (TxDetail. x)
-              ::entity (do (EntityDetail. x) (EntityHistory. x))
-              (str "no matching route: " (pr-str route)))))))))
+  (binding [conn @(requiring-resolve 'user/datomic-conn)]
+    (binding [db (d/db conn)]
+      (p/client
+        (binding [Navigate! (p/fn [x]
+                              (println "Navigate!. route: " x)
+                              (reset! !route x))]
+          (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
+          (dom/h1 "Datomic browser")
+          (dom/div {:class "user-datomic-browser"}
+            (dom/pre (pr-str (p/watch !route)))
+            (dom/div "Nav: "
+              (Nav-link. [::summary] "home"))
+            (p/server
+              ; x transfers, don't use a ref in the route
+              (let [[page x :as route] (p/client (p/watch !route))]
+                (case page
+                  ::summary (do (RecentTransactions.) (Attributes.))
+                  ::attribute (AttributeDetail. x)
+                  ::tx (TxDetail. x)
+                  ::entity (do (EntityDetail. x) (EntityHistory. x))
+                  (str "no matching route: " (pr-str route)))))))))))
