@@ -43,7 +43,7 @@
     (Explorer.
       "Recent Txs"
       (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
-                (m/reductions conj [])
+                (m/reductions conj ())
                 (m/latest identity))) ; fixme buffer
       {::explorer/page-size 10
        ::explorer/row-height 24
