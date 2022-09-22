@@ -74,3 +74,10 @@
 
 (when (get (System/getenv) "REPLIT_ENVIRONMENT")
   (boot!))
+
+(defn rcf-shadow-hook {:shadow.build/stage #{:compile-prepare :compile-finish}}
+  [build-state & args]
+  (case (:shadow.build/stage build-state)
+    :compile-prepare (@rcf-enable! false)
+    :compile-finish (@rcf-enable!))
+  build-state)

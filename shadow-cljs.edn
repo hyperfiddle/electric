@@ -8,7 +8,8 @@
                        :asset-path    "/js"
                        :modules       {:main {:entries [user]
                                               :init-fn user/start!}}
-                       :build-hooks   [(shadow.cljs.build-report/hook {:output-to "target/build_report.html"})]}
+                       :build-hooks   [(shadow.cljs.build-report/hook {:output-to "target/build_report.html"})
+                                       (user/rcf-shadow-hook)]}
             :editor   {:target        :browser
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}
