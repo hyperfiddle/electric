@@ -1,4 +1,4 @@
-(ns hyperfiddle.transaction
+(ns hyperfiddle.transaction-test
   (:require [datomic.client.api :as d]
             [hyperfiddle.rcf :as rcf]))
 
