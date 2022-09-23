@@ -1,8 +1,5 @@
-(ns user
-  ; Must be ".clj" file, Clojure will not auto-run user.cljc
-  "Photon app server build and run instructions (Clojure and ClojureScript).
-  Start a REPL with `clj -A:dev`, or jack in with :dev alias.
-  Default app is demo-healthcheck."
+(ns user ; Must be ".clj" file, Clojure will not auto-run user.cljc
+  "Start a REPL with `clj -A:dev`, or jack in with :dev alias."
   (:refer-clojure :exclude [compile]))
 
 ; Don't slow down JVM REPL startup with :require for demos,
@@ -23,16 +20,7 @@
   "ClojureScript REPL entrypoint"
   ; shadow server exports an repl, connect a second REPL instance to it (DO NOT REUSE JVM REPL it will fail weirdly)
   (shadow.cljs.devtools.api/repl :devkit)
-  (type 1)
-
-  "Datomic Cloud (requires :scratch alias)"
-  (do
-    (def d-client (delay (requiring-resolve 'datomic.client.api/client)))
-    (def d-connect (delay (requiring-resolve 'datomic.client.api/connect)))
-    (def d-db (delay (requiring-resolve 'datomic.client.api.async/db)))
-    (def datomic-client (@d-client {:server-type :dev-local :system "datomic-samples"}))
-    (def datomic-conn (@d-connect datomic-client {:db-name "mbrainz-subset"}))
-    (def db (@d-db datomic-conn))))
+  (type 1))
 
 (defmacro get-main [default]
   (list 'quote (or (some-> (System/getenv "HF_DEMO") symbol) default)))
@@ -83,6 +71,20 @@
 
 (when (get (System/getenv) "REPLIT_ENVIRONMENT")
   (boot!))
+
+(when (contains? (System/getenv) "HYPERFIDDLE_DEV")
+  "auto boot"
+  (main) ; this blocks the repl until build is ready. alternatively can run in a future?
+
+  "Datomic Cloud (requires :scratch alias)"
+  (try
+    (def d-client (requiring-resolve 'datomic.client.api/client))
+    (def d-connect (requiring-resolve 'datomic.client.api/connect))
+    (def d-db (requiring-resolve 'datomic.client.api.async/db))
+    (def datomic-client (@d-client {:server-type :dev-local :system "datomic-samples"}))
+    (def datomic-conn (@d-connect datomic-client {:db-name "mbrainz-subset"}))
+    (def db (@d-db datomic-conn))
+    (catch java.io.FileNotFoundException _ "no datomic on classpath")))
 
 (defn rcf-shadow-hook {:shadow.build/stage #{:compile-prepare :compile-finish}}
   [build-state & args]
