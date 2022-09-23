@@ -79,7 +79,9 @@
 (defn history [db] (d/history db))
 
 (defn pull! [db arg-map]
-  (m/sp (let [arg-map' (omit-keys-ns (namespace ::this) arg-map)
+  (assert db)
+  (assert arg-map)
+  (m/sp (let [arg-map' (omit-keys-ns (namespace ::this) arg-map) ; we've extended datomic; perhaps we shouldn't?
               ; opportunity to validate
               ;{:pre [(some? e)]} ; fixme when this fires, the exception is never seen
               tree (m/? (p/chan-read! (d/pull db arg-map')))]
@@ -89,47 +91,11 @@
             (into (sorted-map-by (::compare arg-map)) tree)
             tree))))
 
-; extras ?
+(comment
+  (def cobblestone 536561674378709)
+  "pulls are sorted at top layer"
+  (take 3 (keys (m/? (d/pull! user/db {:eid cobblestone :selector '[*]}))))
+  := [:db/id :label/country :label/gid] ; sorted!
 
-
-;(defn transactions> [conn]
-;  (->> (p/chan->ap (d/tx-range conn {:start nil :end nil}))
-;       (m/eduction (map :data))))
-
-;#?(:clj (defn attributes! [db pull-pattern]
-;          (m/sp (->> (m/? (p/chan->task
-;                            (d/q {:query '[:find (pull ?e pattern)
-;                                           :in $ pattern
-;                                           :where [?e :db/valueType _]]
-;                                  :args [db pull-pattern]})))
-;                     (map first)
-;                     (sort-by :db/ident)))))
-;
-;(comment (time (take 3 (m/? (attributes! db [:db/ident])))))
-
-; #?(:clj (defn attributes<
-;          ([db]
-;           (->> (attributes> db)
-;                (m/eduction cat) ; ?
-;                (m/reductions conj [])
-;                (m/latest identity)))
-;          ([db pull-pattern]
-;           (->> (attributes> db pull-pattern)
-;                (m/eduction cat) ; ?
-;                (m/reductions conj [])
-;                (m/latest identity)))))
-; (comment
-;  (time (m/? (m/reduce into [] (attributes> db [:db/ident]))))
-;  (time (m/? (m/reduce into [] (attributes> db)))))
-
-;#?(:clj (defn entity-datoms! [db e] (p/chan->task (d/datoms db {:index :eavt, :components [e]}))))
-;#?(:clj (defn entity-datoms> [db e] (->> (p/chan->ap (d/datoms db {:index :eavt, :components [e]}))
-;                                         (m/eduction (mapcat identity)))))
-;#?(:clj (defn entity-datoms< [db a] (->> (entity-datoms> db a)
-;                                         (m/reductions conj [])
-;                                         (m/latest identity)))) ; FIXME BUFFER
-;
-;(comment
-;  (m/? (entity-datoms! db 1))
-;  (m/? (entity-datoms! db :db/ident))
-;  (take 3 (m/? (m/reduce conj [] (entity-datoms> db :db/ident)))))
+  "pulls are sorted at intermedate layers"
+  todo)
