@@ -17,7 +17,7 @@
       (assoc :hyperfiddle.photon/type ::trace))
     (or (ex-cause ex) ex)))
 
-(defn error
+(defn error ; TODO Don’t use ExceptionInfo. It is slow because it computes the stacktrace on instantiation. We don’t need it.
   ([^ExceptionInfo ex]
    (Failure. (ex-info (ex-message ex) (assoc (ex-data ex) :hyperfiddle.photon/type ::trace) (ex-cause ex))))
   ([debug-info ^Failure failure]
