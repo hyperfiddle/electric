@@ -39,19 +39,17 @@
   (p/chan->ap (d/tx-range conn arg-map)))
 
 (comment
+  "scan all tx"
   (->> (tx-range> user/datomic-conn {:start nil :end nil})
-       (m/eduction (map :data))
-       (m/reduce into []) ; flatten
-       m/?
-       (drop 20)
-       (take 1))
+       (m/eduction (map :data) cat (drop 20) (take 5))
+       (m/reduce conj [])
+       m/?)
 
   "datoms for tx"
   (->> (tx-range> user/datomic-conn {:start 0, :end 1})
-       (m/eduction (map :data) cat)
+       (m/eduction (map :data) cat (take 5))
        (m/reduce conj [])
-       m/?
-       (take 10)))
+       m/?))
 
 (defn q [arg-map] (p/chan->ap (d/q arg-map))) ; use qseq always?
 (defn q! [arg-map] (p/chan->task (d/q arg-map)))
