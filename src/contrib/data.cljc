@@ -29,6 +29,7 @@
 
 (tests
   (unqualify ::x) := :x
+  (unqualify :db.type/ref) := :ref
   (unqualify nil) := nil
   ;(unqualify "") :throws #?(:clj AssertionError :cljs js/Error)
   )
@@ -50,6 +51,19 @@
 (defn auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
   [ns props defaults-qualified]
   (merge defaults-qualified (update-keys props (partial qualify ns))))
+
+(defn index-by [kf coll] (into {} (map (juxt kf identity)) coll))
+
+(tests
+  (index-by :db/ident [#:db{:ident ::foo ::a 1}
+                       #:db{:ident ::bar ::b 2}])
+  := {::foo {:db/ident ::foo, ::a 1},
+      ::bar {:db/ident ::bar, ::b 2}}
+
+  (index-by ::a nil) := {}
+  ;(index-by nil [{::a 1} {::b 2}]) :throws _
+  ;(index-by nil nil) :throws _
+  )
 
 (tests
   (auto-props (namespace ::this) {:a 1 ::b 2} {::b 0 ::c 0}) := {::a 1 ::b 2 ::c 0})
