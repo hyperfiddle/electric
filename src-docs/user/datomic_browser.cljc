@@ -1,7 +1,7 @@
 (ns user.datomic-browser
   (:require [clojure.datafy :refer [datafy]]
             [clojure.core.protocols :refer [nav]]
-            [contrib.data :refer [unqualify index-by]]
+            [contrib.data :refer [unqualify]]
             [user.datomic-missionary #?(:clj :as :cljs :as-alias) d]
             [missionary.core :as m]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
@@ -10,22 +10,13 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.rcf :refer [tests ! %]]
+            #?(:clj [user.datomic-contrib :refer [schema! ident! entity-history-datoms> attributes>]])
             [user.util :refer [includes-str? pprint-str]])
   #?(:cljs (:require-macros user.datomic-browser)))
 
 (p/def conn)
 (p/def db)
 (p/def schema) ; schema is available in all explorer renderers
-
-(comment
-  (def cobblestone 536561674378709)
-  "pulls are sorted at top layer"
-  (take 3 (keys (m/? (d/pull! user/db {:eid cobblestone :selector '[*]}))))
-  := [:db/id :label/country :label/gid] ; sorted!
-
-  "pulls are sorted at intermedate layers"
-  todo)
-
 (p/def Navigate!)
 
 (p/defn Nav-link [x label]
@@ -50,20 +41,6 @@
       {::explorer/page-size 30
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em auto"})))
-
-#?(:clj (defn attributes>
-          ([db] (attributes> db [:db/ident]))
-          ([db pull-pattern]
-           (->> (d/qseq {:query '[:find (pull ?e pattern)
-                                  :in $ pattern
-                                  :where [?e :db/valueType _]]
-                         :args [db pull-pattern]})
-                (m/eduction (map first))))))
-
-(comment
-  (time (m/? (m/reduce conj [] (attributes> user/db [:db/ident]))))
-  (time (m/? (m/reduce conj [] (attributes> user/db))))
-  (m/? (d/pull! user/db {:eid 50 :selector [:db/ident :db/valueType :db/cardinality]})))
 
 (p/defn Attributes []
   (binding [explorer/cols [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent
@@ -114,34 +91,6 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em auto"})))
 
-;#?(:clj (defn before? [^java.util.Date a ^java.util.Date b] (<= (.getTime a) (.getTime b))))
-;(defn- xf-filter-before-date [before] #?(:clj (filter (fn [[tx e a v added?]] (before? t before)))))
-
-(defn sort-datoms-by-time
-  [[tx  e  a  v  added]
-   [tx' e' a' v' added']]
-  ; tx are monotically increasing right?
-  ; Draw :add as more recent than :retract for the same attribute
-  (compare [tx' a added']
-           [tx a' added]))
-
-#?(:clj
-   (defn entity-history-datoms> [db ?e ?a]
-     (->> (m/ap
-            (let [history (d/history db)
-                  ; (sequence #_(comp (xf-filter-before-date before)))
-                  >fwd-xs (d/datoms> history {:index :eavt :components [?e ?a]})
-                  >rev-xs (d/datoms> history {:index :vaet :components [?e ?a]})]
-              (m/amb= (m/?> >fwd-xs) (m/?> >rev-xs)))))))
-
-(comment
-  (time (m/? (m/reduce conj [] (entity-history-datoms> user/db 74766790739005 nil))))
-  (time (count (m/? (m/reduce conj [] (entity-history-datoms> user/db nil nil)))))
-  (def it ((entity-history-datoms> user/db 74766790739005 nil)
-           #(println ::notify) #(println ::terminate)))
-  @it
-  (it))
-
 (p/defn EntityHistory [e]
   (assert e)
   (binding [explorer/cols [::e ::a ::op ::v ::tx-instant ::tx]
@@ -159,7 +108,7 @@
     (Explorer.
       (str "Entity history: " (pr-str e))
       ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
-      (new (->> (entity-history-datoms> db e nil)
+      (new (->> (entity-history-datoms> db e)
                 (m/reductions conj []) ; track a running count as well?
                 (m/latest identity))) ; fixme buffer
       {::explorer/page-size 20
@@ -182,19 +131,6 @@
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
-
-#?(:clj (defn ident! [db ?e]
-          {:pre [db]}
-          ; future work - cache idents?
-          (m/sp
-            (if ?e
-              (let [[[k]] (m/? (d/q! {:query '[:find ?k :in $ ?e :where [?e :db/ident ?k]]
-                                       :args [db ?e]}))]
-                (or k ?e))))))
-
-(comment
-  (m/? (ident! user/db 17)) := :db.excise/beforeT
-  (m/? (ident! user/db nil)) := nil)
 
 (p/defn TxDetail [e]
   (binding [explorer/cols [:e :a :v :tx]
@@ -226,24 +162,6 @@
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
-
-;#?(:clj (defn schema< [db]
-;          (->> (attributes> db [:db/ident :db/valueType :db/cardinality])
-;               (m/reductions conj [])
-;               (m/relieve {})
-;               (m/latest (partial index-by :db/ident)))))
-
-#?(:clj (defn schema! [db]
-          ; Task because renderers assume the schema is always available
-          (m/sp
-            (->> (attributes> db [:db/ident
-                                  {:db/valueType [:db/ident]}
-                                  {:db/cardinality [:db/ident]}])
-                 (m/reduce conj []) m/?
-                 ; m/group-by maybe is faster – don't need to wait for all attrs to load?
-                 (index-by :db/ident)))))
-
-(comment (m/? (schema! user/db)))
 
 #?(:cljs (def !route (atom [::summary] #_[::entity 87960930235113])))
 
