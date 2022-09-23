@@ -155,9 +155,7 @@
   (class-str ["x" nil "y"])          := "x y"
   (class-str [nil nil nil])          := ""
   (class-str (into-array [nil "x"])) := "x"
-  (class-str [:x "y"])               := "x y"
-
-  (println "\n---"))
+  (class-str [:x "y"])               := "x y")
 
 (defn set-property! [node k v]
   #?(:cljs
