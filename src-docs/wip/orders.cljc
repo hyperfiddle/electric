@@ -28,9 +28,10 @@
                 :find [?e ...]
                 :where
                 [?e :order/type :order/shirt-size]
-                [?e :order/gender ?gender]
+                [?e :order/gender ?g]
+                [?g :db/ident ?gender]
                 [?e :db/ident ?ident]
-                [(user.util/includes-str? ?ident ?needle)]]
+                [(hyperfiddle.api/includes-str? ?ident ?needle)]]
            hf/*$*
            hf/rules gender (or needle ""))
          (d/q '[:in $ % ?needle
@@ -38,7 +39,7 @@
                 :where
                 [?e :order/type :order/shirt-size]
                 [?e :db/ident ?ident]
-                [(user.util/includes-str? ?ident ?needle)]]
+                [(hyperfiddle.api/includes-str? ?ident ?needle)]]
            hf/*$*
            hf/rules (or needle ""))))))
 

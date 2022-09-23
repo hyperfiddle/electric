@@ -50,7 +50,7 @@
 
 (p/defn entity []) ;; TODO HFQL only. Is a binding required? could it be an argument?
 (p/def ^:deprecated attribute nil)
-
+(p/def options)
 
 (p/defn tx [v' props]
   (if-let [Txfn (::tx props)]
@@ -84,11 +84,13 @@
   (p/run (tap (Join-all. {:a (p/fn [] 1), :b (p/fn [] 2), :c (p/fn [] 3)})))
   % := '{:a 1, :b 2, :c 3})
 
-(declare Render)
+(p/def bypass-renderer false) ; hf/options bypases propgressive enhancement to produces EDN
 
 (p/defn Render [V props]
   (if-let [Renderer (::render props)]
-    (Renderer. V props)
+    (if bypass-renderer
+      (Join-all. (V.))
+      (Renderer. V props))
     (Join-all. (V.))))
 
 (p/defn Data [V] (binding [Render (p/fn [V _props] (Join-all. (V.)))] (Render. V nil)))
