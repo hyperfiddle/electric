@@ -26,7 +26,8 @@
                 :find [?e ...]
                 :where
                 [?e :order/type :order/shirt-size]
-                [?e :order/gender ?gender]
+                [?e :order/gender ?g]
+                [?g :db/ident ?gender]
                 [?e :db/ident ?ident]
                 [(hyperfiddle.api/includes-str? ?ident ?needle)]]
            hf/*$*
