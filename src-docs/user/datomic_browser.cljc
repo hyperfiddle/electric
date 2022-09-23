@@ -50,18 +50,18 @@
        ::gridsheet/grid-template-columns "10em auto"})))
 
 #?(:clj (defn attributes>
-          ([db] (attributes> :db/ident))
+          ([db] (attributes> db [:db/ident]))
           ([db pull-pattern]
-           (m/ap (->> (m/?> (d/qseq {:query '[:find (pull ?e pattern)
-                                            :in $ pattern
-                                            :where [?e :db/valueType _]]
-                                   :args [db pull-pattern]}))
-                      (map first))))))
+           (->> (d/qseq {:query '[:find (pull ?e pattern)
+                                  :in $ pattern
+                                  :where [?e :db/valueType _]]
+                         :args [db pull-pattern]})
+                (m/eduction (map first))))))
 
 (comment
-  (time (m/? (m/reduce into [] (attributes> user/db [:db/ident]))))
-  (time (m/? (m/reduce into [] (attributes> user/db))))
-  (m/? (d/pull! user/db {:eid 50 :selector [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent]})))
+  (time (m/? (m/reduce conj [] (attributes> user/db [:db/ident]))))
+  (time (m/? (m/reduce conj [] (attributes> user/db))))
+  (m/? (d/pull! user/db {:eid 50 :selector [:db/ident :db/valueType :db/cardinality]})))
 
 (p/defn Attributes []
   (binding [explorer/cols [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent
@@ -77,7 +77,6 @@
     (Explorer.
       "Attributes"
       (->> (attributes> db explorer/cols)
-           (m/eduction cat)
            (m/reductions conj [])
            new
            (sort-by :db/ident)) ; sort by db/ident which isn't available

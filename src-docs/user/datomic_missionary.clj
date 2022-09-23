@@ -51,10 +51,30 @@
        (m/reduce conj [])
        m/?))
 
-(defn q [arg-map] (p/chan->ap (d/q arg-map))) ; use qseq always?
-(defn q! [arg-map] (p/chan->task (d/q arg-map)))
+(defn q [arg-map] (->> (d/q arg-map) p/chan->ap (m/eduction cat)))
+(defn q! [arg-map] (->> (q arg-map) (m/reduce conj [])))
 
-(defn qseq [arg-map] (p/chan->ap (d/qseq arg-map)))
+(comment
+  (def query-attrs '[:find (pull ?e [:db/ident]) ?f :where [?e :db/valueType ?f]])
+  (def >x (q {:query query-attrs :args [user/db]}))
+  (def it (>x #(println ::notify) #(println ::terminate)))
+  @it
+  (it)
+
+  (->> (q {:query query-attrs :args [user/db]}) (m/reduce conj []) m/?)
+  (m/? (q! {:query query-attrs :args [user/db]})))
+
+; The returned seq object efficiently supports count.
+(defn qseq [arg-map] (->> (p/chan->ap (d/qseq arg-map))
+                          (m/eduction cat))) ; qseq returns chunks, smooth them out
+
+(comment
+  (defn attrs> [db]
+    (qseq {:query '[:find (pull ?e [:db/ident]) ?f :where [?e :db/valueType ?f]] :args [db]}))
+
+  (m/? (->> (attrs> user/db)
+            (m/eduction (take 3))
+            (m/reduce conj []))))
 
 (defn history [db] (d/history db))
 
