@@ -1,6 +1,7 @@
 (ns user.datomic-browser
   (:require [clojure.datafy :refer [datafy]]
             [clojure.core.protocols :refer [nav]]
+            [contrib.data :refer [unqualify index-by]]
             [user.datomic-missionary #?(:clj :as :cljs :as-alias) d]
             [missionary.core :as m]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
@@ -14,6 +15,7 @@
 
 (p/def conn)
 (p/def db)
+(p/def schema) ; schema is available in all explorer renderers
 
 (comment
   (def cobblestone 536561674378709)
@@ -91,7 +93,14 @@
 (p/defn EntityDetail [e]
   (assert e)
   (binding [explorer/cols [::a ::v]
-            explorer/Children (p/fn [[a v :as row]] (if (map? v) (into (sorted-map) v))) ; todo move sort into pull
+            explorer/Children (p/fn [[a v :as row]]
+                                (let [{:keys [:db/valueType :db/cardinality]} (a schema)
+                                      x [(unqualify (:db/ident valueType))
+                                         (unqualify (:db/ident cardinality))]]
+                                  (case x
+                                    [:ref :one] (into (sorted-map) v) ; todo lift sort to the pull object
+                                    ;[:ref :many] v ; can't sort, no sort key
+                                    nil)))
             explorer/Search? (p/fn [[a v :as row] s] (or (includes-str? a s)
                                                          (includes-str? (if-not (map? v) v) s)))
             explorer/Format (p/fn [[a v :as row] col]
@@ -218,31 +227,50 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
 
-#?(:cljs (def !route (atom [::summary] #_[::entity 536561674378709])))
+;#?(:clj (defn schema< [db]
+;          (->> (attributes> db [:db/ident :db/valueType :db/cardinality])
+;               (m/reductions conj [])
+;               (m/relieve {})
+;               (m/latest (partial index-by :db/ident)))))
+
+#?(:clj (defn schema! [db]
+          ; Task because renderers assume the schema is always available
+          (m/sp
+            (->> (attributes> db [:db/ident
+                                  {:db/valueType [:db/ident]}
+                                  {:db/cardinality [:db/ident]}])
+                 (m/reduce conj []) m/?
+                 ; m/group-by maybe is faster – don't need to wait for all attrs to load?
+                 (index-by :db/ident)))))
+
+(comment (m/? (schema! user/db)))
+
+#?(:cljs (def !route (atom [::summary] #_[::entity 87960930235113])))
 
 (p/defn App []
   (binding [conn @(requiring-resolve 'user/datomic-conn)]
     (binding [db (d/db conn)]
-      (p/client
-        (binding [Navigate! (p/fn [x]
-                              (println "Navigate!. route: " x)
-                              (reset! !route x))]
-          (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
-          (dom/h1 "Datomic browser")
-          (dom/div {:class "user-datomic-browser"}
-            (dom/pre (pr-str (p/watch !route)))
-            (dom/div "Nav: "
-              (Nav-link. [::summary] "home") " "
-              (Nav-link. [::db-stats] "db-stats") " "
-              (Nav-link. [::recent-tx] "recent-tx"))
-            (p/server
-              ; x transfers, don't use a ref in the route
-              (let [[page x :as route] (p/client (p/watch !route))]
-                (case page
-                  ::summary (do (Attributes.))
-                  ::attribute (AttributeDetail. x)
-                  ::tx (TxDetail. x)
-                  ::entity (do (EntityDetail. x) (EntityHistory. x))
-                  ::db-stats (DbStats.)
-                  ::recent-tx (RecentTx.)
-                  (str "no matching route: " (pr-str route)))))))))))
+      (binding [schema (new (p/task->cp (schema! db)))]
+        (p/client
+          (binding [Navigate! (p/fn [x]
+                                (println "Navigate!. route: " x)
+                                (reset! !route x))]
+            (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
+            (dom/h1 "Datomic browser")
+            (dom/div {:class "user-datomic-browser"}
+              (dom/pre (pr-str (p/watch !route)))
+              (dom/div "Nav: "
+                (Nav-link. [::summary] "home") " "
+                (Nav-link. [::db-stats] "db-stats") " "
+                (Nav-link. [::recent-tx] "recent-tx"))
+              (p/server
+                ; x transfers, don't use a ref in the route
+                (let [[page x :as route] (p/client (p/watch !route))]
+                  (case page
+                    ::summary (do (Attributes.))
+                    ::attribute (AttributeDetail. x)
+                    ::tx (TxDetail. x)
+                    ::entity (do (EntityDetail. x) (EntityHistory. x))
+                    ::db-stats (DbStats.)
+                    ::recent-tx (RecentTx.)
+                    (str "no matching route: " (pr-str route))))))))))))
