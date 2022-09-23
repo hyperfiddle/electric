@@ -1,6 +1,7 @@
 (ns hyperfiddle.ui
   (:refer-clojure :exclude [boolean])
-  (:require [hyperfiddle.photon :as p]
+  (:require [contrib.data :refer [index-by]]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
@@ -159,7 +160,6 @@
                value'))]
       (hf/tx. value' props))))
 
-(defn index-by [kf coll] (into {} (map (juxt kf identity)) coll))
 (defn index-id [x] (str (hash x)))
 
 (p/def select-options)
