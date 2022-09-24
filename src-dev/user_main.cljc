@@ -1,4 +1,5 @@
-(ns user-main
+(ns ^:dev/always ; force rebuild here? We don't understand why
+  user-main
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon.debug :as dbg]
             [hyperfiddle.photon-dom :as dom]
