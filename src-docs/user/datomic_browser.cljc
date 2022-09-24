@@ -1,8 +1,7 @@
 (ns user.datomic-browser
   (:require [clojure.datafy :refer [datafy]]
             [clojure.core.protocols :refer [nav]]
-            [contrib.data :refer [unqualify]]
-            [user.datomic-missionary #?(:clj :as :cljs :as-alias) d]
+            [contrib.data :refer [unqualify index-by]]
             [missionary.core :as m]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
             [hyperfiddle.gridsheet :as-alias gridsheet]
@@ -10,7 +9,9 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.rcf :refer [tests ! %]]
-            #?(:clj [user.datomic-contrib :refer [schema! ident! entity-history-datoms> attributes>]])
+            #?(:clj [user.datomic-contrib :as dx
+                     :refer [schema! ident! entity-history-datoms> attributes>]])
+            [user.datomic-missionary #?(:clj :as :cljs :as-alias) d]
             [user.util :refer [includes-str? pprint-str]])
   #?(:cljs (:require-macros user.datomic-browser)))
 
@@ -67,23 +68,51 @@
   (def cobblestone 536561674378709)
   (m/? (d/pull! user/db {:eid cobblestone :selector ['*]})))
 
+(p/defn entity-tree-entry-children [[k v :as row]] ; row is either a map-entry or [0 {:db/id _}]
+  ; This shorter expr works as well but is a bit "lucky" with types in that you cannot see
+  ; the intermediate cardinality many traversal. Unclear what level of power is needed here
+  ;(cond
+  ;  (map? v) (into (sorted-map) v)
+  ;  (sequential? v) (map-indexed vector v))
+
+  ; this controlled way dispatches on static schema to clarify the structure
+  (cond
+    (contains? schema k)
+    (let [x ((juxt (comp unqualify dx/identify :db/valueType)
+                   (comp unqualify dx/identify :db/cardinality)) (k schema))]
+      (case x
+        [:ref :one] (into (sorted-map) v) ; todo lift sort to the pull object
+        [:ref :many] #_(map-indexed vector v) (index-by dx/identify v) ; can't sort, no sort key
+        nil #_(println `unmatched x))) ; no children
+
+    ; in card :many traversals k can be an index or datomic identifier, like
+    ; [0 {:db/id 20512488927800905}]
+    ; [20512488927800905 {:db/id 20512488927800905}]
+    ; [:release.type/single {:db/id 35435060739965075, :db/ident :release.type/single}]
+    (number? k) (into (sorted-map) v)
+
+    () (assert false (str "unmatched tree entry, k: " k " v: " v))))
+
 (p/defn EntityDetail [e]
   (assert e)
-  (binding [explorer/cols [::a ::v]
-            explorer/Children (p/fn [[a v :as row]]
-                                (let [{:keys [:db/valueType :db/cardinality]} (a schema)
-                                      x [(unqualify (:db/ident valueType))
-                                         (unqualify (:db/ident cardinality))]]
-                                  (case x
-                                    [:ref :one] (into (sorted-map) v) ; todo lift sort to the pull object
-                                    ;[:ref :many] v ; can't sort, no sort key
-                                    nil)))
-            explorer/Search? (p/fn [[a v :as row] s] (or (includes-str? a s)
+  (binding [explorer/cols [::k ::v]
+            explorer/Children entity-tree-entry-children
+            explorer/Search? (p/fn [[k v :as row] s] (or (includes-str? k s)
                                                          (includes-str? (if-not (map? v) v) s)))
-            explorer/Format (p/fn [[a v :as row] col]
+            explorer/Format (p/fn [[k v :as row] col]
                               (case col
-                                ::a (Nav-link. [::attribute a] a)
-                                ::v (if (some? v) (if-not (map? v) (pr-str v)))))]
+                                ::k (cond
+                                      (= :db/id k) k ; :db/id is our schema extension, can't nav to it
+                                      (contains? schema k) (Nav-link. [::attribute k] k)
+                                      () (str k)) ; str is needed for Long db/id, why?
+                                ::v (if-not (coll? v) ; don't render card :many intermediate row
+                                      (let [[valueType cardinality]
+                                            ((juxt (comp unqualify dx/identify :db/valueType)
+                                                   (comp unqualify dx/identify :db/cardinality)) (k schema))]
+                                        (cond
+                                          (= :db/id k) (Nav-link. [::entity v] v)
+                                          (= :ref valueType) (Nav-link. [::entity v] v)
+                                          () (pr-str v))))))]
     (Explorer.
       (str "Entity detail: " e) ; treeview on the entity
       (new (p/task->cp (d/pull! db {:eid e :selector ['*] ::d/compare compare}))) ; todo inject sort
