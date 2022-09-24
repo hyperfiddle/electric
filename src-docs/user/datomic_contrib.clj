@@ -1,6 +1,7 @@
 (ns user.datomic-contrib
   (:require [contrib.data :refer [index-by]]
             [missionary.core :as m]
+            [hyperfiddle.rcf :refer [tests % tap]]
             [user.datomic-missionary :as d]))
 
 (defn attributes>
@@ -30,10 +31,20 @@
                           {:db/valueType [:db/ident]}
                           {:db/cardinality [:db/ident]}])
          (m/reduce conj []) m/?
+
+         ; :db/id is a renderable attr in the semantic UI, schema metadata describes how
+         (cons {:db/ident :db/id
+                :db/cardinality {:db/ident :db.cardinality/one}
+                :db/valueType {:db/ident :db.type/long}
+                #_#_:db/unique :db.unique/identity})
+
          ; m/group-by maybe is faster – don't need to wait for all attrs to load?
          (index-by :db/ident))))
 
-(comment (m/? (schema! user/db)))
+(comment
+  (:db/ident (m/? (schema! user/db)))
+  (:db/id (m/? (schema! user/db)))
+  (m/? (schema! user/db)))
 
 ;#?(:clj (defn before? [^java.util.Date a ^java.util.Date b] (<= (.getTime a) (.getTime b))))
 ;(defn- xf-filter-before-date [before] #?(:clj (filter (fn [[tx e a v added?]] (before? t before)))))
