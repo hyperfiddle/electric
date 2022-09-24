@@ -52,18 +52,62 @@
   [ns props defaults-qualified]
   (merge defaults-qualified (update-keys props (partial qualify ns))))
 
-(defn index-by [kf coll] (into {} (map (juxt kf identity)) coll))
+(defn index-by [kf xs]
+  {:pre [kf]}
+  (into {} (map-indexed (fn [i x]
+                          [(kf x i) ; fallback to index when key is not present
+                           #_(if-not kf (kf x i) i) ; alternative design is to define nil kf as fallback
+                           x])) xs))
 
 (tests
-  (index-by :db/ident [#:db{:ident ::foo ::a 1}
-                       #:db{:ident ::bar ::b 2}])
-  := {::foo {:db/ident ::foo, ::a 1},
-      ::bar {:db/ident ::bar, ::b 2}}
+  (def xs [{:db/ident :foo :a 1}
+           {:db/ident :bar :b 2}])
 
-  (index-by ::a nil) := {}
-  ;(index-by nil [{::a 1} {::b 2}]) :throws _
-  ;(index-by nil nil) :throws _
-  )
+  (index-by :db/ident xs)
+  := {:foo {:db/ident :foo, :a 1},
+         :bar {:db/ident :bar, :b 2}}
+
+  (index-by ::missing xs) ; should this throw?
+  := {0 {:db/ident :foo, :a 1},
+      1 {:db/ident :bar, :b 2}}
+
+  ;"nil kf uses default value (which is likely unintended, should it throw?)"
+  ;(index-by nil xs)
+  ;:= {0 {:db/ident :foo, :a 1},
+  ;    1 {:db/ident :bar, :b 2}}
+
+  (index-by :a nil) := {}
+  ;(index-by nil nil) := {} ; kf never used -- alternative design
+  (comment (index-by nil nil) :throws _) ; valid test, RCF :throws has issues
+
+  (index-by :a [{}]) := {0 {}}
+  (index-by :a [{:a 1}]) := {1 {:a 1}}
+  (index-by :b [{:a 1}]) := {0 {:a 1}} ; missing key, fallback to index
+
+  "indexing map entries (which is weird, should this throw?)"
+  (index-by :a {:a 1}) := {0 [:a 1]} ; index the map entry, not the map, :a is missing so fallback
+  (index-by :b {:a 1}) := {0 [:a 1]}
+
+  "collisions are possible"
+  (index-by :db/id [{:db/id 1} {:db/id 2} {:db/id 1}]) ; should this detect collision and throw?
+  := {1 #:db{:id 1}, 2 #:db{:id 2}}
+
+  "kf fallback arity"
+  (index-by (fn [x i] (str i)) xs)
+  := {"0" {:db/ident :foo, :a 1},
+      "1" {:db/ident :bar, :b 2}})
+
+(defn index
+  "index a sequential collection into an associative collection with explicit keys. this may not be
+  useful, as vectors are already associative"
+  [xs]
+  (assert (sequential? xs)) ; maps are not indexable
+  (index-by (fn [x i] i) xs))
+
+(tests
+  (index xs)
+  := {0 {:db/ident :foo, :a 1},
+      1 {:db/ident :bar, :b 2}})
 
 (tests
   (auto-props (namespace ::this) {:a 1 ::b 2} {::b 0 ::c 0}) := {::a 1 ::b 2 ::c 0})
