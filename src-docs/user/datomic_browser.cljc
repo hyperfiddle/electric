@@ -73,7 +73,7 @@
   ; the intermediate cardinality many traversal. Unclear what level of power is needed here
   ;(cond
   ;  (map? v) (into (sorted-map) v)
-  ;  (sequential? v) (map-indexed vector v))
+  ;  (sequential? v) (index-by dx/identify v))
 
   ; this controlled way dispatches on static schema to clarify the structure
   (cond
@@ -82,7 +82,7 @@
                    (comp unqualify dx/identify :db/cardinality)) (k schema))]
       (case x
         [:ref :one] (into (sorted-map) v) ; todo lift sort to the pull object
-        [:ref :many] #_(map-indexed vector v) (index-by dx/identify v) ; can't sort, no sort key
+        [:ref :many] (index-by dx/identify v) ; can't sort, no sort key
         nil #_(println `unmatched x))) ; no children
 
     ; in card :many traversals k can be an index or datomic identifier, like
