@@ -30,7 +30,8 @@
 (tests
   (unqualify ::x) := :x
   (unqualify nil) := nil
-  (unqualify "") :throws #?(:clj AssertionError :cljs js/Error))
+  ;(unqualify "") :throws #?(:clj AssertionError :cljs js/Error)
+  )
 
 (defn omit-keys-ns [ns ?m]
   {:pre [(some? ns)]}
