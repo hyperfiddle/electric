@@ -82,4 +82,6 @@
   (round-floor 8 8) := 8.0
   (round-floor 9 8) := 8.0
   (round-floor 15 8) := 8.0
-  (round-floor 16 8) := 16.0)
+  (round-floor 16 8) := 16.0
+
+  (round-floor 1234567 1000) := 1234000.0)
