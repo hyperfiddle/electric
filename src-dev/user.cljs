@@ -1,4 +1,5 @@
-(ns ^:dev/always user ; recompile Photon entrypoint when Photon source changes
+(ns ;^:dev/always ; recompile Photon entrypoint when Photon source changes
+  user
   (:require clojure.string
             goog.object
             hyperfiddle.photon
