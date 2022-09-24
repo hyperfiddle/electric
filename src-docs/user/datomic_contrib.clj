@@ -95,17 +95,31 @@
               (remove nil?)))
 
 (defn identify "infer canonical identity"
-  [tree] (first (identities tree)))
+  ([tree fallback] (or (identify tree) fallback))
+  ([tree] (first (identities tree))))
 
 (tests
   (def tree {:db/id 35435060739965075 :db/ident :release.type/single :release.type/name "Single"})
   (identities tree) := [:release.type/single 35435060739965075]
   (identify tree) := :release.type/single
 
-  ; wrong; should query for the canonical identity, not best locally available identity
-  (def tree {:db/id 35435060739965075 :release.type/name "Single"})
-  (identities tree) := [35435060739965075]
-  (identify tree) := 35435060739965075)
+  (tests
+    "these are bad; it should query for the canonical identity, not best locally available identity"
+    (def tree2 {:db/id 35435060739965075 :release.type/name "Single"})
+    (identities tree2) := [35435060739965075]
+    (identify tree2) := 35435060739965075)
+
+  "accept fallback value (like keywords)"
+  (identify tree 0) := :release.type/single
+  (identify tree2 0) := 35435060739965075
+  (identify {} 0) := 0
+
+  "No known identifier is valid"
+  (identities {}) := []
+  (identify {}) := nil
+
+  (index-by :db/id [tree2])   := {35435060739965075 {:db/id 35435060739965075, :release.type/name "Single"}}
+  (index-by identify [tree2]) := {35435060739965075 {:db/id 35435060739965075, :release.type/name "Single"}})
 
 (defn reverse-attr [?kw]
   (if ?kw
