@@ -31,8 +31,7 @@
   (unqualify ::x) := :x
   (unqualify :db.type/ref) := :ref
   (unqualify nil) := nil
-  ;(unqualify "") :throws #?(:clj AssertionError :cljs js/Error)
-  )
+  (unqualify "") :throws #?(:clj AssertionError :cljs js/Error))
 
 (defn omit-keys-ns [ns ?m]
   {:pre [(some? ns)]}
@@ -44,9 +43,8 @@
   (omit-keys-ns :c {::a 1 :b 2 :c/c 3}) := {::a 1 :b 2}
   (omit-keys-ns :c {::a 1 :b 2 :c/c 3}) := {::a 1 :b 2}
   (omit-keys-ns :c nil) := nil
-  ;(omit-keys-ns nil {::a 1 :b 2 :c/c 3}) :throws #?(:clj AssertionError :cljs js/Error)
-  ;(omit-keys-ns nil nil) :throws #?(:clj AssertionError :cljs js/Error)
-  )
+  (omit-keys-ns nil {::a 1 :b 2 :c/c 3}) :throws #?(:clj AssertionError :cljs js/Error)
+  (omit-keys-ns nil nil) :throws #?(:clj AssertionError :cljs js/Error))
 
 (defn auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
   [ns props defaults-qualified]
@@ -78,7 +76,7 @@
 
   (index-by :a nil) := {}
   ;(index-by nil nil) := {} ; kf never used -- alternative design
-  (comment (index-by nil nil) :throws _) ; valid test, RCF :throws has issues
+  (index-by nil nil) :throws #?(:clj AssertionError :cljs js/Error)
 
   (index-by :a [{}]) := {0 {}}
   (index-by :a [{:a 1}]) := {1 {:a 1}}
