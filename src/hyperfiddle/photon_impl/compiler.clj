@@ -182,15 +182,20 @@
    clojure.core/resolve"
   [env sym]
   {:pre [(map? env) (symbol? sym)]}
-  (try
-    (binding [cljs/*private-var-access-nowarn* true]
-      (let [klass (clojure.lang.Compiler/maybeResolveIn (the-ns (:name (:ns env))) sym)]
-        (if (class? klass)
-          (CljClass. klass)
-          (CljsVar. (no-warn #{:undeclared-ns} (cljs/resolve-var env sym (cljs/confirm-var-exists-throw)))))))
-    (catch Exception _e
-      (when-some [v (cljs/resolve-macro-var env sym)]
-        (CljsVar. v)))))
+  (let [!found? (volatile! true)
+        var     (binding [cljs/*private-var-access-nowarn* true]
+                  (when-let [ns (find-ns (:name (:ns env)))]
+                    (let [klass (clojure.lang.Compiler/maybeResolveIn ns sym)]
+                      (if (class? klass)
+                        (CljClass. klass)
+                        (CljsVar. (no-warn #{:undeclared-ns} (cljs/resolve-var env sym
+                                                               (fn confirm [env prefix suffix]
+                                                                 (cljs/confirm-var-exists env prefix suffix
+                                                                   (fn missiing-fn [_env _prefix _suffix]
+                                                                     (vreset! !found? false)))))))))))]
+    (if (and @!found? var) var
+        (when-some [v (cljs/resolve-macro-var env sym)]
+          (CljsVar. v)))))
 
 (defn peer-language [env]
   (case (::local env)
