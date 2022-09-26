@@ -1,13 +1,21 @@
 (ns user.datomic-missionary
   (:require [contrib.data :refer [omit-keys-ns]]
+            [clojure.core.protocols :as ccp :refer [nav]]
+            [clojure.datafy :refer [datafy]]
             datomic.client.api
             [datomic.client.api.async :as d]
             [missionary.core :as m]
-            [hyperfiddle.photon :as p]))
+            [hyperfiddle.photon :as p]
+            [hyperfiddle.rcf :refer [tests tap %]])
+  (:import (datomic.core.db Datum)))
 
 (defn client [arg-map] (datomic.client.api/client arg-map))
 (defn connect [client arg-map] (datomic.client.api/connect client arg-map))
 (defn db [conn] (d/db conn))
+
+(extend-protocol ccp/Datafiable
+  Datum
+  (datafy [^Datum [e a v tx op]] [e a v tx op]))
 
 ;(defn entity! [db e] (reify ...))
 ;(defn touch! [db e] (pull! db e ['*]))
@@ -17,41 +25,36 @@
 (comment (m/? (db-stats user/db)))
 
 (defn datoms> [db arg-map]
-  (->> (p/chan->ap (d/datoms db arg-map))
-       (m/eduction cat))) ; ?
+  (m/ap (m/?> (m/eduction cat (p/chan->ap (d/datoms db arg-map))))))
 
 (comment
-  (take 3 (m/? (m/reduce conj [] (datoms> user/db {:index :aevt, :components [:db/ident]}))))
-  (take 3 (m/? (m/reduce conj [] (datoms> user/db {:index :aevt, :components [:db/txInstant]})))))
+  (time (take 3 (m/? (m/reduce conj [] (datoms> user/db {:index :aevt, :components [:db/ident]})))))
+  (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> user/db {:index :aevt, :components [:db/ident]})))))
+  (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> user/db {:index :aevt, :components [:db/txInstant]}))))))
 
 (defn datoms! [db arg-map] ; waits for completion before returning, for repl only really
-  (p/chan->task (d/datoms db arg-map)))
+  (m/sp (m/? (p/chan->task (d/datoms db arg-map)))))
 
-(comment
-  (count (m/? (datoms! user/db {:index :aevt, :components [:db/ident]})))
-
-  "Recent TX"
+(tests
+  (count (m/? (datoms! user/db {:index :aevt, :components [:db/ident]}))) := 1000
+  "Recent TX - datafy"
   (->> (datoms> user/db {:index :aevt, :components [:db/txInstant]})
-       (m/reduce conj ()) m/?
-       (take 5)))
+       (m/eduction (map datafy))
+       (m/eduction (take 1))
+       (m/reduce conj ()) m/?)
+  := [[?tx 50 _ ?tx true]])
 
 (defn tx-range> [conn arg-map] ; has pagination
-  (p/chan->ap (d/tx-range conn arg-map)))
+  (m/ap (m/?> (p/chan->ap (d/tx-range conn arg-map)))))
 
-(comment
-  "scan all tx"
-  (->> (tx-range> user/datomic-conn {:start nil :end nil})
-       (m/eduction (map :data) cat (drop 20) (take 5))
-       (m/reduce conj [])
-       m/?)
-
-  "datoms for tx"
+(tests
+  "first datom"
   (->> (tx-range> user/datomic-conn {:start 0, :end 1})
-       (m/eduction (map :data) cat (take 5))
-       (m/reduce conj [])
-       m/?))
+       (m/eduction (map :data) cat (map datafy))
+       (m/reduce conj ()) m/? (take 1))
+  := [[0 10 :db.part/db 13194139533312 true]])
 
-(defn q [arg-map] (->> (d/q arg-map) p/chan->ap (m/eduction cat)))
+(defn q [arg-map] (m/ap (m/?> (m/eduction cat (p/chan->ap (d/q arg-map))))))
 (defn q! [arg-map] (->> (q arg-map) (m/reduce conj [])))
 
 (comment
