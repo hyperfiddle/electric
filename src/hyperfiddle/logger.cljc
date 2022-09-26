@@ -6,6 +6,7 @@
   sequences writes.
   To be removed when timbre (or an equivalent) is supported by photon.
   Backed by clojure.tools.logging > backed by SLF4J > backed by logback. See logback.xml."
+  (:refer-clojure :exclude [time])
   #?(:clj (:require [clojure.tools.logging :as log]
                     [clojure.tools.logging.impl :as impl])
      :cljs (:require-macros [hyperfiddle.logger :refer [log debug info trace warn error]])))
@@ -67,3 +68,11 @@
 ;; - `clojure.tools.logging` rewrites it silently to `ERROR`. Highly confusing.
 ;;    reason: SLF4J don’t support it by default http://www.slf4j.org/faq.html#fatal .
 
+(defmacro time
+  "Evaluates expr and prints the time it took.  Returns the value of
+ expr."
+  [message expr]
+  `(let [start# (. System (nanoTime))
+         ret# ~expr]
+     (prn (str ~message " - elapsed time: " (/ (double (- (. System (nanoTime)) start#)) 1000000.0) " msecs"))
+     ret#))
