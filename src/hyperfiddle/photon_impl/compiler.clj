@@ -111,14 +111,18 @@
 
 ;;; Resolving
 
-(defn resolve-ns "Builds a description of a namespace. Returns nil if no namespace can be found for the given symbol."
+(defn resolve-ns
+  "Builds a description of a namespace. Returns nil if no namespace can be found for the given symbol.
+  Does not compute `:interns` because it’s expensive and the photon compiler
+  cannot cache it. Use `find-interned-var` to lookup for interns."
+  ;; `ns-interns` is a filter over `ns-map` (a huge map) while `find-interned-var` is a direct lookup.
   [ns-sym]
   (when-let [ns (find-ns ns-sym)]
-    {:mappings (merge (ns-map ns) {'in-ns #'clojure.core/in-ns
-                                   'ns    #'clojure.core/ns})
+    {:mappings (assoc (ns-map ns)
+                 'in-ns #'clojure.core/in-ns
+                 'ns    #'clojure.core/ns)
      :aliases  (reduce-kv (fn [a k v] (assoc a k (ns-name v)))
-                          {} (ns-aliases ns))
-     :interns  (ns-interns ns)
+                 {} (ns-aliases ns))
      :ns       (ns-name ns)}))
 
 (defn resolve-sym "Expand a qualified symbol to its fully qualified form, according to ns aliases."
@@ -206,6 +210,10 @@
   (and (:js-globals env)
     (some-> env :ns :meta :file (str/ends-with? ".cljs"))))
 
+(defn find-interned-var [^clojure.lang.Namespace ns var-sym]
+  (let [^clojure.lang.Symbol var-name (if (simple-symbol? var-sym) var-sym (symbol (name var-sym)))]
+    (.findInternedVar ns var-name)))
+
 (defn resolve-var
   "Resolve a clojure or clojurescript var, given these rules:
    If the resolved clojurescript var is a macro var, return the corresponding clojure var.
@@ -218,10 +226,11 @@
                   ns       (resolve-ns (:ns env)) ; current ns
                   resolved (if (simple-symbol? sym)
                              (get-in ns [:mappings sym]) ; resolve in current ns
-                             (as-> sym $
-                               (symbol (namespace $)) ; extract namespace part of sym
-                               (get-in ns [:aliases $] $) ; expand to fully qualified form
-                               (get-in (resolve-ns $) [:interns (symbol (name sym))]) ; resolve declared var in target ns
+                             (when-let [ns (as-> sym $
+                                             (symbol (namespace $)) ; extract namespace part of sym
+                                             (get-in ns [:aliases $] $) ; expand to fully qualified form
+                                             (find-ns $))]
+                               (find-interned-var ns sym) ; resolve declared var in target ns
                                ))]
               (if (some? resolved)
                 (cond (var? resolved)   (CljVar. resolved)
