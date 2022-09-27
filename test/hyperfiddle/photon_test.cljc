@@ -1609,3 +1609,11 @@
                     (tap :ok)
                     (catch ExceptionInfo e (tap (ex-message e)))))
     % := :ok))
+
+(tests
+  (with (p/run
+          (let [!F (atom (p/fn [] 0))]
+            (tap (new (new (m/watch !F))))
+            (let [y 1] (reset! !F (p/fn [] y)))))
+    % := 0
+    % := 1))
