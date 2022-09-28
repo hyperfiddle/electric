@@ -1611,6 +1611,7 @@
     % := :ok))
 
 (tests
+  "cycle"
   (with (p/run
           (let [!F (atom (p/fn [] 0))]
             (tap (new (new (m/watch !F))))
