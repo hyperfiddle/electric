@@ -12,13 +12,17 @@
             #?(:clj [user.datomic-contrib :as dx
                      :refer [schema! ident! entity-history-datoms> attributes>]])
             [user.datomic-missionary #?(:clj :as :cljs :as-alias) d]
-            [user.util :refer [includes-str? pprint-str]])
+            #?(:cljs [user.router :as router])
+            [contrib.ednish :as ednish]
+            [user.util :refer [includes-str? pprint-str]]
+            [clojure.edn :as edn])
   #?(:cljs (:require-macros user.datomic-browser)))
 
 (p/def conn)
 (p/def db)
 (p/def schema) ; schema is available in all explorer renderers
-(p/def Navigate!)
+
+#?(:cljs (def route! (fn [data] (->> data pr-str ednish/encode (str "/") router/route!))))
 
 (p/defn Nav-link [x label]
   (p/client
@@ -26,7 +30,7 @@
                        ::ui/click-event (p/fn [e]
                                           (.preventDefault e)
                                           (println "nav-link clicked, route: " x)
-                                          (Navigate!. x))} label)))
+                                          (route! x))} label)))
 
 (p/defn RecentTx []
   (binding [explorer/cols [:db/id :db/txInstant]
@@ -192,32 +196,29 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
 
-#?(:cljs (def !route (atom [::summary] #_[::entity 87960930235113])))
-
 (p/defn App []
   (binding [conn @(requiring-resolve 'user/datomic-conn)]
     (binding [db (d/db conn)]
       (binding [schema (new (p/task->cp (schema! db)))]
         (p/client
-          (binding [Navigate! (p/fn [x]
-                                (println "Navigate!. route: " x)
-                                (reset! !route x))]
+          (let [[page x :as route-data]
+                (new (router/from (fn [path] (if (= path "/")
+                                               [::summary]
+                                               (-> path (subs 1) ednish/decode edn/read-string)))))]
             (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
             (dom/h1 "Datomic browser")
             (dom/div {:class "user-datomic-browser"}
-              (dom/pre (pr-str (p/watch !route)))
+              (dom/pre (pr-str route-data))
               (dom/div "Nav: "
                 (Nav-link. [::summary] "home") " "
                 (Nav-link. [::db-stats] "db-stats") " "
                 (Nav-link. [::recent-tx] "recent-tx"))
               (p/server
-                ; x transfers, don't use a ref in the route
-                (let [[page x :as route] (p/client (p/watch !route))]
-                  (case page
-                    ::summary (do (Attributes.))
-                    ::attribute (AttributeDetail. x)
-                    ::tx (TxDetail. x)
-                    ::entity (do (EntityDetail. x) (EntityHistory. x))
-                    ::db-stats (DbStats.)
-                    ::recent-tx (RecentTx.)
-                    (str "no matching route: " (pr-str route))))))))))))
+                (case page
+                  ::summary   (Attributes.)
+                  ::attribute (AttributeDetail. x)
+                  ::tx        (TxDetail. x)
+                  ::entity    (do (EntityDetail. x) (EntityHistory. x))
+                  ::db-stats  (DbStats.)
+                  ::recent-tx (RecentTx.)
+                  (str "no matching route: " (pr-str page)))))))))))

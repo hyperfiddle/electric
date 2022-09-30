@@ -47,10 +47,17 @@
 
 (defn file-exsist? [path] (.exists (io/as-file path)))
 
+(defn wrap-spa [next-handler]
+  (fn [ring-req]
+    (next-handler (assoc ring-req :uri "/index.html" ))))
+
 (defn start-server! [{:keys [resources-path port] :as config
                       :or   {resources-path "resources/public"}}]
   (try
     (ring/run-jetty (cond-> #'default-handler
+                      (file-exsist? resources-path) (wrap-file resources-path)
+                      true                          (wrap-content-type)
+                      true                          (wrap-spa)
                       (file-exsist? resources-path) (wrap-file resources-path)
                       true                          (wrap-content-type)
                       true                          (wrap-default-page)
