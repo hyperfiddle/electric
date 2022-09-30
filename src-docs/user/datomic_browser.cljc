@@ -15,6 +15,7 @@
             #?(:cljs [user.router :as router])
             [contrib.ednish :as ednish]
             [user.util :refer [includes-str? pprint-str]]
+            hyperfiddle.data-readers-safe
             [clojure.edn :as edn])
   #?(:cljs (:require-macros user.datomic-browser)))
 
@@ -196,29 +197,32 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
 
+(p/def read-edn-str)
+
 (p/defn App []
   (binding [conn @(requiring-resolve 'user/datomic-conn)]
     (binding [db (d/db conn)]
       (binding [schema (new (p/task->cp (schema! db)))]
         (p/client
-          (let [[page x :as route-data]
-                (new (router/from (fn [path] (if (= path "/")
-                                               [::summary]
-                                               (-> path (subs 1) ednish/decode edn/read-string)))))]
-            (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
-            (dom/h1 "Datomic browser")
-            (dom/div {:class "user-datomic-browser"}
-              (dom/pre (pr-str route-data))
-              (dom/div "Nav: "
-                (Nav-link. [::summary] "home") " "
-                (Nav-link. [::db-stats] "db-stats") " "
-                (Nav-link. [::recent-tx] "recent-tx"))
-              (p/server
-                (case page
-                  ::summary   (Attributes.)
-                  ::attribute (AttributeDetail. x)
-                  ::tx        (TxDetail. x)
-                  ::entity    (do (EntityDetail. x) (EntityHistory. x))
-                  ::db-stats  (DbStats.)
-                  ::recent-tx (RecentTx.)
-                  (str "no matching route: " (pr-str page)))))))))))
+          (binding [read-edn-str (partial clojure.edn/read-string {:readers {'long hyperfiddle.data-readers-safe/long-edn-reader}})]
+            (let [[page x :as route-data]
+                  (new (router/from (fn [path] (if (= path "/")
+                                                 [::summary]
+                                                 (-> path (subs 1) ednish/decode read-edn-str)))))]
+              (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
+              (dom/h1 "Datomic browser")
+              (dom/div {:class "user-datomic-browser"}
+                (dom/pre (pr-str route-data))
+                (dom/div "Nav: "
+                  (Nav-link. [::summary] "home") " "
+                  (Nav-link. [::db-stats] "db-stats") " "
+                  (Nav-link. [::recent-tx] "recent-tx"))
+                (p/server
+                  (case page
+                    ::summary (Attributes.)
+                    ::attribute (AttributeDetail. x)
+                    ::tx (TxDetail. x)
+                    ::entity (do (EntityDetail. x) (EntityHistory. x))
+                    ::db-stats (DbStats.)
+                    ::recent-tx (RecentTx.)
+                    (str "no matching route: " (pr-str page))))))))))))
