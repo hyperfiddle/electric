@@ -13,8 +13,9 @@
 (defn genders []
   #?(:clj (into [] (sort (d/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*)))))
 
-(tests
-  (genders) := [1 2])
+#?(:clj
+   (tests
+     (genders) := [1 2]))
 
 (s/fdef shirt-sizes :args (s/cat :gender keyword?
                                  :needle string?)
@@ -43,9 +44,10 @@
            hf/*$*
            hf/rules (or needle ""))))))
 
-(tests
-  (shirt-sizes 2 "") := [6 7 8]
-  (shirt-sizes 2 "med") := [7])
+#?(:clj
+   (tests
+     (shirt-sizes 2 "") := [6 7 8]
+     (shirt-sizes 2 "med") := [7]))
 
 (defn orders [needle]
   #?(:clj (sort (d/q '[:find [?e ...] :in $ ?needle :where
@@ -53,10 +55,11 @@
                        [(user.util/includes-str? ?email ?needle)]]
                      hf/*$* (or needle "")))))
 
-(tests
-  (orders "") := [9 10 11]
-  (orders "example") := [9 10 11]
-  (orders "b") := [10])
+#?(:clj
+   (tests
+     (orders "") := [9 10 11]
+     (orders "example") := [9 10 11]
+     (orders "b") := [10]))
 
 (s/fdef orders :args (s/cat :needle string?)
         :ret (s/coll-of (s/keys :req [:order/email
@@ -67,9 +70,10 @@
 (s/fdef order :args (s/cat :needle string?) :ret number?)
 (defn order [needle] (first (orders needle)))
 
-(tests
-  (order "") := 9
-  (order "bob") := 10)
+#?(:clj
+   (tests
+     (order "") := 9
+     (order "bob") := 10))
 
 (s/fdef one-order :args (s/cat :sub any?) :ret any?)
 (defn one-order [sub] (hf/nav! hf/*$* sub :db/id))
