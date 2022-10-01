@@ -9,15 +9,15 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.rcf :refer [tests ! %]]
-            #?(:clj [user.datomic-contrib :as dx
-                     :refer [schema! ident! entity-history-datoms> attributes>]])
+            [user.datomic-contrib :as dx
+             #?@(:clj (:refer [schema! ident! entity-history-datoms> attributes>]))]
             [user.datomic-missionary #?(:clj :as :cljs :as-alias) d]
             #?(:cljs [user.router :as router])
             [contrib.ednish :as ednish]
             [user.util :refer [includes-str? pprint-str]]
-            hyperfiddle.data-readers-safe
             [clojure.edn :as edn])
-  #?(:cljs (:require-macros user.datomic-browser)))
+  #?(:cljs (:require-macros user.datomic-browser))
+  #?(:cljs (:import [goog.math Long]))) ; only this require syntax passes shadow in this file, why?
 
 (p/def conn)
 (p/def db)
@@ -197,6 +197,7 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
 
+#?(:cljs (defn read-goog-long [s] (goog.math.Long/fromString s))) ; photon gap?
 (p/def read-edn-str)
 
 (p/defn App []
@@ -204,7 +205,7 @@
     (binding [db (d/db conn)]
       (binding [schema (new (p/task->cp (schema! db)))]
         (p/client
-          (binding [read-edn-str (partial clojure.edn/read-string {:readers {'long hyperfiddle.data-readers-safe/long-edn-reader}})]
+          (binding [read-edn-str (partial clojure.edn/read-string {:readers {'long read-goog-long}})]
             (let [[page x :as route-data]
                   (new (router/from (fn [path] (if (= path "/")
                                                  [::summary]
