@@ -1,9 +1,15 @@
 (ns user ; Must be ".clj" file, Clojure will not auto-run user.cljc
   "Start a REPL with `clj -A:dev`, or jack in with :dev alias."
-  (:refer-clojure :exclude [compile]))
+  (:refer-clojure :exclude [compile])
 
-; Don't slow down JVM REPL startup with :require for demos,
-; (main) will cause the shadow build to load them and we share that JVM
+  ; For rapid REPL startup, put absolute minimum of requires here: REPL conveniences only,
+  ; which includes clojure reader extensions listed in data_readers.cljc.
+  (:require contrib.uri
+            hyperfiddle.rcf))
+
+; Userland photon application code will be lazy loaded by the shadow build `(main)`
+; due to :require-macros in all Photon source files.
+; WARNING: make sure your REPL and shadow-cljs are sharing the same JVM!
 
 (comment
   "Photon Clojure REPL entrypoint"
