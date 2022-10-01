@@ -32,6 +32,14 @@
 (defn uri-cljs-reader [s] #?(:clj `(contrib.uri/->URI ~s))) ; called from cljs compiler jvm
 ; https://github.com/clojure/clojurescript/commit/5379f722588370f9f1934e9a78e777e24e953c81
 
+; CI cljs build fails on the first #uri literal with
+; RuntimeException: Can't embed object in code, maybe print-dup not defined: http://localhost:8080/a?b#c
+; so hoisting that up. (It works on my local dev box without this defined, likely due to
+; shadow sharing JVM with clojure REPL)
+
+#?(:clj (defmethod print-dup java.net.URI [o ^java.io.Writer w] (print-uri o w)))
+#?(:clj (defmethod print-dup com.cognitect.transit.URI [o ^java.io.Writer w] (print-uri o w)))
+
 (tests
   "#uri code literals are auto-wired from data_readers.cljc"
   (def x #uri "http://localhost:8080/a?b#c")
@@ -41,9 +49,7 @@
   (is-uri? x) := true)
 
 #?(:clj (defmethod print-method java.net.URI [o ^java.io.Writer w] (print-uri o w)))
-#?(:clj (defmethod print-dup java.net.URI [o ^java.io.Writer w] (print-uri o w)))
 #?(:clj (defmethod print-method com.cognitect.transit.URI [o ^java.io.Writer w] (print-uri o w)))
-#?(:clj (defmethod print-dup com.cognitect.transit.URI [o ^java.io.Writer w] (print-uri o w)))
 
 (tests
   "#uri edn serialization (calls the Writer interfaces)"
