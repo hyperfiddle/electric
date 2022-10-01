@@ -23,15 +23,14 @@
 (p/def db)
 (p/def schema) ; schema is available in all explorer renderers
 
-#?(:cljs (def route! (fn [data] (->> data pr-str ednish/encode (str "/") router/route!))))
-
 (p/defn Nav-link [x label]
   (p/client
-    (ui/element dom/a {::dom/href ""
-                       ::ui/click-event (p/fn [e]
-                                          (.preventDefault e)
-                                          (println "nav-link clicked, route: " x)
-                                          (route! x))} label)))
+    (let [href (->> x pr-str ednish/encode (str "/"))]
+      (ui/element dom/a {::dom/href href ; middle click
+                         ::ui/click-event (p/fn [e]
+                                            (.preventDefault e)
+                                            (println "nav-link clicked, route: " x)
+                                            (router/route! href))} label))))
 
 (p/defn RecentTx []
   (binding [explorer/cols [:db/id :db/txInstant]
