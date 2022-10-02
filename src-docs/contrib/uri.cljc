@@ -54,6 +54,11 @@
                       :cljs ((instance? goog.Uri o) (str o))))]
     (#?(:clj .write :cljs -write) w (str "#uri \"" str-rep "\""))))
 
+; FAQ: The reader docs say that custom literals should be namespaced to avoid name collisions with
+; core, why is `uri` unqualified here? https://clojure.org/reference/reader
+; A: we think this should be in core, in alignment with clojure.core/uri? being hardcoded to
+; java.net.URI and goog.Uri, they are not userland types.
+
 #?(:cljs (extend-type goog.Uri IPrintWithWriter (-pr-writer [o writer _] (print-uri o writer))))
 #?(:clj (defmethod print-method java.net.URI [o ^java.io.Writer w] (print-uri o w)))
 #?(:clj (defmethod print-dup java.net.URI [o ^java.io.Writer w] (print-uri o w)))
@@ -69,11 +74,6 @@
 (defn uri-clj-reader [s] (java.net.URI. s))
 (defn uri-cljs-reader [s] #?(:clj `(goog.Uri. ~s))) ; called from cljs compiler jvm
 ; https://github.com/clojure/clojurescript/commit/5379f722588370f9f1934e9a78e777e24e953c81
-
-; CI cljs build fails on the first #uri literal with
-; RuntimeException: Can't embed object in code, maybe print-dup not defined: http://localhost:8080/a?b#c
-; so hoisting that up. (It works on my local dev box without this defined, likely due to
-; shadow sharing JVM with clojure REPL)
 
 (tests
   "#uri code literals are auto-wired from data_readers.cljc"
