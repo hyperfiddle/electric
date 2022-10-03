@@ -110,12 +110,13 @@
   [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :render-point]] db))  ; find all points
        (map (fn [{:keys [db/id] :as point}]
-              (let [tx {:db/id              id,
-                        :node/symbol        (lexical-symbol point)
-                        :node/symbolic-form (symbolic-form point)}]
+              (let [tx    {:db/id              id,
+                           :node/symbol        (lexical-symbol point)
+                           :node/symbolic-form (symbolic-form point)}
+                    alias (:prop/value (props ::hf/as point))]
                 (case (:node/form-type point)
-                  :keyword (assoc tx :node/name (symbol (:node/form point)))
-                  :call    (assoc tx :node/name (symbol (name (first (:node/form point)))))
+                  :keyword (assoc tx :node/name (or alias (symbol (:node/form point))))
+                  :call    (assoc tx :node/name (or alias (symbol (name (first (:node/form point))))))
                   tx))))
        (d/db-with db)))
 ;;; end symbol-pass
@@ -520,9 +521,11 @@
 
 (defn emit-props "Emit a map of {prop-key prop-value} for a given render point." [point]
   (let [props-map (->> (props point)
-                    (map (fn [node] (case (:prop/key node)
-                                      ::hf/options [::hf/options `(p/fn [] (binding [hf/bypass-renderer true] (hf/options.)))]
-                                      [(:prop/key node) (:prop/value node)])))
+                    (map (fn [{:keys [prop/key prop/value]}]
+                           [key (case key
+                                  ::hf/options `(p/fn [] (binding [hf/bypass-renderer true] (hf/options.)))
+                                  ::hf/as (list 'quote value)
+                                  value)]))
                     (into {}))]
     (cond-> props-map
       (:node/render-as point)               (assoc ::hf/render-as (:node/render-as point))
@@ -572,7 +575,7 @@
                                     ~(add-scope-bindings point nav))
                      ::spec/many `(hf/Render.
                                     (p/fn []
-                                      (p/for [e# ~(:node/form point)]
+                                      (p/for [e# ~(emit-call point)]
                                         (p/fn []
                                           (binding [hf/entity e#]
                                             ~(add-scope-bindings point nav)))))
@@ -730,22 +733,20 @@
           {:order/shirt-size [:select {:value 4} [:option 3] [:option 4] [:option 5]],
            :order/gender {:db/ident :order/male}}]})
 
-(comment
-  (tests
-    "lexical env"
-    (let [needle1  "alice"
-          needle2  "small"]
-      (with (p/run (tap (binding [hf/entity 9]
-                          (hfql {(orders needle1) [:order/email
-                                                   {:order/gender [:db/ident]}
-                                                   {(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                              ::hf/options (shirt-sizes db/ident needle2)})
-                                                    [:db/id]}]}) )))))
-    % := '{(hyperfiddle.queries-test/orders needle1)
-           [{:order/shirt-size [:select {:value 8} [:option 6]],
-             :order/gender {:db/ident :order/female},
-             :order/email "alice@example.com"}]}))
-
-;; (graph '[{:order/gender [:db/ident]}
-;;          (props :order/shirt-size {::hf/render  Select-option-renderer
-;;                                    ::hf/options (shirt-sizes db/ident "")})])
+(tests
+  "lexical env"
+  (let [needle1  "alice"
+        needle2  "small"]
+    (with (p/run (tap (binding [hf/entity 9]
+                        (hfql {(orders needle1) [:order/email
+                                                 {:order/gender [(props :db/ident {::hf/as gender})]}
+                                                 {(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                            ::hf/options (shirt-sizes gender needle2)})
+                                                  [:db/ident]}]}) )))))
+  % := '{(hyperfiddle.queries-test/orders needle1)
+         [{:order/shirt-size
+           [:select
+            {:value {:db/ident :order/womens-large}}
+            [:option {:db/ident :order/womens-small}]],
+           :order/gender {:db/ident :order/female},
+           :order/email "alice@example.com"}]})
