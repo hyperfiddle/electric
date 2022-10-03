@@ -2,5 +2,4 @@
 ; data_readers.clj/c, but the Clojurescript compiler does.
 ; https://www.clojurescript.org/about/differences
 
-{uri #?(:clj contrib.uri/uri-clj-reader :cljs contrib.uri/uri-cljs-reader)
- #?@(:cljs (long goog.math.Long/fromString))} ; see user.datomic-contrib
+{uri #?(:clj contrib.uri/uri-clj-reader :cljs contrib.uri/uri-cljs-reader)}
