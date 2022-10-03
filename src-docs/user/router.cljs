@@ -37,7 +37,6 @@
        (m/?> (mbx->flow mbx))))))
 
 (tests
-  ; careful, only passes from a clean page due to (?)
   (def !route (m/mbx))
   (def route> (path> !route))
 
