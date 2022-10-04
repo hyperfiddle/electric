@@ -61,7 +61,17 @@
   (@shadow-watch :devkit)                                   ; depends on shadow server
   (serve!)
   (@rcf-enable!)
-  (comment (.stop server)))
+  (comment (.stop server))
+
+  "Datomic Cloud (requires :scratch alias)"
+  (try
+    (def d-client (requiring-resolve 'datomic.client.api/client))
+    (def d-connect (requiring-resolve 'datomic.client.api/connect))
+    (def d-db (requiring-resolve 'datomic.client.api.async/db))
+    (def datomic-client (@d-client {:server-type :dev-local :system "datomic-samples"}))
+    (def datomic-conn (@d-connect datomic-client {:db-name "mbrainz-subset"}))
+    (def db (@d-db datomic-conn))
+    (catch java.io.FileNotFoundException _ "no datomic on classpath")))
 
 (defn compile []
   ; optimized artifact but with debug information available to find problems
@@ -80,17 +90,7 @@
 
 (when (contains? (System/getenv) "HYPERFIDDLE_DEV")
   "auto boot"
-  (main) ; this blocks the repl until build is ready. alternatively can run in a future?
-
-  "Datomic Cloud (requires :scratch alias)"
-  (try
-    (def d-client (requiring-resolve 'datomic.client.api/client))
-    (def d-connect (requiring-resolve 'datomic.client.api/connect))
-    (def d-db (requiring-resolve 'datomic.client.api.async/db))
-    (def datomic-client (@d-client {:server-type :dev-local :system "datomic-samples"}))
-    (def datomic-conn (@d-connect datomic-client {:db-name "mbrainz-subset"}))
-    (def db (@d-db datomic-conn))
-    (catch java.io.FileNotFoundException _ "no datomic on classpath")))
+  (main)) ; this blocks the repl until build is ready. alternatively can run in a future?
 
 (defn rcf-shadow-hook {:shadow.build/stage #{:compile-prepare :compile-finish}}
   [build-state & args]
