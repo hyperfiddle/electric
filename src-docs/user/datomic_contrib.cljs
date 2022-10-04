@@ -49,12 +49,12 @@
 
 (extend-type goog.math.Long
   IPrintWithWriter
-  (-pr-writer [^goog.math.Long o writer _] (-write writer (str "#long \"" (.toString o) "\""))))
+  (-pr-writer [^goog.math.Long o writer _] (-write writer (str "#goog.math/Long \"" (.toString o) "\""))))
 
 (tests
   "edn writer"
   (def too-big (goog.math.Long/fromString "9007199254740992"))
-  (pr-str too-big) := "#long \"9007199254740992\""
+  (pr-str too-big) := "#goog.math/Long \"9007199254740992\""
 
   (->> ["9007199254740989"
         "9007199254740990"
@@ -65,42 +65,42 @@
         "9007199254740995"
         "9007199254740996"]
        (map (comp pr-str goog.math.Long/fromString)))
-  := ["#long \"9007199254740989\""
-      "#long \"9007199254740990\""
-      "#long \"9007199254740991\""
-      "#long \"9007199254740992\""
-      "#long \"9007199254740993\""
-      "#long \"9007199254740994\""
-      "#long \"9007199254740995\""
-      "#long \"9007199254740996\""])
+  := ["#goog.math/Long \"9007199254740989\""
+      "#goog.math/Long \"9007199254740990\""
+      "#goog.math/Long \"9007199254740991\""
+      "#goog.math/Long \"9007199254740992\""
+      "#goog.math/Long \"9007199254740993\""
+      "#goog.math/Long \"9007199254740994\""
+      "#goog.math/Long \"9007199254740995\""
+      "#goog.math/Long \"9007199254740996\""])
 
 (tests
-  (cljs.reader/read-string "#long \"9007199254740996\"")
+  (cljs.reader/read-string "#goog.math/Long \"9007199254740996\"")
   :throws js/Error ; No reader function for tag long.
 
-  (def x (cljs.reader/read-string {:readers {'long goog.math.Long/fromString}} "#long \"9007199254740996\""))
+  (def x (cljs.reader/read-string {:readers {'goog.math/Long goog.math.Long/fromString}} "#goog.math/Long \"9007199254740996\""))
   x := (goog.math.Long/fromString "9007199254740996")
 
-  ; x := #long"9007199254740996" -- compiler error
+  ; x := #goog.math/Long"9007199254740996" -- compiler error
   ; this is runtime only! Is there a business case for hardcoding large literals like that?
 
   "you can inject something like this over a region (to avoid global state)"
   ; yes we know bindings are pretty busted in clojure, but it beats mutable global state
   (def ^:dynamic *read-str* nil)
-  (binding [*read-str* (partial cljs.reader/read-string {:readers {'long goog.math.Long/fromString}})]
-    (*read-str* "#long \"9007199254740996\"")) := x)
+  (binding [*read-str* (partial cljs.reader/read-string {:readers {'goog.math/Long goog.math.Long/fromString}})]
+    (*read-str* "#goog.math/Long \"9007199254740996\"")) := x)
 
 (tests
   "edn reader"
-  (cljs.reader/read-string "#long \"9007199254740996\"")
+  (cljs.reader/read-string "#goog.math/Long \"9007199254740996\"")
   :throws js/Error ; No reader function for tag long.
 
-  (clojure.edn/read-string {:readers {'long goog.math.Long/fromString}} "#long \"9007199254740996\"")
+  (clojure.edn/read-string {:readers {'goog.math/Long goog.math.Long/fromString}} "#goog.math/Long \"9007199254740996\"")
   := x
 
   (def ^:dynamic *read-str* nil)
-  (binding [*read-str* (partial clojure.edn/read-string {:readers {'long goog.math.Long/fromString}})]
-    (*read-str* "#long \"9007199254740996\"")) := x)
+  (binding [*read-str* (partial clojure.edn/read-string {:readers {'goog.math/Long goog.math.Long/fromString}})]
+    (*read-str* "#goog.math/Long \"9007199254740996\"")) := x)
 
 ; For the Clojure reader case, I think we don't need to support large compile-time literal longs,
 ; this is a runtime concern only and thus we only implement the EDN readers in clojurescript.
