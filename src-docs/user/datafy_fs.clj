@@ -106,7 +106,8 @@
                           (.isSymbolicLink attrs) ::symlink
                           (.isOther attrs) ::other
                           (.isRegularFile attrs) (if-let [s (get-extension n)]
-                                                   (keyword (namespace ::foo) s))
+                                                   (keyword (namespace ::foo) s)
+                                                   ::unknown-kind)
                           () ::unknown-kind)
              ::absolute-path (-> f .getAbsolutePath)
              ::created (-> attrs .creationTime .toInstant java.util.Date/from)
@@ -164,6 +165,8 @@
   (as-> (datafy h) %
         (nav % ::children (::children %))
         (datafy %) ; can skip - simple data
+        (map datafy %)
+        (vec (filter #(= (::name %) "hyperfiddle") %)) ; stabilize test
         (nav % 0 (% 0))
         (datafy %)
         #_(s/conform ::file %))
