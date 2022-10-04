@@ -21,8 +21,8 @@
             (uri? jx) := true
             (= (java.net.URI. "http://localhost:8080/a?b#c")
                (java.net.URI. "http://localhost:8080/a?b#c")) := true
-            ;(= #uri "http://localhost:8080/a?b#c" jx) := true -- compiler error
-            (= (read-string "#uri \"http://localhost:8080/a?b#c\"") jx) :throws Exception)
+            ;(= #user/uri "http://localhost:8080/a?b#c" jx) := true -- compiler error
+            (= (read-string "#user/uri \"http://localhost:8080/a?b#c\"") jx) :throws Exception)
      :cljs (tests
              "document goog.Uri OOTB behavior"
              (def gx (goog.Uri. "http://localhost:8080/a?b#c"))
@@ -31,8 +31,8 @@
              (uri? gx) := true
              (= (goog.Uri. "http://localhost:8080/a?b#c")
                 (goog.Uri. "http://localhost:8080/a?b#c")) := false
-             ;(= #uri "http://localhost:8080/a?b#c" jx) := true -- compiler error
-             (= (cljs.reader/read-string "#uri \"http://localhost:8080/a?b#c\"") jx) :throws js/Error)))
+             ;(= #user/uri "http://localhost:8080/a?b#c" jx) := true -- compiler error
+             (= (cljs.reader/read-string "#user/uri \"http://localhost:8080/a?b#c\"") jx) :throws js/Error)))
 
 ; clojure code literals
 ; clojure runtime literals
@@ -52,7 +52,7 @@
   (let [str-rep (cond
                   #?@(:clj ((instance? java.net.URI o) (str o))
                       :cljs ((instance? goog.Uri o) (str o))))]
-    (#?(:clj .write :cljs -write) w (str "#uri \"" str-rep "\""))))
+    (#?(:clj .write :cljs -write) w (str "#user/uri \"" str-rep "\""))))
 
 ; FAQ: The reader docs say that custom literals should be namespaced to avoid name collisions with
 ; core, why is `uri` unqualified here? https://clojure.org/reference/reader
@@ -68,7 +68,7 @@
   (def x #?(:clj (java.net.URI. "http://localhost:8080/a?b#c")
             :cljs (goog.Uri. "http://localhost:8080/a?b#c")))
   (str x) := "http://localhost:8080/a?b#c" ; unchanged
-  (pr-str x) := "#uri \"http://localhost:8080/a?b#c\"")
+  (pr-str x) := "#user/uri \"http://localhost:8080/a?b#c\"")
 
 ; for data_readers.cljc
 (defn uri-clj-reader [s] (java.net.URI. s))
@@ -76,27 +76,27 @@
 ; https://github.com/clojure/clojurescript/commit/5379f722588370f9f1934e9a78e777e24e953c81
 
 (tests
-  "#uri code literals are auto-wired from data_readers.cljc"
-  (def x #uri "http://localhost:8080/a?b#c")
+  "#user/uri code literals are auto-wired from data_readers.cljc"
+  (def x #user/uri "http://localhost:8080/a?b#c")
   (uri? x) := true
   (str x) := "http://localhost:8080/a?b#c"
-  (pr-str x) := "#uri \"http://localhost:8080/a?b#c\""
+  (pr-str x) := "#user/uri \"http://localhost:8080/a?b#c\""
 
   "note goog.Uri is mutable, so no equality in cljs"
-  (= #uri "http://localhost:8080/a?b#c"
-     #uri "http://localhost:8080/a?b#c") := #?(:clj true :cljs false))
+  (= #user/uri "http://localhost:8080/a?b#c"
+     #user/uri "http://localhost:8080/a?b#c") := #?(:clj true :cljs false))
 
 
 ; Readers
 
 (tests
-  "clj #uri runtime literal readers are auto-wired in clojure from data_readers.cljc"
-  #?@(:clj ((clojure.core/read-string "#uri \"http://localhost:8080/a?b#c\"") := x))
+  "clj #user/uri runtime literal readers are auto-wired in clojure from data_readers.cljc"
+  #?@(:clj ((clojure.core/read-string "#user/uri \"http://localhost:8080/a?b#c\"") := x))
 
-  "cljs #uri runtime literals are NOT auto-wired in cljs reader (the cljs JS runtime reader is always an
+  "cljs #user/uri runtime literals are NOT auto-wired in cljs reader (the cljs JS runtime reader is always an
   EDN reader for safety, unlike clj)"
   ; https://www.clojurescript.org/guides/reader
-  #?@(:cljs ((cljs.reader/read-string "#uri \"http://localhost:8080/a?b#c\"")
+  #?@(:cljs ((cljs.reader/read-string "#user/uri \"http://localhost:8080/a?b#c\"")
              :throws js/Error ; No reader function for tag uri.
              (contains? (set (keys @cljs.reader/*tag-table*)) 'inst) := true
              (contains? (set (keys @cljs.reader/*tag-table*)) 'uri) := false)))
@@ -107,30 +107,30 @@
       :cljs ((clojure.edn/read-string "1") := 1))
 
   "edn readers don't auto-wire the unsafe code literals"
-  #?@(:clj ((clojure.edn/read-string "#uri \"http://localhost:8080/a?b#c\"") :throws RuntimeException)
-      :cljs ((clojure.edn/read-string "#uri \"http://localhost:8080/a?b#c\"") :throws js/Error)))
+  #?@(:clj ((clojure.edn/read-string "#user/uri \"http://localhost:8080/a?b#c\"") :throws RuntimeException)
+      :cljs ((clojure.edn/read-string "#user/uri \"http://localhost:8080/a?b#c\"") :throws js/Error)))
 
 (tests
-  "#uri direct edn reader configuration - different for clj and cljs"
-  (def edn-read-str (partial clojure.edn/read-string {:readers {'uri #?(:clj #(java.net.URI. %)
-                                                                        :cljs #(goog.Uri. %))}}))
-  (edn-read-str "#uri \"http://localhost:8080/a?b#c\"")
+  "#user/uri direct edn reader configuration - different for clj and cljs"
+  (def edn-read-str (partial clojure.edn/read-string {:readers {'user/uri #?(:clj #(java.net.URI. %)
+                                                                             :cljs #(goog.Uri. %))}}))
+  (edn-read-str "#user/uri \"http://localhost:8080/a?b#c\"")
   (uri? *1) := true)
 
 (comment
   (tests
     "cljs userland can globally register an EDN tag reader, but it's probably a bad idea"
     #?@(:cljs ((cljs.reader/register-tag-parser! 'uri #(goog.Uri. %))
-               (clojure.edn/read-string "#uri \"http://localhost:8080/a?b#c\"") := x))))
+               (clojure.edn/read-string "#user/uri \"http://localhost:8080/a?b#c\"") := x))))
 
 (tests
   "clj userland can not globally register an EDN tag reader"
-  #?@(:clj ((clojure.edn/read-string "#uri \"http://localhost:8080/a?b#c\"") :throws RuntimeException)))
+  #?@(:clj ((clojure.edn/read-string "#user/uri \"http://localhost:8080/a?b#c\"") :throws RuntimeException)))
 
 ; for easy portable config – optional
 ;(defn uri-edn-reader [s] #?(:clj (java.net.URI. s) :cljs (goog.Uri. s)))
 ;
 ;(tests
-;  "#uri easy portable config – same for clj and cljs"
-;  (clojure.edn/read-string {:readers {'uri uri-edn-reader}} "#uri \"http://localhost:8080/a?b#c\"")
+;  "#user/uri easy portable config – same for clj and cljs"
+;  (clojure.edn/read-string {:readers {'uri uri-edn-reader}} "#user/uri \"http://localhost:8080/a?b#c\"")
 ;  (uri? *1) := true)
