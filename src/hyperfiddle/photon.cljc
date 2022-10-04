@@ -1,12 +1,12 @@
 (ns hyperfiddle.photon
   (:refer-clojure :exclude [eval def defn fn for empty?])
   (:require [clojure.core :as cc]
+            contrib.missionary-contrib
             [hyperfiddle.photon-impl.compiler :as c]
             [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.photon-impl.for :refer [map-by]]
             #?(:clj [hyperfiddle.rcf.analyzer :as ana])     ; todo remove
             [missionary.core :as m]
-            [clojure.core.async :as a]
             #?(:cljs [hyperfiddle.photon-client])
             [hyperfiddle.photon-impl.io :as io]
             [hyperfiddle.photon.debug :as dbg])
@@ -233,57 +233,15 @@ or a provided value if it completes without producing any value."
   ([down-value ack >xs]
    `(new (bind (partial impulse* ~down-value) (hyperfiddle.photon/fn [] ~ack) ~>xs))))
 
-;; Core.async interop.
-;; Photon doesn't depend on core.async, this interop should move to a separate namespace or repo.
-;; Keeping it here for simple, straight-to-the-point user demos.
+; Should these be in missionary?
+(def chan-read! contrib.missionary-contrib/chan-read!)
+(def chan->ap contrib.missionary-contrib/chan->ap)
+(def chan->task contrib.missionary-contrib/chan->task)
+;(def chan->cp contrib.missionary-contrib/chan->cp)
 
-(cc/defn chan-read!
-  "Return a task taking a value from `chan`. Retrun nil if chan is closed. Does
-   not close chan, and stop reading from it when cancelled."
-  [chan]
-  (cc/fn [success failure] ; a task is a 2-args function, success and failure are callbacks.
-    (let [cancel-chan (a/chan)] ; we will put a value on this chan to cancel reading from `chan`
-      (a/go (let [[v port] (a/alts! [chan cancel-chan])] ; race between two chans
-              (if (= port cancel-chan) ; if the winning chan is the cancelation one, then task has been cancelled
-                (failure (Cancelled.)) ; task has been cancelled, must produce a failure state
-                (success v) ; complete task with value from chan
-                )))
-      ;; if this task is cancelled by its parent process, close the cancel-chan
-      ;; which will make cancel-chan produce `nil` and cause cancellation of read on `chan`.
-      #(a/close! cancel-chan))))
-
-(cc/defn chan->ap
-  "Produces a discreet flow from a core.async `channel`"
-  [channel]
-  (m/ap ; returns a discreet flow
-    (loop []
-      (if-some [x (m/? (chan-read! channel))] ; read one value from `channel`, waiting until `channel` produces it
-        ;; We succesfully read a non-nil value, we use `m/amb` with two
-        ;; branches. m/amb will fork the current process (ap) and do two things
-        ;; sequencially, in two branches:
-        ;; - return x, meaning `loop` ends and return x, ap will produce x
-        ;; - recur to read the next value from chan
-        (m/amb x (recur))
-        ;; `channel` producing `nil` means it's been closed. We want to
-        ;; terminate this flow without producing any value (not even nil), we
-        ;; use (m/amb) which produces nothing and terminates immediately. The
-        ;; parent m/ap block has nothing to produce anymore and will also
-        ;; terminate.
-        (m/amb)))))
-
-(cc/defn chan->task [ch]
-  ; for streaming database results into a vector at the repl
-  ; which is not great
-  (->> (chan->ap ch)
-       (m/reduce into [])))
-
-(cc/defn task->cp [!x]
-  (->> (m/ap (m/? !x))
-       (m/reductions {} (Failure. (Pending.)))))
-
-;(cc/defn chan->cp [ch]
-;  (->> (chan->ap ch)
-;       (m/reductions into [])))
+(cc/defn task->cp ; leo to review
+  ([!x] (task->cp !x (Failure. (Pending.)))) ; note Photon dependency
+  ([!x pending] (->> (m/ap (m/? !x)) (m/reductions {} pending))))
 
 (defmacro use-channel ;; TODO rename
   ([chan] `(use-channel nil ~chan))
