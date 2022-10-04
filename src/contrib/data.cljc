@@ -127,3 +127,45 @@
   (round-floor 16 8) := 16.0
 
   (round-floor 1234567 1000) := 1234000.0)
+
+(defn pad
+  ([zero coll] (concat coll (repeat zero)))
+  ([n zero coll] (take n (pad zero coll))))
+
+(defn padl [n zero coll] (concat (repeat (- n (count coll)) zero) coll))
+
+(tests
+  (pad 8 0 (range 3)) := [0 1 2 0 0 0 0 0]
+  (padl 8 0 (range 3)) := [0 0 0 0 0 0 1 2]
+
+  "strings leak platform internals, use padl-str"
+  (pad 8 "0" "xx") := #?(:clj [\x \x "0" "0" "0" "0" "0" "0"]
+                         :cljs ["x" "x" "0" "0" "0" "0" "0" "0"])
+
+  (padl 8 "0" "xx") := #?(:clj ["0" "0" "0" "0" "0" "0" \x \x]
+                          :cljs ["0" "0" "0" "0" "0" "0" "x" "x"]))
+
+(defn padl-str [n zero s] (apply str (padl n zero s)))
+
+(tests
+  (padl-str 8 "0" "xx") := "000000xx"
+  (padl-str 4 "0" (str 11)) := "0011")
+
+(defn with-pad [reducer zero]
+  (fn [f & cols]
+    (let [n (apply max (map count cols))
+          cols (map #(pad n zero %) cols)]
+      (apply reducer f cols))))
+
+(def map-pad (partial with-pad map))
+
+(tests
+  (map + [1 1 1] [1 1 1 1]) := '(2 2 2)
+  ((map-pad 0) + [1 1 1] [1 1 1 1]) := '(2 2 2 1))
+
+(defn str-last-n [n s]
+  #?(:clj (.substring s (max 0 (- (.length s) n)))
+     :cljs (apply str (reverse (take n (reverse s))))))
+
+(tests
+  (str-last-n 4 "0123456789") := "6789")
