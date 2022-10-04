@@ -22,15 +22,25 @@
 (p/def conn)
 (p/def db)
 (p/def schema) ; schema is available in all explorer renderers
+(p/def !path (p/client (m/mbx)))
 
-(p/defn Nav-link [x label]
+#?(:cljs (def read-edn-str (partial clojure.edn/read-string {:readers {'long goog.math.Long/fromString}})))
+
+#?(:cljs (defn decode-path [path] {:pre [(string? path) (some? read-edn-str)]}
+           (if-not (= path "/")
+             (-> path (subs 1) ednish/decode read-edn-str)
+             [::summary])))
+
+#?(:cljs (defn encode-path [route] (->> route pr-str ednish/encode (str "/"))))
+
+(p/defn Nav-link [route label]
   (p/client
-    (let [href (->> x pr-str ednish/encode (str "/"))]
-      (ui/element dom/a {::dom/href href ; middle click
+    (let [path (encode-path route)]
+      (ui/element dom/a {::dom/href path ; middle click
                          ::ui/click-event (p/fn [e]
                                             (.preventDefault e)
-                                            (println "nav-link clicked, route: " x)
-                                            (router/route! href))} label))))
+                                            (println "nav-link clicked, route: " route)
+                                            (router/pushState! !path path))} label))))
 
 (p/defn RecentTx []
   (binding [explorer/cols [:db/id :db/txInstant]
@@ -196,33 +206,26 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
 
-#?(:cljs (defn read-goog-long [s] (goog.math.Long/fromString s))) ; photon gap?
-(p/def read-edn-str)
-
 (p/defn App []
   (binding [conn @(requiring-resolve 'user/datomic-conn)]
     (binding [db (d/db conn)]
       (binding [schema (new (p/task->cp (schema! db)))]
         (p/client
-          (binding [read-edn-str (partial clojure.edn/read-string {:readers {'long read-goog-long}})]
-            (let [[page x :as route-data]
-                  (new (router/from (fn [path] (if (= path "/")
-                                                 [::summary]
-                                                 (-> path (subs 1) ednish/decode read-edn-str)))))]
-              (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
-              (dom/h1 "Datomic browser")
-              (dom/div {:class "user-datomic-browser"}
-                (dom/pre (pr-str route-data))
-                (dom/div "Nav: "
-                  (Nav-link. [::summary] "home") " "
-                  (Nav-link. [::db-stats] "db-stats") " "
-                  (Nav-link. [::recent-tx] "recent-tx"))
-                (p/server
-                  (case page
-                    ::summary (Attributes.)
-                    ::attribute (AttributeDetail. x)
-                    ::tx (TxDetail. x)
-                    ::entity (do (EntityDetail. x) (EntityHistory. x))
-                    ::db-stats (DbStats.)
-                    ::recent-tx (RecentTx.)
-                    (str "no matching route: " (pr-str page))))))))))))
+          (let [[page x :as route] (decode-path (new (router/path> !path)))]
+            (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
+            (dom/h1 "Datomic browser")
+            (dom/div {:class "user-datomic-browser"}
+              (dom/pre (pr-str route))
+              (dom/div "Nav: "
+                (Nav-link. [::summary] "home") " "
+                (Nav-link. [::db-stats] "db-stats") " "
+                (Nav-link. [::recent-tx] "recent-tx"))
+              (p/server
+                (case page
+                  ::summary (Attributes.)
+                  ::attribute (AttributeDetail. x)
+                  ::tx (TxDetail. x)
+                  ::entity (do (EntityDetail. x) (EntityHistory. x))
+                  ::db-stats (DbStats.)
+                  ::recent-tx (RecentTx.)
+                  (str "no matching route: " (pr-str page)))))))))))
