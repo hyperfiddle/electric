@@ -24,7 +24,7 @@
 (p/def schema) ; schema is available in all explorer renderers
 (p/def !path (p/client (m/mbx)))
 
-#?(:cljs (def read-edn-str (partial clojure.edn/read-string {:readers {'long goog.math.Long/fromString}})))
+#?(:cljs (def read-edn-str (partial clojure.edn/read-string {:readers {'goog.math/Long goog.math.Long/fromString}})))
 
 #?(:cljs (defn decode-path [path] {:pre [(string? path) (some? read-edn-str)]}
            (if-not (= path "/")
