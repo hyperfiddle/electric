@@ -7,22 +7,26 @@
             [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros [hyperfiddle.hfql2.ui])))
 
-(p/defn Default-options-renderer [props]
+(p/defn Default-options-renderer [V props]
   (when-let [options (::hf/options props)]
     (p/client
-      (dom/fieldset
-        (dom/legend (dom/text "Options"))
-        (dom/table
-          (p/server
-            (let [labelf (::hf/option-label props)]
-              (p/for [option (new options)]
-                (let [label (if labelf (labelf option) option)]
-                  (p/client
-                    (dom/tr
-                      (dom/td (ui/checkbox {::dom/type :radio
-                                            ::dom/name "options"
-                                            ::dom/id   (hash label)}))
-                      (dom/td (dom/label {::dom/for (hash label)} (dom/text label))))))))))))))
+      (let [group-id (random-uuid)] ; radio group unique id. Should it be the HFQL context path?
+        (dom/fieldset
+          (dom/legend (dom/text "Options"))
+          (dom/table
+            (p/server
+              (let [labelf  (::hf/option-label props)
+                    current (hf/Data. V)]
+                (p/for [option (new options)]
+                  (let [label     (if labelf (labelf option) option)
+                        selected? (= current option)]
+                    (p/client
+                      (dom/tr
+                        (dom/td (ui/checkbox {::dom/type :radio
+                                              ::dom/name group-id
+                                              ::dom/id   (hash label)
+                                              ::ui/value selected?}))
+                        (dom/td (dom/label {::dom/for (hash label)} (dom/text label)))))))))))))))
 
 (p/defn Default-renderer [V props]
   (let [edn (hf/Data. V)]
@@ -38,7 +42,7 @@
         (p/for [k ks]
           (dom/label (dom/text k))
           (p/server (new (get data k))))))
-    (Default-options-renderer. props)))
+    (Default-options-renderer. V props)))
 
 (p/def Form-renderer Form-renderer-impl)
 
