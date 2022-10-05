@@ -51,14 +51,15 @@
         (dom/text edn)))))
 
 (p/defn Form-renderer-impl [V props]
-  (let [data (V.)
-        ks (keys data)]
-    (p/client
-      (dom/form
-        (p/for [k ks]
-          (dom/label (dom/text k))
-          (p/server (new (get data k))))))
-    (Default-options-renderer. V props)))
+  (p/client
+    (dom/form
+      (p/server
+        (let [data (V.)]
+          (p/for [k (::hf/columns props)]
+            (p/client
+              (dom/label (dom/text k))
+              (p/server (new (get data k)))))))))
+  (Default-options-renderer. V props))
 
 (p/def Form-renderer Form-renderer-impl)
 
