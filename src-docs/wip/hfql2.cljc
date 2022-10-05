@@ -9,7 +9,7 @@
             [hyperfiddle.ui :as ui]
             [wip.orders :refer [order orders genders shirt-sizes]]
             [hyperfiddle.photon-ui :as pui])
-  #?(:cljs (:require-macros user.demo-hfql)))
+  #?(:cljs (:require-macros wip.hfql2)))
 
 
 (p/defn Tee-shirt-orders []
@@ -21,10 +21,11 @@
                   ::pui/input-event (p/fn [e] (reset! !needle (.. e -target -value)))})
       (p/server
         (hfql2/hfql
-          {(orders needle) [#_:order/email
-                            {(props :order/gender {} #_{::hf/options (genders)}) [(props :db/ident {::hf/as gender})]}
-                            {(props :order/shirt-size {::hf/options (shirt-sizes gender "")
-                                                       ::hf/option-label :db/ident}) [:db/ident]}]}) 
+          [{(genders) [:db/ident]}
+           {(orders .) [:order/email
+                        {(props :order/gender {} #_{::hf/options (genders)}) [(props :db/ident {::hf/as gender})]}
+                        {(props :order/shirt-size {::hf/options (shirt-sizes gender "")
+                                                   ::hf/option-label :db/ident}) [:db/ident]}]}]) 
         #_{(orders "") [:db/id :order/email]}
         #_{(orders .)
               [:order/email
