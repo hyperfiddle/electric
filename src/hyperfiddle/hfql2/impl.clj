@@ -608,8 +608,9 @@
       (seq args)                            (assoc ::hf/arguments (mapv (fn [arg]
                                                                           [(:spec/name arg)
                                                                            (if-let [input (:node/input arg)]
-                                                                             (:node/symbol input)
-                                                                             (:node/symbol arg))]) args)))))
+                                                                             {::hf/read  (:node/symbol arg)
+                                                                              ::hf/write (:node/symbol input)}
+                                                                             {::hf/read (:node/symbol arg)})]) args)))))
 
 (defn emit-call [point]
   (cons (:function/name point)
