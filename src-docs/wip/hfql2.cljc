@@ -21,9 +21,10 @@
                   ::pui/input-event (p/fn [e] (reset! !needle (.. e -target -value)))})
       (p/server
         (hfql2/hfql
-          {(orders needle) [:order/email
-                            {(props :order/gender {::hf/options (genders)}) [:db/ident]}
-                            {(props :order/shirt-size {::hf/options (shirt-sizes :order/male "")}) [:db/ident]}]}) 
+          {(orders needle) [#_:order/email
+                            {(props :order/gender {} #_{::hf/options (genders)}) [(props :db/ident {::hf/as gender})]}
+                            {(props :order/shirt-size {::hf/options (shirt-sizes gender "")
+                                                       ::hf/option-label :db/ident}) [:db/ident]}]}) 
         #_{(orders "") [:db/id :order/email]}
         #_{(orders .)
               [:order/email

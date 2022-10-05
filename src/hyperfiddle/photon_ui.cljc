@@ -161,9 +161,10 @@ aria-disabled element.
                                             {:ignore-aria-disabled true})
          [value events props]                 (parse-props ::value props {} cancel-impulse-sym)]
      (apply element* `dom/input
-       (merge props {::dom/type          :checkbox
-                     ::dom/checked       value
-                     ::dom/indeterminate `(nil? ~value)})
+       (merge {::dom/type          :checkbox
+               ::dom/checked       value
+               ::dom/indeterminate `(nil? ~value)}
+         props)
        pending-props
        events
        pending-events

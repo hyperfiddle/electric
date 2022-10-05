@@ -87,13 +87,13 @@
 (p/def bypass-renderer false) ; hf/options bypases propgressive enhancement to produces EDN
 
 (p/defn Render [V props]
-  (if-let [Renderer (::render props)]
-    (if bypass-renderer
-      (Join-all. (V.))
-      (Renderer. V props))
-    (Join-all. (V.))))
+  (if bypass-renderer
+    (Join-all. (V.))
+    (if-let [Renderer (::render props)]
+      (Renderer. V props)
+      (Join-all. (V.)))))
 
-(p/defn Data [V] (binding [Render (p/fn [V _props] (Join-all. (V.)))] (Render. V nil)))
+(p/defn Data [V] (binding [Render (p/fn [V _props] (let [v (V.)] #_(prn "hf/data" v) (Join-all. v)))] (Render. V nil)))
 
 #?(:clj (defn transact!
           ([db stage] (transact! db stage false))
