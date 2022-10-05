@@ -11,15 +11,19 @@
             [user.util :refer [includes-str? pprint-str]]
             #?(:cljs [user.router :as router])
             [missionary.core :as m])
-  #?(:cljs (:require-macros user.demo-7-explorer)))
+  #?(:cljs (:require-macros [user.demo-7-explorer :refer [absolute-path]])))
 
 (p/def !path (p/client (m/mbx)))
+
+(defmacro absolute-path [path & paths]
+  #?(:clj (str (.toAbsolutePath (java.nio.file.Path/of ^String path (into-array String paths))))
+     :cljs (throw (js/Error. "Unsupported operation."))))
 
 (defn encode-path [route] (->> route pr-str contrib.ednish/encode (str "/")))
 (defn decode-path [path] {:pre [(string? path)]}
   (if-not (= path "/")
     (-> path (subs 1) contrib.ednish/decode clojure.edn/read-string)
-    [::fs/dir "/Users/dustin/Desktop/photon/node_modules"]))
+    [::fs/dir (absolute-path "node_modules")]))
 
 (p/defn Nav-link [route label]
   (p/client
