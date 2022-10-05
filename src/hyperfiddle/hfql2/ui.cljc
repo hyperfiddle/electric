@@ -7,12 +7,28 @@
             [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros [hyperfiddle.hfql2.ui])))
 
+(p/defn Inputs-renderer [props]
+  (when-some [arguments (seq (::hf/arguments props))]
+    (p/for [[name {:keys [::hf/read ::hf/write]}] arguments]
+      (let [writable? (some? write)
+            writef    #(reset! write %)
+            value     (read.)]
+        (p/client
+          (let [id (random-uuid)]
+            (dom/label {::dom/for id} (dom/text name))
+            (ui/input {::dom/id       id
+                       ::ui/value     value
+                       ::dom/disabled (not writable?)
+                       ::ui/input-event (p/fn [e] (let [value (.. e -target -value)]
+                                                    (p/server (writef value))))})))))))
+
 (p/defn Default-options-renderer [V props]
   (when-let [options (::hf/options props)]
     (p/client
       (let [group-id (random-uuid)] ; radio group unique id. Should it be the HFQL context path?
         (dom/fieldset
           (dom/legend (dom/text "Options"))
+          (p/server (Inputs-renderer. props))
           (dom/table
             (p/server
               (let [labelf  (::hf/option-label props)
@@ -56,6 +72,7 @@
             (dom/td (p/server (new (get row col))))))))))
 
 (p/defn Table-renderer [V props]
+  (Inputs-renderer. props)
   (let [columns (::hf/columns props)]
     (p/client
       (dom/table
@@ -70,6 +87,7 @@
               (p/for [row (V.)]
                 (row.)))))))))
 
+;; WIP
 (def input-type {:hyperfiddle.spec.type/symbol  "text"
                  :hyperfiddle.spec.type/uuid    "text"
                  :hyperfiddle.spec.type/uri     "text"
@@ -83,6 +101,7 @@
                  :hyperfiddle.spec.type/double  "number"
                  :hyperfiddle.spec.type/long    "number"})
 
+;; WIP
 (p/defn Input-renderer [V props]
   (let [v          (V.)
         value-type (::value-type props)]
