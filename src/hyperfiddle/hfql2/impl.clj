@@ -10,7 +10,8 @@
             [hyperfiddle.queries-test :refer [orders order shirt-sizes]] ; for tests
             [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
             [hyperfiddle.spec :as spec] ; extract cardinality from fn specs
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [missionary.core :as m]))
 
 ;; * TODO List
 ;; *
@@ -88,7 +89,10 @@
                                       ::hf/options (symbol (str name "_options"))
                                       name))))
     :group   (symbol (str "group_" (:db/id node)))
-    (throw (ex-info "lexical-symbol — Don’t know how to compute symbolic form" {:node (d/touch node)}))))
+    (case (:node/type node)
+      :argument (let [function (parent node)]
+                  (symbol (str (:node/symbol function) "_" (name (:spec/name node)) "_" (:db/id node))))
+      (throw (ex-info "lexical-symbol — Don’t know how to compute symbolic form" {:node (d/touch node)})))))
 
 (defn symbolic-form "Given a node return an symbolic representation of a form.
   e.g. :db/id               -> :db/id
@@ -98,7 +102,7 @@
   [node]
   (case (:node/type node)
     :function     (:function/name node)
-    :argument     (:node/form node)
+    :argument     (:node/form node) #_(symbol (:name (nth (spec/args (:function/name (parent node))) (:node/position node)))) ; spec arg name
     :render-point (case (:node/form-type node)
                     :keyword (:node/form node)
                     :call    (list 'quote (cons (:function/name node) (map symbolic-form (arguments node))))
@@ -119,6 +123,18 @@
                   :call    (assoc tx :node/name (or alias (symbol (name (first (:node/form point))))))
                   tx))))
        (d/db-with db)))
+
+(defn compute-arg-symbol-pass
+  "For each fn argument, compute its lexical symbol and symbolic form"
+  [env db]
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :argument]] db))
+    (map (fn [{:keys [db/id] :as point}]
+           {:db/id              id,
+            :node/symbol        (lexical-symbol point)
+            ;; args symbolic form are their raw form: (orders "") is unique and contextual (orders needle) is not.
+            ;; :node/symbolic-form (symbolic-form point)
+            }))
+    (d/db-with db)))
 ;;; end symbol-pass
 
 (defn resolve-functions-pass "For each function node, resolve the function symbol in env and extract the var name (qualified)."
@@ -145,6 +161,17 @@
                  :function/cardinality card}
                 (throw (ex-info "Unknown function cardinality, please define a spec." {:function (:function/name node)})))))
        (d/db-with db)))
+
+(defn resolve-arguments-spec-pass "For each function argument, infer argument spec info."
+  [env db]
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/form-type :call]] db))
+    (mapcat (fn [node] ; for each function call
+              (let [spec-args (spec/args (:function/name node))]
+                (mapv (fn [arg]
+                        {:db/id     (:db/id arg)
+                         :spec/name (:name (nth spec-args (:node/position arg)))})
+                  (arguments node)))))
+    (d/db-with db)))
 
 (defn move-props-to-group-pass "Move props on a traversal to its continuation (a group).
   e.g. {(props (foo) {…}) [:db/id]} -> {(foo) (props [:db/id] {…})}.
@@ -251,6 +278,14 @@
                        :else                   (recur (parent node))))))
          (d/db-with db))))
 
+(defn compute-argument-scope-pass "Compute the scope of all fn arguments. A function arg is in the scope of it’s function."
+  [env db]
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :argument]] db))
+    (map (fn [{:keys [db/id] :as node}]
+           {:db/id      id
+            :node/scope (:db/id (:node/scope (parent node)))}))
+    (d/db-with db)))
+
 (defn find-nodes-by-name
   "Look up for nodes named by `symbol` in the `point`’s scope, then in the parent scope, recursively.
   If there is more than one match, they are guaranteed to belong to the same
@@ -348,19 +383,61 @@
                      {:db/id (:db/id parent), :node/columns columns}))])))
     (d/db-with db)))
 
+(defn handle-free-inputs-pass [env db]
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :argument]] db))
+    (mapcat (fn [node]
+              (when (= '. (:node/form node))
+                (let [tempid (- (:db/id node))]
+                  [{:db/id             (:db/id node)
+                    :node/input        tempid
+                    :node/dependencies tempid
+                    :node/children     tempid}
+                   {:db/id       tempid
+                    :node/type   :input
+                    :node/symbol (symbol (str (:node/symbol node) "_input"))
+                    :node/scope  (:db/id (:node/scope node))}]))))
+    (d/db-with db)))
+
+;; ranking ---
+(defn dependencies "Return a set of transitive dependencies of a render point" [point]
+  (let [deps (:node/dependencies point #{})]
+    (into deps (mapcat dependencies deps))))
+
+(defn rank-in-scope "Given a node, compute it’s rank (0 = no dependency) in the node’s scope" [node]
+  (let [scope         (:node/scope node)
+        deps-in-scope (filter #(= scope (:node/scope %)) (dependencies node))]
+    (if (empty? deps-in-scope) 0 (+ 1 (apply max (map rank-in-scope deps-in-scope))))))
+
+(defn compute-ranks-in-scope-pass [env db]
+  (let [rank-in-scope (memoize rank-in-scope)]
+    (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/scope]] db))
+      (group-by :node/scope)
+      (vals)
+      (mapcat (fn [nodes] (map (juxt :db/id rank-in-scope) nodes)))
+      (into {})
+      (reduce-kv (fn [r id rank] (conj r {:db/id id, :node/scope-rank rank})) [])
+      (d/db-with db))))
+
+;; end ranking ---
+
 ;; Passes to apply in order.
 (def passes [#'resolve-functions-pass
              #'resolve-cardinalities-pass
+             #'resolve-arguments-spec-pass
              #'move-props-to-group-pass
              #'compute-point-dependencies-pass
              #'compute-function-call-dependencies-pass
              #'compute-scopes-pass
+             #'compute-argument-scope-pass
              #'compute-options-dependencies-pass
              #'compute-points-symbol-pass
+             #'compute-arg-symbol-pass
              #'resolve-lexical-references-pass
              #'compute-reference-join-path-pass
              #'decide-how-node-should-render-pass
              #'compute-columns-pass
+             #'handle-free-inputs-pass
+             #'compute-ranks-in-scope-pass
              ;; #'rename-%-to-entity-pass ; future work
              ])
 
@@ -465,6 +542,7 @@
                               :node/dependencies {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many} ; computed graph dependencies
                               :node/scope        {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one} ; HFQL implicit lexical scope, bounded by card many points
                               :node/reference    {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one} ; A function arg might refer to another point
+                              :node/input        {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one} ; A function arg might allocate an input
                               })
              (map (fn [entity]
                     (if (nil? (:node/_children entity))
@@ -490,23 +568,18 @@
 ;; Emit ;;
 ;;;;;;;;;;
 
-(defn dependencies "Return a set of transitive dependencies of a render point" [point]
-  (let [deps (:node/dependencies point #{})]
-    (into deps (mapcat dependencies deps))))
-
-(defn sort-by-dependency "Sort a collection of render points by their dependency. If a depends on b, then
-  b comes before a. Used to order lexical bindings."
+(defn sort-by-rank "Sort a collection of render points by their rank (dependencies in scope). Used to order lexical bindings."
   [points] (sort (fn [x y]
-                   (cond ((dependencies y) x) -1 ; "Is x part of y’s dependencies?" aka "Does y depends on x?"
-                         ((dependencies x) y) 1  ; "clever" use of a set as a function
-                         :else                (< (:db/id x) (:db/id y))) ; if no dependency, sort by position in the HFQL expr
+                   (cond (< (:node/scope-rank x) (:node/scope-rank y)) -1 ; not using subtraction for readability
+                         (> (:node/scope-rank x) (:node/scope-rank y)) 1
+                         :else                (< (:db/id x) (:db/id y))) ; if same rank, sort by position in the HFQL expr
                    ) points))
 
 (declare emit)
 
 (defn scope-bindings "Return a toposorted list of lexical bindings in the scope of the given render point"
   [point]
-  (mapcat (fn [point] [(:node/symbol point) `(p/fn [] ~(emit point))]) (sort-by-dependency (:node/_scope point))))
+  (mapcat (fn [point] [(:node/symbol point) (emit point)]) (sort-by-rank (:node/_scope point))))
 
 (defn add-scope-bindings
   "If the given render point has dependencies in this scope, emit them as lexical bindings."
@@ -524,69 +597,86 @@
                     (map (fn [{:keys [prop/key prop/value]}]
                            [key (case key
                                   ::hf/options `(p/fn [] (binding [hf/bypass-renderer true] (hf/options.)))
-                                  ::hf/as (list 'quote value)
+                                  ::hf/as      (list 'quote value)
                                   value)]))
-                    (into {}))]
+                    (into {}))
+        args      (when (= :call (:node/form-type point)) (arguments point))]
     (cond-> props-map
       (:node/render-as point)               (assoc ::hf/render-as (:node/render-as point))
       (:node/columns point)                 (assoc ::hf/columns (:node/columns point))
-      (not= :group (:node/form-type point)) (assoc ::hf/attribute (:node/symbolic-form point)))))
+      (not= :group (:node/form-type point)) (assoc ::hf/attribute (:node/symbolic-form point))
+      (seq args)                            (assoc ::hf/arguments (mapv (fn [arg]
+                                                                          [(:spec/name arg)
+                                                                           (if-let [input (:node/input arg)]
+                                                                             (:node/symbol input)
+                                                                             (:node/symbol arg))]) args)))))
 
 (defn emit-call [point]
   (cons (:function/name point)
     (->> (arguments point)
-      (map (fn [node]
-             (if-let [ref (:node/reference node)]
-               `(binding [hf/entity          (get @~'entities '~(:node/symbol ref))  ; FIXME entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
-                          hf/bypass-renderer true]
-                  (get-in (new ~(:node/symbol ref)) ~(:node/reference-path node))) ; FIXME only join the required path, lazily.
-               (:node/form node)))))))
+      (map (fn [node] `(new ~(:node/symbol node)))))))
 
 (defn remember! [atom k v] (swap! atom assoc k v) v)
 
+(defn emit-argument [node]
+  (if-let [ref (:node/reference node)]
+    `(p/fn []
+       (binding [hf/entity          (get @~'entities '~(:node/symbol ref)) ; FIXME beginning of hf/context. entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
+                 hf/bypass-renderer true]
+         (new ; FIXME photon bug? had to wrap into a p/fn to get hf/entity to have the correct binding
+           (p/fn []
+             (get-in (new ~(:node/symbol ref)) ~(:node/reference-path node)))))) ; FIXME only join the required path, lazily.
+    (if-let [input (:node/input node)]
+      `(m/watch ~(:node/symbol input))
+      `(p/fn [] ~(:node/form node)))))
+
 (defn emit "Emit clojure code for a render point and its dependencies." [point]
-  (assert (= :render-point (:node/type point)) "emit - not a renderable point")
-  (case (:node/form-type point)
-    :keyword (let [attribute (:node/form point)
-                   value     `(hyperfiddle.hfql2/nav! hf/*$* hf/entity ~attribute)
-                   form      (if-some [continuation (first (children point))] ; if there is a continuation
-                               (add-scope-bindings point
-                                 `(binding [hf/entity ~value
-                                            ;; we pass options as a dynamic binding because a
-                                            ;; group depends on options to emit props and
-                                            ;; options depends on the group to emit the
-                                            ;; continuation.
-                                            hf/options   ~(:node/symbol (props ::hf/options continuation))
-                                            ]
-                                    (new ~(:node/symbol continuation))))
-                               (let [render-form `(hf/Render. (p/fn [] ~value) ~(emit-props point))]
-                                 (if-let [options (:node/symbol (props ::hf/options point))]
-                                   (add-scope-bindings point `(binding [hf/options ~options] ~render-form))
-                                   (add-scope-bindings point render-form))))]
-               (if (:node/remember-entity-at-point point)
-                 `(do (swap! ~'entities assoc '~(:node/symbol point) hf/entity)
-                      ~form)
-                 form))
-    :call    (let [cardinality (:function/cardinality point)]
-               (if-some [continuation (first (children point))]
-                 (let [nav `(new ~(:node/symbol continuation))]
-                   (case cardinality ; TODO What if cardinality is unknown at compile time?
-                     ::spec/one  `(binding [hf/entity ~(:node/form point)] ;; TODO what about props?
-                                    ~(add-scope-bindings point nav))
-                     ::spec/many `(hf/Render.
-                                    (p/fn []
-                                      (p/for [e# ~(emit-call point)]
-                                        (p/fn []
-                                          (binding [hf/entity e#]
-                                            ~(add-scope-bindings point nav)))))
-                                    ~(emit-props point)))) ; TODO rendering call should account for args deps
-                 ;; if there is no continuation, just emit the call.
-                 (emit-call point)
-                 ))
-    :group   (add-scope-bindings point
-               `(hf/Render. (p/fn [] ~(reduce (fn [r point] (assoc r (:node/symbolic-form point) (:node/symbol point)))
-                                        {} (children point)))
-                  ~(emit-props point)))))
+  (case (:node/type point)
+    :render-point
+    `(p/fn []
+       ~(case (:node/form-type point)
+          :keyword (let [attribute (:node/form point)
+                         value     `(hyperfiddle.hfql2/nav! hf/*$* hf/entity ~attribute)
+                         form      (if-some [continuation (first (children point))] ; if there is a continuation
+                                     (add-scope-bindings point
+                                       `(binding [hf/entity  ~value
+                                                  ;; we pass options as a dynamic binding because a
+                                                  ;; group depends on options to emit props and
+                                                  ;; options depends on the group to emit the
+                                                  ;; continuation.
+                                                  hf/options ~(:node/symbol (props ::hf/options continuation))
+                                                  ]
+                                          (new ~(:node/symbol continuation))))
+                                     (let [render-form `(hf/Render. (p/fn [] ~value) ~(emit-props point))]
+                                       (if-let [options (:node/symbol (props ::hf/options point))]
+                                         (add-scope-bindings point `(binding [hf/options ~options] ~render-form))
+                                         (add-scope-bindings point render-form))))]
+                     (if (:node/remember-entity-at-point point)
+                       `(do (swap! ~'entities assoc '~(:node/symbol point) hf/entity) ;; TODO premise of hf/context
+                            ~form)
+                       form))
+          :call    (let [cardinality (:function/cardinality point)]
+                     (if-some [continuation (first (children point))]
+                       (let [nav `(new ~(:node/symbol continuation))]
+                         (case cardinality ; TODO What if cardinality is unknown at compile time?
+                           ::spec/one  `(binding [hf/entity ~(:node/form point)] ;; TODO what about props?
+                                          ~(add-scope-bindings point nav))
+                           ::spec/many `(hf/Render.
+                                          (p/fn []
+                                            (p/for [e# ~(emit-call point)]
+                                              (p/fn []
+                                                (binding [hf/entity e#]
+                                                  ~(add-scope-bindings point nav)))))
+                                          ~(emit-props point)))) ; TODO rendering call should account for args deps
+                       ;; if there is no continuation, just emit the call.
+                       (emit-call point)))
+          :group   (add-scope-bindings point
+                     `(hf/Render. (p/fn [] ~(reduce (fn [r point] (assoc r (:node/symbolic-form point) (:node/symbol point)))
+                                              {} (children point)))
+                        ~(emit-props point)))))
+    :argument (emit-argument point)
+    :input    `(atom nil)
+    (assert false (str "emit - not a renderable point " (:node/type point)))))
 
 ;;;;;;;;;;;
 ;; Macro ;;
@@ -596,7 +686,9 @@
   (->> (analyze form)
        (apply-passes passes (c/normalize-env env))
        (get-root)
-       (emit)))
+       (emit)
+       (nnext) (first) ; FIXME ugly. Emit wraps in p/fn by default, maybe it shouldn’t.
+       ))
 
 (defmacro hfql [form] (hfql* &env form))
 
@@ -650,7 +742,7 @@
 
 (tests
  "multiplicity many"
- (with (p/run (tap (hfql {(orders "") [:db/id]}))))
+ (with (p/run (tap (hfql {(orders "") [:db/id]}) )))
  % := {'(hyperfiddle.queries-test/orders "") [{:db/id 9} {:db/id 10} {:db/id 11}]})
 
 (tests
@@ -668,7 +760,7 @@
 
 
 (p/defn Select-option-renderer [>v props]
-  (into [:select {:value (new hf/Join-all (new >v))}]
+  (into [:select {:value (hf/Data. >v)}]
     (p/for [e (new (::hf/options props))]
       [:option e])))
 
@@ -735,7 +827,7 @@
 
 (tests
   "lexical env"
-  (let [needle1  "alice"
+  (let [needle1  ""
         needle2  "small"]
     (with (p/run (tap (binding [hf/entity 9]
                         (hfql {(orders needle1) [:order/email
@@ -749,4 +841,48 @@
             {:value {:db/ident :order/womens-large}}
             [:option {:db/ident :order/womens-small}]],
            :order/gender {:db/ident :order/female},
-           :order/email "alice@example.com"}]})
+           :order/email "alice@example.com"}
+          {:order/shirt-size
+           [:select
+            {:value {:db/ident :order/mens-large}}
+            [:option {:db/ident :order/mens-small}]],
+           :order/gender {:db/ident :order/male},
+           :order/email "bob@example.com"}
+          {:order/shirt-size
+           [:select
+            {:value {:db/ident :order/mens-medium}}
+            [:option {:db/ident :order/mens-small}]],
+           :order/gender {:db/ident :order/male},
+           :order/email "charlie@example.com"}]})
+
+(tests
+  "free inputs"
+  (with (p/run (tap (hfql {(orders .) [
+                                       {:order/gender [(props :db/ident {::hf/as gender})]}
+                                       {(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                  ::hf/options (shirt-sizes gender .)})
+                                        [:db/ident]}]}) )))
+  % := '{(hyperfiddle.queries-test/orders .)
+         [#:order{:shirt-size
+                  [:select
+                   {:value #:db{:ident :order/womens-large}}
+                   [:option #:db{:ident :order/womens-small}]
+                   [:option #:db{:ident :order/womens-medium}]
+                   [:option #:db{:ident :order/womens-large}]],
+                  :gender #:db{:ident :order/female}}
+          #:order{:shirt-size
+                  [:select
+                   {:value #:db{:ident :order/mens-large}}
+                   [:option #:db{:ident :order/mens-small}]
+                   [:option #:db{:ident :order/mens-medium}]
+                   [:option #:db{:ident :order/mens-large}]],
+                  :gender #:db{:ident :order/male}}
+          #:order{:shirt-size
+                  [:select
+                   {:value #:db{:ident :order/mens-medium}}
+                   [:option #:db{:ident :order/mens-small}]
+                   [:option #:db{:ident :order/mens-medium}]
+                   [:option #:db{:ident :order/mens-large}]],
+                  :gender #:db{:ident :order/male}}]})
+
+

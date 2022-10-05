@@ -12,7 +12,17 @@
     (p/client
       (dom/fieldset
         (dom/legend (dom/text "Options"))
-        (p/server (new options))))))
+        (dom/table
+          (p/server
+            (let [labelf (::hf/option-label props)]
+              (p/for [option (new options)]
+                (let [label (if labelf (labelf option) option)]
+                  (p/client
+                    (dom/tr
+                      (dom/td (ui/checkbox {::dom/type :radio
+                                            ::dom/name "options"
+                                            ::dom/id   (hash label)}))
+                      (dom/td (dom/label {::dom/for (hash label)} (dom/text label))))))))))))))
 
 (p/defn Default-renderer [V props]
   (let [edn (hf/Data. V)]
@@ -94,11 +104,13 @@
       (Default-renderer. V props))))
 
 (p/defn Render [V props]
-  (if-let [Renderer (::hf/render props)]
-    (Renderer. V props)
-    (let [Renderer (case (::hf/render-as props)
-                     ::hf/form  Form-renderer
-                     ::hf/table Table-renderer
-                     ::hf/field Spec-renderer
-                     Default-renderer)]
-      (Renderer. V props))))
+  (if hf/bypass-renderer
+    (hf/Join-all. (V.))
+    (if-let [Renderer (::hf/render props)]
+      (Renderer. V props)
+      (let [Renderer (case (::hf/render-as props)
+                       ::hf/form  Form-renderer
+                       ::hf/table Table-renderer
+                       ::hf/field Spec-renderer
+                       Default-renderer)]
+        (Renderer. V props)))))
