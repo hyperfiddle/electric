@@ -76,7 +76,7 @@ running on a remote host.
   r/eval)
 
 (def hook r/hook)
-(def bind r/bind)
+(def bind r/bind) ; for when you want to spawn a p/fn without a new
 (def with r/with)
 
 (defmacro ^:deprecated main "
