@@ -28,8 +28,9 @@
 ;; ** DONE attach function as a property of :call, not a child
 ;; *
 ;; *
-;; ** TODO add support for lexical scope
-;; ** TODO add support for inputs (.)
+;; ** DONE add support for lexical scope
+;; ** DONE add support for inputs (.)
+;; ** DONE options should render like any other form.
 
 (comment
   (do (set! *print-namespace-maps* false)
@@ -377,10 +378,12 @@
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/form-type :group]] db))
     (mapcat (fn [{:keys [db/id] :as node}]
               (let [columns (:node/symbolic-form node)]
-                [{:db/id id, :node/columns columns}
-                 (when-let [parent (parent node)]
-                   (when (= ::spec/many (:function/cardinality parent))
-                     {:db/id (:db/id parent), :node/columns columns}))])))
+                (into [{:db/id id, :node/columns columns}]
+                  (map (fn [parent]
+                         (when (= ::spec/many (:function/cardinality parent))
+                           {:db/id (:db/id parent), :node/columns columns}))
+                    (:node/_children node)  ; look for all parents (including hf/options)
+                    )))))
     (d/db-with db)))
 
 (defn handle-free-inputs-pass [env db]
@@ -596,7 +599,7 @@
   (let [props-map (->> (props point)
                     (map (fn [{:keys [prop/key prop/value]}]
                            [key (case key
-                                  ::hf/options `(p/fn [] (binding [hf/bypass-renderer true] (hf/options.)))
+                                  ::hf/options `hf/options
                                   ::hf/as      (list 'quote value)
                                   value)]))
                     (into {}))
@@ -762,7 +765,7 @@
 
 (p/defn Select-option-renderer [>v props]
   (into [:select {:value (hf/Data. >v)}]
-    (p/for [e (new (::hf/options props))]
+    (p/for [e (binding [hf/bypass-renderer true] (new (::hf/options props)))]
       [:option e])))
 
 (tests
