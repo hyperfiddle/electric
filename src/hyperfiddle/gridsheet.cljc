@@ -9,7 +9,7 @@
             #?(:cljs goog.object))
   #?(:cljs (:require-macros hyperfiddle.gridsheet)))
 
-(p/def Format (p/server (p/fn [m a v] (pr-str v))))
+(p/def Format (p/server (p/fn [m a] (pr-str (a m)))))
 
 (p/defn GridSheet [xs props]
   (let [{:keys [::columns
@@ -60,32 +60,25 @@
           ; for grid to be aware of columns, it's just vertical scroll.
           ; horizontal scroll changes things.
           ; except for the tricky styles ...
-
-          (let [!!rows (vec (repeatedly page-size (partial atom nil)))]
-            (p/for [i (range page-size)]
-              (dom/div {:role "group" :style {:display "contents"}}
-                (let [[a & as] columns
-                      [depth ?Render] (p/watch (get !!rows i))]
-                  (dom/div {:role "gridcell"
-                            :style {:padding-left (-> depth (* 15) (str "px"))
-                                    :position "sticky" :top (str (* row-height (inc i)) "px")
-                                    :height (str row-height "px")}}
-                    (some-> ?Render (new a)))
-                  (p/for [[j a] (map-indexed vector as)]
-                    (dom/div {:role "gridcell"
-                              :style {:position "sticky" :top (str (* row-height (inc i)) "px")
-                                      :height (str row-height "px")}}
-                      (some-> ?Render (new a)))))))
-
-            (dom/div {:style {:padding-bottom (str padding-bottom "px")}}) ; scrollbar
-
-            (p/server
-              (let [xs (vec (->> rows (drop start-row) (take page-size)))]
-                (p/for [i (range page-size)]
-                  (let [[depth m] (get xs i)]
-                    (p/client
-                      (reset! (get-in !!rows [i]) [depth (if (p/server (contains? xs i)) ; unmount stale renderers
-                                                           (p/fn [a] (p/server (Format. m a))))])))))))))
+          (p/server
+            (let [xs (vec (->> rows (drop start-row) (take page-size)))]
+              (p/for [i (range page-size)]
+                (let [[depth m] (get xs i [0 {}])]
+                  (p/client
+                    (dom/div {:role "group" :style {:display "contents"}}
+                      (let [[a & as] columns]
+                        (dom/div {:role  "gridcell"
+                                  :style {:padding-left (-> depth (* 15) (str "px"))
+                                          :position     "sticky" :top (str (* row-height (inc i)) "px")
+                                          :height       (str row-height "px")}}
+                          (p/server (Format. m a)))
+                        (p/for [a as]
+                          (dom/div {:role  "gridcell"
+                                    :style {:position "sticky" :top (str (* row-height (inc i)) "px")
+                                            :height   (str row-height "px")}}
+                            (p/server (Format. m a)))))))))))
+          (dom/div {:style {:padding-bottom (str padding-bottom "px")}}) ; scrollbar
+          ))
       (dom/div (pr-str {:count row-count})))))
 
 (p/defn ^:deprecated TableSheet
