@@ -20,12 +20,14 @@
       (pui/input {::dom/placeholder "alice …"
                   ::pui/input-event (p/fn [e] (reset! !needle (.. e -target -value)))})
       (p/server
-        (hfql2/hfql
-          [{(genders) [:db/ident]}
-           {(orders .) [:order/email
-                        {(props :order/gender {} #_{::hf/options (genders)}) [(props :db/ident {::hf/as gender})]}
-                        {(props :order/shirt-size {::hf/options (shirt-sizes gender "")
-                                                   ::hf/option-label :db/ident}) [:db/ident]}]}]) 
+        (ui2/with-ui-renderers
+          (hfql2/hfql
+            [#_{(genders) [:db/ident]}
+             {(orders .) [:order/email
+                          {(props :order/gender {} #_{::hf/options (genders)}) [(props :db/ident {::hf/as gender})]}
+                          {(props :order/shirt-size {::hf/options (shirt-sizes gender .)
+                                                     ::hf/option-label :db/ident}) [:db/ident :db/id]}]}]) 
+          )
         #_{(orders "") [:db/id :order/email]}
         #_{(orders .)
               [:order/email
