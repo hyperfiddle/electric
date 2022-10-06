@@ -266,9 +266,9 @@ or a provided value if it completes without producing any value."
                               [nil name? (cons args body)])]
     (if (bound? #'c/*env*)
       `(::c/closure
-         (let [~@(interleave args (next c/arg-sym))]
-           ~@body)
-         ~(merge {::dbg/name name?, ::dbg/args args, ::dbg/type :reactive-fn}
+        (binding [c/rec (::c/closure (let [~@(interleave args (next c/arg-sym))] ~@body))]
+          (new c/rec ~@(take (count args) (next c/arg-sym))))
+        ~(merge {::dbg/name name?, ::dbg/args args, ::dbg/type :reactive-fn}
             (select-keys (meta &form) [:file :line])
             (select-keys (meta name?) [::dbg/type :file :line])))
       `(throw (ex-info "Invalid p/fn in Clojure code block (use from Photon code only)" ~(into {} (meta &form)))))))
