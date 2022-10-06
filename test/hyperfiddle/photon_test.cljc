@@ -1618,3 +1618,13 @@
             (let [y 1] (reset! !F (p/fn [] y)))))
     % := 0
     % := 1))
+
+(tests "loop/recur"
+  (p/defn fib [n] (loop [n n] (if (<= n 2) 1 (+ (recur (dec n)) (recur (- n 2))))))
+  (with (p/run (tap (fib. 10))))
+  % := 55
+  (with (p/run (tap (p/for [i (range 1 11)] (fib. i)))))
+  % := [1 1 2 3 5 8 13 21 34 55]
+  (with (p/run (tap (new (p/fn [x] (if (zero? (tap x)) ::zero (recur (dec x)))) 3)))
+    % := 3, % := 2, % := 1, % := 0, % := ::zero)
+  )

@@ -15,6 +15,7 @@
            (clojure.lang Var)))
 
 (def ^{:dynamic true, :doc "Bound to Photon compiler env when macroexpension is managed by Photon."} *env*)
+(def ^{::node ::unbound, :macro true, :doc "for loop/recur impl"} rec)
 
 ;; %1, %2 … %n p/def generator.
 ;; A lazy seq of vars. Forcing the seq will intern them.
@@ -436,7 +437,7 @@
 
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
-    (letfn* loop* recur set! ns ns* deftype* defrecord* var)
+    (letfn* set! ns ns* deftype* defrecord* var)
     (throw (ex-info "Unsupported operation." {:op op :args args}))
 
     (let*)
@@ -581,6 +582,14 @@
                                      `(r/clause ~f)
                                      `(r/clause ~f ~c)))) catches))
                       ~body)) finally))))
+
+    (loop*)
+    (let [[bindings & body] args, bs (vec (take-nth 2 bindings)), vs (vec (take-nth 2 (rest bindings)))]
+      (analyze-form env `(binding [rec (::closure (let [~@(interleave bs (next arg-sym))] ~@body))]
+                           (new rec ~@vs))))
+
+    (recur)
+    (analyze-form env `(new rec ~@args))
 
     (::lift)
     (conj-res [[:lift]] (analyze-form env (first args)))
@@ -999,3 +1008,7 @@
   (try (analyze {} '(not-a-reactive-def.))
        (catch clojure.lang.ExceptionInfo e
          (ex-message e) := "Not a reactive def: not-a-reactive-def")))
+
+(tests "loop/recur"
+  ;; just check if it compiles
+  (analyze {} '(loop [x 1] (recur (inc x)))) := _)
