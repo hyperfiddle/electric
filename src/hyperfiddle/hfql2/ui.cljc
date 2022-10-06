@@ -14,13 +14,16 @@
             writef    #(reset! write %)
             value     (read.)]
         (p/client
-          (let [id (random-uuid)]
+          (let [id      (random-uuid)
+                !steady (atom false)]
             (dom/label {::dom/for id} (dom/text name))
-            (ui/input {::dom/id       id
-                       ::ui/value     value
-                       ::dom/disabled (not writable?)
+            (ui/input {::dom/id         id
+                       ::ui/value       (if (p/watch !steady) (p/current value) value)
+                       ::dom/disabled   (not writable?)
                        ::ui/input-event (p/fn [e] (let [value (.. e -target -value)]
-                                                    (p/server (writef value))))})))))))
+                                                    (p/server (writef value))))
+                       ::ui/focus-event (p/fn [e] (reset! !steady true))
+                       ::ui/blur-event  (p/fn [e] (reset! !steady false))})))))))
 
 (p/def Table-renderer)
 (p/def Form-renderer)
