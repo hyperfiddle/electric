@@ -22,30 +22,24 @@
                        ::ui/input-event (p/fn [e] (let [value (.. e -target -value)]
                                                     (p/server (writef value))))})))))))
 
+(p/def Table-renderer)
+(p/def Form-renderer)
+(p/def Row-renderer)
+
+(p/def table-picker-options {::group-id nil, ::current-value nil})
+
 (p/defn Default-options-renderer [V props]
   (when-let [options (::hf/options props)]
-    (p/client
-      (let [group-id (random-uuid)] ; radio group unique id. Should it be the HFQL context path?
+    (let [entity hf/entity]
+      (p/client
         (dom/fieldset
           (dom/legend (dom/text "Options"))
-          (p/server (Inputs-renderer. props))
-          (dom/table
+          (binding [table-picker-options {::group-id (random-uuid), ::current-value entity}]
             (p/server
-              (let [labelf  (::hf/option-label props)
-                    current (hf/Data. V)]
-                (p/for [option (new options)]
-                  (let [label     (if labelf (labelf option) option)
-                        selected? (= current option)]
-                    (p/client
-                      (dom/tr
-                        (dom/td (ui/checkbox {::dom/type :radio
-                                              ::dom/name group-id
-                                              ::dom/id   (hash label)
-                                              ::ui/value selected?}))
-                        (dom/td (dom/label {::dom/for (hash label)} (dom/text label)))))))))))))))
+              (new options))))))))
 
 (p/defn Default-renderer [V props]
-  (let [edn (hf/Data. V)]
+  (let [edn (binding [hf/bypass-renderer true] (V.))]
     (p/client
       (dom/pre
         (dom/text edn)))))
@@ -61,24 +55,28 @@
               (p/server (new (get data k)))))))))
   (Default-options-renderer. V props))
 
-(p/def Form-renderer Form-renderer-impl)
-
-(p/defn Row-renderer "A row is a transposed form" [V props]
+(p/defn Row-renderer-impl "A row is a transposed form" [V props]
   (binding [Form-renderer Form-renderer-impl]
     (let [row     (V.)
-          columns (::hf/columns props)]
+          columns (::hf/columns props)
+          entity  hf/entity]
       (p/client
         (dom/tr
+          (when-let [id (::group-id table-picker-options)]
+            (dom/td (ui/checkbox {::dom/type :radio
+                                  ::dom/name id
+                                  ::ui/value (= (::current-value table-picker-options) entity)})))
           (p/for [col columns]
             (dom/td (p/server (new (get row col))))))))))
 
-(p/defn Table-renderer [V props]
+(p/defn Table-renderer-impl [V props]
   (Inputs-renderer. props)
   (let [columns (::hf/columns props)]
     (p/client
       (dom/table
         (dom/thead
           (dom/tr
+            (when (::group-id table-picker-options) (dom/th))
             (p/for [col columns]
               (dom/th (pr-str col))  ; TODO attr info on hover
               )))
@@ -138,3 +136,9 @@
                        ::hf/field Spec-renderer
                        Default-renderer)]
         (Renderer. V props)))))
+
+(defmacro with-ui-renderers [& body]
+  `(binding [Table-renderer Table-renderer-impl
+             Form-renderer  Form-renderer-impl
+             Row-renderer   Row-renderer-impl]
+     ~@body))
