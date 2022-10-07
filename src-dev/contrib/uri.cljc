@@ -1,10 +1,9 @@
 (ns contrib.uri
-  (:require cognitect.transit
-    ;#?(:cljs com.cognitect.transit)
-    ;#?(:cljs com.cognitect.transit.types)
+  (:require clojure.edn
             #?(:cljs goog.Uri)
-            clojure.edn
             [hyperfiddle.rcf :refer [tests]]))
+
+;(defmacro tests [& body])
 
 ; clojure.core/uri? builtin hardcodes java.net.URI and goog.Uri
 ; transit-java, transit-js – OOTB read as dummy URI type (concrete type is deferred to language impl per transit design)
@@ -71,8 +70,8 @@
   (pr-str x) := "#user/uri \"http://localhost:8080/a?b#c\"")
 
 ; for data_readers.cljc
-(defn uri-clj-reader [s] (java.net.URI. s))
-(defn uri-cljs-reader [s] #?(:clj `(goog.Uri. ~s))) ; called from cljs compiler jvm
+#?(:clj (defn uri-clj-reader [s] (java.net.URI. s)))
+#?(:clj (defn uri-cljs-reader [s] `(goog.Uri. ~s))) ; called from cljs compiler jvm
 ; https://github.com/clojure/clojurescript/commit/5379f722588370f9f1934e9a78e777e24e953c81
 
 (tests
