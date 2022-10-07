@@ -4,8 +4,7 @@
 
   ; For rapid REPL startup, put absolute minimum of requires here: REPL conveniences only,
   ; which includes clojure reader extensions listed in data_readers.cljc.
-  (:require contrib.uri
-            hyperfiddle.rcf))
+  (:require hyperfiddle.rcf))
 
 ; Userland photon application code will be lazy loaded by the shadow build `(main)`
 ; due to :require-macros in all Photon source files.
