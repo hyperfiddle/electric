@@ -50,7 +50,7 @@
 (defn serve! "Start Photon app server" []
   (let [host "0.0.0.0"]
     (def server (@start-server! {:host host, :port 8080, :resources-path "resources/public"}))
-    (println (str "\n👉 App available at http://" host ":" (-> server (.getConnectors) first (.getPort))
+    (println (str "\n👉 App server available at http://" host ":" (-> server (.getConnectors) first (.getPort))
              "\n"))))
 
 (defn main "CLJ main" [& args]
@@ -59,6 +59,7 @@
   (@shadow-start!)                                          ; serves index.html as well
   (@rcf-enable! false) ; don't run cljs tests on compile - in case user enabled at the REPL
   (@shadow-watch :devkit)                                   ; depends on shadow server
+  ; todo report clearly if shadow build failed, i.e. due to yarn not being run
   (serve!)
   (@rcf-enable!)
   (comment (.stop server))
