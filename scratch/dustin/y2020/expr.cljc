@@ -1,9 +1,7 @@
-(ns fixplz.expr
-  #?(:cljs (:require-macros [fixplz.expr]
-                            [minitest :refer [tests]]))
-  (:require
-    [clojure.spec.alpha :as s]
-    #?(:clj [minitest :refer [tests]])))
+(ns dustin.y2020.expr
+  (:require [clojure.spec.alpha :as s]
+            [hyperfiddle.rcf :refer [tests]])
+  #?(:cljs (:require-macros dustin.y2020.expr)))
 
 (defn read-spec [spec input]
   ; Convenience for (do (s/assert spec x) (s/conform spec x))
