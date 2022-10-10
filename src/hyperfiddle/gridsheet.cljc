@@ -63,7 +63,7 @@
           (p/server
             (let [xs (vec (->> rows (drop start-row) (take page-size)))]
               (p/for [i (range page-size)]
-                (let [[depth m] (get xs i [0 {}])]
+                (let [[depth m] (get xs i [0 ::empty])]
                   (p/client
                     (dom/div {:role "group" :style {:display "contents"}}
                       (let [[a & as] columns]
@@ -71,12 +71,12 @@
                                   :style {:padding-left (-> depth (* 15) (str "px"))
                                           :position     "sticky" :top (str (* row-height (inc i)) "px")
                                           :height       (str row-height "px")}}
-                          (p/server (Format. m a)))
+                          (case m ::empty nil (p/server (Format. m a))))
                         (p/for [a as]
                           (dom/div {:role  "gridcell"
                                     :style {:position "sticky" :top (str (* row-height (inc i)) "px")
                                             :height   (str row-height "px")}}
-                            (p/server (Format. m a)))))))))))
+                            (case m ::empty nil (p/server (Format. m a))))))))))))
           (dom/div {:style {:padding-bottom (str padding-bottom "px")}}) ; scrollbar
           ))
       (dom/div (pr-str {:count row-count})))))
