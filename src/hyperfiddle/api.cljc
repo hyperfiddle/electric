@@ -10,7 +10,7 @@
 
 ;;; Route
 
-(def route-state #?(:cljs (atom ()))) ;; Route state lives on the client.
+(def !route-state #?(:cljs (atom ()))) ;; Route state lives on the client.
 
 (defn- pad [val n coll] (into coll (repeat n val)))
 
@@ -20,10 +20,29 @@
            (assoc route index val)
            (set-route-arg index val (pad nil (- index (count route)) route))))))
 
-(defn set-route-arg! [index val] (swap! route-state (fn [[current & history]]
+(defn set-route-arg! [index val] (swap! !route-state (fn [[current & history]]
                                                       (cons (set-route-arg index val current) history))))
 
-(defn navigate! [new-route] (swap! route-state conj new-route))
+(defn navigate! [new-route] (swap! !route-state conj new-route))
+
+(defn empty-value? [x] (if (seqable? x) (empty? x) (some? x)))
+
+(defn route-cleanup [m path]
+  (if (empty? path)
+    m
+    (let [leaf (get-in m path)]
+      (cond
+        (empty-value? leaf) (if-some [path' (seq (butlast path))]
+                              (recur (update-in m path' dissoc (last path)) path')
+                              (dissoc m (last path)))
+        :else               m))))
+
+(defn assoc-in-route-state [m path value]
+  (let [empty? (if (seqable? value) (not-empty value) (some? value))]
+    (if empty?
+      (assoc-in m path value)
+      (route-cleanup (assoc-in m path value) path))))
+
 
 ;; TODO improve history:
 ;; - Use a vector + an index
@@ -32,7 +51,7 @@
 ;; - back decrement the index
 ;; - current page is vector[count(vector)-index]
 ;; - if index is < 0, navigate discard the tail of the vector (after index) and pushes
-(defn navigate-back! [] (swap! route-state pop))
+(defn navigate-back! [] (swap! !route-state pop))
 
 (p/def route) ;; Continuous route value
 
