@@ -7,9 +7,13 @@
             [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros [hyperfiddle.hfql2.ui])))
 
+(defn replate-state! [!route path value]
+  (swap! !route (fn [[current & history]]
+                  (cons (hf/assoc-in-route-state (or current {}) path value) history))))
+
 (p/defn Inputs-renderer [props]
   (when-some [arguments (seq (::hf/arguments props))]
-    (p/for [[name {:keys [::hf/read ::hf/write]}] arguments]
+    (p/for [[name {:keys [::hf/read ::hf/write ::hf/path]}] arguments]
       (let [writable? (some? write)
             writef    #(reset! write %)
             value     (read.)]
@@ -21,6 +25,7 @@
                        ::ui/value       (if (p/watch !steady) (p/current value) value)
                        ::dom/disabled   (not writable?)
                        ::ui/input-event (p/fn [e] (let [value (.. e -target -value)]
+                                                    (replate-state! hf/!route-state path value)
                                                     (p/server (writef value))))
                        ::ui/focus-event (p/fn [e] (reset! !steady true))
                        ::ui/blur-event  (p/fn [e] (reset! !steady false))})))))))

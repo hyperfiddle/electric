@@ -159,7 +159,8 @@
        (map (fn [node]
               (if-let [card (spec/cardinality (:function/name node))]
                 {:db/id                (:db/id node)
-                 :function/cardinality card}
+                 :function/cardinality card
+                 :node/entity-symbol   (symbol (str "e" "_" (:db/id node)))} ; bound sym in `(p/for [e# (card-many-call …)] …)`
                 (throw (ex-info "Unknown function cardinality, please define a spec." {:function (:function/name node)})))))
        (d/db-with db)))
 
@@ -423,6 +424,37 @@
 
 ;; end ranking ---
 
+(defn input-path
+  "An input path is a unique indentifier for an input in the HFQL runtime
+  tree. An HFQL tree’s input state can be persisted in the form of a map {path
+  value}. A node path is the breadcrumbs from root to node.
+  eg.: [`(orders needle) e :order/shirt-size `(shirt-sizes gender .) :needle], where
+  e is the value of entity id in scope, identifying a unique input under cardinality many."
+  [point]
+  (loop [account-for-cardinality false
+         path                    ()
+         point                   point]
+    (if (nil? point)
+      (vec path)
+      (case (:node/type point)
+        :argument (recur false (cons (:spec/name point) path) (parent point))
+        (case (:node/form-type point)
+          :group (recur true path (parent point))
+          :call  (if (and (= ::spec/many (:function/cardinality point)) account-for-cardinality)
+                   (recur true (list* (:node/symbolic-form point) (:node/entity-symbol point) path) (parent point))
+                   (recur true (cons (:node/symbolic-form point) path) (parent point)))
+          (if-let [form (:node/symbolic-form point)]
+            (recur true (cons form path) (parent point))
+            (recur true path (parent point))))))))
+
+(defn compute-input-path-pass [env db]
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :input]] db))
+    (mapcat (fn [node] [{:db/id      (:db/id node)
+                         :input/path (input-path node)}]))
+    (d/db-with db)))
+
+;; (graph '{(orders .) [{(props :order/shirt-size {::hf/options (shirt-sizes :order/female .)}) [:db/ident]}]})
+
 ;; Passes to apply in order.
 (def passes [#'resolve-functions-pass
              #'resolve-cardinalities-pass
@@ -442,6 +474,7 @@
              #'handle-free-inputs-pass
              #'compute-ranks-in-scope-pass
              ;; #'rename-%-to-entity-pass ; future work
+             #'compute-input-path-pass
              ])
 
 (defn apply-passes [passes env db] (reduce (fn [db pass] (pass env db)) db passes))
@@ -608,12 +641,15 @@
       (:node/render-as point)               (assoc ::hf/render-as (:node/render-as point))
       (:node/columns point)                 (assoc ::hf/columns (:node/columns point))
       (not= :group (:node/form-type point)) (assoc ::hf/attribute (:node/symbolic-form point))
+      (:input/path point)                   (assoc ::hf/path (:input/path point))
       (seq args)                            (assoc ::hf/arguments (mapv (fn [arg]
-                                                                          [(:spec/name arg)
-                                                                           (if-let [input (:node/input arg)]
-                                                                             {::hf/read  (:node/symbol arg)
-                                                                              ::hf/write (:node/symbol input)}
-                                                                             {::hf/read (:node/symbol arg)})]) args)))))
+                                                                          (let [path (:input/path (:node/input arg))]
+                                                                            [(:spec/name arg)
+                                                                             (merge
+                                                                               {::hf/read (:node/symbol arg)
+                                                                                ::hf/path path}
+                                                                               (when-let [input (:node/input arg)]
+                                                                                 {::hf/write (:node/symbol input)}))])) args)))))
 
 (defn emit-call [point]
   (cons (:function/name point)
@@ -631,7 +667,7 @@
            (p/fn []
              (get-in (new ~(:node/symbol ref)) ~(:node/reference-path node)))))) ; FIXME only join the required path, lazily.
     (if-let [input (:node/input node)]
-      `(m/watch ~(:node/symbol input))
+      `(m/latest (fn [route#] (get-in route# ~(:input/path input))) (p/fn [] hf/route))
       `(p/fn [] ~(:node/form node)))))
 
 (defn emit "Emit clojure code for a render point and its dependencies." [point]
@@ -667,9 +703,9 @@
                                           ~(add-scope-bindings point nav))
                            ::spec/many `(hf/Render.
                                           (p/fn []
-                                            (p/for [e# ~(emit-call point)]
+                                            (p/for [~(:node/entity-symbol point) ~(emit-call point)]
                                               (p/fn []
-                                                (binding [hf/entity e#]
+                                                (binding [hf/entity ~(:node/entity-symbol point)]
                                                   ~(add-scope-bindings point nav)))))
                                           ~(emit-props point)))) ; TODO rendering call should account for args deps
                        ;; if there is no continuation, just emit the call.
