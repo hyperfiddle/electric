@@ -1,4 +1,4 @@
-(ns user.router
+(ns hyperfiddle.router
   (:require [contrib.missionary-contrib :refer [poll-task]]
             [hyperfiddle.rcf :as rcf :refer [% tests with tap]]
             [hyperfiddle.photon :as p]

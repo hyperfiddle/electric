@@ -10,7 +10,7 @@
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
             [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]
             [user.util :refer [includes-str? pprint-str]]
-            #?(:cljs [user.router :as router])
+            #?(:cljs [hyperfiddle.router :as router])
             [missionary.core :as m])
   #?(:cljs (:require-macros [user.demo-7-explorer :refer [absolute-path]])))
 
