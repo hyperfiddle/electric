@@ -12,7 +12,7 @@
             [user.datomic-contrib :as dx
              #?@(:clj (:refer [schema! ident! entity-history-datoms> attributes>]))]
             [user.datomic-missionary #?(:clj :as :cljs :as-alias) d]
-            #?(:cljs [user.router :as router])
+            #?(:cljs [hyperfiddle.router :as router])
             [contrib.ednish :as ednish]
             [user.util :refer [includes-str? pprint-str]]
             [clojure.edn :as edn])
