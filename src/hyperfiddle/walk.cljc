@@ -1,8 +1,8 @@
 (ns hyperfiddle.walk
   "Like clojure.walk, but preserves metadata.")
 
-(declare has-meta?)
-#?(:clj (defn has-meta? [o] (instance? clojure.lang.IMeta o)))
+(defn has-meta? [o] #?(:clj  (instance? clojure.lang.IMeta o)
+                       :cljs (satisfies? IMeta o)))
 
 (defn walk [inner outer form]
   (cond
