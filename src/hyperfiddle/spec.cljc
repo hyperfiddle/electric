@@ -1,64 +1,302 @@
 (ns hyperfiddle.spec
-  (:require [clojure.spec.alpha :as s]
-            [hyperfiddle.spec.parser :as parser]
-            [hyperfiddle.rcf :refer [tests]]))
+  (:require [clojure.core.protocols :as ccp :refer [nav]]
+            [clojure.datafy :refer [datafy]]
+            #?(:clj [clojure.spec.alpha :as s]
+               :cljs [cljs.spec.alpha :as s])
+            [hyperfiddle.walk :as walk]
+            [hyperfiddle.rcf :as rcf :refer [tests]]))
 
-(def parse parser/parse)
+(defn spec-type [spec]
+  (let [desc (s/describe spec)]
+    (cond
+      (symbol? desc) ::predicate
+      (seq? desc)    (keyword (namespace ::_) (name (first desc)))
+      :else          (assert false (str "Unknown spec description " desc)))))
 
-(defn cardinality
-  "Guess the cardinality of a speced function or keyword."
-  [spec]
-  (when-let [type (:type (if (qualified-keyword? spec)
-                           (parse spec)
-                           (:ret (parse spec))))]
-    (if (= ::coll type)
-      ::many ::one)))
+
+(defn renamespace [mapping ident]
+  (assert (ident? ident))
+  (if (qualified-ident? ident)
+    (let [ns (namespace ident)
+          ns (mapping ns ns)]
+      (if (keyword? ident)
+        (keyword ns (name ident))
+        (symbol ns  (name ident))))
+    ident))
+
+(defn form [spec]
+  (when spec
+    (walk/prewalk (fn [x] (if (ident? x) (renamespace {"cljs.spec.alpha" "clojure.spec.alpha"
+                                                       "cljs.core"       "clojure.core"} x) x))
+      (s/form spec))))
+
+(declare datafy* spec)
+(defn extend-spec [spec] (when spec (vary-meta spec assoc `ccp/datafy datafy*)))
+
+(defn get-spec "Like s/get-spec, but resolve aliases" [ident]
+  (when-let [s (s/get-spec ident)]
+    (extend-spec (if (ident? s) (vary-meta (get-spec s) assoc ::alias ident) s))))
+
+(defn parse [form]
+  (if (seq? form)
+    (case (first form)
+      (clojure.spec.alpha/cat
+        clojure.spec.alpha/alt
+        clojure.spec.alpha/or) (let [kvs  (partition 2 (rest form))
+                                     keys (mapv first kvs)]
+                                 {::type   (keyword (namespace ::_) (name (first form)))
+                                  ::keys   keys
+                                  ::values (mapv second kvs)})
+      clojure.spec.alpha/+     {::type ::+
+                                ::pred (second form)}
+      clojure.core/fn          {::type        ::predicate
+                                ::form        form
+                                ::description form})
+    (cond
+      (ident? form) (or (datafy (get-spec form)) {::type        ::predicate
+                                                  ::form        form
+                                                  ::description form}))))
+
+(defn datafy* [spec]
+  (let [{:keys [::alias ::s/name]} (meta spec)
+        type                       (spec-type spec)]
+    (-> (merge {::name        (or alias name)
+                ::type        type
+                ::form        (form spec)
+                ::description (s/describe spec)}
+          (when (some? alias)
+            {::alias name})
+          (case type
+            (::and ::predicate) {}      ; nothing to add
+            ::keys              (let [[_ _ req _ opt _ req-un _ opt-un] (form spec)]
+                                  {::req    req
+                                   ::opt    opt
+                                   ::req-un req-un
+                                   ::opt-un opt-un})
+            ::fspec             {::args (hyperfiddle.spec/spec (:args spec))
+                                 ::ret  (hyperfiddle.spec/spec (:ret spec))}
+            (::cat ::alt ::or)  (parse (form spec))
+            ::coll-of           (let [[_ pred & opts] (form spec)]
+                                  {::pred pred
+                                   ::opts (apply hash-map opts)})
+            ))
+      (with-meta (merge (dissoc (meta spec) `ccp/datafy :clojure.datafy/obj :clojure.datafy/class)
+                   {`ccp/nav
+                    (fn [x k v]
+                      (case k ; reverse data back to object, to be datafied again by caller
+                        ::alias  (hyperfiddle.spec/spec name)
+                        ::args   (hyperfiddle.spec/spec (:args spec))
+                        ::ret    (hyperfiddle.spec/spec (:ret spec))
+                        ::values (with-meta (::values x)
+                                   {`ccp/datafy (fn [_]
+                                                  (mapv (fn [key value] (assoc (parse value) ::key key)) (::keys x) (::values x)))})
+                        ;; TODO implement ::keys
+                        (::req ::opt ::req-un ::opt-un
+                               ::predicates ; s/and, s/&
+                               ) (throw (ex-info "Not implemented yet. Please log a ticket" {:nav k, ::type type}))
+                        v))})))))
+
+(defn spec [spec-or-ident]
+  (when spec-or-ident
+    (assert (or (s/spec? spec-or-ident) (qualified-ident? spec-or-ident))
+      "Expected a clojure spec object or a qualified identifier for a defined spec.")
+    (cond (s/spec? spec-or-ident) (with-meta (form spec-or-ident) {`ccp/datafy (fn [_] (datafy (extend-spec spec-or-ident)))})
+          (qualified-ident? spec-or-ident) (when-let [s (get-spec spec-or-ident)]
+                                             (with-meta (form s) {`ccp/datafy (fn [_] (datafy s))})))))
+
+;; #?(:cljs (spec `wip.orders/orders))
+
+(defn reflect [spec-or-ident]
+  (assert (or (s/spec? spec-or-ident) (qualified-ident? spec-or-ident))
+    "Expected a clojure spec object or a qualified identifier for a defined spec.")
+  (cond (s/spec? spec-or-ident) (datafy (extend-spec spec-or-ident))
+        (qualified-ident? spec-or-ident) (datafy (get-spec spec-or-ident))))
 
 (tests
-  (cardinality `(s/fspec :ret (s/coll-of any?))) := ::many ; can parse a spec definition
-  (s/fdef foo :ret (s/coll-of any?))             := `foo ; put it in global registry
-  (cardinality `foo)                             := ::many ; look up the registry
+  (s/def ::_pred string?)
+
+  (spec ::_pred) := 'clojure.core/string?
+
+  (datafy (spec ::_pred))
+  := {::name        ::_pred,
+      ::type        ::predicate,
+      ::form        'clojure.core/string?
+      ::description 'string?}
   )
 
-(defn args [spec]
-  (->> (parse spec)
-       (:args)
-       (:children)))
+(tests
+  (s/def ::_alias ::_pred)
 
-;; TODO WIP, account for mulitple arities
-(defn arg "Given an fn spec, try to find spec for arg"
-  [spec arg]
-  (->> (args spec)
-       (filter (comp #{(keyword arg)} :name))
-       (first)))
+  (spec ::_alias) := 'clojure.core/string?
+
+  (datafy (spec ::_alias))
+  := {::name        ::_alias,
+      ::type        ::predicate,
+      ::alias       ::_pred,
+      ::form        'clojure.core/string?
+      ::description 'string?}
+  )
+
+(tests
+  (let [alias (as-> (spec ::_alias) %
+                (datafy %)
+                (nav % ::alias (::alias %)))]
+
+    alias := 'clojure.core/string?
+
+    (datafy alias)
+    := '{::name        ::_pred,
+         ::type        ::predicate,
+         ::form        clojure.core/string?
+         ::description string?})
+  )
+
+
+(tests
+
+  (s/def ::_keys (s/keys :req [::_pred] :req-un [::req-un] :opt [::_alias] :opt-un [::opt-un]))
+
+  (spec ::_keys ) := '(clojure.spec.alpha/keys :req [::_pred] :opt [::_alias] :req-un [::req-un] :opt-un [::opt-un])
+
+  (datafy (spec ::_keys))
+  := {::name        ::_keys,
+      ::type        ::keys,
+      ::form        '(clojure.spec.alpha/keys
+                       :req [::_pred] :opt [::_alias] :req-un [::req-un] :opt-un [::opt-un]),
+      ::description '(keys :req [::_pred] :opt [::_alias] :req-un [::req-un] :opt-un [::opt-un])
+      ::req         [::_pred],
+      ::opt         [::_alias],
+      ::req-un      [::req-un],
+      ::opt-un      [::opt-un]}
+  )
+
+
+(tests
+
+  (s/fdef many-foo :args (s/cat :arg1 string? :arg2 ::_pred)
+          :ret (s/coll-of ::_pred :kind vector?))
+
+  (spec `many-foo) := '(clojure.spec.alpha/fspec :args (clojure.spec.alpha/cat :arg1 clojure.core/string? :arg2 ::_pred)
+                         :ret (clojure.spec.alpha/coll-of ::_pred :kind clojure.core/vector?)
+                         :fn nil)
+
+  (datafy (spec `many-foo))
+  :=
+  '{::name        hyperfiddle.spec/many-foo,
+    ::type        ::fspec,
+    ::form        (clojure.spec.alpha/fspec :args (clojure.spec.alpha/cat :arg1 clojure.core/string? :arg2 ::_pred)
+             :ret (clojure.spec.alpha/coll-of ::_pred :kind clojure.core/vector?)
+             :fn nil),
+    ::description (fspec :args (cat :arg1 string? :arg2 ::_pred) :ret (coll-of ::_pred :kind vector?) :fn nil),
+    ::args        (clojure.spec.alpha/cat :arg1 clojure.core/string? :arg2 ::_pred),
+    ::ret         (clojure.spec.alpha/coll-of ::_pred :kind clojure.core/vector?)}
+  )
+
+
+
+(tests
+  (let [args (as-> (spec `many-foo) %
+                (datafy %)
+                (nav % ::args (::args %)))]
+    args := '(clojure.spec.alpha/cat :arg1 clojure.core/string? :arg2 ::_pred)
+
+    (datafy args)
+    := '{::name nil,
+         ::type ::cat,
+         ::form
+         (clojure.spec.alpha/cat
+           :arg1
+           clojure.core/string?
+           :arg2
+           ::_pred),
+         ::description
+         (cat :arg1 string? :arg2 ::_pred),
+         ::keys [:arg1 :arg2],
+         ::values
+         [clojure.core/string? ::_pred]})
+  )
+
+(defn cardinality-many?
+  "Guess the cardinality of a speced function or keyword."
+  [ident]
+  (let [s    (datafy (spec ident))
+        type (case (::type s)
+               ::fspec (::type (datafy (nav s ::ret (::ret s))))
+               (::type s))]
+    (= ::coll-of type)))
+
+
+(tests
+
+  (s/fdef one-foo :ret ::_pred)
+
+  (cardinality-many? `many-foo) := true
+  (cardinality-many? `one-foo)  := false)
+
+(defn args [ident] ; TODO support multiple arities
+  (let [s (datafy (get-spec ident))]
+    (when (= ::fspec (::type s))
+      (as-> (nav s ::args (::args s)) %
+        (datafy %)
+        (nav % ::values (::values %))
+        (datafy %)))))
+
+(tests
+  (args `many-foo)
+  :=
+  '[{::type        ::predicate,
+     ::form        clojure.core/string?,
+     ::description clojure.core/string?,
+     ::key         :arg1}
+    {::name        ::_pred,
+     ::type        ::predicate,
+     ::form        clojure.core/string?,
+     ::description string?,
+     ::key         :arg2}])
+
+(defn arg [ident arg-key]
+  (->> (args ident)
+   (filter #(= arg-key (::key %)))
+   (first)))
+
+(tests
+  (arg `many-foo :arg2)
+  :=
+  '{::name        ::_pred,
+    ::type        ::predicate,
+    ::form        clojure.core/string?,
+    ::description string?,
+    ::key         :arg2})
+
+;; ----
 
 (def types
   ;;  pred     type                           valueType
-  [[`boolean? :hyperfiddle.spec.type/boolean :db.type/boolean]
-   [`double?  :hyperfiddle.spec.type/double  :db.type/double]
-   [`float?   :hyperfiddle.spec.type/float   :db.type/float]
-   [`decimal? :hyperfiddle.spec.type/bigdec  :db.type/bigdec]
-   [`inst?    :hyperfiddle.spec.type/instant :db.type/instant]
-   [`keyword? :hyperfiddle.spec.type/keyword :db.type/keyword]
-   [`string?  :hyperfiddle.spec.type/string  :db.type/string]
-   [`uri?     :hyperfiddle.spec.type/uri     :db.type/uri]
-   [`uuid?    :hyperfiddle.spec.type/uuid    :db.type/uuid]
-   [`map?     :hyperfiddle.spec.type/ref     :db.type/ref]
-   [`ref?     :hyperfiddle.spec.type/ref     :db.type/ref]
-   [`symbol?  :hyperfiddle.spec.type/symbol  :db.type/symbol]
-   [`integer? :hyperfiddle.spec.type/long    :db.type/long]
-   [`number?  :hyperfiddle.spec.type/long    :db.type/long]
-   [`nat-int? :hyperfiddle.spec.type/long    :db.type/long]
-   [`int?     :hyperfiddle.spec.type/long    :db.type/long]
-   [`pos-int? :hyperfiddle.spec.type/long    :db.type/long]])
+  [['clojure.core/boolean? :hyperfiddle.spec.type/boolean :db.type/boolean]
+   ['clojure.core/double?  :hyperfiddle.spec.type/double  :db.type/double]
+   ['clojure.core/float?   :hyperfiddle.spec.type/float   :db.type/float]
+   ['clojure.core/decimal? :hyperfiddle.spec.type/bigdec  :db.type/bigdec]
+   ['clojure.core/inst?    :hyperfiddle.spec.type/instant :db.type/instant]
+   ['clojure.core/keyword? :hyperfiddle.spec.type/keyword :db.type/keyword]
+   ['clojure.core/string?  :hyperfiddle.spec.type/string  :db.type/string]
+   ['clojure.core/uri?     :hyperfiddle.spec.type/uri     :db.type/uri]
+   ['clojure.core/uuid?    :hyperfiddle.spec.type/uuid    :db.type/uuid]
+   ['clojure.core/map?     :hyperfiddle.spec.type/ref     :db.type/ref]
+   ['clojure.core/ref?     :hyperfiddle.spec.type/ref     :db.type/ref]
+   ['clojure.core/symbol?  :hyperfiddle.spec.type/symbol  :db.type/symbol]
+   ['clojure.core/integer? :hyperfiddle.spec.type/long    :db.type/long]
+   ['clojure.core/number?  :hyperfiddle.spec.type/long    :db.type/long]
+   ['clojure.core/nat-int? :hyperfiddle.spec.type/long    :db.type/long]
+   ['clojure.core/int?     :hyperfiddle.spec.type/long    :db.type/long]
+   ['clojure.core/pos-int? :hyperfiddle.spec.type/long    :db.type/long]])
 
 (def pred->type (zipmap (map first types) (map second types)))
 (def valueType->type (zipmap (map #(get % 2) types) (map second types)))
 (def valueType->pred (zipmap (map #(get % 2) types) (map first types)))
 
 (defn type-of
-  ([spec] (pred->type (:predicate (parse spec))))
-  ([spec argument] (pred->type (:predicate (arg spec argument)))))
+  ([spec] (pred->type (::form (datafy (hyperfiddle.spec/spec spec)))))
+  ([spec argument] (pred->type (::form (arg spec argument)))))
 
 (defn valueType-of [schema attr]
   (valueType->type (:db.valueType (get schema attr))))
