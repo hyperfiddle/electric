@@ -305,8 +305,8 @@
                    (p/for [column (::hf/columns props)]
                      ~@(dom/div {:class "field"
                                  :style {"border-left-color" c}}
-                                (dom/label {:title (spec/parse column)}
-                                           (dom/text column))
+                         (dom/label {:title (pr-str (spec/spec column))}
+                                    (dom/text column))
                                 ~@(do
                                     (let [[_ a⁻¹ _] (second hf/context)]
                                       (when-let [inputs (get-in props [::hf/inputs a⁻¹ column])]

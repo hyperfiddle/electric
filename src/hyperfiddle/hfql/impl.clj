@@ -161,10 +161,10 @@
 (defn add-cardinality [point]
   (case (:role point)
     :call (let [[f & _] (:form point)]
-            (assoc point :card (case (spec/cardinality f)
-                                 nil         nil
-                                 ::spec/many :many
-                                 ::spec/one  :one)))
+            (assoc point :card (case (spec/cardinality-many? f)
+                                 nil   nil
+                                 true  :many
+                                 false :one)))
     :prop (case  (categorize (:form point))
             :call (add-cardinality (assoc point :role :call))
             point)
