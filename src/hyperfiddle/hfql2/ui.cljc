@@ -4,31 +4,39 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.spec :as spec]
             [hyperfiddle.logger :as log]
-            [hyperfiddle.photon-ui :as ui])
+            [hyperfiddle.photon-ui :as ui]
+            [clojure.datafy :refer [datafy]])
   #?(:cljs (:require-macros [hyperfiddle.hfql2.ui])))
 
 (defn replate-state! [!route path value]
   (swap! !route (fn [[current & history]]
                   (cons (hf/assoc-in-route-state (or current {}) path value) history))))
 
+(defn attr-spec [attr]
+  (cond
+    (ident? attr) attr
+    (seq? attr)   (attr-spec (first attr))))
+
 (p/defn Inputs-renderer [props]
   (when-some [arguments (seq (::hf/arguments props))]
-    (p/for [[name {:keys [::hf/read ::hf/write ::hf/path]}] arguments]
-      (let [writable? (some? write)
-            writef    #(reset! write %)
-            value     (read.)]
-        (p/client
-          (let [id      (random-uuid)
-                !steady (atom false)]
-            (dom/label {::dom/for id} (dom/text name))
-            (ui/input {::dom/id         id
-                       ::ui/value       (if (p/watch !steady) (p/current value) value)
-                       ::dom/disabled   (not writable?)
-                       ::ui/input-event (p/fn [e] (let [value (.. e -target -value)]
-                                                    (replate-state! hf/!route-state path value)
-                                                    (p/server (writef value))))
-                       ::ui/focus-event (p/fn [e] (reset! !steady true))
-                       ::ui/blur-event  (p/fn [e] (reset! !steady false))})))))))
+    (let [spec (attr-spec (::hf/attribute props))]
+      (p/for [[name {:keys [::hf/read ::hf/write ::hf/path]}] arguments]
+        (let [writable? (some? write)
+              writef    #(reset! write %)
+              value     (read.)]
+          (p/client
+            (let [id      (random-uuid)
+                  !steady (atom false)]
+              (dom/label {::dom/for   id
+                          ::dom/title (::spec/form (spec/arg spec name))} (dom/text name))
+              (ui/input {::dom/id         id
+                         ::ui/value       (if (p/watch !steady) (p/current value) value)
+                         ::dom/disabled   (not writable?)
+                         ::ui/input-event (p/fn [e] (let [value (.. e -target -value)]
+                                                      (replate-state! hf/!route-state path value)
+                                                      (p/server (writef value))))
+                         ::ui/focus-event (p/fn [e] (reset! !steady true))
+                         ::ui/blur-event  (p/fn [e] (reset! !steady false))}))))))))
 
 (p/def Table-renderer)
 (p/def Form-renderer)
@@ -59,7 +67,7 @@
         (let [data (V.)]
           (p/for [k (::hf/columns props)]
             (p/client
-              (dom/label (dom/text k))
+              (dom/label {::dom/title (::spec/description (datafy (spec/spec (attr-spec k))))}  (dom/text k))
               (p/server (new (get data k)))))))))
   (Default-options-renderer. V props))
 
@@ -116,7 +124,10 @@
       (ui/input {::ui/value v
                  ::ui/type  (input-type value-type "text")}))))
 
-(defn spec-value-type [attr] (spec/type-of attr)) ;; TODO extract spec for quoted sexpr, TODO support args
+(defn spec-value-type [attr] ; TODO extract spec for quoted sexpr, TODO support args
+  (when (qualified-ident? attr)
+    (spec/type-of attr)))
+
 (defn schema-attr [db ?a]
   (log/debug "Query DB schema for attr " ?a)
   #?(:clj (condp = (type db)

@@ -153,13 +153,13 @@
                       :else        (throw (ex-info "Can only call functions or keywords" {:function f}))))))
        (d/db-with db)))
 
-(defn resolve-cardinalities-pass "For each function node, infer cardinality (::spec/one or ::spec/many) from the function spec."
+(defn resolve-cardinalities-pass "For each function node, infer cardinality (::one or ::many) from the function spec."
   [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :function/name]] db))
        (map (fn [node]
-              (if-let [card (spec/cardinality (:function/name node))]
+              (if-some [many? (spec/cardinality-many? (:function/name node))]
                 {:db/id                (:db/id node)
-                 :function/cardinality card
+                 :function/cardinality (if many? ::many ::one)
                  :node/entity-symbol   (symbol (str "e" "_" (:db/id node)))} ; bound sym in `(p/for [e# (card-many-call …)] …)`
                 (throw (ex-info "Unknown function cardinality, please define a spec." {:function (:function/name node)})))))
        (d/db-with db)))
@@ -171,7 +171,7 @@
               (let [spec-args (spec/args (:function/name node))]
                 (mapv (fn [arg]
                         {:db/id     (:db/id arg)
-                         :spec/name (:name (nth spec-args (:node/position arg)))})
+                         :spec/name (::spec/key (nth spec-args (:node/position arg)))})
                   (arguments node)))))
     (d/db-with db)))
 
@@ -268,7 +268,7 @@
 
   "[env db]
   (let [root   (get-root db)
-        scopes (set (nodes db (d/q '[:find [?e ...] :where [?e :function/cardinality ::spec/many]] db)))] ; find all cardinality many functions
+        scopes (set (nodes db (d/q '[:find [?e ...] :where [?e :function/cardinality ::many]] db)))] ; find all cardinality many functions
     (->> (disj (nodes db (d/q '[:find [?e ...] :where [?e :node/type :render-point]] db)) root) ; get all points but the root
          (mapcat (fn [{:keys [db/id] :as node}]
                    (loop [node (parent node)] ; walk ancestors up to the root
@@ -360,7 +360,7 @@
 
 (defn decide-how-node-should-render-pass [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :render-point]] db))
-    (map (fn [node] (if (= ::spec/many (:function/cardinality node))
+    (map (fn [node] (if (= ::many (:function/cardinality node))
                       {:db/id          (:db/id node)
                        :node/render-as ::hf/table}
                       {:db/id          (:db/id node)
@@ -381,7 +381,7 @@
               (let [columns (:node/symbolic-form node)]
                 (into [{:db/id id, :node/columns columns}]
                   (map (fn [parent]
-                         (when (= ::spec/many (:function/cardinality parent))
+                         (when (= ::many (:function/cardinality parent))
                            {:db/id (:db/id parent), :node/columns columns}))
                     (:node/_children node)  ; look for all parents (including hf/options)
                     )))))
@@ -440,7 +440,7 @@
         :argument (recur false (cons (:spec/name point) path) (parent point))
         (case (:node/form-type point)
           :group (recur true path (parent point))
-          :call  (if (and (= ::spec/many (:function/cardinality point)) account-for-cardinality)
+          :call  (if (and (= ::many (:function/cardinality point)) account-for-cardinality)
                    (recur true (list* (:node/symbolic-form point) (:node/entity-symbol point) path) (parent point))
                    (recur true (cons (:node/symbolic-form point) path) (parent point)))
           (if-let [form (:node/symbolic-form point)]
@@ -699,9 +699,9 @@
                      (if-some [continuation (first (children point))]
                        (let [nav `(new ~(:node/symbol continuation))]
                          (case cardinality ; TODO What if cardinality is unknown at compile time?
-                           ::spec/one  `(binding [hf/entity ~(:node/form point)] ;; TODO what about props?
+                           ::one  `(binding [hf/entity ~(:node/form point)] ;; TODO what about props?
                                           ~(add-scope-bindings point nav))
-                           ::spec/many `(hf/Render.
+                           ::many `(hf/Render.
                                           (p/fn []
                                             (p/for [~(:node/entity-symbol point) ~(emit-call point)]
                                               (p/fn []

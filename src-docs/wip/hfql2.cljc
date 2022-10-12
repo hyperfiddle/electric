@@ -27,7 +27,7 @@
 (defn route-state->route [route-state]
   (let [[k v] (first route-state)
         args (spec/args (first k))]
-    [k (into {} (filter #(keyword? (key %))) v) (first k) (pr-str args) (spec/parse `order)]))
+    [k (pr-str args) (spec/spec `order)]))
 
 (p/defn Route []
   (let [!steady (atom false)]
