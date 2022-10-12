@@ -67,7 +67,7 @@
         (let [data (V.)]
           (p/for [k (::hf/columns props)]
             (p/client
-              (dom/label {::dom/title (::spec/description (datafy (spec/spec (attr-spec k))))}  (dom/text k))
+              (dom/label {::dom/title (pr-str (::spec/description (datafy (spec/spec (attr-spec k)))))}  (dom/text k))
               (p/server (new (get data k)))))))))
   (Default-options-renderer. V props))
 
