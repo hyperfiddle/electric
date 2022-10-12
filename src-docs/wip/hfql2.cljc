@@ -11,10 +11,11 @@
             [wip.orders :refer [order orders genders shirt-sizes one-order]]
             [hyperfiddle.photon-ui :as pui]
             [hyperfiddle.ui.codemirror :as cm]
-            #?(:cljs [user.router :as html5-router])
+            #?(:cljs [hyperfiddle.router :as html5-router])
             [contrib.ednish :as ednish]
             [missionary.core :as m]
-            [hyperfiddle.spec :as spec])
+            [hyperfiddle.spec :as spec]
+            [clojure.datafy :refer [datafy]])
   #?(:cljs (:require-macros wip.hfql2)))
 
 ;; (p/defn NavBar []
@@ -25,9 +26,9 @@
 ;;         (cm/CodeMirror. {:parent dom/node :inline true} cm/read-edn cm/write-edn (first route-state))))))
 
 (defn route-state->route [route-state]
-  (let [[k v] (first route-state)
-        args (spec/args (first k))]
-    [k (pr-str args) (spec/spec `order)]))
+  (when-let [[k v] (first route-state)]
+    (let [args (::spec/keys (datafy (spec/args (first k))))]
+      (cons (first k) (map (fn [arg] (get v arg)) args)))))
 
 (p/defn Route []
   (let [!steady (atom false)]
@@ -39,7 +40,11 @@
                 ::pui/focus-event (p/fn [e] (reset! !steady true))
                 ::pui/blur-event  (p/fn [e] (reset! !steady false))})
     (dom/label "Route")
-    (dom/pre (dom/text (route-state->route hf/route)))))
+    (dom/pre (dom/text (route-state->route hf/route)))
+    (dom/label "Ednish route state")
+    (dom/pre (dom/text (ednish/encode (pr-str hf/route))))
+    (dom/label "Ednish route state - uri decoded")
+    (dom/pre (dom/text (ednish/decode-uri (ednish/encode-uri hf/route))))))
 
 (p/defn Tee-shirt-orders []
   ;; Warning: HFQL is unstable

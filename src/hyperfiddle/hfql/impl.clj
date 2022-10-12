@@ -8,6 +8,7 @@
    [hyperfiddle.hfql.env :as env]
    [hyperfiddle.spec :as spec]
    [hyperfiddle.walk :as walk]
+   [clojure.datafy :refer [datafy]]
    [missionary.core :as m])
   (:import
    (clojure.lang IObj)))
@@ -80,14 +81,14 @@
 (defn args-points [id-gen parent [f & args]]
   (if (#{`p/fn} f)
     ()
-    (let [args-spec (spec/args f)]
+    (let [args-spec (::spec/keys (datafy (spec/args f)))]
       (cond
 
         (nil? args-spec)
         (throw (ex-info (str "Couldn’t find `:args` spec for `" f "`") {}))
 
         (not= (count args) (count args-spec))
-        (throw (ex-info (str "`" f "` called with wrong number of arguments. Spec says " (mapv :name args-spec), ", but " (vec args) " was provided")
+        (throw (ex-info (str "`" f "` called with wrong number of arguments. Spec says " args-spec, ", but " (vec args) " was provided")
                         {}))
         :else
         (->> args
@@ -106,7 +107,7 @@
                                      :parent   parent
                                      :form     form
                                      :position idx
-                                     :arg-name (:name (nth args-spec idx))
+                                     :arg-name (nth args-spec idx)
                                      :props    (get-props form)}
                                     refs))))
              (mapcat identity))))))

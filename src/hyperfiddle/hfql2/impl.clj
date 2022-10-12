@@ -11,6 +11,7 @@
             [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
             [hyperfiddle.spec :as spec] ; extract cardinality from fn specs
             [clojure.string :as str]
+            [clojure.datafy :refer [datafy]]
             [missionary.core :as m]))
 
 ;; * TODO List
@@ -103,7 +104,7 @@
   [node]
   (case (:node/type node)
     :function     (:function/name node)
-    :argument     (:node/form node) #_(symbol (:name (nth (spec/args (:function/name (parent node))) (:node/position node)))) ; spec arg name
+    :argument     (:node/form node) ; spec arg name
     :render-point (case (:node/form-type node)
                     :keyword (:node/form node)
                     :call    (list 'quote (cons (:function/name node) (map symbolic-form (arguments node))))
@@ -168,10 +169,10 @@
   [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/form-type :call]] db))
     (mapcat (fn [node] ; for each function call
-              (let [spec-args (spec/args (:function/name node))]
+              (let [spec-args (::spec/keys (datafy (spec/args (:function/name node))))]
                 (mapv (fn [arg]
                         {:db/id     (:db/id arg)
-                         :spec/name (::spec/key (nth spec-args (:node/position arg)))})
+                         :spec/name (nth spec-args (:node/position arg))})
                   (arguments node)))))
     (d/db-with db)))
 

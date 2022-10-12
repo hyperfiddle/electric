@@ -1,6 +1,6 @@
 (ns hyperfiddle.spec
-  (:require [clojure.core.protocols :as ccp :refer [nav]]
-            [clojure.datafy :refer [datafy]]
+  (:require [clojure.core.protocols :as ccp]
+            [clojure.datafy :refer [datafy nav]]
             #?(:clj [clojure.spec.alpha :as s]
                :cljs [cljs.spec.alpha :as s])
             [hyperfiddle.walk :as walk]
@@ -192,30 +192,6 @@
     ::ret         (clojure.spec.alpha/coll-of ::_pred :kind clojure.core/vector?)}
   )
 
-
-
-(tests
-  (let [args (as-> (spec `many-foo) %
-                (datafy %)
-                (nav % ::args (::args %)))]
-    args := '(clojure.spec.alpha/cat :arg1 clojure.core/string? :arg2 ::_pred)
-
-    (datafy args)
-    := '{::name nil,
-         ::type ::cat,
-         ::form
-         (clojure.spec.alpha/cat
-           :arg1
-           clojure.core/string?
-           :arg2
-           ::_pred),
-         ::description
-         (cat :arg1 string? :arg2 ::_pred),
-         ::keys [:arg1 :arg2],
-         ::values
-         [clojure.core/string? ::_pred]})
-  )
-
 (defn cardinality-many?
   "Guess the cardinality of a speced function or keyword."
   [ident]
@@ -236,13 +212,14 @@
 (defn args [ident] ; TODO support multiple arities
   (let [s (datafy (get-spec ident))]
     (when (= ::fspec (::type s))
-      (as-> (nav s ::args (::args s)) %
-        (datafy %)
-        (nav % ::values (::values %))
-        (datafy %)))))
+      (nav s ::args (::args s)))))
 
 (tests
-  (args `many-foo)
+  (args `many-foo) := '(clojure.spec.alpha/cat :arg1 clojure.core/string? :arg2 :hyperfiddle.spec/_pred)
+
+  (as-> (datafy (args `many-foo)) %
+    (nav % ::values (::values %))
+    (datafy %))
   :=
   '[{::type        ::predicate,
      ::form        clojure.core/string?,
@@ -255,9 +232,12 @@
      ::key         :arg2}])
 
 (defn arg [ident arg-key]
-  (->> (args ident)
-   (filter #(= arg-key (::key %)))
-   (first)))
+  (as-> (args ident) %
+    (datafy %)
+    (nav % ::values (::values %))
+    (datafy %)
+    (filter #(= arg-key (::key %)) %)
+    (first %)))
 
 (tests
   (arg `many-foo :arg2)
@@ -271,7 +251,7 @@
 ;; ----
 
 (def types
-  ;;  pred     type                           valueType
+  ;;  pred                  type                           valueType
   [['clojure.core/boolean? :hyperfiddle.spec.type/boolean :db.type/boolean]
    ['clojure.core/double?  :hyperfiddle.spec.type/double  :db.type/double]
    ['clojure.core/float?   :hyperfiddle.spec.type/float   :db.type/float]
