@@ -50,7 +50,7 @@
           (into {}))))
 
 (defn args-indices [f]
-  (into {} (map-indexed (fn [idx arg] [(:name arg) idx])) (spec/args f)))
+  (into {} (map-indexed (fn [idx arg] [(::spec/key arg) idx])) (spec/args f)))
 
 (defn fns-args-indices [fns] (reduce (fn [r f] (assoc r (list 'quote f) (args-indices f))) {} fns))
 
