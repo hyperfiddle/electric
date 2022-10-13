@@ -7,9 +7,22 @@
             #?(:cljs [hyperfiddle.scrollview :as scrollview :refer [scroll-state<]])
             [hyperfiddle.rcf :refer [tests]]
             #?(:cljs goog.object))
+  #?(:clj (:import [clojure.lang ExceptionInfo]))
   #?(:cljs (:require-macros hyperfiddle.gridsheet)))
 
 (p/def Format (p/server (p/fn [m a] (pr-str (a m)))))
+
+(defmacro check
+  ([v] `(check some? ~v))
+  ([pred v]
+   `(let [pred# ~pred, v# ~v]
+      (when-not (pred# v#) (throw (ex-info (str "check failed: (" (pr-str '~pred) " " (pr-str '~v) ") for " (pr-str v#)) {})))
+      v#)))
+
+(tests
+  (check nil) :throws ExceptionInfo
+  (check odd? 2) :throws ExceptionInfo
+  (check odd? 1) := 1)
 
 (p/defn GridSheet [xs props]
   (let [{:keys [::columns
@@ -17,11 +30,9 @@
                 ::row-height ; px, same unit as scrollTop
                 ::page-size]} ; tight
         (auto-props (namespace ::x) props {})
-        client-height (* (inc page-size) row-height)
+        client-height (* (inc (check number? page-size)) (check number? row-height))
         rows (seq xs)
         row-count (count rows)]
-    (assert row-height)
-    (assert page-size)
     (assert columns)
     (p/client
       (dom/div {::dom/role "grid"
@@ -61,6 +72,7 @@
           ; horizontal scroll changes things.
           ; except for the tricky styles ...
           (p/server
+            (when (seq rows) (check vector? (first rows)))
             (let [xs (vec (->> rows (drop start-row) (take page-size)))]
               (p/for [i (range page-size)]
                 (let [[depth m] (get xs i [0 ::empty])]
