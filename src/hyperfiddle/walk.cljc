@@ -1,6 +1,9 @@
 (ns hyperfiddle.walk
   "Like clojure.walk, but preserves metadata.")
 
+;; NOTE already implemented slightly differently by `edamame.impl.read-fn`. We
+;; should analyse borkdude’s impl and compare with this one.
+
 (defn has-meta? [o] #?(:clj  (instance? clojure.lang.IMeta o)
                        :cljs (satisfies? IMeta o)))
 
