@@ -5,7 +5,6 @@
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.rcf :refer [tests]]
             [missionary.core :as m]
-            [user.util :refer [pprint-str]]
             #?(:cljs goog.object))
   #?(:cljs (:require-macros hyperfiddle.scrollview)))
 
@@ -87,7 +86,7 @@
     (dom/div {:class "header"}
       (dom/dl
         (dom/dt "scroll debug state")
-        (dom/dd (dom/pre (pprint-str (update-keys (p/watch !scrollStateDebug) unqualify)))))
+        (dom/dd (dom/pre (pr-str (update-keys (p/watch !scrollStateDebug) unqualify)))))
       (ui/select {::ui/value (p/server demo)
                   ::ui/options [{:text "DemoFixedHeightCounted" ::value `DemoFixedHeightCounted}
                                 {:text "DemoVariableHeightInfinite" ::value `DemoVariableHeightInfinite}]
