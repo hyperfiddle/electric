@@ -154,7 +154,7 @@
                   (p/for-by first [[i [depth m]] (map vector (range) xs)]
                     (p/client
                       (reset! (get-in !!rows [i])
-                              [depth (p/fn [a] (p/server (Format. m a (a m))))])))))))))
+                              [depth (p/fn [a] (p/server (Format. m a)))])))))))))
       (dom/div (pr-str {:count row-count})))))
 
 ; How to do transactionally with a fragment to avoid the churn? (for variable infinite seq)
@@ -182,8 +182,8 @@
                   (p/client
                     (dom/tr
                       (dom/td {:style {:padding-left (-> depth (* 15) (str "px"))}}
-                        (p/server (Format. m a (a m))))
+                        (p/server (Format. m a)))
                       (p/server
                         (p/for [a as]
-                          (p/client (dom/td (p/server (Format. m a (a m)))))))))))
+                          (p/client (dom/td (p/server (Format. m a))))))))))
               (p/client (dom/div {:class "no-results"} "no results matched")))))))))
