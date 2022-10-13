@@ -30,21 +30,39 @@
     (let [args (::spec/keys (datafy (spec/args (first k))))]
       (cons (first k) (map (fn [arg] (get v arg)) args)))))
 
+(defn set-route-in-route-state [route-state route]
+  (when (not-empty route-state)
+    (let [args (zipmap (::spec/keys (datafy (spec/args (first route)))) (rest route))
+          [k v] (first route-state)]
+      (assoc route-state k (merge v args)))))
+
 (p/defn Route []
-  (let [!steady (atom false)]
-    (dom/label "Route state")
+  (dom/label "Route state")
+  (let [!steady  (atom false)]
     (pui/input {::pui/value       (pr-str (if (p/watch !steady) (p/current hf/route) hf/route))
                 ::pui/input-event (p/fn [e] (try (reset! hf/!route-state (list (clojure.edn/read-string (.. e -target -value))))
+                                                 (.setCustomValidity dom/node "")
                                                  (catch js/Error e
-                                                   (js/console.log "Error" (.-message e)))))
+                                                   (.setCustomValidity dom/node (.-message e))
+                                                   (.reportValidity dom/node)
+                                                   )))
                 ::pui/focus-event (p/fn [e] (reset! !steady true))
-                ::pui/blur-event  (p/fn [e] (reset! !steady false))})
-    (dom/label "Route")
-    (dom/pre (dom/text (route-state->route hf/route)))
-    (dom/label "Ednish route state")
-    (dom/pre (dom/text (ednish/encode (pr-str hf/route))))
-    (dom/label "Ednish route state - uri decoded")
-    (dom/pre (dom/text (ednish/decode-uri (ednish/encode-uri hf/route))))))
+                ::pui/blur-event  (p/fn [e] (reset! !steady false))}))
+  (dom/label "Route")
+  (let [!steady (atom false)
+        route   (route-state->route hf/route)]
+    (pui/input {::pui/value       (pr-str (if (p/watch !steady) (p/current route) route))
+                ::pui/input-event (p/fn [e] (try (reset! hf/!route-state (list (set-route-in-route-state hf/route (clojure.edn/read-string (.. e -target -value)))))
+                                                 (.setCustomValidity dom/node "")
+                                                 (catch js/Error e
+                                                   (.setCustomValidity dom/node (.-message e))
+                                                   (.reportValidity dom/node))))
+                ::pui/focus-event (p/fn [e] (reset! !steady true))
+                ::pui/blur-event  (p/fn [e] (reset! !steady false))}))
+  (dom/label "Ednish route state")
+  (dom/pre (dom/text (ednish/encode (pr-str hf/route))))
+  (dom/label "Ednish route state - uri decoded")
+  (dom/pre (dom/text (ednish/decode-uri (ednish/encode-uri hf/route)))))
 
 (p/defn Tee-shirt-orders []
   ;; Warning: HFQL is unstable
