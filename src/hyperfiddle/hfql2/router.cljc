@@ -13,7 +13,7 @@
 (defn- fncall [sexpr] (and (seq? sexpr) (symbol? (first sexpr))))
 
 (defn validate-route! [route]
-  (when (not (fncall route))
+  (when-not (or (fncall route) (map? route))
     (throw (ex-info (str "Invalid route. Routes are symbolic function calls like `(foo :bar)`, given `" route "`.") {:route route}))))
 
 (defn validate-pages! [pages]
@@ -30,8 +30,7 @@
                         (map? form)    (recur (key (first form)))
                         (seq? form)    (if (= 'props (first form))
                                          (recur (second form))
-                                         (recur (first form)))
-                        (symbol? form) form
+                                         form)
                         :else          nil))]
        ident
        (throw (ex-info  "Malformed page definition. It should be in the form {(page …) […]}" {:page page})))))
@@ -39,16 +38,16 @@
 #?(:clj
    (defn page-identifier
      [env page]
-     (let [ident (identifier page)]
-       (if-let [var (c/resolve-var env ident)]
-         (c/var-name var)
-         (throw (ex-info (str "Unable to resolve page name `" ident "`") {:page page}))))))
+     (let [sexpr (identifier page)]
+       (if-let [var (c/resolve-var env (first sexpr))]
+         (cons (c/var-name var) (rest sexpr))
+         (throw (ex-info (str "Unable to resolve page name `" sexpr "`") {:page page}))))))
 
 #?(:clj
    (defn routing-map [env pages]
      (->> pages
-          (map (fn [page] [(list 'quote (page-identifier env page)) `(p/fn [] (hfql2/hfql ~page))]))
-          (into {}))))
+       (map (fn [page] [(list 'quote (first (page-identifier env page))) `(p/fn [] (hfql/hfql ~page))]))
+       (into {}))))
 
 (defn args-indices [f]
   (into {} (map-indexed (fn [idx arg] [arg idx])) (::spec/keys (datafy (spec/args f)))))
@@ -76,6 +75,25 @@
               (edn/parse-string-all (res/slurp-resource env page) opts)
               [page]))))
 
+(defn find-best-matching-route [symbolic-routes route]
+  (let [[f & args] route]
+    (->> symbolic-routes
+      (filter #(= f (first %)))
+      (sort-by count <)
+      (remove #(> (count args) (count (rest %))))
+      (first))))
+
+(defn route->route-state [symbolic-routes route]
+  (if (map? route)
+    route
+    (let [match         (find-best-matching-route symbolic-routes route)
+          symbolic-args (::spec/keys (datafy (spec/args (first route))))]
+      {match (zipmap symbolic-args (rest route))})))
+
+(defn route->sexpr [route]
+  (if (map? route) (ffirst route) route))
+
+
 ;;* Router
 ;;
 ;;  Takes:
@@ -98,12 +116,20 @@
     (validate-pages! pages)
     (let [env         (c/normalize-env &env)
           routing-map (routing-map env pages)
-          fns         (set (map (partial page-identifier env) pages))]
+          fns         (set (map (comp first (partial page-identifier env)) pages))]
+      (prn "rmap" (keys routing-map))
       `(let [route# ~route]
-         (with-route-getters route# ~fns
-           (let [routing-map# ~routing-map]
-             (validate-route! route#)
-             (new (get routing-map# (first route#) not-found))))))))
+         (prn "route" route#)
+         (p/client
+           (let [route (doto (route->route-state '~(doto (map (partial page-identifier env) pages) prn) route#) prn)]
+             (binding [hf/route route]
+               (p/server
+                 (binding [hf/route route]
+                   (let [sexpr# (route->sexpr route#)]
+                     (with-route-getters sexpr# ~fns
+                       (let [routing-map# ~routing-map]
+                         (validate-route! route#)
+                         (new (get routing-map# (first sexpr#) not-found))))))))))))))
 
 (p/defn not-found [] "page not found")
 

@@ -5,7 +5,9 @@
             [hyperfiddle.spec :as spec]
             [hyperfiddle.logger :as log]
             [hyperfiddle.photon-ui :as ui]
-            [clojure.datafy :refer [datafy]])
+            [clojure.datafy :refer [datafy]]
+            [contrib.ednish :as ednish]
+            #?(:cljs [hyperfiddle.router :as html5-router]))
   #?(:cljs (:require-macros [hyperfiddle.hfql2.ui])))
 
 (defn replate-state! [!route path value]
@@ -33,8 +35,8 @@
                          ::ui/value       (if (p/watch !steady) (p/current value) value)
                          ::dom/disabled   (not writable?)
                          ::ui/input-event (p/fn [e] (let [value (.. e -target -value)]
-                                                      (replate-state! hf/!route-state path value)
-                                                      (p/server (writef value))))
+                                                      (html5-router/replaceState! hf/!path (str "#" (hf/assoc-in-route-state hf/route path value)))
+                                                      #_(p/server (writef value))))
                          ::ui/focus-event (p/fn [e] (reset! !steady true))
                          ::ui/blur-event  (p/fn [e] (reset! !steady false))}))))))))
 
@@ -55,10 +57,20 @@
               (new options))))))))
 
 (p/defn Default-renderer [V props]
-  (let [edn (binding [hf/bypass-renderer true] (V.))]
+  (let [edn (binding [hf/bypass-renderer true] (V.))
+        link (when-let [Link (::hf/link props)] (new Link))]
     (p/client
-      (dom/pre
-        (dom/text edn)))))
+      (if (some? link)
+        (ui/element dom/a {::dom/href (str "#" (ednish/encode-uri link))
+                           ::ui/click-event (p/fn [e]
+                                              (.preventDefault e)
+                                              (html5-router/pushState! hf/!path (str "#" (ednish/encode-uri link)))
+                                              #_(p/server  ;; TODO route!
+                                                ;; (router/route! link)
+                                                ))}
+          (dom/text edn))
+        (dom/pre
+          (dom/text edn))))))
 
 (p/defn Form-renderer-impl [V props]
   (p/client
