@@ -25,10 +25,7 @@
 ;;       (dom/div {:class "navbar-route"}
 ;;         (cm/CodeMirror. {:parent dom/node :inline true} cm/read-edn cm/write-edn (first route-state))))))
 
-(defn route-state->route [route-state]
-  (when-let [[k v] (first route-state)]
-    (let [args (::spec/keys (datafy (spec/args (first k))))]
-      (cons (first k) (map (fn [arg] (get v arg)) args)))))
+
 
 (defn set-route-in-route-state [route-state route]
   (when (not-empty route-state)
