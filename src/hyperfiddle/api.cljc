@@ -54,6 +54,7 @@
 (defn navigate-back! [] (swap! !route-state pop))
 
 (p/def route) ;; Continuous route value
+(p/def !path) ;; URL path setter
 
 ;;; Database
 
@@ -69,6 +70,7 @@
 
 (p/defn entity []) ;; TODO HFQL only. Is a binding required? could it be an argument?
 (p/def ^:deprecated attribute nil)
+(p/def value (p/fn [] nil))
 (p/def options)
 
 (p/defn tx [v' props]
