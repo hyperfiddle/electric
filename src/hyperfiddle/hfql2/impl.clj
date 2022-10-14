@@ -7,7 +7,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.compiler :as c] ; var resolution
             ;; [hyperfiddle.photon.debug :as dbg]       ; for tests
-            [hyperfiddle.queries-test :refer [orders order shirt-sizes]] ; for tests
+            [hyperfiddle.queries-test :refer [orders order shirt-sizes one-order]] ; for tests
             [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
             [hyperfiddle.spec :as spec] ; extract cardinality from fn specs
             [clojure.string :as str]
@@ -89,6 +89,7 @@
                      (symbol? f)  (let [name (symbol (str (munge* (name (:function/name node))) "_" (:db/id node)))]
                                     (case (:prop/key node)
                                       ::hf/options (symbol (str name "_options"))
+                                      ::hf/link    (symbol (str name "_link"))
                                       name))))
     :group   (symbol (str "group_" (:db/id node)))
     (case (:node/type node)
@@ -352,7 +353,9 @@
               (let [join-node (find-join-target-point node)]
                 [{:db/id               (:db/id node)
                   :node/reference      (:db/id join-node)
-                  :node/reference-path (reference-path join-node (:node/reference node))
+                  :node/reference-path (if (= join-node (:node/reference node)) ; happens when a prop node refers to the node it’s attached to
+                                         []
+                                         (reference-path join-node (:node/reference node)))
                   :node/dependencies   (:db/id join-node)}
                  [:db/retract (:db/id node) :node/dependencies (:db/id (:node/reference node))]
                  {:db/id                         (:db/id join-node)
@@ -454,6 +457,9 @@
                          :input/path (input-path node)}]))
     (d/db-with db)))
 
+(defn hf-link-pass [env db]
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :prop/key ::hf/link]] db))))
+
 ;; (graph '{(orders .) [{(props :order/shirt-size {::hf/options (shirt-sizes :order/female .)}) [:db/ident]}]})
 
 ;; Passes to apply in order.
@@ -495,6 +501,9 @@
                  (case k
                    ::hf/options (into r (-> (parse gen-id parent-id v)
                                           (update 0 assoc :prop/key k, :node/position index)))
+                   ::hf/link    (if (seq? v)
+                                  (into r (-> (parse gen-id parent-id v) (update 0 assoc :prop/key k, :node/position index)))
+                                  (throw (ex-info "Linking with a symbol is not support yet. Use `(page arg)` syntax for now." {})))
                    (conj r {:db/id          (gen-id) ; create a node of type :prop with k and v
                             :node/type      :prop
                             :node/_children parent-id
@@ -502,6 +511,9 @@
                             :prop/value     v
                             :node/position  index})))
       [])))
+
+;; (graph '[(props :db/id {::hf/link (wip.orders/one-order db/id)})]) 
+;; (hfql [(props :db/id {::hf/link (wip.orders/one-order db/id)})]) 
 
 (defn parse-arg "Parse a function argument into a tx. `parent-id` is supposed to be the function node’s id."
   [gen-id parent-id form]
@@ -622,7 +634,9 @@
   "If the given render point has dependencies in this scope, emit them as lexical bindings."
   [point emitted-form]
   (if-some [bindings (seq (scope-bindings point))]
-    `(let [~'entities (atom {}) ~@bindings] ~emitted-form)
+    `(let [~'entities  (atom {})
+           ~'<entities (p/watch ~'entities)
+           ~@bindings] ~emitted-form)
     emitted-form))
 
 (defn maybe-update "Like `update` but applies `f` only if `k` is present in the map."
@@ -631,10 +645,11 @@
 
 (defn emit-props "Emit a map of {prop-key prop-value} for a given render point." [point]
   (let [props-map (->> (props point)
-                    (map (fn [{:keys [prop/key prop/value]}]
+                    (map (fn [{:keys [prop/key prop/value] :as prop}]
                            [key (case key
                                   ::hf/options `hf/options
                                   ::hf/as      (list 'quote value)
+                                  ::hf/link    (:node/symbol prop)
                                   value)]))
                     (into {}))
         args      (when (= :call (:node/form-type point)) (arguments point))]
@@ -653,20 +668,23 @@
                                                                                  {::hf/write (:node/symbol input)}))])) args)))))
 
 (defn emit-call [point]
-  (cons (:function/name point)
-    (->> (arguments point)
-      (map (fn [node] `(new ~(:node/symbol node)))))))
+  (let [sexpr (cons (:function/name point) (map (fn [node] `(new ~(:node/symbol node))) (arguments point)))]
+    (case (:prop/key point)
+      ::hf/link (let [[f & args] sexpr] `(list '~f ~@args))
+      sexpr)))
 
 (defn remember! [atom k v] (swap! atom assoc k v) v)
 
 (defn emit-argument [node]
   (if-let [ref (:node/reference node)]
-    `(p/fn []
-       (binding [hf/entity          (get @~'entities '~(:node/symbol ref)) ; FIXME beginning of hf/context. entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
-                 hf/bypass-renderer true]
-         (new ; FIXME photon bug? had to wrap into a p/fn to get hf/entity to have the correct binding
-           (p/fn []
-             (get-in (new ~(:node/symbol ref)) ~(:node/reference-path node)))))) ; FIXME only join the required path, lazily.
+    (if (empty? (:node/reference-path node))
+      `(p/fn [] (binding [hf/bypass-renderer true] (new hf/value)))
+      `(p/fn []
+         (binding [hf/entity          (get ~'<entities '~(:node/symbol ref)) ; FIXME beginning of hf/context. entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
+                   hf/bypass-renderer true]
+           (new ; FIXME photon bug? had to wrap into a p/fn to get hf/entity to have the correct binding
+             (p/fn []
+               (get-in (new ~(:node/symbol ref)) ~(:node/reference-path node))))))) ; FIXME only join the required path, lazily.
     (if-let [input (:node/input node)]
       `(m/latest (fn [route#] (get-in route# ~(:input/path input))) (p/fn [] hf/route))
       `(p/fn [] ~(:node/form node)))))
@@ -688,7 +706,8 @@
                                                   hf/options ~(:node/symbol (props ::hf/options continuation))
                                                   ]
                                           (new ~(:node/symbol continuation))))
-                                     (let [render-form `(hf/Render. (p/fn [] ~value) ~(emit-props point))]
+                                     (let [render-form `(binding [hf/value (p/fn [] ~value)]
+                                                          (hf/Render. hf/value ~(emit-props point)))]
                                        (if-let [options (:node/symbol (props ::hf/options point))]
                                          (add-scope-bindings point `(binding [hf/options ~options] ~render-form))
                                          (add-scope-bindings point render-form))))]
@@ -700,21 +719,22 @@
                      (if-some [continuation (first (children point))]
                        (let [nav `(new ~(:node/symbol continuation))]
                          (case cardinality ; TODO What if cardinality is unknown at compile time?
-                           ::one  `(binding [hf/entity ~(:node/form point)] ;; TODO what about props?
+                           ::one  `(binding [hf/entity ~(emit-call point)] ;; TODO what about props?
                                           ~(add-scope-bindings point nav))
-                           ::many `(hf/Render.
-                                          (p/fn []
-                                            (p/for [~(:node/entity-symbol point) ~(emit-call point)]
-                                              (p/fn []
-                                                (binding [hf/entity ~(:node/entity-symbol point)]
-                                                  ~(add-scope-bindings point nav)))))
-                                          ~(emit-props point)))) ; TODO rendering call should account for args deps
+                           ::many (let [v (symbol (str (:node/symbol point) "_value"))]
+                                    `(binding [hf/value (p/fn []
+                                                          (p/for [~(:node/entity-symbol point) ~(emit-call point)]
+                                                            (p/fn []
+                                                              (binding [hf/entity ~(:node/entity-symbol point)]
+                                                                ~(add-scope-bindings point nav)))))]
+                                       (hf/Render. hf/value ~(emit-props point)))))) ; TODO rendering call should account for args deps
                        ;; if there is no continuation, just emit the call.
                        (emit-call point)))
           :group   (add-scope-bindings point
-                     `(hf/Render. (p/fn [] ~(reduce (fn [r point] (assoc r (:node/symbolic-form point) (:node/symbol point)))
-                                              {} (children point)))
-                        ~(emit-props point)))))
+                     (let [v (symbol (str (:node/symbol point) "_value"))]
+                       `(binding [hf/value (p/fn [] ~(reduce (fn [r point] (assoc r (:node/symbolic-form point) (:node/symbol point)))
+                                                       {} (children point)))]
+                          (hf/Render. hf/value ~(emit-props point)))))))
     :argument (emit-argument point)
     :input    `(atom nil)
     (assert false (str "emit - not a renderable point " (:node/type point)))))

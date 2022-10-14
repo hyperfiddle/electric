@@ -37,66 +37,82 @@
       (assoc route-state k (merge v args)))))
 
 (p/defn Route []
-  (dom/label "Route state")
-  (let [!steady  (atom false)]
-    (pui/input {::pui/value       (pr-str (if (p/watch !steady) (p/current hf/route) hf/route))
-                ::pui/input-event (p/fn [e] (try (reset! hf/!route-state (list (clojure.edn/read-string (.. e -target -value))))
-                                                 (.setCustomValidity dom/node "")
-                                                 (catch js/Error e
-                                                   (.setCustomValidity dom/node (.-message e))
-                                                   (.reportValidity dom/node)
-                                                   )))
-                ::pui/focus-event (p/fn [e] (reset! !steady true))
-                ::pui/blur-event  (p/fn [e] (reset! !steady false))}))
   (dom/label "Route")
   (let [!steady (atom false)
-        route   (route-state->route hf/route)]
+        route   hf/route]
     (pui/input {::pui/value       (pr-str (if (p/watch !steady) (p/current route) route))
-                ::pui/input-event (p/fn [e] (try (reset! hf/!route-state (list (set-route-in-route-state hf/route (clojure.edn/read-string (.. e -target -value)))))
+                ::pui/input-event (p/fn [e] (try (html5-router/replaceState! hf/!path (str "#" (pr-str (clojure.edn/read-string (.. e -target -value)))))
                                                  (.setCustomValidity dom/node "")
                                                  (catch js/Error e
                                                    (.setCustomValidity dom/node (.-message e))
                                                    (.reportValidity dom/node))))
                 ::pui/focus-event (p/fn [e] (reset! !steady true))
                 ::pui/blur-event  (p/fn [e] (reset! !steady false))}))
-  (dom/label "Ednish route state")
-  (dom/pre (dom/text (ednish/encode (pr-str hf/route))))
-  (dom/label "Ednish route state - uri decoded")
-  (dom/pre (dom/text (ednish/decode-uri (ednish/encode-uri hf/route)))))
+  #_(dom/label "Ednish route state")
+  #_(dom/pre (dom/text (ednish/encode (pr-str hf/route))))
+  #_(dom/label "Ednish route state - uri decoded")
+  #_(dom/pre (dom/text (ednish/decode-uri (ednish/encode-uri hf/route)))))
+
+(defn path-hash [path]
+  (when (clojure.string/includes? path "#")
+    (not-empty (last (clojure.string/split path #"#" 2)))))
+
+(defn decode-route [route]
+  (prn "route" route)
+  (cond (nil? route)    nil
+        (map? route)    (hyperfiddle.walk/prewalk (fn [form]
+                                                    (if (and (map-entry? form) (vector? (key form)))
+                                                      [(seq (key form)) (val form)]
+                                                      form))
+                          route)
+        (vector? route) (seq route)
+        :else           (throw (ex-info "A route should be a sexpr or a map" {:route route}))))
+
+#?(:cljs
+   (defn route> [!path]
+     (->> (html5-router/path> !path)
+       (missionary.core/eduction (map path-hash) (map ednish/decode-uri) (map decode-route))
+       (missionary.core/reductions {} nil)
+       (missionary.core/relieve {}))))
 
 (p/defn Tee-shirt-orders []
   ;; Warning: HFQL is unstable
   (p/client
-    (let [route (first (p/watch hf/!route-state))]
-      (binding [hf/route route]
+    (binding [hf/!path (m/mbx)]
+      (binding [hf/route (new (route> hf/!path))]
         (dom/div
           (Route.)
           (dom/hr)
-          (p/server
-            (binding [hf/route route]
-              (let [route '(wip.orders/orders "alice")]
-                (ui2/with-ui-renderers
+          (let [route hf/route]
+            (p/server
+              (ui2/with-ui-renderers
+                (router/router route
+                  {(one-order .) [(props :db/id {::hf/link (one-order db/id)})
+                                  (props :order/email {::hf/link (orders order/email)
+                                                       ::hf/render ui2/Default-renderer})
 
+                                  #_{(props :order/gender {::hf/options (genders)})
+                                     [(props :db/ident {::hf/as gender})]}
+                                  {:order/gender [(props :db/ident {::hf/as gender})]}
+                                  {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
+                                   [:db/ident]}]} 
+                  {(orders .)
+                   [(props :db/id {::hf/link (one-order db/id)})
+                    :order/email
 
-                  (router/router route
-                    {(one-order 9) [:db/id]}
-                    {(orders .)
-                     [(props :db/id {::hf/link one-order})
-                      :order/email
+                    {(props :order/gender {::hf/options (genders)})
+                     [(props :db/ident {::hf/as gender})]}
+                    {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
+                     [:db/ident]}]})  
 
-                      {(props :order/gender {::hf/options (genders)})
-                       [(props :db/ident {::hf/as gender})]}
-                      {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
-                       [:db/ident]}]})  
-
-                  #_(hfql2/hfql
-                      [#_{(genders) [:db/ident]}
-                       {(orders .) [:order/email
-                                    {(props :order/gender {::hf/options (genders)}) [(props :db/ident {::hf/as gender})]}
-                                    {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
-                                                               ::hf/option-label :db/ident}) [:db/ident :db/id]}]}]) 
-                  )))
-            ))))))
+                #_(hfql2/hfql
+                    [#_{(genders) [:db/ident]}
+                     {(orders .) [:order/email
+                                  {(props :order/gender {::hf/options (genders)}) [(props :db/ident {::hf/as gender})]}
+                                  {(props :order/shirt-size {::hf/options      (shirt-sizes gender .)
+                                                             ::hf/option-label :db/ident}) [:db/ident :db/id]}]}]) 
+                )
+              )))))))
 
 ;; (p/defn Tee-shirt-orders []
 ;;   ;; Warning: HFQL is unstable
