@@ -2,7 +2,9 @@
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.rcf :refer [tests tap %]]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.hfql :as hfql])
+            [hyperfiddle.hfql :as hfql]
+            [clojure.datafy :refer [datafy]]
+            [hyperfiddle.spec :as spec])
   #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
 
 (defmacro hfql [& body] `(hfql/hfql ~@body))
@@ -27,15 +29,21 @@
 
 (defn empty-value? [x] (if (seqable? x) (empty? x) (some? x)))
 
+(defn route-state->route [route-state]
+  (when-let [[k v] (first route-state)]
+    (let [args (::spec/keys (datafy (spec/args (first k))))]
+      (cons (first k) (map (fn [arg] (get v arg)) args)))))
+
 (defn route-cleanup [m path]
-  (if (empty? path)
-    m
-    (let [leaf (get-in m path)]
-      (cond
-        (empty-value? leaf) (if-some [path' (seq (butlast path))]
-                              (recur (update-in m path' dissoc (last path)) path')
-                              (dissoc m (last path)))
-        :else               m))))
+  (cond
+    (seq? m)      m
+    (empty? path) m
+    :else         (let [leaf (get-in m path)]
+                    (cond
+                      (empty-value? leaf) (if-some [path' (seq (butlast path))]
+                                            (recur (update-in m path' dissoc (last path)) path')
+                                            (route-state->route m))
+                      :else               m))))
 
 (defn assoc-in-route-state [m path value]
   (let [empty? (if (seqable? value) (not-empty value) (some? value))]
