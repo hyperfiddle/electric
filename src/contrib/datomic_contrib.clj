@@ -1,8 +1,8 @@
-(ns user.datomic-contrib
-  (:require [contrib.data :refer [index-by]]
-            [missionary.core :as m]
+(ns contrib.datomic-contrib
+  (:require [contrib.data :refer [index-by unqualify]]
+            [contrib.datomic-missionary :as d]
             [hyperfiddle.rcf :refer [tests % tap]]
-            [user.datomic-missionary :as d]))
+            [missionary.core :as m]))
 
 (defn attributes>
   ([db] (attributes> db [:db/ident]))
@@ -38,7 +38,8 @@
                 :db/valueType {:db/ident :db.type/long}
                 #_#_:db/unique :db.unique/identity})
 
-         ; m/group-by maybe is faster – don't need to wait for all attrs to load?
+         ; todo - streaming group-by should be faster – shouldn't need to wait for all attrs to load
+         ; todo - only load the attrs that the renderers actually needs
          (index-by :db/ident))))
 
 (comment
@@ -133,6 +134,40 @@
   (reverse-attr :foo/bar) := :foo/_bar
   (reverse-attr nil) := nil
   (reverse-attr :foo/_bar) := :foo/bar)
+
+(defn entity-tree-entry-children [schema [k v :as row]] ; row is either a map-entry or [0 {:db/id _}]
+  ; This shorter expr works as well but is a bit "lucky" with types in that you cannot see
+  ; the intermediate cardinality many traversal. Unclear what level of power is needed here
+  ;(cond
+  ;  (map? v) (into (sorted-map) v)
+  ;  (sequential? v) (index-by identify v))
+
+  ; this controlled way dispatches on static schema to clarify the structure
+  (cond
+    (contains? schema k)
+    (let [x ((juxt (comp unqualify identify :db/valueType)
+                   (comp unqualify identify :db/cardinality)) (k schema))]
+      (case x
+        [:ref :one] (into (sorted-map) v) ; todo lift sort to the pull object
+        [:ref :many] (index-by identify v) ; can't sort, no sort key
+        nil #_(println `unmatched x))) ; no children
+
+    ; in card :many traversals k can be an index or datomic identifier, like
+    ; [0 {:db/id 20512488927800905}]
+    ; [20512488927800905 {:db/id 20512488927800905}]
+    ; [:release.type/single {:db/id 35435060739965075, :db/ident :release.type/single}]
+    (number? k) (into (sorted-map) v)
+
+    () (assert false (str "unmatched tree entry, k: " k " v: " v))))
+
+;(extend-protocol Datafiable
+;  datomic.query.EntityMap
+;  (datafy [o] (into {} o)))
+;
+;(extend-protocol Navigable
+;  datomic.query.EntityMap
+;  (nav [coll k v]
+;    (clojure.datafy/datafy v)))
 
 ;(defn transactions> [conn]
 ;  (->> (p/chan->ap (d/tx-range conn {:start nil :end nil}))
