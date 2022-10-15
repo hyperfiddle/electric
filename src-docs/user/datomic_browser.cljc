@@ -2,6 +2,9 @@
   (:require [clojure.datafy :refer [datafy]]
             [clojure.core.protocols :refer [nav]]
             [contrib.data :refer [unqualify index-by]]
+            [contrib.datomic-contrib :as dx
+             #?@(:clj (:refer [schema! ident! entity-history-datoms> attributes>]))]
+            [contrib.datomic-missionary #?(:clj :as :cljs :as-alias) d]
             [missionary.core :as m]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
             [hyperfiddle.gridsheet :as-alias gridsheet]
@@ -9,9 +12,6 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.rcf :refer [tests ! %]]
-            [user.datomic-contrib :as dx
-             #?@(:clj (:refer [schema! ident! entity-history-datoms> attributes>]))]
-            [user.datomic-missionary #?(:clj :as :cljs :as-alias) d]
             #?(:cljs [hyperfiddle.router :as router])
             [contrib.ednish :as ednish]
             [user.util :refer [includes-str? pprint-str]]
@@ -82,35 +82,10 @@
   (def cobblestone 536561674378709)
   (m/? (d/pull! user/db {:eid cobblestone :selector ['*]})))
 
-(p/defn entity-tree-entry-children [[k v :as row]] ; row is either a map-entry or [0 {:db/id _}]
-  ; This shorter expr works as well but is a bit "lucky" with types in that you cannot see
-  ; the intermediate cardinality many traversal. Unclear what level of power is needed here
-  ;(cond
-  ;  (map? v) (into (sorted-map) v)
-  ;  (sequential? v) (index-by dx/identify v))
-
-  ; this controlled way dispatches on static schema to clarify the structure
-  (cond
-    (contains? schema k)
-    (let [x ((juxt (comp unqualify dx/identify :db/valueType)
-                   (comp unqualify dx/identify :db/cardinality)) (k schema))]
-      (case x
-        [:ref :one] (into (sorted-map) v) ; todo lift sort to the pull object
-        [:ref :many] (index-by dx/identify v) ; can't sort, no sort key
-        nil #_(println `unmatched x))) ; no children
-
-    ; in card :many traversals k can be an index or datomic identifier, like
-    ; [0 {:db/id 20512488927800905}]
-    ; [20512488927800905 {:db/id 20512488927800905}]
-    ; [:release.type/single {:db/id 35435060739965075, :db/ident :release.type/single}]
-    (number? k) (into (sorted-map) v)
-
-    () (assert false (str "unmatched tree entry, k: " k " v: " v))))
-
 (p/defn EntityDetail [e]
   (assert e)
   (binding [explorer/cols [::k ::v]
-            explorer/Children entity-tree-entry-children
+            explorer/Children (p/fn [m] (dx/entity-tree-entry-children schema m))
             explorer/Search? (p/fn [[k v :as row] s] (or (includes-str? k s)
                                                          (includes-str? (if-not (map? v) v) s)))
             explorer/Format (p/fn [[k v :as row] col]
