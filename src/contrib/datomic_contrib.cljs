@@ -1,4 +1,4 @@
-(ns user.datomic-contrib
+(ns contrib.datomic-contrib
   (:require clojure.edn
             [hyperfiddle.rcf :refer [tests]])
   (:import goog.math.Long))

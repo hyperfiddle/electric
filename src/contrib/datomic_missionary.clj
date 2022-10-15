@@ -1,4 +1,4 @@
-(ns user.datomic-missionary
+(ns contrib.datomic-missionary
   (:require [contrib.data :refer [omit-keys-ns]]
             [clojure.core.protocols :as ccp :refer [nav]]
             [clojure.datafy :refer [datafy]]
