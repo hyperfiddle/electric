@@ -32,7 +32,7 @@
       "Recent Txs"
       (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
                 (m/reductions conj ())
-                (m/latest identity))) ; fixme buffer
+                (m/relieve {})))
       {::explorer/page-size 30
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em auto"})))
@@ -52,6 +52,7 @@
       "Attributes"
       (->> (dx/attributes> db explorer/cols)
            (m/reductions conj [])
+           (m/relieve {})
            new
            (sort-by :db/ident)) ; sort by db/ident which isn't available
       {::explorer/page-size 15
@@ -142,7 +143,7 @@
       ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
       (new (->> (dx/entity-history-datoms> db e)
                 (m/reductions conj []) ; track a running count as well?
-                (m/latest identity))) ; fixme buffer
+                (m/relieve {})))
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em 10em 3em auto auto 9em"})))
@@ -158,7 +159,8 @@
     (Explorer.
       (str "Attribute detail: " a)
       (new (->> (d/datoms> db {:index :aevt, :components [a]})
-                (m/reductions conj [])))
+                (m/reductions conj [])
+                (m/relieve {})))
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
@@ -175,7 +177,8 @@
       (str "Tx detail: " e)
       (new (->> (d/tx-range> conn {:start e, :end (inc e)}) ; global
                 (m/eduction (map :data) cat)
-                (m/reductions conj []))) ; track a running count as well; fixme buffer
+                (m/reductions conj [])
+                (m/relieve {})))
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
