@@ -45,7 +45,8 @@
   (omit-keys-ns :c {::a 1 :b 2 :c/c 3}) := {::a 1 :b 2}
   (omit-keys-ns :c nil) := nil
   (omit-keys-ns nil {::a 1 :b 2 :c/c 3}) :throws #?(:clj AssertionError :cljs js/Error)
-  (omit-keys-ns nil nil) :throws #?(:clj AssertionError :cljs js/Error))
+  (omit-keys-ns nil nil) :throws #?(:clj AssertionError :cljs js/Error)
+  nil)
 
 (defn -auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
   [ns props defaults-qualified]
@@ -54,8 +55,8 @@
 
 (defmacro auto-props
   ([ns props defaults-qualified] `(-auto-props ~ns ~props ~defaults-qualified))
-  ([props defaults-qualified] `(auto-props (str *ns*) ~props ~defaults-qualified))
-  ([props] `(auto-props ~props {})))
+  ([props defaults-qualified] `(-auto-props ~(str *ns*) ~props ~defaults-qualified))
+  ([props] `(-auto-props ~(str *ns*) ~props {})))
 
 (tests
   (auto-props "user" {:a 1} {:dom/class "a"}) := {:user/a 1 :dom/class "a"}
