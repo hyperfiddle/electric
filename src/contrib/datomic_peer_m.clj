@@ -1,7 +1,7 @@
 (ns contrib.datomic-peer-m
   (:require [clojure.core.protocols :as ccp :refer [nav]]
             [clojure.datafy :refer [datafy]]
-            [contrib.data :refer [omit-keys-ns]]
+            [contrib.data :refer [omit-keys-ns auto-props]]
             [contrib.missionary-contrib :as mx]
             [datomic.api :as d]
             [missionary.core :as m]
@@ -19,6 +19,17 @@
 (defn connect [uri] (d/connect uri))
 
 (defn db [conn] (m/sp (d/db conn)))
+
+(def db-stats
+  (let [x (try @(requiring-resolve 'datomic.api/db-stats) ; since 1.0.6344
+               ; Cannot invoke "java.util.concurrent.Future.get()" because "fut" is null
+               (catch NullPointerException e
+                 (ex-info "datomic.api/db-stats not available, check Datomic version >= 1.0.6344" {})))]
+    (fn db-stats [db]
+      (m/sp (if (instance? Exception x)
+              (throw x) (x db))))))
+
+(comment (m/? (db-stats user/datomic-db)))
 
 (extend-protocol ccp/Datafiable
   Datum
@@ -58,14 +69,15 @@
 
 (defn pull-sorted
   ([db {:keys [selector eid] :as arg-map}] (pull-sorted db selector eid (dissoc arg-map :selector :eid)))
-  ([db pattern eid & [{:keys [::compare]}]]
-   (m/sp (let [tree (m/? (pull db pattern eid))]
-           (if compare
-             ; Use datafy/nav to sort on the fly? or pre-sort here?
-             ; need to know cardinality many attrs and sort on nav
-             ; unless we can use datoms API to make datomic sort them
-             (m/? (m/via m/blk (into (sorted-map-by compare) tree)))
-             tree)))))
+  ([db pattern eid & [arg-map]]
+   (let [{:keys [::compare]} (auto-props arg-map)]
+     (m/sp (let [tree (m/? (pull db pattern eid))]
+             (if compare
+               ; Use datafy/nav to sort on the fly? or pre-sort here?
+               ; need to know cardinality many attrs and sort on nav
+               ; unless we can use datoms API to make datomic sort them
+               (m/? (m/via m/blk (into (sorted-map-by compare) tree)))
+               tree))))))
 
 (tests
   "pulls are sorted at top layer"
@@ -74,17 +86,6 @@
 
   "pulls are sorted at intermedate layers"
   'todo)
-
-(def db-stats
-  (let [x (try @(requiring-resolve 'datomic.api/db-stats) ; since 1.0.6344
-               ; Cannot invoke "java.util.concurrent.Future.get()" because "fut" is null
-               (catch NullPointerException e
-                 (ex-info "datomic.api/db-stats not available, check Datomic version >= 1.0.6344" {})))]
-    (fn db-stats [db]
-      (m/sp (if (instance? Exception x)
-              (throw x) (x db))))))
-
-(comment (m/? (db-stats user/datomic-db)))
 
 (defn datoms>
   ([db {:keys [index components]}] (apply datoms> db index components))
@@ -133,6 +134,20 @@
        (m/reduce conj []) m/?)
   := [[13194139534312 50 #inst"2015-06-03T02:05:51.541-00:00" 13194139534312 true]])
 
+(defn query [arg-map] (m/sp (d/query arg-map)))
+
+(defn q
+  ([query & inputs] (query {:query q :args inputs}))
+  #_([arg-map] (query arg-map))) ; collision with zero input call
+
+(tests
+  (take 3 (m/? (query {:query '[:find (pull ?e [:db/ident]) ?f
+                            :where [?e :db/valueType ?f]]
+                       :args [user/datomic-db]})))
+  := [[#:db{:ident :db/system-tx} 21]
+      [#:db{:ident :db.sys/partiallyIndexed} 24]
+      [#:db{:ident :db.sys/reId} 20]])
+
 (defn qseq [query-map] (mx/seq-consumer (d/qseq query-map)))
 
 (tests
@@ -144,3 +159,5 @@
   := [[#:db{:ident :db/system-tx} 21]
       [#:db{:ident :db.sys/partiallyIndexed} 24]
       [#:db{:ident :db.sys/reId} 20]])
+
+(defn history [db] (m/sp (d/history db)))
