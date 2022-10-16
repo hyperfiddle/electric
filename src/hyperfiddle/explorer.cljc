@@ -6,13 +6,14 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet RenderTableInfinite]]
-            [hyperfiddle.rcf :refer [tests tap % with]]
-            [user.util :refer [includes-str? pprint-str]])
+            [hyperfiddle.rcf :refer [tests tap % with]])
   #?(:cljs (:require-macros hyperfiddle.explorer)))
 
 ; all explorer bindings and p/fns must be called from server
 (p/def Children (p/fn [m] nil))
-(p/def Search? (p/fn [m s] (includes-str? m s))) ; could be clojure fn
+(p/def Search? (p/fn [m s] ; todo make cc/fn
+                 (clojure.string/includes? (clojure.string/lower-case (str m))
+                                           (clojure.string/lower-case (str s)))))
 
 (p/def TreeList')
 (p/defn TreeList [xs needle]
