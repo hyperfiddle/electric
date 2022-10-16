@@ -2,6 +2,7 @@
   (:require [contrib.data :refer [index-by unqualify]]
             contrib.datomic-common-contrib
             [contrib.datomic-cloud-m :as d]
+            [hyperfiddle.photon :as p] ; ?
             [hyperfiddle.rcf :refer [tests % tap]]
             [missionary.core :as m]))
 
@@ -16,7 +17,6 @@
 (def identify contrib.datomic-common-contrib/identify)
 (def identify contrib.datomic-common-contrib/identities)
 (def reverse-attr contrib.datomic-common-contrib/reverse-attr)
-(def entity-tree-entry-children contrib.datomic-common-contrib/entity-tree-entry-children)
 
 (defn attributes>
   ([db] (attributes> db [:db/ident]))
@@ -55,10 +55,20 @@
            ; todo - only load the attrs that the renderers actually needs
            (index-by :db/ident)))))
 
-(comment
+(defn schema> [db] (p/task->cp (schema! db)))
+
+(tests
   (:db/ident (m/? (schema! user/db)))
+  := #:db{:ident :db/ident,
+          :valueType #:db{:ident :db.type/keyword},
+          :cardinality #:db{:ident :db.cardinality/one}}
+
   (:db/id (m/? (schema! user/db)))
-  (m/? (schema! user/db)))
+  := #:db{:ident :db/id,
+          :cardinality #:db{:ident :db.cardinality/one},
+          :valueType #:db{:ident :db.type/long}}
+
+  (count (m/? (schema! user/db))))
 
 ;#?(:clj (defn before? [^java.util.Date a ^java.util.Date b] (<= (.getTime a) (.getTime b))))
 ;(defn- xf-filter-before-date [before] #?(:clj (filter (fn [[tx e a v added?]] (before? t before)))))

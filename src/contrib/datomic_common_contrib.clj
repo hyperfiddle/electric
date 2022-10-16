@@ -1,4 +1,5 @@
 (ns contrib.datomic-common-contrib
+  ; is this contrib.datomic-photon ?
   (:require [contrib.data :refer [index-by unqualify]]
             [hyperfiddle.rcf :refer [tests % tap]]
             [missionary.core :as m]))
@@ -48,33 +49,3 @@
   (reverse-attr :foo/bar) := :foo/_bar
   (reverse-attr nil) := nil
   (reverse-attr :foo/_bar) := :foo/bar)
-
-(defn entity-tree-entry-children [schema [k v :as row]] ; row is either a map-entry or [0 {:db/id _}]
-  ; This shorter expr works as well but is a bit "lucky" with types in that you cannot see
-  ; the intermediate cardinality many traversal. Unclear what level of power is needed here
-  ;(cond
-  ;  (map? v) (into (sorted-map) v)
-  ;  (sequential? v) (index-by identify v))
-
-  ; this controlled way dispatches on static schema to clarify the structure
-  (cond
-    (contains? schema k)
-    (let [x ((juxt (comp unqualify identify :db/valueType)
-                   (comp unqualify identify :db/cardinality)) (k schema))]
-      (case x
-        [:ref :one] (into (sorted-map) v) ; todo lift sort to the pull object
-        [:ref :many] (index-by identify v) ; can't sort, no sort key
-        nil #_(println `unmatched x))) ; no children
-
-    ; in card :many traversals k can be an index or datomic identifier, like
-    ; [0 {:db/id 20512488927800905}]
-    ; [20512488927800905 {:db/id 20512488927800905}]
-    ; [:release.type/single {:db/id 35435060739965075, :db/ident :release.type/single}]
-    (number? k) (into (sorted-map) v)
-
-    () (assert false (str "unmatched tree entry, k: " k " v: " v))))
-
-;(tests
-;  ; watch out, test schema needs to match
-;  (def schema (m/? (schema! user/datomic-db))) ; not available here
-;  (entity-tree-entry-children schema [:geocode/data #:db{:id 17592212633436}]))
