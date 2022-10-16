@@ -1,7 +1,7 @@
 (ns hyperfiddle.datomic-browser
   (:require [contrib.data :refer [index-by unqualify]]
-            #?(:clj [contrib.datomic-cloud-contrib :as dx])
-            [contrib.datomic-cloud-m #?(:clj :as :cljs :as-alias) d]
+            #?(:clj [contrib.datomic-contrib :as dx])
+            [contrib.datomic-m #?(:clj :as :cljs :as-alias) d]
             clojure.edn
             [contrib.ednish :as ednish]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
@@ -110,7 +110,7 @@
             explorer/Format Format-entity]
     (Explorer.
       (str "Entity detail: " e) ; treeview on the entity
-      (new (p/task->cp (d/pull! db {:eid e :selector ['*] ::d/compare compare}))) ; todo inject sort
+      (new (p/task->cp (d/pull db {:eid e :selector ['*] ::d/compare compare}))) ; todo inject sort
       {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em auto"})))
@@ -124,10 +124,10 @@
                                   ::op (name (case op true :db/add false :db/retract))
                                   ::e (p/client (Link. [::entity e] e))
                                   ::a (if (some? aa)
-                                        (:db/ident (new (p/task->cp (d/pull! db {:eid aa :selector [:db/ident]})))))
+                                        (:db/ident (new (p/task->cp (d/pull db {:eid aa :selector [:db/ident]})))))
                                   ::v (some-> v pr-str)
                                   ::tx (p/client (Link. [::tx tx] tx))
-                                  ::tx-instant (pr-str (:db/txInstant (new (p/task->cp (d/pull! db {:eid tx :selector [:db/txInstant]})))))
+                                  ::tx-instant (pr-str (:db/txInstant (new (p/task->cp (d/pull db {:eid tx :selector [:db/txInstant]})))))
                                   (str v))))]
     (Explorer.
       (str "Entity history: " (pr-str e))
