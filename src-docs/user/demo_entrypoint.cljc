@@ -29,7 +29,7 @@
             wip.typeahead)
   #?(:cljs (:require-macros user.demo-entrypoint)))
 
-(defonce !demo-index #?(:clj (atom 0) :cljs nil))
+(defonce !demo-index #?(:clj (atom 0) :cljs nil)) (comment (reset! !demo-index 0))
 ;(p/def !demo-index (p/server (atom {:text "hello world" ::value user.demo-1-hello-world/App})))
 (p/def index (p/server (p/watch !demo-index)))
 
