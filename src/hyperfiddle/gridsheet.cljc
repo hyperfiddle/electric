@@ -25,7 +25,7 @@
   (check odd? 1) := 1)
 
 (p/defn GridSheet [xs props]
-  (let [props (auto-props props)
+  (let [props (auto-props props {::dom/class "hyperfiddle-gridsheet"})
         {:keys [::columns
                 ::grid-template-columns
                 ::row-height ; px, same unit as scrollTop
@@ -35,6 +35,7 @@
         row-count (count rows)]
     (assert columns)
     (p/client
+      (dom/link {:rel :stylesheet, :href "gridsheet.css"})
       (dom/div {::dom/role "grid"
                 ::dom/class (::dom/class props)
                 ::dom/style (merge (::dom/style props)
