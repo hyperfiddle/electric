@@ -5,6 +5,41 @@
             [hyperfiddle.rcf :refer [tests]])
   (:import (missionary Cancelled)))
 
+(defn iterator-consumer "blocking iterable pattern"
+  [^java.util.Iterator it]
+  ; why not one thread tied to the iterator extent?
+  ; (future (while (.hasNext it) (! (.next it))))
+  (m/ap
+    (loop []
+      (if (m/? (m/via m/blk (.hasNext it)))
+        (m/amb (m/? (m/via m/blk (.next it))) (recur))
+        (m/amb)))))
+
+(defn seq-consumer [xs] ; xs is iterable
+  (m/ap
+    (loop [xs xs]
+      (if (m/? (m/via m/blk (seq xs)))
+        (m/amb (m/? (m/via m/blk (first xs))) (recur (rest xs)))
+        (m/amb)))))
+
+#?(:clj
+   (tests
+     (def !it (.iterator (.keySet (java.lang.System/getProperties))))
+     (->> (iterator-consumer !it)
+          (m/eduction (take 3))
+          (m/reduce conj []) m/?)
+     := ["java.specification.version" "sun.jnu.encoding" "java.class.path"]
+
+     ; careful, Java iterator is stateful
+
+     (def xs (iterator-seq (.iterator (.keySet (java.lang.System/getProperties)))))
+     (take 3 xs) := ["java.specification.version" "sun.jnu.encoding" "java.class.path"]
+
+     (->> (seq-consumer xs)
+          (m/eduction (take 3))
+          (m/reduce conj []) m/?)
+     := ["java.specification.version" "sun.jnu.encoding" "java.class.path"]))
+
 ; Core.async interop
 
 (defn poll-task "run task (or mbox) repeatedly, producing a stream of results"
