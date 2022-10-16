@@ -2,14 +2,13 @@
   (:require [contrib.data :refer [index-by unqualify]]
             contrib.datomic-common-contrib
             [contrib.datomic-peer-m :as d]
-            [hyperfiddle.photon :as p] ; todo TBD if this is OK, we don't know the idioms yet
+            [hyperfiddle.photon :as p] ; ?
             [hyperfiddle.rcf :refer [tests % tap]]
             [missionary.core :as m]))
 
 (def identify contrib.datomic-common-contrib/identify)
 (def identities contrib.datomic-common-contrib/identities)
 (def reverse-attr contrib.datomic-common-contrib/reverse-attr)
-(def entity-tree-entry-children contrib.datomic-common-contrib/entity-tree-entry-children)
 
 (defn attributes>
   ([db] (attributes> db [:db/ident]))

@@ -2,9 +2,8 @@
   (:require [clojure.datafy :refer [datafy]]
             [clojure.core.protocols :refer [nav]]
             [contrib.data :refer [unqualify index-by]]
-            [contrib.datomic-contrib :as dx
-             #?@(:clj (:refer [schema! ident! entity-history-datoms> attributes>]))]
-            [contrib.datomic-missionary #?(:clj :as :cljs :as-alias) d]
+            #?(:clj [contrib.datomic-cloud-contrib :as dx])
+            [contrib.datomic-cloud-m #?(:clj :as :cljs :as-alias) d]
             [missionary.core :as m]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
             [hyperfiddle.gridsheet :as-alias gridsheet]
@@ -12,7 +11,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.rcf :refer [tests ! %]]
-            #?(:cljs [hyperfiddle.router :as router])
+            #?(:cljs [hyperfiddle.router :as router :refer [Link]])
             [contrib.ednish :as ednish]
             [user.util :refer [includes-str? pprint-str]]
             [clojure.edn :as edn])
@@ -22,31 +21,12 @@
 (p/def conn)
 (p/def db)
 (p/def schema) ; schema is available in all explorer renderers
-(p/def !path (p/client (m/mbx)))
-
-#?(:cljs (def read-edn-str (partial clojure.edn/read-string {:readers {'goog.math/Long goog.math.Long/fromString}})))
-
-#?(:cljs (defn decode-path [path] {:pre [(string? path) (some? read-edn-str)]}
-           (if-not (= path "/")
-             (-> path (subs 1) ednish/decode read-edn-str)
-             [::summary])))
-
-#?(:cljs (defn encode-path [route] (->> route pr-str ednish/encode (str "/"))))
-
-(p/defn Nav-link [route label]
-  (p/client
-    (let [path (encode-path route)]
-      (ui/element dom/a {::dom/href path ; middle click
-                         ::ui/click-event (p/fn [e]
-                                            (.preventDefault e)
-                                            (println "nav-link clicked, route: " route)
-                                            (router/pushState! !path path))} label))))
 
 (p/defn RecentTx []
   (binding [explorer/cols [:db/id :db/txInstant]
             explorer/Format (p/fn [[e _ v tx op :as record] a]
                               (case a
-                                :db/id (Nav-link. [::tx tx] tx)
+                                :db/id (p/client (Link. [::tx tx] tx))
                                 :db/txInstant (pr-str v) #_(p/client (.toLocaleDateString v))))]
     (Explorer.
       "Recent Txs"
@@ -63,14 +43,14 @@
             explorer/Format (p/fn [row col]
                               (let [v (col row)]
                                 (case col
-                                  :db/ident (Nav-link. [::attribute v] v)
+                                  :db/ident (p/client (Link. [::attribute v] v))
                                   :db/valueType (some-> v :db/ident name)
                                   :db/cardinality (some-> v :db/ident name)
                                   :db/unique (some-> v :db/ident name)
                                   (str v))))]
     (Explorer.
       "Attributes"
-      (->> (attributes> db explorer/cols)
+      (->> (dx/attributes> db explorer/cols)
            (m/reductions conj [])
            new
            (sort-by :db/ident)) ; sort by db/ident which isn't available
@@ -82,26 +62,60 @@
   (def cobblestone 536561674378709)
   (m/? (d/pull! user/db {:eid cobblestone :selector ['*]})))
 
+(p/defn Format-entity [[k v :as row] col]
+  (assert (some? schema))
+  (case col
+    ::k (cond
+          (= :db/id k) k ; :db/id is our schema extension, can't nav to it
+          (contains? schema k) (p/client (Link. [::attribute k] k))
+          () (str k)) ; str is needed for Long db/id, why?
+    ::v (if-not (coll? v) ; don't render card :many intermediate row
+          (let [[valueType cardinality]
+                ((juxt (comp unqualify dx/identify :db/valueType)
+                       (comp unqualify dx/identify :db/cardinality)) (k schema))]
+            (cond
+              (= :db/id k) (p/client (Link. [::entity v] v))
+              (= :ref valueType) (p/client (Link. [::entity v] v))
+              () (pr-str v))))))
+
+#?(:clj
+   (defn entity-tree-entry-children [schema [k v :as row]] ; row is either a map-entry or [0 {:db/id _}]
+     ; This shorter expr works as well but is a bit "lucky" with types in that you cannot see
+     ; the intermediate cardinality many traversal. Unclear what level of power is needed here
+     ;(cond
+     ;  (map? v) (into (sorted-map) v)
+     ;  (sequential? v) (index-by identify v))
+
+     ; this controlled way dispatches on static schema to clarify the structure
+     (cond
+       (contains? schema k)
+       (let [x ((juxt (comp unqualify dx/identify :db/valueType)
+                      (comp unqualify dx/identify :db/cardinality)) (k schema))]
+         (case x
+           [:ref :one] (into (sorted-map) v) ; todo lift sort to the pull object
+           [:ref :many] (index-by dx/identify v) ; can't sort, no sort key
+           nil #_(println `unmatched x))) ; no children
+
+       ; in card :many traversals k can be an index or datomic identifier, like
+       ; [0 {:db/id 20512488927800905}]
+       ; [20512488927800905 {:db/id 20512488927800905}]
+       ; [:release.type/single {:db/id 35435060739965075, :db/ident :release.type/single}]
+       (number? k) (into (sorted-map) v)
+
+       () (assert false (str "unmatched tree entry, k: " k " v: " v)))))
+
+(comment
+  ; watch out, test schema needs to match
+  (def schema (m/? (dx/schema! user/db))) ; not available here
+  (entity-tree-entry-children schema [:medium/tracks #:db{:id 17592212633436}]))
+
 (p/defn EntityDetail [e]
   (assert e)
   (binding [explorer/cols [::k ::v]
-            explorer/Children (p/fn [m] (dx/entity-tree-entry-children schema m))
+            explorer/Children (p/fn [m] (entity-tree-entry-children schema m))
             explorer/Search? (p/fn [[k v :as row] s] (or (includes-str? k s)
                                                          (includes-str? (if-not (map? v) v) s)))
-            explorer/Format (p/fn [[k v :as row] col]
-                              (case col
-                                ::k (cond
-                                      (= :db/id k) k ; :db/id is our schema extension, can't nav to it
-                                      (contains? schema k) (Nav-link. [::attribute k] k)
-                                      () (str k)) ; str is needed for Long db/id, why?
-                                ::v (if-not (coll? v) ; don't render card :many intermediate row
-                                      (let [[valueType cardinality]
-                                            ((juxt (comp unqualify dx/identify :db/valueType)
-                                                   (comp unqualify dx/identify :db/cardinality)) (k schema))]
-                                        (cond
-                                          (= :db/id k) (Nav-link. [::entity v] v)
-                                          (= :ref valueType) (Nav-link. [::entity v] v)
-                                          () (pr-str v))))))]
+            explorer/Format Format-entity]
     (Explorer.
       (str "Entity detail: " e) ; treeview on the entity
       (new (p/task->cp (d/pull! db {:eid e :selector ['*] ::d/compare compare}))) ; todo inject sort
@@ -116,17 +130,17 @@
                               (when row ; when this view unmounts, somehow this fires as nil
                                 (case a
                                   ::op (name (case op true :db/add false :db/retract))
-                                  ::e (Nav-link. [::entity e] e)
+                                  ::e (p/client (Link. [::entity e] e))
                                   ::a (if (some? aa)
                                         (:db/ident (new (p/task->cp (d/pull! db {:eid aa :selector [:db/ident]})))))
                                   ::v (some-> v pr-str)
-                                  ::tx (Nav-link. [::tx tx] tx)
+                                  ::tx (p/client (Link. [::tx tx] tx))
                                   ::tx-instant (pr-str (:db/txInstant (new (p/task->cp (d/pull! db {:eid tx :selector [:db/txInstant]})))))
                                   (str v))))]
     (Explorer.
       (str "Entity history: " (pr-str e))
       ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
-      (new (->> (entity-history-datoms> db e)
+      (new (->> (dx/entity-history-datoms> db e)
                 (m/reductions conj []) ; track a running count as well?
                 (m/latest identity))) ; fixme buffer
       {::explorer/page-size 20
@@ -137,10 +151,10 @@
   (binding [explorer/cols [:e :a :v :tx]
             explorer/Format (p/fn [[e _ v tx op :as x] k]
                               (case k
-                                :e (Nav-link. [::entity e] e)
-                                :a (pr-str a) #_(let [aa (new (p/task->cp (ident! db aa)))] aa)
-                                :v (some-> v pr-str)
-                                :tx (Nav-link. [::tx tx] tx)))]
+                                :e (p/client (Link. [::entity e] e))
+                                :a (pr-str a) #_(let [aa (new (p/task->cp (dx/ident! db aa)))] aa)
+                                :v (some-> v pr-str) ; when a is ref, render link
+                                :tx (p/client (Link. [::tx tx] tx))))]
     (Explorer.
       (str "Attribute detail: " a)
       (new (->> (d/datoms> db {:index :aevt, :components [a]})
@@ -153,9 +167,9 @@
   (binding [explorer/cols [:e :a :v :tx]
             explorer/Format (p/fn [[e aa v tx op :as x] a]
                               (case a
-                                :e (let [e (new (p/task->cp (ident! db e)))] (Nav-link. [::entity e] e))
-                                :a (let [aa (new (p/task->cp (ident! db aa)))] (Nav-link. [::attribute aa] aa))
-                                :v (pr-str v)
+                                :e (let [e (new (p/task->cp (dx/ident! db e)))] (p/client (Link. [::entity e] e)))
+                                :a (let [aa (new (p/task->cp (dx/ident! db aa)))] (p/client (Link. [::attribute aa] aa)))
+                                :v (pr-str v) ; when a is ref, render link
                                 (str tx)))]
     (Explorer.
       (str "Tx detail: " e)
@@ -179,26 +193,39 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
 
+(p/defn Page [[page x :as route]]
+  (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
+  (dom/h1 "Datomic browser")
+  (dom/div {:class "user-datomic-browser"}
+    (dom/pre (pr-str route))
+    (dom/div "Nav: "
+      (Link. [::summary] "home") " "
+      (Link. [::db-stats] "db-stats") " "
+      (Link. [::recent-tx] "recent-tx"))
+    (p/server
+      (case page
+        ::summary (Attributes.)
+        ::attribute (AttributeDetail. x)
+        ::tx (TxDetail. x)
+        ::entity (do (EntityDetail. x) (EntityHistory. x))
+        ::db-stats (DbStats.)
+        ::recent-tx (RecentTx.)
+        (str "no matching route: " (pr-str page))))))
+
+#?(:cljs (def read-edn-str (partial clojure.edn/read-string {:readers {'goog.math/Long goog.math.Long/fromString}})))
+
+#?(:cljs (defn decode-path [path] {:pre [(string? path) (some? read-edn-str)]}
+           (if-not (= path "/")
+             (-> path (subs 1) ednish/decode read-edn-str)
+             [::summary])))
+
+#?(:cljs (defn encode-path [route] (->> route pr-str ednish/encode (str "/"))))
+
 (p/defn App []
   (binding [conn @(requiring-resolve 'user/datomic-conn)]
     (binding [db (d/db conn)]
-      (binding [schema (new (p/task->cp (schema! db)))]
+      (binding [schema (new (dx/schema> db))]
         (p/client
-          (let [[page x :as route] (decode-path (new (router/path> !path)))]
-            (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
-            (dom/h1 "Datomic browser")
-            (dom/div {:class "user-datomic-browser"}
-              (dom/pre (pr-str route))
-              (dom/div "Nav: "
-                (Nav-link. [::summary] "home") " "
-                (Nav-link. [::db-stats] "db-stats") " "
-                (Nav-link. [::recent-tx] "recent-tx"))
-              (p/server
-                (case page
-                  ::summary (Attributes.)
-                  ::attribute (AttributeDetail. x)
-                  ::tx (TxDetail. x)
-                  ::entity (do (EntityDetail. x) (EntityHistory. x))
-                  ::db-stats (DbStats.)
-                  ::recent-tx (RecentTx.)
-                  (str "no matching route: " (pr-str page)))))))))))
+          (let [!path (m/mbx)]
+            (binding [Link (router/->Link. !path encode-path)]
+              (Page. (decode-path (router/path !path))))))))))
