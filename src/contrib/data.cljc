@@ -34,11 +34,15 @@
   (unqualify nil) := nil
   (unqualify "") :throws #?(:clj AssertionError :cljs js/Error))
 
-(defn omit-keys-ns [ns ?m]
+(defn -omit-keys-ns [ns ?m]
   {:pre [(some? ns)]}
   (when ?m
     (reduce-kv (fn [m k v] (if (= (name ns) (namespace k))
                              m (assoc m k v))) {} ?m)))
+
+(defmacro omit-keys-ns
+  ([?m] `(-omit-keys-ns ~(str *ns*) ~?m))
+  ([ns- ?m] `(-omit-keys-ns ~ns- ~?m)))
 
 (tests
   (omit-keys-ns :c {::a 1 :b 2 :c/c 3}) := {::a 1 :b 2}
