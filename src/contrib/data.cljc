@@ -23,8 +23,8 @@
   "Strip namespace from keyword, discarding it and return unqualified keyword. Nil-safe.
   (unqualify :db.type/ref) -> :ref"
   [?qualified-kw]
-  {:pre [(or (nil? ?qualified-kw)
-             (qualified-keyword? ?qualified-kw))]}
+  (assert (or (nil? ?qualified-kw)
+              (qualified-keyword? ?qualified-kw)) (str " can't unqualify: " ?qualified-kw))
   (if ?qualified-kw
     (keyword (name ?qualified-kw))))
 
