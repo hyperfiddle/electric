@@ -1,6 +1,7 @@
 (ns contrib.data
   (:require clojure.math
-            [hyperfiddle.rcf :refer [tests]]))
+            [hyperfiddle.rcf :refer [tests]])
+  #?(:cljs (:require-macros [contrib.data :refer [auto-props]])))
 
 (defn qualify
   "Qualify a keyword with a namespace. If already qualified, leave kw untouched. Nil-safe.
@@ -46,8 +47,9 @@
   (omit-keys-ns nil {::a 1 :b 2 :c/c 3}) :throws #?(:clj AssertionError :cljs js/Error)
   (omit-keys-ns nil nil) :throws #?(:clj AssertionError :cljs js/Error))
 
-(defn auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
+(defn -auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
   [ns props defaults-qualified]
+  {:pre [(some? ns) (or (string? ns) (symbol? ns))]}
   (merge defaults-qualified (update-keys props (partial qualify ns))))
 
 (defn index-by [kf xs]
@@ -56,6 +58,18 @@
                           [(kf x i) ; fallback to index when key is not present
                            #_(if-not kf (kf x i) i) ; alternative design is to define nil kf as fallback
                            x])) xs))
+(defmacro auto-props
+  ([ns props defaults-qualified] `(-auto-props ~ns ~props ~defaults-qualified))
+  ([props defaults-qualified] `(auto-props (str *ns*) ~props ~defaults-qualified))
+  ([props] `(auto-props ~props {})))
+
+(tests
+  (auto-props "user" {:a 1} {:dom/class "a"}) := {:user/a 1 :dom/class "a"}
+  (auto-props 'user {:a 1} {:dom/class "a"}) := {:user/a 1 :dom/class "a"}
+  (auto-props *ns* {:a 1} {:dom/class "a"}) :throws #?(:clj AssertionError :cljs js/Error)
+  (auto-props {:a 1} {:dom/class "a"}) := {:contrib.data/a 1 :dom/class "a"}
+  (auto-props {:a 1}) := {:contrib.data/a 1})
+
 
 (tests
   (def xs [{:db/ident :foo :a 1}
