@@ -1,19 +1,24 @@
 (ns hyperfiddle.explorer
   (:require [clojure.set :refer [rename-keys]]
-            [contrib.data :refer [unqualify auto-props]]
+            [contrib.data :refer [auto-props unqualify]]
             [clojure.datafy :refer [datafy]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
-            [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet RenderTableInfinite]]
+            [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet]]
             [hyperfiddle.rcf :refer [tests tap % with]])
   #?(:cljs (:require-macros hyperfiddle.explorer)))
 
+(defn includes-str? [m s]
+  ; common utility for explorer search,
+  ; note this should be done by the database though
+  (clojure.string/includes? (clojure.string/lower-case (str m))
+                            (clojure.string/lower-case (str s))))
+
 ; all explorer bindings and p/fns must be called from server
+
 (p/def Children (p/fn [m] nil))
-(p/def Search? (p/fn [m s] ; todo make cc/fn
-                 (clojure.string/includes? (clojure.string/lower-case (str m))
-                                           (clojure.string/lower-case (str s)))))
+(p/def Search? (p/fn [m s] (includes-str? m s))) ; todo make cc/fn
 
 (p/def TreeList')
 (p/defn TreeList [xs needle]
@@ -39,7 +44,7 @@
        % := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]])))
 
 (p/def cols nil)
-(p/def Format (p/server (p/fn [m a v] (pr-str v))))
+(p/def Format (p/server (p/fn [row col] (pr-str (get row col)))))
 
 (p/defn Explorer [title xs props] ; o is an entity with recursive children
   (p/client

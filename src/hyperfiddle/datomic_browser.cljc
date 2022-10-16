@@ -1,21 +1,16 @@
-(ns user.datomic-browser
-  (:require [clojure.datafy :refer [datafy]]
-            [clojure.core.protocols :refer [nav]]
-            [contrib.data :refer [unqualify index-by]]
+(ns hyperfiddle.datomic-browser
+  (:require [contrib.data :refer [index-by unqualify]]
             #?(:clj [contrib.datomic-cloud-contrib :as dx])
             [contrib.datomic-cloud-m #?(:clj :as :cljs :as-alias) d]
-            [missionary.core :as m]
+            clojure.edn
+            [contrib.ednish :as ednish]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
             [hyperfiddle.gridsheet :as-alias gridsheet]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui]
-            [hyperfiddle.rcf :refer [tests ! %]]
             #?(:cljs [hyperfiddle.router :as router :refer [Link]])
-            [contrib.ednish :as ednish]
-            [user.util :refer [includes-str? pprint-str]]
-            [clojure.edn :as edn])
-  #?(:cljs (:require-macros user.datomic-browser))
+            [missionary.core :as m])
+  #?(:cljs (:require-macros hyperfiddle.datomic-browser))
   #?(:cljs (:import [goog.math Long]))) ; only this require syntax passes shadow in this file, why?
 
 (p/def conn)
@@ -59,10 +54,6 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "auto 6em 4em 4em 4em"})))
 
-(comment
-  (def cobblestone 536561674378709)
-  (m/? (d/pull! user/db {:eid cobblestone :selector ['*]})))
-
 (p/defn Format-entity [[k v :as row] col]
   (assert (some? schema))
   (case col
@@ -87,7 +78,7 @@
      ;  (map? v) (into (sorted-map) v)
      ;  (sequential? v) (index-by identify v))
 
-     ; this controlled way dispatches on static schema to clarify the structure
+     ; instead, dispatch on static schema in controlled way to reveal the structure
      (cond
        (contains? schema k)
        (let [x ((juxt (comp unqualify dx/identify :db/valueType)
@@ -114,8 +105,8 @@
   (assert e)
   (binding [explorer/cols [::k ::v]
             explorer/Children (p/fn [m] (entity-tree-entry-children schema m))
-            explorer/Search? (p/fn [[k v :as row] s] (or (includes-str? k s)
-                                                         (includes-str? (if-not (map? v) v) s)))
+            explorer/Search? (p/fn [[k v :as row] s] (or (explorer/includes-str? k s)
+                                                         (explorer/includes-str? (if-not (map? v) v) s)))
             explorer/Format Format-entity]
     (Explorer.
       (str "Entity detail: " e) ; treeview on the entity
@@ -186,8 +177,8 @@
 (p/defn DbStats []
   (binding [explorer/cols [::k ::v]
             explorer/Children (p/fn [[k v :as row]] (if (map? v) (into (sorted-map) v))) ; todo move sort into pull
-            explorer/Search? (p/fn [[k v :as row] s] (or (includes-str? k s)
-                                                         (includes-str? (if-not (map? v) v) s)))
+            explorer/Search? (p/fn [[k v :as row] s] (or (explorer/includes-str? k s)
+                                                         (explorer/includes-str? (if-not (map? v) v) s)))
             explorer/Format (p/fn [[k v :as row] col] (case col ::k k ::v v))]
     (Explorer.
       (str "Db Stats:")
