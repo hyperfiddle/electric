@@ -5,10 +5,8 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [missionary.core :as m])
-  (:import [missionary Cancelled]))
-
-;(p/def !path (m/mbx)) -- fixme, photon bug https://www.notion.so/hyperfiddle/p-def-in-cljs-file-does-not-register-photon-node-meta-on-the-cljs-var-there-is-no-such-var-on-the--da302349e1ed4c6d9e0cd6e32dfd472c
-(p/def routes {})
+  (:import [missionary Cancelled])
+  (:require-macros [hyperfiddle.router :refer [path]]))
 
 (defn pushState!
   ;([path] (pushState! !path path))
@@ -67,33 +65,37 @@
   ; must sample terminal value to cause m/observe to unmount - due to backpressure
   (it) % := ::notify @it :throws missionary.Cancelled) ; Mailbox fetch cancelled.
 
+(p/def Link) ; bind this to result of ->Link
+(p/defn ->Link [!path encode]
+  (p/fn [route label]
+    (p/client
+      (let [path (encode route)]
+        (ui/element dom/a {::dom/href path ; middle click
+                           ::ui/click-event (p/fn [e]
+                                              (.preventDefault e)
+                                              (pushState! !path path))} label)))))
+
 ; Demo
 
-(p/defn Link [!path route label] ; todo !path should be dynamic - photon bug
-  (let [href (get (clojure.set/map-invert routes) route route)] ; backwards compat
-    (ui/element dom/a {::dom/href href
-                       ::ui/click-event (p/fn [e]
-                                          (pushState! !path href)
-                                          (.preventDefault e))} label)))
-;(defn -resolve-dynamic [] #'!path)
-
-(p/defn App []
-  ;(println `path !path (meta (-resolve-dynamic)))
-  ;(binding [!path (m/mbx)])
-  (let [!path (m/mbx)
-        path (new (m/relieve {} (path> !path)))]
-    (PathRouterDemo. !path path)
-    (NamedRouterDemo. !path path)))
-
-(p/defn PathRouterDemo [!path path]
+(p/defn PathRouterDemo [path]
   (case path
-    "/" (do (dom/h1 "Home") (Link. !path "/a" "a"))
-    "/a" (do (dom/h1 "A") (Link. !path "/" "home"))
-    (do (dom/h1 "404, route: " (pr-str path)) (Link. !path "/" "home"))))
+    "/" (do (dom/h1 "Home") (Link. "/a" "a"))
+    "/a" (do (dom/h1 "A") (Link. "/" "home"))
+    (do (dom/h1 "404, route: " (pr-str path)) (Link. "/" "home"))))
 
-(p/defn NamedRouterDemo [!path path]
-  (binding [routes {"/" ::home "/a" ::a}] ; optional
-    (case (routes path)
-      ::home (do (dom/h1 "Home") (Link. !path ::a "a"))
-      ::a (do (dom/h1 "A") (Link. !path ::home "home"))
-      (do (dom/h1 "404, route: " (pr-str path)) (Link. !path "/" "home")))))
+(p/defn NamedRouterDemo [route]
+  (case route
+    ::home (do (dom/h1 "Home") (Link. ::a "a"))
+    ::a (do (dom/h1 "A") (Link. ::home "home"))
+    (do (dom/h1 "404, route: " (pr-str route)) (Link. "/" "home"))))
+
+(p/defn Demo []
+  (let [!path (m/mbx), path (path !path)]
+    (let [encode-path identity
+          decode-path identity]
+      (binding [Link (->Link. !path encode-path)]
+        (PathRouterDemo. (decode-path path))))
+    (let [decode-path {"/" ::home "/a" ::a}
+          encode-path (clojure.set/map-invert decode-path)]
+      (binding [Link (->Link. !path encode-path)]
+        (NamedRouterDemo. (decode-path path))))))
