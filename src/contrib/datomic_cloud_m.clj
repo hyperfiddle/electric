@@ -1,4 +1,4 @@
-(ns contrib.datomic-missionary
+(ns contrib.datomic-cloud-m
   (:require [contrib.data :refer [omit-keys-ns]]
             [clojure.core.protocols :as ccp :refer [nav]]
             [clojure.datafy :refer [datafy]]
@@ -18,7 +18,7 @@
   (datafy [^Datum [e a v tx op]] [e a v tx op]))
 
 ;(defn entity! [db e] (reify ...))
-;(defn touch! [db e] (pull! db e ['*]))
+;(defn touch! [!e] (pull! (d/entity-db !e) (:db/id !e) ['*]))
 
 (defn db-stats [db] (p/chan-read! (d/db-stats db)))
 
@@ -32,7 +32,7 @@
   (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> user/db {:index :aevt, :components [:db/ident]})))))
   (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> user/db {:index :aevt, :components [:db/txInstant]}))))))
 
-(defn datoms! [db arg-map] ; waits for completion before returning, for repl only really
+(defn ^:deprecated datoms! [db arg-map] ; waits for completion before returning, for repl only really
   (m/sp (m/? (p/chan->task (d/datoms db arg-map)))))
 
 (tests
