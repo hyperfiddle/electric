@@ -15,7 +15,7 @@
   (tempid? "a") := true)
 
 (def identify contrib.datomic-common-contrib/identify)
-(def identify contrib.datomic-common-contrib/identities)
+(def identities contrib.datomic-common-contrib/identities)
 (def reverse-attr contrib.datomic-common-contrib/reverse-attr)
 
 (defn attributes>
