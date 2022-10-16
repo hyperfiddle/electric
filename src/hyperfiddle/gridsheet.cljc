@@ -25,11 +25,11 @@
   (check odd? 1) := 1)
 
 (p/defn GridSheet [xs props]
-  (let [{:keys [::columns
+  (let [props (auto-props props)
+        {:keys [::columns
                 ::grid-template-columns
                 ::row-height ; px, same unit as scrollTop
-                ::page-size]} ; tight
-        (auto-props (namespace ::x) props {})
+                ::page-size #_ "tight"]} props
         client-height (* (inc (check number? page-size)) (check number? row-height))
         rows (seq xs)
         row-count (count rows)]
@@ -100,7 +100,7 @@
   (let [{:keys [::columns
                 ::row-height ; px, same unit as scrollTop
                 ::page-size]} ; tight
-        (auto-props (namespace ::x) props {})
+        (auto-props props)
         rows (seq xs)
         row-count (count rows)]
     (p/client
@@ -163,7 +163,7 @@
   (let [{:keys [::columns
                 ::row-height ; px, same unit as scrollTop
                 ::page-size]} ; you want this loose, like 100
-        (auto-props (namespace ::x) props {::page-size 100})
+        (auto-props props {::page-size 100})
         !pages (atom 1) pages (p/watch !pages)]
     (p/client
       (dom/table {:style {:display "block" :overflow "hidden auto"
