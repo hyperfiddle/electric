@@ -4,7 +4,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui :as ui]
+            [hyperfiddle.hfql.ui :as ui]
             [wip.orders :refer [orders genders shirt-sizes]])
   #?(:cljs (:require-macros user.demo-hfql)))
 

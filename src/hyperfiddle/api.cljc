@@ -12,6 +12,7 @@
 
 ;;; Route
 
+;; ˇˇˇˇ  G Revisit ˇˇˇˇ
 (def !route-state #?(:cljs (atom ()))) ;; Route state lives on the client.
 
 (defn- pad [val n coll] (into coll (repeat n val)))
@@ -26,6 +27,16 @@
                                                       (cons (set-route-arg index val current) history))))
 
 (defn navigate! [new-route] (swap! !route-state conj new-route))
+
+;; TODO improve history:
+;; - Use a vector + an index
+;; - index is initialized at 0
+;; - navigate pushes to the vector
+;; - back decrement the index
+;; - current page is vector[count(vector)-index]
+;; - if index is < 0, navigate discard the tail of the vector (after index) and pushes
+(defn navigate-back! [] (swap! !route-state pop))
+;; ^^^^^  G Revisit ^^^^^
 
 (defn empty-value? [x] (if (seqable? x) (empty? x) (some? x)))
 
@@ -51,18 +62,8 @@
       (assoc-in m path value)
       (route-cleanup (assoc-in m path value) path))))
 
-
-;; TODO improve history:
-;; - Use a vector + an index
-;; - index is initialized at 0
-;; - navigate pushes to the vector
-;; - back decrement the index
-;; - current page is vector[count(vector)-index]
-;; - if index is < 0, navigate discard the tail of the vector (after index) and pushes
-(defn navigate-back! [] (swap! !route-state pop))
-
-(p/def route) ;; Continuous route value
-(p/def !path) ;; URL path setter
+(p/def route) ; Continuous route value
+(p/def !path) ; URL path setter ; TODO rename
 
 ;;; Database
 
@@ -77,7 +78,7 @@
 (p/def context nil) ; HFQL EAV context
 
 (p/defn entity []) ;; TODO HFQL only. Is a binding required? could it be an argument?
-(p/def ^:deprecated attribute nil)
+(p/def ^:deprecated attribute nil)      ; TODO G: not sure if actually deprecated.
 (p/def value (p/fn [] nil))
 (p/def options)
 
