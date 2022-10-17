@@ -1,4 +1,4 @@
-(ns hyperfiddle.queries-test
+(ns hyperfiddle.queries-test            ; FIXME duplicate of wip.orders ?
   (:require [datascript.core :as d]
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]

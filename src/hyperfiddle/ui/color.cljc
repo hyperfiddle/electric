@@ -1,4 +1,6 @@
 (ns hyperfiddle.ui.color
+  ;; FIXME move to appropriate namespace
+  ;; TODO restore HSLuv
   #?(:clj (:import (org.hsluv HUSLColorConverter))))
 
 (defn hsluv->rgb [h s l]

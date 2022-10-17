@@ -12,7 +12,7 @@
             user.demo-6-two-clocks
             user.demo-7-explorer
             user.demo-8-10k-elements
-            user.demo-hfql
+            #_user.demo-hfql
             user.auth
             user.todos-simple
             user.seven-gui-1-counter
@@ -26,7 +26,9 @@
             ;; wip.photon-tree
             user.popover
             user.healthcheck
-            wip.typeahead)
+            wip.typeahead
+            #_wip.hfql
+            )
   #?(:cljs (:require-macros user.demo-entrypoint)))
 
 (defonce !demo-index #?(:clj (atom 0) :cljs nil)) (comment (reset! !demo-index 0))
@@ -44,7 +46,8 @@
               {:text "two clocks" ::value user.demo-6-two-clocks/App}
               {:text "explorer" ::value user.demo-7-explorer/App}
               {:text "10k elements" ::value user.demo-8-10k-elements/App}
-              {:text "HFQL" ::value user.demo-hfql/App}
+              #_{:text "HFQL" ::value user.demo-hfql/App}
+              #_{:text "HFQL" ::value wip.hfql/App}
               {:text "Authentication" ::value user.auth/App}
               {:text "Scroll view" ::value hyperfiddle.scrollview/Demo}
               ; {:text "Datomic browser" ::value user.datomic-browser/App}

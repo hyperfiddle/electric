@@ -1,4 +1,4 @@
-(ns wip.orders
+(ns wip.orders                  ; FIXME  duplicate of hyperfiddle.queries-test ?
   "query functions used in tee-shirt orders demo"
   (:require #?(:clj [datascript.core :as d])
             [clojure.spec.alpha :as s]

@@ -3,7 +3,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui :as ui]
+            [hyperfiddle.hfql.ui :as ui]
             [hyperfiddle.photon-ui :as photon-ui]
             [wip.orders :refer [orders genders shirt-sizes one-order]]
             [hyperfiddle.hfql.router :as router])
