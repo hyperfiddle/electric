@@ -71,6 +71,7 @@
     (def datomic-client (@d-client {:server-type :dev-local :system "datomic-samples"}))
     (def datomic-conn (@d-connect datomic-client {:db-name "mbrainz-subset"}))
     (def db (@d-db datomic-conn))
+    (def datomic-db db) ; fixme
     (catch java.io.FileNotFoundException _ "no datomic on classpath")))
 
 (defn compile []
