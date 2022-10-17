@@ -110,7 +110,7 @@
             explorer/Format Format-entity]
     (Explorer.
       (str "Entity detail: " e) ; treeview on the entity
-      (new (p/task->cp (d/pull db {:eid e :selector ['*] ::d/compare compare}))) ; todo inject sort
+      (new (p/task->cp (d/pull db {:eid e :selector ['*] :compare compare}))) ; todo inject sort
       {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em auto"})))

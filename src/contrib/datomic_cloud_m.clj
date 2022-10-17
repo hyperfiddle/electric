@@ -1,5 +1,6 @@
 (ns contrib.datomic-cloud-m
   (:require [contrib.data :refer [omit-keys-ns auto-props]]
+            [contrib.missionary-contrib :as mx]
             [clojure.core.protocols :as ccp :refer [nav]]
             [clojure.datafy :refer [datafy]]
             datomic.client.api ; remove
@@ -39,21 +40,18 @@
   ([db pattern eid]
    (if (tempid? eid)
      (m/sp (if (some #{:db/id} pattern) {:db/id eid} {}))
-     (m/via m/blk (d/pull db pattern eid)))))
+     (mx/chan-read! (d/pull db {:selector pattern :eid eid})))))
 
 (tests
   "control - datomic operators work on number tempids"
-  (pr-str (d/entity user/datomic-db -1)) := (pr-str {:db/id -1}) ; :db/id is virtual key so test print repr
-  (d/pull user/datomic-db [:db/id] -1) := #:db{:id -1}
-  (d/pull user/datomic-db ['*] -1) := #:db{:id -1}
+  (m/? (mx/chan-read! (d/pull user/datomic-db {:selector [:db/id] :eid -1}))) := #:db{:id -1}
+  (m/? (mx/chan-read! (d/pull user/datomic-db {:selector ['*] :eid -1}))) := #:db{:id -1}
 
-  "control - datomic operators crash on string tempids, wtf"
-  (d/entity user/datomic-db "tempid-1") :throws datomic.impl.Exceptions$IllegalArgumentExceptionInfo
-  (d/pull user/datomic-db [:db/id] "a") :throws datomic.impl.Exceptions$IllegalArgumentExceptionInfo
-  (d/pull user/datomic-db ['*] "a") :throws datomic.impl.Exceptions$IllegalArgumentExceptionInfo
+  "control - datomic cloud operators elide string tempids, wtf"
+  (m/? (mx/chan-read! (d/pull user/datomic-db {:selector [:db/id] :eid "a"}))) := {:db/id nil}
+  (m/? (mx/chan-read! (d/pull user/datomic-db {:selector ['*] :eid "a"}))) := {:db/id nil}
 
   "hyperfiddle needs this defined to represent empty forms"
-  (m/? (entity user/datomic-db "tempid-1")) := #:db{:id "tempid-1"}
   (m/? (pull user/datomic-db [:db/id] "a")) := {:db/id "a"}
   (m/? (pull user/datomic-db [:db/ident] "a")) := {})
 
@@ -62,7 +60,7 @@
   ([db pattern eid & [arg-map]]
    (let [{:keys [::compare]} (auto-props arg-map)
          arg-map (omit-keys-ns (namespace ::this) arg-map)]
-     (m/sp (let [tree (m/? (p/chan-read! (d/pull db arg-map)))]
+     (m/sp (let [tree (m/? (pull db arg-map))]
              (if compare
                ; Use datafy/nav to sort on the fly? or pre-sort here?
                ; need to know cardinality many attrs and sort on nav
