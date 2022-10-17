@@ -9,7 +9,8 @@
             [hyperfiddle.spec :as spec] ; extract cardinality from fn specs
             [clojure.string :as str]
             [clojure.datafy :refer [datafy]]
-            [missionary.core :as m]))
+            [missionary.core :as m]
+            [hyperfiddle.photon-impl.runtime :as r]))
 
 (comment
   (do (set! *print-namespace-maps* false)
@@ -646,18 +647,18 @@
       ::hf/link (let [[f & args] sexpr] `(list '~f ~@args))
       sexpr)))
 
-(defn remember! [atom k v] (swap! atom assoc k v) v)
-
 (defn emit-argument [node]
   (if-let [ref (:node/reference node)]
     (if (empty? (:node/reference-path node))
       `(p/fn [] (binding [hf/bypass-renderer true] (new hf/value)))
       `(p/fn []
-         (binding [hf/entity          (get ~'<entities '~(:node/symbol ref)) ; FIXME beginning of hf/context. entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
-                   hf/bypass-renderer true]
-           (new ; FIXME photon bug? had to wrap into a p/fn to get hf/entity to have the correct binding
-             (p/fn []
-               (get-in (new ~(:node/symbol ref)) ~(:node/reference-path node))))))) ; FIXME only join the required path, lazily.
+         (if-let [e# (get ~'<entities '~(:node/symbol ref))]
+           (binding [hf/entity e# ; FIXME beginning of hf/context. entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
+                     hf/bypass-renderer true]
+             (new ; FIXME photon bug? had to wrap into a p/fn to get hf/entity to have the correct binding
+               (p/fn []
+                 (get-in (new ~(:node/symbol ref)) ~(:node/reference-path node)))))
+           (throw r/pending)))) ; FIXME only join the required path, lazily.
     (if-let [input (:node/input node)]
       `(m/latest (fn [route#] (get-in route# ~(:input/path input))) (p/fn [] hf/route))
       `(p/fn [] ~(:node/form node)))))
