@@ -1,4 +1,4 @@
-(ns hyperfiddle.hfql2.ui
+(ns hyperfiddle.hfql.ui
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
@@ -8,7 +8,7 @@
             [clojure.datafy :refer [datafy]]
             [contrib.ednish :as ednish]
             #?(:cljs [hyperfiddle.router :as html5-router]))
-  #?(:cljs (:require-macros [hyperfiddle.hfql2.ui])))
+  #?(:cljs (:require-macros [hyperfiddle.hfql.ui])))
 
 (defn replate-state! [!route path value]
   (swap! !route (fn [[current & history]]
@@ -24,7 +24,7 @@
     (let [spec (attr-spec (::hf/attribute props))]
       (p/for [[name {:keys [::hf/read ::hf/write ::hf/path]}] arguments]
         (let [writable? (some? write)
-              writef    #(reset! write %)
+              writef    #(reset! write %) ; TODO is a direct write useful when there is a router?
               value     (read.)]
           (p/client
             (let [id      (random-uuid)
@@ -35,8 +35,9 @@
                          ::ui/value       (if (p/watch !steady) (p/current value) value)
                          ::dom/disabled   (not writable?)
                          ::ui/input-event (p/fn [e] (let [value (.. e -target -value)]
+                                                      ;; TODO decouple navigation from page location (inject `navigate!`)
                                                       (html5-router/replaceState! hf/!path (str "#" (hf/assoc-in-route-state hf/route path value)))
-                                                      #_(p/server (writef value))))
+                                                      ))
                          ::ui/focus-event (p/fn [e] (reset! !steady true))
                          ::ui/blur-event  (p/fn [e] (reset! !steady false))}))))))))
 
@@ -57,17 +58,15 @@
               (new options))))))))
 
 (p/defn Default-renderer [V props]
-  (let [edn (binding [hf/bypass-renderer true] (V.))
+  (let [edn  (binding [hf/bypass-renderer true] (V.))
         link (when-let [Link (::hf/link props)] (new Link))]
     (p/client
       (if (some? link)
-        (ui/element dom/a {::dom/href (str "#" (ednish/encode-uri link))
+        (ui/element dom/a {::dom/href       (str "#" (ednish/encode-uri link))
                            ::ui/click-event (p/fn [e]
                                               (.preventDefault e)
-                                              (html5-router/pushState! hf/!path (str "#" (ednish/encode-uri link)))
-                                              #_(p/server  ;; TODO route!
-                                                ;; (router/route! link)
-                                                ))}
+                                              ;; TODO decouple navigation from page location (inject `navigate!`)
+                                              (html5-router/pushState! hf/!path (str "#" (ednish/encode-uri link))))}
           (dom/text edn))
         (dom/pre
           (dom/text edn))))))
@@ -136,7 +135,7 @@
       (ui/input {::ui/value v
                  ::ui/type  (input-type value-type "text")}))))
 
-(defn spec-value-type [attr] ; TODO extract spec for quoted sexpr, TODO support args
+(defn spec-value-type [attr] ; TODO extract spec for quoted sexpr ; TODO support args
   (when (qualified-ident? attr)
     (spec/type-of attr)))
 
@@ -168,6 +167,7 @@
                        Default-renderer)]
         (Renderer. V props)))))
 
+;; TODO understand clearly and write down why this is required
 (defmacro with-ui-renderers [& body]
   `(binding [Table-renderer Table-renderer-impl
              Form-renderer  Form-renderer-impl

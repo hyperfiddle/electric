@@ -1,4 +1,5 @@
 (ns hyperfiddle.ui.codemirror
+  ;; TODO move to appropriate namespace
   #?(:clj  (:require clojure.edn
                      clojure.pprint
                      [hyperfiddle.photon :as p]

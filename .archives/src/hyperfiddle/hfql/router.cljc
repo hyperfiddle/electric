@@ -2,18 +2,17 @@
   (:require
    [hyperfiddle.photon :as p]
    [hyperfiddle.spec :as spec]
-   [clojure.datafy :refer [datafy]]
    #?(:clj [shadow.resource :as res])
    #?(:clj [edamame.core :as edn])
    #?(:clj [hyperfiddle.hfql :as hfql])
-   #?(:clj [hyperfiddle.photon-impl.compiler :as c])
+   #?(:clj [hyperfiddle.hfql.env :as env])
    #?(:clj [hyperfiddle.logger :as log]))
-  #?(:cljs (:require-macros [hyperfiddle.hfql.router])))
+  #?(:cljs (:require-macros [hyperfiddle.hfql.router :refer [router]])))
 
 (defn- fncall [sexpr] (and (seq? sexpr) (symbol? (first sexpr))))
 
 (defn validate-route! [route]
-  (when-not (or (fncall route) (map? route))
+  (when (not (fncall route))
     (throw (ex-info (str "Invalid route. Routes are symbolic function calls like `(foo :bar)`, given `" route "`.") {:route route}))))
 
 (defn validate-pages! [pages]
@@ -23,34 +22,28 @@
     (let [keys (keys page)]
       (assert (= 1 (count keys)) (str "A routable page must have a single entrypoint (root). The given page declares " (count keys) " entrypoints: " (pr-str keys) ". Please choose one. In `" (pr-str page) "`.")))))
 
-#?(:clj
-   (defn- identifier [page]
-     (if-let [ident (loop [form page]
-                      (cond
-                        (map? form) (recur (key (first form)))
-                        (seq? form) (if (= 'props (first form))
-                                         (recur (second form))
-                                         form)
-                        :else       nil))]
-       ident
-       (throw (ex-info  "Malformed page definition. It should be in the form {(page …) […]}" {:page page})))))
+(defn- identifier [call]
+  (let [[f & args] call]
+    (case f
+      props (identifier (first args))
+      f)))
+
+#?(:clj (defn page-identifier
+          ([page]
+           (let [entrypoint (key (first page))]
+             (assert (seq? entrypoint) (str "A page entrypoint must be a route-like expression. Given `" (pr-str entrypoint) "`."))
+             (identifier entrypoint)))
+          ([&env page]
+           (page-identifier (hfql/expand &env page)))))
 
 #?(:clj
-   (defn page-identifier
-     [env page]
-     (let [sexpr (identifier page)]
-       (if-let [var (c/resolve-var env (first sexpr))]
-         (cons (c/var-name var) (rest sexpr))
-         (throw (ex-info (str "Unable to resolve page name `" sexpr "`") {:page page}))))))
-
-#?(:clj
-   (defn routing-map [env pages]
+   (defn routing-map [&env pages]
      (->> pages
-       (map (fn [page] [(list 'quote (first (page-identifier env page))) `(p/fn [] (hfql/hfql ~page))]))
-       (into {}))))
+          (map (fn [page] [(list 'quote (page-identifier &env page)) `(p/fn [] (hfql/hfql ~page))]))
+          (into {}))))
 
 (defn args-indices [f]
-  (into {} (map-indexed (fn [idx arg] [arg idx])) (::spec/keys (datafy (spec/args f)))))
+  (into {} (map-indexed (fn [idx arg] [(:name arg) idx])) (spec/args f)))
 
 (defn fns-args-indices [fns] (reduce (fn [r f] (assoc r (list 'quote f) (args-indices f))) {} fns))
 
@@ -75,25 +68,6 @@
               (edn/parse-string-all (res/slurp-resource env page) opts)
               [page]))))
 
-(defn find-best-matching-route [symbolic-routes route]
-  (let [[f & args] route]
-    (->> symbolic-routes
-      (filter #(= f (first %)))
-      (sort-by count <)
-      (remove #(> (count args) (count (rest %))))
-      (first))))
-
-(defn route->route-state [symbolic-routes route]
-  (if (map? route)
-    route
-    (let [match         (find-best-matching-route symbolic-routes route)
-          symbolic-args (::spec/keys (datafy (spec/args (first route))))]
-      {match (zipmap symbolic-args (rest route))})))
-
-(defn route->sexpr [route]
-  (if (map? route) (ffirst route) route))
-
-
 ;;* Router
 ;;
 ;;  Takes:
@@ -111,23 +85,16 @@
 ;;            {(page2) [:db/id]})
 ;;  #+end_src
 ;;
-(defmacro router [route & pages]
+(defmacro router [route & pages] ;; pages are HFQL exprs, they must all have a
+  (assert (symbol? route))
   (let [pages (mapcat (partial load-page &env) pages)]
     (validate-pages! pages)
-    (let [env         (c/normalize-env &env)
+    (let [env         (env/make-env &env)
           routing-map (routing-map env pages)
-          fns         (set (map (comp first (partial page-identifier env)) pages))]
-      `(let [route# ~route]
-         (p/client
-           (let [route (route->route-state '~(map (partial page-identifier env) pages) route#)]
-             (binding [hf/route route]
-               (p/server
-                 (binding [hf/route route]
-                   (let [sexpr# (route->sexpr route#)]
-                     (with-route-getters sexpr# ~fns
-                       (let [routing-map# ~routing-map]
-                         (validate-route! route#)
-                         (new (get routing-map# (first sexpr#) not-found))))))))))))))
+          fns         (set (map (partial page-identifier env) pages))]
+      `(with-route-getters ~route ~fns
+         (let [routing-map# ~routing-map]
+           (validate-route! ~route)
+           (new (get routing-map# (first ~route) not-found)))))))
 
 (p/defn not-found [] "page not found")
-

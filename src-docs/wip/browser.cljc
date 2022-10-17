@@ -3,11 +3,10 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.ui :as ui]
+            [hyperfiddle.hfql.ui :as ui]
             [missionary.core :as m]
             [user.orders :refer [orders genders shirt-sizes one-order]]
             [hyperfiddle.hfql.router :as router]
-            [hyperfiddle.zero :as z]
             [hyperfiddle.ui.codemirror :as cm]
             )
   #?(:cljs (:require-macros wip.browser)))

@@ -1,0 +1,99 @@
+(ns wip.hfql ; adapted from user.demo-hfql
+  "wip, unstable"
+  (:require #?(:clj dev)
+            [hyperfiddle.api :as hf]
+            [hyperfiddle.hfql.ui :as hfui]
+            [hyperfiddle.hfql.router :as router]
+            [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-dom :as dom]
+            [wip.orders :refer [orders genders shirt-sizes one-order]]
+            [hyperfiddle.photon-ui :as ui]
+            #?(:cljs [hyperfiddle.router :as html5-router])
+            [missionary.core :as m]
+            [contrib.ednish :as ednish])
+  #?(:cljs (:require-macros wip.hfql)))
+
+(p/defn Route []
+  (dom/label "Route")
+  (let [!steady (atom false)
+        route   hf/route]
+    (ui/input {::ui/value       (pr-str (if (p/watch !steady) (p/current route) route))
+               ::ui/input-event (p/fn [e] (try (html5-router/replaceState! hf/!path (str "#" (pr-str (clojure.edn/read-string (.. e -target -value)))))
+                                               (.setCustomValidity dom/node "")
+                                               (catch js/Error e
+                                                 (.setCustomValidity dom/node (.-message e))
+                                                 (.reportValidity dom/node))))
+               ::ui/focus-event (p/fn [e] (reset! !steady true))
+               ::ui/blur-event  (p/fn [e] (reset! !steady false))})))
+
+(defn path-hash [path]
+  (when (clojure.string/includes? path "#")
+    (not-empty (last (clojure.string/split path #"#" 2)))))
+
+(defn decode-route [route] ; TODO Fishy. Maybe the HTML5 path value should not be an encoded sexpr. Maybe "domain.com/ns!fn/arg0#{state…}"?
+  (cond (nil? route)    nil
+        (map? route)    (hyperfiddle.walk/prewalk (fn [form] ; HACK ugly
+                                                    (if (and (map-entry? form) (vector? (key form)))
+                                                      [(seq (key form)) (val form)]
+                                                      form))
+                          route)
+        (vector? route) (seq route)
+        :else           (throw (ex-info "A route should be a sexpr or a map" {:route route}))))
+
+#?(:cljs
+   (defn route> [!path]
+     (->> (html5-router/path> !path)
+       (missionary.core/eduction (map path-hash) (map ednish/decode-uri) (map decode-route))
+       (missionary.core/reductions {} nil)
+       (missionary.core/relieve {}))))
+
+(p/defn Tee-shirt-orders []
+  ;; Warning: HFQL is unstable
+  (p/client
+    (binding [hf/!path (m/mbx)]
+      (binding [hf/route (or (new (route> hf/!path)) '(wip.orders/orders ""))]
+        (dom/div
+          (Route.)
+          (dom/hr)
+          (let [route hf/route]
+            (p/server
+              (hfui/with-ui-renderers
+                (router/router route
+                  {(one-order .) [(props :db/id {::hf/link (one-order db/id)})
+                                  (props :order/email {::hf/link   (orders order/email)
+                                                       ::hf/render hfui/Default-renderer})
+
+                                  {(props :order/gender {::hf/options (genders)})
+                                     [(props :db/ident {::hf/as gender})]}
+                                  {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
+                                   [:db/ident]}]}
+                  {(orders .)
+                   [(props :db/id {::hf/link (one-order db/id)})
+                    :order/email
+
+                    {(props :order/gender {::hf/options (genders)})
+                     [(props :db/ident {::hf/as gender})]}
+                    {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
+                     [:db/ident]}]})
+
+                ))))))))
+
+(p/defn Browser []
+  (p/client
+    (dom/div {::dom/id    "main"
+              ::dom/class "browser hyperfiddle-hfql"}
+      (dom/div {::dom/class "view"}
+        (p/server
+          (Tee-shirt-orders.)
+          )))))
+
+(p/defn App []
+  (binding [hf/db     hf/*db* ; why
+            hf/Render hfui/Render] ; remove for livecoding demo
+    (hfui/with-ui-renderers
+      (Browser.))))
+
+; Takeaways:
+; 1. no REST, no GraphQL, all client/server network management handled automatically. Eliminates BFF problem
+; 2. simple to understand, easy to use, unified programming model (multiplier for sr devs, and makes jr devs useful)
+; 3. A consequence of this is it permits a data driven approach that enables us to build a low-code GUI on top of it.
