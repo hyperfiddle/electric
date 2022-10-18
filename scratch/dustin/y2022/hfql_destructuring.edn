@@ -28,3 +28,74 @@
               {:dustingetz/shirt-size [:db/ident]}]} (persons "")]
   id
   )
+
+(tests
+  (def v {:x 1})
+  (let2 [v]
+    x)
+  := 2
+
+  (let [{{x inc} :y} {:x 1}]
+    x)
+  := 2
+
+
+  (match {:x 1}
+    {{x inc} :x} x
+    nil)
+  := 2
+
+
+  (match {:x 123}
+    (let [{y :y} &_] y)
+    (let [{x :x} &_] [:x 123]))
+  := [:x 123]
+
+  )
+
+
+(defn auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
+  ([ns defaults-qual props] (merge defaults-qual (update-keys props (partial qualify ns)))))
+
+(tests
+  (def props {})
+  (match props
+    {:keys [::dom/class ::grid-template-columns ::row-height ::columns]
+     {{page-size ::page-size} identity}
+     {{style #(merge % {:height (str client-height "px")
+                        :display "grid"
+                        :overflowY "auto"
+                        :grid-template-columns grid-template-columns})} ::dom/style}
+     (auto-props {::gridsheet/row-height 24
+                  ::gridsheet/page-size 20
+                  ::gridsheet/columns cols
+                  ::grid-template-columns (->> (repeat (p/server (count columns)) "1fr")
+                                            (interpose " ") (apply str))})}
+    (dom/div {::dom/role "grid"
+              ::dom/class class
+              ::dom/style style})))
+
+(tests
+  (def props {})
+  (match props
+    {{:keys [::columns ::grid-template-columns ::row-height ::page-size]} (auto-props (namespace ::x))}
+    (p/client
+      (dom/div {::dom/role "grid"
+                ::dom/class (::dom/class props)
+                ::dom/style (merge (::dom/style props)
+                              {:height (str client-height "px")
+                               :display "grid" :overflowY "auto"
+                               :grid-template-columns (or (::grid-template-columns props)
+                                                        (->> (repeat (p/server (count columns)) "1fr")
+                                                          (interpose " ") (apply str)))})}))))
+
+(p/defn GridSheet [xs props]
+  (let [{:keys [::columns ::grid-template-columns ::row-height ::page-size]}
+        (auto-props (namespace ::x) props {})
+        client-height (* (inc page-size) row-height)
+        rows (seq xs)
+        row-count (count rows)]
+    (assert row-height)
+    (assert page-size)
+    (assert columns)
+    ))
