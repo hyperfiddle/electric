@@ -325,6 +325,12 @@
                ana/emit-cljs))
      @bindings]))
 
+(tests
+  (def -env {:ns (symbol (str *ns*)) ::peers-config {::local :clj, ::remote :clj} ::local true})
+  (provided-bindings -env '(fn* ([a b c] [a b c rec])))
+  := [_ {'rec _}]
+  )
+
 (defn source-map
   ([env debug-info]
    (let [file (if (:js-globals env) (:file (:meta (:ns env)))
@@ -435,6 +441,18 @@
     (map (fn [p s] (zipmap (parse-clause (first p)) (repeat s)))
       partition symbols)))
 
+(defn- rewrite-letfn*-bindings-for-clj-analysis [bindings] `(letfn* ~bindings ~(vec (take-nth 2 bindings))))
+(tests
+  (rewrite-letfn*-bindings-for-clj-analysis '[f (fn f [] (g)) g (fn g [] (f))])
+  := '(letfn* [f (fn f [] (g)) g (fn g [] (f))] [f g]))
+
+(defn- split-letfn*-clj&photon-analysis [[_ bindings & body]]
+  `(let [~(vec (take-nth 2 bindings)) (::letfn ~bindings)] ~@body))
+(tests
+  (split-letfn*-clj&photon-analysis '(letfn* [f (fn f [] (g)) g (fn g [] (f))] (new Foo)))
+  := '(clojure.core/let [[f g] (::letfn [f (fn f [] (g)) g (fn g [] (f))])] (new Foo)))
+
+
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
     (set! ns ns* deftype* defrecord* var)
@@ -497,13 +515,10 @@
                                                             (when sym {::dbg/name sym}))]]] (keys bindings)))
 
     (letfn*)
-    (let [[bindings & body] args
-          names             (mapv first (partition 2 bindings))]
-      (analyze-sexpr env `(let [~names (::letfn ~bindings ~names)] ~@body)))
+    (analyze-sexpr env (split-letfn*-clj&photon-analysis form))
 
     (::letfn)
-    (let [[bindings & body] args
-          [form bindings]  (provided-bindings env `(letfn* ~bindings ~@body))]
+    (let [[form bindings] (provided-bindings env (rewrite-letfn*-bindings-for-clj-analysis (first args)))]
       (transduce (map (partial analyze-form env)) conj-res
         [[:apply [:eval `(fn-call ~form ~(vals bindings)) {::dbg/type :letfn}]]] (keys bindings)))
 

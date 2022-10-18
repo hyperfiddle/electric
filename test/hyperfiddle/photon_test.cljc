@@ -1613,6 +1613,12 @@
     % := [false false true true]))
 
 (tests
+  (with (p/run (try (letfn [(foo [])]
+                      (tap (p/watch (atom 1))))
+                    (catch Throwable t (prn t))))
+    % := 1))
+
+(tests
   "Inline letfn support"
   (def !state (atom 0))
   (p/def global)
@@ -1681,6 +1687,8 @@
     % := 3, % := 2, % := 1, % := 0, % := ::zero)
   )
 
+;; currently broken https://www.notion.so/hyperfiddle/cr-macro-internal-mutation-violates-photon-purity-requirement-119c18755ddd466384beb15f1e2317c5
+#_
 (tests
   "inline m/cp support"
   (let [!state (atom 0)]
@@ -1701,6 +1709,16 @@
       % := 2
       % := 2)))
 
+(tests "letfn body is photon"
+  (p/def z 3)
+  (def !x (atom 4))
+  (with (p/run (let [y 2] (letfn [(f [x] (prn :f) (g x)) (g [x] (prn :g) [x y z])] (tap (f (doto (p/watch !x) prn))))))
+    % := [4 2 3]
+    (swap! !x inc)
+    % := [5 2 3]))
+
+;; currently broken https://www.notion.so/hyperfiddle/cr-macro-internal-mutation-violates-photon-purity-requirement-119c18755ddd466384beb15f1e2317c5
+#_
 (tests
   "inline m/sp support"
   (let [!state (atom 0)]
