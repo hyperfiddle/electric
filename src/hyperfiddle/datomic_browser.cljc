@@ -1,6 +1,7 @@
 (ns hyperfiddle.datomic-browser
   (:require [contrib.data :refer [index-by unqualify]]
             #?(:clj [contrib.datomic-contrib :as dx])
+            #?(:cljs contrib.datomic-cloud-contrib)
             [contrib.datomic-m #?(:clj :as :cljs :as-alias) d]
             clojure.edn
             [contrib.ednish :as ednish]
