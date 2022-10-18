@@ -2,7 +2,7 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
-            [hyperfiddle.ui.color :refer [rgb hsv->rgb]]
+            [contrib.color :refer [css-rgb-str hsv->rgb]]
             [missionary.core :as m])
   #?(:cljs (:require-macros user.demo-8-10k-elements)))
 
@@ -22,7 +22,7 @@
 ;
 ;(defn cell-color [x]
 ;  (if (> x 1) ; In photon-land, this conditional would introduce a switch and trigger a ws message for client-server frame coordination.
-;    (apply rgb (hsv->rgb (/ 0 360)
+;    (apply css-rgb-str (hsv->rgb (/ 0 360)
 ;                 (-> x (/ 7.5) (* 1.33))
 ;                 0.95))
 ;    "#eee"))
