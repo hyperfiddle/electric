@@ -29,7 +29,11 @@
       (m/sp (if (instance? Exception x)
               (throw x) (x db))))))
 
-(comment (m/? (db-stats user/datomic-db)))
+(comment (m/? (db-stats test/datomic-db)))
+
+(defn with [db tx-data] (m/sp (d/with db tx-data)))
+
+(def with-db with)
 
 (extend-protocol ccp/Datafiable
   Datum
@@ -53,19 +57,19 @@
 
 (tests
   "control - datomic operators work on number tempids"
-  (pr-str (d/entity user/datomic-db -1)) := (pr-str {:db/id -1}) ; :db/id is virtual key so test print repr
-  (d/pull user/datomic-db [:db/id] -1) := #:db{:id -1}
-  (d/pull user/datomic-db ['*] -1) := #:db{:id -1}
+  (pr-str (d/entity test/datomic-db -1)) := (pr-str {:db/id -1}) ; :db/id is virtual key so test print repr
+  (d/pull test/datomic-db [:db/id] -1) := #:db{:id -1}
+  (d/pull test/datomic-db ['*] -1) := #:db{:id -1}
 
   "control - datomic operators crash on string tempids, wtf"
-  (d/entity user/datomic-db "tempid-1") :throws datomic.impl.Exceptions$IllegalArgumentExceptionInfo
-  (d/pull user/datomic-db [:db/id] "a") :throws datomic.impl.Exceptions$IllegalArgumentExceptionInfo
-  (d/pull user/datomic-db ['*] "a") :throws datomic.impl.Exceptions$IllegalArgumentExceptionInfo
+  (d/entity test/datomic-db "tempid-1") :throws datomic.impl.Exceptions$IllegalArgumentExceptionInfo
+  (d/pull test/datomic-db [:db/id] "a") :throws datomic.impl.Exceptions$IllegalArgumentExceptionInfo
+  (d/pull test/datomic-db ['*] "a") :throws datomic.impl.Exceptions$IllegalArgumentExceptionInfo
 
   "hyperfiddle needs this defined to represent empty forms"
-  (m/? (entity user/datomic-db "tempid-1")) := #:db{:id "tempid-1"}
-  (m/? (pull user/datomic-db [:db/id] "a")) := {:db/id "a"}
-  (m/? (pull user/datomic-db [:db/ident] "a")) := {})
+  (m/? (entity test/datomic-db "tempid-1")) := #:db{:id "tempid-1"}
+  (m/? (pull test/datomic-db [:db/id] "a")) := {:db/id "a"}
+  (m/? (pull test/datomic-db [:db/ident] "a")) := {})
 
 (defn pull-sorted
   ([db {:keys [selector eid] :as arg-map}] (pull-sorted db selector eid (dissoc arg-map :selector :eid)))
@@ -81,7 +85,7 @@
 
 (tests
   "pulls are sorted at top layer"
-  (take 3 (keys (m/? (pull-sorted user/datomic-db {:eid 50 :selector '[*] ::compare compare}))))
+  (take 3 (keys (m/? (pull-sorted test/datomic-db {:eid 50 :selector '[*] ::compare compare}))))
   := [:db/cardinality :db/doc :db/id] ; sorted!
 
   "pulls are sorted at intermedate layers"
@@ -94,10 +98,10 @@
 
 (tests
   "control"
-  (take 3 (d/datoms user/datomic-db :aevt :db/ident))
+  (take 3 (d/datoms test/datomic-db :aevt :db/ident))
 
   "onprem syntax"
-  (->> (datoms> user/datomic-db :aevt :db/ident)
+  (->> (datoms> test/datomic-db :aevt :db/ident)
        (m/eduction (map datafy) (take 3))
        (m/reduce conj []) m/?)
   := [[0 10 :db.part/db 13194139533312 true]
@@ -105,7 +109,7 @@
       [2 10 :db/retract 13194139533312 true]]
 
   "client syntax"
-  (->> (datoms> user/datomic-db {:index :aevt, :components [:db/ident]})
+  (->> (datoms> test/datomic-db {:index :aevt, :components [:db/ident]})
        (m/eduction (map datafy) (take 3))
        (m/reduce conj []) m/?)
   := [[0 10 :db.part/db 13194139533312 true]
@@ -118,18 +122,18 @@
 
 (tests
   "control"
-  (->> (d/tx-range (d/log user/datomic-conn) nil nil)
+  (->> (d/tx-range (d/log test/datomic-conn) nil nil)
        (eduction (map :data) cat (take 1) (map datafy)))
   := [[13194139534312 50 #inst"2015-06-03T02:05:51.541-00:00" 13194139534312 true]]
 
   "onprem syntax"
-  (->> (tx-range> (d/log user/datomic-conn) nil nil)
+  (->> (tx-range> (d/log test/datomic-conn) nil nil)
        (m/eduction (map :data) cat (take 1) (map datafy))
        (m/reduce conj []) m/?)
   := [[13194139534312 50 #inst"2015-06-03T02:05:51.541-00:00" 13194139534312 true]]
 
   "cloud syntax"
-  (->> (tx-range> user/datomic-conn {})
+  (->> (tx-range> test/datomic-conn {})
        (m/eduction (map :data) cat (take 1) (map datafy))
        (m/reduce conj []) m/?)
   := [[13194139534312 50 #inst"2015-06-03T02:05:51.541-00:00" 13194139534312 true]])
@@ -143,7 +147,7 @@
 (tests
   (take 3 (m/? (query {:query '[:find (pull ?e [:db/ident]) ?f
                             :where [?e :db/valueType ?f]]
-                       :args [user/datomic-db]})))
+                       :args [test/datomic-db]})))
   := [[#:db{:ident :db/system-tx} 21]
       [#:db{:ident :db.sys/partiallyIndexed} 24]
       [#:db{:ident :db.sys/reId} 20]])
@@ -153,7 +157,7 @@
 (tests
   (m/? (->> (qseq {:query '[:find (pull ?e [:db/ident]) ?f
                             :where [?e :db/valueType ?f]]
-                   :args [user/datomic-db]})
+                   :args [test/datomic-db]})
             (m/eduction (take 3))
             (m/reduce conj [])))
   := [[#:db{:ident :db/system-tx} 21]

@@ -1,10 +1,6 @@
 (ns contrib.datomic-m
-  (:require [contrib.data :refer [omit-keys-ns]]
-            [clojure.core.protocols :as ccp :refer [nav]]
-            [clojure.datafy :refer [datafy]]
-            [missionary.core :as m]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.rcf :refer [tests tap %]]))
+  (:require [missionary.core :as m]
+            [hyperfiddle.rcf :refer [tests]]))
 
 (defn dep-available? [qualified-sym]
   (some? (try @(requiring-resolve qualified-sym)
@@ -37,6 +33,8 @@
 (def connect)
 (def db)
 (def db-stats)
+(def with)
+(def with-db)
 (def entity)
 (def touch)
 (def pull)
@@ -55,6 +53,9 @@
   (alter-var-root #'connect     (constantly (eval 'contrib.datomic-peer-m/connect)))
   (alter-var-root #'db          (constantly (eval 'contrib.datomic-peer-m/db)))
   (alter-var-root #'db-stats    (constantly (eval 'contrib.datomic-peer-m/db-stats)))
+  (alter-var-root #'with        (constantly (eval 'contrib.datomic-peer-m/with)))
+  (alter-var-root #'with-db     (constantly (eval 'contrib.datomic-peer-m/with-db)))
+  ; with-db
   (alter-var-root #'entity      (constantly (eval 'contrib.datomic-peer-m/entity)))
   (alter-var-root #'touch       (constantly (eval 'contrib.datomic-peer-m/touch)))
   (alter-var-root #'pull        (constantly (eval 'contrib.datomic-peer-m/pull)))
@@ -73,6 +74,8 @@
   (alter-var-root #'client      (constantly (eval 'contrib.datomic-cloud-m/client)))
   (alter-var-root #'db          (constantly (eval 'contrib.datomic-cloud-m/db)))
   (alter-var-root #'db-stats    (constantly (eval 'contrib.datomic-cloud-m/db-stats)))
+  (alter-var-root #'with        (constantly (eval 'contrib.datomic-cloud-m/with)))
+  (alter-var-root #'with-db     (constantly (eval 'contrib.datomic-cloud-m/with-db)))
   ; entity
   ; touch
   (alter-var-root #'pull        (constantly (eval 'contrib.datomic-cloud-m/pull)))
@@ -94,7 +97,6 @@
 
 (install-defs!)
 
-(tests
-  "datomic facade is installed"
-  (take 3 (keys (m/? (pull user/db {:eid 50 :selector '[*]}))))
+(comment
+  (take 3 (keys (m/? (pull test/datomic-db {:eid 50 :selector '[*]}))))
   := [:db/id :db/ident :db/valueType])
