@@ -4,7 +4,8 @@
 
   ; For rapid REPL startup, put absolute minimum of requires here: REPL conveniences only,
   ; which includes clojure reader extensions listed in data_readers.cljc.
-  (:require hyperfiddle.rcf))
+  (:require [missionary.core :as m]
+            hyperfiddle.rcf))
 
 ; Userland photon application code will be lazy loaded by the shadow build `(main)`
 ; due to :require-macros in all Photon source files.
@@ -60,19 +61,23 @@
   (@shadow-watch :devkit)                                   ; depends on shadow server
   ; todo report clearly if shadow build failed, i.e. due to yarn not being run
   (serve!)
-  (@rcf-enable!)
   (comment (.stop server))
 
   "Datomic Cloud (requires :scratch alias)"
   (try
-    (def d-client (requiring-resolve 'datomic.client.api/client))
-    (def d-connect (requiring-resolve 'datomic.client.api/connect))
-    (def d-db (requiring-resolve 'datomic.client.api.async/db))
-    (def datomic-client (@d-client {:server-type :dev-local :system "datomic-samples"}))
-    (def datomic-conn (@d-connect datomic-client {:db-name "mbrainz-subset"}))
-    (def db (@d-db datomic-conn))
-    (def datomic-db db) ; fixme
-    (catch java.io.FileNotFoundException _ "no datomic on classpath")))
+    (require '[contrib.datomic-m :as d])
+    (def datomic-config {:server-type :dev-local :system "datomic-samples"})
+    ; install prod globals
+    (def datomic-client (eval '(d/client datomic-config)))
+    (def datomic-conn (m/? (eval '(d/connect datomic-client {:db-name "mbrainz-subset"}))))
+
+    ; install test globals
+    (require 'test)
+    (eval '(test/install-test-state datomic-client))
+    (catch java.io.FileNotFoundException _ "no datomic on classpath"))
+
+  ; enable RCF after Datomic is loaded – to resolve circular dependency
+  (@rcf-enable!))
 
 (defn compile []
   ; optimized artifact but with debug information available to find problems
