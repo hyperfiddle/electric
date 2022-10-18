@@ -9,6 +9,7 @@
             [hyperfiddle.gridsheet :as-alias gridsheet]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.rcf :refer [tests]]
             #?(:cljs [hyperfiddle.router :as router :refer [Link]])
             [missionary.core :as m])
   #?(:cljs (:require-macros hyperfiddle.datomic-browser))
@@ -97,10 +98,29 @@
 
        () (assert false (str "unmatched tree entry, k: " k " v: " v)))))
 
-(comment
-  ; watch out, test schema needs to match
-  (def schema (m/? (dx/schema! user/db))) ; not available here
-  (entity-tree-entry-children schema [:medium/tracks #:db{:id 17592212633436}]))
+#?(:clj
+   (tests
+     ; watch out, test schema needs to match
+     (entity-tree-entry-children test/schema [:db/id 87960930235113]) := nil
+     (entity-tree-entry-children test/schema [:abstractRelease/name "Pour l’amour..."]) := nil
+     (entity-tree-entry-children test/schema [:abstractRelease/type #:db{:id 35435060739965075, :ident :release.type/single}])
+     := #:db{:id 35435060739965075, :ident :release.type/single}
+     (entity-tree-entry-children test/schema [:abstractRelease/artists [#:db{:id 20512488927800905}
+                                                                        #:db{:id 68459991991856131}]])
+     := {20512488927800905 #:db{:id 20512488927800905},
+         68459991991856131 #:db{:id 68459991991856131}}
+
+     (def tree (m/? (d/pull test/datomic-db {:eid test/pour-lamour :selector ['*]})))
+     (->> tree (map (fn [row]
+                      (entity-tree-entry-children test/schema row))))
+     := [nil
+         nil
+         nil
+         #:db{:id 35435060739965075, :ident :release.type/single}
+         {20512488927800905 #:db{:id 20512488927800905},
+          68459991991856131 #:db{:id 68459991991856131}}
+         nil]
+     nil))
 
 (p/defn EntityDetail [e]
   (assert e)
