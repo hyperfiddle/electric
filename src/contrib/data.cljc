@@ -57,6 +57,12 @@
   {:pre [(some? ns) (or (string? ns) (symbol? ns))]}
   (merge defaults-qualified (update-keys props (partial qualify ns))))
 
+(defn index-by [kf xs]
+  {:pre [kf]}
+  (into {} (map-indexed (fn [i x]
+                          [(kf x i) ; fallback to index when key is not present
+                           #_(if-not kf (kf x i) i) ; alternative design is to define nil kf as fallback
+                           x])) xs))
 (defmacro auto-props
   ([ns props defaults-qualified] `(-auto-props ~ns ~props ~defaults-qualified))
   ([props defaults-qualified] `(-auto-props ~(str *ns*) ~props ~defaults-qualified))
@@ -69,14 +75,6 @@
   (auto-props {:a 1} {:dom/class "a"}) := {:contrib.data/a 1 :dom/class "a"}
   (auto-props {:a 1}) := {:contrib.data/a 1})
 
-(defn index-by
-  [kf xs & kwargs] {:pre [kf]}
-  (let [{:keys [::compare]} (auto-props (apply hash-map kwargs))] ; todo clojure 11 syntax
-    (into (if compare (sorted-map-by compare) {})
-          (->> xs (map-indexed (fn [i x]
-                                 [(kf x i) ; fallback to index when key is not present
-                                  #_(if-not kf (kf x i) i) ; alternative design is to define nil kf as fallback
-                                  x]))))))
 
 (tests
   (def xs [{:db/ident :foo :a 1}
@@ -114,11 +112,7 @@
   "kf fallback arity"
   (index-by (fn [x i] (str i)) xs)
   := {"0" {:db/ident :foo, :a 1},
-      "1" {:db/ident :bar, :b 2}}
-
-  "sorted result"
-  (keys (index-by :db/ident xs ::compare compare)) := [:bar :foo]
-  (keys (index-by :db/ident xs :compare compare)) := [:bar :foo])
+      "1" {:db/ident :bar, :b 2}})
 
 (defn index
   "index a sequential collection into an associative collection with explicit keys. this may not be

@@ -80,7 +80,7 @@
 
       ; todo - streaming group-by should be faster – shouldn't need to wait for all attrs to load
       ; todo - only load the attrs that the renderers actually needs
-      (index-by :db/ident as, :compare compare))))
+      (index-by :db/ident as))))
 
 (defn schema> [db] (p/task->cp (schema! db)))
 
