@@ -7,6 +7,7 @@
             [hyperfiddle.photon-ui :as ui]
             [clojure.datafy :refer [datafy]]
             [contrib.ednish :as ednish]
+            [contrib.color :as c]
             #?(:cljs [hyperfiddle.router :as html5-router]))
   #?(:cljs (:require-macros [hyperfiddle.hfql.ui])))
 
@@ -73,7 +74,7 @@
 
 (p/defn Form-renderer-impl [V props]
   (p/client
-    (dom/form
+    (dom/form {:style {:border-left-color (c/color hf/db-name)}}
       (p/server
         (let [data (V.)]
           (p/for [k (::hf/columns props)]

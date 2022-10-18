@@ -78,20 +78,16 @@
 
                 ))))))))
 
-(p/defn Browser []
-  (p/client
-    (dom/div {::dom/id    "main"
-              ::dom/class "browser hyperfiddle-hfql"}
-      (dom/div {::dom/class "view"}
-        (p/server
-          (Tee-shirt-orders.)
-          )))))
-
 (p/defn App []
-  (binding [hf/db     hf/*db* ; why
-            hf/Render hfui/Render] ; remove for livecoding demo
-    (hfui/with-ui-renderers
-      (Browser.))))
+  (binding [hf/Render hfui/Render] ; remove for livecoding demo
+    (p/client
+      (binding [hf/db-name "$"] ; enrich UI with db info
+        (dom/div {::dom/id    "main"
+                  ::dom/class "browser hyperfiddle-hfql"}
+          (dom/div {::dom/class "view"}
+            (p/server
+              (Tee-shirt-orders.)
+              )))))))
 
 ; Takeaways:
 ; 1. no REST, no GraphQL, all client/server network management handled automatically. Eliminates BFF problem
