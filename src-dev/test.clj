@@ -14,10 +14,13 @@
 
 (defn install-test-state [datomic-client]
   (alter-var-root #'datomic-conn (constantly (m/? (d/connect datomic-client {:db-name "mbrainz-subset"}))))
+  (assert (some? datomic-conn))
   (alter-var-root #'fixtures (constantly fixtures))
 
-  (alter-var-root #'datomic-db (constantly (:db-after (d/with (d/db datomic-conn) fixtures))))
-  (alter-var-root #'schema (constantly (m/? (dx/schema! datomic-db)))))
+  (alter-var-root #'datomic-db (constantly (:db-after (m/? (d/with (m/? (d/with-db datomic-conn)) fixtures)))))
+  (assert (some? datomic-db))
+  (alter-var-root #'schema (constantly (m/? (dx/schema! datomic-db))))
+  (assert (some? schema)))
 
 (tests
   (some? schema) := true
