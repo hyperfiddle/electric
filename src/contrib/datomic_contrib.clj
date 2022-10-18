@@ -36,7 +36,14 @@
   (identify {}) := nil
 
   (index-by :db/id [tree2])   := {35435060739965075 {:db/id 35435060739965075, :release.type/name "Single"}}
-  (index-by identify [tree2]) := {35435060739965075 {:db/id 35435060739965075, :release.type/name "Single"}})
+  (index-by identify [tree2]) := {35435060739965075 {:db/id 35435060739965075, :release.type/name "Single"}}
+
+  "userland use case - datomic resultset"
+  (index-by identify [{:db/id 20512488927800905}
+                      {:db/id 68459991991856131}])
+  {20512488927800905 #:db{:id 20512488927800905},
+   68459991991856131 #:db{:id 68459991991856131}}
+  nil)
 
 (defn reverse-attr [?kw]
   (if ?kw
