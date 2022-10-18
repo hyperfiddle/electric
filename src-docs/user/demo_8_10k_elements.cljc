@@ -2,7 +2,6 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
-            [contrib.color :refer [css-rgb-str hsv->rgb]]
             [missionary.core :as m])
   #?(:cljs (:require-macros user.demo-8-10k-elements)))
 
