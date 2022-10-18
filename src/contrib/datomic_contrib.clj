@@ -68,9 +68,9 @@
         (m/eduction (map first)))))
 
 (tests
-  (m/? (m/reduce conj [] (attributes> user/datomic-db [:db/ident])))
-  (m/? (m/reduce conj [] (attributes> user/datomic-db)))
-  (m/? (d/pull user/datomic-db {:eid 50 :selector [:db/ident :db/valueType :db/cardinality]})))
+  (m/? (m/reduce conj [] (attributes> test/datomic-db [:db/ident])))
+  (m/? (m/reduce conj [] (attributes> test/datomic-db)))
+  (m/? (d/pull test/datomic-db {:eid 50 :selector [:db/ident :db/valueType :db/cardinality]})))
 
 (defn schema! [db] ; todo stream
   (m/sp
@@ -92,17 +92,17 @@
 (defn schema> [db] (p/task->cp (schema! db)))
 
 (tests
-  (:db/ident (m/? (schema! user/datomic-db)))
+  (:db/ident (m/? (schema! test/datomic-db)))
   := #:db{:ident :db/ident,
           :valueType #:db{:ident :db.type/keyword},
           :cardinality #:db{:ident :db.cardinality/one}}
 
-  (:db/id (m/? (schema! user/datomic-db)))
+  (:db/id (m/? (schema! test/datomic-db)))
   := #:db{:ident :db/id,
           :cardinality #:db{:ident :db.cardinality/one},
           :valueType #:db{:ident :db.type/long}}
 
-  (count (m/? (schema! user/datomic-db))))
+  (count (m/? (schema! test/datomic-db))))
 
 (defn entity-history-datoms>
   ([db e] (entity-history-datoms> db e nil))
@@ -115,9 +115,9 @@
             (m/amb= (m/?> >fwd-xs) (m/?> >rev-xs)))))))
 
 (comment
-  (time (m/? (m/reduce conj [] (entity-history-datoms> user/db 74766790739005 nil))))
-  (time (count (m/? (m/reduce conj [] (entity-history-datoms> user/db nil nil)))))
-  (def it ((entity-history-datoms> user/db 74766790739005 nil)
+  (time (m/? (m/reduce conj [] (entity-history-datoms> test/datomic-db 74766790739005 nil))))
+  (time (count (m/? (m/reduce conj [] (entity-history-datoms> test/datomic-db nil nil)))))
+  (def it ((entity-history-datoms> test/datomic-db 74766790739005 nil)
            #(println ::notify) #(println ::terminate)))
   @it
   (it))
@@ -137,10 +137,10 @@
 (comment
   (m/? (d/query {:query '[:find (pull ?e [:db/ident]) ?f :in $ ?e
                           :where [?e :db/ident ?f]]
-                 :args [user/db 17]}))
+                 :args [test/datomic-db 17]}))
 
-  (m/? (ident! user/db 17)) := :db.excise/beforeT
-  (m/? (ident! user/db nil)) := nil)
+  (m/? (ident! test/datomic-db 17)) := :db.excise/beforeT
+  (m/? (ident! test/datomic-db nil)) := nil)
 
 ;#?(:clj (defn before? [^java.util.Date a ^java.util.Date b] (<= (.getTime a) (.getTime b))))
 ;(defn- xf-filter-before-date [before] #?(:clj (filter (fn [[tx e a v added?]] (before? t before)))))

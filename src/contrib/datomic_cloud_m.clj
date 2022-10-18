@@ -3,7 +3,6 @@
             [contrib.missionary-contrib :as mx]
             [clojure.core.protocols :as ccp :refer [nav]]
             [clojure.datafy :refer [datafy]]
-            datomic.client.api ; remove
             [datomic.client.api.async :as d]
             [missionary.core :as m]
             [hyperfiddle.photon :as p]
@@ -18,11 +17,18 @@
   (tempid? 0) := false
   (tempid? "a") := true)
 
-(defn client [arg-map] (datomic.client.api/client arg-map))
+(defn client [arg-map] (d/client arg-map)) ; synchronous
 
-(defn connect [client arg-map] (datomic.client.api/connect client arg-map))
+(defn connect [client arg-map] (mx/chan-read! (d/connect client arg-map))
+  #_
+  (let [!conn (mx/chan-read! (d/connect client arg-map))]
+    (m/? !conn))) ; blocking! for dependency setup without missionary
 
-(defn db [conn] (d/db conn))
+(defn db [conn] (d/db conn)) ; synchronous
+
+(defn with [db tx-data] (mx/chan-read! (d/with db tx-data)))
+
+(defn with-db [conn] (mx/chan-read! (d/with-db conn)))
 
 (extend-protocol ccp/Datafiable
   Datum
@@ -31,9 +37,9 @@
 ;(defn entity! [db e] (reify ...))
 ;(defn touch! [!e] (pull! (d/entity-db !e) (:db/id !e) ['*]))
 
-(defn db-stats [db] (p/chan-read! (d/db-stats db)))
+(defn db-stats [db] (mx/chan-read! (d/db-stats db)))
 
-(comment (m/? (db-stats user/db)))
+(comment (m/? (db-stats test/datomic-db)))
 
 (defn pull
   ([db {:keys [selector eid]}] (pull db selector eid))
@@ -44,16 +50,16 @@
 
 (tests
   "control - datomic operators work on number tempids"
-  (m/? (mx/chan-read! (d/pull user/datomic-db {:selector [:db/id] :eid -1}))) := #:db{:id -1}
-  (m/? (mx/chan-read! (d/pull user/datomic-db {:selector ['*] :eid -1}))) := #:db{:id -1}
+  (m/? (mx/chan-read! (d/pull test/datomic-db {:selector [:db/id] :eid -1}))) := #:db{:id -1}
+  (m/? (mx/chan-read! (d/pull test/datomic-db {:selector ['*] :eid -1}))) := #:db{:id -1}
 
   "control - datomic cloud operators elide string tempids, wtf"
-  (m/? (mx/chan-read! (d/pull user/datomic-db {:selector [:db/id] :eid "a"}))) := {:db/id nil}
-  (m/? (mx/chan-read! (d/pull user/datomic-db {:selector ['*] :eid "a"}))) := {:db/id nil}
+  (m/? (mx/chan-read! (d/pull test/datomic-db {:selector [:db/id] :eid "a"}))) := {:db/id nil}
+  (m/? (mx/chan-read! (d/pull test/datomic-db {:selector ['*] :eid "a"}))) := {:db/id nil}
 
   "hyperfiddle needs this defined to represent empty forms"
-  (m/? (pull user/datomic-db [:db/id] "a")) := {:db/id "a"}
-  (m/? (pull user/datomic-db [:db/ident] "a")) := {})
+  (m/? (pull test/datomic-db [:db/id] "a")) := {:db/id "a"}
+  (m/? (pull test/datomic-db [:db/ident] "a")) := {})
 
 (defn pull-sorted
   ([db {:keys [selector eid] :as arg-map}] (pull-sorted db selector eid arg-map #_(dissoc arg-map :selector :eid)))
@@ -71,7 +77,7 @@
 (comment
   (def cobblestone 536561674378709)
   "pulls are sorted at top layer"
-  (take 3 (keys (m/? (d/pull! user/db {:eid cobblestone :selector '[*]}))))
+  (take 3 (keys (m/? (d/pull! test/datomic-db {:eid cobblestone :selector '[*]}))))
   := [:db/id :label/country :label/gid] ; sorted!
 
   "pulls are sorted at intermedate layers"
@@ -81,12 +87,12 @@
   (m/ap (m/?> (m/eduction cat (p/chan->ap (d/datoms db arg-map))))))
 
 (comment
-  (time (take 3 (m/? (m/reduce conj [] (datoms> user/db {:index :aevt, :components [:db/ident]})))))
-  (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> user/db {:index :aevt, :components [:db/ident]})))))
-  (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> user/db {:index :aevt, :components [:db/txInstant]}))))))
+  (time (take 3 (m/? (m/reduce conj [] (datoms> test/datomic-db {:index :aevt, :components [:db/ident]})))))
+  (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> test/datomic-db {:index :aevt, :components [:db/ident]})))))
+  (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> test/datomic-db {:index :aevt, :components [:db/txInstant]}))))))
 
 (tests
-  (->> (datoms> user/db {:index :aevt, :components [:db/txInstant]})
+  (->> (datoms> test/datomic-db {:index :aevt, :components [:db/txInstant]})
        (m/eduction (map datafy))
        (m/eduction (take 1))
        (m/reduce conj ()) m/?)
@@ -97,7 +103,7 @@
 
 (tests
   "first datom"
-  (->> (tx-range> user/datomic-conn {:start 0, :end 1})
+  (->> (tx-range> test/datomic-conn {:start 0, :end 1})
        (m/eduction (map :data) cat (map datafy))
        (m/reduce conj ()) m/? (take 1))
   := [[0 10 :db.part/db 13194139533312 true]])
@@ -110,7 +116,7 @@
 
 (comment
   (def query-attrs '[:find (pull ?e [:db/ident]) ?f :where [?e :db/valueType ?f]])
-  (m/? (q {:query query-attrs :args [user/db]}))
+  (m/? (q {:query query-attrs :args [test/datomic-db]}))
   := _)
 
 (defn qseq [arg-map] (->> (p/chan->ap (d/qseq arg-map))
@@ -118,7 +124,7 @@
 
 (tests
   (m/? (->> (qseq {:query '[:find (pull ?e [:db/ident]) ?f :where [?e :db/valueType ?f]]
-                   :args [user/db]})
+                   :args [test/datomic-db]})
             (m/eduction (take 3))
             (m/reduce conj []))))
 
