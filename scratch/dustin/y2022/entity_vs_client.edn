@@ -1,0 +1,59 @@
+
+"entity version - simple, more dynamic"
+(dom/table
+  (p/server
+    (p/for [id (sort
+                 (d/q '[:find [?e ...]
+                        :in $ ?needle :where
+                        [?e :order/email ?email]
+                        [(user.util/includes-str? ?email ?needle)]]
+                   db (or ?email "")))]
+      (let [!e (d/entity db id)]
+        (p/client
+          (dom/tr
+            (dom/td id)
+            (dom/td (p/server (:order/email !e)))
+            (dom/td (p/server (:order/gender !e)))))))))
+
+(p/for [x (sort
+            (d/q '[:find [?e ...]
+                   :in $ ?needle :where
+                   [?e :order/email ?email]
+                   [(user.util/includes-str? ?email ?needle)]]
+              db (or ?email "")))]
+  (let [!e (d/entity db id)]
+    (tap> (:order/email !e))
+    (tap> (:order/gender !e))))
+
+"hand optimize the entity into up front batching - adds complexity"
+(dom/table
+  (p/server
+    (p/for [id (sort
+                 (d/q '[:find [?e ...]
+                        :in $ ?needle :where
+                        [?e :order/email ?email]
+                        [(user.util/includes-str? ?email ?needle)]]
+                   db (or ?email "")))]
+      (let [m (d/pull db [:order/email
+                          :order/gender] id)]
+        (p/client
+          (dom/tr
+            (dom/td id)
+            (dom/td (p/server (:order/email m)))
+            (dom/td (p/server (:order/gender m)))))))))
+
+
+"fully optimize entity into up-front JOIN"
+(dom/table
+  (p/server
+    (p/for-by :db/id [m (sort
+                          (d/q '[:find [(pull ?e :db/id :order/email :order/gender]) ...]
+      :in $ ?needle :where
+      [?e :order/email ?email]
+      [(user.util/includes-str? ?email ?needle)]]
+db (or ?email "")))]
+(p/client
+  (dom/tr
+    (dom/td id)
+    (dom/td (p/server (:order/email m)))
+    (dom/td (p/server (:order/gender m))))))))
