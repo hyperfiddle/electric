@@ -1,7 +1,7 @@
 (ns contrib.datomic-cloud-contrib
   (:require clojure.edn
             [hyperfiddle.rcf :refer [tests]])
-  (:import goog.math.Long))
+  (:import [goog.math Long]))
 
 ; Issue: Datomic Cloud db/ids (java.lang.Longs) can exceed the maximum integer representable in
 ; javascript's Number type which is a double:
