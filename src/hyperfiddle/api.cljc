@@ -12,31 +12,10 @@
 
 ;;; Route
 
-;; ˇˇˇˇ  G Revisit ˇˇˇˇ
-(def !route-state #?(:cljs (atom ()))) ;; Route state lives on the client.
-
-(defn- pad [val n coll] (into coll (repeat n val)))
-
-(defn- set-route-arg [index val route]
-  (seq (let [route (vec route)]
-         (if (<= index (count route))
-           (assoc route index val)
-           (set-route-arg index val (pad nil (- index (count route)) route))))))
-
-(defn set-route-arg! [index val] (swap! !route-state (fn [[current & history]]
-                                                      (cons (set-route-arg index val current) history))))
-
-(defn navigate! [new-route] (swap! !route-state conj new-route))
-
-;; TODO improve history:
-;; - Use a vector + an index
-;; - index is initialized at 0
-;; - navigate pushes to the vector
-;; - back decrement the index
-;; - current page is vector[count(vector)-index]
-;; - if index is < 0, navigate discard the tail of the vector (after index) and pushes
-(defn navigate-back! [] (swap! !route-state pop))
-;; ^^^^^  G Revisit ^^^^^
+(p/def route) ; Continuous route value
+(p/def navigate!) ; to inject a route setter (eg. write to url, html5 history pushState, swap an atom…)
+(p/def replace-route!) ; overwrite the current route
+(p/def navigate-back!) ; inverse of `navigate!`, to be injected
 
 (defn empty-value? [x] (if (seqable? x) (empty? x) (some? x)))
 
@@ -61,9 +40,6 @@
     (if empty?
       (assoc-in m path value)
       (route-cleanup (assoc-in m path value) path))))
-
-(p/def route) ; Continuous route value
-(p/def !path) ; URL path setter ; TODO rename
 
 ;;; Database
 
