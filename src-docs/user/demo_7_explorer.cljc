@@ -36,12 +36,10 @@
 
 (p/defn Dir [x]
   (binding
-    [explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]
-     explorer/Children (p/fn [m] (::fs/children m))
-     explorer/Search? (p/fn [m s] (includes-str? (::fs/name m) s))]
+    [explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]]
     (let [m (datafy x)
           xs (nav m ::fs/children (::fs/children m))]
-      (Explorer. (::fs/absolute-path m) xs
+      (Explorer. (::fs/absolute-path m) (explorer/tree-lister xs ::fs/children #(includes-str? (::fs/name %) %2))
                  {::dom/style {:height "calc((20 + 1) * 24px)"}
                   ::explorer/page-size 20
                   ::explorer/row-height 24

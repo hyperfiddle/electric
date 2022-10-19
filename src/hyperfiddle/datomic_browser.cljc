@@ -27,9 +27,9 @@
                                 :db/txInstant (pr-str v) #_(p/client (.toLocaleDateString v))))]
     (Explorer.
       "Recent Txs"
-      (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
-                (m/reductions conj ())
-                (m/relieve {})))
+      (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
+                                   (m/reductions conj ())
+                                   (m/relieve {}))))
       {::explorer/page-size 30
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em auto"})))
@@ -51,7 +51,8 @@
            (m/reductions conj [])
            (m/relieve {})
            new
-           (sort-by :db/ident)) ; sort by db/ident which isn't available
+           (sort-by :db/ident) ; sort by db/ident which isn't available
+           explorer/tree-lister)
       {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "auto 6em 4em 4em 4em"})))
@@ -124,14 +125,13 @@
 
 (p/defn EntityDetail [e]
   (assert e)
-  (binding [explorer/cols [::k ::v]
-            explorer/Children (p/fn [m] (entity-tree-entry-children schema m))
-            explorer/Search? (p/fn [[k v :as row] s] (or (explorer/includes-str? k s)
-                                                         (explorer/includes-str? (if-not (map? v) v) s)))
-            explorer/Format Format-entity]
+  (binding [explorer/cols [::k ::v] explorer/Format Format-entity]
     (Explorer.
       (str "Entity detail: " e) ; treeview on the entity
-      (new (p/task->cp (d/pull db {:eid e :selector ['*] :compare compare}))) ; todo inject sort
+      ;; TODO inject sort
+      (explorer/tree-lister (new (p/task->cp (d/pull db {:eid e :selector ['*] :compare compare})))
+        (partial entity-tree-entry-children schema)
+        (fn [[k v] s] (or (explorer/includes-str? k s) (explorer/includes-str? (when-not (map? v) v) s))))
       {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em auto"})))
@@ -153,9 +153,9 @@
     (Explorer.
       (str "Entity history: " (pr-str e))
       ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
-      (new (->> (dx/entity-history-datoms> db e)
-                (m/reductions conj []) ; track a running count as well?
-                (m/relieve {})))
+      (explorer/tree-lister (new (->> (dx/entity-history-datoms> db e)
+                                   (m/reductions conj []) ; track a running count as well?
+                                   (m/relieve {}))))
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em 10em 3em auto auto 9em"})))
@@ -170,9 +170,9 @@
                                 :tx (p/client (Link. [::tx tx] tx))))]
     (Explorer.
       (str "Attribute detail: " a)
-      (new (->> (d/datoms> db {:index :aevt, :components [a]})
-                (m/reductions conj [])
-                (m/relieve {})))
+      (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [a]})
+                                   (m/reductions conj [])
+                                   (m/relieve {}))))
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
@@ -187,23 +187,21 @@
                                 (str tx)))]
     (Explorer.
       (str "Tx detail: " e)
-      (new (->> (d/tx-range> conn {:start e, :end (inc e)}) ; global
-                (m/eduction (map :data) cat)
-                (m/reductions conj [])
-                (m/relieve {})))
+      (explorer/tree-lister (new (->> (d/tx-range> conn {:start e, :end (inc e)}) ; global
+                                   (m/eduction (map :data) cat)
+                                   (m/reductions conj [])
+                                   (m/relieve {}))))
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
 (p/defn DbStats []
-  (binding [explorer/cols [::k ::v]
-            explorer/Children (p/fn [[k v :as row]] (if (map? v) (into (sorted-map) v))) ; todo move sort into pull
-            explorer/Search? (p/fn [[k v :as row] s] (or (explorer/includes-str? k s)
-                                                         (explorer/includes-str? (if-not (map? v) v) s)))
-            explorer/Format (p/fn [[k v :as row] col] (case col ::k k ::v v))]
+  (binding [explorer/cols [::k ::v] explorer/Format (p/fn [[k v :as row] col] (case col ::k k ::v v))]
     (Explorer.
       (str "Db Stats:")
-      (new (p/task->cp (d/db-stats db))) ; todo inject sort
+      (explorer/tree-lister (new (p/task->cp (d/db-stats db)))
+        (fn [[_ v]] (when (map? v) (into (sorted-map) v)))
+        (fn [[k v] s] (or (explorer/includes-str? k s) (explorer/includes-str? (when-not (map? v) v) s)))) ; todo inject sort
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
