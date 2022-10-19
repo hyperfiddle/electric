@@ -167,5 +167,6 @@
 (defmacro with-ui-renderers [& body]
   `(binding [Table-renderer Table-renderer-impl
              Form-renderer  Form-renderer-impl
-             Row-renderer   Row-renderer-impl]
+             Row-renderer   Row-renderer-impl
+             hf/Render      Render]
      ~@body))
