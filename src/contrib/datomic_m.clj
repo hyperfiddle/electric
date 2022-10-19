@@ -2,6 +2,10 @@
   (:require [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]))
 
+; Peer API https://docs.datomic.com/on-prem/clojure/index.html#datomic.api/squuid
+; Client API https://docs.datomic.com/client-api/index.html
+; Client API it seems is the same across all Datomic products (Onprem, Cloud, Ion, Dev local)
+
 (defn dep-available? [qualified-sym]
   (some? (try @(requiring-resolve qualified-sym)
               (catch Exception e nil))))
@@ -45,6 +49,7 @@
 (def query)
 (def qseq)
 (def history)
+(def squuid)
 
 (defn install-datomic-onprem []
   (require 'contrib.datomic-peer-m)
@@ -65,7 +70,8 @@
   (alter-var-root #'q           (constantly (eval 'contrib.datomic-peer-m/q)))
   (alter-var-root #'query       (constantly (eval 'contrib.datomic-peer-m/query)))
   (alter-var-root #'qseq        (constantly (eval 'contrib.datomic-peer-m/qseq)))
-  (alter-var-root #'history     (constantly (eval 'contrib.datomic-peer-m/history))))
+  (alter-var-root #'history     (constantly (eval 'contrib.datomic-peer-m/history)))
+  (alter-var-root #'squuid      (constantly (eval 'contrib.datomic-peer-m/squuid))))
 
 (defn install-datomic-cloud []
   (require 'contrib.datomic-cloud-m)
@@ -85,7 +91,9 @@
   (alter-var-root #'q           (constantly (eval 'contrib.datomic-cloud-m/q)))
   (alter-var-root #'query       (constantly (eval 'contrib.datomic-cloud-m/query)))
   (alter-var-root #'qseq        (constantly (eval 'contrib.datomic-cloud-m/qseq)))
-  (alter-var-root #'history     (constantly (eval 'contrib.datomic-cloud-m/history))))
+  (alter-var-root #'history     (constantly (eval 'contrib.datomic-cloud-m/history)))
+  ; squuid
+  )
 
 (defn install-defs! []
   (cond
