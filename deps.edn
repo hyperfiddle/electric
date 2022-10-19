@@ -18,7 +18,6 @@
            ;; Client
            org.clojure/clojurescript      {:mvn/version "1.11.60"}
            com.cognitect/transit-cljs     {:mvn/version "0.8.269"}
-           org.hsluv/hsluv                {:mvn/version "0.2"} ;; human friendly random colors
            nextjournal/clojure-mode       {:git/url "https://github.com/nextjournal/clojure-mode" ; clojure codemirror support
                                            :sha     "699a445ebf2767f41fd0b6eeed5a008511702be6"}
 

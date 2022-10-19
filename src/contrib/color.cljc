@@ -1,22 +1,11 @@
 (ns contrib.color
-  ;; We could drop the dependency by porting HSLuv to cljc. Mechanical translation. ~2 days of work incl. tests.
-  #?(:clj (:import (org.hsluv HUSLColorConverter))
-     :cljs (:require ["./hsluv" :refer [Hsluv]])))
+  (:require [contrib.hsluv :as hsluv]))
 
 (def PHI 0.618033988749895)  ; Golden ratio
 (def SEED-ANGLE (/ 125 360)) ; Rotate the chromatic circle like a pointer knob. 1/2 means half a turn.
 
 (defn hsluv->rgb [h s l]
-  (mapv #(int (* 255 %))
-     #?(:clj (HUSLColorConverter/hsluvToRgb (double-array [h s l]))
-        :cljs (let [conv (new Hsluv)]
-                (set! (.-hsluv_h conv) h)
-                (set! (.-hsluv_s conv) s)
-                (set! (.-hsluv_l conv) l)
-                (.hsluvToRgb conv)
-                [(.-rgb_r conv)
-                 (.-rgb_g conv)
-                 (.-rgb_b conv)]))))
+  (mapv #(int (* 255 %)) (hsluv/hsluv->rgb [h s l])))
 
 (defn css-rgb-str [r g b] (str "rgb("r","g","b")"))
 
