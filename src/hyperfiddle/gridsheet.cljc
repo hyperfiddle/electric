@@ -76,20 +76,25 @@
             (when (seq rows) (check vector? (first rows)))
             (let [xs (vec (->> rows (drop start-row) (take page-size)))]
               (p/for [i (range page-size)]
-                (let [[depth m] (get xs i [0 ::empty])]
+                (if-let [[depth m] (get xs i)]
                   (p/client
                     (dom/div {:role "group" :style {:display "contents"}}
-                      (let [[a & as] columns]
+                      (dom/div {:role  "gridcell"
+                                :style {:padding-left (-> depth (* 15) (str "px"))
+                                        :position "sticky" :top (str (* row-height (inc i)) "px")
+                                        :height   (str row-height "px")}}
+                        (p/server (Format. m (first columns))))
+                      (p/for [a (rest columns)]
                         (dom/div {:role  "gridcell"
-                                  :style {:padding-left (-> depth (* 15) (str "px"))
-                                          :position     "sticky" :top (str (* row-height (inc i)) "px")
-                                          :height       (str row-height "px")}}
-                          (case m ::empty nil (p/server (Format. m a))))
-                        (p/for [a as]
-                          (dom/div {:role  "gridcell"
-                                    :style {:position "sticky" :top (str (* row-height (inc i)) "px")
-                                            :height   (str row-height "px")}}
-                            (case m ::empty nil (p/server (Format. m a))))))))))))
+                                  :style {:position "sticky" :top (str (* row-height (inc i)) "px")
+                                          :height   (str row-height "px")}}
+                          (p/server (Format. m a))))))
+                  (p/client
+                    (dom/div {:role "group" :style {:display "contents"}}
+                      (p/for [_ columns]
+                        (dom/div {:role  "gridcell"
+                                  :style {:position "sticky" :top (str (* row-height (inc i)) "px")
+                                          :height   (str row-height "px")}}))))))))
           (dom/div {:style {:padding-bottom (str padding-bottom "px")}}) ; scrollbar
           ))
       (dom/div (pr-str {:count row-count})))))

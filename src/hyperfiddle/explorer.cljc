@@ -43,10 +43,33 @@
                        (TreeList. [1 2 [3 4] [5 [6 [7]]]] ""))))
        % := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]])))
 
+(defn- -tree-list [depth xs children-fn keep? input]
+  (eduction (mapcat (fn [x]
+                      (let [x (datafy x)]
+                        (if-let [children (children-fn x)]
+                          (into [[depth x]] (-tree-list (inc depth) children children-fn keep? input))
+                          (cond-> [] (keep? x input) (conj [depth x]))))))
+    (datafy xs)))
+
+(defn tree-lister
+  ([xs] (tree-lister xs (fn [_]) (fn [_ _] true)))
+  ([xs children-fn keep?] (fn [input] (-tree-list 0 xs children-fn keep? input))))
+
+(tests
+  (vec ((tree-lister [1 2 [3 4] [5 [6 [7]]]] #(when (vector? %) %) (fn [v _] (odd? v))) nil))
+  := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]])
+
+(comment
+  (time (do (vec (repeatedly 100000 (fn [] (vec ((tree-lister [1 2 [3 4] [5 [6 [7]]]] #(when (vector? %) %) (fn [v _] (odd? v))) nil))))) nil))
+  (with (p/run (binding [Children (p/fn [x] (if (vector? x) x))
+                         Search? (p/fn [x needle] (odd? x))]
+                 (time (p/for [x (range 100)]
+                         (TreeList. [1 2 [3 4] [5 [6 [7]]]] "")))))))
+
 (p/def cols nil)
 (p/def Format (p/server (p/fn [row col] (pr-str (get row col)))))
 
-(p/defn Explorer [title xs props] ; o is an entity with recursive children
+(p/defn Explorer [title treelister props] ; o is an entity with recursive children
   (p/client
     (let [!search (atom "") search (p/watch !search)]
       #_(dom/dl
@@ -61,7 +84,8 @@
           (GridSheet.
             #_RenderTableInfinite.
             #_TableSheet. ; deprecated, use page-size 100
-            (TreeList. xs search)
+            #_(TreeList. xs search)
+            (treelister search)
             (-> (auto-props (str *ns*) props {})
                 (rename-keys {::row-height ::gridsheet/row-height
                               ::page-size ::gridsheet/page-size
