@@ -77,21 +77,20 @@
        (m/relieve {}))))
 
 (p/defn App []
-  (binding [hf/Render hfui/Render] ; remove for livecoding demo
-    (p/client
-      (let [!path (m/mbx)]
-        (binding [hf/route          (or (new (route> !path)) '(wip.orders/orders ""))
-                  hf/navigate!      #(html5-router/pushState! !path (str "#" (ednish/encode-uri %)))
-                  hf/replace-route! #(html5-router/replaceState! !path (str "#" (ednish/encode-uri %)))
-                  hf/navigate-back! #(.back js/window.history)
-                  hf/db-name        "$"   ; enrich UI with db info
-                  ]
-          (dom/div {::dom/id    "main"
-                    ::dom/class "browser hyperfiddle-hfql"}
-            (dom/div {::dom/class "view"}
-              (p/server
-                (Tee-shirt-orders.)
-                ))))))))
+  (p/client
+    (let [!path (m/mbx)]
+      (binding [hf/route          (or (new (route> !path)) '(wip.orders/orders ""))
+                hf/navigate!      #(html5-router/pushState! !path (str "#" (ednish/encode-uri %)))
+                hf/replace-route! #(html5-router/replaceState! !path (str "#" (ednish/encode-uri %)))
+                hf/navigate-back! #(.back js/window.history)
+                hf/db-name        "$"   ; enrich UI with db info
+                ]
+        (dom/div {::dom/id    "main"
+                  ::dom/class "browser hyperfiddle-hfql"}
+          (dom/div {::dom/class "view"}
+            (p/server
+              (Tee-shirt-orders.)
+              )))))))
 
 ; Takeaways:
 ; 1. no REST, no GraphQL, all client/server network management handled automatically. Eliminates BFF problem
