@@ -18,7 +18,7 @@
 
 (defn connect [uri] (d/connect uri))
 
-(defn db [conn] (m/sp (d/db conn)))
+(defn db [conn] (m/via m/blk (d/db conn)))
 
 (def db-stats
   (let [x (try @(requiring-resolve 'datomic.api/db-stats) ; since 1.0.6344
@@ -31,7 +31,7 @@
 
 (comment (m/? (db-stats test/datomic-db)))
 
-(defn with [db tx-data] (m/sp (d/with db tx-data)))
+(defn with [db tx-data] (m/via m/blk (d/with db tx-data)))
 
 (def with-db with)
 
@@ -165,3 +165,5 @@
       [#:db{:ident :db.sys/reId} 20]])
 
 (defn history [db] (m/sp (d/history db)))
+
+(defn squuid [] (d/squuid))
