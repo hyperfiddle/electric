@@ -7,8 +7,7 @@
             [hyperfiddle.photon-ui :as ui]
             [clojure.datafy :refer [datafy]]
             [contrib.ednish :as ednish]
-            [contrib.color :as c]
-            #?(:cljs [hyperfiddle.router :as html5-router]))
+            [contrib.color :as c])
   #?(:cljs (:require-macros [hyperfiddle.hfql.ui])))
 
 (defn replate-state! [!route path value]
@@ -35,10 +34,7 @@
               (ui/input {::dom/id         id
                          ::ui/value       (if (p/watch !steady) (p/current value) value)
                          ::dom/disabled   (not writable?)
-                         ::ui/input-event (p/fn [e] (let [value (.. e -target -value)]
-                                                      ;; TODO decouple navigation from page location (inject `navigate!`)
-                                                      (html5-router/replaceState! hf/!path (str "#" (hf/assoc-in-route-state hf/route path value)))
-                                                      ))
+                         ::ui/input-event (p/fn [e] (hf/replace-route! (hf/assoc-in-route-state hf/route path (.. e -target -value))))
                          ::ui/focus-event (p/fn [e] (reset! !steady true))
                          ::ui/blur-event  (p/fn [e] (reset! !steady false))}))))))))
 
@@ -66,8 +62,7 @@
         (ui/element dom/a {::dom/href       (str "#" (ednish/encode-uri link))
                            ::ui/click-event (p/fn [e]
                                               (.preventDefault e)
-                                              ;; TODO decouple navigation from page location (inject `navigate!`)
-                                              (html5-router/pushState! hf/!path (str "#" (ednish/encode-uri link))))}
+                                              (hf/navigate! link))}
           (dom/text edn))
         (dom/pre
           (dom/text edn))))))
