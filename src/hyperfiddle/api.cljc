@@ -120,17 +120,4 @@
                   [db (ex-message t)]))))
    :cljs (defn transact! [& _] (throw (ex-info "Server side only" {}))))
 
-(def rules
-  '[[(hyperfiddle.api/needle-match ?v ?needle)
-     [(str ?v) ?v']
-     [(str ?needle) ?needle']
-     #_[(.toLowerCase ?v')]
-     #_[(.toLowerCase ?needle')]
-     #_[(clojure.string/includes? ?v' ?needle')]
-     [(clojure.string/includes? ?v' ?needle')]]])
-
-(defn includes-str? [v needle]
-  (clojure.string/includes? (.toLowerCase (str v))
-    (.toLowerCase (str needle))))
-
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)

@@ -1,6 +1,7 @@
 (ns wip.orders                  ; FIXME  duplicate of hyperfiddle.queries-test ?
   "query functions used in tee-shirt orders demo"
-  (:require #?(:clj [datascript.core :as d])
+  (:require contrib.str
+            #?(:clj [datascript.core :as d])
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tap % tests]])
@@ -24,24 +25,24 @@
   #?(:clj
      (sort
        (if gender
-         (d/q '[:in $ % ?gender ?needle
+         (d/q '[:in $ ?gender ?needle
                 :find [?e ...]
                 :where
                 [?e :order/type :order/shirt-size]
                 [?e :order/gender ?g]
                 [?g :db/ident ?gender]
                 [?e :db/ident ?ident]
-                [(hyperfiddle.api/includes-str? ?ident ?needle)]]
+                [(contrib.str/includes-str? ?ident ?needle)]]
            hf/*$*
-           hf/rules gender (or needle ""))
-         (d/q '[:in $ % ?needle
+           gender (or needle ""))
+         (d/q '[:in $ ?needle
                 :find [?e ...]
                 :where
                 [?e :order/type :order/shirt-size]
                 [?e :db/ident ?ident]
-                [(hyperfiddle.api/includes-str? ?ident ?needle)]]
+                [(contrib.str/includes-str? ?ident ?needle)]]
            hf/*$*
-           hf/rules (or needle ""))))))
+           (or needle ""))))))
 
 #?(:clj
    (tests
