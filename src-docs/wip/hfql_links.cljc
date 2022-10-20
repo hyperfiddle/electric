@@ -32,8 +32,7 @@
   #?(:cljs (p/boot
              (try (binding [dom/node (dom/by-id "root")]
                     (p/server
-                      (binding [hf/db     hf/*db*
-                                hf/Render ui/Render]
+                      (binding [hf/Render ui/Render]
                         (ui/with-spec-render
                           (p/client (App.))))))
                   (catch Pending _)))))

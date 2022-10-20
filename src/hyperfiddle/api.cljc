@@ -44,11 +44,8 @@
 ;;; Database
 
 (def db-state #?(:clj (atom nil))) ; Server side only
-(p/def db nil) ;; Continuous db value
 (p/def db-name)
 
-(defrecord DB [name basis-t tempids db]) ; Full db description (name, time basis, tempids map, dbval)
-(def ^:dynamic *db*) ; hold current db description, for REPL usage.
 (def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
                                       
 

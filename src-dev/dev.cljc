@@ -62,10 +62,7 @@
      :db/ident         {:db/unique :db.unique/identity}})
   ;(log/info "Initializing Test Database")
   (def conn (d/create-conn schema))
-  (let [$  (-> conn d/db fixtures)
-        db (hf/->DB "$" 0 nil $)]
-    #?(:clj (alter-var-root #'hf/*db* (constantly db))
-       :cljs (set! hf/*db* db))
+  (let [$  (-> conn d/db fixtures)]
     #?(:clj (alter-var-root #'hf/*$* (constantly $))
        :cljs (set! hf/*$* $))))
 
