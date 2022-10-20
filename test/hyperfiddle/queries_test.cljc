@@ -1,5 +1,6 @@
 (ns hyperfiddle.queries-test            ; FIXME duplicate of wip.orders ?
-  (:require [datascript.core :as d]
+  (:require contrib.str
+            [datascript.core :as d]
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
@@ -22,24 +23,24 @@
   #?(:clj
      (sort
        (if gender
-         (d/q '[:in $ % ?gender ?needle
+         (d/q '[:in $ ?gender ?needle
                 :find [?e ...]
                 :where
                 [?e :order/type :order/shirt-size]
                 [?e :order/gender ?g]
                 [?g :db/ident ?gender]
                 [?e :db/ident ?ident]
-                [(hyperfiddle.api/includes-str? ?ident ?needle)]]
+                [(contrib.str/includes-str? ?ident ?needle)]]
            hf/*$*
-           hf/rules gender (or needle ""))
-         (d/q '[:in $ % ?needle
+           gender (or needle ""))
+         (d/q '[:in $ ?needle
                 :find [?e ...]
                 :where
                 [?e :order/type :order/shirt-size]
                 [?e :db/ident ?ident]
-                [(hyperfiddle.api/includes-str? ?ident ?needle)]]
+                [(contrib.str/includes-str? ?ident ?needle)]]
            hf/*$*
-           hf/rules (or needle ""))))))
+           (or needle ""))))))
 
 ;(tests
 ;  hf/*$*
@@ -54,7 +55,7 @@
               :in $ ?needle
               :where
               [?e :order/email ?email]
-              [(hyperfiddle.api/includes-str? ?email ?needle)]]
+              [(contrib.str/includes-str? ?email ?needle)]]
          hf/*$*
          (or needle "")))))
 
