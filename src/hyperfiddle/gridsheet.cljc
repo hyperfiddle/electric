@@ -76,25 +76,19 @@
             (when (seq rows) (check vector? (first rows)))
             (let [xs (vec (->> rows (drop start-row) (take page-size)))]
               (p/for [i (range page-size)]
-                (if-let [[depth m] (get xs i)]
+                (let [[depth m] (get xs i [0 ::empty])]
                   (p/client
                     (dom/div {:role "group" :style {:display "contents"}}
                       (dom/div {:role  "gridcell"
                                 :style {:padding-left (-> depth (* 15) (str "px"))
                                         :position "sticky" :top (str (* row-height (inc i)) "px")
                                         :height   (str row-height "px")}}
-                        (p/server (Format. m (first columns))))
+                        (p/server (case m ::empty nil (Format. m (first columns)))))
                       (p/for [a (rest columns)]
                         (dom/div {:role  "gridcell"
                                   :style {:position "sticky" :top (str (* row-height (inc i)) "px")
                                           :height   (str row-height "px")}}
-                          (p/server (Format. m a))))))
-                  (p/client
-                    (dom/div {:role "group" :style {:display "contents"}}
-                      (p/for [_ columns]
-                        (dom/div {:role  "gridcell"
-                                  :style {:position "sticky" :top (str (* row-height (inc i)) "px")
-                                          :height   (str row-height "px")}}))))))))
+                          (p/server (case m ::empty nil (Format. m a)))))))))))
           (dom/div {:style {:padding-bottom (str padding-bottom "px")}}) ; scrollbar
           ))
       (dom/div (pr-str {:count row-count})))))
