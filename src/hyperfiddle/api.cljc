@@ -102,22 +102,4 @@
 
 (p/defn Data [V] (binding [Render (p/fn [V _props] (let [v (V.)] #_(prn "hf/data" v) (Join-all. v)))] (Render. V nil)))
 
-#?(:clj (defn transact!
-          ([db stage] (transact! db stage false))
-          ([db stage commit?]
-           (try (let [db'
-                      (if commit?
-                        (throw (ex-info "Commit not implemented yet" {}))
-                        (if (not-empty stage)
-                          (let [{:keys [tempids db-after]} (d/with (:db db) {:tx-data stage})]
-                            (-> (assoc db :tempids tempids :db db-after)
-                                (update :basis-t (fnil inc 0))))
-                          db))]
-                  #_(prn "DB =>" db')
-                  #_(prn "stage =>" stage)
-                  [db' nil])
-                (catch Throwable t
-                  [db (ex-message t)]))))
-   :cljs (defn transact! [& _] (throw (ex-info "Server side only" {}))))
-
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)

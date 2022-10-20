@@ -11,6 +11,24 @@
             )
   #?(:cljs (:require-macros wip.browser)))
 
+#?(:clj (defn hf-transact!
+          ([db stage] (hf-transact! db stage false))
+          ([db stage commit?]
+           (try (let [db'
+                      (if commit?
+                        (throw (ex-info "Commit not implemented yet" {}))
+                        (if (not-empty stage)
+                          (let [{:keys [tempids db-after]} (d/with (:db db) {:tx-data stage})]
+                            (-> (assoc db :tempids tempids :db db-after)
+                                (update :basis-t (fnil inc 0))))
+                          db))]
+                  #_(prn "DB =>" db')
+                  #_(prn "stage =>" stage)
+                  [db' nil])
+                (catch Throwable t
+                  [db (ex-message t)]))))
+   :cljs (defn hf-transact! [& _] (throw (ex-info "Server side only" {}))))
+
 ;; NOTE
 ;; shirt-sizes computed for each row, should we cache? could the DAG ensures deduplication?
 
@@ -29,7 +47,7 @@
 #_(defn transact!! [!db !stage _] ;; TODO persist stagging area
   (let [db    @!db
         stage @!stage
-        [db' _] (hf/transact! db stage)]
+        [db' _] (hf-transact! db stage)]
     (when (not= db db')
       (reset! !stage nil)
       (reset! !db db'))
