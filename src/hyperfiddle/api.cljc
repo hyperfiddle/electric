@@ -1,5 +1,5 @@
 (ns hyperfiddle.api
-  (:require #?(:clj [datascript.core :as d])
+  (:require [contrib.expr :refer [quoted?]]
             [hyperfiddle.rcf :refer [tests tap %]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.hfql :as hfql]
@@ -65,10 +65,6 @@
     (when v'
       (let [[E a _] (first context)]
         [[:db/add (E.) a v']]))))
-
-(defn quoted? [form]
-  (and (seq? form)
-       (= 'quote (first form))))
 
 (p/defn Join-all "Given a collection of flows, join all flows. Maps are expected to be {Key Flow<Value>}."
   [v]
