@@ -4,6 +4,7 @@
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]))
 
+(def ^:dynamic datomic-client)
 (def ^:dynamic datomic-conn)
 (def ^:dynamic datomic-db)
 (def ^:dynamic schema)
@@ -12,13 +13,18 @@
 (def pour-lamour 87960930235113)
 (def cobblestone 536561674378709)
 
-(defn install-test-state [datomic-client]
+(def datomic-config {:server-type :dev-local :system "datomic-samples"})
+
+(defn install-test-state []
+  (alter-var-root #'datomic-client (constantly (d/client datomic-config)))
+  (assert (some? datomic-client))
+
   (alter-var-root #'datomic-conn (constantly (m/? (d/connect datomic-client {:db-name "mbrainz-subset"}))))
   (assert (some? datomic-conn))
-  (alter-var-root #'fixtures (constantly fixtures))
 
   (alter-var-root #'datomic-db (constantly (:db-after (m/? (d/with (m/? (d/with-db datomic-conn)) fixtures)))))
   (assert (some? datomic-db))
+
   (alter-var-root #'schema (constantly (m/? (dx/schema! datomic-db))))
   (assert (some? schema)))
 

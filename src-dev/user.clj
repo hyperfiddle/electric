@@ -71,9 +71,9 @@
     (def datomic-client (eval '(d/client datomic-config)))
     (def datomic-conn (m/? (eval '(d/connect datomic-client {:db-name "mbrainz-subset"}))))
 
-    ; install test globals
+    ; install test globals, which can be different
     (require 'test)
-    (eval '(test/install-test-state datomic-client))
+    (eval '(test/install-test-state))
     (catch java.io.FileNotFoundException _ "no datomic on classpath"))
 
   ; enable RCF after Datomic is loaded – to resolve circular dependency
