@@ -4,7 +4,7 @@
    [hyperfiddle.hfql :refer [hfql]]
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
-   [hyperfiddle.queries-test :refer [orders order shirt-sizes one-order]])
+   #?(:clj [wip.orders :refer [orders order shirt-sizes one-order]]))
   (:import [hyperfiddle.photon Pending]))
 
 (tests
@@ -42,21 +42,21 @@
 
 (tests
  (with (p/run (tap (hfql {(order "") [:db/id]}))))
- % := '{(hyperfiddle.queries-test/order "") {:db/id 9}})
+ % := {`(order "") {:db/id 9}})
 
 (tests
  "Two levels of nesting"
  (with (p/run (tap (hfql {(order "") [{:order/shirt-size [:db/ident]}]}))))
- % := {'(hyperfiddle.queries-test/order "") {:order/shirt-size {:db/ident :order/womens-large}}})
+ % := {`(order "") {:order/shirt-size {:db/ident :order/womens-large}}})
 
 (tests
  "multiplicity many"
  (with (p/run (tap (hfql {(orders "") [:db/id]}) )))
- % := {'(hyperfiddle.queries-test/orders "") [{:db/id 9} {:db/id 10} {:db/id 11}]})
+ % := {`(orders "") [{:db/id 9} {:db/id 10} {:db/id 11}]})
 
 (tests
  (with (p/run (tap (hfql {(orders "") [(props :db/id {::hf/render string-renderer})]}))))
- % := {'(hyperfiddle.queries-test/orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
+ % := {`(orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
 
 (p/defn throwing-renderer [V props] (throw (ex-info "I fail" {})))
 (p/defn ignoring-renderer [V props] "ignored")
@@ -111,7 +111,7 @@
                                                (props :order/shirt-size {::hf/render  Select-option-renderer
                                                                          ::hf/options (shirt-sizes db/ident "")})]}) ))
                     (catch Pending _))))
-  % := '{(hyperfiddle.queries-test/orders "")
+  % := {`(orders "")
          [{:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]],
            :order/gender {:db/ident :order/female}}
           {:order/shirt-size [:select {:value 5} [:option 3] [:option 4] [:option 5]],
@@ -126,7 +126,7 @@
                                                (props :order/shirt-size {::hf/render  Select-option-renderer
                                                                          ::hf/options (shirt-sizes db/ident "")})]}) ))
                     (catch Pending _))))
-  % := '{(hyperfiddle.queries-test/orders "")
+  % := {`(orders "")
          [{:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]],
            :order/gender {:db/ident :order/female}}
           {:order/shirt-size [:select {:value 5} [:option 3] [:option 4] [:option 5]],
@@ -145,7 +145,7 @@
                                                                                  ::hf/options (shirt-sizes gender needle2)})
                                                        [:db/ident]}]} )))
                       (catch Pending _)))))
-  % := '{(hyperfiddle.queries-test/orders needle1)
+  % := {`(orders ~'needle1)
          [{:order/shirt-size
            [:select
             {:value {:db/ident :order/womens-large}}
@@ -173,7 +173,7 @@
                                                                        ::hf/options (shirt-sizes gender .)})
                                              [:db/ident]}]}) )
                     (catch Pending _))))
-  % := '{(hyperfiddle.queries-test/orders .)
+  % := {`(orders .)
          [#:order{:shirt-size
                   [:select
                    {:value #:db{:ident :order/womens-large}}

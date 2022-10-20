@@ -5,7 +5,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.hfql.ui :as ui]
             [hyperfiddle.photon-ui :as photon-ui]
-            [wip.orders :refer [orders genders shirt-sizes one-order]]
+            #?(:clj [wip.orders :refer [orders genders shirt-sizes one-order]])
             [hyperfiddle.hfql.router :as router])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.hfql-links)))
