@@ -31,8 +31,7 @@
         (p/server (Tee-shirt-orders.))))))
 
 (p/defn App []
-  (binding [hf/db hf/*db* ; why
-            hf/Render ui/Render] ; remove for livecoding demo
+  (binding [hf/Render ui/Render] ; remove for livecoding demo
     (ui/with-spec-render
       (Browser.))))
 
