@@ -59,7 +59,7 @@
      :order/shirt-size {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
      :order/type       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
      :order/tags       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
-     :db/ident         {:db/unique :db.unique/identity}})
+     :db/ident         {:db/unique :db.unique/identity, :hf/valueType :db.type/keyword}})
   ;(log/info "Initializing Test Database")
   (def conn (d/create-conn schema))
   (let [$  (-> conn d/db fixtures)]
