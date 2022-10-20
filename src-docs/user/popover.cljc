@@ -4,8 +4,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
-            [hyperfiddle.ui.codemirror :refer [read-edn write-edn]]
-            [user.util :refer [pprint-str]])
+            [hyperfiddle.ui.codemirror :refer [read-edn write-edn]])
   #?(:cljs (:require-macros user.popover)))
 
 (defonce !conn #?(:cljs nil ; state survives reload
@@ -23,7 +22,7 @@
        (d/q '[:find [?e ...]
               :in $ ?needle :where
               [?e :order/email ?email]
-              [(user.util/includes-str? ?email ?needle)]]
+              [(clojure.string/includes? ?email ?needle)]]
             db (or ?email "")))))
 
 (defn abc [] (->> (range 33 126) (map (comp str char))))

@@ -10,6 +10,7 @@
   #?(:cljs (:require-macros hyperfiddle.explorer)))
 
 (defn includes-str? [m s]
+  ; org.apache.commons.lang3.StringUtils.containsIgnoreCase()
   ; common utility for explorer search,
   ; note this should be done by the database though
   (clojure.string/includes? (clojure.string/lower-case (str m))

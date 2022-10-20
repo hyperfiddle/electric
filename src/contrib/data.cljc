@@ -188,3 +188,16 @@
 
 (tests
   (str-last-n 4 "0123456789") := "6789")
+
+; org.apache.commons.lang3.StringUtils.containsIgnoreCase()
+;(defn str-contains-ignore-case [])
+
+;(defn clamp [n min max] (Math/min (Math/max n min) max))
+;
+;(tests
+;  (clamp 51 10 50) := 50
+;  (clamp 50 10 50) := 50
+;  (clamp 49 10 50) := 49
+;  (clamp 11 10 50) := 11
+;  (clamp 10 10 50) := 10
+;  (clamp 9  10 50) := 10)

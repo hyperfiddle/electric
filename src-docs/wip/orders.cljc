@@ -3,8 +3,7 @@
   (:require #?(:clj [datascript.core :as d])
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.rcf :refer [tap % tests]]
-            user.util)
+            [hyperfiddle.rcf :refer [tap % tests]])
   #?(:cljs (:require-macros wip.orders)))
 
 ; This namespace is exported to CLJS so that the Photon cljs build can resolve them (todo fix)
@@ -52,7 +51,7 @@
 (defn orders [needle]
   #?(:clj (sort (d/q '[:find [?e ...] :in $ ?needle :where
                        [?e :order/email ?email]
-                       [(user.util/includes-str? ?email ?needle)]]
+                       [(clojure.string/includes? ?email ?needle)]]
                      hf/*$* (or needle "")))))
 
 #?(:clj
