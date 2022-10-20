@@ -11,13 +11,24 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests]]
             #?(:cljs [hyperfiddle.router :as router :refer [Link]])
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [clojure.string :as str])
   #?(:cljs (:require-macros hyperfiddle.datomic-browser))
   #?(:cljs (:import [goog.math Long]))) ; only this require syntax passes shadow in this file, why?
 
 (p/def conn)
 (p/def db)
 (p/def schema) ; schema is available in all explorer renderers
+
+(defn any-matches? [coll needle]
+  (let [substr (str/lower-case needle)]
+    (some #(when % (str/includes? (str/lower-case %) substr)) coll)))
+
+(tests
+  (any-matches? [1 2 nil 3] "3") := true
+  (any-matches? ["xyz"] "Y") := true
+  (any-matches? ["ABC"] "abc") := true
+  (any-matches? ["abc"] "d") := nil)
 
 (p/defn RecentTx []
   (binding [explorer/cols [:db/id :db/txInstant]
@@ -29,7 +40,8 @@
       "Recent Txs"
       (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
                                    (m/reductions conj ())
-                                   (m/relieve {}))))
+                                   (m/relieve {})))
+        (fn [_]) any-matches?)
       {::explorer/page-size 30
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em auto"})))
@@ -47,12 +59,12 @@
                                   (str v))))]
     (Explorer.
       "Attributes"
-      (->> (dx/attributes> db explorer/cols)
-           (m/reductions conj [])
-           (m/relieve {})
-           new
-           (sort-by :db/ident) ; sort by db/ident which isn't available
-           explorer/tree-lister)
+      (explorer/tree-lister (->> (dx/attributes> db explorer/cols)
+                              (m/reductions conj [])
+                              (m/relieve {})
+                              new
+                              (sort-by :db/ident)) ; sort by db/ident which isn't available
+        (fn [_]) any-matches?)
       {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "auto 6em 4em 4em 4em"})))
@@ -131,7 +143,7 @@
       ;; TODO inject sort
       (explorer/tree-lister (new (p/task->cp (d/pull db {:eid e :selector ['*] :compare compare})))
         (partial entity-tree-entry-children schema)
-        (fn [[k v] s] (or (explorer/includes-str? k s) (explorer/includes-str? (when-not (map? v) v) s))))
+        any-matches?)
       {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em auto"})))
@@ -155,7 +167,8 @@
       ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
       (explorer/tree-lister (new (->> (dx/entity-history-datoms> db e)
                                    (m/reductions conj []) ; track a running count as well?
-                                   (m/relieve {}))))
+                                   (m/relieve {})))
+        (fn [_]) any-matches?)
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em 10em 3em auto auto 9em"})))
@@ -172,7 +185,8 @@
       (str "Attribute detail: " a)
       (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [a]})
                                    (m/reductions conj [])
-                                   (m/relieve {}))))
+                                   (m/relieve {})))
+        (fn [_]) any-matches?)
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
@@ -190,7 +204,8 @@
       (explorer/tree-lister (new (->> (d/tx-range> conn {:start e, :end (inc e)}) ; global
                                    (m/eduction (map :data) cat)
                                    (m/reductions conj [])
-                                   (m/relieve {}))))
+                                   (m/relieve {})))
+        (fn [_]) any-matches?)
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
@@ -201,7 +216,7 @@
       (str "Db Stats:")
       (explorer/tree-lister (new (p/task->cp (d/db-stats db)))
         (fn [[_ v]] (when (map? v) (into (sorted-map) v)))
-        (fn [[k v] s] (or (explorer/includes-str? k s) (explorer/includes-str? (when-not (map? v) v) s)))) ; todo inject sort
+        any-matches?)
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
