@@ -15,42 +15,6 @@
   (clojure.string/includes? (clojure.string/lower-case (str m))
                             (clojure.string/lower-case (str s))))
 
-; all explorer bindings and p/fns must be called from server
-
-(p/def Children (p/fn [m] nil))
-(p/def Search? (p/fn [m s] (includes-str? m s))) ; todo make cc/fn
-
-(p/def TreeList')
-(p/defn TreeList [xs needle]
-  ; Pre-walk the tree and filter bottom-up, to omit layers with no descendents that match.
-  ; Returns a flattened list of [depth x] for linear pagination and rendering.
-  (binding [TreeList' (p/fn [depth xs needle] ; recur via binding until Photon gets proper recursion
-                        (->> (p/for [x (datafy xs)] ; xs can be an intrusive collection
-                               (let [m (datafy x)]
-                                 ; prewalk, omit parent if no descendents matched
-                                 (if-let [xs (seq (Children. m))] ; if open
-                                   ; omit level if no descendents matched filter
-                                   (when-let [rows (seq (TreeList'. (inc depth) xs needle))]
-                                     (cons [depth m] rows)) ; expand children inline
-                                   (when (Search?. m needle) [[depth m]])))) ; filter bottom up
-                             (mapcat identity)))]
-    (TreeList'. 0 xs needle)))
-
-#?(:clj
-   (tests
-     (with (p/run (tap (binding [Children (p/fn [x] (if (vector? x) x))
-                               Search? (p/fn [x needle] (odd? x))]
-                       (TreeList. [1 2 [3 4] [5 [6 [7]]]] ""))))
-       % := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]])
-     (with (p/run (tap (binding [Children (p/fn [x] (:children x))
-                                 Search? (p/fn [x needle] (-> x :file #{needle}))]
-                         (TreeList. [{:dir "x" :children [{:file "a"} {:file "b"}]}] "nope"))))
-       % := ())
-     (with (p/run (tap (binding [Children (p/fn [x] (:children x))
-                                 Search? (p/fn [x needle] (-> x :file #{needle}))]
-                         (TreeList. [{:dir "x" :children [{:file "a"} {:file "b"}]}] "a"))))
-       % := `([0 {:children ~_, :dir "x"}] [1 {:file "a"}]))))
-
 (defn- -tree-list [depth xs children-fn keep? input]
   (eduction (mapcat (fn [x]
                       (let [x (datafy x)]
@@ -76,13 +40,6 @@
   (count (vec *1)) := 0
   )
 
-(comment
-  (time (do (vec (repeatedly 100000 (fn [] (vec ((tree-lister [1 2 [3 4] [5 [6 [7]]]] #(when (vector? %) %) (fn [v _] (odd? v))) nil))))) nil))
-  (with (p/run (binding [Children (p/fn [x] (if (vector? x) x))
-                         Search? (p/fn [x needle] (odd? x))]
-                 (time (p/for [x (range 100)]
-                         (TreeList. [1 2 [3 4] [5 [6 [7]]]] "")))))))
-
 (p/def cols nil)
 (p/def Format (p/server (p/fn [row col] (pr-str (get row col)))))
 
@@ -101,7 +58,6 @@
           (GridSheet.
             #_RenderTableInfinite.
             #_TableSheet. ; deprecated, use page-size 100
-            #_(TreeList. xs search)
             (treelister search)
             (-> (auto-props (str *ns*) props {})
                 (rename-keys {::row-height ::gridsheet/row-height
