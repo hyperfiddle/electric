@@ -18,6 +18,9 @@
         :ret (s/coll-of number?))
 
 (defn shirt-sizes [gender needle]
+  ; resolve db/id and db/ident genders to same entity
+  ; datomic does this transparently
+  ; datascript does not
   (sort
     (if gender
       (d/q '[:in $ ?gender ?needle
@@ -26,7 +29,7 @@
              [?e :order/type :order/shirt-size]
              [?e :order/gender ?g]
              [?g :db/ident ?gender]
-             [?e :db/ident ?ident]
+             [?e :db/ident ?ident]  ; remove
              [(contrib.str/includes-str? ?ident ?needle)]]
            hf/*$*
            gender (or needle ""))
