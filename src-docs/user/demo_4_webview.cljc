@@ -3,8 +3,7 @@
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui]
-            user.util)
+            [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros user.demo-4-webview)))
 
 (defonce conn #?(:cljs nil                                  ; state survives reload
@@ -19,7 +18,7 @@
        (d/q '[:find [?e ...]
               :in $ ?needle :where
               [?e :order/email ?email]
-              [(user.util/includes-str? ?email ?needle)]]
+              [(clojure.string/includes? ?email ?needle)]]
             db (or ?email "")))))
 
 (p/defn Teeshirt-orders-view [db]
