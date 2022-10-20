@@ -6,7 +6,7 @@
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [wip.orders :refer [orders genders shirt-sizes one-order]]
+            #?(:clj [wip.orders :refer [orders genders shirt-sizes one-order]])
             [hyperfiddle.photon-ui :as ui]
             #?(:cljs [hyperfiddle.router :as html5-router])
             [missionary.core :as m]
