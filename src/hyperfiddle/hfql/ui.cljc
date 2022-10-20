@@ -67,6 +67,21 @@
         (dom/pre
           (dom/text edn))))))
 
+(defn spec-value-type [attr] ; TODO extract spec for quoted sexpr ; TODO support args
+  (when (qualified-ident? attr)
+    (spec/type-of attr)))
+
+(defn schema-attr [db ?a]
+  #?(:clj
+     (let [a (condp = (type db)
+               datascript.db.DB (get (:schema db) ?a))]
+       #_(log/debug "Query DB schema for attr " ?a a)
+       a)))
+
+(defn schema-value-type [db a]
+  (let [attr (schema-attr db a)]
+    (spec/valueType->type (or (:db/valueType attr) (:hf/valueType attr))))) ; datascript rejects valueType other than ref.
+
 (p/defn Form-renderer-impl [V props]
   (p/client
     (dom/form {:style {:border-left-color (c/color hf/db-name)}}
@@ -74,7 +89,9 @@
         (let [data (V.)]
           (p/for [k (::hf/columns props)]
             (p/client
-              (dom/label {::dom/title (pr-str (::spec/description (datafy (spec/spec (attr-spec k)))))}  (dom/text k))
+              (dom/label {::dom/title (pr-str (or (::spec/description (datafy (spec/spec (attr-spec k))))
+                                                (p/server (schema-value-type hf/*$* k))))}
+                (dom/text k))
               (p/server (new (get data k)))))))))
   (Default-options-renderer. V props))
 
@@ -101,7 +118,9 @@
           (dom/tr
             (when (::group-id table-picker-options) (dom/th))
             (p/for [col columns]
-              (dom/th (pr-str col))  ; TODO attr info on hover
+              (dom/th {::dom/title (pr-str (or (::spec/description (datafy (spec/spec (attr-spec col))))
+                                             (p/server (schema-value-type hf/*$* col)))) }
+                (pr-str col))  ; TODO attr info on hover
               )))
         (dom/tbody
           (p/server
@@ -130,19 +149,6 @@
     (p/client
       (ui/input {::ui/value v
                  ::ui/type  (input-type value-type "text")}))))
-
-(defn spec-value-type [attr] ; TODO extract spec for quoted sexpr ; TODO support args
-  (when (qualified-ident? attr)
-    (spec/type-of attr)))
-
-(defn schema-attr [db ?a]
-  (log/debug "Query DB schema for attr " ?a)
-  #?(:clj (condp = (type db)
-            datascript.db.DB (get (:schema db) ?a))))
-
-(defn schema-value-type [db a]
-  (let [attr (schema-attr db a)]
-    (spec/valueType->type (or (:db/valueType attr) (:hf/valueType attr))))) ; datascript rejects valueType other than ref.
 
 (p/defn Spec-renderer [V props]
   (let [attr       (::hf/attribute props)
