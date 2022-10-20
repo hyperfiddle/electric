@@ -24,7 +24,7 @@
         [?e :person/gender ?gender]
         [?e :db/ident ?ident]
         (hyperfiddle.api/needle-match ?ident ?needle)]
-      *$* hf/rules gender (or needle ""))))
+      *$* gender (or needle ""))))
 
 (defnode submissions [& [needle]]
   (sort
@@ -33,7 +33,7 @@
            :where
            [?e :person/email ?email]
            (hyperfiddle.api/needle-match ?email ?needle)]
-         *$* hf/rules (or needle ""))))
+         *$* (or needle ""))))
 
 (defnode submission-detail [e] e)
 
@@ -56,4 +56,4 @@
 
 
 (def exports
-  (vars into hf/rules sort q d/q *$* first))
+  (vars into sort q d/q *$* first))
