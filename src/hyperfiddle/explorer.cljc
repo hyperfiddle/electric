@@ -41,13 +41,22 @@
      (with (p/run (tap (binding [Children (p/fn [x] (if (vector? x) x))
                                Search? (p/fn [x needle] (odd? x))]
                        (TreeList. [1 2 [3 4] [5 [6 [7]]]] ""))))
-       % := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]])))
+       % := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]])
+     (with (p/run (tap (binding [Children (p/fn [x] (:children x))
+                                 Search? (p/fn [x needle] (-> x :file #{needle}))]
+                         (TreeList. [{:dir "x" :children [{:file "a"} {:file "b"}]}] "nope"))))
+       % := ())
+     (with (p/run (tap (binding [Children (p/fn [x] (:children x))
+                                 Search? (p/fn [x needle] (-> x :file #{needle}))]
+                         (TreeList. [{:dir "x" :children [{:file "a"} {:file "b"}]}] "a"))))
+       % := `([0 {:children ~_, :dir "x"}] [1 {:file "a"}]))))
 
 (defn- -tree-list [depth xs children-fn keep? input]
   (eduction (mapcat (fn [x]
                       (let [x (datafy x)]
                         (if-let [children (children-fn x)]
-                          (into [[depth x]] (-tree-list (inc depth) children children-fn keep? input))
+                          (when-let [rows (seq (-tree-list (inc depth) children children-fn keep? input))]
+                            (into [[depth x]] rows))
                           (cond-> [] (keep? x input) (conj [depth x]))))))
     (datafy xs)))
 
@@ -57,7 +66,15 @@
 
 (tests
   (vec ((tree-lister [1 2 [3 4] [5 [6 [7]]]] #(when (vector? %) %) (fn [v _] (odd? v))) nil))
-  := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]])
+  := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]]
+
+  ((tree-lister [{:dir "x" :children [{:file "a"} {:file "b"}]}] :children (fn [v needle] (-> v :file #{needle})) ) "a")
+  (count (vec *1)) := 2
+
+  "directory is omitted if there are no children matching keep?"
+  ((tree-lister [{:dir "x" :children [{:file "a"} {:file "b"}]}] :children (fn [v needle] (-> v :file #{needle}))) "nope")
+  (count (vec *1)) := 0
+  )
 
 (comment
   (time (do (vec (repeatedly 100000 (fn [] (vec ((tree-lister [1 2 [3 4] [5 [6 [7]]]] #(when (vector? %) %) (fn [v _] (odd? v))) nil))))) nil))
