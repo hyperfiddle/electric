@@ -4,7 +4,6 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests]]
             [missionary.core :as m]
-            [user.util :refer [pprint-str]]
             #?(:cljs goog.object))
   #?(:cljs (:require-macros dustin.y2022.godscroll)))
 

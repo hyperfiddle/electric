@@ -9,7 +9,6 @@
             [hyperfiddle.gridsheet :as-alias gridsheet]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
             [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]
-            [user.util :refer [includes-str? pprint-str]]
             #?(:cljs [hyperfiddle.router :as router])
             [missionary.core :as m])
   #?(:cljs (:require-macros [user.demo-7-explorer :refer [absolute-path]])))
@@ -39,7 +38,7 @@
     [explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]]
     (let [m (datafy x)
           xs (nav m ::fs/children (::fs/children m))]
-      (Explorer. (::fs/absolute-path m) (explorer/tree-lister xs ::fs/children #(includes-str? (::fs/name %) %2))
+      (Explorer. (::fs/absolute-path m) (explorer/tree-lister xs ::fs/children #(explorer/includes-str? (::fs/name %) %2))
                  {::dom/style {:height "calc((20 + 1) * 24px)"}
                   ::explorer/page-size 20
                   ::explorer/row-height 24

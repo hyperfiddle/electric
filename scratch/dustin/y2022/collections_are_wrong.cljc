@@ -53,7 +53,7 @@
                      (d/q '[:find #_[?e ...] [(pull ?e [:db/id :order/email :order/gender]) ...]
                             :in $ ?needle :where
                             [?e :order/email ?email]
-                            [(user.util/includes-str? ?email ?needle)]]
+                            [(clojure.string/includes-str? ?email ?needle)]]
                           db (or ?email ""))))))
 
 (p/defn Teeshirt-orders-view [db]

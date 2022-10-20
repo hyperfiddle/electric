@@ -2,7 +2,7 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
-            [user.util :refer [pprint-str]])
+            [contrib.str :refer [pprint-str]])
   (:import (hyperfiddle.photon Pending))
   #?(:cljs (:require-macros wip.demo-bubbles)))
 
