@@ -1,4 +1,4 @@
-(ns dustin.monad-scope2
+(ns dustin.y2020.monad-scope2
   (:require
     [minitest :refer [tests]]))
 
