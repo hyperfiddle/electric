@@ -1,0 +1,23 @@
+**/.DS_Store
+**/.cpcache
+**/.idea
+**/.env
+.clj-kondo/.cache
+.lsp
+.nrepl-port
+yarn.lock
+**/*.~undo-tree~
+.idea/*
+
+# ignore target artifacts – docker owns the prod build
+
+**/.shadow-cljs
+out
+**/node_modules
+**/target
+**/tsconfig.tsbuildinfo
+**/output.calva-repl
+resources/public/*.min.css
+resources/public/js
+
+# **/src/**/*.js -- we commit precompiled js files (Failure.js, Pending.js), as well as .class
