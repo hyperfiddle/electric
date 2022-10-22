@@ -49,7 +49,7 @@
               #_{:text "HFQL" ::value user.demo-hfql/App}
               #_{:text "HFQL" ::value wip.hfql/App}
               {:text "Authentication" ::value user.auth/App}
-              {:text "Scroll view" ::value hyperfiddle.scrollview/Demo}
+              #_{:text "Scroll view" ::value hyperfiddle.scrollview/Demo} ; takes whole page, covering the demo picker control
               ; {:text "Datomic browser" ::value user.datomic-browser/App}
               {:text "7GUIs - counter" ::value user.seven-gui-1-counter/Counter}
               {:text "7GUIs - temperature converter" ::value user.seven-gui-2-temperature-converter/App}
