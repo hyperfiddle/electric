@@ -1,4 +1,5 @@
-{:paths ["src"]
+{:paths ["src"
+         "resources"] ; for uberjar
  :deps {borkdude/edamame {:mvn/version "1.0.0"} ;; configurable edn parser
         com.cognitect/transit-clj {:mvn/version "1.0.329"}
         com.cognitect/transit-cljs {:mvn/version "0.8.269"}
@@ -50,6 +51,17 @@
 
            :build ; this is photon lib build, excludes demos
            {:paths ["src-build"]} ; no project classpath including user.clj and data_readers
+
+           ;; demos with bundled library, combine with :dev:scratch
+           ;:demo-uberjar {:extra-deps {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
+           ;                            io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}
+           ;                            thheller/shadow-cljs {:mvn/version "2.20.1"}
+           ;                            uberdeps/uberdeps {:mvn/version "1.1.4" #_"0.1.8"}} ; todo 1.1.4 crashes on --alias
+           ;               :extra-paths ["deploy"]
+           ;               :ns-default build-demo
+           ;               :exec-fn    prod/build
+           ;               :exec-args  {}
+           ;               #_#_:main-opts ["-m" "uberdeps.uberjar" "--aliases" "dev:scratch"]}
 
            :scratch {:extra-paths []
                      :extra-deps {nextjournal/clojure-mode {:git/url "https://github.com/nextjournal/clojure-mode" ; clojure codemirror support
