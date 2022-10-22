@@ -47,6 +47,10 @@
                                    io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                          :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
                      :exec-fn     cognitect.test-runner.api/test}
+
+           :build ; this is photon lib build, excludes demos
+           {:paths ["src-build"]} ; no project classpath including user.clj and data_readers
+
            :scratch {:extra-paths []
                      :extra-deps {nextjournal/clojure-mode {:git/url "https://github.com/nextjournal/clojure-mode" ; clojure codemirror support
                                                             :sha "699a445ebf2767f41fd0b6eeed5a008511702be6"}

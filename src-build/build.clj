@@ -1,4 +1,5 @@
 (ns build
+  "build photon.jar library artifact (no demos)"
   (:require [clojure.tools.build.api :as b]
             [org.corfield.build :as bb]))
 
