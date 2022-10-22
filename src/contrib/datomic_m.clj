@@ -88,6 +88,7 @@
   )
 
 (defn install-defs! []
+  (println "Datomic APIs detected: " (pr-str datomic-products))
   (cond
     (datomic-products 'datomic.api)
     (install-datomic-onprem)
