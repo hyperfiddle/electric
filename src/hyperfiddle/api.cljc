@@ -50,7 +50,7 @@
 (p/def db-name)
 
 (def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
-                                      
+(p/def db) ; HFQL will query this db
 
 (p/def context nil) ; HFQL EAV context
 
