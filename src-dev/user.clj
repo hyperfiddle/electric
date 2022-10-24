@@ -98,8 +98,9 @@
   "auto boot"
   (main)) ; this blocks the repl until build is ready. alternatively can run in a future?
 
-(defn rcf-shadow-hook {:shadow.build/stage #{:compile-prepare :compile-finish}}
+(defn rcf-shadow-hook {:shadow.build/stages #{:compile-prepare :compile-finish}}
   [build-state & args]
+  ;; NOTE this won’t prevent RCF tests to run during :require-macros phase
   (case (:shadow.build/stage build-state)
     :compile-prepare (@rcf-enable! false)
     :compile-finish (@rcf-enable!))
