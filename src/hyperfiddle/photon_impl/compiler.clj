@@ -10,7 +10,8 @@
             [clojure.string :as str]
             [hyperfiddle.photon-impl.analyzer :as ana]
             [hyperfiddle.logger :as log]
-            [clojure.tools.analyzer.jvm.utils :refer [maybe-class-from-string]])
+            [clojure.tools.analyzer.jvm.utils :refer [maybe-class-from-string]]
+            [missionary.core :as m])
   (:import cljs.tagged_literals.JSValue
            (clojure.lang Var)))
 
@@ -702,6 +703,18 @@
            (throw (ex-info "Failed to analyse form" {:in [form]} t))))
     [[:literal form]]))
 
+(defn await-cljs-namespace
+  "Await for a cljs namespace to be compiled, then return it. Blocking."
+  ;; CLJS namespaces are compiled in parallel. While shadow track dependencies
+  ;; properly, running long task during macroexpansion phase can introduce
+  ;; races. Is this a bug in Shadow?
+  [sym-ns]
+  (or (cljs/get-namespace sym-ns)
+    (let [task (->> (m/ap (get-in (m/?< (m/watch cljs.env/*compiler*)) [::cljs/namespaces sym-ns]))
+                 (m/eduction (remove nil?) (take 1))
+                 (m/reduce {} nil))]
+      (m/? (m/timeout task 60000)))))
+
 (let [nodes (l/local)]
   (defn visit-node
     "Given a symbol naming a reactive var, and the form to analyze. 
@@ -714,7 +727,7 @@
               inst (case form
                      ::unbound nil
                      (if (:js-globals env)
-                       (if-let [ns (cljs/get-namespace sym-ns)] ; get cljs namespace to analyze node in.
+                       (if-let [ns (await-cljs-namespace sym-ns)] ; get cljs namespace to analyze node in.
                          (analyze-form (-> (assoc env :ns ns :locals {}) (dissoc ::index)) form) ; clean up locals as form is not in lexical scope of the caller.
                          (throw (ex-info "Can't analyze reactive var reference: no such ClojureScript namespace. This var should be defined in a cljs or cljc file." {:symbol sym, :namespace sym-ns})))
                        (analyze-form (-> (assoc env :ns sym-ns :locals {}) (dissoc ::index)) form)))
