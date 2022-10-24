@@ -46,7 +46,7 @@
 #?(:clj
    (defn routing-map [env pages]
      (->> pages
-       (map (fn [page] [(list 'quote (first (page-identifier env page))) `(p/fn [] (hfql/hfql ~page))]))
+       (map (fn [page] [(list 'quote (first (page-identifier env page))) `(p/fn [] (hfql/hfql ~(::bindings env) ~page))]))
        (into {}))))
 
 (defn args-indices [f]
@@ -111,10 +111,11 @@
 ;;            {(page2) [:db/id]})
 ;;  #+end_src
 ;;
-(defmacro router [route & pages]
+(defmacro router [bindings route & pages]
+  (assert (vector? bindings))
   (let [pages (mapcat (partial load-page &env) pages)]
     (validate-pages! pages)
-    (let [env         (c/normalize-env &env)
+    (let [env         (assoc (c/normalize-env &env) ::bindings bindings)
           routing-map (routing-map env pages)
           fns         (set (map (comp first (partial page-identifier env)) pages))]
       `(let [route# ~route]
