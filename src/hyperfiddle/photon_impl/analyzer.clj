@@ -21,6 +21,10 @@
 (defn emit-clj [ast]
   (emit-form/emit-form ast))
 
+(defmethod emit-form/-emit-form :the-var
+ [{:keys [var]} opts]
+  `(var ~(.toSymbol var)))
+
 (defn walk-clj "Prewalk a clj ast" [ast f] (clj-ast/prewalk ast f))
 (defn walk-cljs "Prewalk a cljs ast" [ast f] (cljs-ast/walk ast [(fn [env ast opts] (f ast))]))
 
