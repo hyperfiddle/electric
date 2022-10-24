@@ -7,7 +7,10 @@
             [hyperfiddle.spec :as spec])
   #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
 
-(defmacro hfql [& body] `(hfql/hfql ~@body))
+(defmacro hfql
+  ([query] `(hfql/hfql ~query))
+  ([bindings query] `(hfql/hfql ~bindings ~query)))
+
 (def nav! #'hfql/nav!)
 
 ;;; Route

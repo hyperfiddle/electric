@@ -4,6 +4,7 @@
    [hyperfiddle.hfql :refer [hfql]]
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
+   [clojure.spec.alpha :as s]
    #?(:clj [wip.orders :refer [orders order shirt-sizes one-order]]))
   (:import [hyperfiddle.photon Pending]))
 
@@ -197,3 +198,21 @@
                   :gender #:db{:ident :order/male}}]})
 
 
+(p/def db)
+(def ^:dynamic *db*)
+
+(s/fdef bound-order :args (s/cat :needle string?) :ret any?)
+
+(defn bound-order [needle]
+  #?(:clj (binding [hf/*$* *db*]
+            (wip.orders/order needle))))
+
+(tests
+  "Binding conveyance"
+
+  (with (p/run (try (tap
+                      (binding [db hf/*$*]
+                        (hfql [*db* db]
+                          {(bound-order "alice") [:db/id]}) ))
+                    (catch Pending _))))
+  % := '{(hyperfiddle.hfql-test/bound-order "alice") #:db{:id 9}})
