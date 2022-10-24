@@ -1712,7 +1712,7 @@
 (tests "letfn body is photon"
   (p/def z 3)
   (def !x (atom 4))
-  (with (p/run (let [y 2] (letfn [(f [x] (prn :f) (g x)) (g [x] (prn :g) [x y z])] (tap (f (doto (p/watch !x) prn))))))
+  (with (p/run (let [y 2] (letfn [(f [x] (g x)) (g [x] [x y z])] (tap (f (p/watch !x))))))
     % := [4 2 3]
     (swap! !x inc)
     % := [5 2 3]))
