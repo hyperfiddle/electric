@@ -195,11 +195,11 @@
 (defn cardinality-many?
   "Guess the cardinality of a speced function or keyword."
   [ident]
-  (let [s    (datafy (spec ident))
-        type (case (::type s)
-               ::fspec (::type (datafy (nav s ::ret (::ret s))))
-               (::type s))]
-    (= ::coll-of type)))
+  (let [s (datafy (spec ident))]
+    (when-let [type (case (::type s)
+                      ::fspec (::type (datafy (nav s ::ret (::ret s))))
+                      (::type s))]
+      (= ::coll-of type))))
 
 
 (tests
