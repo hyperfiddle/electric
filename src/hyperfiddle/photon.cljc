@@ -352,3 +352,8 @@ or a provided value if it completes without producing any value."
     (with-meta
       `{:env ~(reduce-kv (cc/fn [r k v] (assoc r (list 'quote k) k)) (empty env) env)}
       (meta &form))))
+
+(defmacro partial-dynamic
+  "Return a function calling given function `f` with given dynamic environment."
+  [bindings f]
+  `(cc/fn [& args#] (binding ~bindings (apply ~f args#))))
