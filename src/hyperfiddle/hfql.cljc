@@ -6,7 +6,9 @@
   #?(:cljs (:require-macros [hyperfiddle.hfql])))
 
 
-(defmacro hfql [form] (impl/hfql* &env form))
+(defmacro hfql
+  ([form] (impl/hfql* &env [] form))
+  ([bindings form] (impl/hfql* &env bindings form)))
 
 (defn nav!                      ; TODO implement in term of `clojure.datafy/nav`
   ([_ e] e)
