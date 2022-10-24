@@ -35,7 +35,7 @@
       (let [route hf/route]
         (p/server
           (hfui/with-ui-renderers
-            (router/router route
+            (router/router [hf/*$* hf/db] route
               {(one-order .) [(props :db/id {::hf/link (one-order db/id)})
                               (props :order/email {::hf/link   (orders order/email)
                                                    ::hf/render hfui/Default-renderer})
@@ -77,20 +77,25 @@
        (m/relieve {}))))
 
 (p/defn App []
-  (p/client
-    (let [!path (m/mbx)]
-      (binding [hf/route          (or (new (route> !path)) '(wip.orders/orders ""))
-                hf/navigate!      #(html5-router/pushState! !path (str "#" (ednish/encode-uri %)))
-                hf/replace-route! #(html5-router/replaceState! !path (str "#" (ednish/encode-uri %)))
-                hf/navigate-back! #(.back js/window.history)
-                hf/db-name        "$"   ; enrich UI with db info
-                ]
-        (dom/div {::dom/id    "main"
-                  ::dom/class "browser hyperfiddle-hfql"}
-          (dom/div {::dom/class "view"}
-            (p/server
-              (Tee-shirt-orders.)
-              )))))))
+  (p/server
+    (binding [hf/db (datascript.core/db-with hf/*$* [{:db/id            12
+                                                      :order/email      "john@example.com"
+                                                      :order/gender     :order/male
+                                                      :order/shirt-size :order/mens-medium}])]
+      (p/client
+        (let [!path (m/mbx)]
+          (binding [hf/route          (or (new (route> !path)) '(wip.orders/orders ""))
+                    hf/navigate!      #(html5-router/pushState! !path (str "#" (ednish/encode-uri %)))
+                    hf/replace-route! #(html5-router/replaceState! !path (str "#" (ednish/encode-uri %)))
+                    hf/navigate-back! #(.back js/window.history)
+                    hf/db-name        "$"   ; enrich UI with db info
+                    ]
+            (dom/div {::dom/id    "main"
+                      ::dom/class "browser hyperfiddle-hfql"}
+              (dom/div {::dom/class "view"}
+                (p/server
+                  (Tee-shirt-orders.)
+                  )))))))))
 
 ; Takeaways:
 ; 1. no REST, no GraphQL, all client/server network management handled automatically. Eliminates BFF problem
