@@ -90,7 +90,7 @@
           (p/for [k (::hf/columns props)]
             (p/client
               (dom/label {::dom/title (pr-str (or (::spec/description (datafy (spec/spec (attr-spec k))))
-                                                (p/server (schema-value-type hf/*$* k))))}
+                                                (p/server (schema-value-type hf/db k))))}
                 (dom/text k))
               (p/server (new (get data k)))))))))
   (Default-options-renderer. V props))
@@ -119,7 +119,7 @@
             (when (::group-id table-picker-options) (dom/th))
             (p/for [col columns]
               (dom/th {::dom/title (pr-str (or (::spec/description (datafy (spec/spec (attr-spec col))))
-                                             (p/server (schema-value-type hf/*$* col)))) }
+                                             (p/server (schema-value-type hf/db col)))) }
                 (pr-str col))  ; TODO attr info on hover
               )))
         (dom/tbody
@@ -152,7 +152,7 @@
 
 (p/defn Spec-renderer [V props]
   (let [attr       (::hf/attribute props)
-        value-type (or (spec-value-type attr) (schema-value-type hf/*$* attr))]
+        value-type (or (spec-value-type attr) (schema-value-type hf/db attr))]
     (case value-type
       :hyperfiddle.spec.type/string (Input-renderer. V (assoc props ::value-type value-type))
       (Default-renderer. V props))))
