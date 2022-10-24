@@ -348,9 +348,9 @@
                   :clj  (if (and (namespace sym) (maybe-class-from-string (namespace sym))) ; static field
                           sym
                           (throw (ex-info (str "Unable to resolve symbol: " sym) (source-map env (meta sym)))))
-                  :cljs (do (log/warn "Use of undeclared var" (symbol (or (namespace sym) (name (:name (:ns env)))) (name sym))
-                              (source-map env (meta sym)))
-                            sym)))]
+                  :cljs (let [sym (symbol (or (namespace sym) (name (:name (:ns env)))) (name sym))]
+                          (log/debug "Photon internals - use of undeclared cljs var" sym ". Passing through." (source-map env (meta sym)))
+                          sym)))]
       [:global (global sym) (source-map env (meta sym))])))
 
 (defn conj-res
