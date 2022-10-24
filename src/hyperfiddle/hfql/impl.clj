@@ -641,11 +641,14 @@
                                                                                (when-let [input (:node/input arg)]
                                                                                  {::hf/write (:node/symbol input)}))])) args)))))
 
+(def ^:dynamic *bindings*)
+
 (defn emit-call [point]
-  (let [sexpr (cons (:function/name point) (map (fn [node] `(new ~(:node/symbol node))) (arguments point)))]
+  (let [f    (:function/name point)
+        args (map (fn [node] `(new ~(:node/symbol node))) (arguments point))]
     (case (:prop/key point)
-      ::hf/link (let [[f & args] sexpr] `(list '~f ~@args))
-      sexpr)))
+      ::hf/link `(list '~f ~@args)
+      (cons `(p/partial-dynamic ~*bindings* ~f) args))))
 
 (defn emit-argument [node]
   (if-let [ref (:node/reference node)]
@@ -717,12 +720,13 @@
 ;; Macro ;;
 ;;;;;;;;;;;
 
-(defn hfql* [env form]
-  (->> (analyze form)
-       (apply-passes passes (c/normalize-env env))
-       (get-root)
-       (emit)
-       (list 'new) ; emit produces a p/fn
-       ))
+(defn hfql* [env bindings form]
+  (binding [*bindings* bindings]
+    (->> (analyze form)
+      (apply-passes passes (c/normalize-env env))
+      (get-root)
+      (emit)
+      (list 'new) ; emit produces a p/fn
+      )))
 
 (defmacro hfql [form] (hfql* &env form))
