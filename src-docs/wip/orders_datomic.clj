@@ -46,11 +46,11 @@
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (defn genders []
-  (into [] (sort (d/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*))))
+  (into [] (sort (d/q '[:find [?ident ...] :where [_ :order/gender ?e] [?e :db/ident ?ident]] hf/*$*))))
 
 (tests
   (binding [hf/*$* *$*]
-    (genders)) := [17592186045418 17592186045419])
+    (genders)) := [:order/female :order/male])
 
 (s/fdef shirt-sizes :args (s/cat :gender keyword?
                             :needle string?)
@@ -62,7 +62,7 @@
   (sort
     (if gender
       (d/q '[:in $ ?gender ?needle
-             :find [?e ...]
+             :find [?ident ...]
              :where
              [?e :order/type :order/shirt-size]
              [?e :order/gender ?g]
@@ -82,8 +82,8 @@
 
 (tests
   (binding [hf/*$* *$*]
-    (shirt-sizes :order/female #_2 "") := [17592186045424 17592186045425 17592186045426]
-    (shirt-sizes :order/female #_2 "med") := [17592186045425]))
+    (shirt-sizes :order/female #_2 "") := [:order/womens-large :order/womens-medium :order/womens-small]
+    (shirt-sizes :order/female #_2 "med") := [:order/womens-medium]))
 
 (defn orders [needle]
   (sort (d/q '[:find [?e ...] :in $ ?needle :where
