@@ -6,7 +6,7 @@
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            #?(:clj [wip.orders :refer [orders genders shirt-sizes one-order]])
+            #?(:clj [wip.orders-datomic :refer [orders genders shirt-sizes one-order]])
             [hyperfiddle.photon-ui :as ui]
             #?(:cljs [hyperfiddle.router :as html5-router])
             [missionary.core :as m]
@@ -35,7 +35,9 @@
       (let [route hf/route]
         (p/server
           (hfui/with-ui-renderers
-            (router/router [hf/*$* hf/db] route
+            (router/router [hf/*$* hf/db
+                            hf/*nav!* hf/*nav!*]
+              route
               {(one-order .) [(props :db/id {::hf/link (one-order db/id)})
                               (props :order/email {::hf/link   (orders order/email)
                                                    ::hf/render hfui/Default-renderer})
@@ -78,13 +80,15 @@
 
 (p/defn App []
   (p/server
-    (binding [hf/db (datascript.core/db-with hf/*$* [{:db/id            12
+    (binding [hf/*nav!* wip.orders-datomic/nav!
+              hf/db wip.orders-datomic/*$* #_(datascript.core/db-with hf/*$* [{:db/id            12
                                                       :order/email      "john@example.com"
                                                       :order/gender     :order/male
-                                                      :order/shirt-size :order/mens-medium}])]
+                                                      :order/shirt-size :order/mens-medium}])
+              hf/*schema* wip.orders-datomic/schema]
       (p/client
         (let [!path (m/mbx)]
-          (binding [hf/route          (or (new (route> !path)) '(wip.orders/orders ""))
+          (binding [hf/route          (or (new (route> !path)) '(wip.orders-datascript/orders ""))
                     hf/navigate!      #(html5-router/pushState! !path (str "#" (ednish/encode-uri %)))
                     hf/replace-route! #(html5-router/replaceState! !path (str "#" (ednish/encode-uri %)))
                     hf/navigate-back! #(.back js/window.history)
