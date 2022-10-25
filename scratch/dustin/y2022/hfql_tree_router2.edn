@@ -1,24 +1,24 @@
-{(wip.orders/orders .) {:needle "alice"}} ; hfql tree-path form
-(wip.orders/orders "alice") ; s/cat form
-{wip.orders/orders {:needle "alice"}} ; s/keys tree-path form
-{wip.orders/orders {1 "alice"}} ; router form - index holes in HFQL expr
+{(wip.orders-datascript/orders .) {:needle "alice"}} ; hfql tree-path form
+(wip.orders-datascript/orders "alice") ; s/cat form
+{wip.orders-datascript/orders {:needle "alice"}} ; s/keys tree-path form
+{wip.orders-datascript/orders {1 "alice"}} ; router form - index holes in HFQL expr
 
 
 "hfql tree-path form"
-{(wip.orders/orders .)
+{(wip.orders-datascript/orders .)
  {:needle "alice"
   9 {:order/shirt-size
-     {(wip.orders/shirt-sizes gender .)
+     {(wip.orders-datascript/shirt-sizes gender .)
       {:needle "large"}}}}}
 
 "s/keys tree-path form"
-{{wip.orders/orders {:needle "alice"}}
- {9 {:order/shirt-size {::hf/options {wip.orders/shirt-sizes {:needle "large"}}}}}}
+{{wip.orders-datascript/orders {:needle "alice"}}
+ {9 {:order/shirt-size {::hf/options {wip.orders-datascript/shirt-sizes {:needle "large"}}}}}}
 
 "router form"
-{{wip.orders/orders {1 "alice"}} ; 1 is "first hole" at this layer
+{{wip.orders-datascript/orders {1 "alice"}} ; 1 is "first hole" at this layer
  {9 {1 "large"}}}
 
-{{wip.orders/orders {1 ""}}
+{{wip.orders-datascript/orders {1 ""}}
  {9 {1 "large"}
   10 {1 "small"}}}

@@ -1,4 +1,4 @@
-(ns wip.orders
+(ns wip.orders-datascript
   "query functions used in tee-shirt orders demo"
   (:require contrib.str
             [datascript.core :as d]
@@ -71,4 +71,6 @@
   (order "bob") := 10)
 
 (s/fdef one-order :args (s/cat :sub any?) :ret any?)
-(defn one-order [sub] (hf/nav! hf/*$* sub :db/id))
+(defn one-order [sub] (hf/*nav!* hf/*$* sub :db/id))
+
+(defn schema [db a] (get (:schema db) a))
