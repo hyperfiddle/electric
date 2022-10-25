@@ -456,7 +456,7 @@
 
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
-    (set! ns ns* deftype* defrecord* var)
+    (ns ns* deftype* defrecord* var)
     (throw (ex-info "Unsupported operation." {:op op :args args}))
 
     (let*)
@@ -522,6 +522,11 @@
     (let [[form bindings] (provided-bindings env (rewrite-letfn*-bindings-for-clj-analysis (first args)))]
       (transduce (map (partial analyze-form env)) conj-res
         [[:apply [:eval `(fn-call ~form ~(vals bindings)) {::dbg/type :letfn}]]] (keys bindings)))
+
+    (set!)
+    (let [[form bindings] (provided-bindings env form)]
+      (transduce (map (partial analyze-form env)) conj-res
+        [[:apply [:eval `(fn-call ~form ~(vals bindings)) {::dbg/type :set!}]]] (keys bindings)))
 
     (new)                                                   ; argument binding + monadic join
     (if-some [[f & args] args]
