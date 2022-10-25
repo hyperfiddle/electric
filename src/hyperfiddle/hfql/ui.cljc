@@ -71,15 +71,8 @@
   (when (qualified-ident? attr)
     (spec/type-of attr)))
 
-(defn schema-attr [db ?a]
-  #?(:clj
-     (let [a (condp = (type db)
-               datascript.db.DB (get (:schema db) ?a))]
-       #_(log/debug "Query DB schema for attr " ?a a)
-       a)))
-
-(defn schema-value-type [db a]
-  (let [attr (schema-attr db a)]
+(defn schema-value-type [schema-f db a]
+  (let [attr (schema-f db a)]
     (spec/valueType->type (or (:db/valueType attr) (:hf/valueType attr))))) ; datascript rejects valueType other than ref.
 
 (p/defn Form-renderer-impl [V props]
@@ -90,7 +83,7 @@
           (p/for [k (::hf/columns props)]
             (p/client
               (dom/label {::dom/title (pr-str (or (::spec/description (datafy (spec/spec (attr-spec k))))
-                                                (p/server (schema-value-type hf/db k))))}
+                                                (p/server (schema-value-type hf/*schema* hf/db k))))}
                 (dom/text k))
               (p/server (new (get data k)))))))))
   (Default-options-renderer. V props))
@@ -119,7 +112,7 @@
             (when (::group-id table-picker-options) (dom/th))
             (p/for [col columns]
               (dom/th {::dom/title (pr-str (or (::spec/description (datafy (spec/spec (attr-spec col))))
-                                             (p/server (schema-value-type hf/db col)))) }
+                                             (p/server (schema-value-type hf/*schema* hf/db col)))) }
                 (pr-str col))  ; TODO attr info on hover
               )))
         (dom/tbody
@@ -152,7 +145,7 @@
 
 (p/defn Spec-renderer [V props]
   (let [attr       (::hf/attribute props)
-        value-type (or (spec-value-type attr) (schema-value-type hf/db attr))]
+        value-type (or (spec-value-type attr) (schema-value-type hf/*schema* hf/db attr))]
     (case value-type
       :hyperfiddle.spec.type/string (Input-renderer. V (assoc props ::value-type value-type))
       (Default-renderer. V props))))

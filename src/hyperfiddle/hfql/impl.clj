@@ -672,7 +672,7 @@
     `(p/fn []
        ~(case (:node/form-type point)
           :keyword (let [attribute (:node/form point)
-                         value     `(hyperfiddle.hfql/nav! hf/db hf/entity ~attribute)
+                         value     `(hf/*nav!* hf/db hf/entity ~attribute)
                          form      (if-some [continuation (first (children point))] ; if there is a continuation
                                      (add-scope-bindings point
                                        `(binding [hf/entity  ~value
