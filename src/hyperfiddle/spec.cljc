@@ -104,7 +104,7 @@
           (qualified-ident? spec-or-ident) (when-let [s (get-spec spec-or-ident)]
                                              (with-meta (form s) {`ccp/datafy (fn [_] (datafy s))})))))
 
-;; #?(:cljs (spec `wip.orders/orders))
+;; #?(:cljs (spec `wip.orders-datascript/orders))
 
 (defn reflect [spec-or-ident]
   (assert (or (s/spec? spec-or-ident) (qualified-ident? spec-or-ident))
