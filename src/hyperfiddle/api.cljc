@@ -11,7 +11,7 @@
   ([query] `(hfql/hfql ~query))
   ([bindings query] `(hfql/hfql ~bindings ~query)))
 
-(def nav! #'hfql/nav!)
+(p/def ^:dynamic *nav!* hfql/datascript-nav!)
 
 ;;; Route
 
@@ -51,6 +51,8 @@
 
 (def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
 (p/def db) ; HFQL will query this db
+
+(p/def ^{:dynamic true, :doc "To be bound to a function [db attribute] -> schema"} *schema*)
 
 (p/def context nil) ; HFQL EAV context
 

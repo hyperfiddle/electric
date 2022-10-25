@@ -10,11 +10,11 @@
   ([form] (impl/hfql* &env [] form))
   ([bindings form] (impl/hfql* &env bindings form)))
 
-(defn nav!                      ; TODO implement in term of `clojure.datafy/nav`
+(defn datascript-nav!           ; TODO should it be moved out of this ns?
   ([_ e] e)
   ([db e a] (let [v (a (if (de/entity? e) e (d/entity db e)))]
               (if (de/entity? v)
                 (:db/id v)
                 v)))
-  ([db e a & as] (reduce (partial nav! db) (nav! db e a) as)))
+  ([db e a & as] (reduce (partial datascript-nav! db) (datascript-nav! db e a) as)))
 
