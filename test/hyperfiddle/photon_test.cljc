@@ -4,7 +4,8 @@
             [hyperfiddle.photon-impl.io :as photon-io]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]
-            [clojure.test :as t])
+            [clojure.test :as t]
+            [clojure.string :as str])
   (:import missionary.Cancelled
            [hyperfiddle.photon Pending Failure]
            #?(:clj [clojure.lang ExceptionInfo])))
@@ -1729,3 +1730,28 @@
       (swap! !state inc)
       % := 1
       )))
+
+#?(:clj
+   (tests "set!"
+     (def !y (atom 8))
+     (with (p/run (let [pt (java.awt.Point. 1 2)
+                        y (p/watch !y)]
+                    (set! (.-y pt) y)
+                    ;; calling (.-y pt) doesn't work, it's deduped
+                    (tap [y pt])))
+       % := [8 (java.awt.Point. 1 8)]
+       (swap! !y inc)
+       % := [9 (java.awt.Point. 1 9)])))
+
+#?(:cljs
+   (tests "set!"
+     ;; https://www.notion.so/hyperfiddle/RCF-implicit-do-rewrite-rule-does-not-account-for-let-bindings-61b1ad82771c407198c1f678683bf443
+     (defn bypass-rcf-bug [[href a]] [href (str/replace (.-href a) #".*/" "")])
+     (def !href (atom "href1"))
+     (with (p/run (let [a (.createElement js/document "a")
+                        href (p/watch !href)]
+                    (set! (.-href a) href)
+                    (tap [href a])))
+       (bypass-rcf-bug %) := ["href1" "href1"]
+       (reset! !href "href2")
+       (bypass-rcf-bug %) := ["href2" "href2"])))
