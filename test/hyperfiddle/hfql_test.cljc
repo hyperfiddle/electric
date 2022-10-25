@@ -5,7 +5,7 @@
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
    [clojure.spec.alpha :as s]
-   #?(:clj [wip.orders :refer [orders order shirt-sizes one-order]]))
+   #?(:clj [wip.orders-datascript :refer [orders order shirt-sizes one-order]]))
   (:import [hyperfiddle.photon Pending]))
 
 (tests
@@ -228,7 +228,7 @@
 
 (defn bound-order [needle]
   #?(:clj (binding [hf/*$* *db*]
-            (wip.orders/order needle))))
+            (wip.orders-datascript/order needle))))
 
 (tests
   "Binding conveyance"

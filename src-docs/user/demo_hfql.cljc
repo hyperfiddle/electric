@@ -6,7 +6,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.hfql.ui :as hfui]
             [hyperfiddle.hfql.router :refer [router] :rename {router hfql-router}]
-            #?(:clj [wip.orders :refer [orders genders shirt-sizes one-order]]))
+            #?(:clj [wip.orders-datascript :refer [orders genders shirt-sizes one-order]]))
   #?(:cljs (:require-macros user.demo-hfql)))
 
 
