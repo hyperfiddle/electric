@@ -62,7 +62,7 @@
 (defn lexical-symbol "Given a node, return a simple symbol to be used as a lexical binding"
   [node]
   (case (:node/form-type node)
-    :keyword (symbol (str (munge (:node/form node)) "_" (:db/id node)))
+    (:keyword :symbol) (symbol (str (munge (:node/form node)) "_" (:db/id node)))
     :call    (let [f (:function/name node)]
                (cond (keyword? f) (symbol (str (munge f) "_call"))
                      (symbol? f)  (let [name (symbol (str (munge* (name (:function/name node))) "_" (:db/id node)))]
@@ -87,6 +87,7 @@
     :argument     (:node/form node) ; spec arg name
     :render-point (case (:node/form-type node)
                     :keyword (:node/form node)
+                    :symbol  (list 'quote (:node/form node))
                     :call    (list 'quote (cons (:function/name node) (map symbolic-form (arguments node))))
                     :group   (mapv symbolic-form (children node)))
     (throw (ex-info "lexical-symbol — Don’t know how to compute symbolic form" {:node (d/touch node)}))))
@@ -121,9 +122,11 @@
 
 (defn resolve-functions-pass "For each function node, resolve the function symbol in env and extract the var name (qualified)."
   [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/form-type :call]] db))
+  (->> (nodes db (d/q '[:find [?e ...] :where (or [?e :node/form-type :call] [?e :node/form-type :symbol])] db))
        (map (fn [node]
-              (let [f (first (:node/form node))]
+              (let [f (case (:node/form-type node)
+                        :symbol (:node/form node)
+                        :call   (first (:node/form node)))]
                 (cond (symbol? f)  (if-let [var (c/resolve-var env f)]
                                      {:db/id         (:db/id node)
                                       :function/var  (c/get-var var)
@@ -671,27 +674,30 @@
     :render-point
     `(p/fn []
        ~(case (:node/form-type point)
-          :keyword (let [attribute (:node/form point)
-                         value     `(hf/*nav!* hf/db hf/entity ~attribute)
-                         form      (if-some [continuation (first (children point))] ; if there is a continuation
-                                     (add-scope-bindings point
-                                       `(binding [hf/entity  ~value
-                                                  ;; we pass options as a dynamic binding because a
-                                                  ;; group depends on options to emit props and
-                                                  ;; options depends on the group to emit the
-                                                  ;; continuation.
-                                                  hf/options ~(:node/symbol (props ::hf/options continuation))
-                                                  ]
-                                          (new ~(:node/symbol continuation))))
-                                     (let [render-form `(binding [hf/value (p/fn [] ~value)]
-                                                          (hf/Render. hf/value ~(emit-props point)))]
-                                       (if-let [options (:node/symbol (props ::hf/options point))]
-                                         (add-scope-bindings point `(binding [hf/options ~options] ~render-form))
-                                         (add-scope-bindings point render-form))))]
-                     (if (:node/remember-entity-at-point point)
-                       `(do (swap! ~'entities assoc '~(:node/symbol point) hf/entity) ;; TODO premise of hf/context
-                            ~form)
-                       form))
+          (:keyword :symbol)
+          (let [attribute (:node/form point)
+                value     (case (:node/form-type point)
+                            :keyword `(hf/*nav!* hf/db hf/entity ~attribute)
+                            :symbol  `(~(:function/name point) hf/entity))
+                form      (if-some [continuation (first (children point))] ; if there is a continuation
+                            (add-scope-bindings point
+                              `(binding [hf/entity  ~value
+                                         ;; we pass options as a dynamic binding because a
+                                         ;; group depends on options to emit props and
+                                         ;; options depends on the group to emit the
+                                         ;; continuation.
+                                         hf/options ~(:node/symbol (props ::hf/options continuation))
+                                         ]
+                                 (new ~(:node/symbol continuation))))
+                            (let [render-form `(binding [hf/value (p/fn [] ~value)]
+                                                 (hf/Render. hf/value ~(emit-props point)))]
+                              (if-let [options (:node/symbol (props ::hf/options point))]
+                                (add-scope-bindings point `(binding [hf/options ~options] ~render-form))
+                                (add-scope-bindings point render-form))))]
+            (if (:node/remember-entity-at-point point)
+              `(do (swap! ~'entities assoc '~(:node/symbol point) hf/entity) ;; TODO premise of hf/context
+                   ~form)
+              form))
           :call    (let [cardinality (:function/cardinality point)]
                      (if-some [continuation (first (children point))]
                        (let [nav `(new ~(:node/symbol continuation))]
