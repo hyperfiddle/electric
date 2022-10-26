@@ -6,7 +6,7 @@
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            #?(:clj [wip.orders-datomic :refer [orders genders shirt-sizes one-order]])
+            #?(:clj [wip.orders-datascript :refer [orders genders shirt-sizes one-order]])
             [hyperfiddle.photon-ui :as ui]
             #?(:cljs [hyperfiddle.router :as html5-router])
             [missionary.core :as m]
@@ -80,12 +80,9 @@
 
 (p/defn App []
   (p/server
-    (binding [hf/*nav!* wip.orders-datomic/nav!
-              hf/db wip.orders-datomic/*$* #_(datascript.core/db-with hf/*$* [{:db/id            12
-                                                      :order/email      "john@example.com"
-                                                      :order/gender     :order/male
-                                                      :order/shirt-size :order/mens-medium}])
-              hf/*schema* wip.orders-datomic/schema]
+    (binding [hf/*nav!*   wip.orders-datascript/nav!
+              hf/db       hf/*$*
+              hf/*schema* wip.orders-datascript/schema]
       (p/client
         (let [!path (m/mbx)]
           (binding [hf/route          (or (new (route> !path)) '(wip.orders-datascript/orders ""))

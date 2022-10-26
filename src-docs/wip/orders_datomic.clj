@@ -1,10 +1,13 @@
 (ns wip.orders-datomic
   "query functions used in tee-shirt orders demo"
   (:require contrib.str
-            [datomic.api :as d]
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tap % tests]]))
+
+(try (require '[datomic.api :as d])
+     (catch java.io.FileNotFoundException e
+       (throw (ex-info "datomic.api not available, check Datomic pro version >= 1.0.6527" {}))))
 
 (defn fixtures [$]
                                         ; portable
