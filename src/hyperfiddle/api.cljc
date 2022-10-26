@@ -11,7 +11,7 @@
   ([query] `(hfql/hfql ~query))
   ([bindings query] `(hfql/hfql ~bindings ~query)))
 
-(p/def ^:dynamic *nav!* hfql/datascript-nav!)
+(p/def ^:dynamic *nav!*)
 
 ;;; Route
 
