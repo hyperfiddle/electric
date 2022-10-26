@@ -1,9 +1,6 @@
 {:paths   ["src"]
  :mvn/repos {"my.datomic.com" {:url "https://my.datomic.com/repo"}}
- :deps    {com.datomic/datomic-pro {:mvn/version "1.0.6527" #_"0.9.5697" ; Rosie version
-                                    :exclusions [org.slf4j/slf4j-nop]}
-
-           org.clojure/clojure            {:mvn/version "1.11.1"}
+ :deps    {org.clojure/clojure            {:mvn/version "1.11.1"}
            missionary/missionary          {:mvn/version "b.27-SNAPSHOT"}
            com.hyperfiddle/rcf            {:mvn/version "20220926-202227"}
            org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"}    ;; used by photon
@@ -67,6 +64,8 @@
            :scratch {:extra-paths []
                      :extra-deps {com.datomic/dev-local {:mvn/version "1.0.243"}
                                   ; fix datomic/shadow conflict
-                                  com.google.guava/guava {:mvn/version "31.1-jre"}}}}}
+                                  com.google.guava/guava {:mvn/version "31.1-jre"}}}
+           :datomic-pro {:extra-deps {com.datomic/datomic-pro {:mvn/version "1.0.6527" #_"0.9.5697" ; Rosie version
+                                                               :exclusions [org.slf4j/slf4j-nop]}}}}}
 
 ;; ¹ http://webcache.googleusercontent.com/search?q=cache:4Rya0J2jOb4J:yellerapp.com/posts/2015-05-11-clojure-no-stacktrace.html
