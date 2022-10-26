@@ -4,6 +4,8 @@
    [hyperfiddle.hfql :refer [hfql]]
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
+   [datascript.core :as d]
+   [clojure.string :as str]
    [clojure.spec.alpha :as s]
    #?(:clj [wip.orders-datascript :refer [orders order shirt-sizes one-order]]))
   (:import [hyperfiddle.photon Pending]))
@@ -239,3 +241,18 @@
                           {(bound-order "alice") [:db/id]}) ))
                     (catch Pending _))))
   % := '{(hyperfiddle.hfql-test/bound-order "alice") #:db{:id 9}})
+
+(defn suber-name [e]
+  (first (str/split (:order/email (d/entity hf/*$* e)) #"@" 2)))
+
+(s/fdef suber-name :ret string?)
+
+(tests
+  "function navigation"
+
+  (with (p/run (try (tap
+                      (binding [hf/db hf/*$*]
+                        (hfql [hf/*$* hf/db]
+                          {(orders "") [:db/id suber-name]}) ))
+                    (catch Pending _))))
+  % := '{(wip.orders-datascript/orders "") [{:db/id 9, suber-name "alice"} {:db/id 10, suber-name "bob"} {:db/id 11, suber-name "charlie"}]})
