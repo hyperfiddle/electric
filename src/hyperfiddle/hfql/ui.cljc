@@ -30,7 +30,8 @@
             (let [id      (random-uuid)
                   !steady (atom false)]
               (dom/label {::dom/for   id
-                          ::dom/title (::spec/form (spec/arg spec name))} (dom/text name))
+                          ::dom/title (pr-str (::spec/form (spec/arg spec name)))}
+                (dom/text name))
               (ui/input {::dom/id         id
                          ::ui/value       (if (p/watch !steady) (p/current value) value)
                          ::dom/disabled   (not writable?)
@@ -75,6 +76,14 @@
   (let [attr (schema-f db a)]
     (spec/valueType->type (or (:db/valueType attr) (:hf/valueType attr))))) ; datascript rejects valueType other than ref.
 
+(defn spec-description [prefer-ret? attr]
+  (when-let [spec (datafy (spec/spec attr))]
+    (if prefer-ret?
+      (case (::spec/type spec)
+        ::spec/fspec (::spec/ret spec)
+        (::spec/description spec))
+      (::spec/description spec))))
+
 (p/defn Form-renderer-impl [V props]
   (p/client
     (dom/form {:style {:border-left-color (c/color hf/db-name)}}
@@ -82,7 +91,7 @@
         (let [data (V.)]
           (p/for [k (::hf/columns props)]
             (p/client
-              (dom/label {::dom/title (pr-str (or (::spec/description (datafy (spec/spec (attr-spec k))))
+              (dom/label {::dom/title (pr-str (or (spec-description false (attr-spec k))
                                                 (p/server (schema-value-type hf/*schema* hf/db k))))}
                 (dom/text k))
               (p/server (new (get data k)))))))))
@@ -111,7 +120,7 @@
           (dom/tr
             (when (::group-id table-picker-options) (dom/th))
             (p/for [col columns]
-              (dom/th {::dom/title (pr-str (or (::spec/description (datafy (spec/spec (attr-spec col))))
+              (dom/th {::dom/title (pr-str (or (spec-description true (attr-spec col))
                                              (p/server (schema-value-type hf/*schema* hf/db col)))) }
                 (pr-str col))  ; TODO attr info on hover
               )))
@@ -138,16 +147,22 @@
 ;; WIP
 (p/defn Input-renderer [V props]
   (let [v          (V.)
-        value-type (::value-type props)]
+        value-type (::value-type props)
+        readonly?  (::readonly props)]
     (p/client
-      (ui/input {::ui/value v
-                 ::ui/type  (input-type value-type "text")}))))
+      (ui/input {::ui/value     v
+                 ::ui/type      (input-type value-type "text")
+                 ::dom/disabled readonly?}))))
 
 (p/defn Spec-renderer [V props]
-  (let [attr       (::hf/attribute props)
-        value-type (or (spec-value-type attr) (schema-value-type hf/*schema* hf/db attr))]
+  (let [attr              (::hf/attribute props)
+        spec-value-type   (spec-value-type attr)
+        schema-value-type (schema-value-type hf/*schema* hf/db attr)
+        defined-by-spec?  (and spec-value-type (not schema-value-type))
+        value-type        (or spec-value-type schema-value-type)]
     (case value-type
-      :hyperfiddle.spec.type/string (Input-renderer. V (assoc props ::value-type value-type))
+      :hyperfiddle.spec.type/string (Input-renderer. V (cond-> (assoc props ::value-type value-type)
+                                                         defined-by-spec? (assoc ::readonly true)))
       (Default-renderer. V props))))
 
 (p/defn Render [V props]

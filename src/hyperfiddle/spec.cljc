@@ -275,7 +275,10 @@
 (def valueType->pred (zipmap (map #(get % 2) types) (map first types)))
 
 (defn type-of
-  ([spec] (pred->type (::form (datafy (hyperfiddle.spec/spec spec)))))
+  ([spec] (let [spec (datafy (hyperfiddle.spec/spec spec))]
+            (case (::type spec)
+              ::fspec (pred->type (::ret spec))
+              (pred->type (::form spec)))))
   ([spec argument] (pred->type (::form (arg spec argument)))))
 
 (defn valueType-of [schema attr]
