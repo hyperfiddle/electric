@@ -1143,7 +1143,7 @@
 (tests
   "Calling a reactive fn with less arguments than expected throws a userland exception"
   (with ((p/local (new (p/fn [x] x) #_1)) prn tap)
-    (ex-message %) := "Unbound var `hyperfiddle.photon-impl.compiler/%1`"))
+    (ex-message %) := "Unbound var `hyperfiddle.photon-impl.compiler/%0`"))
 
 (tests
   "Unbound var access can be caugh with try/catch"
