@@ -53,6 +53,17 @@
     (println (str "\n👉 App server available at http://" host ":" (-> server (.getConnectors) first (.getPort))
              "\n"))))
 
+(defn rcf-shadow-hook {:shadow.build/stages #{:compile-prepare :compile-finish}} [build-state & args] build-state)
+
+(defn install-shadow-hook! []
+  (alter-var-root #'rcf-shadow-hook
+    (constantly (fn [build-state & args]
+                  ;; NOTE this won’t prevent RCF tests to run during :require-macros phase
+                  (case (:shadow.build/stage build-state)
+                    :compile-prepare (@rcf-enable! false)
+                    :compile-finish (@rcf-enable!))
+                  build-state))))
+
 (defn main "CLJ main" [& args]
   (println "Starting Photon compiler and server...")
   "build and serve clojurescript assets"
@@ -77,6 +88,7 @@
     (catch java.io.FileNotFoundException _ "no datomic on classpath"))
 
   ; enable RCF after Datomic is loaded – to resolve circular dependency
+  (install-shadow-hook!)
   (@rcf-enable!))
 
 (defn compile []
@@ -98,10 +110,3 @@
   "auto boot"
   (main)) ; this blocks the repl until build is ready. alternatively can run in a future?
 
-(defn rcf-shadow-hook {:shadow.build/stages #{:compile-prepare :compile-finish}}
-  [build-state & args]
-  ;; NOTE this won’t prevent RCF tests to run during :require-macros phase
-  (case (:shadow.build/stage build-state)
-    :compile-prepare (@rcf-enable! false)
-    :compile-finish (@rcf-enable!))
-  build-state)
