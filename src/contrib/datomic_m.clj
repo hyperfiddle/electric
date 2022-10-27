@@ -1,24 +1,17 @@
 (ns contrib.datomic-m
   (:require [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests]]))
+            [hyperfiddle.rcf :refer [tests]]
+            [contrib.deptector :as dep]))
 
 ; Peer API https://docs.datomic.com/on-prem/clojure/index.html#datomic.api/squuid
 ; Client API https://docs.datomic.com/client-api/index.html
 ; Client API it seems is the same across all Datomic products (Onprem, Cloud, Ion, Dev local)
 
-(defn dep-available? [qualified-sym]
-  (some? (try @(requiring-resolve qualified-sym)
-              (catch Exception e nil))))
-(comment
-  (dep-available? 'datomic.api/connect)
-  (dep-available? 'datomic.client.api/connect)
-  (dep-available? 'datomic.client.api.async/connect))
-
 (defn detect-datomic-products []
   (->> ['datomic.api/connect
         'datomic.client.api/connect
         'datomic.client.api.async/connect]
-       (filter dep-available?)
+       (filter dep/available?)
        (map (comp symbol namespace))
        set))
 
