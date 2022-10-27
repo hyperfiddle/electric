@@ -550,7 +550,11 @@
                         (var-name var)
                         (throw (ex-info (str "Not a reactive def: " f) (source-map env (meta form)))))
                       (throw (ex-info (str "Unable to resolve symbol: " f) (source-map env (meta form))))))]
-          (analyze-binding env (interleave arg-sym (cons sym args)) (fn [_] [[:source] [:variable [:sub (inc (count args))]]]))))
+          (-> [[:pub]]
+            (conj-res (analyze-form env sym))
+            (conj-res (conj-res [[:apply [:literal {}] [:sub 1]]]
+                        (analyze-binding (update env ::index update (::local env) (fnil inc 0))
+                          (interleave arg-sym args) (fn [_] [[:source] [:variable [:sub (inc (count args))]]])))))))
       (throw (ex-info "Wrong number of arguments - new" {})))
 
     (.)
@@ -617,7 +621,7 @@
 
     (loop*)
     (let [[bindings & body] args, bs (vec (take-nth 2 bindings)), vs (vec (take-nth 2 (rest bindings)))]
-      (analyze-form env `(binding [rec (::closure (let [~@(interleave bs (next arg-sym))] ~@body))]
+      (analyze-form env `(binding [rec (::closure (let [~@(interleave bs arg-sym)] ~@body))]
                            (new rec ~@vs))))
 
     (recur)
@@ -785,7 +789,7 @@
   (analyze {} '(Ctor.)) :=
   [[:pub [:node 0 {::dbg/name `Ctor, ::dbg/scope :dynamic}]
     [:apply [:literal {}] [:sub 1]
-     [:bind 1 1 [:variable [:sub 1]]]]]
+     [:variable [:sub 1]]]]
    [:source [:nop]]]
 
   (analyze {} '~@:foo) :=
@@ -821,9 +825,8 @@
             [:literal 5] [:sub 1 #::dbg{:name ?x, :scope :lexical}]]
            [:sub 3 #::dbg{:name _, :scope :lexical}]
            [:constant [:literal 7] #::dbg{:type :case-default}]]]]]]]]
-    [:apply [:literal {}]
-     [:sub 1]
-     [:bind 0 1 [:variable [:sub 1]]]]]
+    [:apply [:literal {}] [:sub 1]
+     [:variable [:sub 1]]]]
    [:target
     [:nop]
     [:target [:output #::dbg{:type :toggle} [:literal 6] [:nop]]
@@ -855,9 +858,8 @@
                [:literal "No matching clause: "]
                [:sub 3 #::dbg{:name _, :scope :lexical}]]]]
             #::dbg{:type :case-default}]]]]]]]]
-    [:apply [:literal {}]
-     [:sub 1]
-     [:bind 0 1 [:variable [:sub 1]]]]]
+    [:apply [:literal {}] [:sub 1]
+     [:variable [:sub 1]]]]
    [:target
     [:nop]
     [:target [:output #::dbg{:type :toggle} [:literal 6] [:nop]]
@@ -885,12 +887,12 @@
          [:constant [:target [:output {::dbg/type :toggle} [:node 0 {::dbg/name `foo, ::dbg/scope :dynamic}] [:nop]] [:source [:input]]] nil]
          [:constant [:sub 1 {::dbg/name 'a, ::dbg/scope :lexical}] nil]]
         [:apply [:literal {}] [:sub 1]
-         [:bind 1 1 [:variable [:sub 1]]]]]]]]]
+         [:variable [:sub 1]]]]]]]]
    [:target
     [:output {::dbg/type :toggle}
      [:pub [:constant [:input] nil]
       [:apply [:literal {}] [:sub 1]
-       [:bind 0 1 [:variable [:sub 1]]]]] [:nop]]
+       [:variable [:sub 1]]]] [:nop]]
     [:target [:nop] [:source [:nop]]]]]
 
   (doto (def baz) (alter-meta! assoc :macro true ::node '(::closure ~@foo)))
@@ -902,12 +904,12 @@
        [:apply [:literal {}] [:sub 1]
         [:pub [:apply [:def 0] [:constant [:source [:input]] nil] [:constant [:sub 1 {::dbg/name 'a ::dbg/scope :lexical}] nil]]
          [:apply [:literal {}] [:sub 1]
-          [:bind 1 1 [:variable [:sub 1]]]]]]]]]]
+          [:variable [:sub 1]]]]]]]]]
    [:pub [:constant [:input] nil]
     [:bind 0 1
      [:target [:output {::dbg/type :toggle} [:pub [:node 0 {::dbg/name `baz, ::dbg/scope :dynamic}]
                                              [:apply [:literal {}] [:sub 1]
-                                              [:bind 1 1 [:variable [:sub 1]]]]] [:nop]]
+                                              [:variable [:sub 1]]]] [:nop]]
       [:target [:nop] [:source [:nop]]]]]]]
 
   (analyze {} '(try 1 (finally 2 3 4))) :=
@@ -919,7 +921,7 @@
            [:constant [:literal 3] {::dbg/type :finally}]]
           [:constant [:literal 4] {::dbg/type :finally}]]
     [:apply [:literal {}] [:sub 1]
-     [:bind 0 1 [:variable [:sub 1]]]]]
+     [:variable [:sub 1]]]]
    [:target [:nop]
     [:target [:nop]
      [:target [:nop]
@@ -945,7 +947,7 @@
                                  [:constant [:literal 1] {::dbg/type :try}]]
                                 [:constant [:literal 3] {::dbg/type :finally}]]
                           [:apply [:literal {}] [:sub 1]
-                           [:bind 2 1 [:variable [:sub 1]]]]]]]
+                           [:variable [:sub 1]]]]]]
    [:target [:nop]
     [:target [:nop]
      [:target [:nop]
