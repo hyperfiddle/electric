@@ -266,8 +266,8 @@ or a provided value if it completes without producing any value."
                               [nil name? (cons args body)])]
     (if (bound? #'c/*env*)
       `(::c/closure
-        (binding [c/rec (::c/closure (let [~@(interleave args (next c/arg-sym))] ~@body))]
-          (new c/rec ~@(take (count args) (next c/arg-sym))))
+        (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
+          (new c/rec ~@(take (count args) c/arg-sym)))
         ~(merge {::dbg/name name?, ::dbg/args args, ::dbg/type :reactive-fn}
             (select-keys (meta &form) [:file :line])
             (select-keys (meta name?) [::dbg/type :file :line])))
@@ -289,9 +289,9 @@ or a provided value if it completes without producing any value."
        (new (r/bind map-by ~kf
               ~(->> body
                  (list* `for-by kf bindings)
-                 (list `let [s (second c/arg-sym)])
+                 (list `let [s (first c/arg-sym)])
                  (list `fn [])
-                 (list `partial (list 'def (second c/arg-sym))))
+                 (list `partial (list 'def (first c/arg-sym))))
               (::c/lift xs#))))
     (cons `do body)))
 
