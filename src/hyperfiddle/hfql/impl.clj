@@ -87,7 +87,7 @@
     :argument     (:node/form node) ; spec arg name
     :render-point (case (:node/form-type node)
                     :keyword (:node/form node)
-                    :symbol  (list 'quote (:node/form node))
+                    :symbol  (list 'quote (:function/name node))
                     :call    (list 'quote (cons (:function/name node) (map symbolic-form (arguments node))))
                     :group   (mapv symbolic-form (children node)))
     (throw (ex-info "lexical-symbol — Don’t know how to compute symbolic form" {:node (d/touch node)}))))
