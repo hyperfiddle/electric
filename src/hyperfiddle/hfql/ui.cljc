@@ -91,10 +91,11 @@
         (let [data (V.)]
           (p/for [k (::hf/columns props)]
             (p/client
-              (dom/label {::dom/title (pr-str (or (spec-description false (attr-spec k))
-                                                (p/server (schema-value-type hf/*schema* hf/db k))))}
-                (dom/text k))
-              (p/server (new (get data k)))))))))
+              (dom/div {:class "field"}
+                (dom/label {::dom/title (pr-str (or (spec-description false (attr-spec k))
+                                                  (p/server (schema-value-type hf/*schema* hf/db k))))}
+                  (dom/text k))
+                (p/server (new (get data k))))))))))
   (Default-options-renderer. V props))
 
 (p/defn Row-renderer-impl "A row is a transposed form" [V props]
@@ -104,12 +105,15 @@
           entity  hf/entity]
       (p/client
         (dom/tr
+          ;; set border color for all cells in the row. HACK, --var syntax not supported by dom/style.
+          (.. dom/node -style (setProperty "--hyperfiddle-hfql-border-color" (c/color hf/db-name)))
           (when-let [id (::group-id table-picker-options)]
             (dom/td (ui/checkbox {::dom/type :radio
                                   ::dom/name id
                                   ::ui/value (= (::current-value table-picker-options) entity)})))
           (p/for [col columns]
-            (dom/td (p/server (new (get row col))))))))))
+            (dom/td #_{::dom/style {:border-color (c/color hf/db-name)}}
+              (p/server (new (get row col))))))))))
 
 (p/defn Table-renderer-impl [V props]
   (Inputs-renderer. props)
@@ -121,7 +125,8 @@
             (when (::group-id table-picker-options) (dom/th))
             (p/for [col columns]
               (dom/th {::dom/title (pr-str (or (spec-description true (attr-spec col))
-                                             (p/server (schema-value-type hf/*schema* hf/db col)))) }
+                                             (p/server (schema-value-type hf/*schema* hf/db col))))
+                       ::dom/style {:background-color (c/color hf/db-name) }}
                 (pr-str col))  ; TODO attr info on hover
               )))
         (dom/tbody
@@ -165,7 +170,7 @@
                                                          defined-by-spec? (assoc ::readonly true)))
       (Default-renderer. V props))))
 
-(p/defn Render [V props]
+(p/defn EdnRender [V props]
   (if hf/bypass-renderer
     (hf/Join-all. (V.))
     (if-let [Renderer (::hf/render props)]
@@ -176,6 +181,8 @@
                        ::hf/field Spec-renderer
                        Default-renderer)]
         (Renderer. V props)))))
+
+(p/def Render EdnRender)
 
 ;; TODO understand clearly and write down why this is required
 (defmacro with-ui-renderers [& body]
