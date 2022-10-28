@@ -139,13 +139,16 @@
 
 (defn resolve-cardinalities-pass "For each function node, infer cardinality (::one or ::many) from the function spec."
   [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e :function/name]] db))
+  (->> (nodes db (d/q '[:find [?e ...] :where (or [?e :function/name] [?e :node/form-type :keyword])] db))
        (map (fn [node]
-              (if-some [many? (spec/cardinality-many? (:function/name node))]
-                {:db/id                (:db/id node)
-                 :function/cardinality (if many? ::many ::one)
-                 :node/entity-symbol   (symbol (str "e" "_" (:db/id node)))} ; bound sym in `(p/for [e# (card-many-call …)] …)`
-                (throw (ex-info "Unknown function cardinality, please define a spec." {:function (:function/name node)})))))
+              (let [spec (or (:function/name node) (:node/form node))]
+                (if-some [many? (spec/cardinality-many? spec)]
+                  {:db/id              (:db/id node)
+                   :node/cardinality   (if many? ::many ::one)
+                   :node/entity-symbol (symbol (str "e" "_" (:db/id node)))} ; bound sym in `(p/for [e# (card-many-call …)] …)`
+                  (case spec
+                    (:db/id :db/ident) {:db/id (:db/id node), :node/cardinality ::one}
+                    (throw (ex-info "Unknown cardinality, please define a spec." {:missing spec})))))))
        (d/db-with db)))
 
 (defn resolve-arguments-spec-pass "For each function argument, infer argument spec info."
@@ -252,7 +255,7 @@
 
   "[env db]
   (let [root   (get-root db)
-        scopes (set (nodes db (d/q '[:find [?e ...] :where [?e :function/cardinality ::many]] db)))] ; find all cardinality many functions
+        scopes (set (nodes db (d/q '[:find [?e ...] :where [?e :node/cardinality ::many]] db)))] ; find all cardinality many functions
     (->> (disj (nodes db (d/q '[:find [?e ...] :where [?e :node/type :render-point]] db)) root) ; get all points but the root
          (mapcat (fn [{:keys [db/id] :as node}]
                    (loop [node (parent node)] ; walk ancestors up to the root
@@ -346,7 +349,7 @@
 
 (defn decide-how-node-should-render-pass [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :render-point]] db))
-    (map (fn [node] (if (= ::many (:function/cardinality node))
+    (map (fn [node] (if (= ::many (:node/cardinality node))
                       {:db/id          (:db/id node)
                        :node/render-as ::hf/table}
                       {:db/id          (:db/id node)
@@ -367,7 +370,7 @@
               (let [columns (:node/symbolic-form node)]
                 (into [{:db/id id, :node/columns columns}]
                   (map (fn [parent]
-                         (when (= ::many (:function/cardinality parent))
+                         (when (= ::many (:node/cardinality parent))
                            {:db/id (:db/id parent), :node/columns columns}))
                     (:node/_children node)  ; look for all parents (including hf/options)
                     )))))
@@ -426,7 +429,7 @@
         :argument (recur false (cons (:spec/name point) path) (parent point))
         (case (:node/form-type point)
           :group (recur true path (parent point))
-          :call  (if (and (= ::many (:function/cardinality point)) account-for-cardinality)
+          :call  (if (and (= ::many (:node/cardinality point)) account-for-cardinality)
                    (recur true (list* (:node/symbolic-form point) (:node/entity-symbol point) path) (parent point))
                    (recur true (cons (:node/symbolic-form point) path) (parent point)))
           (if-let [form (:node/symbolic-form point)]
@@ -679,26 +682,40 @@
                 value     (case (:node/form-type point)
                             :keyword `(hf/*nav!* hf/db hf/entity ~attribute)
                             :symbol  `(~(:function/name point) hf/entity))
-                form      (if-some [continuation (first (children point))] ; if there is a continuation
-                            (add-scope-bindings point
-                              `(binding [hf/entity  ~value
-                                         ;; we pass options as a dynamic binding because a
-                                         ;; group depends on options to emit props and
-                                         ;; options depends on the group to emit the
-                                         ;; continuation.
-                                         hf/options ~(:node/symbol (props ::hf/options continuation))
-                                         ]
-                                 (new ~(:node/symbol continuation))))
-                            (let [render-form `(binding [hf/value (p/fn [] ~value)]
-                                                 (hf/Render. hf/value ~(emit-props point)))]
-                              (if-let [options (:node/symbol (props ::hf/options point))]
-                                (add-scope-bindings point `(binding [hf/options ~options] ~render-form))
-                                (add-scope-bindings point render-form))))]
+                form (case (:node/cardinality point)
+                       ::one (if-some [continuation (first (children point))]
+                               (add-scope-bindings point
+                                 `(binding [;; we pass options as a dynamic binding because a
+                                            ;; group depends on options to emit props and
+                                            ;; options depends on the group to emit the
+                                            ;; continuation.
+                                            hf/options ~(:node/symbol (props ::hf/options continuation))
+                                            ]
+                                    (new ~(:node/symbol continuation))))
+                               (let [render-form `(binding [hf/value (p/fn [] ~value)]
+                                                    (hf/Render. hf/value ~(emit-props point)))]
+                                 (if-let [options (:node/symbol (props ::hf/options point))]
+                                   (add-scope-bindings point `(binding [hf/options ~options] ~render-form))
+                                   (add-scope-bindings point render-form))))
+                       ::many (if-some [continuation (first (children point))]
+                                `(binding [hf/value (p/fn []
+                                                      (p/for [~(:node/entity-symbol point) ~value]
+                                                        (p/fn []
+                                                          (binding [hf/entity  ~(:node/entity-symbol point)
+                                                                    hf/options ~(:node/symbol (props ::hf/options continuation))]
+                                                            ~(add-scope-bindings point
+                                                               `(new ~(:node/symbol continuation)))))))]
+                                   (hf/Render. hf/value ~(emit-props point)))
+                                `(binding [hf/value (p/fn []
+                                                      (p/for [~(:node/entity-symbol point) ~value]
+                                                        (p/fn []
+                                                          ~(:node/entity-symbol point))))]
+                                   (hf/Render. hf/value ~(emit-props point)))))]
             (if (:node/remember-entity-at-point point)
               `(do (swap! ~'entities assoc '~(:node/symbol point) hf/entity) ;; TODO premise of hf/context
                    ~form)
               form))
-          :call    (let [cardinality (:function/cardinality point)]
+          :call    (let [cardinality (:node/cardinality point)]
                      (if-some [continuation (first (children point))]
                        (let [nav `(new ~(:node/symbol continuation))]
                          (case cardinality ; TODO What if cardinality is unknown at compile time?
