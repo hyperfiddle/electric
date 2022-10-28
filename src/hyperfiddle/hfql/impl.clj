@@ -681,7 +681,7 @@
           (let [attribute (:node/form point)
                 value     (case (:node/form-type point)
                             :keyword `(hf/*nav!* hf/db hf/entity ~attribute)
-                            :symbol  `(~(:function/name point) hf/entity))
+                            :symbol  `((p/partial-dynamic ~*bindings* ~(:function/name point)) hf/entity))
                 form (case (:node/cardinality point)
                        ::one (if-some [continuation (first (children point))]
                                (add-scope-bindings point
