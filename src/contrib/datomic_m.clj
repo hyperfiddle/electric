@@ -8,11 +8,10 @@
 ; Client API it seems is the same across all Datomic products (Onprem, Cloud, Ion, Dev local)
 
 (defn detect-datomic-products []
-  (->> ['datomic.api/connect
-        'datomic.client.api/connect
-        'datomic.client.api.async/connect]
+  (->> ['datomic.api
+        'datomic.client.api
+        'datomic.client.api.async]
        (filter dep/available?)
-       (map (comp symbol namespace))
        set))
 
 (comment
