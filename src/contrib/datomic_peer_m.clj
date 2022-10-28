@@ -141,7 +141,7 @@
 (defn query [arg-map] (m/sp (d/query arg-map)))
 
 (defn q
-  ([query & inputs] (query {:query q :args inputs}))
+  ([q & inputs] (query {:query q :args inputs}))
   #_([arg-map] (query arg-map))) ; collision with zero input call
 
 (tests
