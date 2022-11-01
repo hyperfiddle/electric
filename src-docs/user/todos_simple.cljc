@@ -20,7 +20,7 @@
                                      (let [value (:value dom/node)]
                                        (p/server (d/transact! !conn [{:task/description value
                                                                       :task/status      :active}]))
-                                       (dom/oset! dom/node :value ""))))}))
+                                       (set! (.-value dom/node) ""))))}))
 
 (p/defn TodoItem [id]
   (p/server

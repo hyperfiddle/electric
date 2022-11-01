@@ -17,7 +17,7 @@
                ::ui/keychord-event (p/fn [e]
                                      (let [v (:value dom/node)]
                                        (p/server (swap! !state conj v)))
-                                     (dom/oset! dom/node :value ""))})
+                                     (set! (.. e -target -value) ""))})
     (dom/ul
       (p/server
         (p/for [msg (take 10 state)]

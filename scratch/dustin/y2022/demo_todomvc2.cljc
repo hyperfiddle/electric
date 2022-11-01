@@ -105,7 +105,7 @@
      ::ui/keychords      #{"enter"}
      ::ui/keychord-event (p/fn [e]
                            (let [description (dom/oget dom/node :value)]
-                             (dom/oset! dom/node :value "")
+                             (set! (.-value dom/node) "")
                              (p/server (transact! !conn [{:task/description description
                                                           :task/status      :active}]))))}))
 
