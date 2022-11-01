@@ -321,7 +321,8 @@
                  (oset!* (oget* obj (butlast path)) [(last path)] val))
                obj)))
 
-(defmacro oset! [& args]
+; dom/oset! has external usage
+(defmacro ^:deprecated oset! [& args]
   (if (path-ident? (first args)) ; partial application code path
     (do (assert (every? path-ident? (butlast args)))
         `(partial (flip oset!) ~(last args) [~@(butlast args)]))

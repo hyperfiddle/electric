@@ -133,7 +133,7 @@
                              (let [description (:value dom/node)]
                                (let [done (p/server (transact! [{:task/description description, :task/status :active}]))]
                                  ;; causal dependency - empty input after transaction success
-                                 (dom/oset! dom/node :value ({} done "")))))})))
+                                 (set! (.-value dom/node) ({} done "")))))})))
 
 (p/defn TodoApp [state]
   (dom/section {:class "todoapp"}

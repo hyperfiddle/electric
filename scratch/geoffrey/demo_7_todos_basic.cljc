@@ -27,7 +27,7 @@
 ;;; Dom input getters/setters
 
 (defn get-input-value [dom-node] (dom/oget dom-node :value))
-(defn clear-input! [dom-node] (dom/oset! dom-node :value ""))
+(defn clear-input! [dom-node] (set! (.-value dom-node) ""))
 
 ;;; Database
 
