@@ -44,12 +44,12 @@
 (p/defn App []
   (p/client
     (dom/h1 "Multiplayer chat app with auth and presence")
-    (dom/p "Example HTTP endpoint is here: "
-      (dom/a {::dom/href "https://github.com/hyperfiddle/photon/blob/master/src/hyperfiddle/photon_jetty_server.clj"}
-             "photon_jetty_server.clj"))
     (let [username (p/server (get-in hf/*http-request* [:cookies "username" :value]))]
       (if-not (some? username)
-        (dom/p "Set login cookie here: " (dom/a {::dom/href "/auth"} "/auth") " (any user/password will do)")
+        (do (dom/p "Set login cookie here: " (dom/a {::dom/href "/auth"} "/auth") " (blank password)")
+            (dom/p "Example HTTP endpoint is here: "
+              (dom/a {::dom/href "https://github.com/hyperfiddle/photon/blob/master/src/hyperfiddle/photon_jetty_server.clj"}
+                     "photon_jetty_server.clj")))
         (do
           (p/server (new (->> (m/observe (fn mount [!]
                                            (println `mount username)
