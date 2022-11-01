@@ -5,4 +5,3 @@
             [missionary.core :as m])
   #?(:cljs (:require-macros dustin.scratch)))
 
-(hyperfiddle.rcf/enable!)
