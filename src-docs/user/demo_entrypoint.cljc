@@ -6,6 +6,7 @@
             user.demo-2-toggle
             user.demo-3-system-properties
             user.demo-4-chat
+            user.demo-4-chat-extended
             user.demo-4-webview
             user.demo-5-todomvc
             user.demo-todomvc-composed
@@ -13,7 +14,6 @@
             user.demo-7-explorer
             user.demo-8-10k-elements
             #_user.demo-hfql
-            user.auth
             user.todos-simple
             user.seven-gui-1-counter
             user.seven-gui-2-temperature-converter
@@ -39,6 +39,7 @@
               {:text "toggle" ::value user.demo-2-toggle/App}
               {:text "system properties" ::value user.demo-3-system-properties/App}
               {:text "chat" ::value user.demo-4-chat/App}
+              {:text "chat-extended" ::value user.demo-4-chat-extended/App}
               {:text "webview" ::value user.demo-4-webview/App}
               #_{:text "todos simple" ::value user.todos-simple/Todo-list} ; css fixes
               {:text "todomvc" ::value user.demo-5-todomvc/App}
@@ -48,7 +49,6 @@
               {:text "10k elements" ::value user.demo-8-10k-elements/App}
               #_{:text "HFQL" ::value user.demo-hfql/App}
               #_{:text "HFQL" ::value wip.hfql/App}
-              {:text "Authentication" ::value user.auth/App}
               #_{:text "Scroll view" ::value hyperfiddle.scrollview/Demo} ; takes whole page, covering the demo picker control
               ; {:text "Datomic browser" ::value user.datomic-browser/App}
               {:text "7GUIs - counter" ::value user.seven-gui-1-counter/Counter}
