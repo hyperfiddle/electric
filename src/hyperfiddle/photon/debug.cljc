@@ -59,7 +59,7 @@
     (reduce (fn [r frame]
               (if (string? frame)
                 (conj r frame)
-                (let [{::keys [origin type name params args macro scope]} frame]
+                (let [{::keys [origin type name params args macro scope meta]} frame]
                   (conj r
                     (into [(when (and (not= PEER-ID origin)
                                    (not (#{:transfer :toggle} type))
@@ -97,8 +97,8 @@
                           :toggle        ["transfer"]
                           `["<unknow frame>" ~frame])
                         [(when macro (str "from macro " macro))
-                         (some->> (:file frame) (str "in "))
-                         (some->> (:line frame) (str "line "))]))))))
+                         (some->> (:file meta) (str "in "))
+                         (some->> (:line meta) (str "line "))]))))))
       [])
     (mapv (fn [frame] (if (string? frame) frame (str " in " (str/join " " (remove nil? frame))))))
     (str/join "\n")))

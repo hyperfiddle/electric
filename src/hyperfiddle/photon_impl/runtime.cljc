@@ -5,6 +5,7 @@
             [hyperfiddle.photon-impl.failer :as failer]
             [hyperfiddle.photon-impl.eventually :refer [eventually]]
             [hyperfiddle.photon-impl.local :as l]
+            [hyperfiddle.photon-impl.ir :as-alias ir]
             [hyperfiddle.photon.debug :as dbg]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
@@ -802,20 +803,6 @@
    :static   {}
    :dynamic  {}})
 
-(defn extract-apply-debug-info [[op & _args]]
-  (let [[type val debug-info] op]
-    (case type
-      :global  (assoc debug-info ::dbg/type :apply, ::dbg/name (symbol val))
-      :node    (assoc debug-info ::dbg/type :apply)
-      :literal {::dbg/type :apply ::dbg/name val}
-      :eval    (assoc debug-info ::dbg/type :eval)
-      :sub     (assoc debug-info ::dbg/type :apply)
-      :input   (assoc val ::dbg/type :apply) ; No value for :input, debug-info shifted by 1
-      :apply   (if (vector? val)
-                 (extract-apply-debug-info [val])
-                 {::dbg/type :unknown-apply, :op op})
-      {::dbg/type :unknown-apply, :op op})))
-
 ;; TODO move me
 ;; `new` creates a local variable and a remote source
 ;; `p/fn` creates a local constant and a remote target
@@ -824,82 +811,100 @@
 
 (defn compile [inst {:keys [nop sub pub inject lift vget bind invoke input output static dynamic
                             global literal variable source constant target main] :as fns}]
-  (-> ((fn walk [env off idx dyn [op & args]]
-         (case op
-           :nop (update env :stack conj nop)
-           :sub (let [[s] args
-                      p (- idx s)]
-                  (if (< p off)
-                    (let [f (:static env)
-                          i (f p (count f))]
+  (-> ((fn walk [env off idx dyn inst]
+         (case (::ir/op inst)
+           ::ir/nop (update env :stack conj nop)
+           ::ir/sub (let [p (- idx (::ir/index inst))]
+                      (if (< p off)
+                        (let [f (:static env)
+                              i (f p (count f))]
+                          (-> env
+                            (assoc :static (assoc f p i))
+                            (update :stack conj (static i))))
+                        (update env :stack conj (sub p))))
+           ::ir/pub (-> env
+                      (walk off idx dyn (::ir/init inst))
+                      (walk off (inc idx) dyn (::ir/inst inst))
+                      (update :stack collapse 2 pub idx))
+           ::ir/def (let [v (::ir/slot inst)]
                       (-> env
-                        (assoc :static (assoc f p i))
-                        (update :stack conj (static i))))
-                    (update env :stack conj (sub p))))
-           :pub (let [[p c] args]
-                  (-> env
-                    (walk off idx dyn p)
-                    (walk off (inc idx) dyn c)
-                    (update :stack collapse 2 pub idx)))
-           :def (let [[v] args]
-                  (-> env
-                    (update :vars max v)
-                    (update :stack conj (inject v))))
-           :lift (let [[inst] args]
-                   (-> env
-                     (walk off idx dyn inst)
-                     (update :stack collapse 1 lift)))
-           :eval (let [[f] args]
-                   (update env :stack conj ((:eval fns) f))) ; can't shadow eval in advanced CLJS compilation
-           :node (let [[v debug-info] args
-                       env (update env :vars max v)]
-                   (if (dyn v)
-                     (update env :stack conj (vget v))
-                     (let [d (:dynamic env)
-                           i (d v (count d))]
+                        (update :vars max v)
+                        (update :stack conj (inject v))))
+           ::ir/lift (-> env
+                       (walk off idx dyn (::ir/init inst))
+                       (update :stack collapse 1 lift))
+           ::ir/eval (update env :stack conj ((:eval fns) (::ir/form inst))) ; can't shadow eval in advanced CLJS compilation
+           ::ir/node (let [v (::ir/slot inst)
+                           env (update env :vars max v)]
+                       (if (dyn v)
+                         (update env :stack conj (vget v))
+                         (let [d (:dynamic env)
+                               i (d v (count d))]
+                           (-> env
+                             (assoc :dynamic (assoc d v i))
+                             (update :stack conj (dynamic i inst))))))
+           ::ir/bind (let [v (::ir/slot inst)]
                        (-> env
-                         (assoc :dynamic (assoc d v i))
-                         (update :stack conj (dynamic i debug-info))))))
-           :bind (let [[v s inst] args]
-                   (-> env
-                     (update :vars max v)
-                     (walk off idx (conj dyn v) inst)
-                     (update :stack collapse 1 bind v (- idx s))))
-           :apply (-> (reduce (fn [env arg] (walk env off idx dyn arg)) env args)
-                      (update :stack collapse (count args) (partial invoke (extract-apply-debug-info args))))
-           :input (-> env
-                    (snapshot :input)
-                    (update :input inc)
-                    (update :stack collapse 1 input))
-           :output (let [[debug-info inst cont] args]
-                     (-> env
-                       (walk off idx dyn inst)
-                       (snapshot :output)
-                       (update :output inc)
-                       (walk off idx dyn cont)
-                       (update :stack collapse 3 #(output %1 %2 %3 debug-info))))
-           :global (let [[x] args]
-                     (update env :stack conj (global x)))
-           :literal (let [[x] args]
-                      (update env :stack conj (literal x)))
-           :variable (let [[inst] args]
-                       (-> env
-                         (walk off idx dyn inst)
-                         (snapshot :source)
+                         (update :vars max v)
+                         (walk off idx (conj dyn v) (::ir/inst inst))
+                         (update :stack collapse 1 bind v (- idx (::ir/index inst)))))
+           ::ir/apply (let [f (::ir/fn inst)
+                            args (::ir/args inst)]
+                        (-> (reduce (fn [env arg] (walk env off idx dyn arg)) env (cons f args))
+                          (update :stack collapse (inc (count args))
+                            (partial invoke
+                              (loop [f f]
+                                (case (::ir/op f)
+                                  :global (assoc f ::dbg/type :apply, ::dbg/name (symbol (::ir/name f)))
+                                  :node (assoc f ::dbg/type :apply)
+                                  :literal {::dbg/type :apply ::dbg/name (::ir/value f)}
+                                  :eval (assoc f ::dbg/type :eval)
+                                  :sub (assoc f ::dbg/type :apply)
+                                  :input (assoc f ::dbg/type :apply)
+                                  :apply (recur (::ir/fn f))
+                                  {::dbg/type :unknown-apply, :op f}))))))
+           ::ir/input (-> env
+                        (snapshot :input)
+                        (update :input inc)
+                        (update :stack collapse 1 input))
+           ::ir/output (-> env
+                         (walk off idx dyn (::ir/init inst))
+                         (snapshot :output)
+                         (update :output inc)
+                         (walk off idx dyn (::ir/inst inst))
+                         (update :stack collapse 3 #(output %1 %2 %3 inst)))
+           ::ir/global (update env :stack conj (global (::ir/name inst)))
+           ::ir/literal (update env :stack conj (literal (::ir/value inst)))
+           ::ir/variable (-> env
+                           (walk off idx dyn (::ir/init inst))
+                           (snapshot :source)
+                           (snapshot :variable)
+                           (update :variable inc)
+                           (update :stack collapse 3 variable))
+           ::ir/source (-> env
                          (snapshot :variable)
-                         (update :variable inc)
-                         (update :stack collapse 3 variable)))
-           :source (let [[cont] args]
-                     (-> env
-                       (snapshot :variable)
-                       (snapshot :source)
-                       (update :source inc)
-                       (walk off idx dyn cont)
-                       (update :stack collapse 3 source)))
-           :constant (let [[inst debug-info] args]
-                       (-> env
+                         (snapshot :source)
+                         (update :source inc)
+                         (walk off idx dyn (::ir/inst inst))
+                         (update :stack collapse 3 source))
+           ::ir/constant (-> env
+                           (merge empty-frame)
+                           (walk idx idx #{} (::ir/init inst))
+                           (snapshot (comp reverse-index :static))
+                           (snapshot (comp reverse-index :dynamic))
+                           (snapshot :variable)
+                           (snapshot :source)
+                           (snapshot :constant)
+                           (snapshot :target)
+                           (snapshot :output)
+                           (snapshot :input)
+                           (merge (select-keys env (keys empty-frame)))
+                           (snapshot :constant)
+                           (update :constant inc)
+                           (update :stack collapse 10 (partial constant inst)))
+           ::ir/target (-> env
                          (merge empty-frame)
-                         (walk idx idx #{} inst)
+                         (walk idx idx #{} (::ir/init inst))
                          (snapshot (comp reverse-index :static))
                          (snapshot (comp reverse-index :dynamic))
                          (snapshot :variable)
@@ -909,26 +914,10 @@
                          (snapshot :output)
                          (snapshot :input)
                          (merge (select-keys env (keys empty-frame)))
-                         (snapshot :constant)
-                         (update :constant inc)
-                         (update :stack collapse 10 (partial constant debug-info))))
-           :target (let [[inst cont] args]
-                     (-> env
-                       (merge empty-frame)
-                       (walk idx idx #{} inst)
-                       (snapshot (comp reverse-index :static))
-                       (snapshot (comp reverse-index :dynamic))
-                       (snapshot :variable)
-                       (snapshot :source)
-                       (snapshot :constant)
-                       (snapshot :target)
-                       (snapshot :output)
-                       (snapshot :input)
-                       (merge (select-keys env (keys empty-frame)))
-                       (snapshot :target)
-                       (update :target inc)
-                       (walk off idx dyn cont)
-                       (update :stack collapse 11 target)))))
+                         (snapshot :target)
+                         (update :target inc)
+                         (walk off idx dyn (::ir/inst inst))
+                         (update :stack collapse 11 target))))
        (assoc empty-frame :vars -1) 0 0 #{} inst)
     (snapshot (comp inc :vars))
     (snapshot (comp reverse-index :dynamic))

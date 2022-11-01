@@ -5,6 +5,7 @@
             [cljs.util]
             [hyperfiddle.photon-impl.local :as l]
             [hyperfiddle.photon-impl.runtime :as r]
+            [hyperfiddle.photon-impl.ir :as-alias ir]
             [hyperfiddle.photon.debug :as dbg]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str]
@@ -342,7 +343,7 @@
 
 (defn analyze-global [env sym]
   (case (namespace sym)
-    "js" [:eval sym]
+    "js" {::ir/op ::ir/eval ::ir/form sym}
     (let [sym (if-some [var (resolve-var env sym)]
                 (var-name var)
                 (case (peer-language env)
@@ -352,21 +353,9 @@
                   :cljs (let [sym (symbol (or (namespace sym) (name (:name (:ns env)))) (name sym))]
                           (log/debug "Photon internals - use of undeclared cljs var" sym ". Passing through." (source-map env (meta sym)))
                           sym)))]
-      [:global (global sym) (source-map env (meta sym))])))
-
-(defn conj-res
-  ([x] x)
-  ([x y]
-   (conj (into (pop x) (pop y))
-     (conj (peek x) (peek y))))
-  ([x y & zs]
-   (conj (into (pop x) (mapcat pop) (cons y zs))
-     (transduce (map peek) conj (peek x) (cons y zs)))))
-
-(defn void [cont]
-  (fn rec [insts]
-    (if-some [[inst & insts] (seq insts)]
-      (conj inst (rec insts)) cont)))
+      {::ir/op ::ir/global
+       ::ir/name (global sym)
+       ::dbg/meta (source-map env (meta sym))})))
 
 (declare analyze-form visit-node)
 
@@ -377,39 +366,94 @@
       (throw (ex-info (str "Not a reactive var: " (var-name var)) {})))
     (throw (ex-info (str "Unable to resolve symbol: " sym) {}))))
 
+(defn chain [cont insts]
+  ((fn rec [insts]
+     (if-some [[inst & insts] insts]
+       (assoc inst ::ir/inst (rec insts)) cont))
+   (seq insts)))
+
+(defn bind-res [rx f & args]
+  (let [ry (apply f (peek rx) args)]
+    (conj (into (pop rx) (pop ry)) (peek ry))))
+
+(defmacro let-res [bs & body]
+  (if-some [[s i & bs] (seq bs)]
+    `(bind-res ~i (fn [~s] (let-res ~bs ~@body)))
+    `[(do ~@body)]))
+
+(defn map-res [f & rs]
+  (bind-res
+    (reduce
+      (fn [rv rx]
+        (let-res [v rv, x rx]
+          (conj v x))) [[]] rs)
+    (fn [args] [(apply f args)])))
+
 (defn analyze-symbol [env sym]
   (if (contains? (:locals env) sym)
     (if-some [[p i] (::pub (get (:locals env) sym))]
-      (let [s [:sub (- (get (::index env) p) i) (assoc (meta sym) ::dbg/name sym ::dbg/scope :lexical)]]
+      (let [s {::ir/op ::ir/sub
+               ::ir/index (- (get (::index env) p) i)
+               ::dbg/name sym
+               ::dbg/scope :lexical
+               ::dbg/meta (meta sym)}]
         (if (= p (::local env))
-          [s] [[:output nil s] [:input (assoc (meta sym) ::dbg/name sym ::dbg/scope :dynamic)]]))
-      [[:global (keyword sym) (source-map env (meta sym))]])
+          [s]
+          [{::ir/op   ::ir/output
+            ::ir/init s}
+           {::ir/op     ::ir/input
+            ::dbg/name  sym
+            ::dbg/scope :dynamic
+            ::dbg/meta   (meta sym)}]))
+      [{::ir/op ::ir/global
+        ::ir/name (keyword sym)
+        ::dbg/meta (source-map env (meta sym))}])
     (if-some [sym (resolve-runtime env sym)]
       [(analyze-global env sym)]
       (if-some [v (resolve-var env sym)]
         (if (is-node v)
-          [[:node (visit-node env (var-name v) (::node (var-meta v))) {::dbg/name (var-name v) ::dbg/scope :dynamic}]]
+          [{::ir/op ::ir/node
+            ::ir/slot (visit-node env (var-name v) (::node (var-meta v)))
+            ::dbg/name (var-name v)
+            ::dbg/scope :dynamic}]
           (throw (ex-info "Can't take value of macro." {:symbol (var-name v)})))
         [(analyze-global env (resolve-sym env sym))] ; pass through
         ))))
 
-(defn analyze-apply [env form]
-  (transduce
-   (map (partial analyze-form env))
-   conj-res [[:apply]] form))
+(defn analyze-apply [env sexp]
+  (->> sexp
+    (map (partial analyze-form env))
+    (apply map-res
+      (fn [f & args]
+        {::ir/op ::ir/apply
+         ::ir/fn f
+         ::ir/args args}))))
+
+(defn causal [stmt expr]
+  {::ir/op   ::ir/apply
+   ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+   ::ir/args [stmt expr]})
+
+(defn causal-publish [init inst]
+  {::ir/op   ::ir/pub
+   ::ir/init init
+   ::ir/inst (causal {::ir/op ::ir/sub ::ir/index 1} inst)})
 
 (defn analyze-binding [env bs f & args]
-  (let [l (::local env)]
-    ((fn rec [env bs ns]
-       (if-some [[node form & bs] bs]
-         (-> [[:pub]]
-           (conj-res (analyze-form env form))
-           (conj-res (conj-res [[:apply [:literal {}] [:sub 1]]]
-                       (rec (update env ::index update l (fnil inc 0)) bs (conj ns node)))))
-         (reduce-kv
-           (fn [res i n]
-             (conj-res [[:bind (resolve-node env n) (- (count ns) i)]] res))
-           (apply f env args) ns))) env (seq bs) [])))
+  ((fn rec [env bs ns]
+     (if-some [[node form & bs] bs]
+       (let-res [init (analyze-form env form)
+                 inst (rec (update env ::index update (::local env) (fnil inc 0)) bs (conj ns node))]
+         (causal-publish init inst))
+       (reduce-kv
+         (fn [res i n]
+           (map-res
+             (fn [inst]
+               {::ir/op    ::ir/bind
+                ::ir/slot  (resolve-node env n)
+                ::ir/index (- (count ns) i)
+                ::ir/inst  inst}) res))
+         (apply f env args) ns))) env (seq bs) []))
 
 (defn desugar-host [env form]
   (case (peer-language env)
@@ -426,7 +470,8 @@
 
 (defn toggle [env form debug-info]
   (let [res (analyze-form (update env ::local not) form)]
-    [[:output debug-info (peek res)] ((void [:input]) (pop res))]))
+    [(assoc debug-info ::ir/op ::ir/output ::ir/init (peek res))
+     (chain {::ir/op ::ir/input} (pop res))]))
 
 (defn- ?add-default-throw [clauses env switch-val-sym]
   (cond-> clauses
@@ -435,7 +480,7 @@
                     (str "No matching clause: " ~switch-val-sym))))))
 
 (defn- ->case-clause [op]
-  (fn [[test expr]] `(::closure ~expr ~(merge #::dbg{:type :case-clause, :args [test]} (meta op)))))
+  (fn [[test expr]] `(::closure ~expr {::dbg/type :case-clause ::dbg/args [~test] ::dbg/meta ~(meta op)})))
 
 (defn- case-vals->v [partition symbols]
   (reduce merge {}
@@ -462,21 +507,18 @@
     (let*)
     ((fn rec [env bs]
        (if-some [[s i & bs] bs]
-         (-> [[:pub]]
-           (conj-res (analyze-form env i))
-           (conj-res (conj-res [[:apply [:literal {}] [:sub 1]]]
-                       (rec (with-local env s) bs))))
+         (map-res causal-publish (analyze-form env i) (rec (with-local env s) bs))
          (analyze-sexpr env (cons `do (next args)))))
      env (seq (first args)))
 
     (do)
     (if-some [[x & xs] args]
-      (case xs
-        nil (analyze-form env x)
-        (-> [[:apply [:literal {}]]]
-          (conj-res (analyze-form env x))
-          (conj-res (analyze-sexpr env (cons `do xs)))))
-      [[:literal nil]])
+      ((fn rec [x xs]
+         (let [r (analyze-form env x)]
+           (if-some [[y & ys] xs]
+             (map-res causal r (rec y ys))
+             r))) x xs)
+      [{::ir/op ::ir/literal ::ir/value nil}])
 
     (if)
     (let [[test then else] args]
@@ -496,37 +538,68 @@
              (~(case-vals->v partition symbols) ~switch-val-sym ~default)))))
 
     (quote)
-    [[:literal (first args)]]
+    [{::ir/op ::ir/literal ::ir/value (first args)}]
 
     (def)
-    (transduce (map (comp vector (partial resolve-node env)))
-      conj-res [[:def]] args)
+    [{::ir/op ::ir/def ::ir/slot (resolve-node env (first args))}]
 
+    ;; TODO
     (js*)
     (if-some [[f & args] args]
-      (transduce (map (partial analyze-form env)) conj-res
-        [[:eval `(js-call ~f ~(count args)) {::dbg/action :js-call}]] args)
+      (->> args
+        (map (partial analyze-form env))
+        (apply map-res
+          (fn [& args]
+            {::ir/op ::ir/apply
+             ::ir/fn {::ir/op         ::ir/eval
+                      ::ir/form       `(js-call ~f ~(count args))
+                      ::dbg/action :js-call}
+             ::ir/args args})))
       (throw (ex-info "Wrong number of arguments - js*" {})))
 
     (fn*)
     (let [sym             (and (symbol? (first args)) (first args))
           [form bindings] (provided-bindings env form)]
-      (transduce (map (partial analyze-form env)) conj-res
-        [[:apply [:eval `(fn-call ~form ~(vals bindings)) (merge {::dbg/action :fn-call, ::dbg/params ['…]} ; TODO add parameters to debug info
-                                                            (when sym {::dbg/name sym}))]]] (keys bindings)))
+      (->> (keys bindings)
+        (map (partial analyze-form env))
+        (apply map-res
+          (fn [& args]
+            {::ir/op ::ir/apply
+             ::ir/fn (merge
+                       {::ir/op      ::ir/eval
+                        ::ir/form    `(fn-call ~form ~(vals bindings))
+                        ::dbg/action :fn-call
+                        ::dbg/params ['…]    ; TODO add parameters to debug info
+                        }
+                       (when sym {::dbg/name sym}))
+             ::ir/args args}))))
 
     (letfn*)
     (analyze-sexpr env (split-letfn*-clj&photon-analysis form))
 
     (::letfn)
     (let [[form bindings] (provided-bindings env (rewrite-letfn*-bindings-for-clj-analysis (first args)))]
-      (transduce (map (partial analyze-form env)) conj-res
-        [[:apply [:eval `(fn-call ~form ~(vals bindings)) {::dbg/type :letfn}]]] (keys bindings)))
+      (->> (keys bindings)
+        (map (partial analyze-form env))
+        (apply map-res
+          (fn [& args]
+            {::ir/op ::ir/apply
+             ::ir/fn {::ir/op ::ir/eval
+                      ::ir/form `(fn-call ~form ~(vals bindings))
+                      ::dbg/type :letfn}
+             ::ir/args args}))))
 
     (set!)
     (let [[form bindings] (provided-bindings env form)]
-      (transduce (map (partial analyze-form env)) conj-res
-        [[:apply [:eval `(fn-call ~form ~(vals bindings)) {::dbg/type :set!}]]] (keys bindings)))
+      (->> (keys bindings)
+        (map (partial analyze-form env))
+        (apply map-res
+          (fn [& args]
+            {::ir/op ::ir/apply
+             ::ir/fn {::ir/op    ::ir/eval
+                      ::ir/form  `(fn-call ~form ~(vals bindings))
+                      ::dbg/type :set!}
+             ::ir/args args}))))
 
     (new)                                                   ; argument binding + monadic join
     (if-some [[f & args] args]
@@ -537,8 +610,14 @@
                                         ; clj/cljs class interop
         (if (or (= :cljs (peer-language env))
               (instance? CljClass (resolve-var env f)))
-          (transduce (map (partial analyze-form env)) conj-res
-            [[:apply [:eval `(ctor-call ~ctor ~(count args))]]] args)
+          (->> args
+            (map (partial analyze-form env))
+            (apply map-res
+              (fn [& args]
+                {::ir/op ::ir/apply
+                 ::ir/fn {::ir/op ::ir/eval
+                          ::ir/form `(ctor-call ~ctor ~(count args))}
+                 ::ir/args args})))
           (throw (ex-info (str "Cannot call `new` on " f) (source-map env (meta form)))))
 
                                         ; boot signal (monadic join), with arguments passed as dynamic scope
@@ -550,11 +629,15 @@
                         (var-name var)
                         (throw (ex-info (str "Not a reactive def: " f) (source-map env (meta form)))))
                       (throw (ex-info (str "Unable to resolve symbol: " f) (source-map env (meta form))))))]
-          (-> [[:pub]]
-            (conj-res (analyze-form env sym))
-            (conj-res (conj-res [[:apply [:literal {}] [:sub 1]]]
-                        (analyze-binding (update env ::index update (::local env) (fnil inc 0))
-                          (interleave arg-sym args) (fn [_] [[:source] [:variable [:sub (inc (count args))]]])))))))
+          (let-res [ctor (analyze-form env sym)
+                    inst (analyze-binding (update env ::index update (::local env) (fnil inc 0))
+                           (interleave arg-sym args)
+                           (fn [_]
+                             [{::ir/op ::ir/source}
+                              {::ir/op ::ir/variable
+                               ::ir/init {::ir/op ::ir/sub
+                                          ::ir/index (inc (count args))}}]))]
+            (causal-publish ctor inst))))
       (throw (ex-info "Wrong number of arguments - new" {})))
 
     (.)
@@ -563,24 +646,29 @@
           target (cond (class? target)  (CljClass. (:target dot))
                        (symbol? target) (resolve-var env (:target dot))
                        :else            target)]
-      (transduce (map (partial analyze-form env)) conj-res
-        [[:apply [:eval (if (instance? CljClass target)
-                          `(static-call ~(var-name target) ~(:method dot) ~(count (:args dot)))
-                          (case (:dot-action dot)
-                            ::cljs/call   `(method-call ~(:method dot) ~(count (:args dot)))
-                            ::cljs/access `(field-access ~(:field dot))))
-                  (merge (meta form)
-                    {::dbg/action (if (instance? CljClass target)
-                                    :static-call
-                                    (case (:dot-action dot)
-                                      ::cljs/call   :call
-                                      ::cljs/access :field-access))
-                     ::dbg/target (if (satisfies? IVar target) (var-name target) target)
-                     ::dbg/method (or (:method dot) (:field dot))
-                     ::dbg/args   (:args dot)})]]]
-        (if (instance? CljClass target)
-          (:args dot)
-          (cons (:target dot) (:args dot)))))
+      (->> (if (instance? CljClass target)
+             (:args dot)
+             (cons (:target dot) (:args dot)))
+        (map (partial analyze-form env))
+        (apply map-res
+          (fn [& args]
+            {::ir/op ::ir/apply
+             ::ir/fn {::ir/op   ::ir/eval
+                      ::ir/form (if (instance? CljClass target)
+                                  `(static-call ~(var-name target) ~(:method dot) ~(count (:args dot)))
+                                  (case (:dot-action dot)
+                                    ::cljs/call `(method-call ~(:method dot) ~(count (:args dot)))
+                                    ::cljs/access `(field-access ~(:field dot))))
+                      ::dbg/meta (meta form)
+                      ::dbg/action (if (instance? CljClass target)
+                                     :static-call
+                                     (case (:dot-action dot)
+                                       ::cljs/call   :call
+                                       ::cljs/access :field-access))
+                      ::dbg/target (if (satisfies? IVar target) (var-name target) target)
+                      ::dbg/method (or (:method dot) (:field dot))
+                      ::dbg/args   (:args dot)}
+             ::ir/args args}))))
 
     (throw)
     (analyze-form env `(r/fail ~(first args)))
@@ -599,7 +687,7 @@
                           (throw (ex-info "Invalid try block - unrecognized clause." {})))))
                 (throw (ex-info "Invalid try block - finally must be in final position." {}))))
             [[] [] nil] args)
-          body `(::closure (do ~@forms) ~(merge {::dbg/type :try} (meta op)))]
+          body `(::closure (do ~@forms) {::dbg/type :try ::dbg/meta ~(meta op)})]
       (analyze-form env
         `(new ~(reduce
                  (fn [r f] `(r/latest-first ~r (::closure ~f {::dbg/type :finally})))
@@ -628,20 +716,25 @@
     (analyze-form env `(new rec ~@args))
 
     (::lift)
-    (conj-res [[:lift]] (analyze-form env (first args)))
+    (map-res (fn [inst] {::ir/op ::ir/lift ::ir/init inst})
+      (analyze-form env (first args)))
 
     (::closure)
     (let [[form debug-info] args
           res               (analyze-form env form)]
-      [[:target ((void [:nop]) (pop res))] [:constant (peek res) debug-info]])
+      [{::ir/op ::ir/target
+        ::ir/init (chain {::ir/op ::ir/nop} (pop res))}
+       (assoc debug-info
+         ::ir/op   ::ir/constant
+         ::ir/init (peek res))])
 
     (::client)
     (let [[form debug-info] args]
-      ((if (::local env) analyze-form #(toggle %1 %2 (source-map env debug-info))) env form))
+      ((if (::local env) analyze-form #(toggle %1 %2 {::dbg/meta (source-map env debug-info)})) env form))
 
     (::server)
     (let [[form debug-info] args]
-      ((if (::local env) #(toggle %1 %2 (source-map env debug-info)) analyze-form) env form))
+      ((if (::local env) #(toggle %1 %2 {::dbg/meta (source-map env debug-info)}) analyze-form) env form))
 
     (if (symbol? op)
       (let [n (name op)
@@ -652,7 +745,7 @@
             (analyze-apply env form)
             (if-some [sym (resolve-runtime env op)]
               (case sym
-                (clojure.core/unquote-splicing cljs.core/unquote-splicing) (toggle env (first args) (merge (meta form) {::dbg/type :toggle}))
+                (clojure.core/unquote-splicing cljs.core/unquote-splicing) (toggle env (first args) {::dbg/meta (meta form) ::dbg/type :toggle})
                 (analyze-apply env form))
               (if-some [v (resolve-var env op)]
                 (case (var-name v)
@@ -710,7 +803,7 @@
                                                                        %)) (ex-cause ex))))
          (catch Throwable t ; base case
            (throw (ex-info "Failed to analyse form" {:in [form]} t))))
-    [[:literal form]]))
+    [{::ir/op ::ir/literal ::ir/value form}]))
 
 (defn await-cljs-namespace
   "Await for a cljs namespace to be compiled, then return it. Blocking."
@@ -743,7 +836,7 @@
               slot (-> (.get nodes) (get l) count)]
           (.set nodes (update (.get nodes) l update sym assoc :inst inst :slot slot :rank
                               (+ slot (-> (.get nodes) (get (not l)) count)))) slot))))
-  
+
   (defn analyze [env form]
     (let [[inst nodes]
           (l/with-local nodes {}
@@ -760,209 +853,483 @@
               ((fn rec [nodes]
                  (if-some [[{:keys [peer slot inst]} & nodes] (seq nodes)]
                    (if (= p peer)
-                     [:pub (peek inst) [:bind slot 1 (rec nodes)]]
-                     ((void (rec nodes)) (pop inst)))
-                   (if p (peek inst) ((void [:nop]) (pop inst)))))
+                     {::ir/op ::ir/pub
+                      ::ir/init (peek inst)
+                      ::ir/inst {::ir/op ::ir/bind
+                                 ::ir/slot slot
+                                 ::ir/index 1
+                                 ::ir/inst (rec nodes)}}
+                     (chain (rec nodes) (pop inst)))
+                   (if p (peek inst) (chain {::ir/op ::ir/nop} (pop inst)))))
                nodes)) [true false]))))
 
 (tests
 
   (analyze {} '5) :=
-  [[:literal 5] [:nop]]
+  [{::ir/op ::ir/literal ::ir/value 5}
+   {::ir/op ::ir/nop}]
 
   (analyze {} '(+ 2 3)) :=
-  [[:apply [:global :clojure.core/+ {}] [:literal 2] [:literal 3]]
-   [:nop]]
+  [{::ir/op ::ir/apply
+    ::ir/fn {::ir/op ::ir/global
+             ::ir/name :clojure.core/+
+             ::dbg/meta {}}
+    ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
+               {::ir/op ::ir/literal ::ir/value 3}]}
+   {::ir/op ::ir/nop}]
 
   (analyze {} '(let [a 1] (+ a 2))) :=
-  [[:pub [:literal 1]
-    [:apply [:literal {}] [:sub 1]
-     [:apply [:global :clojure.core/+ {}]
-      [:sub 1 {::dbg/name 'a ::dbg/scope :lexical}] [:literal 2]]]]
-   [:nop]]
+  [{::ir/op   ::ir/pub
+    ::ir/init {::ir/op ::ir/literal ::ir/value 1}
+    ::ir/inst {::ir/op ::ir/apply
+               ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+               ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                          {::ir/op ::ir/apply
+                           ::ir/fn {::ir/op ::ir/global ::ir/name :clojure.core/+ ::dbg/meta {}}
+                           ::ir/args [{::ir/op ::ir/sub ::ir/index 1 ::dbg/name 'a ::dbg/scope :lexical ::dbg/meta nil}
+                                      {::ir/op ::ir/literal ::ir/value 2}]}]}}
+   {::ir/op ::ir/nop}]
 
   (analyze '{a nil} 'a) :=
-  [[:global :a {}]
-   [:nop]]
+  [{::ir/op ::ir/global
+    ::ir/name :a
+    ::dbg/meta {}}
+   {::ir/op ::ir/nop}]
 
   (doto (def Ctor) (alter-meta! assoc :macro true ::node ::unbound))
   (analyze {} '(Ctor.)) :=
-  [[:pub [:node 0 {::dbg/name `Ctor, ::dbg/scope :dynamic}]
-    [:apply [:literal {}] [:sub 1]
-     [:variable [:sub 1]]]]
-   [:source [:nop]]]
+  [{::ir/op ::ir/pub
+    ::ir/init {::ir/op ::ir/node
+               ::ir/slot 0
+               ::dbg/name `Ctor
+               ::dbg/scope :dynamic}
+    ::ir/inst {::ir/op ::ir/apply
+               ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+               ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                          {::ir/op ::ir/variable
+                           ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
+   {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}]
 
   (analyze {} '~@:foo) :=
-  [[:input]
-   [:output {::dbg/type :toggle} [:literal :foo] [:nop]]] ; TODO debug info would be better placed last
+  [{::ir/op ::ir/input}
+   {::ir/op ::ir/output
+    ::ir/init {::ir/op ::ir/literal ::ir/value :foo}
+    ::ir/inst {::ir/op ::ir/nop}
+    ::dbg/type :toggle
+    ::dbg/meta nil}]
 
   (analyze {} '(::closure :foo)) :=
-  [[:constant [:literal :foo] nil]
-   [:target [:nop] [:nop]]]
+  [{::ir/op ::ir/constant
+    ::ir/init {::ir/op ::ir/literal ::ir/value :foo}}
+   {::ir/op ::ir/target
+    ::ir/init {::ir/op ::ir/nop}
+    ::ir/inst {::ir/op ::ir/nop}}]
 
   (analyze {} '(do :a :b)) :=
-  [[:apply [:literal {}]
-    [:literal :a] [:literal :b]]
-   [:nop]]
+  [{::ir/op ::ir/apply
+    ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+    ::ir/args [{::ir/op ::ir/literal ::ir/value :a}
+               {::ir/op ::ir/literal ::ir/value :b}]}
+   {::ir/op ::ir/nop}]
 
   (analyze {} '(case 1 2 3 (4 5) ~@6 7))
   :=
-  [[:pub
-    [:pub
-     [:literal 1]
-     [:apply [:literal {}]
-      [:sub 1]
-      [:pub [:constant [:literal 3] #::dbg{:type :case-clause , :args [2]}]
-       [:apply [:literal {}]
-        [:sub 1]
-        [:pub [:constant [:input] #::dbg{:type :case-clause , :args ['(4 5)]}]
-         [:apply [:literal {}]
-          [:sub 1]
-          [:apply
-           [:apply [:global :clojure.core/hash-map {}]
-            [:literal 2] [:sub 2 #::dbg{:name _, :scope :lexical}]
-            [:literal 4] [:sub 1 #::dbg{:name ?x, :scope :lexical}]
-            [:literal 5] [:sub 1 #::dbg{:name ?x, :scope :lexical}]]
-           [:sub 3 #::dbg{:name _, :scope :lexical}]
-           [:constant [:literal 7] #::dbg{:type :case-default}]]]]]]]]
-    [:apply [:literal {}] [:sub 1]
-     [:variable [:sub 1]]]]
-   [:target
-    [:nop]
-    [:target [:output #::dbg{:type :toggle} [:literal 6] [:nop]]
-     [:target [:nop]
-      [:source [:nop]]]]]] 
+  [{::ir/op   ::ir/pub
+    ::ir/init {::ir/op   ::ir/pub
+               ::ir/init {::ir/op ::ir/literal ::ir/value 1}
+               ::ir/inst {::ir/op   ::ir/apply
+                          ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                          ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                     {::ir/op   ::ir/pub
+                                      ::ir/init {::ir/op       ::ir/constant
+                                                 ::ir/init     {::ir/op ::ir/literal ::ir/value 3}
+                                                 ::dbg/type :case-clause
+                                                 ::dbg/args [2]
+                                                 ::dbg/meta nil}
+                                      ::ir/inst {::ir/op   ::ir/apply
+                                                 ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                 ::ir/args [{::ir/op    ::ir/sub
+                                                             ::ir/index 1}
+                                                            {::ir/op   ::ir/pub
+                                                             ::ir/init {::ir/op    ::ir/constant
+                                                                        ::ir/init  {::ir/op ::ir/input}
+                                                                        ::dbg/type :case-clause
+                                                                        ::dbg/args ['(4 5)]
+                                                                        ::dbg/meta nil}
+                                                             ::ir/inst {::ir/op   ::ir/apply
+                                                                        ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                                        ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                              {::ir/op ::ir/apply
+                                                               ::ir/fn {::ir/op ::ir/apply
+                                                                        ::ir/fn {::ir/op ::ir/global
+                                                                                 ::ir/name :clojure.core/hash-map
+                                                                                 ::dbg/meta {}}
+                                                                        ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
+                                                                                   {::ir/op ::ir/sub
+                                                                                    ::ir/index 2
+                                                                                    ::dbg/name _
+                                                                                    ::dbg/scope :lexical
+                                                                                    ::dbg/meta nil}
+                                                                                   {::ir/op ::ir/literal ::ir/value 4}
+                                                                                   {::ir/op ::ir/sub
+                                                                                    ::ir/index 1
+                                                                                    ::dbg/name ?x
+                                                                                    ::dbg/scope :lexical
+                                                                                    ::dbg/meta nil}
+                                                                                   {::ir/op ::ir/literal ::ir/value 5}
+                                                                                   {::ir/op ::ir/sub
+                                                                                    ::ir/index 1
+                                                                                    ::dbg/name ?x
+                                                                                    ::dbg/scope :lexical
+                                                                                    ::dbg/meta nil}]}
+                                                               ::ir/args [{::ir/op ::ir/sub
+                                                                           ::ir/index 3
+                                                                           ::dbg/name _
+                                                                           ::dbg/scope :lexical
+                                                                           ::dbg/meta nil}
+                                                                       {::ir/op ::ir/constant
+                                                                        ::ir/init {::ir/op ::ir/literal ::ir/value 7}
+                                                                        ::dbg/type :case-default}]}]}}]}}]}}
+    ::ir/inst {::ir/op   ::ir/apply
+               ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+               ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                          {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
+   {::ir/op ::ir/target
+    ::ir/init {::ir/op ::ir/nop}
+    ::ir/inst {::ir/op ::ir/target
+               ::ir/init {::ir/op ::ir/output
+                          ::ir/init {::ir/op ::ir/literal ::ir/value 6}
+                          ::ir/inst {::ir/op ::ir/nop}
+                          ::dbg/type :toggle
+                          ::dbg/meta nil}
+               ::ir/inst {::ir/op ::ir/target
+                          ::ir/init {::ir/op ::ir/nop}
+                          ::ir/inst {::ir/op ::ir/source
+                                     ::ir/inst {::ir/op ::ir/nop}}}}}]
 
   (analyze {} '(case 1 2 3 (4 5) ~@6)) :=
-  [[:pub
-    [:pub
-     [:literal 1]
-     [:apply [:literal {}] [:sub 1]
-      [:pub
-       [:constant [:literal 3] #::dbg{:type :case-clause, :args [2]}]
-       [:apply [:literal {}] [:sub 1]
-        [:pub
-         [:constant [:input] #::dbg{:type :case-clause, :args ['(4 5)]}]
-         [:apply [:literal {}] [:sub 1]
-          [:apply
-           [:apply [:global :clojure.core/hash-map {}]
-            [:literal 2] [:sub 2 #::dbg{:name _, :scope :lexical}]
-            [:literal 4] [:sub 1 #::dbg{:name ?x, :scope :lexical}]
-            [:literal 5] [:sub 1 #::dbg{:name ?x, :scope :lexical}]]
-           [:sub 3 #::dbg{:name _, :scope :lexical}]
-           [:constant
-            [:apply [:global :hyperfiddle.photon-impl.runtime/fail {}]
-             [:apply
-              [:eval '(hyperfiddle.photon-impl.compiler/ctor-call java.lang.IllegalArgumentException 1)]
-              [:apply [:global :clojure.core/str {}]
-               [:literal "No matching clause: "]
-               [:sub 3 #::dbg{:name _, :scope :lexical}]]]]
-            #::dbg{:type :case-default}]]]]]]]]
-    [:apply [:literal {}] [:sub 1]
-     [:variable [:sub 1]]]]
-   [:target
-    [:nop]
-    [:target [:output #::dbg{:type :toggle} [:literal 6] [:nop]]
-     [:target [:nop] [:source [:nop]]]]]]
+  [{::ir/op   ::ir/pub
+    ::ir/init {::ir/op   ::ir/pub
+               ::ir/init {::ir/op ::ir/literal ::ir/value 1}
+               ::ir/inst {::ir/op   ::ir/apply
+                          ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                          ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                     {::ir/op   ::ir/pub
+                                      ::ir/init {::ir/op    ::ir/constant
+                                                 ::ir/init  {::ir/op ::ir/literal ::ir/value 3}
+                                                 ::dbg/type :case-clause
+                                                 ::dbg/args [2]
+                                                 ::dbg/meta nil}
+                                      ::ir/inst {::ir/op   ::ir/apply
+                                                 ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                 ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                            {::ir/op   ::ir/pub
+                                                             ::ir/init {::ir/op    ::ir/constant
+                                                                        ::ir/init  {::ir/op ::ir/input}
+                                                                        ::dbg/type :case-clause
+                                                                        ::dbg/args ['(4 5)]
+                                                                        ::dbg/meta nil}
+                                                             ::ir/inst {::ir/op   ::ir/apply
+                                                                        ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                                        ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                                   {::ir/op   ::ir/apply
+                                                                                    ::ir/fn   {::ir/op   ::ir/apply
+                                                                                               ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/hash-map ::dbg/meta {}}
+                                                                                               ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
+                                                                                                          {::ir/op     ::ir/sub
+                                                                                                           ::ir/index  2
+                                                                                                           ::dbg/name  _
+                                                                                                           ::dbg/scope :lexical
+                                                                                                           ::dbg/meta  nil}
+                                                                                                          {::ir/op ::ir/literal ::ir/value 4}
+                                                                                                          {::ir/op     ::ir/sub
+                                                                                                           ::ir/index  1
+                                                                                                           ::dbg/name  ?x
+                                                                                                           ::dbg/scope :lexical
+                                                                                                           ::dbg/meta  nil}
+                                                                                                          {::ir/op ::ir/literal ::ir/value 5}
+                                                                                                          {::ir/op     ::ir/sub
+                                                                                                           ::ir/index  1
+                                                                                                           ::dbg/name  ?x
+                                                                                                           ::dbg/scope :lexical
+                                                                                                           ::dbg/meta  nil}]}
+                                                                                    ::ir/args [{::ir/op     ::ir/sub
+                                                                                                ::ir/index  3
+                                                                                                ::dbg/name  _
+                                                                                                ::dbg/scope :lexical
+                                                                                                ::dbg/meta  nil}
+                                                                                               {::ir/op    ::ir/constant
+                                                                                                ::ir/init  {::ir/op   ::ir/apply
+                                                                                                            ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/fail ::dbg/meta {}}
+                                                                                                            ::ir/args [{::ir/op   ::ir/apply
+                                                                                                                        ::ir/fn   {::ir/op ::ir/eval ::ir/form '(hyperfiddle.photon-impl.compiler/ctor-call java.lang.IllegalArgumentException 1)}
+                                                                                                                        ::ir/args [{::ir/op   ::ir/apply
+                                                                                                                                    ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/str ::dbg/meta {}}
+                                                                                                                                    ::ir/args [{::ir/op ::ir/literal ::ir/value "No matching clause: "}
+                                                                                                                                               {::ir/op     ::ir/sub
+                                                                                                                                                ::ir/index  3
+                                                                                                                                                ::dbg/name  _
+                                                                                                                                                ::dbg/scope :lexical
+                                                                                                                                                ::dbg/meta  nil}]}]}]}
+                                                                                                ::dbg/type :case-default}]}]}}]}}]}}
+    ::ir/inst {::ir/op   ::ir/apply
+               ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+               ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                          {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
+   {::ir/op   ::ir/target
+    ::ir/init {::ir/op ::ir/nop}
+    ::ir/inst {::ir/op   ::ir/target
+               ::ir/init {::ir/op    ::ir/output
+                          ::dbg/type :toggle
+                          ::dbg/meta nil
+                          ::ir/init  {::ir/op ::ir/literal ::ir/value 6}
+                          ::ir/inst  {::ir/op ::ir/nop}}
+               ::ir/inst {::ir/op ::ir/target
+                          ::ir/init {::ir/op ::ir/nop}
+                          ::ir/inst {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}}}}]
 
   (doto (def foo) (alter-meta! assoc :macro true ::node nil))
   (doto (def bar) (alter-meta! assoc :macro true ::node 'foo))
   (analyze {} 'bar) :=
-  [[:pub [:literal nil] [:bind 0 1 [:pub [:node 0 {::dbg/name `foo ::dbg/scope :dynamic}]
-                                    [:bind 1 1 [:node 1 {::dbg/name `bar ::dbg/scope :dynamic}]]]]]
-   [:nop]]
+  [{::ir/op ::ir/pub
+    ::ir/init {::ir/op ::ir/literal ::ir/value nil}
+    ::ir/inst {::ir/op ::ir/bind
+               ::ir/slot 0
+               ::ir/index 1
+               ::ir/inst {::ir/op ::ir/pub
+                          ::ir/init {::ir/op ::ir/node
+                                     ::ir/slot 0
+                                     ::dbg/name `foo
+                                     ::dbg/scope :dynamic}
+                          ::ir/inst {::ir/op ::ir/bind
+                                     ::ir/slot 1
+                                     ::ir/index 1
+                                     ::ir/inst {::ir/op ::ir/node
+                                                ::ir/slot 1
+                                                ::dbg/name `bar
+                                                ::dbg/scope :dynamic}}}}}
+   {::ir/op ::ir/nop}]
 
   (analyze {} '(def foo)) :=
-  [[:pub [:literal nil] [:bind 0 1 [:def 0]]]
-   [:nop]]
+  [{::ir/op ::ir/pub
+    ::ir/init {::ir/op ::ir/literal ::ir/value nil}
+    ::ir/inst {::ir/op ::ir/bind
+               ::ir/slot 0
+               ::ir/index 1
+               ::ir/inst {::ir/op ::ir/def ::ir/slot 0}}}
+   {::ir/op ::ir/nop}]
 
   (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new (::closure ~@foo))) (::closure a)))))
   :=
-  [[:pub [:literal nil]
-    [:bind 0 1
-     [:pub [:literal 1]
-      [:apply [:literal {}] [:sub 1]
-       [:pub
-        [:apply [:def 0]
-         [:constant [:target [:output {::dbg/type :toggle} [:node 0 {::dbg/name `foo, ::dbg/scope :dynamic}] [:nop]] [:source [:input]]] nil]
-         [:constant [:sub 1 {::dbg/name 'a, ::dbg/scope :lexical}] nil]]
-        [:apply [:literal {}] [:sub 1]
-         [:variable [:sub 1]]]]]]]]
-   [:target
-    [:output {::dbg/type :toggle}
-     [:pub [:constant [:input] nil]
-      [:apply [:literal {}] [:sub 1]
-       [:variable [:sub 1]]]] [:nop]]
-    [:target [:nop] [:source [:nop]]]]]
+  [{::ir/op ::ir/pub
+    ::ir/init {::ir/op ::ir/literal ::ir/value nil}
+    ::ir/inst {::ir/op ::ir/bind
+               ::ir/slot 0
+               ::ir/index 1
+               ::ir/inst {::ir/op ::ir/pub
+                          ::ir/init {::ir/op ::ir/literal ::ir/value 1}
+                          ::ir/inst {::ir/op ::ir/apply
+                                     ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                     ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                {::ir/op ::ir/pub
+                                                 ::ir/init {::ir/op ::ir/apply
+                                                            ::ir/fn {::ir/op ::ir/def ::ir/slot 0}
+                                                            ::ir/args [{::ir/op ::ir/constant
+                                                                        ::ir/init {::ir/op ::ir/target
+                                                                                   ::ir/init {::ir/op ::ir/output
+                                                                                              ::dbg/type :toggle
+                                                                                              ::dbg/meta nil
+                                                                                              ::ir/init {::ir/op ::ir/node
+                                                                                                         ::ir/slot 0
+                                                                                                         ::dbg/name `foo
+                                                                                                         ::dbg/scope :dynamic}
+                                                                                              ::ir/inst {::ir/op ::ir/nop}}
+                                                                                   ::ir/inst {::ir/op ::ir/source
+                                                                                              ::ir/inst {::ir/op ::ir/input}}}}
+                                                                       {::ir/op ::ir/constant
+                                                                        ::ir/init {::ir/op ::ir/sub
+                                                                                   ::ir/index 1
+                                                                                   ::dbg/name 'a
+                                                                                   ::dbg/scope :lexical
+                                                                                   ::dbg/meta nil}}]}
+                                                 ::ir/inst {::ir/op ::ir/apply
+                                                            ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                            ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                       {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}]}}}}
+   {::ir/op ::ir/target
+    ::ir/init {::ir/op ::ir/output
+               ::dbg/type :toggle
+               ::dbg/meta nil
+               ::ir/init {::ir/op ::ir/pub
+                          ::ir/init {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/input}}
+                          ::ir/inst {::ir/op ::ir/apply
+                                     ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                     ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
+               ::ir/inst {::ir/op ::ir/nop}}
+    ::ir/inst {::ir/op ::ir/target
+               ::ir/init {::ir/op ::ir/nop}
+               ::ir/inst {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}}}]
 
   (doto (def baz) (alter-meta! assoc :macro true ::node '(::closure ~@foo)))
   (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new baz)) (::closure a))))) :=
-  [[:pub [:literal nil]
-    [:bind 0 1
-     [:target [:output {::dbg/type :toggle} [:node 0 {::dbg/name `foo ::dbg/scope :dynamic}] [:nop]]
-      [:pub [:literal 1]
-       [:apply [:literal {}] [:sub 1]
-        [:pub [:apply [:def 0] [:constant [:source [:input]] nil] [:constant [:sub 1 {::dbg/name 'a ::dbg/scope :lexical}] nil]]
-         [:apply [:literal {}] [:sub 1]
-          [:variable [:sub 1]]]]]]]]]
-   [:pub [:constant [:input] nil]
-    [:bind 0 1
-     [:target [:output {::dbg/type :toggle} [:pub [:node 0 {::dbg/name `baz, ::dbg/scope :dynamic}]
-                                             [:apply [:literal {}] [:sub 1]
-                                              [:variable [:sub 1]]]] [:nop]]
-      [:target [:nop] [:source [:nop]]]]]]]
+  [{::ir/op   ::ir/pub
+    ::ir/init {::ir/op ::ir/literal ::ir/value nil}
+    ::ir/inst {::ir/op    ::ir/bind
+               ::ir/slot  0
+               ::ir/index 1
+               ::ir/inst  {::ir/op   ::ir/target
+                           ::ir/init {::ir/op    ::ir/output
+                                      ::ir/init  {::ir/op ::ir/node ::ir/slot 0 ::dbg/name `foo ::dbg/scope :dynamic}
+                                      ::ir/inst  {::ir/op ::ir/nop}
+                                      ::dbg/type :toggle
+                                      ::dbg/meta nil}
+                           ::ir/inst {::ir/op   ::ir/pub
+                                      ::ir/init {::ir/op ::ir/literal ::ir/value 1}
+                                      ::ir/inst {::ir/op   ::ir/apply
+                                                 ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                 ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                            {::ir/op   ::ir/pub
+                                                             ::ir/init {::ir/op   ::ir/apply
+                                                                        ::ir/fn   {::ir/op ::ir/def ::ir/slot 0}
+                                                                        ::ir/args [{::ir/op ::ir/constant ::ir/init {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/input}}}
+                                                                                   {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/sub ::ir/index 1 ::dbg/name 'a ::dbg/scope :lexical ::dbg/meta nil}}]}
+                                                             ::ir/inst {::ir/op   ::ir/apply
+                                                                        ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                                        ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                                   {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}]}}}}}
+   {::ir/op   ::ir/pub
+    ::ir/init {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/input}}
+    ::ir/inst {::ir/op    ::ir/bind
+               ::ir/slot  0
+               ::ir/index 1
+               ::ir/inst  {::ir/op   ::ir/target
+                           ::ir/init {::ir/op    ::ir/output
+                                      ::dbg/meta nil
+                                      ::dbg/type :toggle
+                                      ::ir/init  {::ir/op   ::ir/pub
+                                                  ::ir/init {::ir/op ::ir/node ::ir/slot 0 ::dbg/name `baz, ::dbg/scope :dynamic}
+                                                  ::ir/inst {::ir/op   ::ir/apply
+                                                             ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                             ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                        {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
+                                      ::ir/inst  {::ir/op ::ir/nop}}
+                           ::ir/inst {::ir/op ::ir/target ::ir/init {::ir/op ::ir/nop} ::ir/inst {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}}}}}]
 
   (analyze {} '(try 1 (finally 2 3 4))) :=
-  [[:pub [:apply
-          [:global ::r/latest-first {}]
-          [:apply [:global ::r/latest-first {}]
-           [:apply [:global ::r/latest-first {}]
-            [:constant [:literal 1] {::dbg/type :try}] [:constant [:literal 2] {::dbg/type :finally}]]
-           [:constant [:literal 3] {::dbg/type :finally}]]
-          [:constant [:literal 4] {::dbg/type :finally}]]
-    [:apply [:literal {}] [:sub 1]
-     [:variable [:sub 1]]]]
-   [:target [:nop]
-    [:target [:nop]
-     [:target [:nop]
-      [:target [:nop]
-       [:source [:nop]]]]]]]
+  [{::ir/op   ::ir/pub
+    ::ir/init {::ir/op   ::ir/apply
+               ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/latest-first ::dbg/meta {}}
+               ::ir/args [{::ir/op   ::ir/apply
+                           ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/latest-first ::dbg/meta {}}
+                           ::ir/args [{::ir/op   ::ir/apply
+                                       ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/latest-first ::dbg/meta {}}
+                                       ::ir/args [{::ir/op ::ir/constant ::ir/init {::ir/op ::ir/literal ::ir/value 1} ::dbg/type :try ::dbg/meta nil}
+                                                  {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/literal ::ir/value 2} ::dbg/type :finally}]}
+                                      {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/literal ::ir/value 3} ::dbg/type :finally}]}
+                          {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/literal ::ir/value 4} ::dbg/type :finally}]}
+    ::ir/inst {::ir/op   ::ir/apply
+               ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+               ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                          {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
+   {::ir/op   ::ir/target
+    ::ir/init {::ir/op ::ir/nop}
+    ::ir/inst {::ir/op   ::ir/target
+               ::ir/init {::ir/op ::ir/nop}
+               ::ir/inst {::ir/op   ::ir/target
+                          ::ir/init {::ir/op ::ir/nop}
+                          ::ir/inst {::ir/op   ::ir/target
+                                     ::ir/init {::ir/op ::ir/nop}
+                                     ::ir/inst {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}}}}}]
 
   (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
-  [[:pub [:literal nil] [:bind 1 1
-                         [:pub [:apply [:global ::r/latest-first {}]
-                                [:apply [:global ::r/bind {}]
-                                 [:global ::r/recover {}]
-                                 [:apply [:global :clojure.core/some-fn {}]
-                                  [:apply [:global ::r/clause {}]
-                                   [:apply [:global :clojure.core/partial {}]
-                                    [:def 0] [:constant [:pub [:apply [:global :hyperfiddle.photon.debug/unwrap {}]
-                                                               [:node 0 {::dbg/name `exception ::dbg/scope :dynamic}]]
-                                                         [:apply [:literal {}] [:sub 1]
-                                                          [:pub [:node 0 {::dbg/name `exception ::dbg/scope :dynamic}]
-                                                           [:apply [:literal {}] [:sub 1]
-                                                            [:bind 1 1 [:literal 2]]]]]]
-                                              {::dbg/type :catch, ::dbg/args '[Exception e]}]]
-                                   [:global :java.lang.Exception {}]]]
-                                 [:constant [:literal 1] {::dbg/type :try}]]
-                                [:constant [:literal 3] {::dbg/type :finally}]]
-                          [:apply [:literal {}] [:sub 1]
-                           [:variable [:sub 1]]]]]]
-   [:target [:nop]
-    [:target [:nop]
-     [:target [:nop]
-      [:source [:nop]]]]]]
-  )
+  [{::ir/op   ::ir/pub
+    ::ir/init {::ir/op ::ir/literal ::ir/value nil}
+    ::ir/inst {::ir/op    ::ir/bind
+               ::ir/slot  1
+               ::ir/index 1
+               ::ir/inst  {::ir/op   ::ir/pub
+                           ::ir/init {::ir/op   ::ir/apply
+                                      ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/latest-first ::dbg/meta {}}
+                                      ::ir/args [{::ir/op   ::ir/apply
+                                                  ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/bind ::dbg/meta {}}
+                                                  ::ir/args [{::ir/op ::ir/global ::ir/name ::r/recover ::dbg/meta {}}
+                                                             {::ir/op   ::ir/apply
+                                                              ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/some-fn ::dbg/meta {}}
+                                                              ::ir/args [{::ir/op   ::ir/apply
+                                                                          ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/clause ::dbg/meta {}}
+                                                                          ::ir/args [{::ir/op   ::ir/apply
+                                                                                      ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/partial ::dbg/meta {}}
+                                                                                      ::ir/args [{::ir/op ::ir/def ::ir/slot 0}
+                                                                                                 {::ir/op    ::ir/constant
+                                                                                                  ::ir/init  {::ir/op   ::ir/pub
+                                                                                                              ::ir/init {::ir/op   ::ir/apply
+                                                                                                                         ::ir/fn   {::ir/op    ::ir/global
+                                                                                                                                    ::ir/name  ::dbg/unwrap
+                                                                                                                                    ::dbg/meta {}}
+                                                                                                                         ::ir/args [{::ir/op     ::ir/node
+                                                                                                                                     ::ir/slot   0
+                                                                                                                                     ::dbg/name  `exception
+                                                                                                                                     ::dbg/scope :dynamic}]}
+                                                                                                              ::ir/inst {::ir/op   ::ir/apply
+                                                                                                                         ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                                                                                         ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                                                                                    {::ir/op   ::ir/pub
+                                                                                                                                     ::ir/init {::ir/op     ::ir/node
+                                                                                                                                                ::ir/slot   0
+                                                                                                                                                ::dbg/name  `exception
+                                                                                                                                                ::dbg/scope :dynamic}
+                                                                                                                                     ::ir/inst {::ir/op   ::ir/apply
+                                                                                                                                                ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                                                                                                                ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                                                                                                           {::ir/op    ::ir/bind
+                                                                                                                                                            ::ir/slot  1
+                                                                                                                                                            ::ir/index 1
+                                                                                                                                                            ::ir/inst  {::ir/op ::ir/literal ::ir/value 2}}]}}]}}
+                                                                                                  ::dbg/type :catch
+                                                                                                  ::dbg/args '[Exception e]}]}
+                                                                                     {::ir/op    ::ir/global
+                                                                                      ::ir/name  :java.lang.Exception
+                                                                                      ::dbg/meta {}}]}]}
+                                                             {::ir/op    ::ir/constant
+                                                              ::ir/init  {::ir/op ::ir/literal ::ir/value 1}
+                                                              ::dbg/type :try
+                                                              ::dbg/meta nil}]}
+                                                 {::ir/op    ::ir/constant
+                                                  ::ir/init  {::ir/op ::ir/literal ::ir/value 3}
+                                                  ::dbg/type :finally}]}
+                           ::ir/inst {::ir/op   ::ir/apply
+                                      ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                      ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                 {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}}}
+   {::ir/op   ::ir/target
+    ::ir/init {::ir/op ::ir/nop}
+    ::ir/inst {::ir/op   ::ir/target
+               ::ir/init {::ir/op ::ir/nop}
+               ::ir/inst {::ir/op   ::ir/target
+                          ::ir/init {::ir/op ::ir/nop}
+                          ::ir/inst {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}}}}])
 
 
 (tests "literals"
-  (analyze {} {:a 1}) := [[:apply [:global :clojure.core/hash-map {}] [:literal :a] [:literal 1]] [:nop]]
-  (analyze {} ^{:b 2} {:a 1}) := [[:apply
-                                   [:global :clojure.core/with-meta {}]
-                                   [:apply [:global :clojure.core/hash-map {}] [:literal :a] [:literal 1]]
-                                   [:apply [:global :clojure.core/hash-map {}] [:literal :b] [:literal 2]]]
-                                  [:nop]]
-  )
+  (analyze {} {:a 1}) :=
+  [{::ir/op   ::ir/apply
+    ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/hash-map ::dbg/meta {}}
+    ::ir/args [{::ir/op ::ir/literal ::ir/value :a}
+               {::ir/op ::ir/literal ::ir/value 1}]}
+   {::ir/op ::ir/nop}]
+  (analyze {} ^{:b 2} {:a 1}) :=
+  [{::ir/op   ::ir/apply
+    ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/with-meta ::dbg/meta {}}
+    ::ir/args [{::ir/op   ::ir/apply
+                ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/hash-map ::dbg/meta {}}
+                ::ir/args [{::ir/op ::ir/literal ::ir/value :a}
+                           {::ir/op ::ir/literal ::ir/value 1}]}
+               {::ir/op   ::ir/apply
+                ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/hash-map ::dbg/meta {}}
+                ::ir/args [{::ir/op ::ir/literal ::ir/value :b}
+                           {::ir/op ::ir/literal ::ir/value 2}]}]}
+   {::ir/op ::ir/nop}])
 
 (comment
   ;; GG: dev only - cljs compiler error and warning messages are vague.
@@ -1015,23 +1382,28 @@
 
 (tests "method access"
   (analyze {} '(. Math abs -1))  :=
-  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1) {:line _,
-                                                                                        :column 16,
-                                                                                        :hyperfiddle.photon.debug/action :static-call,
-                                                                                        :hyperfiddle.photon.debug/target 'java.lang.Math,
-                                                                                        :hyperfiddle.photon.debug/method 'abs,
-                                                                                        :hyperfiddle.photon.debug/args '(-1)}]
-    [:literal -1]] [:nop]]
+  [{::ir/op   ::ir/apply
+    ::ir/fn   {::ir/op ::ir/eval
+               ::ir/form '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)
+               ::dbg/action :static-call
+               ::dbg/target 'java.lang.Math
+               ::dbg/method 'abs
+               ::dbg/args   '(-1)
+               ::dbg/meta {:line _ :column 16}}
+    ::ir/args [{::ir/op ::ir/literal ::ir/value -1}]}
+   {::ir/op ::ir/nop}]
 
   (analyze {} '(Math/abs -1))  :=
-  [[:apply [:eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1) {:line _,
-                                                                                        :column 16,
-                                                                                        :hyperfiddle.photon.debug/action :static-call,
-                                                                                        :hyperfiddle.photon.debug/target 'java.lang.Math,
-                                                                                        :hyperfiddle.photon.debug/method 'abs,
-                                                                                        :hyperfiddle.photon.debug/args '(-1)}]
-    [:literal -1]] [:nop]]
-  )
+  [{::ir/op   ::ir/apply
+    ::ir/fn   {::ir/op ::ir/eval
+               ::ir/form '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1)
+               ::dbg/action :static-call
+               ::dbg/target 'java.lang.Math
+               ::dbg/method 'abs
+               ::dbg/args   '(-1)
+               ::dbg/meta {:line _ :column 16}}
+    ::ir/args [{::ir/op ::ir/literal ::ir/value -1}]}
+   {::ir/op ::ir/nop}])
 
 (tests
   "undeclared vars"
