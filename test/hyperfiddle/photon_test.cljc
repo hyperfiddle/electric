@@ -526,7 +526,7 @@
   (defn f [x] x)
   (with
     (p/run
-      (tap (let [ff #_(fn [x] x) identity                     ; foreign clojure fns are sometimes useful, e.g. passing callbacks to DOM (don't have yet cc/fn, todo)
+      (tap (let [ff (fn [x] x) ; foreign clojure fns are sometimes useful, e.g. DOM callbacks
                Gg (p/fn [x] x)                              ; but you almost always want reactive lambda, not cc/fn
                x (new (m/watch !x))]
            [(f x)                                           ; var marked
@@ -572,8 +572,7 @@
                  (H. x)])))
     % := [0 0 0]))
 
-(comment
-  ; todo implement fn
+(tests
   "reactive clojure.core/fn"
   (def !x (atom 0))
   (def !y (atom 0))
@@ -581,7 +580,7 @@
     (p/run
       (tap (let [x (new (m/watch !x))
                y (new (m/watch !y))
-               ; rebuild clojure closure when y updates
+               ; rebuild Clojure closure f when y updates
                f (fn [needle] (+ y needle))]
            ; (value is fully compatible with fn contract)
            ; the lambda is as variable as the var it closes over
