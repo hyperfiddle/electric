@@ -15,16 +15,16 @@
 (defonce !msgs #?(:clj (atom []) :cljs nil))
 (p/def msgs (p/server (p/watch !msgs)))
 
-(defonce !present #?(:clj (atom #{}) :cljs nil))
+(defonce !present #?(:clj (atom {}) :cljs nil)) ; session-id -> user
 (p/def present (p/server (p/watch !present)))
 
 (p/defn Chat [username]
   (dom/p "Present: ")
   (dom/ul
     (p/server
-      (p/for [user present]
+      (p/for [[session-id username] present]
         (p/client
-          (dom/li user)))))
+          (dom/li username (str " (" session-id ")"))))))
 
   (dom/hr)
   (ui/input {::dom/type "text"
@@ -44,7 +44,8 @@
 (p/defn App []
   (p/client
     (dom/h1 "Multiplayer chat app with auth and presence")
-    (let [username (p/server (get-in hf/*http-request* [:cookies "username" :value]))]
+    (let [session-id (p/server (get-in hf/*http-request* [:headers "sec-websocket-key"]))
+          username (p/server (get-in hf/*http-request* [:cookies "username" :value]))]
       (if-not (some? username)
         (do (dom/p "Set login cookie here: " (dom/a {::dom/href "/auth"} "/auth") " (blank password)")
             (dom/p "Example HTTP endpoint is here: "
@@ -52,11 +53,11 @@
                      "photon_jetty_server.clj")))
         (do
           (p/server (new (->> (m/observe (fn mount [!]
-                                           (println `mount username)
-                                           (swap! !present conj username)
+                                           (println `mount username session-id)
+                                           (swap! !present assoc session-id username)
                                            (fn unmount []
-                                             (println `unmount username)
-                                             (swap! !present disj username))))
+                                             (println `unmount username session-id)
+                                             (swap! !present dissoc session-id))))
                               (m/reductions {} nil))))
           (dom/p "Authenticated as: " username)
           (Chat. username))))))
