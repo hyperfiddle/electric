@@ -650,13 +650,20 @@
 
 ; todo loop recur
 
-(comment
+(comment ; still no mutual recursion on p/defn
   "mutual recursion"
   (declare Pong)
   (p/defn Ping [x] (case x 0 :done (Pong. (dec x))))
   ; can static call infer $ here? Leo needs to think
   (p/defn Pong [x] (Ping. x))
   (with (p/run (tap (Ping. 3)))
+    % := :done))
+
+(comment ; this is different than cc/letfn
+  "mutual recursion - letfn"
+  (with (p/run (p/letfn [(Ping [x] (case x 0 :done (Pong. (dec x))))
+                         (Pong [x] (Ping. x))]
+                 (tap (Ping. 3))))
     % := :done))
 
 (tests
