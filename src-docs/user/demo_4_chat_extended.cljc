@@ -6,11 +6,8 @@
             [missionary.core :as m])
   #?(:cljs (:require-macros user.demo-4-chat-extended)))
 
-; I'm making a multiplayer game with chat and I'd like to implement presence (just a list of
-; connected users). So a user can enter a name to join, I add the name in an atom on the server and
-; all clients can see who is in the chat. This works fine, but I need to remove names from the set
-; when they leave the page or have some way to check if a client is still connected to update the
-; list
+; Fleshed out chat demo with auth and presence
+; Has missionary interop, this is a more advanced demo
 
 (defonce !msgs #?(:clj (atom []) :cljs nil))
 (p/def msgs (p/server (p/watch !msgs)))
@@ -52,12 +49,19 @@
               (dom/a {::dom/href "https://github.com/hyperfiddle/photon/blob/master/src/hyperfiddle/photon_jetty_server.clj"}
                      "photon_jetty_server.clj")))
         (do
-          (p/server (new (->> (m/observe (fn mount [!]
-                                           (println `mount username session-id)
-                                           (swap! !present assoc session-id username)
-                                           (fn unmount []
-                                             (println `unmount username session-id)
-                                             (swap! !present dissoc session-id))))
-                              (m/reductions {} nil))))
+          (p/server
+            ; >x is a missionary flow that attaches mount/unmount side effect
+            ; to the lifecycle of the flow
+            (let [>x (->> (m/observe (fn mount [!]
+                                       (println `mount username session-id)
+                                       (swap! !present assoc session-id username)
+                                       (fn unmount []
+                                         (println `unmount username session-id)
+                                         (swap! !present dissoc session-id))))
+                          (m/reductions {} nil))]
+              ; missionary flows are mounted with `new` (monadic join).
+              ; This works because Photon compiles to missionary so this actually typechecks
+              ; from a compiler internals perspective.
+              (new >x)))
           (dom/p "Authenticated as: " username)
           (Chat. username))))))
