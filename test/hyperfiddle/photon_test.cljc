@@ -1140,18 +1140,6 @@
     (ex-message %) := "Unbound var `hyperfiddle.photon-test/x`"))
 
 (tests
-  "Calling a reactive fn with less arguments than expected throws a userland exception"
-  (with ((p/local (new (p/fn [x] x) #_1)) prn tap)
-    (ex-message %) := "Unbound var `hyperfiddle.photon-impl.compiler/%0`"))
-
-(tests
-  "Unbound var access can be caugh with try/catch"
-  (with (p/run (tap (try (new (p/fn [x] x) #_1)
-                    (catch #?(:clj Error, :cljs :default) _
-                      :unbound-var-access))))
-    % := :unbound-var-access))
-    
-(tests
  "Initial p/def binding is readily available in p/run"
  (def !x (atom 0))
  (p/def X (m/watch !x))
@@ -1754,3 +1742,15 @@
        (bypass-rcf-bug %) := ["href1" "href1"]
        (reset! !href "href2")
        (bypass-rcf-bug %) := ["href2" "href2"])))
+
+(tests "p/fn arity check"
+  (with (p/run (try (new (p/fn [x y z] (tap (ex-info "nope" {}))) 100 200 300 400)
+                    (catch ExceptionInfo e (tap e))
+                    (catch Cancelled _)
+                    (catch Throwable t (prn t))))
+    (ex-message %) := "You called a 3-arg p/fn with 4 arguments.")
+  (with (p/run (try (new (p/fn [x y] (tap (ex-info "nope" {}))) 100)
+                    (catch ExceptionInfo e (tap e))
+                    (catch Cancelled _)
+                    (catch Throwable t (prn t))))
+    (ex-message %) := "You called a 2-arg p/fn with 1 arguments."))
