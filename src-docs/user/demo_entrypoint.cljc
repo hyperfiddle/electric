@@ -27,6 +27,7 @@
             user.popover
             user.healthcheck
             wip.typeahead
+            user.tic-tac-toe
             #_wip.hfql
             )
   #?(:cljs (:require-macros user.demo-entrypoint)))
@@ -56,6 +57,7 @@
               {:text "7GUIs - timer" ::value user.seven-gui-4-timer/Timer}
               {:text "7GUIs - crud" ::value user.seven-gui-5-crud/App}
               {:text "Typeahead" ::value wip.typeahead/App}
+              {:text "tic tac toe" ::value user.tic-tac-toe/App}
               #_{:text "TreeView" ::value wip.photon-tree/App}
               #_{:text "popover" ::value user.popover/App}
               #_{:text "bubbles" ::value wip.demo-bubbles/App}
