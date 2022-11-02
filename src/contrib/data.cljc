@@ -52,6 +52,18 @@
   (omit-keys-ns nil nil) :throws #?(:clj AssertionError :cljs js/Error)
   nil)
 
+(defn has-ns?
+  "State if a `named` value (keyword or symbol) has such namespace `ns`.
+  `ns` can be be a string, or a non-namespaced keyword or symbol."
+  [ns named]
+  {:pre [(or (string? ns) (simple-ident? ns))]}
+  (= (name ns) (namespace named)))
+
+(defn select-ns
+  "Like `select-keys` but select all namespaced keys by ns."
+  [ns map]
+  (into (empty map) (filter (fn [[k _v]] (has-ns? ns k))) map))
+
 (defn -auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
   [ns props defaults-qualified]
   {:pre [(some? ns) (or (string? ns) (symbol? ns))]}
