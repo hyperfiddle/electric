@@ -134,6 +134,8 @@
   (index-by (fn [x i] i) xs))
 
 (tests
+  (def xs [{:db/ident :foo :a 1}
+           {:db/ident :bar :b 2}])
   (index xs)
   := {0 {:db/ident :foo, :a 1},
       1 {:db/ident :bar, :b 2}})
