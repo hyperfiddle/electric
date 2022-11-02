@@ -855,13 +855,13 @@
                             (partial invoke
                               (loop [f f]
                                 (case (::ir/op f)
-                                  :global (assoc f ::dbg/type :apply, ::dbg/name (symbol (::ir/name f)))
-                                  :node (assoc f ::dbg/type :apply)
-                                  :literal {::dbg/type :apply ::dbg/name (::ir/value f)}
-                                  :eval (assoc f ::dbg/type :eval)
-                                  :sub (assoc f ::dbg/type :apply)
-                                  :input (assoc f ::dbg/type :apply)
-                                  :apply (recur (::ir/fn f))
+                                  ::ir/global (assoc f ::dbg/type :apply, ::dbg/name (symbol (::ir/name f)))
+                                  ::ir/node (assoc f ::dbg/type :apply)
+                                  ::ir/literal {::dbg/type :apply ::dbg/name (::ir/value f)}
+                                  ::ir/eval (assoc f ::dbg/type :eval)
+                                  ::ir/sub (assoc f ::dbg/type :apply)
+                                  ::ir/input (assoc f ::dbg/type :apply)
+                                  ::ir/apply (recur (::ir/fn f))
                                   {::dbg/type :unknown-apply, :op f}))))))
            ::ir/input (-> env
                         (snapshot :input)
@@ -990,57 +990,88 @@
                       ~form)))}))
 
 (tests
-  (emit nil [:literal 5]) :=
+  (emit nil {::ir/op ::ir/literal ::ir/value 5}) :=
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (pure '5)))
 
-  (emit nil [:apply [:global :clojure.core/+] [:literal 2] [:literal 3]]) :=
+  (emit nil {::ir/op   ::ir/apply
+             ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/+}
+             ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
+                        {::ir/op ::ir/literal ::ir/value 3}]}) :=
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
-       (latest-apply '{::dbg/type :apply, ::dbg/name ~'clojure.core/+}
+       (latest-apply '{::ir/op ::ir/global
+                       ::ir/name :clojure.core/+
+                       ::dbg/type :apply
+                       ::dbg/name ~'clojure.core/+}
          (pure ~'clojure.core/+)
          (pure '2)
          (pure '3))))
 
   (emit nil
-    [:pub [:literal 1]
-     [:apply [:global :clojure.core/+]
-      [:sub 1] [:literal 2]]]) :=
+    {::ir/op   ::ir/pub
+     ::ir/init {::ir/op ::ir/literal ::ir/value 1}
+     ::ir/inst {::ir/op   ::ir/apply
+                ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/+}
+                ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                           {::ir/op ::ir/literal ::ir/value 2}]}}) :=
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (let [~'-pub-0 (signal (pure '1))]
-         (latest-apply '{::dbg/type :apply, ::dbg/name ~'clojure.core/+} (pure ~'clojure.core/+) ~'-pub-0 (pure '2)))))
+         (latest-apply '{::ir/op ::ir/global
+                         ::ir/name :clojure.core/+
+                         ::dbg/type :apply
+                         ::dbg/name ~'clojure.core/+}
+           (pure ~'clojure.core/+) ~'-pub-0 (pure '2)))))
 
   (emit nil
-    [:variable [:global :missionary.core/none]]) :=
+    {::ir/op ::ir/variable
+     ::ir/init {::ir/op ::ir/global
+                ::ir/name :missionary.core/none}}) :=
   `(peer 0 [] 1 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (variable ~'-frame ~'-vars 0 0 (pure m/none))))
 
-  (emit nil [:input]) :=
+  (emit nil {::ir/op ::ir/input}) :=
   `(peer 0 [] 0 0 0 0 0 1
      (fn [~'-frame ~'-vars]
        (input ~'-frame 0)))
 
-  (emit nil [:constant [:literal :foo]]) :=
+  (emit nil {::ir/op   ::ir/constant
+             ::ir/init {::ir/op ::ir/literal
+                        ::ir/value :foo}}) :=
   `(peer 0 [] 0 0 1 0 0 0
      (fn [~'-frame ~'-vars]
        (constant ~'-frame 0
          (constructor [] [] 0 0 0 0 0 0
            (fn [~'-frame ~'-vars]
-             (check-failure 'nil (pure ':foo)))))))
+             (check-failure '{::ir/op   ::ir/constant
+                              ::ir/init {::ir/op ::ir/literal
+                                         ::ir/value :foo}}
+               (pure ':foo)))))))
 
   (emit nil
-    [:variable
-     [:pub [:constant [:literal 3]]
-      [:pub [:constant [:input]]
-       [:apply [:apply [:global :clojure.core/hash-map nil]
-                [:literal 2] [:sub 2]
-                [:literal 4] [:sub 1]
-                [:literal 5] [:sub 1]]
-        [:literal 1]
-        [:constant [:literal 7]]]]]])
+    {::ir/op   ::ir/variable
+     ::ir/init {::ir/op   ::ir/pub
+                ::ir/init {::ir/op   ::ir/constant
+                           ::ir/init {::ir/op    ::ir/literal
+                                      ::ir/value 3}}
+                ::ir/inst {::ir/op   ::ir/pub
+                           ::ir/init {::ir/op   ::ir/constant
+                                      ::ir/init {::ir/op ::ir/input}}
+                           ::ir/inst {::ir/op   ::ir/apply
+                                      ::ir/fn   {::ir/op   ::ir/apply
+                                                 ::ir/fn   {::ir/op   ::ir/global
+                                                            ::ir/name :clojure.core/hash-map}
+                                                 ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
+                                                            {::ir/op ::ir/sub ::ir/index 2}
+                                                            {::ir/op ::ir/literal ::ir/value 4}
+                                                            {::ir/op ::ir/sub ::ir/index 1}
+                                                            {::ir/op ::ir/literal ::ir/value 5}
+                                                            {::ir/op ::ir/sub ::ir/index 1}]}
+                                      ::ir/args [{::ir/op ::ir/literal ::ir/value 1}
+                                                 {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/literal ::ir/value 7}}]}}}})
   `(peer 0 [] 1 0 3 0 0 0
      (fn [~'-frame ~'-vars]
        (variable ~'-frame ~'-vars 0 0
@@ -1076,21 +1107,25 @@
                    (fn [~'-frame ~'-vars]
                      (check-failure 'nil (pure '7)))))))))))
 
-  (emit nil [:def 0]) :=
+  (emit nil {::ir/op ::ir/def ::ir/slot 0}) :=
   `(peer 1 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (pure (inject 0))))
 
   (emit nil
-    [:pub [:literal nil]
-     [:constant [:sub 1]]]) :=
+    {::ir/op   ::ir/pub
+     ::ir/init {::ir/op ::ir/literal ::ir/value nil}
+     ::ir/inst {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/sub ::ir/index 1}}}) :=
   `(peer 0 [] 0 0 1 0 0 0
      (fn [~'-frame ~'-vars]
        (let [~'-pub-0 (signal (pure 'nil))]
          (constant ~'-frame 0
            (constructor [~'-pub-0] [] 0 0 0 0 0 0
              (fn [~'-frame ~'-vars]
-               (check-failure 'nil (static ~'-frame 0)))))))))
+               (check-failure '{::ir/op ::ir/constant
+                                ::ir/init {::ir/op ::ir/sub
+                                           ::ir/index 1}}
+                 (static ~'-frame 0)))))))))
 
 (defn juxt-with ;;juxt = juxt-with vector, juxt-with f & gs = apply f (apply juxt gs)
   ([f]
