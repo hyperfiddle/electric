@@ -266,11 +266,15 @@ or a provided value if it completes without producing any value."
                               [nil name? (cons args body)])]
     (if (bound? #'c/*env*)
       `(::c/closure
-        (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
-          (new c/rec ~@(take (count args) c/arg-sym)))
-        ~{::dbg/name name?, ::dbg/args args, ::dbg/type (or (::dbg/type (meta name?)) :reactive-fn)
-          ::dbg/meta (merge (select-keys (meta &form) [:file :line])
-                            (select-keys (meta name?) [:file :line]))})
+        (let [arity# c/%arity]
+          (if (not= ~(count args) arity#)
+            (throw (ex-info (str "You called a " ~(count args) "-arg p/fn with "
+                              arity# " arguments.") {}))
+            (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
+              (new c/rec ~@(take (count args) c/arg-sym)))
+            ~{::dbg/name name?, ::dbg/args args, ::dbg/type (or (::dbg/type (meta name?)) :reactive-fn)
+              ::dbg/meta (merge (select-keys (meta &form) [:file :line])
+                                (select-keys (meta name?) [:file :line]))})))
       `(throw (ex-info "Invalid p/fn in Clojure code block (use from Photon code only)" ~(into {} (meta &form)))))))
 
 ; syntax quote doesn't qualify special forms like 'def

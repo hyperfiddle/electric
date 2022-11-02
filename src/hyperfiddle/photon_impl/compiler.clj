@@ -18,6 +18,7 @@
 
 (def ^{:dynamic true, :doc "Bound to Photon compiler env when macroexpension is managed by Photon."} *env*)
 (def ^{::node ::unbound, :macro true, :doc "for loop/recur impl"} rec)
+(def ^{::node ::unbound, :macro true, :doc "for runtime arity check"} %arity)
 
 ;; %1, %2 … %n p/def generator.
 ;; A lazy seq of vars. Forcing the seq will intern them.
@@ -631,12 +632,12 @@
                       (throw (ex-info (str "Unable to resolve symbol: " f) (source-map env (meta form))))))]
           (let-res [ctor (analyze-form env sym)
                     inst (analyze-binding (update env ::index update (::local env) (fnil inc 0))
-                           (interleave arg-sym args)
+                           (list* `%arity (count args) (interleave arg-sym args))
                            (fn [_]
                              [{::ir/op ::ir/source}
                               {::ir/op ::ir/variable
                                ::ir/init {::ir/op ::ir/sub
-                                          ::ir/index (inc (count args))}}]))]
+                                          ::ir/index (+ 2 (count args))}}]))]
             (causal-publish ctor inst))))
       (throw (ex-info "Wrong number of arguments - new" {})))
 
