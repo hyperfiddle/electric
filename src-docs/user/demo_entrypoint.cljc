@@ -22,7 +22,7 @@
             #_user.datomic-browser ; requires datomic dep
             hyperfiddle.scrollview
             wip.demo-bubbles
-            wip.demo-color
+            user.demo-color
             ;; wip.photon-tree
             user.popover
             user.healthcheck
@@ -61,7 +61,7 @@
               #_{:text "TreeView" ::value wip.photon-tree/App}
               #_{:text "popover" ::value user.popover/App}
               #_{:text "bubbles" ::value wip.demo-bubbles/App}
-              #_{:text "color" ::value wip.demo-color/App}
+              {:text "color" ::value user.demo-color/App}
               #_{:text "healthcheck" ::value user.healthcheck/App}])
 
 (p/defn App []
