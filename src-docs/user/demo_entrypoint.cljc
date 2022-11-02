@@ -26,7 +26,7 @@
             ;; wip.photon-tree
             user.popover
             user.healthcheck
-            wip.typeahead
+            user.typeahead
             user.tic-tac-toe
             #_wip.hfql
             )
@@ -56,7 +56,7 @@
               {:text "7GUIs - temperature converter" ::value user.seven-gui-2-temperature-converter/App}
               {:text "7GUIs - timer" ::value user.seven-gui-4-timer/Timer}
               {:text "7GUIs - crud" ::value user.seven-gui-5-crud/App}
-              {:text "Typeahead" ::value wip.typeahead/App}
+              {:text "Typeahead" ::value user.typeahead/App}
               {:text "tic tac toe" ::value user.tic-tac-toe/App}
               #_{:text "TreeView" ::value wip.photon-tree/App}
               #_{:text "popover" ::value user.popover/App}
