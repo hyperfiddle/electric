@@ -9,7 +9,8 @@
             [hyperfiddle.photon.debug :as dbg]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [contrib.data :as data])
   (:import missionary.Cancelled
            (hyperfiddle.photon Failure Pending Remote)
            #?(:clj (clojure.lang IFn IDeref Atom))))
@@ -90,14 +91,17 @@
 (defn error [^String msg] ; Could be ex-info (ExceptionInfo inherits Error or js/Error)
   (#?(:clj Error. :cljs js/Error.) msg))
 
+(defn select-debug-info [debug-info]
+  (merge (select-keys debug-info [::ir/op]) (data/select-ns :hyperfiddle.photon.debug debug-info)))
+
 (defn latest-apply [debug-info & args]
   (apply m/latest
     (fn [f & args]
       (if-let [err (apply failure f args)]
-        (dbg/error (assoc debug-info ::dbg/args args) err)
+        (dbg/error (assoc (select-debug-info debug-info) ::dbg/args args) err)
         (try (apply f args)
              (catch #?(:clj Throwable :cljs :default) e
-               (dbg/error (assoc debug-info ::dbg/args args) (Failure. e))))))
+               (dbg/error (assoc (select-debug-info debug-info) ::dbg/args args) (Failure. e))))))
     args))
 
 (def latest-first
@@ -399,7 +403,7 @@
 (defn check-failure [debug-info <x]
   (m/latest (fn [x]
               (if (instance? Failure x)
-                (dbg/error debug-info x)
+                (dbg/error (select-debug-info debug-info) x)
                 x)) <x))
 
 (defn output [frame slot <x debug-info]
@@ -941,7 +945,7 @@
      :pub      (fn [form cont idx]
                  `(let [~(sym prefix 'pub idx) (signal ~form)] ~cont))
      :static   (fn [i] `(static ~(sym prefix 'frame) ~i))
-     :dynamic  (fn [i debug-info] `(dynamic ~(sym prefix 'frame) ~i '~debug-info))
+     :dynamic  (fn [i debug-info] `(dynamic ~(sym prefix 'frame) ~i '~(select-debug-info debug-info)))
      :eval     (fn [f] `(pure ~f))
      :lift     (fn [f] `(pure ~f))
      :vget     (fn [v] `(aget ~(sym prefix 'vars) (int ~v)))
@@ -951,10 +955,10 @@
                     (let [~(sym prefix 'res) ~form]
                       (aset ~(sym prefix 'vars) (int ~slot) ~(sym prefix 'prev))
                       ~(sym prefix 'res))))
-     :invoke   (fn [debug-info & forms] `(latest-apply '~debug-info ~@forms))
+     :invoke   (fn [debug-info & forms] `(latest-apply '~(select-debug-info debug-info) ~@forms))
      :input    (fn [slot] `(input ~(sym prefix 'frame) ~slot))
      :output   (fn [form slot cont debug-info]
-                 `(do (output ~(sym prefix 'frame) ~slot ~form '~debug-info) ~cont))
+                 `(do (output ~(sym prefix 'frame) ~slot ~form '~(select-debug-info debug-info)) ~cont))
      :global   (fn [x] `(pure ~(symbol x)))
      :literal  (fn [x] `(pure (quote ~x)))
      :inject   (fn [v] `(pure (inject ~v)))
@@ -970,7 +974,7 @@
                       ~output-count ~input-count
                       (fn [~(sym prefix 'frame)
                            ~(sym prefix 'vars)]
-                        (check-failure '~debug-info ~form)))))
+                        (check-failure '~(select-debug-info debug-info) ~form)))))
      :target   (fn [form static dynamic variable-count source-count constant-count target-count output-count input-count slot cont]
                  `(do (target ~(sym prefix 'frame) ~slot
                         (constructor ~(mapv (fn [p] (sym prefix 'pub p)) static) ~dynamic
@@ -1001,8 +1005,7 @@
                         {::ir/op ::ir/literal ::ir/value 3}]}) :=
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
-       (latest-apply '{::ir/op ::ir/global
-                       ::ir/name :clojure.core/+
+       (latest-apply '{::ir/op    ::ir/global
                        ::dbg/type :apply
                        ::dbg/name ~'clojure.core/+}
          (pure ~'clojure.core/+)
@@ -1019,8 +1022,7 @@
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (let [~'-pub-0 (signal (pure '1))]
-         (latest-apply '{::ir/op ::ir/global
-                         ::ir/name :clojure.core/+
+         (latest-apply '{::ir/op    ::ir/global
                          ::dbg/type :apply
                          ::dbg/name ~'clojure.core/+}
            (pure ~'clojure.core/+) ~'-pub-0 (pure '2)))))
@@ -1046,9 +1048,7 @@
        (constant ~'-frame 0
          (constructor [] [] 0 0 0 0 0 0
            (fn [~'-frame ~'-vars]
-             (check-failure '{::ir/op   ::ir/constant
-                              ::ir/init {::ir/op ::ir/literal
-                                         ::ir/value :foo}}
+             (check-failure '{::ir/op ::ir/constant}
                (pure ':foo)))))))
 
   (emit nil
@@ -1095,7 +1095,8 @@
                               [:sub 1]
                               [:literal 5]
                               [:sub 1]]}
-               (latest-apply '{::dbg/type :apply,
+               (latest-apply '{::ir/op ::ir/global
+                               ::dbg/type :apply,
                                ::dbg/name clojure.core/hash-map}
                  (pure hash-map)
                  (pure '2) ~'-pub-0
@@ -1122,9 +1123,7 @@
          (constant ~'-frame 0
            (constructor [~'-pub-0] [] 0 0 0 0 0 0
              (fn [~'-frame ~'-vars]
-               (check-failure '{::ir/op ::ir/constant
-                                ::ir/init {::ir/op ::ir/sub
-                                           ::ir/index 1}}
+               (check-failure '{::ir/op ::ir/constant}
                  (static ~'-frame 0)))))))))
 
 (defn juxt-with ;;juxt = juxt-with vector, juxt-with f & gs = apply f (apply juxt gs)

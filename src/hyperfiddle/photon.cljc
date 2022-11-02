@@ -268,9 +268,9 @@ or a provided value if it completes without producing any value."
       `(::c/closure
         (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
           (new c/rec ~@(take (count args) c/arg-sym)))
-        ~(merge {::dbg/name name?, ::dbg/args args, ::dbg/type :reactive-fn}
-            (select-keys (meta &form) [:file :line])
-            (select-keys (meta name?) [::dbg/type :file :line])))
+        ~{::dbg/name name?, ::dbg/args args, ::dbg/type (or (::dbg/type (meta name?)) :reactive-fn)
+          ::dbg/meta (merge (select-keys (meta &form) [:file :line])
+                            (select-keys (meta name?) [:file :line]))})
       `(throw (ex-info "Invalid p/fn in Clojure code block (use from Photon code only)" ~(into {} (meta &form)))))))
 
 ; syntax quote doesn't qualify special forms like 'def
