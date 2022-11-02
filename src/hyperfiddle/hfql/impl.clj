@@ -137,18 +137,18 @@
                       :else        (throw (ex-info "Can only call functions or keywords" {:function f}))))))
        (d/db-with db)))
 
-(defn resolve-cardinalities-pass "For each function node, infer cardinality (::one or ::many) from the function spec."
+(defn resolve-cardinalities-pass "For each function node, infer cardinality (::hf/one or ::hf/many) from the function spec."
   [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where (or [?e :function/name] [?e :node/form-type :keyword])] db))
        (map (fn [node]
               (let [spec (or (:function/name node) (:node/form node))]
                 (if-some [many? (spec/cardinality-many? spec)]
-                  {:db/id              (:db/id node)
-                   :node/cardinality   (if many? ::many ::one)
-                   :node/entity-symbol (symbol (str "e" "_" (:db/id node)))} ; bound sym in `(p/for [e# (card-many-call …)] …)`
+                  {:db/id            (:db/id node)
+                   :node/cardinality (if many? ::hf/many ::hf/one)}
                   (case spec
-                    (:db/id :db/ident) {:db/id (:db/id node), :node/cardinality ::one}
-                    (throw (ex-info "Unknown cardinality, please define a spec." {:missing spec})))))))
+                    (:db/id :db/ident) {:db/id (:db/id node), :node/cardinality ::hf/one}
+                    (when (symbol? spec)
+                      (throw (ex-info "Unknown cardinality, please define a spec." {:missing spec}))))))))
        (d/db-with db)))
 
 (defn resolve-arguments-spec-pass "For each function argument, infer argument spec info."
@@ -255,7 +255,7 @@
 
   "[env db]
   (let [root   (get-root db)
-        scopes (set (nodes db (d/q '[:find [?e ...] :where [?e :node/cardinality ::many]] db)))] ; find all cardinality many functions
+        scopes (set (nodes db (d/q '[:find [?e ...] :where [?e :node/cardinality ::hf/many]] db)))] ; find all cardinality many functions
     (->> (disj (nodes db (d/q '[:find [?e ...] :where [?e :node/type :render-point]] db)) root) ; get all points but the root
          (mapcat (fn [{:keys [db/id] :as node}]
                    (loop [node (parent node)] ; walk ancestors up to the root
@@ -349,7 +349,7 @@
 
 (defn decide-how-node-should-render-pass [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :render-point]] db))
-    (map (fn [node] (if (= ::many (:node/cardinality node))
+    (map (fn [node] (if (= ::hf/many (:node/cardinality node))
                       {:db/id          (:db/id node)
                        :node/render-as ::hf/table}
                       {:db/id          (:db/id node)
@@ -370,8 +370,8 @@
               (let [columns (:node/symbolic-form node)]
                 (into [{:db/id id, :node/columns columns}]
                   (map (fn [parent]
-                         (when (= ::many (:node/cardinality parent))
-                           {:db/id (:db/id parent), :node/columns columns}))
+                         ;; (when (= ::hf/many (:node/cardinality parent)))
+                         {:db/id (:db/id parent), :node/columns columns})
                     (:node/_children node)  ; look for all parents (including hf/options)
                     )))))
     (d/db-with db)))
@@ -413,6 +413,8 @@
 
 ;; end ranking ---
 
+(defn entity-symbol [point] (symbol (str "e_" (:db/id point))))
+
 (defn input-path
   "An input path is a unique indentifier for an input in the HFQL runtime
   tree. An HFQL tree’s input state can be persisted in the form of a map {path
@@ -429,8 +431,8 @@
         :argument (recur false (cons (:spec/name point) path) (parent point))
         (case (:node/form-type point)
           :group (recur true path (parent point))
-          :call  (if (and (= ::many (:node/cardinality point)) account-for-cardinality)
-                   (recur true (list* (:node/symbolic-form point) (:node/entity-symbol point) path) (parent point))
+          :call  (if (and (= ::hf/many (:node/cardinality point)) account-for-cardinality)
+                   (recur true (list* (:node/symbolic-form point) (entity-symbol point) path) (parent point))
                    (recur true (cons (:node/symbolic-form point) path) (parent point)))
           (if-let [form (:node/symbolic-form point)]
             (recur true (cons form path) (parent point))
@@ -651,7 +653,7 @@
 
 (defn emit-call [point]
   (let [f    (:function/name point)
-        args (map (fn [node] `(new ~(:node/symbol node))) (arguments point))]
+        args (map (fn [node] `(unreduced (new ~(:node/symbol node)))) (arguments point))]
     (case (:prop/key point)
       ::hf/link `(list '~f ~@args)
       (cons `(p/partial-dynamic ~*bindings* ~f) args))))
@@ -682,59 +684,53 @@
                 value     (case (:node/form-type point)
                             :keyword `(hf/*nav!* hf/db hf/entity ~attribute)
                             :symbol  `((p/partial-dynamic ~*bindings* ~(:function/name point)) hf/entity))
-                form (case (:node/cardinality point)
-                       ::one (if-some [continuation (first (children point))]
-                               (add-scope-bindings point
-                                 `(binding [;; we pass options as a dynamic binding because a
-                                            ;; group depends on options to emit props and
-                                            ;; options depends on the group to emit the
-                                            ;; continuation.
-                                            hf/options ~(:node/symbol (props ::hf/options continuation))
-                                            ]
-                                    (new ~(:node/symbol continuation))))
-                               (let [render-form `(binding [hf/value (p/fn [] ~value)]
-                                                    (hf/Render. hf/value ~(emit-props point)))]
-                                 (if-let [options (:node/symbol (props ::hf/options point))]
-                                   (add-scope-bindings point `(binding [hf/options ~options] ~render-form))
-                                   (add-scope-bindings point render-form))))
-                       ::many (if-some [continuation (first (children point))]
-                                `(binding [hf/value (p/fn []
-                                                      (p/for [~(:node/entity-symbol point) ~value]
-                                                        (p/fn []
-                                                          (binding [hf/entity  ~(:node/entity-symbol point)
-                                                                    hf/options ~(:node/symbol (props ::hf/options continuation))]
-                                                            ~(add-scope-bindings point
-                                                               `(new ~(:node/symbol continuation)))))))]
-                                   (hf/Render. hf/value ~(emit-props point)))
-                                `(binding [hf/value (p/fn []
-                                                      (p/for [~(:node/entity-symbol point) ~value]
-                                                        (p/fn []
-                                                          ~(:node/entity-symbol point))))]
-                                   (hf/Render. hf/value ~(emit-props point)))))]
+                form      (if-some [continuation (first (children point))]
+                            (let [entity                (gensym "entity")
+                                  gen-continuation      (fn [value continuation]
+                                                          `(binding [hf/entity  ~value
+                                                                     ;; we pass options as a dynamic binding because a
+                                                                     ;; group depends on options to emit props and
+                                                                     ;; options depends on the group to emit the
+                                                                     ;; continuation (circular ref).
+                                                                     hf/options ~(:node/symbol (props ::hf/options continuation))]
+                                                             ~(add-scope-bindings point `(new ~(:node/symbol continuation)))))
+                                  card-one-continuation `(p/fn [~entity] ~(gen-continuation entity continuation))]
+                              (case (:node/cardinality point)
+                                ::hf/one  (gen-continuation value continuation)
+                                ::hf/many `(hf/FanOut. ~card-one-continuation ~value ~(emit-props point))
+                                `(let [value#                 ~value
+                                       Card-one-continuation# ~card-one-continuation]
+                                   (case (hf/*cardinality* hf/*schema* hf/db ~attribute)
+                                     ::hf/one (new Card-one-continuation# value#)
+                                     ::hf/many (hf/FanOut. Card-one-continuation# value# ~(assoc (emit-props point) ::hf/render-as ::hf/infer))))))
+                            ;; No continuation, so cardinality doesn’t matter, we produce a final value.
+                            `(binding [hf/value   (p/fn [] (reduced ~value))
+                                       hf/options ~(:node/symbol (props ::hf/options point))]
+                               (hf/Render. hf/value ~(emit-props point))))]
             (if (:node/remember-entity-at-point point)
               `(do (swap! ~'entities assoc '~(:node/symbol point) hf/entity) ;; TODO premise of hf/context
                    ~form)
               form))
-          :call    (let [cardinality (:node/cardinality point)]
-                     (if-some [continuation (first (children point))]
-                       (let [nav `(new ~(:node/symbol continuation))]
-                         (case cardinality ; TODO What if cardinality is unknown at compile time?
-                           ::one  `(binding [hf/entity ~(emit-call point)] ;; TODO what about props?
-                                          ~(add-scope-bindings point nav))
-                           ::many (let [v (symbol (str (:node/symbol point) "_value"))]
-                                    `(binding [hf/value (p/fn []
-                                                          (p/for [~(:node/entity-symbol point) ~(emit-call point)]
-                                                            (p/fn []
-                                                              (binding [hf/entity ~(:node/entity-symbol point)]
-                                                                ~(add-scope-bindings point nav)))))]
-                                       (hf/Render. hf/value ~(emit-props point)))))) ; TODO rendering call should account for args deps
-                       ;; if there is no continuation, just emit the call.
-                       (emit-call point)))
-          :group   (add-scope-bindings point
-                     (let [v (symbol (str (:node/symbol point) "_value"))]
-                       `(binding [hf/value (p/fn [] ~(reduce (fn [r point] (assoc r (:node/symbolic-form point) (:node/symbol point)))
-                                                       {} (children point)))]
-                          (hf/Render. hf/value ~(emit-props point)))))))
+          :call  (let [cardinality (:node/cardinality point)]
+                   (if-some [continuation (first (children point))]
+                     (let [nav `(new ~(:node/symbol continuation))]
+                       (case cardinality ; TODO What if cardinality is unknown at compile time?
+                         ::hf/one  `(binding [hf/entity ~(emit-call point)] ;; TODO what about props?
+                                      ~nav)
+                         ::hf/many (let [v (symbol (str (:node/symbol point) "_value"))]
+                                     `(binding [hf/value (p/fn []
+                                                           (p/for [~(entity-symbol point) ~(emit-call point)]
+                                                             (p/fn []
+                                                               (binding [hf/entity ~(entity-symbol point)]
+                                                                 ~(add-scope-bindings point nav)))))]
+                                        (hf/Render. hf/value ~(emit-props point)))))) ; TODO rendering call should account for args deps
+                     ;; if there is no continuation, just emit the call.
+                     (emit-call point)))
+          :group (add-scope-bindings point
+                   (let [v (symbol (str (:node/symbol point) "_value"))]
+                     `(binding [hf/value (p/fn [] ~(reduce (fn [r point] (assoc r (:node/symbolic-form point) (:node/symbol point)))
+                                                     {} (children point)))]
+                        (hf/Render. hf/value ~(emit-props point)))))))
     :argument (emit-argument point)
     :input    `(atom nil)
     (assert false (str "emit - not a renderable point " (:node/type point)))))

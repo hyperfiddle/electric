@@ -53,13 +53,23 @@
 (p/def db) ; HFQL will query this db
 
 (p/def ^{:dynamic true, :doc "To be bound to a function [db attribute] -> schema"} *schema*)
+(p/def ^{:dynamic true, :doc "To be bound to a function schema -> ::hf/one | ::hf/many"} *cardinality*
+  (fn cardinality [schemaf db attr]
+    (let [card
+          ({:db.cardinality/one ::one
+            :db.cardinality/many ::many} (:db/cardinality (schemaf db attr)))]
+      card)))
 
 (p/def context nil) ; HFQL EAV context
 
 (p/defn entity []) ;; TODO HFQL only. Is a binding required? could it be an argument?
 (p/def ^:deprecated attribute nil)      ; TODO G: not sure if actually deprecated.
 (p/def value (p/fn [] nil))
-(p/def options)
+(p/def options nil)
+
+(p/defn FanOut [Continuation value props]
+  (binding [hyperfiddle.api/value (p/fn [] (p/for [e value] (p/fn [] (Continuation. e))))]
+    (Render. hyperfiddle.api/value props)))
 
 (p/defn tx [v' props]
   (if-let [Txfn (::tx props)]
@@ -71,6 +81,7 @@
 (p/defn Join-all "Given a collection of flows, join all flows. Maps are expected to be {Key Flow<Value>}."
   [v]
   (cond
+    (reduced? v) (unreduced v)
     (quoted? v) v
     (map? v)    (into {} (p/for [[k V] v] [k (V.)]))
     (list? v)   (p/for [V v] (V.))
@@ -95,7 +106,7 @@
   (if bypass-renderer
     (Join-all. (V.))
     (if-let [Renderer (::render props)]
-      (Renderer. V props)
+      (Renderer. (p/fn [] (unreduced (V.))) props)
       (Join-all. (V.)))))
 
 (p/defn Data [V] (binding [Render (p/fn [V _props] (let [v (V.)] #_(prn "hf/data" v) (Join-all. v)))] (Render. V nil)))
