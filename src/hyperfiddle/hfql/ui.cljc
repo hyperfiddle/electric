@@ -173,14 +173,19 @@
 (p/defn EdnRender [V props]
   (if hf/bypass-renderer
     (hf/Join-all. (V.))
-    (if-let [Renderer (::hf/render props)]
-      (Renderer. V props)
-      (let [Renderer (case (::hf/render-as props)
-                       ::hf/form  Form-renderer
-                       ::hf/table Table-renderer
-                       ::hf/field Spec-renderer
-                       Default-renderer)]
-        (Renderer. V props)))))
+    (let [V (p/fn [] (unreduced (V.)))]
+      (if-let [Renderer (::hf/render props)]
+        (Renderer. V props)
+        (let [Renderer (case (::hf/render-as props)
+                         ::hf/form  Form-renderer
+                         ::hf/table Table-renderer
+                         ::hf/field Spec-renderer
+                         ::hf/infer (case (hf/*cardinality* hf/*schema* hf/db (::hf/attribute props))
+                                      ::hf/one Form-renderer
+                                      ::hf/many Table-renderer
+                                      Default-renderer)
+                         Default-renderer)]
+          (Renderer. V props))))))
 
 (p/def Render EdnRender)
 
