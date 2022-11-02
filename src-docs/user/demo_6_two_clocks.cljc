@@ -24,4 +24,4 @@
 
       (dom/div "client time: " c)
       (dom/div "server time: " s)
-      (dom/div "latency: " (- c s)))))
+      (dom/div "latency: " (- s c)))))
