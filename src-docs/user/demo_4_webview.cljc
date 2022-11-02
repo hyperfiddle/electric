@@ -6,6 +6,10 @@
             [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros user.demo-4-webview)))
 
+; A database backed webview with reactive updates.
+; The webview is subscribed to the database, which updates with each transaction.
+; Run a transaction (from the REPL) and see the connected tabs update live.
+
 (defonce conn #?(:cljs nil                                  ; state survives reload
                  :clj  (doto (d/create-conn {:order/email {}})
                          (d/transact! [{:order/email "alice@example.com" :order/gender :order/female}
@@ -40,7 +44,7 @@
                     (dom/td (p/server (:order/gender !e)))))))))))))
 
 (p/defn App []
-  (let [db (p/watch conn)]
+  (let [db (p/watch conn)] ; reactive "database value"
     (Teeshirt-orders-view. db)))
 
 (comment

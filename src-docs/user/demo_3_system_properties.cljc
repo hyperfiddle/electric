@@ -5,6 +5,10 @@
             [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros user.demo-3-system-properties)))
 
+; A web view that queries the backend JVM environment and writes it to the
+; frontend dom, all in a single composed expression.
+; The p/for is stabilized with a "react key" for efficient DOM maintenance.
+
 (defn system-properties [?s]
   #?(:clj (->> (System/getProperties)
                (filter (fn [[k v]] (str/includes? (str/lower-case (str k)) (str/lower-case (str ?s)))))
@@ -25,7 +29,7 @@
                          ::ui/input-event (p/fn [e] (reset! !search (:value dom/node)))})
               (dom/table
                 (p/server
-                  (p/for [[k v] system-props]
+                  (p/for-by first [[k v] system-props]
                     (p/client
                       (dom/tr
                         (dom/td k)
