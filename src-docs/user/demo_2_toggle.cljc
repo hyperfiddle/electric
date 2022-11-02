@@ -4,8 +4,13 @@
             [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros user.demo-2-toggle)))
 
-(defonce !x #?(:clj (atom true) :cljs nil)) ; server
-(p/def x (p/server (p/watch !x)))
+; A stateful app with a server-side counter
+; Photon functions are reactive and incrementally maintained,
+; which means that when you make a small change to the state,
+; the functions will recompute and you'll get a small adjustment to the DOM
+
+(defonce !x #?(:clj (atom true) :cljs nil)) ; mutable reference on server
+(p/def x (p/server (p/watch !x))) ; reactive x, attached to reference !x
 
 (p/defn App []
   (p/client

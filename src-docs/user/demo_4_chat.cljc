@@ -4,6 +4,12 @@
             [hyperfiddle.photon-ui :as ui])
   #?(:cljs (:require-macros user.demo-4-chat)))
 
+; A chat app.
+; Open it in two tabs.
+; When you type a message, both tabs update.
+; This works because both tabs share a single JVM and therefore share state
+; automatically. Both tabs subscribe to the same atom.
+
 (defonce !state #?(:clj (atom []) :cljs nil))
 (p/def state (p/server (p/watch !state)))
 

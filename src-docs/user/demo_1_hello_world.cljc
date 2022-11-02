@@ -3,6 +3,10 @@
             [hyperfiddle.photon-dom :as dom])
   #?(:cljs (:require-macros user.demo-1-hello-world)))
 
+; First demonstration of client/server transfer:
+; a full stack function with both frontend and backend parts,
+; all defined in the same expression
+
 (p/defn App []
   (p/client
     (dom/h1 "Hello World")
