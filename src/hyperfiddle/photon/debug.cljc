@@ -1,6 +1,8 @@
 (ns hyperfiddle.photon.debug
   (:require #_[hyperfiddle.photon-impl.runtime :as-alias r]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [contrib.data :as data]
+            [hyperfiddle.photon-impl.ir :as-alias ir])
   (:import (hyperfiddle.photon Failure Pending)
            (missionary Cancelled)
            #?(:clj (clojure.lang ExceptionInfo))))
@@ -53,13 +55,19 @@
     (update map ::trace (partial mapv serializable-frame))
     error))
 
+(defn normalize-frame [frame]
+  (let [meta        (::meta frame)
+        dbg-in-meta (data/select-ns :hyperfiddle.photon.debug (::meta frame))]
+    (merge frame dbg-in-meta {::meta (dissoc meta dbg-in-meta)})))
+
 (defn stack-trace [err]
   (some->> (::trace (ex-data err))
     (remove (fn [frame] (= {} (::name frame)))) ; (do a b) => ({} a b)
+    (filter ::type)
     (reduce (fn [r frame]
               (if (string? frame)
                 (conj r frame)
-                (let [{::keys [origin type name params args macro scope meta]} frame]
+                (let [{::keys [origin type name params args macro scope meta]} (normalize-frame frame)]
                   (conj r
                     (into [(when (and (not= PEER-ID origin)
                                    (not (#{:transfer :toggle} type))
@@ -95,7 +103,7 @@
                           :case-default  ["case default branch"]
                           :transfer      ["transfer to" (clojure.core/name name)]
                           :toggle        ["transfer"]
-                          `["<unknow frame>" ~frame])
+                          `["<unknow frame>" ~(::ir/op frame)])
                         [(when macro (str "from macro " macro))
                          (some->> (:file meta) (str "in "))
                          (some->> (:line meta) (str "line "))]))))))

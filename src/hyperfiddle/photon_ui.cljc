@@ -5,6 +5,7 @@
             [missionary.core :as m]
             [hyperfiddle.logger :as log]
             [clojure.string :as str]
+            [contrib.data :as data]
             #?(:cljs [goog.string.format])
             #?(:cljs [goog.string :refer [format]]))
   #?(:cljs (:require-macros hyperfiddle.photon-ui))
@@ -62,20 +63,8 @@
      (when ack# (swap! !ack# not)) ; don’t rely on callback result, it might be `nil`
      result#))
 
-(defn has-ns?
-  "State if a `named` value (keyword or symbol) has such namespace `ns`.
-  `ns` can be be a string, or a non-namespaced keyword or symbol."
-  [ns named]
-  {:pre [(or (string? ns) (simple-ident? ns))]}
-  (= (name ns) (namespace named)))
-
-(defn select-ns
-  "Like `select-keys` but select all namespaced keys by ns."
-  [ns map]
-  (into (empty map) (filter (fn [[k _v]] (has-ns? ns k))) map))
-
 (defn signals [props] (->> props
-                        (select-ns :hyperfiddle.photon-ui)
+                        (data/select-ns :hyperfiddle.photon-ui)
                         keys
                         (filter #(str/ends-with? (name %) "-event"))
                         set))
@@ -121,7 +110,7 @@ aria-disabled element.
    (assert (map? props))
    [(valuef props nil)
     (gen-event-handlers cancel-sym props transducers opts)
-    (let [dom-props (select-ns :hyperfiddle.photon-dom props)]
+    (let [dom-props (data/select-ns :hyperfiddle.photon-dom props)]
       (if-let [type (::type props)]
         (assoc dom-props :type type)
         dom-props))]))
