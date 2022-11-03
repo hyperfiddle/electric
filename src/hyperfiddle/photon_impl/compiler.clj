@@ -906,9 +906,18 @@
                ::dbg/scope :dynamic}
     ::ir/inst {::ir/op ::ir/apply
                ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
-               ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                          {::ir/op ::ir/variable
-                           ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
+               ::ir/args [{::ir/op ::ir/sub
+                           ::ir/index 1}
+                          {::ir/op ::ir/pub
+                           ::ir/init {::ir/op ::ir/literal ::ir/value 0}
+                           ::ir/inst {::ir/op ::ir/apply
+                                      ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                      ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                 {::ir/op ::ir/bind
+                                                  ::ir/slot 1
+                                                  ::ir/index 1
+                                                  ::ir/inst {::ir/op ::ir/variable
+                                                             ::ir/init {::ir/op ::ir/sub ::ir/index 2}}}]}}]}}
    {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}]
 
   (analyze {} '~@:foo) :=
@@ -935,159 +944,185 @@
 
   (analyze {} '(case 1 2 3 (4 5) ~@6 7))
   :=
-  [{::ir/op   ::ir/pub
-    ::ir/init {::ir/op   ::ir/pub
+  [{::ir/op ::ir/pub
+    ::ir/init {::ir/op ::ir/pub
                ::ir/init {::ir/op ::ir/literal ::ir/value 1}
-               ::ir/inst {::ir/op   ::ir/apply
-                          ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+               ::ir/inst {::ir/op ::ir/apply
+                          ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
                           ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                     {::ir/op   ::ir/pub
-                                      ::ir/init {::ir/op       ::ir/constant
-                                                 ::ir/init     {::ir/op ::ir/literal ::ir/value 3}
+                                     {::ir/op ::ir/pub
+                                      ::ir/init {::ir/op ::ir/constant
                                                  ::dbg/type :case-clause
+                                                 ::ir/init {::ir/op ::ir/literal ::ir/value 3}
                                                  ::dbg/args [2]
                                                  ::dbg/meta nil}
-                                      ::ir/inst {::ir/op   ::ir/apply
-                                                 ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
-                                                 ::ir/args [{::ir/op    ::ir/sub
-                                                             ::ir/index 1}
-                                                            {::ir/op   ::ir/pub
-                                                             ::ir/init {::ir/op    ::ir/constant
-                                                                        ::ir/init  {::ir/op ::ir/input}
+                                      ::ir/inst {::ir/op ::ir/apply
+                                                 ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                 ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                            {::ir/op ::ir/pub
+                                                             ::ir/init {::ir/op ::ir/constant
                                                                         ::dbg/type :case-clause
+                                                                        ::ir/init {::ir/op ::ir/input}
                                                                         ::dbg/args ['(4 5)]
                                                                         ::dbg/meta nil}
-                                                             ::ir/inst {::ir/op   ::ir/apply
-                                                                        ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                             ::ir/inst {::ir/op ::ir/apply
+                                                                        ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
                                                                         ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                              {::ir/op ::ir/apply
-                                                               ::ir/fn {::ir/op ::ir/apply
-                                                                        ::ir/fn {::ir/op ::ir/global
-                                                                                 ::ir/name :clojure.core/hash-map
-                                                                                 ::dbg/meta {}}
-                                                                        ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
-                                                                                   {::ir/op ::ir/sub
-                                                                                    ::ir/index 2
-                                                                                    ::dbg/name _
-                                                                                    ::dbg/scope :lexical
-                                                                                    ::dbg/meta nil}
-                                                                                   {::ir/op ::ir/literal ::ir/value 4}
-                                                                                   {::ir/op ::ir/sub
-                                                                                    ::ir/index 1
-                                                                                    ::dbg/name ?x
-                                                                                    ::dbg/scope :lexical
-                                                                                    ::dbg/meta nil}
-                                                                                   {::ir/op ::ir/literal ::ir/value 5}
-                                                                                   {::ir/op ::ir/sub
-                                                                                    ::ir/index 1
-                                                                                    ::dbg/name ?x
-                                                                                    ::dbg/scope :lexical
-                                                                                    ::dbg/meta nil}]}
-                                                               ::ir/args [{::ir/op ::ir/sub
-                                                                           ::ir/index 3
-                                                                           ::dbg/name _
-                                                                           ::dbg/scope :lexical
-                                                                           ::dbg/meta nil}
-                                                                       {::ir/op ::ir/constant
-                                                                        ::ir/init {::ir/op ::ir/literal ::ir/value 7}
-                                                                        ::dbg/type :case-default}]}]}}]}}]}}
-    ::ir/inst {::ir/op   ::ir/apply
-               ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                                                   {::ir/op ::ir/apply
+                                                                                    ::ir/fn {::ir/op ::ir/apply
+                                                                                             ::ir/fn {::ir/op ::ir/global
+                                                                                                      ::ir/name :clojure.core/hash-map
+                                                                                                      ::dbg/meta {}}
+                                                                                             ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
+                                                                                                        {::ir/op ::ir/sub
+                                                                                                         ::ir/index 2
+                                                                                                         ::dbg/name _
+                                                                                                         ::dbg/scope :lexical
+                                                                                                         ::dbg/meta nil}
+                                                                                                        {::ir/op ::ir/literal ::ir/value 4}
+                                                                                                        {::ir/op ::ir/sub
+                                                                                                         ::ir/index 1
+                                                                                                         ::dbg/name _
+                                                                                                         ::dbg/scope :lexical
+                                                                                                         ::dbg/meta nil}
+                                                                                                        {::ir/op ::ir/literal ::ir/value 5}
+                                                                                                        {::ir/op ::ir/sub
+                                                                                                         ::ir/index 1
+                                                                                                         ::dbg/name _
+                                                                                                         ::dbg/scope :lexical
+                                                                                                         ::dbg/meta nil}]}
+                                                                                    ::ir/args [{::ir/op ::ir/sub
+                                                                                                ::ir/index 3
+                                                                                                ::dbg/name _
+                                                                                                ::dbg/scope :lexical
+                                                                                                ::dbg/meta nil}
+                                                                                               {::dbg/type :case-default
+                                                                                                ::ir/op ::ir/constant
+                                                                                                ::ir/init {::ir/op ::ir/literal ::ir/value 7}}]}]}}]}}]}}
+    ::ir/inst {::ir/op ::ir/apply
+               ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
                ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                          {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
+                          {::ir/op ::ir/pub
+                           ::ir/init {::ir/op ::ir/literal ::ir/value 0}
+                           ::ir/inst {::ir/op ::ir/apply
+                                      ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                      ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                 {::ir/op ::ir/bind
+                                                  ::ir/slot 0
+                                                  ::ir/index 1
+                                                  ::ir/inst {::ir/op ::ir/variable
+                                                             ::ir/init {::ir/op ::ir/sub ::ir/index 2}}}]}}]}}
    {::ir/op ::ir/target
     ::ir/init {::ir/op ::ir/nop}
     ::ir/inst {::ir/op ::ir/target
-               ::ir/init {::ir/op ::ir/output
-                          ::ir/init {::ir/op ::ir/literal ::ir/value 6}
-                          ::ir/inst {::ir/op ::ir/nop}
+               ::ir/init {::dbg/meta nil
                           ::dbg/type :toggle
-                          ::dbg/meta nil}
+                          ::ir/op ::ir/output
+                          ::ir/init {::ir/op ::ir/literal ::ir/value 6}
+                          ::ir/inst {::ir/op ::ir/nop}}
                ::ir/inst {::ir/op ::ir/target
                           ::ir/init {::ir/op ::ir/nop}
                           ::ir/inst {::ir/op ::ir/source
                                      ::ir/inst {::ir/op ::ir/nop}}}}}]
 
   (analyze {} '(case 1 2 3 (4 5) ~@6)) :=
-  [{::ir/op   ::ir/pub
-    ::ir/init {::ir/op   ::ir/pub
+  [{::ir/op ::ir/pub
+    ::ir/init {::ir/op ::ir/pub
                ::ir/init {::ir/op ::ir/literal ::ir/value 1}
-               ::ir/inst {::ir/op   ::ir/apply
-                          ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+               ::ir/inst {::ir/op ::ir/apply
+                          ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
                           ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                     {::ir/op   ::ir/pub
-                                      ::ir/init {::ir/op    ::ir/constant
-                                                 ::ir/init  {::ir/op ::ir/literal ::ir/value 3}
+                                     {::ir/op ::ir/pub
+                                      ::ir/init {::ir/op ::ir/constant
                                                  ::dbg/type :case-clause
+                                                 ::ir/init {::ir/op ::ir/literal ::ir/value 3}
                                                  ::dbg/args [2]
                                                  ::dbg/meta nil}
-                                      ::ir/inst {::ir/op   ::ir/apply
-                                                 ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                      ::ir/inst {::ir/op ::ir/apply
+                                                 ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
                                                  ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                            {::ir/op   ::ir/pub
-                                                             ::ir/init {::ir/op    ::ir/constant
-                                                                        ::ir/init  {::ir/op ::ir/input}
+                                                            {::ir/op ::ir/pub
+                                                             ::ir/init {::ir/op ::ir/constant
                                                                         ::dbg/type :case-clause
+                                                                        ::ir/init {::ir/op ::ir/input}
                                                                         ::dbg/args ['(4 5)]
                                                                         ::dbg/meta nil}
-                                                             ::ir/inst {::ir/op   ::ir/apply
-                                                                        ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                             ::ir/inst {::ir/op ::ir/apply
+                                                                        ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
                                                                         ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                                                   {::ir/op   ::ir/apply
-                                                                                    ::ir/fn   {::ir/op   ::ir/apply
-                                                                                               ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/hash-map ::dbg/meta {}}
-                                                                                               ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
-                                                                                                          {::ir/op     ::ir/sub
-                                                                                                           ::ir/index  2
-                                                                                                           ::dbg/name  _
-                                                                                                           ::dbg/scope :lexical
-                                                                                                           ::dbg/meta  nil}
-                                                                                                          {::ir/op ::ir/literal ::ir/value 4}
-                                                                                                          {::ir/op     ::ir/sub
-                                                                                                           ::ir/index  1
-                                                                                                           ::dbg/name  ?x
-                                                                                                           ::dbg/scope :lexical
-                                                                                                           ::dbg/meta  nil}
-                                                                                                          {::ir/op ::ir/literal ::ir/value 5}
-                                                                                                          {::ir/op     ::ir/sub
-                                                                                                           ::ir/index  1
-                                                                                                           ::dbg/name  ?x
-                                                                                                           ::dbg/scope :lexical
-                                                                                                           ::dbg/meta  nil}]}
-                                                                                    ::ir/args [{::ir/op     ::ir/sub
-                                                                                                ::ir/index  3
-                                                                                                ::dbg/name  _
+                                                                                   {::ir/op ::ir/apply
+                                                                                    ::ir/fn {::ir/op ::ir/apply
+                                                                                             ::ir/fn {::ir/op ::ir/global
+                                                                                                      ::ir/name :clojure.core/hash-map
+                                                                                                      ::dbg/meta {}}
+                                                                                             ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
+                                                                                                        {::ir/op ::ir/sub
+                                                                                                         ::ir/index 2
+                                                                                                         ::dbg/name _
+                                                                                                         ::dbg/scope :lexical
+                                                                                                         ::dbg/meta nil}
+                                                                                                        {::ir/op ::ir/literal ::ir/value 4}
+                                                                                                        {::ir/op ::ir/sub
+                                                                                                         ::ir/index 1
+                                                                                                         ::dbg/name _
+                                                                                                         ::dbg/scope :lexical
+                                                                                                         ::dbg/meta nil}
+                                                                                                        {::ir/op ::ir/literal ::ir/value 5}
+                                                                                                        {::ir/op ::ir/sub
+                                                                                                         ::ir/index 1
+                                                                                                         ::dbg/name _
+                                                                                                         ::dbg/scope :lexical
+                                                                                                         ::dbg/meta nil}]}
+                                                                                    ::ir/args [{::ir/op ::ir/sub
+                                                                                                ::ir/index 3
+                                                                                                ::dbg/name _
                                                                                                 ::dbg/scope :lexical
-                                                                                                ::dbg/meta  nil}
-                                                                                               {::ir/op    ::ir/constant
-                                                                                                ::ir/init  {::ir/op   ::ir/apply
-                                                                                                            ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/fail ::dbg/meta {}}
-                                                                                                            ::ir/args [{::ir/op   ::ir/apply
-                                                                                                                        ::ir/fn   {::ir/op ::ir/eval ::ir/form '(hyperfiddle.photon-impl.compiler/ctor-call java.lang.IllegalArgumentException 1)}
-                                                                                                                        ::ir/args [{::ir/op   ::ir/apply
-                                                                                                                                    ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/str ::dbg/meta {}}
-                                                                                                                                    ::ir/args [{::ir/op ::ir/literal ::ir/value "No matching clause: "}
-                                                                                                                                               {::ir/op     ::ir/sub
-                                                                                                                                                ::ir/index  3
-                                                                                                                                                ::dbg/name  _
-                                                                                                                                                ::dbg/scope :lexical
-                                                                                                                                                ::dbg/meta  nil}]}]}]}
-                                                                                                ::dbg/type :case-default}]}]}}]}}]}}
-    ::ir/inst {::ir/op   ::ir/apply
-               ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+                                                                                                ::dbg/meta nil}
+                                                                                               {::dbg/type :case-default
+                                                                                                ::ir/op ::ir/constant
+                                                                                                ::ir/init {::ir/op ::ir/apply
+                                                                                                           ::ir/fn {::ir/op ::ir/global
+                                                                                                                    ::ir/name :hyperfiddle.photon-impl.runtime/fail
+                                                                                                                    ::dbg/meta {}}
+                                                                                                           ::ir/args [{::ir/op ::ir/apply
+                                                                                                                       ::ir/fn {::ir/op ::ir/eval
+                                                                                                                                ::ir/form '(hyperfiddle.photon-impl.compiler/ctor-call java.lang.IllegalArgumentException 1)}
+                                                                                                                       ::ir/args [{::ir/op ::ir/apply
+                                                                                                                                   ::ir/fn {::ir/op ::ir/global
+                                                                                                                                            ::ir/name :clojure.core/str
+                                                                                                                                            ::dbg/meta {}}
+                                                                                                                                   ::ir/args [{::ir/op ::ir/literal
+                                                                                                                                               ::ir/value "No matching clause: "}
+                                                                                                                                              {::ir/op ::ir/sub
+                                                                                                                                               ::ir/index 3
+                                                                                                                                               ::dbg/name _
+                                                                                                                                               ::dbg/scope :lexical
+                                                                                                                                               ::dbg/meta nil}]}]}]}}]}]}}]}}]}}
+    ::ir/inst {::ir/op ::ir/apply
+               ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
                ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                          {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
-   {::ir/op   ::ir/target
+                          {::ir/op ::ir/pub
+                           ::ir/init {::ir/op ::ir/literal ::ir/value 0}
+                           ::ir/inst {::ir/op ::ir/apply
+                                      ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                      ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                 {::ir/op ::ir/bind
+                                                  ::ir/slot 0
+                                                  ::ir/index 1
+                                                  ::ir/inst {::ir/op ::ir/variable
+                                                             ::ir/init {::ir/op ::ir/sub ::ir/index 2}}}]}}]}}
+   {::ir/op ::ir/target
     ::ir/init {::ir/op ::ir/nop}
-    ::ir/inst {::ir/op   ::ir/target
-               ::ir/init {::ir/op    ::ir/output
+    ::ir/inst {::ir/op ::ir/target
+               ::ir/init {::dbg/meta nil
                           ::dbg/type :toggle
-                          ::dbg/meta nil
-                          ::ir/init  {::ir/op ::ir/literal ::ir/value 6}
-                          ::ir/inst  {::ir/op ::ir/nop}}
+                          ::ir/op ::ir/output
+                          ::ir/init {::ir/op ::ir/literal ::ir/value 6}
+                          ::ir/inst {::ir/op ::ir/nop}}
                ::ir/inst {::ir/op ::ir/target
                           ::ir/init {::ir/op ::ir/nop}
-                          ::ir/inst {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}}}}]
+                          ::ir/inst {::ir/op ::ir/source
+                                     ::ir/inst {::ir/op ::ir/nop}}}}}]
 
   (doto (def foo) (alter-meta! assoc :macro true ::node nil))
   (doto (def bar) (alter-meta! assoc :macro true ::node 'foo))
@@ -1137,9 +1172,9 @@
                                                             ::ir/fn {::ir/op ::ir/def ::ir/slot 0}
                                                             ::ir/args [{::ir/op ::ir/constant
                                                                         ::ir/init {::ir/op ::ir/target
-                                                                                   ::ir/init {::ir/op ::ir/output
+                                                                                   ::ir/init {::dbg/meta nil
                                                                                               ::dbg/type :toggle
-                                                                                              ::dbg/meta nil
+                                                                                              ::ir/op ::ir/output
                                                                                               ::ir/init {::ir/op ::ir/node
                                                                                                          ::ir/slot 0
                                                                                                          ::dbg/name `foo
@@ -1156,17 +1191,36 @@
                                                  ::ir/inst {::ir/op ::ir/apply
                                                             ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
                                                             ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                                       {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}]}}}}
+                                                                       {::ir/op ::ir/pub
+                                                                        ::ir/init {::ir/op ::ir/literal ::ir/value 0}
+                                                                        ::ir/inst {::ir/op ::ir/apply
+                                                                                   ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                                                   ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                                              {::ir/op ::ir/bind
+                                                                                               ::ir/slot 1
+                                                                                               ::ir/index 1
+                                                                                               ::ir/inst {::ir/op ::ir/variable
+                                                                                                          ::ir/init {::ir/op ::ir/sub ::ir/index 2}}}]}}]}}]}}}}
    {::ir/op ::ir/target
-    ::ir/init {::ir/op ::ir/output
+    ::ir/init {::dbg/meta nil
                ::dbg/type :toggle
-               ::dbg/meta nil
+               ::ir/op ::ir/output
                ::ir/init {::ir/op ::ir/pub
-                          ::ir/init {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/input}}
+                          ::ir/init {::ir/op ::ir/constant
+                                     ::ir/init {::ir/op ::ir/input}}
                           ::ir/inst {::ir/op ::ir/apply
                                      ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
                                      ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
+                                                {::ir/op ::ir/pub
+                                                 ::ir/init {::ir/op ::ir/literal ::ir/value 0}
+                                                 ::ir/inst {::ir/op ::ir/apply
+                                                            ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                            ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                       {::ir/op ::ir/bind
+                                                                        ::ir/slot 0
+                                                                        ::ir/index 1
+                                                                        ::ir/inst {::ir/op ::ir/variable
+                                                                                   ::ir/init {::ir/op ::ir/sub ::ir/index 2}}}]}}]}}
                ::ir/inst {::ir/op ::ir/nop}}
     ::ir/inst {::ir/op ::ir/target
                ::ir/init {::ir/op ::ir/nop}
@@ -1174,142 +1228,226 @@
 
   (doto (def baz) (alter-meta! assoc :macro true ::node '(::closure ~@foo)))
   (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new baz)) (::closure a))))) :=
-  [{::ir/op   ::ir/pub
+  [{::ir/op ::ir/pub
     ::ir/init {::ir/op ::ir/literal ::ir/value nil}
-    ::ir/inst {::ir/op    ::ir/bind
-               ::ir/slot  0
+    ::ir/inst {::ir/op ::ir/bind
+               ::ir/slot 0
                ::ir/index 1
-               ::ir/inst  {::ir/op   ::ir/target
-                           ::ir/init {::ir/op    ::ir/output
-                                      ::ir/init  {::ir/op ::ir/node ::ir/slot 0 ::dbg/name `foo ::dbg/scope :dynamic}
-                                      ::ir/inst  {::ir/op ::ir/nop}
-                                      ::dbg/type :toggle
-                                      ::dbg/meta nil}
-                           ::ir/inst {::ir/op   ::ir/pub
-                                      ::ir/init {::ir/op ::ir/literal ::ir/value 1}
-                                      ::ir/inst {::ir/op   ::ir/apply
-                                                 ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
-                                                 ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                            {::ir/op   ::ir/pub
-                                                             ::ir/init {::ir/op   ::ir/apply
-                                                                        ::ir/fn   {::ir/op ::ir/def ::ir/slot 0}
-                                                                        ::ir/args [{::ir/op ::ir/constant ::ir/init {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/input}}}
-                                                                                   {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/sub ::ir/index 1 ::dbg/name 'a ::dbg/scope :lexical ::dbg/meta nil}}]}
-                                                             ::ir/inst {::ir/op   ::ir/apply
-                                                                        ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
-                                                                        ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                                                   {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}]}}}}}
-   {::ir/op   ::ir/pub
-    ::ir/init {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/input}}
-    ::ir/inst {::ir/op    ::ir/bind
-               ::ir/slot  0
+               ::ir/inst {::ir/op ::ir/target
+                          ::ir/init {::dbg/meta nil
+                                     ::dbg/type :toggle
+                                     ::ir/op ::ir/output
+                                     ::ir/init {::ir/op ::ir/node
+                                                ::ir/slot 0
+                                                ::dbg/name `foo
+                                                ::dbg/scope :dynamic}
+                                     ::ir/inst {::ir/op ::ir/nop}}
+                          ::ir/inst {::ir/op ::ir/pub
+                                     ::ir/init {::ir/op ::ir/literal ::ir/value 1}
+                                     ::ir/inst {::ir/op ::ir/apply
+                                                ::ir/fn {::ir/op ::ir/literal
+                                                         ::ir/value {}}
+                                                ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                           {::ir/op ::ir/pub
+                                                            ::ir/init {::ir/op ::ir/apply
+                                                                       ::ir/fn {::ir/op ::ir/def ::ir/slot 0}
+                                                                       ::ir/args [{::ir/op ::ir/constant
+                                                                                   ::ir/init {::ir/op ::ir/source
+                                                                                              ::ir/inst {::ir/op ::ir/input}}}
+                                                                                  {::ir/op ::ir/constant
+                                                                                   ::ir/init {::ir/op ::ir/sub
+                                                                                              ::ir/index 1
+                                                                                              ::dbg/name 'a
+                                                                                              ::dbg/scope :lexical
+                                                                                              ::dbg/meta nil}}]}
+                                                            ::ir/inst {::ir/op ::ir/apply
+                                                                       ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                                       ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                                  {::ir/op ::ir/pub
+                                                                                   ::ir/init {::ir/op ::ir/literal ::ir/value 0}
+                                                                                   ::ir/inst {::ir/op ::ir/apply
+                                                                                              ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                                                              ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                                                         {::ir/op ::ir/bind
+                                                                                                          ::ir/slot 1
+                                                                                                          ::ir/index 1
+                                                                                                          ::ir/inst {::ir/op ::ir/variable
+                                                                                                                     ::ir/init {::ir/op ::ir/sub ::ir/index 2}}}]}}]}}]}}}}}
+   {::ir/op ::ir/pub
+    ::ir/init {::ir/op ::ir/constant
+               ::ir/init {::ir/op ::ir/input}}
+    ::ir/inst {::ir/op ::ir/bind
+               ::ir/slot 0
                ::ir/index 1
-               ::ir/inst  {::ir/op   ::ir/target
-                           ::ir/init {::ir/op    ::ir/output
-                                      ::dbg/meta nil
-                                      ::dbg/type :toggle
-                                      ::ir/init  {::ir/op   ::ir/pub
-                                                  ::ir/init {::ir/op ::ir/node ::ir/slot 0 ::dbg/name `baz, ::dbg/scope :dynamic}
-                                                  ::ir/inst {::ir/op   ::ir/apply
-                                                             ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
-                                                             ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                                        {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
-                                      ::ir/inst  {::ir/op ::ir/nop}}
-                           ::ir/inst {::ir/op ::ir/target ::ir/init {::ir/op ::ir/nop} ::ir/inst {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}}}}}]
+               ::ir/inst {::ir/op ::ir/target
+                          ::ir/init {::dbg/meta nil
+                                     ::dbg/type :toggle
+                                     ::ir/op ::ir/output
+                                     ::ir/init {::ir/op ::ir/pub
+                                                ::ir/init {::ir/op ::ir/node
+                                                           ::ir/slot 0
+                                                           ::dbg/name `baz
+                                                           ::dbg/scope :dynamic}
+                                                ::ir/inst {::ir/op ::ir/apply
+                                                           ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                           ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                      {::ir/op ::ir/pub
+                                                                       ::ir/init {::ir/op ::ir/literal ::ir/value 0}
+                                                                       ::ir/inst {::ir/op ::ir/apply
+                                                                                  ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                                                  ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                                             {::ir/op ::ir/bind
+                                                                                              ::ir/slot 1
+                                                                                              ::ir/index 1
+                                                                                              ::ir/inst {::ir/op ::ir/variable
+                                                                                                         ::ir/init {::ir/op ::ir/sub ::ir/index 2}}}]}}]}}
+                                     ::ir/inst {::ir/op ::ir/nop}}
+                          ::ir/inst {::ir/op ::ir/target
+                                     ::ir/init {::ir/op ::ir/nop}
+                                     ::ir/inst {::ir/op ::ir/source
+                                                ::ir/inst {::ir/op ::ir/nop}}}}}}]
 
   (analyze {} '(try 1 (finally 2 3 4))) :=
-  [{::ir/op   ::ir/pub
-    ::ir/init {::ir/op   ::ir/apply
-               ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/latest-first ::dbg/meta {}}
-               ::ir/args [{::ir/op   ::ir/apply
-                           ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/latest-first ::dbg/meta {}}
-                           ::ir/args [{::ir/op   ::ir/apply
-                                       ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/latest-first ::dbg/meta {}}
-                                       ::ir/args [{::ir/op ::ir/constant ::ir/init {::ir/op ::ir/literal ::ir/value 1} ::dbg/type :try ::dbg/meta nil}
-                                                  {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/literal ::ir/value 2} ::dbg/type :finally}]}
-                                      {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/literal ::ir/value 3} ::dbg/type :finally}]}
-                          {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/literal ::ir/value 4} ::dbg/type :finally}]}
-    ::ir/inst {::ir/op   ::ir/apply
-               ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
+  [{::ir/op ::ir/pub
+    ::ir/init {::ir/op ::ir/apply
+               ::ir/fn {::ir/op ::ir/global
+                        ::ir/name ::r/latest-first
+                        ::dbg/meta {}}
+               ::ir/args [{::ir/op ::ir/apply
+                           ::ir/fn {::ir/op ::ir/global
+                                    ::ir/name ::r/latest-first
+                                    ::dbg/meta {}}
+                           ::ir/args [{::ir/op ::ir/apply
+                                       ::ir/fn {::ir/op ::ir/global
+                                                ::ir/name ::r/latest-first
+                                                ::dbg/meta {}}
+                                       ::ir/args [{::ir/op ::ir/constant
+                                                   ::dbg/type :try
+                                                   ::ir/init {::ir/op ::ir/literal ::ir/value 1}
+                                                   ::dbg/meta nil}
+                                                  {::ir/op ::ir/constant
+                                                   ::dbg/type :finally
+                                                   ::ir/init {::ir/op ::ir/literal ::ir/value 2}}]}
+                                      {::ir/op ::ir/constant
+                                       ::dbg/type :finally
+                                       ::ir/init {::ir/op ::ir/literal ::ir/value 3}}]}
+                          {::ir/op ::ir/constant
+                           ::dbg/type :finally
+                           ::ir/init {::ir/op ::ir/literal ::ir/value 4}}]}
+    ::ir/inst {::ir/op ::ir/apply
+               ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
                ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                          {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}
-   {::ir/op   ::ir/target
+                          {::ir/op ::ir/pub
+                           ::ir/init {::ir/op ::ir/literal ::ir/value 0}
+                           ::ir/inst {::ir/op ::ir/apply
+                                      ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                      ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                 {::ir/op ::ir/bind
+                                                  ::ir/slot 0
+                                                  ::ir/index 1
+                                                  ::ir/inst {::ir/op ::ir/variable
+                                                             ::ir/init {::ir/op ::ir/sub ::ir/index 2}}}]}}]}}
+   {::ir/op ::ir/target
     ::ir/init {::ir/op ::ir/nop}
-    ::ir/inst {::ir/op   ::ir/target
+    ::ir/inst {::ir/op ::ir/target
                ::ir/init {::ir/op ::ir/nop}
-               ::ir/inst {::ir/op   ::ir/target
+               ::ir/inst {::ir/op ::ir/target
                           ::ir/init {::ir/op ::ir/nop}
-                          ::ir/inst {::ir/op   ::ir/target
+                          ::ir/inst {::ir/op ::ir/target
                                      ::ir/init {::ir/op ::ir/nop}
-                                     ::ir/inst {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}}}}}]
+                                     ::ir/inst {::ir/op ::ir/source
+                                                ::ir/inst {::ir/op ::ir/nop}}}}}}]
 
   (analyze {} '(try 1 (catch Exception e 2) (finally 3))) :=
-  [{::ir/op   ::ir/pub
+  [{::ir/op ::ir/pub
     ::ir/init {::ir/op ::ir/literal ::ir/value nil}
-    ::ir/inst {::ir/op    ::ir/bind
-               ::ir/slot  1
+    ::ir/inst {::ir/op ::ir/bind
+               ::ir/slot 1
                ::ir/index 1
-               ::ir/inst  {::ir/op   ::ir/pub
-                           ::ir/init {::ir/op   ::ir/apply
-                                      ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/latest-first ::dbg/meta {}}
-                                      ::ir/args [{::ir/op   ::ir/apply
-                                                  ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/bind ::dbg/meta {}}
-                                                  ::ir/args [{::ir/op ::ir/global ::ir/name ::r/recover ::dbg/meta {}}
-                                                             {::ir/op   ::ir/apply
-                                                              ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/some-fn ::dbg/meta {}}
-                                                              ::ir/args [{::ir/op   ::ir/apply
-                                                                          ::ir/fn   {::ir/op ::ir/global ::ir/name ::r/clause ::dbg/meta {}}
-                                                                          ::ir/args [{::ir/op   ::ir/apply
-                                                                                      ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/partial ::dbg/meta {}}
-                                                                                      ::ir/args [{::ir/op ::ir/def ::ir/slot 0}
-                                                                                                 {::ir/op    ::ir/constant
-                                                                                                  ::ir/init  {::ir/op   ::ir/pub
-                                                                                                              ::ir/init {::ir/op   ::ir/apply
-                                                                                                                         ::ir/fn   {::ir/op    ::ir/global
-                                                                                                                                    ::ir/name  ::dbg/unwrap
-                                                                                                                                    ::dbg/meta {}}
-                                                                                                                         ::ir/args [{::ir/op     ::ir/node
-                                                                                                                                     ::ir/slot   0
-                                                                                                                                     ::dbg/name  `exception
-                                                                                                                                     ::dbg/scope :dynamic}]}
-                                                                                                              ::ir/inst {::ir/op   ::ir/apply
-                                                                                                                         ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
-                                                                                                                         ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                                                                                                    {::ir/op   ::ir/pub
-                                                                                                                                     ::ir/init {::ir/op     ::ir/node
-                                                                                                                                                ::ir/slot   0
-                                                                                                                                                ::dbg/name  `exception
-                                                                                                                                                ::dbg/scope :dynamic}
-                                                                                                                                     ::ir/inst {::ir/op   ::ir/apply
-                                                                                                                                                ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
-                                                                                                                                                ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                                                                                                                           {::ir/op    ::ir/bind
-                                                                                                                                                            ::ir/slot  1
-                                                                                                                                                            ::ir/index 1
-                                                                                                                                                            ::ir/inst  {::ir/op ::ir/literal ::ir/value 2}}]}}]}}
-                                                                                                  ::dbg/type :catch
-                                                                                                  ::dbg/args '[Exception e]}]}
-                                                                                     {::ir/op    ::ir/global
-                                                                                      ::ir/name  :java.lang.Exception
-                                                                                      ::dbg/meta {}}]}]}
-                                                             {::ir/op    ::ir/constant
-                                                              ::ir/init  {::ir/op ::ir/literal ::ir/value 1}
-                                                              ::dbg/type :try
-                                                              ::dbg/meta nil}]}
-                                                 {::ir/op    ::ir/constant
-                                                  ::ir/init  {::ir/op ::ir/literal ::ir/value 3}
-                                                  ::dbg/type :finally}]}
-                           ::ir/inst {::ir/op   ::ir/apply
-                                      ::ir/fn   {::ir/op ::ir/literal ::ir/value {}}
-                                      ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                                                 {::ir/op ::ir/variable ::ir/init {::ir/op ::ir/sub ::ir/index 1}}]}}}}
-   {::ir/op   ::ir/target
+               ::ir/inst {::ir/op ::ir/pub
+                          ::ir/init {::ir/op ::ir/apply
+                                     ::ir/fn {::ir/op ::ir/global
+                                              ::ir/name ::r/latest-first
+                                              ::dbg/meta {}}
+                                     ::ir/args [{::ir/op ::ir/apply
+                                                 ::ir/fn {::ir/op ::ir/global
+                                                          ::ir/name ::r/bind
+                                                          ::dbg/meta {}}
+                                                 ::ir/args [{::ir/op ::ir/global
+                                                             ::ir/name ::r/recover
+                                                             ::dbg/meta {}}
+                                                            {::ir/op ::ir/apply
+                                                             ::ir/fn {::ir/op ::ir/global
+                                                                      ::ir/name :clojure.core/some-fn
+                                                                      ::dbg/meta {}}
+                                                             ::ir/args [{::ir/op ::ir/apply
+                                                                         ::ir/fn {::ir/op ::ir/global
+                                                                                  ::ir/name ::r/clause
+                                                                                  ::dbg/meta {}}
+                                                                         ::ir/args [{::ir/op ::ir/apply
+                                                                                     ::ir/fn {::ir/op ::ir/global
+                                                                                              ::ir/name :clojure.core/partial
+                                                                                              ::dbg/meta {}}
+                                                                                     ::ir/args [{::ir/op ::ir/def ::ir/slot 0}
+                                                                                                {::ir/op ::ir/constant
+                                                                                                 ::dbg/type :catch
+                                                                                                 ::ir/init {::ir/op ::ir/pub
+                                                                                                            ::ir/init {::ir/op ::ir/apply
+                                                                                                                       ::ir/fn {::ir/op ::ir/global
+                                                                                                                                ::ir/name ::dbg/unwrap
+                                                                                                                                ::dbg/meta {}}
+                                                                                                                       ::ir/args [{::ir/op ::ir/node
+                                                                                                                                   ::ir/slot 0
+                                                                                                                                   ::dbg/name `exception
+                                                                                                                                   ::dbg/scope :dynamic}]}
+                                                                                                            ::ir/inst {::ir/op ::ir/apply
+                                                                                                                       ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                                                                                       ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                                                                                  {::ir/op ::ir/pub
+                                                                                                                                   ::ir/init {::ir/op ::ir/node
+                                                                                                                                              ::ir/slot 0
+                                                                                                                                              ::dbg/name `exception
+                                                                                                                                              ::dbg/scope :dynamic}
+                                                                                                                                   ::ir/inst {::ir/op ::ir/apply
+                                                                                                                                              ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                                                                                                              ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                                                                                                         {::ir/op ::ir/bind
+                                                                                                                                                          ::ir/slot 1
+                                                                                                                                                          ::ir/index 1
+                                                                                                                                                          ::ir/inst {::ir/op ::ir/literal ::ir/value 2}}]}}]}}
+                                                                                                 ::dbg/args '[Exception e]}]}
+                                                                                    {::ir/op ::ir/global
+                                                                                     ::ir/name :java.lang.Exception
+                                                                                     ::dbg/meta {}}]}]}
+                                                            {::ir/op ::ir/constant
+                                                             ::dbg/type :try
+                                                             ::ir/init {::ir/op ::ir/literal ::ir/value 1}
+                                                             ::dbg/meta nil}]}
+                                                {::ir/op ::ir/constant
+                                                 ::dbg/type :finally
+                                                 ::ir/init {::ir/op ::ir/literal ::ir/value 3}}]}
+                          ::ir/inst {::ir/op ::ir/apply
+                                     ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                     ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                {::ir/op ::ir/pub
+                                                 ::ir/init {::ir/op ::ir/literal ::ir/value 0}
+                                                 ::ir/inst {::ir/op ::ir/apply
+                                                            ::ir/fn {::ir/op ::ir/literal ::ir/value {}}
+                                                            ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
+                                                                       {::ir/op ::ir/bind
+                                                                        ::ir/slot 2
+                                                                        ::ir/index 1
+                                                                        ::ir/inst {::ir/op ::ir/variable
+                                                                                   ::ir/init {::ir/op ::ir/sub ::ir/index 2}}}]}}]}}}}
+   {::ir/op ::ir/target
     ::ir/init {::ir/op ::ir/nop}
-    ::ir/inst {::ir/op   ::ir/target
+    ::ir/inst {::ir/op ::ir/target
                ::ir/init {::ir/op ::ir/nop}
-               ::ir/inst {::ir/op   ::ir/target
+               ::ir/inst {::ir/op ::ir/target
                           ::ir/init {::ir/op ::ir/nop}
-                          ::ir/inst {::ir/op ::ir/source ::ir/inst {::ir/op ::ir/nop}}}}}])
+                          ::ir/inst {::ir/op ::ir/source
+                                     ::ir/inst {::ir/op ::ir/nop}}}}}]
+  )
 
 
 (tests "literals"
