@@ -24,8 +24,8 @@
     #?(:clj (alter-var-root #'*LEVEL* (constantly level))
        :cljs (set! *LEVEL* level))))
 
-(defn active? [level]
-  (let [rank (zipmap levels (range (count levels)))]
+(let [rank (zipmap levels (range (count levels)))]
+  (defn active? [level]
     (>= (rank level) (rank *LEVEL*))))
 
 (def js-prefix {:trace "⚪ TRACE"
