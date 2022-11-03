@@ -26,6 +26,26 @@
   % := 1
   (dispose))
 
+(tests
+  "The Photon process is stateful and runs until disposed. All reactive subscriptions are kept
+  alive, essentially memoizing past results so that future renders can reuse cached intermediate
+  results that don't need to be recomputed. This cache state is managed by the underlying missionary
+  reactor which saves past \"reactive stack frames\" until the process is disposed. In this way,
+  reactive programming is trading space (cached intermediate results) for time (skipping work that
+  doesn't need to be recomputed)."
+  (def !a (atom 1))
+  (def !b (atom 1))
+  (def dispose
+    (p/run (let [a (p/watch !a) ; a is cached
+                 b (p/watch !b)] ; b is cached
+             (tap (+ a b)))))
+  % := 2
+  (swap! !a inc) ; cached b is reused
+  % := 3
+  (swap! !b inc) ; cached a is reused
+  % := 4
+  (dispose)) ; caches consume memory until disposed
+
 (tests "dataflow diamond"
   (def !x (atom 0))
   (def dispose
