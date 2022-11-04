@@ -4,7 +4,6 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.spec :as spec]
             [hyperfiddle.logger :as log]
-            [hyperfiddle.photon-ui :as ui]
             [clojure.datafy :refer [datafy]]
             [contrib.ednish :as ednish]
             [contrib.color :as c])
@@ -32,12 +31,12 @@
               (dom/label {::dom/for   id
                           ::dom/title (pr-str (::spec/form (spec/arg spec name)))}
                 (dom/text name))
-              (ui/input {::dom/id         id
-                         ::ui/value       (if (p/watch !steady) (p/current value) value)
-                         ::dom/disabled   (not writable?)
-                         ::ui/input-event (p/fn [e] (hf/replace-route! (hf/assoc-in-route-state hf/route path (.. e -target -value))))
-                         ::ui/focus-event (p/fn [e] (reset! !steady true))
-                         ::ui/blur-event  (p/fn [e] (reset! !steady false))}))))))))
+              (dom/input {::dom/id       id
+                          ::dom/value    (if (p/watch !steady) (p/current value) value)
+                          ::dom/disabled (not writable?)}
+                (dom/event "input" (fn [e] (hf/replace-route! (hf/assoc-in-route-state hf/route path (.. e -target -value)))))
+                (dom/event "focus" (fn [_] (reset! !steady true)))
+                (dom/event "blur"  (fn [_] (reset! !steady false)))))))))))
 
 (p/def Table-renderer)
 (p/def Form-renderer)
@@ -60,10 +59,8 @@
         link (when-let [Link (::hf/link props)] (new Link))]
     (p/client
       (if (some? link)
-        (ui/element dom/a {::dom/href       (str "#" (ednish/encode-uri link))
-                           ::ui/click-event (p/fn [e]
-                                              (.preventDefault e)
-                                              (hf/navigate! link))}
+        (dom/a {::dom/href (str "#" (ednish/encode-uri link))}
+          (dom/event "click" (fn [e] (.preventDefault e) (hf/navigate! link)))
           (dom/text edn))
         (dom/pre
           (dom/text edn))))))
@@ -108,9 +105,9 @@
           ;; set border color for all cells in the row. HACK, --var syntax not supported by dom/style.
           (.. dom/node -style (setProperty "--hyperfiddle-hfql-border-color" (c/color hf/db-name)))
           (when-let [id (::group-id table-picker-options)]
-            (dom/td (ui/checkbox {::dom/type :radio
-                                  ::dom/name id
-                                  ::ui/value (= (::current-value table-picker-options) entity)})))
+            (dom/td (dom/input {::dom/type    :radio
+                                ::dom/name    id
+                                ::dom/checked (= (::current-value table-picker-options) entity)})))
           (p/for [col columns]
             (dom/td #_{::dom/style {:border-color (c/color hf/db-name)}}
               (p/server (new (get row col))))))))))
@@ -155,9 +152,9 @@
         value-type (::value-type props)
         readonly?  (::readonly props)]
     (p/client
-      (ui/input {::ui/value     v
-                 ::ui/type      (input-type value-type "text")
-                 ::dom/disabled readonly?}))))
+      (dom/input {::dom/value    v
+                  ::dom/type     (input-type value-type "text")
+                  ::dom/disabled readonly?}))))
 
 (p/defn Spec-renderer [V props]
   (let [attr              (::hf/attribute props)
