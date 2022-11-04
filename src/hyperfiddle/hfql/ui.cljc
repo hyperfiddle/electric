@@ -63,7 +63,7 @@
           (dom/event "click" (fn [e] (.preventDefault e) (hf/navigate! link)))
           (dom/text edn))
         (dom/pre
-          (dom/text edn))))))
+          (dom/text (pr-str edn)))))))
 
 (defn spec-value-type [attr] ; TODO extract spec for quoted sexpr ; TODO support args
   (when (qualified-ident? attr)
