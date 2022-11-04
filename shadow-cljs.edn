@@ -9,7 +9,8 @@
                        :modules       {:main {:entries [user]
                                               :init-fn user/start!}}
                        :build-hooks   [(shadow.cljs.build-report/hook {:output-to "target/build_report.html"})
-                                       (user/rcf-shadow-hook)]}
+                                       (user/rcf-shadow-hook)]
+                       :compiler-options {:fn-invoke-direct true}} ; performances
             :editor   {:target        :browser
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}
