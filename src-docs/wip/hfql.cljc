@@ -6,11 +6,12 @@
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            #?(:clj [wip.orders-datascript :refer [orders genders shirt-sizes one-order]])
+            [wip.orders-datascript :refer [orders genders shirt-sizes one-order]]
             [hyperfiddle.photon-ui :as ui]
             #?(:cljs [hyperfiddle.router :as html5-router])
             [missionary.core :as m]
-            [contrib.ednish :as ednish])
+            [contrib.ednish :as ednish]
+            [clojure.spec.alpha :as s])
   #?(:cljs (:require-macros wip.hfql)))
 
 (p/defn Route []
@@ -25,6 +26,11 @@
                                                  (.reportValidity dom/node))))
                ::ui/focus-event (p/fn [e] (reset! !steady true))
                ::ui/blur-event  (p/fn [e] (reset! !steady false))})))
+
+(defn suber-name [e]
+  (first (clojure.string/split (:order/email (datascript.core/entity hf/*$* e)) #"@" 2)))
+
+(clojure.spec.alpha/fdef suber-name :ret string?)
 
 (p/defn Tee-shirt-orders []
   ;; Warning: HFQL is unstable
@@ -47,9 +53,12 @@
                               {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
                                [:db/ident]}]}
               {(orders .)
-               [(props :db/id {::hf/link (one-order db/id)})
+               [
+                (props :db/id {::hf/link (one-order db/id)})
                 :order/email
+                suber-name
 
+                :order/tags
                 {(props :order/gender {::hf/options (genders)})
                  [(props :db/ident {::hf/as gender})]}
                 {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
