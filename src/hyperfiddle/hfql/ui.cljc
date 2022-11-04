@@ -114,6 +114,7 @@
 
 (p/defn Table-renderer-impl [V props]
   (Inputs-renderer. props)
+  (Default-options-renderer. V props)
   (let [columns (::hf/columns props)]
     (p/client
       (dom/table
