@@ -671,7 +671,7 @@
                  (get-in (new ~(:node/symbol ref)) ~(:node/reference-path node)))))
            (throw r/pending)))) ; FIXME only join the required path, lazily.
     (if-let [input (:node/input node)]
-      `(m/latest (fn [route#] (get-in route# ~(:input/path input))) (p/fn [] hf/route))
+      `(p/fn [] (get-in hf/route ~(:input/path input)))
       `(p/fn [] ~(:node/form node)))))
 
 (defn hf-options-symbol [point continuation]
