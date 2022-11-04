@@ -23,9 +23,13 @@
 (defn empty-value? [x] (if (seqable? x) (empty? x) (some? x)))
 
 (defn route-state->route [route-state]
-  (when-let [[k v] (first route-state)]
-    (let [args (::spec/keys (datafy (spec/args (first k))))]
-      (cons (first k) (map (fn [arg] (get v arg)) args)))))
+  (if (= 1 (count route-state))
+    (let [[k v] (first route-state)]
+      (if (seq? k)
+        (let [args (::spec/keys (datafy (spec/args (first k))))]
+          (cons (first k) (map (fn [arg] (get v arg)) args)))
+        (if (empty? v) nil route-state)))
+    route-state))
 
 (defn route-cleanup [m path]
   (cond
@@ -35,7 +39,7 @@
                     (cond
                       (empty-value? leaf) (if-some [path' (seq (butlast path))]
                                             (recur (update-in m path' dissoc (last path)) path')
-                                            (route-state->route m))
+                                            (route-state->route (reduce-kv (fn [r k v] (if (and (not (seq? k)) (empty? v)) (dissoc r k) r)) m m)))
                       :else               m))))
 
 (defn assoc-in-route-state [m path value]
