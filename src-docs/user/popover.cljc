@@ -1,10 +1,12 @@
 (ns user.popover
   (:require #?(:clj [datascript.core :as d])
+            [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [hyperfiddle.ui.codemirror :refer [read-edn write-edn]])
+  (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros user.popover)))
 
 (defonce !conn #?(:cljs nil ; state survives reload
@@ -29,24 +31,25 @@
 (defn password [] (apply str (repeatedly 10 #(rand-nth (abc)))))
 
 (p/defn Teeshirt-orders-view []
-  (dom/div {:class "hyperfiddle-hfql"}
-    (ui/button {::ui/click-event (p/fn [_]
-                                   (p/server
-                                     (stage! [{:order/email (str (password) "@example.com")}])))}
-      "new record")
-    (let [!filter (atom ""), filter (p/watch !filter)]
-      (ui/input {::dom/type        :search
-                 ::dom/placeholder "Filter…"
-                 ::ui/input-event  (p/fn [e] (reset! !filter (.. e -target -value)))})
-      (dom/div {:style {:height "30em"}}
-        (dom/table
-          (p/server
-            (p/for [id (teeshirt-orders db filter)]
-              (p/client
-                (dom/tr
-                  (dom/td id)
-                  (dom/td (p/server (:order/email (d/entity db id))))
-                  (dom/td (p/server (:order/gender (d/entity db id)))))))))))))
+  (p/client
+    (dom/div {:class "hyperfiddle-hfql"}
+      (ui/button {::ui/click-event (p/fn [_]
+                                     (p/server
+                                       (stage! [{:order/email (str (password) "@example.com")}])))}
+        "new record")
+      (let [!filter (atom ""), filter (p/watch !filter)]
+        (ui/input {::dom/type :search
+                   ::dom/placeholder "Filter…"
+                   ::ui/input-event (p/fn [e] (reset! !filter (.. e -target -value)))})
+        (dom/div {:style {:height "30em"}}
+          (dom/table
+            (p/server
+              (p/for [id (teeshirt-orders db filter)]
+                (p/client
+                  (dom/tr
+                    (dom/td id)
+                    (dom/td (p/server (:order/email (d/entity db id))))
+                    (dom/td (p/server (:order/gender (d/entity db id))))))))))))))
 
 (p/defn StagingArea [stage !stage]
   (p/client
@@ -56,10 +59,10 @@
                                      (let [tx (read-edn (.. e -target -value))]
                                        (p/server (reset! !stage tx))))})))
 
-(p/defn Popover [Body]
+(p/defn Popover [Body X]
   (let [!open (atom false)
         open? (p/watch !open)
-        !ret  (atom nil)]
+        !ret (atom nil)]
 
     ; popover anchor
     (ui/button {::ui/click-event (p/fn [_] (reset! !ret nil) (swap! !open not))}
@@ -73,34 +76,43 @@
                           :position "relative" :left "3em" :top "2em" :z-index "1"
                           :width "50em" :height "40em"
                           :background-color "rgb(248 250 252)"}}
-          (p/server
-            (let [!stage (atom [])
-                  stage (p/watch !stage)] ; fork
-              (binding [db (:db-after (d/with db stage))
-                        stage! (partial swap! !stage concat)]
-                (p/client
-                  (Body.)
-                  (dom/hr)
-                  (ui/button {::ui/click-event (p/fn [e] (reset! !ret stage) (reset! !open false))} "commit!")
-                  (ui/button {::ui/click-event (p/fn [e] (reset! !open false))} "cancel")
-                  (p/server (StagingArea. stage !stage)))))))))))
+          ; discard, commit
+          (Body. !open !ret X)))))) ; client bias, careful
+
+;(defmacro popover [& body] `(Popover. (p/fn Body [!open !ret] ~@body)))
+
+(p/defn StagedBody [!open !ret Body]
+  (p/server
+    (let [!stage (atom []), stage (p/watch !stage)] ; fork
+      (binding [db (:db-after (d/with db stage))
+                stage! (partial swap! !stage concat)]
+        (p/client
+          (Body.)
+          (dom/hr)
+          (ui/button {::ui/click-event (p/fn [e] (reset! !ret stage) (reset! !open false))} "commit!")
+          (ui/button {::ui/click-event (p/fn [e] (reset! !open false))} "discard")
+          (p/server (StagingArea. stage !stage)))))))
 
 (p/defn App []
   (p/client
     (dom/h2 "Time travel demo - tee shirt orders and popovers")
     (dom/element "style" "textarea.stage {display: block; width: 100%; height: 20em;}")
     (p/server
-      (let [!stage (atom []) ; root
-            stage (p/watch !stage)]
+      (let [!stage (atom []), stage (p/watch !stage)] ; root
         (binding [db (:db-after (d/with (p/watch !conn) stage))
                   stage! (partial swap! !stage concat)]
           (p/client
-            (dom/div
-              (when-let [tx (Popover. Teeshirt-orders-view)]
-                (p/server (swap! !stage concat tx)))
-              (Teeshirt-orders-view.)
-              (dom/p "Root stage")
-              (p/server (StagingArea. stage !stage)))))))))
+            (when-let [tx (Popover. StagedBody Teeshirt-orders-view)] ; careful with fn color
+              (try (p/server (swap! !stage concat tx))
+                   (catch Pending e nil))))
+          (p/client
+            (Teeshirt-orders-view.)
+            (dom/p "Root stage")
+            (ui/button {::ui/click-event (p/fn [e]
+                                           (p/server
+                                             (let [_ (d/transact! !conn stage)]
+                                               (reset! !stage []))))} "transact!")
+            (p/server (StagingArea. stage !stage))))))))
 
 (comment
   (d/transact! !conn [[:db/retractEntity id]])
