@@ -13,9 +13,9 @@
 
 (def levels [:trace :debug :info :warn :error])
 
-#?(:cljs (goog-define LEVEL "trace")) ; Set log level as cljs compile time constant.
+#?(:cljs (goog-define LEVEL "debug")) ; Set log level as cljs compile time constant.
 
-(def ^:dynamic *LEVEL* #?(:clj :trace, :cljs (keyword LEVEL)))
+(def ^:dynamic *LEVEL* #?(:clj :debug, :cljs (keyword LEVEL)))
 
 (defn ^:export set-level! "Set runtime log level. See `hyperfiddle.logger/levels`."
   [level]
