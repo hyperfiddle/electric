@@ -10,7 +10,7 @@
             #?(:cljs [hyperfiddle.photon-client])
             [hyperfiddle.photon-impl.io :as io]
             [hyperfiddle.photon.debug :as dbg])
-  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars boot for for-by local local-with run run-with forget debounce wrap]]))
+  #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars boot for for-by local local-with run run-with debounce wrap]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.photon Pending Failure)
            (missionary Cancelled)))
@@ -125,15 +125,6 @@ running on a remote host.
 (cc/defn ^:no-doc continuous "EXPERIMENTAL"
   ([>x] (continuous nil >x))
   ([init >x] (m/relieve {} (m/reductions {} init >x))))
-
-(defmacro ^:no-doc forget
-  "EXPERIMENTAL
-  Like `do` but returs `nil` once, then never return again."
-  [& body]
-  `(new (->> (hyperfiddle.photon/fn [] ~@body)
-             (m/eduction (map (constantly nil)) (dedupe))
-             (m/reductions {} nil)
-             (m/relieve {}))))
 
 (cc/defn failure? [x] (instance? Failure x))
 
