@@ -281,6 +281,14 @@
   ([event-type xform init rf]      `(new (m/relieve {} (>events* node ~event-type ~xform ~init ~rf))))
   ([node event-type xform init rf] `(new (m/relieve {} (>events* ~node  ~event-type ~xform ~init ~rf)))))
 
+(defn event* [dom-node event-name callback]
+  (m/observe (fn [!]
+               (! nil)
+               (.addEventListener dom-node event-name callback)
+               #(.removeEventListener dom-node event-name callback))))
+
+(defmacro event [event-name callback] `(new (event* dom/node ~event-name ~callback)))
+
 (defn flip [f] (fn [& args] (apply f (reverse args))))
 
 (defn oget* [obj ks]
