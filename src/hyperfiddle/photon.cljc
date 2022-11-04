@@ -92,8 +92,8 @@ running on a remote host.
   (let [c->s (m/rdv)
         s->c (m/rdv)]
     (m/join {}
-      (s (comp s->c io/encode) (m/join io/decode c->s))
-      (c (comp c->s io/encode) (m/join io/decode s->c)))))
+      (s (comp s->c #_(cc/fn [x] (prn "s->c " x) x) io/encode) (m/join io/decode c->s))
+      (c (comp c->s #_(cc/fn [x] (prn "c->s " x) x) io/encode) (m/join io/decode s->c)))))
 
 (defmacro local
   "Single peer loopback system without whitelist. Returns boot task."
