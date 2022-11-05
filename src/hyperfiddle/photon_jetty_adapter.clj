@@ -87,7 +87,7 @@
                        :heartbeat ((make-heartbeat session pong-mailbox) (fn [_]) (fn [_])))))
      :on-close   (fn on-close [ws status-code reason]
                    (let [status {:status status-code, :reason reason}]
-                     (case status-code ; https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
+                     (case (long status-code) ; https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
                        1000 (log/debug "Client disconnected gracefully" status)
                        1001 (log/debug "Client navigated away" status)
                        ;; 1005 is the default close code set by Chrome an FF unless specified.
@@ -101,14 +101,14 @@
      :on-pong    (fn on-pong [ws bytebuffer]
                    (log/trace "pong")
                    (pong-mailbox bytebuffer))
-     :on-text    (fn on-text [ws text]
+     :on-text    (fn on-text [^WebSocketAdapter ws text]
                    (log/trace "text received" text)
                    ;; suspend session to backpressure client
                    (swap! state assoc :token (session-suspend! (.getSession ws)))
                    ;; deliver message to the rendez-vous, resume session when
                    ;; message is consumed by photon process.
                    ((messages text) resume! resume!))
-     :on-bytes   (fn [ws ^bytes bytes offset length]
+     :on-bytes   (fn [^WebSocketAdapter ws ^bytes bytes offset length]
                    (log/trace "bytes received" {:length length})
                    (swap! state assoc :token (session-suspend! (.getSession ws)))
                    ((messages (ByteBuffer/wrap bytes offset length)) resume! resume!))}))
