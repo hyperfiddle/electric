@@ -59,7 +59,8 @@
                                      (let [tx (read-edn (.. e -target -value))]
                                        (p/server (reset! !stage tx))))})))
 
-(p/defn Popover [Body X]
+; data PopoverState = Closed Tx | Open
+(p/defn Popover [Body X] ; only client
   (let [!open (atom false)
         open? (p/watch !open)
         !ret (atom nil)]
@@ -77,11 +78,13 @@
                           :width "50em" :height "40em"
                           :background-color "rgb(248 250 252)"}}
           ; discard, commit
-          (Body. !open !ret X)))))) ; client bias, careful
+          (Body. (p/fn Commit! [tx] (println `b tx) (reset! !ret tx) (reset! !open false))
+                 (p/fn Discard! [] (reset! !open false))
+                 X)))))) ; client bias, careful
 
 ;(defmacro popover [& body] `(Popover. (p/fn Body [!open !ret] ~@body)))
 
-(p/defn StagedBody [!open !ret Body]
+(p/defn StagedBody [Commit! Discard! Body]
   (p/server
     (let [!stage (atom []), stage (p/watch !stage)] ; fork
       (binding [db (:db-after (d/with db stage))
@@ -89,8 +92,8 @@
         (p/client
           (Body.)
           (dom/hr)
-          (ui/button {::ui/click-event (p/fn [e] (reset! !ret stage) (reset! !open false))} "commit!")
-          (ui/button {::ui/click-event (p/fn [e] (reset! !open false))} "discard")
+          (ui/button {::ui/click-event (p/fn [e] (println `a stage) (Commit!. stage))} "commit!")
+          (ui/button {::ui/click-event (p/fn [e] (Discard!.))} "discard")
           (p/server (StagingArea. stage !stage)))))))
 
 (p/defn App []
