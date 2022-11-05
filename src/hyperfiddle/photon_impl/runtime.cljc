@@ -279,7 +279,9 @@
 7: decoder stack
 8: decoder frame register
 9: decoder target register
-" []
+"
+  ^objects
+  []
   (doto (object-array 10)
     (aset (int 1) (m/dfv))
     (aset (int 2) (identity 0))
@@ -321,7 +323,7 @@
 11: tier array. Immutable.
 12: constant count. Immutable.
 13: output count. Immutable
-" [buffer position id parent context ^objects vars foreign static dynamic variable-count source-count constant-count target-count output-count input-count boot]
+" [^objects buffer position id parent context ^objects vars foreign static dynamic variable-count source-count constant-count target-count output-count input-count boot]
   (let [tier-count (+ variable-count source-count)
         frame (doto (object-array 14)
                 (aset (int 0) position)
@@ -662,7 +664,7 @@
              (when-some [<c (catch (.-error ^Failure x))]
                (with tier <c)))) <x))
 
-(defn variable [frame vars position slot <<x]
+(defn variable [frame ^objects vars position slot <<x]
   (let [tier (aget (frame-tiers frame) (int position))]
     (set-tier-remote tier slot)
     (set-tier-vars tier (aclone vars))
@@ -674,7 +676,7 @@
                    (catch #?(:clj Throwable :cljs :default) e
                      (Failure. e))))))))
 
-(defn source [frame vars position slot]
+(defn source [frame ^objects vars position slot]
   (aset (frame-sources frame) (int slot)
     (doto (aget (frame-tiers frame) (int position))
       (set-tier-vars (aclone vars)))))
@@ -748,7 +750,7 @@
                                    nil >root))))
                         (frame-dispose (aget context 0))
                         (m/? (m/reduce {} nil >root))
-                        (remote (aget context 0) (+ output-count constant-count variable-count))
+                        (remote (aget context 0) (+ (int output-count) (int constant-count) (int variable-count)))
                         (kill-context context))
                    (m/stream!))))
              (->> (m/ap (m/? (m/?> (m/seed (repeat (m/race (shutdown context) ?read))))))
