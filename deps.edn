@@ -42,7 +42,8 @@
                           io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}
                    :ns-default build}
            :dev     {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
-                     :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.0-alpha1"}
+                     :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}
+                                   criterium/criterium                      {:mvn/version "0.4.6"}
                                    binaryage/devtools                       {:mvn/version "1.0.6"}
                                    thheller/shadow-cljs                     {:mvn/version "2.20.1"}
                                    ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
