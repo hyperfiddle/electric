@@ -13,7 +13,8 @@
             [contrib.data :as data])
   (:import missionary.Cancelled
            (hyperfiddle.photon Failure Pending Remote)
-           #?(:clj (clojure.lang IFn IDeref Atom))))
+           #?(:clj (clojure.lang IFn IDeref Atom)))
+  #?(:cljs (:require-macros [hyperfiddle.photon-impl.runtime :refer [apply-static]])))
 
 ;; A photon program is a tree, which structure is dynamically maintained.
 ;; Two peers are synchronized (through a protocol) such that the tree structure is identicaly on both peers.
@@ -94,15 +95,38 @@
 (defn select-debug-info [debug-info]
   (merge (select-keys debug-info [::ir/op]) (data/select-ns :hyperfiddle.photon.debug debug-info)))
 
+(defn array-seq-arr ^objects [array-seq] #?(:clj (.array ^clojure.lang.ArraySeq array-seq) :cljs (.-arr ^IndexedSeq array-seq)))
+(defn array-seq-offset [array-seq] #?(:clj (.index ^clojure.lang.ArraySeq array-seq) :cljs (.-i ^IndexedSeq array-seq)))
+
+(defmacro apply-static
+  "Faster than cc/apply under these constraints:
+  - Number of arguments should be known and passed as `argc`,
+  - `argv` must be an ArraySeq (clojure) or IndexedSeq (cljs).
+
+  Produces a static function call, getting arguments by index in the undelying array."
+  [argc f argv]
+  (let [arr    (gensym "arr_")
+        offset (gensym "idx_")]
+    `(case (int ~argc)
+       0 (~f)
+       ~@(mapcat (fn [argc] [argc `(let [~arr    (array-seq-arr ~argv)
+                                         ~offset (array-seq-offset ~argv)]
+                                     ~(cons f (map (fn [idx] `(aget ~arr (int (+ ~idx ~offset)))) (range argc))))]) (range 1 21))
+       (apply ~f ~argv))))
+
 (defn latest-apply [debug-info & args]
-  (apply m/latest
-    (fn [f & args]
-      (if-let [err (apply failure f args)]
-        (dbg/error (assoc (select-debug-info debug-info) ::dbg/args args) err)
-        (try (apply f args)
-             (catch #?(:clj Throwable :cljs :default) e
-               (dbg/error (assoc (select-debug-info debug-info) ::dbg/args args) (Failure. e))))))
-    args))
+  (let [argc       (count args)
+        debug-info (select-debug-info debug-info)]
+    (apply m/latest ; TODO we know argc -> use apply-static (`args` would need to support direct access)
+      (fn [& f+args]
+        (if-let [err (apply-static argc failure f+args)]
+          (dbg/error (assoc debug-info ::dbg/args f+args) err) ; FIXME expensive
+          (try
+            (let [[f & args] f+args]
+              (apply-static (unchecked-dec-int argc) f args))
+            (catch #?(:clj Throwable :cljs :default) e
+              (dbg/error (assoc debug-info ::dbg/args f+args) (Failure. e))))))
+      args)))
 
 (def latest-first
   (partial m/latest
@@ -403,10 +427,11 @@
                 x)) <x))
 
 (defn check-failure [debug-info <x]
-  (m/latest (fn [x]
-              (if (instance? Failure x)
-                (dbg/error (select-debug-info debug-info) x)
-                x)) <x))
+  (let [debug-info (select-debug-info debug-info)]
+    (m/latest (fn [x]
+                (if (instance? Failure x)
+                  (dbg/error debug-info x)
+                  x)) <x)))
 
 (defn output [frame slot <x debug-info]
   (when-some [callback (get-output (frame-context frame))]
