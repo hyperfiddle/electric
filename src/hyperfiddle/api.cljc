@@ -15,7 +15,7 @@
 
 ;;; Route
 
-(p/def route) ; Continuous route value
+(p/def route nil) ; Continuous route value
 (p/def navigate!) ; to inject a route setter (eg. write to url, html5 history pushState, swap an atom…)
 (p/def replace-route!) ; overwrite the current route
 (p/def navigate-back!) ; inverse of `navigate!`, to be injected
