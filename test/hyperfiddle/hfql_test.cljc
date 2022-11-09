@@ -93,16 +93,25 @@
   % := {`(orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
 
 (p/defn throwing-renderer [V props] (throw (ex-info "I fail" {})))
-(p/defn ignoring-renderer [V props] "ignored")
+(p/defn ignoring-renderer [V props]
+  "didn't throw"
+  #_(do
+    (println 'V V)
+    (let [v (V.)]
+      (println 'v v)
+      (let [[k X] (first v)]
+        (println 'k k 'X X)
+        (let [x (X.)]
+          (println 'x x)
+          "ignored")))))
 
 (tests
-  (p/run (tap (binding [hf/db       hf/*$*
-                        hf/*nav!*   nav!
-                        hf/entity   9
-                        hf/*schema* schema]
-                (hfql [{(props :order/gender {::hf/render ignoring-renderer}) [(props :db/ident {::hf/render throwing-renderer})]}]))))
-  % := {:order/gender "ignored"} ; note it didn’t throw
-  )
+  (with (p/run (tap (binding [hf/db hf/*$*
+                              hf/*nav!* nav!
+                              hf/entity 9
+                              hf/*schema* schema]
+                      (hfql [{(props :order/gender {::hf/render ignoring-renderer}) [(props :db/ident {::hf/render throwing-renderer})]}]))))
+    % := {:order/gender "didn't throw"}))
 
 
 (p/defn Select-option-renderer [>v props]
