@@ -1775,3 +1775,17 @@
     % := [:a :b]
     % := [:a :b :c :d])
   )
+
+(p/def Factorial-gen (p/fn [Rec]
+                       (p/fn [n]
+                         (if (zero? n)
+                           1
+                           (* n (new Rec (dec n)))))))
+
+(tests
+  "Y-Combinator"
+  (let [!n (atom 5)]
+    (with (p/run (tap (new (p/Y. Factorial-gen) (p/watch !n))))
+      % := 120
+      (reset! !n 20)
+      % := 2432902008176640000)))

@@ -366,3 +366,9 @@ or a provided value if it completes without producing any value."
          (with-meta (hyperfiddle.photon/fn ~@(when (symbol? F) [F]) [~@rest-args]
              (new F# ~@args ~@rest-args))
            (meta F#))))))
+
+(hyperfiddle.photon/def Y "Y-Combinator"
+  (fn [f]
+    (new
+      (fn [x] (new x x))
+      (fn [x] (new f (fn [y] (new (new x x) y)))))))
