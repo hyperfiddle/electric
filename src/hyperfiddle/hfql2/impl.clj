@@ -223,11 +223,11 @@
                                      [;; the parent does not depend on the options anymore. But it is still
                                       ;; the parent of the options, such that rendering the group will render
                                       ;; the call to hf/options.
-                                      [:db/retract (:db/id parent-node) :node/dependencies (:db/id node)]
+                                      ;; [:db/retract (:db/id parent-node) :node/dependencies (:db/id node)]
                                       ;; options now depends on the group and has it as children, such that
                                       ;; rendering the options calls into the continuation.
                                       {:db/id             (:db/id node)
-                                       :node/dependencies (:db/id parent-node)
+                                       ;; :node/dependencies (:db/id parent-node)
                                        :node/children     (:db/id parent-node)}
                                       ;; the parent of the group also depend on the prop in order to bind it to `options
                                       (when-let [grandparent (parent parent-node)]
@@ -594,21 +594,6 @@
                          :else                (< (:db/id x) (:db/id y))) ; if same rank, sort by position in the HFQL expr
                    ) points))
 
-(declare emit)
-
-(defn scope-bindings "Return a toposorted list of lexical bindings in the scope of the given render point"
-  [point]
-  (mapcat (fn [point] [(:node/symbol point) (emit point)]) (sort-by-rank (:node/_scope point))))
-
-(defn add-scope-bindings
-  "If the given render point has dependencies in this scope, emit them as lexical bindings."
-  [point emitted-form]
-  (if-some [bindings (seq (scope-bindings point))]
-    `(let [~'entities  (atom {})
-           ~'<entities (p/watch ~'entities)
-           ~@bindings] ~emitted-form)
-    emitted-form))
-
 (defn maybe-update "Like `update` but applies `f` only if `k` is present in the map."
   [m k f]
   (if (contains? m k) (update m k f) m))
@@ -663,13 +648,13 @@
     (if (empty? (:node/reference-path node))
       `(p/fn [] (binding [hf/bypass-renderer true] (new hf/value)))
       `(p/fn []
-         (if-let [e# (get ~'<entities '~(:node/symbol ref))]
-           (binding [hf/entity e# ; FIXME beginning of hf/context. entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
-                     hf/bypass-renderer true]
-             (new ; FIXME photon bug? had to wrap into a p/fn to get hf/entity to have the correct binding
-               (p/fn []
-                 (get-in (new ~(:node/symbol ref)) ~(:node/reference-path node)))))
-           (throw r/pending)))) ; FIXME only join the required path, lazily.
+         (let [scope (p/watch hf/scope)]
+           (prn "looking for " '~(:node/symbol ref) "in" scope)
+           (if-let [e# (get scope '~(:node/symbol ref))]
+             (do 
+                 ;; FIXME beginning of hf/context. entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
+                 (get-in (hf/Data. (p/partial 1 ~(:node/symbol ref) e#)) ~(:node/reference-path node)))
+             (throw r/pending))))) ; FIXME only join the required path, lazily.
     (if-let [input (:node/input node)]
       `(p/fn [] (get-in hf/route ~(:input/path input)))
       `(p/fn [] ~(:node/form node)))))
@@ -684,42 +669,52 @@
       (let [attribute (:node/form point)
             value     (case (:node/form-type point)
                         :keyword `(hf/*nav!* hf/db ~E ~attribute)
-                        :symbol  `(~(convey-dynamic-env (:function/name point)) ~E))
-            form      (if-some [continuation (first (children point))]
-                        (let [card-one-continuation (:node/symbol continuation)
-                              props                 (merge (emit-props point) {::hf/render-as ::hf/infer}
-                                                      (when-let [options (hf-options-symbol point continuation)]
-                                                        {::hf/options options}))]
-                          `(with-meta
-                             (p/fn [~E]
-                               ~(case (:node/cardinality point)
-                                  ::hf/one    `(p/partial 1 ~card-one-continuation ~value)
-                                  ::hf/many   `(p/for [e# ~value] (p/partial 1 ~card-one-continuation e#))
-                                  `(let [value# ~value]
-                                     (case (hf/*cardinality* hf/*schema* hf/db ~attribute)
-                                       ::hf/one  (p/partial 1 ~card-one-continuation value#)
-                                       ::hf/many (p/for [e# value#] (p/partial 1 ~card-one-continuation e#))))))
-                             ~props))
-                        ;; No continuation, so cardinality doesn’t matter, we produce a final value.
-                        `(with-meta (p/fn [~E] ~value) ~(emit-props point)))]
-        (if (:node/remember-entity-at-point point)
-          `(do (swap! ~'entities assoc '~(:node/symbol point) hf/entity) ;; TODO premise of hf/context
-               ~form)
-          form))
+                        :symbol  `(~(convey-dynamic-env (:function/name point)) ~E))]
+        (if-some [continuation (first (children point))]
+          (let [card-one-continuation (:node/symbol continuation)
+                props                 (merge (emit-props point) {::hf/render-as ::hf/infer}
+                                        (when-let [options (hf-options-symbol point continuation)]
+                                          {::hf/options options}))]
+            `(with-meta
+               (p/fn [~E]
+                 ~(when (:node/remember-entity-at-point point)
+                    `(prn "scope" (swap! hf/scope assoc '~(:node/symbol point) ~E)))
+                 ~(case (:node/cardinality point)
+                    ::hf/one  `(p/partial 1 ~card-one-continuation ~value)
+                    ::hf/many `(p/for [e# ~value] (p/partial 1 ~card-one-continuation e#))
+                    `(let [value# ~value]
+                       (case (hf/*cardinality* hf/*schema* hf/db ~attribute)
+                         ::hf/one  (p/partial 1 ~card-one-continuation value#)
+                         ::hf/many (p/for [e# value#] (p/partial 1 ~card-one-continuation e#))))))
+               ~props))
+          ;; No continuation, so cardinality doesn’t matter, we produce a final value.
+          `(with-meta (p/fn [~E]
+                        ~(when (:node/remember-entity-at-point point)
+                           `(prn "scope" (swap! hf/scope assoc '~(:node/symbol point) ~E)))
+                        ~value)
+             ~(emit-props point))))
       :call  (let [value (emit-call point)]
                `(with-meta
                   ~(if-some [continuation (first (children point))]
-                     `(p/fn [~E]
+                     `(p/fn [~@(when (= ::hf/options (:prop/key point))
+                                 [(:node/symbol continuation)])
+                             ~E]
                         ~(case (:node/cardinality point)
                            ::hf/one  `(new ~(:node/symbol continuation) ~value)
                            ::hf/many `(p/for [e# ~value] (p/partial 1 ~(:node/symbol continuation) e#))))
                      ;; Some calls don’t have a continuation (e.g. Links)
                      `(p/fn [] ~value))
                   ~(emit-props point)))
-      :group (let [map (reduce (fn [r point] (assoc r (:node/symbolic-form point)
+      :group (let [map   (reduce (fn [r point] (assoc r (:node/symbolic-form point)
                                                `(p/partial 1 ~(:node/symbol point) ~E)))
-                         {} (children point))]
-               `(with-meta (p/fn [~E] ~map) ~(emit-props point))))
+                           {} (children point))
+                   f     `(p/fn [~E] ~map)
+                   props (emit-props point)]
+               (if (::hf/options props)
+                 (let [self (gensym "self_")]
+                   `(let [~self (with-meta ~f ~props)] ; letrec would solve this
+                      (vary-meta ~self assoc ::hf/options (p/partial 2 ~(::hf/options props) ~self nil)))) 
+                 `(with-meta ~f ~props))))
     :argument (emit-argument point)
     :input    `(atom nil)
     (assert false (str "emit - not a renderable point " (:node/type point)))))
