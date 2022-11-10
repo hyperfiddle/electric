@@ -52,15 +52,13 @@
 (p/defn Teeshirt-orders-view []
   (dom/div! {:class "hyperfiddle-hfql"}
     (let [btn (dom/button "new record")
-          needle (p/state "")
           input (dom/input {:type :search :placeholder "Filter..."})]
-      (dom/on input :input (p/reset! needle (-> dom/event :target :value)))
       (dom/mount! btn)
       (dom/mount! input)
       (dom/div! {:style {:height "30em"}}
         (dom/table!
           (p/server
-            (p/for [id (teeshirt-orders db needle)]
+            (p/for [id (teeshirt-orders db (p/client (dom/on input :input dom/event)))]
               (p/client
                 (dom/tr!
                   (dom/td! id)
@@ -82,22 +80,21 @@
                          :width "50em" :height "40em"
                          :background-color "rgb(248 250 252)"}}
         (p/server
-          (let [stage (p/state stage)] ; fork
-            (binding [db (:db-after (d/with db stage))]
-              (p/client
-                (p/swap! stage conj (Body.))
-                (dom/hr!)
-                (let [ret (p/all        ; like m/amb=
-                            (let [btn (dom/button "commit!")]
-                              (dom/mount! btn)
-                              ;; return `stage` after unmount
-                              ;; maybe it should be `(dom/unmount! root) stage`
-                              (dom/on btn :click (dom/unmount! root stage)))
-                            (let [btn (dom/button "cancel")]
-                              (dom/mount! btn)
-                              (dom/on btn :click (dom/unmount! root []))))]
-                  (p/server (StagingArea. stage))
-                  ret)))))))))
+          (binding [db (:db-after (d/with db stage))]
+            (p/client
+              (p/swap! stage conj (Body.))
+              (dom/hr!)
+              (let [ret (p/all          ; like m/amb=
+                          (let [btn (dom/button "commit!")]
+                            (dom/mount! btn)
+                            ;; return `stage` after unmount
+                            ;; maybe it should be `(dom/unmount! root) stage`
+                            (dom/on btn :click (dom/unmount! root stage)))
+                          (let [btn (dom/button "cancel")]
+                            (dom/mount! btn)
+                            (dom/on btn :click (dom/unmount! root []))))]
+                (p/server (StagingArea. stage))
+                ret))))))))
 
 (p/defn App []
   (p/client
@@ -111,4 +108,4 @@
               (p/server (p/swap! stage into (p/client (Popover. Teeshirt-orders-view))))
               (p/swap! stage conj (Teeshirt-orders-view.))
               (dom/p! "Root stage")
-              (p/server (StagingArea. stage !stage)))))))))
+              (p/server (StagingArea. stage)))))))))
