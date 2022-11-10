@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon
-  (:refer-clojure :exclude [eval def defn fn for empty?])
+  (:refer-clojure :exclude [eval def defn fn for empty? partial])
   (:require [clojure.core :as cc]
             contrib.missionary-contrib
             [hyperfiddle.photon-impl.compiler :as c]
@@ -85,8 +85,8 @@ running on a remote host.
   * the second item is the remote program.
   " [& body]
   (-> (c/analyze &env (cons 'do body))
-    (update 0 (partial r/emit (gensym)))
-    (update 1 (partial list 'quote))))
+    (update 0 (cc/partial r/emit (gensym)))
+    (update 1 (cc/partial list 'quote))))
 
 (cc/defn pair [c s]
   (let [c->s (m/rdv)
@@ -143,7 +143,7 @@ running on a remote host.
 
 (cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
 
-(def current* (partial m/eduction (take 1)))
+(def current* (cc/partial m/eduction (take 1)))
 (defmacro current "Copy the current value (only) and then terminate" [x]  ; TODO rename `constant`, `stable`?
   ;; what does Photon do on terminate? TBD
   ;; L: terminating a continuous flow means the value won't change anymore, so that's OK
@@ -222,7 +222,7 @@ or a provided value if it completes without producing any value."
   ([ack >xs]
    `(impulse nil ~ack ~>xs))
   ([down-value ack >xs]
-   `(new (bind (partial impulse* ~down-value) (hyperfiddle.photon/fn [] ~ack) ~>xs))))
+   `(new (bind (cc/partial impulse* ~down-value) (hyperfiddle.photon/fn [] ~ack) ~>xs))))
 
 ; Should these be in missionary?
 (def chan-read! contrib.missionary-contrib/chan-read!)
@@ -286,7 +286,7 @@ or a provided value if it completes without producing any value."
                  (list* `for-by kf bindings)
                  (list `let [s (first c/arg-sym)])
                  (list `fn [])
-                 (list `partial (list 'def (first c/arg-sym))))
+                 (list `cc/partial (list 'def (first c/arg-sym))))
               (::c/lift xs#))))
     (cons `do body)))
 
@@ -352,3 +352,17 @@ or a provided value if it completes without producing any value."
   "Return a function calling given function `f` with given dynamic environment."
   [bindings f]
   `(cc/fn [& args#] (binding ~bindings (apply ~f args#))))
+
+(defmacro partial
+  "Like `cc/partial` for reactive functions. Requires the target function
+  arity (`argc`) until reactive function supports variadic arguments.
+
+  e.g. (new (partial 2 (p/fn [a b] [a b]) :a) :b) ;; => [:a :b]"
+  [argc F & args]
+  (if (= 0 argc)
+    F
+    (let [rest-args (map #(symbol (str "arg_" %)) (range (- argc (count args))))]
+      `(let [F# ~F]
+         (with-meta (hyperfiddle.photon/fn ~@(when (symbol? F) [F]) [~@rest-args]
+             (new F# ~@args ~@rest-args))
+           (meta F#))))))
