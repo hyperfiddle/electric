@@ -71,9 +71,12 @@
 (p/def value (p/fn [] nil))
 (p/def options nil)
 
+(p/def scope)
+
 (p/defn FanOut [Continuation value props]
-  (binding [hyperfiddle.api/value (p/fn [] (p/for [e value] (p/fn [] (Continuation. e))))]
-    (Render. hyperfiddle.api/value props)))
+  #_(binding [hyperfiddle.api/value (p/fn [] (p/for [e value] (p/fn [] (Continuation. e))))]
+    (Render. hyperfiddle.api/value props))
+  [(p/fn [] (p/for [e value] (p/fn [] (Continuation. e)))) props])
 
 (p/defn tx [v' props]
   (if-let [Txfn (::tx props)]
@@ -113,6 +116,37 @@
       (Renderer. (p/fn [] (unreduced (V.))) props)
       (Join-all. (V.)))))
 
-(p/defn Data [V] (binding [Render (p/fn [V _props] (let [v (V.)] #_(prn "hf/data" v) (Join-all. v)))] (Render. V nil)))
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)
+
+;; TODO Rename, this is not Haskell traverse, name is confusing.
+(p/defn Traverse [F V]
+  (new (p/Y. (p/fn [Rec]
+               (p/fn [V]
+                 ;; (prn (:dbg/name (meta V)))
+                 (let [{::keys [columns]} (meta V)]
+                   (F. V (p/fn [v]
+                           (cond
+                             (fn? v)     (Rec. v)
+                             (map? v)    (into {} (p/for [col columns] [col (Rec. (get v col))]))
+                             (vector? v) (p/for [V v] (Rec. V))
+                             :else       (prn "unreachable"))))))))
+    V))
+
+;; TODO Rename
+(p/defn Data "Join all the tree, does not call renderers, return EDN." [V]
+  (Traverse. (p/fn [V Cont]
+               (let [{::keys [continuation]} (meta V)
+                     v                          (V.)]
+                 (if continuation (Cont. v) v)))
+    V))
+
+;; TODO Rename, this seems to just be "Render"
+(p/defn EdnRender "Join all the tree, calling renderers when provided, return EDN" [V]
+  (Traverse. (p/fn [V Cont]
+               (let [{::keys [render continuation]} (meta V)]
+                 (if (some? render)
+                   (render. V)
+                   (let [v (V.)]
+                     (if continuation (Cont. v) v)))))
+    V))
