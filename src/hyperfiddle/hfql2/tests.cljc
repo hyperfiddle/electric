@@ -10,51 +10,57 @@
    #?(:clj [wip.orders-datascript :refer [orders order shirt-sizes one-order nav! schema]]))
   (:import [hyperfiddle.photon Pending]))
 
-(p/def Rec)
-
-(p/defn Traverse [F V]
-  (binding [Rec (p/fn [V]
-                  (let [{::hf/keys [columns]} (meta V)]
-                    (F. V (p/fn [v]
-                            (cond
-                              (fn? v)     (Rec. v)
-                              (map? v)    (into {} (p/for [col columns] [col (Rec. (get v col))]))
-                              (vector? v) (p/for [V v] (Rec. V))
-                              :else       (prn "unreachable"))))))]
-    (Rec. V)))
-
-(p/defn Data "Join all the tree, does not call renderers, return EDN." [V]
-  (Traverse. (p/fn [V Cont]
-               (let [{::hf/keys [continuation]} (meta V)
-                     v                          (V.)]
-                 (if continuation (Cont. v) v)))
-    V))
-
-(p/defn EdnRender "Join all the tree, calling renderers when provided, return EDN"[V]
-  (Traverse. (p/fn [V Cont]
-               (let [{::hf/keys [render continuation]} (meta V)]
-                 (if (some? render)
-                   (render. V)
-                   (let [v (V.)]
-                     (if continuation (Cont. v) v)))))
-    V))
-
 
 (comment
   (rcf/enable! true))
+
+(p/defn TreeSeq [V]
+  (new (p/Y. (p/fn [Rec]
+               (p/fn [V]
+                 (let [{::hf/keys [continuation columns] :as m} (meta V)
+                       _                                        (prn (:dbg/name m))
+                       v                                        (V.)]
+                   (if-not continuation
+                     [(p/fn [] [v])]
+                     (cond
+                       (fn? v)     (Rec. v)
+                       (map? v)    (into [] cat (p/for [col columns]
+                                                  (let [v' (get v col)]
+                                                    (if (::hf/continuation (meta v'))
+                                                      (into [(p/fn [] [col])] (Rec. v'))
+                                                      [(p/fn [] [col (new v')])]))))
+                       (vector? v) (into [] cat (p/for [V v] (Rec. V)))))))))
+    V))
+
+(p/defn Sequence [Vs] (p/fn [] (p/for [V Vs] (V.))))
+
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (EdnRender. (hfql :db/id) )))))
+                      (new (Sequence. (TreeSeq. (hfql :db/id) ))) ))))
+  % := [[9]])
+
+(tests
+  (with (p/run (tap (binding [hf/db     hf/*$*
+                              hf/*nav!* nav!
+                              hf/entity 9]
+                      (Sequence. (hf/Render. (hfql :db/id) )) ))))
   % := 9)
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (EdnRender. (hfql [:db/id]) )))))
+                      (new (Sequence. (TreeSeq. (hfql [:db/id]))) )))))
+  % := [[:db/id 9]])
+
+(tests
+  (with (p/run (tap (binding [hf/db     hf/*$*
+                              hf/*nav!* nav!
+                              hf/entity 9]
+                      (hf/EdnRender. (hfql [:db/id]) )))))
   % := {:db/id 9})
 
 
@@ -65,7 +71,7 @@
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (EdnRender. (hfql (props :db/id {::hf/render String-renderer}))) ))))
+                      (hf/EdnRender. (hfql (props :db/id {::hf/render String-renderer}))) ))))
   % := "9")
 
 (tests
@@ -73,15 +79,23 @@
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (EdnRender. (hfql (props :db/id {::hf/render (p/fn [V] (str (new V)))})))))))
+                      (hf/EdnRender. (hfql (props :db/id {::hf/render (p/fn [V] (str (new V)))})))))))
   % := "9")
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (EdnRender. (hfql [(props :db/id {::hf/render String-renderer})]))))))
+                      (hf/EdnRender. (hfql [(props :db/id {::hf/render String-renderer})]))))))
   % := {:db/id "9"})
+
+
+
+
+
+
+
+
 
 
 (tests
@@ -89,7 +103,7 @@
                               hf/*nav!* nav!
                               hf/entity 9
                               hf/*schema* schema]
-                      (EdnRender. (hfql {:order/gender [:db/ident]}) )))))
+                      (hf/EdnRender. (hfql {:order/gender [:db/ident]})  )  ))))
   % := {:order/gender {:db/ident :order/female}}) 
 
 (tests
@@ -97,13 +111,13 @@
                               hf/*nav!* nav!
                               hf/entity 9
                               hf/*schema* schema]
-                      (EdnRender. (hfql [{:order/gender [:db/ident]}]) )))))
+                      (hf/EdnRender. (hfql [{:order/gender [:db/ident]}]) )))))
   % := {:order/gender {:db/ident :order/female}})
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!]
-                      (EdnRender. (hfql {(order "") [:db/id]})) ))))
+                      (hf/EdnRender. (hfql {(order "") [:db/id]})) ))))
   % := {`(order "") {:db/id 9}})
 
 (tests
@@ -111,21 +125,44 @@
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/*schema* schema]
-                      (EdnRender. (hfql {(order "") [{:order/shirt-size [:db/ident]}]}) )))))
+                      (hf/EdnRender. (hfql {(order "") [{:order/shirt-size [:db/ident]}]})) ))))
   % := {`(order "") {:order/shirt-size {:db/ident :order/womens-large}}})
 
 (tests
   "multiplicity many"
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!]
-                      (EdnRender. (hfql {(orders "") [:db/id]})) ))))
+                      (hf/EdnRender. (hfql {(orders "") [:db/id]})) ))))
   % := {`(orders "") [{:db/id 9} {:db/id 10} {:db/id 11}]})
+
+(tests
+  "multiplicity many"
+  (with (p/run (tap (binding [hf/db     hf/*$*
+                              hf/*nav!* nav!]
+                      (new (Sequence. (TreeSeq. (hfql {(orders "") [:db/id]}) ))) ))))
+  % := {`(orders "") [{:db/id 9} {:db/id 10} {:db/id 11}]}) 
+
+(tests
+  "multiplicity many"
+  (with (p/run (tap (binding [hf/db     hf/*$*
+                              hf/*nav!* nav!]
+                      (new (Sequence. (drop 2 (TreeSeq. (hfql {(orders "") [:db/id]}) )))) ))))
+  % := `[[(wip.orders-datascript/orders "")] [:db/id 9] [:db/id 10] [:db/id 11]])
+
 
 (tests
   (with (p/run (tap (binding [hf/db hf/*$*
                               hf/*nav!* nav!]
-                      (EdnRender. (hfql {(orders "") [(props :db/id {::hf/render String-renderer})]}))))))
+                      (hf/EdnRender. (hfql {(orders "") [(props :db/id {::hf/render String-renderer})]}))))))
   % := {`(orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
+
+(tests
+  "TODO call renderer"
+  (with (p/run (tap (binding [hf/db hf/*$*
+                              hf/*nav!* nav!]
+                      (new (Sequence. (TreeSeq. (hfql {(orders "") [(props :db/id {::hf/render String-renderer})]}))))))))
+  ;; % := {`(orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]}
+  % := [[(wip.orders-datascript/orders "")] [:db/id 9] [:db/id 10] [:db/id 11]])
 
 
 (p/defn Throwing-renderer [V] (prn "BOOM") "fail"#_(throw (ex-info "I fail" {})))
@@ -136,56 +173,85 @@
                         hf/*nav!*   nav!
                         hf/entity   9
                         hf/*schema* schema]
-                (EdnRender. (hfql [{(props :order/gender {::hf/render Ignoring-renderer}) [(props :db/ident {::hf/render Throwing-renderer})]}]) ))))
+                (hf/EdnRender. (hfql [{(props :order/gender {::hf/render Ignoring-renderer})
+                                       [(props :db/ident {::hf/render Throwing-renderer})]}]) ))))
   % := {:order/gender "ignored"} ; note it didn’t throw
   )
 
+(tests
+  (p/run (tap (binding [hf/db       hf/*$*
+                        hf/*nav!*   nav!
+                        hf/entity   9
+                        hf/*schema* schema]
+                (new (Sequence. (TreeSeq. (hfql [{(props :order/gender {::hf/render Ignoring-renderer})
+                                                  [(props :db/ident {::hf/render Throwing-renderer})]}]))) ))))
+
+  % := [[:order/gender "ignored"]]    ; note it didn’t throw
+ )
+
+
+;; Insight: Let the renderer decide of the options' continuation.
 (p/defn Select-option-renderer [V]
-  (into [:select {:value (Data. V)}]
-    (do (prn `Select-option-renderer (meta V))
-      #_ (p/for [e (Data. (::hf/options (meta V)))]
-        [:option e]))))
+  (let [props (meta V)]
+    (into [:select {:value (V.)}]
+      (let [opts (hf/Data. (::hf/options props))]
+        (p/for [[id v] (children *schema* opts)]
+          [:option {:key id} ((::hf/option-label props) v)])))))
 
 (tests
   (with (p/run (tap (binding [hf/db       hf/*$*
                               hf/*nav!*   nav!
                               hf/entity   9
                               hf/*schema* schema]
-                      (EdnRender. (hfql [(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                   ::hf/options (shirt-sizes :order/female "")})]) )))))
+                      (hf/EdnRender. (hfql [(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                     ::hf/options (shirt-sizes :order/female "")})]) )))))
   % := {:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]]})
 
+(tests
+  "hf/options inherit parent pullexpr"
+  (with (p/run
+          (tap (binding [hf/db       hf/*$*
+                         hf/*nav!*   nav!
+                         hf/entity   9
+                         hf/*schema* schema]
+                 (hf/EdnRender. (hfql [{(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                               ::hf/options (shirt-sizes :order/female "")})
+                                        [(props :db/ident {::hf/render String-renderer})]}]) )))))
+  % := {:order/shirt-size [:select {:value #:db{:ident :order/womens-large}}
+                           [:option #:db{:ident :order/womens-small}]
+                           [:option #:db{:ident :order/womens-medium}]
+                           [:option #:db{:ident :order/womens-large}]]})
+
 (comment
-
-  (tests
-    "hf/options inherit parent pullexpr"
-    (with (p/run
-            (tap (binding [hf/db       hf/*$*
-                           hf/*nav!*   nav!
-                           hf/entity   9
-                           hf/*schema* schema]
-                   (EdnRender. (hfql [{(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                 ::hf/options (shirt-sizes :order/female "")})
-                                       [:db/ident]}]) ) 
-                   ))))
-    % := {:order/shirt-size [:select {:value #:db{:ident :order/womens-large}}
-                             [:option #:db{:ident :order/womens-small}]
-                             [:option #:db{:ident :order/womens-medium}]
-                             [:option #:db{:ident :order/womens-large}]]})
-
   (tests
     "Argument reference"
     (with (p/run (try (tap (binding [hf/db       hf/*$*
                                      hf/*nav!*   nav!
                                      hf/entity   9
                                      hf/*schema* schema]
-                             (hfql [{:order/gender [:db/ident]}
-                                    (props :order/shirt-size {::hf/render  Select-option-renderer
-                                                              ::hf/options (shirt-sizes db/ident "")})]) ))
-                      (catch Pending _))))
+                             (hf/EdnRender. (hfql [{:order/gender [:db/ident]}
+                                                (props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                          ::hf/options (shirt-sizes db/ident "")})]) )))
+                      (catch Pending _ (prn 'pending))
+                      (catch Throwable t (prn (ex-message t) (ex-data t))))))
     ;; (prn %) := _
     % := {:order/gender     {:db/ident :order/female}
           :order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]]})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
   (tests
@@ -196,7 +262,8 @@
                                      hf/entity   9]
                              (hfql {(orders "") [{:order/gender [:db/ident]}
                                                  (props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                           ::hf/options (shirt-sizes db/ident "")})]}) ))
+                                                                           ::hf/options (shirt-sizes db/ident "")})]})
+                             ))
                       (catch Pending _))))
     % := {`(orders "")
           [{:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]],
