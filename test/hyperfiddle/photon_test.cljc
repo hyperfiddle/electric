@@ -1761,3 +1761,17 @@
                     (catch Cancelled _)
                     (catch Throwable t (prn t))))
     (ex-message %) := "You called a 2-arg p/fn with 1 arguments."))
+
+(tests
+  "Partial application"
+  (with (p/run
+          (tap (new (p/partial 0 (p/fn [] :a)) ))
+          (tap (new (p/partial 1 (p/fn [a] a) :a)))
+          (tap (new (p/partial 2 (p/fn [a b] [a b]) :a) :b))
+          (tap (new (p/partial 4 (p/fn [a b c d] [a b c d]) :a :b) :c :d))
+          )
+    % := :a
+    % := :a
+    % := [:a :b]
+    % := [:a :b :c :d])
+  )
