@@ -10,50 +10,53 @@
    #?(:clj [wip.orders-datascript :refer [orders order shirt-sizes one-order nav! schema]]))
   (:import [hyperfiddle.photon Pending]))
 
-
 (comment
   (rcf/enable! true))
 
-(p/defn TreeSeq [V]
+(p/defn TreeToRows [V]
   (new (p/Y. (p/fn [Rec]
                (p/fn [V]
-                 (let [{::hf/keys [continuation columns] :as m} (meta V)
-                       _                                        (prn (:dbg/name m))
-                       v                                        (V.)]
+                 (let [{::hf/keys [continuation columns render ] :as m}
+                       (meta V)
+                       _ (prn (:dbg/name m))
+                       v (if render (render. V) (V.))]
                    (if-not continuation
                      [(p/fn [] [v])]
                      (cond
                        (fn? v)     (Rec. v)
                        (map? v)    (into [] cat (p/for [col columns]
-                                                  (let [v' (get v col)]
-                                                    (if (::hf/continuation (meta v'))
+                                                  (let [v' (get v col)
+                                                        m' (meta v')]
+                                                    (if (::hf/continuation m')
                                                       (into [(p/fn [] [col])] (Rec. v'))
-                                                      [(p/fn [] [col (new v')])]))))
-                       (vector? v) (into [] cat (p/for [V v] (Rec. V)))))))))
+                                                      [(p/fn [] [col (if-let [render (::hf/render m')]
+                                                                       (render. v')
+                                                                       (new v'))])]))))
+                       (vector? v) (into [] cat (p/for [V v] (Rec. V)))
+                       :else [(p/fn [] [v])]))))))
     V))
 
 (p/defn Sequence [Vs] (p/fn [] (p/for [V Vs] (V.))))
-
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (new (Sequence. (TreeSeq. (hfql :db/id) ))) ))))
+                      (new (Sequence. (TreeToRows. (hfql :db/id) ))) ))))
   % := [[9]])
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (Sequence. (hf/Render. (hfql :db/id) )) ))))
+                      (hf/EdnRender. (hfql :db/id) ) ))))
   % := 9)
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (new (Sequence. (TreeSeq. (hfql [:db/id]))) )))))
+                      (new (Sequence. (TreeToRows. (hfql [:db/id]))) )))))
   % := [[:db/id 9]])
 
 (tests
@@ -62,7 +65,6 @@
                               hf/entity 9]
                       (hf/EdnRender. (hfql [:db/id]) )))))
   % := {:db/id 9})
-
 
 (p/def String-renderer (p/fn [V] (str (new V))))
 
@@ -89,22 +91,13 @@
                       (hf/EdnRender. (hfql [(props :db/id {::hf/render String-renderer})]))))))
   % := {:db/id "9"})
 
-
-
-
-
-
-
-
-
-
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9
                               hf/*schema* schema]
                       (hf/EdnRender. (hfql {:order/gender [:db/ident]})  )  ))))
-  % := {:order/gender {:db/ident :order/female}}) 
+  % := {:order/gender {:db/ident :order/female}})
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
@@ -139,15 +132,15 @@
   "multiplicity many"
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!]
-                      (new (Sequence. (TreeSeq. (hfql {(orders "") [:db/id]}) ))) ))))
-  % := {`(orders "") [{:db/id 9} {:db/id 10} {:db/id 11}]}) 
+                      (new (Sequence. (TreeToRows. (hfql {(orders "") [:db/id]}) ))) ))))
+  % := `[[(wip.orders-datascript/orders "")] [:db/id 9] [:db/id 10] [:db/id 11]])
 
 (tests
-  "multiplicity many"
+  "skipping"
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!]
-                      (new (Sequence. (drop 2 (TreeSeq. (hfql {(orders "") [:db/id]}) )))) ))))
-  % := `[[(wip.orders-datascript/orders "")] [:db/id 9] [:db/id 10] [:db/id 11]])
+                      (new (Sequence. (drop 2 (TreeToRows. (hfql {(orders "") [:db/id]}) )))) ))))
+  % := `[[:db/id 10] [:db/id 11]])
 
 
 (tests
@@ -160,13 +153,13 @@
   "TODO call renderer"
   (with (p/run (tap (binding [hf/db hf/*$*
                               hf/*nav!* nav!]
-                      (new (Sequence. (TreeSeq. (hfql {(orders "") [(props :db/id {::hf/render String-renderer})]}))))))))
-  ;; % := {`(orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]}
-  % := [[(wip.orders-datascript/orders "")] [:db/id 9] [:db/id 10] [:db/id 11]])
+                      (new (Sequence. (TreeToRows. (hfql {(orders "") [(props :db/id {::hf/render String-renderer})]}))))))))
+  % := `[[(wip.orders-datascript/orders "")] [:db/id "9"] [:db/id "10"] [:db/id "11"]])
 
 
 (p/defn Throwing-renderer [V] (prn "BOOM") "fail"#_(throw (ex-info "I fail" {})))
-(p/defn Ignoring-renderer [V] "ignored")
+(p/defn Ignoring-renderer [V]
+  "ignored")
 
 (tests
   (p/run (tap (binding [hf/db       hf/*$*
@@ -183,8 +176,8 @@
                         hf/*nav!*   nav!
                         hf/entity   9
                         hf/*schema* schema]
-                (new (Sequence. (TreeSeq. (hfql [{(props :order/gender {::hf/render Ignoring-renderer})
-                                                  [(props :db/ident {::hf/render Throwing-renderer})]}]))) ))))
+                (new (Sequence. (TreeToRows. (hfql [{(props :order/gender {::hf/render (p/fn [V] "ignored")})
+                                                  [(props :db/ident {#_#_::hf/render Throwing-renderer})]}]))) ))))
 
   % := [[:order/gender "ignored"]]    ; note it didn’t throw
  )
@@ -192,11 +185,9 @@
 
 ;; Insight: Let the renderer decide of the options' continuation.
 (p/defn Select-option-renderer [V]
-  (let [props (meta V)]
-    (into [:select {:value (V.)}]
-      (let [opts (hf/Data. (::hf/options props))]
-        (p/for [[id v] (children *schema* opts)]
-          [:option {:key id} ((::hf/option-label props) v)])))))
+  (into [:select {:value (Data. V)}]
+    (p/for [e (Data. (::hf/options (meta V)))]
+      [:option e])))
 
 (tests
   (with (p/run (tap (binding [hf/db       hf/*$*
@@ -396,48 +387,9 @@
   )
 
 
-(comment
-  #_(p/defn Sequence [Xs] (p/for [X Xs] (X.)))
+;; Problems:
+;; - Treeseqing an HFQL result implies dynamic scope is lost
 
-  #_(p/defn TreeSeq [V props]
-      (binding [Rec (p/fn [V props depth]
-                      (case (::hf/render-as props)
-                        ::hf/field [(p/fn [] [depth [(::hf/attribute props) (unreduced (V.))]])]
-                        ::hf/form  (let [fields (V.)]
-                                     (if-not (::tree-seq-table props)
-                                       (into [] cat
-                                         (p/for [col (::hf/columns props)]
-                                           (let [[V props'] (new (get fields col))]
-                                             (Rec. V props' depth))))
-                                       [(p/fn [] [depth (p/for [col (::hf/columns props)]
-                                                          (let [[V props'] (new (get fields col))]
-                                                            (unreduced (V.))))])]))
-                        ::hf/table (into [(p/fn [] [depth (::hf/attribute props)]) (p/fn [] [(inc depth) (::hf/columns props)])] cat
-                                     (p/for [Row (V.)]
-                                       (let [[V props] (Row.)]
-                                         (Rec. V (assoc props ::tree-seq-table true) (inc depth)))))
-                        (prn "unreachable" props)))]
-        (Rec. V props 0)))
-
-  #_(tests
-      (with
-        (p/run
-          (tap
-            (binding [hf/db     hf/*$*
-                      hf/*nav!* nav!]
-              (let [[V props] (hfql {(orders "") [:db/id :order/email]})]
-                (Sequence. (TreeSeq. V props)))))))
-      %
-      := [[0 `(wip.orders-datascript/orders "")]
-          [1 [:db/id :order/email]]
-          [1 [9 "alice@example.com"]]
-          [1 [10 "bob@example.com"]]
-          [1 [11 "charlie@example.com"]]])
-
-
-  ;; Problems:
-  ;; - Treeseqing an HFQL result implies dynamic scope is lost
-)
 
 (tests
   (with (p/run (tap (new (tap (with-meta (p/fn [] 1) {:contains :integer, :flow-type :constant}))))))
