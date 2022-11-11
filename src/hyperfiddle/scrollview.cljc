@@ -22,9 +22,15 @@
 
 #?(:cljs (def !scrollStateDebug (atom nil)))
 
+(defn throttle [dur >in]
+  (m/ap
+    (let [x (m/?> (m/relieve {} >in))]
+      (m/amb x (do (m/? (m/sleep dur)) (m/amb))))))
+
 #?(:cljs (defn scroll-state< [scrollable]
            (->> (scroll-state> scrollable)
                 (m/reductions {} [0 0 0])
+                (throttle 16) ; RAF interval
                 (m/latest (fn [[scrollTop scrollHeight clientHeight :as s]]
                             (reset! !scrollStateDebug {::scrollTop scrollTop
                                                        ::scrollHeight scrollHeight
