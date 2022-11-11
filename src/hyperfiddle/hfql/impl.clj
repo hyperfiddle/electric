@@ -666,6 +666,7 @@
          (if-let [e# (get ~'<entities '~(:node/symbol ref))]
            (binding [hf/entity e# ; FIXME beginning of hf/context. entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
                      hf/bypass-renderer true]
+             (when-not (number? hf/entity) (throw (ex-info "not an entity ID" {:value hf/entity})))
              (new ; FIXME photon bug? had to wrap into a p/fn to get hf/entity to have the correct binding
                (p/fn []
                  (get-in (new ~(:node/symbol ref)) ~(:node/reference-path node)))))
@@ -691,6 +692,7 @@
                                             ;; continuation (circular ref).
                                             ~@(when-let [options (hf-options-symbol point continuation)]
                                                 `[hf/options ~options])]
+                                    (when-not (number? hf/entity) (throw (ex-info "not an entity ID" {:value hf/entity})))
                                     ~(add-scope-bindings point `(new ~(:node/symbol continuation)))))]
           (case (:node/form-type point)
             (:keyword :symbol)
