@@ -78,7 +78,7 @@
                           :width "50em" :height "40em"
                           :background-color "rgb(248 250 252)"}}
           ; discard, commit
-          (Body. (p/fn Commit! [tx] (println `b tx) (reset! !ret tx) (reset! !open false))
+          (Body. (fn Commit! [tx] (println `b tx) (reset! !ret tx) (reset! !open false))
                  (p/fn Discard! [] (reset! !open false))
                  X)))))) ; client bias, careful
 
@@ -92,7 +92,7 @@
         (p/client
           (Body.)
           (dom/hr)
-          (ui/button {::ui/click-event (p/fn [e] (println `a stage) (Commit!. stage))} "commit!")
+          (ui/button {::ui/click-event (p/fn [e] (println `a stage) (Commit! stage))} "commit!")
           (ui/button {::ui/click-event (p/fn [e] (Discard!.))} "discard")
           (p/server (StagingArea. stage !stage)))))))
 
