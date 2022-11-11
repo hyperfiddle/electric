@@ -288,3 +288,27 @@
                           {(orders "") [:db/id suber-name]}) ))
                     (catch Pending _))))
   % := `{(wip.orders-datascript/orders "") [{:db/id 9, suber-name "alice"} {:db/id 10, suber-name "bob"} {:db/id 11, suber-name "charlie"}]})
+
+
+
+(comment
+  (defn just-entity [e] (prn e) e)
+  (s/fdef just-entity :ret any?)
+  (def -tx-data [{:db/id 1 :school/id 1}
+                 {:db/id 2 :school/id 2}
+                 {:db/id 3 :district/schools [1 2]}])
+  (def -conn (d/create-conn {:district/schools {:db/cardinality :db.cardinality/many :db/valueType :db.type/ref}}))
+  (tests "entity is just the id"
+    (with (p/run (try (tap (binding [hf/db (:db-after (d/with (d/db -conn) -tx-data))]
+                             (binding [hf/*nav!*   (fn [db e a] (get (d/entity db e) a))
+                                       hf/entity   3
+                                       hf/*schema* (fn [_db a] (case a
+                                                                 :district/schools {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+                                                                 :school/id        {:db/valueType :db.type/long :db/cardinality :db.cardinality/one}
+                                                                 {}))]
+                               (hfql [hf/*$* hf/db] [{:district/schools [{just-entity [:db/id]}]}]))))
+                      (catch Pending _)
+                      (catch missionary.Cancelled _)
+                      (catch Throwable e (prn e))))
+      % := ::foo))
+  )
