@@ -73,10 +73,9 @@
 
 (p/def scope)
 
-(p/defn FanOut [Continuation value props]
-  #_(binding [hyperfiddle.api/value (p/fn [] (p/for [e value] (p/fn [] (Continuation. e))))]
-    (Render. hyperfiddle.api/value props))
-  [(p/fn [] (p/for [e value] (p/fn [] (Continuation. e)))) props])
+(p/defn ^:no-doc ^:deprecated FanOut [Continuation value props]
+  (binding [hyperfiddle.api/value (p/fn [] (p/for [e value] (p/fn [] (Continuation. e))))]
+    (Render. hyperfiddle.api/value props)))
 
 (p/defn tx [v' props]
   (if-let [Txfn (::tx props)]
@@ -116,6 +115,7 @@
       (Renderer. (p/fn [] (unreduced (V.))) props)
       (Join-all. (V.)))))
 
+(p/defn Data [V] (binding [Render (p/fn [V _props] (let [v (V.)] #_(prn "hf/data" v) (Join-all. v)))] (Render. V nil)))
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)
 
@@ -134,7 +134,7 @@
     V))
 
 ;; TODO Rename
-(p/defn Data "Join all the tree, does not call renderers, return EDN." [V]
+(p/defn JoinAllTheTree "Join all the tree, does not call renderers, return EDN." [V]
   (Traverse. (p/fn [V Cont]
                (let [{::keys [continuation]} (meta V)
                      v                          (V.)]
@@ -150,3 +150,31 @@
                    (let [v (V.)]
                      (if continuation (Cont. v) v)))))
     V))
+
+(p/defn Sequence ":: t m a -> m t a" [Vs] (p/fn [] (p/for [V Vs] (V.))))
+
+(p/defn TreeToRows [V]
+  (new (p/Y. (p/fn [Rec]
+               (p/fn [[V depth]]
+                 (let [{::keys [continuation columns render] :as m} (meta V)
+                       v (if render (render. V) (V.))]
+                   (if-not continuation
+                     [(p/fn [] [depth (p/fn [] [(p/fn [] v)])])]
+                     (cond
+                       (fn? v)     (Rec. [v depth])
+                       (map? v)    (into [] cat (p/for [col columns]
+                                                  (let [v' (get v col)]
+                                                    (if (::continuation (meta v'))
+                                                      (into [(p/fn [] [depth
+                                                                       (p/fn []
+                                                                         [(p/fn []
+                                                                            col)])])]
+                                                        (Rec. [v' (inc depth)]))
+                                                      [(p/fn [] [depth
+                                                                 (p/fn []
+                                                                   [(p/fn [] col)
+                                                                    (p/fn [] (if-let [render (::render (meta v'))]
+                                                                               (render. v')
+                                                                               (new v')))])])]))))
+                       (vector? v) (into [] cat (p/for [V v] (Rec. [V (inc depth)])))))))))
+    [V 0]))

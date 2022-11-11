@@ -653,7 +653,7 @@
            (if-let [e# (get scope '~(:node/symbol ref))]
              (do 
                  ;; FIXME beginning of hf/context. entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
-                 (get-in (hf/Data. (p/partial 1 ~(:node/symbol ref) e#)) ~(:node/reference-path node)))
+                 (get-in (hf/JoinAllTheTree. (p/partial 1 ~(:node/symbol ref) e#)) ~(:node/reference-path node)))
              (throw r/pending))))) ; FIXME only join the required path, lazily.
     (if-let [input (:node/input node)]
       `(p/fn [] (get-in hf/route ~(:input/path input)))
