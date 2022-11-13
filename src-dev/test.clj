@@ -2,7 +2,10 @@
   (:require [contrib.datomic-contrib :as dx]
             [contrib.datomic-m :as d]
             [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests]]))
+            [hyperfiddle.rcf :refer [tests]]
+            test.mbrainz
+            test.seattle
+            test.person-model))
 
 (def ^:dynamic datomic-client)
 (def ^:dynamic datomic-conn)
