@@ -81,6 +81,23 @@
   (auto-props {:a 1} {:dom/class "a"}) := {:contrib.data/a 1 :dom/class "a"}
   (auto-props {:a 1}) := {:contrib.data/a 1})
 
+(defn xorxs
+  "an argument parser that accepts both scalars and collections, lifting scalars into a collection"
+  [xorxs & [zero]]
+  (cond (vector? xorxs) xorxs
+        (set? xorxs) xorxs
+        (seq? xorxs) xorxs
+        (nil? xorxs) zero
+        :else-single-value-or-map (conj (or zero []) xorxs)))
+
+(tests
+  (xorxs :a)     := [:a]
+  (xorxs [:a])   := [:a]
+  (xorxs #{:a})  := #{:a}
+  (xorxs :a #{}) := #{:a}
+  (xorxs :a [])  := [:a]
+  (xorxs nil #{}) := #{}
+  (xorxs nil) := nil)
 
 (defn index-by [kf xs]
   {:pre [kf]}
@@ -141,8 +158,28 @@
   := {0 {:db/ident :foo, :a 1},
       1 {:db/ident :bar, :b 2}})
 
+(defn group-by-pred [f? xs] ; todo rename
+  (let [{a true b false} (group-by f? xs)]
+    [a b]))
+
 (tests
-  (auto-props (namespace ::this) {:a 1 ::b 2} {::b 0 ::c 0}) := {::a 1 ::b 2 ::c 0})
+  (group-by-pred map? [:user/email
+                       {:user/gender [:db/ident]}
+                       {:user/shirt-size [:db/ident]}
+                       :db/id])
+  := [[#:user{:gender [:db/ident]}
+       #:user{:shirt-size [:db/ident]}]
+      [:user/email
+       :db/id]])
+
+(defn update-existing [m k f & args]
+  (if (get m k)
+    (apply update m k f args)
+    m))
+
+(tests
+  (update-existing {:a 1} :a + 10) := {:a 11}
+  (update-existing {:a 1} :b + 10) := {:a 1})
 
 (defn round-floor [n base] (* base (clojure.math/floor (/ n base))))
 
