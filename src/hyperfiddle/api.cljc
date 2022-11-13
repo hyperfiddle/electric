@@ -1,5 +1,6 @@
 (ns hyperfiddle.api
   (:require [contrib.expr :refer [quoted?]]
+            [clojure.spec.alpha :as s]
             [hyperfiddle.rcf :refer [tests tap %]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.hfql :as hfql]
@@ -83,6 +84,17 @@
     (when v'
       (let [[E a _] (first context)]
         [[:db/add (E.) a v']]))))
+
+(defmulti tx-meta (fn [schema tx] (if (map? tx) ::map (first tx))))
+
+(s/def ::tx-cardinality (s/or :one :many))
+(s/def ::tx-identifier map?)
+(s/def ::tx-inverse fn?)
+(s/def ::tx-special fn?)
+(s/def ::transaction-meta (s/keys :req [::tx-identifier]
+                                  :opt [::tx-cardinality ::tx-inverse ::tx-special
+                                        ::tx-conflicting?]))
+(s/fdef tx-meta :ret ::transaction-meta)
 
 (p/defn Join-all "Given a collection of flows, join all flows. Maps are expected to be {Key Flow<Value>}."
   [v]

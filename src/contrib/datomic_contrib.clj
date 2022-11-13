@@ -8,12 +8,11 @@
 ; These should use entity API & fetch data when necessary, doing on trees is not ergonomic enough
 ; (in Hyperfiddle-2020, much complexity stemmed from tree-passing, root cause batch data loading)
 (defn identities "select available identifiers from datomic entity, in precedence order"
-  [tree] (->> ((juxt :db/ident :db/id) tree)
-              (remove nil?)))
+  [tree & [fallback]] (remove nil? (conj ((juxt :db/ident :db/id) tree) fallback)))
 
-(defn identify "infer canonical identity"
-  ([tree fallback] (or (identify tree) fallback))
-  ([tree] (first (identities tree))))
+(defn identify "infer canonical identity. If no identity and no fallback, returns input."
+  ([tree fallback] (first (identities tree fallback)))
+  ([tree] (first (identities tree tree))))
 
 (tests
   (def tree {:db/id 35435060739965075 :db/ident :release.type/single :release.type/name "Single"})
@@ -31,9 +30,10 @@
   (identify tree2 0) := 35435060739965075
   (identify {} 0) := 0
 
-  "No known identifier is valid"
+  "No known identifier"
   (identities {}) := []
-  (identify {}) := nil
+  (identify {}) := {} ; reuse the input instead of returning nil - experimental
+  (identify {} nil) := nil ; explicit nil default
 
   (index-by :db/id [tree2])   := {35435060739965075 {:db/id 35435060739965075, :release.type/name "Single"}}
   (index-by identify [tree2]) := {35435060739965075 {:db/id 35435060739965075, :release.type/name "Single"}}
