@@ -69,12 +69,6 @@
   {:pre [(some? ns) (or (string? ns) (symbol? ns))]}
   (merge defaults-qualified (update-keys props (partial qualify ns))))
 
-(defn index-by [kf xs]
-  {:pre [kf]}
-  (into {} (map-indexed (fn [i x]
-                          [(kf x i) ; fallback to index when key is not present
-                           #_(if-not kf (kf x i) i) ; alternative design is to define nil kf as fallback
-                           x])) xs))
 (defmacro auto-props
   ([ns props defaults-qualified] `(-auto-props ~ns ~props ~defaults-qualified))
   ([props defaults-qualified] `(-auto-props ~(str *ns*) ~props ~defaults-qualified))
@@ -87,6 +81,13 @@
   (auto-props {:a 1} {:dom/class "a"}) := {:contrib.data/a 1 :dom/class "a"}
   (auto-props {:a 1}) := {:contrib.data/a 1})
 
+
+(defn index-by [kf xs]
+  {:pre [kf]}
+  (into {} (map-indexed (fn [i x]
+                          [(kf x i) ; fallback to index when key is not present
+                           #_(if-not kf (kf x i) i) ; alternative design is to define nil kf as fallback
+                           x])) xs))
 
 (tests
   (def xs [{:db/ident :foo :a 1}
