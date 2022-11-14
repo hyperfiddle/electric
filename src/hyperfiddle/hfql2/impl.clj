@@ -546,13 +546,13 @@
     `(let [~@bindings] ~emitted-form)
     emitted-form))
 
-(declare emit-call)
+(declare emit-nodes emit-call)
 
 (defn emit-props "Emit a map of {prop-key prop-value} for a given render point." [point]
   (let [props-map (->> (props point)
                     (map (fn [{:keys [prop/key prop/value] :as prop}]
                            [key (case key
-                                  ::hf/options (add-scope-bindings prop `(p/fn [] ~(emit-call prop))) #_ (:node/symbol prop)
+                                  ::hf/options (add-scope-bindings prop `(p/fn [] ~(emit-call prop)))
                                   ::hf/as      (list 'quote value)
                                   ::hf/link    (:node/symbol prop)
                                   value)]))
@@ -561,6 +561,7 @@
     (cond-> props-map
       true                      (merge {::hf/leaf? (empty? (:node/children point))
                                         :dbg/name  (list 'quote (:node/symbol point))})
+      (::hf/options props-map)  (assoc ::hf/continuation (some-> (:node/children point) seq (emit-nodes)))
       (:node/cardinality point) (assoc ::hf/cardinality (:node/cardinality point))
       (:node/columns point)     (assoc ::hf/columns (:node/columns point))
       (:node/form-type point)   (assoc ::hf/attribute (:node/symbolic-form point))
@@ -601,7 +602,7 @@
 
 (defn emit-1 "Emit clojure code for a render point and its dependencies." [point]
   (case (:node/type point)
-    :render-point
+    :render-point                       ; TODO drop :render-point type
     (case (:node/form-type point)
       (:keyword :symbol)
       (let [attribute (:node/form point)
@@ -624,8 +625,8 @@
           ;; No continuation, so cardinality doesn’t matter, we produce a final value.
           `(with-meta (p/fn [~E] ~value)
              ~(emit-props point))))
-      :call  (add-scope-bindings point
-               (let [value (emit-call point)]
+      :call (add-scope-bindings point
+              (let [value (emit-call point)]
                  `(with-meta
                     ~(if-some [continuation (seq (:node/children point))]
                        (let [continuation-sym (gensym "continuation_")]
@@ -640,7 +641,6 @@
                        `(p/fn [~'_] ~value))
                     ~(emit-props point)))))
     :argument (emit-argument point)
-    :input    `(atom nil)
     (assert false (str "emit-1 - not a renderable point " (:node/type point)))))
 
 (defn emit-nodes [nodes]
