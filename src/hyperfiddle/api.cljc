@@ -180,6 +180,13 @@
 
 (p/defn Sequence ":: t m a -> m t a" [Vs] (p/fn [] (p/for [V Vs] (V.))))
 
+(defmacro capture [dynvars & body]
+  (let [syms (repeatedly #(gensym))]
+    `(let [~@(interleave syms dynvars)]
+       (p/fn []
+         (binding [~@(interleave dynvars syms)]
+           ~@body)))))
+
 (p/defn TreeToRows "Join all the tree, calling renderers when provided, return EDN" [V]
   (binding [Rec (p/fn [V]
                   (let [{::keys [render cardinality columns leaf?]} (meta V)]

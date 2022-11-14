@@ -303,7 +303,7 @@
 (defn compute-columns-pass [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/children]] db))
     (map (fn [{:keys [db/id node/children] :as node}]
-           {:db/id id, :node/columns (mapv :node/symbolic-form children)}))
+           {:db/id id, :node/columns (mapv :node/symbolic-form (sort-by :node/position children))}))
     (d/db-with db)))
 
 (defn handle-free-inputs-pass [env db]
@@ -645,7 +645,8 @@
 
 (defn emit-nodes [nodes]
   (if (or (> (count nodes) 1) (:node/position (first nodes)))
-    (let [kvs (->> (sort-by :node/position nodes)
+    (let [nodes (sort-by :node/position nodes)
+          kvs (->> (sort-by :node/position nodes)
                 (map (fn [node] [(:node/symbolic-form node) (if (:node/_reference node) (:node/symbol node) `(p/partial 1 ~(emit-1 node) ~E))]))
                 (into {}))
           shared (->> (filter :node/_reference nodes) (mapcat (fn [node] [(:node/symbol node) `(p/partial 1 ~(emit-1 node) ~E)])))]
