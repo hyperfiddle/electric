@@ -147,20 +147,37 @@
 
 ;; TODO Rename
 (p/defn JoinAllTheTree "Join all the tree, does not call renderers, return EDN." [V]
-  (Traverse. (p/fn [V Cont]
-               (let [{::keys [continuation]} (meta V)
-                     v                          (V.)]
-                 (if continuation (Cont. v) v)))
+  (new (p/Y. (p/fn [Rec]
+               (p/fn [V]
+                 (let [{::keys [render cardinality columns leaf?]} (meta V)
+                       v (V.)]
+                   ;; (prn "> " (meta V) v)
+                   (case cardinality
+                     ::many (p/for [V v] (Rec. V))
+                     ;; infer
+                     (cond
+                       leaf?       v
+                       (vector? v) (p/for [V v] (Rec. V))
+                       (map? v)    (into {} (p/for [col columns] [col (Rec. (get v col))]))
+                       :else       v))))))
     V))
 
 ;; TODO Rename, this seems to just be "Render"
 (p/defn EdnRender "Join all the tree, calling renderers when provided, return EDN" [V]
-  (Traverse. (p/fn [V Cont]
-               (let [{::keys [render continuation]} (meta V)]
-                 (if (some? render)
-                   (render. V)
-                   (let [v (V.)]
-                     (if continuation (Cont. v) v)))))
+  (new (p/Y. (p/fn [Rec]
+               (p/fn [V]
+                 (let [{::keys [render cardinality columns leaf?]} (meta V)]
+                   (if render (render. V )
+                     (let [v (V.)]
+                       ;; (prn "> " #_(meta V) v)
+                       (case cardinality
+                         ::many (p/for [V v] (Rec. V))
+                         ;; infer
+                         (cond
+                           leaf?       v
+                           (vector? v) (p/for [V v] (Rec. V))
+                           (map? v)    (into {} (p/for [col columns] [col (Rec. (get v col))]))
+                           :else       v))))))))
     V))
 
 (p/defn Sequence ":: t m a -> m t a" [Vs] (p/fn [] (p/for [V Vs] (V.))))

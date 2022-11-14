@@ -25,26 +25,22 @@
 (defn nodes "Resolve all ids to AST nodes" [db eids] (set (map #(d/entity db %) eids)))
 
 (defn parent [point]
-  (->> (:node/_children point)
-    (sort-by :db/id) ; Rewriting the graph can create loops, but a parent always come before its child in the expression.
-    (first)))
-
-(defn children "For a group, return points in the group, in order. For a traversal, return the continuation."
-  [point]
-  (->> (:node/children point)
-    (filter #(= :render-point (:node/type %)))
-    (remove :prop/key) ; props are not syntactically children, they are like metas.
-    (sort-by :node/position)))
+  (case (:node/type point)
+    :argument (first (:node/_arguments point))
+    (cond
+      (:prop/key point) (first (:node/_props point))
+      :else 
+      (->> (or (seq (:node/_children point)) (seq (:node/_props point)))
+        (sort-by :db/id) ; Rewriting the graph can create loops, but a parent always come before its child in the expression.
+        (first)))))
 
 (defn arguments "For a :call node, return its arguments, in order."
   [node]
   (assert (= :call (:node/form-type node)) "Can only get arguments of a :call node")
-  (->> (:node/children node)
-    (filter #(#{:argument} (:node/type %)))
-    (sort-by :node/position)))
+  (sort-by :node/position (:node/arguments node)))
 
 (defn props "Get props of a given point"
-  ([point] (sort-by :node/position (filter :prop/key (:node/children point))))
+  ([point] (sort-by :node/position (:node/props point)))
   ([prop-key point] (first (filter #(= prop-key (:prop/key %)) (props point)))))
 
 ;;;;;;;;;;;;
@@ -70,7 +66,6 @@
                                       ::hf/options (symbol (str name "_options"))
                                       ::hf/link    (symbol (str name "_link"))
                                       name))))
-    :group   (symbol (str "group_" (:db/id node)))
     (case (:node/type node)
       :argument (let [function (parent node)]
                   (symbol (str (:node/symbol function) "_" (name (:spec/name node)) "_" (:db/id node))))
@@ -88,8 +83,7 @@
     :render-point (case (:node/form-type node)
                     :keyword (:node/form node)
                     :symbol  (list 'quote (:function/name node))
-                    :call    (list 'quote (cons (:function/name node) (map symbolic-form (arguments node))))
-                    :group   (mapv symbolic-form (children node)))
+                    :call    (list 'quote (cons (:function/name node) (map symbolic-form (arguments node)))))
     (throw (ex-info "lexical-symbol — Don’t know how to compute symbolic form" {:node (d/touch node)}))))
 
 (defn compute-points-symbol-pass
@@ -162,31 +156,6 @@
                   (arguments node)))))
     (d/db-with db)))
 
-(defn move-props-to-group-pass "Move props on a traversal to its continuation (a group).
-  e.g. {(props (foo) {…}) [:db/id]} -> {(foo) (props [:db/id] {…})}.
-
-  We move props to the group because the group is rendered, not the traversal itself.
-
-  Having props on both the traversal and the group does not make sense. These are equivalent:
-  - {(props :entity/tags {::hf/options (all-tags)}) [:db/id :db/ident]}
-  - {:entity/tags (props [:db/id :db/ident] {::hf/options (all-tags)})}
-  - (props {:entity/tags [:db/id :db/ident]} {::hf/options (all-tags)})
-
-  "
-  [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/form-type :group]] db))  ; find all groups
-       (mapcat (fn [node]
-                 (let [parent (parent node)] ; get group’s parent
-                   (case (:node/type parent)
-                     :render-point (->> (props parent)  ; if parent is a point, get parent’s props
-                                     (mapcat (fn [prop] ; for each prop
-                                               [[:db/retract (:db/id parent) :node/children (:db/id prop)] ; detach itself from parent
-                                                {:db/id          (:db/id prop)
-                                                 :node/_children (:db/id node)} ; state the prop is now a child of this group node
-                                                ])))
-                     nil))))
-       (d/db-with db)))
-
 ;; NOTE this pass seems redundant with :node/children, but as we rewrite the
 ;; graph, a point might have dependencies that are not it’s own children. e.g.
 ;; lexical scope reference.
@@ -210,39 +179,15 @@
                                 :node/dependencies (:db/id arg)})))))
     (d/db-with db)))
 
-(defn compute-options-dependencies-pass
-  "::hf/options is a special prop. It’s a point which get it’s parent
-  continuation, such that hf/options always produce data in the same shape as
-  the point it is attached to."
-  [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e :prop/key ::hf/options]] db)) ; find all ::hf/options prop nodes
-       (mapcat (fn [node]
-                 (let [parent-node (parent node)]
-                   (case (:node/type parent-node)
-                     :render-point (when (= :group (:node/form-type parent-node)) ; if its parent is a group point
-                                     [;; the parent does not depend on the options anymore. But it is still
-                                      ;; the parent of the options, such that rendering the group will render
-                                      ;; the call to hf/options.
-                                      ;; [:db/retract (:db/id parent-node) :node/dependencies (:db/id node)]
-                                      ;; options now depends on the group and has it as children, such that
-                                      ;; rendering the options calls into the continuation.
-                                      {:db/id             (:db/id node)
-                                       ;; :node/dependencies (:db/id parent-node)
-                                       :node/children     (:db/id parent-node)}
-                                      ;; the parent of the group also depend on the prop in order to bind it to `options
-                                      (when-let [grandparent (parent parent-node)]
-                                        {:db/id (:db/id grandparent)
-                                         :node/dependencies (:db/id node)})
-                                      ;; NOTE: we end up with a cycle: the group has options as a child, the
-                                      ;; options has the group as a child. However, dependencies are not
-                                      ;; circular. :node/children is meant to represent the HFQL sexpr
-                                      ;; parent/child relationship, not the graph. So this is OK.
-                                      ])
-                     nil))))
-       (d/db-with db)))
-
 (defn get-root "Return the only node with no parent. The top-most expression node." [db]
-  (d/entity db (d/q '[:find ?e . :where [?e] (not [_ :node/children ?e])] db)))  ; find a node which is not a child
+  (sort-by :node/position
+    (map (partial d/entity db) (d/q '[:find [?e ...]
+                                      :where [?e]
+                                      (not [_ :node/children ?e])  ; find nodes without parent
+                                      (not [_ :node/props ?e])     ; which aren’t props
+                                      (not [_ :node/arguments ?e]) ; nor args
+                                      ]
+                                 db))))
 
 (defn compute-scopes-pass
   "An HFQL scope is a lexical scope. A point can refer to another point as long as
@@ -254,17 +199,21 @@
 
 
   "[env db]
-  (let [root   (get-root db)
-        scopes (set (nodes db (d/q '[:find [?e ...] :where [?e :node/cardinality ::hf/many]] db)))] ; find all cardinality many functions
-    (->> (disj (nodes db (d/q '[:find [?e ...] :where [?e :node/type :render-point]] db)) root) ; get all points but the root
-         (mapcat (fn [{:keys [db/id] :as node}]
-                   (loop [node (parent node)] ; walk ancestors up to the root
+  (let [scopes (set (nodes db (d/q '[:find [?e ...] :where [?e :node/cardinality ::hf/many]] db)))] ; find all cardinality many functions
+    (->> (nodes db (d/q '[:find [?e ...]
+                          :where
+                          [?e]
+                          #_(not [_ :node/children ?e])] db)) ; get all points but the root
+         (mapcat (fn [{:keys [db/id] :as start}]
+                   (loop [prev start
+                          node (parent start)] ; walk ancestors up to the root
                      (cond
-                       (nil? node)             [{:db/id      id              ; if this node does not have a cardinality
-                                                 :node/scope (:db/id root)}] ; many parent it is in the root scope.
+                       (nil? node) (when (not= prev start)
+                                     [{:db/id      id ; if this node does not have a cardinality
+                                       :node/scope (:db/id prev)}]) ; many parent it is in the root scope.
                        (contains? scopes node) [{:db/id      id              ; otherwise it is in the scope of it’s closest
                                                  :node/scope (:db/id node)}] ; cardinality many parent.
-                       :else                   (recur (parent node))))))
+                       :else                   (recur node (parent node))))))
          (d/db-with db))))
 
 (defn compute-argument-scope-pass "Compute the scope of all fn arguments. A function arg is in the scope of it’s function."
@@ -272,20 +221,26 @@
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :argument]] db))
     (map (fn [{:keys [db/id] :as node}]
            {:db/id      id
-            :node/scope (:db/id (:node/scope (parent node)))}))
+            :node/scope (:db/id (parent node))}))
     (d/db-with db)))
+
+(defn nodes-in-scope [db node]
+  (if-not (:node/scope node) ; root
+    (->> (nodes db (d/q '[:find [?e ...] :where [?e] (not [?e :node/scope])] db))
+      (reduce (fn [r node] (into r (disj (:node/_scope node) node))) #{}))
+    (set (:node/_scope (:node/scope node)))))
 
 (defn find-nodes-by-name
   "Look up for nodes named by `symbol` in the `point`’s scope, then in the parent scope, recursively.
   If there is more than one match, they are guaranteed to belong to the same
   scope. `point` cannot be a match (meaning a point cannot refer to itself)."
-  [point symbol]
-  (when-let [scope (:node/scope point)]
-    (if-let [matches (->> (disj (:node/_scope scope) point) ; get all nodes but the current one, in the current scope
-                       (filter #(= symbol (:node/name %)))
-                       (seq))]
-      (set matches)
-      (recur scope symbol)))) ; look up in parent scope
+  [db point symbol]
+  (if-let [matches (->> (disj (nodes-in-scope db point) point) ; get all nodes but the current one, in the current scope
+                     (filter #(= symbol (:node/name %)))
+                     (seq))]
+    (set matches)
+    (when-let [scope (:node/scope point)]
+      (recur db scope symbol)))) ; look up in parent scope
 
 (defn resolve-lexical-references-pass
   "For all function arguments, resolve the node they might refer to in lexical
@@ -295,7 +250,7 @@
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :argument]] db))
     (mapcat (fn [{:keys [node/form db/id] :as node}]
            (when (symbol? form)
-             (when-some [matches (seq (find-nodes-by-name (parent node) form))]
+             (when-some [matches (seq (find-nodes-by-name db (parent node) form))]
                (case (count matches)
                  0 nil
                  1 [{:db/id id, :node/dependencies (:db/id (first matches)), :node/reference (:db/id (first matches))}]
@@ -311,26 +266,25 @@
 
 (defn ancestors "Return a set of transitive parents of a node" [node]
   (loop [node node
-         r    #{}]
+         r    ()]
     (cond (nil? node)           r
           (some? (parent node)) (recur (parent node) (conj r (parent node)))
           :else                 r)))
 
 (defn find-join-target-point "Find the closest point we need to join to resolve a reference." [node]
-  (let [ancestors (ancestors node)]
-    (loop [ref (:node/reference node)
-           prev ref]
-      (when (some? ref)
-        (if (contains? ancestors ref) prev
-            (recur (parent ref) ref))))))
+  (loop [node-parents (ancestors node)
+         ref-parents  (ancestors (:node/reference node))]
+    (if (= (first node-parents) (first ref-parents))
+      (recur (rest node-parents) (rest ref-parents))
+      (first ref-parents))))
 
 (defn reference-path "Return a path (can be passed to get-in), between two parent/child nodes." [parent child]
-  (assert (contains? (ancestors child) parent))
-  (loop [node child
-         r ()]
-    (let [r (if (= :group (:node/form-type node)) r (cons (:node/symbolic-form node) r))]
-      (if (= node parent) (vec (rest r))
-          (recur (hyperfiddle.hfql2.impl/parent node) r)))))
+  (assert (contains? (set (ancestors child)) parent))
+  (conj (->> (ancestors child)
+          (drop-while #(not= parent %))
+          (drop 1)
+          (mapv :node/symbolic-form))
+    (:node/symbolic-form child)))
 
 (defn compute-reference-join-path-pass [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/reference]] db))
@@ -343,41 +297,21 @@
                                          (reference-path join-node (:node/reference node)))
                   :node/dependencies   (:db/id join-node)}
                  [:db/retract (:db/id node) :node/dependencies (:db/id (:node/reference node))]
-                 {:db/id                         (:db/id join-node)
-                  :node/remember-entity-at-point true}])))
-    (d/db-with db)))
-
-;; Future work to support (:db/id %) form and provide defaults or (foo %) to pass current entity to function.
-#_(defn rename-%-to-entity-pass [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :argument] [?e :node/form %]] db))
-    (map (fn [node] {:db/id (:db/id node) :node/form `hf/entity}))
+                 {:db/id (:db/id join-node)}])))
     (d/db-with db)))
 
 (defn compute-columns-pass [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/form-type :group]] db))
-    (mapcat (fn [{:keys [db/id] :as node}]
-              (let [columns (:node/symbolic-form node)]
-                (into [{:db/id id, :node/columns columns}]
-                  (map (fn [parent]
-                         ;; (when (= ::hf/many (:node/cardinality parent)))
-                         {:db/id (:db/id parent), :node/columns columns})
-                    (:node/_children node)  ; look for all parents (including hf/options)
-                    )))))
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/children]] db))
+    (map (fn [{:keys [db/id node/children] :as node}]
+           {:db/id id, :node/columns (mapv :node/symbolic-form children)}))
     (d/db-with db)))
 
 (defn handle-free-inputs-pass [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :argument]] db))
     (mapcat (fn [node]
               (when (= '. (:node/form node))
-                (let [tempid (- (:db/id node))]
-                  [{:db/id             (:db/id node)
-                    :node/input        tempid
-                    :node/dependencies tempid
-                    :node/children     tempid}
-                   {:db/id       tempid
-                    :node/type   :input
-                    :node/symbol (symbol (str (:node/symbol node) "_input"))
-                    :node/scope  (:db/id (:node/scope node))}]))))
+                [{:db/id            (:db/id node)
+                  :node/free-input? true}])))
     (d/db-with db)))
 
 ;; ranking ---
@@ -402,7 +336,7 @@
 
 ;; end ranking ---
 
-(defn entity-symbol [point] (symbol (str "e_" (:db/id point))))
+(def ^:const E 'e)
 
 (defn input-path
   "An input path is a unique indentifier for an input in the HFQL runtime
@@ -419,16 +353,15 @@
       (case (:node/type point)
         :argument (recur false (cons (:spec/name point) path) (parent point))
         (case (:node/form-type point)
-          :group (recur true path (parent point))
           :call  (if (and (= ::hf/many (:node/cardinality point)) account-for-cardinality)
-                   (recur true (list* (:node/symbolic-form point) (entity-symbol point) path) (parent point))
+                   (recur true (list* (:node/symbolic-form point) E path) (parent point))
                    (recur true (cons (:node/symbolic-form point) path) (parent point)))
           (if-let [form (:node/symbolic-form point)]
             (recur true (cons form path) (parent point))
             (recur true path (parent point))))))))
 
 (defn compute-input-path-pass [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :input]] db))
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/free-input? true]] db))
     (mapcat (fn [node] [{:db/id      (:db/id node)
                          :input/path (input-path node)}]))
     (d/db-with db)))
@@ -440,12 +373,10 @@
 (def passes [#'resolve-functions-pass
              #'resolve-cardinalities-pass
              #'resolve-arguments-spec-pass
-             #'move-props-to-group-pass
              #'compute-point-dependencies-pass
              #'compute-function-call-dependencies-pass
              #'compute-scopes-pass
              #'compute-argument-scope-pass
-             #'compute-options-dependencies-pass
              #'compute-points-symbol-pass
              #'compute-arg-symbol-pass
              #'resolve-lexical-references-pass
@@ -469,20 +400,23 @@
 
 (defn parse-props "Parse a props map declared with (props <form> {k1 v1, …}). `parent-id` must be the node id the props are attached to."
   [gen-id parent-id props]
-  (->> (map-indexed vector props) ; we want to emit code in the same order as the hfql expr is read.
+  (->> (map-indexed vector props) ; we want to emit-1 code in the same order as the hfql expr is read.
     (reduce (fn [r [index [k v]]] ; for each k v pair of the map, in seq order.
                  (case k
                    ::hf/options (into r (-> (parse gen-id parent-id v)
-                                          (update 0 assoc :prop/key k, :node/position index)))
+                                          (update 0 assoc :prop/key k, :node/position index, :node/_props parent-id)
+                                          (update 0 dissoc :node/_children)))
                    ::hf/link    (if (seq? v)
-                                  (into r (-> (parse gen-id parent-id v) (update 0 assoc :prop/key k, :node/position index)))
+                                  (into r (-> (parse gen-id parent-id v)
+                                            (update 0 assoc :prop/key k, :node/position index, :node/_props parent-id)
+                                            (update 0 dissoc :node/_children)))
                                   (throw (ex-info "Linking with a symbol is not support yet. Use `(page arg)` syntax for now." {})))
-                   (conj r {:db/id          (gen-id) ; create a node of type :prop with k and v
-                            :node/type      :prop
-                            :node/_children parent-id
-                            :prop/key       k
-                            :prop/value     v
-                            :node/position  index})))
+                   (conj r {:db/id         (gen-id) ; create a node of type :prop with k and v
+                            :node/type     :prop
+                            :node/_props   parent-id
+                            :prop/key      k
+                            :prop/value    v
+                            :node/position index})))
       [])))
 
 (defn parse-arg "Parse a function argument into a tx. `parent-id` is supposed to be the function node’s id."
@@ -494,10 +428,10 @@
                     (if (empty? props) [arg]
                         (into [arg] (parse-props gen-id (-> arg first :db/id) props))  ; attach props a children of the arg
                         ))
-    :else         [{:db/id          (gen-id)
-                    :node/_children parent-id
-                    :node/type      :argument
-                    :node/form      form}]))
+    :else         [{:db/id           (gen-id)
+                    :node/_arguments parent-id
+                    :node/type       :argument
+                    :node/form       form}]))
 
 (defn parse
   "Parse an HFQL form into a datascript tx, representing a graph."
@@ -512,16 +446,11 @@
                            (into parsed (parse-props gen-id (-> parsed first :db/id) props)  ; parse and attach props as children of the form
                              )))
      ;; A vector represents a group. It usually renders as a form (card one) or a table (card many).
-     (vector? form)  (let [id (gen-id)]
-                       (into [{:db/id          id
-                               :node/_children parent-id ; means "is a child of parent-id"
-                               :node/form      form
-                               :node/type      :render-point
-                               :node/form-type :group}]
-                         (->> (map (partial parse gen-id id) form)  ; parse each member of the group
-                           (map-indexed (fn [idx tx] (update tx 0 assoc :node/position idx)))  ; record their position (we want colums and fields in the same order as the HFQL expression.
-                           (mapcat identity) ; concat into a single tx
-                           )))
+     (vector? form)  (into [] (comp
+                                (map (partial parse gen-id parent-id))  ; parse each member of the group
+                                (map-indexed (fn [idx tx] (update tx 0 assoc :node/position idx)))  ; record their position (we want colums and fields in the same order as the HFQL expression.
+                                cat) ; concat into a single tx
+                       form)
      ;; A map represents a continuation on a render point: {point continuation}.
      ;; The left hand side is always a render point. TODO what about view-defaults in fn args?
      (map? form)     (if (= 1 (count form)) ; It can only contain one key-value pair.
@@ -558,10 +487,11 @@
 (defn to-graph [tx]
   (d/db-with @(d/create-conn {:db/id             {:db/unique :db.unique/identity}
                               :node/children     {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many} ; syntactical children in expr
+                              :node/props        {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+                              :node/arguments    {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
                               :node/dependencies {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many} ; computed graph dependencies
                               :node/scope        {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one} ; HFQL implicit lexical scope, bounded by card many points
                               :node/reference    {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one} ; A function arg might refer to another point
-                              :node/input        {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one} ; A function arg might allocate an input
                               })
              (map (fn [entity]
                     (if (nil? (:node/_children entity))
@@ -603,31 +533,45 @@
     (when-not (= opts (:node/symbol point))
       opts)))
 
+(declare emit-1)
+
+(defn scope-bindings "Return a toposorted list of lexical bindings in the scope of the given render point"
+  [point]
+  (mapcat (fn [point] [(:node/symbol point) (emit-1 point)]) (sort-by-rank (filter (fn [n] (= :argument (:node/type n))) (:node/_scope point)))))
+
+(defn add-scope-bindings
+  "If the given render point has dependencies in this scope, emit-1 them as lexical bindings."
+  [point emitted-form]
+  (if-some [bindings (seq (scope-bindings point))]
+    `(let [~@bindings] ~emitted-form)
+    emitted-form))
+
+(declare emit-call)
+
 (defn emit-props "Emit a map of {prop-key prop-value} for a given render point." [point]
   (let [props-map (->> (props point)
                     (map (fn [{:keys [prop/key prop/value] :as prop}]
                            [key (case key
-                                  ::hf/options (:node/symbol prop)
+                                  ::hf/options (add-scope-bindings prop `(p/fn [] ~(emit-call prop))) #_ (:node/symbol prop)
                                   ::hf/as      (list 'quote value)
                                   ::hf/link    (:node/symbol prop)
                                   value)]))
                     (into {}))
         args      (when (= :call (:node/form-type point)) (arguments point))]
     (cond-> props-map
-      true                                  (merge {::hf/continuation (not (empty? (children point)))
-                                                    :dbg/name         (list 'quote (:node/symbol point))})
-      (:node/cardinality point)             (assoc ::hf/cardinality (:node/cardinality point))
-      (:node/columns point)                 (assoc ::hf/columns (:node/columns point))
-      (not= :group (:node/form-type point)) (assoc ::hf/attribute (:node/symbolic-form point))
-      (:input/path point)                   (assoc ::hf/path (:input/path point))
-      (seq args)                            (assoc ::hf/arguments (mapv (fn [arg]
-                                                                          (let [path (:input/path (:node/input arg))]
-                                                                            [(:spec/name arg)
-                                                                             (merge
-                                                                               {::hf/read (:node/symbol arg)
-                                                                                ::hf/path path}
-                                                                               (when-let [input (:node/input arg)]
-                                                                                 {::hf/write (:node/symbol input)}))])) args)))))
+      true                      (merge {::hf/leaf? (empty? (:node/children point))
+                                        :dbg/name  (list 'quote (:node/symbol point))})
+      (:node/cardinality point) (assoc ::hf/cardinality (:node/cardinality point))
+      (:node/columns point)     (assoc ::hf/columns (:node/columns point))
+      (:node/form-type point)   (assoc ::hf/attribute (:node/symbolic-form point))
+      (:input/path point)       (assoc ::hf/path (:input/path point))
+      (seq args)                (assoc ::hf/arguments (mapv (fn [arg]
+                                                              (let [path (:input/path arg)]
+                                                                [(:spec/name arg)
+                                                                 (merge
+                                                                   {::hf/read (:node/symbol arg)
+                                                                    ::hf/path path})]))
+                                                        args)))))
 
 (def ^:dynamic *bindings*)
 
@@ -648,20 +592,14 @@
     (if (empty? (:node/reference-path node))
       `(p/fn [] (binding [hf/bypass-renderer true] (new hf/value)))
       `(p/fn []
-         (let [scope (p/watch hf/scope)]
-           (prn "looking for " '~(:node/symbol ref) "in" scope)
-           (if-let [e# (get scope '~(:node/symbol ref))]
-             (do 
-                 ;; FIXME beginning of hf/context. entities is shadowed by card many, lookup should walk up a stack (can store parent atom is special key in atom)
-                 (get-in (hf/JoinAllTheTree. (p/partial 1 ~(:node/symbol ref) e#)) ~(:node/reference-path node)))
-             (throw r/pending))))) ; FIXME only join the required path, lazily.
-    (if-let [input (:node/input node)]
-      `(p/fn [] (get-in hf/route ~(:input/path input)))
+         (get-in (hf/JoinAllTheTree. ~(:node/symbol ref)) ~(:node/reference-path node))))
+    (if (:node/free-input? node)
+      `(p/fn [] (get-in hf/route ~(:input/path node)))
       `(p/fn [] ~(:node/form node)))))
 
-(def ^:const E 'e)
+(declare emit-nodes)
 
-(defn emit "Emit clojure code for a render point and its dependencies." [point]
+(defn emit-1 "Emit clojure code for a render point and its dependencies." [point]
   (case (:node/type point)
     :render-point
     (case (:node/form-type point)
@@ -670,54 +608,53 @@
             value     (case (:node/form-type point)
                         :keyword `(hf/*nav!* hf/db ~E ~attribute)
                         :symbol  `(~(convey-dynamic-env (:function/name point)) ~E))]
-        (if-some [continuation (first (children point))]
-          (let [card-one-continuation (:node/symbol continuation)
-                props                 (merge (emit-props point) {::hf/render-as ::hf/infer}
-                                        (when-let [options (hf-options-symbol point continuation)]
-                                          {::hf/options options}))]
+        (if-some [continuation (seq (:node/children point))]
+          (let [card-one-continuation (gensym "continuation_")]
             `(with-meta
                (p/fn [~E]
-                 ~(when (:node/remember-entity-at-point point)
-                    `(prn "scope" (swap! hf/scope assoc '~(:node/symbol point) ~E)))
-                 ~(case (:node/cardinality point)
-                    ::hf/one  `(p/partial 1 ~card-one-continuation ~value)
-                    ::hf/many `(p/for [e# ~value] (p/partial 1 ~card-one-continuation e#))
-                    `(let [value# ~value]
-                       (case (hf/*cardinality* hf/*schema* hf/db ~attribute)
-                         ::hf/one  (p/partial 1 ~card-one-continuation value#)
-                         ::hf/many (p/for [e# value#] (p/partial 1 ~card-one-continuation e#))))))
-               ~props))
+                 (let [~card-one-continuation ~(emit-nodes continuation)]
+                   ~(case (:node/cardinality point)
+                      ::hf/one  `(new ~card-one-continuation ~value)
+                      ::hf/many `(p/for [e# ~value] (p/partial 1 ~card-one-continuation e#))
+                      `(let [value# ~value]
+                         (case (hf/*cardinality* hf/*schema* hf/db ~attribute)
+                           ::hf/one  (new  ~card-one-continuation value#)
+                           ::hf/many (p/for [e# value#] (p/partial 1 ~card-one-continuation e#)))))))
+               ~(emit-props point)))
           ;; No continuation, so cardinality doesn’t matter, we produce a final value.
-          `(with-meta (p/fn [~E]
-                        ~(when (:node/remember-entity-at-point point)
-                           `(prn "scope" (swap! hf/scope assoc '~(:node/symbol point) ~E)))
-                        ~value)
+          `(with-meta (p/fn [~E] ~value)
              ~(emit-props point))))
-      :call  (let [value (emit-call point)]
-               `(with-meta
-                  ~(if-some [continuation (first (children point))]
-                     `(p/fn [~@(when (= ::hf/options (:prop/key point))
-                                 [(:node/symbol continuation)])
-                             ~E]
-                        ~(case (:node/cardinality point)
-                           ::hf/one  `(new ~(:node/symbol continuation) ~value)
-                           ::hf/many `(p/for [e# ~value] (p/partial 1 ~(:node/symbol continuation) e#))))
-                     ;; Some calls don’t have a continuation (e.g. Links)
-                     `(p/fn [] ~value))
-                  ~(emit-props point)))
-      :group (let [map   (reduce (fn [r point] (assoc r (:node/symbolic-form point)
-                                               `(p/partial 1 ~(:node/symbol point) ~E)))
-                           {} (children point))
-                   f     `(p/fn [~E] ~map)
-                   props (emit-props point)]
-               (if (::hf/options props)
-                 (let [self (gensym "self_")]
-                   `(let [~self (with-meta ~f ~props)] ; letrec would solve this
-                      (vary-meta ~self assoc ::hf/options (p/partial 2 ~(::hf/options props) ~self nil)))) 
-                 `(with-meta ~f ~props))))
+      :call  (add-scope-bindings point
+               (let [value (emit-call point)]
+                 `(with-meta
+                    ~(if-some [continuation (seq (:node/children point))]
+                       (let [continuation-sym (gensym "continuation_")]
+                         `(p/fn [~@(when (= ::hf/options (:prop/key point))
+                                     [(:node/symbol continuation)])
+                                 ~E]
+                            (let [~continuation-sym ~(emit-nodes continuation)]
+                              ~(case (:node/cardinality point)
+                                 ::hf/one  `(new ~continuation-sym ~value)
+                                 ::hf/many `(p/for [e# ~value] (p/partial 1 ~continuation-sym e#))))))
+                       ;; Some calls don’t have a continuation (e.g. Links)
+                       `(p/fn [~'_] ~value))
+                    ~(emit-props point)))))
     :argument (emit-argument point)
     :input    `(atom nil)
-    (assert false (str "emit - not a renderable point " (:node/type point)))))
+    (assert false (str "emit-1 - not a renderable point " (:node/type point)))))
+
+(defn emit-nodes [nodes]
+  (if (or (> (count nodes) 1) (:node/position (first nodes)))
+    (let [kvs (->> (sort-by :node/position nodes)
+                (map (fn [node] [(:node/symbolic-form node) (if (:node/_reference node) (:node/symbol node) `(p/partial 1 ~(emit-1 node) ~E))]))
+                (into {}))
+          shared (->> (filter :node/_reference nodes) (mapcat (fn [node] [(:node/symbol node) `(p/partial 1 ~(emit-1 node) ~E)])))]
+      `(with-meta (p/fn [~E] ~(if (seq shared)
+                                `(let [~@shared] ~kvs)
+                                kvs))
+         {::hf/columns ~(mapv :node/symbolic-form nodes)
+          ::hf/leaf?   false}))
+    (emit-1 (first nodes))))
 
 ;;;;;;;;;;;
 ;; Macro ;;
@@ -734,13 +671,10 @@
 
 (defn hfql* [env bindings form]
   (binding [*bindings* bindings]
-    (let [db       (->> (analyze form) (apply-passes passes (c/normalize-env env)))
-          bindings (->> (all-bindings db)
-                     (mapcat (fn [point] [(:node/symbol point) (emit point)])))
-          root     `(p/partial 1 ~(emit (get-root db)) hf/entity)]
-      (if (seq bindings)
-        `(let [~@bindings] ~root)
-        root))))
+    (let [db (->> (analyze form) (apply-passes passes (c/normalize-env env)))
+          roots (get-root db)]
+      `(let [~E hf/entity]
+         (p/partial 1 ~(emit-nodes roots) ~E)))))
 
 (defmacro hfql ([form] (hfql* &env [] form))
   ([bindings form] (hfql* &env bindings form)))
@@ -750,7 +684,9 @@
 
   (hfql {(wip.orders-datascript/orders "") [:db/id]}) 
   (hfql {:order/gender [:db/id :db/ident]}) 
+  (graph '{:order/gender [:db/id :db/ident]})
   (hfql [:db/id :db/ident]) 
+  (hfql [:db/id]) 
   (hfql :db/id) 
 
 
