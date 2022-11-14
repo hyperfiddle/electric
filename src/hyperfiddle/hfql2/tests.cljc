@@ -13,31 +13,6 @@
 (comment
   (rcf/enable! true))
 
-(p/defn TreeToRows [V]
-  (new (p/Y. (p/fn [Rec]
-               (p/fn [V]
-                 (let [{::hf/keys [continuation columns render ] :as m}
-                       (meta V)
-                       _ (prn (:dbg/name m))
-                       v (if render (render. V) (V.))]
-                   (if-not continuation
-                     [(p/fn [] [v])]
-                     (cond
-                       (fn? v)     (Rec. v)
-                       (map? v)    (into [] cat (p/for [col columns]
-                                                  (let [v' (get v col)
-                                                        m' (meta v')]
-                                                    (if (::hf/continuation m')
-                                                      (into [(p/fn [] [col])] (Rec. v'))
-                                                      [(p/fn [] [col (if-let [render (::hf/render m')]
-                                                                       (render. v')
-                                                                       (new v'))])]))))
-                       (vector? v) (into [] cat (p/for [V v] (Rec. V)))
-                       :else [(p/fn [] [v])]))))))
-    V))
-
-(p/defn Sequence [Vs] (p/fn [] (p/for [V Vs] (V.))))
-
 (defmacro debug [& body]
   `(try ~@body
         (catch hyperfiddle.photon.Pending e# (throw e#))
@@ -55,7 +30,7 @@
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (hf/EdnRender. (hfql [:db/id]) )))))
+                      (debug (hf/EdnRender. (hfql [:db/id]) ))))))
   % := {:db/id 9})
 
 (p/def String-renderer (p/fn [V] (str (new V))))
