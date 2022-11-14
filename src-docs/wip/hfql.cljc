@@ -2,7 +2,7 @@
   "wip, unstable"
   (:require #?(:clj dev)
             [hyperfiddle.api :as hf]
-            [hyperfiddle.hfql.ui :as hfui]
+            [hyperfiddle.hfql2.ui :as hfui]
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
@@ -40,31 +40,47 @@
       (dom/hr)
       (let [route hf/route]
         (p/server
-          (hfui/with-ui-renderers
-            (router/router [hf/*$* hf/db
-                            hf/*nav!* hf/*nav!*]
-              route
-              {(one-order .) [(props :db/id {::hf/link (one-order db/id)})
-                              (props :order/email {::hf/link   (orders order/email)
-                                                   ::hf/render hfui/Default-renderer})
+          (binding [hf/route route]
+            (hfui/with-ui-renderers
+              (hfui/Render.
+                (hyperfiddle.hfql2/hfql
+                  [hf/*$* hf/db
+                   hf/*nav!* hf/*nav!*]
+                  {(orders .)
+                   [:db/id
+                    ;; (props :db/id {::hf/link (one-order db/id)})
+                    :order/email
+                    suber-name
 
-                              {(props :order/gender {::hf/options (genders)})
-                               [(props :db/ident {::hf/as gender})]}
-                              {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
-                               [:db/ident]}]}
-              {(orders .)
-               [
-                (props :db/id {::hf/link (one-order db/id)})
-                :order/email
-                suber-name
+                    :order/tags
+                    {(props :order/gender {::hf/options (genders)})
+                     [(props :db/ident {::hf/as gender})]}
+                    {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
+                     [:db/ident]}]}) )))
+          #_(router/router [hf/*$* hf/db
+                               hf/*nav!* hf/*nav!*]
+                 route
+                 {(one-order .) [(props :db/id {::hf/link (one-order db/id)})
+                                 (props :order/email {::hf/link   (orders order/email)
+                                                      ::hf/render hfui/Default-renderer})
 
-                :order/tags
-                {(props :order/gender {::hf/options (genders)})
-                 [(props :db/ident {::hf/as gender})]}
-                {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
-                 [:db/ident]}]})
+                                 {(props :order/gender {::hf/options (genders)})
+                                  [(props :db/ident {::hf/as gender})]}
+                                 {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
+                                  [:db/ident]}]}
+                 {(orders .)
+                  [
+                   (props :db/id {::hf/link (one-order db/id)})
+                   :order/email
+                   suber-name
 
-            ))))))
+                   :order/tags
+                   {(props :order/gender {::hf/options (genders)})
+                    [(props :db/ident {::hf/as gender})]}
+                   {(props :order/shirt-size {::hf/options (shirt-sizes gender .)})
+                    [:db/ident]}]})
+
+            )))))
 
 (defn path-hash [path]
   (when (clojure.string/includes? path "#")

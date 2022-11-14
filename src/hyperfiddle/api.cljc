@@ -151,7 +151,6 @@
                (p/fn [V]
                  (let [{::keys [render cardinality columns leaf?]} (meta V)
                        v (V.)]
-                   ;; (prn "> " (meta V) v)
                    (case cardinality
                      ::many (p/for [V v] (Rec. V))
                      ;; infer
@@ -162,48 +161,42 @@
                        :else       v))))))
     V))
 
+(p/def Rec)
 ;; TODO Rename, this seems to just be "Render"
 (p/defn EdnRender "Join all the tree, calling renderers when provided, return EDN" [V]
-  (new (p/Y. (p/fn [Rec]
-               (p/fn [V]
-                 (let [{::keys [render cardinality columns leaf?]} (meta V)]
-                   (if render (render. V )
-                     (let [v (V.)]
-                       ;; (prn "> " #_(meta V) v)
-                       (case cardinality
-                         ::many (p/for [V v] (Rec. V))
-                         ;; infer
-                         (cond
-                           leaf?       v
-                           (vector? v) (p/for [V v] (Rec. V))
-                           (map? v)    (into {} (p/for [col columns] [col (Rec. (get v col))]))
-                           :else       v))))))))
-    V))
+  (binding [Rec (p/fn [V]
+                  (let [{::keys [render cardinality columns leaf?]} (meta V)]
+                    (if render (render. V )
+                        (let [v (V.)]
+                          (case cardinality
+                            ::many (p/for [V v] (Rec. V))
+                            ;; infer
+                            (cond
+                              leaf?       v
+                              (vector? v) (p/for [V v] (Rec. V))
+                              (map? v)    (into {} (p/for [col columns] [col (Rec. (get v col))]))
+                              :else       v))))))]
+    (new Rec V)))
 
 (p/defn Sequence ":: t m a -> m t a" [Vs] (p/fn [] (p/for [V Vs] (V.))))
 
-(p/defn TreeToRows [V]
-  (new (p/Y. (p/fn [Rec]
-               (p/fn [[V depth]]
-                 (let [{::keys [continuation columns render] :as m} (meta V)
-                       v (if render (render. V) (V.))]
-                   (if-not continuation
-                     [(p/fn [] [depth (p/fn [] [(p/fn [] v)])])]
-                     (cond
-                       (fn? v)     (Rec. [v depth])
-                       (map? v)    (into [] cat (p/for [col columns]
-                                                  (let [v' (get v col)]
-                                                    (if (::continuation (meta v'))
-                                                      (into [(p/fn [] [depth
-                                                                       (p/fn []
-                                                                         [(p/fn []
-                                                                            col)])])]
-                                                        (Rec. [v' (inc depth)]))
-                                                      [(p/fn [] [depth
-                                                                 (p/fn []
-                                                                   [(p/fn [] col)
-                                                                    (p/fn [] (if-let [render (::render (meta v'))]
-                                                                               (render. v')
-                                                                               (new v')))])])]))))
-                       (vector? v) (into [] cat (p/for [V v] (Rec. [V (inc depth)])))))))))
-    [V 0]))
+(p/defn TreeToRows "Join all the tree, calling renderers when provided, return EDN" [V]
+  (binding [Rec (p/fn [V]
+                  (let [{::keys [render cardinality columns leaf?]} (meta V)]
+                    (if render
+                      [(capture [Rec] [(render. V)])]
+                      (let [v (V.)]
+                        (case cardinality
+                          ::many (into [] cat (p/for [V v] (Rec. V)))
+                          ;; infer
+                          (cond
+                            leaf?       [(p/fn [] [v])]
+                            (vector? v) (into [] cat (p/for [V v] (Rec. V)))
+                            (map? v)   (into [] cat (p/for [col columns]
+                                                      (let [V (get v col)]
+                                                        (if (::leaf? (meta V))
+                                                          [(capture [Rec] (into [col] cat (new (Sequence. (Rec. V)))))]
+                                                          (into [(p/fn [] [col])]
+                                                            (Rec. (get v col)))))))
+                            :else       v))))))]
+    (new Rec V)))
