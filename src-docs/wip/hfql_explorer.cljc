@@ -1,20 +1,16 @@
 (ns wip.hfql-explorer
-  (:require [clojure.datafy :refer [datafy]]
-            [clojure.core.protocols :refer [nav]]
-            contrib.ednish
+  (:require contrib.ednish
             clojure.edn
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.gridsheet :as-alias gridsheet]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
-            [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]
             [hyperfiddle.hfql2 :refer [hfql]]
             [hyperfiddle.api :as hf]
+            [hyperfiddle.hfql2.ui :as ui]
             [clojure.spec.alpha :as s]
-            #?(:cljs [hyperfiddle.router :as router])
             [missionary.core :as m])
-  #?(:cljs (:require-macros [wip.hfql-explorer :refer [absolute-path]])))
+  #?(:cljs (:require-macros [wip.hfql-explorer])))
 
 
 (p/defn Email [V]
@@ -22,6 +18,8 @@
     (p/client
       (dom/a {:href (str "mailto:" v)} (dom/text v))
       nil)))
+
+;; (p/defn Input [V] (ui/Input (V.) (meta V)))
 
 (p/defn Dir []
   (binding
@@ -31,7 +29,7 @@
        hf/*nav!*     wip.orders-datascript/nav!]
     (let [!needle (atom "")
           needle  (p/watch !needle)
-          xs      (new (hf/Sequence. (hf/TreeToRows. (hfql {(wip.orders-datascript/orders needle)
+          xs      (new (hf/Sequence. (hf/TreeToExplorer. (hfql {(wip.orders-datascript/orders needle)
                                                             [:db/id
                                                              (props :order/email {::hf/render Email})
                                                              {:order/gender [:db/ident]}
