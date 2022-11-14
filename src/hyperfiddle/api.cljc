@@ -207,3 +207,55 @@
                                                             (Rec. (get v col)))))))
                             :else       v))))))]
     (new Rec V)))
+
+(p/defn TreeToExplorer [V]
+  (binding [Rec (p/fn [V depth]
+                  (let [{::keys [render cardinality columns leaf?]} (meta V)]
+                    (if render
+                      [(capture [Rec] [(render. V)])]
+                      (let [v (V.)]
+                        (case cardinality
+                          ::many (into [] cat (p/for [V v] (Rec. V (inc depth))))
+                          ;; infer
+                          (cond
+                            leaf?       [(p/fn [] [depth (p/fn [] [(p/fn [] v)])])]
+                            (vector? v) (into [] cat (p/for [V v] (Rec. V (inc depth))))
+                            (map? v)   (into [] cat (p/for [col columns]
+                                                      (let [V (get v col)]
+                                                        (if (::leaf? (meta V))
+                                                          [(capture [Rec] [depth
+                                                                           (p/fn []
+                                                                             (into [(p/fn [] col)] cat
+                                                                               [[(p/fn [] (if-let [render (::render (meta V))]
+                                                                                            (render. V)
+                                                                                            (V.)) #_(second (new (Sequence. (Rec. V depth)))))]]))])]
+                                                          (into [(p/fn [] [depth (p/fn [] [(p/fn [] col)])])]
+                                                            (Rec. (get v col) (inc depth)))))))
+                            :else       (throw (ex-info "unreachable" {}))))))))]
+    (new Rec V 0)))
+
+#_(p/defn TreeToRows [V]
+  (new (p/Y. (p/fn [Rec]
+               (p/fn [[V depth]]
+                 (let [{::keys [continuation columns render] :as m} (meta V)
+                       v (if render (render. V) (V.))]
+                   (if-not continuation
+                     [(p/fn [] [depth (p/fn [] [(p/fn [] v)])])]
+                     (cond
+                       (fn? v)     (Rec. [v depth])
+                       (map? v)    (into [] cat (p/for [col columns]
+                                                  (let [v' (get v col)]
+                                                    (if (::continuation (meta v'))
+                                                      (into [(p/fn [] [depth
+                                                                       (p/fn []
+                                                                         [(p/fn []
+                                                                            col)])])]
+                                                        (Rec. [v' (inc depth)]))
+                                                      [(p/fn [] [depth
+                                                                 (p/fn []
+                                                                   [(p/fn [] col)
+                                                                    (p/fn [] (if-let [render (::render (meta v'))]
+                                                                               (render. v')
+                                                                               (new v')))])])]))))
+                       (vector? v) (into [] cat (p/for [V v] (Rec. [V (inc depth)])))))))))
+    [V 0]))
