@@ -38,7 +38,13 @@
 
 (p/defn Sequence [Vs] (p/fn [] (p/for [V Vs] (V.))))
 
-(tests
+(defmacro debug [& body]
+  `(try ~@body
+        (catch hyperfiddle.photon.Pending e# (throw e#))
+        (catch missionary.Cancelled e# (throw e#))
+        (catch Throwable e# (prn (ex-message e#)))))
+
+#_(tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
@@ -52,11 +58,11 @@
                       (hf/EdnRender. (hfql :db/id) ) ))))
   % := 9)
 
-(tests
+#_(tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (new (Sequence. (TreeToRows. (hfql [:db/id]))) )))))
+                      (new (Sequence. (TreeToRows. (hfql [:db/id]) )))))))
   % := [[:db/id 9]])
 
 (tests
@@ -73,7 +79,7 @@
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (hf/EdnRender. (hfql (props :db/id {::hf/render String-renderer}))) ))))
+                      (hf/EdnRender. (hfql (props :db/id {::hf/render String-renderer})) )))))
   % := "9")
 
 (tests
@@ -96,21 +102,19 @@
                               hf/*nav!* nav!
                               hf/entity 9
                               hf/*schema* schema]
-                      (hf/EdnRender. (hfql {:order/gender [:db/ident]})  )  ))))
-  % := {:order/gender {:db/ident :order/female}})
-
-(tests
-  (with (p/run (tap (binding [hf/db     hf/*$*
-                              hf/*nav!* nav!
-                              hf/entity 9
-                              hf/*schema* schema]
                       (hf/EdnRender. (hfql [{:order/gender [:db/ident]}]) )))))
   % := {:order/gender {:db/ident :order/female}})
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!]
-                      (hf/EdnRender. (hfql {(order "") [:db/id]})) ))))
+                      (debug (new (hfql (order "")) )) ))))
+  % := 9)
+
+(tests
+  (with (p/run (tap (binding [hf/db     hf/*$*
+                              hf/*nav!* nav!]
+                      (debug (hf/EdnRender. (hfql {(order "") [:db/id]}) ))))))
   % := {`(order "") {:db/id 9}})
 
 (tests
@@ -125,23 +129,22 @@
   "multiplicity many"
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!]
-                      (hf/EdnRender. (hfql {(orders "") [:db/id]})) ))))
+                      (debug (hf/EdnRender. (hfql {(orders "") [:db/id]}) ))))))
   % := {`(orders "") [{:db/id 9} {:db/id 10} {:db/id 11}]})
 
-(tests
+#_(tests
   "multiplicity many"
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!]
                       (new (Sequence. (TreeToRows. (hfql {(orders "") [:db/id]}) ))) ))))
   % := `[[(wip.orders-datascript/orders "")] [:db/id 9] [:db/id 10] [:db/id 11]])
 
-(tests
+#_(tests
   "skipping"
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!]
                       (new (Sequence. (drop 2 (TreeToRows. (hfql {(orders "") [:db/id]}) )))) ))))
   % := `[[:db/id 10] [:db/id 11]])
-
 
 (tests
   (with (p/run (tap (binding [hf/db hf/*$*
@@ -149,13 +152,12 @@
                       (hf/EdnRender. (hfql {(orders "") [(props :db/id {::hf/render String-renderer})]}))))))
   % := {`(orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
 
-(tests
+#_(tests
   "TODO call renderer"
   (with (p/run (tap (binding [hf/db hf/*$*
                               hf/*nav!* nav!]
                       (new (Sequence. (TreeToRows. (hfql {(orders "") [(props :db/id {::hf/render String-renderer})]}))))))))
   % := `[[(wip.orders-datascript/orders "")] [:db/id "9"] [:db/id "10"] [:db/id "11"]])
-
 
 (p/defn Throwing-renderer [V] (prn "BOOM") "fail"#_(throw (ex-info "I fail" {})))
 (p/defn Ignoring-renderer [V]
@@ -171,7 +173,7 @@
   % := {:order/gender "ignored"} ; note it didn’t throw
   )
 
-(tests
+#_(tests
   (p/run (tap (binding [hf/db       hf/*$*
                         hf/*nav!*   nav!
                         hf/entity   9
@@ -185,8 +187,8 @@
 
 ;; Insight: Let the renderer decide of the options' continuation.
 (p/defn Select-option-renderer [V]
-  (into [:select {:value (Data. V)}]
-    (p/for [e (Data. (::hf/options (meta V)))]
+  (into [:select {:value (hf/JoinAllTheTree. V)}]
+    (p/for [e (new (::hf/options (meta V)))]
       [:option e])))
 
 (tests
@@ -198,62 +200,46 @@
                                                                      ::hf/options (shirt-sizes :order/female "")})]) )))))
   % := {:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]]})
 
-(tests
-  "hf/options inherit parent pullexpr"
+#_(tests
+  "hf/options can continueu with parent pullexpr"
   (with (p/run
           (tap (binding [hf/db       hf/*$*
                          hf/*nav!*   nav!
                          hf/entity   9
                          hf/*schema* schema]
-                 (hf/EdnRender. (hfql [{(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                               ::hf/options (shirt-sizes :order/female "")})
-                                        [(props :db/ident {::hf/render String-renderer})]}]) )))))
+                 (debug (hf/EdnRender. (hfql {(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                        ::hf/options (shirt-sizes :order/female "")})
+                                              [:db/ident]}) ))))))
   % := {:order/shirt-size [:select {:value #:db{:ident :order/womens-large}}
                            [:option #:db{:ident :order/womens-small}]
                            [:option #:db{:ident :order/womens-medium}]
                            [:option #:db{:ident :order/womens-large}]]})
 
-(comment
-  (tests
-    "Argument reference"
-    (with (p/run (try (tap (binding [hf/db       hf/*$*
-                                     hf/*nav!*   nav!
-                                     hf/entity   9
-                                     hf/*schema* schema]
-                             (hf/EdnRender. (hfql [{:order/gender [:db/ident]}
-                                                (props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                          ::hf/options (shirt-sizes db/ident "")})]) )))
-                      (catch Pending _ (prn 'pending))
-                      (catch Throwable t (prn (ex-message t) (ex-data t))))))
-    ;; (prn %) := _
-    % := {:order/gender     {:db/ident :order/female}
-          :order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]]})
+(tests
+  "Argument reference"
+  (with (p/run (try (tap (binding [hf/db       hf/*$*
+                                   hf/*nav!*   nav!
+                                   hf/entity   9
+                                   hf/*schema* schema]
+                           (hf/EdnRender. (hfql [{:order/gender [:db/ident]}
+                                                 (props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                           ::hf/options (shirt-sizes db/ident "")})]) )))
+                    (catch Pending _ (prn 'pending))
+                    (catch Throwable t (prn (ex-message t) (ex-data t))))))
+  ;; (prn %) := _
+  % := {:order/gender     {:db/ident :order/female}
+        :order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]]}
+  )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  (tests
+(tests
     "Argument reference under card n"
     (with (p/run (try (tap (binding [hf/db       hf/*$*
                                      hf/*nav!*   nav!
                                      hf/*schema* schema
                                      hf/entity   9]
-                             (hfql {(orders "") [{:order/gender [:db/ident]}
-                                                 (props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                           ::hf/options (shirt-sizes db/ident "")})]})
+                             (hf/EdnRender. (hfql {(orders "") [{:order/gender [:db/ident]}
+                                                                (props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                                          ::hf/options (shirt-sizes db/ident "")})]}) )
                              ))
                       (catch Pending _))))
     % := {`(orders "")
@@ -264,25 +250,7 @@
            {:order/shirt-size [:select {:value 4} [:option 3] [:option 4] [:option 5]],
             :order/gender     {:db/ident :order/male}}]})
 
-  (tests
-    "Argument reference under card n"
-    (with (p/run (try (tap (binding [hf/db       hf/*$*
-                                     hf/*nav!*   nav!
-                                     hf/entity   9
-                                     hf/*schema* schema]
-                             (hfql {(orders "") [{:order/gender [:db/ident]}
-                                                 (props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                           ::hf/options (shirt-sizes db/ident "")})]}) ))
-                      (catch Pending _))))
-    % := {`(orders "")
-          [{:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]],
-            :order/gender     {:db/ident :order/female}}
-           {:order/shirt-size [:select {:value 5} [:option 3] [:option 4] [:option 5]],
-            :order/gender     {:db/ident :order/male}}
-           {:order/shirt-size [:select {:value 4} [:option 3] [:option 4] [:option 5]],
-            :order/gender     {:db/ident :order/male}}]})
-
-  (tests
+(tests
     "lexical env"
     (let [needle1 ""
           needle2 "small"]
@@ -290,100 +258,116 @@
                                        hf/*nav!*   nav!
                                        hf/entity   9
                                        hf/*schema* schema]
-                               (hfql {(orders needle1) [:order/email
-                                                        {:order/gender [(props :db/ident {::hf/as gender})]}
-                                                        {(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                                   ::hf/options (shirt-sizes gender needle2)})
-                                                         [:db/ident]}]} )))
+                               (hf/EdnRender. (hfql {(orders needle1) [:order/email
+                                                                       {:order/gender [(props :db/ident {::hf/as gender})]}
+                                                                       {(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                                                  ::hf/options (shirt-sizes gender needle2)})
+                                                                        [:db/ident]}]} ))))
                         (catch Pending _)))))
     % := {`(orders ~'needle1)
           [{:order/shirt-size
             [:select
              {:value {:db/ident :order/womens-large}}
-             [:option {:db/ident :order/womens-small}]],
+             [:option 6]],
             :order/gender {:db/ident :order/female},
             :order/email  "alice@example.com"}
            {:order/shirt-size
             [:select
              {:value {:db/ident :order/mens-large}}
-             [:option {:db/ident :order/mens-small}]],
+             [:option 3]],
             :order/gender {:db/ident :order/male},
             :order/email  "bob@example.com"}
            {:order/shirt-size
             [:select
              {:value {:db/ident :order/mens-medium}}
-             [:option {:db/ident :order/mens-small}]],
+             [:option 3]],
             :order/gender {:db/ident :order/male},
             :order/email  "charlie@example.com"}]})
 
-  (tests
+(tests
     "free inputs"
     (with (p/run (try (tap (binding [hf/db       hf/*$*
                                      hf/*nav!*   nav!
                                      hf/*schema* schema]
-                             (hfql {(orders .) [{:order/gender [(props :db/ident {::hf/as gender})]}
-                                                {(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                           ::hf/options (shirt-sizes gender .)})
-                                                 [:db/ident]}]})) )
+                             (hf/EdnRender.
+                               (hfql {(orders .) [{:order/gender [(props :db/ident {::hf/as gender})]}
+                                                  {(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                             ::hf/options (shirt-sizes gender .)})
+                                                   [:db/ident]}]})) ) )
                       (catch Pending _))))
     % := {`(orders .)
           [#:order{:shirt-size
                    [:select
                     {:value #:db{:ident :order/womens-large}}
-                    [:option #:db{:ident :order/womens-small}]
-                    [:option #:db{:ident :order/womens-medium}]
-                    [:option #:db{:ident :order/womens-large}]],
+                    [:option 6]
+                    [:option 7]
+                    [:option 8]],
                    :gender #:db{:ident :order/female}}
            #:order{:shirt-size
                    [:select
                     {:value #:db{:ident :order/mens-large}}
-                    [:option #:db{:ident :order/mens-small}]
-                    [:option #:db{:ident :order/mens-medium}]
-                    [:option #:db{:ident :order/mens-large}]],
+                    [:option 3]
+                    [:option 4]
+                    [:option 5]],
                    :gender #:db{:ident :order/male}}
            #:order{:shirt-size
                    [:select
                     {:value #:db{:ident :order/mens-medium}}
-                    [:option #:db{:ident :order/mens-small}]
-                    [:option #:db{:ident :order/mens-medium}]
-                    [:option #:db{:ident :order/mens-large}]],
+                    [:option 3]
+                    [:option 4]
+                    [:option 5]],
                    :gender #:db{:ident :order/male}}]})
 
+(defn suber-name [e]
+  (first (str/split (:order/email (d/entity hf/*$* e)) #"@" 2)))
 
-  (def ^:dynamic *db*)
+(s/fdef suber-name :ret string?)
 
-  (s/fdef bound-order :args (s/cat :needle string?) :ret any?)
+(tests
+  "function navigation"
 
-  (defn bound-order [needle]
-    #?(:clj (binding [hf/*$* *db*]
-              (wip.orders-datascript/order needle))))
-
-  (tests
-    "Binding conveyance"
-
-    (with (p/run (try (tap
-                        (binding [hf/db hf/*$*
-                                  hf/*nav!* nav!]
-                          (hfql [*db* hf/db]
-                            {(bound-order "alice") [:db/id]}) ))
-                      (catch Pending _))))
-    % := '{(hyperfiddle.hfql2.tests/bound-order "alice") #:db{:id 9}})
-
-  (defn suber-name [e]
-    (first (str/split (:order/email (d/entity hf/*$* e)) #"@" 2)))
-
-  (s/fdef suber-name :ret string?)
-
-  (tests
-    "function navigation"
-
-    (with (p/run (try (tap
-                        (binding [hf/db     hf/*$*
-                                  hf/*nav!* nav!]
+  (with (p/run (try (tap
+                      (binding [hf/db     hf/*$*
+                                hf/*nav!* nav!]
+                        (hf/EdnRender.
                           (hfql [hf/*$* hf/db]
-                            {(orders "") [:db/id suber-name]}) ))
-                      (catch Pending _))))
-    % := `{(wip.orders-datascript/orders "") [{:db/id 9, suber-name "alice"} {:db/id 10, suber-name "bob"} {:db/id 11, suber-name "charlie"}]})
+                            {(orders "") [:db/id suber-name]})) ))
+                    (catch Pending _))))
+  % := `{(wip.orders-datascript/orders "") [{:db/id 9, suber-name "alice"} {:db/id 10, suber-name "bob"} {:db/id 11, suber-name "charlie"}]})
+
+(def ^:dynamic *db*)
+
+(s/fdef bound-order :args (s/cat :needle string?) :ret any?)
+
+(defn bound-order [needle]
+  #?(:clj (binding [hf/*$* *db*]
+            (wip.orders-datascript/order needle))))
+
+(tests
+  "Binding conveyance"
+
+  (with (p/run (try (tap
+                      (binding [hf/db hf/*$*
+                                hf/*nav!* nav!]
+                        (hf/EdnRender. (hfql [*db* hf/db]
+                                         {(bound-order "alice") [:db/id]})) ))
+                    (catch Pending _))))
+  % := '{(hyperfiddle.hfql2.tests/bound-order "alice") #:db{:id 9}})
+
+(tests
+  "Binding conveyance"
+
+  (with (p/run (debug (tap
+                        (hf/EdnRender. (binding [hf/db hf/*$*
+                                                 hf/*nav!* nav!]
+                                         (hfql [*db* hf/db]
+                                           {(bound-order "alice") [:db/id]}) ))))
+          ))
+  % := '{(hyperfiddle.hfql2.tests/bound-order "alice") #:db{:id 9}})
+
+
+(comment
+  (hyperfiddle.rcf/enable!)
   )
 
 
