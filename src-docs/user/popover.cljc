@@ -73,14 +73,14 @@
 ; data PopoverState = Closed Tx | Open
 (p/defn Popover [Body X busy] ; only client
   (:request
-    (let [!state (atom {:status :idle})
+    (let [!state (atom {:status :closed})
           {:keys [status]} (p/watch !state)]
       ; popover anchor
-      (ui/button {::ui/click-event (p/fn [_] (swap! !state update :status {:idle :edit :edit :idle}))}
-        (case status :idle "open" :edit "close" "") " popover")
+      (ui/button {::ui/click-event (p/fn [_] (swap! !state update :status {:closed :open :open :closed}))}
+        (case status :closed "open" :open "close" "") " popover")
       ; popover body
       (let [request (case status
-                      :idle nil
+                      :closed nil
                       (dom/div {:style {:position "fixed"}}
                         (dom/div {:style {:border           "1px pink solid" :padding "5px"
                                           :position         "relative" :left "3em" :top "2em" :z-index "1"
@@ -89,9 +89,9 @@
                           (Body. X busy))))]
         (reset! !state
           {:status  (case status
-                      :idle :idle
-                      :edit (case request nil :edit :pending)
-                      :pending (if busy :pending :idle))
+                      :closed :closed
+                      :open (case request nil :open :pending)
+                      :pending (if busy :pending :closed))
            :request request})))))                        ; client bias, careful
 
 (p/defn StagedBody [Body busy]
