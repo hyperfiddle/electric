@@ -68,8 +68,8 @@
                       needle  (p/watch !needle)]
                   (hfql-explorer/Explorer. "HFQL paginated"
                     #(reset! !needle %)
-                    {::dom/style                       {:height "calc((10 + 1) * 24px)"}
-                     ::explorer/page-size              10
+                    {::dom/style                       {:height "calc((30 + 1) * 24px)"}
+                     ::explorer/page-size              30
                      ::explorer/row-height             24
                      ::gridsheet/grid-template-columns "16rem 1fr 1fr 1fr 1fr"}
                     (hfql #_[hf/*$* hf/db
