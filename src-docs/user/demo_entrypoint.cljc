@@ -21,7 +21,6 @@
             user.seven-gui-5-crud
             #_user.datomic-browser ; requires datomic dep
             hyperfiddle.scrollview
-            wip.demo-bubbles
             user.demo-color
             ;; wip.photon-tree
             user.popover
@@ -58,9 +57,7 @@
               {:text "7GUIs - crud" ::value user.seven-gui-5-crud/App}
               {:text "Typeahead" ::value user.typeahead/App}
               {:text "tic tac toe" ::value user.tic-tac-toe/App}
-              #_{:text "TreeView" ::value wip.photon-tree/App}
               #_{:text "popover" ::value user.popover/App}
-              #_{:text "bubbles" ::value wip.demo-bubbles/App}
               {:text "color" ::value user.demo-color/App}
               #_{:text "healthcheck" ::value user.healthcheck/App}])
 
