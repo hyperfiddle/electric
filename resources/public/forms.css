@@ -5,7 +5,7 @@ input:not([type="radio"]):not([type="checkbox"]), select {
     /*border-left-width: 0.2rem;*/
     border-style:solid;
     border-radius: 2px;
-    padding: 0.5rem 0.5rem;
+    /* padding: 0.5rem 0.5rem; */
     width: 100%;
 }
 
