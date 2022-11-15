@@ -96,7 +96,7 @@
                                         ::tx-conflicting?]))
 (s/fdef tx-meta :ret ::transaction-meta)
 
-(p/defn Join-all "Given a collection of flows, join all flows. Maps are expected to be {Key Flow<Value>}."
+(p/defn ^:deprecated Join-all "Given a collection of flows, join all flows. Maps are expected to be {Key Flow<Value>}."
   [v]
   (cond
     (reduced? v) (unreduced v)
@@ -118,32 +118,18 @@
   (p/run (tap (Join-all. {:a (p/fn [] 1), :b (p/fn [] 2), :c (p/fn [] 3)})))
   % := '{:a 1, :b 2, :c 3})
 
-(p/def bypass-renderer false) ; hf/options bypases propgressive enhancement to produces EDN
+(p/def ^:deprecated bypass-renderer false) ; hf/options bypases propgressive enhancement to produces EDN
 
-(p/defn Render [V props]
+(p/defn ^:deprecated Render [V props]
   (if bypass-renderer
     (Join-all. (V.))
     (if-let [Renderer (::render props)]
       (Renderer. (p/fn [] (unreduced (V.))) props)
       (Join-all. (V.)))))
 
-(p/defn Data [V] (binding [Render (p/fn [V _props] (let [v (V.)] #_(prn "hf/data" v) (Join-all. v)))] (Render. V nil)))
+(p/defn ^:deprecated Data [V] (binding [Render (p/fn [V _props] (let [v (V.)] #_(prn "hf/data" v) (Join-all. v)))] (Render. V nil)))
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)
-
-;; TODO Rename, this is not Haskell traverse, name is confusing.
-(p/defn Traverse [F V]
-  (new (p/Y. (p/fn [Rec]
-               (p/fn [V]
-                 ;; (prn (:dbg/name (meta V)))
-                 (let [{::keys [columns]} (meta V)]
-                   (F. V (p/fn [v]
-                           (cond
-                             (fn? v)     (Rec. v)
-                             (map? v)    (into {} (p/for [col columns] [col (Rec. (get v col))]))
-                             (vector? v) (p/for [V v] (Rec. V))
-                             :else       (prn "unreachable"))))))))
-    V))
 
 ;; TODO Rename
 (p/defn JoinAllTheTree "Join all the tree, does not call renderers, return EDN." [V]
@@ -178,84 +164,3 @@
                               :else       v))))))]
     (new Rec V)))
 
-(p/defn Sequence ":: t m a -> m t a" [Vs] (p/fn [] (p/for [V Vs] (V.))))
-
-(defmacro capture [dynvars & body]
-  (let [syms (repeatedly #(gensym))]
-    `(let [~@(interleave syms dynvars)]
-       (p/fn []
-         (binding [~@(interleave dynvars syms)]
-           ~@body)))))
-
-(p/defn TreeToRows "Join all the tree, calling renderers when provided, return EDN" [V]
-  (binding [Rec (p/fn [V]
-                  (let [{::keys [render cardinality columns leaf?]} (meta V)]
-                    (if render
-                      [(capture [Rec] [(render. V)])]
-                      (let [v (V.)]
-                        (case cardinality
-                          ::many (into [] cat (p/for [V v] (Rec. V)))
-                          ;; infer
-                          (cond
-                            leaf?       [(p/fn [] [v])]
-                            (vector? v) (into [] cat (p/for [V v] (Rec. V)))
-                            (map? v)   (into [] cat (p/for [col columns]
-                                                      (let [V (get v col)]
-                                                        (if (::leaf? (meta V))
-                                                          [(capture [Rec] (into [col] cat (new (Sequence. (Rec. V)))))]
-                                                          (into [(p/fn [] [col])]
-                                                            (Rec. (get v col)))))))
-                            :else       v))))))]
-    (new Rec V)))
-
-(p/defn TreeToExplorer [V]
-  (binding [Rec (p/fn [V depth]
-                  (let [{::keys [render cardinality columns leaf?]} (meta V)]
-                    (if render
-                      [(capture [Rec] [(render. V)])]
-                      (let [v (V.)]
-                        (case cardinality
-                          ::many (into [] cat (p/for [V v] (Rec. V (inc depth))))
-                          ;; infer
-                          (cond
-                            leaf?       [(p/fn [] [depth (p/fn [] [(p/fn [] v)])])]
-                            (vector? v) (into [] cat (p/for [V v] (Rec. V (inc depth))))
-                            (map? v)   (into [] cat (p/for [col columns]
-                                                      (let [V (get v col)]
-                                                        (if (::leaf? (meta V))
-                                                          [(capture [Rec] [depth
-                                                                           (p/fn []
-                                                                             (into [(p/fn [] col)] cat
-                                                                               [[(p/fn [] (if-let [render (::render (meta V))]
-                                                                                            (render. V)
-                                                                                            (V.)) #_(second (new (Sequence. (Rec. V depth)))))]]))])]
-                                                          (into [(p/fn [] [depth (p/fn [] [(p/fn [] col)])])]
-                                                            (Rec. (get v col) (inc depth)))))))
-                            :else       (throw (ex-info "unreachable" {}))))))))]
-    (new Rec V 0)))
-
-#_(p/defn TreeToRows [V]
-  (new (p/Y. (p/fn [Rec]
-               (p/fn [[V depth]]
-                 (let [{::keys [continuation columns render] :as m} (meta V)
-                       v (if render (render. V) (V.))]
-                   (if-not continuation
-                     [(p/fn [] [depth (p/fn [] [(p/fn [] v)])])]
-                     (cond
-                       (fn? v)     (Rec. [v depth])
-                       (map? v)    (into [] cat (p/for [col columns]
-                                                  (let [v' (get v col)]
-                                                    (if (::continuation (meta v'))
-                                                      (into [(p/fn [] [depth
-                                                                       (p/fn []
-                                                                         [(p/fn []
-                                                                            col)])])]
-                                                        (Rec. [v' (inc depth)]))
-                                                      [(p/fn [] [depth
-                                                                 (p/fn []
-                                                                   [(p/fn [] col)
-                                                                    (p/fn [] (if-let [render (::render (meta v'))]
-                                                                               (render. v')
-                                                                               (new v')))])])]))))
-                       (vector? v) (into [] cat (p/for [V v] (Rec. [V (inc depth)])))))))))
-    [V 0]))

@@ -571,6 +571,7 @@
                                                                 [(:spec/name arg)
                                                                  (merge
                                                                    {::hf/read (:node/symbol arg)
+                                                                    ::hf/readonly (not (:node/free-input? arg))
                                                                     ::hf/path path})]))
                                                         args)))))
 

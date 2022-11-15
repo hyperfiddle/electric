@@ -4,14 +4,15 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.gridsheet :as-alias gridsheet]
-            [hyperfiddle.explorer :as explorer :refer [Explorer]]
+            [hyperfiddle.explorer :as explorer]
             [hyperfiddle.hfql2 :refer [hfql]]
+            [hyperfiddle.hfql2.explorer :as hfql-explorer]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql2.ui :as ui]
-            [clojure.spec.alpha :as s]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [contrib.ednish :as ednish]
+            #?(:cljs [hyperfiddle.router :as html5-router]))
   #?(:cljs (:require-macros [wip.hfql-explorer])))
-
 
 (p/defn Email [V]
   (let [v (V.)]
@@ -19,57 +20,65 @@
       (dom/a {:href (str "mailto:" v)} (dom/text v))
       nil)))
 
-;; (p/defn Input [V] (ui/Input (V.) (meta V)))
+(p/defn Input [V] (let [v (V.)]
+                    (ui/Input. v (meta V))))
 
-(p/defn Dir []
-  (binding
-      [explorer/cols [:k :v]
-       hf/db         hf/*$*
-       hf/*schema*   wip.orders-datascript/schema
-       hf/*nav!*     wip.orders-datascript/nav!]
-    (let [!needle (atom "")
-          needle  (p/watch !needle)
-          xs      (new (hf/Sequence. (hf/TreeToExplorer. (hfql {(wip.orders-datascript/orders needle)
-                                                            [:db/id
-                                                             (props :order/email {::hf/render Email})
-                                                             {:order/gender [:db/ident]}
-                                                             :order/tags
-                                                             {:order/shirt-size [:db/ident]}]}))))]
-      (Explorer. "HFQL paginated"
-        (fn [needle] (reset! !needle needle) xs)
-        {::dom/style                       {:height "calc((10 + 1) * 24px)"}
-         ::explorer/page-size              10
-         ::explorer/row-height             24
-         ::gridsheet/grid-template-columns "auto auto"}))))
+(defn path-hash [path]
+  (when (clojure.string/includes? path "#")
+    (not-empty (last (clojure.string/split path #"#" 2)))))
 
-(def unicode-folder "\uD83D\uDCC2") ; 📂
+(defn decode-route [route] ; TODO Fishy. Maybe the HTML5 path value should not be an encoded sexpr. Maybe "domain.com/ns!fn/arg0#{state…}"?
+  (cond (nil? route)    nil
+        (map? route)    (hyperfiddle.walk/prewalk (fn [form] ; HACK ugly
+                                                    (if (and (map-entry? form) (vector? (key form)))
+                                                      [(seq (key form)) (val form)]
+                                                      form))
+                          route)
+        (vector? route) (seq route)
+        :else           (throw (ex-info "A route should be a sexpr or a map" {:route route}))))
+
+#?(:cljs
+   (defn route> [!path]
+     (->> (html5-router/path> !path)
+       (m/eduction (map path-hash) (map ednish/decode-uri) (map decode-route))
+       (m/reductions {} nil)
+       (m/relieve {}))))
 
 (p/defn App []
   (p/client
-    (binding []
-      (dom/h1 "Explorer")
-      (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
-      (dom/div {:class "photon-demo-explorer"}
-        (p/server
-          (binding [explorer/Format (p/fn [M a]
-                                      (let [row (M.)]
-                                        (some-> (get row (case a :k 0 :v 1))
-                                          (new)
-                                          (pr-str))))]
-            (Dir.)))))))
+    (dom/h1 "Explorer")
+    (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
+    (dom/div {:class "photon-demo-explorer"}
+      (let [!path (m/mbx)]
+        (binding [hf/route          (or (new (route> !path)) '(wip.orders-datascript/orders ""))
+                  hf/navigate!      #(html5-router/pushState! !path (str "#" (ednish/encode-uri %)))
+                  hf/replace-route! #(html5-router/replaceState! !path (str "#" (ednish/encode-uri %)))
+                  hf/navigate-back! #(.back js/window.history)
+                  ]
+          (let [route hf/route]
+            (p/server
+              (binding
+                  [explorer/cols [:k :v]
+                   hf/db         hf/*$*
+                   hf/*schema*   wip.orders-datascript/schema
+                   hf/*nav!*     wip.orders-datascript/nav!
+                   hf/route      route]
+                (let [!needle (atom "")
+                      needle  (p/watch !needle)]
+                  (hfql-explorer/Explorer. "HFQL paginated"
+                    #(reset! !needle %)
+                    {::dom/style                       {:height "calc((10 + 1) * 24px)"}
+                     ::explorer/page-size              10
+                     ::explorer/row-height             24
+                     ::gridsheet/grid-template-columns "auto auto"}
+                    (hfql #_[hf/*$* hf/db
+                             hf/*schema* hf/*schema*
+                             hf/*nav!* hf/*nav!*]
+                      {(props (wip.orders-datascript/orders .) {::hf/render hfql-explorer/ListOfFormsWithIdentityHeader})
+                       [:db/id
+                        (props :order/email {::hf/render Input
+                                             ::hf/tx     (fn [v] (prn "tx:" v))})
+                        {:order/gender [:db/ident]}
+                        :order/tags
+                        {:order/shirt-size [:db/ident]}]}) ))))))))))
 
-
-(comment
-  (do (datascript.core/transact! dev/conn [[:db/add 9 :order/email "alice@example.com"]])
-      nil)
-  )
-
-
-
-
-
-; Improvements
-; Native search
-; lazy folding/unfolding directories (no need for pagination)
-; forms (currently table hardcoded with recursive pull)
-; useful ::fs/file route
