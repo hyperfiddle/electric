@@ -47,6 +47,21 @@
 
 (p/defn Identity [x] x)
 
+;; (p/defn SelectMultiple [V]
+;;   (let [{::hf/keys [summarize options continuation]} (meta V)
+;;         values (hf/JoinAllTheTree. V)
+;;         selected? (set values)
+;;         labelf (or summarize Identity)]
+;;     (p/client
+;;       (dom/select {::dom/multiple true, ::dom/size 1}
+;;         (p/server
+;;           (p/for [v values]
+;;             (let [text (labelf. v)
+;;                   selected? (selected? v)]
+;;               (p/client
+;;                 (dom/option {::dom/selected selected?} (dom/text text)))))))
+;;       nil)))
+
 (p/defn Options [V]
   (let [{::hf/keys [summarize options continuation]} (meta V)
         value (hf/JoinAllTheTree. V)
