@@ -45,6 +45,23 @@
 
 (defn rows? [x] (= ::rows (:tag (meta x))))
 
+(p/defn Identity [x] x)
+
+(p/defn Options [V]
+  (let [{::hf/keys [summarize options continuation]} (meta V)
+        value (hf/JoinAllTheTree. V)
+        labelf (or summarize Identity)]
+    (p/client
+      (dom/select
+        (p/server
+          (p/for [opt-e (options.)]
+            (let [opt-value (hf/JoinAllTheTree. (p/partial 1 continuation opt-e))
+                  selected? (= value opt-value)
+                  text (labelf. opt-value)]
+              (p/client
+                (dom/option {::dom/selected selected?} (dom/text text)))))))
+      nil)))
+
 (p/defn FormsTransposedToRows [V]
   (let [v     (V.)
         depth (::depth (meta V))]
@@ -55,13 +72,15 @@
                                             (let [v (V.)]
                                               (p/for [col (::hf/columns (meta V))]
                                                 (p/fn []
-                                                  (let [V (get v col)]
-                                                    (if-let [render (::hf/render (meta V))]
-                                                      (render. V)
-                                                      (let [value (hf/JoinAllTheTree. V)]
-                                                        (if-let [summarize (::hf/summarize (meta V))]
-                                                          (summarize. value)
-                                                          value))))))) )])])))))
+                                                  (let [V                                      (get v col)
+                                                        {::hf/keys [render summarize options]} (meta V)]
+                                                    (cond
+                                                      options (Options. V)
+                                                      render  (render. V)
+                                                      :else   (let [value (hf/JoinAllTheTree. V)]
+                                                                (if summarize
+                                                                  (summarize. value)
+                                                                  value))))))) )])])))))
 
 #_(p/defn ListOfFormsWithIdentityHeader [V]
   (let [v     (V.)
@@ -81,7 +100,7 @@
                                  (let [spec (ui/attr-spec attribute)]
                                    [(p/fn [] (p/client (dom/span {::dom/title (pr-str (:hyperfiddle.spec/form (spec/arg spec name)))}
                                                          (dom/text (str "🔎 " name))) nil))
-                                    (p/fn [] (ui/GrayInput. false spec {::dom/placeholder "bob…"} arg))]))])]))))
+                                    (p/fn [] (ui/GrayInput. false spec {::dom/placeholder "bob…"} arg) nil)]))])]))))
 
 (p/defn TreeToExplorer [V]
   (binding [Rec (p/fn [V depth]
