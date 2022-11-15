@@ -1,3 +1,22 @@
+; new qual popover
+[{:db/id "tempid" :sub-attr/keyword "permit/ca" ...}
+ [:db/add "edward" :sub/qual "tempid"]]
+
+(def create-qual [sub]
+  (let [e] (tempid!)
+    [e
+     (fn tx []
+       `[[:db/add ~sub :sub/qual ~e]])]))
+
+(s/fdef create-qual :args (s/cat :sub ref?))
+
+(p/defn App [sub]
+  (hfql {(popover (create-qual sub))
+         [:sub-attr/keyword
+          :sub-attr/name
+          ...]}))
+
+; create admin popover
 (def create-admin [admin name email]
   [nil
    (fn tx [reason-string]
@@ -13,6 +32,12 @@
 
 
 
+
+
+
+
+
+; previous iteration
 
 (def create-admin-query [admin name email] nil)
 
