@@ -7,7 +7,7 @@
             [clojure.datafy :refer [datafy]]
             [contrib.ednish :as ednish]
             [contrib.color :as c])
-  #?(:cljs (:require-macros [hyperfiddle.hfql.ui])))
+  #?(:cljs (:require-macros [hyperfiddle.hfql2.ui])))
 
 (defn replate-state! [!route path value]
   (swap! !route (fn [[current & history]]
@@ -51,18 +51,6 @@
 
 (p/def table-picker-options {::group-id nil, ::current-value nil}),
 
-(p/defn Input-renderer [V props]
-  (let [v          (V.)
-        value-type (::value-type props)
-        readonly?  (::readonly props)]
-    (p/client
-      (dom/input
-        {::dom/value    v,
-         ::dom/type     (input-type value-type "text"),
-         ::dom/disabled readonly?})))),
-
-(p/def Render)
-
 (p/defn Default [v props]
   (let [link (when-let [Link (::hf/link props)] (new Link))]
     (p/client
@@ -73,18 +61,23 @@
           (dom/text v))
         (dom/pre (dom/text (pr-str v))))))),
 
-
-(p/def Rec)
-(p/def Table)
 (p/defn Input [v props]
   (let [value-type (::value-type props)
-        readonly?  (::readonly props)]
+        readonly?  (::readonly props)
+        tx?        (some? (::hf/tx props))]
     (p/client
       (dom/input
         {::dom/value    v,
          ::dom/type     (input-type value-type "text"),
-         ::dom/disabled readonly?})))),
+         ::dom/disabled readonly?}
+        (when tx?
+          (let [!v' (atom nil)
+                v'  (p/watch !v')]
+            (when v'
+              (p/server ((::hf/tx props) v')))
+            (dom/event "input" (fn [^js e] (reset! !v' (.. e -target -value)))))))))),
 
+(p/def Render)
 (p/defn Render-impl [V]
   (let [{::keys [render cardinality leaf?], :as props} (meta V)]
     (if render
@@ -132,23 +125,29 @@
         (Options. v props)))))
 
 
+(p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path]}]]
+  (let [value (read.)]
+    (p/client
+      (let [id (random-uuid) !steady (atom false)]
+        (when label?
+          (dom/label {::dom/for   id,
+                      ::dom/title (pr-str (:hyperfiddle.spec/form (spec/arg spec name)))}
+            (dom/text name)))
+        (dom/input {::dom/id    id,
+                    ::dom/value (if (p/watch !steady) (p/current value) value)}
+          (when (seq props)
+            (dom/props props))
+          (dom/event "input"
+            (fn [e] (hf/replace-route!
+                      (hf/assoc-in-route-state hf/route path (.. e -target -value)))))
+          (dom/event "focus" (fn [_] (reset! !steady true)))
+          (dom/event "blur" (fn [_] (reset! !steady false))))))) )
+
 (p/defn GrayInputs [props]
   (when-some [arguments (seq (::hf/arguments props))]
     (let [spec (attr-spec (::hf/attribute props))]
-      (p/for [[name {:keys [::hf/read ::hf/path]}] arguments]
-        (let [value (read.)]
-          (p/client
-            (let [id (random-uuid) !steady (atom false)]
-              (dom/label {::dom/for   id,
-                          ::dom/title (pr-str (:hyperfiddle.spec/form (spec/arg spec name)))}
-                (dom/text name))
-              (dom/input {::dom/id    id,
-                          ::dom/value (if (p/watch !steady) (p/current value) value)}
-                (dom/event "input"
-                  (fn [e] (hf/replace-route!
-                            (hf/assoc-in-route-state hf/route path (.. e -target -value)))))
-                (dom/event "focus" (fn [_] (reset! !steady true)))
-                (dom/event "blur" (fn [_] (reset! !steady false))))))))))),
+      (p/for [arg arguments]
+        (GrayInput. true spec nil arg))))),
 
 (p/defn SpecDispatch [v props]
   (let [attr              (::hf/attribute props)
@@ -174,7 +173,7 @@
                 (Table.
                   (p/for [e (new options)] (p/partial 1 continuation e))
                   (meta continuation)))))))))),
-
+(p/def Table)
 (p/defn Table-impl [v props]
   (let [columns (::hf/columns props)]
     (Options. v props)
