@@ -75,11 +75,15 @@
                     (hfql #_[hf/*$* hf/db
                              hf/*schema* hf/*schema*
                              hf/*nav!* hf/*nav!*]
-                      {(props (wip.orders-datascript/orders .) {::hf/render hfql-explorer/ListOfFormsWithIdentityHeader})
+                      {(props (wip.orders-datascript/orders .) {::hf/render hfql-explorer/FormsTransposedToRows})
                        [:db/id
                         (props :order/email {::hf/render Input
                                              ::hf/tx     (fn [v] (prn "tx:" v))})
-                        {(props :order/gender {::hf/summarize (p/fn [v] (name (:db/ident v)))}) [:db/ident]}
+                        {(props :order/gender {::hf/summarize (p/fn [v] (name (:db/ident v)))
+                                               ::hf/options (wip.orders-datascript/genders)})
+                         [(props :db/ident {::hf/as gender})]}
                         :order/tags
-                        {(props :order/shirt-size {::hf/summarize (p/fn [v] (name (:db/ident v)))}) [:db/ident]}]}) ))))))))))
+                        {(props :order/shirt-size {::hf/summarize (p/fn [v] (name (:db/ident v)))
+                                                   ::hf/options (wip.orders-datascript/shirt-sizes gender .)})
+                         [:db/ident]}]}) ))))))))))
 
