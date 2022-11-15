@@ -21,7 +21,8 @@
       nil)))
 
 (p/defn Input [V] (let [v (V.)]
-                    (ui/Input. v (meta V))))
+                    (ui/Input. v (meta V)))
+  nil)
 
 (defn path-hash [path]
   (when (clojure.string/includes? path "#")
@@ -58,7 +59,7 @@
           (let [route hf/route]
             (p/server
               (binding
-                  [explorer/cols [:k :v]
+                  [explorer/cols [:a :b :c :d :e]
                    hf/db         hf/*$*
                    hf/*schema*   wip.orders-datascript/schema
                    hf/*nav!*     wip.orders-datascript/nav!
@@ -70,7 +71,7 @@
                     {::dom/style                       {:height "calc((10 + 1) * 24px)"}
                      ::explorer/page-size              10
                      ::explorer/row-height             24
-                     ::gridsheet/grid-template-columns "auto auto"}
+                     ::gridsheet/grid-template-columns "16rem 1fr 1fr 1fr 1fr"}
                     (hfql #_[hf/*$* hf/db
                              hf/*schema* hf/*schema*
                              hf/*nav!* hf/*nav!*]
@@ -78,7 +79,7 @@
                        [:db/id
                         (props :order/email {::hf/render Input
                                              ::hf/tx     (fn [v] (prn "tx:" v))})
-                        {:order/gender [:db/ident]}
+                        {(props :order/gender {::hf/summarize (p/fn [v] (name (:db/ident v)))}) [:db/ident]}
                         :order/tags
-                        {:order/shirt-size [:db/ident]}]}) ))))))))))
+                        {(props :order/shirt-size {::hf/summarize (p/fn [v] (name (:db/ident v)))}) [:db/ident]}]}) ))))))))))
 

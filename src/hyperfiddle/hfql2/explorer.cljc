@@ -45,12 +45,32 @@
 
 (defn rows? [x] (= ::rows (:tag (meta x))))
 
-(p/defn ListOfFormsWithIdentityHeader [V]
+(p/defn FormsTransposedToRows [V]
   (let [v     (V.)
         depth (::depth (meta V))]
-    (inject-rows (into [] cat (p/for [V v]
-                                (into [(p/fn [] [depth (p/fn [] [ (p/fn [] (new (:db/id (V.))))])])]
-                                  (Rec. V (inc depth))))))))
+    (inject-rows (into [(p/fn [] [depth (p/fn [] (p/for [col (::hf/columns (meta V))]
+                                                  (p/fn [] col)))])]
+                   cat (p/for [V v]
+                         [(p/fn [] [depth (p/fn []
+                                            (let [v (V.)]
+                                              (p/for [col (::hf/columns (meta V))]
+                                                (p/fn []
+                                                  (let [V (get v col)]
+                                                    (if-let [render (::hf/render (meta V))]
+                                                      (render. V)
+                                                      (let [value (hf/JoinAllTheTree. V)]
+                                                        (if-let [summarize (::hf/summarize (meta V))]
+                                                          (summarize. value)
+                                                          value))))))) )])])))))
+
+#_(p/defn ListOfFormsWithIdentityHeader [V]
+  (let [v     (V.)
+        depth (::depth (meta V))]
+    (inject-rows (into [(p/fn [] [depth (p/fn [] (p/for [col (::hf/columns (meta V))]
+                                                   (p/fn [] col)))])]
+                   cat (p/for [V v]
+                         (into [(p/fn [] [depth (p/fn [] [ (p/fn [] (new (:db/id (V.))))])])]
+                           (Rec. V (inc depth))))))))
 
 (p/defn FormLabel [V depth]
   (let [{::hf/keys [attribute arguments]} (meta V)]
@@ -92,12 +112,11 @@
                             :else       (throw (ex-info "unreachable" {}))))))))]
     (new Rec V 0)))
 
-
 (p/defn Explorer [title needle-fn style hfql]
   (let [xs (new (Sequence. (TreeToExplorer. hfql)))]
     (binding [ex/Format (p/fn [M a]
                           (let [row (M.)]
-                            (some-> (get row (case a :k 0 :v 1))
+                            (some-> (get row (case a :a 0 :b 1, :c 2, :d 3, :e 4))
                               (new)
                               (pr-str))))]
       (ex/Explorer. title (fn [needle] (needle-fn needle) xs) style))))
