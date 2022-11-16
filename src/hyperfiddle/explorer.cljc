@@ -44,6 +44,19 @@
 (p/def cols nil)
 (p/def Format (p/server (p/fn [row col] (pr-str (get row col)))))
 
+;; TODO move somewhere else or absorb
+(p/defn BasicExplorer [props xs] ; o is an entity with recursive children
+  (binding [gridsheet/Format Format]
+    (GridSheet.
+      xs
+      (-> (auto-props (str *ns*) props {})
+        (rename-keys {::row-height ::gridsheet/row-height
+                      ::page-size ::gridsheet/page-size
+                      ::columns ::gridsheet/columns})
+        (->> (merge {::gridsheet/row-height 24
+                     ::gridsheet/page-size 20
+                     ::gridsheet/columns cols}))))))
+
 (p/defn Explorer [title treelister props] ; o is an entity with recursive children
   (p/client
     (let [!search (atom "") search (p/watch !search)]

@@ -64,7 +64,7 @@
 
           (p/for [k columns]
             (dom/div {:role "columnheader"
-                      :style {:position "sticky" #_"fixed" :grid-row 1 :top "0px"
+                      :style {:position "sticky" #_"fixed" :top (str 0 "px")
                               :background-color "rgb(248 250 252)" :box-shadow "0 1px gray"}}
               (name k)))
 
@@ -78,17 +78,18 @@
               (p/for [i (range page-size)]
                 (let [[depth m] (get xs i [0 ::empty])]
                   (p/client
-                    ;; (dom/div {:role "group" :style {:display "contents"}})
-                    (dom/div {:role  "gridcell"
-                              :style {:padding-left (-> depth (* 15) (str "px"))
-                                      :position "sticky" :grid-row (inc (inc i)) :top (str (* row-height (inc i)) "px")
-                                      :height   (str row-height "px")}}
-                      (p/server (case m ::empty nil (Format. m (first columns)))))
-                    (p/for [a (rest columns)]
+                    (dom/div {:role "group" :style {:display "contents"
+                                                    :grid-row (inc i)}}
                       (dom/div {:role  "gridcell"
-                                :style {:position "sticky" :grid-row (inc (inc i)) :top (str (* row-height (inc i)) "px")
+                                :style {:padding-left (-> depth (* 15) (str "px"))
+                                        :position "sticky" :top (str (* row-height (inc i)) "px")
                                         :height   (str row-height "px")}}
-                        (dom/span (p/server (case m ::empty nil (Format. m a)))))))))))
+                        (p/server (case m ::empty nil (Format. m (first columns)))))
+                      (p/for [a (rest columns)]
+                        (dom/div {:role  "gridcell"
+                                  :style {:position "sticky" :top (str (* row-height (inc i)) "px")
+                                          :height   (str row-height "px")}}
+                          (p/server (case m ::empty nil (Format. m a)))))))))))
           (dom/div {:style {:padding-bottom (str padding-bottom "px")}}) ; scrollbar
           ))
       (dom/div (pr-str {:count row-count})))))
