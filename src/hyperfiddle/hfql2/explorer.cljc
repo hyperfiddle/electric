@@ -79,11 +79,12 @@
       nil)))
 
 (p/defn Header [col props]
-  (p/client (dom/span {::dom/class "hf-header"} (dom/text (cond (::hf/as props)        (name (::hf/as props))
-                                                                (seq? col)             (name (first col))
-                                                                (qualified-ident? col) (name col)
-                                                                :else                  col)))
-    nil))
+  (let [as (::hf/as props)]
+    (p/client (dom/span {::dom/class "hf-header"} (dom/text (cond (some? as)             (name as)
+                                                                  (seq? col)             (name (first col))
+                                                                  (qualified-ident? col) (name col)
+                                                                  :else                  col)))
+      nil)))
 
 (p/defn FormsTransposedToRows [V]
   (let [v     (V.)
