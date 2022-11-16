@@ -37,7 +37,7 @@
 (def input-type {:hyperfiddle.spec.type/symbol  "text"
                  :hyperfiddle.spec.type/uuid    "text"
                  :hyperfiddle.spec.type/uri     "text"
-                 :hyperfiddle.spec.type/instant "date"
+                 :hyperfiddle.spec.type/instant "datetime-local"
                  :hyperfiddle.spec.type/boolean "checkbox"
                  :hyperfiddle.spec.type/string  "text"
                  :hyperfiddle.spec.type/bigdec  "text"
@@ -64,18 +64,23 @@
 (p/defn Input [v props]
   (let [value-type (::value-type props)
         readonly?  (::readonly props)
-        tx?        (some? (::hf/tx props))]
+        tx?        (some? (::hf/tx props))
+        ]
     (p/client
-      (dom/input
-        {::dom/value    v,
-         ::dom/type     (input-type value-type "text"),
-         ::dom/disabled readonly?}
-        (when tx?
-          (let [!v' (atom nil)
-                v'  (p/watch !v')]
-            (when v'
-              (p/server ((::hf/tx props) v')))
-            (dom/event "input" (fn [^js e] (reset! !v' (.. e -target -value)))))))))),
+      (let [type (input-type value-type "text")]
+        (dom/input
+          {::dom/type     (input-type value-type "text"),
+           ::dom/disabled readonly?}
+          (case type
+            "checkbox" (dom/props {::dom/checked v})
+            (dom/props {::dom/value (cond (inst? v) (.slice (.toISOString v) 0 16)
+                                          :else     (str v))}))
+          (when tx?
+            (let [!v' (atom nil)
+                  v'  (p/watch !v')]
+              (when v'
+                (p/server ((::hf/tx props) v')))
+              (dom/event "input" (fn [^js e] (reset! !v' (.. e -target -value))))))))))),
 
 (p/def Render)
 (p/defn Render-impl [V]
@@ -156,8 +161,10 @@
         defined-by-spec?  (and spec-value-type (not schema-value-type))
         value-type        (or spec-value-type schema-value-type)]
     (case value-type
-      :hyperfiddle.spec.type/string (Input. v (cond-> (assoc props ::value-type value-type)
-                                                defined-by-spec? (assoc ::readonly true)))
+      (:hyperfiddle.spec.type/string
+       :hyperfiddle.spec.type/instant
+       :hyperfiddle.spec.type/boolean) (Input. v (cond-> (assoc props ::value-type value-type)
+                                                  defined-by-spec? (assoc ::readonly true)))
       (Default. v props))))
 
 (p/defn Options [v props]

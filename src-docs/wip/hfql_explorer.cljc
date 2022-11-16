@@ -47,7 +47,7 @@
 
 (p/defn App []
   (p/client
-    (dom/h1 "Explorer")
+    (dom/h1 "HFQL as a grid")
     (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
     (dom/div {:class "photon-demo-explorer"}
       (let [!path (m/mbx)]
@@ -66,8 +66,7 @@
                    hf/route      route]
                 (let [!needle (atom "")
                       needle  (p/watch !needle)]
-                  (hfql-explorer/Explorer. "HFQL paginated"
-                    #(reset! !needle %)
+                  (hfql-explorer/Explorer.
                     {::dom/style                       {:height "calc((30 + 1) * 24px)"}
                      ::explorer/page-size              30
                      ::explorer/row-height             24
