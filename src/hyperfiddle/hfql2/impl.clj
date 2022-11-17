@@ -559,8 +559,9 @@
                     (into {}))
         args      (when (= :call (:node/form-type point)) (arguments point))]
     (cond-> props-map
-      true                      (merge {::hf/leaf? (empty? (:node/children point))
-                                        :dbg/name  (list 'quote (:node/symbol point))})
+      true                      (merge {::hf/leaf?  (empty? (:node/children point))
+                                        ::hf/entity E
+                                        :dbg/name   (list 'quote (:node/symbol point))})
       (::hf/options props-map)  (assoc ::hf/continuation (some-> (:node/children point) seq (emit-nodes)))
       (:node/cardinality point) (assoc ::hf/cardinality (:node/cardinality point))
       (:node/columns point)     (assoc ::hf/columns (:node/columns point))
