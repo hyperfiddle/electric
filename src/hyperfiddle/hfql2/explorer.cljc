@@ -128,6 +128,11 @@
                                                          (dom/text (str "🔎 " (name arg-name)))) nil))
                                     (p/fn [] (ui/GrayInput. false spec {::dom/placeholder "bob…"} arg) nil)]))])]))))
 
+(p/defn HandleCardMany [V depth]
+  (if-not (::hf/leaf? (meta V))
+    (FormsTransposedToRows. (vary-meta V assoc ::depth (inc depth)))
+    (into [] cat (p/for [V (V.)] (Rec. V (inc depth))))) )
+
 (p/defn TreeToExplorer [V]
   (binding [Rec (p/fn [V depth]
                   (let [{::hf/keys [render cardinality columns leaf?]} (meta V)]
@@ -136,13 +141,13 @@
                         (if (rows? v)
                           v
                           [(capture [Rec] [(render. V)])]))
-                      (let [v (V.)]
-                        (case cardinality
-                          ::hf/many (into [] cat (p/for [V v] (Rec. V (inc depth))))
-                          ;; infer
+                      (case cardinality
+                        ::hf/many (HandleCardMany. V depth)
+                        ;; infer
+                        (let [v (V.)]
                           (cond
                             leaf?       [(p/fn [] [depth (p/fn [] [(p/fn [] v)])])]
-                            (vector? v) (into [] cat (p/for [V v] (Rec. V (inc depth))))
+                            (vector? v) (HandleCardMany. V depth)
                             (map? v)    (into [] cat (p/for [col columns]
                                                        (let [V (get v col)]
                                                          (if (::hf/leaf? (meta V))
