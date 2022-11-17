@@ -180,11 +180,26 @@
   ([start end]
    (mapv idx->col (range start end))))
 
+(defn parse-props [{::keys [page-size row-height columns]
+                    :or    {page-size  40
+                            row-height 24
+                            columns    2}
+                    :as    props}]
+  (merge
+    {:hyperfiddle.explorer/page-size   page-size
+     :hyperfiddle.explorer/row-height  row-height
+     ::dom/style                       {:height (str "calc(("page-size" + 1) * "row-height"px)")}
+     ::gridsheet/grid-template-columns (str "20rem repeat(" (dec columns)", 1fr)")}
+    props))
+
 (p/defn Explorer [props hfql]
   (let [xs (new (Sequence. (TreeToExplorer. hfql)))]
-    (binding [ex/Format (p/fn [M a]
+    (binding [ex/cols   (if-let [columns (::columns props)]
+                          (column-range columns)
+                          ex/cols)
+              ex/Format (p/fn [M a]
                           (let [row (M.)]
                             (some-> (get row (col->idx a))
                               (new)
                               (pr-str))))]
-      (ex/BasicExplorer. props xs))))
+      (ex/BasicExplorer. (parse-props props) xs))))
