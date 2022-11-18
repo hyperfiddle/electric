@@ -348,6 +348,10 @@ or a provided value if it completes without producing any value."
       `{:env ~(reduce-kv (cc/fn [r k v] (assoc r (list 'quote k) k)) (empty env) env)}
       (meta &form))))
 
+(defmacro with-cycle [[s i] & body]
+  `(let [a# (atom ~i) ~s (hyperfiddle.photon/watch a#)]
+     (reset! a# (do ~@body))))
+
 (defmacro partial-dynamic
   "Return a function calling given function `f` with given dynamic environment."
   [bindings f]
