@@ -259,7 +259,7 @@ or a provided value if it completes without producing any value."
       `(::c/closure
         (let [arity# c/%arity]
           (if (not= ~(count args) arity#)
-            (throw (ex-info (str "You called a " ~(count args) "-arg p/fn with "
+            (throw (ex-info (str "You called " '~name? ", a " ~(count args) "-arg p/fn with "
                               arity# " arguments.") {:name '~name?}))
             (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
               (new c/rec ~@(take (count args) c/arg-sym)))
