@@ -188,7 +188,7 @@
 (p/def Render EdnRender)
 
 ;; TODO understand clearly and write down why this is required
-(defmacro with-ui-renderers [& body]
+(defmacro with-ui-renderers [& body] ; server bias
   `(binding [Table-renderer Table-renderer-impl
              Form-renderer  Form-renderer-impl
              Row-renderer   Row-renderer-impl
