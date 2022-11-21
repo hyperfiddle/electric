@@ -17,7 +17,7 @@
   `(try ~@body
         (catch hyperfiddle.photon.Pending e# (throw e#))
         (catch missionary.Cancelled e# (throw e#))
-        (catch Throwable e# (prn (ex-message e#)))))
+        (catch Throwable e# (prn (type e#) (ex-message e#) (ex-data e#)) (throw e#))))
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
@@ -33,7 +33,7 @@
                       (debug (hf/EdnRender. (hfql [:db/id]) ))))))
   % := {:db/id 9})
 
-(p/def String-renderer (p/fn [V] (str (new V))))
+(p/def String-renderer (p/fn [{::hf/keys [Value]}] (str (new Value))))
 
 (tests
   "hf/render"
@@ -48,7 +48,7 @@
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (hf/EdnRender. (hfql (props :db/id {::hf/render (p/fn [V] (str (new V)))})))))))
+                      (hf/EdnRender. (hfql (props :db/id {::hf/render (p/fn [{::hf/keys [Value]}] (str (new Value)))})))))))
   % := "9")
 
 (tests
@@ -63,13 +63,13 @@
                               hf/*nav!* nav!
                               hf/entity 9
                               hf/*schema* schema]
-                      (hf/EdnRender. (hfql [{:order/gender [:db/ident]}]) )))))
+                      (debug (hf/EdnRender. (hfql [{:order/gender [:db/ident]}]) ))))))
   % := {:order/gender {:db/ident :order/female}})
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!]
-                      (debug (new (hfql (order "")) )) ))))
+                      (debug (hf/EdnRender. (hfql (order "")) )) ))))
   % := 9)
 
 (tests
@@ -99,9 +99,8 @@
                       (hf/EdnRender. (hfql {(orders "") [(props :db/id {::hf/render String-renderer})]}))))))
   % := {`(orders "") [{:db/id "9"} {:db/id "10"} {:db/id "11"}]})
 
-(p/defn Throwing-renderer [V] (prn "BOOM") (throw (ex-info "I fail" {})))
-(p/defn Ignoring-renderer [V]
-  "ignored")
+(p/defn Throwing-renderer [ctx] (prn "BOOM") (throw (ex-info "I fail" {})))
+(p/defn Ignoring-renderer [ctx] "ignored")
 
 (tests
   (p/run (tap (binding [hf/db       hf/*$*
@@ -114,19 +113,18 @@
   )
 
 ;; Insight: Let the renderer decide of the options' continuation.
-(p/defn Select-option-renderer [V]
-  (let [{::hf/keys [options continuation]} (meta V)]
-    (into [:select {:value (hf/JoinAllTheTree. V)}]
-      (p/for [e (new options)]
-        [:option (if continuation (hf/JoinAllTheTree. (p/partial 1 continuation e)) e)]))))
+(p/defn Select-option-renderer [{::hf/keys [Value options continuation] :as ctx}]
+  (into [:select {:value (hf/JoinAllTheTree. ctx)}]
+    (p/for [e (new options)]
+      [:option (if continuation (hf/JoinAllTheTree. (new continuation e)) e)])))
 
 (tests
   (with (p/run (tap (binding [hf/db       hf/*$*
                               hf/*nav!*   nav!
                               hf/entity   9
                               hf/*schema* schema]
-                      (hf/EdnRender. (hfql [(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                     ::hf/options (shirt-sizes :order/female "")})]) )))))
+                      (debug (hf/EdnRender. (hfql [(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                             ::hf/options (shirt-sizes :order/female "")})]) ))))))
   % := {:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]]})
 
 (tests
@@ -284,3 +282,68 @@
   (with (p/run (tap (new (tap (with-meta (p/fn [] 1) {:contains :integer, :flow-type :constant}))))))
   (meta %) := {:contains :integer, :flow-type :constant}
   % := 1)
+
+
+(tests
+  "Static Link on attribute"
+  (with (p/run (tap (debug (-> (hfql (props :db/id {::hf/link [:home]}))
+                             (::hf/link)
+                             (new))))))
+  % := [:home])
+
+(tests
+  "Templated Link"
+  (with (p/run (tap (binding [hf/db hf/*$*
+                              hf/*nav!* nav!
+                              hf/entity 9]
+                      (debug (-> (hfql [:db/id
+                                        (props :order/email {::hf/link [:link db/id]})])
+                               ::hf/values
+                               (get 1)
+                               (::hf/link)
+                               (new)))))))
+  % := [:link 9])
+
+(tests
+  "Templated Link with % ref"
+  (with (p/run (tap (binding [hf/db hf/*$*
+                              hf/*nav!* nav!
+                              hf/entity 9]
+                      (debug (-> (hfql (props :order/email {::hf/link [:link %]}))
+                               (::hf/link)
+                               (new)))))))
+  % := [:link 9])
+
+(tests
+  "Self referencing link"
+  (with (p/run (tap (binding [hf/db hf/*$*
+                              hf/*nav!* nav!
+                              hf/entity 9]
+                      (debug (-> (hfql (props :db/id {::hf/link [:link db/id]}))
+                               (::hf/link)
+                               (new)))))))
+  % := [:link 9])
+
+
+(comment
+  (tests
+    "Deep referencing link"
+    (with (p/run (tap (binding [hf/db hf/*$*
+                                hf/*nav!* nav!
+                                hf/entity 9]
+                        (debug (-> (hfql (props :db/id {::hf/link [:link [:db/id db/id]]}))
+                                 (::hf/link)
+                                 (new)))))))
+    % := '(:link 9)))
+
+
+
+(comment
+
+  (hyperfiddle.hfql2.impl/graph '(props :db/id {::hf/link '(:link db/id)}))
+
+  (hfql (props :db/id {::hf/link '(:link db/id)})) 
+  (hyperfiddle.hfql2.impl/graph '[:db/id
+                                  (props :order/email {::hf/link '(:link db/id)})])
+
+  )
