@@ -1,6 +1,7 @@
 (ns hyperfiddle.photon
   (:refer-clojure :exclude [eval def defn fn for empty? partial])
   (:require [clojure.core :as cc]
+            [contrib.str :refer [or-str]]
             contrib.missionary-contrib
             [hyperfiddle.photon-impl.compiler :as c]
             [hyperfiddle.photon-impl.runtime :as r]
@@ -259,8 +260,9 @@ or a provided value if it completes without producing any value."
       `(::c/closure
         (let [arity# c/%arity]
           (if (not= ~(count args) arity#)
-            (throw (ex-info (str "You called " '~name? ", a " ~(count args) "-arg p/fn with "
-                              arity# " arguments.") {:name '~name?}))
+            (throw (ex-info (str "You called " (or-str '~name? (pr-str ::unnamed-pfn)) ", a "
+                                 ~(count args) "-arg p/fn with " arity# " arguments.")
+                            {:name '~name?}))
             (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
               (new c/rec ~@(take (count args) c/arg-sym)))
             ~{::dbg/name name?, ::dbg/args args, ::dbg/type (or (::dbg/type (meta name?)) :reactive-fn)

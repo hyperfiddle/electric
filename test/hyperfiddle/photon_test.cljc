@@ -1755,12 +1755,12 @@
                     (catch ExceptionInfo e (tap e))
                     (catch Cancelled _)
                     (catch Throwable t (prn t))))
-    (ex-message %) := "You called a 3-arg p/fn with 4 arguments.")
+    (ex-message %) := "You called :hyperfiddle.photon/unnamed-pfn, a 3-arg p/fn with 4 arguments.")
   (with (p/run (try (new (p/fn [x y] (tap (ex-info "nope" {}))) 100)
                     (catch ExceptionInfo e (tap e))
                     (catch Cancelled _)
                     (catch Throwable t (prn t))))
-    (ex-message %) := "You called a 2-arg p/fn with 1 arguments."))
+    (ex-message %) := "You called :hyperfiddle.photon/unnamed-pfn, a 2-arg p/fn with 1 arguments."))
 
 (tests
   "Partial application"
