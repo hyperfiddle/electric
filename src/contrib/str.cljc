@@ -32,21 +32,21 @@
 ;  (empty->nil " ") := " "
 ;  (empty->nil "a") := "a")
 
-;(defn blank->nil "Nullify empty strings, identity on all other values."
-;  [s]
-;  (if (string? s)
-;    (when (not (cuerdas.core/blank? s))
-;      s)
-;    s))
-;
-;(tests
-;  (blank->nil nil) := nil
-;  (blank->nil "") := nil
-;  (blank->nil " ") := nil
-;  (blank->nil "      ") := nil
-;  (not= (blank->nil "a") nil) := true
-;  (not= (blank->nil "   a") nil) := true
-;  (not= (blank->nil "   a   ") nil) := true)
+(defn blank->nil "Nullify empty strings, identity on all other values." [s]
+  (if-not (string? s)
+    s ; don't fail
+    (if-not (clojure.string/blank? s) s nil)))
+
+(tests
+  (blank->nil nil) := nil
+  (blank->nil "") := nil
+  (blank->nil " ") := nil
+  (blank->nil "      ") := nil
+  (blank->nil "a") := "a"
+  (not= (blank->nil "   a") nil) := true
+  (not= (blank->nil "   a   ") nil) := true
+  (blank->nil 1) := 1
+  (blank->nil nil) := nil)
 
 (defn or-str
   #_([& args] (apply orp seq args))                         ; can't apply macro todo
