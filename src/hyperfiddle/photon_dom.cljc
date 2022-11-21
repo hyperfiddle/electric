@@ -557,7 +557,7 @@ TODO: what if component loses focus, but the user input is not yet committed ?
             {:edit? (not (some? (Event. "blur" false)))}
             (when-some [e (Event. "input" false)]
               {:value (.-value (.-target e))})) ; use local value
-          (do (.setAttribute node "value" controlled-value) ; throw away local value
+          (do (.setAttribute node "value" (str controlled-value)) ; throw away local value
               {:edit? (some? (Event. "focus" false)) ; never busy - process synchronously
                :value controlled-value})))))) ; throw away local value
 ; the input is stable because at some point the user stops typing
