@@ -287,7 +287,7 @@
                (.addEventListener dom-node event-name callback)
                #(.removeEventListener dom-node event-name callback))))
 
-(defmacro event [event-name callback] `(new (event* dom/node ~event-name ~callback)))
+(defmacro event [event-name callback] `(new (event* node ~event-name ~callback)))
 
 (defn flip [f] (fn [& args] (apply f (reverse args))))
 
@@ -520,3 +520,84 @@
 
 (defmacro context [type]
   `(.getContext node ~(name type)))
+
+(defn happen [s e]
+  (case (:status s)
+    :idle {:status :impulse :event e} s))
+
+; data EventState = Idle | Impulse event | Pending event
+(p/defn Event [type busy]
+  (:event
+    (let [!state (atom {:status :idle})
+          state (p/watch !state)]
+      (event type (partial swap! !state happen)) ; discrete! this is the event wrapped into impulse
+      (reset! !state
+              (case (:status state)
+                :idle state
+                :impulse (assoc state :status :pending) ; impulse is seen for 1 frame and then cleared
+                :pending (if busy state {:status :idle}))))))
+
+(p/defn Input "
+A dom input text component.
+Purpose of this component is to eventually sync the input with the database which is also an input
+of this component.
+
+When component doesn't have focus, input value and return value reflect argument.
+When component has focus, argument is ignored and return value reflects user input.
+
+TODO: what if component loses focus, but the user input is not yet committed ?
+" [controlled-value] ; todo props
+  ; data State = Editing local-value | NotEditing controlled-value
+  (:value ; local or controlled
+    (with (dom-element node "input")
+      (.setAttribute node "type" "text")
+      (p/with-cycle [state {:edit? false}]
+        (if (:edit? state)
+          (merge state
+            {:edit? (not (some? (Event. "blur" false)))}
+            (when-some [e (Event. "input" false)]
+              {:value (.-value (.-target e))})) ; use local value
+          (do (.setAttribute node "value" controlled-value) ; throw away local value
+              {:edit? (some? (Event. "focus" false)) ; never busy - process synchronously
+               :value controlled-value})))))) ; throw away local value
+; the input is stable because at some point the user stops typing
+; What prevents the infinite loop is at some point the state is stable, no events
+; update the state and due to work skipping nothing happens.
+
+(comment
+  (p/defn DemoInput []
+    (def edward 694891374557546)
+    (p/client
+
+      (dom/h1 "a controlled input that reverts on blur")
+      (let [a (dom/Input. "hello world")]
+        (dom/div a))
+
+      (dom/h1 "a controlled input with looped state")
+      (let [a (p/with-cycle [a "hello world"]
+                (dom/Input. a))]
+        (dom/div a))
+
+      (dom/h1 "controlled input - edn")
+      (let [a (p/with-cycle [a :category/terminated-contract]
+                (-> (dom/Input. (pr-str a)) rosie/read-edn-str))]
+        (dom/div a))
+
+      (dom/h1 "controlled input - database backed (latency) - google display name test")
+      (let [a (p/with-cycle [a (p/server (:google/display-name (d/entity rosie/db edward)))]
+                (-> (dom/Input. (or a ""))))]
+        (dom/pre (pr-str [[:db/add edward :google/display-name a]])))
+
+      (dom/h1 "controlled input with stage")
+      (p/server
+        (p/with-cycle [stage []]
+          (let [db (:db-after (d/with rosie/db (or stage [])))
+                m (d/pull db [:google/display-name :db/id] edward)
+                a (:google/display-name m #_(d/entity db edward))] ; d/entity broken equality
+            (p/client
+              (dom/div "stage is: " (pr-str stage))
+              (dom/div "entity is: " (p/server (contrib.str/pprint-str m)))
+              (dom/div "display-name is: " (p/server a))
+              (let [a (dom/Input. (or a ""))]
+                (when a [[:db/add edward :google/display-name a]])))))
+        nil))))
