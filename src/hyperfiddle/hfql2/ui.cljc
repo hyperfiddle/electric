@@ -51,21 +51,24 @@
 
 (p/def table-picker-options {::group-id nil, ::current-value nil}),
 
-(p/defn Default [v props]
-  (let [link (when-let [Link (::hf/link props)] (new Link))]
-    (p/client
-      (if (some? link)
-        (dom/a
-          {::dom/href (str "#" (ednish/encode-uri link))}
-          (dom/event "click" (fn [e] (.preventDefault e) (hf/navigate! link)))
-          (dom/text v))
-        (dom/pre (dom/text (pr-str v))))))),
+;; (dom/a
+;;   {::dom/href (str "#" (ednish/encode-uri link))}
+;;   (dom/event "click" (fn [e] (.preventDefault e) (hf/navigate! link)))
+;;   (dom/text value))
 
-(p/defn Input [v props]
-  (let [value-type (::value-type props)
-        readonly?  (::readonly props)
-        tx?        (some? (::hf/tx props))
-        ]
+(p/defn Default [{::hf/keys [link link-label] :as ctx}]
+  (let [route (when link (new link))
+        value (hf/JoinAllTheTree. ctx)]
+    (p/client
+      (if (some? route)
+        (hf/Link. route link-label)
+        (dom/pre (dom/text (pr-str value))))))),
+
+(p/defn Input [{::hf/keys [tx Value] :as ctx}]
+  (let [value-type (::value-type ctx)
+        readonly?  (::readonly ctx)
+        tx?        (some? tx)
+        v          (Value.)]
     (p/client
       (let [type (input-type value-type "text")]
         (dom/input
@@ -79,10 +82,11 @@
             (let [!v' (atom nil)
                   v'  (p/watch !v')]
               (when v'
-                (p/server ((::hf/tx props) v')))
+                (p/server (new tx v')))
               (dom/event "input" (fn [^js e] (reset! !v' (.. e -target -value))))))))))),
 
 (p/def Render)
+;; TODO adapt to new HFQL macroexpansion
 (p/defn Render-impl [V]
   (let [{::keys [render cardinality leaf?], :as props} (meta V)]
     (if render
@@ -154,18 +158,17 @@
       (p/for [arg arguments]
         (GrayInput. true spec nil arg))))),
 
-(p/defn SpecDispatch [v props]
-  (let [attr              (::hf/attribute props)
-        spec-value-type   (spec-value-type attr)
-        schema-value-type (schema-value-type hf/*schema* hf/db attr)
+(p/defn SpecDispatch [{::hf/keys [attribute] :as ctx}]
+  (let [spec-value-type   (spec-value-type attribute)
+        schema-value-type (schema-value-type hf/*schema* hf/db attribute)
         defined-by-spec?  (and spec-value-type (not schema-value-type))
         value-type        (or spec-value-type schema-value-type)]
     (case value-type
-      (:hyperfiddle.spec.type/string
+      #_#_(:hyperfiddle.spec.type/string
        :hyperfiddle.spec.type/instant
-       :hyperfiddle.spec.type/boolean) (Input. v (cond-> (assoc props ::value-type value-type)
-                                                  defined-by-spec? (assoc ::readonly true)))
-      (Default. v props))))
+       :hyperfiddle.spec.type/boolean) (Input. (cond-> (assoc ctx ::value-type value-type)
+                                                 defined-by-spec? (assoc ::readonly true)))
+      (Default. ctx))))
 
 (p/defn Options [v props]
   (when-let [options (::hf/options props)]
