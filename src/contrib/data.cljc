@@ -253,3 +253,20 @@
 ;  (clamp 11 10 50) := 11
 ;  (clamp 10 10 50) := 10
 ;  (clamp 9  10 50) := 10)
+
+#?(:clj
+   (defmacro orp
+     "`clojure.core/or` evaluates arguments one by one, returning the first truthy
+  one and so leaving the remaining ones unevaluated. `orp` does the same but
+  with a custom predicate."
+     ([pred] nil)
+     ([pred x]
+      `(let [or# ~x]
+         (when (~pred or#) or#)))
+     ([pred x & next]
+      `(let [or# ~x]
+         (if (~pred or#) or# (orp ~pred ~@next))))))
+
+(tests
+  (orp some? nil false 1) := false
+  (orp even? 1 3 5 6 7) := 6)
