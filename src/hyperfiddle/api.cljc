@@ -74,6 +74,8 @@
 
 (p/def scope)
 
+(p/defn Link [args] args) ; inject how HFQL should generate a Link
+
 (p/defn ^:no-doc ^:deprecated FanOut [Continuation value props]
   (binding [hyperfiddle.api/value (p/fn [] (p/for [e value] (p/fn [] (Continuation. e))))]
     (Render. hyperfiddle.api/value props)))
@@ -133,36 +135,33 @@
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)
 
-;; TODO Rename
-(p/defn JoinAllTheTree "Join all the tree, does not call renderers, return EDN." [V]
-  (new (p/Y. (p/fn [Rec]
-               (p/fn [V]
-                 (let [{::keys [render cardinality columns leaf?]} (meta V)
-                       v (V.)]
-                   (case cardinality
-                     ::many (p/for [V v] (Rec. V))
-                     ;; infer
-                     (cond
-                       leaf?       v
-                       (vector? v) (p/for [V v] (Rec. V))
-                       (map? v)    (into {} (p/for [col columns] [col (Rec. (get v col))]))
-                       :else       v))))))
-    V))
 
 (p/def Rec)
+
+;; TODO Rename
+(p/defn JoinAllTheTree "Join all the tree, does not call renderers, return EDN." [V]
+  (binding [Rec (p/fn [{::keys [type keys Value values]}]
+                  (case type
+                    ::leaf (Value.)
+                    ::keys (into {} (zipmap keys (p/for [ctx values] (Rec. ctx))))
+                    (let [ctx (Value.)]
+                      (cond
+                        (vector? ctx) (p/for [ctx ctx] (Rec. ctx))
+                        (map? ctx)    (Rec. ctx)
+                        :else         ctx))))]
+    (new Rec V)))
+
 ;; TODO Rename, this seems to just be "Render"
 (p/defn EdnRender "Join all the tree, calling renderers when provided, return EDN" [V]
-  (binding [Rec (p/fn [V]
-                  (let [{::keys [render cardinality columns leaf?]} (meta V)]
-                    (if render (render. V )
-                        (let [v (V.)]
-                          (case cardinality
-                            ::many (p/for [V v] (Rec. V))
-                            ;; infer
-                            (cond
-                              leaf?       v
-                              (vector? v) (p/for [V v] (Rec. V))
-                              (map? v)    (into {} (p/for [col columns] [col (Rec. (get v col))]))
-                              :else       v))))))]
+  (binding [Rec (p/fn [{::keys [type render keys Value values] :as ctx}]
+                  (if render (render. ctx)
+                      (case type
+                        ::leaf (Value.)
+                        ::keys (into {} (zipmap keys (p/for [ctx values] (Rec. ctx))))
+                        (let [ctx (Value.)]
+                          (cond
+                            (vector? ctx) (p/for [ctx ctx] (Rec. ctx))
+                            (map? ctx)    (Rec. ctx)
+                            :else         ctx)))))]
     (new Rec V)))
 

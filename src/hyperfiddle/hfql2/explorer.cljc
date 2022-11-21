@@ -48,63 +48,46 @@
 
 (p/defn Identity [x] x)
 
-;; (p/defn SelectMultiple [V]
-;;   (let [{::hf/keys [summarize options continuation]} (meta V)
-;;         values (hf/JoinAllTheTree. V)
-;;         selected? (set values)
-;;         labelf (or summarize Identity)]
-;;     (p/client
-;;       (dom/select {::dom/multiple true, ::dom/size 1}
-;;         (p/server
-;;           (p/for [v values]
-;;             (let [text (labelf. v)
-;;                   selected? (selected? v)]
-;;               (p/client
-;;                 (dom/option {::dom/selected selected?} (dom/text text)))))))
-;;       nil)))
-
-(p/defn Options [V]
-  (let [{::hf/keys [summarize options continuation]} (meta V)
-        value (hf/JoinAllTheTree. V)
+(p/defn Options [{::hf/keys [summarize options continuation Value] :as ctx}]
+  (let [value  (hf/JoinAllTheTree. ctx)
         labelf (or summarize Identity)]
     (p/client
       (dom/select
         (p/server
           (p/for [opt-e (options.)]
-            (let [opt-value (hf/JoinAllTheTree. (p/partial 1 continuation opt-e))
+            (let [opt-value (hf/JoinAllTheTree. (continuation. opt-e))
                   selected? (= value opt-value)
-                  text (labelf. opt-value)]
+                  text      (labelf. opt-value)]
               (p/client
                 (dom/option {::dom/selected selected?} (dom/text text)))))))
       nil)))
 
-(p/defn Header [col props]
-  (let [as (::hf/as props)]
-    (p/client (dom/span {::dom/class "hf-header"} (dom/text (cond (some? as)             (name as)
-                                                                  (seq? col)             (name (first col))
-                                                                  (qualified-ident? col) (name col)
-                                                                  :else                  col)))
-      nil)))
+(p/defn Header [{::hf/keys [attribute as] :as ctx}]
+  (p/client (dom/span {::dom/class "hf-header"}
+              (dom/text (cond (some? as)                   (name as)
+                              (seq? attribute)             (name (first attribute))
+                              (qualified-ident? attribute) (name attribute)
+                              :else                        attribute)))
+    nil))
 
-(p/defn FormsTransposedToRows [V]
-  (let [v     (V.)
-        depth (::depth (meta V))]
-    (inject-rows (into [(p/fn [] [depth (p/fn [] (p/for [col (::hf/columns (meta V))]
-                                                   (p/fn [] (Header. col (meta V)))))])]
-                   cat (p/for [V v]
-                         [(p/fn [] [depth (p/fn []
-                                            (let [v (V.)]
-                                              (p/for [col (::hf/columns (meta V))]
-                                                (p/fn []
-                                                  (let [V                                            (get v col)
-                                                        {::hf/keys [render summarize options] :as m} (meta V)]
-                                                    (cond
-                                                      options (Options. V)
-                                                      render  (render. V)
-                                                      :else   (let [value (hf/JoinAllTheTree. V)]
-                                                                (if summarize
-                                                                  (summarize. value)
-                                                                  (ui/SpecDispatch. value m)))))))) )])])))))
+(p/defn FormsTransposedToRows [{::hf/keys [keys] :as ctx} v depth]
+  (inject-rows (into [(p/fn [] [depth (p/fn [] (p/for [k keys]
+                                                 (p/fn [] (p/client (dom/span {::dom/class "hf-header"}
+                                                                      (dom/text (if (seq? k) (name (first k)) (name k)))))
+                                                   nil)))])]
+                 cat (p/for [ctx v]
+                       [(p/fn [] [depth (p/fn []
+                                          (let [{::hf/keys [keys values]} ctx]
+                                            (p/for-by first [[k ctx] (mapv vector keys values)]
+                                              (p/fn []
+                                                (let [{::hf/keys [render summarize options]} ctx]
+                                                  (cond
+                                                    options (Options. ctx)
+                                                    render  (render. ctx)
+                                                    :else   (let [value (hf/JoinAllTheTree. ctx)]
+                                                              (if summarize
+                                                                (summarize. value)
+                                                                (ui/SpecDispatch. ctx)))))))) )])]))))
 
 #_(p/defn ListOfFormsWithIdentityHeader [V]
   (let [v     (V.)
@@ -115,52 +98,61 @@
                          (into [(p/fn [] [depth (p/fn [] [ (p/fn [] (new (:db/id (V.))))])])]
                            (Rec. V (inc depth))))))))
 
-(p/defn FormLabel [V depth]
-  (let [{::hf/keys [attribute arguments] :as m} (meta V)]
-    (into [(p/fn [] [depth (p/fn [] [(p/fn [] (Header. attribute m ))
-                                     (p/fn [] (let [{::hf/keys [options]} (meta V)]
-                                               (when options (Options. V))))])])]
-      cat
-      (p/for-by first [[arg-name props :as arg] arguments]
-        [(p/fn [] [(inc depth) (p/fn []
-                                 (let [spec (ui/attr-spec attribute)]
-                                   [(p/fn [] (p/client (dom/span {::dom/title (pr-str (:hyperfiddle.spec/form (spec/arg spec arg-name)))}
-                                                         (dom/text (str "🔎 " (name arg-name)))) nil))
-                                    (p/fn [] (ui/GrayInput. false spec {::dom/placeholder "bob…"} arg) nil)]))])]))))
+(p/defn FormLabel [{::hf/keys [attribute arguments options] :as ctx} depth]
+  (into [(p/fn [] [depth (p/fn [] [(p/fn [] (Header. ctx))
+                                   (p/fn [] (when options (Options. ctx)))])])]
+    cat
+    (p/for-by first [[arg-name props :as arg] arguments]
+      [(p/fn [] [(inc depth) (p/fn []
+                               (let [spec (ui/attr-spec attribute)]
+                                 [(p/fn [] (p/client (dom/span {::dom/title (pr-str (:hyperfiddle.spec/form (spec/arg spec arg-name)))}
+                                                       (dom/text (str "🔎 " (name arg-name)))) nil))
+                                  (p/fn [] (ui/GrayInput. false spec {::dom/placeholder "bob…"} arg) nil)]))])])))
 
-(p/defn HandleCardMany [V depth]
-  (if-not (::hf/leaf? (meta V))
-    (FormsTransposedToRows. (vary-meta V assoc ::depth (inc depth)))
-    (into [] cat (p/for [V (V.)] (Rec. V (inc depth))))) )
+(p/defn HandleCardMany [{::hf/keys [type] :as ctx} v depth]
+  (case type
+    ::hf/leaf (into [] cat (p/for [ctx v] (Rec. ctx (inc depth))))
+    (FormsTransposedToRows. ctx v (inc depth))))
 
-(p/defn TreeToExplorer [V]
-  (binding [Rec (p/fn [V depth]
-                  (let [{::hf/keys [render cardinality columns leaf?]} (meta V)]
-                    (if render
-                      (let [v (render. (vary-meta V assoc ::depth depth))]
-                        (if (rows? v)
-                          v
-                          [(capture [Rec] [(render. V)])]))
-                      (case cardinality
-                        ::hf/many (HandleCardMany. V depth)
-                        ;; infer
-                        (let [v (V.)]
+(defmacro rows [& rows] `[(p/fn [] ~@rows)])
+(defmacro row [depth cols] `[~depth (p/fn [] ~cols)])
+(defmacro col [v] `(p/fn [] ~v))
+
+(p/defn TreeToExplorer [ctx]
+  (binding [Rec (p/fn [{::hf/keys [type render keys values Value] :as ctx} depth]
+                  (if render
+                    (let [v (render. (assoc ctx ::depth depth))]
+                      (if (rows? v)
+                        v
+                        [(capture [Rec] [(render. ctx)])]))
+                    (case type
+                      ::hf/leaf (rows (row depth [(col (Value.))]))
+                      ::hf/keys (into [] cat (p/for-by first [[k ctx] (mapv vector keys values)]
+                                               (if (= ::hf/leaf (::hf/type ctx))
+                                                 [(capture [Rec] (row depth [(col (Header. ctx))
+                                                                             (col (if-let [render (::hf/render ctx)]
+                                                                                    (render. ctx)
+                                                                                    (ui/SpecDispatch. ctx)))]))]
+                                                 (into (FormLabel. ctx depth)
+                                                   (Rec. ctx (inc depth))))))
+                      (let [v (Value.)]
+                        (cond (vector? v) (HandleCardMany. ctx v depth) ; card many
+                              (map? v)    (Rec. v depth)                ; card one
+                              :else       (throw (ex-info "unreachable" {:value v})))))))]
+    (new Rec ctx 0)))
+
+(p/defn EdnRender "Join all the tree, calling renderers when provided, return EDN" [V]
+  (binding [Rec (p/fn [{::keys [type render keys Value values] :as ctx}]
+                  (if render (render. ctx)
+                      (case type
+                        ::leaf (Value.)
+                        ::keys (into {} (zipmap keys (p/for [ctx values] (Rec. ctx))))
+                        (let [ctx (Value.)]
                           (cond
-                            leaf?       [(p/fn [] [depth (p/fn [] [(p/fn [] v)])])]
-                            (vector? v) (HandleCardMany. V depth)
-                            (map? v)    (into [] cat (p/for [col columns]
-                                                       (let [V (get v col)]
-                                                         (if (::hf/leaf? (meta V))
-                                                           [(capture [Rec] [depth
-                                                                            (p/fn []
-                                                                              (into [(p/fn [] (Header. col (meta V)))] cat
-                                                                                [[(p/fn [] (if-let [render (::hf/render (meta V))]
-                                                                                             (render. V)
-                                                                                             (ui/SpecDispatch. (V.) (meta V))))]]))])]
-                                                           (into (FormLabel. V depth)
-                                                             (Rec. (get v col) (inc depth)))))))
-                            :else       (throw (ex-info "unreachable" {}))))))))]
-    (new Rec V 0)))
+                            (vector? ctx) (p/for [ctx ctx] (Rec. ctx))
+                            (map? ctx)    (Rec. ctx)
+                            :else         ctx)))))]
+    (new Rec V)))
 
 (defn col->idx "Return the numeric index of a Excel-like column name (a string).
   e.g.: (col->idx \"AA\") := 26"
