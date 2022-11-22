@@ -87,51 +87,34 @@
 
 (p/def Render)
 ;; TODO adapt to new HFQL macroexpansion
-(p/defn Render-impl [V]
-  (let [{::keys [render cardinality leaf?], :as props} (meta V)]
-    (if render
-      (render. V)
+(p/defn Render-impl [{::hf/keys [type cardinality render Value] :as ctx}]
+  (if render (render. ctx)
+    (case type
+      ::hf/leaf (SpecDispatch. ctx)
+      ::hf/keys (Form. ctx)
       (case cardinality
-        ::many
-        (Table. (V.) props)
-        (let [v (V.)]
+        ::hf/many (Table. ctx (Value.))
+        (let [v (Value.)]
           (cond
-            leaf?       (SpecDispatch. v props)
-            (vector? v) (Table. v props)
-            (map? v)    (Form. v props)
-            :else       (SpecDispatch. v props))))))),
+            (vector? v) (Table. ctx v)
+            (map? v)    (Render. (assoc v ::parent ctx))
+            :else       (throw "unreachable" {:v v})))))))
 
-(p/defn Row [V]
-  (let [row     (V.)
-        columns (::hf/columns (meta V))
-        value   (hf/JoinAllTheTree. V)]
-    (p/client
-      (dom/tr
-        (.. dom/node -style (setProperty "--hyperfiddle-hfql-border-color" (c/color hf/db-name)))
-        (when-let [id (::group-id table-picker-options)]
-          (dom/td
-            (dom/input
-              {::dom/type    :radio,
-               ::dom/name    id,
-               ::dom/checked (= (::current-value table-picker-options) value)})))
-        (p/for [col columns] (dom/td (p/server (Render. (get row col)))))))))
-
-
-(p/defn Form [v props]
+(p/defn Form [{::hf/keys [keys values] :as ctx}]
   (p/client
     (dom/form
       {:style {:border-left-color (c/color hf/db-name)}}
       (p/server
-        (p/for [col (::hf/columns props)]
+        (p/for-by first [[key ctx] (partition 2 (interleave keys values))]
           (p/client
             (dom/div
               {:class "field"}
               (dom/label
-                {::dom/title (pr-str (or (spec-description false (attr-spec col))
-                                       (p/server (schema-value-type hf/*schema* hf/db col))))}
-                (dom/text col))
-              (p/server (let [V (get v col)] (GrayInputs. (meta V)) (Render. V))))))
-        (Options. v props)))))
+                {::dom/title (pr-str (or (spec-description false (attr-spec key))
+                                       (p/server (schema-value-type hf/*schema* hf/db key))))}
+                (dom/text key))
+              (p/server (GrayInputs. ctx) (Render. ctx)))))
+        (Options. (::parent ctx))))))
 
 
 (p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path]}]]
@@ -152,9 +135,9 @@
           (dom/event "focus" (fn [_] (reset! !steady true)))
           (dom/event "blur" (fn [_] (reset! !steady false))))))) )
 
-(p/defn GrayInputs [props]
-  (when-some [arguments (seq (::hf/arguments props))]
-    (let [spec (attr-spec (::hf/attribute props))]
+(p/defn GrayInputs [{::hf/keys [attribute arguments]}]
+  (when-some [arguments (seq arguments)]
+    (let [spec (attr-spec attribute)]
       (p/for [arg arguments]
         (GrayInput. true spec nil arg))))),
 
@@ -164,40 +147,50 @@
         defined-by-spec?  (and spec-value-type (not schema-value-type))
         value-type        (or spec-value-type schema-value-type)]
     (case value-type
-      #_#_(:hyperfiddle.spec.type/string
+      (:hyperfiddle.spec.type/string
        :hyperfiddle.spec.type/instant
        :hyperfiddle.spec.type/boolean) (Input. (cond-> (assoc ctx ::value-type value-type)
                                                  defined-by-spec? (assoc ::readonly true)))
       (Default. ctx))))
 
-(p/defn Options [v props]
-  (when-let [options (::hf/options props)]
-    (when-let [continuation (::hf/continuation props)]
-      (let [v (hf/JoinAllTheTree. (with-meta (p/fn [] v) props))]
-        (p/client
-          (dom/fieldset
-            (dom/legend (dom/text "Options"))
-            (binding [table-picker-options {::group-id      (random-uuid),
-                                            ::current-value v}]
-              (p/server
-                (Table.
-                  (p/for [e (new options)] (p/partial 1 continuation e))
-                  (meta continuation)))))))))),
+(p/defn Options [{::hf/keys [options continuation] :as ctx}]
+  (when (and options continuation)
+    (let [v (hf/JoinAllTheTree. ctx)]
+      (p/client
+        (dom/fieldset
+          (dom/legend (dom/text "Options"))
+          (binding [table-picker-options {::group-id      (random-uuid),
+                                          ::current-value v}]
+            (p/server (Table. (dissoc ctx ::parent ::hf/options) (p/for [e (new options)] (new continuation e))))))))))
+
+(p/defn Row [{::hf/keys [values] :as ctx}]
+  (p/client
+    (dom/tr
+      (.. dom/node -style (setProperty "--hyperfiddle-hfql-border-color" (c/color hf/db-name)))
+      (when-let [id (::group-id table-picker-options)]
+        (let [value (p/server (hf/JoinAllTheTree. ctx))]
+          (dom/td
+            (dom/input
+              {::dom/type    :radio,
+               ::dom/name    id,
+               ::dom/checked (= (::current-value table-picker-options) value)}))))
+      (p/server
+        (p/for [ctx values] (p/client (dom/td (p/server (Render. ctx)))))))))
+
 (p/def Table)
-(p/defn Table-impl [v props]
-  (let [columns (::hf/columns props)]
-    (Options. v props)
-    (p/client
-      (dom/table
-        (dom/thead
-          (dom/tr
-            (when (::group-id table-picker-options) (dom/th))
-            (p/for [col columns]
-              (dom/th {::dom/title (pr-str (or (spec-description true (attr-spec col))
-                                             (p/server (schema-value-type hf/*schema* hf/db col)))),
-                       ::dom/style {:background-color (c/color hf/db-name)}}
-                (pr-str col)))))
-        (dom/tbody (p/server (p/for [V v] (Row. V))))))))
+(p/defn Table-impl [{::hf/keys [keys] :as ctx} value]
+  (Options. ctx)
+  (p/client
+    (dom/table
+      (dom/thead
+        (dom/tr
+          (when (::group-id table-picker-options) (dom/th))
+          (p/for [col keys]
+            (dom/th {::dom/title (pr-str (or (spec-description true (attr-spec col))
+                                           (p/server (schema-value-type hf/*schema* hf/db col)))),
+                     ::dom/style {:background-color (c/color hf/db-name)}}
+              (pr-str col)))))
+      (dom/tbody (p/server (p/for [ctx value] (Row. ctx)))))))
 
 
 ;; TODO understand clearly and write down why this is required
