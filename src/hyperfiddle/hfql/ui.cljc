@@ -83,7 +83,7 @@
                   v'  (p/watch !v')]
               (when v'
                 (p/server (new tx v')))
-              (dom/event "input" (fn [^js e] (reset! !v' (.. e -target -value))))))))))),
+              (dom/event "input" (fn [e] (reset! !v' (.. e -target -value))))))))))),
 
 (p/def Render)
 ;; TODO adapt to new HFQL macroexpansion
