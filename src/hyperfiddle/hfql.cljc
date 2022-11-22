@@ -14,6 +14,6 @@
     (hf/JoinAllTheTree. ctx-or-V)
     (new ctx-or-V)))
 
-(defn literal [collf & x] (collf x))    ; TODO rename
+(defn literal [collf & args] (collf args))    ; TODO rename
 
-(s/fdef literal :args (s/cat :collf fn? :x any?) :ret any?)
+(s/fdef literal :args (s/cat :collf fn? :args any?) :ret any?)

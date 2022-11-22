@@ -304,12 +304,14 @@
                                (new)))))))
   % := [:link 9])
 
+(p/defn Expr [] (hfql (props :order/email {::hf/link [:link %]})))
+
 (tests
   "Templated Link with % ref"
   (with (p/run (tap (binding [hf/db hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (debug (-> (hfql (props :order/email {::hf/link [:link %]}))
+                      (debug (-> (Expr.)
                                (::hf/link)
                                (new)))))))
   % := [:link 9])
