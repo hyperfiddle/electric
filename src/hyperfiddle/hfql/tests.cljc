@@ -1,7 +1,7 @@
-(ns hyperfiddle.hfql2.tests
+(ns hyperfiddle.hfql.tests
   (:require
    [hyperfiddle.api :as hf]
-   [hyperfiddle.hfql2 :refer [hfql]]
+   [hyperfiddle.hfql :refer [hfql]]
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
    [datascript.core :as d]
@@ -276,7 +276,7 @@
                         (hf/EdnRender. (hfql [*db* hf/db]
                                          {(bound-order "alice") [:db/id]})) ))
                     (catch Pending _))))
-  % := '{(hyperfiddle.hfql2.tests/bound-order "alice") #:db{:id 9}})
+  % := '{(hyperfiddle.hfql.tests/bound-order "alice") #:db{:id 9}})
 
 (tests
   (with (p/run (tap (new (tap (with-meta (p/fn [] 1) {:contains :integer, :flow-type :constant}))))))
@@ -340,10 +340,10 @@
 
 (comment
 
-  (hyperfiddle.hfql2.impl/graph '(props :db/id {::hf/link '(:link db/id)}))
+  (hyperfiddle.hfql.impl/graph '(props :db/id {::hf/link '(:link db/id)}))
 
   (hfql (props :db/id {::hf/link '(:link db/id)})) 
-  (hyperfiddle.hfql2.impl/graph '[:db/id
+  (hyperfiddle.hfql.impl/graph '[:db/id
                                   (props :order/email {::hf/link '(:link db/id)})])
 
   )

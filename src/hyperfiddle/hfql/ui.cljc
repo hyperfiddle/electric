@@ -1,4 +1,4 @@
-(ns hyperfiddle.hfql2.ui
+(ns hyperfiddle.hfql.ui
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon-dom :as dom]
@@ -7,7 +7,7 @@
             [clojure.datafy :refer [datafy]]
             [contrib.ednish :as ednish]
             [contrib.color :as c])
-  #?(:cljs (:require-macros [hyperfiddle.hfql2.ui])))
+  #?(:cljs (:require-macros [hyperfiddle.hfql.ui])))
 
 (defn replate-state! [!route path value]
   (swap! !route (fn [[current & history]]

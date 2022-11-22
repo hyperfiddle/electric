@@ -1,4 +1,4 @@
-(ns hyperfiddle.hfql2.impl
+(ns hyperfiddle.hfql.impl
   "Parses an HFQL expression into a graph (using datascript as the graph data
   structure), then reorder the graph and emit photon code."
   (:refer-clojure :exclude [munge ancestors])
@@ -11,7 +11,7 @@
             [clojure.datafy :refer [datafy]]
             [missionary.core :as m]
             [hyperfiddle.photon-impl.runtime :as r]
-            [hyperfiddle.hfql2 :as-alias hfql2]))
+            [hyperfiddle.hfql :as-alias hfql]))
 
 (comment
   (do (set! *print-namespace-maps* false)
@@ -401,7 +401,7 @@
 (declare parse)
 
 (defn literal [x]
-  `(hfql2/literal
+  `(hfql/literal
      ~(cond
         (vector? x) `vec
         (set? x)    `set
@@ -610,7 +610,7 @@
 
 (defn emit-argument [node]
   (if-let [ref (:node/reference node)]
-    `(p/fn [] (get-in (hyperfiddle.hfql2/JoinArg. ~(:node/symbol ref)) ~(:node/reference-path node)))
+    `(p/fn [] (get-in (hyperfiddle.hfql/JoinArg. ~(:node/symbol ref)) ~(:node/reference-path node)))
     (if (:node/free-input? node)
       `(p/fn [] (get-in hf/route ~(:input/path node)))
       `(p/fn [] ~(let [form (:node/form node)]

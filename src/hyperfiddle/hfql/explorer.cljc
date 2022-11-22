@@ -1,12 +1,12 @@
-(ns hyperfiddle.hfql2.explorer
+(ns hyperfiddle.hfql.explorer
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.explorer :as ex]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.hfql2.ui :as ui]
+            [hyperfiddle.hfql.ui :as ui]
             [hyperfiddle.spec :as spec]
             [hyperfiddle.api :as hf]
             [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet]])
-  #?(:cljs (:require-macros [hyperfiddle.hfql2.explorer])))
+  #?(:cljs (:require-macros [hyperfiddle.hfql.explorer])))
 
 (p/defn Sequence ":: t m a -> m t a" [Vs] (p/fn [] (p/for [V Vs] (V.))))
 
