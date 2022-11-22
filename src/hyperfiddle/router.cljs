@@ -65,6 +65,11 @@
   ; must sample terminal value to cause m/observe to unmount - due to backpressure
   (it) % := ::notify @it :throws missionary.Cancelled) ; Mailbox fetch cancelled.
 
+; Public interface requirements of Rosie
+; - ability to directly set the route (pushState and replaceState) through an Edn editor
+; - ability to encode/decode a route value to a path string
+; - ability to render links from route value (no knowledge of path encoding)
+
 (p/def Link) ; bind this to result of ->Link
 (p/defn ->Link [!path encode]
   (p/fn [route label]
