@@ -65,29 +65,18 @@
             :db.cardinality/many ::many} (:db/cardinality (schemaf db attr)))]
       card)))
 
-(p/def context nil) ; HFQL EAV context
-
 (p/defn entity []) ;; TODO HFQL only. Is a binding required? could it be an argument?
-(p/def ^:deprecated attribute nil)      ; TODO G: not sure if actually deprecated.
-(p/def value (p/fn [] nil))
-(p/def options nil)
-
-(p/def scope)
 
 (p/defn Link [args] args) ; inject how HFQL should generate a Link
-
-(p/defn ^:no-doc ^:deprecated FanOut [Continuation value props]
-  (binding [hyperfiddle.api/value (p/fn [] (p/for [e value] (p/fn [] (Continuation. e))))]
-    (Render. hyperfiddle.api/value props)))
 
 (p/defn tx "WIP, this default impl captures the essence" [v' props] ; meant to be called by a renderer
   ;; Does it return a tx or side-effect to the staging area?
   (assert false "TBD")
-  (if-let [Txfn (::tx props)] ; provided by hfql (props … {::hf/tx (p/fn [] …)})
-    (Txfn. v')
-    (when v'
-      (let [[E a _] (first context)] ; context is a stack of [[E a] …] in dynamic scope ; MISSING today
-        [[:db/add (E.) a v']]))))
+  #_(if-let [Txfn (::tx props)] ; provided by hfql (props … {::hf/tx (p/fn [] …)})
+      (Txfn. v')
+      (when v'
+        (let [[E a _] (first context)] ; context is a stack of [[E a] …] in dynamic scope ; MISSING today
+          [[:db/add (E.) a v']]))))
 
 (defmulti tx-meta (fn [schema tx] (if (map? tx) ::map (first tx))))
 
@@ -100,41 +89,8 @@
                                         ::tx-conflicting?]))
 (s/fdef tx-meta :ret ::transaction-meta)
 
-(p/defn ^:deprecated Join-all "Given a collection of flows, join all flows. Maps are expected to be {Key Flow<Value>}."
-  [v]
-  (cond
-    (reduced? v) (unreduced v)
-    (quoted? v) v
-    (map? v)    (into {} (p/for [[k V] v] [k (V.)]))
-    (list? v)   (p/for [V v] (V.))
-    (coll? v)   (into (empty v) (p/for [V v] (V.)))
-    :else       v))
-
-(tests
-  (p/run (tap (Join-all. [(p/fn [] 1) (p/fn [] 2) (p/fn [] 3)])))
-  % := [1 2 3])
-
-(tests
-  (p/run (tap (Join-all. (list (p/fn [] 1) (p/fn [] 2) (p/fn [] 3)))))
-  % := '(1 2 3))
-
-(tests
-  (p/run (tap (Join-all. {:a (p/fn [] 1), :b (p/fn [] 2), :c (p/fn [] 3)})))
-  % := '{:a 1, :b 2, :c 3})
-
-(p/def ^:deprecated bypass-renderer false) ; hf/options bypases propgressive enhancement to produces EDN
-
-(p/defn ^:deprecated Render [V props]
-  (if bypass-renderer
-    (Join-all. (V.))
-    (if-let [Renderer (::render props)]
-      (Renderer. (p/fn [] (unreduced (V.))) props)
-      (Join-all. (V.)))))
-
-(p/defn ^:deprecated Data [V] (binding [Render (p/fn [V _props] (let [v (V.)] #_(prn "hf/data" v) (Join-all. v)))] (Render. V nil)))
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)
-
 
 (p/def Rec)
 
