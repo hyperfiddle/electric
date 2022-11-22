@@ -1,7 +1,7 @@
-(ns hyperfiddle.hfql2.rows-tests
+(ns hyperfiddle.hfql.rows-tests
   (:require
    [hyperfiddle.api :as hf]
-   [hyperfiddle.hfql2 :refer [hfql]]
+   [hyperfiddle.hfql :refer [hfql]]
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
    [datascript.core :as d]
@@ -273,11 +273,11 @@
           ))
   % := `[[(wip.orders-datascript/orders "")]
          [:db/id 9]
-         [hyperfiddle.hfql2.rows-tests/suber-name "alice"]
+         [hyperfiddle.hfql.rows-tests/suber-name "alice"]
          [:db/id 10]
-         [hyperfiddle.hfql2.rows-tests/suber-name "bob"]
+         [hyperfiddle.hfql.rows-tests/suber-name "bob"]
          [:db/id 11]
-         [hyperfiddle.hfql2.rows-tests/suber-name "charlie"]])
+         [hyperfiddle.hfql.rows-tests/suber-name "charlie"]])
 
 (def ^:dynamic *db*)
 

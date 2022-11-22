@@ -2,7 +2,8 @@
   "wip, unstable"
   (:require #?(:clj dev)
             [hyperfiddle.api :as hf]
-            [hyperfiddle.hfql2.ui :as hfui]
+            [hyperfiddle.hfql :as hfql]
+            [hyperfiddle.hfql.ui :as hfui]
             [hyperfiddle.hfql.router :as router]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
@@ -43,7 +44,7 @@
           (binding [hf/route route]
             (hfui/with-ui-renderers
               (hfui/Render.
-                (hyperfiddle.hfql2/hfql
+                (hyperfiddle.hfql/hfql
                   [hf/*$* hf/db
                    hf/*nav!* hf/*nav!*]
                   {(orders .)

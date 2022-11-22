@@ -5,10 +5,10 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.gridsheet :as-alias gridsheet]
             [hyperfiddle.explorer :as explorer]
-            [hyperfiddle.hfql2 :refer [hfql]]
-            [hyperfiddle.hfql2.explorer :as hfql-explorer]
+            [hyperfiddle.hfql :refer [hfql]]
+            [hyperfiddle.hfql.explorer :as hfql-explorer]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.hfql2.ui :as ui]
+            [hyperfiddle.hfql.ui :as ui]
             [missionary.core :as m]
             [contrib.ednish :as ednish]
             #?(:cljs [hyperfiddle.router :as html5-router]))

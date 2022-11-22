@@ -1,9 +1,9 @@
-(ns hyperfiddle.hfql2
-  (:require #?(:clj [hyperfiddle.hfql2.impl :as impl])
+(ns hyperfiddle.hfql
+  (:require #?(:clj [hyperfiddle.hfql.impl :as impl])
             [hyperfiddle.photon :as p]
             [hyperfiddle.api :as-alias hf]
             [clojure.spec.alpha :as s])
-  #?(:cljs (:require-macros [hyperfiddle.hfql2])))
+  #?(:cljs (:require-macros [hyperfiddle.hfql])))
 
 (defmacro hfql
   ([form] (impl/hfql* &env [] form))
