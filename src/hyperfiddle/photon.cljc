@@ -368,9 +368,8 @@ or a provided value if it completes without producing any value."
     F
     (let [rest-args (map #(symbol (str "arg_" %)) (range (- argc (count args))))]
       `(let [F# ~F]
-         (with-meta (hyperfiddle.photon/fn ~@(when (symbol? F) [F]) [~@rest-args]
-             (new F# ~@args ~@rest-args))
-           (meta F#))))))
+         (hyperfiddle.photon/fn ~@(when (symbol? F) [F]) [~@rest-args]
+           (new F# ~@args ~@rest-args))))))
 
 (hyperfiddle.photon/def Y "Y-Combinator"
   (fn [f]
