@@ -5,6 +5,14 @@
    [hyperfiddle.photon-ui2 :as ui]
    [hyperfiddle.rcf :as rcf :refer [% tap tests with]]))
 
+(defn ensure-root! []
+  (when-not (dom/by-id "root")
+    (let [root (.createElement js/document "div")]
+      (set! (.-id root) "root")
+      (.appendChild (.-body js/document) root))))
+
+(ensure-root!)
+
 (tests "ui/input accepts literal props map"
   (with (p/run (binding [dom/node (dom/by-id "root")]
                  (ui/input "controlled-value" {:style {:width "100px"}}
