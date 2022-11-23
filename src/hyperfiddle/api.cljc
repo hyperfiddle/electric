@@ -59,6 +59,7 @@
 (def db-state #?(:clj (atom nil))) ; Server side only
 (p/def db-name)
 
+(p/def schema "pre-fetched schema for explorer")
 (p/def ^{:dynamic true, :doc "To be bound to a function [db attribute] -> schema"} *schema*)
 (p/def ^{:dynamic true, :doc "To be bound to a function schema -> ::hf/one | ::hf/many"} *cardinality*
   (fn cardinality [schemaf db attr]
@@ -81,7 +82,8 @@
           [[:db/add (E.) a v']]))))
 
 (defmulti tx-meta (fn [schema tx] (if (map? tx) ::map (first tx))))
-#?(:clj (def into-tx @(requiring-resolve 'hyperfiddle.txn/into-tx))) ; depends on hf/tx-meta
+#?(:clj (def into-tx @(requiring-resolve 'hyperfiddle.txn/into-tx))) ; cycle - hyperfiddle.txn needs hf/tx-meta
+#?(:clj (def expand-hf-tx @(requiring-resolve 'hyperfiddle.txn/expand-hf-tx)))
 
 (s/def ::tx-cardinality (s/or :one :many))
 (s/def ::tx-identifier map?)
