@@ -1,5 +1,7 @@
 (ns hyperfiddle.photon-ui2
   (:require
+   clojure.edn
+   [contrib.str :refer [blank->nil]]
    [missionary.core :as m]
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom]
@@ -62,12 +64,23 @@ TODO: what if component loses focus, but the user input is not yet committed ?
                           .-target .-value) ; set new local value
                   input-value))))) ; use local value when focused
 
-(p/defn Demo []
+(p/defn DemoInput []
   (dom/h1 "a controlled input that reverts on blur")
-  (let [a (hyperfiddle.photon-ui2/input "hello world")]
+  (let [a (input "hello world")]
     (dom/pre a))
 
   (dom/h1 "a controlled input with looped state")
   (let [a (p/with-cycle [a "hello world"]
-            (hyperfiddle.photon-ui2/input a))]
+            (input a))]
     (dom/pre a)))
+
+(p/defn Edn-editor [x]
+  (p/client
+    (when-some [x (blank->nil (input (pr-str x)))]
+      (try (clojure.edn/read-string x)
+           (catch :default _ nil)))))
+
+(p/defn Button [label busy] ; todo props and task
+  (dom/with (dom/dom-element dom/node "button")
+    (dom/set-text-content! dom/node label)
+    (dom/Event. "click" busy)))

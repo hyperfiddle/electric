@@ -1,20 +1,22 @@
 (ns hyperfiddle.api
-  (:require [contrib.expr :refer [quoted?]]
+  (:require [clojure.datafy :refer [datafy]]
             [clojure.spec.alpha :as s]
-            [hyperfiddle.rcf :refer [tests tap %]]
-            [hyperfiddle.photon :as p]
             [hyperfiddle.hfql :as hfql]
-            [clojure.datafy :refer [datafy]]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.spec :as spec])
   #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
+
+(def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
+(p/def db "inject database value for hyperfiddle stage and HFQL")
+(p/def with "inject datomic.api/with or equivalent, used by stage")
+(p/def read-edn-str "inject app-specific edn extensions"
+  (partial clojure.edn/read-string {:readers #?(:cljs {'goog.math/Long goog.math.Long/fromString} ; datomic cloud long ids
+                                                :clj {})}))
+(p/def ^:dynamic *nav!*)
 
 (defmacro hfql
   ([query] `(hfql/hfql ~query))
   ([bindings query] `(hfql/hfql ~bindings ~query)))
-
-(p/def ^:dynamic *nav!*)
-
-;;; Route
 
 (p/def route nil) ; Continuous route value
 (p/def navigate!) ; to inject a route setter (eg. write to url, html5 history pushState, swap an atom…)
@@ -54,9 +56,6 @@
 (def db-state #?(:clj (atom nil))) ; Server side only
 (p/def db-name)
 
-(def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
-(p/def db) ; HFQL will query this db
-
 (p/def ^{:dynamic true, :doc "To be bound to a function [db attribute] -> schema"} *schema*)
 (p/def ^{:dynamic true, :doc "To be bound to a function schema -> ::hf/one | ::hf/many"} *cardinality*
   (fn cardinality [schemaf db attr]
@@ -79,6 +78,7 @@
           [[:db/add (E.) a v']]))))
 
 (defmulti tx-meta (fn [schema tx] (if (map? tx) ::map (first tx))))
+#?(:clj (def into-tx @(requiring-resolve 'hyperfiddle.txn/into-tx))) ; depends on hf/tx-meta
 
 (s/def ::tx-cardinality (s/or :one :many))
 (s/def ::tx-identifier map?)
