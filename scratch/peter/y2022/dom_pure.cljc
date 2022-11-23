@@ -1,7 +1,9 @@
 (ns peter.y2022.dom-pure
   (:require
    [hyperfiddle.photon :as p]
-   [hyperfiddle.rcf :refer [tap tests with]])
+   [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
+   [missionary.core :as m]
+   [hyperfiddle.rcf :as rcf])
   #?(:cljs (:require-macros peter.y2022.dom-pure)))
 
 (p/def node)
@@ -31,6 +33,7 @@
           (dt "Celsius")    (dd (mount c-input {:value temperature}))
           (dt "Fahrenheit") (dd (mount f-input {:value (->f temperature)})))))))
 
+#_
 (tests
   ;; let's say we want to count # of clicks of a button on the server
   (def counter #?(:clj (atom 0)))
@@ -54,3 +57,74 @@
     % := [1 false]
     )
   )
+
+;; discrete to continuous
+;; take an initial value
+;; and discrete flow + photon code pairs
+;; return a continuous flow that has the initial value
+;; and unites the discrete flows into a single continuous flow
+;; where each discrete event is handled by the accompanied photon code
+;; Joins a tuple of reactive values [last-processed-value pending]
+(comment
+  (defn events [nod typ] #?(:cljs (m/observe (fn [!] (.addEventListener nod typ !) #(.removeEventListener nod typ !)))))
+
+  (defmacro indexed-flows [& flows]
+    (let [n (count flows)]
+      ;; thunked to force clj compilation in photon
+      `((fn [] (m/ap (case (m/?> ~n (m/seed (range ~n)))
+                       ~@(mapcat (fn [[i flow]] `(~i [~i (m/?> ~flow)]))
+                           (map vector (range) flows))))))))
+
+  (defmacro d->c [init-val & pairs]
+    `(let [init-val# ~init-val
+           [branch# v#] (new (m/relieve {} (m/reductions {} [::init] (indexed-flows ~@(take-nth 2 pairs)))))]
+       (binding [event v#]
+         (case branch# ~@(interleave (range) (take-nth 2 (rest pairs))) init-val#))))
+
+  (def ^:dynamic *v*)
+  (defmacro clj-d->c [init-val & pairs]
+    `(m/cp (let [init-val# ~init-val
+                 [branch# v#] (m/?< (m/relieve {} (m/reductions {} [::init] (indexed-flows ~@(take-nth 2 pairs)))))]
+             (binding [*v* v#]
+               (case branch# ~@(interleave (range) (take-nth 2 (rest pairs))) init-val#)))))
+
+  (defn emit-delayed [sleep vs] (m/ap (m/? (m/sleep sleep (m/?> (m/seed vs))))))
+
+  (m/? (m/reduce conj (clj-d->c 100
+                        (emit-delayed 5 (range 3)) (doto *v* prn))))
+
+  (= #{[0 :a] [1 :b]} (m/? (m/reduce conj #{} (indexed-flows (m/seed [:a]) (m/seed [:b])))))
+  (d->c 0 (events btn "onclick") (p/server (swap! counter inc)))
+  (let [[branch v] (new (m/relieve {} (m/reductions {} ::init (events btn "onclick"))))]
+    (if (= ::init v)
+      0
+      (binding [event v]
+        (case branch
+          0 (p/server (swap! counter inc))
+          1 ...))))
+  )
+
+(tests
+  (with (p/run
+          (try
+            (tap (d->c 100
+                   (emit-delayed 50 (range 3)) (let [e event] (p/server e))))
+            (catch missionary.Cancelled _)
+            (catch hyperfiddle.photon.Pending _ (tap :pending))
+            (catch Throwable e (println e))))
+    % := 100
+    % := :pending
+    % := 0
+    % := 1
+    % := 2
+    )
+
+  )
+
+(tests
+  (with (p/run (tap (new (m/reductions {} nil (emit-delayed 5 (range 3))))))
+    % := nil
+    % := 0
+    % := 1
+    % := 2
+    ))
