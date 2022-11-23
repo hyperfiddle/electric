@@ -76,11 +76,13 @@ TODO: what if component loses focus, but the user input is not yet committed ?
             (input a))]
     (dom/pre a)))
 
-(p/defn Edn-editor [x]
-  (p/client
-    (when-some [x (blank->nil (input (pr-str x)))]
-      (try (clojure.edn/read-string x)
-           (catch :default _ nil)))))
+(p/defn ^:private -Edn-editor [x] ; optimize macroexpansion size
+  (when-some [x (blank->nil x)]
+    (try (clojure.edn/read-string x)
+         (catch :default _ nil))))
+
+(defmacro edn-editor [x & body]
+  `(new -Edn-editor (input (pr-str ~x) ~@body))) ; optimize static body props
 
 (p/defn Button [label busy] ; todo props and task
   (dom/with (dom/dom-element dom/node "button")
