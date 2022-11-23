@@ -42,6 +42,7 @@
       true (not (some? (dom/Event. "blur" false)))
       false (some? (dom/Event. "focus" false)))))
 
+(defn- ?static-props [body] (if (map? (first body)) `((dom/props ~(first body)) ~@body) body))
 (defmacro input "
 A dom input text component.
 Purpose of this component is to eventually sync the input with the database which is also an input
@@ -55,14 +56,15 @@ TODO: what if component loses focus, but the user input is not yet committed ?
   `(dom/with
      (dom/dom-element dom/node "input")
      (.setAttribute dom/node "type" "text")
-     ~@body
-     (case (new Focused?) ; avoid syntax-quote bug
-       false (do (.setAttribute dom/node "value" ~controlled-value) ; throw away local value
-                 ~controlled-value)
-       true (p/with-cycle [input-value ~controlled-value]
-              (or (some-> (dom/Event. "input" false) ; never busy - process synchronously
-                          .-target .-value) ; set new local value
-                  input-value))))) ; use local value when focused
+     ~@(?static-props body)
+     (let [cv# ~controlled-value]
+       (case (new Focused?) ; avoid syntax-quote bug
+         false (do (.setAttribute dom/node "value" cv#) ; throw away local value
+                   cv#)
+         true (p/with-cycle [input-value cv#]
+                (or (some-> (dom/Event. "input" false) ; never busy - process synchronously
+                      .-target .-value) ; set new local value
+                  input-value)))))) ; use local value when focused
 
 (p/defn DemoInput []
   (dom/h1 "a controlled input that reverts on blur")
