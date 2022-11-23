@@ -65,9 +65,8 @@
                      :exec-fn     cognitect.test-runner.api/test}
            :scratch {:extra-paths []
                      :extra-deps {com.datomic/dev-local {:mvn/version "1.0.243"}
-                                  ; fix datomic/shadow conflict
-                                  com.google.guava/guava {:mvn/version "31.1-jre"}}}
-           :datomic-pro {:extra-deps {com.datomic/datomic-pro {:mvn/version "1.0.6527" #_"0.9.5697" ; Rosie version
-                                                               :exclusions [org.slf4j/slf4j-nop]}}}}}
+                                  com.google.guava/guava {:mvn/version "31.1-jre"} ; fix conflict - datomic cloud & shadow
+                                  #_#_com.datomic/datomic-pro {:mvn/version "1.0.6527" :exclusions [org.slf4j/slf4j-nop]}}}
+           :datomic-pro {:extra-deps {com.datomic/datomic-pro {:mvn/version "1.0.6527" :exclusions [org.slf4j/slf4j-nop]}}}}}
 
 ;; ¹ http://webcache.googleusercontent.com/search?q=cache:4Rya0J2jOb4J:yellerapp.com/posts/2015-05-11-clojure-no-stacktrace.html
