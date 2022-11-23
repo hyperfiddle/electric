@@ -1,17 +1,20 @@
 (ns hyperfiddle.api
   (:require [clojure.datafy :refer [datafy]]
+            clojure.edn
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon :as p]
             [hyperfiddle.spec :as spec])
+  #?(:cljs (:import [goog.math Long]))
   #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
 
 (def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
 (p/def db "inject database value for hyperfiddle stage and HFQL")
 (p/def with "inject datomic.api/with or equivalent, used by stage")
-(p/def read-edn-str "inject app-specific edn extensions"
-  (partial clojure.edn/read-string {:readers #?(:cljs {'goog.math/Long goog.math.Long/fromString} ; datomic cloud long ids
+(def -read-edn-str-default (partial clojure.edn/read-string
+                                    {:readers #?(:cljs {'goog.math/Long goog.math.Long/fromString} ; datomic cloud long ids
                                                 :clj {})}))
+(p/def read-edn-str "inject app-specific edn extensions" -read-edn-str-default) ; avoid photon warning about goog.math.Long
 (p/def ^:dynamic *nav!*)
 
 (defmacro hfql
