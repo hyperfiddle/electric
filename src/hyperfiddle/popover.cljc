@@ -25,7 +25,7 @@
                 _ (dom/hr)
                 commit (when (ui/Button. "commit!" (not= :idle status)) stage) ;; TODO disable when invalid
                 discard (when (ui/Button. "discard" (not= :idle status)) [])]
-            (ui/Edn-editor. stage #_{::dom/disabled true})
+            (ui/edn-editor stage {::dom/disabled true})
             (case status
               :idle (if-some [command (or commit discard)]
                       {:status :request

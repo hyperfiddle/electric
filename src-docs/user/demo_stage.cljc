@@ -27,10 +27,10 @@
 (p/defn LabelForm [e]
   (dom/h1 "Change name for label: " (p/server (query-label-name hf/db e)))
   (dom/label "label id")
-  (dom/Input. (p/server (pr-str (:label/gid (d/pull hf/db [:label/gid] e)))) #_{:disabled true})
+  (ui/input (p/server (pr-str (:label/gid (d/pull hf/db [:label/gid] e)))) {::dom/disabled true})
   (let [nom' (p/with-cycle [nom (p/server (query-label-name hf/db e))]
                         (dom/label "label name")
-                        (dom/Input. nom))]
+                        (ui/input nom))]
     (when (contrib.str/blank->nil nom') ; todo validate spec
       [[:db/add e :label/name nom']])))
 
@@ -49,7 +49,7 @@
           (when-some [tx (Page. 536561674378709)]
             (swap! !stage (partial hf/into-tx schema) tx))
 
-          (when-some [stage' (ui/Edn-editor. stage)]
+          (when-some [stage' (p/client (ui/edn-editor stage {::dom/disabled true}))]
             (reset! !stage stage')))))))
 
 
