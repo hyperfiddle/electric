@@ -1,4 +1,5 @@
 (ns contrib.str
+  (:refer-clojure :exclude [empty?])
   (:require clojure.pprint
             clojure.string
             [contrib.data :refer [orp]]
@@ -39,13 +40,21 @@
   (includes-str? nil "") := true
   (includes-str? "" nil) := true)
 
-;(defn empty->nil [s] (if (cuerdas.core/empty-or-nil? s) nil s))
-;
-;(tests
-;  (empty->nil nil) := nil
-;  (empty->nil "") := nil
-;  (empty->nil " ") := " "
-;  (empty->nil "a") := "a")
+(defn empty? [s] (or (and (string? s) (zero? (count s)))
+                     (nil? s)))
+
+(tests
+  (empty? "") := true
+  (empty? nil) := true
+  (empty? " ") := false)
+
+(defn empty->nil [s] (if (empty? s) nil s))
+
+(tests
+  (empty->nil nil) := nil
+  (empty->nil "") := nil
+  (empty->nil " ") := " "
+  (empty->nil "a") := "a")
 
 (defn blank->nil "Nullify empty strings, identity on all other values." [s]
   (if-not (string? s)

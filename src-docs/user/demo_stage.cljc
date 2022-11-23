@@ -1,5 +1,6 @@
 (ns user.demo-stage
   (:require #?(:clj [contrib.datomic-contrib :as dx])
+            [contrib.str :refer [empty->nil]]
             #?(:clj [datomic.client.api :as d])
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
@@ -26,13 +27,14 @@
 
 (p/defn LabelForm [e]
   (dom/h1 "Change name for label: " (p/server (query-label-name hf/db e)))
-  (dom/label "label id")
-  (ui/input (p/server (pr-str (:label/gid (d/pull hf/db [:label/gid] e)))) {::dom/disabled true})
-  (let [nom' (p/with-cycle [nom (p/server (query-label-name hf/db e))]
-                        (dom/label "label name")
-                        (ui/input nom))]
-    (when (contrib.str/blank->nil nom') ; todo validate spec
-      [[:db/add e :label/name nom']])))
+
+  (do (dom/label "label id")
+      (ui/input (p/server (pr-str (:label/gid (d/pull hf/db [:label/gid] e)))) {::dom/disabled true}))
+
+  (do (dom/label "label name")
+      (when-some [nom' (p/with-cycle [nom (p/server (query-label-name hf/db e))]
+                         (ui/input nom))] ; todo validate
+        [[:db/add e :label/name nom']])))
 
 (p/defn Page [e]
   (p/client
