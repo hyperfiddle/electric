@@ -4,25 +4,12 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.gridsheet :as-alias gridsheet]
-            [hyperfiddle.explorer :as explorer]
-            [hyperfiddle.hfql :refer [hfql]]
-            [hyperfiddle.hfql.explorer :as hfql-explorer]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.hfql.ui :as ui]
+            [hyperfiddle.hfql.explorer :as explorer]
             [missionary.core :as m]
             [contrib.ednish :as ednish]
             #?(:cljs [hyperfiddle.router :as html5-router]))
   #?(:cljs (:require-macros [wip.hfql-explorer])))
-
-(p/defn Email [V]
-  (let [v (V.)]
-    (p/client
-      (dom/a {:href (str "mailto:" v)} (dom/text v))
-      nil)))
-
-(p/defn Input [V] (let [v (V.)]
-                    (ui/Input. v (meta V)))
-  nil)
 
 (defn path-hash [path]
   (when (clojure.string/includes? path "#")
@@ -59,30 +46,29 @@
           (let [route hf/route]
             (p/server
               (binding
-                  [explorer/cols [:a :b :c :d :e]
-                   hf/db         hf/*$*
-                   hf/*schema*   wip.orders-datascript/schema
-                   hf/*nav!*     wip.orders-datascript/nav!
-                   hf/route      route]
+                  [hf/db       hf/*$*
+                   hf/*schema* wip.orders-datascript/schema
+                   hf/*nav!*   wip.orders-datascript/nav!
+                   hf/route    route]
                 (let [!needle (atom "")
-                      needle  (p/watch !needle)]
-                  (hfql-explorer/Explorer.
-                    {::dom/style                       {:height "calc((30 + 1) * 24px)"}
-                     ::explorer/page-size              30
+                      needle  (p/watch !needle)
+                      query   (hf/hfql #_[hf/*$* hf/db
+                                          hf/*schema* hf/*schema*
+                                          hf/*nav!* hf/*nav!*]
+                                {(wip.orders-datascript/orders .)
+                                 [:db/id
+                                  (props :order/email {::hf/tx (fn [ctx] (prn "tx:" ctx))})
+                                  {(props :order/gender {::hf/summarize (p/fn [v] (name (:db/ident v)))
+                                                         ::hf/options   (wip.orders-datascript/genders)})
+                                   [(props :db/ident {::hf/as gender})]}
+                                  :order/tags
+                                  {(props :order/shirt-size {::hf/summarize (p/fn [v] (name (:db/ident v)))
+                                                             ::hf/options   (wip.orders-datascript/shirt-sizes gender .)})
+                                   [:db/ident]}]})]
+                  (explorer/ExplorerWithUI.
+                    {::explorer/columns                5
+                     ::explorer/page-size              15
                      ::explorer/row-height             24
-                     ::gridsheet/grid-template-columns "16rem 1fr 1fr 1fr 1fr"}
-                    (hfql #_[hf/*$* hf/db
-                             hf/*schema* hf/*schema*
-                             hf/*nav!* hf/*nav!*]
-                      {(props (wip.orders-datascript/orders .) {::hf/render hfql-explorer/FormsTransposedToRows})
-                       [:db/id
-                        (props :order/email {::hf/render Input
-                                             ::hf/tx     (fn [v] (prn "tx:" v))})
-                        {(props :order/gender {::hf/summarize (p/fn [v] (name (:db/ident v)))
-                                               ::hf/options (wip.orders-datascript/genders)})
-                         [(props :db/ident {::hf/as gender})]}
-                        :order/tags
-                        {(props :order/shirt-size {::hf/summarize (p/fn [v] (name (:db/ident v)))
-                                                   ::hf/options (wip.orders-datascript/shirt-sizes gender .)})
-                         [:db/ident]}]}) ))))))))))
+                     ::gridsheet/grid-template-columns "8rem repeat(4,1fr)"}
+                     query))))))))))
 

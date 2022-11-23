@@ -1,7 +1,7 @@
 (ns hyperfiddle.hfql.explorer-tests
   (:require
    [hyperfiddle.api :as hf :refer [hfql]]
-   [hyperfiddle.hfql.explorer :as ex :refer [#_TreeToExplorer Sequence]]
+   [hyperfiddle.hfql.explorer :as ex :refer [TreeToExplorer Sequence]]
    [hyperfiddle.hfql :as hfql]
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
@@ -23,52 +23,6 @@
 ;; Flow[[Flow[depth, Flow[[Flow[col], …]], …]]
 
 (p/def Rec)
-
-(p/defn FormsTransposedToRows [{::hf/keys [keys] :as ctx} v depth]
-  (ex/inject-rows (into [(p/fn [] [depth (p/fn [] (p/for [k keys] (p/fn [] k)))])]
-                 cat (p/for [ctx v]
-                       [(p/fn [] [depth (p/fn []
-                                          (let [{::hf/keys [keys values]} ctx]
-                                            (p/for-by first [[k ctx] (mapv vector keys values)]
-                                              (p/fn []
-                                                (let [{::hf/keys [render summarize]} ctx]
-                                                  (cond
-                                                    render  (render. ctx)
-                                                    :else   (let [value (hf/JoinAllTheTree. ctx)]
-                                                              (if summarize
-                                                                (summarize. value)
-                                                                value))))))) )])]))))
-
-(p/defn HandleCardMany [{::hf/keys [type] :as ctx} v depth]
-  (case type
-    ::hf/leaf (into [] cat (p/for [ctx v] (Rec. ctx (inc depth))))
-    (FormsTransposedToRows. ctx v depth)))
-
-(p/defn FormLabel [{::hf/keys [attribute] :as ctx} depth]
-  [(p/fn [] [depth (p/fn [] [(p/fn [] attribute)])])])
-
-(p/defn TreeToExplorer [ctx]
-  (binding [Rec (p/fn [{::hf/keys [type render keys values Value] :as ctx} depth]
-                  (if render
-                    (let [v (render. (assoc ctx ::depth depth))]
-                      (if (ex/rows? v)
-                        v
-                        [(ex/capture [Rec] [depth (p/fn [] [(p/fn [] v)])])]))
-                    (case type
-                      ::hf/leaf (ex/rows (ex/row depth [(ex/col (Value.))]))
-                      ::hf/keys (into [] cat (p/for-by first [[k ctx] (mapv vector keys values)]
-                                               (if (= ::hf/leaf (::hf/type ctx))
-                                                 [(ex/capture [Rec] (ex/row depth [(ex/col k)
-                                                                                   (ex/col (if-let [render (::hf/render ctx)]
-                                                                                             (render. ctx)
-                                                                                             (new (::hf/Value ctx))))]))]
-                                                 (into (FormLabel. ctx depth)
-                                                   (Rec. ctx (inc depth))))))
-                      (let [v (Value.)]
-                        (cond (vector? v) (HandleCardMany. ctx v depth) ; card many
-                              (map? v)    (Rec. v depth)                ; card one
-                              :else       (throw (ex-info "unreachable" {:value v})))))))]
-    (new Rec ctx 0)))
 
 
 (p/defn Rows [hfql] (p/for [[depth cols] (new (Sequence. (TreeToExplorer. hfql)))]
