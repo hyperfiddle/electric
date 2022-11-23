@@ -34,6 +34,12 @@
                  (tap x)))
     % := 2 % := 1 % := 0))
 
+(p/defn Focused? []
+  (p/with-cycle [focused false]
+    (case focused
+      true (not (some? (dom/Event. "blur" false)))
+      false (some? (dom/Event. "focus" false)))))
+
 (defmacro input "
 A dom input text component.
 Purpose of this component is to eventually sync the input with the database which is also an input
@@ -44,18 +50,24 @@ When component has focus, argument is ignored and return value reflects user inp
 
 TODO: what if component loses focus, but the user input is not yet committed ?
 " [controlled-value & body]
-  ; data State = Editing local-value | NotEditing controlled-value
-  `(:value ; local or controlled
-    (let [cv# ~controlled-value]
-      (dom/element "input"
-        ~@body
-        (.setAttribute dom/node "type" "text")
-        (p/with-cycle [state {:edit? false}]
-          (if (:edit? state)
-            (merge state
-              {:edit? (not (some? (dom/Event. "blur" false)))}
-              (when-some [e (dom/Event. "input" false)]
-                {:value (.-value (.-target e))}))          ; use local value
-            (do (.setAttribute dom/node "value" (str cv#)) ; throw away local value
-                {:edit? (some? (dom/Event. "focus" false)) ; never busy - process synchronously
-                 :value cv#})))))))
+  `(dom/with
+     (dom/dom-element dom/node "input")
+     (.setAttribute dom/node "type" "text")
+     ~@body
+     (case (new Focused?) ; avoid syntax-quote bug
+       false (do (.setAttribute dom/node "value" ~controlled-value) ; throw away local value
+                 ~controlled-value)
+       true (p/with-cycle [input-value ~controlled-value]
+              (or (some-> (dom/Event. "input" false) ; never busy - process synchronously
+                          .-target .-value) ; set new local value
+                  input-value))))) ; use local value when focused
+
+(p/defn Demo []
+  (dom/h1 "a controlled input that reverts on blur")
+  (let [a (hyperfiddle.photon-ui2/input "hello world")]
+    (dom/pre a))
+
+  (dom/h1 "a controlled input with looped state")
+  (let [a (p/with-cycle [a "hello world"]
+            (hyperfiddle.photon-ui2/input a))]
+    (dom/pre a)))
