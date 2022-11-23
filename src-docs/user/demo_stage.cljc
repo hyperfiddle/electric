@@ -49,7 +49,7 @@
           (when-some [tx (Page. 536561674378709)]
             (swap! !stage (partial hf/into-tx schema) tx))
 
-          (when-some [stage' (ui/Edn-editor. (vec stage))]
+          (when-some [stage' (ui/Edn-editor. stage)]
             (reset! !stage stage')))))))
 
 
