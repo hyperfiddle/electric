@@ -1,4 +1,4 @@
-(ns dustingetz.y2022.dynamic-2
+(ns dustingetz.y2022.dynamic-scope-rt-2
   (:require [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.rcf :refer [tests with tap %]]))

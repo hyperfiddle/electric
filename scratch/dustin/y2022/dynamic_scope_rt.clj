@@ -1,4 +1,4 @@
-(ns dustin.y2022.dynamic_scope
+(ns dustin.y2022.dynamic_scope_rt
   (:require [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]

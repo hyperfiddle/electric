@@ -6,9 +6,24 @@
 
 (defn pprint-str [x]
   (with-out-str
-    (clojure.pprint/with-pprint-dispatch
-      clojure.pprint/code-dispatch
-      (clojure.pprint/pprint x))))
+    (binding [#_#_clojure.pprint/*print-right-margin* 20
+              #_#_clojure.pprint/*print-miser-width* 1
+              #_#_clojure.pprint/*print-pprint-dispatch* hyperfiddle.pprint/simple-dispatch]
+      (clojure.pprint/with-pprint-dispatch
+        clojure.pprint/code-dispatch
+        (clojure.pprint/pprint x)))))
+
+(comment
+  (pprint-str (range 50))
+  (pprint-str '{(user.gender-shirt-size/submissions "" .)
+                [{:db/id 9}
+                 {:db/id 10}
+                 {:db/id 11}]})
+  (pprint-str '{(user.gender-shirt-size/submissions "bob" .)
+                [{:dustingetz/gender {:db/ident :dustingetz/male},
+                  :dustingetz/email "bob@example.com",
+                  :dustingetz/shirt-size {:db/ident :dustingetz/mens-large},
+                  :db/id 10}]}))
 
 (defn ^:deprecated includes-str? [v needle]
   ; perf - https://clojurians.slack.com/archives/C03RZMDSH/p1666290300539289
