@@ -77,6 +77,8 @@
   "Datomic Cloud (requires :scratch alias)"
   (require '[contrib.datomic-m :as d])
   (when (not-empty (eval '(d/detect-datomic-products)))
+    #_(contrib.datomic-m/install-datomic-onprem)
+    (eval '(contrib.datomic-m/install-datomic-cloud))
     (def datomic-config {:server-type :dev-local :system "datomic-samples"})
     ; install prod globals
     (def datomic-client (eval '(d/client datomic-config)))
@@ -84,8 +86,7 @@
 
     ; install test globals, which can be different
     (require 'test)
-    (eval '(test/install-test-state))
-    )
+    (eval '(test/install-test-state)))
 
   ; enable RCF after Datomic is loaded – to resolve circular dependency
   (install-shadow-hook!)
