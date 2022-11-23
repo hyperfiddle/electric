@@ -18,7 +18,7 @@
 
 (p/def conn)
 (p/def db)
-(p/def schema) ; schema is available in all explorer renderers
+(p/def schema) ; used by entity-tree-entry-children and FormatEntity in this file only
 
 (defn any-matches? [coll needle]
   (let [substr (str/lower-case needle)]
