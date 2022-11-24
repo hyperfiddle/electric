@@ -61,10 +61,10 @@ TODO: what if component loses focus, but the user input is not yet committed ?
        (case (new Focused?) ; avoid syntax-quote bug
          false (do (set! (.-value dom/node) cv#) ; throw away local value
                    cv#)
-         true (p/with-cycle [input-value cv#]
+         true (p/with-cycle [input-value# cv#]
                 (or (some-> (dom/Event. "input" false) ; never busy - process synchronously
                       .-target .-value) ; set new local value
-                  input-value)))))) ; use local value when focused
+                  input-value#)))))) ; use local value when focused
 
 (p/defn DemoInput []
   (dom/h1 "a controlled input that reverts on blur")
