@@ -341,7 +341,7 @@
 
 ;; end ranking ---
 
-(def ^:const E 'e)
+(def ^:const E (gensym "entity_"))
 
 (defn input-path
   "An input path is a unique indentifier for an input in the HFQL runtime
@@ -442,10 +442,10 @@
                       (if (empty? props) [arg]
                           (into [arg] (parse-props gen-id (-> arg first :db/id) props))  ; attach props a children of the arg
                           ))
-      :else         [{:db/id           (gen-id)
-                      :node/_arguments parent-id
-                      :node/type       :argument
-                      :node/form       form}])
+      :else         (let [tx {:db/id           (gen-id)
+                              :node/_arguments parent-id
+                              :node/type       :argument}]
+                      (if (nil? form) [tx] [(assoc tx :node/form form)])))
     (update 0 assoc :form/meta (or (meta form) {}))))
 
 (defn parse
