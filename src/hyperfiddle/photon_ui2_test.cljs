@@ -29,6 +29,10 @@
     (.dispatchEvent elem (js/InputEvent. "input"))
     v))
 
+(defn toggle! [elem]
+  (set! (.-checked elem) (not (.-checked elem)))
+  (.dispatchEvent elem (js/Event. "change")))
+
 (tests "ui/input accepts literal props map"
   (with (p/run (binding [dom/node (dom/by-id "root")]
                  (ui/input "controlled-value" {:style {:width "100px"}}
@@ -63,3 +67,18 @@
   (blur @ta)
   % := "controlled-value"
   (discard))
+
+(tests "ui/checkbox"
+  (def cb (atom nil))
+  (def discard (p/run (binding [dom/node (dom/by-id "root")]
+                        (tap (ui/checkbox false
+                               (reset! cb dom/node))))))
+  % := false
+  (focus @cb)
+  (toggle! @cb) % := true
+  (toggle! @cb) % := false
+  (toggle! @cb) % := true
+  (blur @cb)
+  % := false
+  (discard)
+  )
