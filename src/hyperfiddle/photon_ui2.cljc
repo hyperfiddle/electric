@@ -59,7 +59,7 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      ~@(?static-props body)
      (let [cv# ~controlled-value]
        (case (new Focused?) ; avoid syntax-quote bug
-         false (do (.setAttribute dom/node "value" cv#) ; throw away local value
+         false (do (set! (.-value dom/node) cv#) ; throw away local value
                    cv#)
          true (p/with-cycle [input-value cv#]
                 (or (some-> (dom/Event. "input" false) ; never busy - process synchronously
