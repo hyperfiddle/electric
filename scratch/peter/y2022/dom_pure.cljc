@@ -21,17 +21,32 @@
   % := [1 :b]
   % := [0 :a])
 
-(p/def event)
+(p/def it)
 (defmacro d2c [init-val & pairs]
   `(let [init-val# ~init-val
          [branch# v#] (new (m/relieve {} (m/reductions {} [::init] (indexed-flows ~@(take-nth 2 pairs)))))]
-     (binding [event v#]
+     (binding [it v#]
        (case branch# ~@(interleave (range) (take-nth 2 (rest pairs))) init-val#))))
+
+(defmacro flow-cond* [& pairs]
+  (let [init-val (last pairs)
+        pairs    (drop-last 2 pairs)]
+    `(let [init-val#    ~init-val
+           [branch# v#] (new (m/relieve {} (m/reductions {} [::init] (indexed-flows ~@(take-nth 2 pairs)))))]
+       (binding [it v#]
+         (try
+           (case branch# ~@(interleave (range) (take-nth 2 (rest pairs))) init-val#)
+           (catch Pending _ ::pending))))))
+
+(defn- reduce-to-pairs [flow]
+  (m/reductions (fn [[lpv _pending] nx] (case nx ::pending [lpv true] [nx false])) [nil false] flow))
+
+(defmacro flow-cond [& pairs] `(new (reduce-to-pairs (flow-cond* ~@pairs))))
 
 (tests
   (def mbx (m/mbx))
   (def flow (m/ap (loop [] (m/amb (m/? mbx) (recur)))))
-  (def discard (p/run (try (tap (d2c ::start flow (inc event)))
+  (def discard (p/run (try (tap (d2c ::start flow (inc it)))
                            (catch missionary.Cancelled _)
                            (catch hyperfiddle.photon.Pending _)
                            (catch Throwable e (prn e)))))
@@ -55,7 +70,7 @@
   (defmacro dt [opts & body] `(mounted-elem "input" ~opts ~@body))
   (defmacro dd [opts & body] `(mounted-elem "dd" ~opts ~@body))
 
-  (p/def event)
+  (p/def it)
   (declare handle)
 
   (defn ->f [c] (-> c (* 9) (/ 5) (+ 32)))
@@ -65,8 +80,8 @@
       (binding [node (.getElementById js/document "root")]
         (let [c-input (elem "input")
               f-input (elem "input")
-              [temperature _pending] (p/init 0 (p/union (handle c-input "oninput" (-> event :target :value js/parseFloat))
-                                                 (handle f-input "oninput" (-> event :target :value js/parseFloat ->c))))]
+              [temperature _pending] (p/init 0 (p/union (handle c-input "oninput" (-> it :target :value js/parseFloat))
+                                                 (handle f-input "oninput" (-> it :target :value js/parseFloat ->c))))]
           (dl
             (dt "Celsius")    (dd (mount c-input {:value temperature}))
             (dt "Fahrenheit") (dd (mount f-input {:value (->f temperature)})))))))
@@ -123,7 +138,7 @@
     (let [[branch v] (new (m/relieve {} (m/reductions {} ::init (events btn "onclick"))))]
       (if (= ::init v)
         0
-        (binding [event v]
+        (binding [it v]
           (case branch
             0 (p/server (swap! counter inc))
             1 ...))))
@@ -133,7 +148,7 @@
     (with (p/run
             (try
               (tap (d->c 100
-                     (emit-delayed 50 (range 3)) (let [e event] (p/server e))))
+                     (emit-delayed 50 (range 3)) (let [e it] (p/server e))))
               (catch missionary.Cancelled _)
               (catch hyperfiddle.photon.Pending _ (tap :pending))
               (catch Throwable e (println e))))
@@ -153,4 +168,28 @@
       % := 1
       % := 2
       ))
+  )
+
+(defn puppet-flow []
+  (let [mbx (m/mbx)
+        flow (m/ap (loop [] (m/amb= (m/? mbx) (recur))))]
+    [flow mbx]))
+(tests
+  (do
+    (def a-puppet (puppet-flow))
+    (def a-flow (first a-puppet))
+    (def feed (second a-puppet)))
+  (def cancel ((m/reduce #(tap %2) nil (m/cp (or (m/? (m/sleep 300 :hi)) :foobar))) identity identity))
+  (def cancel ((m/reduce #(prn %2) nil (m/cp (m/?< (m/reductions {} :hi a-flow)))) identity identity))
+  (def cancel ((m/reduce #(prn %2) nil (m/reductions {} :hi a-flow)) identity identity))
+  (feed 2)
+  (cancel)
+
+  (m/? (m/reduce #(prn %2) nil (p/task->cp (m/sp (m/? (m/sleep 1000 :done))))))
+
+  (def latency-ms 300)
+  (defn reset-slowly! [atm v] (p/task->cp (m/sp (m/? (m/sleep latency-ms)) (reset! atm v))))
+  (def !x (atom 0))
+  (m/? (m/reduce #(prn %2) nil (reset-slowly! !x 1)))
+
   )
