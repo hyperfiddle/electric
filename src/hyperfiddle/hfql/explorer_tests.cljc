@@ -2,7 +2,6 @@
   (:require
    [hyperfiddle.api :as hf :refer [hfql]]
    [hyperfiddle.hfql.explorer :as ex :refer [TreeToExplorer Sequence]]
-   [hyperfiddle.hfql :as hfql]
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
    [datascript.core :as d]
@@ -38,7 +37,7 @@
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9]
-                      (Rows. (hfql/hfql :db/id))   ))))
+                      (Rows. (hfql :db/id))   ))))
   % := [[0 [9]]]
   )
 
