@@ -13,6 +13,7 @@
             user.demo-6-two-clocks
             user.demo-7-explorer
             user.demo-8-10k-elements
+            user.demo-controlled-input
             #_user.demo-hfql
             user.todos-simple
             user.seven-gui-1-counter
@@ -59,6 +60,7 @@
               {:text "tic tac toe" ::value user.tic-tac-toe/App}
               #_{:text "popover" ::value user.popover/App}
               {:text "color" ::value user.demo-color/App}
+              {:text "controlled input" :value user.demo-controlled-input/App}
               #_{:text "healthcheck" ::value user.healthcheck/App}])
 
 (p/defn App []
