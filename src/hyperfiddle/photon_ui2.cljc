@@ -88,3 +88,13 @@ TODO: what if component loses focus, but the user input is not yet committed ?
   (dom/with (dom/dom-element dom/node "button")
     (dom/set-text-content! dom/node label)
     (dom/Event. "click" busy)))
+
+(defmacro textarea [controlled-value & body]
+  `(dom/with (dom/dom-element dom/node "textarea")
+     ~@(?static-props body)
+     (let [cv# ~controlled-value]
+       (case (new Focused?)
+         false (do (set! (.-value dom/node) cv#) cv#) ; throw away local value
+         true  (p/with-cycle [uv# cv#]                ; uv (user value) starts as cv (controlled value)
+                 (or (some-> (dom/Event. "input" false) .-target .-value)
+                   uv#))))))
