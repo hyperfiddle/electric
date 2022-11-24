@@ -98,3 +98,13 @@ TODO: what if component loses focus, but the user input is not yet committed ?
          true  (p/with-cycle [uv# cv#]                ; uv (user value) starts as cv (controlled value)
                  (or (some-> (dom/Event. "input" false) .-target .-value)
                    uv#))))))
+
+(defmacro checkbox [controlled-value & body]
+  `(dom/with (dom/dom-element dom/node "input")
+     (.setAttribute dom/node "type" "checkbox")
+     ~@(?static-props body)
+     (let [cv# ~controlled-value]
+       (case (new Focused?)
+         false (do (set! (.-checked dom/node) cv#) cv#)
+         true  (p/with-cycle [uv# cv#]
+                 (if-some [ev# (some-> (dom/Event. "change" false) .-target .-checked)] ev# uv#))))))
