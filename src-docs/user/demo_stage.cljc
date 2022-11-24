@@ -32,27 +32,33 @@
       (ui/input (p/server (pr-str (:label/gid (d/pull hf/db [:label/gid] e)))) {::dom/disabled true}))
 
   (do (dom/label "label name")
-      (when-some [nom' (p/with-cycle [nom (p/server (query-label-name hf/db e))]
-                         (ui/input nom))] ; todo validate
+      (when-some [[nom'] (p/with-cycle [[nom' nom] [nil (p/server (query-label-name hf/db e))]]
+                           [(ui/input nom (= nom nom')) nom])] ; todo validate
         [[:db/add e :label/name nom']])))
 
 (p/defn Page [e]
   (p/client
     (dom/h1 "Label page for: " (p/server (query-label-name hf/db e)))
-    (Popover. "change name" (p/partial 1 LabelForm e) false)))
+    (Popover. "change name" (p/partial 1 LabelForm e))))
 
 (p/defn Demo []
   (let [secure-db (d/with-db @(requiring-resolve 'test/datomic-conn))
         schema (new (dx/schema> secure-db))]
-    (let [!stage (atom []) stage (p/watch !stage)]
-      (binding [hf/with (fn [db tx] (d/with db {:tx-data tx}))] ; todo required by popover TODO
-        (binding [hf/db (:db-after (hf/with secure-db stage))]
-
-          (when-some [tx (Page. 536561674378709)]
-            (swap! !stage (partial hf/into-tx schema) tx))
-
-          (when-some [stage' (p/client (ui/edn-editor stage {::dom/disabled true}))]
-            (reset! !stage stage')))))))
+    (binding [hf/with (fn [db tx] (d/with db {:tx-data tx}))] ; todo required by popover TODO
+      (let [!stage (atom []) stage (p/watch !stage)]
+        (p/client
+          (p/with-cycle [loading ::hf/idle]
+            (dom/div (pr-str loading))
+            (try
+              (p/server
+                (binding [hf/db (:db-after (hf/with secure-db stage))]
+                  (when-some [tx (Page. 536561674378709)]
+                    (swap! !stage (partial hf/into-tx schema) tx))
+                  (when-some [stage' (p/client (ui/edn-editor stage {::dom/disabled true}))]
+                    (reset! !stage stage'))))
+              ::hf/idle
+              (catch Pending e ::hf/loading)))
+          nil)))))
 
 
 
