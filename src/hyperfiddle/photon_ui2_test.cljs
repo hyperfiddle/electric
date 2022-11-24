@@ -48,3 +48,18 @@
   (blur @in)
   % := "controlled-value"
   (discard))
+
+
+(tests "ui/textarea"
+  (def ta (atom nil))
+  (def discard (p/run (binding [dom/node (dom/by-id "root")]
+                        (tap (ui/textarea "controlled-value"
+                               (reset! ta dom/node))))))
+  % := "controlled-value"
+  (focus @ta)
+  (focused? @ta) := true
+  (swap-value! @ta (constantly "new-value"))
+  % := "new-value"
+  (blur @ta)
+  % := "controlled-value"
+  (discard))
