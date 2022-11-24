@@ -8,7 +8,7 @@
 
 (def latency-ms 300)
 (defn reset-slowly! [atm v]
-  ((m/sp (m/? (m/sleep latency-ms)) (reset! atm v)) identity identity))
+  (p/task->cp (m/sp (m/? (m/sleep latency-ms)) (reset! atm v))))
 
 (p/defn App []
   (p/client
@@ -16,5 +16,5 @@
       (p/server
         (let [!x (atom 0) x (p/watch !x)]
           (p/client
-            (when-some [v (ui/input x)] (p/server (reset-slowly! !x v)))
+            (when-some [v (ui/input x)] (p/server (new (reset-slowly! !x v))))
             (dom/div (dom/text "server value: " x))))))))
