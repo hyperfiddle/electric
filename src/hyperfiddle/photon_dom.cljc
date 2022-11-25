@@ -523,19 +523,33 @@
 
 (defn happen [s e]
   (case (:status s)
-    :idle {:status :impulse :event e} s))
+    :idle {:status :impulse :event e} ; no impulse if not idle !
+    s))
 
 ; data EventState = Idle | Impulse event | Pending event
 (p/defn Event [type busy]
   (:event
     (let [!state (atom {:status :idle})
           state (p/watch !state)]
-      (event type (partial swap! !state happen)) ; discrete! this is the event wrapped into impulse
+
+      ; rising edge happens once, even if busy state (prevent infinite loop)
+      (event type (partial swap! !state happen)) ; discrete impulse
+
       (reset! !state
               (case (:status state)
                 :idle state
                 :impulse (assoc state :status :pending) ; impulse is seen for 1 frame and then cleared
                 :pending (if busy state {:status :idle}))))))
+
+(comment
+  (Event. "click" false) ; impulse processed synchronously
+
+  (p/with-cycle [busy false]
+    (try
+      (when-some [e (some? (Event. "click" busy))]
+        (p/server (println 'clicked)))
+      false
+      (catch Pending e true))))
 
 (p/defn Input "
 A dom input text component.

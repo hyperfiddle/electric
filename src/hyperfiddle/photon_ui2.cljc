@@ -69,7 +69,7 @@ TODO: what if component loses focus, but the user input is not yet committed ?
 (p/defn DemoInput []
   (dom/h1 "a controlled input that reverts on blur")
   (let [a (input "hello world")]
-    (dom/pre a))
+    (dom/pre a)) ; latest value
 
   (dom/h1 "a controlled input with looped state")
   (let [a (p/with-cycle [a "hello world"]
@@ -80,6 +80,10 @@ TODO: what if component loses focus, but the user input is not yet committed ?
   (dom/with (dom/dom-element dom/node "button")
     (dom/set-text-content! dom/node label)
     (dom/Event. "click" busy)))
+
+(comment
+  (when-some [click-event (Button. "click me" false)] ; see event for one frame
+    (println click-event))) ; nil -> active event -> nil
 
 (defmacro textarea [controlled-value & body]
   `(dom/with (dom/dom-element dom/node "textarea")
