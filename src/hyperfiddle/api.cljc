@@ -1,6 +1,7 @@
 (ns hyperfiddle.api
   (:require [clojure.datafy :refer [datafy]]
             clojure.edn
+            [contrib.dynamic :refer [call-sym]]
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon :as p]
@@ -82,8 +83,10 @@
           [[:db/add (E.) a v']]))))
 
 (defmulti tx-meta (fn [schema tx] (if (map? tx) ::map (first tx))))
-#?(:clj (def into-tx @(requiring-resolve 'hyperfiddle.txn/into-tx))) ; cycle - hyperfiddle.txn needs hf/tx-meta
-#?(:clj (def expand-hf-tx @(requiring-resolve 'hyperfiddle.txn/expand-hf-tx)))
+
+; resolve cycle - hyperfiddle.txn needs hf/tx-meta
+#?(:clj (defn into-tx [schema tx tx'] (call-sym 'hyperfiddle.txn/into-tx schema tx tx')))
+#?(:clj (defn expand-hf-tx [tx] (call-sym 'hyperfiddle.txn/expand-hf-tx tx)))
 
 (s/def ::tx-cardinality (s/or :one :many))
 (s/def ::tx-identifier map?)
