@@ -3,36 +3,8 @@
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom]
    [hyperfiddle.photon-ui2 :as ui]
+   [hyperfiddle.ui.test :as uit]
    [hyperfiddle.rcf :as rcf :refer [% tap tests with]]))
-
-(defn ensure-root! []
-  (when-not (dom/by-id "root")
-    (let [root (.createElement js/document "div")]
-      (set! (.-id root) "root")
-      (.appendChild (.-body js/document) root))))
-
-(ensure-root!)
-
-(defn focus [elem]
-  (.dispatchEvent elem (js/FocusEvent. "focus"))
-  (.focus elem #js {"focusVisible" true}))
-
-(defn blur [elem]
-  (.dispatchEvent elem (js/FocusEvent. "blur"))
-  (.blur elem))
-
-(defn focused? [elem] (= (.-activeElement js/document) elem))
-
-(defn swap-value! [elem f & args]
-  (let [v (apply f (.-value elem) args)]
-    (set! (.-value elem) v)
-    (.dispatchEvent elem (js/InputEvent. "input"))
-    (.dispatchEvent elem (js/InputEvent. "change"))
-    v))
-
-(defn toggle! [elem]
-  (set! (.-checked elem) (not (.-checked elem)))
-  (.dispatchEvent elem (js/Event. "change")))
 
 (tests "ui/input accepts literal props map"
   (with (p/run (binding [dom/node (dom/by-id "root")]
@@ -46,11 +18,11 @@
                         (tap (ui/input "controlled-value"
                                (reset! in dom/node))))))
   % := "controlled-value"
-  (focus @in)
-  (focused? @in) := true
-  (swap-value! @in (constantly "new-value"))
+  (uit/focus @in)
+  (uit/focused? @in) := true
+  (uit/swap-value! @in (constantly "new-value"))
   % := "new-value"
-  (blur @in)
+  (uit/blur @in)
   % := "controlled-value"
   (discard))
 
@@ -61,11 +33,11 @@
                         (tap (ui/textarea "controlled-value"
                                (reset! ta dom/node))))))
   % := "controlled-value"
-  (focus @ta)
-  (focused? @ta) := true
-  (swap-value! @ta (constantly "new-value"))
+  (uit/focus @ta)
+  (uit/focused? @ta) := true
+  (uit/swap-value! @ta (constantly "new-value"))
   % := "new-value"
-  (blur @ta)
+  (uit/blur @ta)
   % := "controlled-value"
   (discard))
 
@@ -75,11 +47,11 @@
                         (tap (ui/checkbox false
                                (reset! cb dom/node))))))
   % := false
-  (focus @cb)
-  (toggle! @cb) % := true
-  (toggle! @cb) % := false
-  (toggle! @cb) % := true
-  (blur @cb)
+  (uit/focus @cb)
+  (uit/toggle! @cb) % := true
+  (uit/toggle! @cb) % := false
+  (uit/toggle! @cb) % := true
+  (uit/blur @cb)
   % := false
   (discard)
   )
@@ -91,9 +63,9 @@
                                          :value "a"}
                                (reset! sel dom/node))))))
   % := "a"
-  (swap-value! @sel (constantly "b"))
+  (uit/swap-value! @sel (constantly "b"))
   % := "b"
-  (swap-value! @sel (constantly "c"))
+  (uit/swap-value! @sel (constantly "c"))
   % := "c"
   (discard)
   )
@@ -104,9 +76,9 @@
   (def discard (p/run (binding [dom/node (dom/by-id "root")]
                         (tap (dom/with (dom/dom-element dom/node "input") (reset! in dom/node) (ui/Value.))))))
   % := ""
-  (swap-value! @in (constantly "xxx"))
+  (uit/swap-value! @in (constantly "xxx"))
   % := "xxx"
-  (swap-value! @in (constantly "yyy"))
+  (uit/swap-value! @in (constantly "yyy"))
   % := "yyy"
   (discard)
   )
