@@ -97,3 +97,16 @@
   % := "c"
   (discard)
   )
+
+
+(tests "ui/Value"
+  (def in (atom nil))
+  (def discard (p/run (binding [dom/node (dom/by-id "root")]
+                        (tap (dom/with (dom/dom-element dom/node "input") (reset! in dom/node) (ui/Value.))))))
+  % := ""
+  (swap-value! @in (constantly "xxx"))
+  % := "xxx"
+  (swap-value! @in (constantly "yyy"))
+  % := "yyy"
+  (discard)
+  )

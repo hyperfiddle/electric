@@ -120,3 +120,7 @@ TODO: what if component loses focus, but the user input is not yet committed ?
        (when-some [v (:value props#)] (dom/props {:value v})) ; select first value if provided
        (p/with-cycle [uv# (.-value dom/node)]
          (if-let [ev# (dom/Event. "change" false)] (-> ev# .-target .-value) uv#)))))
+
+(p/defn Value []
+  (p/with-cycle [v (.-value dom/node)]
+    (if-let [ev (dom/Event. "input" false)] (-> ev .-target .-value) v)))
