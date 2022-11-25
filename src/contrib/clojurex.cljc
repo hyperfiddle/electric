@@ -1,6 +1,7 @@
 (ns contrib.clojurex
   ;(:refer-clojure :exclude [binding])
-  (:require [hyperfiddle.rcf :refer [tests]]))
+  (:require [hyperfiddle.rcf :refer [tests]])
+  #?(:cljs (:require-macros [contrib.clojurex :refer [binding-pyramid]])))
 
 (defn binding-pyramid* [bindings body]
   (let [[s expr & xs] bindings]
