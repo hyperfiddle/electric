@@ -11,6 +11,7 @@
 
 (def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
 (p/def db "inject database value for hyperfiddle stage and HFQL")
+(p/def secure-db "database value excluding stage, so that user can't tamper")
 (p/def with "inject datomic.api/with or equivalent, used by stage")
 (p/def loading)
 (def -read-edn-str-default (partial clojure.edn/read-string
@@ -86,6 +87,7 @@
 (defmulti tx-meta (fn [schema tx] (if (map? tx) ::map (first tx))))
 
 ; resolve cycle - hyperfiddle.txn needs hf/tx-meta
+#?(:clj (require 'hyperfiddle.txn)) ; [rosie] before rcf turns on due to test/seattle undefined
 #?(:clj (defn into-tx [schema tx tx'] (call-sym 'hyperfiddle.txn/into-tx schema tx tx')))
 #?(:clj (defn expand-hf-tx [tx] (call-sym 'hyperfiddle.txn/expand-hf-tx tx)))
 
