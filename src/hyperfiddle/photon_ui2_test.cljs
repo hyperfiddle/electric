@@ -27,6 +27,7 @@
   (let [v (apply f (.-value elem) args)]
     (set! (.-value elem) v)
     (.dispatchEvent elem (js/InputEvent. "input"))
+    (.dispatchEvent elem (js/InputEvent. "change"))
     v))
 
 (defn toggle! [elem]
@@ -80,5 +81,19 @@
   (toggle! @cb) % := true
   (blur @cb)
   % := false
+  (discard)
+  )
+
+(tests "ui/select"
+  (def sel (atom nil))
+  (def discard (p/run (binding [dom/node (dom/by-id "root")]
+                        (tap (ui/select {:options [{:text ""} {:text "a"} {:text "b"} {:text "c"}]
+                                         :value "a"}
+                               (reset! sel dom/node))))))
+  % := "a"
+  (swap-value! @sel (constantly "b"))
+  % := "b"
+  (swap-value! @sel (constantly "c"))
+  % := "c"
   (discard)
   )
