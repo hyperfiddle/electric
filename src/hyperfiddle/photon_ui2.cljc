@@ -76,14 +76,6 @@ TODO: what if component loses focus, but the user input is not yet committed ?
             (input a))]
     (dom/pre a)))
 
-(p/defn ^:private -Edn-editor [x] ; optimize macroexpansion size
-  (when-some [x (blank->nil x)]
-    (try (clojure.edn/read-string x)
-         (catch :default _ nil))))
-
-(defmacro edn-editor [x & body]
-  `(new -Edn-editor (input (pr-str ~x) ~@body))) ; optimize static body props
-
 (p/defn Button [label busy] ; todo props and task
   (dom/with (dom/dom-element dom/node "button")
     (dom/set-text-content! dom/node label)
@@ -98,6 +90,14 @@ TODO: what if component loses focus, but the user input is not yet committed ?
          true  (p/with-cycle [uv# cv#]                ; uv (user value) starts as cv (controlled value)
                  (or (some-> (dom/Event. "input" false) .-target .-value)
                    uv#))))))
+
+(p/defn ^:private -Edn-editor [x] ; optimize macroexpansion size
+  (when-some [x (blank->nil x)]
+    (try (clojure.edn/read-string x)
+         (catch :default _ nil))))
+
+(defmacro edn-editor [x & body]
+  `(new -Edn-editor (textarea (pr-str ~x) ~@body))) ; optimize static body props
 
 (defmacro checkbox [controlled-value & body]
   `(dom/with (dom/dom-element dom/node "input")
