@@ -19,8 +19,8 @@
       (let [!stage (atom ::unknown) stage (p/watch !stage)]
 
         (p/with-cycle [loading ::hf/loading]
-          (binding [hf/loading loading]
-            (dom/div (pr-str (name loading))) ; todo distributed glitch
+          (binding [hf/loading loading] ; todo distributed glitch
+            (dom/div (name loading) " " (str (hf/Load-timer.)) "ms")
             (try
 
               (let [stage (p/server
