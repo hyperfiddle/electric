@@ -24,7 +24,6 @@
             hyperfiddle.scrollview
             user.demo-color
             ;; wip.photon-tree
-            user.popover
             user.healthcheck
             user.typeahead
             user.tic-tac-toe
@@ -58,7 +57,6 @@
               {:text "7GUIs - crud" ::value user.seven-gui-5-crud/App}
               {:text "Typeahead" ::value user.typeahead/App}
               {:text "tic tac toe" ::value user.tic-tac-toe/App}
-              #_{:text "popover" ::value user.popover/App}
               {:text "color" ::value user.demo-color/App}
               {:text "controlled input" :value user.demo-controlled-input/App}
               #_{:text "healthcheck" ::value user.healthcheck/App}])
