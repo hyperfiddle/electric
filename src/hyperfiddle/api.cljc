@@ -98,8 +98,15 @@
 
 ; resolve cycle - hyperfiddle.txn needs hf/tx-meta
 #?(:clj (require 'hyperfiddle.txn)) ; [rosie] before rcf turns on due to test/seattle undefined
-#?(:clj (defn into-tx [schema tx tx'] (call-sym 'hyperfiddle.txn/into-tx schema tx tx')))
 #?(:clj (defn expand-hf-tx [tx] (call-sym 'hyperfiddle.txn/expand-hf-tx tx)))
+;#?(:clj
+;   (defmacro into-tx
+;     ([tx tx'] `(call-sym ~'hyperfiddle.txn/into-tx ~hyperfiddle.api/schema ~tx ~tx')) ; photon call can infer schema
+;     ([schema tx tx'] `(call-sym ~'hyperfiddle.txn/into-tx ~schema ~tx ~tx'))) ; clojure compatible call
+;   :cljs (def into-tx nil))
+#?(:clj (defn into-tx
+          ;([tx tx'] (into-tx schema tx tx')) -- needs photon->clojure binding conveyance
+          ([schema tx tx'] (call-sym 'hyperfiddle.txn/into-tx schema tx tx'))))
 
 (s/def ::tx-cardinality (s/or :one :many))
 (s/def ::tx-identifier map?)
