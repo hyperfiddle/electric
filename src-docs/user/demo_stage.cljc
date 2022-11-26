@@ -74,6 +74,28 @@
 ;                             (Popover. "change name" (p/partial 1 LabelForm e))
 ;                             @c])])
 
+(comment
+  "Sketch of EAV forms"
+
+  (defmacro form [e & body]
+    (binding [hf/e e]
+      (let [[tx1# tx2#] (do ~@body)]
+        (p/server (hf/into-tx hf/schema tx1# tx2#)))))
+
+  (defmacro field [a v & [props]]
+    `(when-some [[v'#] (p/with-cycle [[v'# v#] [nil ~v]]
+                         [(ui/input v# ~props (= v# v'#))
+                          v#])]
+       ; todo validate
+       [[:db/add ~hf/e ~a v'#]]))
+
+  (p/defn LabelForm [e]
+    (dom/h1 "Change name for label: " (p/server (query-label-name hf/db e)))
+    (form e
+      (field :label/gid (p/server (pr-str (:label/gid (d/pull hf/db [:label/gid] e)))) {::dom/disabled true})
+      (field :label/name (p/server (query-label-name hf/db e)) {}))))
+
+
 ;; TODO next demo
 ;; hfql in popover
 ;; hfql widgets return eav triples
