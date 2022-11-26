@@ -28,13 +28,19 @@
 (p/defn LabelForm [e]
   (dom/h1 "Change name for label: " (p/server (query-label-name hf/db e)))
 
-  (do (dom/label "label id")
-      (ui/input (p/server (pr-str (:label/gid (d/pull hf/db [:label/gid] e)))) {::dom/disabled true}))
+  (p/server
+    (hf/into-tx hf/schema
 
-  (do (dom/label "label name")
-      (when-some [[nom'] (p/with-cycle [[nom' nom] [nil (p/server (query-label-name hf/db e))]]
-                           [(ui/input nom (= nom nom')) nom])] ; todo validate
-        [[:db/add e :label/name nom']])))
+      (p/client
+        (dom/label "label id")
+        (ui/input (p/server (pr-str (:label/gid (d/pull hf/db [:label/gid] e)))) {::dom/disabled true})
+        nil) ; todo disabled input should emit nil
+
+      (p/client
+        (dom/label "label name")
+        (when-some [[nom'] (p/with-cycle [[nom' nom] [nil (p/server (query-label-name hf/db e))]]
+                             [(ui/input nom (= nom nom')) nom])] ; todo validate
+            [[:db/add e :label/name nom']])))))
 
 (p/defn Page [e]
   (p/client
@@ -57,7 +63,7 @@
                 (p/server
                   (binding [hf/db (:db-after (hf/with secure-db stage))] ; task can fail
                     (when-some [tx (Page. 536561674378709)]
-                      (swap! !stage (partial hf/into-tx hf/schema) tx))
+                      (swap! !stage #(hf/into-tx hf/schema %1 %2) tx))
                     (when-some [stage' (p/client (ui/edn-editor stage {::dom/disabled true}))]
                       (reset! !stage stage'))))
                 ::hf/idle
