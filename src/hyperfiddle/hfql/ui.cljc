@@ -117,18 +117,26 @@
         (Options. (::parent ctx))))))
 
 
-(p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path]}]]
-  (let [value (read.)]
+(p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options]}]]
+  (let [value    (read.)
+        options? (some? options)]
     (p/client
-      (let [id (random-uuid) !steady (atom false)]
+      (let [id      (random-uuid) !steady (atom false)
+            list-id (random-uuid)]
         (when label?
           (dom/label {::dom/for   id,
                       ::dom/title (pr-str (:hyperfiddle.spec/form (spec/arg spec name)))}
             (dom/text name)))
+        (when options?
+          (dom/datalist {::dom/id list-id}
+            (p/server (p/for [x (options.)]
+                        (p/client (dom/option (dom/text x)))))))
         (dom/input {::dom/id    id,
                     ::dom/value (if (p/watch !steady) (p/current value) value)}
           (when (seq props)
             (dom/props props))
+          (when options?
+            (dom/props {::dom/list list-id}))
           (dom/event "input"
             (fn [e] (hf/replace-route!
                       (hf/assoc-in-route-state hf/route path (.. e -target -value)))))

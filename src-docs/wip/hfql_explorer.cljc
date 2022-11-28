@@ -8,6 +8,7 @@
             [hyperfiddle.hfql.explorer :as explorer]
             [missionary.core :as m]
             [contrib.ednish :as ednish]
+            [clojure.spec.alpha :as s]
             #?(:cljs [hyperfiddle.router :as html5-router]))
   #?(:cljs (:require-macros [wip.hfql-explorer])))
 
@@ -32,6 +33,9 @@
        (m/reductions {} nil)
        (m/relieve {}))))
 
+(defn names [] ["alice" "bob" "charlie"])
+(s/fdef names :ret (s/coll-of names))
+
 (p/defn App []
   (p/client
     (dom/h1 "HFQL as a grid")
@@ -55,7 +59,7 @@
                       query   (hf/hfql #_[hf/*$* hf/db
                                           hf/*schema* hf/*schema*
                                           hf/*nav!* hf/*nav!*]
-                                {(wip.orders-datascript/orders .)
+                                {(wip.orders-datascript/orders (props . {::hf/options (names)}))
                                  [:db/id
                                   (props :order/email {::hf/tx (fn [ctx] (prn "tx:" ctx))})
                                   {(props :order/gender {::hf/summarize (p/fn [v] (name (:db/ident v)))
