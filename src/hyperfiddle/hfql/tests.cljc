@@ -344,8 +344,54 @@
 
   (hyperfiddle.hfql.impl/graph '(props :db/id {::hf/link '(:link db/id)}))
 
-  (hfql (props :db/id {::hf/link '(:link db/id)})) 
+  (hfql (props :db/id {::hf/link '(:link db/id)}))
   (hyperfiddle.hfql.impl/graph '[:db/id
                                   (props :order/email {::hf/link '(:link db/id)})])
 
   )
+
+(defn foo [a] a)
+
+(s/fdef foo :args (s/cat :a string?) :ret string?)
+
+(tests
+  "default on fn arg" ; only for gray inputs
+  (with (p/run (tap (binding [hf/db     hf/*$*
+                              hf/*nav!* nav!
+                              hf/entity 9]
+                      (hf/JoinAllTheTree. (hfql (foo (or nil "ORed")) ; TODO allow referencing lexical scope from nested sexprs
+                                            ))))))
+  % := "ORed")
+
+(p/defn Default [a]
+  ;; TODO Default fn should see hf context (e.g. injected from dynamic scope.
+  (or a "defaulted from photon"))
+
+(tests
+  "default of fn argument" ; only for gray inputs
+  (with (p/run (tap (binding [hf/db     hf/*$*
+                              hf/*nav!* nav!]
+                      (debug (hf/JoinAllTheTree. (hfql (foo (Default. nil)))  ) ; TODO allow referencing lexical scope from nested sexprs
+                        )))))
+  % := "defaulted from photon")
+
+(comment
+  ;; TODO some default logic requires all arguments:
+  (defn default [eid nom] [eid (if (and eid (empty? nom)) (suber-name eid) nom)])
+  )
+
+
+(tests
+  "::hf/defaults"
+  ;; Previous tests shows ::hf/default only exists because we cannot detect
+  ;; lexical references in nested sexprs.
+  (with (p/run (tap (binding [hf/db     hf/*$*
+                              hf/*nav!* nav!
+                              hf/entity 12]
+                      (debug (hf/JoinAllTheTree. (hfql [:db/id
+                                                        :order/email
+                                                        (foo (props order/email {::hf/default (p/fn [a] (or a "defaulted"))}))])  )
+                        )))))
+  % := {:db/id 12,
+        :order/email nil,
+        '(hyperfiddle.hfql.tests/foo order/email) "defaulted"})
