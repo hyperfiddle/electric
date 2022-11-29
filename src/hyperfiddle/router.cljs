@@ -3,7 +3,6 @@
             [hyperfiddle.rcf :as rcf :refer [% tests with tap]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui]
             [missionary.core :as m])
   (:import [missionary Cancelled])
   (:require-macros [hyperfiddle.router :refer [path]]))
@@ -75,10 +74,11 @@
   (p/fn [route label]
     (p/client
       (let [path (encode route)]
-        (ui/element dom/a {::dom/href path ; middle click
-                           ::ui/click-event (p/fn [e]
-                                              (.preventDefault e)
-                                              (pushState! !path path))} label)))))
+        (dom/a {:href path}
+          (when-some [e (dom/Event. "click" false)]
+            (.preventDefault e)
+            (pushState! !path path))
+          label)))))
 
 ; Demo
 
