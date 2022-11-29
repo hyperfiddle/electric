@@ -8,7 +8,8 @@
            [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros peter.y2022.dom-pure)))
 
-(defn events [nod typ] #?(:cljs (m/observe (fn [!] (.addEventListener nod typ !) #(.removeEventListener nod typ !)))))
+(defn event* [nod typ] #?(:cljs (m/observe (fn [!] (.addEventListener nod typ !) #(.removeEventListener nod typ !)))))
+(defmacro event [typ] `(new event* dom/node ~typ))
 
 (defmacro indexed-flows [& flows]
   (let [n (count flows)]
@@ -61,8 +62,6 @@
      (binding [it v#]
        (binding [prev @prev#]
          (reset! prev# (case branch# ~@(interleave (range) (take-nth 2 (rest clauses))) init-val#))))))
-
-(defmacro event [typ] `(new events dom/node ~typ))
 
 (comment
   (p/defn Focused? []
@@ -235,8 +234,8 @@
                           (emit-delayed 5 (range 3)) (doto *v* prn))))
 
     (= #{[0 :a] [1 :b]} (m/? (m/reduce conj #{} (indexed-flows (m/seed [:a]) (m/seed [:b])))))
-    (d->c 0 (events btn "onclick") (p/server (swap! counter inc)))
-    (let [[branch v] (new (m/relieve {} (m/reductions {} ::init (events btn "onclick"))))]
+    (d->c 0 (event* btn "onclick") (p/server (swap! counter inc)))
+    (let [[branch v] (new (m/relieve {} (m/reductions {} ::init (event* btn "onclick"))))]
       (if (= ::init v)
         0
         (binding [it v]
