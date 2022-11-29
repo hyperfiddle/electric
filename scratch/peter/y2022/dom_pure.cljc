@@ -44,9 +44,8 @@
 
 (defmacro flow-cond [& pairs] `(new (reduce-to-pairs (flow-cond* ~@pairs))))
 
-(defmacro reify-pending [flow]
-  `(new (m/reductions (fn [[lpv _pending] nx] (case nx ::pending [lpv true] [nx false])) [nil false]
-          (p/fn [] (try (new ~flow) (catch Pending _ ::pending))))))
+(defn pending-pair [flow] (m/reductions (fn [[lpv _] nx] (case nx ::pending [lpv true] [nx false])) [nil false] flow))
+(defmacro reify-pending [& body] `(-> (p/fn [] (try (do ~@body) (catch Pending _ ::pending))) pending-pair new))
 
 (defmacro flow-case [init-val & clauses]
   `(let [init-val# ~init-val

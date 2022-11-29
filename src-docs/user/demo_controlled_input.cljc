@@ -32,6 +32,18 @@
 
 #?(:cljs (defn tvalue [e] (.. e -target -value)))
 
+(p/defn Input [server-value F]
+  (let [in (dom/dom-element dom/node "input")
+        [user-value pending] (dp/reify-pending
+                               (dp/flow-case server-value
+                                 (dp/event "input") (let [v (tvalue dp/it)] (when F (F. v)) v)))
+        focused? (dp/flow-case false (dp/event "focus") true (dp/event "blur") false)]
+    (dom/with in
+      (.setAttribute dom/node "type" "text")
+      (set! (.-value dom/node) server-value)
+      (when pending (dom/props {:style {:background-color "yellow"}}))
+      (if focused? user-value server-value))))
+
 (p/defn App []
   (p/client
     (dom/div
@@ -39,15 +51,7 @@
         (let [db (p/watch !db)]
           (p/client
             (let [server-value (p/server (q db))
-                  ret (dom/with (dom/dom-element dom/node "input")
-                        (.setAttribute dom/node "type" "text")
-                        (set! (.-value dom/node) server-value)
-                        (let [focused? (dp/flow-case false (dp/event "focus") true (dp/event "blur") false)
-                              user-value (dp/flow-case server-value
-                                           (dp/event "input") (let [v (tvalue dp/it)]
-                                                                (p/server (swap! !db assoc :x (new (latency v))))
-                                                                v))]
-                          (if focused? user-value server-value)))]
+                  ret (Input. server-value (p/fn [v] (p/server (swap! !db assoc :x (new (latency v))))))]
               (prn "retval:" ret)
               (dom/div (dom/text "server value: " server-value))))
           nil)))))
