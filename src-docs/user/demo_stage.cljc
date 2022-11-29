@@ -38,9 +38,8 @@
 
       (p/client
         (dom/label "label name")
-        (when-some [[nom'] (p/with-cycle [[nom' nom] [nil (p/server (query-label-name hf/db e))]]
-                             [(ui/input nom (= nom nom')) nom])] ; todo validate
-            [[:db/add e :label/name nom']])))))
+        (when-some [nom (ui/input (p/server (query-label-name hf/db e)))] ; todo validate
+          [[:db/add e :label/name nom]])))))
 
 (p/defn Page [e]
   (p/client
@@ -54,21 +53,22 @@
   (let [secure-db (d/with-db @(requiring-resolve 'test/datomic-conn))]
     (binding [hf/schema (new (dx/schema> secure-db))
               hf/with (fn [db tx] (d/with db {:tx-data tx}))] ; todo required by popover TODO
-      (let [!stage (atom []) stage (p/watch !stage)]
-        (p/client
-          (p/with-cycle [loading ::hf/loading]
-            (binding [hf/loading loading] ; todo distributed glitch
-              (dom/div (name loading) " " (str (hf/Load-timer.)) "ms")
-              (try
-                (p/server
+      (p/client
+        (p/with-cycle [loading ::hf/loading]
+          (binding [hf/loading loading] ; todo distributed glitch
+            (dom/div (name loading) " " (str (hf/Load-timer.)) "ms")
+            (try
+              (p/server
+                (p/with-cycle [stage []]
                   (binding [hf/db (:db-after (hf/with secure-db stage))] ; task can fail
-                    (when-some [tx (Page. 536561674378709)]
-                      (swap! !stage #(hf/into-tx hf/schema %1 %2) tx))
-                    (when-some [stage' (p/client (ui/edn-editor stage {::dom/disabled true}))]
-                      (reset! !stage stage'))))
-                ::hf/idle
-                (catch Pending e ::hf/loading))))
-          nil)))))
+                    (let [tx (Page. 536561674378709)
+                          stage' (hf/into-tx hf/schema stage
+                                   (p/client (ui/edn-editor stage {::dom/disabled true})))]
+                      (hf/into-tx hf/schema stage' tx)))))
+              ::hf/idle
+              (catch Pending e ::hf/loading))))
+        nil))))
+
 
 ;(let [stage (reduce into-tx [(Popover. "change name" (p/partial 1 LabelForm e))
 ;                             (Popover. "change name" (p/partial 1 LabelForm e))
