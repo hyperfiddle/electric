@@ -2,7 +2,8 @@
   (:require
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
-   [missionary.core :as m])
+   [missionary.core :as m]
+   [hyperfiddle.photon-dom2 :as dom])
   (:import [missionary Cancelled]
            [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros peter.y2022.dom-pure)))
@@ -42,6 +43,103 @@
   (m/reductions (fn [[lpv _pending] nx] (case nx ::pending [lpv true] [nx false])) [nil false] flow))
 
 (defmacro flow-cond [& pairs] `(new (reduce-to-pairs (flow-cond* ~@pairs))))
+
+(defmacro reify-pending [flow]
+  `(new (m/reductions (fn [[lpv _pending] nx] (case nx ::pending [lpv true] [nx false])) [nil false]
+          (p/fn [] (try (new ~flow) (catch Pending _ ::pending))))))
+
+(defmacro flow-case [init-val & clauses]
+  `(let [init-val# ~init-val
+         [branch# v#] (new (m/relieve {} (m/reductions {} [::init] (indexed-flows ~@(take-nth 2 clauses)))))]
+     (binding [it v#]
+       (case branch# ~@(interleave (range) (take-nth 2 (rest clauses))) init-val#))))
+
+(p/def prev)
+(defmacro flow-case2 [init-val & clauses]
+  `(let [init-val# ~init-val
+         prev# (atom init-val#)
+         [branch# v#] (new (m/relieve {} (m/reductions {} [::init] (indexed-flows ~@(take-nth 2 clauses)))))]
+     (binding [it v#]
+       (binding [prev @prev#]
+         (reset! prev# (case branch# ~@(interleave (range) (take-nth 2 (rest clauses))) init-val#))))))
+
+(defmacro event [typ]
+  `(let [typ# ~typ]
+     (new (m/observe (fn [!] (.addEventListener dom/node typ# !) #(.removeEventListener dom/node typ# !))))))
+
+(comment
+  (p/defn Focused? []
+    (p/with-cycle [focused false]
+      (case focused
+        true (not (some? (dom/Event. "blur" false)))
+        false (some? (dom/Event. "focus" false)))))
+  ;; vs
+  (p/defn Focused? []
+    (flow-case false                    ; no cycle
+      (event "focus") true              ; no some? or other checks
+      (event "blur")  false))
+
+  (p/with-cycle [input-value controlled-value]
+    (or (some-> (dom/Event. "input" false) ; never busy - process synchronously
+          .-target .-value)                ; set new local value
+      input-value))
+  ;; vs
+  (let [input-value (flow-case controlled-value
+                      (event "input") (-> it .-target .-value))])
+
+  (p/defn Button [label busy]
+    (dom/with (dom/dom-element dom/node "button")
+      (dom/set-text-content! dom/node label)
+      (dom/Event. "click" busy)))
+  ;; vs
+  ;; this I don't consider idiomatic as it leaks the events
+  (p/defn Button [label]                ; no busy leaking
+    (dom/with (dom/dom-element dom/node "button")
+      (dom/set-text-content! dom/node label)
+      (flow-case nil (event "click") it)))
+  ;; this is more idiomatic
+  (p/defn Button [label init-val Handler]
+    (dom/with (dom/dom-element dom/node "button")
+      (dom/set-text-content! dom/node label)
+      (flow-case init-val (event "click") (Handler. it))))
+  ;; this is best
+  (defmacro button [label & body]
+    `(new (dom/with (dom/dom-element dom/node "button")
+            (dom/set-text-content! dom/node ~label)
+            ~@body)))
+  ;; then at call site
+  (button "click me"
+    (flow-case 0 (event "click") (inc prev)))
+  ;; don't couple object with behavior OOP style
+  ;; just provide fns to mix the behavior in
+  ;; e.g. button that prints which mouse button was clicked
+  (button "click me"
+    (flow-case nil
+      (event "contextmenu") (.preventDefault it)
+      (event "mousedown")   (println (case (.button it) 0 "Left" 1 "Middle" 2 "Right") "button clicked")))
+  ;; vs
+  ;; can't reuse Button, we need other events
+  (dom/with (dom/dom-element dom/node "button")
+    (dom/set-text-content! dom/node "click me")
+    (some-> (Event. "contextmenu" false) .preventDefault)
+    (when-some [e (Event. "mousedown" false)]
+      (println (case (.button e) 0 "Left" 1 "Middle" 2 "Right") "button clicked")))
+
+  ;; example: button that gets another css class on hover
+  (Button. "hover me"
+    (flow-case nil
+      (event "mouseenter") (-> it .-target .-classList (.add "surprise"))
+      (event "mouseleave") (-> it .-target .-classList (.remove "surprise"))))
+  ;; vs.
+  (dom/with (dom/dom-element dom/node "button")
+    (dom/set-text-content! dom/node "hover me")
+    (when-some [e (Event. "mouseenter" false)] (-> e .-target .-classList (.add "surprise")))
+    (when-some [e (Event. "mouseleave" false)] (-> e .-target .-classList (.remove "surprise"))))
+  ;; note how the event handling machinery leaks
+  ;; one has to understand busy
+  ;; one has to remember to wrap event with when-some
+  ;; flow-case is n-1, it rids us of busy impulse machinery completely
+  )
 
 (tests
   (def mbx (m/mbx))
