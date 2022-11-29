@@ -43,6 +43,14 @@
       false (some? (dom/Event. "focus" false)))))
 
 (defn- ?static-props [body] (if (map? (first body)) `((dom/props ~(first body)) ~@body) body))
+
+(p/defn InputController [controlled-value]
+  (p/with-cycle [value ""]
+    (if (Focused?.)
+      (if-some [e (dom/Event. "input" false)]
+        (-> e .-target .-value) value)
+      (set! (.-value dom/node) controlled-value))))
+
 (defmacro input "
 A dom input text component.
 Purpose of this component is to eventually sync the input with the database which is also an input
@@ -57,14 +65,7 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      (dom/dom-element dom/node "input")
      (.setAttribute dom/node "type" "text")
      ~@(?static-props body)
-     (let [cv# ~controlled-value]
-       (case (new Focused?) ; avoid syntax-quote bug
-         false (do (set! (.-value dom/node) cv#) ; throw away local value
-                   cv#)
-         true (p/with-cycle [input-value# cv#]
-                (or (some-> (dom/Event. "input" false) ; never busy - process synchronously
-                      .-target .-value) ; set new local value
-                  input-value#)))))) ; use local value when focused
+     (new InputController ~controlled-value)))
 
 (p/defn DemoInput []
   (dom/h1 "a controlled input that reverts on blur")
@@ -88,12 +89,7 @@ TODO: what if component loses focus, but the user input is not yet committed ?
 (defmacro textarea [controlled-value & body]
   `(dom/with (dom/dom-element dom/node "textarea")
      ~@(?static-props body)
-     (let [cv# ~controlled-value]
-       (case (new Focused?)
-         false (do (set! (.-value dom/node) cv#) cv#) ; throw away local value
-         true  (p/with-cycle [uv# cv#]                ; uv (user value) starts as cv (controlled value)
-                 (or (some-> (dom/Event. "input" false) .-target .-value)
-                   uv#))))))
+     (new InputController ~controlled-value)))
 
 (p/defn ^:private -Edn-editor [x] ; optimize macroexpansion size
   (when-some [x (blank->nil x)]
