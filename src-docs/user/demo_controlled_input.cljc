@@ -36,8 +36,8 @@
   (let [in (dom/dom-element dom/node "input")
         [user-value pending] (dp/reify-pending
                                (dp/flow-case server-value
-                                 (dp/event "input") (let [v (tvalue dp/it)] (when F (F. v)) v)))
-        focused? (dp/flow-case false (dp/event "focus") true (dp/event "blur") false)]
+                                 (dp/event* in "input") (let [v (tvalue dp/it)] (when F (F. v)) v)))
+        focused? (dp/flow-case false (dp/event* in "focus") true (dp/event* in "blur") false)]
     (dom/with in
       (.setAttribute dom/node "type" "text")
       (set! (.-value dom/node) server-value)
