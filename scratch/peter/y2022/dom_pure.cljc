@@ -3,7 +3,7 @@
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
    [missionary.core :as m]
-   [hyperfiddle.photon-dom2 :as dom])
+   [hyperfiddle.photon-dom :as dom])
   (:import [missionary Cancelled]
            [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros peter.y2022.dom-pure)))
@@ -63,9 +63,7 @@
        (binding [prev @prev#]
          (reset! prev# (case branch# ~@(interleave (range) (take-nth 2 (rest clauses))) init-val#))))))
 
-(defmacro event [typ]
-  `(let [typ# ~typ]
-     (new (m/observe (fn [!] (.addEventListener dom/node typ# !) #(.removeEventListener dom/node typ# !))))))
+(defmacro event [typ] `(new events dom/node ~typ))
 
 (comment
   (p/defn Focused? []
@@ -86,6 +84,12 @@
   ;; vs
   (let [input-value (flow-case controlled-value
                       (event "input") (-> it .-target .-value))])
+
+  (defn interval [ms] (m/ap (m/? (m/?> (m/seed (repeat (m/sleep ms ms)))))))
+  (time (m/? (m/reduce #(prn %2) nil (m/eduction (take 5) (interval 500)))))
+
+  (def discard (p/run (tap (flow-case 0 (interval 1000) it (interval 700) it))))
+  (discard)
 
   (p/defn Button [label busy]
     (dom/with (dom/dom-element dom/node "button")
