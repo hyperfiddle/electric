@@ -12,6 +12,7 @@
 
 (def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
 (p/def db "inject database value for hyperfiddle stage and HFQL")
+(declare ref?)
 (p/def secure-db "database value excluding stage, so that user can't tamper")
 (p/def with "inject datomic.api/with or equivalent, used by stage")
 (p/def loading)
