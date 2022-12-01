@@ -1,4 +1,5 @@
 (ns hyperfiddle.photon-ui2
+  (:refer-clojure :exclude [long])
   (:require
    clojure.edn
    [contrib.str :refer [blank->nil]]
@@ -95,3 +96,17 @@ TODO: what if component loses focus, but the user input is not yet committed ?
 (p/defn Value []
   (p/with-cycle [v (.-value dom/node)]
     (if-let [ev (dom/Event. "input" false)] (-> ev .-target .-value) v)))
+
+;; TODO clicking the arrows on the input doesn't trigger new values flowing out
+;; the reason is the input doesn't get focused by clicking them
+(defmacro long [controlled-value & body]
+  `(let [cv# ~controlled-value]
+     (dom/with (dom/dom-element dom/node "input")
+       (.setAttribute dom/node "type" "number")
+       ~@(?static-props body)
+       (p/with-cycle [v# nil]
+         (if (new Focused?)
+           (if-some [e# (dom/Event. "input" false)]
+             (if-some [vv# (-> e# .-target .-value parse-long)] vv# v#)
+             v#)
+           (do (set! (.-value dom/node) (pr-str cv#)) cv#))))))
