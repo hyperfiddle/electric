@@ -8,34 +8,6 @@
    [hyperfiddle.rcf :as rcf :refer [tests tap with %]])
   #?(:cljs (:require-macros hyperfiddle.photon-ui2)))
 
-(p/def recurframe)
-(defmacro loopframe [bindings & body]
-  `(let [atm# (atom ~(vec (take-nth 2 (rest bindings))))
-         ~(vec (take-nth 2 bindings)) (p/watch atm#)]
-     (binding [recurframe (fn [& args#] (reset! atm# (vec args#)) ::recur)]
-       ~@body)))
-
-#_
-(tests
-  (with (p/run (tap (loopframe [x 2]
-                      (tap :side-effect)
-                      (if (pos? x) (recurframe (dec x)) x))))
-    % := :side-effect
-    % := ::recur
-    % := 0
-    ))
-
-(tests
-  (with (p/run (tap (p/with-cycle [x 2] (if (pos? x) (dec x) x))))
-    % := 1
-    % := 0))
-
-(tests
-  (with (p/run (let [!x (atom 2) x (p/watch !x)]
-                 (when (pos? x) (reset! !x (dec x)))
-                 (tap x)))
-    % := 2 % := 1 % := 0))
-
 (p/defn Focused? []
   (p/with-cycle [focused false]
     (if focused
