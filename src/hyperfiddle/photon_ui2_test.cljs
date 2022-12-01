@@ -81,3 +81,19 @@
   % := "yyy"
   (discard)
   )
+
+(tests "ui/long"
+  (def num (atom nil))
+  (def discard (p/run (binding [dom/node (dom/by-id "root")]
+                        (tap (ui/long 0 (reset! num dom/node))))))
+  % := 0
+  (uit/focus @num)
+  (uit/set-value! @num "1")
+  % := 1
+  (uit/set-value! @num "xyz")           ; nothing, not a number
+  (uit/set-value! @num "2")
+  % := 2
+  (uit/blur @num)
+  % := 0
+  (discard)
+  )
