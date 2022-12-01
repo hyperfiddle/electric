@@ -80,15 +80,17 @@ TODO: what if component loses focus, but the user input is not yet committed ?
          (p/with-cycle [uv# cv#] (if-some [ev# (dom/Event. "change" false)] (.. ev# -target -checked) uv#))
          (set! (.-checked dom/node) cv#)))))
 
+(p/defn ValueOn [event-type]
+  (p/with-cycle [v (.-value dom/node)]
+    (if-let [ev (dom/Event. event-type false)] (.. ev -target -value) v)))
+
 (defmacro select [options & body]
   `(let [opts# ~options]
      (dom/with (dom/dom-element dom/node "select")
        (?static-props ~@body)
        (p/for [opt# opts#] (dom/option (dom/props (dissoc opt# :text)) (some-> opt# :text dom/text)))
-       (p/with-cycle [uv# (.-value dom/node)]
-         (if-let [ev# (dom/Event. "change" false)] (-> ev# .-target .-value) uv#)))))
+       (new ValueOn "change"))))
 
-;; TODO ui/input puts the resulting value into value attribute of the DOM input element
 (p/defn Value []
   (p/with-cycle [v (.-value dom/node)]
     (if-let [ev (dom/Event. "input" false)] (-> ev .-target .-value) v)))
