@@ -113,6 +113,7 @@
 ;                ; return (map negate xs) }
 
 ; http://www.cse.chalmers.se/~rjmh/afp-arrows.pdf
+; https://hackage.haskell.org/package/base-4.17.0.0/docs/Control-Arrow.html#t:ArrowLoop
 ;
 ; class Arrow a => ArrowLoop a where
 ;   loop :: a (b,d) (c,d) -> a b c
