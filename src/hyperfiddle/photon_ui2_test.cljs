@@ -59,7 +59,7 @@
 (tests "ui/select"
   (def sel (atom nil))
   (def discard (p/run (binding [dom/node (dom/by-id "root")]
-                        (tap (ui/select [{:text ""} {:text "a" :selected true} {:text "b"} {:text "c"}]
+                        (tap (ui/select [{:text ""} {:text "a"} {:text "b"} {:text "c"}] "a"
                                (reset! sel dom/node))))))
   % := "a"
   (uit/swap-value! @sel (constantly "b"))

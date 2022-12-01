@@ -84,11 +84,12 @@ TODO: what if component loses focus, but the user input is not yet committed ?
   (p/with-cycle [v (.-value dom/node)]
     (if-let [ev (dom/Event. event-type false)] (.. ev -target -value) v)))
 
-(defmacro select [options & body]
-  `(let [opts# ~options]
+(defmacro select [options controlled-value & body]
+  `(let [opts# ~options, cv# ~controlled-value]
      (dom/with (dom/dom-element dom/node "select")
        (?static-props ~@body)
        (p/for [opt# opts#] (dom/option (dom/props (dissoc opt# :text)) (some-> opt# :text dom/text)))
+       (set! (.-value dom/node) cv#)
        (new ValueOn "change"))))
 
 (p/defn Value []
