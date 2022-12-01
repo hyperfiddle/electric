@@ -1,5 +1,6 @@
-{:lint-as {hyperfiddle.photon/def  clojure.core/def
-           hyperfiddle.photon/defn clojure.core/defn
-           hyperfiddle.photon/for  clojure.core/for
-           hyperfiddle.photon/fn   clojure.core/fn}
+{:lint-as {hyperfiddle.photon/def        clojure.core/def
+           hyperfiddle.photon/defn       clojure.core/defn
+           hyperfiddle.photon/for        clojure.core/for
+           hyperfiddle.photon/with-cycle clojure.core/let
+           hyperfiddle.photon/fn         clojure.core/fn}
  :linters {:redundant-expression {:level :off}}}
