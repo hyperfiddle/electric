@@ -38,9 +38,9 @@
 
 (p/defn Focused? []
   (p/with-cycle [focused false]
-    (case focused
-      true (not (some? (dom/Event. "blur" false)))
-      false (some? (dom/Event. "focus" false)))))
+    (if focused
+      (nil? (dom/Event. "blur" false))
+      (some? (dom/Event. "focus" false)))))
 
 (defn- ?static-props [body] (if (map? (first body)) `((dom/props ~(first body)) ~@body) body))
 
@@ -104,10 +104,9 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      (.setAttribute dom/node "type" "checkbox")
      ~@(?static-props body)
      (let [cv# ~controlled-value]
-       (case (new Focused?)
-         false (do (set! (.-checked dom/node) cv#) cv#)
-         true  (p/with-cycle [uv# cv#]
-                 (if-some [ev# (some-> (dom/Event. "change" false) .-target .-checked)] ev# uv#))))))
+       (if (new Focused?)
+         (p/with-cycle [uv# cv#] (if-some [ev# (dom/Event. "change" false)] (.. ev# -target -checked) uv#))
+         (set! (.-checked dom/node) cv#)))))
 
 (defmacro select [options & body]
   `(let [opts# ~options]
