@@ -8,6 +8,6 @@
 (p/defn App []
   (p/client
     (dom/h1 "Photon UI 2")
-    (ui2/select [{:text "" :selected true} {:text "a"} {:text "b"}])
+    (ui2/select [{:text ""} {:text "a"} {:text "b"}] "a")
     nil ;; upstream would interpret result of ui2/select
     ))
