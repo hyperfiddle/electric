@@ -109,15 +109,11 @@ TODO: what if component loses focus, but the user input is not yet committed ?
          true  (p/with-cycle [uv# cv#]
                  (if-some [ev# (some-> (dom/Event. "change" false) .-target .-checked)] ev# uv#))))))
 
-;; TODO decomplect options into separate arg
-;; need to think how to auto-handle static props
-(defmacro select [props & body]
-  `(let [props# ~props]
+(defmacro select [options & body]
+  `(let [opts# ~options]
      (dom/with (dom/dom-element dom/node "select")
-       (dom/props (dissoc props# :options :value))
-       ~@body
-       (p/for [opt# (:options props#)] (dom/option (dom/props (dissoc opt# :text)) (some-> opt# :text dom/text)))
-       (when-some [v (:value props#)] (dom/props {:value v})) ; select first value if provided
+       (?static-props ~@body)
+       (p/for [opt# opts#] (dom/option (dom/props (dissoc opt# :text)) (some-> opt# :text dom/text)))
        (p/with-cycle [uv# (.-value dom/node)]
          (if-let [ev# (dom/Event. "change" false)] (-> ev# .-target .-value) uv#)))))
 
