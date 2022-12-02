@@ -4,7 +4,10 @@
    [hyperfiddle.photon-dom :as dom]
    [hyperfiddle.photon-ui2 :as ui]
    [hyperfiddle.ui.test :as uit]
-   [hyperfiddle.rcf :as rcf :refer [% tap tests with]]))
+   [hyperfiddle.rcf :as rcf :refer [% tap tests with]])
+  (:require-macros [hyperfiddle.photon-ui2-test :refer [setup]]))
+
+(def it (atom nil))
 
 (tests "ui/input accepts literal props map"
   (with (p/run (binding [dom/node (dom/by-id "root")]
@@ -13,58 +16,46 @@
     % := "width: 100px;"))
 
 (tests "ui/input blur reverts to original value"
-  (def in (atom nil))
-  (def discard (p/run (binding [dom/node (dom/by-id "root")]
-                        (tap (ui/input "controlled-value"
-                               (reset! in dom/node))))))
+  (def discard (setup (ui/input "controlled-value")))
   % := "controlled-value"
-  (uit/focus @in)
-  (uit/focused? @in) := true
-  (uit/set-value! @in "new-value")
+  (uit/focus @it)
+  (uit/focused? @it) := true
+  (uit/set-value! @it "new-value")
   % := "new-value"
-  (uit/blur @in)
+  (uit/blur @it)
   % := "controlled-value"
   (discard))
 
 
 (tests "ui/textarea"
-  (def ta (atom nil))
-  (def discard (p/run (binding [dom/node (dom/by-id "root")]
-                        (tap (ui/textarea "controlled-value"
-                               (reset! ta dom/node))))))
+  (def discard (setup (ui/textarea "controlled-value")))
   % := "controlled-value"
-  (uit/focus @ta)
-  (uit/focused? @ta) := true
-  (uit/set-value! @ta "new-value")
+  (uit/focus @it)
+  (uit/focused? @it) := true
+  (uit/set-value! @it "new-value")
   % := "new-value"
-  (uit/blur @ta)
+  (uit/blur @it)
   % := "controlled-value"
   (discard))
 
 (tests "ui/checkbox"
-  (def cb (atom nil))
-  (def discard (p/run (binding [dom/node (dom/by-id "root")]
-                        (tap (ui/checkbox false
-                               (reset! cb dom/node))))))
+  (def discard (setup (ui/checkbox false)))
   % := false
-  (uit/focus @cb)
-  (uit/toggle! @cb) % := true
-  (uit/toggle! @cb) % := false
-  (uit/toggle! @cb) % := true
-  (uit/blur @cb)
+  (uit/focus @it)
+  (uit/toggle! @it) % := true
+  (uit/toggle! @it) % := false
+  (uit/toggle! @it) % := true
+  (uit/blur @it)
   % := false
   (discard)
   )
 
 (tests "ui/select"
-  (def sel (atom nil))
-  (def discard (p/run (binding [dom/node (dom/by-id "root")]
-                        (tap (ui/select [{:text ""} {:text "a"} {:text "b"} {:text "c"}] "a"
-                               (reset! sel dom/node))))))
+  (def discard (setup (ui/select [{:text ""} {:text "a"} {:text "b"} {:text "c"}] "a")))
   % := "a"
-  (uit/set-value! @sel "b")
+  (uit/set-value! @it "b")
   % := "b"
-  (uit/set-value! @sel "c")
+  (uit/set-value! @it "c")
   % := "c"
   (discard)
   )
@@ -83,17 +74,29 @@
   )
 
 (tests "ui/long"
-  (def num (atom nil))
-  (def discard (p/run (binding [dom/node (dom/by-id "root")]
-                        (tap (ui/long 0 (reset! num dom/node))))))
+  (def discard (setup (ui/long 0)))
   % := 0
-  (uit/focus @num)
-  (uit/set-value! @num "1")
+  (uit/focus @it)
+  (uit/set-value! @it "1")
   % := 1
-  (uit/set-value! @num "xyz")           ; nothing, not a number
-  (uit/set-value! @num "2")
+  (uit/set-value! @it "xyz")           ; nothing, not a number
+  (uit/set-value! @it "2")
   % := 2
-  (uit/blur @num)
+  (uit/blur @it)
   % := 0
+  (discard)
+  )
+
+(tests "ui/double"
+  (def discard (setup (ui/double 1.1 pr-str)))
+  % := 1.1
+  (uit/focus @it)
+  (uit/set-value! @it 2.2)
+  % := 2.2
+  (uit/set-value! @it "xyz")            ; nothing, not a number
+  (uit/set-value! @it 3.3)
+  % := 3.3
+  (uit/blur @it)
+  % := 1.1
   (discard)
   )

@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon-ui2
-  (:refer-clojure :exclude [long])
+  (:refer-clojure :exclude [long double])
   (:require
    clojure.edn
    [contrib.str :refer [blank->nil]]
@@ -125,3 +125,16 @@ TODO: what if component loses focus, but the user input is not yet committed ?
          (new long-values cv# Focused?
            (p/fn [] (when-some [e (dom/Event. "input" false)] (-> e .-target .-value parse-long)))
            #(set! (.-value dom/node) (pr-str cv#)))))))
+
+;; TODO should we take a fomatter, if yes should we also take a parser?
+(defmacro double [controlled-value formatter & body]
+  `(let [cv# ~controlled-value, formatter# ~formatter]
+     (dom/with (dom/dom-element dom/node "input")
+       (.setAttribute dom/node "type" "number")
+       ~@(?static-props body)
+       (p/with-cycle [v# nil]
+         (if (new Focused?)
+           (if-some [e# (dom/Event. "input" false)]
+             (if-some [vv# (-> e# .-target .-value parse-double)] vv# v#)
+             v#)
+           (do (set! (.-value dom/node) (formatter# cv#)) cv#))))))
