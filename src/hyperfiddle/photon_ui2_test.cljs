@@ -116,3 +116,19 @@
   % := :foo
   (discard)
   )
+
+(tests "ui/symbol"
+  (def discard (setup (ui/symbol 'foo)))
+  % := 'foo
+  (uit/focus @it)
+  (uit/set-value! @it 'bar)
+  % := 'bar
+  (uit/set-value! @it "123")            ; nothing, not a keyword
+  (uit/set-value! @it "quux")
+  % := 'quux
+  (uit/set-value! @it "foo/bar")
+  % := 'foo/bar
+  (uit/blur @it)
+  % := 'foo
+  (discard)
+  )

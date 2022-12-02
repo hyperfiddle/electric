@@ -19,6 +19,7 @@
       (snip "ui/select"  (ui/select [{:text ""} {:text "a"} {:text "b"}] "a"))
       (snip "ui/long"    (ui/long 0))
       (snip "ui/double"  (ui/double 1.123))
-      (snip "ui/keyword" (ui/keyword :foo)))
+      (snip "ui/keyword" (ui/keyword :foo))
+      (snip "ui/symbol"  (ui/symbol 'foo)))
     nil ;; upstream would interpret result of ui2/select
     ))
