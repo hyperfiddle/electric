@@ -177,18 +177,44 @@
   @!it := 42
   (!it))
 
-(tests
-  ; (p/run (new >F)) -- fails due to syntax collision with Clojure new
-  (with (p/run (tap (new (identity >F))))                     ; workaround syntax gap
-    % := 42))
-
 (comment
-  ; Explanation of Clojure syntax
-  ; Clojure constructor syntax is defined only on static classes
-  (new java.lang.Long 1)                                    ; works
-  (new (identity java.lang.Long) 1)                         ; fails
-  (let [Klass java.lang.Long] (new Klass 1))                ; fails
-  ; therefore Photon can shadow the entire dynamic usage of new without
-  ; colliding with Clojure functionality.
-  ; That's how it works today. Todo improve the coverage with additional syntax.
+  "Document surprising edge case: Photon cannot use new to join foreign missionary flow from cc/def global"
+  (tests (with (p/run (tap (new >F))) % := 42)) -- compile time error
+  ; Syntax error macroexpanding hyperfiddle.photon/local
+  ; Cannot call `new` on >F
+  ;
+  ; Why?
+  ; It collides with Clojure constructor syntax. At compile time, Photon must decide if (new X) should
+  ; compile to a Clojure constructor call, or a flow join.
+  ;
+  ; Clojure core syntax:
+  "Clojure constructor syntax is defined only on static classes"
+  (tests (new java.lang.Long 1) := 1) ; ✅
+
+  "clojure cannot construct a dynamic class with new"
+  (tests (new (identity java.lang.Long) 1) :throws Exception) -- compile time error
+  ; Syntax error (IllegalArgumentException) compiling new
+  ; Unable to resolve classname: (identity java.lang.Long)
+
+  "another way to try to construct a dynamic class with new"
+  (let [Klass java.lang.Long] (new Klass 1)) -- conpile time error
+  ; Syntax error (IllegalArgumentException) compiling new
+  ; Unable to resolve classname: Klass
+
+  ; See also: https://stackoverflow.com/questions/9167457/in-clojure-how-to-use-a-java-class-dynamically
+  ; todo - show that clojurescript has the same rule
+
+  ; Therefore, Photon inverses Clojure syntax.
+  ; In Clojure, dynamic class construction syntax is undefined.
+  ; In Photon, dynamic class construction syntax is given meaning: join flow.
+  ; By inversing Clojure syntax, this is guaranteed not to break any existing Clojure code that compiles.
+
+  (with (p/run (new >F))) -- Photon compiles this to a Clojure constructor call
+  ; Syntax error macroexpanding hyperfiddle.photon/local
+  ; Cannot call `new` on >F
   )
+
+(tests
+  "workaround syntax gap by making static calls dynamic"
+  (with (p/run (tap (new (identity >F)))) % := 42)
+  (with (p/run (tap (let [>F >F] (new >F)))) % := 42))
