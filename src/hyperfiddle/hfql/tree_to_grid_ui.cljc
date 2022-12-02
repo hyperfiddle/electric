@@ -56,6 +56,8 @@
 ;;   (dom/event "click" (fn [e] (.preventDefault e) (hf/navigate! link)))
 ;;   (dom/text value))
 
+(p/def GridWidth 2) ; TODO infer from ctx
+
 (p/def GridRow 1)
 (p/def GridCol 1)
 (p/def Indentation 0)
@@ -68,7 +70,9 @@
       (if (some? route)
         (hf/Link. route link-label)
         (dom/pre {::dom/role  "cell"
-                  ::dom/style {:grid-row GridRow, :grid-column GridCol}} (dom/text (pr-str value))))))),
+                  ::dom/style {:grid-row GridRow, :grid-column GridCol}} (dom/text
+                                                                           (str (non-breaking-padder Indentation)
+                                                                             (pr-str value)))))))),
 
 (p/defn Input [{::hf/keys [tx Value] :as ctx}]
   (let [value-type (::value-type ctx)
@@ -144,6 +148,14 @@
                                           ::current-value v}]
             (p/server (Table. (dissoc ctx ::parent ::hf/options) (p/for [e (new options)] (new continuation e))))))))))
 
+
+(defn non-breaking-padder [n] (apply str (repeat n " ")) )
+
+(defn field-name [attr]
+  (if (seq? attr)
+    (field-name (first attr))
+    (name attr)))
+
 (p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options ::hf/option-label]}]]
   (let [value    (read.)
         options? (some? options)]
@@ -153,11 +165,12 @@
             arg-spec (spec/arg spec name)]
         (when label?
           (dom/label {::dom/role  "cell"
+                      ::dom/class "label"
                       ::dom/for   id,
                       ::dom/title (pr-str (:hyperfiddle.spec/form arg-spec))
                       ::dom/style {:grid-row    GridRow
                                    :grid-column GridCol}}
-            (dom/text name)))
+            (dom/text (str (non-breaking-padder Indentation) (field-name  name)))))
         (when options?
           (dom/datalist {::dom/id list-id}
             (p/server (let [labelf (or option-label (p/fn [x] x))]
@@ -191,6 +204,12 @@
             (dom/event "blur" (fn [_] (reset! !steady false))))
           (p/watch v))))) )
 
+(p/defn CellPad [row n]
+  (p/for [i (range n)]
+    (dom/div {::dom/role  "cell"
+              ::dom/style {:grid-column (+ GridCol (inc i))
+                           :grid-row    row}})))
+
 (p/defn GrayInputs [{::hf/keys [attribute arguments]}]
   (when-some [arguments (seq arguments)]
     (let [spec (attr-spec attribute)]
@@ -198,7 +217,8 @@
         (p/client
           (binding [GridRow (+ GridRow idx)]
             (p/server
-              (GrayInput. true spec nil arg))))))))
+              (GrayInput. true spec nil arg))
+            (CellPad. GridRow (- GridWidth 2))))))))
 
 (p/defn Form [{::hf/keys [keys values] :as ctx}]
   (p/client
@@ -215,22 +235,25 @@
                       dom-for (random-uuid)]
                   (dom/label
                     {::dom/role  "cell"
+                     ::dom/class "label"
                      ::dom/for   dom-for
                      ::dom/style {:grid-row     row
                                   :grid-column  GridCol
-                                  :padding-left (str Indentation "rem")}
+                                  #_#_:padding-left (str Indentation "rem")}
                      ::dom/title (pr-str (or (spec-description false (attr-spec key))
                                            (p/server (schema-value-type hf/*schema* hf/db key))))}
-                    (dom/text key))
-                  (binding [GridRow (inc row)]
-                    (p/server (GrayInputs. ctx)))
-                  (binding [GridRow (if leaf? row (+ (inc row) argc))
-                            GridCol (if leaf? (inc GridCol) GridCol)
-                            Indentation   (if leaf? Indentation (inc Indentation))]
-                    (p/server (Render. (assoc ctx ::dom/for dom-for))))))))
+                    (dom/text (str (non-breaking-padder Indentation) (field-name key))))
+                  (CellPad. row GridWidth)
+                  (binding [Indentation   (if leaf? Indentation (inc Indentation))]
+                    (binding [GridRow (inc row)]
+                      (p/server (GrayInputs. ctx)))
+                    (binding [GridRow (if leaf? row (+ (inc row) argc))
+                              GridCol (if leaf? (inc GridCol) GridCol)
+                              ]
+                      (p/server (Render. (assoc ctx ::dom/for dom-for)))))))))
           (Options. (::parent ctx)))))))
 
-(p/defn Row [{::hf/keys [values] :as ctx}]
+(p/defn Row [{::hf/keys [keys values] :as ctx}]
   (p/client
     (dom/tr
       (when-let [id (::group-id table-picker-options)]
@@ -245,7 +268,8 @@
         (p/for-by second [[idx ctx] (map-indexed vector values)]
           (p/client
             (binding [GridCol (+ GridCol idx)]
-              (dom/td (p/server (Render. ctx))))))))))
+              (dom/td (p/server (Render. ctx)))))))
+      (CellPad. GridRow (- GridWidth (count keys))))))
 
 (p/def Table)
 (p/defn Table-impl [{::hf/keys [keys height] :as ctx} value]
@@ -261,13 +285,15 @@
                          ::dom/style {:grid-row GridRow, :grid-column GridCol}}))
               (p/for-by second [[idx col] (map-indexed vector keys)]
                 (dom/th {::dom/role  "cell"
+                         ::dom/class "label"
                          ::dom/title (pr-str (or (spec-description true (attr-spec col))
                                                (p/server (schema-value-type hf/*schema* hf/db col)))),
                          ::dom/style {:grid-row     GridRow,
                                       :grid-column  (+ GridCol idx)
-                                      :padding-left (if (= 0 idx) (str Indentation "rem") :inherit)
-                                      :font-weight  :bold}}
-                  (pr-str col)))))
+                                      #_#_:padding-left (if (= 0 idx) (str Indentation "rem") :inherit)
+                                      }}
+                  (str (non-breaking-padder Indentation) (field-name col))))
+              (CellPad. GridRow (- GridWidth (count keys)))))
           (dom/tbody
             (let [offset PaginationOffset]
               (p/server
