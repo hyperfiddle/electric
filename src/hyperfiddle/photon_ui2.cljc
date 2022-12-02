@@ -72,14 +72,19 @@ TODO: what if component loses focus, but the user input is not yet committed ?
 (defmacro edn-editor [x & body]
   `(new -Edn-editor (textarea (pr-str ~x) ~@body))) ; optimize static body props
 
+(p/defn InputValues [controlled-value focused< input< on-blur]
+  (p/with-cycle [v nil]
+    (if (new focused<) (if-some [in (new input<)] in v) (do (on-blur controlled-value) controlled-value))))
+
+(p/defn ->ParsedEvent [typ busy parser]
+  (p/fn [] (when-some [e (dom/Event. typ busy)] (parser e))))
+
 (defmacro checkbox [controlled-value & body]
   `(dom/with (dom/dom-element dom/node "input")
-     (.setAttribute dom/node "type" "checkbox")
+     (dom/props {:type "checkbox"})
      ~@(?static-props body)
-     (let [cv# ~controlled-value]
-       (if (new Focused?)
-         (p/with-cycle [uv# cv#] (if-some [ev# (dom/Event. "change" false)] (.. ev# -target -checked) uv#))
-         (set! (.-checked dom/node) cv#)))))
+     (new InputValues ~controlled-value Focused? (new ->ParsedEvent "change" false #(.. % -target -checked))
+       #(set! (.-checked dom/node) %))))
 
 (p/defn ValueOn [event-type]
   (p/with-cycle [v (.-value dom/node)]
@@ -100,44 +105,18 @@ TODO: what if component loses focus, but the user input is not yet committed ?
 ;; TODO clicking the arrows on the input doesn't trigger new values flowing out
 ;; the reason is the input doesn't get focused by clicking them
 (defmacro long [controlled-value & body]
-  `(let [cv# ~controlled-value]
-     (dom/with (dom/dom-element dom/node "input")
-       (.setAttribute dom/node "type" "number")
-       ~@(?static-props body)
-       (p/with-cycle [v# nil]
-         (if (new Focused?)
-           (if-some [e# (dom/Event. "input" false)]
-             (if-some [vv# (-> e# .-target .-value parse-long)] vv# v#)
-             v#)
-           (do (set! (.-value dom/node) (pr-str cv#)) cv#))))))
+  `(dom/with (dom/dom-element dom/node "input")
+     (dom/props {:type "number"})
+     ~@(?static-props body)
+     (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-long))
+       #(set! (.-value dom/node) %))))
 
-(comment
-  ;; possible decomposition where the domain logic can be tested separately
-  ;; this p/fn can be tested on clj as well, no dom
-  (p/defn long-values [controlled-value focused< input< on-blur]
-    (p/with-cycle [v nil] (if (new focused<) (or (new input<) v) (do (on-blur) controlled-value))))
-
-  (defmacro long* [controlled-value & body]
-    `(let [cv# ~controlled-value]
-       (dom/with (dom/dom-element dom/node "input")
-         (.setAttribute dom/node "type" "number")
-         ~@(?static-props body)
-         (new long-values cv# Focused?
-           (p/fn [] (when-some [e (dom/Event. "input" false)] (-> e .-target .-value parse-long)))
-           #(set! (.-value dom/node) (pr-str cv#)))))))
-
-;; TODO should we take a fomatter, if yes should we also take a parser?
-(defmacro double [controlled-value formatter & body]
-  `(let [cv# ~controlled-value, formatter# ~formatter]
-     (dom/with (dom/dom-element dom/node "input")
-       (.setAttribute dom/node "type" "number")
-       ~@(?static-props body)
-       (p/with-cycle [v# nil]
-         (if (new Focused?)
-           (if-some [e# (dom/Event. "input" false)]
-             (if-some [vv# (-> e# .-target .-value parse-double)] vv# v#)
-             v#)
-           (do (set! (.-value dom/node) (formatter# cv#)) cv#))))))
+(defmacro double [controlled-value & body]
+  `(dom/with (dom/dom-element dom/node "input")
+     (dom/props {:type "number"})
+     ~@(?static-props body)
+     (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-double))
+       #(set! (.-value dom/node) %))))
 
 (defn parse-keyword [s]
   (try (let [parsed (clojure.edn/read-string s)]
@@ -145,13 +124,8 @@ TODO: what if component loses focus, but the user input is not yet committed ?
        (catch #?(:clj Throwable :cljs :default) _)))
 
 (defmacro keyword [controlled-value & body]
-  `(let [cv# ~controlled-value]
-     (dom/with (dom/dom-element dom/node "input")
-       (.setAttribute dom/node "type" "text")
-       ~@(?static-props body)
-       (p/with-cycle [v# nil]
-         (if (new Focused?)
-           (if-some [e# (dom/Event. "input" false)]
-             (if-some [vv# (-> e# .-target .-value parse-keyword)] vv# v#)
-             v#)
-           (set! (.-value dom/node) cv#))))))
+  `(dom/with (dom/dom-element dom/node "input")
+     (dom/props {:type "text"})
+     ~@(?static-props body)
+     (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-keyword))
+       #(set! (.-value dom/node) %))))

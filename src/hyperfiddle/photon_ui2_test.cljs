@@ -88,7 +88,7 @@
   )
 
 (tests "ui/double"
-  (def discard (setup (ui/double 1.1 pr-str)))
+  (def discard (setup (ui/double 1.1)))
   % := 1.1
   (uit/focus @it)
   (uit/set-value! @it 2.2)
