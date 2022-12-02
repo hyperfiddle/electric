@@ -376,3 +376,14 @@ or a provided value if it completes without producing any value."
     (new
       (fn [x] (new x x))
       (fn [x] (new f (fn [y] (new (new x x) y)))))))
+
+(defn Unglitch "
+When x changes, throws Pending for the duration of a round-trip to remote peer, then returns x.
+
+TODO: fix the distribution glitch then get rid of this
+" [x]
+  (let [[value clock]
+        (with-cycle [[p c] [::init 0]]
+          [x (if (= p x) c (inc c))])]
+    (when-not (= clock ~@clock)
+      (throw (Pending.))) value))
