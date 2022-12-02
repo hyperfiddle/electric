@@ -20,7 +20,7 @@
   % := "controlled-value"
   (uit/focus @in)
   (uit/focused? @in) := true
-  (uit/swap-value! @in (constantly "new-value"))
+  (uit/set-value! @in "new-value")
   % := "new-value"
   (uit/blur @in)
   % := "controlled-value"
@@ -35,7 +35,7 @@
   % := "controlled-value"
   (uit/focus @ta)
   (uit/focused? @ta) := true
-  (uit/swap-value! @ta (constantly "new-value"))
+  (uit/set-value! @ta "new-value")
   % := "new-value"
   (uit/blur @ta)
   % := "controlled-value"
@@ -62,9 +62,9 @@
                         (tap (ui/select [{:text ""} {:text "a"} {:text "b"} {:text "c"}] "a"
                                (reset! sel dom/node))))))
   % := "a"
-  (uit/swap-value! @sel (constantly "b"))
+  (uit/set-value! @sel "b")
   % := "b"
-  (uit/swap-value! @sel (constantly "c"))
+  (uit/set-value! @sel "c")
   % := "c"
   (discard)
   )
@@ -75,9 +75,25 @@
   (def discard (p/run (binding [dom/node (dom/by-id "root")]
                         (tap (dom/with (dom/dom-element dom/node "input") (reset! in dom/node) (ui/Value.))))))
   % := ""
-  (uit/swap-value! @in (constantly "xxx"))
+  (uit/set-value! @in "xxx")
   % := "xxx"
-  (uit/swap-value! @in (constantly "yyy"))
+  (uit/set-value! @in "yyy")
   % := "yyy"
+  (discard)
+  )
+
+(tests "ui/long"
+  (def num (atom nil))
+  (def discard (p/run (binding [dom/node (dom/by-id "root")]
+                        (tap (ui/long 0 (reset! num dom/node))))))
+  % := 0
+  (uit/focus @num)
+  (uit/set-value! @num "1")
+  % := 1
+  (uit/set-value! @num "xyz")           ; nothing, not a number
+  (uit/set-value! @num "2")
+  % := 2
+  (uit/blur @num)
+  % := 0
   (discard)
   )

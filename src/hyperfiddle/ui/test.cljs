@@ -26,6 +26,8 @@
     (.dispatchEvent elem (js/InputEvent. "change"))
     v))
 
+(defn set-value! [elem v] (swap-value! elem (constantly v)))
+
 (defn toggle! [elem]
   (set! (.-checked elem) (not (.-checked elem)))
   (.dispatchEvent elem (js/Event. "change")))
