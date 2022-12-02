@@ -1,3 +1,27 @@
+(ns contrib.clojurex
+  ;(:refer-clojure :exclude [binding])
+  (:require [hyperfiddle.rcf :refer [tests]])
+  #?(:cljs (:require-macros [contrib.clojurex :refer [binding-pyramid]])))
+
+(defn binding-pyramid* [bindings body]
+  (let [[s expr & xs] bindings]
+    (if (seq xs)
+      ; don't qualify - for Photon CLJS compatibility ?
+      `(~'binding [~s ~expr] ~(binding-pyramid* xs body))
+      `(~'binding [~s ~expr] ~@body))))
+
+(defmacro binding-pyramid [bindings & body] (binding-pyramid* bindings body))
+
+(tests
+  (macroexpand-1 '(binding-pyramid [a 1 b (inc a)] (inc b)))”
+  := '(binding [a 1]
+        (binding [b (inc a)]
+          (inc b)))
+
+  (def ^:dynamic a)
+  (def ^:dynamic b)
+  (binding-pyramid [a 1 b (inc a)] (inc b)) := 3)
+
 (ns dustin.y2022.binding2
   (:require [clojure.walk :refer [macroexpand-all]]
             [hyperfiddle.rcf :refer [tests]]))
