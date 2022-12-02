@@ -18,9 +18,9 @@
   (p/client
     (dom/h1 "Photon UI 2")
     (dom/div {:style {:display "flex" :flex-flow "row wrap" :width "100rem" :gap "20px"}}
-      (snip "ui/select" (ui/select [{:text ""} {:text "a"} {:text "b"}] "a"))
-      (snip "ui/long" (ui/long 0))
-      (snip "ui/double" (ui/double 1.123 (partial gstring/format "%.2f"))))
-
+      (snip "ui/select"  (ui/select [{:text ""} {:text "a"} {:text "b"}] "a"))
+      (snip "ui/long"    (ui/long 0))
+      (snip "ui/double"  (ui/double 1.123 (partial gstring/format "%.2f")))
+      (snip "ui/keyword" (ui/keyword :foo)))
     nil ;; upstream would interpret result of ui2/select
     ))
