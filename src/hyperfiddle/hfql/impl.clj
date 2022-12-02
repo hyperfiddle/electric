@@ -594,7 +594,8 @@
                                                                           ::hf/readonly (not (:node/free-input? arg))
                                                                           ::hf/path     path}
                                                                          (when-let [options (props ::hf/options arg)]
-                                                                           {::hf/options (add-scope-bindings options `(p/fn [] ~(emit-call options)))}))]))
+                                                                           {::hf/options      (add-scope-bindings options `(p/fn [] ~(emit-call options)))
+                                                                            ::hf/option-label (:prop/value (props ::hf/option-label arg))}))]))
                                                         args)))))
 
 (def ^:dynamic *bindings*)
