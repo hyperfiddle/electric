@@ -372,12 +372,12 @@ or a provided value if it completes without producing any value."
            (new F# ~@args ~@rest-args))))))
 
 (hyperfiddle.photon/def Y "Y-Combinator"
-  (fn [f]
+  (hyperfiddle.photon/fn [f]
     (new
-      (fn [x] (new x x))
-      (fn [x] (new f (fn [y] (new (new x x) y)))))))
+      (hyperfiddle.photon/fn [x] (new x x))
+      (hyperfiddle.photon/fn [x] (new f (hyperfiddle.photon/fn [y] (new (new x x) y)))))))
 
-(defn Unglitch "
+(hyperfiddle.photon/defn Unglitch "
 When x changes, throws Pending for the duration of a round-trip to remote peer, then returns x.
 
 TODO: fix the distribution glitch then get rid of this
@@ -385,5 +385,5 @@ TODO: fix the distribution glitch then get rid of this
   (let [[value clock]
         (with-cycle [[p c] [::init 0]]
           [x (if (= p x) c (inc c))])]
-    (when-not (= clock ~@clock)
+    (when-not (= clock ~@clock)                             ;; when the glitch is fixed, this cannot happen
       (throw (Pending.))) value))
