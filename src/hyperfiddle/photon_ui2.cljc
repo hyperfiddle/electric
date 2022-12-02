@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon-ui2
-  (:refer-clojure :exclude [long double keyword])
+  (:refer-clojure :exclude [long double keyword symbol])
   (:require
    clojure.edn
    [contrib.str :refer [blank->nil]]
@@ -118,14 +118,21 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-double))
        #(set! (.-value dom/node) %))))
 
-(defn parse-keyword [s]
-  (try (let [parsed (clojure.edn/read-string s)]
-         (when (keyword? parsed) parsed))
-       (catch #?(:clj Throwable :cljs :default) _)))
+(defn parse-edn [s] (try (clojure.edn/read-string s) (catch #?(:clj Throwable :cljs :default) _)))
+(defn keep-if [pred v] (when (pred v) v))
+(defn parse-keyword [s] (keep-if keyword? (parse-edn s)))
+(defn parse-symbol [s] (keep-if symbol? (parse-edn s)))
 
 (defmacro keyword [controlled-value & body]
   `(dom/with (dom/dom-element dom/node "input")
      (dom/props {:type "text"})
      ~@(?static-props body)
      (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-keyword))
+       #(set! (.-value dom/node) %))))
+
+(defmacro symbol [controlled-value & body]
+  `(dom/with (dom/dom-element dom/node "input")
+     (dom/props {:type "text"})
+     ~@(?static-props body)
+     (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-symbol))
        #(set! (.-value dom/node) %))))
