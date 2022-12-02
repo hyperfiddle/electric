@@ -550,3 +550,20 @@
         (p/server (println 'clicked)))
       false
       (catch Pending e true))))
+
+(defmacro measure
+  "Given a css size like \"1em\", \"1rem\" or other units, return the
+  corresponding size in pixels. Will install a invisible div in the DOM, at
+  point."
+  [size]
+  `(div {::style {:height     ~size
+                  :width      0
+                  :outline    :none
+                  :border     :none
+                  :padding    :none
+                  :margin     :none
+                  :box-sizing :content-box
+                  :visibility :hidden
+                  :position   :absolute
+                  }}
+     (.-offsetHeight dom/node)))
