@@ -11,7 +11,8 @@
 
 (p/defn AdminPage []
   (hf/hfql {(props (create-admin-query
-                     (props admin {::hf/options (admin-picklist-by-email-with-new .)})
+                     (props admin {::hf/options (admin-picklist-by-email .)
+                                   ::hf/new-option (fn [search] [{:db/id (tempid!) :admin/email search}])})
                      name
                      email)
                    {:popover true
