@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon-ui2
-  (:refer-clojure :exclude [long double])
+  (:refer-clojure :exclude [long double keyword])
   (:require
    clojure.edn
    [contrib.str :refer [blank->nil]]
@@ -138,3 +138,20 @@ TODO: what if component loses focus, but the user input is not yet committed ?
              (if-some [vv# (-> e# .-target .-value parse-double)] vv# v#)
              v#)
            (do (set! (.-value dom/node) (formatter# cv#)) cv#))))))
+
+(defn parse-keyword [s]
+  (try (let [parsed (clojure.edn/read-string s)]
+         (when (keyword? parsed) parsed))
+       (catch #?(:clj Throwable :cljs :default) _)))
+
+(defmacro keyword [controlled-value & body]
+  `(let [cv# ~controlled-value]
+     (dom/with (dom/dom-element dom/node "input")
+       (.setAttribute dom/node "type" "text")
+       ~@(?static-props body)
+       (p/with-cycle [v# nil]
+         (if (new Focused?)
+           (if-some [e# (dom/Event. "input" false)]
+             (if-some [vv# (-> e# .-target .-value parse-keyword)] vv# v#)
+             v#)
+           (set! (.-value dom/node) cv#))))))

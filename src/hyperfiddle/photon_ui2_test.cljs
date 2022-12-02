@@ -100,3 +100,19 @@
   % := 1.1
   (discard)
   )
+
+(tests "ui/keyword"
+  (def discard (setup (ui/keyword :foo)))
+  % := :foo
+  (uit/focus @it)
+  (uit/set-value! @it :bar)
+  % := :bar
+  (uit/set-value! @it "baz")            ; nothing, not a keyword
+  (uit/set-value! @it ":quux")
+  % := :quux
+  (uit/set-value! @it ":foo/bar")
+  % := :foo/bar
+  (uit/blur @it)
+  % := :foo
+  (discard)
+  )
