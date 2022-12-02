@@ -110,3 +110,18 @@ TODO: what if component loses focus, but the user input is not yet committed ?
              (if-some [vv# (-> e# .-target .-value parse-long)] vv# v#)
              v#)
            (do (set! (.-value dom/node) (pr-str cv#)) cv#))))))
+
+(comment
+  ;; possible decomposition where the domain logic can be tested separately
+  ;; this p/fn can be tested on clj as well, no dom
+  (p/defn long-values [controlled-value focused< input< on-blur]
+    (p/with-cycle [v nil] (if (new focused<) (or (new input<) v) (do (on-blur) controlled-value))))
+
+  (defmacro long* [controlled-value & body]
+    `(let [cv# ~controlled-value]
+       (dom/with (dom/dom-element dom/node "input")
+         (.setAttribute dom/node "type" "number")
+         ~@(?static-props body)
+         (new long-values cv# Focused?
+           (p/fn [] (when-some [e (dom/Event. "input" false)] (-> e .-target .-value parse-long)))
+           #(set! (.-value dom/node) (pr-str cv#)))))))
