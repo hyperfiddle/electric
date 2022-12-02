@@ -125,7 +125,8 @@
                          `(dom/text ~form)
                          `(let [res# ~form]
                             (if (text-literal? res#)
-                              (dom/text res#)
+                              (do (dom/text res#)
+                                  res#)
                               res#))))))))
 
 (defmacro element [t & [props & body]]
