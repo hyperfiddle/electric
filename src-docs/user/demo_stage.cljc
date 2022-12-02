@@ -62,7 +62,7 @@
                 (p/with-cycle [stage []]
                   (binding [hf/db (:db-after (hf/with secure-db stage))] ; task can fail
                     (let [tx (Page. 536561674378709)
-                          stage' (hf/into-tx hf/schema stage
+                          stage' (hf/into-tx hf/schema (p/Unglitch. stage)
                                    (p/client (ui/edn-editor stage {::dom/disabled true})))]
                       (hf/into-tx hf/schema stage' tx)))))
               ::hf/idle
