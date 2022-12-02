@@ -33,21 +33,21 @@
 
 
   #action
-      ((school-requested-block
-         ;{:sub [sub-name]}
-         {(:school {::hf/options      (school-picklist .)
-                    ::hf/option-label :school/name})
-          [:school/id :school/name]}
-         {(:block-reason {::hf/options      (event-reason-codes-picklist .)
-                          ::hf/option-label (comp name :db/ident)})
-          [:db/ident]}
-         (:block-mode {::hf/render       checkbox-picker
-                       ::hf/default      (or block-mode :force-cancel)
-                       ::hf/options      (unlink-mode-options)
-                       ::hf/option-label (let [x ~school/id
-                                               wide {:style {:display "inline-block" :width "12em"}}]
-                                           {:force-cancel      (dom/span (dom/span wide ":force-cancel") "Cancel all the sub's existing commitment at this school")
-                                            :leave-commitments (dom/span (dom/span wide ":leave-commitments") "Don’t cancel sub's existing commitments")})})
-         (:penalize {::hf/default (if (some penalize) penalize false)})))]}
+    ((school-requested-block
+       ;{:sub [sub-name]}
+       {{:school {::hf/options (school-picklist .)
+                  ::hf/option-label :school/name}}
+        [:school/id :school/name]}
+       {{:block-reason {::hf/options (event-reason-codes-picklist .)
+                        ::hf/option-label (comp name :db/ident)}}
+        [:db/ident]}
+       {:block-mode {::hf/render checkbox-picker
+                     ::hf/default (or block-mode :force-cancel)
+                     ::hf/options (unlink-mode-options)
+                     ::hf/option-label (let [x ~school/id
+                                             wide {:style {:display "inline-block" :width "12em"}}]
+                                         {:force-cancel (dom/span (dom/span wide ":force-cancel") "Cancel all the sub's existing commitment at this school")
+                                          :leave-commitments (dom/span (dom/span wide ":leave-commitments") "Don’t cancel sub's existing commitments")})}}
+       {:penalize {::hf/default (if (some penalize) penalize false)}}))]}
 
 (defmethod hf/title `school-requested-block "Block sub from school")
