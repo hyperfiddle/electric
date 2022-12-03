@@ -1,8 +1,8 @@
-(ns dustin.scratch
+(ns dustin.y2022.loop.photon-cycle0-beginning
   (:require [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [hyperfiddle.photon :as p]
             [missionary.core :as m])
-  #?(:cljs (:require-macros dustin.scratch)))
+  #?(:cljs (:require-macros dustin.y2022.loop.photon-cycle0-beginning)))
 
 (tests
   (with (p/run (let [!F (atom (p/fn [] ::init))]
