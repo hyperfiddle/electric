@@ -9,6 +9,16 @@
   (let {x (f x)} ; recursive binding is defined if sufficiently lazy
     x))
 
+; fix f = f (fix f)               -- Y combinator
+; fix f = let x = f x in x        -- mutual recursion
+; fix f = f (\x -> fix f x)       -- Church encoding
+; fix f = mu X. f X               -- Fixpoint operator
+; fix f = (\x -> f (\y -> (x x) y)) (\x -> f (\y -> (x x) y))   -- Z combinator
+
+; newtype Fix f = Fix (f (Fix f)) -- Recursive newtype
+; fix :: Functor f => f (Fix f) -> Fix f
+; fix = Fix
+
 (p/defn fact [rec n]
   (case n
     1 1 ; fixed point, doesn't sample n
@@ -145,7 +155,11 @@
 ;         returnA -< output
 
 
-
-
-
-
+; import Control.Arrow
+; import Control.Arrow.Loop
+;
+; fibonacci :: ArrowLoop a => a () Int
+; fibonacci = proc () -> do
+; rec a <- arr (\(_,b) -> b) -< (a, b)
+; b <- arr (\(_,a) -> a+b) -< (a, b)
+; returnA -< a

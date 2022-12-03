@@ -1,11 +1,11 @@
-(ns dustin.y2022.photon-cycle
+(ns dustin.y2022.loop.photon-cycle0-beginning
   (:require #?(:cljs goog.events)
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests tap % with]]
             [missionary.core :as m])
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros dustin.y2022.photon-cycle)))
+  #?(:cljs (:require-macros dustin.y2022.loop.photon-cycle0-beginning)))
 
 (defmacro with-cycle [[s i] & body]
   `(let [a# (atom ~i) ~s (p/watch a#)]
