@@ -446,6 +446,13 @@
   % := 1
   % := 1)
 
+(tests
+  (with
+    (p/run
+      (p/wrap
+        ;; FIXME add blocking sleep
+        (tap :done)))
+    % := :done))
 
 (comment
   (rcf/set-timeout! 4000)
@@ -873,7 +880,7 @@
 
   (p/defn Foo [x !]
     (new (hook x !)))
-  
+
   (def !x (atom 0))
   (let [dispose
         (p/run (tap
@@ -1117,7 +1124,7 @@
   (p/run (tap (new (p/fn [] (binding [unbound1 1 unbound2 2] (+ unbound1 unbound2))))))
   % := 3)
 
-#?(:clj 
+#?(:clj
 (tests
   "understand how Clojure handles unbound vars"
   ; In Clojure,
