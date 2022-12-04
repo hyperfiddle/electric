@@ -33,15 +33,14 @@
     [:hr]
     [:h2 "Button with pending state"]
 
-    (let [event (ui/button {::ui/click-event (p/fn [e] (p/server (p/wrap run-long-task!)))
                             ::ui/pending {::dom/disabled true}}
+    (let [event (ui/button {::ui/click-event (p/fn [e] (p/server (p/wrap (run-long-task!))))
                   (dom/text "Long running task (log to console)"))]
       (prn "clicked! " event))
 
     [:h2 "Button with cancelable pending state"]
 
     (let [event (ui/button {;; Won’t fire if element is aria-disabled or an descendant of an aria disabled
-                            ::ui/click-event (p/fn [event] (p/server (p/wrap run-long-task!)))
                             ::ui/pending {;; These props are set when button enters pending state
                                           ::dom/aria-busy     true
                                           ::dom/aria-disabled true
@@ -50,6 +49,7 @@
                                           ;; This event will fire even if the element is aria-disabled
                                           ::ui/keychord-event (p/fn [_] [::ui/cancel true])  ; cancel pending state
                                           }}
+                            ::ui/click-event (p/fn [event] (p/server (p/wrap (run-long-task!))))
                   (dom/text "Long running task (log to console)"))]
       (prn "clicked! 2 " event))
 
