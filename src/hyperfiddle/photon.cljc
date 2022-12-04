@@ -155,7 +155,7 @@ running on a remote host.
           (m/reductions {} (Failure. (Pending.)))
           (m/relieve {}))))
 
-(defmacro wrap "Run blocking body (io-bound) on a threadpool"
+(defmacro wrap "Run blocking body (io-bound) on a threadpool. JVM only"
   [& body]
   `(new (wrap* (cc/fn [] (do ~@body)))))
 
