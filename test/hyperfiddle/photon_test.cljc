@@ -446,6 +446,20 @@
   % := 1
   % := 1)
 
+(defn slow-identity [x] (Thread/sleep 300) x)
+
+(tests
+  rcf/*timeout* := 1000
+  (with (p/run (tap (try
+                      ; This test asserts that these run concurrently.
+                      ; If they block, the final tap would exceed the RCF timeout
+                      (tap (p/wrap (slow-identity 1)))
+                      (tap (p/wrap (slow-identity 2)))
+                      (tap (p/wrap (slow-identity 3)))
+                      (tap (p/wrap (slow-identity 4)))
+                      (catch Pending _ ::pending)))) ; never see pending if thread is blocked
+    % := ::pending
+    (set [% % % %]) := #{3 1 2 4})) ; concurrent sleeps race
 
 (comment
   (rcf/set-timeout! 4000)
