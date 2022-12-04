@@ -149,15 +149,15 @@ running on a remote host.
   ;; L: terminating a continuous flow means the value won't change anymore, so that's OK
   `(new (current* (p/fn [] ~x))))
 
-(cc/defn wrap* [f & args]
+(cc/defn wrap* [thunk]
   #?(:clj
-     (->> (m/ap (m/? (m/via m/blk (apply f args))))
+     (->> (m/ap (m/? (m/via m/blk (thunk))))
           (m/reductions {} (Failure. (Pending.)))
           (m/relieve {}))))
 
-(defmacro wrap "Run blocking function (io-bound) on a threadpool"
-  [f & args]
-  `(new (wrap* ~f ~@args)))
+(defmacro wrap "Run blocking body (io-bound) on a threadpool"
+  [& body]
+  `(new (wrap* (cc/fn [] (do ~@body)))))
 
 (cc/defn ^:no-doc empty?
   "A task completing with true on first successful transfer of given flow, or false
