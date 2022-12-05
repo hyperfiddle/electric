@@ -132,3 +132,20 @@
   % := 'foo
   (discard)
   )
+
+(tests "ui/uuid"
+  (def initial-uuid #uuid "a87f641b-574d-4cdd-93d2-2fb5332b697e")
+  (def discard (setup (ui/uuid initial-uuid)))
+  % := initial-uuid
+  (def another #uuid "073d5061-b77d-48f3-a0eb-b1cb59cf5ea1")
+  (uit/focus @it)
+  (uit/set-value! @it another)
+  % := another
+  (uit/set-value! @it "foobar")         ; nothing, not a uuid
+  (def and-another #uuid "0617f36f-631a-4796-bb55-fafc0d99ff19")
+  (uit/set-value! @it and-another)
+  % := and-another
+  (uit/blur @it)
+  % := initial-uuid
+  (discard)
+  )
