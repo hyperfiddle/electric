@@ -15,11 +15,13 @@
 (p/defn App []
   (p/client
     (dom/h1 "Photon UI 2")
+    (dom/element "style" "input:invalid {background-color: #f88}")
     (dom/div {:style {:display "flex" :flex-flow "row wrap" :width "100rem" :gap "20px"}}
       (snip "ui/select"  (ui/select [{:text ""} {:text "a"} {:text "b"}] "a"))
       (snip "ui/long"    (ui/long 0))
-      (snip "ui/double"  (ui/double 1.123))
+      (snip "ui/double"  (ui/double 1.123 {:step 0.001}))
       (snip "ui/keyword" (ui/keyword :foo))
-      (snip "ui/symbol"  (ui/symbol 'foo)))
+      (snip "ui/symbol"  (ui/symbol 'foo))
+      (snip "ui/uuid"    (ui/uuid #uuid "652af367-0262-4fc4-b0c8-f705142c26dd")))
     nil ;; upstream would interpret result of ui2/select
     ))
