@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon-ui2
-  (:refer-clojure :exclude [long double keyword symbol])
+  (:refer-clojure :exclude [long double keyword symbol uuid])
   (:require
    clojure.edn
    [contrib.str :refer [blank->nil]]
@@ -135,4 +135,11 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      (dom/props {:type "text"})
      ~@(?static-props body)
      (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-symbol))
+       #(set! (.-value dom/node) %))))
+
+(defmacro uuid [controlled-value & body]
+  `(dom/with (dom/dom-element dom/node "input")
+     (dom/props {:type "text" :pattern "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"})
+     ~@(?static-props body)
+     (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-uuid))
        #(set! (.-value dom/node) %))))
