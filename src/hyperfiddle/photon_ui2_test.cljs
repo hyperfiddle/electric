@@ -163,3 +163,17 @@
   % := {:hi :there}
   (discard)
   )
+
+(tests "ui/date"
+  (def discard (setup (ui/date "2022-11-30")))
+  % := "2022-11-30"
+  (uit/focus @it)
+  (uit/set-value! @it "2022-01-01")
+  % := "2022-01-01"
+  (uit/set-value! @it "nonsense")       ; nothing, not valid Date string
+  (uit/set-value! @it "2000-01-01")
+  % := "2000-01-01"
+  (uit/blur @it)
+  % := "2022-11-30"
+  (discard)
+  )
