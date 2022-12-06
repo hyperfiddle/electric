@@ -149,3 +149,17 @@
   % := initial-uuid
   (discard)
   )
+
+(tests "ui/edn"
+  (def discard (setup (ui/edn {:hi :there})))
+  % := {:hi :there}
+  (uit/focus @it)
+  (uit/set-value! @it :new-value)
+  % := :new-value
+  (uit/set-value! @it ":foo/")          ; nothing, not valid EDN
+  (uit/set-value! @it (pr-str ":foo"))
+  % := ":foo"
+  (uit/blur @it)
+  % := {:hi :there}
+  (discard)
+  )
