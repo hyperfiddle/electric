@@ -41,7 +41,11 @@
 ;     ; c <- f b a }                                         ; c <- f b a
 ;                                                            ; return (b,c) })
 
-(p/defn Mfix [F])
+(p/defn Mfix [F]) ; first law - non-strict bind/join
+
+;(defn add [x y] (+ x y)) ; Clojure is always strict
+;add x y = x + y ; lazy and strict
+
 
 (p/defn Flute [dur freq amp vfreq]
   (let [amp1 (linseg)
@@ -59,3 +63,15 @@
                     (recur [x out feedbk body]))))]
       (* out (* amp amp2)))))
 
+
+(defn foo [x] (println x) (foo (dec x)))
+
+; a -> m b
+
+; a -> b
+
+
+(p/defn foo (p/fn [rec]
+              (p/fn [x]
+                (m/observe (fn [!] (println 'mount) #(println 'unmount)))
+                (rec (dec x)))))
