@@ -23,7 +23,7 @@
       (snip "ui/keyword" (ui/keyword :foo))
       (snip "ui/symbol"  (ui/symbol 'foo))
       (snip "ui/uuid"    (ui/uuid #uuid "652af367-0262-4fc4-b0c8-f705142c26dd"))
-      (snip "ui/edn"     (ui/edn {:hello "world"})))
-
+      (snip "ui/edn"     (ui/edn {:hello "world"}))
+      (snip "ui/date"    (ui/date "2022-11-30")))
     nil ;; upstream would interpret result of ui2/select
     ))
