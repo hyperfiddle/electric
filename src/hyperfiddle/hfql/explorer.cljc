@@ -3,6 +3,7 @@
             [hyperfiddle.explorer :as ex]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.hfql.ui :as ui]
+            [hyperfiddle.hfql :as hfql]
             [hyperfiddle.spec :as spec]
             [hyperfiddle.api :as hf]
             [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet]])
@@ -30,13 +31,13 @@
 (p/defn OptionsRenderer [ctx] nil)
 
 (p/defn SelectOptions [{::hf/keys [summarize options continuation Value] :as ctx}]
-  (let [value  (hf/JoinAllTheTree. ctx)
+  (let [value  (hfql/JoinAllTheTree. ctx)
         labelf (or summarize Identity)]
     (p/client
       (dom/select
         (p/server
           (p/for [opt-e (options.)]
-            (let [opt-value (hf/JoinAllTheTree. (continuation. opt-e))
+            (let [opt-value (hfql/JoinAllTheTree. (continuation. opt-e))
                   selected? (= value opt-value)
                   text      (labelf. opt-value)]
               (p/client
@@ -76,7 +77,7 @@
                                      (let [{::hf/keys [render summarize options]} ctx]
                                        (cond render  (render. ctx)
                                              options (RenderOptions. ctx)
-                                             :else   (let [value (hf/JoinAllTheTree. ctx)]
+                                             :else   (let [value (hfql/JoinAllTheTree. ctx)]
                                                        (if summarize
                                                          (summarize. value)
                                                          (RenderCell. ctx value)))))))) )])]))))
