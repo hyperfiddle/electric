@@ -1,17 +1,15 @@
-(ns wip.hfql-explorer
+(ns wip.teeshirt-orders
   (:require contrib.ednish
             clojure.edn
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.gridsheet :as-alias gridsheet]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.hfql.explorer :as explorer]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             [missionary.core :as m]
             [contrib.ednish :as ednish]
             [clojure.spec.alpha :as s]
             #?(:cljs [hyperfiddle.router :as html5-router]))
-  #?(:cljs (:require-macros [wip.hfql-explorer])))
+  #?(:cljs (:require-macros [wip.teeshirt-orders])))
 
 (defn path-hash [path]
   (when (clojure.string/includes? path "#")
