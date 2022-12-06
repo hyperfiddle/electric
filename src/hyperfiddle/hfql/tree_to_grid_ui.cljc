@@ -230,22 +230,26 @@
             (dom/event "blur" (fn [_] (reset! !steady false))))
           (p/watch v))))) )
 
+(defmacro cell [row col]
+  `(dom/div {::dom/role  "cell"
+             ::dom/style {:grid-column ~col
+                          :grid-row    ~row}}))
+
 (p/defn CellPad [row col-offset]
   (let [n (- GridWidth GridCol (dec col-offset))]
     (p/for [i (range n)]
-      (dom/div {::dom/role  "cell"
-                ::dom/style {:grid-column (+ GridCol (dec col-offset) (inc i))
-                             :grid-row    row}}))))
+      (cell row (+ GridCol (dec col-offset) (inc i))))))
 
 (p/defn GrayInputs [{::hf/keys [attribute arguments]}]
-  (when-some [arguments (seq arguments)]
+  (if-some [arguments (seq arguments)]
     (let [spec (attr-spec attribute)]
       (p/for-by second [[idx arg] (map-indexed vector arguments)]
         (p/client
           (binding [GridRow (+ GridRow idx)]
             (p/server
               (GrayInput. true spec nil arg))
-            (CellPad. GridRow 2)))))))
+            (CellPad. GridRow 2))))
+            )))
 
 (p/defn Form [{::hf/keys [keys values] :as ctx}]
   (p/client
@@ -270,13 +274,11 @@
                      ::dom/title (pr-str (or (spec-description false (attr-spec key))
                                            (p/server (schema-value-type hf/*schema* hf/db key))))}
                     (dom/text (str (non-breaking-padder Indentation) (field-name key))))
-                  (CellPad. row 1)
-                  (binding [Indentation   (if leaf? Indentation (inc Indentation))]
-                    (binding [GridRow (inc row)]
+                  (binding [Indentation   (if true #_leaf? Indentation (inc Indentation))]
+                    (binding [GridCol (inc GridCol)]
                       (p/server (GrayInputs. ctx)))
-                    (binding [GridRow (if leaf? row (+ (inc row) argc))
-                              GridCol (if leaf? (inc GridCol) GridCol)
-                              ]
+                    (binding [GridRow (if leaf? row (+ row argc))
+                              GridCol (inc GridCol)]
                       (p/server (Render. (assoc ctx ::dom/for dom-for)))))))))
           #_(Options. (::parent ctx)))))))
 
@@ -301,6 +303,8 @@
                                       (binding [GridCol (+ GridCol idx)]
                                         (dom/td (p/server (binding [Form InlineForm]
                                                             (Render. ctx)))))))))]
+        (p/for [i (range (dec GridCol))]
+          (cell GridRow (inc i)))
         (CellPad. GridRow (inc (count keys)))
         result))))
 
@@ -313,6 +317,8 @@
         (dom/table {::dom/role "table"}
           (dom/thead
             (dom/tr
+              (p/for [i (range (dec GridCol))]
+                (cell GridRow (inc i)))
               (when (::group-id table-picker-options)
                 (dom/th {::dom/role  "cell"
                          ::dom/style {:grid-row GridRow, :grid-column GridCol}}))
