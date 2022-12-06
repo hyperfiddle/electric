@@ -67,17 +67,24 @@
 
 (p/defn Apply1 [F x] (if F (F. x) x))
 
+(defn find-best-identity [v] v) ; TODO implement
+
 (p/defn Default [{::hf/keys [entity link link-label options continuation] :as ctx}]
   (let [route   (when link (new link))
-        value   (Apply1. (::hf/summarize ctx) (hfql/JoinAllTheTree. ctx))
+        value   (hfql/JoinAllTheTree. ctx)
         options (or options (::hf/options (::parent ctx)))]
     (cond
       (some? route)   (p/client (hf/Link. route link-label))
-      (some? options) (p/client (ui2/select (p/server (p/for [e (options.)]
-                                                        {:text (pr-str e)}))
-                                  entity
-                                  (dom/props {::dom/role "cell"
-                                              ::dom/style {:grid-row GridRow, :grid-column GridCol}})))
+      (some? options) (let [value (find-best-identity value)]
+                        (p/client
+                          (ui2/select (p/server (p/for [e (options.)]
+                                                  (let [v (hfql/JoinAllTheTree. (new (::hf/continuation (::parent ctx)) e))]
+                                                    {:text (Apply1. (::hf/option-label (::parent ctx)) v)
+                                                     :value (str (find-best-identity v))})))
+                            (str value)
+                            (dom/props {::dom/role "cell"
+                                        ::dom/style {:grid-row GridRow, :grid-column GridCol}}))
+                          nil))
       :else
       (p/client
         (dom/pre {::dom/role  "cell"

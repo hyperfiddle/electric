@@ -44,15 +44,13 @@
                          {::hf/height 3})
                        [:db/id
                         (props :order/email {::hf/tx (p/fn [{::hf/keys [entity attribute]} v] [:db/add entity attribute v])})
-                        {(props :order/gender {::hf/options (wip.orders-datascript/genders)})
+                        {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
+                                               ::hf/option-label (p/fn [v] (name (:db/ident v)))})
                          [#_:db/id
                           (props :db/ident {::hf/as gender})]}
-                        (props :order/tags {#_#_::hf/render (p/fn [{::hf/keys [Value]}]
-                                                              (let [v (Value.)]
-                                                                (p/client (dom/pre {:style {:grid-row ttgui/GridRow, :grid-column ttgui/GridCol}}
-                                                                            (pr-str (into [] v))))))
-                                            #_#_::hf/render2 (dom/pre (pr-str (map smart-identity order/tags)))})
-                        {(props :order/shirt-size {::hf/options (wip.orders-datascript/shirt-sizes gender .)})
+                        :order/tags
+                        {(props :order/shirt-size {::hf/options      (wip.orders-datascript/shirt-sizes gender .)
+                                                   ::hf/option-label (p/fn [v] (name (:db/ident v)))})
                          [:db/ident]}]}) )]
         (dom/pre stage))))
   )
