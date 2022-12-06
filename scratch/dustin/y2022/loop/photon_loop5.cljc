@@ -40,3 +40,31 @@
 
 (tests (with (p/run (tap (Fac4. 5))) % := 120)) ; ❌ (not (= 20 120))
 ; 20 12 6 2 0 1
+
+(p/run
+  (let [!x (atom 0) x (p/watch !x)]
+    (reset! !x (ui/input x))
+    x))
+
+(p/run
+  (loop [x 0]
+    (recur (identity x))
+    x))
+
+(p/run
+  (new (p/fn Rec [x]
+         (if (> x 0)
+           (Rec. (dec x))
+           x))
+       0))
+
+; Is it possible to implement cyclic continuous flow in missionary without assignment?
+; Dustin: No, because m is embedded in Clojure and Clojure is strict
+
+(defn fix [f] (let [x (f x)] x))
+; implement this in the CP monad without assignment
+
+; Missionary's key insight is that you can unify discrete and continuous time
+; under the same propogation algorithm
+; Dustin says this may not be possible under continuous time, because CT propogation
+; includes cycles and value recursion, which DT and acyclic propagation need not consider
