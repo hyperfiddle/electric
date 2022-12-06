@@ -37,7 +37,7 @@
 
 (p/defn Page []
   (p/client
-    (binding [ttgui/GridWidth 6] ; TODO auto compute grid width from HFQL expression
+    (binding [ttgui/grid-width 6] ; TODO auto compute grid width from HFQL expression
       (let [stage (p/server
                     (hf/hfql
                       {(props (wip.orders-datascript/orders (props . {::hf/options (names)}))

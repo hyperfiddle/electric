@@ -58,12 +58,12 @@
 ;;   (dom/event "click" (fn [e] (.preventDefault e) (hf/navigate! link)))
 ;;   (dom/text value))
 
-(p/def GridWidth 2) ; TODO infer from ctx
+(p/def grid-width 2) ; TODO infer from ctx
 
-(p/def GridRow 1) ; TODO not called with new, don’t capitalize
-(p/def GridCol 1)
-(p/def Indentation 0)
-(p/def PaginationOffset)
+(p/def grid-row 1) ; TODO not called with new, don’t capitalize
+(p/def grid-col 1)
+(p/def indentation 0)
+(p/def pagination-offset)
 
 (p/defn Apply1 [F x] (if F (F. x) x))
 
@@ -83,14 +83,14 @@
                                                      :value (str (find-best-identity v))})))
                             (str value)
                             (dom/props {::dom/role "cell"
-                                        ::dom/style {:grid-row GridRow, :grid-column GridCol}}))
+                                        ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
                           nil))
       :else
       (p/client
         (dom/pre {::dom/role  "cell"
-                  ::dom/style {:grid-row GridRow, :grid-column GridCol}}
+                  ::dom/style {:grid-row grid-row, :grid-column grid-col}}
           (dom/text
-            (str (non-breaking-padder Indentation)
+            (str (non-breaking-padder indentation)
               (pr-str value)))))))),
 
 (p/defn Input [{::hf/keys [tx Value] :as ctx}]
@@ -105,7 +105,7 @@
           {::dom/role     "cell"
            ::dom/type     type,
            ::dom/disabled readonly?
-           ::dom/style    {:grid-row GridRow, :grid-column GridCol}}
+           ::dom/style    {:grid-row grid-row, :grid-column grid-col}}
           (case type
             "checkbox" (dom/props {::dom/checked v})
             (dom/props {::dom/value (cond (inst? v) (.slice (.toISOString v) 0 16)
@@ -200,10 +200,10 @@
                       ::dom/class "label"
                       ::dom/for   id,
                       ::dom/title (pr-str (:hyperfiddle.spec/form arg-spec))
-                      ::dom/style {:grid-row    GridRow
-                                   :grid-column GridCol
+                      ::dom/style {:grid-row    grid-row
+                                   :grid-column grid-col
                                    :color :gray}}
-            (dom/text (str (non-breaking-padder Indentation) (field-name  name)))))
+            (dom/text (str (non-breaking-padder indentation) (field-name  name)))))
         (when options?
           (dom/datalist {::dom/id list-id}
             (p/server (let [labelf (or option-label (p/fn [x] x))]
@@ -217,8 +217,8 @@
           (dom/input {::dom/id    id
                       ::dom/role  "cell"
                       ::dom/type  (input-type type)
-                      ::dom/style {:grid-row    GridRow
-                                   :grid-column (inc GridCol)}}
+                      ::dom/style {:grid-row    grid-row
+                                   :grid-column (inc grid-col)}}
 
             (case type
               :hyperfiddle.spec.type/boolean (dom/props {::dom/checked value})
@@ -243,19 +243,19 @@
                           :grid-row    ~row}}))
 
 (p/defn CellPad [row col-offset]
-  (let [n (- GridWidth GridCol (dec col-offset))]
+  (let [n (- grid-width grid-col (dec col-offset))]
     (p/for [i (range n)]
-      (cell row (+ GridCol (dec col-offset) (inc i))))))
+      (cell row (+ grid-col (dec col-offset) (inc i))))))
 
 (p/defn GrayInputs [{::hf/keys [attribute arguments]}]
   (if-some [arguments (seq arguments)]
     (let [spec (attr-spec attribute)]
       (p/for-by second [[idx arg] (map-indexed vector arguments)]
         (p/client
-          (binding [GridRow (+ GridRow idx)]
+          (binding [grid-row (+ grid-row idx)]
             (p/server
               (GrayInput. true spec nil arg))
-            (CellPad. GridRow 2))))
+            (CellPad. grid-row 2))))
             )))
 
 (p/defn Form [{::hf/keys [keys values] :as ctx}]
@@ -269,23 +269,23 @@
                   argc  (count (::hf/arguments ctx))
                   h     (get heights idx)]
               (p/client
-                (let [row     (+ GridRow idx (- h idx))
+                (let [row     (+ grid-row idx (- h idx))
                       dom-for (random-uuid)]
                   (dom/label
                     {::dom/role  "cell"
                      ::dom/class "label"
                      ::dom/for   dom-for
                      ::dom/style {:grid-row     row
-                                  :grid-column  GridCol
-                                  #_#_:padding-left (str Indentation "rem")}
+                                  :grid-column  grid-col
+                                  #_#_:padding-left (str indentation "rem")}
                      ::dom/title (pr-str (or (spec-description false (attr-spec key))
                                            (p/server (schema-value-type hf/*schema* hf/db key))))}
-                    (dom/text (str (non-breaking-padder Indentation) (field-name key))))
-                  (binding [Indentation   (if true #_leaf? Indentation (inc Indentation))]
-                    (binding [GridCol (inc GridCol)]
+                    (dom/text (str (non-breaking-padder indentation) (field-name key))))
+                  (binding [indentation   (if true #_leaf? indentation (inc indentation))]
+                    (binding [grid-col (inc grid-col)]
                       (p/server (GrayInputs. ctx)))
-                    (binding [GridRow (if leaf? row (+ row argc))
-                              GridCol (inc GridCol)]
+                    (binding [grid-row (if leaf? row (+ row argc))
+                              grid-col (inc grid-col)]
                       (p/server (Render. (assoc ctx ::dom/for dom-for)))))))))
           #_(Options. (::parent ctx)))))))
 
@@ -303,16 +303,16 @@
              ::dom/type    :radio,
              ::dom/name    id,
              ::dom/checked (= (::current-value table-picker-options) value)
-             ::dom/style   {:grid-row GridRow, :grid-column GridCol}})))
+             ::dom/style   {:grid-row grid-row, :grid-column grid-col}})))
       (let [result (p/server
                      (into [] cat (p/for-by second [[idx ctx] (map-indexed vector values)]
                                     (p/client
-                                      (binding [GridCol (+ GridCol idx)]
+                                      (binding [grid-col (+ grid-col idx)]
                                         (dom/td (p/server (binding [Form InlineForm]
                                                             (Render. ctx)))))))))]
-        (p/for [i (range (dec GridCol))]
-          (cell GridRow (inc i)))
-        (CellPad. GridRow (inc (count keys)))
+        (p/for [i (range (dec grid-col))]
+          (cell grid-row (inc i)))
+        (CellPad. grid-row (inc (count keys)))
         result))))
 
 (p/def Table)
@@ -324,28 +324,28 @@
         (dom/table {::dom/role "table"}
           (dom/thead
             (dom/tr
-              (p/for [i (range (dec GridCol))]
-                (cell GridRow (inc i)))
+              (p/for [i (range (dec grid-col))]
+                (cell grid-row (inc i)))
               (when (::group-id table-picker-options)
                 (dom/th {::dom/role  "cell"
-                         ::dom/style {:grid-row GridRow, :grid-column GridCol}}))
+                         ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
               (p/for-by second [[idx col] (map-indexed vector keys)]
                 (dom/th {::dom/role  "cell"
                          ::dom/class "label"
                          ::dom/title (pr-str (or (spec-description true (attr-spec col))
                                                (p/server (schema-value-type hf/*schema* hf/db col)))),
-                         ::dom/style {:grid-row         GridRow,
-                                      :grid-column      (+ GridCol idx)
+                         ::dom/style {:grid-row         grid-row,
+                                      :grid-column      (+ grid-col idx)
                                       :color            (c/color hf/db-name)
-                                      #_#_:padding-left (if (= 0 idx) (str Indentation "rem") :inherit)
+                                      #_#_:padding-left (if (= 0 idx) (str indentation "rem") :inherit)
                                       }}
-                  (str (non-breaking-padder Indentation) (field-name col))))
-              (CellPad. GridRow (inc (count keys)))))
+                  (str (non-breaking-padder indentation) (field-name col))))
+              (CellPad. grid-row (inc (count keys)))))
           (dom/tbody
-            (let [offset PaginationOffset]
+            (let [offset pagination-offset]
               (p/server
                 (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector (->> value (drop offset) (take (dec height))))]
-                  (p/client (binding [GridRow (+ GridRow idx 1)]
+                  (p/client (binding [grid-row (+ grid-row idx 1)]
                               (p/server (Row. ctx)))))))))))))
 
 
@@ -355,16 +355,16 @@
          !scroller#     (atom nil)
          !scroll-top#   (atom 0)]
      (dom/div {::dom/role  "scrollbar"
-               ::dom/style {:grid-row-start GridRow
-                            :grid-row-end   (+ GridRow ~max-height)
-                            :grid-column    (+ GridCol ~actual-width)}}
+               ::dom/style {:grid-row-start grid-row
+                            :grid-row-end   (+ grid-row ~max-height)
+                            :grid-column    (+ grid-col ~actual-width)}}
        (do (reset! !scroller# dom/node)
            (let [[scroll-top#] (new (sw/scroll-state< dom/node))]
              (reset! !scroll-top# scroll-top#))
            nil)
        (dom/div {:style {:height (str actual-height# "px")}}))
 
-     (binding [PaginationOffset (max 0 (js/Math.ceil (/ (js/Math.floor (p/watch !scroll-top#)) row-height#)))]
+     (binding [pagination-offset (max 0 (js/Math.ceil (/ (js/Math.floor (p/watch !scroll-top#)) row-height#)))]
        (dom/div {::dom/role "scrollview"}
         (dom/event "wheel" ; TODO support keyboard nav and touchscreens
           (fn [e#] (let [scroller# @!scroller#]
