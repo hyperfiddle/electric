@@ -152,12 +152,14 @@ TODO: what if component loses focus, but the user input is not yet committed ?
        #(set! (.-value dom/node) %))))
 
 (defn parse-date [s]
-  #?(:clj (java.time.LocalDate/parse s)
-     :cljs (-> s js/Date.parse js/Date. .toISOString (str/replace #"T.*$" ""))))
+  (try
+    #?(:clj (java.time.LocalDate/parse s)
+       :cljs (-> s js/Date.parse js/Date. .toISOString (str/replace #"T.*$" "")))
+    (catch #?(:clj Throwable :cljs :default) _)))
 
 ;; TODO what type of value should we accept and what should we return?
 ;; currently `parse-date` for cljs returns a short string representation
-;; of the date in format yy-mm-dd. We expect the same format as input
+;; of the date in format yyyy-mm-dd. We expect the same format as input
 (defmacro date [controlled-value & body]
   `(dom/with (dom/dom-element dom/node "input")
      (dom/props {:type "date"})
