@@ -38,6 +38,9 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      (.setAttribute dom/node "type" "text")
      ~@(?static-props body)
      (new InputController ~controlled-value)))
+; the input is stable because at some point the user stops typing
+; What prevents the infinite loop is at some point the state is stable, no events
+; update the state and due to work skipping nothing happens.
 
 (p/defn DemoInput []
   (dom/h1 "a controlled input that reverts on blur")
