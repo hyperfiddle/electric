@@ -31,9 +31,11 @@
                   s))]
       x)))
 
-(defmacro hfql
-  ([query] `(new Render (hfql/hfql ~query))) ; TODO only one thing should be called hfql. G suggests: precompile
-  ([bindings query] `(new Render (hfql/hfql ~bindings ~query))))
+(defmacro hfql ; Alias
+  ([query] `(hfql/hfql ~query))
+  ([bindings query] `(hfql/hfql ~bindings ~query)))
+
+(p/def Render hfql/Render)
 
 (p/def route nil) ; Continuous route value
 (p/def navigate!) ; to inject a route setter (eg. write to url, html5 history pushState, swap an atom…)
@@ -120,35 +122,3 @@
 
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)
-
-(p/def Rec)
-
-;; TODO Rename
-(p/defn JoinAllTheTree "Join all the tree, does not call renderers, return EDN." [V]
-  (binding [Rec (p/fn [{::keys [type keys Value values]}]
-                  (case type
-                    ::leaf (Value.)
-                    ::keys (into {} (zipmap keys (p/for [ctx values] (Rec. ctx))))
-                    (let [ctx (Value.)]
-                      (cond
-                        (vector? ctx) (p/for [ctx ctx] (Rec. ctx))
-                        (map? ctx)    (Rec. ctx)
-                        :else         ctx))))]
-    (new Rec V)))
-
-;; TODO Rename, this seems to just be "Render"
-(p/defn EdnRender "Join all the tree, calling renderers when provided, return EDN" [V]
-  (binding [Rec (p/fn [{::keys [type render keys Value values] :as ctx}]
-                  (if render (render. ctx)
-                      (case type
-                        ::leaf (Value.)
-                        ::keys (into {} (zipmap keys (p/for [ctx values] (Rec. ctx))))
-                        (let [ctx (Value.)]
-                          (cond
-                            (vector? ctx) (p/for [ctx ctx] (Rec. ctx))
-                            (map? ctx)    (Rec. ctx)
-                            :else         ctx)))))]
-    (new Rec V)))
-
-
-(p/def Render JoinAllTheTree)

@@ -1,6 +1,7 @@
 (ns hyperfiddle.hfql.ui
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
+            [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.spec :as spec]
             [hyperfiddle.logger :as log]
@@ -58,7 +59,7 @@
 
 (p/defn Default [{::hf/keys [link link-label] :as ctx}]
   (let [route (when link (new link))
-        value (hf/JoinAllTheTree. ctx)]
+        value (hfql/JoinAllTheTree. ctx)]
     (p/client
       (if (some? route)
         (hf/Link. route link-label)
@@ -163,7 +164,7 @@
 
 (p/defn Options [{::hf/keys [options continuation] :as ctx}]
   (when (and options continuation)
-    (let [v (hf/JoinAllTheTree. ctx)]
+    (let [v (hfql/JoinAllTheTree. ctx)]
       (p/client
         (dom/fieldset
           (dom/legend (dom/text "Options"))
@@ -176,7 +177,7 @@
     (dom/tr
       (.. dom/node -style (setProperty "--hyperfiddle-hfql-border-color" (c/color hf/db-name)))
       (when-let [id (::group-id table-picker-options)]
-        (let [value (p/server (hf/JoinAllTheTree. ctx))]
+        (let [value (p/server (hfql/JoinAllTheTree. ctx))]
           (dom/td
             (dom/input
               {::dom/type    :radio,
