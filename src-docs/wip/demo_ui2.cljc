@@ -7,6 +7,8 @@
   #?(:cljs (:require-macros wip.demo-ui2))
   (:import (hyperfiddle.photon Pending)))
 
+(defn reset!-ret-nil [& args] (apply reset! args) nil)
+
 (p/defn App []
   (p/client
 
@@ -27,12 +29,15 @@
                      (reset! !x)) ; concealed value leak
                 (dom/pre (pr-str x)))) ; leaky value is shadowed, but not solved
 
+      (dom/dt "ui/input (reset!2 which returns nil)")
+      (dom/dd (let [!x (atom "a") x (p/watch !x)]
+                (->> (ui/input x)
+                     (reset!-ret-nil !x)))) ; cute - value is handled, return nil
+
       #_#_
       (dom/dt "ui/input (reset! with field underneath, no leak)")
       (dom/dd (let [!x (atom "a") x (p/watch !x)]
-                (ui/input2 x {::ui/on-value (p/fn [x] (reset! !x x))})
-                ; no value leak!
-                ))
+                (ui/input-ret-nil x {::ui/on-value (p/fn [x] (reset! !x x))}))) ; no leak
 
       (dom/dt "ui/input (cycle)")
       (dom/dd (do (p/with-cycle [x "a"]
