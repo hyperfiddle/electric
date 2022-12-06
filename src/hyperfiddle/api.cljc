@@ -32,8 +32,8 @@
       x)))
 
 (defmacro hfql
-  ([query] `(hfql/hfql ~query))
-  ([bindings query] `(hfql/hfql ~bindings ~query)))
+  ([query] `(new Render (hfql/hfql ~query))) ; TODO only one thing should be called hfql. G suggests: precompile
+  ([bindings query] `(new Render (hfql/hfql ~bindings ~query))))
 
 (p/def route nil) ; Continuous route value
 (p/def navigate!) ; to inject a route setter (eg. write to url, html5 history pushState, swap an atom…)
@@ -150,3 +150,5 @@
                             :else         ctx)))))]
     (new Rec V)))
 
+
+(p/def Render JoinAllTheTree)
