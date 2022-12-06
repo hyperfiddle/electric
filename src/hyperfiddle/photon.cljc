@@ -289,7 +289,7 @@ or a provided value if it completes without producing any value."
                  (list `fn [])
                  (list `cc/partial (list 'def (first c/arg-sym))))
               (::c/lift xs#))))
-    (cons `do body)))
+    (cons `do body))) ; todo, buggy: (p/for [x []] (println 42)) should not print
 
 (defmacro for [bindings & body]
   `(hyperfiddle.photon/for-by identity ~bindings ~@body))
