@@ -1,7 +1,7 @@
 (ns user.demo-2-toggle
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui])
+            [hyperfiddle.photon-ui2 :as ui])
   #?(:cljs (:require-macros user.demo-2-toggle)))
 
 ; A stateful app with a server-side counter
@@ -16,6 +16,7 @@
   (p/client
     (dom/h1 "Toggle")
     (ui/button {::ui/click-event (p/fn [e]
+                                   ; button is auto-disabled while the 'task' is pending
                                    (p/server (swap! !x not)))}
       "toggle client/server")
     (dom/p

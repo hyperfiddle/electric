@@ -5,8 +5,10 @@
    [clojure.string :as str]
    [contrib.str :refer [blank->nil]]
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom :as dom])
-  #?(:cljs (:require-macros hyperfiddle.photon-ui2)))
+   [hyperfiddle.photon-dom :as dom]
+   [hyperfiddle.rcf :as rcf :refer [tests tap with %]])
+  #?(:cljs (:require-macros hyperfiddle.photon-ui2))
+  (:import (hyperfiddle.photon Pending)))
 
 (p/defn Focused? []
   (p/with-cycle [focused false]
@@ -52,7 +54,7 @@ TODO: what if component loses focus, but the user input is not yet committed ?
             (input a))]
     (dom/pre a)))
 
-(p/defn Button [label busy] ; todo props and task
+(p/defn ^:deprecated Button [label busy] ; todo props and task
   (dom/with (dom/dom-element dom/node "button")
     (dom/set-text-content! dom/node label)
     (dom/Event. "click" busy)))
@@ -60,6 +62,45 @@ TODO: what if component loses focus, but the user input is not yet committed ?
 (comment
   (when-some [click-event (Button. "click me" false)] ; see event for one frame
     (println click-event))) ; nil -> active event -> nil
+
+(def IDLE false)
+(def BUSY true)
+
+(defmacro button
+  "buttons manage a 'task' (async photon thunk). See wip.demo-ui2 for examples"
+  [props & body]
+  `(dom/element
+     :button
+     ~props ; static, should we compile out props not in ::dom namespace?
+     ; how to compile unqualified props to current namespace? ;~(auto-props props)
+     (do (p/with-cycle [busy# IDLE]
+           (dom/set-property! dom/node "aria-busy" busy#)
+           (dom/set-property! dom/node "disabled" busy#) ; ?
+           (try
+             (when-some [e# (dom/Event. "click" busy#)]
+               (new ~(::click-event props) e#))
+             IDLE (catch Pending _ BUSY)))
+         nil) ; defend against leaking with-cycle state
+     ~@body)) ; likely a label
+
+(comment
+  ; check props were compiled
+  (macroexpand-1
+    '(button {:click-event (p/fn [e] (p/server (swap! !x not)))}
+       "toggle client/server 4")))
+
+; experiment
+(defmacro button2 "buttons manage a 'task' (async photon thunk)"
+  [busy props & body]
+  `(dom/element
+     :button
+     ~props ; static, should we compile out props not in ::dom namespace?
+     ; how to compile unqualified props to current namespace? ;~(auto-props props)
+     (let [busy# ~busy]
+       (dom/set-property! dom/node "aria-busy" busy#) ; auto-set?
+       #_(dom/set-property! dom/node "disabled" busy#) ; this can be set through props now
+       ~@body ; ?
+       (dom/Event. "click" busy#))))
 
 (defmacro textarea [controlled-value & body]
   `(dom/with (dom/dom-element dom/node "textarea")

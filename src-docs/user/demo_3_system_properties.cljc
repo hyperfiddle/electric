@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui])
+            [hyperfiddle.photon-ui2 :as ui])
   #?(:cljs (:require-macros user.demo-3-system-properties)))
 
 ; A web view that queries the backend JVM environment and writes it to the
@@ -24,9 +24,10 @@
                 matched-count (count system-props)]
             (p/client
               (dom/div {:style {:color "gray"}} matched-count " matches")
-              (ui/input {::dom/type :search
-                         ::dom/placeholder "java.home"
-                         ::ui/input-event (p/fn [e] (reset! !search (:value dom/node)))})
+              (->> (ui/input search {::dom/type :search
+                                     ::dom/placeholder "java.home"})
+                   ; todo what about getting other events from the input like blur?
+                   (reset! !search)) ; stable cycle
               (dom/table
                 (p/server
                   (p/for-by first [[k v] system-props]
