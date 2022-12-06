@@ -1,6 +1,7 @@
 (ns hyperfiddle.hfql.tree-to-grid-ui
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
+            [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.spec :as spec]
             [clojure.datafy :refer [datafy]]
@@ -68,7 +69,7 @@
 
 (p/defn Default [{::hf/keys [entity link link-label options continuation] :as ctx}]
   (let [route   (when link (new link))
-        value   (Apply1. (::hf/summarize ctx) (hf/JoinAllTheTree. ctx))
+        value   (Apply1. (::hf/summarize ctx) (hfql/JoinAllTheTree. ctx))
         options (or options (::hf/options (::parent ctx)))]
     (cond
       (some? route)   (p/client (hf/Link. route link-label))
@@ -163,7 +164,7 @@
 
 (p/defn Options [{::hf/keys [options continuation] :as ctx}]
   (when (and options continuation)
-    (let [v (hf/JoinAllTheTree. ctx)]
+    (let [v (hfql/JoinAllTheTree. ctx)]
       (p/client
         (dom/fieldset
           (dom/legend (dom/text "Options"))
@@ -287,7 +288,7 @@
   (p/client
     (dom/tr
       (when-let [id (::group-id table-picker-options)]
-        (let [value (p/server (hf/JoinAllTheTree. ctx))]
+        (let [value (p/server (hfql/JoinAllTheTree. ctx))]
           (dom/input
             {::dom/role    "cell"
              ::dom/type    :radio,

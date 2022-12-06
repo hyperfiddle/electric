@@ -703,15 +703,15 @@
     )
   )
 
-(defn hfql* [env bindings form]
+(defn precompile* [env bindings form]
   (binding [*bindings* bindings]
     (let [db (->> (analyze form) (apply-passes passes (c/normalize-env env)))
           roots (get-root db)]
       `(let [~E hf/entity]
          ~(emit-nodes roots)))))
 
-(defmacro hfql ([form] (hfql* &env [] form))
-  ([bindings form] (hfql* &env bindings form)))
+(defmacro precompile ([form] (precompile* &env [] form))
+  ([bindings form] (precompile* &env bindings form)))
 
 
 (comment

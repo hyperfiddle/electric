@@ -1,6 +1,7 @@
 (ns hyperfiddle.hfql.explorer-tests
   (:require
    [hyperfiddle.api :as hf :refer [hfql]]
+   [hyperfiddle.hfql :as hfql]
    [hyperfiddle.hfql.explorer :as ex :refer [TreeToExplorer Sequence]]
    [hyperfiddle.photon :as p]
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
@@ -36,16 +37,18 @@
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
-                              hf/entity 9]
-                      (Rows. (hfql :db/id))   ))))
+                              hf/entity 9
+                              hf/Render Rows]
+                      (hfql :db/id)   ))))
   % := [[0 [9]]]
   )
 
 (tests
   (with (p/run (debug  (tap (binding [hf/db     hf/*$*
                                       hf/*nav!* nav!
-                                      hf/entity 9]
-                              (Rows. (hfql [:db/id]) ))))))
+                                      hf/entity 9
+                                      hf/Render Rows]
+                              (hfql [:db/id]) )))))
   % := [[0 [:db/id 9]]])
 
 (p/def String-renderer (p/fn [{::hf/keys [Value] :as ctx}] (str (Value.))))
@@ -54,39 +57,44 @@
   "hf/render"
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
-                              hf/entity 9]
-                      (debug (Rows. (hfql (props :db/id {::hf/render String-renderer})))) ))))
+                              hf/entity 9
+                              hf/Render Rows]
+                      (hfql (props :db/id {::hf/render String-renderer})) ))))
   % := [[0 ["9"]]])
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
-                              hf/entity 9]
-                      (Rows. (hfql [(props :db/id {::hf/render String-renderer})]))))))
+                              hf/entity 9
+                              hf/Render Rows]
+                      (hfql [(props :db/id {::hf/render String-renderer})])))))
   % := [[0 [:db/id "9"]]])
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
                               hf/*nav!* nav!
                               hf/entity 9
-                              hf/*schema* schema]
-                      (Rows. (hfql [{:order/gender [:db/ident]}])) ))))
+                              hf/*schema* schema
+                              hf/Render Rows]
+                      (hfql [{:order/gender [:db/ident]}]) ))))
   % := [[0 [:order/gender]]
         [1 [:db/ident :order/female]]])
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
-                              hf/*nav!* nav!]
-                      (Rows. (hfql {(order "") [:db/id]})) ))))
+                              hf/*nav!* nav!
+                              hf/Render Rows]
+                      (hfql {(order "") [:db/id]}) ))))
   % := [[0 ['(wip.orders-datascript/order "")]]
         [1 [:db/id 9]]])
 
 (tests
   "Two levels of nesting"
-  (with (p/run (tap (binding [hf/db     hf/*$*
-                              hf/*nav!* nav!
-                              hf/*schema* schema]
-                      (Rows. (hfql {(order "") [{:order/shirt-size [:db/ident]}]})) ))))
+  (with (p/run (tap (binding [hf/db       hf/*$*
+                              hf/*nav!*   nav!
+                              hf/*schema* schema
+                              hf/Render   Rows]
+                      (hfql {(order "") [{:order/shirt-size [:db/ident]}]}) ))))
   % := [[0 ['(wip.orders-datascript/order "")]]
         [1 [:order/shirt-size]]
         [2 [:db/ident :order/womens-large]]])
@@ -94,8 +102,9 @@
 (tests
   "multiplicity many"
   (with (p/run (tap (binding [hf/db     hf/*$*
-                              hf/*nav!* nav!]
-                      (Rows. (hfql {(orders "") [:db/id]}) ) ))))
+                              hf/*nav!* nav!
+                              hf/Render Rows]
+                      (hfql {(orders "") [:db/id]})  ))))
   % := `[[0 [(wip.orders-datascript/orders "")]]
          [1 [:db/id]]
          [1 [9]]
@@ -105,15 +114,17 @@
 (tests
   "skipping"
   (with (p/run (tap (binding [hf/db     hf/*$*
-                              hf/*nav!* nav!]
-                      (Window. 1 2 (hfql {(orders "") [:db/id]}) ) ))))
+                              hf/*nav!* nav!
+                              hf/Render Rows]
+                      (Window. 1 2 (hfql/precompile {(orders "") [:db/id]}) ) ))))
   % := [[1 [:db/id]]
         [1 [9]]])
 
 (tests
   (with (p/run (tap (binding [hf/db hf/*$*
-                              hf/*nav!* nav!]
-                      (Rows. (hfql {(orders "") [(props :db/id {::hf/render String-renderer})]}))))))
+                              hf/*nav!* nav!
+                              hf/Render Rows]
+                      (hfql {(orders "") [(props :db/id {::hf/render String-renderer})]})))))
   % := `[[0 [(wip.orders-datascript/orders "")]]
          [1 [:db/id]]
          [1 ["9"]]
@@ -126,26 +137,28 @@
   (p/run (tap (binding [hf/db       hf/*$*
                         hf/*nav!*   nav!
                         hf/entity   9
-                        hf/*schema* schema]
-                (Rows. (hfql [{(props :order/gender {::hf/render (p/fn [_] "ignored")})
-                               [(props :db/ident {::hf/render Throwing-renderer})]}])) )))
+                        hf/*schema* schema
+                        hf/Render   Rows]
+                (hfql [{(props :order/gender {::hf/render (p/fn [_] "ignored")})
+                        [(props :db/ident {::hf/render Throwing-renderer})]}]) )))
   % := [[0 [:order/gender]]             ; TODO "ignored" should render inline next to the label
         [1 ["ignored"]]]                ; note it didn’t throw
   )
 
 ;; Insight: Let the renderer decide of the options' continuation.
 (p/defn Select-option-renderer [{::hf/keys [options continuation] :as ctx}]
-  (into [:select {:value (hf/JoinAllTheTree. ctx)}]
+  (into [:select {:value (hfql/JoinAllTheTree. ctx)}]
     (p/for [e (new options)]
-      [:option (if continuation (hf/JoinAllTheTree. (continuation. e)) e)])))
+      [:option (if continuation (hfql/JoinAllTheTree. (continuation. e)) e)])))
 
 (tests
   (with (p/run (tap (binding [hf/db       hf/*$*
                               hf/*nav!*   nav!
                               hf/entity   9
-                              hf/*schema* schema]
-                      (Rows. (hfql [(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                              ::hf/options (shirt-sizes :order/female "")})])) ))))
+                              hf/*schema* schema
+                              hf/Render   Rows]
+                      (hfql [(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                       ::hf/options (shirt-sizes :order/female "")})]) ))))
   % := [[0 [:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]]]]])
 
 (tests
@@ -154,10 +167,11 @@
           (tap (binding [hf/db       hf/*$*
                          hf/*nav!*   nav!
                          hf/entity   9
-                         hf/*schema* schema]
-                 (Rows. (hfql {(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                         ::hf/options (shirt-sizes :order/female "")})
-                               [:db/ident]})) ))))
+                         hf/*schema* schema
+                         hf/Render   Rows]
+                 (hfql {(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                  ::hf/options (shirt-sizes :order/female "")})
+                        [:db/ident]}) ))))
   % := [[0 [:order/shirt-size]]
         [1 [[:select {:value #:db{:ident :order/womens-large}}
              [:option #:db{:ident :order/womens-small}]
@@ -169,10 +183,11 @@
   (with (p/run (tap (binding [hf/db       hf/*$*
                               hf/*nav!*   nav!
                               hf/entity   9
-                              hf/*schema* schema]
-                      (Rows. (hfql [{:order/gender [:db/ident]}
-                                    (props :order/shirt-size {::hf/render  Select-option-renderer
-                                                              ::hf/options (shirt-sizes db/ident "")})])) ))))
+                              hf/*schema* schema
+                              hf/Render   Rows]
+                      (hfql [{:order/gender [:db/ident]}
+                             (props :order/shirt-size {::hf/render  Select-option-renderer
+                                                       ::hf/options (shirt-sizes db/ident "")})]) ))))
   % := [[0 [:order/gender]]
         [1 [:db/ident :order/female]]
         [0 [:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]]]]]
@@ -183,10 +198,11 @@
   (with (p/run (try (tap (binding [hf/db       hf/*$*
                                    hf/*nav!*   nav!
                                    hf/*schema* schema
-                                   hf/entity   9]
-                           (Rows. (hfql {(orders "") [{:order/gender [:db/ident]}
-                                                      (props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                                ::hf/options (shirt-sizes db/ident "")})]}))))
+                                   hf/entity   9
+                                   hf/Render   Rows]
+                           (hfql {(orders "") [{:order/gender [:db/ident]}
+                                               (props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                         ::hf/options (shirt-sizes db/ident "")})]})))
                     (catch Pending _))))
   % := [[0 ['(wip.orders-datascript/orders "")]]
         [1 [:order/gender :order/shirt-size]]
@@ -204,12 +220,13 @@
     (with (p/run (try (tap (binding [hf/db       hf/*$*
                                      hf/*nav!*   nav!
                                      hf/entity   9
-                                     hf/*schema* schema]
-                             (Rows. (hfql {(orders needle1) [:order/email
-                                                             {:order/gender [(props :db/ident {::hf/as gender})]}
-                                                             {(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                                        ::hf/options (shirt-sizes gender needle2)})
-                                                              [:db/ident]}]} ))))
+                                     hf/*schema* schema
+                                     hf/Render   Rows]
+                             (hfql {(orders needle1) [:order/email
+                                                      {:order/gender [(props :db/ident {::hf/as gender})]}
+                                                      {(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                                 ::hf/options (shirt-sizes gender needle2)})
+                                                       [:db/ident]}]}) ))
                       (catch Pending _)))))
   % := [[0 ['(wip.orders-datascript/orders needle1)]]
         [1 [:order/email :order/gender :order/shirt-size]]
@@ -230,11 +247,12 @@
   "free inputs"
   (with (p/run (try (tap (binding [hf/db       hf/*$*
                                    hf/*nav!*   nav!
-                                   hf/*schema* schema]
-                           (Rows. (hfql {(orders .) [{:order/gender [(props :db/ident {::hf/as gender})]}
-                                                     {(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                                ::hf/options (shirt-sizes gender .)})
-                                                      [:db/ident]}]})) ) )
+                                   hf/*schema* schema
+                                   hf/Render   Rows]
+                           (hfql {(orders .) [{:order/gender [(props :db/ident {::hf/as gender})]}
+                                              {(props :order/shirt-size {::hf/render  Select-option-renderer
+                                                                         ::hf/options (shirt-sizes gender .)})
+                                               [:db/ident]}]}) ) )
                     (catch Pending _))))
   % := [[0 ['(wip.orders-datascript/orders .)]]
         [1 [:order/gender :order/shirt-size]]
@@ -268,8 +286,9 @@
   "function navigation"
   (with (p/run (tap
                  (binding [hf/db     hf/*$*
-                           hf/*nav!* nav!]
-                   (Rows. (hfql [hf/*$* hf/db] {(orders "") [:db/id order-name]}) ) ))
+                           hf/*nav!* nav!
+                           hf/Render Rows]
+                   (hfql [hf/*$* hf/db] {(orders "") [:db/id order-name]}) ))
           ))
   % := `[[0 [(wip.orders-datascript/orders "")]]
          [1 [:db/id hyperfiddle.hfql.explorer-tests/order-name]]
@@ -293,8 +312,9 @@
 
   (with (p/run (try (tap
                       (binding [hf/db hf/*$*
-                                hf/*nav!* nav!]
-                        (Rows. (hfql [*db* hf/db] {(bound-order "alice") [:db/id]})) ))
+                                hf/*nav!* nav!
+                                hf/Render Rows]
+                        (hfql [*db* hf/db] {(bound-order "alice") [:db/id]}) ))
                     (catch Pending _))))
   % := `[[0 [(hyperfiddle.hfql.explorer-tests/bound-order "alice")]]
          [1 [:db/id 9]]])
