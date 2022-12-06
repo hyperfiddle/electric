@@ -17,7 +17,7 @@
     (dom/h1 "Photon UI 2")
     (dom/element "style" "input:invalid {background-color: #f88}")
     (dom/div {:style {:display "flex" :flex-flow "row wrap" :width "100rem" :gap "20px"}}
-      (snip "ui/select"  (ui/select [{:text ""} {:text "a"} {:text "b"}] "a"))
+      (snip "ui/select"  (ui/select [{:text ""} {:text "a" :value :a} {:text "b" :value :b}] :a))
       (snip "ui/long"    (ui/long 0))
       (snip "ui/double"  (ui/double 1.123 {:step 0.001}))
       (snip "ui/keyword" (ui/keyword :foo))

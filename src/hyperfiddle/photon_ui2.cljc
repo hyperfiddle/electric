@@ -137,8 +137,11 @@ TODO: what if component loses focus, but the user input is not yet committed ?
   `(let [opts# ~options, cv# ~controlled-value]
      (dom/with (dom/dom-element dom/node "select")
        (?static-props ~@body)
-       (p/for [opt# opts#] (dom/option (dom/props (dissoc opt# :text)) (some-> opt# :text dom/text)))
-       (set! (.-value dom/node) cv#)
+       (p/for [opt# opts#] (dom/option
+                             (dom/props (dissoc opt# :text))
+                             (when (= (:value opt#) cv#)
+                               (dom/props {:selected true}))
+                             (some-> opt# :text dom/text)))
        (new ValueOn "change"))))
 
 (p/defn Value []
