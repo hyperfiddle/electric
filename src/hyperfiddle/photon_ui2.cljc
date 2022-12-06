@@ -2,11 +2,10 @@
   (:refer-clojure :exclude [long double keyword symbol uuid])
   (:require
    clojure.edn
+   [clojure.string :as str]
    [contrib.str :refer [blank->nil]]
-   [missionary.core :as m]
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom :as dom]
-   [hyperfiddle.rcf :as rcf :refer [tests tap with %]])
+   [hyperfiddle.photon-dom :as dom])
   #?(:cljs (:require-macros hyperfiddle.photon-ui2)))
 
 (p/defn Focused? []
@@ -150,4 +149,18 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      (dom/props {:type "text"})
      ~@(?static-props body)
      (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-edn))
+       #(set! (.-value dom/node) %))))
+
+(defn parse-date [s]
+  #?(:clj (java.time.LocalDate/parse s)
+     :cljs (-> s js/Date.parse js/Date. .toISOString (str/replace #"T.*$" ""))))
+
+;; TODO what type of value should we accept and what should we return?
+;; currently `parse-date` for cljs returns a short string representation
+;; of the date in format yy-mm-dd. We expect the same format as input
+(defmacro date [controlled-value & body]
+  `(dom/with (dom/dom-element dom/node "input")
+     (dom/props {:type "date"})
+     ~@(?static-props body)
+     (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-date))
        #(set! (.-value dom/node) %))))
