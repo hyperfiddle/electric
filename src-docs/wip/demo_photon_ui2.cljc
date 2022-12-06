@@ -22,6 +22,8 @@
       (snip "ui/double"  (ui/double 1.123 {:step 0.001}))
       (snip "ui/keyword" (ui/keyword :foo))
       (snip "ui/symbol"  (ui/symbol 'foo))
-      (snip "ui/uuid"    (ui/uuid #uuid "652af367-0262-4fc4-b0c8-f705142c26dd")))
+      (snip "ui/uuid"    (ui/uuid #uuid "652af367-0262-4fc4-b0c8-f705142c26dd"))
+      (snip "ui/edn"     (ui/edn {:hello "world"})))
+
     nil ;; upstream would interpret result of ui2/select
     ))

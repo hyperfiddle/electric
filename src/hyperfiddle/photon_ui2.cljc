@@ -143,3 +143,11 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      ~@(?static-props body)
      (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-uuid))
        #(set! (.-value dom/node) %))))
+
+;; TODO codemirror?
+(defmacro edn [controlled-value & body]
+  `(dom/with (dom/dom-element dom/node "textarea")
+     (dom/props {:type "text"})
+     ~@(?static-props body)
+     (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-edn))
+       #(set! (.-value dom/node) %))))
