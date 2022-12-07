@@ -116,8 +116,8 @@
       (dom/dl
         (dom/dt "ui/input")
         (dom/dd (->> (ui/input (:input1 x))
-                     (swap! !x assoc :input1)))
-
+                     (swap! !x assoc :input1))
+                (ui/input (:input1 x) {::dom/disabled true})) ; todo disabled input should emit nil
 
         (dom/dt "ui/select")
         (dom/dd (->> (ui/select [{:text ""} {:text "a"} {:text "b"}] (:select1 x))
@@ -172,7 +172,6 @@
                               (p/client (pr-str (type 1)))
                               (p/server (pr-str (type 1))))))
 
-            #_#_
             (dom/dt "ui/button2 (byo pending management)")
             (dom/dd
               (let [!busy (atom false) busy (p/watch !busy)]
