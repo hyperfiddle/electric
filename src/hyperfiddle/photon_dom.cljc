@@ -557,14 +557,14 @@
   corresponding size in pixels. Will install a invisible div in the DOM, at
   point."
   [size]
-  `(div {::style {:height     ~size
-                  :width      0
-                  :outline    :none
-                  :border     :none
-                  :padding    :none
-                  :margin     :none
-                  :box-sizing :content-box
-                  :visibility :hidden
-                  :position   :absolute
-                  }}
-     (.-offsetHeight dom/node)))
+  `(first (div {::style {:height     ~size
+                         :width      0
+                         :outline    :none
+                         :border     :none
+                         :padding    :none
+                         :margin     :none
+                         :box-sizing :content-box
+                         :visibility :hidden
+                         :position   :absolute
+                         }}
+            [(.-offsetHeight dom/node)])))
