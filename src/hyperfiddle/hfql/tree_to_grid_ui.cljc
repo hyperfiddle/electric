@@ -8,7 +8,8 @@
             ;; [contrib.ednish :as ednish]
             [contrib.color :as c]
             [hyperfiddle.photon-ui2 :as ui2]
-            [hyperfiddle.scrollview :as sw])
+            [hyperfiddle.scrollview :as sw]
+            #?(:clj [hyperfiddle.txn :as txn]))
   #?(:cljs (:require-macros [hyperfiddle.hfql.tree-to-grid-ui])))
 
 (defn replate-state! [!route path value]
@@ -65,6 +66,12 @@
 (p/def indentation 0)
 (p/def pagination-offset)
 
+(defmacro cell [row col & body]
+  `(dom/div {::dom/role  "cell"
+             ::dom/style {:grid-column ~col
+                          :grid-row    ~row}}
+     ~@body))
+
 (p/defn Apply1 [F x] (if F (F. x) x))
 
 (defn find-best-identity [v] v) ; TODO implement
@@ -74,14 +81,14 @@
         value   (hfql/JoinAllTheTree. ctx)
         options (or options (::hf/options (::parent ctx)))]
     (cond
-      (some? route)   (p/client (hf/Link. route link-label))
+      (some? route)   (p/client (cell grid-row grid-col (hf/Link. route link-label)))
       (some? options) (let [value (find-best-identity value)]
                         (p/client
                           (ui2/select (p/server (p/for [e (options.)]
                                                   (let [v (hfql/JoinAllTheTree. (new (::hf/continuation (::parent ctx)) e))]
                                                     {:text (Apply1. (::hf/option-label (::parent ctx)) v)
-                                                     :value (str (find-best-identity v))})))
-                            (str value)
+                                                     :value (find-best-identity v)})))
+                            value
                             (dom/props {::dom/role "cell"
                                         ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
                           nil))
@@ -153,7 +160,7 @@
   (cond
     (::hf/height ctx) (+ (inc (::hf/height ctx))
                         (count (::hf/arguments ctx)))
-    (::hf/keys ctx)   (+ 1 (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
+    (::hf/keys ctx)   (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
     ;; TODO handle unknown height
     :else             1))
 
@@ -230,17 +237,12 @@
             (dom/event "input"
               (fn [e]
                 (reset! v (.. e -target -value))
-                (prn `(hf/assoc-in-route-state ~hf/route ~path ~(.. e -target -value)))
+                ;; (prn `(hf/assoc-in-route-state ~hf/route ~path ~(.. e -target -value)))
                 (hf/replace-route!
                         (hf/assoc-in-route-state hf/route path (.. e -target -value)))))
             (dom/event "focus" (fn [_] (reset! !steady true)))
             (dom/event "blur" (fn [_] (reset! !steady false))))
           (p/watch v))))) )
-
-(defmacro cell [row col]
-  `(dom/div {::dom/role  "cell"
-             ::dom/style {:grid-column ~col
-                          :grid-row    ~row}}))
 
 (p/defn CellPad [row col-offset]
   (let [n (- grid-width grid-col (dec col-offset))]
@@ -264,29 +266,34 @@
                :style {:border-left-color (c/color hf/db-name)}}
       (p/server
         (let [heights (vec (reductions + 0 (map height values)))]
-          (p/for-by (comp first second) [[idx [key ctx]] (map-indexed vector (partition 2 (interleave keys values)))]
-            (let [leaf? (= ::hf/leaf (::hf/type ctx))
-                  argc  (count (::hf/arguments ctx))
-                  h     (get heights idx)]
-              (p/client
-                (let [row     (+ grid-row idx (- h idx))
-                      dom-for (random-uuid)]
-                  (dom/label
-                    {::dom/role  "cell"
-                     ::dom/class "label"
-                     ::dom/for   dom-for
-                     ::dom/style {:grid-row     row
-                                  :grid-column  grid-col
-                                  #_#_:padding-left (str indentation "rem")}
-                     ::dom/title (pr-str (or (spec-description false (attr-spec key))
-                                           (p/server (schema-value-type hf/*schema* hf/db key))))}
-                    (dom/text (str (non-breaking-padder indentation) (field-name key))))
-                  (binding [indentation   (if true #_leaf? indentation (inc indentation))]
-                    (binding [grid-col (inc grid-col)]
-                      (p/server (GrayInputs. ctx)))
-                    (binding [grid-row (if leaf? row (+ row argc))
-                              grid-col (inc grid-col)]
-                      (p/server (Render. (assoc ctx ::dom/for dom-for)))))))))
+          (into [] cat
+            (p/for-by (comp first second) [[idx [key ctx]] (map-indexed vector (partition 2 (interleave keys values)))]
+              (let [leaf? (= ::hf/leaf (::hf/type ctx))
+                    argc  (count (::hf/arguments ctx))
+                    h     (get heights idx)]
+                (p/client
+                  (let [row     (+ grid-row idx (- h idx))
+                        dom-for (random-uuid)]
+                    (p/for [i (range (dec grid-col))]
+                      (cell row (inc i)))
+                    (dom/label
+                      {::dom/role  "cell"
+                       ::dom/class "label"
+                       ::dom/for   dom-for
+                       ::dom/style {:grid-row     row
+                                    :grid-column  grid-col
+                                    #_#_:padding-left (str indentation "rem")}
+                       ::dom/title (pr-str (or (spec-description false (attr-spec key))
+                                             (p/server (schema-value-type hf/*schema* hf/db key))))}
+                      (dom/text (str (non-breaking-padder indentation) (field-name key))))
+                    (CellPad. row 2)
+                    (binding [indentation   (if true #_leaf? indentation (inc indentation))]
+                      (binding [grid-col (inc grid-col)]
+                        (p/server (GrayInputs. ctx)))
+                      (binding [grid-row (if leaf? row (+ row argc))
+                                grid-col (inc grid-col)]
+                        (p/server (Render. (assoc ctx ::dom/for dom-for))))
+                      ))))))
           #_(Options. (::parent ctx)))))))
 
 (p/defn InlineForm [{::hf/keys [keys values] :as ctx}]
@@ -305,11 +312,12 @@
              ::dom/checked (= (::current-value table-picker-options) value)
              ::dom/style   {:grid-row grid-row, :grid-column grid-col}})))
       (let [result (p/server
-                     (into [] cat (p/for-by second [[idx ctx] (map-indexed vector values)]
-                                    (p/client
-                                      (binding [grid-col (+ grid-col idx)]
-                                        (dom/td (p/server (binding [Form InlineForm]
-                                                            (Render. ctx)))))))))]
+                     (into [] cat
+                      (p/for-by second [[idx ctx] (map-indexed vector values)]
+                        (p/client
+                          (binding [grid-col (+ grid-col idx)]
+                            (dom/td (p/server (binding [Form InlineForm]
+                                                (Render. ctx)))))))))]
         (p/for [i (range (dec grid-col))]
           (cell grid-row (inc i)))
         (CellPad. grid-row (inc (count keys)))
@@ -344,9 +352,10 @@
           (dom/tbody
             (let [offset pagination-offset]
               (p/server
-                (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector (->> value (drop offset) (take (dec height))))]
-                  (p/client (binding [grid-row (+ grid-row idx 1)]
-                              (p/server (Row. ctx)))))))))))))
+                (into [] cat
+                  (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector (->> value (drop offset) (take (dec height))))]
+                    (p/client (binding [grid-row (+ grid-row idx 1)]
+                                (p/server (Row. ctx))))))))))))))
 
 
 (defmacro PaginatedGrid [actual-width max-height actual-height & body]
@@ -362,7 +371,7 @@
            (let [[scroll-top#] (new (sw/scroll-state< dom/node))]
              (reset! !scroll-top# scroll-top#))
            nil)
-       (dom/div {:style {:height (str actual-height# "px")}}))
+       (dom/div {:role "filler" "data-height" actual-height# :style {:height (str actual-height# "px")}}))
 
      (binding [pagination-offset (max 0 (js/Math.ceil (/ (js/Math.floor (p/watch !scroll-top#)) row-height#)))]
        (dom/div {::dom/role "scrollview"}
