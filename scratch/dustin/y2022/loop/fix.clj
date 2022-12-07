@@ -9,16 +9,6 @@
   (let {x (f x)} ; recursive binding is defined if sufficiently lazy
     x))
 
-; fix f = f (fix f)               -- Y combinator
-; fix f = let x = f x in x        -- mutual recursion
-; fix f = f (\x -> fix f x)       -- Church encoding
-; fix f = mu X. f X               -- Fixpoint operator
-; fix f = (\x -> f (\y -> (x x) y)) (\x -> f (\y -> (x x) y))   -- Z combinator
-
-; newtype Fix f = Fix (f (Fix f)) -- Recursive newtype
-; fix :: Functor f => f (Fix f) -> Fix f
-; fix = Fix
-
 (p/defn fact [rec n]
   (case n
     1 1 ; fixed point, doesn't sample n
@@ -116,26 +106,6 @@
 
     ))
 
-
-; https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/recursive_do.html
-; {-# LANGUAGE RecursiveDo #-}
-; justOnes = mdo { xs <- Just (1:xs)
-;                ; return (map negate xs) }
-
-; http://www.cse.chalmers.se/~rjmh/afp-arrows.pdf
-; https://hackage.haskell.org/package/base-4.17.0.0/docs/Control-Arrow.html#t:ArrowLoop
-;
-; class Arrow a => ArrowLoop a where
-;   loop :: a (b,d) (c,d) -> a b c
-;
-; instance ArrowLoop (->) where
-;   loop f b = let (c,d) = f (b,d) in c
-;
-;Prelude> loop f b = let (c,d) = f (b,d) in c
-;Prelude> f (b,d) = (drop (d-2) b, length b)
-;Prelude> loop f "Hello World"
-;"ld"
-
 (p/defn Loop [F b]
   (let [[c d] (F. [b d])]
     c))
@@ -147,19 +117,3 @@
   "ArrowLoop"
   (with (p/run (tap (Loop. F "Hello World")))
     % := "ld"))
-
-; counter :: ArrowCircuit a => a Bool Int
-; counter = proc reset -> do
-;         rec     output <- returnA -< if reset then 0 else next
-;                 next <- delay 0 -< output+1
-;         returnA -< output
-
-
-; import Control.Arrow
-; import Control.Arrow.Loop
-;
-; fibonacci :: ArrowLoop a => a () Int
-; fibonacci = proc () -> do
-; rec a <- arr (\(_,b) -> b) -< (a, b)
-; b <- arr (\(_,a) -> a+b) -< (a, b)
-; returnA -< a
