@@ -65,7 +65,8 @@
                       :else               m))))
 
 (defn assoc-in-route-state [m path value]
-  (let [empty? (if (seqable? value) (not-empty value) (some? value))]
+  (let [empty? (if (seqable? value) (not-empty value) (some? value))
+        m      (if (seq? m) {} m)]
     (if empty?
       (assoc-in m path value)
       (route-cleanup (assoc-in m path value) path))))

@@ -50,7 +50,8 @@
                  [(props :db/id {::hf/link ['wip.orders-datascript/one-order db/id]})
                   (props :order/email {::hf/tx (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
                   {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
-                                         ::hf/option-label (p/fn [v] (name (:db/ident v)))})
+                                         ::hf/option-label (p/fn [v] (name (:db/ident v)))
+                                         ::hf/tx           (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
                    [#_:db/id
                     (props :db/ident {::hf/as gender})]}
                   :order/tags
@@ -77,7 +78,8 @@
                    [:db/id
                     (props :db/ident {::hf/as gender})]}
                   {(props :order/shirt-size {::hf/options      (wip.orders-datascript/shirt-sizes gender .)
-                                             ::hf/option-label (p/fn [v] (name (:db/ident v)))})
+                                             ::hf/option-label (p/fn [v] (name (:db/ident v)))
+                                             ::hf/tx           (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
                    [:db/id
                     :db/ident]}
                   :order/tags]}) )))]
