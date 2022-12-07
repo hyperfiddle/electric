@@ -4,7 +4,7 @@
             [clojure.datafy :refer [datafy]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui]
+            [hyperfiddle.photon-ui2 :as ui]
             [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet]]
             [hyperfiddle.rcf :refer [tests tap % with]])
   #?(:cljs (:require-macros hyperfiddle.explorer)))
@@ -64,8 +64,8 @@
         (dom/dt "scroll debug state")
         (dom/dd (dom/pre (pprint-str (update-keys (p/watch hyperfiddle.scrollview/!scrollStateDebug) unqualify)))))
       (dom/div {:class "hyperfiddle-explorer-title"} title)
-      (ui/input {::dom/placeholder "Search files by name" ::dom/type "search"
-                 ::ui/input-event (p/fn [e] (reset! !search (.. e -target -value)))})
+      (->> (ui/input search {::dom/placeholder "Search files by name" ::dom/type "search"})
+        (reset! !search))
       (dom/hr)
       (p/server
         (binding [gridsheet/Format Format]
