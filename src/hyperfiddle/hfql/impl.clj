@@ -366,7 +366,7 @@
             (recur true path (parent point))))))))
 
 (defn compute-input-path-pass [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/free-input? true]] db))
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :argument]] db))
     (mapcat (fn [node] [{:db/id      (:db/id node)
                          :input/path (input-path node)}]))
     (d/db-with db)))

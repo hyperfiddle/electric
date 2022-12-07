@@ -74,24 +74,34 @@
 
 (p/defn Apply1 [F x] (if F (F. x) x))
 
-(defn find-best-identity [v] v) ; TODO implement
+(defn find-best-identity [v] ; TODO look up in schema
+  (cond (map? v) (or (:db/ident v) (:db/id v))
+        :else    v))
 
-(p/defn Default [{::hf/keys [entity link link-label options continuation] :as ctx}]
-  (let [route   (when link (new link))
-        value   (hfql/JoinAllTheTree. ctx)
-        options (or options (::hf/options (::parent ctx)))]
+(p/defn Default [{::hf/keys [entity link link-label options option-label continuation tx] :as ctx}]
+  (let [route        (when link (new link))
+        value        (hfql/JoinAllTheTree. ctx)
+        options      (or options (::hf/options (::parent ctx)))
+        option-label (or option-label (::hf/option-label (::parent ctx)))
+        continuation (or continuation (::hf/continuation (::parent ctx)))
+        tx           (or tx (::hf/tx (::parent ctx)))
+        tx?          (some? tx)]
     (cond
       (some? route)   (p/client (cell grid-row grid-col (hf/Link. route link-label)))
       (some? options) (let [value (find-best-identity value)]
                         (p/client
-                          (ui2/select (p/server (p/for [e (options.)]
-                                                  (let [v (hfql/JoinAllTheTree. (new (::hf/continuation (::parent ctx)) e))]
-                                                    {:text (Apply1. (::hf/option-label (::parent ctx)) v)
-                                                     :value (find-best-identity v)})))
-                            value
-                            (dom/props {::dom/role "cell"
-                                        ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
-                          nil))
+                          (let [v' (ui2/select (p/server (p/for [e (options.)]
+                                                           (let [v (hfql/JoinAllTheTree. (new continuation e))]
+                                                             {:text  (new option-label v)
+                                                              :value (find-best-identity v)})))
+                                     value
+                                     (dom/props {::dom/role     "cell"
+                                                 ::dom/style    {:grid-row grid-row, :grid-column grid-col}
+                                                 ::dom/disabled (not tx?)}))]
+                            (when (and tx? (not= value v'))
+                              (p/server
+                                (let [ctx (if (::hf/tx ctx) ctx (::parent ctx))]
+                                  (when tx (tx. ctx v'))))))))
       :else
       (p/client
         (dom/pre {::dom/role  "cell"
@@ -158,11 +168,12 @@
 
 (defn height [ctx]
   (cond
-    (::hf/height ctx) (+ (inc (::hf/height ctx))
+    (::hf/height ctx)  (+ (inc (::hf/height ctx))
                         (count (::hf/arguments ctx)))
-    (::hf/keys ctx)   (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
+    (::hf/options ctx) 1
+    (::hf/keys ctx)    (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
     ;; TODO handle unknown height
-    :else             1))
+    :else              1))
 
 (p/defn SpecDispatch [{::hf/keys [attribute] :as ctx}]
   (let [spec-value-type   (spec-value-type attribute)
@@ -176,17 +187,6 @@
                                                  defined-by-spec? (assoc ::readonly true)))
       (Default. ctx))))
 
-(p/defn Options [{::hf/keys [options continuation] :as ctx}]
-  (when (and options continuation)
-    (let [v (hfql/JoinAllTheTree. ctx)]
-      (p/client
-        (dom/fieldset
-          (dom/legend (dom/text "Options"))
-          (binding [table-picker-options {::group-id      (random-uuid),
-                                          ::current-value v}]
-            (p/server (Table. (dissoc ctx ::parent ::hf/options) (p/for [e (new options)] (new continuation e))))))))))
-
-
 (defn non-breaking-padder [n] (apply str (repeat n " ")) )
 
 
@@ -195,7 +195,7 @@
     (cons (symbol (field-name (first attr))) (seq (::spec/keys (clojure.datafy/datafy (spec/args (first attr))))) )
     (name attr)))
 
-(p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options ::hf/option-label]}]]
+(p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options ::hf/option-label] :as arg}]]
   (let [value    (read.)
         options? (some? options)]
     (p/client
@@ -234,12 +234,12 @@
               (dom/props props))
             (when options?
               (dom/props {::dom/list list-id}))
-            (dom/event "input"
-              (fn [e]
-                (reset! v (.. e -target -value))
-                ;; (prn `(hf/assoc-in-route-state ~hf/route ~path ~(.. e -target -value)))
-                (hf/replace-route!
-                        (hf/assoc-in-route-state hf/route path (.. e -target -value)))))
+            (let [route hf/route]
+              (dom/event "input"
+                (fn [e]
+                  (reset! v (.. e -target -value))
+                  (hf/replace-route!
+                    (hf/assoc-in-route-state route path (.. e -target -value))))))
             (dom/event "focus" (fn [_] (reset! !steady true)))
             (dom/event "blur" (fn [_] (reset! !steady false))))
           (p/watch v))))) )
@@ -292,13 +292,12 @@
                         (p/server (GrayInputs. ctx)))
                       (binding [grid-row (if leaf? row (+ row argc))
                                 grid-col (inc grid-col)]
-                        (p/server (Render. (assoc ctx ::dom/for dom-for))))
-                      ))))))
-          #_(Options. (::parent ctx)))))))
-
-(p/defn InlineForm [{::hf/keys [keys values] :as ctx}]
-  (p/server
-    (Default. ctx)))
+                        (p/server
+                          (let [ctx (assoc ctx ::dom/for dom-for)]
+                            (if (::hf/options ctx)
+                              (Default. ctx)
+                              (Render. (assoc ctx ::dom/for dom-for))))))
+                      )))))))))))
 
 (p/defn Row [{::hf/keys [keys values] :as ctx}]
   (p/client
@@ -316,7 +315,7 @@
                       (p/for-by second [[idx ctx] (map-indexed vector values)]
                         (p/client
                           (binding [grid-col (+ grid-col idx)]
-                            (dom/td (p/server (binding [Form InlineForm]
+                            (dom/td (p/server (binding [Form Default]
                                                 (Render. ctx)))))))))]
         (p/for [i (range (dec grid-col))]
           (cell grid-row (inc i)))
@@ -325,7 +324,6 @@
 
 (p/def Table)
 (p/defn Table-impl [{::hf/keys [keys height] :as ctx} value]
-  #_(Options. ctx)
   (let [actual-height (count value)]
     (p/client
       (PaginatedGrid (count keys) height actual-height
@@ -342,11 +340,9 @@
                          ::dom/class "label"
                          ::dom/title (pr-str (or (spec-description true (attr-spec col))
                                                (p/server (schema-value-type hf/*schema* hf/db col)))),
-                         ::dom/style {:grid-row         grid-row,
-                                      :grid-column      (+ grid-col idx)
-                                      :color            (c/color hf/db-name)
-                                      #_#_:padding-left (if (= 0 idx) (str indentation "rem") :inherit)
-                                      }}
+                         ::dom/style {:grid-row    grid-row,
+                                      :grid-column (+ grid-col idx)
+                                      :color       (c/color hf/db-name)}}
                   (str (non-breaking-padder indentation) (field-name col))))
               (CellPad. grid-row (inc (count keys)))))
           (dom/tbody
