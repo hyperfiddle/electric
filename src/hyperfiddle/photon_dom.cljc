@@ -125,7 +125,8 @@
                          `(dom/text ~form)
                          `(let [res# ~form]
                             (if (text-literal? res#)
-                              (dom/text res#)
+                              (do (dom/text res#)
+                                  res#)
                               res#))))))))
 
 (defmacro element [t & [props & body]]
@@ -550,3 +551,20 @@
         (p/server (println 'clicked)))
       false
       (catch Pending e true))))
+
+(defmacro measure
+  "Given a css size like \"1em\", \"1rem\" or other units, return the
+  corresponding size in pixels. Will install a invisible div in the DOM, at
+  point."
+  [size]
+  `(first (div {::style {:height     ~size
+                         :width      0
+                         :outline    :none
+                         :border     :none
+                         :padding    :none
+                         :margin     :none
+                         :box-sizing :content-box
+                         :visibility :hidden
+                         :position   :absolute
+                         }}
+            [(.-offsetHeight dom/node)])))

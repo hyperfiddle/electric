@@ -1,0 +1,107 @@
+/* TODO unify with Rosie */
+
+/* @import url(https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css); */
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@100;200;300;400;500;600;700&display=swap');
+
+
+:root{
+    --hf-input-cell-background: rgb(255 255 255);
+    --hf-page-background: rgb(248 250 252) ; /* bg-slate-100 */
+    --hf-label-background:  rgb(241 245 249); /* bg-slate-50	*/
+     /* rgb(226 232 240); /\* bg-slate-200 *\/ */
+}
+
+body{
+    background-color: var(--hf-page-background);
+    /* background-color: white; */
+}
+
+.hyperfiddle-gridsheet{
+
+    --hf-grid-row-height: 1.5rem; /* source of truth, all rows inherit this height, js code will measure this */
+    --hf-grid-row-even: transparent;
+    --hf-grid-row-odd: transparent;
+
+    display: grid;
+    grid-auto-rows: var(--hf-grid-row-height);
+    justify-items: start; /* cell content is left aligned */
+    align-items: center;  /* cells align their content on the row center */
+
+    /* Alternating colors behind rows */
+    background: repeating-linear-gradient(  var(--hf-grid-row-even) 0 var(--hf-grid-row-height)
+                                          , var(--hf-grid-row-odd)  0 calc(var(--hf-grid-row-height) * 2));
+    overflow-y: auto; /* scroll if needed, js code will shift the background-gradient’s position  */
+
+    box-sizing: border-box; /* nested scrollbars do not add to the width */
+
+}
+
+/* A vertical, standalone scrollbar. Meant to render in a single column next to some rows. */
+.hyperfiddle-gridsheet [role="scrollbar"] {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    width: 1.1rem;
+    max-height: 100%;  /* Fit the rows span height */
+    align-self: start; /* scroll height does not participate to the first row’s vertical alignment */
+}
+
+
+/* In a grid layout, these are semantic only */
+.hyperfiddle-gridsheet [role="scrollview"]
+, .hyperfiddle-gridsheet [role="table"]
+, .hyperfiddle-gridsheet [role="table"] thead
+, .hyperfiddle-gridsheet [role="table"] tbody
+, .hyperfiddle-gridsheet [role="table"] tr
+, .hyperfiddle-gridsheet [role="table"] td
+, .hyperfiddle-gridsheet [role="form"]
+{
+    display:contents;
+}
+
+
+
+/* Anything can be considered a cell */
+.hyperfiddle-gridsheet [role="cell"] {
+    display: block;
+    width: 100%;
+    margin: 0;
+    box-sizing:border-box;
+    white-space: nowrap;
+    overflow: hidden;
+
+    border: 1px rgb(203 213 225) solid;
+    height: 100%;
+
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.9rem;
+    padding: 0.2rem;
+
+    color: #222;
+}
+
+.hyperfiddle-gridsheet .label[role="cell"] {
+    font-weight: 500;
+    background-color: var(--hf-label-background);
+}
+
+.hyperfiddle-gridsheet input[role="cell"] {
+
+    background-color: var(--hf-input-cell-background);
+
+}
+
+/* Edge case: checkboxes should not grow to fill the row height  */
+.hyperfiddle-gridsheet input[role="cell"][type="checkbox"] {
+    margin: initial;
+    width: initial;
+    padding: initial;
+}
+
+
+/* Misc */
+
+.hyperfiddle-hfql pre{
+    margin:0;
+}
+
+
