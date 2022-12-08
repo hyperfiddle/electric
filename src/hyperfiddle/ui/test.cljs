@@ -11,11 +11,22 @@
 
 (defn focus [elem]
   (.dispatchEvent elem (js/FocusEvent. "focus"))
+  (.dispatchEvent elem (js/FocusEvent. "focusin" #js {:bubbles true}))
   (.focus elem #js {"focusVisible" true}))
 
 (defn blur [elem]
   (.dispatchEvent elem (js/FocusEvent. "blur"))
   (.blur elem))
+
+(defn click [elem]
+  (blur (.-activeElement js/document))
+  (.click elem)
+  (.dispatchEvent elem (js/MouseEvent. "mousedown" #js {:bubbles true}))
+  (.dispatchEvent elem (js/MouseEvent. "mouseup" #js {:bubbles true})))
+
+(defn press [elem key]
+  (.dispatchEvent elem (js/KeyboardEvent. "keydown" #js {:bubbles true, :key key}))
+  (.dispatchEvent elem (js/KeyboardEvent. "keyup" #js {:bubbles true, :key key})))
 
 (defn focused? [elem] (= (.-activeElement js/document) elem))
 
