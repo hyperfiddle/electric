@@ -1,5 +1,7 @@
 
 
+-- https://en.wikipedia.org/wiki/Fixed-point_combinator
+
 -- Y = λg. (λx. g (x x)) (λx. g (x x))
 -- const Y = g => (x => g(x(x)))(x => g(x(x)))
 -- The fact that Y(f) = f(Y(f)) makes Y a fixed-point combinator.
@@ -44,8 +46,8 @@ returnA -< a
 justOnes = mdo { xs <- Just (1:xs)
                ; return (map negate xs) }
 
-http://www.cse.chalmers.se/~rjmh/afp-arrows.pdf
-https://hackage.haskell.org/package/base-4.17.0.0/docs/Control-Arrow.html#t:ArrowLoop
+-- http://www.cse.chalmers.se/~rjmh/afp-arrows.pdf
+-- https://hackage.haskell.org/package/base-4.17.0.0/docs/Control-Arrow.html#t:ArrowLoop
 
 class Arrow a => ArrowLoop a where
   loop :: a (b,d) (c,d) -> a b c
@@ -60,7 +62,15 @@ instance ArrowLoop (->) where
 
 
 
+-- https://hackage.haskell.org/package/base-4.17.0.0/docs/Control-Monad-Fix.html
+--
+-- The fixed point of a monadic computation.
+-- @'mfix' f@ executes the action @f@ only once, with the eventual
+-- output fed back as the input.  Hence @f@ should not be strict,
+-- for then @'mfix' f@ would diverge.
 
+class Monad m => MonadFix m where
+  mfix :: (a -> m a) -> m a
 
 -- | Beware that for many monads (those for which the '>>=' operation
 -- is strict) this instance will /not/ satisfy the right-tightening law
@@ -76,5 +86,5 @@ instance MonadFix Signal => ArrowLoop Signal where
     loop f = Signal (liftM fst . mfix . f')
       where f' x y = f (x, snd y)
 
-      -- loop is recursive iteration where the effect is run once
-      -- mfix is general recursion where the effect is run once
+-- loop is recursive iteration where the effect is run once
+-- mfix is general recursion where the effect is run once

@@ -77,34 +77,6 @@
 
 ; must stabilize
 
-
-
-
-; https://hackage.haskell.org/package/base-4.17.0.0/docs/Control-Monad-Fix.html
-;
-; The fixed point of a monadic computation.
-; @'mfix' f@ executes the action @f@ only once, with the eventual
-; output fed back as the input.  Hence @f@ should not be strict,
-; for then @'mfix' f@ would diverge.
-;
-; class Monad m => MonadFix m where
-;   mfix :: (a -> m a) -> m a
-
-; Beware that for many monads (those for which the '>>=' operation
-; is strict) this instance will /not/ satisfy the right-tightening law
-; required by the 'ArrowLoop' class.
-;
-; instance MonadFix m => ArrowLoop (Kleisli m) where
-;     loop (Kleisli f) = Kleisli (liftM fst . mfix . f')
-;       where f' x y = f (x, snd y)
-
-
-;
-; class (Monad m) => MonadFix m where
-;   mfix :: (a -> m a) -> m a
-
-; https://en.wikipedia.org/wiki/Fixed-point_combinator
-
 (p/defn mfix [F]
   (let [!x (atom .) x (p/watch !x)]
     (reset! !x (F. x))))

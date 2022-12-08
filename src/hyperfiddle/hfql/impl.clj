@@ -366,7 +366,7 @@
             (recur true path (parent point))))))))
 
 (defn compute-input-path-pass [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/free-input? true]] db))
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :argument]] db))
     (mapcat (fn [node] [{:db/id      (:db/id node)
                          :input/path (input-path node)}]))
     (d/db-with db)))
@@ -439,9 +439,10 @@
       ;; Props on args are allowed, for instance an argument could render as a select-option.
       (props? form) (let [[_ form props] form
                           arg            (parse-arg gen-id parent-id form)] ; parse the arg
-                      (if (empty? props) [arg]
-                          (into [arg] (parse-props gen-id (-> arg first :db/id) props))  ; attach props a children of the arg
-                          ))
+                      (if (empty? props)
+                        arg
+                        (into arg (parse-props gen-id (-> arg first :db/id) props))  ; attach props a children of the arg
+                        ))
       :else         (let [tx {:db/id           (gen-id)
                               :node/_arguments parent-id
                               :node/type       :argument}]
@@ -587,11 +588,14 @@
       (:input/path point)             (assoc ::hf/path (:input/path point))
       (seq args)                      (assoc ::hf/arguments (mapv (fn [arg]
                                                                     (let [path (:input/path arg)]
-                                                                [(:spec/name arg)
-                                                                 (merge
-                                                                   {::hf/read     (:node/symbol arg)
-                                                                    ::hf/readonly (not (:node/free-input? arg))
-                                                                    ::hf/path     path})]))
+                                                                      [(:spec/name arg)
+                                                                       (merge
+                                                                         {::hf/read     (:node/symbol arg)
+                                                                          ::hf/readonly (not (:node/free-input? arg))
+                                                                          ::hf/path     path}
+                                                                         (when-let [options (props ::hf/options arg)]
+                                                                           {::hf/options      (add-scope-bindings options `(p/fn [] ~(emit-call options)))
+                                                                            ::hf/option-label (:prop/value (props ::hf/option-label arg))}))]))
                                                         args)))))
 
 (def ^:dynamic *bindings*)
@@ -608,15 +612,21 @@
       `(list '~f ~@args)
       (cons (convey-dynamic-env f) args))))
 
+(defn wrap-default [argument-node form]
+  (if-let [Default (:prop/value (props ::hf/default argument-node))]
+    `(new ~Default ~form)
+    form))
+
 (defn emit-argument [node]
   (if-let [ref (:node/reference node)]
-    `(p/fn [] (get-in (hyperfiddle.hfql/JoinArg. ~(:node/symbol ref)) ~(:node/reference-path node)))
+    `(p/fn [] ~(wrap-default node `(get-in (hyperfiddle.hfql/JoinArg. ~(:node/symbol ref)) ~(:node/reference-path node))))
     (if (:node/free-input? node)
-      `(p/fn [] (get-in hf/route ~(:input/path node)))
-      `(p/fn [] ~(let [form (:node/form node)]
-                   (if (= '% form)
-                     E
-                     form))))))
+      `(p/fn [] ~(wrap-default node `(get-in hf/route ~(:input/path node))))
+      `(p/fn [] ~(wrap-default node
+                   (let [form (:node/form node)]
+                     (if (= '% form)
+                       E
+                       form)))))))
 
 (declare emit-nodes)
 
@@ -693,15 +703,15 @@
     )
   )
 
-(defn hfql* [env bindings form]
+(defn precompile* [env bindings form]
   (binding [*bindings* bindings]
     (let [db (->> (analyze form) (apply-passes passes (c/normalize-env env)))
           roots (get-root db)]
       `(let [~E hf/entity]
          ~(emit-nodes roots)))))
 
-(defmacro hfql ([form] (hfql* &env [] form))
-  ([bindings form] (hfql* &env bindings form)))
+(defmacro precompile ([form] (precompile* &env [] form))
+  ([bindings form] (precompile* &env bindings form)))
 
 
 (comment

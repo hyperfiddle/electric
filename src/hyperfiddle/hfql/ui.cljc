@@ -1,6 +1,7 @@
 (ns hyperfiddle.hfql.ui
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
+            [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.spec :as spec]
             [hyperfiddle.logger :as log]
@@ -58,7 +59,7 @@
 
 (p/defn Default [{::hf/keys [link link-label] :as ctx}]
   (let [route (when link (new link))
-        value (hf/JoinAllTheTree. ctx)]
+        value (hfql/JoinAllTheTree. ctx)]
     (p/client
       (if (some? route)
         (hf/Link. route link-label)
@@ -117,18 +118,26 @@
         (Options. (::parent ctx))))))
 
 
-(p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path]}]]
-  (let [value (read.)]
+(p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options]}]]
+  (let [value    (read.)
+        options? (some? options)]
     (p/client
-      (let [id (random-uuid) !steady (atom false)]
+      (let [id      (random-uuid) !steady (atom false)
+            list-id (random-uuid)]
         (when label?
           (dom/label {::dom/for   id,
                       ::dom/title (pr-str (:hyperfiddle.spec/form (spec/arg spec name)))}
             (dom/text name)))
+        (when options?
+          (dom/datalist {::dom/id list-id}
+            (p/server (p/for [x (options.)]
+                        (p/client (dom/option (dom/text x)))))))
         (dom/input {::dom/id    id,
                     ::dom/value (if (p/watch !steady) (p/current value) value)}
           (when (seq props)
             (dom/props props))
+          (when options?
+            (dom/props {::dom/list list-id}))
           (dom/event "input"
             (fn [e] (hf/replace-route!
                       (hf/assoc-in-route-state hf/route path (.. e -target -value)))))
@@ -155,7 +164,7 @@
 
 (p/defn Options [{::hf/keys [options continuation] :as ctx}]
   (when (and options continuation)
-    (let [v (hf/JoinAllTheTree. ctx)]
+    (let [v (hfql/JoinAllTheTree. ctx)]
       (p/client
         (dom/fieldset
           (dom/legend (dom/text "Options"))
@@ -168,7 +177,7 @@
     (dom/tr
       (.. dom/node -style (setProperty "--hyperfiddle-hfql-border-color" (c/color hf/db-name)))
       (when-let [id (::group-id table-picker-options)]
-        (let [value (p/server (hf/JoinAllTheTree. ctx))]
+        (let [value (p/server (hfql/JoinAllTheTree. ctx))]
           (dom/td
             (dom/input
               {::dom/type    :radio,

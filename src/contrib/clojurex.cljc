@@ -13,7 +13,7 @@
 (defmacro binding-pyramid [bindings & body] (binding-pyramid* bindings body))
 
 (tests
-  (macroexpand-1 '(binding-pyramid [a 1 b (inc a)] (inc b)))”
+  (macroexpand-1 '(binding-pyramid [a 1 b (inc a)] (inc b)))
   := '(binding [a 1]
         (binding [b (inc a)]
           (inc b)))
