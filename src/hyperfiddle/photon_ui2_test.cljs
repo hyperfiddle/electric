@@ -50,16 +50,35 @@
   (discard)
   )
 
-(tests "ui/select"
-  (def discard (setup (ui/select [{:text ""} {:text "a"} {:text "b"} {:text "c"}] "a")))
-  % := "a"
-  (uit/set-value! @it "b")
-  % := "b"
-  (uit/set-value! @it "c")
-  % := "c"
+(tests "ui/select returns the selected value"
+  (def !value (atom nil))
+  (def discard (setup (ui/select [{:text "" :value nil}
+                                  {:text "a" :value :a}
+                                  {:text "b" :value :b}
+                                  {:text "c" :value :c}]
+                        (p/watch !value)
+                        )))
+  % := nil
+  (reset! !value :b)
+  % := :b
+  (reset! !value :c)
+  % := :c
   (discard)
   )
 
+(tests "ui/select indentifies options by index (internal)"
+  (def discard (setup (ui/select [{:text "" :value nil}
+                                  {:text "a" :value :a}
+                                  {:text "b" :value :b}
+                                  {:text "c" :value :c}]
+                        :a)))
+  % := :a
+  (uit/set-value! @it 2)
+  % := :b
+  (uit/set-value! @it 3)
+  % := :c
+  (discard)
+  )
 
 (tests "ui/Value"
   (def in (atom nil))

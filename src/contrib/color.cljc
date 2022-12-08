@@ -11,7 +11,7 @@
 
 (defn color "Hash a value into an harmonious color. Contrast is consistent. Plays well with text and colored backgrounds.
   https://www.hsluv.org/"
-  ([x] (color x SEED-ANGLE 50 #_70 85))
+  ([x] (color x SEED-ANGLE 50 70 #_85))
   ([x seed-angle saturation lightness]
    (apply css-rgb-str
      (if (nil? x)

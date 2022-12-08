@@ -1,6 +1,7 @@
 (ns user.demo-stage
-  (:require #?(:clj [contrib.datomic-contrib :as dx])
-            [contrib.str :refer [empty->nil]]
+  (:require [contrib.clojurex :refer [binding-pyramid]]
+            [contrib.str :refer [pprint-str]]
+            #?(:clj [contrib.datomic-contrib :as dx])
             #?(:clj [datomic.client.api :as d])
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
@@ -23,45 +24,100 @@
 ; reflow parent queries
 ; entrypoint bindings visible
 
+(defn reset!-nil [& args] (apply reset! args) nil)
+(defn swap!-nil [& args] (apply swap! args) nil)
+
+(def cobbblestone 536561674378709)
+
+(comment
+  (d/pull test/datomic-db ['*] cobbblestone)
+  (d/pull test/datomic-db [:db/id
+                           :label/gid
+                           :label/name
+                           :label/sortName
+                           {:label/type [:db/ident]}
+                           {:label/country [:db/ident]}
+                           :label/startYear] cobbblestone)
+  )
+
 #?(:clj (defn query-label-name [db e] (:label/name (d/pull db [:label/name] e))))
 
+(def label-form-spec [:db/id
+                      :label/gid
+                      :label/name
+                      :label/sortName
+                      {:label/type [:db/ident]}
+                      {:label/country [:db/ident]}
+                      :label/startYear])
+
+;(defn valid-label? [txn]) -- what is the type? when does validation happen? after hydrate
+(p/def into-tx) ; merge-command. server
+
 (p/defn LabelForm [e]
-  (dom/h1 "Change name for label: " (p/server (query-label-name hf/db e)))
-
   (p/server
-    (hf/into-tx hf/schema
-
+    (let [record (d/pull hf/db label-form-spec cobbblestone)
+          !txn (atom [])] ; alternately, bubble it out of the dom
       (p/client
-        (dom/label "label id")
-        (ui/input (p/server (pr-str (:label/gid (d/pull hf/db [:label/gid] e)))) {::dom/disabled true})
-        nil) ; todo disabled input should emit nil
+        (dom/h1 "Change name for label: " (p/server (query-label-name hf/db e)))
+        (dom/dd
+          (dom/dt "id")
+          (dom/dd (do (ui/input (:db/id record) {::dom/disabled true}) nil))
 
-      (p/client
-        (dom/label "label name")
-        (when-some [nom (ui/input (p/server (query-label-name hf/db e)))] ; todo validate
-          [[:db/add e :label/name nom]])))))
+          (dom/dt "gid")
+          (dom/dd (do (ui/uuid (:label/gid record) {::dom/disabled true}) nil))
+
+          (dom/dt "name")
+          (dom/dd (let [v (ui/uuid (:label/name record))]
+                    (p/server (swap!-nil !txn into-tx [[:db/add e :label/name v]]))))
+
+          ;{:label/type [:db/ident]}
+
+          ;(dom/dt "select test")
+          ;(dom/dd (let [v (ui/select [{:text "" :value nil}
+          ;                            {:text "a" :value :a}
+          ;                            {:text "b" :value :b}
+          ;                            {:text "c" :value :c}]
+          ;                           :b)]
+          ;          v))
+
+          ;(dom/dt "country") -- bug - it's writing US to FR on initial render
+          ;(dom/dd (let [v (ui/select [{:text "" :value nil}
+          ;                            {:text "US" :value :country/US}
+          ;                            {:text "FR" :value :country/FR}]
+          ;                           (:db/ident (:label/country record)))]
+          ;          (p/server (swap!-nil !txn into-tx [[:db/add e :label/country v]]))))
+
+          (dom/dt "startYear")
+          (dom/dd (let [v (ui/long (:label/startYear record))]
+                    (p/server (swap!-nil !txn into-tx [[:db/add e :label/startYear v]])))))
+        (dom/pre (pprint-str record)))
+
+      #_(when (valid? record) txn)
+      (p/watch !txn))))
 
 (p/defn Page [e]
   (p/client
     (dom/h1 "Label page for: " (p/server (query-label-name hf/db e)))
     (p/server
       (hf/into-tx hf/schema
-        (p/client (Popover. "change name" (p/partial 1 LabelForm e)))
+        (LabelForm. e)
+        #_(p/client (Popover. "change name" (p/partial 1 LabelForm e)))
         (p/client (Popover. "change name" (p/partial 1 LabelForm e)))))))
 
 (p/defn Demo []
   (let [secure-db (d/with-db @(requiring-resolve 'test/datomic-conn))]
-    (binding [hf/schema (new (dx/schema> secure-db))
-              hf/with (fn [db tx] (d/with db {:tx-data tx}))] ; todo required by popover TODO
+    (binding-pyramid [hf/schema (new (dx/schema> secure-db))
+                      into-tx (partial hf/into-tx hf/schema)
+                      hf/with (fn [db tx] (d/with db {:tx-data tx}))] ; todo required by popover TODO
       (p/client
         (p/with-cycle [loading ::hf/loading]
-          (binding [hf/loading loading] ; todo distributed glitch
+          (binding [hf/loading loading]
             (dom/div (name loading) " " (str (hf/Load-timer.)) "ms")
             (try
               (p/server
                 (p/with-cycle [stage []]
                   (binding [hf/db (:db-after (hf/with secure-db stage))] ; task can fail
-                    (let [tx (Page. 536561674378709)
+                    (let [tx (Page. cobbblestone)
                           stage' (hf/into-tx hf/schema (p/Unglitch. stage)
                                    (p/client (ui/edn-editor stage {::dom/disabled true})))]
                       (hf/into-tx hf/schema stage' tx)))))
