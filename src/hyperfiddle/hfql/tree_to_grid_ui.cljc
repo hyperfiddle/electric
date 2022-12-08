@@ -7,6 +7,7 @@
             [clojure.datafy :refer [datafy]]
             ;; [contrib.ednish :as ednish]
             [contrib.color :as c]
+            [contrib.data :as data]
             [hyperfiddle.photon-ui2 :as ui2]
             [hyperfiddle.scrollview :as sw]
             #?(:clj [hyperfiddle.txn :as txn]))
@@ -72,32 +73,34 @@
                           :grid-row    ~row}}
      ~@body))
 
-(p/defn Apply1 [F x] (if F (F. x) x))
-
 (defn find-best-identity [v] ; TODO look up in schema
   (cond (map? v) (or (:db/ident v) (:db/id v))
         :else    v))
+
+(p/defn Identity [x] x)
 
 (p/defn Default [{::hf/keys [entity link link-label options option-label continuation tx] :as ctx}]
   (let [route        (when link (new link))
         value        (hfql/JoinAllTheTree. ctx)
         options      (or options (::hf/options (::parent ctx)))
-        option-label (or option-label (::hf/option-label (::parent ctx)))
+        option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
         continuation (or continuation (::hf/continuation (::parent ctx)))
         tx           (or tx (::hf/tx (::parent ctx)))
-        tx?          (some? tx)]
+        tx?          (some? tx)
+        dom-props    (data/select-ns :hyperfiddle.photon-dom ctx)]
     (cond
       (some? route)   (p/client (cell grid-row grid-col (hf/Link. route link-label)))
       (some? options) (let [value (find-best-identity value)]
                         (p/client
                           (let [v' (ui2/select (p/server (p/for [e (options.)]
-                                                           (let [v (hfql/JoinAllTheTree. (new continuation e))]
+                                                           (let [v (if continuation (hfql/JoinAllTheTree. (new continuation e)) e)]
                                                              {:text  (new option-label v)
                                                               :value (find-best-identity v)})))
                                      value
                                      (dom/props {::dom/role     "cell"
                                                  ::dom/style    {:grid-row grid-row, :grid-column grid-col}
-                                                 ::dom/disabled (not tx?)}))]
+                                                 ::dom/disabled (not tx?)})
+                                     (dom/props dom-props))]
                             (when (and tx? (not= value v'))
                               (p/server
                                 (let [ctx (if (::hf/tx ctx) ctx (::parent ctx))]
@@ -168,7 +171,7 @@
 
 (defn height [ctx]
   (cond
-    (::hf/height ctx)  (+ (inc (::hf/height ctx))
+    (::hf/height ctx)  (+ (::hf/height ctx)
                         (count (::hf/arguments ctx)))
     (::hf/options ctx) 1
     (::hf/keys ctx)    (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
@@ -280,15 +283,16 @@
                       {::dom/role  "cell"
                        ::dom/class "label"
                        ::dom/for   dom-for
-                       ::dom/style {:grid-row     row
-                                    :grid-column  grid-col
+                       ::dom/style {:grid-row         row
+                                    :grid-column      grid-col
                                     #_#_:padding-left (str indentation "rem")}
                        ::dom/title (pr-str (or (spec-description false (attr-spec key))
                                              (p/server (schema-value-type hf/*schema* hf/db key))))}
                       (dom/text (str (non-breaking-padder indentation) (field-name key))))
                     (CellPad. row 2)
-                    (binding [indentation   (if true #_leaf? indentation (inc indentation))]
-                      (binding [grid-col (inc grid-col)]
+                    (binding [indentation (if true #_leaf? indentation (inc indentation))]
+                      (binding [grid-row row
+                                grid-col (inc grid-col)]
                         (p/server (GrayInputs. ctx)))
                       (binding [grid-row (if leaf? row (+ row argc))
                                 grid-col (inc grid-col)]
@@ -349,9 +353,16 @@
             (let [offset pagination-offset]
               (p/server
                 (into [] cat
-                  (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector (->> value (drop offset) (take (dec height))))]
-                    (p/client (binding [grid-row (+ grid-row idx 1)]
-                                (p/server (Row. ctx))))))))))))))
+                  (let [vals     (->> value (drop offset) (take (dec height)))
+                        vals-cnt (count vals)
+                        res (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector vals)]
+                              (p/client (binding [grid-row (+ grid-row idx 1)]
+                                          (p/server (Row. ctx)))))]
+                    (p/client
+                      (p/for [idx (range (max 0 (- height vals-cnt)))]
+                        (binding [grid-row (+ grid-row vals-cnt idx)]
+                          (CellPad. grid-row 0))))
+                    res))))))))))
 
 
 (defmacro PaginatedGrid [actual-width max-height actual-height & body]
