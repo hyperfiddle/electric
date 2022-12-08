@@ -146,7 +146,9 @@ TODO: what if component loses focus, but the user input is not yet committed ?
            (when (= (:value opt#) selected#)
              (dom/props {:selected true}))
            (some-> opt# :text dom/text)))
-       (some->> (new ValueOn "change") js/parseInt (nth opts#) :value (reset! !selected#))
+       (let [idx# (js/parseInt (new ValueOn "change"))]
+         (when (and (not-empty opts#) (not (NaN? idx#)))
+           (reset! !selected# (:value (nth opts# idx#)))))
        selected#)))
 
 (p/defn Value []
