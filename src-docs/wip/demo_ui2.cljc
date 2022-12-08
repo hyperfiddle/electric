@@ -42,7 +42,8 @@
       (dom/dt "ui/input (cycle)")
       (dom/dd (do (p/with-cycle [x "a"]
                     (ui/input x))
-                  nil)) ; gross
+                  nil)) ; gross (L: agree)
+      ;; L: the problem is, dom/dd tries to interpret the result of body
 
       (dom/dt "ui/input (cycle with field underneath)")
       (dom/dd (do (p/with-cycle [x "a"]
@@ -51,9 +52,16 @@
                       x')) ; contorted
                   nil)) ; gross
 
+      (dom/dt "ui/input (cycle with field underneath)")
+      (dom/dd (do (p/with-cycle [x "a"]
+                    (doto (ui/input x)
+                      (-> pr-str dom/pre))) ; contorted too
+                  nil)) ; gross too
+
+      #_#_
       (dom/dt "ui/input (change with-cycle to return nil?)")
       (dom/dd
-        (p/with-cycle [x "a"]
+        (p/with-cycle-ret-nil [x "a"]
           (ui/input x))) ; local, never leaks
 
       #_#_
@@ -150,6 +158,41 @@
         (dom/dt "ui/date")
         (dom/dd (->> (ui/date (:date1 x))
                      (swap! !x assoc :date1))))
+
+      (dom/pre (pprint-str x)))
+
+    #_
+    (p/with-cycle [x {:input1 "hello"
+                      :select1 "a"
+                      :long1 42
+                      :double1 1.123
+                      :kw1 :foo
+                      :sym1 'foo
+                      :uuid1 #uuid "00000000-0000-0000-0000-000000000000"
+                      :edn1 {:hello "world"}
+                      :date1 "2022-11-30" ; todo wrong type
+                      }]
+
+      (dom/dl
+        (merge                                              ;; dustin finds it gross (L: it's not)
+          (dom/dt "ui/input")                               ;; nil is a valid map for merge
+          (dom/dd {:input1 (ui/input (:input1 x))})         ;; maps are not interpreted as text (luckily)
+
+          (dom/dt "ui/select")
+          (dom/dd {:select1 (ui/select [{:text ""} {:text "a"} {:text "b"}] (:select1 x))})
+
+          (dom/dt "ui/long")
+          (dom/dd
+            (merge
+              {:long1 (ui/long (:long1 x))}
+              (dom/dt "ui/long")
+              (dom/dd {:long1 (ui/long (:long1 x))})))
+
+          (dom/dt "ui/long")
+          (dom/dd {:long1 (ui/long (:long1 x))})
+
+          (dom/dt "ui/date")
+          (dom/dd {:date1 (ui/date (:date1 x))})))
 
       (dom/pre (pprint-str x)))
 
