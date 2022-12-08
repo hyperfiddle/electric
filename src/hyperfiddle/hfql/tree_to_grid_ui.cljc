@@ -79,40 +79,6 @@
 
 (p/defn Identity [x] x)
 
-(p/defn Default [{::hf/keys [entity link link-label options option-label continuation tx] :as ctx}]
-  (let [route        (when link (new link))
-        value        (hfql/JoinAllTheTree. ctx)
-        options      (or options (::hf/options (::parent ctx)))
-        option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
-        continuation (or continuation (::hf/continuation (::parent ctx)))
-        tx           (or tx (::hf/tx (::parent ctx)))
-        tx?          (some? tx)
-        dom-props    (data/select-ns :hyperfiddle.photon-dom ctx)]
-    (cond
-      (some? route)   (p/client (cell grid-row grid-col (hf/Link. route link-label)))
-      (some? options) (let [value (find-best-identity value)]
-                        (p/client
-                          (let [v' (ui2/select (p/server (p/for [e (options.)]
-                                                           (let [v (if continuation (hfql/JoinAllTheTree. (new continuation e)) e)]
-                                                             {:text  (new option-label v)
-                                                              :value (find-best-identity v)})))
-                                     value
-                                     (dom/props {::dom/role     "cell"
-                                                 ::dom/style    {:grid-row grid-row, :grid-column grid-col}
-                                                 ::dom/disabled (not tx?)})
-                                     (dom/props dom-props))]
-                            (when (and tx? (not= value v'))
-                              (p/server
-                                (let [ctx (if (::hf/tx ctx) ctx (::parent ctx))]
-                                  (when tx (tx. ctx v'))))))))
-      :else
-      (p/client
-        (dom/pre {::dom/role  "cell"
-                  ::dom/style {:grid-row grid-row, :grid-column grid-col}}
-          (dom/text
-            (str (non-breaking-padder indentation)
-              (pr-str value)))))))),
-
 (p/defn Input [{::hf/keys [tx Value] :as ctx}]
   (let [value-type (::value-type ctx)
         readonly?  (::readonly ctx)
@@ -133,11 +99,49 @@
           (when dom-for
             (dom/props {::dom/id dom-for}))
           (when tx?
-            (let [!v' (atom nil)
+            (let [!v' (atom ::init)
                   v'  (p/watch !v')]
-              (dom/event "input" (fn [e] (reset! !v' (.. e -target -value))))
-              (when v'
-                (p/server (tx. ctx v')))))))))),
+              (dom/event "input" (fn [e]
+                                   (reset! !v' (case type
+                                                 "checkbox" (.. e -target -checked)
+                                                 (.. e -target -value)))))
+              (when-not (= ::init v')
+                (p/server (tx. ctx v'))))))))))
+
+(p/defn Default [{::hf/keys [entity link link-label options option-label continuation tx] :as ctx}]
+  (let [route        (when link (new link))
+        value        (hfql/JoinAllTheTree. ctx)
+        options      (or options (::hf/options (::parent ctx)))
+        option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
+        continuation (or continuation (::hf/continuation (::parent ctx)))
+        tx           (or tx (::hf/tx (::parent ctx)))
+        tx?          (some? tx)
+        dom-props    (data/select-ns :hyperfiddle.photon-dom ctx)]
+    (cond
+      (some? route)      (p/client (cell grid-row grid-col (hf/Link. route link-label)))
+      (some? options)    (let [value (find-best-identity value)]
+                           (p/client
+                             (let [v' (ui2/select (p/server (p/for [e (options.)]
+                                                              (let [v (if continuation (hfql/JoinAllTheTree. (new continuation e)) e)]
+                                                                {:text  (new option-label v)
+                                                                 :value (find-best-identity v)})))
+                                        value
+                                        (dom/props {::dom/role     "cell"
+                                                    ::dom/style    {:grid-row grid-row, :grid-column grid-col}
+                                                    ::dom/disabled (not tx?)})
+                                        (dom/props dom-props))]
+                               (when (and tx? (not= value v'))
+                                 (p/server
+                                   (let [ctx (if (::hf/tx ctx) ctx (::parent ctx))]
+                                     (when tx (tx. ctx v'))))))))
+      (::value-type ctx) (Input. ctx)
+      :else
+      (p/client
+        (dom/pre {::dom/role  "cell"
+                  ::dom/style {:grid-row grid-row, :grid-column grid-col}}
+          (dom/text
+            (str (non-breaking-padder indentation)
+              (pr-str value)))))))),,
 
 (defn give-card-n-contexts-a-unique-key [ctxs]
   (into [] (map-indexed (fn [idx ctx] (assoc ctx ::key idx))) ctxs))
@@ -186,8 +190,8 @@
     (case value-type
       (:hyperfiddle.spec.type/string
        :hyperfiddle.spec.type/instant
-       :hyperfiddle.spec.type/boolean) (Input. (cond-> (assoc ctx ::value-type value-type)
-                                                 defined-by-spec? (assoc ::readonly true)))
+       :hyperfiddle.spec.type/boolean) (Default. (cond-> (assoc ctx ::value-type value-type)
+                                                   defined-by-spec? (assoc ::readonly true)))
       (Default. ctx))))
 
 (defn non-breaking-padder [n] (apply str (repeat n " ")) )
