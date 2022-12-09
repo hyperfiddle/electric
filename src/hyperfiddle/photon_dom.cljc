@@ -6,7 +6,7 @@
             #?(:cljs [goog.events :as e])
             #?(:cljs [goog.object :as o])
             #?(:cljs [goog.style])
-            [hyperfiddle.rcf :as rcf :refer [tests tap]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap %]]
             [hyperfiddle.logger :as log]
             [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [with oget]]))
