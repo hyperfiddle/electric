@@ -161,17 +161,18 @@
 
 ;; TODO adapt to new HFQL macroexpansion
 (p/defn Render-impl [{::hf/keys [type cardinality render Value] :as ctx}]
-  (if render (render. ctx)
-      (case type
-        ::hf/leaf (SpecDispatch. ctx)
-        ::hf/keys (Form. ctx)
-        (case cardinality
-          ::hf/many (Table. ctx (give-card-n-contexts-a-unique-key (Value.)))
-          (let [v (Value.)]
-            (cond
-              (vector? v) (Table. ctx (give-card-n-contexts-a-unique-key v))
-              (map? v)    (Render. (assoc v ::parent ctx))
-              :else       (throw "unreachable" {:v v})))))))
+  (if render
+    (p/client (cell grid-row grid-col (p/server (render. ctx))))
+    (case type
+      ::hf/leaf (SpecDispatch. ctx)
+      ::hf/keys (Form. ctx)
+      (case cardinality
+        ::hf/many (Table. ctx (give-card-n-contexts-a-unique-key (Value.)))
+        (let [v (Value.)]
+          (cond
+            (vector? v) (Table. ctx (give-card-n-contexts-a-unique-key v))
+            (map? v)    (Render. (assoc v ::parent ctx))
+            :else       (throw "unreachable" {:v v})))))))
 
 (defn height [ctx]
   (cond
