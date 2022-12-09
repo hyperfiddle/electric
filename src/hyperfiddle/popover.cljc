@@ -41,7 +41,9 @@
 (p/defn Popover [label Body]
   (:request
     (p/with-cycle [{:keys [status]} {:status :closed}]
-      (let [toggle (ui/Button. label (= :pending status)) ; popover anchor
+      (let [toggle (when-some [event (ui/Button. label (= :pending status))] ; popover anchor
+                     (.preventDefault event)
+                     event)
             request (case status
                       :closed nil
                       (:open :pending) (PopoverBody. Body))]
