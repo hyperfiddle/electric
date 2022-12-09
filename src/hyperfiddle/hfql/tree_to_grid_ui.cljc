@@ -295,9 +295,8 @@
                                (GrayInput. true spec nil arg))]
                        (CellPad. grid-row 2)
                        v))))]
-      (if (some? tx)
-        (Apply. tx args)
-        args))))
+      (when (some? tx)
+        (Apply. tx args)))))
 
 (p/defn Form [{::hf/keys [keys values] :as ctx}]
   (p/client
