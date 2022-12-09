@@ -81,6 +81,7 @@
   (case (:node/type node)
     :function     (:function/name node)
     :argument     (:node/form node) ; spec arg name
+    :literal      (:node/form node)
     :render-point (case (:node/form-type node)
                     :keyword (:node/form node)
                     :symbol  (list 'quote (:function/name node))
@@ -114,6 +115,15 @@
             }))
     (d/db-with db)))
 ;;; end symbol-pass
+
+(defn handle-literals-pass
+  "For each fn argument, compute its lexical symbol and symbolic form"
+  [env db]
+  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :literal]] db))
+    (map (fn [{:keys [db/id] :as point}]
+           {:db/id              id,
+            :node/symbolic-form (symbolic-form point)}))
+    (d/db-with db)))
 
 (defn resolve-functions-pass "For each function node, resolve the function symbol in env and extract the var name (qualified)."
   [env db]
@@ -381,6 +391,7 @@
              #'compute-argument-scope-pass
              #'compute-points-symbol-pass
              #'compute-arg-symbol-pass
+             #'handle-literals-pass
              #'resolve-lexical-references-pass
              #'compute-reference-join-path-pass
              #'compute-columns-pass
@@ -499,7 +510,10 @@
                            (->> (map #(parse-arg gen-id id %) (rest form)) ; parse all args
                              (map-indexed (fn [idx tx] (update tx 0 assoc :node/position idx))) ; preserve order
                              (mapcat identity)) ; concat into single tx
-                           )))
+                           ))
+       :else           [{:db/id     (gen-id)
+                         :node/type :literal
+                         :node/form form}])
      (update 0 assoc :form/meta (or (meta form) {})))))
 
 (defn to-graph [tx]
@@ -585,6 +599,7 @@
       (:node/cardinality point)       (assoc ::hf/cardinality (:node/cardinality point))
       (:node/columns point)           (assoc ::hf/keys (:node/columns point))
       (:node/form-type point)         (assoc ::hf/attribute (:node/symbolic-form point))
+      (= :literal (:node/type point)) (assoc ::hf/attribute (:node/form point))
       (:input/path point)             (assoc ::hf/path (:input/path point))
       (seq args)                      (assoc ::hf/arguments (mapv (fn [arg]
                                                                     (let [path (:input/path arg)]
@@ -673,6 +688,7 @@
                             ::hf/many `(p/for [~E ~value] ~(emit-nodes continuation)))))
                     ;; Some calls don’t have a continuation (e.g. Links)
                     `(p/fn [] ~value))))))
+    :literal (assoc (emit-props point) ::hf/Value `(p/fn [] ~(:node/form point)))
     :argument (emit-argument point)
     (assert false (str "emit-1 - not a renderable point " (:node/type point)))))
 
