@@ -3,8 +3,7 @@
             [datascript.core :as d]
             [missionary.core :as m]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.zero :as z])
+            [hyperfiddle.photon-dom :as dom])
   (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros wip.demo-todomvc)))
 
@@ -35,7 +34,7 @@
   (dom/a (dom/class (if (= state target) "selected"))
          (dom/text label)
          (when (->> (dom/events dom/parent "click")
-                    (p/impulse z/time))
+                    (p/impulse dom/system-time-ms))
            ; emit next filter value
            target)))
 
