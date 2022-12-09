@@ -59,3 +59,20 @@ return nothing (you return nil) but in flows nothing is different than nil." [t]
              (f)))
          (m/reductions {} nil)                              ; produce nil in discrete time for effect
          (m/relieve {}))))
+
+(tests
+  (def !x (atom 0))
+  (def !e (atom nil))
+  (defn sub [!]
+    (reset! !e !)
+    #(reset! !e nil))
+  (with
+    (p/run
+      (let [x (new (m/watch !x))]
+        (tap (p/impulse x (m/observe sub)))))
+    % := nil
+    (@!e 1)
+    % := 1
+    @!e := nil
+    (swap! !x inc)
+    % := nil))
