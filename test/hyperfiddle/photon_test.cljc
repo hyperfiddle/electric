@@ -922,15 +922,16 @@
     (reset! !state [3])
     (hash-set % % %) := #{[:up 3] [:down 1] [:down 2]}))
 
-(defn observer [tap x]
-  (fn mount [f]
-    (tap [::mount x])
-    (f nil)
-    (fn unmount [] (tap [::unmount x]))))
-
 (tests
   "object lifecycle 3 with pending state"
   (def !state (atom [1]))
+
+  (defn observer [tap x]
+    (fn mount [f]
+      (tap [::mount x])
+      (f nil)
+      (fn unmount [] (tap [::unmount x]))))
+
   (let [dispose (p/run (try
                          (p/for [x (p/watch !state)] ; pending state should not trash p/for branches
                            (new (m/observe (observer tap x)))) ; depends on x, which is pending
