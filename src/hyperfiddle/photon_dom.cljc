@@ -6,7 +6,7 @@
             #?(:cljs [goog.events :as e])
             #?(:cljs [goog.object :as o])
             #?(:cljs [goog.style])
-            [hyperfiddle.rcf :as rcf :refer [tests]]
+            [hyperfiddle.rcf :as rcf :refer [tests tap]]
             [hyperfiddle.logger :as log]
             [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [with oget]]))
@@ -354,42 +354,74 @@
     false))
 
 #?(:cljs
-   ; Leo: Hz is anti-pattern. Instead truncate the time to the nearest second,
-   ; work skipping will prevent flickering and the browser will automatically
-   ; pause raf when rendering is not needed
-   (deftype Clock [Hz
-                   ^:mutable ^number raf
+   (deftype Clock [^:mutable ^number raf
                    ^:mutable callback
                    terminator]
-     IFn
+     IFn                                                    ; cancel
      (-invoke [_]
        (if (zero? raf)
          (set! callback nil)
-         (do (if (zero? Hz)
-               (.cancelAnimationFrame js/window raf)
-               (.clearTimeout js/window raf))
-           (terminator))))
-     IDeref
+         (do (.cancelAnimationFrame js/window raf)
+             (terminator))))
+     IDeref                                                 ; sample
      (-deref [_]
+       ; lazy clock, only resets once sampled
        (if (nil? callback)
          (terminator)
-         (if (zero? Hz)
-           (set! raf (.requestAnimationFrame js/window callback))
-           (set! raf (.setTimeout js/window callback (/ 1000 Hz)))))
-       (.now js/Date))))
+         (set! raf (.requestAnimationFrame js/window callback))) ; RAF not called until first sampling
+       ::tick)))
 
-(defn ^:no-doc clock* [Hz]
-  #?(:cljs
-     (fn [n t]
-       (let [c (->Clock Hz 0 nil t)]
-         (set! (.-callback c)
-           (fn [_] (set! (.-raf c) 0) (n)))
-         (n) c))))
+(def <clock "lazy & efficient logical clock that schedules no work unless sampled."
+  #?(:cljs (fn [n t]
+             (let [cancel (->Clock 0 nil t)]
+               (set! (.-callback cancel)
+                     (fn [_] (set! (.-raf cancel) 0) (n)))
+               (n) cancel))
+     #_#_:clj  (m/ap (loop [] (m/amb ::tick (do (m/? (m/sleep 1)) (recur)))))))
 
-(p/defn Clock
-  "The number of milliseconds elapsed since January 1, 1970, with custom `Hz` frequency.
-  If `Hz` is 0, sample at the browser Animation Frame speed."
-  [Hz] (new (clock* Hz)))
+(comment
+  ; This ticker will skew and therefore is not useful other than as an example.
+  ; It's also dangerous, because if you write a program that does (prn ticker) it will run forever
+  (p/def ticker (new (->> <clock
+                          (m/eduction (map (constantly 1)))
+                          (m/reductions + 0))))
+  (tests (rcf/with (p/run (tap ticker)) [% % %] := [1 2 3])))
+
+(defn -get-system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
+
+(p/def system-time-ms "ms since 1970 Jan 1"
+  (new (m/sample -get-system-time-ms <clock)))
+
+(p/def system-time-secs "seconds since 1970 Jan 1"
+  (/ system-time-ms 1000.0))
+
+#?(:cljs
+   (tests
+     "millisecond time as a stable test"
+     (let [dispose (p/run (tap system-time-ms))]
+       [% % %] := [_ _ _]
+       (map int? *1) := [true true true]
+       (dispose))))
+
+;(defn truncate-secs [max-hz secs]
+;  (let [period (/ 1 max-hz)]
+;    (* (quot secs period) period)))
+;
+;(tests
+;  (truncate-secs 0.01 1670619905.404) := 1.6706199E9
+;  (truncate-secs 0.1 1670619905.404)  := 1.67061990E9
+;  (truncate-secs 1 1670619905.404)    := 1.670619905E9
+;  (truncate-secs 10 1670619905.404)   := 1.6706199054E9
+;  (truncate-secs 100 1670619905.404)  := 1.6706199054E9)
+;
+;(p/defn ^:deprecated Clock
+;  "Seconds since 1970 Jan 1, truncated to frequency.
+;  Because the clock is backpressured by requestAnimationFrame, this is format only and you should
+;  just format the float as a string directly instead of use this. The computer will animate it
+;  at low priority animation speed and even pause animations when the tab is not focused."
+;  [Hz]
+;  (let [secs (/ system-time-ms 1000)]
+;    (case Hz 0 secs (truncate-secs Hz secs))))
 
 (defn pack-string-litterals [xs]
   (loop [r        []

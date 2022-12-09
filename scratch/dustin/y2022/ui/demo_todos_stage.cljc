@@ -4,8 +4,7 @@
             #?(:clj [datascript.core :as d])
             [missionary.core :as m]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.zero :as z])
+            [hyperfiddle.photon-dom :as dom])
   (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros wip.demo-todos-stage)))
 
@@ -84,14 +83,14 @@
     (dom/p
       (when-some [event (dom/button {:type "button"}
                           (dom/text "transact!")
-                          (p/impulse z/time (dom/>events "click")))]
+                          (p/impulse dom/system-time-ms (dom/>events "click")))]
         (println ::transact! event)
         ~@(do (d/transact! !conn stage) nil)                ; todo wait for server ack to clear stage
         (reset! !stage []))
 
       (if-some [tx (dom/input {:type "text"
                                :value (write-edn stage)}
-                     (p/impulse z/time (dom/>events "input" (comp (dedupe) (map (dom/oget :target :value))))))]
+                     (p/impulse dom/system-time-ms (dom/>events "input" (comp (dedupe) (map (dom/oget :target :value))))))]
         (do
           (js/console.log ::stage tx)
           (reset! !stage (clojure.edn/read-string tx)))

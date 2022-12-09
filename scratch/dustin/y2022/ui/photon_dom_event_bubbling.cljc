@@ -2,7 +2,6 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
-            [hyperfiddle.zero :as z]
             [hyperfiddle.rcf :as rcf :refer [tests]]))
 
 ; current way
