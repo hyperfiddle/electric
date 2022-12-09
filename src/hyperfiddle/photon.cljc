@@ -302,7 +302,7 @@ or a provided value if it completes without producing any value."
   (assert (watchable? !x) "Provided argument is not Watchable.")
   (m/watch !x))
 
-(defn Watch [!x]
+(defn ^:deprecated Watch [!x]
   (new (checked-watch !x)))
 
 (def -invalid-watch-usage-message "Invalid p/watch (use from Photon code only, maybe you forgot a p/def?)")
