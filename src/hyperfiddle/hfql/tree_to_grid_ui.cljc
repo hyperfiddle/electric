@@ -10,7 +10,7 @@
             [contrib.data :as data]
             [hyperfiddle.photon-ui2 :as ui2]
             [hyperfiddle.scrollview :as sw]
-            #?(:clj [hyperfiddle.txn :as txn]))
+            [hyperfiddle.rcf :refer [tests with % tap]])
   #?(:cljs (:require-macros [hyperfiddle.hfql.tree-to-grid-ui])))
 
 (defn replate-state! [!route path value]
@@ -206,7 +206,8 @@
   (let [value    (read.)
         options? (some? options)]
     (p/client
-      (let [id       (random-uuid) !steady (atom false)
+      (let [!steady  (atom false)
+            id       (random-uuid)
             list-id  (random-uuid)
             arg-spec (spec/arg spec name)]
         (when label?
@@ -216,7 +217,7 @@
                       ::dom/title (pr-str (:hyperfiddle.spec/form arg-spec))
                       ::dom/style {:grid-row    grid-row
                                    :grid-column grid-col
-                                   :color :gray}}
+                                   :color       :gray}}
             (dom/text (str (non-breaking-padder indentation) (field-name  name)))))
         (when options?
           (dom/datalist {::dom/id list-id}
@@ -227,7 +228,7 @@
 
         (let [type  (spec/type-of spec name)
               value (if (p/watch !steady) (p/current value) value)
-              v     (atom nil)]
+              !v    (atom nil)]
           (dom/input {::dom/id    id
                       ::dom/role  "cell"
                       ::dom/type  (input-type type)
@@ -244,28 +245,58 @@
             (let [route hf/route]
               (dom/event "input"
                 (fn [e]
-                  (reset! v (.. e -target -value))
-                  (hf/replace-route!
-                    (hf/assoc-in-route-state route path (.. e -target -value))))))
+                  (let [v (case type
+                            :hyperfiddle.spec.type/boolean (.. e -target -checked)
+                            (.. e -target -value))]
+                    (reset! !v v)
+                    (hf/replace-route!
+                      (hf/assoc-in-route-state route path v))))))
             (dom/event "focus" (fn [_] (reset! !steady true)))
             (dom/event "blur" (fn [_] (reset! !steady false))))
-          (p/watch v))))) )
+          (or (p/watch !v) value))))) )
 
 (p/defn CellPad [row col-offset]
   (let [n (- grid-width grid-col (dec col-offset))]
     (p/for [i (range n)]
       (cell row (+ grid-col (dec col-offset) (inc i))))))
 
-(p/defn GrayInputs [{::hf/keys [attribute arguments]}]
-  (if-some [arguments (seq arguments)]
-    (let [spec (attr-spec attribute)]
-      (p/for-by second [[idx arg] (map-indexed vector arguments)]
-        (p/client
-          (binding [grid-row (+ grid-row idx)]
-            (p/server
-              (GrayInput. true spec nil arg))
-            (CellPad. grid-row 2))))
-            )))
+(defn apply-1 [n F args]
+  (let [syms (vec (repeatedly n gensym))]
+    `(let [~syms ~args]
+       (new ~F ~@syms))))
+
+(defmacro applier [n F args]
+  (let [Fsym     (gensym "f")
+        args-sym (gensym "args")
+        cases    (mapcat (fn [n] [n (apply-1 n Fsym args-sym)]) (rest (range (inc n))))]
+    `(let [~Fsym     ~F
+           ~args-sym ~args
+           n#        (count ~args-sym)]
+       (case n#
+         0 (new ~Fsym)
+         ~@cases
+         (throw (ex-info (str "Apply is defined for up to 20 args, given " n# ".") {}))))))
+
+(p/defn Apply [F args] (applier 20 F args))
+
+(tests
+  (p/defn Plus [a b c] (+ a b c))
+  (with (p/run (tap (Apply. Plus [1 2 3]))))
+  % := 6)
+
+(p/defn GrayInputs [{::hf/keys [tx attribute arguments]}]
+  (when-some [arguments (seq arguments)]
+    (let [spec (attr-spec attribute)
+          args (p/for-by second [[idx arg] (map-indexed vector arguments)]
+                 (p/client
+                   (binding [grid-row (+ grid-row idx)]
+                     (let [v (p/server
+                               (GrayInput. true spec nil arg))]
+                       (CellPad. grid-row 2)
+                       v))))]
+      (if (some? tx)
+        (Apply. tx args)
+        args))))
 
 (p/defn Form [{::hf/keys [keys values] :as ctx}]
   (p/client
@@ -295,16 +326,17 @@
                       (dom/text (str (non-breaking-padder indentation) (field-name key))))
                     (CellPad. row 2)
                     (binding [indentation (if true #_leaf? indentation (inc indentation))]
-                      (binding [grid-row row
-                                grid-col (inc grid-col)]
-                        (p/server (GrayInputs. ctx)))
-                      (binding [grid-row (if leaf? row (+ row argc))
-                                grid-col (inc grid-col)]
-                        (p/server
-                          (let [ctx (assoc ctx ::dom/for dom-for)]
-                            (if (::hf/options ctx)
-                              (Default. ctx)
-                              (Render. (assoc ctx ::dom/for dom-for))))))
+                      (into [] cat
+                        [(binding [grid-row row
+                                   grid-col (inc grid-col)]
+                           (p/server (GrayInputs. ctx)))
+                         (binding [grid-row (if leaf? row (+ row argc))
+                                   grid-col (inc grid-col)]
+                           (p/server
+                             (let [ctx (assoc ctx ::dom/for dom-for)]
+                               (if (::hf/options ctx)
+                                 (Default. ctx)
+                                 (Render. (assoc ctx ::dom/for dom-for))))))])
                       )))))))))))
 
 (p/defn Row [{::hf/keys [keys values] :as ctx}]
