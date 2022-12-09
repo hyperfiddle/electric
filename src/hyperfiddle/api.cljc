@@ -5,7 +5,7 @@
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :refer [Clock]]
+            hyperfiddle.photon-dom
             [hyperfiddle.spec :as spec])
   #?(:cljs (:import [goog.math Long]))
   #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
@@ -26,7 +26,7 @@
   (p/client
     (let [[x] (p/with-cycle [[elapsed start :as s] [0 nil]]
                 (case hyperfiddle.api/loading
-                  ::loading [(some->> start (- (Clock. 0)))
+                  ::loading [(some->> start (- hyperfiddle.photon-dom/system-time-ms))
                              (js/Date.now)]
                   s))]
       x)))
