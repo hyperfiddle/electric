@@ -129,27 +129,23 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      (new InputValues ~controlled-value Focused? (new ->ParsedEvent "change" false #(.. % -target -checked))
        #(set! (.-checked dom/node) %))))
 
-(p/defn ValueOn [event-type]
-  (p/with-cycle [v (.-value dom/node)]
-    (if-let [ev (dom/Event. event-type false)] (.. ev -target -value) v)))
-
 (defmacro select [options controlled-value & body]
-  `(let [opts#      ~options,
-         cv#        ~controlled-value
-         !selected# (atom cv#)
-         selected#  (p/watch !selected#)]
-     (dom/with (dom/dom-element dom/node "select")
-       (?static-props ~@body)
-       (p/for [[idx# opt#] (map-indexed vector opts#)]
-         (dom/option
-           (dom/props (-> opt# (dissoc :text) (assoc :value idx#)))
-           (when (= (:value opt#) selected#)
-             (dom/props {:selected true}))
-           (some-> opt# :text dom/text)))
-       (let [idx# (js/parseInt (new ValueOn "change"))]
-         (when (and (not-empty opts#) (not (NaN? idx#)))
-           (reset! !selected# (:value (nth opts# idx#)))))
-       selected#)))
+  `(let [opts# (vec ~options),
+         cv#   ~controlled-value]
+     (p/with-cycle [current# cv#]
+       (dom/with (dom/dom-element dom/node "select")
+         (?static-props ~@body)
+         (p/for [[idx# opt#] (map-indexed vector opts#)]
+           (dom/option
+             (dom/props (-> opt# (dissoc :text) (assoc :value idx#)))
+             (when (= (:value opt#) current#)
+               (dom/props {:selected true}))
+             (some-> opt# :text dom/text)))
+         (if (empty? opts#)
+           current#
+           (if-some [event (dom/Event. "change" false)]
+             (:value (get opts# (js/parseInt (.. event -target -value))))
+             current#))))))
 
 (p/defn Value []
   (p/with-cycle [v (.-value dom/node)]
