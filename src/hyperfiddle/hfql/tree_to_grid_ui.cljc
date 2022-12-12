@@ -110,6 +110,7 @@
 
 (p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx} value]
   (let [value        (find-best-identity value)
+        options      (or options (::hf/options (::parent ctx)))
         option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
         continuation (or continuation (::hf/continuation (::parent ctx)))
         tx           (or tx (::hf/tx (::parent ctx)))
@@ -137,7 +138,7 @@
         options (or options (::hf/options (::parent ctx)))]
     (cond
       (some? route)      (p/client (cell grid-row grid-col (hf/Link. route link-label)))
-      (some? options)    (Options. ctx)
+      (some? options)    (Options. ctx value)
       (::value-type ctx) (Input. ctx)
       :else
       (p/client
