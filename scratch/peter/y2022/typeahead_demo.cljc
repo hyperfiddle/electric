@@ -16,7 +16,7 @@
   (p/client
     (dom/h1 "Typeahead demo")
     (dom/element "style" "
-.hf-typeahead-picklist-item:hover {
+.hf-typeahead-picklist-item > *:hover {
     background-color: gray;
 }
 ")
@@ -24,12 +24,20 @@
       (dom/div
         (do
           (ValueLog.
-            (tphd/typeahead (p/fn [search] (p/server (q search)))
-              (p/fn [e] (let [s (p/server (get -data e))] (dom/text s) s))
+            (tphd/typeahead (p/fn [search]
+                              (p/server
+                                (p/for [e (q search)]
+                                  (p/client
+                                    (tphd/typeahead-item e (dom/div (dom/text (p/server (get -data e)))))))))
+              (p/fn [e] (p/server (get -data e)))
               (dom/props {:placeholder "Pick a person!"})))
           (ValueLog.
-            (tphd/typeahead (p/fn [search] (p/server (q search)))
-              (p/fn [e] (let [s (p/server (get -data e))] (dom/text s) s))
+            (tphd/typeahead (p/fn [search]
+                              (p/server
+                                (p/for [e (q search)]
+                                  (p/client
+                                    (tphd/typeahead-item e (dom/div (dom/text (p/server (get -data e)))))))))
+              (p/fn [e] (p/server (get -data e)))
               (dom/props {:placeholder "Pick a person!"})))
           nil)))
     ))

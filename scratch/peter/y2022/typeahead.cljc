@@ -35,34 +35,31 @@
      (dom/props {:type "text" :class [(class "input")]})
      ~@body))
 
-(defmacro picklist [items RenderItem !ret]
-  `(with (elem "div")
-     (dom/props {:class [(class "picklist")]})
-     ;; TODO keyboard nav
-     (let [items# ~items, !idx# (atom 0), idx# (mod (p/watch !idx#) (count items#))]
-       (p/for [item# items#]
-         (with (elem "div")
-           (dom/props {:class [(class "picklist-item")]})
-           (let [rendered-val# (new ~RenderItem item#)]
-             (on "click" (.preventDefault event) (reset! ~!ret [item# rendered-val#]))))))))
-
-(defmacro items [PickList input-elem] `(new ~PickList (binding [dom/node ~input-elem] (new ui2/Value))))
-
 (defmacro close-on-click-unless-clicked-input [input-elem !picking?]
   `(binding [dom/node js/document]
      (on "click" (when-not (= ~input-elem (.. event -target)) (reset! ~!picking? false)))))
 
-(defmacro typeahead [PickList RenderItem & body]
-  (let [!picking? (gensym "!picking?"), input-elem (gensym "input-elem"), !ret (gensym "!ret")]
+(p/def select!)
+
+(defmacro typeahead-item [item & body]
+  `(let [item# ~item]
+     (with (elem "div")
+       (dom/props {:style {:display "contents"}, :class [(class "picklist-item")]})
+       (on "click" (.preventDefault event) (select! item#))
+       ~@body)))
+
+(defmacro typeahead [PickList ItemToText & body]
+  (let [!picking? (gensym "!picking?"), input-elem (gensym "input-elem")]
     `(let [~input-elem (elem "input")
-           ~!ret (atom [nil ""]), [ret# text#] (p/watch ~!ret)
+           !ret# (atom nil), ret# (p/watch !ret#)
            ~!picking? (atom false), picking?# (p/watch ~!picking?)]
        (container ~!picking?
          (input ~input-elem ~@body)
          (when picking?#
            (close-on-click-unless-clicked-input ~input-elem ~!picking?)
-           (picklist (items ~PickList ~input-elem) ~RenderItem ~!ret)))
-       (set! (.-value ~input-elem) text#)
+           (binding [select! #(reset! !ret# %)]
+             (new ~PickList (binding [dom/node ~input-elem] (new ui2/Value))))))
+       (let [txt# (new ~ItemToText ret#)] (set! (.-value ~input-elem) txt#))
        ret#)))
 
 ;; thoughts
@@ -86,8 +83,12 @@
      (defn q [search] (into [] (comp (filter #(or (empty? search) (str/includes? (second %) search))) (map first)) -data))
      (def tphd (atom :missing))
      (def discard (p/run (try (binding [dom/node (dom/by-id "root")]
-                                (tap (typeahead (p/fn [search] (tap [:picklist-refresh search]) (q search))
-                                       (p/fn [e] (tap e) (dom/text (get -data e)) (get -data e))
+                                (tap (typeahead (p/fn [search]
+                                                  (tap [:picklist-refresh search])
+                                                  (p/for [e (q search)]
+                                                    (typeahead-item (tap e)
+                                                      (with (elem "div") (dom/text (get -data e))))))
+                                       (p/fn [e] (get -data e))
                                        (reset! tphd dom/node))))
                               (catch Pending _)
                               (catch Cancelled _)
