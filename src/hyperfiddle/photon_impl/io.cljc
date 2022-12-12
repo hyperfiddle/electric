@@ -79,6 +79,8 @@
                        (recur (rf r (.getInt32 v i))
                          (+ i 4)) r))))))))
 
+#?(:cljs (def transit-writer (t/writer :json write-opts)))
+
 (defn encode
   "Encode a data frame to transit json"
   [x]
@@ -86,7 +88,7 @@
     #?(:clj (let [out (ByteArrayOutputStream.)]
               (t/write (t/writer out :json write-opts) x)
               (.toString out))
-       :cljs (t/write (t/writer :json write-opts) x))
+       :cljs (t/write transit-writer x))
     (catch #?(:clj Throwable, :cljs :default) err
       ; 13:49:25.848 DEBUG h.p.io [qtp966786773-114] - Unserializable reference transfer:  datascript.db.TxReport@a1a5e94a
       ; {:value #datascript.db.TxReport{:db-before #datascript/DB {:schema {}, :datoms [[1 :task/description buy milk  ...
@@ -99,11 +101,13 @@
             (encode (Failure. (Remote.))) ; Failed to encode this exception, send a stub.
             (encode nil))))))
 
+#?(:cljs (def transit-reader (t/reader :json read-opts)))
+
 (defn decode
   "Decode a data frame from transit json"
   [^String s]
   #?(:clj (t/read (t/reader (ByteArrayInputStream. (.getBytes s "UTF-8")) :json read-opts))
-     :cljs (t/read (t/reader :json read-opts) s)))
+     :cljs (t/read transit-reader s)))
 
 (defn decode-str [x]
   (try (doto (decode x) (->> (log/trace "🔽")))
