@@ -111,7 +111,9 @@
   #?(:cljs (let [node (d/createTextNode "")]
              (.appendChild parent node) node)))
 
-(defn set-text-content! [e & strs] #?(:cljs (d/setTextContent e (apply str strs))))
+(defn set-text-content! [e & strs]
+  #?(:cljs (set! (.-textContent e) (apply str strs)))
+  nil)
 
 (defmacro text [& strs]
   `(with (text-node node) (set-text-content! node ~@strs)))
