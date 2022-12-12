@@ -108,32 +108,36 @@
               (when-not (= ::init v')
                 (p/server (tx. ctx v'))))))))))
 
-(p/defn Default [{::hf/keys [entity link link-label options option-label continuation tx] :as ctx}]
-  (let [route        (when link (new link))
-        value        (hfql/JoinAllTheTree. ctx)
-        options      (or options (::hf/options (::parent ctx)))
+(p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx} value]
+  (let [value        (find-best-identity value)
         option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
         continuation (or continuation (::hf/continuation (::parent ctx)))
         tx           (or tx (::hf/tx (::parent ctx)))
         tx?          (some? tx)
-        dom-props    (data/select-ns :hyperfiddle.photon-dom ctx)]
+        dom-props    (data/select-ns :hyperfiddle.photon-dom ctx)
+        ]
+    (p/client
+      (let [v' (ui2/select (p/server (p/for [e (options.)]
+                                       (let [v (if continuation (hfql/JoinAllTheTree. (new continuation e)) e)]
+                                         {:text  (new option-label v)
+                                          :value (find-best-identity v)})))
+                 value
+                 (dom/props {::dom/role     "cell"
+                             ::dom/style    {:grid-row grid-row, :grid-column grid-col}
+                             ::dom/disabled (not tx?)})
+                 (dom/props dom-props))]
+        (when (and tx? (not= value v'))
+          (p/server
+            (let [ctx (if (::hf/tx ctx) ctx (::parent ctx))]
+              (when tx (tx. ctx v')))))))))
+
+(p/defn Default [{::hf/keys [entity link link-label options] :as ctx}]
+  (let [route   (when link (new link))
+        value   (hfql/JoinAllTheTree. ctx)
+        options (or options (::hf/options (::parent ctx)))]
     (cond
       (some? route)      (p/client (cell grid-row grid-col (hf/Link. route link-label)))
-      (some? options)    (let [value (find-best-identity value)]
-                           (p/client
-                             (let [v' (ui2/select (p/server (p/for [e (options.)]
-                                                              (let [v (if continuation (hfql/JoinAllTheTree. (new continuation e)) e)]
-                                                                {:text  (new option-label v)
-                                                                 :value (find-best-identity v)})))
-                                        value
-                                        (dom/props {::dom/role     "cell"
-                                                    ::dom/style    {:grid-row grid-row, :grid-column grid-col}
-                                                    ::dom/disabled (not tx?)})
-                                        (dom/props dom-props))]
-                               (when (and tx? (not= value v'))
-                                 (p/server
-                                   (let [ctx (if (::hf/tx ctx) ctx (::parent ctx))]
-                                     (when tx (tx. ctx v'))))))))
+      (some? options)    (Options. ctx)
       (::value-type ctx) (Input. ctx)
       :else
       (p/client
@@ -183,17 +187,33 @@
     ;; TODO handle unknown height
     :else              1))
 
-(p/defn SpecDispatch [{::hf/keys [attribute] :as ctx}]
+(p/defn ExplodeCardNLeafToTable [{::hf/keys [height attribute] :as ctx}]
+  (-> ctx
+    (dissoc ::hf/type)
+    (merge
+      {::hf/cardinality ::hf/many
+       ::hf/height      height
+       ::hf/keys        [attribute]
+       ::hf/Value       (p/fn [] (p/for [v (hfql/JoinAllTheTree. ctx)]
+                                   {::hf/type   ::hf/keys
+                                    ::hf/keys   [attribute]
+                                    ::hf/values [{::hf/type      ::hf/leaf
+                                                  ::hf/attribute attribute
+                                                  ::hf/Value     (p/fn [] v)}]}))})))
+
+(p/defn SpecDispatch [{::hf/keys [attribute cardinality] :as ctx}]
   (let [spec-value-type   (spec-value-type attribute)
         schema-value-type (schema-value-type hf/*schema* hf/db attribute)
         defined-by-spec?  (and spec-value-type (not schema-value-type))
         value-type        (or spec-value-type schema-value-type)]
-    (case value-type
-      (:hyperfiddle.spec.type/string
-       :hyperfiddle.spec.type/instant
-       :hyperfiddle.spec.type/boolean) (Default. (cond-> (assoc ctx ::value-type value-type)
-                                                   defined-by-spec? (assoc ::readonly true)))
-      (Default. ctx))))
+    (case cardinality
+      ::hf/many (Render. (ExplodeCardNLeafToTable. ctx))
+      (case value-type
+        (:hyperfiddle.spec.type/string
+         :hyperfiddle.spec.type/instant
+         :hyperfiddle.spec.type/boolean) (Default. (cond-> (assoc ctx ::value-type value-type)
+                                                     defined-by-spec? (assoc ::readonly true)))
+        (Default. ctx)))))
 
 (defn non-breaking-padder [n] (apply str (repeat n " ")) )
 
@@ -330,13 +350,16 @@
                         [(binding [grid-row row
                                    grid-col (inc grid-col)]
                            (p/server (GrayInputs. ctx)))
+                         (binding [grid-row (if leaf? (inc row) (+ 1 row argc))]
+                           (p/server (when (some? (::hf/options ctx))
+                                       (Options. ctx (hfql/JoinAllTheTree. ctx)))))
                          (binding [grid-row (if leaf? row (+ row argc))
                                    grid-col (inc grid-col)]
                            (p/server
                              (let [ctx (assoc ctx ::dom/for dom-for)]
-                               (if (::hf/options ctx)
-                                 (Default. ctx)
-                                 (Render. (assoc ctx ::dom/for dom-for))))))])
+                               (if false #_(::hf/options ctx)
+                                   (Default. ctx)
+                                   (Render. (assoc ctx ::dom/for dom-for))))))])
                       )))))))))))
 
 (p/defn Row [{::hf/keys [keys values] :as ctx}]
@@ -359,7 +382,7 @@
                                                 (Render. ctx)))))))))]
         (p/for [i (range (dec grid-col))]
           (cell grid-row (inc i)))
-        (CellPad. grid-row (inc (count keys)))
+        (CellPad. grid-row (count keys))
         result))))
 
 (p/def Table)
@@ -397,7 +420,7 @@
                     (p/client
                       (p/for [idx (range (max 0 (- height vals-cnt)))]
                         (binding [grid-row (+ grid-row vals-cnt idx)]
-                          (CellPad. grid-row 0))))
+                          (CellPad. grid-row 1))))
                     res))))))))))
 
 
