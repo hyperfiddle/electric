@@ -43,6 +43,7 @@ body{
     width: 1.1rem;
     max-height: 100%;  /* Fit the rows span height */
     align-self: start; /* scroll height does not participate to the first row’s vertical alignment */
+    z-index:1;
 }
 
 
