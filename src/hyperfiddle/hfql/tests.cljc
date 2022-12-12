@@ -295,7 +295,7 @@
 
 (tests
   "Static Link on attribute"
-  (with (p/run (tap (debug (-> (precompile (props :db/id {::hf/link [:home]}))
+  (with (p/run (tap (debug (-> (hfql/precompile (props :db/id {::hf/link [:home]}))
                              (::hf/link)
                              (new))))))
   % := [:home])
