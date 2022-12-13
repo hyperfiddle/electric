@@ -24,14 +24,15 @@
       (dom/div
         (do
           (ValueLog.
-            (tphd/typeahead (p/fn [search]
-                              (p/server
-                                (p/for [e (q search)]
-                                  (p/client
-                                    (tphd/typeahead-item e (dom/div (dom/text (p/server (get -data e)))))))))
+            (tphd/typeahead :alice
+              (p/fn [search]
+                (p/server
+                  (p/for [e (q search)]
+                    (p/client
+                      (tphd/typeahead-item e (dom/div (dom/text (p/server (get -data e)))))))))
               (p/fn [e] (p/server (get -data e)))
               (dom/props {:placeholder "Pick a person!"})))
-          (ValueLog.
+          #_(ValueLog.
             (tphd/typeahead (p/fn [search]
                               (p/server
                                 (p/for [e (q search)]
