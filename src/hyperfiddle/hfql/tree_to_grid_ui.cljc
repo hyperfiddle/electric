@@ -31,12 +31,13 @@
     (spec/valueType->type (or (:db/valueType attr) (:hf/valueType attr))))) ; datascript rejects valueType other than ref.
 
 (defn spec-description [prefer-ret? attr]
-  (when-let [spec (datafy (spec/spec attr))]
-    (if prefer-ret?
-      (case (::spec/type spec)
-        ::spec/fspec (::spec/ret spec)
-        (::spec/description spec))
-      (::spec/description spec))))
+  (when (qualified-ident? attr)
+    (when-let [spec (datafy (spec/spec attr))]
+      (if prefer-ret?
+        (case (::spec/type spec)
+          ::spec/fspec (::spec/ret spec)
+          (::spec/description spec))
+        (::spec/description spec)))))
 
 (def input-type {:hyperfiddle.spec.type/symbol  "text"
                  :hyperfiddle.spec.type/uuid    "text"
