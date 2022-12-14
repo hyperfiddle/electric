@@ -60,7 +60,7 @@
                    [:db/ident]}]}) )))]
     (dom/pre stage)))
 
-(p/defn OneOrderPage [order-id]
+(p/defn OneOrderPage [order]
   (let [stage
         (ttgui/with-gridsheet-renderer
           (dom/style {:grid-template-columns "repeat(5, 1fr)"})
@@ -70,7 +70,7 @@
                 [hf/*$*      hf/db
                  hf/*schema* hf/*schema*
                  hf/*nav!*   hf/*nav!*]
-                {(wip.orders-datascript/one-order order-id)
+                {order
                  [(props :db/id {::hf/link ['wip.orders-datascript/one-order %]})
                   (props :order/email {::hf/tx (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
                   {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
@@ -80,7 +80,7 @@
                   {(props :order/shirt-size {::hf/options      (wip.orders-datascript/shirt-sizes gender .)
                                              ::hf/option-label (p/fn [v] (name (:db/ident v)))
                                              ::hf/tx           (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
-                   [:db/id
+                   [#_:db/id
                     :db/ident]}
                   :order/tags]}) )))]
     (dom/pre stage)))
