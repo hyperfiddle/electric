@@ -17,7 +17,7 @@
   `(try ~@body
         (catch hyperfiddle.photon.Pending e# (throw e#))
         (catch missionary.Cancelled e# (throw e#))
-        (catch Throwable e# (prn (type e#) (ex-message e#) (ex-data e#)) (throw e#))))
+        (catch Throwable e# (prn (type e#) (ex-message e#) (ex-data e#) e#) (throw e#))))
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
@@ -383,6 +383,16 @@
                       ))))
   % := "defaulted from photon")
 
+
+(comment
+  "default of fn argument" 
+  (with (p/run (tap (binding [hf/db     hf/*$*
+                              hf/*nav!* nav!]
+                      (debug (hfql [:db/id (foo (Default. db/id))]))   ; TODO allow referencing lexical scope from nested sexprs
+                      ))))
+  % := "defaulted from photon")
+
+
 (comment
   ;; TODO some default logic requires all arguments:
   (defn default [eid nom] [eid (if (and eid (empty? nom)) (suber-name eid) nom)])
@@ -403,3 +413,57 @@
   % := {:db/id 12,
         :order/email nil,
         '(hyperfiddle.hfql.tests/foo order/email) "defaulted"})
+
+;; (hfql/precompile [:order/email
+;;                   (foo (props order/email {::hf/default (p/fn [a] (or a "defaulted"))}))]) 
+
+
+(tests
+  "HFQL on top level entity"
+  (with (p/run (tap (hfql 12))))
+  % := 12)
+
+(tests
+  "HFQL on top level entity"
+  (with (p/run (tap (debug (binding [hf/db     hf/*$*
+                                     hf/*nav!* nav!
+                                     hf/*schema* schema]
+                             (hfql {12 [:db/id]}))))))
+  % := '{12 {:db/id 12}})
+
+(tests
+  "HFQL on top level entity"
+  ;; in `e` is a function, it should act as a
+  ;; function, if it’s not it should be bound to
+  ;; the entity at point
+  (with (p/run (tap (debug (binding [hf/db     hf/*$*
+                                     hf/*nav!* nav!
+                                     hf/*schema* schema]
+                             (let [e 12]
+                               (hfql {e [:db/id]})))))))
+  % := '{e {:db/id 12}})
+
+
+(tests
+  "props on point"
+  (with (p/run (debug (let [plan (hfql/precompile (props 1 {:foo :bar}))]
+                        (tap (hfql/JoinAllTheTree. plan))
+                        (tap (:foo plan))))))
+  % := 1
+  % := :bar)
+
+(tests
+  "props on point 2"
+  (with (p/run (debug (let [plan (hfql/precompile (props [1] {:foo :bar})) ]
+                        (tap (hfql/JoinAllTheTree. plan))
+                        (tap (-> plan ::hf/values first :foo))))))
+  % := {1 1}
+  % := :bar)
+
+(tests
+  "props on point 3"
+  (with (p/run (debug (let [plan (hfql/precompile [(props 1 {:foo :bar})]) ]
+                        (tap (hfql/JoinAllTheTree. plan))
+                        (tap (-> plan ::hf/values first :foo))))))
+  % := {1 1}
+  % := :bar)
