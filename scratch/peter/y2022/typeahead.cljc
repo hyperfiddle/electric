@@ -65,15 +65,17 @@
            !rep# (atom (new E->R# entC#)), rep# (p/watch !rep#)
            !ent# (atom entC#), ent# (p/watch !ent#)
            ~!picking? (atom false), picking?# (p/watch ~!picking?)]
-       (binding [Select! (p/fn [ent#] (let [rep# (new E->R# ent#)] (reset! !rep# rep#)) (reset! !ent# ent#))]
-         (container ~!picking?
-           (->> (ui2/input rep#
-                  (dom/props {:class [(class "input")]})
-                  (when picking?# (close-on-click-unless-clicked-input ~!picking?))
-                  ~@body)
-             (reset! !rep#))
-           (when picking?# (new ~Picklist rep#))))
-       ent#)))
+       (try
+         (binding [Select! (p/fn [ent#] (let [rep# (new E->R# ent#)] (reset! !rep# rep#)) (reset! !ent# ent#))]
+           (container ~!picking?
+             (->> (ui2/input rep#
+                    (dom/props {:class [(class "input")]})
+                    (when picking?# (close-on-click-unless-clicked-input ~!picking?))
+                    ~@body)
+               (reset! !rep#))
+             (when picking?# (new ~Picklist rep#))))
+         ent#
+         (catch hyperfiddle.photon.Pending _e# ent#)))))
 
 ;; thoughts
 ;;
@@ -160,5 +162,23 @@
      ;; (uit/press @tphd "Enter")
      ;; % := :alice
      ;; (.-value @tphd) := "Alice B"
+     (discard)
+     ))
+
+#?(:cljs
+   (tests
+     "pending doesn't screw up return channel"
+     (def tphd (atom :missing))
+     (def discard (p/run (try (binding [dom/node (dom/by-id "root")]
+                                (tap (typeahead :x
+                                       (p/fn [search] (p/server search))
+                                       (p/fn [e] (name e))
+                                       (reset! tphd dom/node))))
+                              (catch hyperfiddle.photon.Pending _)
+                              (catch missionary.Cancelled _))))
+     % := :x
+     (uit/focus @tphd)
+     (uit/set-value! @tphd "hi")
+     % := ::rcf/timeout
      (discard)
      ))
