@@ -61,20 +61,22 @@
 (defmacro typeahead [entC Picklist ItemToText & body]
   (let [!picking? (gensym "!picking?")]
     `(let [entC# ~entC, PL# ~Picklist, E->R# ~ItemToText
-           ;; TODO atom gets rebuilt with each new `entC` value
-           !rep# (atom (new E->R# entC#)), rep# (p/watch !rep#)
-           !ent# (atom entC#), ent# (p/watch !ent#)
-           ~!picking? (atom false), picking?# (p/watch ~!picking?)]
+           !ent# (atom nil), ent# (p/watch !ent#)]
        (try
-         (binding [Select! (p/fn [ent#] (let [rep# (new E->R# ent#)] (reset! !rep# rep#)) (reset! !ent# ent#))]
-           (container ~!picking?
-             (->> (ui2/input rep#
-                    (dom/props {:class [(class "input")]})
-                    (when picking?# (close-on-click-unless-clicked-input ~!picking?))
-                    ~@body)
-               (reset! !rep#))
-             (when picking?# (new ~Picklist rep#))))
-         ent#
+         (let [!rep# (atom nil), rep# (p/watch !rep#)
+               ~!picking? (atom false), picking?# (p/watch ~!picking?)]
+           (reset! !ent# entC#)
+           (reset! !rep# (when ent# (new E->R# ent#)))
+           (binding [Select! (p/fn [ent#] (let [rep# (new E->R# ent#)] (reset! !rep# rep#)) (reset! !ent# ent#))]
+             (container ~!picking?
+               (with (elem "input")
+                 (dom/props {:class [(class "input")], :type "text"})
+                 (when picking?# (close-on-click-unless-clicked-input ~!picking?))
+                 (on "input" (reset! !rep# (.. event -target -value)))
+                 (set! (.-value dom/node) rep#)
+                 ~@body)
+               (when picking?# (new ~Picklist rep#))))
+           (or ent# entC#))
          (catch hyperfiddle.photon.Pending _e# ent#)))))
 
 ;; thoughts
@@ -151,10 +153,11 @@
      % := [:query "Bob C"]
      % := [:render :bob]
      (reset! !cv :alice)
+     [% % %] := [[:typeahead-returned :alice] [:query "Alice B"] [:render :alice] #_:hyperfiddle.rcf/timeout]
      ;; TODO these shouldn't pass
-     % := [:query "Alice B"]
-     % := [:render :alice]
-     % := [:typeahead-returned :alice]
+     ;; % := [:query "Alice B"]
+     ;; % := [:render :alice]
+     ;; % := [:typeahead-returned :alice]
 
      "Keyboard nav"
      ;; (uit/focus @tphd)
