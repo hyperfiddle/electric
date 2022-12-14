@@ -184,7 +184,7 @@
   (cond
     (::hf/height ctx)  (+ (::hf/height ctx)
                         (count (::hf/arguments ctx)))
-    (::hf/options ctx) 1
+    (::hf/options ctx) 2
     (::hf/keys ctx)    (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
     ;; TODO handle unknown height
     :else              1))
