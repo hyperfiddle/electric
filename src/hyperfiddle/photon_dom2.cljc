@@ -1,97 +1,36 @@
 (ns hyperfiddle.photon-dom2
   (:refer-clojure :exclude [time])
-  (:require [clojure.string :as str]
-            #?(:cljs goog.dom)
+  (:require #?(:cljs goog.dom)
             #?(:cljs goog.object)
             #?(:cljs goog.style)
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :refer [node]] ; backwards compat
-            [hyperfiddle.logger :as log]
+            [hyperfiddle.photon-dom :refer [node ; reuse dom1/node for compat
+                                            with class-str]]
             [hyperfiddle.rcf :as rcf :refer [tests]]
             [missionary.core :as m])
-  #?(:cljs (:require-macros hyperfiddle.photon-dom2)))
+  #?(:cljs (:require-macros [hyperfiddle.photon-dom2 :refer [with]])))
 
-(def nil-subject (fn [!] (! nil) #()))
-(p/def keepalive (new (m/observe nil-subject)))
-
-;(p/def node) -- reuse old global for compat
-
-(defn unsupported [& _]
-  (throw (ex-info (str "Not available on this peer.") {})))
-
-(def hook "See `with`"
-  #?(:clj  unsupported
-     :cljs (fn ([x] (.removeChild (.-parentNode x) x))    ; unmount
-             ([x y] (.insertBefore (.-parentNode x) x y)) ; rotate siblings
-             )))
-
-(defmacro with
-  "Attach `body` to a dom node, which will be moved in the DOM when body moves in the DAG.
-  Given p/for semantics, `body` can only move sideways or be cancelled.
-  If body is cancelled, the node will be unmounted.
-  If body moves, the node will rotate with its siblings."
-  [dom-node & body]
-  `(binding [node ~dom-node]
-     (new (p/hook hook node  ; attach body frame to dom-node.
-                  (p/fn [] keepalive ~@body) ; wrap body in a constant, making it a frame (static, non-variable), so it can be moved as a block.
-                  ))))
-
-(defn dom-element [parent type]
-  #?(:cljs (let [node (goog.dom/createElement type)]
+#?(:cljs (defn dom-element* [parent type]
+           (let [node (goog.dom/createElement type)]
              (.appendChild parent node) node)))
 
-(defn text-node [parent]
-  #?(:cljs (let [node (goog.dom/createTextNode "")]
+(defmacro element [t & body]
+  `(with (dom-element* node ~(name t))
+     ~@body))
+
+#?(:cljs (defn text-node [parent]
+           (let [node (goog.dom/createTextNode "")]
              (.appendChild parent node) node)))
 
-(defn set-text-content! [e & strs] #?(:cljs (goog.dom/setTextContent e (apply str strs))))
+#?(:cljs (defn -googDomSetTextContent [node & strs]
+           (goog.dom/setTextContent node (apply str strs))))
 
 (defmacro text [& strs]
-  `(with (text-node node) (set-text-content! node ~@strs)))
+  `(with (text-node node)
+     (-googDomSetTextContent node ~@strs)))
 
-(def text-literal? (some-fn string? number? char? boolean? ident?))
-
-#?(:clj
-   (defn handle-text [body]
-     (some->> (filter some? body)
-              (map (fn [form] (if (text-literal? form) ; TODO optimize further, detect dom/text and ^String tag meta
-                                `(text ~form)
-                                `(let [res# ~form]
-                                   (if (text-literal? res#)
-                                     (text res#)
-                                     res#))))))))
-
-(defmacro element [t & [props & body]]
-  (let [[props body] (if (map? props) [props body] [nil (seq (cons props body))])
-        body         (handle-text body)]
-    `(with (dom-element node ~(name t))
-           ~@(cond (map? props) (cons `(props ~props) body)
-                   (some? props) (cons props body)
-                   :else body))))
-
-(defn set-style! [node k v]
-  #?(:cljs (goog.style/setStyle node (name k) (clj->js v))))
-
-(defn class-str [v]
-  (cond
-    (or (string? v) (keyword? v)) (name v)
-    (seq v)                       (str/join " " (eduction (remove nil?) (map name) v))
-    :else                         ""))
-
-(tests
-  (class-str nil)                    := ""
-  (class-str [])                     := ""
-  (class-str "x")                    := "x"
-  (class-str ["x"])                  := "x"
-  (class-str ["x" "y"])              := "x y"
-  (class-str [nil])                  := ""
-  (class-str ["x" nil "y"])          := "x y"
-  (class-str [nil nil nil])          := ""
-  (class-str (into-array [nil "x"])) := "x"
-  (class-str [:x "y"])               := "x y")
-
-(defn set-property! [node k v]
-  #?(:cljs
+#?(:cljs
+   (defn set-property! [node k v]
      (let [k (name k)
            v (clj->js v)]
        (if (and (nil? v) (.hasAttribute node k))
@@ -107,9 +46,8 @@
                (goog.object/set node k v)
                (.setAttribute node k v))))))))
 
-(defn unmount-prop [node k v]
-  (m/observe (fn [!] (! nil)
-               #(set-property! node k v))))
+#?(:cljs (defn unmount-prop [node k v]
+           (m/observe (fn [!] (! nil) #(set-property! node k v)))))
 
 (defmacro style [m]
   (if (map? m)
@@ -138,6 +76,30 @@
            (do (set-property! node (key prop#) (val prop#))
                (new (unmount-prop node (key prop#) nil))
                nil))))))
+
+(defn event* [dom-node event-name callback]
+  (m/observe (fn [!]
+               (! nil)
+               (.addEventListener dom-node event-name callback)
+               #(.removeEventListener dom-node event-name callback))))
+
+(defmacro event [event-name callback] `(new (event* node ~event-name ~callback)))
+
+(defn happen [s e]
+  (case (:status s)
+    :idle {:status :impulse :event e} s))
+
+; data EventState = Idle | Impulse event | Pending event
+(p/defn Event [type busy]
+  (:event
+    (let [!state (atom {:status :idle})
+          state (p/watch !state)]
+      (event type (partial swap! !state happen)) ; discrete! this is the event wrapped into impulse
+      (reset! !state
+              (case (:status state)
+                :idle state
+                :impulse (assoc state :status :pending) ; impulse is seen for 1 frame and then cleared
+                :pending (if busy state {:status :idle}))))))
 
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
@@ -234,27 +196,3 @@
 (defmacro var [& body] `(element :var ~@body))
 (defmacro video [& body] `(element :video ~@body))
 (defmacro wbr [& body] `(element :wbr ~@body))
-
-(defn event* [dom-node event-name callback]
-  (m/observe (fn [!]
-               (! nil)
-               (.addEventListener dom-node event-name callback)
-               #(.removeEventListener dom-node event-name callback))))
-
-(defmacro event [event-name callback] `(new (event* node ~event-name ~callback)))
-
-(defn happen [s e]
-  (case (:status s)
-    :idle {:status :impulse :event e} s))
-
-; data EventState = Idle | Impulse event | Pending event
-(p/defn Event [type busy]
-  (:event
-    (let [!state (atom {:status :idle})
-          state (p/watch !state)]
-      (event type (partial swap! !state happen)) ; discrete! this is the event wrapped into impulse
-      (reset! !state
-              (case (:status state)
-                :idle state
-                :impulse (assoc state :status :pending) ; impulse is seen for 1 frame and then cleared
-                :pending (if busy state {:status :idle}))))))
