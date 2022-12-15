@@ -7,7 +7,8 @@
    [datascript.core :as d]
    [clojure.string :as str]
    [clojure.spec.alpha :as s]
-   #?(:clj [wip.orders-datascript :refer [orders order shirt-sizes one-order nav! schema]]))
+   #?(:clj [wip.orders-datascript :refer [orders order shirt-sizes one-order nav! schema]])
+   )
   (:import [hyperfiddle.photon Pending]))
 
 (comment
@@ -467,3 +468,24 @@
                         (tap (-> plan ::hf/values first :foo))))))
   % := {1 1}
   % := :bar)
+
+
+(tests
+  "Link refer to lexical env"
+  (with (p/run (debug (let [e    9
+                            plan (hfql/precompile {e [(props "link" {::hf/link [e]})]})]
+                        (tap (hfql/JoinAllTheTree. plan))
+                        (tap (-> plan ::hf/values first ::hf/Value (new) ::hf/values first ::hf/link (new)))))))
+  % := {'e {"link" "link"}}
+  % := [9])
+
+(comment
+
+  (hfql/precompile {e [(props "link" {::hf/link [e]})]}) 
+  (hfql/precompile {e [(props "link" {#_#_::hf/link [e]})]}) 
+  (hyperfiddle.hfql.impl/graph '{e [(props "link" {::hf/link [e]})]} )
+
+  )
+
+(comment
+  (rcf/enable!))
