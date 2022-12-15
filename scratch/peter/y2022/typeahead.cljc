@@ -4,7 +4,6 @@
    #?(:cljs [hyperfiddle.ui.test :as uit])
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom]
-   [hyperfiddle.photon-ui2 :as ui2]
    [hyperfiddle.rcf :as rcf :refer [tests tap %]]
    [clojure.string :as str])
   #?(:cljs (:require-macros peter.y2022.typeahead))
@@ -63,7 +62,8 @@
     `(let [entC# ~entC, PL# ~Picklist, E->R# ~ItemToText
            !ent# (atom nil), ent# (p/watch !ent#)]
        (try
-         (let [!rep# (atom nil), rep# (p/watch !rep#)
+         (let [!entC-prev# (atom nil), entC-prev# (p/watch !entC-prev#)
+               !rep# (atom nil), rep# (p/watch !rep#)
                ~!picking? (atom false), picking?# (p/watch ~!picking?)]
            (when (nil? ent#)
              (reset! !ent# entC#)
@@ -72,8 +72,19 @@
              (container ~!picking?
                (with (elem "input")
                  (when-not picking?#
-                   (reset! !ent# entC#)
-                   (reset! !rep# (new E->R# entC#)))
+                   #_(prn [entC-prev# ent# entC#])
+                   ;; fork detection
+                   ;; If we are not picking and controlled value changed
+                   ;; we check if return value also changed in between.
+                   ;; If it didn't we accept the new controlled value,
+                   ;; else we stabilize local state
+                   (when (not= entC# entC-prev#)
+                     (if (or (nil? entC-prev#) (= ent# entC-prev#))
+                       (when-let [new-rep# (new E->R# entC#)]
+                         (reset! !ent# entC#)
+                         (reset! !rep# new-rep#)
+                         (reset! !entC-prev# entC#))
+                       (reset! !entC-prev# entC#))))
                  (dom/props {:class [(class "input")], :type "text"})
                  (when picking?# (close-on-click-unless-clicked-input ~!picking?))
                  (on "input" (reset! !rep# (.. event -target -value)))
@@ -155,15 +166,16 @@
      (.-value @tphd) := "Bob C"
 
      "Don't get new controlled value while focused"
-     ;; (uit/focus @tphd)
-     ;; % := [:query "Bob C"]
-     ;; % := [:render :bob]
-     ;; (reset! !cv :alice)
-     ;; [% % %] := [[:typeahead-returned :alice] [:query "Alice B"] [:render :alice] #_:hyperfiddle.rcf/timeout]
-     ;; TODO these shouldn't pass
-     ;; % := [:query "Alice B"]
-     ;; % := [:render :alice]
-     ;; % := [:typeahead-returned :alice]
+     (uit/focus @tphd)
+     % := [:query "Bob C"]
+     % := [:render :bob]
+     (reset! !cv :alice)                ; nothing happens, ignored
+     (uit/set-value! @tphd "Derek B")
+     % := [:query "Derek B"]
+     % := [:render :derek]
+     (uit/click (picklist-item "Derek B"))
+     % := [:typeahead-returned :derek]  ; we return :derek correctly
+     % := ::rcf/timeout                 ; typeahead doesn't loop because of controlled value change
 
      "Keyboard nav"
      ;; (uit/focus @tphd)
