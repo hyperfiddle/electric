@@ -45,6 +45,7 @@
 
 (defn empty-value? [x] (if (seqable? x) (empty? x) (some? x)))
 
+;; FIXME decomplect route from route state
 (defn route-state->route [route-state]
   (if (= 1 (count route-state))
     (let [[k v] (first route-state)]
@@ -65,9 +66,10 @@
                                             (route-state->route (reduce-kv (fn [r k v] (if (and (not (seq? k)) (empty? v)) (dissoc r k) r)) m m)))
                       :else               m))))
 
+;; FIXME decomplect route from route state
 (defn assoc-in-route-state [m path value]
   (let [empty? (if (seqable? value) (not-empty value) (some? value))
-        m      (if (seq? m) {} m)]
+        m      (if (or (seq? m) (vector? m)) {} m)]
     (if empty?
       (assoc-in m path value)
       (route-cleanup (assoc-in m path value) path))))
