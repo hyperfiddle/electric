@@ -1,7 +1,6 @@
 (ns ui-forms2
   (:require [clojure.core.protocols :as ccp :refer [nav]]
             [clojure.datafy :refer [datafy]]
-            [contrib.clojurex :refer [binding-pyramid bind]]
             #?(:clj [contrib.datomic-contrib :as dx])
             [contrib.str :refer [pprint-str]]
             #?(:clj [datomic.client.api :as d])
