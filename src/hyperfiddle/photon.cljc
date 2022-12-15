@@ -349,7 +349,10 @@ or a provided value if it completes without producing any value."
       `{:env ~(reduce-kv (cc/fn [r k v] (assoc r (list 'quote k) k)) (empty env) env)}
       (meta &form))))
 
-(defmacro with-cycle [[s i] & body]
+(defmacro with-cycle
+  "evaluates body with symbol s bound to the previous result of the body evaluation.
+  the first evaluation binds s to i."
+  [[s i] & body]
   `(let [a# (atom ~i) ~s (hyperfiddle.photon/watch a#)]
      (reset! a# (do ~@body))))
 
