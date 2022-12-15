@@ -19,17 +19,27 @@ body{
 .hyperfiddle-gridsheet{
 
     --hf-grid-row-height: 1.5rem; /* source of truth, all rows inherit this height, js code will measure this */
-    --hf-grid-row-even: transparent;
-    --hf-grid-row-odd: transparent;
+    --hf-cell-border-color: rgb(203 213 225);
+    --hf-columns-border-gradient: transparent;
+    --hf-grid-gap: 2px;
 
     display: grid;
     grid-auto-rows: var(--hf-grid-row-height);
+    grid-gap: var(--hf-grid-gap);
     justify-items: start; /* cell content is left aligned */
     align-items: center;  /* cells align their content on the row center */
 
     /* Alternating colors behind rows */
-    background: repeating-linear-gradient(  var(--hf-grid-row-even) 0 var(--hf-grid-row-height)
-                                          , var(--hf-grid-row-odd)  0 calc(var(--hf-grid-row-height) * 2));
+    background:
+        repeating-linear-gradient(transparent 0 calc(var(--hf-grid-row-height) - 0.5px) /* FIXME subpixel sampling */
+                                  , var(--hf-cell-border-color) var(--hf-grid-row-height)
+                                       calc(var(--hf-grid-row-height) + var(--hf-grid-gap) - 1px)
+                                  , transparent calc(var(--hf-grid-row-height) + var(--hf-grid-gap) - 1px)
+                                                calc(var(--hf-grid-row-height) + var(--hf-grid-gap)))
+        , var(--hf-columns-border-gradient)
+    ;
+
+
     overflow-y: auto; /* scroll if needed, js code will shift the background-gradient’s position  */
 
     box-sizing: border-box; /* nested scrollbars do not add to the width */
@@ -70,7 +80,6 @@ body{
     white-space: nowrap;
     overflow: hidden;
 
-    border: 1px rgb(203 213 225) solid;
     height: 100%;
 
     font-family: 'Roboto Mono', monospace;
@@ -87,7 +96,6 @@ body{
 
 .hyperfiddle-gridsheet input[role="cell"] {
 
-    background-color: var(--hf-input-cell-background);
 
 }
 
