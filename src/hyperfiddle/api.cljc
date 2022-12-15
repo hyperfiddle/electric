@@ -16,6 +16,7 @@
 (p/def secure-db "database value excluding stage, so that user can't tamper")
 (p/def with "inject datomic.api/with or equivalent, used by stage")
 (p/def loading)
+(p/def Transact!)
 (def -read-edn-str-default (partial clojure.edn/read-string
                                     {:readers #?(:cljs {'goog.math/Long goog.math.Long/fromString} ; datomic cloud long ids
                                                 :clj {})}))

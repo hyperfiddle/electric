@@ -69,7 +69,11 @@
           (recur (not a))]))
 := [[[[] []] [[] []]] [[[] []] [[] []]]] ; cantor set
 
-
+(p/run (loop [a true]
+         [(recur identity)
+          (recur not)]))
+; concurrent txns are serialized and compose - (comp not identity)
+:= false
 
 
 ; D: if a recursion contains a new, it has two possible meanings, what should we do?

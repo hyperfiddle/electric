@@ -786,3 +786,5 @@
              [:db/add 4 :foo "foo"]]
             [[:db/retractEntity 4]])
   := [[:db/retractEntity 4]])
+
+(defn minimal-tx [db tx] tx)
