@@ -1,7 +1,6 @@
 (ns contrib.clojurex
-  ;(:refer-clojure :exclude [binding])
   (:require [hyperfiddle.rcf :refer [tests]])
-  #?(:cljs (:require-macros [contrib.clojurex :refer [binding-pyramid]])))
+  #?(:cljs (:require-macros [contrib.clojurex :refer [bindx]])))
 
 (defn binding-pyramid* [bindings body]
   (let [[s expr & xs] bindings]
@@ -10,14 +9,16 @@
       `(~'binding [~s ~expr] ~(binding-pyramid* xs body))
       `(~'binding [~s ~expr] ~@body))))
 
-(defmacro binding-pyramid [bindings & body] (binding-pyramid* bindings body))
+; todo support both let and var by resolving var
+
+(defmacro bindx [bindings & body] (binding-pyramid* bindings body))
 
 (tests
-  (macroexpand-1 '(binding-pyramid [a 1 b (inc a)] (inc b)))
+  (macroexpand-1 '(bindx [a 1 b (inc a)] (inc b)))
   := '(binding [a 1]
         (binding [b (inc a)]
           (inc b)))
 
   (def ^:dynamic a)
   (def ^:dynamic b)
-  (binding-pyramid [a 1 b (inc a)] (inc b)) := 3)
+  (bindx [a 1 b (inc a)] (inc b)) := 3)

@@ -1,5 +1,5 @@
 (ns user.demo-stage
-  (:require [contrib.clojurex :refer [binding-pyramid]]
+  (:require [contrib.clojurex :refer [bindx]]
             [contrib.str :refer [pprint-str]]
             #?(:clj [contrib.datomic-contrib :as dx])
             #?(:clj [datomic.client.api :as d])
@@ -106,9 +106,9 @@
 
 (p/defn Demo []
   (let [secure-db (d/with-db @(requiring-resolve 'test/datomic-conn))]
-    (binding-pyramid [hf/schema (new (dx/schema> secure-db))
-                      into-tx (partial hf/into-tx hf/schema)
-                      hf/with (fn [db tx] (d/with db {:tx-data tx}))] ; todo required by popover TODO
+    (bindx [hf/schema (new (dx/schema> secure-db))
+            into-tx (partial hf/into-tx hf/schema)
+            hf/with (fn [db tx] (d/with db {:tx-data tx}))] ; todo required by popover TODO
       (p/client
         (p/with-cycle [loading ::hf/loading]
           (binding [hf/loading loading]
