@@ -186,7 +186,8 @@
 
 (defn height [ctx]
   (cond
-    (::hf/height ctx)  (+ (::hf/height ctx)
+    (::hf/height ctx)  (+ 1             ; header row
+                         (::hf/height ctx)
                         (count (::hf/arguments ctx)))
     (::hf/keys ctx)    (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
     ;; TODO handle unknown height
@@ -412,7 +413,7 @@
             (let [offset pagination-offset]
               (p/server
                 (into [] cat
-                  (let [vals     (->> value (drop offset) (take (dec height)))
+                  (let [vals     (->> value (drop offset) (take height))
                         vals-cnt (count vals)
                         res (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector vals)]
                               (p/client (binding [grid-row (+ grid-row idx 1)]
@@ -423,6 +424,8 @@
                           (CellPad. grid-row 1))))
                     res))))))))))
 
+(defn compute-offset [scroll-top row-height]
+  #?(:cljs (max 0 (js/Math.ceil (/ (js/Math.floor scroll-top) row-height)))))
 
 (defmacro PaginatedGrid [actual-width max-height actual-height & body]
   `(let [row-height#    (dom/measure "var(--hf-grid-row-height)")
@@ -430,8 +433,8 @@
          !scroller#     (atom nil)
          !scroll-top#   (atom 0)]
      (dom/div {::dom/role  "scrollbar"
-               ::dom/style {:grid-row-start grid-row
-                            :grid-row-end   (+ grid-row ~max-height)
+               ::dom/style {:grid-row-start (inc grid-row)
+                            :grid-row-end   (+ (inc grid-row) ~max-height)
                             :grid-column    (+ grid-col ~actual-width)}}
        (do (reset! !scroller# dom/node)
            (let [[scroll-top#] (new (sw/scroll-state< dom/node))]
@@ -439,10 +442,10 @@
            nil)
        (dom/div {:role "filler" "data-height" actual-height# :style {:height (str actual-height# "px")}}))
 
-     (binding [pagination-offset (max 0 (js/Math.ceil (/ (js/Math.floor (p/watch !scroll-top#)) row-height#)))]
+     (binding [pagination-offset (compute-offset (p/watch !scroll-top#) row-height#)]
        (dom/div {::dom/role "scrollview"}
-        (dom/event "wheel" ; TODO support keyboard nav and touchscreens
-          (fn [e#] (let [scroller# @!scroller#]
-                     (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY))))))
-        ~@body))))
+         (dom/event "wheel" ; TODO support keyboard nav and touchscreens
+           (fn [e#] (let [scroller# @!scroller#]
+                      (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY))))))
+         ~@body))))
 
