@@ -395,7 +395,7 @@
   (new (m/sample -get-system-time-ms <clock)))
 
 (p/def system-time-secs "seconds since 1970 Jan 1"
-  (/ system-time-ms 1000.0))
+  (Math/round (/ system-time-ms 1000.0)))
 
 #?(:cljs
    (tests
