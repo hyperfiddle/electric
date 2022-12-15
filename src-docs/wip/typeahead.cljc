@@ -1,4 +1,4 @@
-(ns peter.y2022.typeahead
+(ns wip.typeahead
   (:refer-clojure :exclude [class])
   (:require
    #?(:cljs [hyperfiddle.ui.test :as uit])
@@ -6,7 +6,7 @@
    [hyperfiddle.photon-dom :as dom]
    [hyperfiddle.rcf :as rcf :refer [tests tap %]]
    [clojure.string :as str])
-  #?(:cljs (:require-macros peter.y2022.typeahead))
+  #?(:cljs (:require-macros wip.typeahead))
   (:import [missionary Cancelled]
            [hyperfiddle.photon Pending]))
 
@@ -90,7 +90,7 @@
                  (on "input" (reset! !rep# (.. event -target -value)))
                  (set! (.-value dom/node) rep#)
                  ~@body)
-               (when picking?# (new ~Picklist rep#))))
+               (when picking?# (new PL# rep#))))
            (or ent# entC#))
          (catch hyperfiddle.photon.Pending _e# (or ent# entC#))))))
 
