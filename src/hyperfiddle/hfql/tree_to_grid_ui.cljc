@@ -169,10 +169,11 @@
                hf/Render Render-impl]
        (p/client ; FIXME don’t force body to run on the client
          (dom/div {:class "hyperfiddle-gridsheet"} ; FIXME drop the wrapper div
-           (set-css-var! dom/node "--hf-columns-border-gradient"
-             (grid-columns->column-borders
-               (js/parseFloat (new ComputedStyle #(.-gridColumnGap ^js %) dom/node))
-               (new ComputedStyle #(.-gridTemplateColumns %) dom/node)))
+           (let [col-gradient (grid-columns->column-borders
+                                (js/parseFloat (new ComputedStyle #(.-gridColumnGap ^js %) dom/node))
+                                (new ComputedStyle #(.-gridTemplateColumns %) dom/node))]
+             (dom/div {:class "hf-grid-overlay"}
+               (set-css-var! dom/node "--hf-columns-border-gradient" col-gradient)))
            (let [[scroll-top# scroll-height# client-height#] (new (sw/scroll-state< dom/node))]
              (set! (.. dom/node -style -backgroundPositionY) (str (- (int scroll-top#)) "px"))
              nil)
