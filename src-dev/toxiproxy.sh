@@ -1,9 +1,10 @@
 #!/bin/sh
 
-# $ brew tap shopify/shopify
-# $ brew install toxiproxy
+# https://github.com/Shopify/toxiproxy
+# brew tap shopify/shopify
+# brew install toxiproxy
 
-toxiproxy-server & \
+LOG_LEVEL=error toxiproxy-server & \
 toxiproxy-cli create --listen localhost:$1 --upstream localhost:$2 hf_toxic_proxy && \
 toxiproxy-cli toxic add -t latency -a latency=$3 hf_toxic_proxy
 
