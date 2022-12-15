@@ -109,7 +109,8 @@
               (when-not (= ::init v')
                 (p/server (tx. ctx v'))))))))))
 
-(p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx} value]
+;; NOTE: No default option renderer, to be handled by the summarizer (typeahead, tag picker, etc...)
+#_(p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx} value]
   (let [value        (find-best-identity value)
         options      (or options (::hf/options (::parent ctx)))
         option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
@@ -133,13 +134,16 @@
             (let [ctx (if (::hf/tx ctx) ctx (::parent ctx))]
               (when tx (tx. ctx v')))))))))
 
-(p/defn Default [{::hf/keys [entity link link-label options] :as ctx}]
-  (let [route   (when link (new link))
-        value   (hfql/JoinAllTheTree. ctx)
-        options (or options (::hf/options (::parent ctx)))]
+(p/defn Default [{::hf/keys [entity link link-label options option-label] :as ctx}]
+  (let [route        (when link (new link))
+        value        (hfql/JoinAllTheTree. ctx)
+        options      (or options (::hf/options (::parent ctx)))
+        option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
+        value        (option-label. value)
+        ]
     (cond
       (some? route)      (p/client (cell grid-row grid-col (hf/Link. route link-label)))
-      (some? options)    (Options. ctx value)
+      ;; (some? options)    (Options. ctx value)
       (::value-type ctx) (Input. ctx)
       :else
       (p/client
@@ -184,7 +188,6 @@
   (cond
     (::hf/height ctx)  (+ (::hf/height ctx)
                         (count (::hf/arguments ctx)))
-    (::hf/options ctx) 2
     (::hf/keys ctx)    (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
     ;; TODO handle unknown height
     :else              1))
@@ -352,16 +355,11 @@
                         [(binding [grid-row row
                                    grid-col (inc grid-col)]
                            (p/server (GrayInputs. ctx)))
-                         (binding [grid-row (if leaf? (inc row) (+ 1 row argc))]
-                           (p/server (when (some? (::hf/options ctx))
-                                       (Options. ctx (hfql/JoinAllTheTree. ctx)))))
                          (binding [grid-row (if leaf? row (+ row argc))
                                    grid-col (inc grid-col)]
                            (p/server
                              (let [ctx (assoc ctx ::dom/for dom-for)]
-                               (if false #_(::hf/options ctx)
-                                   (Default. ctx)
-                                   (Render. (assoc ctx ::dom/for dom-for))))))])
+                               (Render. (assoc ctx ::dom/for dom-for)))))])
                       )))))))))))
 
 (p/defn Row [{::hf/keys [keys values] :as ctx}]

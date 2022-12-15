@@ -154,13 +154,15 @@
   [env db]
   (->> (nodes db (d/q '[:find [?e ...] :where [?e] (or [?e :node/type :ident]
                                                      (and [?e :node/role :argument] [?e :node/position 0]))] db))
-       (map (fn [node]
-              (case (:node/type node)
-                :ident (case (:node/form-type node)
-                         :symbol (resolve-sym env node (:node/form node))
-                         nil)
+    (mapcat (fn [node]
+              (case [(:node/type node) (:node/form-type node)]
+                [:ident :symbol]  (if-let [resolved (resolve-sym env node (:node/form node))]
+                                    [resolved]
+                                    [{:db/id         (:db/id node)
+                                      :node/lexical? true}])
+                [:ident :keyword] nil
                 (throw (ex-info "Can only call functions or keywords" {:called (:node/form node)})))))
-       (d/db-with db)))
+    (d/db-with db)))
 
 (defn resolve-cardinalities-pass "For each function node, infer cardinality (::hf/one or ::hf/many) from the function spec."
   [env db]
@@ -663,7 +665,9 @@
 
 (defn emit-argument [node]
   (if-let [ref (:node/reference node)]
-    `(p/fn [] ~(wrap-default node `(get-in (hyperfiddle.hfql/JoinArg. ~(:node/symbol ref)) ~(:node/reference-path node))))
+    (if (:node/lexical? ref)
+      `(p/fn [] ~(:node/name ref))
+      `(p/fn [] ~(wrap-default node `(get-in (hyperfiddle.hfql/JoinArg. ~(:node/symbol ref)) ~(:node/reference-path node)))))
     (if (:node/free-input? node)
       `(p/fn [] ~(wrap-default node `(get-in hf/route ~(:input/path node))))
       `(p/fn [] ~(wrap-default node
@@ -695,9 +699,11 @@
                           ::hf/one  `(new ~card-one-continuation ~value)
                           ::hf/many `(p/for [e# ~value] (new ~card-one-continuation e#))
                           `(let [value# ~value]
-                             (case (hf/*cardinality* hf/*schema* hf/db ~attribute)
-                               (::hf/one nil) (new  ~card-one-continuation value#)
-                               ::hf/many      (p/for [e# value#] (new ~card-one-continuation e#)))))))]
+                             (if (qualified-keyword? ~attribute)
+                               (case (hf/*cardinality* hf/*schema* hf/db ~attribute)
+                                 (::hf/one nil) (new  ~card-one-continuation value#)
+                                 ::hf/many      (p/for [e# value#] (new ~card-one-continuation e#)))
+                               (new  ~card-one-continuation value#))))))]
                ~(assoc (emit-props point)
                   ::hf/Value (:node/symbol point))))
           ;; No continuation, so cardinality doesn’t matter, we produce a final value.
@@ -768,4 +774,41 @@
   (hfql :db/id) 
 
 
+  )
+
+(comment
+  (parse 1)
+  (precompile 1) )
+
+(comment
+  (parse [1])
+  (precompile [1]) )
+
+(comment
+  (let [e 1]
+    (parse 'e))
+  (precompile e) )
+
+
+(comment
+  (parse '(wip.orders-datascript/order ""))
+  )
+
+(comment
+
+  (parse '{e [:db/id]})
+  (analyze '{e [:db/id]})
+  (graph '{e [:db/id]}) 
+  (precompile e) 
+  (precompile {12 [:db/id]})
+  (precompile {12 [:db/id]}) 
+  )
+
+(comment
+
+  (parse 12)
+  (graph 12)
+  (precompile 12) 
+  (precompile {12 [:db/id]}) 
+  (precompile {e [:db/id]}) 
   )
