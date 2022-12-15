@@ -5,12 +5,14 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.spec :as spec]
             [clojure.datafy :refer [datafy]]
+            [clojure.string :as str]
             ;; [contrib.ednish :as ednish]
             [contrib.color :as c]
             [contrib.data :as data]
             [hyperfiddle.photon-ui2 :as ui2]
             [hyperfiddle.scrollview :as sw]
-            [hyperfiddle.rcf :refer [tests with % tap]])
+            [hyperfiddle.rcf :refer [tests with % tap]]
+            [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.hfql.tree-to-grid-ui])))
 
 (defn replate-state! [!route path value]
@@ -167,6 +169,13 @@
                hf/Render Render-impl]
        (p/client ; FIXME don’t force body to run on the client
          (dom/div {:class "hyperfiddle-gridsheet"} ; FIXME drop the wrapper div
+           (set-css-var! dom/node "--hf-columns-border-gradient"
+             (grid-columns->column-borders
+               (js/parseFloat (new ComputedStyle #(.-gridColumnGap ^js %) dom/node))
+               (new ComputedStyle #(.-gridTemplateColumns %) dom/node)))
+           (let [[scroll-top# scroll-height# client-height#] (new (sw/scroll-state< dom/node))]
+             (set! (.. dom/node -style -backgroundPositionY) (str (- (int scroll-top#)) "px"))
+             nil)
            ~@body)))))
 
 ;; TODO adapt to new HFQL macroexpansion
@@ -282,11 +291,6 @@
             (dom/event "blur" (fn [_] (reset! !steady false))))
           (or (p/watch !v) value))))) )
 
-(p/defn CellPad [row col-offset]
-  (let [n (- grid-width grid-col (dec col-offset))]
-    (p/for [i (range n)]
-      (cell row (+ grid-col (dec col-offset) (inc i))))))
-
 (defn apply-1 [n F args]
   (let [syms (vec (repeatedly n gensym))]
     `(let [~syms ~args]
@@ -317,10 +321,8 @@
           args (p/for-by second [[idx arg] (map-indexed vector arguments)]
                  (p/client
                    (binding [grid-row (+ grid-row idx)]
-                     (let [v (p/server
-                               (GrayInput. true spec nil arg))]
-                       (CellPad. grid-row 2)
-                       v))))]
+                     (p/server
+                       (GrayInput. true spec nil arg)))))]
       (when (some? tx)
         (Apply. tx args)))))
 
@@ -338,8 +340,6 @@
                 (p/client
                   (let [row     (+ grid-row idx (- h idx))
                         dom-for (random-uuid)]
-                    (p/for [i (range (dec grid-col))]
-                      (cell row (inc i)))
                     (dom/label
                       {::dom/role  "cell"
                        ::dom/class "label"
@@ -350,7 +350,6 @@
                        ::dom/title (pr-str (or (spec-description false (attr-spec key))
                                              (p/server (schema-value-type hf/*schema* hf/db key))))}
                       (dom/text (str (non-breaking-padder indentation) (field-name key))))
-                    (CellPad. row 2)
                     (binding [indentation (if true #_leaf? indentation (inc indentation))]
                       (into [] cat
                         [(binding [grid-row row
@@ -374,17 +373,13 @@
              ::dom/name    id,
              ::dom/checked (= (::current-value table-picker-options) value)
              ::dom/style   {:grid-row grid-row, :grid-column grid-col}})))
-      (let [result (p/server
-                     (into [] cat
-                      (p/for-by second [[idx ctx] (map-indexed vector values)]
-                        (p/client
-                          (binding [grid-col (+ grid-col idx)]
-                            (dom/td (p/server (binding [Form Default]
-                                                (Render. ctx)))))))))]
-        (p/for [i (range (dec grid-col))]
-          (cell grid-row (inc i)))
-        (CellPad. grid-row (count keys))
-        result))))
+      (p/server
+        (into [] cat
+          (p/for-by second [[idx ctx] (map-indexed vector values)]
+            (p/client
+              (binding [grid-col (+ grid-col idx)]
+                (dom/td (p/server (binding [Form Default]
+                                    (Render. ctx))))))))))))
 
 (p/def Table)
 (p/defn Table-impl [{::hf/keys [keys height] :as ctx} value]
@@ -394,8 +389,6 @@
         (dom/table {::dom/role "table"}
           (dom/thead
             (dom/tr
-              (p/for [i (range (dec grid-col))]
-                (cell grid-row (inc i)))
               (when (::group-id table-picker-options)
                 (dom/th {::dom/role  "cell"
                          ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
@@ -407,25 +400,23 @@
                          ::dom/style {:grid-row    grid-row,
                                       :grid-column (+ grid-col idx)
                                       :color       (c/color hf/db-name)}}
-                  (str (non-breaking-padder indentation) (field-name col))))
-              (CellPad. grid-row (inc (count keys)))))
+                  (str (non-breaking-padder indentation) (field-name col))))))
           (dom/tbody
             (let [offset pagination-offset]
               (p/server
                 (into [] cat
                   (let [vals     (->> value (drop offset) (take height))
-                        vals-cnt (count vals)
-                        res (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector vals)]
-                              (p/client (binding [grid-row (+ grid-row idx 1)]
-                                          (p/server (Row. ctx)))))]
-                    (p/client
-                      (p/for [idx (range (max 0 (- height vals-cnt)))]
-                        (binding [grid-row (+ grid-row vals-cnt idx)]
-                          (CellPad. grid-row 1))))
-                    res))))))))))
+                        vals-cnt (count vals)]
+                    (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector vals)]
+                      (p/client (binding [grid-row (+ grid-row idx 1)]
+                                  (p/server (Row. ctx)))))))))))))))
 
 (defn compute-offset [scroll-top row-height]
   #?(:cljs (max 0 (js/Math.ceil (/ (js/Math.floor scroll-top) row-height)))))
+
+
+#?(:cljs (defn set-css-var! [^js node key value]
+           (.setProperty (.-style node) key value)))
 
 (defmacro PaginatedGrid [actual-width max-height actual-height & body]
   `(let [row-height#    (dom/measure "var(--hf-grid-row-height)")
@@ -449,3 +440,40 @@
                       (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY))))))
          ~@body))))
 
+
+(defn parse-columns-width "Given a computed grid-template-columns value, return a vector of numeric width.
+  Value being computed implies all columns width are in px."
+  [gridTemplateColumns]
+  #?(:cljs (map js/parseFloat (str/split gridTemplateColumns #"px\s"))))
+
+(defn grid-columns->column-borders
+  "Given a grid gap in px and computed grid columns in px, return a repeating
+  linear gradient to drawing borders between columns."
+  [gap grid-template-columns]
+  (when-not (= "none" grid-template-columns)
+    #?(:cljs (let [columns (parse-columns-width grid-template-columns)]
+               (str "repeating-linear-gradient("
+                 "to right"
+                 ", transparent 0"
+                 ","
+                 (str/join ", " (map (fn [width]
+                                       (str "transparent " width "px"
+                                         ", var(--hf-cell-border-color) " width "px calc(" width "px + var(--hf-grid-gap))"
+                                         ", transparent calc("width"px + var(--hf-grid-gap))"))
+                                  (reductions (partial + gap) columns)))
+                 ")")))))
+
+(defn get-computed-style [node] #?(:cljs (js/getComputedStyle node)))
+
+(p/defn ComputedStyle
+  "Calls the `keyfn` clojure function, passing it the given DOM node’s
+  CSSStyleDeclaration instance. `keyfn` is meant to extract a property from the
+  live computed style object."
+  ;; Does not return CSSStyleDeclaration directly because a CSSStyleDeclaration
+  ;; is a live object with a stable identity. m/cp would dedupe it even if
+  ;; properties might have changed.
+  [keyfn node]
+  (let [live-object (get-computed-style node)]
+    (->> (m/sample (partial keyfn live-object) dom/<clock)
+      (m/reductions {} (keyfn live-object))
+      (new))))
