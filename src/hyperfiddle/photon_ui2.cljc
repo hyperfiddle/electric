@@ -18,12 +18,40 @@
 
 (defn- ?static-props [body] (if (map? (first body)) `((dom/props ~(first body)) ~@body) body))
 
+(defn nil->pending [value]
+  ; workaround - use nil as sentinel to mean inital value is unknown.
+  ; We must never emit a manufactured value, because the database would commit it!
+  (if (nil? value) (throw (Pending.)) value))
+
 (p/defn InputController [controlled-value]
-  (p/with-cycle [value ""]
-    (if (Focused?.)
-      (if-some [e (dom/Event. "input" false)]
-        (-> e .-target .-value) value)
-      (set! (.-value dom/node) controlled-value))))
+  ; When cv is pending, the exception is thrown in two places, see RCF.
+  ; This tells us that the cv is not yet synced.
+  ; We use nil as a sentinel value that indicates the value is unknown.
+  (nil->pending
+    (p/with-cycle [local-value #_(throw (Pending.)) nil] ; internal state starts unknown
+      (if (Focused?.)
+        (if-some [e (dom/Event. "input" false)]
+          (-> e .-target .-value) local-value)
+        ; on fast blur, keep local value until controlled value commits.
+        ; (Prevent leapfrog loop – blur too fast -> get old controlled value, loop)
+        (try (p/Unglitch. controlled-value)
+             (set! (.-value dom/node) controlled-value)
+             (catch Pending _ local-value)))))) ; emit local value (that matches the dom) while we wait for commit
+
+; Note: if the body of with-cycle throws, the state is not updated (currently).
+
+(tests
+  "the same exception is thrown from two places!"
+  (p/defn InputController1 [tap controlled-value]
+    (try controlled-value
+         (catch Pending _ (tap :pending-inner))))
+
+  (with (p/run (try
+                 (InputController1. tap (throw (Pending.)))
+                 (catch Pending _ (tap :pending-outer)))))
+  % := :pending-inner
+  % := :pending-outer
+  % := ::rcf/timeout)
 
 (defmacro input "
 A dom input text component.
