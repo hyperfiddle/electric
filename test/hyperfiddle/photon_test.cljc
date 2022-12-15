@@ -852,6 +852,19 @@
 ;  % := ::pending
 ;  % := 1)
 
+(tests
+  "the same exception is thrown from two places!"
+  (p/defn InputController1 [tap controlled-value]
+    (try controlled-value
+         (catch Pending _ (tap :pending-inner))))
+
+  (with (p/run (try
+                 (InputController1. tap (throw (Pending.)))
+                 (catch Pending _ (tap :pending-outer)))))
+  % := :pending-inner
+  % := :pending-outer
+  % := ::rcf/timeout)
+
 (tests "object lifecycle"
   (def !x (atom 0))
   (let [hook (fn [mount! unmount!]
