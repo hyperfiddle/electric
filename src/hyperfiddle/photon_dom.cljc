@@ -586,7 +586,7 @@
       false
       (catch Pending e true))))
 
-(defmacro measure
+(defmacro measure ; could this be replaced by watching computed style?
   "Given a css size like \"1em\", \"1rem\" or other units, return the
   corresponding size in pixels. Will install a invisible div in the DOM, at
   point."
