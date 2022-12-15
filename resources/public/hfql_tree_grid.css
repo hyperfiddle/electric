@@ -29,7 +29,25 @@ body{
     justify-items: start; /* cell content is left aligned */
     align-items: center;  /* cells align their content on the row center */
 
-    /* Alternating colors behind rows */
+    position: relative;
+
+
+    overflow-y: auto; /* scroll if needed, js code will shift the background-gradient’s position  */
+
+    box-sizing: border-box; /* nested scrollbars do not add to the width */
+
+}
+
+.hyperfiddle-gridsheet > .hf-grid-overlay{
+    position: absolute;
+    top:0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+
+    pointer-events: none;
+
+    /* Virtual Borders */
     background:
         repeating-linear-gradient(transparent 0 calc(var(--hf-grid-row-height) - 0.5px) /* FIXME subpixel sampling */
                                   , var(--hf-cell-border-color) var(--hf-grid-row-height)
@@ -38,12 +56,6 @@ body{
                                                 calc(var(--hf-grid-row-height) + var(--hf-grid-gap)))
         , var(--hf-columns-border-gradient)
     ;
-
-
-    overflow-y: auto; /* scroll if needed, js code will shift the background-gradient’s position  */
-
-    box-sizing: border-box; /* nested scrollbars do not add to the width */
-
 }
 
 /* A vertical, standalone scrollbar. Meant to render in a single column next to some rows. */
@@ -96,7 +108,7 @@ body{
 
 .hyperfiddle-gridsheet input[role="cell"] {
 
-
+    border:none;
 }
 
 /* Edge case: checkboxes should not grow to fill the row height  */
