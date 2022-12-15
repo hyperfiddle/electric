@@ -1,7 +1,7 @@
 (ns peter.y2022.typeahead-demo
   (:require
    [clojure.string :as str]
-   [peter.y2022.typeahead :as tphd]
+   [wip.typeahead :as tphd]
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom]
    [hyperfiddle.photon-ui2 :as ui2]
@@ -15,6 +15,7 @@
           (into [] (comp (filter #(or (empty? search) (str/includes? (second %) search))) (map first)) -data)))
 
 #?(:clj (defn random-person [prev] (m/sp (m/? (m/sleep 5000)) (rand-nth (-> -data keys set (disj prev) vec)))))
+#?(:clj (def !v (atom :alice)))
 
 (p/defn App []
   (p/client
@@ -39,19 +40,31 @@
               (dom/props {:placeholder "Pick a person!"})))
           (dom/h2 (dom/text "Managed typeahead"))
           (dom/p (dom/text "There are updates flowing in from a concurrent user. Open console to see."))
-          (let [!v (atom :alice), v (p/watch !v)]
+          (let [v (p/server (p/watch !v))]
             (let [picked (p/server (new (p/task->cp (random-person v))))]
               (println "concurrent modification to" picked)
-              (reset! !v picked))
-            (reset! !v (ValueLog.
-                         (tphd/typeahead v
-                           (p/fn [search]
-                             (prn :seach search)
-                             (p/server
-                               (p/for [e (q search)]
-                                 (p/client
-                                   (tphd/typeahead-item e (dom/div (dom/text (p/server (get -data e)))))))))
-                           (p/fn [e] (p/server (get -data e)))
-                           (dom/props {:placeholder "Pick a person!"})))))
+              (p/server (reset! !v picked)))
+            (p/server (reset! !v
+                        (p/client (ValueLog.
+                                    (tphd/typeahead v
+                                      (p/fn [search]
+                                        (prn :seach search)
+                                        (p/server
+                                          (p/for [e (q search)]
+                                            (p/client
+                                              (tphd/typeahead-item e (dom/div (dom/text (p/server (get -data e)))))))))
+                                      (p/fn [e] (p/server (get -data e)))
+                                      (dom/props {:placeholder "Pick a person!"}))))))
+            (p/server (reset! !v
+                        (p/client (ValueLog.
+                                    (tphd/typeahead v
+                                      (p/fn [search]
+                                        (prn :seach search)
+                                        (p/server
+                                          (p/for [e (q search)]
+                                            (p/client
+                                              (tphd/typeahead-item e (dom/div (dom/text (p/server (get -data e)))))))))
+                                      (p/fn [e] (p/server (get -data e)))
+                                      (dom/props {:placeholder "Pick a person!"})))))))
           nil)))
     ))
