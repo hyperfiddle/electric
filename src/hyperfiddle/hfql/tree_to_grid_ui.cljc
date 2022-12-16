@@ -32,6 +32,12 @@
   (let [attr (schema-f db a)]
     (spec/valueType->type (or (:db/valueType attr) (:hf/valueType attr))))) ; datascript rejects valueType other than ref.
 
+(defn schema-cardinality [schema-f db a]
+  (case (:db/cardinality (schema-f db a))
+    :db.cardinality/one  ::hf/one
+    :db.cardinality/many ::hf/many
+    nil))
+
 (defn spec-description [prefer-ret? attr]
   (when (qualified-ident? attr)
     (when-let [spec (datafy (spec/spec attr))]
@@ -194,14 +200,21 @@
             (map? v)    (Render. (assoc v ::parent ctx))
             :else       (throw "unreachable" {:v v})))))))
 
-(defn height [ctx]
-  (cond
-    (::hf/height ctx)  (+ 1             ; header row
-                         (::hf/height ctx)
-                        (count (::hf/arguments ctx)))
-    (::hf/keys ctx)    (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
-    ;; TODO handle unknown height
-    :else              1))
+(defn height
+  ([ctx] (height ctx nil))
+  ([ctx value]
+   (cond
+     (::hf/height ctx) (+ 1             ; header row
+                          (::hf/height ctx)
+                          (count (::hf/arguments ctx)))
+     (vector? value)   (+ 1 (count value)) ; table
+     (set? value)      (count value)       ; list
+     (::hf/keys ctx)   (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
+     ;; TODO handle unknown height
+     :else             1)))
+
+;; (p/defn Height [ctx]
+;;   (if (::hf/height ctx)))
 
 (p/defn ExplodeCardNLeafToTable [{::hf/keys [height attribute] :as ctx}]
   (-> ctx
@@ -221,9 +234,10 @@
   (let [spec-value-type   (spec-value-type attribute)
         schema-value-type (schema-value-type hf/*schema* hf/db attribute)
         defined-by-spec?  (and spec-value-type (not schema-value-type))
-        value-type        (or spec-value-type schema-value-type)]
+        value-type        (or spec-value-type schema-value-type)
+        cardinality       (or cardinality (schema-cardinality hf/*schema* hf/db attribute))]
     (case cardinality
-      ::hf/many (Render. (ExplodeCardNLeafToTable. ctx))
+      ::hf/many nil #_(Render. (ExplodeCardNLeafToTable. ctx))
       (case value-type
         (:hyperfiddle.spec.type/string
          :hyperfiddle.spec.type/instant
@@ -232,7 +246,6 @@
         (Default. ctx)))))
 
 (defn non-breaking-padder [n] (apply str (repeat n " ")) )
-
 
 (defn field-name [attr]
   (if (seq? attr)
@@ -382,9 +395,14 @@
                 (dom/td (p/server (binding [Form Default]
                                     (Render. ctx))))))))))))
 
+(p/def default-height 10)
+
+(defn clamp [lower-bound upper-bound number] (max lower-bound (min number upper-bound)))
+
 (p/def Table)
 (p/defn Table-impl [{::hf/keys [keys height] :as ctx} value]
-  (let [actual-height (count value)]
+  (let [actual-height (count value)
+        height        (clamp 1 (or height default-height) actual-height)]
     (p/client
       (PaginatedGrid (count keys) height actual-height
         (dom/table {::dom/role "table"}
