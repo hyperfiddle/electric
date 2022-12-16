@@ -34,8 +34,7 @@
           (-> e .-target .-value) local-value)
         ; on fast blur, keep local value until controlled value commits.
         ; (Prevent leapfrog loop – blur too fast -> get old controlled value, loop)
-        (try (p/Unglitch. controlled-value)
-             (set! (.-value dom/node) controlled-value)
+        (try (when (p/Unglitch. controlled-value) (set! (.-value dom/node) controlled-value))
              (catch Pending _ local-value)))))) ; emit local value (that matches the dom) while we wait for commit
 
 ; Note: if the body of with-cycle throws, the state is not updated (currently).
