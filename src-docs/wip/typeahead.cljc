@@ -62,8 +62,7 @@
     `(let [entC# ~entC, PL# ~Picklist, E->R# ~ItemToText
            !ent# (atom nil), ent# (p/watch !ent#)]
        (try
-         (let [!entC-prev# (atom nil), entC-prev# (p/watch !entC-prev#)
-               !rep# (atom nil), rep# (p/watch !rep#)
+         (let [!rep# (atom nil), rep# (p/watch !rep#)
                ~!picking? (atom false), picking?# (p/watch ~!picking?)]
            (when (nil? ent#)
              (reset! !ent# entC#)
@@ -72,19 +71,9 @@
              (container ~!picking?
                (with (elem "input")
                  (when-not picking?#
-                   #_(prn [entC-prev# ent# entC#])
-                   ;; fork detection
-                   ;; If we are not picking and controlled value changed
-                   ;; we check if return value also changed in between.
-                   ;; If it didn't we accept the new controlled value,
-                   ;; else we stabilize local state
-                   (when (not= entC# entC-prev#)
-                     (if (or (nil? entC-prev#) (= ent# entC-prev#))
-                       (when-let [new-rep# (new E->R# entC#)]
-                         (reset! !ent# entC#)
-                         (reset! !rep# new-rep#)
-                         (reset! !entC-prev# entC#))
-                       (reset! !entC-prev# entC#))))
+                   (when-let [new-rep# (new E->R# (new p/Unglitch entC#))]
+                     (reset! !ent# entC#)
+                     (reset! !rep# new-rep#)))
                  (dom/props {:class [(class "input")], :type "text"})
                  (when picking?# (close-on-click-unless-clicked-input ~!picking?))
                  (on "input" (reset! !rep# (.. event -target -value)))
