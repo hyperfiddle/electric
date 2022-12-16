@@ -149,11 +149,12 @@
        :function/var  (c/get-var var)
        :function/name (c/var-name var)})))
 
+(def _rfpq '[:find [?e ...] :where [?e] (or [?e :node/type :ident]
+                                          (and [?e :node/role :argument] [?e :node/position 0]))])
 
 (defn resolve-functions-pass "For each function node, resolve the function symbol in env and extract the var name (qualified)."
   [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e] (or [?e :node/type :ident]
-                                                     (and [?e :node/role :argument] [?e :node/position 0]))] db))
+  (->> (nodes db (d/q _rfpq db))
     (mapcat (fn [node]
               (case [(:node/type node) (:node/form-type node)]
                 [:ident :symbol]  (if-let [resolved (resolve-sym env node (:node/form node))]
@@ -164,19 +165,25 @@
                 (throw (ex-info "Can only call functions or keywords" {:called (:node/form node)})))))
     (d/db-with db)))
 
+(def _rcpq '[:find [?e ...] :where (or (and [?e :node/type :apply] (not [?e :node/role :argument]) (not [?e :node/quoted?]))
+                                     (and [?e :node/type :ident] [?e :node/form-type :symbol] (not [?e :node/role :argument])))])
+
 (defn resolve-cardinalities-pass "For each function node, infer cardinality (::hf/one or ::hf/many) from the function spec."
   [env db]
-  (->> (nodes db (d/q '[:find [?e ...] :where [?e :node/type :apply] (not [?e :node/role :argument]) (not [?e :node/quoted?])] db))
-       (map (fn [node]
-              (let [f    (first (arguments node))
+  (->> (nodes db (d/q _rcpq db))
+    (mapcat (fn [node]
+              (let [f    (if (= :apply (:node/type node))
+                           (first (arguments node))
+                           node)
                     spec (or (:function/name f) (:node/form f))]
-                (if-some [many? (spec/cardinality-many? spec)]
-                  {:db/id            (:db/id f)
-                   :node/cardinality (if many? ::hf/many ::hf/one)}
-                  (case spec
-                    (:db/id :db/ident) {:db/id (:db/id f), :node/cardinality ::hf/one}
-                    (when (symbol? spec)
-                      (throw (ex-info "Unknown cardinality, please define a spec." {:missing spec}))))))))
+                (when (qualified-ident? spec)
+                  (if-some [many? (spec/lardinality-many? spec)]
+                    [{:db/id            (:db/id f)
+                      :node/cardinality (if many? ::hf/many ::hf/one)}]
+                    (case spec
+                      (:db/id :db/ident) [{:db/id (:db/id f), :node/cardinality ::hf/one}]
+                      (when (symbol? spec)
+                        (throw (ex-info "Unknown cardinality, please define a spec." {:missing spec})))))))))
        (d/db-with db)))
 
 (defn resolve-arguments-spec-pass "For each function argument, infer argument spec info."
