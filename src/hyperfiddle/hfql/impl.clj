@@ -177,7 +177,7 @@
                            node)
                     spec (or (:function/name f) (:node/form f))]
                 (when (qualified-ident? spec)
-                  (if-some [many? (spec/lardinality-many? spec)]
+                  (if-some [many? (spec/cardinality-many? spec)]
                     [{:db/id            (:db/id f)
                       :node/cardinality (if many? ::hf/many ::hf/one)}]
                     (case spec
