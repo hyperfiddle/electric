@@ -53,35 +53,35 @@
 ;; afterwards typing in the input field should refresh the rep atom
 ;; clicking on a div should reset rep atom to derived ent's rep as well
 
+(defn nil->pending [value] (if (nil? value) (throw (Pending.)) value))
+
 ;; ent - an entity we're working with
 ;; rep - a string representation of the entity, that goes in the input
 ;; entC - controlled ent
 ;; repC - controlled rep
 (defmacro typeahead [entC Picklist ItemToText & body]
   (let [!picking? (gensym "!picking?")]
-    `(let [entC# ~entC, PL# ~Picklist, E->R# ~ItemToText
-           !ent# (atom nil), ent# (p/watch !ent#)]
-       (try
-         (let [!rep# (atom nil), rep# (p/watch !rep#)
-               ~!picking? (atom false), picking?# (p/watch ~!picking?)]
-           (when (nil? ent#)
-             (reset! !ent# entC#)
-             (reset! !rep# (new E->R# entC#)))
-           (binding [Select! (p/fn [ent#] (let [rep# (new E->R# ent#)] (reset! !rep# rep#)) (reset! !ent# ent#))]
-             (container ~!picking?
-               (with (elem "input")
-                 (when-not picking?#
-                   (when-let [new-rep# (new E->R# (new p/Unglitch entC#))]
-                     (reset! !ent# entC#)
-                     (reset! !rep# new-rep#)))
-                 (dom/props {:class [(class "input")], :type "text"})
-                 (when picking?# (close-on-click-unless-clicked-input ~!picking?))
-                 (on "input" (reset! !rep# (.. event -target -value)))
-                 (set! (.-value dom/node) rep#)
-                 ~@body)
-               (when picking?# (new PL# rep#))))
-           (or ent# entC#))
-         (catch hyperfiddle.photon.Pending _e# (or ent# entC#))))))
+    `(nil->pending
+       (let [entC# ~entC, PL# ~Picklist, E->R# ~ItemToText
+             !ent# (atom nil), ent# (p/watch !ent#)]
+         (try
+           (let [!rep# (atom nil), rep# (p/watch !rep#)
+                 ~!picking? (atom false), picking?# (p/watch ~!picking?)]
+             (binding [Select! (p/fn [ent#] (let [rep# (new E->R# ent#)] (reset! !rep# rep#)) (reset! !ent# ent#))]
+               (container ~!picking?
+                 (with (elem "input")
+                   (when-not picking?#
+                     (when-let [new-rep# (new E->R# (new p/Unglitch entC#))]
+                       (reset! !ent# entC#)
+                       (reset! !rep# new-rep#)))
+                   (dom/props {:class [(class "input")], :type "text"})
+                   (when picking?# (close-on-click-unless-clicked-input ~!picking?))
+                   (on "input" (reset! !rep# (.. event -target -value)))
+                   (set! (.-value dom/node) rep#)
+                   ~@body)
+                 (when picking?# (new PL# rep#))))
+             ent#)
+           (catch hyperfiddle.photon.Pending _e# ent#))))))
 
 ;; thoughts
 ;;
