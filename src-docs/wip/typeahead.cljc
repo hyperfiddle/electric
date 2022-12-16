@@ -67,7 +67,7 @@
          (try
            (let [!rep# (atom nil), rep# (p/watch !rep#)
                  ~!picking? (atom false), picking?# (p/watch ~!picking?)]
-             (binding [Select! (p/fn [ent#] (let [rep# (new E->R# ent#)] (reset! !rep# rep#)) (reset! !ent# ent#))]
+             (binding [Select! (p/fn [ent#] (when-let [rep# (new E->R# ent#)] (reset! !rep# rep#) (reset! !ent# ent#)))]
                (container ~!picking?
                  (with (elem "input")
                    (when-not picking?#
