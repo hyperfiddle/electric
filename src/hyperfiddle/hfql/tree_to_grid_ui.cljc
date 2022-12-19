@@ -165,6 +165,8 @@
 
 (p/def Render)
 
+#?(:cljs (defn grid-column-gap [^js x] (.-gridColumnGap x)))
+
 ;; This should not be see in userland because it’s an implementation detail
 ;; driven by Photon not supporting mutual recursion as of today.
 (defmacro with-gridsheet-renderer [& body]
@@ -175,7 +177,7 @@
        (p/client ; FIXME don’t force body to run on the client
          (dom/div {:class "hyperfiddle-gridsheet"} ; FIXME drop the wrapper div
            (let [col-gradient (grid-columns->column-borders
-                                (js/parseFloat (new ComputedStyle #(.-gridColumnGap ^js %) dom/node))
+                                (js/parseFloat (new ComputedStyle grid-column-gap dom/node))
                                 (new ComputedStyle #(.-gridTemplateColumns %) dom/node))]
              (dom/div {:class "hf-grid-overlay"}
                (set-css-var! dom/node "--hf-columns-border-gradient" col-gradient)))
