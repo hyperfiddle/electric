@@ -201,17 +201,20 @@
             :else       (throw "unreachable" {:v v})))))))
 
 (defn height
-  ([ctx] (height ctx nil))
-  ([ctx value]
-   (cond
-     (::hf/height ctx) (+ 1             ; header row
-                          (::hf/height ctx)
-                          (count (::hf/arguments ctx)))
-     (vector? value)   (+ 1 (count value)) ; table
-     (set? value)      (count value)       ; list
-     (::hf/keys ctx)   (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
-     ;; TODO handle unknown height
-     :else             1)))
+  ([ctx] (height ctx (::value ctx)))
+  ([{::hf/keys [height arguments keys]} value]
+   (+ 1                                 ; current row
+     (count arguments)
+     (cond
+       (some? height)  (+ 1             ; table header
+                         height)
+       (vector? value) (+ 1             ; table header
+                         (count value)  ; rows
+                         (if (zero? (count arguments)) -1 0) ; table is at the same level as label
+                         )
+       (set? value)    (count value)    ; list
+       (some? keys)    (count keys)     ; form labels
+       :else           0))))
 
 ;; (p/defn Height [ctx]
 ;;   (if (::hf/height ctx)))
@@ -341,40 +344,41 @@
         (Apply. tx args)))))
 
 (p/defn Form [{::hf/keys [keys values] :as ctx}]
-  (p/client
-    (dom/form {:role  "form"
-               :style {:border-left-color (c/color hf/db-name)}}
-      (p/server
-        (let [heights (vec (reductions + 0 (map height values)))]
-          (into [] cat
-            (p/for-by (comp first second) [[idx [key ctx]] (map-indexed vector (partition 2 (interleave keys values)))]
-              (let [leaf? (= ::hf/leaf (::hf/type ctx))
-                    argc  (count (::hf/arguments ctx))
-                    h     (get heights idx)]
-                (p/client
-                  (let [row     (+ grid-row idx (- h idx))
-                        dom-for (random-uuid)]
-                    (dom/label
-                      {::dom/role  "cell"
-                       ::dom/class "label"
-                       ::dom/for   dom-for
-                       ::dom/style {:grid-row         row
-                                    :grid-column      grid-col
-                                    #_#_:padding-left (str indentation "rem")}
-                       ::dom/title (pr-str (or (spec-description false (attr-spec key))
-                                             (p/server (schema-value-type hf/*schema* hf/db key))))}
-                      (dom/text (str (non-breaking-padder indentation) (field-name key))))
-                    (binding [indentation (if true #_leaf? indentation (inc indentation))]
-                      (into [] cat
-                        [(binding [grid-row row
-                                   grid-col (inc grid-col)]
-                           (p/server (GrayInputs. ctx)))
-                         (binding [grid-row (if leaf? row (+ row argc))
-                                   grid-col (inc grid-col)]
-                           (p/server
-                             (let [ctx (assoc ctx ::dom/for dom-for)]
-                               (Render. (assoc ctx ::dom/for dom-for)))))])
-                      )))))))))))
+  (let [values (p/for [ctx values] (assoc ctx ::value (new (::hf/Value ctx))))]
+    (p/client
+      (dom/form {:role  "form"
+                 :style {:border-left-color (c/color hf/db-name)}}
+        (p/server
+          (let [heights (vec (reductions + 0 (map height values)))]
+            (into [] cat
+              (p/for-by (comp first second) [[idx [key ctx]] (map-indexed vector (partition 2 (interleave keys values)))]
+                (let [leaf? (= ::hf/leaf (::hf/type ctx))
+                      argc  (count (::hf/arguments ctx))
+                      h     (get heights idx)]
+                  (p/client
+                    (let [row     (+ grid-row idx (- h idx))
+                          dom-for (random-uuid)]
+                      (dom/label
+                        {::dom/role  "cell"
+                         ::dom/class "label"
+                         ::dom/for   dom-for
+                         ::dom/style {:grid-row         row
+                                      :grid-column      grid-col
+                                      #_#_:padding-left (str indentation "rem")}
+                         ::dom/title (pr-str (or (spec-description false (attr-spec key))
+                                               (p/server (schema-value-type hf/*schema* hf/db key))))}
+                        (dom/text (str (non-breaking-padder indentation) (field-name key))))
+                      (binding [indentation (if true #_leaf? indentation (inc indentation))]
+                        (into [] cat
+                          [(binding [grid-row row
+                                     grid-col (inc grid-col)]
+                             (p/server (GrayInputs. ctx)))
+                           (binding [grid-row (if leaf? row (+ row argc))
+                                     grid-col (inc grid-col)]
+                             (p/server
+                               (let [ctx (assoc ctx ::dom/for dom-for)]
+                                 (Render. (assoc ctx ::dom/for dom-for)))))])
+                        ))))))))))))
 
 (p/defn Row [{::hf/keys [keys values] :as ctx}]
   (p/client
