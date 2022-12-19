@@ -158,8 +158,7 @@
         (dom/pre {::dom/role  "cell"
                   ::dom/style {:grid-row grid-row, :grid-column grid-col}}
           (dom/text
-            (str (non-breaking-padder indentation)
-              (pr-str value)))))))),,
+            (pr-str value)))))))
 
 (defn give-card-n-contexts-a-unique-key [ctxs]
   (into [] (map-indexed (fn [idx ctx] (assoc ctx ::key idx))) ctxs))
@@ -368,16 +367,18 @@
                          ::dom/title (pr-str (or (spec-description false (attr-spec key))
                                                (p/server (schema-value-type hf/*schema* hf/db key))))}
                         (dom/text (str (non-breaking-padder indentation) (field-name key))))
-                      (binding [indentation (if true #_leaf? indentation (inc indentation))]
+                      (binding [indentation (if leaf? indentation (inc indentation))]
                         (into [] cat
-                          [(binding [grid-row row
-                                     grid-col (inc grid-col)]
+                          [(binding [grid-row (inc row)
+                                     grid-col (if leaf? (inc grid-col) grid-col)]
                              (p/server (GrayInputs. ctx)))
-                           (binding [grid-row (if leaf? row (+ row argc))
-                                     grid-col (inc grid-col)]
+                           (binding [grid-row (cond leaf?       row
+                                                    (pos? argc) (+ row (inc argc))
+                                                    :else       (inc row))
+                                     grid-col (if leaf? (inc grid-col) grid-col)]
                              (p/server
                                (let [ctx (assoc ctx ::dom/for dom-for)]
-                                 (Render. (assoc ctx ::dom/for dom-for)))))])
+                                 (Render. (assoc ctx ::dom/for dom-for ::parent-argc argc)))))])
                         ))))))))))))
 
 (p/defn Row [{::hf/keys [keys values] :as ctx}]
@@ -406,33 +407,37 @@
 (p/def Table)
 (p/defn Table-impl [{::hf/keys [keys height] :as ctx} value]
   (let [actual-height (count value)
-        height        (clamp 1 (or height default-height) actual-height)]
+        height        (clamp 1 (or height default-height) actual-height)
+        nested?       (some? (::dom/for ctx))
+        shifted?      (and (::parent-argc ctx) (zero? (::parent-argc ctx)))]
     (p/client
-      (PaginatedGrid (count keys) height actual-height
-        (dom/table {::dom/role "table"}
-          (dom/thead
-            (dom/tr
-              (when (::group-id table-picker-options)
-                (dom/th {::dom/role  "cell"
-                         ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
-              (p/for-by second [[idx col] (map-indexed vector keys)]
-                (dom/th {::dom/role  "cell"
-                         ::dom/class "label"
-                         ::dom/title (pr-str (or (spec-description true (attr-spec col))
-                                               (p/server (schema-value-type hf/*schema* hf/db col)))),
-                         ::dom/style {:grid-row    grid-row,
-                                      :grid-column (+ grid-col idx)
-                                      :color       (c/color hf/db-name)}}
-                  (str (non-breaking-padder indentation) (field-name col))))))
-          (dom/tbody
-            (let [offset pagination-offset]
-              (p/server
-                (into [] cat
-                  (let [vals     (->> value (drop offset) (take height))
-                        vals-cnt (count vals)]
-                    (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector vals)]
-                      (p/client (binding [grid-row (+ grid-row idx 1)]
-                                  (p/server (Row. ctx)))))))))))))))
+      (binding [grid-col (if nested? (inc grid-col) grid-col)
+                grid-row (if shifted? (dec grid-row) grid-row)]
+        (PaginatedGrid (count keys) height actual-height
+          (dom/table {::dom/role "table"}
+            (dom/thead
+              (dom/tr
+                (when (::group-id table-picker-options)
+                  (dom/th {::dom/role  "cell"
+                           ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
+                (p/for-by second [[idx col] (map-indexed vector keys)]
+                  (dom/th {::dom/role  "cell"
+                           ::dom/class "label"
+                           ::dom/title (pr-str (or (spec-description true (attr-spec col))
+                                                 (p/server (schema-value-type hf/*schema* hf/db col)))),
+                           ::dom/style {:grid-row    grid-row,
+                                        :grid-column (+ grid-col idx)
+                                        :color       (c/color hf/db-name)}}
+                    (field-name col)))))
+            (dom/tbody
+              (let [offset pagination-offset]
+                (p/server
+                  (into [] cat
+                    (let [vals     (->> value (drop offset) (take height))
+                          vals-cnt (count vals)]
+                      (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector vals)]
+                        (p/client (binding [grid-row (+ grid-row idx 1)]
+                                    (p/server (Row. ctx))))))))))))))))
 
 (defn compute-offset [scroll-top row-height]
   #?(:cljs (max 0 (js/Math.ceil (/ (js/Math.floor scroll-top) row-height)))))
