@@ -96,7 +96,7 @@ body{
 
     font-family: 'Roboto Mono', monospace;
     font-size: 0.9rem;
-    padding: 0.2rem;
+    /* padding: 0.2rem; */
 
     color: #222;
 }
