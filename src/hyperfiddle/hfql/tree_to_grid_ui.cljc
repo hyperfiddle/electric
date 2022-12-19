@@ -203,36 +203,39 @@
 
 (defn height
   ([ctx] (height ctx (::value ctx)))
-  ([{::hf/keys [height arguments keys]} value]
-   (+ 1                                 ; current row
-     (count arguments)
-     (cond
-       (some? height)  (+ 1             ; table header
-                         height)
-       (vector? value) (+ 1             ; table header
-                         (count value)  ; rows
-                         (if (zero? (count arguments)) -1 0) ; table is at the same level as label
-                         )
-       (set? value)    (count value)    ; list
-       (some? keys)    (count keys)     ; form labels
-       :else           0))))
+  ([{::hf/keys [height arguments keys] :as ctx} value]
+   (let [argc (count arguments)]
+     (+ argc
+       (cond
+         (some? height)                        height
+         (and keys (vector? value))            (+ 1             ; table header
+                                                 (count value) ; rows
+                                                 (if (pos? argc) 1 0)) ; args pushes table to next row
+         (or (set? value) (sequential? value)) (count value)
+         (some? keys)                          (+ 1 (count keys)) ; form labels on next row
+         :else                                 1)))))
 
-;; (p/defn Height [ctx]
-;;   (if (::hf/height ctx)))
+(p/defn List-impl [{::hf/keys [height attribute] :as ctx}]
+  (let [ctxs (p/for [v (hfql/JoinAllTheTree. ctx)]
+               {::hf/type        ::hf/keys
+                ::hf/keys        [attribute]
+                ::hf/cardinality ::hf/one
+                ::hf/values      [{::hf/type        ::hf/leaf
+                                   ::hf/attribute   attribute
+                                   ::hf/cardinality ::hf/one
+                                   ::hf/Value       (p/fn [] v)}]})
+        ctxs (give-card-n-contexts-a-unique-key ctxs)]
+    (Table.
+      (-> ctx
+        (dissoc ::hf/type)
+        (merge
+          {::hf/cardinality ::hf/many
+           ::hf/height      height
+           ::hf/keys        [attribute]
+           ::list?          true
+           ::hf/Value       (p/fn [] ctxs)}))
+      ctxs)))
 
-(p/defn ExplodeCardNLeafToTable [{::hf/keys [height attribute] :as ctx}]
-  (-> ctx
-    (dissoc ::hf/type)
-    (merge
-      {::hf/cardinality ::hf/many
-       ::hf/height      height
-       ::hf/keys        [attribute]
-       ::hf/Value       (p/fn [] (p/for [v (hfql/JoinAllTheTree. ctx)]
-                                   {::hf/type   ::hf/keys
-                                    ::hf/keys   [attribute]
-                                    ::hf/values [{::hf/type      ::hf/leaf
-                                                  ::hf/attribute attribute
-                                                  ::hf/Value     (p/fn [] v)}]}))})))
 
 (p/defn SpecDispatch [{::hf/keys [attribute cardinality] :as ctx}]
   (let [spec-value-type   (spec-value-type attribute)
@@ -241,7 +244,7 @@
         value-type        (or spec-value-type schema-value-type)
         cardinality       (or cardinality (schema-cardinality hf/*schema* hf/db attribute))]
     (case cardinality
-      ::hf/many nil #_(Render. (ExplodeCardNLeafToTable. ctx))
+      ::hf/many (List-impl. ctx)
       (case value-type
         (:hyperfiddle.spec.type/string
          :hyperfiddle.spec.type/instant
@@ -395,12 +398,13 @@
              ::dom/checked (= (::current-value table-picker-options) value)
              ::dom/style   {:grid-row grid-row, :grid-column grid-col}})))
       (p/server
-        (into [] cat
-          (p/for-by second [[idx ctx] (map-indexed vector values)]
-            (p/client
-              (binding [grid-col (+ grid-col idx)]
-                (dom/td (p/server (binding [Form Default]
-                                    (Render. ctx))))))))))))
+        (binding [List-impl Default]
+          (into [] cat
+            (p/for-by second [[idx ctx] (map-indexed vector values)]
+              (p/client
+                (binding [grid-col (+ grid-col idx)]
+                  (dom/td (p/server (binding [Form Default]
+                                      (Render. ctx)))))))))))))
 
 (p/def default-height 10)
 
@@ -410,33 +414,34 @@
 (p/defn Table-impl [{::hf/keys [keys height] :as ctx} value]
   (let [actual-height (count value)
         height        (clamp 1 (or height default-height) actual-height)
-        nested?       (some? (::dom/for ctx))
-        shifted?      (and (::parent-argc ctx) (zero? (::parent-argc ctx)))]
+        list?         (::list? ctx)
+        nested?       (and (some? (::dom/for ctx)) (not list?))
+        shifted?      (or list? (and (::parent-argc ctx) (zero? (::parent-argc ctx))))]
     (p/client
       (binding [grid-col (if nested? (inc grid-col) grid-col)
-                grid-row (if shifted? (dec grid-row) grid-row)]
+                grid-row (if (or shifted? list?) (dec grid-row) grid-row)]
         (PaginatedGrid (count keys) height actual-height
           (dom/table {::dom/role "table"}
-            (dom/thead
-              (dom/tr
-                (when (::group-id table-picker-options)
-                  (dom/th {::dom/role  "cell"
-                           ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
-                (p/for-by second [[idx col] (map-indexed vector keys)]
-                  (dom/th {::dom/role  "cell"
-                           ::dom/class "label"
-                           ::dom/title (pr-str (or (spec-description true (attr-spec col))
-                                                 (p/server (schema-value-type hf/*schema* hf/db col)))),
-                           ::dom/style {:grid-row    grid-row,
-                                        :grid-column (+ grid-col idx)
-                                        :color       (c/color hf/db-name)}}
-                    (field-name col)))))
+            (when-not list?
+              (dom/thead
+                (dom/tr
+                  (when (::group-id table-picker-options)
+                    (dom/th {::dom/role  "cell"
+                             ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
+                  (p/for-by second [[idx col] (map-indexed vector keys)]
+                    (dom/th {::dom/role  "cell"
+                             ::dom/class "label"
+                             ::dom/title (pr-str (or (spec-description true (attr-spec col))
+                                                   (p/server (schema-value-type hf/*schema* hf/db col)))),
+                             ::dom/style {:grid-row    grid-row,
+                                          :grid-column (+ grid-col idx)
+                                          :color       (c/color hf/db-name)}}
+                      (field-name col))))))
             (dom/tbody
               (let [offset pagination-offset]
                 (p/server
                   (into [] cat
-                    (let [vals     (->> value (drop offset) (take height))
-                          vals-cnt (count vals)]
+                    (let [vals (->> value (drop offset) (take height))]
                       (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector vals)]
                         (p/client (binding [grid-row (+ grid-row idx 1)]
                                     (p/server (Row. ctx))))))))))))))))
