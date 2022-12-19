@@ -455,7 +455,7 @@
 
 (defmacro PaginatedGrid [actual-width max-height actual-height & body]
   `(let [row-height#    (dom/measure "var(--hf-grid-row-height)")
-         actual-height# (* row-height# (inc ~actual-height))
+         actual-height# (* row-height# ~actual-height)
          !scroller#     (atom nil)
          !scroll-top#   (atom 0)]
      (dom/div {::dom/role  "scrollbar"
