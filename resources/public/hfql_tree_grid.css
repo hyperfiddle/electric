@@ -33,6 +33,7 @@ body{
 
 
     overflow-y: auto; /* scroll if needed, js code will shift the background-gradient’s position  */
+    overflow-x:hidden;
 
     box-sizing: border-box; /* nested scrollbars do not add to the width */
 
@@ -46,16 +47,8 @@ body{
     right: 0;
 
     pointer-events: none;
+    z-index: 1;
 
-    /* Virtual Borders */
-    background:
-        repeating-linear-gradient(transparent 0 calc(var(--hf-grid-row-height) - 0.5px) /* FIXME subpixel sampling */
-                                  , var(--hf-cell-border-color) var(--hf-grid-row-height)
-                                       calc(var(--hf-grid-row-height) + var(--hf-grid-gap) - 1px)
-                                  , transparent calc(var(--hf-grid-row-height) + var(--hf-grid-gap) - 1px)
-                                                calc(var(--hf-grid-row-height) + var(--hf-grid-gap)))
-        , var(--hf-columns-border-gradient)
-    ;
 }
 
 /* A vertical, standalone scrollbar. Meant to render in a single column next to some rows. */
