@@ -129,9 +129,12 @@
                {:node/symbolic-form sf}))))
     (d/db-with db)))
 
+(defn dotted? [sym]
+  (str/ends-with? (name sym) "."))
+
 (defn normalize-dot-call [sym]
   (let [nom (name sym)
-        nom (if (str/ends-with? nom ".")
+        nom (if (dotted? sym)
               (subs nom 0 (dec (count nom)))
               nom)]
     (symbol (namespace sym) nom)))
@@ -145,9 +148,10 @@
 (defn resolve-sym [env node sym]
   (when-not (= '. sym)
     (when-let [var (c/resolve-var env (normalize-dot-call sym))]
-      {:db/id         (:db/id node)
-       :function/var  (c/get-var var)
-       :function/name (c/var-name var)})))
+      {:db/id              (:db/id node)
+       :function/var       (c/get-var var)
+       :function/name      (c/var-name var)
+       :function/reactive? (dotted? sym)})))
 
 (def _rfpq '[:find [?e ...] :where [?e] (or [?e :node/type :ident]
                                           (and [?e :node/role :argument] [?e :node/position 0]))])
@@ -649,10 +653,13 @@
 (defn emit-call [point]
   (let [[f & args]    (arguments point)
         rendered-f    (or (:function/name f) (:node/form f))
+        reactive?     (:function/reactive? f)
         rendered-args (map (fn [node] `(new ~(:node/symbol node))) args)]
     (if (:node/quoted? point)
-      `(list '~rendered-f ~@rendered-args)
-      (cons (convey-dynamic-env rendered-f) rendered-args))))
+      `(list* ~@(when reactive? ['new]) '~rendered-f [~@rendered-args])
+      (if reactive?
+        `(new ~rendered-f ~@rendered-args)
+        (cons (convey-dynamic-env rendered-f) rendered-args)))))
 
 (defn maybe-call-sym [point]
   ;; If a symbol resolves to a function at runtime, call it passing the current

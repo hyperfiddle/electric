@@ -479,6 +479,27 @@
   % := {'e {"link" "link"}}
   % := [9])
 
+(p/defn Foo [x] x)
+(s/fdef Foo :args (s/cat :x any?) :ret any?)
+
+(tests
+  "Call photon function"
+  (with (p/run (tap (hfql (Foo. 1)))))
+  % := 1)
+
+(tests
+  "Escape to photon in rendering point"
+  (with (p/run (tap (hfql [(Foo. 1)]))))
+  % := `{(hyperfiddle.hfql.tests/Foo 1) 1})
+
+(tests
+  "Navigate through photon function"
+  (with (p/run (tap (debug (binding [hf/db     hf/*$*
+                                     hf/*nav!* nav!
+                                     hf/*schema* schema]
+                             (hfql {(Foo. 9) [:order/email]}))))))
+  % := `{(hyperfiddle.hfql.tests/Foo 9) {:order/email "alice@example.com"}})
+
 (comment
 
   (hfql/precompile {e [(props "link" {::hf/link [e]})]}) 
