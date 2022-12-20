@@ -165,7 +165,27 @@
 
 (p/def Render)
 
-#?(:cljs (defn grid-column-gap [^js x] (.-gridColumnGap x)))
+#?(:cljs (def extract-borders
+           (let [parse js/parseFloat]
+             (juxt
+               #(map parse (str/split (.-gridTemplateRows %) #"px\s"))
+               #(map parse (str/split (.-gridTemplateColumns %) #"px\s"))
+               #(parse (.-width %))
+               #(parse (.-height %))
+               #(parse (.-gap %))
+               #(.getPropertyValue % "--hf-cell-border-color")
+               ))))
+
+#?(:cljs (defn draw-lines! [node color width height gap rows columns]
+           (let [xs  (reductions (partial + gap) columns)
+                 ys  (reductions (partial + gap) rows)
+                 ctx (and (.-getContext node) (.getContext node "2d"))]
+             (when ctx
+               (.clearRect ctx 0 0 width height)
+               (set! (.-fillStyle ctx) color)
+               (doseq [x xs] (.fillRect ctx (int x) 0 gap height))
+               (doseq [y ys] (.fillRect ctx 0 (int y) width gap)))
+             )))
 
 ;; This should not be see in userland because it’s an implementation detail
 ;; driven by Photon not supporting mutual recursion as of today.
@@ -176,14 +196,13 @@
                hf/Render Render-impl]
        (p/client ; FIXME don’t force body to run on the client
          (dom/div {:class "hyperfiddle-gridsheet"} ; FIXME drop the wrapper div
-           (let [col-gradient (grid-columns->column-borders
-                                (js/parseFloat (new ComputedStyle grid-column-gap dom/node))
-                                (new ComputedStyle #(.-gridTemplateColumns %) dom/node))]
-             (dom/div {:class "hf-grid-overlay"}
-               (set-css-var! dom/node "--hf-columns-border-gradient" col-gradient)))
-           (let [[scroll-top# scroll-height# client-height#] (new (sw/scroll-state< dom/node))]
-             (set! (.. dom/node -style -backgroundPositionY) (str (- (int scroll-top#)) "px"))
-             nil)
+           (let [[rows# columns# width# height# gap# color#] (new ComputedStyle extract-borders dom/node)
+                 [scroll-top# scroll-height# client-height#] (new (sw/scroll-state< dom/node))
+                 height#                                     (if (zero? scroll-height#) height# scroll-height#)]
+             (dom/canvas {:class  "hf-grid-overlay"
+                          :width  (str width# "px")
+                          :height (str height# "px")}
+               (draw-lines! dom/node color# width# height# gap# rows# columns#)))
            ~@body)))))
 
 ;; TODO adapt to new HFQL macroexpansion
@@ -474,29 +493,6 @@
            (fn [e#] (let [scroller# @!scroller#]
                       (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY))))))
          ~@body))))
-
-
-(defn parse-columns-width "Given a computed grid-template-columns value, return a vector of numeric width.
-  Value being computed implies all columns width are in px."
-  [gridTemplateColumns]
-  #?(:cljs (map js/parseFloat (str/split gridTemplateColumns #"px\s"))))
-
-(defn grid-columns->column-borders
-  "Given a grid gap in px and computed grid columns in px, return a repeating
-  linear gradient to drawing borders between columns."
-  [gap grid-template-columns]
-  (when-not (= "none" grid-template-columns)
-    #?(:cljs (let [columns (parse-columns-width grid-template-columns)]
-               (str "repeating-linear-gradient("
-                 "to right"
-                 ", transparent 0"
-                 ","
-                 (str/join ", " (map (fn [width]
-                                       (str "transparent " width "px"
-                                         ", var(--hf-cell-border-color) " width "px calc(" width "px + var(--hf-grid-gap))"
-                                         ", transparent calc("width"px + var(--hf-grid-gap))"))
-                                  (reductions (partial + gap) columns)))
-                 ")")))))
 
 (defn get-computed-style [node] #?(:cljs (js/getComputedStyle node)))
 
