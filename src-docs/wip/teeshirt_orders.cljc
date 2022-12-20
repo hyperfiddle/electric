@@ -41,7 +41,7 @@
 (p/defn OrdersPage []
   (let [stage
         (ttgui/with-gridsheet-renderer
-          (dom/style {:grid-template-columns "repeat(7, 1fr)"})
+          (dom/style {:grid-template-columns "repeat(6, 1fr)"})
           (binding [ttgui/grid-width 6] ; TODO auto compute grid width from HFQL expression
             (p/server
               (hf/hfql
