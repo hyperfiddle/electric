@@ -355,7 +355,7 @@
   (with (p/run (tap (Apply. Plus [1 2 3]))))
   % := 6)
 
-(p/defn GrayInputs [{::hf/keys [tx attribute arguments]}]
+(p/defn GrayInputs [{::hf/keys [tx attribute arguments] :as ctx}]
   (when-some [arguments (seq arguments)]
     (let [spec (attr-spec attribute)
           args (p/for-by second [[idx arg] (map-indexed vector arguments)]
@@ -391,19 +391,19 @@
                          ::dom/title (pr-str (or (spec-description false (attr-spec key))
                                                (p/server (schema-value-type hf/*schema* hf/db key))))}
                         (dom/text (str (non-breaking-padder indentation) (field-name key))))
-                      (binding [indentation (if leaf? indentation (inc indentation))]
-                        (into [] cat
-                          [(binding [grid-row (inc row)
-                                     grid-col (if leaf? (inc grid-col) grid-col)]
-                             (p/server (GrayInputs. ctx)))
-                           (binding [grid-row (cond leaf?       row
-                                                    (pos? argc) (+ row (inc argc))
-                                                    :else       (inc row))
-                                     grid-col (if leaf? (inc grid-col) grid-col)]
-                             (p/server
-                               (let [ctx (assoc ctx ::dom/for dom-for)]
-                                 (Render. (assoc ctx ::dom/for dom-for ::parent-argc argc)))))])
-                        ))))))))))))
+                      (into [] cat
+                        [(binding [grid-row    (inc row)
+                                   indentation (inc indentation)]
+                           (p/server (GrayInputs. ctx)))
+                         (binding [grid-row    (cond leaf?       row
+                                                     (pos? argc) (+ row (inc argc))
+                                                     :else       (inc row))
+                                   grid-col    (if leaf? (inc grid-col) grid-col)
+                                   indentation (if leaf? indentation (inc indentation))]
+                           (p/server
+                             (let [ctx (assoc ctx ::dom/for dom-for)]
+                               (Render. (assoc ctx ::dom/for dom-for ::parent-argc argc)))))])
+                      )))))))))))
 
 (p/defn Row [{::hf/keys [keys values] :as ctx}]
   (p/client
