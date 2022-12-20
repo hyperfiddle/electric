@@ -11,7 +11,8 @@
 ; data Command = Commit tx | Discard
 
 (p/defn PopoverBody [Body]
-  (dom/div {:style {:position "fixed"}}
+  (dom/div {:style {:position "fixed"
+                    :z-index "2"}}
     (dom/div {:style {:border           "1px pink solid" :padding "5px"
                       :position         "relative" :left "3em" :top "2em" :z-index "1"
                       :width            "50em" :height "40em"
