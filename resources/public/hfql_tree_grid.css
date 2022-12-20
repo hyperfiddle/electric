@@ -21,7 +21,7 @@ body{
     --hf-grid-row-height: 1.5rem; /* source of truth, all rows inherit this height, js code will measure this */
     --hf-cell-border-color: rgb(203 213 225);
     --hf-columns-border-gradient: transparent;
-    --hf-grid-gap: 2px;
+    --hf-grid-gap: 1px;
 
     display: grid;
     grid-auto-rows: var(--hf-grid-row-height);
