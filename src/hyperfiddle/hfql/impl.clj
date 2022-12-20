@@ -196,10 +196,11 @@
     (mapcat (fn [node] ; for each function call
               (let [fnode     (first (arguments node))
                     spec-args (::spec/keys (datafy (spec/args (:function/name fnode))))
-                    spec-args (concat spec-args (repeat (count (rest (arguments node))) (last spec-args)))]
+                    argc      (count (rest (arguments node)))
+                    spec-args (take argc (concat spec-args (repeat argc (last spec-args))))]
                 (mapv (fn [arg]
                         {:db/id     (:db/id arg)
-                         :spec/name (nth spec-args (:node/position arg))})
+                         :spec/name (nth spec-args (dec (:node/position arg)))})
                   (rest (arguments node))))))
     (d/db-with db)))
 
