@@ -49,9 +49,9 @@
       (fn [[tag & args]]
         (case tag
           :exception (let [[message data] args]
-                       (dbg/error (ex-info message data)))
+                       (dbg/error (dbg/ex-info* message data)))
           :remote    (let [[data] args]
-                       (Failure. (ex-info "Remote error" (or data {}))))
+                       (Failure. (dbg/ex-info* "Remote error" (or data {}))))
           :pending   (Failure. (Pending.))
           :cancelled (Failure. (Cancelled.)))))}})
 
