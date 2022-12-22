@@ -620,14 +620,15 @@
                                   ::hf/as      (list 'quote form)
                                   form)]))
                     (into {}))
-        args      (when (= :apply (:node/type point)) (rest (arguments point)))]
+        [f & args]      (when (= :apply (:node/type point)) (arguments point))]
     (cond-> props-map
       true                            (merge {::hf/entity E
                                               :dbg/name   (list 'quote (:node/symbol point))})
       (empty? (:node/children point)) (assoc ::hf/type ::hf/leaf)
       (::hf/options props-map)        (assoc ::hf/continuation (when-some [continuation (some-> (:node/children point) seq (emit-nodes))]
                                                            `(p/fn [~E] ~continuation)))
-      (:node/cardinality point)       (assoc ::hf/cardinality (:node/cardinality point))
+      (or (:node/cardinality point)
+        (:node/cardinality f))        (assoc ::hf/cardinality (or (:node/cardinality point) (:node/cardinality f)))
       (:node/columns point)           (assoc ::hf/keys (:node/columns point))
       (:node/form-type point)         (assoc ::hf/attribute (:node/symbolic-form point))
       (= :literal (:node/type point)) (assoc ::hf/attribute (:node/form point))
@@ -704,41 +705,54 @@
       (let [attribute (:node/form point)
             value     (case (:node/form-type point)
                         :keyword `(hf/*nav!* hf/db ~E ~attribute)
-                        (maybe-call-sym point))]
+                        (maybe-call-sym point))
+            value-sym (gensym "value")]
         (if-some [continuation (seq (:node/children point))]
           (let [card-one-continuation (gensym "continuation_")]
-            `(let [~(:node/symbol point)
+            `(let [~value-sym (hyperfiddle.hfql/share nil (p/fn [] ~value))
+                   ~(:node/symbol point)
                    (p/fn []
                      (let [~card-one-continuation (p/fn [~E] ~(emit-nodes continuation))]
                        ~(case (:node/cardinality point)
-                          ::hf/one  `(new ~card-one-continuation ~value)
-                          ::hf/many `(p/for [e# ~value] (new ~card-one-continuation e#))
-                          `(let [value# ~value]
+                          ::hf/one  `(new ~card-one-continuation (new ~value-sym))
+                          ::hf/many `(p/for [e# (new hf/Paginate (new ~value-sym))] (new ~card-one-continuation e#))
+                          `(let [value# (new ~value-sym)]
                              (if (qualified-keyword? ~attribute)
                                (case (hf/*cardinality* hf/*schema* hf/db ~attribute)
                                  (::hf/one nil) (new  ~card-one-continuation value#)
                                  ::hf/many      (p/for [e# value#] (new ~card-one-continuation e#)))
-                               (new  ~card-one-continuation value#))))))]
+                               (new ~card-one-continuation value#))))))]
                ~(assoc (emit-props point)
+                  ::hf/count `(p/fn []
+                                (let [v# (new ~value-sym)]
+                                  (if (counted? v#) (count v#) 0)))
                   ::hf/Value (:node/symbol point))))
           ;; No continuation, so cardinality doesn’t matter, we produce a final value.
-          `(let [~(:node/symbol point) (p/fn [] ~value)]
-             ~(assoc (emit-props point) ::hf/Value (:node/symbol point)))))
+          `(let [~(:node/symbol point) (hyperfiddle.hfql/share nil (p/fn [] ~value))]
+             ~(assoc (emit-props point)
+                ::hf/count `(p/fn []
+                              (let [v# (new ~(:node/symbol point))]
+                                (if (counted? v#) (count v#) 0)))
+                ::hf/Value (:node/symbol point)))))
       :apply (add-scope-bindings point
-               (let [value (emit-call point)]
-                 (assoc (emit-props point)
-                   ::hf/Value
-                   (if-some [continuation (seq (:node/children point))]
-                     (let [continuation-sym (gensym "continuation_")]
-                       `(p/fn [~@(when (= ::hf/options (:prop/key point))
-                                   [(:node/symbol continuation)])
-                               ]
-                          ~(case (:node/cardinality (first (arguments point)))
-                             ::hf/one  `(let [~E ~value] ~(emit-nodes continuation)
-                                             #_(new ~continuation-sym ~value))
-                             ::hf/many `(p/for [~E ~value] ~(emit-nodes continuation)))))
-                     ;; Some calls don’t have a continuation (e.g. Links)
-                     `(p/fn [] ~value)))))
+               (let [value (gensym "value")]
+                 `(let [~value (hyperfiddle.hfql/share nil (p/fn [] ~(emit-call point)))]
+                    ~(assoc (emit-props point)
+                       ::hf/count `(p/fn []
+                                     (let [v# (new ~value)]
+                                       (count v#)))
+                       ::hf/Value
+                       (if-some [continuation (seq (:node/children point))]
+                         (let [continuation-sym (gensym "continuation_")]
+                           `(p/fn [~@(when (= ::hf/options (:prop/key point))
+                                       [(:node/symbol continuation)])
+                                   ]
+                              ~(case (:node/cardinality (first (arguments point)))
+                                 ::hf/one  `(let [~E ~value] ~(emit-nodes continuation)
+                                                 #_(new ~continuation-sym ~value))
+                                 ::hf/many `(p/for [~E (new hf/Paginate (new ~value))] ~(emit-nodes continuation)))))
+                         ;; Some calls don’t have a continuation (e.g. Links)
+                         `(p/fn [] ~value))))))
       (assert false (str "emit-1 - not a renderable point " (:node/type point))))))
 
 (defn emit-nodes [nodes]
