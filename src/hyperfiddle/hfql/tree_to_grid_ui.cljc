@@ -157,9 +157,6 @@
           (dom/text
             (pr-str value)))))))
 
-(defn give-card-n-contexts-a-unique-key [ctxs]
-  (into [] (map-indexed (fn [idx ctx] (assoc ctx ::key idx))) ctxs))
-
 (p/def Render)
 
 #?(:cljs (def extract-borders
@@ -210,10 +207,10 @@
       ::hf/leaf (SpecDispatch. ctx)
       ::hf/keys (Form. ctx)
       (case cardinality
-        ::hf/many (Table. ctx (give-card-n-contexts-a-unique-key (Value.)))
+        ::hf/many (Table. ctx)
         (let [v (Value.)]
           (cond
-            (vector? v) (Table. ctx (give-card-n-contexts-a-unique-key v))
+            (vector? v) (Table. ctx)
             (map? v)    (Render. (assoc v ::parent ctx))
             :else       (throw "unreachable" {:v v})))))))
 
@@ -223,13 +220,17 @@
    (let [argc (count arguments)]
      (+ argc
        (cond
+         ;; user provided, static height
          (some? height)                        height
-         (and keys (vector? value))            (+ 1             ; table header
-                                                 (count value) ; rows
+         ;; transposed form (table)
+         (and keys (pos-int? (::count ctx)))   (+ 1 ; table header
+                                                 (max (::count ctx) 1) ; rows
                                                  (if (pos? argc) 1 0)) ; args pushes table to next row
+         ;; leaf
          (or (set? value) (sequential? value)) (count value)
+         ;; static form
          (some? keys)                          (+ 1 (count keys)) ; form labels on next row
-         :else                                 1)))))
+         :else                                 (max (::count ctx) 1))))))
 
 (p/defn List-impl [{::hf/keys [height attribute] :as ctx}]
   (let [ctxs (p/for [v (hfql/JoinAllTheTree. ctx)]
@@ -240,17 +241,18 @@
                                    ::hf/attribute   attribute
                                    ::hf/cardinality ::hf/one
                                    ::hf/Value       (p/fn [] v)}]})
-        ctxs (give-card-n-contexts-a-unique-key ctxs)]
+        cnt  (count ctxs)]
     (Table.
       (-> ctx
         (dissoc ::hf/type)
         (merge
           {::hf/cardinality ::hf/many
            ::hf/height      height
+           ::hf/count       (p/fn [] cnt)
+           ::count          cnt
            ::hf/keys        [attribute]
            ::list?          true
-           ::hf/Value       (p/fn [] ctxs)}))
-      ctxs)))
+           ::hf/Value       (p/fn [] (new hf/Paginate ctxs))})))))
 
 
 (p/defn SpecDispatch [{::hf/keys [attribute cardinality] :as ctx}]
@@ -344,7 +346,8 @@
         (Apply. tx args)))))
 
 (p/defn Form [{::hf/keys [keys values] :as ctx}]
-  (let [values (p/for [ctx values] (assoc ctx ::value (new (::hf/Value ctx))))]
+  (let [values (p/for [ctx values]
+                 (assoc ctx ::count (new (::hf/count ctx (p/fn [] 0)))))]
     (p/client
       (dom/form {:role  "form"
                  :style {:border-left-color (c/color hf/db-name)}}
@@ -402,9 +405,13 @@
 
 (defn clamp [lower-bound upper-bound number] (max lower-bound (min number upper-bound)))
 
+(defn give-card-n-contexts-a-unique-key [offset ctxs]
+  (let [offset (max offset 0)]
+    (into [] (map-indexed (fn [idx ctx] (assoc ctx ::key (+ offset idx)))) ctxs)))
+
 (p/def Table)
-(p/defn Table-impl [{::hf/keys [keys height] :as ctx} value]
-  (let [actual-height (count value)
+(p/defn Table-impl [{::hf/keys [keys height Value] :as ctx}]
+  (let [actual-height (new (::hf/count ctx (p/fn [] 0)))
         height        (clamp 1 (or height default-height) actual-height)
         list?         (::list? ctx)
         nested?       (and (some? (::dom/for ctx)) (not list?))
@@ -412,7 +419,7 @@
     (p/client
       (binding [grid-col (if nested? (inc grid-col) grid-col)
                 grid-row (if (or shifted? list?) (dec grid-row) grid-row)]
-        (PaginatedGrid (count keys) height actual-height
+        (paginated-grid (count keys) height actual-height
           (dom/table {::dom/role "table"}
             (when-not list?
               (dom/thead
@@ -430,13 +437,12 @@
                                           :color       (c/color hf/db-name)}}
                       (field-name col))))))
             (dom/tbody
-              (let [offset pagination-offset]
-                (p/server
+              (p/server
+                (let [value (give-card-n-contexts-a-unique-key hf/page-drop (Value.))]
                   (into [] cat
-                    (let [vals (->> value (drop offset) (take height))]
-                      (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector vals)]
-                        (p/client (binding [grid-row (+ grid-row idx 1)]
-                                    (p/server (Row. ctx))))))))))))))))
+                    (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector value)]
+                      (p/client (binding [grid-row (+ grid-row idx 1)]
+                                  (p/server (Row. ctx)))))))))))))))
 
 (defn compute-offset [scroll-top row-height]
   #?(:cljs (max 0 (js/Math.ceil (/ (js/Math.floor scroll-top) row-height)))))
@@ -445,8 +451,8 @@
 #?(:cljs (defn set-css-var! [^js node key value]
            (.setProperty (.-style node) key value)))
 
-(defmacro PaginatedGrid [actual-width max-height actual-height & body]
-  `(let [row-height#    (dom/measure "var(--hf-grid-row-height)")
+(defmacro paginated-grid [actual-width max-height actual-height & body]
+  `(let [row-height#    (or (js/parseFloat (ComputedStyle. #(.-gridAutoRows %) (.closest dom/node ".hyperfiddle-gridsheet"))) 0)
          actual-height# (* row-height# ~actual-height)
          !scroller#     (atom nil)
          !scroll-top#   (atom 0)]
@@ -460,12 +466,16 @@
            nil)
        (dom/div {:role "filler" "data-height" actual-height# :style {:height (str actual-height# "px")}}))
 
-     (binding [pagination-offset (compute-offset (p/watch !scroll-top#) row-height#)]
-       (dom/div {::dom/role "scrollview"}
-         (dom/event "wheel" ; TODO support keyboard nav and touchscreens
-           (fn [e#] (let [scroller# @!scroller#]
-                      (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY))))))
-         ~@body))))
+     (dom/div {::dom/role "scrollview"}
+       (dom/event "wheel" ; TODO support keyboard nav and touchscreens
+         (fn [e#] (let [scroller# @!scroller#]
+                    (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY))))))
+       (let [offset# (compute-offset (p/watch !scroll-top#) row-height#)]
+         (p/server
+           (binding [hf/page-drop offset#
+                     hf/page-take ~max-height]
+             (p/client
+               ~@body)))))))
 
 (defn get-computed-style [node] #?(:cljs (js/getComputedStyle node)))
 
