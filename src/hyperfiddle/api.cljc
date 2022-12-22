@@ -165,3 +165,13 @@
 (defmacro branch [& body] `(new Branch (p/fn [] ~@body)))
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)
+
+(p/def page-drop -1)
+(p/def page-take -1)
+
+(p/defn Paginate [xs]
+  (if (coll? xs)
+    (cond->> xs
+      (pos-int? page-drop) (drop page-drop)
+      (pos-int? page-take) (take page-take))
+    xs))
