@@ -1,11 +1,11 @@
-(ns wip.demo-todomvc
+(ns wip.todomvc_collect
   (:require clojure.edn
             [datascript.core :as d]
             [missionary.core :as m]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom])
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros wip.demo-todomvc)))
+  #?(:cljs (:require-macros wip.todomvc_collect)))
 
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))       ; server
 (p/def db)                                                  ; server

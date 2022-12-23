@@ -1,4 +1,4 @@
-(ns dustin.y2022.checkbox-pending
+(ns dustin.y2022.controls.checkbox-pending
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [user.demo-5-todomvc :as t]

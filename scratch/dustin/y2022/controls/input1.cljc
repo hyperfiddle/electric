@@ -1,29 +1,13 @@
-(ns dustin.y2022.ui-input1
+(ns dustin.y2022.input1
   (:require #?(:cljs goog.events)
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom :refer [node]]
+            [hyperfiddle.photon-ui2 :refer [Focused?]]
             [hyperfiddle.rcf :refer [tests tap % with]])
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros dustin.y2022.ui-input1)))
+  #?(:cljs (:require-macros dustin.y2022.input1)))
 
-
-(p/defn Input [controlled-value]
-  ; data State = Editing local-value | NotEditing controlled-value
-  (:value ; local or controlled
-    (with (dom-element node "input")
-      (.setAttribute node "type" "text")
-      (p/with-cycle [state {:edit? false}]
-        (if (:edit? state)
-          (merge state
-                 {:edit? (not (some? (Event. "blur" false)))}
-                 (when-some [e (Event. "input" false)]
-                   {:value (.-value (.-target e))})) ; use local value
-          (do (.setAttribute node "value" (str controlled-value)) ; throw away local value
-              {:edit? (some? (Event. "focus" false)) ; never busy - process synchronously
-               :value controlled-value})))))) ; throw away local value
-; the input is stable because at some point the user stops typing
-; What prevents the infinite loop is at some point the state is stable, no events
-; update the state and due to work skipping nothing happens.
+; recur
 
 (p/defn Input2 [controlled-value]
   (dom/input {:type "text"}
@@ -36,14 +20,6 @@
             (recur (some? (Event. "focus" false)))
             controlled-value)))))
 
-(p/defn Focused? []
-  (p/with-cycle [s true]
-    (let [blur (not (some? (Event. "blur" false)))
-          focus (some? (Event. "focus" false))]
-      (case s
-        true (if blur false true)
-        false (if focus true false)))))
-
 (p/defn Input2b [controlled-value]
   (dom/input {:type "text"}
     (let [input (when-some [e (Event. "input" false)]
@@ -51,6 +27,8 @@
       (if (Focused?.)
         input
         (do (.setAttribute node "value" controlled-value) controlled-value)))))
+
+; Peter
 
 (defmacro discrete->continuous [& body])
 

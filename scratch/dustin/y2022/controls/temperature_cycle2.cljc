@@ -1,8 +1,8 @@
-(ns dustin.y2022.dom-state
+(ns dustin.y2022.controls.temperature_cycle2
   (:require [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom])
-  #?(:cljs (:require-macros dustin.y2022.dom-state)))
+  #?(:cljs (:require-macros dustin.y2022.controls.temperature_cycle2)))
 
 (defmacro with-cycle [[sym init] & body]
   `(let [!x# (atom ~init)

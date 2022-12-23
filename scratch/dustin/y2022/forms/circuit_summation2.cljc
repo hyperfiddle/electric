@@ -18,8 +18,16 @@
 
 
 ; db = Σ [db=0..T] App(db)Δdb
+; db = Σ [s=0..T] App(db)Δdb
 ; note that db is the clock, so we can substitute:
-; db = Σ [t=0..T] App(t)Δt
+
+;
+; db(t) = Σ [t=0..T] App(t)Δt
+; where App(t)Δt = ΔApp(t),
+; such that ΔApp(db) is a function of database that returns a small transactional change to the database
+; db = Σ [s=0..T] ΔApp(db)
+; db = Σ [s=0..T] App(db)Δdb
+
 
 ; Integrate db0,,dbT App(db)
 
