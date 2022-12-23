@@ -147,7 +147,7 @@ running on a remote host.
 (defmacro current "Copy the current value (only) and then terminate" [x]  ; TODO rename `constant`, `stable`?
   ;; what does Photon do on terminate? TBD
   ;; L: terminating a continuous flow means the value won't change anymore, so that's OK
-  `(new (current* (p/fn [] ~x))))
+  `(new (current* (hyperfiddle.photon/fn [] ~x))))
 
 (cc/defn wrap* [thunk]
   #?(:clj
