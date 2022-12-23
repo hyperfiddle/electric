@@ -86,15 +86,21 @@
 (defmacro event [event-name callback] `(new (event* node ~event-name ~callback)))
 
 (defn happen [s e]
+  ; Todo, we need a buffer to force a nil in between events to fix race
   (case (:status s)
-    :idle {:status :impulse :event e} s))
+    :idle {:status :impulse :event e} ; rising edge
+    :pending {:status :impulse :event e} ; supersede the outstanding event with a new event
+    :impulse (assert false "two events in the same frame? that's weird and wrong")))
 
 ; data EventState = Idle | Impulse event | Pending event
 (p/defn Event [type busy]
   (:event
     (let [!state (atom {:status :idle})
           state (p/watch !state)]
-      (event type (partial swap! !state happen)) ; discrete! this is the event wrapped into impulse
+
+      ; rising edge happens once, even if busy state (prevent infinite loop) -- [DJG] I don't understand
+      (event type (partial swap! !state happen)) ; discrete rising edge
+
       (reset! !state
               (case (:status state)
                 :idle state
