@@ -1,4 +1,4 @@
-(ns dustin.y2022.photon-popover3
+(ns dustin.y2022.popover3
   (:require contrib.str
             #?(:clj [datascript.core :as d])
             #?(:cljs goog.events)
@@ -8,7 +8,7 @@
             [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.rcf :refer [tests tap % with]]
             [missionary.core :as m])
-  #?(:cljs (:require-macros dustin.y2022.photon-popover3)))
+  #?(:cljs (:require-macros dustin.y2022.popover3)))
 
 (def !conn #?(:cljs nil
               :clj (doto (d/create-conn {:order/email {}})
