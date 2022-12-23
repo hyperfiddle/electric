@@ -1,11 +1,11 @@
-(ns dustin.y2022.photon-popover3
+(ns dustin.y2022.popover4
   (:require #?(:clj [datomic.api :as d])
             #?(:cljs goog.events)
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests tap % with]]
             [missionary.core :as m])
-  #?(:cljs (:require-macros dustin.y2022.photon-popover3)))
+  #?(:cljs (:require-macros dustin.y2022.popover3)))
 
 (p/def db)
 
