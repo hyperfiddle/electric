@@ -1,10 +1,10 @@
-(ns wip.dom-button
+(ns dustin.y2022.controls.button-step
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.zero :as z]
             [missionary.core :as m])
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros wip.dom-button)))
+  #?(:cljs (:require-macros dustin.y2022.controls.button-step)))
 
 (def !x #?(:clj (atom 0)))
 
