@@ -586,6 +586,15 @@
       false
       (catch Pending e true))))
 
+;(p/defn EventBroken [type busy]
+;  (:event
+;    (with-cycle [s {:status :idle}]
+;                (let [e (events type)] ; in CT this event is never cleared, causing a loop
+;                  (case (:status s)
+;                    :idle (if (some? e) {:status :impulse :event e} s)
+;                    :impulse (assoc s :status :pending)
+;                    :pending (if busy s {:status :idle}))))))
+
 (defmacro measure ; could this be replaced by watching computed style?
   "Given a css size like \"1em\", \"1rem\" or other units, return the
   corresponding size in pixels. Will install a invisible div in the DOM, at
