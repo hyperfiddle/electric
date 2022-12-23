@@ -1,33 +1,6 @@
-
-(p/defn Focused? []
-  (p/with-cycle [focused false]
-    (let [blur (not (some? (Event. "blur" false)))
-          focus (some? (Event. "focus" false))]
-      (case focused
-        true focus
-        false blur))))
-
-(p/defn Focused? []
-  (p/with-cycle [focused false]
-    (case focused
-      true (not (some? (Event. "blur" false)))
-      false (some? (Event. "focus" false)))))
-
-
-
-(case focused
-  true focus
-  false blur)
-
-(case focused
-  true (if blur false true)
-  false (if focus true false))
-
-
-(p/with-cycle [s false]
-  (boolean (if s (Event. "focus" false) (Event. "blur" false))))
-
-
+(ns dustin.y2022.ui.state-4
+  (:require [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-ui2 :refer [Focused?]]))
 
 (p/defn Input2b [controlled-value] ; broken
   (p/with-cycle [v ::unknown]
@@ -60,14 +33,6 @@
         false (do (.setAttribute dom/node "value" controlled-value) controlled-value)))))
 
 ;; continued
-
-(p/defn Focused? []
-  (doto
-    (p/with-cycle [focused false]
-      (case focused
-        true (not (some? (dom/Event. "blur" false)))
-        false (some? (dom/Event. "focus" false))))
-    (println 'Focused?)))
 
 (p/defn Input2c [controlled-value]
   (dom/with

@@ -1,9 +1,9 @@
-(ns dustin.scratch
+(ns dustin.y2022.ui.hiccup-comparison
   (:require [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom :refer [h]]
             [missionary.core :as m])
-  #?(:cljs (:require-macros dustin.scratch)))
+  #?(:cljs (:require-macros dustin.y2022.ui.hiccup-comparison)))
 
 "reagent"
 (defn simple-component []
