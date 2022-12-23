@@ -3,7 +3,7 @@
   (:require
    clojure.edn
    [clojure.string :as str]
-   [contrib.str :refer [blank->nil]]
+   [contrib.str :refer [blank->nil pprint-str]]
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom]
    [hyperfiddle.rcf :as rcf :refer [tests tap with %]])
@@ -134,13 +134,13 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      ~@(?static-props body)
      (new InputController ~controlled-value)))
 
-(p/defn ^:private -Edn-editor [x] ; optimize macroexpansion size
-  (when-some [x (blank->nil x)]
-    (try (clojure.edn/read-string x)
-         (catch :default _ nil))))
+#?(:cljs (defn read-str-maybe [x] ; optimize macroexpansion size
+           (when-some [x (blank->nil x)]
+             (try (clojure.edn/read-string x)
+                  (catch :default _ nil)))))
 
 (defmacro edn-editor [x & body]
-  `(new -Edn-editor (textarea (pr-str ~x) ~@body))) ; optimize static body props
+  `(read-str-maybe (textarea (pprint-str ~x) ~@body))) ; optimize static body props
 
 (p/defn InputValues [controlled-value focused< input< on-blur]
   (p/with-cycle [v nil]
