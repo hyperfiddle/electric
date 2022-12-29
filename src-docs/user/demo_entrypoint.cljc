@@ -1,10 +1,8 @@
 (ns user.demo-entrypoint
   #?(:cljs (:require-macros user.demo-entrypoint))
-  (:require [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.router :as router]
-            [missionary.core :as m]
             user.demo-1-hello-world
             user.demo-2-toggle
             user.demo-3-system-properties
@@ -55,24 +53,15 @@
               #_[::color user.demo-color/App]
               #_[::controlled-input user.demo-controlled-input/App]])
 
-#?(:cljs (defn decode-path [path read-edn-str]
-           {:pre [(string? path) (some? read-edn-str)]}
-           (case path
-             "/" ::index
-             (-> path (subs 1) contrib.ednish/decode read-edn-str))))
-
-#?(:cljs (defn encode-path [route] (->> route pr-str contrib.ednish/encode (str "/"))))
-
-(p/defn App []
+(p/defn App [route]
   (p/client
-    (let [!path (m/mbx)
-          route (decode-path (router/path !path) hf/read-edn-str)]
-      (binding [router/Link (router/->Link. !path encode-path)]
-
-        (dom/div {:style {:width "90vw"}}
-          (case route
-            ::index (do (dom/h1 "Photon Demos")
-                        (dom/p "See source code in src-docs.")
-                        (p/for [[k _] pages]
-                          (dom/div (router/Link. k (name k)))))
-            (p/server (new (get (into {} pages) route)))))))))
+    (dom/div {:style {:width "90vw"}}
+      (case route
+        :user-main/index
+        (do (dom/h1 (dom/text "Photon Demos"))
+            (dom/p (dom/text "See source code in src-docs."))
+            (p/for [[k _] pages]
+              (dom/div
+                (router/Link. k (name k))
+                #_(dom/a {:href (encode-path k)} (dom/text (name k))))))
+        (p/server (new (get (into {} pages) route)))))))
