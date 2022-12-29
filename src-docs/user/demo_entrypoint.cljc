@@ -26,10 +26,12 @@
             user.tic-tac-toe
             wip.typeahead-ui1
             #_wip.hfql
-            #_user.demo-stage-ui3 ; need datomic on classpath
             #_user.demo-hfql
-            #_hyperfiddle.datomic-browser ; datomic
-            ))
+            wip.teeshirt-orders
+
+            ; these demos require datomic on classpath, disabled by default
+            #_user.demo-stage-ui3
+            #_hyperfiddle.datomic-browser))
 
 (p/def pages
   [[::hello-world user.demo-1-hello-world/App]
@@ -53,8 +55,9 @@
 (p/def secret-pages
   [[::color user.demo-color/App]
    [::controlled-input user.demo-controlled-input/App]
-   #_[::hyperfiddle-form user.demo-stage-ui3/Demo]
-   [::explorer user.demo-7-explorer/App] ; crashes in routing - needs nested router
+   #_[::demo-stage-ui3 user.demo-stage-ui3/Demo]
+   #_[::hfql-teeshirt-orders wip.teeshirt-orders/App] ; todo need nested router
+   #_[::explorer user.demo-7-explorer/App] ; todo needs nested router
    #_[::datomic-browser hyperfiddle.datomic-browser/App]
    #_[::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
    #_[::hfql user.demo-hfql/App]

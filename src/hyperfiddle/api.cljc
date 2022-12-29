@@ -121,7 +121,7 @@
     ; return basis-t ?
     (swap! !t (fn [[db tx0]]
                 [(with db tx) ; injected datomic dep
-                 (into-tx schema tx0 tx)]))))
+                 (concat tx0 tx) #_(into-tx schema tx0 tx)]))))
 
 (p/def Transact!) ; server
 (p/def stage) ; server
