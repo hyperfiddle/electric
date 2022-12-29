@@ -142,7 +142,12 @@
   "kf fallback arity"
   (index-by (fn [x i] (str i)) xs)
   := {"0" {:db/ident :foo, :a 1},
-      "1" {:db/ident :bar, :b 2}})
+      "1" {:db/ident :bar, :b 2}}
+
+  "index by first element"
+  ;(index-by first [[:a 1] [:b 2]]) -- ArityException: kf must accept fallback. Is this a mistake?
+  (index-by (fn [a b] (first a)) [[:a 1] [:b 2]]) := {:a [:a 1], :b [:b 2]}
+  (index-by #(do %2 (first %1)) [[:a 1] [:b 2]]) := {:a [:a 1], :b [:b 2]})
 
 (defn index
   "index a sequential collection into an associative collection with explicit keys. this may not be
