@@ -1,6 +1,6 @@
-(ns user.demo-stage2
+(ns user.demo-stage-ui3
   "ui3/input - don't spam datomic"
-  #?(:cljs (:require-macros user.demo-stage2))
+  #?(:cljs (:require-macros user.demo-stage-ui3))
   (:require [contrib.css :refer [css-slugify]]
             [contrib.clojurex :refer [bindx]]
             [contrib.str :refer [pprint-str]]

@@ -1,4 +1,5 @@
-(ns user.demo-stage
+(ns user.demo-stage-ui2
+  #?(:cljs (:require-macros user.demo-stage-ui2))
   (:require [contrib.clojurex :refer [bindx]]
             [contrib.str :refer [pprint-str]]
             #?(:clj [contrib.datomic-contrib :as dx])
@@ -9,9 +10,7 @@
             [hyperfiddle.photon-ui2 :as ui]
             [hyperfiddle.popover :refer [Popover]]
             #?(:clj [hyperfiddle.txn :refer [minimal-tx]]))
-  (:import [hyperfiddle.photon Pending]
-           [missionary Cancelled])
-  #?(:cljs (:require-macros user.demo-stage)))
+  (:import [hyperfiddle.photon Pending]))
 
 ; Requirements:
 ; top level page queries database
