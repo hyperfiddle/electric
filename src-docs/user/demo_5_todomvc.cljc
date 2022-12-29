@@ -12,8 +12,7 @@
 (p/def transact!) ; server
 (def !state #?(:cljs (atom {::filter :all                   ; client
                             ::editing nil
-                            ::delay   300})))
-(p/def tx-delay 0)
+                            ::delay   0})))
 
 #?(:clj
    (defn query-todos [db filter]
@@ -183,7 +182,7 @@
           (p/client
             (dom/link {:rel :stylesheet, :href "todomvc.css"})
             (TodoMVC. state)
-            (Diagnostics. state)))))))
+            #_(Diagnostics. state)))))))
 
 (comment
   (todo-count @!conn :all)
