@@ -24,7 +24,7 @@
 ; reflow parent queries
 ; entrypoint bindings visible
 
-(def cobbblestone 536561674378709)
+(def cobblestone 536561674378709)
 
 (def label-form-spec [:db/id
                       :label/gid
@@ -35,8 +35,8 @@
                       :label/startYear])
 
 (comment
-  (d/pull test/datomic-db ['*] cobbblestone)
-  (d/pull test/datomic-db label-form-spec cobbblestone))
+  (d/pull test/datomic-db ['*] cobblestone)
+  (d/pull test/datomic-db label-form-spec cobblestone))
 
 (p/defn ValueLog [v]
   (let [!log (atom ()), log (p/watch !log)]
@@ -116,7 +116,7 @@
               (bindx [hf/db (p/watch !t)
                       hf/schema (new (dx/schema> hf/db))
                       hf/Transact! (p/fn [tx] (p/wrap (swap! !t with! tx)) nil)]
-                (App. cobbblestone))))
+                (App. cobblestone))))
           ::hf/idle (catch Pending e ::hf/loading))))
     nil))
 
