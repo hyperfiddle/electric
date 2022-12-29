@@ -4,6 +4,7 @@
   (:import [hyperfiddle.photon Pending]
            [missionary Cancelled])
   (:require contrib.sexpr-router
+            contrib.ednish
             contrib.uri ; data_readers
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]

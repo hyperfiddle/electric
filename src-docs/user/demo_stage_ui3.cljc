@@ -67,7 +67,9 @@
       (binding [hf/schema (new (dx/schema> secure-db))
                 hf/with (fn [db tx] ; inject datomic
                           (try (:db-after (d/with db {:tx-data tx}))
-                               (catch Exception e (println "...failure, e: " e))))
+                               (catch Exception e
+                                 (println "...failure, e: " e)
+                                 db)))
                 hf/db secure-db]
         (hf/branch
           (Page.)
