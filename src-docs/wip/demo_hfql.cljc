@@ -1,4 +1,4 @@
-(ns user.demo-hfql
+(ns wip.demo-hfql
   "wip, unstable"
   (:require #?(:clj dev)
             [hyperfiddle.api :as hf]
@@ -7,7 +7,7 @@
             [hyperfiddle.hfql.ui :as hfui]
             [hyperfiddle.hfql.router :refer [router] :rename {router hfql-router}]
             #?(:clj [wip.orders-datascript :refer [orders genders shirt-sizes one-order]]))
-  #?(:cljs (:require-macros user.demo-hfql)))
+  #?(:cljs (:require-macros wip.demo-hfql)))
 
 
 (p/defn Tee-shirt-orders []

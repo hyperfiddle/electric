@@ -1,10 +1,10 @@
-(ns user.typeahead
+(ns wip.typeahead-ui1
   (:require
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom]
    [hyperfiddle.photon-ui :as ui]
    [clojure.string :as str])
-  #?(:cljs (:require-macros user.typeahead)))
+  #?(:cljs (:require-macros wip.typeahead-ui1)))
 
 (def data
   #?(:clj
