@@ -21,7 +21,7 @@
   (shadow.cljs.devtools.api/compile :editor)
 
   "Switch entrypoints"
-  (user/browser-main! `user/demo-main) ; see user.cljs
+  (user/browser-main! `user-main/Main) ; see user.cljs
 
   "ClojureScript REPL entrypoint"
   ; shadow server exports an repl, connect a second REPL instance to it (DO NOT REUSE JVM REPL it will fail weirdly)
