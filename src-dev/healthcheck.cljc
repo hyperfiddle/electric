@@ -1,8 +1,8 @@
-(ns user.healthcheck
-  (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom])
+(ns healthcheck
+  #?(:cljs (:require-macros healthcheck))
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros user.healthcheck)))      ; forces shadow hot reload to also reload JVM at the same time
+  (:require [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-dom :as dom]))
 
 (p/defn App []
   (dom/div
