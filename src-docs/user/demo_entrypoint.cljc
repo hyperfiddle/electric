@@ -25,7 +25,7 @@
             user.demo-color
             ;; wip.photon-tree
             user.healthcheck
-            user.typeahead
+            #_wip.typeahead-ui1
             user.tic-tac-toe
             #_wip.hfql
             )
@@ -55,7 +55,7 @@
               {:text "7GUIs - temperature converter" ::value user.seven-gui-2-temperature-converter/App}
               {:text "7GUIs - timer" ::value user.seven-gui-4-timer/Timer}
               {:text "7GUIs - crud" ::value user.seven-gui-5-crud/App}
-              {:text "Typeahead" ::value user.typeahead/App}
+              #_{:text "Typeahead" ::value user.typeahead-ui1/App}
               {:text "tic tac toe" ::value user.tic-tac-toe/App}
               {:text "color" ::value user.demo-color/App}
               {:text "controlled input" :value user.demo-controlled-input/App}
