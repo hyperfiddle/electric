@@ -1,5 +1,9 @@
 name: Photon Test Suite
-on: [push]
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
 jobs:
   jvm:
     runs-on: [ubuntu-latest]
