@@ -25,7 +25,7 @@
             user.tic-tac-toe
             #_user.demo-hfql
             #_user.datomic-browser ; requires datomic dep
-            #_wip.typeahead-ui1
+            wip.typeahead-ui1
             #_wip.hfql))
 
 (p/def pages [[::hello-world user.demo-1-hello-world/App]
@@ -48,7 +48,7 @@
               [::seven-guis-temperature-converter user.seven-gui-2-temperature-converter/App]
               [::seven-guis-timer user.seven-gui-4-timer/Timer]
               [::seven-guis-crud user.seven-gui-5-crud/App]
-              #_[::typeahead user.typeahead-ui1/App]
+              [::typeahead wip.typeahead-ui1/App]
               #_[::tic-tac-toe user.tic-tac-toe/App]
               #_[::color user.demo-color/App]
               #_[::controlled-input user.demo-controlled-input/App]])
