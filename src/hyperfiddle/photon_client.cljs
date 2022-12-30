@@ -1,17 +1,19 @@
 (ns hyperfiddle.photon-client
-  (:require [hyperfiddle.logger :as log]
+  (:require [contrib.cljs-target :refer [do-browser]]
+            [hyperfiddle.logger :as log]
             [missionary.core :as m]
             [hyperfiddle.photon-impl.io :as io])
   (:import missionary.Cancelled))
 
-(defn server-url []
-  (let [proto (.. js/window -location -protocol)]
-    (str (case proto
-           "http:" "ws:"
-           "https:" "wss:"
-           (throw (ex-info "Unexpected protocol" proto)))
-      "//"
-      (.. js/window -location -host))))
+(do-browser
+  (defn server-url []
+    (let [proto (.. js/window -location -protocol)]
+      (str (case proto
+             "http:" "ws:"
+             "https:" "wss:"
+             (throw (ex-info "Unexpected protocol" proto)))
+           "//"
+           (.. js/window -location -host)))))
 
 (defn connect! [socket]
   (let [deliver (m/dfv)]
@@ -66,7 +68,7 @@
                      (m/? (m/sleep 2000))
                      (recur))))))
 
-(def ^:dynamic *ws-server-url* (server-url))
+(def ^:dynamic *ws-server-url* (do-browser (server-url)))
 
 (defn client [client server]
   (m/reduce {} nil
