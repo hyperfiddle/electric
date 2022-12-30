@@ -14,7 +14,6 @@
           n (p/server (p/watch !n))]
       (p/server
         (binding [todomvc/db (p/watch todomvc/!conn)
-                  todomvc/tx-delay (::todomvc/delay state)
                   todomvc/transact! (partial d/transact! todomvc/!conn)]
           (p/client
             (dom/link {:rel :stylesheet, :href "todomvc.css"})
