@@ -131,7 +131,7 @@
   (p/client
     (let [[x] (p/with-cycle [[elapsed start :as s] [0 nil]]
                 (case hyperfiddle.api/loading
-                  ::loading [(some->> start (- hyperfiddle.photon-dom/system-time-ms))
+                  true [(some->> start (- hyperfiddle.photon-dom/system-time-ms))
                              (js/Date.now)]
                   s))]
       x)))

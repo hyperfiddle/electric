@@ -8,9 +8,10 @@
             #?(:clj [datomic.client.api :as d])
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.photon-ui3 :as ui]
             [hyperfiddle.photon-ui3 :as ui3]
-            #?(:clj [hyperfiddle.txn :refer [minimal-tx]]))
+            [hyperfiddle.popover-ui2 :refer [Popover popover-staged popover staged]])
   (:import [hyperfiddle.photon Pending]
            [missionary Cancelled]))
 
@@ -56,7 +57,8 @@
 (p/defn Page []
   #_(p/client (dom/div (if hf/loading "loading" "idle") " " (str (hf/Load-timer.)) "ms"))
   (Form. cobblestone)
-  (Form. cobblestone))
+  (Form. cobblestone)
+  (p/client (Popover. "open" (p/fn [] (p/server (Form. cobblestone))))))
 
 (p/defn Demo []
   (p/client (dom/h1 (dom/text (str `Demo))))
@@ -72,5 +74,5 @@
           (Page.)
           (p/client
             (dom/hr)
-            (dom/element "style" (str "." (css-slugify `stage) " { display: block; width: 100%; height: 10em; }"))
-            (ui3/edn-editor (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class (css-slugify `stage)}))))))))
+            (dom/element "style" (str "." (css-slugify `staged) " { display: block; width: 100%; height: 10em; }"))
+            (ui3/edn-editor (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class (css-slugify `staged)}))))))))
