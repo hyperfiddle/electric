@@ -19,7 +19,7 @@
   (assert (some? syncing) "common userland error")
   (case (Focused?.)
     true (when-some [e (dom2/Event. event syncing)]
-           (println 'InputController (getter e))
+           #_(println 'InputController (getter e))
            (getter e))
     false (case syncing
             true nil ;(throw (Pending.)) -- only the transact callback should throw pending, nil is safe
@@ -62,11 +62,11 @@
 
 (p/defn InputController! "callback version, no looped pending" [v V! event setter getter]
   (let [x (p/with-cycle [?v' nil]
-            (println "?v' " ?v')
+            #_(println "?v' " ?v')
             (let [syncing (= ?v' ::p/pending)]
               (dom2/props {:style {:background-color (if syncing "yellow")}})
               (when-some [v' (new InputController v syncing event setter getter)]
-                (println "input! v': " v')
+                #_(println "input! v': " v')
                 (try (new V! v') ; fmap V!, typically ought to return nil but we permit escape
                      (catch Pending _ ::p/pending)))))]
     (if (not= x ::p/pending)
@@ -236,3 +236,24 @@
      (new InputController! ~v ~V! "input"
           (partial -set-input-value! dom/node)
           (comp parse-edn (partial -get-input-value! dom/node)))))
+
+(defmacro button [waiting & body]
+  `(dom2/button
+     ~@body
+     #_(dom2/set-property! dom/node "aria-busy" busy#)
+     #_(dom2/set-property! dom/node "disabled" busy#)
+     (new InputController nil ~waiting
+          "click" nil (fn [e#] (doto e# .stopPropagation)))))
+
+(comment (when (ui/button false (dom/text "hi")) (println 'cliccckk!)))
+
+(defmacro button! [V! & body]
+  `(dom2/button
+     ~@body
+     #_(dom2/set-property! dom/node "aria-busy" busy#)
+     #_(dom2/set-property! dom/node "disabled" busy#)
+     (new InputController!
+          nil (p/fn [e#] (new ~V!)) ; fix arity
+          "click" nil (fn [e#] (doto e# .stopPropagation)))))
+
+(comment (ui/button! (p/fn [] (p/server (println 'yo))) (dom/text "hi")))

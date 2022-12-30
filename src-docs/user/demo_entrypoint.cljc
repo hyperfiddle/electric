@@ -23,6 +23,7 @@
             hyperfiddle.scrollview
             user.demo-color
             user.tic-tac-toe
+            user.demo-stage-ui3
             #_user.demo-hfql
             #_user.datomic-browser ; requires datomic dep
             wip.typeahead-ui1
@@ -38,6 +39,7 @@
               [::todomvc user.demo-5-todomvc/App]
               [::todomvc-composed user.demo-todomvc-composed/App]
               [::two-clocks user.demo-6-two-clocks/App]
+              [::hyperfiddle-form user.demo-stage-ui3/Demo]
               #_[::explorer user.demo-7-explorer/App]
               #_[::demo-10k-dom-elements user.demo-8-10k-elements/App]
               #_[::hfql user.demo-hfql/App]
