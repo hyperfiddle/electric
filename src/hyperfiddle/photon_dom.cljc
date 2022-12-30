@@ -1,6 +1,7 @@
 (ns hyperfiddle.photon-dom
   (:refer-clojure :exclude [time for])
-  (:require [hyperfiddle.photon :as p]
+  (:require [contrib.cljs-target :refer [do-browser]]
+            [hyperfiddle.photon :as p]
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])
@@ -398,12 +399,13 @@
   (Math/round (/ system-time-ms 1000.0)))
 
 #?(:cljs
-   (tests
-     "millisecond time as a stable test"
-     (let [dispose (p/run (tap system-time-ms))]
-       [% % %] := [_ _ _]
-       (map int? *1) := [true true true]
-       (dispose))))
+   (do-browser
+     (tests
+       "millisecond time as a stable test"
+       (let [dispose (p/run (tap system-time-ms))]
+         [% % %] := [_ _ _]
+         (map int? *1) := [true true true]
+         (dispose)))))
 
 ;(defn truncate-secs [max-hz secs]
 ;  (let [period (/ 1 max-hz)]

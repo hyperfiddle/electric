@@ -1,6 +1,7 @@
 (ns hyperfiddle.photon-test
   "Photon language unit tests"
-  (:require [hyperfiddle.photon :as p]
+  (:require [contrib.cljs-target :refer [do-browser]]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.photon-impl.io :as photon-io]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]
@@ -1768,17 +1769,18 @@
        % := [9 (java.awt.Point. 1 9)])))
 
 #?(:cljs
-   (tests "set!"
-     ;; https://www.notion.so/hyperfiddle/RCF-implicit-do-rewrite-rule-does-not-account-for-let-bindings-61b1ad82771c407198c1f678683bf443
-     (defn bypass-rcf-bug [[href a]] [href (str/replace (.-href a) #".*/" "")])
-     (def !href (atom "href1"))
-     (with (p/run (let [a (.createElement js/document "a")
-                        href (p/watch !href)]
-                    (set! (.-href a) href)
-                    (tap [href a])))
-       (bypass-rcf-bug %) := ["href1" "href1"]
-       (reset! !href "href2")
-       (bypass-rcf-bug %) := ["href2" "href2"])))
+   (do-browser
+     (tests "set!"
+       ;; https://www.notion.so/hyperfiddle/RCF-implicit-do-rewrite-rule-does-not-account-for-let-bindings-61b1ad82771c407198c1f678683bf443
+       (defn bypass-rcf-bug [[href a]] [href (str/replace (.-href a) #".*/" "")])
+       (def !href (atom "href1"))
+       (with (p/run (let [a (.createElement js/document "a")
+                          href (p/watch !href)]
+                      (set! (.-href a) href)
+                      (tap [href a])))
+         (bypass-rcf-bug %) := ["href1" "href1"]
+         (reset! !href "href2")
+         (bypass-rcf-bug %) := ["href2" "href2"]))))
 
 (tests "p/fn arity check"
   (with (p/run (try (new (p/fn [x y z] (tap (ex-info "nope" {}))) 100 200 300 400)
