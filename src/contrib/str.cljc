@@ -28,6 +28,11 @@
 
 (defn ^:deprecated includes-str? [v needle]
   ; perf - https://clojurians.slack.com/archives/C03RZMDSH/p1666290300539289
+  ; want to reduce memory pressure moreso than optimzie the speed
+  ; if you want a case-insensitive match I recommend using something which doesn’t force new string
+  ; allocations; use org.apache.commons.lang3.StringUtils.containsIgnoreCase() which uses
+  ; String.regionMatches under the hood. Or better yet use d/filter on d/datoms (can we pass that
+  ; as an input to another query?)
   (clojure.string/includes? (clojure.string/lower-case (str v))
                             (clojure.string/lower-case (str needle))))
 
