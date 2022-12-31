@@ -12,8 +12,7 @@
             [hyperfiddle.photon-ui3 :as ui]
             [hyperfiddle.photon-ui3 :as ui3]
             [hyperfiddle.popover-ui2 :refer [Popover popover-staged popover staged]])
-  (:import [hyperfiddle.photon Pending]
-           [missionary Cancelled]))
+  (:import [hyperfiddle.photon Pending]))
 
 (def cobblestone 536561674378709)
 

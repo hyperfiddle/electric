@@ -1,11 +1,11 @@
-(ns wip.editor
+(ns wip.hfql-editor
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui.codemirror :as codemirror]
             [missionary.core :as m]
             [hyperfiddle.zero :as z])
   (:import (hyperfiddle.photon Pending))
-  #?(:cljs (:require-macros wip.editor)))
+  #?(:cljs (:require-macros wip.hfql-editor)))
 
 (defn write! [dir-path text] #?(:clj (spit dir-path text)))
 (defn read! [file-path] #?(:clj (slurp file-path)))
