@@ -111,6 +111,29 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      ~@body)) ; likely a label
 
 (comment
+  (p/defn F [e] (p/server (d/transact! conn [(tx-from-db db)])))
+
+  (button {::click-event F}
+    "toggle client/server 4")
+
+  (when-some [e (button "toggle client/server 4")]
+    (F. e))
+
+  (p/with-cycle [busy# IDLE]
+    (try
+      (when-some [e (button "toggle client/server 4" busy#)]
+        (F. e))
+      IDLE (catch Pending _ BUSY)))
+
+
+  (button {::click-event (p/fn [e] (p/server (swap! !x not)))}
+    "toggle client/server 4")
+
+  (when-some [e (button "toggle client/server 4")]
+    (p/server (swap! !x not)))
+
+  ; see user.demo-2-toggle for demos
+
   ; check props were compiled
   (macroexpand-1
     '(button {:click-event (p/fn [e] (p/server (swap! !x not)))}
