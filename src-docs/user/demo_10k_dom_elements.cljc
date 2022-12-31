@@ -1,9 +1,9 @@
-(ns user.demo-8-10k-elements
+(ns user.demo-10k-dom-elements
+  #?(:cljs (:require-macros user.demo-10k-dom-elements))
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui :as ui]
-            [missionary.core :as m])
-  #?(:cljs (:require-macros user.demo-8-10k-elements)))
+            [missionary.core :as m]))
 
 (def !moves #?(:clj (atom []) :cljs nil))
 (def !board-size #?(:clj (atom 10000) :cljs nil))
