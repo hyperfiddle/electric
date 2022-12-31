@@ -3,35 +3,18 @@
             [clojure.core.protocols :refer [nav]]
             contrib.ednish
             clojure.edn
+            [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui]
             [hyperfiddle.gridsheet :as-alias gridsheet]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
             [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]
-            #?(:cljs [hyperfiddle.router :as router])
-            [missionary.core :as m])
+            #?(:cljs [hyperfiddle.router :as router]))
   #?(:cljs (:require-macros [user.demo-7-explorer :refer [absolute-path]])))
-
-(p/def !path (p/client (m/mbx)))
 
 (defmacro absolute-path [path & paths]
   #?(:clj (str (.toAbsolutePath (java.nio.file.Path/of ^String path (into-array String paths))))
      :cljs (throw (js/Error. "Unsupported operation."))))
-
-(defn encode-path [route] (->> route pr-str contrib.ednish/encode (str "/")))
-(defn decode-path [path] {:pre [(string? path)]}
-  (if-not (= path "/")
-    (-> path (subs 1) contrib.ednish/decode clojure.edn/read-string)
-    [::fs/dir (absolute-path "node_modules")]))
-
-(p/defn Nav-link [route label]
-  (p/client
-    (let [path (encode-path route)]
-      (ui/element dom/a {::dom/href path
-                         ::ui/click-event (p/fn [e]
-                                            (.preventDefault e)
-                                            (router/pushState! !path path))} label))))
 
 (p/defn Dir [x]
   (binding
@@ -69,15 +52,15 @@
                                       (let [v (a m)]
                                         (case a
                                           ::fs/name (case (::fs/kind m)
-                                                      ::fs/dir (Nav-link. [::fs/dir (::fs/absolute-path m)] v)
+                                                      ::fs/dir (p/client (router/Link. [::fs/dir (::fs/absolute-path m)] v))
                                                       (::fs/other ::fs/symlink ::fs/unknown-kind) v
-                                                      v #_(Nav-link. [::fs/file x] v))
+                                                      v #_(p/client (router/Link. [::fs/file x] v)))
                                           ::fs/modified (p/client (some-> v .toLocaleDateString))
                                           ::fs/kind (case (::fs/kind m)
                                                       ::fs/dir unicode-folder
                                                       (some-> v name))
                                           (str v))))]
-            (let [[page fs-path] (p/client (decode-path (new (router/path> !path))))]
+            (let [[page fs-path] (p/client (or hf/route [::fs/dir (absolute-path "node_modules")]))]
               (case page
                 ;::fs/file (File. (clojure.java.io/file fs-path))
                 ::fs/dir (Dir. (clojure.java.io/file fs-path))))))))))

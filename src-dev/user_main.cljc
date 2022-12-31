@@ -3,7 +3,7 @@
   #?(:cljs (:require-macros user-main))
   (:import [hyperfiddle.photon Pending]
            [missionary Cancelled])
-  (:require contrib.ednish
+  (:require contrib.sexpr-router
             contrib.uri ; data_readers
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
@@ -15,23 +15,17 @@
 
 ; application main is a separate .cljc file because p/server is not valid in user.cljs.
 
-#?(:cljs (defn decode-path [path read-edn-str]
-           {:pre [(string? path) (some? read-edn-str)]}
-           (case path
-             "/" ::index
-             (-> path (subs 1) contrib.ednish/decode read-edn-str))))
-
-#?(:cljs (defn encode-path [route] (->> route pr-str contrib.ednish/encode (str "/"))))
+(def home-route [::index])
 
 (p/defn Main []
   (try
-    (let [!path (m/mbx)
-          route (decode-path (router/path !path) hf/read-edn-str)]
-      (binding [router/Link (router/->Link. !path encode-path)
+    (let [!path (m/mbx)]
+      (binding [hf/route (contrib.sexpr-router/decode (router/path !path) home-route)
+                router/Link (router/->Link. !path contrib.sexpr-router/encode)
                 dom/node (dom/by-id "root")]
 
         (p/server
-          (user.demo-entrypoint/App. route))))
+          (user.demo-entrypoint/App. (p/client hf/route)))))
 
     (catch Pending _)
     (catch Cancelled e (throw e))
