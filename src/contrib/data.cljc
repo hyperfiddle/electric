@@ -186,6 +186,20 @@
   (update-existing {:a 1} :a + 10) := {:a 11}
   (update-existing {:a 1} :b + 10) := {:a 1})
 
+;(defn positional
+;  "Transform an array-like map {0 :foo, 1 :bar, ...} with contiguous array keys (0, 1, ...) into
+;   list [:foo :bar]"
+;  [amap]
+;  (->> (range (inc (count amap)))
+;       (reduce (fn [acc idx]
+;                 (if (contains? amap idx)
+;                   (conj acc (get amap idx))
+;                   (reduced acc)))
+;               [])
+;       (seq)))
+;
+;(tests (positional {0 :foo 1 :bar}) := [:foo :bar])
+
 (defn round-floor [n base] (* base (clojure.math/floor (/ n base))))
 
 (comment

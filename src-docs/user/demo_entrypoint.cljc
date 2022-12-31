@@ -1,6 +1,7 @@
 (ns user.demo-entrypoint
   #?(:cljs (:require-macros user.demo-entrypoint))
-  (:require [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.api :as hf]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.router :as router]
             user.demo-1-hello-world
@@ -53,28 +54,31 @@
   [[::color user.demo-color/App]
    [::controlled-input user.demo-controlled-input/App]
    #_[::hyperfiddle-form user.demo-stage-ui3/Demo]
-   #_[::explorer user.demo-7-explorer/App] ; crashes in routing - needs nested router
+   [::explorer user.demo-7-explorer/App] ; crashes in routing - needs nested router
    #_[::datomic-browser hyperfiddle.datomic-browser/App]
    #_[::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
    #_[::hfql user.demo-hfql/App]
    #_[::hfql2 wip.hfql/App]])
 
-(p/defn App [route]
+(p/defn App [[page & args :as route]]
   (p/client
     (dom/div {:style {:width "90vw"}}
-      (case route
+      (case page
         :user-main/index
         (do (dom/h1 (dom/text "Photon Demos"))
             (dom/p (dom/text "See source code in src-docs."))
             (p/for [[k _] pages]
-              (dom/div (router/Link. k (name k))))
+              (dom/div (router/Link. [k] (name k))))
             (dom/div {:style {:opacity 0}}
-              (router/Link. ::secret-hyperfiddle-demos "secret-hyperfiddle-demos")))
+              (router/Link. [::secret-hyperfiddle-demos] "secret-hyperfiddle-demos")))
 
         ::secret-hyperfiddle-demos
         (do (dom/h1 "Hyperfiddle demos, unstable/wip")
             (dom/p "These may require a Datomic connection and are unstable, wip, often broken")
             (p/for [[k _] secret-pages]
-              (dom/div (router/Link. k (name k)))))
+              (dom/div (router/Link. [k] (name k)))))
 
-        (p/server (new (get (into {} (concat pages secret-pages)) route)))))))
+        (binding [hf/route args]
+          (p/server
+            (let [Page (get (into {} (concat pages secret-pages)) page)]
+              (new Page))))))))

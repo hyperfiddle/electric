@@ -39,13 +39,20 @@ coalesce into lists and are not disambiguated."
   (encode (pr-str :a!b)) := ":a!b"
   (encode (pr-str "kobe")) := "'kobe'"
   (encode (pr-str #{"events" "news"})) := "~{'news','events'}"
-  (encode (pr-str #uuid "07655f77-608d-472b-bc5e-86fcecc40b00")) := "~uuid,'07655f77-608d-472b-bc5e-86fcecc40b00'"
-
-
-  )
+  (encode (pr-str #uuid "07655f77-608d-472b-bc5e-86fcecc40b00"))
+  := "~uuid,'07655f77-608d-472b-bc5e-86fcecc40b00'")
 
 (def encode-uri (comp contrib.rfc3986/encode-pchar encode pr-str))
 (def decode-uri (comp clojure.tools.reader.edn/read-string decode contrib.rfc3986/decode-pchar))
+
+(tests
+  "url encoding"
+  (encode-uri "|") := "'%7C'"
+  (decode-uri "'%7C'") := "|"
+
+  (encode-uri "!$&'[]()*+,;=|") := "'!$&'()()*+,;=%7C'"
+  ;(decode-uri "'!$&'()()*+,;=%7C'") := "!$&'()()*+,;=|" -- todo why broken?
+  )
 
 ;(tests -- No reader function for tag uri -- this test passes in hf-2020
 ;  "ednish-tunneling"
