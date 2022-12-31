@@ -1,14 +1,17 @@
 (ns user.demo-stage-ui2
   #?(:cljs (:require-macros user.demo-stage-ui2))
   (:require [contrib.clojurex :refer [bindx]]
+            [contrib.css :refer [css-slugify]]
             [contrib.str :refer [pprint-str]]
             #?(:clj [contrib.datomic-contrib :as dx])
             #?(:clj [datomic.client.api :as d])
             [hyperfiddle.api :as hf]
+            [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui2 :as ui]
-            [hyperfiddle.popover :refer [Popover]]
+            hyperfiddle.popover-ui2b
+            [hyperfiddle.popover-ui2 :refer [Popover]]
             #?(:clj [hyperfiddle.txn :refer [minimal-tx]]))
   (:import [hyperfiddle.photon Pending]))
 
@@ -49,20 +52,24 @@
 (p/defn Form [e]
   (let [record (d/pull hf/db label-form-spec e)]
     (p/client
-      ;(p/Unglitch. record)
-      (dom/div (dom/text (name hf/loading) " " (hf/Load-timer.) "ms"))
+      (p/Unglitch. record)
       (dom/dl
 
         (dom/dt (dom/text "id"))
-        (dom/dd (let [_ (ui/input (:db/id record) (dom/props {::dom/disabled true}))]))
+        (dom/dd (let [_ (ui/input (:db/id record) {::dom/disabled true})]))
 
         (dom/dt "gid")
         (dom/dd (let [_ (ui/uuid (:label/gid record) {::dom/disabled true})]))
 
-        (dom/dt (dom/text "name"))
-        (dom/dd (let [v (ValueLog. (ui/input (:label/name record)))]
-                  (p/Unglitch. v)
-                  (p/server (hf/Transact!. [[:db/add e :label/name v]]))))
+        (when (p/with-cycle [local-busy false]
+                (try
+                  (dom/dt (dom/text "name"))
+                  (dom/dd (let [v (ui/input (:label/name record)
+                                            (dom/props {:style {:background-color (if local-busy "yellow")}}))]
+                            (p/Unglitch. v)
+                            (p/server (hf/Transact!. [[:db/add e :label/name v]]))))
+                  false (catch Pending _ true)))
+          (throw (Pending.)))
 
         (dom/dt (dom/text "sortName"))
         (dom/dd (let [v (ValueLog. (ui/input (:label/sortName record)))]
@@ -94,30 +101,27 @@
         )
       (dom/pre (dom/text (pprint-str record))))))
 
-(p/defn App [e]
-  (Form. e)
-  #_(Form. e))
-
-#?(:clj (defn with! [db tx]
-          (if-some [tx (seq (minimal-tx db tx))] ; stabilize first loop (optional)
-            ;(hf/into-tx hf/schema tx tx')
-            (:db-after (d/with db {:tx-data tx}))
-            db)))
+(p/defn Page []
+  (p/client (dom/div (name hf/loading) " " (str (hf/Load-timer.)) "ms"))
+  (Form. cobblestone)
+  (when-let [request (p/client (hyperfiddle.popover-ui2b/Popover.
+                                 "open" (p/fn [] (p/server (Form. cobbblestone)))))]
+    (println 'Page-request-from-popover request)))
 
 (p/defn Demo []
-  (p/client
-    (dom/h1 (dom/text (str `Demo)))
-    (p/with-cycle [loading ::hf/idle]
-      (binding [hf/loading loading]
-        (try
-          (p/server
-            (let [!db @(requiring-resolve 'test/datomic-conn) ; todo datomic-tx-listener. don't lose stage on rebase!
-                  !t (atom (d/with-db !db))]
-              (bindx [hf/db (p/watch !t)
-                      hf/schema (new (dx/schema> hf/db))
-                      hf/Transact! (p/fn [tx] (p/wrap (swap! !t with! tx)) nil)]
-                (App. cobblestone))))
-          ::hf/idle (catch Pending e ::hf/loading))))
-    nil))
-
-;(p/client (ui/edn-editor stage {::dom/disabled true}))
+  (p/client (dom/h1 (dom/text (str `Demo))))
+  (p/server
+    (let [conn @(requiring-resolve 'test/datomic-conn)
+          secure-db (d/with-db conn)] ; todo datomic-tx-listener
+      (binding [hf/schema (new (dx/schema> secure-db))
+                hf/with (fn [db tx] ; inject datomic
+                          (try (:db-after (d/with db {:tx-data tx}))
+                               (catch Exception e (println "...failure, e: " e))))
+                ;hf/Transact! (p/fn [tx] #_(:db/after (d/transact conn {:tx-data tx})))
+                hf/db secure-db]
+        (hf/branch
+          (Page.)
+          (p/client
+            (dom/hr)
+            (dom/element "style" (str "." (css-slugify `stage) " { display: block; width: 100%; height: 10em; }"))
+            (ui/edn-editor (p/server hf/stage) {::dom/disabled true ::dom/class (css-slugify `stage)})))))))
