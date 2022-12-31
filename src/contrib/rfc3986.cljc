@@ -39,11 +39,16 @@
       string/join))
 
 (tests
+  "pchar encoding and decoding"
   (encode-pchar "google-oauth2|116635422485042503270")
   := "google-oauth2%7C116635422485042503270"
 
   (decode-pchar "google-oauth2%7C116635422485042503270")
   := "google-oauth2|116635422485042503270"
+
+  "non-ascii characters"
+  (encode-pchar "!$&'[]()*+,;=|") := "!$&'%5B%5D()*+,;=%7C"
+  (decode-pchar "!$&'%5B%5D()*+,;=%7C") := "!$&'[]()*+,;=|"
 
   "bijection"
   ((comp decode-pchar encode-pchar) "google-oauth2|116635422485042503270")
