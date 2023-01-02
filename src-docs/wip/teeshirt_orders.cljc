@@ -116,6 +116,7 @@
                  hf/*nav!*   wip.orders-datascript/nav!
                  hf/route    route
                  ;hf/schema (new (dx/schema> secure-db))
+                 hf/into-tx' (fn [schema tx0 tx] (concat tx0 tx))
                  hf/with (fn [db tx] ; inject datomic
                            (try (:db-after (datascript.core/with db tx))
                                 (catch Exception e (println "...failure, e: " e))))]

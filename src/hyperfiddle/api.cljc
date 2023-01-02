@@ -16,6 +16,7 @@
 (declare ref?)
 (p/def secure-db "database value excluding stage, so that user can't tamper")
 (p/def with "inject datomic.api/with or equivalent, used by stage")
+(p/def into-tx')
 (def -read-edn-str-default (partial clojure.edn/read-string
                                     {:readers #?(:cljs {'goog.math/Long goog.math.Long/fromString} ; datomic cloud long ids
                                                 :clj {})}))
@@ -121,7 +122,7 @@
     ; return basis-t ?
     (swap! !t (fn [[db tx0]]
                 [(with db tx) ; injected datomic dep
-                 (concat tx0 tx) #_(into-tx schema tx0 tx)]))))
+                 (into-tx' schema tx0 tx)])))) ; datascript is different
 
 (p/def Transact!) ; server
 (p/def stage) ; server
