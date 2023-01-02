@@ -217,7 +217,7 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-double))
        #(set! (.-value dom/node) %))))
 
-(defn parse-edn [s] (try (clojure.edn/read-string s) (catch #?(:clj Throwable :cljs :default) _)))
+(defn parse-edn [s] (try (some-> s contrib.str/blank->nil clojure.edn/read-string) (catch #?(:clj Throwable :cljs :default) _)))
 (defn keep-if [pred v] (when (pred v) v))
 (defn parse-keyword [s] (keep-if keyword? (parse-edn s)))
 (defn parse-symbol [s] (keep-if symbol? (parse-edn s)))
