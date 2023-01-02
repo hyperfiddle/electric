@@ -40,7 +40,9 @@
 
         (dom/dt (dom/text "name"))
         (dom/dd (ui3/input! (:label/name record)
-                            (p/fn [v] (p/server (hf/Transact!. [[:db/add e :label/name v]])))))
+                            (p/fn [v]
+                              (println 'ui3/input! v)
+                              (p/server #_(when true) (hf/Transact!. [[:db/add e :label/name v]])))))
 
         (dom/dt (dom/text "sortName"))
         (dom/dd (ui3/input! (:label/sortName record)
