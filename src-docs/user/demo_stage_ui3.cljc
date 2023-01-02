@@ -65,6 +65,7 @@
     (let [conn @(requiring-resolve 'test/datomic-conn)
           secure-db (d/with-db conn)] ; todo datomic-tx-listener
       (binding [hf/schema (new (dx/schema> secure-db))
+                hf/into-tx' hf/into-tx
                 hf/with (fn [db tx] ; inject datomic
                           (try (:db-after (d/with db {:tx-data tx}))
                                (catch Exception e
