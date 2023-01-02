@@ -26,6 +26,7 @@
                 dom/node (dom/by-id "root")]
 
         (p/server
+          #_(wip.teeshirt-orders/App.)
           (user.demo-entrypoint/App. (p/client hf/route)))))
 
     (catch Pending _)
