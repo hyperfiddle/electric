@@ -10,6 +10,7 @@
             [contrib.color :as c]
             [contrib.data :as data]
             [hyperfiddle.photon-ui2 :as ui2]
+            [hyperfiddle.photon-ui3 :as ui3]
             [hyperfiddle.scrollview :as sw]
             [hyperfiddle.rcf :refer [tests with % tap]]
             [missionary.core :as m])
@@ -56,8 +57,8 @@
                  :hyperfiddle.spec.type/bigdec  "text"
                  :hyperfiddle.spec.type/keyword "text"
                  :hyperfiddle.spec.type/ref     "text"
-                 :hyperfiddle.spec.type/float   "number"
-                 :hyperfiddle.spec.type/double  "number"
+                 :hyperfiddle.spec.type/float   "double"
+                 :hyperfiddle.spec.type/double  "double"
                  :hyperfiddle.spec.type/long    "number"})
 
 ;; ----
@@ -88,34 +89,30 @@
 
 (p/defn Identity [x] x)
 
+(defmacro input-props [readonly? grid-row grid-col dom-for]
+  `(do
+     (dom/props {::dom/role     "cell"
+                 ::dom/disabled ~readonly?
+                 ::dom/style    {:grid-row ~grid-row, :grid-column ~grid-col}})
+     (when ~dom-for
+       (dom/props {::dom/id ~dom-for}))))
+
 (p/defn Input [{::hf/keys [tx Value] :as ctx}]
   (let [value-type (::value-type ctx)
-        readonly?  (::readonly ctx)
         tx?        (some? tx)
+        readonly?  (if-some [ro (find ctx ::readonly)] (val ro) (not tx?))
         v          (Value.)
         dom-for    (::dom/for ctx)]
     (p/client
-      (let [type (input-type value-type "text")]
-        (dom/input
-          {::dom/role     "cell"
-           ::dom/type     type,
-           ::dom/disabled readonly?
-           ::dom/style    {:grid-row grid-row, :grid-column grid-col}}
-          (case type
-            "checkbox" (dom/props {::dom/checked v})
-            (dom/props {::dom/value (cond (inst? v) (.slice (.toISOString v) 0 16)
-                                          :else     (str v))}))
-          (when dom-for
-            (dom/props {::dom/id dom-for}))
-          (when tx?
-            (let [!v' (atom ::init)
-                  v'  (p/watch !v')]
-              (dom/event "input" (fn [e]
-                                   (reset! !v' (case type
-                                                 "checkbox" (.. e -target -checked)
-                                                 (.. e -target -value)))))
-              (when-not (= ::init v')
-                (p/server (tx. ctx v'))))))))))
+      (let [type (input-type value-type "text")
+            Tx   (when-not readonly? (p/fn [v] (p/server (hf/Transact!. (tx. ctx v)) nil)))]
+        ;; TODO tests/demo for all branches in photon repo
+        (case type
+          "checkbox"       (ui3/checkbox! v       Tx (input-props readonly? grid-row grid-col dom-for))
+          "datetime-local" (ui3/date!     v       Tx (input-props readonly? grid-row grid-col dom-for))
+          "number"         (ui3/long!     v       Tx (input-props readonly? grid-row grid-col dom-for))
+          "double"         (ui3/double!   v       Tx (input-props readonly? grid-row grid-col dom-for))
+          #_else           (ui3/input!    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))
 
 ;; NOTE: No default option renderer, to be handled by the summarizer (typeahead, tag picker, etc...)
 #_(p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx} value]

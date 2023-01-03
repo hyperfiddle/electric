@@ -52,16 +52,8 @@
                 {(props (wip.orders-datascript/orders (props . {::hf/options (names)}))
                    {::hf/height 3})
                  [(props :db/id {::hf/link ['wip.orders-datascript/one-order db/id]})
-                  (props :order/email {::hf/render (p/fn [{::hf/keys [Value entity attribute]}]
-                                                     (p/client (ui3/input!
-                                                                 (p/server (Value.))
-                                                                 (p/client (p/fn [v] (p/server
-                                                                                       (hf/Transact!. (doto [[:db/add entity attribute v]]
-                                                                                                                (println 'tx)))
-                                                                                       nil)))))
-                                                     #_(p/client (dom/span (dom/text "Value is: " (p/server (Value.))))))
-                                       #_#_::hf/tx (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
-                  :order/email ; duplicate, for checking the loop
+                  (props :order/email {::hf/tx (p/fn [{e ::hf/entity, a ::hf/attribute} v] [[:db/add e a v]])})
+                  :order/email          ; duplicate, readonly, for checking the loop
                   {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
                                          ::hf/option-label (p/fn [v] (name (:db/ident v)))
                                          ::hf/tx           (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
