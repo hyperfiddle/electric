@@ -279,8 +279,7 @@
   (let [value    (read.)
         options? (some? options)]
     (p/client
-      (let [!steady  (atom false)
-            id       (random-uuid)
+      (let [id       (random-uuid)
             list-id  (random-uuid)
             arg-spec (spec/arg spec name)]
         (when label?
@@ -299,34 +298,14 @@
                           (let [text (labelf. x)]
                             (p/client (dom/option (dom/text text)))))))))
 
-        (let [type  (spec/type-of spec name)
-              value (if (p/watch !steady) (p/current value) value)
-              !v    (atom nil)]
-          (dom/input {::dom/id    id
-                      ::dom/role  "cell"
-                      ::dom/type  (input-type type)
-                      ::dom/style {:grid-row    grid-row
-                                   :grid-column (inc grid-col)}}
-
-            (case type
-              :hyperfiddle.spec.type/boolean (dom/props {::dom/checked value})
-              (dom/props {::dom/value value}))
-            (when (seq props)
-              (dom/props props))
-            (when options?
-              (dom/props {::dom/list list-id}))
-            (let [route hf/route]
-              (dom/event "input"
-                (fn [e]
-                  (let [v (case type
-                            :hyperfiddle.spec.type/boolean (.. e -target -checked)
-                            (.. e -target -value))]
-                    (reset! !v v)
-                    (hf/replace-route!
-                      (hf/assoc-in-route-state route path v))))))
-            (dom/event "focus" (fn [_] (reset! !steady true)))
-            (dom/event "blur" (fn [_] (reset! !steady false))))
-          (or (p/watch !v) value))))) )
+        (case (spec/type-of spec name)
+          ;; "checkbox" ()
+          #_else (ui3/input! value (p/fn [v] (hf/replace-route! (hf/assoc-in-route-state hf/route path v)) nil)
+                   (dom/props {::dom/id    id
+                               ::dom/role  "cell"
+                               ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
+                   (when (seq props) (dom/props props))
+                   (when options? (dom/props {::dom/list list-id}))))))))
 
 (defn apply-1 [n F args]
   (let [syms (vec (repeatedly n gensym))]
