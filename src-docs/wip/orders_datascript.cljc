@@ -47,7 +47,6 @@
   (shirt-sizes :order/female #_2 "") := [6 7 8]
   (shirt-sizes :order/female #_2 "med") := [7])
 
-;; TODO try p/defn catch Pending solution prototyped in Rosie index page
 (defn orders [needle]
   (sort (d/q '[:find [?e ...] :in $ ?needle :where
                [?e :order/email ?email]
