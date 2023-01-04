@@ -107,6 +107,8 @@
                 :impulse (assoc state :status :pending) ; impulse is seen for 1 frame and then cleared
                 :pending (if busy state {:status :idle}))))))
 
+(def <clock hyperfiddle.photon-dom/<clock)
+
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
 (defmacro address [& body] `(element :address ~@body))
