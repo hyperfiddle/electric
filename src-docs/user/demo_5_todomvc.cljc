@@ -180,7 +180,7 @@
         (binding [db (p/watch !conn)
                   transact! (partial slow-transact! !conn (p/client (::delay state)))]
           (p/client
-            (dom/link {:rel :stylesheet, :href "todomvc.css"})
+            (dom/link {:rel :stylesheet, :href "/todomvc.css"})
             (TodoMVC. state)
             #_(Diagnostics. state)))))))
 
