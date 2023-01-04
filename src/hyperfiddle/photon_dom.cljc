@@ -136,9 +136,9 @@
   (let [[props body] (if (map? props) [props body] [nil (seq (cons props body))])
         body         (handle-text body)]
     `(with (dom-element node ~(name t))
-       (bubbling ~@(cond (map? props)  (cons `(props ~props) body)
-                         (some? props) (cons props body)
-                         :else         body)))))
+       ~@(cond (map? props)  (cons `(props ~props) body)
+               (some? props) (cons props body)
+               :else         body))))
 
 (defn set-style! [node k v]
   #?(:cljs (goog.style/setStyle node (name k) (clj->js v))))
