@@ -387,12 +387,8 @@
     (dom/tr
       (when-let [id (::group-id table-picker-options)]
         (let [value (p/server (hfql/JoinAllTheTree. ctx))]
-          (dom/input
-            {::dom/role    "cell"
-             ::dom/type    :radio,
-             ::dom/name    id,
-             ::dom/checked (= (::current-value table-picker-options) value)
-             ::dom/style   {:grid-row grid-row, :grid-column grid-col}})))
+          (ui3/checkbox! (= (::current-value table-picker-options) value) (p/fn [_])
+            (dom/props {::dom/role "cell", ::dom/name id, ::dom/style {:grid-row grid-row, :grid-column grid-col}}))))
       (p/server
         (binding [List-impl Default]
           (into [] cat
