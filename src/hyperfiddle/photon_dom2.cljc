@@ -14,8 +14,14 @@
            (let [node (goog.dom/createElement type)]
              (.appendChild parent node) node)))
 
+(defn hide-on-unmount [node]
+  (m/observe (fn [!]
+               (! nil)
+               #(set! (.. node -style -display) "none"))))
+
 (defmacro element [t & body]
   `(with (dom-element* node ~(name t))
+     (new (hide-on-unmount node))
      ~@body))
 
 #?(:cljs (defn text-node [parent]
