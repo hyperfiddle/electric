@@ -2,7 +2,7 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql :as hfql]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.spec :as spec]
             [clojure.datafy :refer [datafy]]
             [clojure.string :as str]
@@ -66,7 +66,7 @@
 (p/def table-picker-options {::group-id nil, ::current-value nil}),
 
 ;; (dom/a
-;;   {::dom/href (str "#" (ednish/encode-uri link))}
+;;   (dom/props {::dom/href (str "#" (ednish/encode-uri link))})
 ;;   (dom/event "click" (fn [e] (.preventDefault e) (hf/navigate! link)))
 ;;   (dom/text value))
 
@@ -78,9 +78,10 @@
 (p/def pagination-offset)
 
 (defmacro cell [row col & body]
-  `(dom/div {::dom/role  "cell"
-             ::dom/style {:grid-column ~col
-                          :grid-row    ~row}}
+  `(dom/div
+     (dom/props {::dom/role  "cell"
+                  ::dom/style {:grid-column ~col
+                                :grid-row    ~row}})
      ~@body))
 
 (defn find-best-identity [v] ; TODO look up in schema
@@ -92,8 +93,8 @@
 (defmacro input-props [readonly? grid-row grid-col dom-for]
   `(do
      (dom/props {::dom/role     "cell"
-                 ::dom/disabled ~readonly?
-                 ::dom/style    {:grid-row ~grid-row, :grid-column ~grid-col}})
+                  ::dom/disabled ~readonly?
+                  ::dom/style    {:grid-row ~grid-row, :grid-column ~grid-col}})
      (when ~dom-for
        (dom/props {::dom/id ~dom-for}))))
 
@@ -131,8 +132,8 @@
                                           :value (find-best-identity v)})))
                  value
                  (dom/props {::dom/role     "cell"
-                             ::dom/style    {:grid-row grid-row, :grid-column grid-col}
-                             ::dom/disabled (not tx?)})
+                              ::dom/style    {:grid-row grid-row, :grid-column grid-col}
+                              ::dom/disabled (not tx?)})
                  (dom/props dom-props))]
         (when (and tx? (not= value v'))
           (p/server
@@ -152,8 +153,9 @@
       (::value-type ctx) (Input. ctx)
       :else
       (p/client
-        (dom/pre {::dom/role  "cell"
-                  ::dom/style {:grid-row grid-row, :grid-column grid-col}}
+        (dom/pre
+          (dom/props {::dom/role  "cell"
+                       ::dom/style {:grid-row grid-row, :grid-column grid-col}})
           (dom/text
             (pr-str value)))))))
 
@@ -189,14 +191,14 @@
                Render    Render-impl
                hf/Render Render-impl]
        (p/client ; FIXME don’t force body to run on the client
-         (dom/div {:class "hyperfiddle-gridsheet"} ; FIXME drop the wrapper div
-           (let [[rows# columns# width# height# gap# color#] (new ComputedStyle extract-borders dom/node)
-                 [scroll-top# scroll-height# client-height#] (new (sw/scroll-state< dom/node))
+         (dom/div (dom/props {:class "hyperfiddle-gridsheet"}) ; FIXME drop the wrapper div
+           (let [[rows# columns# width# height# gap# color#] (new ComputedStyle extract-borders hyperfiddle.photon-dom/node)
+                 [scroll-top# scroll-height# client-height#] (new (sw/scroll-state< hyperfiddle.photon-dom/node))
                  height#                                     (if (zero? scroll-height#) height# scroll-height#)]
-             (dom/canvas {:class  "hf-grid-overlay"
-                          :width  (str width# "px")
-                          :height (str height# "px")}
-               (draw-lines! dom/node color# width# height# gap# rows# columns#)))
+             (dom/canvas (dom/props {:class  "hf-grid-overlay"
+                                       :width  (str width# "px")
+                                       :height (str height# "px")})
+               (draw-lines! hyperfiddle.photon-dom/node color# width# height# gap# rows# columns#)))
            ~@body)))))
 
 ;; TODO adapt to new HFQL macroexpansion
@@ -285,16 +287,17 @@
             list-id  (random-uuid)
             arg-spec (spec/arg spec name)]
         (when label?
-          (dom/label {::dom/role  "cell"
-                      ::dom/class "label"
-                      ::dom/for   id,
-                      ::dom/title (pr-str (:hyperfiddle.spec/form arg-spec))
-                      ::dom/style {:grid-row    grid-row
-                                   :grid-column grid-col
-                                   :color       :gray}}
+          (dom/label
+            (dom/props {::dom/role  "cell"
+                         ::dom/class "label"
+                         ::dom/for   id,
+                         ::dom/title (pr-str (:hyperfiddle.spec/form arg-spec))
+                         ::dom/style {:grid-row    grid-row
+                                       :grid-column grid-col
+                                       :color       :gray}})
             (dom/text (str (non-breaking-padder indentation) (field-name  name)))))
         (when options?
-          (dom/datalist {::dom/id list-id}
+          (dom/datalist (dom/props {::dom/id list-id})
             (p/server (let [labelf (or option-label (p/fn [x] x))]
                         (p/for [x (options.)]
                           (let [text (labelf. x)]
@@ -304,8 +307,8 @@
           ;; "checkbox" ()
           #_else (ui3/input! value (p/fn [v] (hf/replace-route! (hf/assoc-in-route-state hf/route path v)) nil)
                    (dom/props {::dom/id    id
-                               ::dom/role  "cell"
-                               ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
+                                ::dom/role  "cell"
+                                ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
                    (when (seq props) (dom/props props))
                    (when options? (dom/props {::dom/list list-id}))))
         value))))
@@ -349,8 +352,9 @@
   (let [values (p/for [ctx values]
                  (assoc ctx ::count (new (::hf/count ctx (p/fn [] 0)))))]
     (p/client
-      (dom/form {:role  "form"
-                 :style {:border-left-color (c/color hf/db-name)}}
+      (dom/form
+        (dom/props {::dom/role  "form"
+                     ::dom/style {:border-left-color (c/color hf/db-name)}})
         (p/server
           (let [heights (vec (reductions + 0 (map height values)))]
             (into [] cat
@@ -362,14 +366,15 @@
                     (let [row     (+ grid-row idx (- h idx))
                           dom-for (random-uuid)]
                       (dom/label
-                        {::dom/role  "cell"
-                         ::dom/class "label"
-                         ::dom/for   dom-for
-                         ::dom/style {:grid-row         row
-                                      :grid-column      grid-col
-                                      #_#_:padding-left (str indentation "rem")}
-                         ::dom/title (pr-str (or (spec-description false (attr-spec key))
-                                               (p/server (schema-value-type hf/*schema* hf/db key))))}
+                        (dom/props
+                          {::dom/role  "cell"
+                           ::dom/class "label"
+                           ::dom/for   dom-for
+                           ::dom/style {:grid-row         row
+                                         :grid-column      grid-col
+                                         #_#_:padding-left (str indentation "rem")}
+                           ::dom/title (pr-str (or (spec-description false (attr-spec key))
+                                                  (p/server (schema-value-type hf/*schema* hf/db key))))})
                         (dom/text (str (non-breaking-padder indentation) (field-name key))))
                       (into [] cat
                         [(binding [grid-row    (inc row)
@@ -399,7 +404,7 @@
               (p/client
                 (binding [grid-col (+ grid-col idx)]
                   (dom/td (p/server (binding [Form Default]
-                                      (Render. ctx)))))))))))))
+                                       (Render. ctx)))))))))))))
 
 (p/def default-height 10)
 
@@ -420,22 +425,23 @@
       (binding [grid-col (if nested? (inc grid-col) grid-col)
                 grid-row (if (or shifted? list?) (dec grid-row) grid-row)]
         (paginated-grid (count keys) height actual-height
-          (dom/table {::dom/role "table"}
+          (dom/table
+            (dom/props {::dom/role "table"})
             (when-not list?
               (dom/thead
                 (dom/tr
                   (when (::group-id table-picker-options)
-                    (dom/th {::dom/role  "cell"
-                             ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
+                    (dom/th (dom/props {::dom/role  "cell"
+                                        ::dom/style {:grid-row grid-row, :grid-column grid-col}})))
                   (p/for-by second [[idx col] (map-indexed vector keys)]
-                    (dom/th {::dom/role  "cell"
-                             ::dom/class "label"
-                             ::dom/title (pr-str (or (spec-description true (attr-spec col))
-                                                   (p/server (schema-value-type hf/*schema* hf/db col)))),
-                             ::dom/style {:grid-row    grid-row,
-                                          :grid-column (+ grid-col idx)
-                                          :color       (c/color hf/db-name)}}
-                      (field-name col))))))
+                    (dom/th (dom/props {::dom/role  "cell"
+                                        ::dom/class "label"
+                                        ::dom/title (pr-str (or (spec-description true (attr-spec col))
+                                                              (p/server (schema-value-type hf/*schema* hf/db col)))),
+                                        ::dom/style {:grid-row    grid-row,
+                                                     :grid-column (+ grid-col idx)
+                                                     :color       (c/color hf/db-name)}})
+                      (dom/text (field-name col)))))))
             (dom/tbody
               (p/server
                 (let [value (give-card-n-contexts-a-unique-key hf/page-drop (Value.))]
@@ -452,21 +458,22 @@
            (.setProperty (.-style node) key value)))
 
 (defmacro paginated-grid [actual-width max-height actual-height & body]
-  `(let [row-height#    (or (js/parseFloat (ComputedStyle. #(.-gridAutoRows %) (.closest dom/node ".hyperfiddle-gridsheet"))) 0)
+  `(let [row-height#    (or (js/parseFloat (ComputedStyle. #(.-gridAutoRows %) (.closest hyperfiddle.photon-dom/node ".hyperfiddle-gridsheet"))) 0)
          actual-height# (* row-height# ~actual-height)
          !scroller#     (atom nil)
          !scroll-top#   (atom 0)]
-     (dom/div {::dom/role  "scrollbar"
-               ::dom/style {:grid-row-start (inc grid-row)
-                            :grid-row-end   (+ (inc grid-row) ~max-height)
-                            :grid-column    (+ grid-col ~actual-width)}}
-       (do (reset! !scroller# dom/node)
-           (let [[scroll-top#] (new (sw/scroll-state< dom/node))]
+     (dom/div
+       (dom/props {::dom/role  "scrollbar"
+                    ::dom/style {:grid-row-start (inc grid-row)
+                                  :grid-row-end   (+ (inc grid-row) ~max-height)
+                                  :grid-column    (+ grid-col ~actual-width)}})
+       (do (reset! !scroller# hyperfiddle.photon-dom/node)
+           (let [[scroll-top#] (new (sw/scroll-state< hyperfiddle.photon-dom/node))]
              (reset! !scroll-top# scroll-top#))
            nil)
-       (dom/div {:role "filler" "data-height" actual-height# :style {:height (str actual-height# "px")}}))
+       (dom/div (dom/props {::dom/role "filler" "data-height" actual-height# ::dom/style {:height (str actual-height# "px")}})))
 
-     (dom/div {::dom/role "scrollview"}
+     (dom/div (dom/props {::dom/role "scrollview"})
        (dom/event "wheel" ; TODO support keyboard nav and touchscreens
          (fn [e#] (let [scroller# @!scroller#]
                     (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY))))))
