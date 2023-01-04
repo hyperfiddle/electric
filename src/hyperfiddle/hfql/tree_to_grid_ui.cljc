@@ -300,7 +300,7 @@
 
         (case (spec/type-of spec name)
           ;; "checkbox" ()
-          #_else (ui3/input! value (p/fn [v] (hf/replace-route! (hf/assoc-in-route-state hf/route path v)) v)
+          #_else (ui3/input! value (p/fn [v] (hf/replace-route! (hf/assoc-in-route-state hf/route path v)) nil)
                    (dom/props {::dom/id    id
                                ::dom/role  "cell"
                                ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
