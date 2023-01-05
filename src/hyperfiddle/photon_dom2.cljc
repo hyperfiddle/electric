@@ -92,6 +92,7 @@
 (defmacro event [event-name callback] `(new (event* node ~event-name ~callback)))
 
 (defn happen [s e]
+  (.preventDefault e) ; (.stopPropagation e)
   ; Todo, we need a buffer to force a nil in between events to fix race
   (case (:status s)
     :idle {:status :impulse :event e} ; rising edge
