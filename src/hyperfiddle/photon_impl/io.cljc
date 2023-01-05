@@ -114,7 +114,7 @@
 ; We’ll chop messages if needed
 (def chunk-size (bit-shift-right 65536 2))
 
-(defn message-reader [?read]
+(defn ^:deprecated message-reader [?read]
   "Returns a discreet flow of read photon messages from provided task, emitting individual frames."
   (m/sp
     (loop [data (transient [])]
@@ -132,7 +132,7 @@
                     (recur (m/? ?read) control)))))))))))
 
 
-(defn message-writer
+(defn ^:deprecated message-writer
   "Returns a function taking a photon message and returning a task writing it as individual frames using provided
    function. Might cut a message into chunks if its size would exeeds the server payload limit. 
    An empty message (0b) is written to notify the end of frame."
@@ -151,3 +151,41 @@
              (do (m/? (write (encode-numbers (subvec xs 0 chunk-size))))
                (recur (subvec xs chunk-size)))
              (m/? (write (encode-numbers xs)))))))))
+
+(defn decoder
+  "A transducer partitioning a sequence of network messages into photon events."
+  [rf]
+  (let [data (doto (object-array 2)
+               (aset 0 []) (aset 1 []))]
+    (fn
+      ([] (rf))
+      ([r]
+       (assert (= [] (aget data 0) (aget data 1)))
+       (rf r))
+      ([r x]
+       (if (string? x)
+         (do (assert (= [] (aget data 1)))
+             (aset data 0 (conj (aget data 0) (decode-str x))) r)
+         (let [xs (decode-numbers x)]
+           (aset data 1 (into (aget data 1) xs))
+           (if (< (count xs) chunk-size)                  ; final frame
+             (let [x (conj (aget data 0) (aget data 1))]
+               (aset data 0 [])
+               (aset data 1 [])
+               (rf r x)) r)))))))
+
+(defn encoder
+  "A transducer expanding photon events to a sequence of network messages."
+  [rf]
+  (fn
+    ([] (rf))
+    ([r] (rf r))
+    ([r x]
+     (let [r (reduce rf r (eduction (map encode) (pop x)))
+           r (reduce rf r (eduction (partition-all chunk-size) (map encode-numbers) (peek x)))]
+       (case (mod (count (peek x)) chunk-size)
+         0 (rf r (encode-numbers [])) r)))))
+
+(defn foreach
+  ([r] r)
+  ([r x] (r x) r))

@@ -48,9 +48,7 @@ running on a remote host.
 " [& body]
   (assert (:js-globals &env))
   (let [[client server] (c/analyze (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj}) `(do ~@body))]
-    `(hyperfiddle.photon-client/client
-       ~(r/emit (gensym) client)
-       (quote ~server))))
+    `(hyperfiddle.photon-client/boot-with-retry ~(r/emit (gensym) client) (hyperfiddle.photon-client/connector (quote ~server)))))
 
 (defmacro vars "
   Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
@@ -89,11 +87,16 @@ running on a remote host.
     (update 1 (cc/partial list 'quote))))
 
 (cc/defn pair [c s]
-  (let [c->s (m/rdv)
-        s->c (m/rdv)]
-    (m/join {}
-      (s (comp s->c #_(cc/fn [x] (prn "s->c " x) x) io/encode) (m/join io/decode c->s))
-      (c (comp c->s #_(cc/fn [x] (prn "c->s " x) x) io/encode) (m/join io/decode s->c)))))
+  (m/sp
+    (let [s->c (m/dfv)
+          c->s (m/dfv)]
+      (m/?
+        (m/join {}
+          (s (cc/fn [x] (m/sp ((m/? s->c) x)))
+            (cc/fn [!] (c->s !) #()))
+          (c (cc/fn [x] (m/sp ((m/? c->s) x)))
+            (cc/fn [!] (s->c !) #())
+            #(throw %)))))))
 
 (defmacro local
   "Single peer loopback system without whitelist. Returns boot task."
@@ -387,3 +390,49 @@ TODO: fix the distribution glitch then get rid of this
           [x (if (= p x) c (inc c))])]
     (when-not (= clock ~@clock)                             ;; when the glitch is fixed, this cannot happen
       (throw (Pending.))) value))
+
+
+
+;; WIP: user space socket reconnection
+
+#_
+(hyperfiddle.photon/def ^{:doc "
+`true` if the main process was cancelled, `false` otherwise.
+"} cancelled (new r/cancelled))
+
+#_
+(hyperfiddle.photon/def ^{:doc "
+`true` if the link to the remote peer is up, `false` otherwise. May throw Pending during connection.
+"} connected (new r/connected))
+
+#_
+(hyperfiddle.photon/defn Entrypoint [App]
+  (or cancelled
+    (not= :waiting
+      (with-cycle [s {:status :connecting :delay 1000}]
+        (try (App.) (catch :default e (.error js/console e)))
+        (case (:status s)
+          :waiting (let [{:keys [since delay]} s
+                         remaining (-> since (+ delay) (- time))]
+                     (if (pos? remaining)
+                       (do (println (str "Retrying in " (int (/ remaining 1000)) "s.")) s)
+                       (do (println "Connecting...")
+                           (-> s
+                             (dissoc :since)
+                             (assoc :status :connecting)))))
+          :connecting (try (if connected
+                             (do (println "Connected.")
+                                 (-> s
+                                   (dissoc :delay)
+                                   (assoc :status :connected)))
+                             (do (println "Failed to reconnect.")
+                                 (-> s
+                                   (update :delay * 2)
+                                   (assoc :status :waiting
+                                          :since time))))
+                           (catch Pending _ s))
+          :connected (if connected
+                       s (do (println "Connection reset.")
+                             {:status :waiting
+                              :since  time
+                              :delay  1000})))))))

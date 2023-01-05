@@ -125,276 +125,165 @@
 
 (def this (l/local))
 
-(defn shutdown [^objects ctx]
-  (aget ctx (int 1)))
+(def context-slot-root            (int 0))  ;; Immutable. The root frame.
+(def context-slot-local-id        (int 1))  ;; The next local id (auto incremented).
+(def context-slot-remote-id       (int 2))  ;; The next remote id (auto decremented).
+(def context-slot-frame-store     (int 3))  ;; A transient map associating frame ids to frame objects.
+(def context-slot-remote          (int 4))  ;; The remote callback
+(def context-slot-output          (int 5))  ;; The output callback
+(def context-slot-incoming        (int 6))  ;; The incoming callback
+(def context-slot-queue           (int 7)) ;; The payloads assigned to inputs (used by decoder).
+(def context-slot-frame-register  (int 8)) ;; The frame register (used by decoder).
+(def context-slot-target-register (int 9)) ;; The target register (used by decoder).
+(def context-slots                (int 10))
 
-(defn next-local [^objects ctx] ; frames are identified by an integer. Creating a frame will increment this counter.
-  (aset ctx (int 2) (inc (aget ctx (int 2)))))
+(def tier-slot-parent   (int 0))    ;; Immutable. The parent frame.
+(def tier-slot-position (int 1))    ;; Immutable. The static position of the tier in the parent frame.
+(def tier-slot-buffer   (int 2))    ;; Buffer of array list of child frames.
+(def tier-slot-size     (int 3))    ;; Size of array list of child frames.
+(def tier-slot-foreigns (int 4))    ;; Foreign flow map
+(def tier-slot-hooks    (int 5))    ;; Hooks
+(def tier-slot-vars     (int 6))    ;; A snapshot of the dynamic environment.
+(def tier-slot-remote   (int 7))    ;; If local, the slot of the remote part.
+(def tier-slots         (int 8))
 
-(defn next-remote [^objects ctx] ; frames are identified by an integer. Creating a frame will increment this counter.
-  (aset ctx (int 3) (dec (aget ctx (int 3)))))
+(def frame-slot-context   (int 0))  ;; Immutable. The global context.
+(def frame-slot-parent    (int 1))  ;; Immutable. The parent tier, nil iff root frame.
+(def frame-slot-id        (int 2))  ;; Immutable. Zero if root frame, a strictly positive number if the frame was created by a variable, a strictly negative number if the frame was created by a source.
+(def frame-slot-position  (int 3))  ;; The index of the frame among its siblings.
+(def frame-slot-foreign   (int 4))  ;; Immutable
+(def frame-slot-static    (int 5))  ;; Immutable
+(def frame-slot-dynamic   (int 6))  ;; Immutable
+(def frame-slot-variables (int 7))  ;; Immutable
+(def frame-slot-sources   (int 8))  ;; Immutable
+(def frame-slot-targets   (int 9))  ;; Immutable
+(def frame-slot-inputs    (int 10)) ;; Immutable
+(def frame-slot-tiers     (int 11)) ;; Immutable
+(def frame-slot-constants (int 12)) ;; Immutable
+(def frame-slot-outputs   (int 13)) ;; Immutable
+(def frame-slots          (int 14))
 
-; add a frame in the context index, identified by id
-(defn assoc-frame-id [^objects ctx id frame]
-  (aset ctx (int 4) (assoc! (aget ctx (int 4)) id frame)))
-
-(defn lookup-frame-id [^objects ctx id]
-  (get (aget ctx (int 4)) id))
-
-(defn dissoc-frame-id [^objects ctx id]
-  (aset ctx (int 4) (dissoc! (aget ctx (int 4)) id)))
-
-(defn set-remote [^objects ctx callback]
-  (aset ctx (int 5) callback))
-
-(defn get-remote [^objects ctx]
-  (aget ctx (int 5)))
-
-(defn get-output [^objects ctx]
-  (aget ctx (int 6)))
-
-(defn set-output [^objects ctx callback]
-  (aset ctx (int 6) callback))
-
-(defn empty-queue? [^objects ctx]
-  (nil? (aget ctx (int 7))))
-
-(defn set-queue [^objects ctx xs]
-  (aset ctx (int 7) (seq xs)) ctx)
-
-(defn pop-queue [^objects ctx]
-  (let [[x & xs] (aget ctx (int 7))]
-    (aset ctx (int 7) xs) x))
-
-(defn set-frame-register [^objects ctx x]
-  (aset ctx (int 8) x))
-
-(defn get-frame-register [^objects ctx]
-  (aget ctx (int 8)))
-
-(defn set-target-register [^objects ctx x]
-  (aset ctx (int 9) x))
-
-(defn get-target-register [^objects ctx]
-  (aget ctx (int 9)))
-
-(defn tier-parent [^objects t]
-  (aget t (int 0)))
-
-(defn tier-position [^objects t]
-  (aget t (int 1)))
-
-(defn get-tier-buffer ^objects [^objects t]
-  (aget t (int 2)))
-
-(defn set-tier-buffer ^objects [^objects t x]
-  (aset t (int 2) x))
-
-(defn get-tier-size [^objects t]
-  (aget t (int 3)))
-
-(defn set-tier-size [^objects t x]
-  (aset t (int 3) x))
-
-(defn get-tier-foreigns [^objects t]
-  (aget t (int 4)))
-
-(defn set-tier-foreigns [^objects t ps]
-  (aset t (int 4) ps))
-
-(defn get-tier-hooks [^objects t]
-  (aget t (int 5)))
-
-(defn set-tier-hooks [^objects t x]
-  (aset t (int 5) x))
-
-(defn get-tier-vars ^objects [^objects t]
-  (aget t (int 6)))
-
-(defn set-tier-vars ^objects [^objects t x]
-  (aset t (int 6) x))
-
-(defn get-tier-remote [^objects t]
-  (aget t (int 7)))
-
-(defn set-tier-remote [^objects t x]
-  (aset t (int 7) x))
-
-(defn get-frame-position [^objects f]
-  (aget f (int 0)))
-
-(defn set-frame-position [^objects f pos]
-  (aset f (int 0) pos))
-
-(defn frame-id [^objects f]
-  (aget f (int 1)))
-
-(defn frame-parent [^objects f]
-  (aget f (int 2)))
-
-(defn frame-context [^objects f]
-  (aget f (int 3)))
-
-(defn frame-foreign ^objects [^objects f]
-  (aget f (int 4)))
-
-(defn frame-static ^objects [^objects f]
-  (aget f (int 5)))
-
-(defn frame-dynamic ^objects [^objects f]
-  (aget f (int 6)))
-
-(defn frame-variables ^objects [^objects f]
-  (aget f (int 7)))
-
-(defn frame-sources ^objects [^objects f]
-  (aget f (int 8)))
-
-(defn frame-targets ^objects [^objects f]
-  (aget f (int 9)))
-
-(defn frame-inputs ^objects [^objects f]
-  (aget f (int 10)))
-
-(defn frame-tiers ^objects [^objects f]
-  (aget f (int 11)))
-
-(defn frame-constants ^objects [^objects f]
-  (aget f (int 12)))
-
-(defn frame-output-count [^objects f]
-  (aget f (int 13)))
+(defn aswap
+  ([^objects arr slot f]
+   (aset arr slot (f (aget arr slot))))
+  ([^objects arr slot f a]
+   (aset arr slot (f (aget arr slot) a)))
+  ([^objects arr slot f a b]
+   (aset arr slot (f (aget arr slot) a b)))
+  ([^objects arr slot f a b c]
+   (aset arr slot (f (aget arr slot) a b c)))
+  ([^objects arr slot f a b c & ds]
+   (aset arr slot (apply f (aget arr slot) a b c ds))))
 
 (defn doto-aset [^objects arr k v]
   (doto arr (aset (int k) v)))
 
-(defn make-context "
-0: root frame
-1: shutdown signal
-2: local counter id
-3: remote counter id
-4: id -> frame
-5: remote callback
-6: output callback
-7: decoder stack
-8: decoder frame register
-9: decoder target register
-"
-  ^objects
-  []
-  (doto (object-array 10)
-    (aset (int 1) (m/dfv))
-    (aset (int 2) (identity 0))
-    (aset (int 3) (identity 0))
-    (aset (int 4) (transient {}))))
+(defn make-context ^objects []
+  (doto (object-array context-slots)
+    (aset context-slot-local-id (identity 0))
+    (aset context-slot-remote-id (identity 0))
+    (aset context-slot-frame-store (transient {}))))
 
-(defn make-tier "
-0: parent frame
-1: tier position (a frame has many child tiers, as much as `new` statements, this is the static position of the current tier in the parent frame’s child array)
-2: buffer of child frame list
-3: size of child frame list
-4: hook map
-5: foreign flow map
-6: dynamic vars
-7: remote slot (if this tier is a variable, we must reference the corresponding remote source)
-" [parent position]
-  (aset (frame-tiers parent) (int position)
-    (doto (object-array 8)
-      (aset (int 0) parent)
-      (aset (int 1) position)
-      (aset (int 2) (object-array 8))
-      (aset (int 3) (identity (int 0)))
-      (aset (int 4) {})
-      (aset (int 5) {}))))
+(defn make-tier [^objects parent position]
+  (aset ^objects (aget parent frame-slot-tiers) (int position)
+    (doto (object-array tier-slots)
+      (aset tier-slot-parent parent)
+      (aset tier-slot-position position)
+      (aset tier-slot-buffer (object-array 8))
+      (aset tier-slot-size (identity (int 0)))
+      (aset tier-slot-foreigns {})
+      (aset tier-slot-hooks {}))))
 
-(defn make-frame "
-0 : position. The index of the frame among its siblings.
-1 : context. Immutable.
-2 : id. Immutable. Zero if root frame, a strictly positive number if the frame was created by a variable, a strictly
-    negative number if the frame was created by a source.
-3 : parent tier. Immutable. nil iff root frame.
-4 : static flow array. Immutable.
-5 : dynamic flow array. Immutable.
-6 : foreign flow array. Immutable.
-7 : variable flow array. Immutable.
-8 : source tier position array. Immutable.
-9 : target frame constructor array. Immutable.
-10: input state array. Immutable.
-11: tier array. Immutable.
-12: constant count. Immutable.
-13: output count. Immutable
-" [^objects buffer position id parent context ^objects vars foreign static dynamic variable-count source-count constant-count target-count output-count input-count boot]
+(defn make-frame [^objects context parent id position
+                  foreign static dynamic variable-count source-count
+                  constant-count target-count output-count input-count
+                  ^objects buffer ^objects vars boot]
   (let [tier-count (+ variable-count source-count)
-        frame (doto (object-array 14)
-                (aset (int 0) position)
-                (aset (int 1) id)
-                (aset (int 2) parent)
-                (aset (int 3) context)
-                (aset (int 4) (object-array (count foreign)))
-                (aset (int 5) (object-array (count static)))
-                (aset (int 6) (object-array (count dynamic)))
-                (aset (int 7) (object-array variable-count))
-                (aset (int 8) (object-array source-count))
-                (aset (int 9) (object-array target-count))
-                (aset (int 10) (object-array input-count))
-                (aset (int 11) (object-array tier-count))
-                (aset (int 12) (object-array constant-count))
-                (aset (int 13) output-count))]
+        frame (doto (object-array frame-slots)
+                (aset frame-slot-context context)
+                (aset frame-slot-parent parent)
+                (aset frame-slot-id id)
+                (aset frame-slot-position position)
+                (aset frame-slot-foreign (object-array (count foreign)))
+                (aset frame-slot-static (object-array (count static)))
+                (aset frame-slot-dynamic (object-array (count dynamic)))
+                (aset frame-slot-variables (object-array variable-count))
+                (aset frame-slot-sources (object-array source-count))
+                (aset frame-slot-targets (object-array target-count))
+                (aset frame-slot-inputs (object-array input-count))
+                (aset frame-slot-tiers (object-array tier-count))
+                (aset frame-slot-constants (object-array constant-count))
+                (aset frame-slot-outputs (object-array output-count)))]
     (dotimes [i tier-count] (make-tier frame i))
     (aset buffer (int position) frame)
-    (assoc-frame-id context id frame)
+    (aswap context context-slot-frame-store assoc! id frame)
     (let [prevs (reduce-kv
                   (fn [m v <x]
                     (let [prev (aget vars (int v))
                           proc (signal <x)]
-                      (aset (frame-foreign frame) (count m) proc)
+                      (aset ^objects (aget frame frame-slot-foreign) (count m) proc)
                       (aset vars (int v) proc)
                       (assoc m v prev)))
                   {} foreign)]
       (reduce-kv (fn [^objects arr i <x]
                    (aset arr (int i) (signal <x)) arr)
-        (frame-static frame) static)
+        (aget frame frame-slot-static) static)
       (reduce-kv (fn [^objects arr i v]
                    (aset arr (int i) (signal (aget vars (int v)))) arr)
-        (frame-dynamic frame) dynamic)
+        (aget frame frame-slot-dynamic) dynamic)
       (let [result (boot frame vars)]
         (reduce-kv doto-aset vars prevs)
+        (when-some [callback (aget context context-slot-output)]
+          (callback #{frame}))
         result))))
+
+(def input-slot-notifier (int 0))
+(def input-slot-terminator (int 1))
+(def input-slot-current (int 2))
+(def input-slots (int 3))
 
 (deftype InputIterator [^objects i]
   IFn
-  (#?(:clj invoke :cljs -invoke) [_])
+  (#?(:clj invoke :cljs -invoke) [_]
+    (when-not (nil? (aget i input-slot-terminator))
+      (when-some [n (aget i input-slot-notifier)]
+        (aset i input-slot-notifier nil)
+        (let [y (aget i input-slot-current)]
+          (aset i input-slot-current (Failure. (Cancelled.)))
+          (when (identical? i y) (n))))))
   IDeref
   (#?(:clj deref :cljs -deref) [_]
-    (let [x (aget i (int 2))]
-      (aset i (int 2) i)
-      (when (nil? (aget i (int 0)))
-        ((aget i (int 1)))) x)))
+    (let [x (aget i input-slot-current)]
+      (aset i input-slot-current i)
+      (when (nil? (aget i input-slot-notifier))
+        (when-some [t (aget i input-slot-terminator)]
+          (aset i input-slot-terminator nil) (t))) x)))
 
-(defn input [frame slot]
+(defn input [^objects frame slot]
   (fn [n t]
     (n) (->InputIterator
-          (aset (frame-inputs frame) (int slot)
-            (doto (object-array 3)
-              (aset (int 0) n)
-              (aset (int 1) t)
-              (aset (int 2) pending))))))
+          (aset ^objects (aget frame frame-slot-inputs) (int slot)
+            (doto (object-array input-slots)
+              (aset input-slot-notifier n)
+              (aset input-slot-terminator t)
+              (aset input-slot-current pending))))))
 
 (defn input-change [^objects i x]
-  (when-some [n (aget i (int 0))]
-    (let [y (aget i (int 2))]
-      (aset i (int 2) x)
+  (when-some [n (aget i input-slot-notifier)]
+    (let [y (aget i input-slot-current)]
+      (aset i input-slot-current x)
       (when (identical? i y) (n)))))
 
 (defn input-close [^objects i]
-  (when-not (nil? (aget i (int 0)))
-    (aset i (int 0) nil)
-    (when (identical? i (aget i (int 2)))
-      ((aget i (int 1))))))
+  (when-not (nil? (aget i input-slot-notifier))
+    (aset i input-slot-notifier nil)
+    (when (identical? i (aget i input-slot-current))
+      (when-some [t (aget i input-slot-terminator)]
+        (aset i input-slot-terminator nil) (t)))))
 
-(defn remote [frame slot]
-  (when-some [callback (get-remote (frame-context frame))]
-    (callback [(frame-id frame) slot])))
+(defn remote [^objects frame slot]
+  (when-some [callback (aget ^objects (aget frame frame-slot-context) context-slot-remote)]
+    (callback [(aget frame frame-slot-id) slot])))
 
 (defn check-unbound-var [debug-info <x]
   (m/latest (fn [x]
@@ -408,35 +297,35 @@
                 (dbg/error (select-debug-info debug-info) x)
                 x)) <x))
 
-(defn output [frame slot <x debug-info]
-  (when-some [callback (get-output (frame-context frame))]
-    (callback {[(frame-id frame) slot] (check-failure debug-info (signal <x))})))
+(defn output [^objects frame slot <x debug-info]
+  (aset ^objects (aget frame frame-slot-outputs) slot
+    (check-failure debug-info (signal <x))))
 
-(defn static [frame slot]
-  (aget (frame-static frame) (int slot)))
+(defn static [^objects frame slot]
+  (aget ^objects (aget frame frame-slot-static) (int slot)))
 
-(defn dynamic [frame slot debug-info]
-  (check-unbound-var debug-info (aget (frame-dynamic frame) (int slot))))
+(defn dynamic [^objects frame slot debug-info]
+  (check-unbound-var debug-info (aget ^objects (aget frame frame-slot-dynamic) (int slot))))
 
 (defn tree
   "A snapshot of the tree below given frame, as nested vectors. Frame vectors start with their id."
-  [f]
-  (let [tiers (frame-tiers f)]
+  [^objects f]
+  (let [^objects tiers (aget f frame-slot-tiers)]
     (loop [v []
            i (int 0)]
       (if (== i (alength tiers))
-        {:id (frame-id f)
-         :inputs (alength (frame-inputs f))
-         :targets (alength (frame-targets f))
-         :sources (alength (frame-sources f))
+        {:id (aget f frame-slot-id)
+         :inputs (alength ^objects (aget f frame-slot-inputs))
+         :targets (alength ^objects (aget f frame-slot-targets))
+         :sources (alength ^objects (aget f frame-slot-sources))
          :tiers v}
         (recur
           (conj v
-            (let [tier (aget tiers i)
-                  buf (get-tier-buffer tier)]
+            (let [^objects tier (aget tiers i)
+                  ^objects buf (aget tier tier-slot-buffer)]
               (loop [v []
                      i (int 0)]
-                (if (== i (get-tier-size tier))
+                (if (== i (aget tier tier-slot-size))
                   v (recur (conj v (tree (aget buf i)))
                       (inc i))))))
           (inc i))))))
@@ -444,13 +333,13 @@
 (defn find-scope [f]
   (loop [f f
          s #{}]
-    (if-some [tier (frame-parent f)]
-      (recur (tier-parent tier)
-        (into s (keys (get-tier-hooks tier)))) s)))
+    (if-some [^objects tier (aget ^objects f frame-slot-parent)]
+      (recur (aget tier tier-slot-parent)
+        (into s (keys (aget tier tier-slot-hooks)))) s)))
 
 (declare tier-walk-frames)
-(defn frame-walk-tiers [frame step k cb start]
-  (let [tiers (frame-tiers frame)
+(defn frame-walk-tiers [^objects frame step k cb start]
+  (let [^objects tiers (aget frame frame-slot-tiers)
         size (alength tiers)
         back (bit-shift-right (- 1 step) 1)
         back-inc-size (* back (inc size))
@@ -458,14 +347,14 @@
     (loop [i (if (nil? start) (dec back-inc-size) start)]
       (let [i (+ i step)]
         (when-not (== i stop)
-          (if-some [x (let [tier (aget tiers i)]
-                        (if-some [v (get (get-tier-hooks tier) k)]
+          (if-some [x (let [^objects tier (aget tiers i)]
+                        (if-some [v (get (aget tier tier-slot-hooks) k)]
                           (cb v) (tier-walk-frames tier step k cb nil)))]
             x (recur i)))))))
 
-(defn tier-walk-frames [tier step k cb start]
-  (let [buf (get-tier-buffer tier)
-        size (get-tier-size tier)
+(defn tier-walk-frames [^objects tier step k cb start]
+  (let [^objects buf (aget tier tier-slot-buffer)
+        size (aget tier tier-slot-size)
         back (bit-shift-right (- 1 step) 1)
         back-inc-size (* back (inc size))
         stop (- size back-inc-size)]
@@ -476,124 +365,120 @@
             x (recur i)))))))
 
 (defn notify-rotate [f k]
-  (let [anchor (loop [f f]
-                 (let [tier (frame-parent f)]
-                   (when-not (contains? (get-tier-hooks tier) k)
+  (let [anchor (loop [^objects f f]
+                 (let [tier ^objects (aget f frame-slot-parent)]
+                   (when-not (contains? (aget tier tier-slot-hooks) k)
                      (if-some [a (tier-walk-frames tier 1 k identity
-                                   (get-frame-position f))]
-                       a (recur (tier-parent tier))))))]
+                                   (aget f frame-slot-position))]
+                       a (recur (aget tier tier-slot-parent))))))]
     (frame-walk-tiers f 1 k (fn [target] (k target anchor)) nil) f))
 
 (defn array-call [^objects arr]
   (dotimes [i (alength arr)]
     ((aget arr i))))
 
-(defn frame-dispose [f]
-  (set-frame-position f nil)
-  (array-call (frame-static f))
-  (array-call (frame-dynamic f))
-  (array-call (frame-foreign f))
-  (array-call (frame-variables f))
-  (array-call (frame-constants f)))
+(defn frame-dispose [^objects f]
+  (aset f frame-slot-position nil)
+  (array-call (aget f frame-slot-static))
+  (array-call (aget f frame-slot-dynamic))
+  (array-call (aget f frame-slot-foreign))
+  (array-call (aget f frame-slot-variables))
+  (array-call (aget f frame-slot-constants)))
 
-(defn frame-rotate [f to]
-  (let [from (get-frame-position f)
+(defn frame-rotate [^objects f to]
+  (let [from (aget f frame-slot-position)
         step (compare to from)
-        tier (frame-parent f)
-        buf (get-tier-buffer tier)]
+        ^objects tier (aget f frame-slot-parent)
+        ^objects buf (aget tier tier-slot-buffer)]
     (if (== to from)
-      (let [size (dec (get-tier-size tier))]
+      (let [size (dec (aget tier tier-slot-size))]
         (loop [i to]
           (when-not (== i size)
             (let [j (inc i)
                   y (aget buf (int j))]
-              (set-frame-position y i)
+              (aset ^objects y frame-slot-position i)
               (aset buf (int i) y)
               (recur j))))
-        (set-tier-size tier size)
+        (aset tier tier-slot-size size)
         (aset buf (int size) nil)
         (frame-dispose f))
       (do (loop [i from]
             (let [j (+ i step)
-                  y (aget buf (int j))]
-              (set-frame-position y i)
+                  ^objects y (aget buf (int j))]
+              (aset y frame-slot-position i)
               (aset buf (int i) y)
               (when-not (== to j) (recur j))))
-          (set-frame-position f to)
+          (aset f frame-slot-position to)
           (aset buf (int to) f)
           (reduce notify-rotate f
             (find-scope f))))))
 
 (defn move
   "Move a frame. If origin position is equal to target position, frame is removed. Will search and call `hook`."
-  ([tier from to]
-   (let [f (aget (get-tier-buffer tier) (int from))]
-     (remote f (- to (get-tier-size tier)))
+  ([^objects tier from to]
+   (let [f (aget ^objects (aget tier tier-slot-buffer) (int from))]
+     (remote f (- to (aget tier tier-slot-size)))
      (frame-rotate f to))))
 
-(defn frame-cancel [f]
-  (when-some [pos (get-frame-position f)]
-    (remote f (- pos (get-tier-size (frame-parent f))))
+(defn frame-cancel [^objects f]
+  (when-some [pos (aget f frame-slot-position)]
+    (remote f (- pos (aget ^objects (aget f frame-slot-parent) tier-slot-size)))
     (frame-rotate f pos)))
 
-(defn kill-context [^objects ctx]
-  ((shutdown ctx) nil)
-  (when-some [cb (get-remote ctx)] (cb nil))
-  (when-some [cb (get-output ctx)] (cb nil)))
+(defn terminate-observers [^objects ctx]
+  (when-some [cb (aget ctx context-slot-remote)] (cb nil))
+  (when-some [cb (aget ctx context-slot-output)] (cb nil)))
 
-(defn decode-inst [ctx inst]
-  (if-some [id (get-frame-register ctx)]
-    (let [f (lookup-frame-id ctx id)]
-      (set-frame-register ctx nil)
+(defn decode-inst [^objects ctx inst]
+  (if-some [id (aget ctx context-slot-frame-register)]
+    (let [^objects f (get (aget ctx context-slot-frame-store) id)]
+      (aset ctx context-slot-frame-register nil)
       (if (neg? inst)
-        (frame-rotate f (+ (get-tier-size (frame-parent f)) inst))
-        (let [inputs (frame-inputs f)
+        (frame-rotate f (+ (aget ^objects (aget f frame-slot-parent) tier-slot-size) inst))
+        (let [^objects inputs (aget f frame-slot-inputs)
               offset (alength inputs)]
           (if (< inst offset)
             (let [input (aget inputs (int inst))]
-              (if (empty-queue? ctx)
+              (if (nil? (aget ctx context-slot-queue))
                 (input-close input)
                 (input-change input
-                  (pop-queue ctx))))
+                  (let [[x & xs] (aget ctx context-slot-queue)]
+                    (aset ctx context-slot-queue xs) x))))
             (let [inst (- inst offset)
-                  targets (frame-targets f)
+                  ^objects targets (aget f frame-slot-targets)
                   offset (alength targets)]
               (if (< inst offset)
-                (set-target-register ctx (aget targets (int inst)))
+                (aset ctx context-slot-target-register (aget targets (int inst)))
                 (let [inst (- inst offset)
-                      sources (frame-sources f)
+                      ^objects sources (aget f frame-slot-sources)
                       offset (alength sources)]
                   (if (< inst offset)
                     (let [source (aget sources (int inst))
-                          target (get-target-register ctx)]
-                      (set-target-register ctx nil)
-                      (target source (next-remote ctx)))
-                    (when (zero? (count (dissoc-frame-id ctx id)))
-                      (kill-context ctx))))))))))
-    (set-frame-register ctx (- inst))) ctx)
+                          target (aget ctx context-slot-target-register)]
+                      (aset ctx context-slot-target-register nil)
+                      (target source (aswap ctx context-slot-remote-id dec)))
+                    (aswap ctx context-slot-frame-store dissoc! id)))))))))
+    (aset ctx context-slot-frame-register (- inst))) ctx)
 
 (defn acopy [dest src size]
   #?(:clj (System/arraycopy src 0 dest 0 size))
   #?(:cljs (dotimes [i size] (aset dest i (aget src i)))))
 
 (defn constructor [static dynamic variable-count source-count constant-count target-count output-count input-count boot]
-  (fn [tier id]
-    (let [pos (get-tier-size tier)
-          buf (get-tier-buffer tier)
+  (fn [^objects tier id]
+    (let [^objects par (aget tier tier-slot-parent)
+          ^objects buf (aget tier tier-slot-buffer)
+          pos (aget tier tier-slot-size)
           cap (alength buf)
           buf (if (< pos cap)
-                buf (set-tier-buffer tier
+                buf (aset tier tier-slot-buffer
                       (doto (object-array (bit-shift-left cap 1))
                         (acopy buf cap))))]
-      (set-tier-size tier (inc pos))
-      (make-frame buf pos id tier
-        (frame-context (tier-parent tier))
-        (get-tier-vars tier)
-        (get-tier-foreigns tier)
-        static dynamic
-        variable-count source-count
-        constant-count target-count
-        output-count input-count boot))))
+      (aset tier tier-slot-size (inc pos))
+      (make-frame (aget par frame-slot-context)
+        tier id pos (aget tier tier-slot-foreigns) static dynamic
+        variable-count source-count constant-count target-count output-count input-count
+        buf (aget tier tier-slot-vars) boot))))
 
 (deftype FrameIterator [f it]
   IFn
@@ -603,41 +488,42 @@
 
 ;; Takes an instruction identifying a target and a frame-constructor.
 ;; Return a flow instantiating the frame.
-(defn constant [frame slot ctor]
-  (aset (frame-constants frame) (int slot)
-    (signal
-      (m/watch
-        (atom
-          (fn [n t]
-            (if-some [tier (l/get-local this)]
-              (let [par (tier-parent tier)
-                    ctx (frame-context par)
-                    id (next-local ctx)]
-                (remote frame
-                  (+ (frame-output-count frame) slot))    ; notify remote peer of frame creation
-                (remote par
-                  (+ (frame-output-count par)
-                    (alength (frame-constants par))
-                    (get-tier-remote tier)))              ; notify remote peer of frame mount point (on which tier we want to create this frame, its parent)
-                (let [<x (ctor tier id)
-                      f (lookup-frame-id ctx id)]
-                  (->FrameIterator f
-                    (<x n #(do (frame-cancel f)
-                               (remote f
-                                 (+ (frame-output-count f)
-                                   (alength (frame-constants f))
-                                   (alength (frame-variables f))))
-                               (dissoc-frame-id ctx id) (t))))))
-              (failer/run (error "Unable to build frame - not an object.") n t))))))))
+(defn constant [^objects frame slot ctor]
+  (let [^objects consts (aget frame frame-slot-constants)
+        ^objects context (aget frame frame-slot-context)]
+    (aset consts slot
+      (signal
+        (m/watch
+          (atom
+            (fn [n t]
+              (if-some [^objects tier (l/get-local this)]
+                (let [parent (aget tier tier-slot-parent)
+                      id (aswap context context-slot-local-id inc)]
+                  (remote frame (+ (alength ^objects (aget frame frame-slot-outputs)) slot))   ; notify remote peer of frame creation
+                  (remote parent
+                    (+ (alength ^objects (aget parent frame-slot-outputs))
+                      (alength ^objects (aget parent frame-slot-constants))
+                      (aget tier tier-slot-remote)))                                            ; notify remote peer of frame mount point (on which tier we want to create this frame, its parent)
+                  (let [<x (ctor tier id)
+                        ^objects f (get (aget context context-slot-frame-store) id)]
+                    (->FrameIterator f
+                      (<x n #(do (frame-cancel f)
+                                 (remote f
+                                   (+ (alength ^objects (aget f frame-slot-outputs))
+                                     (alength ^objects (aget f frame-slot-constants))
+                                     (alength ^objects (aget f frame-slot-variables))))
+                                 (aswap context context-slot-frame-store dissoc!
+                                   (aget f frame-slot-id)) (t))))))
+                (failer/run (error "Unable to build frame - not an object.") n t)))))))))
 
 (defn inject [v]
   (fn [<x <y]
     (fn [n t]
       ;; TODO make result depend on <y to catch failures, in case binding is ignored
-      (if-some [tier (l/get-local this)]
-        (let [foreigns (get-tier-foreigns tier)]
-          (set-tier-foreigns tier (assoc foreigns v <y))
-          (try (<x n t) (finally (set-tier-foreigns tier foreigns))))
+      (if-some [^objects tier (l/get-local this)]
+        (let [foreigns (aget tier tier-slot-foreigns)]
+          (aset tier tier-slot-foreigns (assoc foreigns v <y))
+          (try (<x n t) (finally (aset tier tier-slot-foreigns foreigns))))
         (failer/run (error "Unable to inject - not an object.") n t)))))
 
 (defn bind [f & args]
@@ -664,11 +550,11 @@
              (when-some [<c (catch (.-error ^Failure x))]
                (with tier <c)))) <x))
 
-(defn variable [frame ^objects vars position slot <<x]
-  (let [tier (aget (frame-tiers frame) (int position))]
-    (set-tier-remote tier slot)
-    (set-tier-vars tier (aclone vars))
-    (aset (frame-variables frame) (int slot)
+(defn variable [^objects frame ^objects vars position slot <<x]
+  (let [^objects tier (aget ^objects (aget frame frame-slot-tiers) (int position))]
+    (aset tier tier-slot-remote slot)
+    (aset tier tier-slot-vars (aclone vars))
+    (aset ^objects (aget frame frame-slot-variables) (int slot)
       (m/signal!
         (m/cp (try (let [<x (m/?< <<x)]
                      (if (failure <x)
@@ -676,30 +562,30 @@
                    (catch #?(:clj Throwable :cljs :default) e
                      (Failure. e))))))))
 
-(defn source [frame ^objects vars position slot]
-  (aset (frame-sources frame) (int slot)
-    (doto (aget (frame-tiers frame) (int position))
-      (set-tier-vars (aclone vars)))))
+(defn source [^objects frame ^objects vars position slot]
+  (aset ^objects (aget frame frame-slot-sources) (int slot)
+    (doto ^objects (aget ^objects (aget frame frame-slot-tiers) (int position))
+      (aset tier-slot-vars (aclone vars)))))
 
-(defn target [frame slot ctor]
-  (aset (frame-targets frame) (int slot) ctor))
+(defn target [^objects frame slot ctor]
+  (aset ^objects (aget frame frame-slot-targets) (int slot) ctor))
 
 (defn hook [k v <x]
   (assert (some? v) "hook value must be non-nil.")
   (fn [n t]
     (if-some [tier (l/get-local this)]
       (do
-        (loop [tier tier]
-          (let [f (tier-parent tier)]
-            (if-some [a (frame-walk-tiers f 1 k identity (tier-position tier))]
+        (loop [^objects tier tier]
+          (let [^objects f (aget tier tier-slot-parent)]
+            (if-some [a (frame-walk-tiers f 1 k identity (aget tier tier-slot-position))]
               (k v a)
-              (when-some [tier (frame-parent f)]
-                (if-some [a (tier-walk-frames tier 1 k identity (get-frame-position f))]
+              (when-some [^objects tier (aget f frame-slot-parent)]
+                (if-some [a (tier-walk-frames tier 1 k identity (aget f frame-slot-position))]
                   (k v a)
-                  (if (contains? (get-tier-hooks tier) k)
+                  (if (contains? (aget tier tier-slot-hooks) k)
                     (k v nil) (recur tier)))))))
-        (set-tier-hooks tier (assoc (get-tier-hooks tier) k v))
-        (<x n #(do (set-tier-hooks tier (dissoc (get-tier-hooks tier) k))
+        (aswap tier tier-slot-hooks assoc k v)
+        (<x n #(do (aswap tier tier-slot-hooks dissoc k)
                    (k v) (t))))
       (failer/run (error "Unable to hook - not an object.") n t))))
 
@@ -714,77 +600,79 @@
 (defn terminate-event [path] [[] {} #{path}])
 (def merge-events (partial mapv into))
 
+(defn frame-outputs [^objects frame]
+  (let [^objects outputs (aget frame frame-slot-outputs)
+        frame-id (aget frame frame-slot-id)]
+    (map (fn [slot] [[frame-id slot] (aget outputs slot)])
+      (range (alength outputs)))))
+
+(defn subject-at [^objects arr slot]
+  (fn [!] (aset arr slot !) #(aset arr slot nil)))
+
+(defn gather-events [>remote >output]
+  (gather merge-events
+    (m/ap
+      (m/amb
+        (m/sample remote-event >remote)
+        (let [[path <out] (m/?> (m/eduction cat (map frame-outputs) cat >output))]
+          (eventually (terminate-event path)
+            (m/latest (partial change-event path) <out)))))))
+
+;; TODO merge to the IO layer
+(defn event->message [[inst data done]]
+  (-> []
+    (into (vals data))
+    (conj (-> inst
+            (into cat (keys data))
+            (into cat done)))))
+
+(defn parse-event [^objects ctx msg]
+  (aset ctx context-slot-queue (seq (pop msg)))
+  (reduce decode-inst ctx (peek msg)))
+
+(defn frame-shutdown [^objects frame]
+  (frame-dispose frame)
+  (let [^objects inputs (aget frame frame-slot-inputs)]
+    (dotimes [i (alength inputs)]
+      (input-close (aget inputs i))))
+  (let [^objects tiers (aget frame frame-slot-tiers)]
+    (dotimes [t (alength tiers)]
+      (let [^objects tier (aget tiers t)
+            ^objects buf (aget tier tier-slot-buffer)]
+        (dotimes [f (aget tier tier-slot-size)]
+          (frame-shutdown (aget buf f)))))))
+
+(defn redirect-errors [cb <x]
+  (m/latest (fn [x] (when (instance? Failure x) (cb (.-error x)))) <x))
+
+(defn process-incoming-events [^objects context >incoming]
+  (m/sample (partial reduce parse-event context) >incoming))
+
+(defn write-outgoing-events [write >events]
+  (m/ap (m/? (write (event->message (m/?> >events))))))
+
 (defn peer [var-count dynamic variable-count source-count constant-count target-count output-count input-count ctor]
-  (fn [write ?read]
-    (fn [s f]
-      (let [result (m/dfv)]
-        ((m/reactor
-           (let [context (make-context)
-                 >remote (->> (m/observe
-                                (fn [!]
-                                  (set-remote context !)
-                                  #(set-remote context nil)))
-                           (m/eduction (take-while some?))
-                           (m/relieve into)
-                           (m/stream!))
-                 >output (->> (m/observe
-                                (fn [!]
-                                  (set-output context !)
-                                  #(set-output context nil)))
-                           (m/eduction (take-while some?))
-                           (m/relieve merge)
-                           (m/stream!))]
-             (when-some [<root (make-frame context 0 0 nil context (object-array (repeat var-count unbound))
-                                 {} [] dynamic variable-count source-count constant-count
-                                 target-count output-count input-count ctor)]
-               (let [>root (m/stream! <root)
-                     >term (m/stream! (m/ap (m/? result)))]
-                 (->> (m/ap
-                        (result
-                          (m/? (m/race
-                                 (m/reduce {} nil >term)
-                                 (m/reduce
-                                   (fn [_ x]
-                                     (if (instance? Failure x)
-                                       (reduced x) x))
-                                   nil >root))))
-                        (frame-dispose (aget context 0))
-                        (m/? (m/reduce {} nil >root))
-                        (remote (aget context 0) (+ (int output-count) (int constant-count) (int variable-count)))
-                        (kill-context context))
-                   (m/stream!))))
-             (->> (m/ap (m/? (m/?> (m/seed (repeat (m/race (shutdown context) ?read))))))
-               (m/eduction (take-while some?))
-               (m/stream!)
-               (m/sample
-                 (fn [msg]
-                   (reduce decode-inst
-                     (set-queue context (pop msg))
-                     (peek msg))))
-               (m/stream!))
-             (let [>events (->> (m/ap
-                                  (m/amb
-                                    (m/sample remote-event >remote)
-                                    (let [m (m/?> >output)
-                                          [path <out] (m/?> (m/seed m))]
-                                      (eventually (terminate-event path)
-                                        (m/latest (partial change-event path) <out)))))
-                             (gather merge-events)
-                             (m/stream!))]
-               (->> (m/ap (let [[inst data done] (m/?> >events)]
-                            (-> []
-                              (into (vals data))
-                              (conj (-> inst
-                                      (into cat (keys data))
-                                      (into cat done)))
-                              (write) (m/?))))
-                 (m/stream!)) nil)))
-         (fn [x]
-           (let [r (result x)]
-             (if (instance? Failure r)
-               (f (.-error ^Failure r))
-               (s r)))) f)
-        #(result (Failure. (Cancelled. "Peer cancelled.")))))))
+  (fn rec
+    ([write ?read] (rec write ?read pst))
+    ([write ?read on-error]
+     (m/reactor
+       (let [^objects context (make-context)
+             >remote (->> (subject-at context context-slot-remote)
+                       (m/observe)
+                       (m/eduction (take-while some?))
+                       (m/relieve into)
+                       (m/stream!))
+             >output (->> (subject-at context context-slot-output)
+                       (m/observe)
+                       (m/eduction (take-while some?))
+                       (m/relieve into)
+                       (m/stream!))]
+         (when-some [<main (make-frame context nil 0 0 {} [] dynamic
+                             variable-count source-count constant-count target-count output-count input-count
+                             context (object-array (repeat var-count unbound)) ctor)]
+           (m/stream! (redirect-errors on-error <main)))
+         (m/stream! (process-incoming-events context (m/stream! (m/relieve into (m/sample vector (m/observe ?read))))))
+         (m/stream! (write-outgoing-events write (m/stream! (gather-events >remote >output)))))))))
 
 (defn collapse [s n f & args]
   (->> (iterate pop s)
