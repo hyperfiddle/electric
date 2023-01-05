@@ -34,7 +34,7 @@
 
 (p/defn Popover [label Body]
   (p/with-cycle [status :closed]
-    (let [toggle (when-some [event (ui/button hf/loading (dom/text label))] ; popover anchor
+    (let [toggle (when-some [event (ui/button false (dom/text label))] ; popover anchor
                    event)
           request (case status
                     :closed nil
@@ -47,7 +47,7 @@
                 :pending)
 
         ; todo what happens if the parent load fails due to concurrent modification
-        :pending (if hf/loading :pending :closed)))) ; close when loading is finished
+        :pending (if false #_hf/loading :pending :closed)))) ; close when loading is finished
   nil)
 
 (defmacro staged [& body] `(new StageWrap (p/fn [] ~@body)))
