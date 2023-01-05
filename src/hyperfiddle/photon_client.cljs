@@ -83,7 +83,18 @@ Returns a task producing nil or failing if the websocket was closed before end o
             (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
               (.close ws) (m/? (m/compel wait-for-close)))))))))
 
-(def retry-delays (iterate (partial * 2) 500))
+(defn fib-iter [[a b]]
+  (case b
+    0 [1 1]
+    [b (+ a b)]))
+
+(def fib (map first (iterate fib-iter [1 1])))
+
+(comment (take 5 fib2) := [1 1 2 3 5])
+
+(def retry-delays (map (partial * 100) fib))
+
+(comment (take 5 retry-delays))
 
 (defn boot-with-retry [client conn]
   (m/sp
