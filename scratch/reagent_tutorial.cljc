@@ -2,8 +2,7 @@
   "wip, untested. Reagent tutorial translated to Photon from https://reagent-project.github.io/"
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [missionary.core :as m]
-            [hyperfiddle.zero :as z]))
+            [missionary.core :as m]))
 
 
 ; Example 1 — Static component

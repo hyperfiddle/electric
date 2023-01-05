@@ -69,7 +69,7 @@
 ; - ability to encode/decode a route value to a path string
 ; - ability to render links from route value (no knowledge of path encoding)
 
-(p/def Link) ; bind this to result of ->Link
+(p/defn Link [route label] (assert false "no implementation")) ; bind this to result of ->Link
 (p/defn ->Link [!path encode]
   (p/fn [route label]
     (p/client

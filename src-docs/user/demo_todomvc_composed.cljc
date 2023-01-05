@@ -14,10 +14,9 @@
           n (p/server (p/watch !n))]
       (p/server
         (binding [todomvc/db (p/watch todomvc/!conn)
-                  todomvc/tx-delay (::todomvc/delay state)
                   todomvc/transact! (partial d/transact! todomvc/!conn)]
           (p/client
-            (dom/link {:rel :stylesheet, :href "todomvc.css"})
+            (dom/link {:rel :stylesheet, :href "/todomvc.css"})
             (ui/input {::dom/type "range" ::dom/min 1 ::dom/max 25 ::dom/step 1 ::ui/value n
                        ::ui/input-event (p/fn [e] (p/server (reset! !n (p/client (.. e -target -value)))))})
             (dom/div {:class "todomvc" :style {:position "relative"}}

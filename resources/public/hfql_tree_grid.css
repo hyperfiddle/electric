@@ -19,20 +19,35 @@ body{
 .hyperfiddle-gridsheet{
 
     --hf-grid-row-height: 1.5rem; /* source of truth, all rows inherit this height, js code will measure this */
-    --hf-grid-row-even: transparent;
-    --hf-grid-row-odd: transparent;
+    --hf-cell-border-color: rgb(203 213 225);
+    --hf-columns-border-gradient: transparent;
+    --hf-grid-gap: 1px;
 
     display: grid;
     grid-auto-rows: var(--hf-grid-row-height);
+    grid-gap: var(--hf-grid-gap);
     justify-items: start; /* cell content is left aligned */
     align-items: center;  /* cells align their content on the row center */
 
-    /* Alternating colors behind rows */
-    background: repeating-linear-gradient(  var(--hf-grid-row-even) 0 var(--hf-grid-row-height)
-                                          , var(--hf-grid-row-odd)  0 calc(var(--hf-grid-row-height) * 2));
+    position: relative;
+
+
     overflow-y: auto; /* scroll if needed, js code will shift the background-gradient’s position  */
+    overflow-x:hidden;
 
     box-sizing: border-box; /* nested scrollbars do not add to the width */
+
+}
+
+.hyperfiddle-gridsheet > .hf-grid-overlay{
+    position: absolute;
+    top:0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+
+    pointer-events: none;
+    z-index: 1;
 
 }
 
@@ -43,6 +58,7 @@ body{
     width: 1.1rem;
     max-height: 100%;  /* Fit the rows span height */
     align-self: start; /* scroll height does not participate to the first row’s vertical alignment */
+    z-index:1;
 }
 
 
@@ -69,12 +85,11 @@ body{
     white-space: nowrap;
     overflow: hidden;
 
-    border: 1px rgb(203 213 225) solid;
     height: 100%;
 
     font-family: 'Roboto Mono', monospace;
     font-size: 0.9rem;
-    padding: 0.2rem;
+    /* padding: 0.2rem; */
 
     color: #222;
 }
@@ -86,8 +101,7 @@ body{
 
 .hyperfiddle-gridsheet input[role="cell"] {
 
-    background-color: var(--hf-input-cell-background);
-
+    border:none;
 }
 
 /* Edge case: checkboxes should not grow to fill the row height  */

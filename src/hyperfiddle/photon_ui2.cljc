@@ -3,7 +3,7 @@
   (:require
    clojure.edn
    [clojure.string :as str]
-   [contrib.str :refer [blank->nil]]
+   [contrib.str :refer [blank->nil pprint-str]]
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom]
    [hyperfiddle.rcf :as rcf :refer [tests tap with %]])
@@ -18,12 +18,39 @@
 
 (defn- ?static-props [body] (if (map? (first body)) `((dom/props ~(first body)) ~@body) body))
 
+(defn nil->pending [value]
+  ; workaround - use nil as sentinel to mean inital value is unknown.
+  ; We must never emit a manufactured value, because the database would commit it!
+  (if (nil? value) (throw (Pending.)) value))
+
 (p/defn InputController [controlled-value]
-  (p/with-cycle [value ""]
-    (if (Focused?.)
-      (if-some [e (dom/Event. "input" false)]
-        (-> e .-target .-value) value)
-      (set! (.-value dom/node) controlled-value))))
+  ; When cv is pending, the exception is thrown in two places, see RCF.
+  ; This tells us that the cv is not yet synced.
+  ; We use nil as a sentinel value that indicates the value is unknown.
+  (nil->pending
+    (p/with-cycle [local-value #_(throw (Pending.)) nil] ; internal state starts unknown
+      (if (Focused?.)
+        (if-some [e (dom/Event. "input" false)]
+          (-> e .-target .-value) local-value)
+        ; on fast blur, keep local value until controlled value commits.
+        ; (Prevent leapfrog loop – blur too fast -> get old controlled value, loop)
+        (try (when (p/Unglitch. controlled-value) (set! (.-value dom/node) controlled-value))
+             (catch Pending _ local-value)))))) ; emit local value (that matches the dom) while we wait for commit
+
+; Note: if the body of with-cycle throws, the state is not updated (currently).
+
+(tests
+  "the same exception is thrown from two places!"
+  (p/defn InputController1 [tap controlled-value]
+    (try controlled-value
+         (catch Pending _ (tap :pending-inner))))
+
+  (with (p/run (try
+                 (InputController1. tap (throw (Pending.)))
+                 (catch Pending _ (tap :pending-outer)))))
+  % := :pending-inner
+  % := :pending-outer
+  % := ::rcf/timeout)
 
 (defmacro input "
 A dom input text component.
@@ -84,6 +111,29 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      ~@body)) ; likely a label
 
 (comment
+  (p/defn F [e] (p/server (d/transact! conn [(tx-from-db db)])))
+
+  (button {::click-event F}
+    "toggle client/server 4")
+
+  (when-some [e (button "toggle client/server 4")]
+    (F. e))
+
+  (p/with-cycle [busy# IDLE]
+    (try
+      (when-some [e (button "toggle client/server 4" busy#)]
+        (F. e))
+      IDLE (catch Pending _ BUSY)))
+
+
+  (button {::click-event (p/fn [e] (p/server (swap! !x not)))}
+    "toggle client/server 4")
+
+  (when-some [e (button "toggle client/server 4")]
+    (p/server (swap! !x not)))
+
+  ; see user.demo-2-toggle for demos
+
   ; check props were compiled
   (macroexpand-1
     '(button {:click-event (p/fn [e] (p/server (swap! !x not)))}
@@ -107,13 +157,13 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      ~@(?static-props body)
      (new InputController ~controlled-value)))
 
-(p/defn ^:private -Edn-editor [x] ; optimize macroexpansion size
-  (when-some [x (blank->nil x)]
-    (try (clojure.edn/read-string x)
-         (catch :default _ nil))))
+#?(:cljs (defn read-str-maybe [x] ; optimize macroexpansion size
+           (when-some [x (blank->nil x)]
+             (try (clojure.edn/read-string x)
+                  (catch :default _ nil)))))
 
 (defmacro edn-editor [x & body]
-  `(new -Edn-editor (textarea (pr-str ~x) ~@body))) ; optimize static body props
+  `(read-str-maybe (textarea (pprint-str ~x) ~@body))) ; optimize static body props
 
 (p/defn InputValues [controlled-value focused< input< on-blur]
   (p/with-cycle [v nil]
@@ -129,25 +179,23 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      (new InputValues ~controlled-value Focused? (new ->ParsedEvent "change" false #(.. % -target -checked))
        #(set! (.-checked dom/node) %))))
 
-(p/defn ValueOn [event-type]
-  (p/with-cycle [v (.-value dom/node)]
-    (if-let [ev (dom/Event. event-type false)] (.. ev -target -value) v)))
-
 (defmacro select [options controlled-value & body]
-  `(let [opts#      ~options,
-         cv#        ~controlled-value
-         !selected# (atom cv#)
-         selected#  (p/watch !selected#)]
-     (dom/with (dom/dom-element dom/node "select")
-       (?static-props ~@body)
-       (p/for [[idx# opt#] (map-indexed vector opts#)]
-         (dom/option
-           (dom/props (-> opt# (dissoc :text) (assoc :value idx#)))
-           (when (= (:value opt#) selected#)
-             (dom/props {:selected true}))
-           (some-> opt# :text dom/text)))
-       (some->> (new ValueOn "change") js/parseInt (nth opts#) :value (reset! !selected#))
-       selected#)))
+  `(let [opts# (vec ~options),
+         cv#   ~controlled-value]
+     (p/with-cycle [current# cv#]
+       (dom/with (dom/dom-element dom/node "select")
+         (?static-props ~@body)
+         (p/for [[idx# opt#] (map-indexed vector opts#)]
+           (dom/option
+             (dom/props (-> opt# (dissoc :text) (assoc :value idx#)))
+             (when (= (:value opt#) current#)
+               (dom/props {:selected true}))
+             (some-> opt# :text dom/text)))
+         (if (empty? opts#)
+           current#
+           (if-some [event (dom/Event. "change" false)]
+             (:value (get opts# (js/parseInt (.. event -target -value))))
+             current#))))))
 
 (p/defn Value []
   (p/with-cycle [v (.-value dom/node)]
@@ -169,7 +217,7 @@ TODO: what if component loses focus, but the user input is not yet committed ?
      (new InputValues ~controlled-value Focused? (new ->ParsedEvent "input" false #(-> % .-target .-value parse-double))
        #(set! (.-value dom/node) %))))
 
-(defn parse-edn [s] (try (clojure.edn/read-string s) (catch #?(:clj Throwable :cljs :default) _)))
+(defn parse-edn [s] (try (some-> s contrib.str/blank->nil clojure.edn/read-string) (catch #?(:clj Throwable :cljs :default) _)))
 (defn keep-if [pred v] (when (pred v) v))
 (defn parse-keyword [s] (keep-if keyword? (parse-edn s)))
 (defn parse-symbol [s] (keep-if symbol? (parse-edn s)))

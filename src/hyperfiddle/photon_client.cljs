@@ -1,19 +1,21 @@
 (ns hyperfiddle.photon-client
-  (:require [missionary.core :as m]
+  (:require [contrib.cljs-target :refer [do-browser]]
+            [missionary.core :as m]
             [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.photon-impl.io :as io])
   (:import missionary.Cancelled))
 
-(defn server-url []
-  (let [proto (.. js/window -location -protocol)]
-    (str (case proto
-           "http:" "ws:"
-           "https:" "wss:"
-           (throw (ex-info "Unexpected protocol" proto)))
-      "//"
-      (.. js/window -location -host))))
+(do-browser
+  (defn server-url []
+    (let [proto (.. js/window -location -protocol)]
+      (str (case proto
+             "http:" "ws:"
+             "https:" "wss:"
+             (throw (ex-info "Unexpected protocol" proto)))
+           "//"
+           (.. js/window -location -host)))))
 
-(def ^:dynamic *ws-server-url* (server-url))
+(def ^:dynamic *ws-server-url* (do-browser (server-url)))
 
 (defn remove-listeners [ws]
   (set! (.-onopen ws) nil)
