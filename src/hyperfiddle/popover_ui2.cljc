@@ -39,7 +39,7 @@
           request (case status
                     :closed nil
                     (:open :pending) (PopoverBody. Body))] ; emit to close with request
-      (println 'Popover toggle request)
+      (println 'Popover status toggle request)
       (case status
         :closed (if toggle :open :closed)
         :open (case request ; if request, transition to pending, then close
