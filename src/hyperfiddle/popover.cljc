@@ -27,7 +27,7 @@
 
               (let [stage (p/server
                             (p/with-cycle [stage []]
-                              (binding [hf/db (:db-after (hf/with hf/db stage))]
+                              (binding [hf/db (hf/with hf/db stage)]
                                 (p/client (Body.)))))] ;; TODO validation
                 (reset! !stage stage))
 
