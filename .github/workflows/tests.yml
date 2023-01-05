@@ -1,5 +1,9 @@
 name: Photon Test Suite
-on: [push]
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
 jobs:
   jvm:
     runs-on: [ubuntu-latest]
@@ -87,50 +91,47 @@ jobs:
     - name: Run Tests
       run: ./ci/run_tests_browser.sh
 
-# We used to run CI tests on node, but we are now relying on browser features
-# like requestAnimationFrame.
+  nodejs:
+    # if: ${{ false }}
+    runs-on: [ubuntu-latest]
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@v2
 
-# nodejs:
-#   # if: ${{ false }} # Disabled until we fix the cljs test suite locally
-#   runs-on: [ubuntu-latest]
-#   timeout-minutes: 5
-#   steps:
-#   - uses: actions/checkout@v2
+    - run: git status
 
-#   - run: git status
+    - uses: actions/setup-java@v2
+      with:
+        distribution: 'temurin'
+        java-version: '11'
 
-#   - uses: actions/setup-java@v2
-#     with:
-#       distribution: 'temurin'
-#       java-version: '11'
+    - name: Cache local Maven repository
+      uses: actions/cache@v2
+      with:
+         path: ~/.m2/repository
+         key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn') }}
+         restore-keys: |
+           ${{ runner.os }}-maven-
 
-#   - name: Cache local Maven repository
-#     uses: actions/cache@v2
-#     with:
-#        path: ~/.m2/repository
-#        key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn') }}
-#        restore-keys: |
-#          ${{ runner.os }}-maven-
+    - name: Install clojure tools
+      uses: DeLaGuardo/setup-clojure@3.4
+      with:
+        cli: 1.11.1.1113
 
-#   - name: Install clojure tools
-#     uses: DeLaGuardo/setup-clojure@3.4
-#     with:
-#       cli: 1.11.1.1113
+    - name: prep
+      run: clojure -A:test -P
 
-#   - name: prep
-#     run: clojure -A:test -P
+    - name: Use Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: 18.x
 
-#   - name: Use Node.js
-#     uses: actions/setup-node@v2
-#     with:
-#       node-version: 18.x
+    - name: NPM install
+      run: npm install
 
-#   - name: NPM install
-#     run: npm install
+    - name: Install Shadow
+      run: npm install shadow-cljs
 
-#   - name: Install Shadow
-#     run: npm install shadow-cljs
-
-#   - name: Run Tests
-#     run: ./ci/run_tests_node.sh
+    - name: Run Tests
+      run: ./ci/run_tests_node.sh
 

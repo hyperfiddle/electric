@@ -88,3 +88,23 @@ instance MonadFix Signal => ArrowLoop Signal where
 
 -- loop is recursive iteration where the effect is run once
 -- mfix is general recursion where the effect is run once
+
+
+class ArrowLoop a => ArrowCircuit a where
+    -- | A delay component.
+    delay ::
+        b        -- ^ the value to return initially.
+        -> a b b -- ^ an arrow that propagates its input with a one-tick delay.
+
+-- StreamArrow
+-- https://hackage.haskell.org/package/arrows-0.3
+-- https://hackage.haskell.org/package/arrows-0.4.4.2/docs/Control-Arrow-Transformer-Stream.html#t:StreamArrow
+
+newtype StreamArrow a b c = StreamArrow (a (Stream b) (Stream c))
+
+instance ArrowLoop a => ArrowCircuit (StreamArrow a) where
+    delay x = StreamArrow (arr (Cons x))
+
+-- I don't think this is what i'm looking for
+instance MonadPlus m => ArrowPlus (Kleisli m) where
+    Kleisli f <+> Kleisli g = Kleisli (\x -> f x `mplus` g x)

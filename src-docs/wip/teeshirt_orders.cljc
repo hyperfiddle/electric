@@ -1,11 +1,15 @@
 (ns wip.teeshirt-orders
   (:require contrib.ednish
             clojure.edn
+            datascript.core
+            dev
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
+            [hyperfiddle.photon-ui3 :as ui3]
             [missionary.core :as m]
+            wip.orders-datascript
             [contrib.ednish :as ednish]
             [clojure.spec.alpha :as s]
             [hyperfiddle.router :as router]
@@ -39,16 +43,17 @@
 (s/fdef names :ret (s/coll-of names))
 
 (p/defn OrdersPage []
-  (let [stage
+  (let [stage-from-hfql-ignored
         (ttgui/with-gridsheet-renderer
-          (dom/style {:grid-template-columns "repeat(7, 1fr)"})
+          (dom/style {:grid-template-columns "repeat(6, 1fr)"})
           (binding [ttgui/grid-width 6] ; TODO auto compute grid width from HFQL expression
             (p/server
               (hf/hfql
                 {(props (wip.orders-datascript/orders (props . {::hf/options (names)}))
                    {::hf/height 3})
                  [(props :db/id {::hf/link ['wip.orders-datascript/one-order db/id]})
-                  (props :order/email {::hf/tx (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
+                  (props :order/email {::hf/tx (p/fn [{e ::hf/entity, a ::hf/attribute} v] [[:db/add e a v]])})
+                  :order/email          ; duplicate, readonly, for checking the loop
                   {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
                                          ::hf/option-label (p/fn [v] (name (:db/ident v)))
                                          ::hf/tx           (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
@@ -57,10 +62,9 @@
                   :order/tags
                   {(props :order/shirt-size {::hf/options      (wip.orders-datascript/shirt-sizes gender .)
                                              ::hf/option-label (p/fn [v] (name (:db/ident v)))})
-                   [:db/ident]}]}) )))]
-    (dom/pre stage)))
+                   [:db/ident]}]}))))]))
 
-(p/defn OneOrderPage [order-id]
+(p/defn OneOrderPage [order]
   (let [stage
         (ttgui/with-gridsheet-renderer
           (dom/style {:grid-template-columns "repeat(5, 1fr)"})
@@ -70,7 +74,7 @@
                 [hf/*$*      hf/db
                  hf/*schema* hf/*schema*
                  hf/*nav!*   hf/*nav!*]
-                {(wip.orders-datascript/one-order order-id)
+                {order
                  [(props :db/id {::hf/link ['wip.orders-datascript/one-order %]})
                   (props :order/email {::hf/tx (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
                   {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
@@ -80,7 +84,7 @@
                   {(props :order/shirt-size {::hf/options      (wip.orders-datascript/shirt-sizes gender .)
                                              ::hf/option-label (p/fn [v] (name (:db/ident v)))
                                              ::hf/tx           (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
-                   [:db/id
+                   [#_:db/id
                     :db/ident]}
                   :order/tags]}) )))]
     (dom/pre stage)))
@@ -102,13 +106,23 @@
                 [hf/db       hf/*$*
                  hf/*schema* wip.orders-datascript/schema
                  hf/*nav!*   wip.orders-datascript/nav!
-                 hf/route    route]
-              (p/client
-                (let [[page & args] (parse-route route)]
-                  (case page
-                    wip.orders-datascript/orders    (OrdersPage.)
-                    wip.orders-datascript/one-order (let [[sub] args]
-                                                      (OneOrderPage. sub))
-                    (dom/h2 "Page not found"))))))
+                 hf/route    route
+                 ;hf/schema (new (dx/schema> secure-db))
+                 hf/into-tx' (fn [schema tx0 tx] (concat tx0 tx))
+                 hf/with (fn [db tx] ; inject datomic
+                           (try (:db-after (datascript.core/with db tx))
+                                (catch Exception e (println "...failure, e: " e))))]
+              (hf/branch
+                (p/client
+                  (let [[page & args] (parse-route route)]
+                    (case page
+                      wip.orders-datascript/orders (OrdersPage.)
+                      wip.orders-datascript/one-order (let [[sub] args]
+                                                        (OneOrderPage. sub))
+                      (dom/h2 "Page not found"))))
+                (p/client
+                  (dom/hr)
+                  (dom/element "style" (str "dustin-stage" " { display: block; width: 100%; height: 10em; }"))
+                  (ui3/edn-editor (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class "dustin-stage"}))))))
           nil)))))
 

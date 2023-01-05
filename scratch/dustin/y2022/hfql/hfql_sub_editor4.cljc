@@ -82,10 +82,12 @@
 ;; 6. Syntax for links
 ;(hfql {sub
 ;       [{:db/id {:link [`SubsPage sub]
-;                 :render (hf/link [`SubsPage sub] id)}} ; same
+;                 :render (hf/Link. [`SubsPage sub] id)}} ; same
+;        (hf/Link. [`Sub-requests sub] id)
 ;
 ;        ; these are all the same
 ;        #link [`Sub-requests %]
+;        (hf/Link. [`Sub-requests sub])
 ;        #link `Sub-requests ; is this canonical? Rosie just wants to list where you can go next
 ;        #link [`Sub-requests sub] ; `(SubsPage. ~sub)
 ;        {nil [#link [`Sub-requests sub]

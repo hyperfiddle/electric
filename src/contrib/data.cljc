@@ -142,7 +142,12 @@
   "kf fallback arity"
   (index-by (fn [x i] (str i)) xs)
   := {"0" {:db/ident :foo, :a 1},
-      "1" {:db/ident :bar, :b 2}})
+      "1" {:db/ident :bar, :b 2}}
+
+  "index by first element"
+  ;(index-by first [[:a 1] [:b 2]]) -- ArityException: kf must accept fallback. Is this a mistake?
+  (index-by (fn [a b] (first a)) [[:a 1] [:b 2]]) := {:a [:a 1], :b [:b 2]}
+  (index-by #(do %2 (first %1)) [[:a 1] [:b 2]]) := {:a [:a 1], :b [:b 2]})
 
 (defn index
   "index a sequential collection into an associative collection with explicit keys. this may not be
@@ -180,6 +185,20 @@
 (tests
   (update-existing {:a 1} :a + 10) := {:a 11}
   (update-existing {:a 1} :b + 10) := {:a 1})
+
+;(defn positional
+;  "Transform an array-like map {0 :foo, 1 :bar, ...} with contiguous array keys (0, 1, ...) into
+;   list [:foo :bar]"
+;  [amap]
+;  (->> (range (inc (count amap)))
+;       (reduce (fn [acc idx]
+;                 (if (contains? amap idx)
+;                   (conj acc (get amap idx))
+;                   (reduced acc)))
+;               [])
+;       (seq)))
+;
+;(tests (positional {0 :foo 1 :bar}) := [:foo :bar])
 
 (defn round-floor [n base] (* base (clojure.math/floor (/ n base))))
 

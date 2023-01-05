@@ -58,7 +58,12 @@
       (if (nil? item)
         (do (if (aget main (int 5))
               (when idle (notifier))
-              (aset main (int 5) idle)) r)
+              (aset main (int 5) ^Object idle)
+              ;; ^ Reflection optimization: no static method RT.aset
+              ;; for (^objects ^int ^boolean), target (^objects ^int ^object)
+              ;; instead.
+              )
+            r)
         (let [next (aget-aset item (int 3) nil)]
           (recur next
             (try (rf r @(aget item (int 0)))

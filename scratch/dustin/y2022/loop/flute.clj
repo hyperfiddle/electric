@@ -12,10 +12,10 @@
         ampv (linseg)
         flow (rand 1 amp1)
         vibr (oscils vfreq (* 0.1 ampv))]
-    (let [x (delay (/ 1 freq 2) (+ (* breath flow) amp1 vibr feedbk))
-          out (tone (+ x (- (* x x x)) feedbk) 2000)
-          feedbk (* body 0.4)
-          body (delay (/ 1 freq) out)]
+    (letrec [x (delay (/ 1 freq 2) (+ (* breath flow) amp1 vibr feedbk))
+             out (tone (+ x (- (* x x x)) feedbk) 2000)
+             feedbk (* body 0.4)
+             body (delay (/ 1 freq) out)]
       (* out (* amp amp2)))))
 
 
@@ -25,7 +25,7 @@
         ampv (linseg)
         flow (rand 1 amp1)
         vibr (oscils vfreq (* 0.1 ampv))]
-    (loop [[x out feedbk body] (repeat .)] ; PROBLEM
+    (loop [[x out feedbk body] (repeat .)] ; PROBLEM – What is initial value?
       (recur [x (delay (/ 1 freq 2) (+ (* breath flow) amp1 vibr feedbk))
               out (tone (+ x (- (* x x x)) feedbk) 2000)
               feedbk (* body 0.4)
