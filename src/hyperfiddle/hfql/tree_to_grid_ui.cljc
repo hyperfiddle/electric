@@ -403,7 +403,8 @@
             (p/for-by second [[idx ctx] (map-indexed vector values)]
               (p/client
                 (binding [grid-col (+ grid-col idx)]
-                  (dom/td (p/server (binding [Form Default]
+                  (dom/td (p/server (binding [Form  Default
+                                              Table Default]
                                        (Render. ctx)))))))))))))
 
 (p/def default-height 10)
