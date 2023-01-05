@@ -35,7 +35,6 @@
 (p/defn Popover [label Body]
   (p/with-cycle [status :closed]
     (let [toggle (when-some [event (ui/button hf/loading (dom/text label))] ; popover anchor
-                   #_(.preventDefault event)
                    event)
           request (case status
                     :closed nil
