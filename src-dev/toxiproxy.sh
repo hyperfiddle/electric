@@ -7,7 +7,7 @@
 log_level=fatal # even 'error' is too spammy
 
 LOG_LEVEL=${log_level} toxiproxy-server & \
-toxiproxy-cli create --listen localhost:$1 --upstream localhost:$2 hf_dev_proxy && \
+toxiproxy-cli create --listen 0.0.0.0:$1 --upstream localhost:$2 hf_dev_proxy && \
 toxiproxy-cli toxic add --toxicName hf_latency_toxic --type latency --attribute latency=$3 hf_dev_proxy
 
 # ./toxiproxy.sh 8083 8080 500
