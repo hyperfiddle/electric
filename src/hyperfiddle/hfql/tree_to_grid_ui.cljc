@@ -484,6 +484,11 @@
              (p/client
                ~@body)))))))
 
+(defn throttle [dur >in]
+  (m/ap
+    (let [x (m/?> (m/relieve {} >in))]
+      (m/amb x (do (m/? (m/sleep dur)) (m/amb))))))
+
 (defn get-computed-style [node] #?(:cljs (js/getComputedStyle node)))
 
 (p/defn ComputedStyle
@@ -496,5 +501,7 @@
   [keyfn node]
   (let [live-object (get-computed-style node)]
     (->> (m/sample (partial keyfn live-object) dom/<clock)
+         (throttle 1000)
+         #_(m/eduction (take 1)) ; tick once only
       (m/reductions {} (keyfn live-object))
       (new))))
