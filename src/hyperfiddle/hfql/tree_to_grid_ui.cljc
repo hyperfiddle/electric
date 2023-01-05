@@ -2,14 +2,18 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql :as hfql]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.spec :as spec]
             [clojure.datafy :refer [datafy]]
+            [clojure.string :as str]
             ;; [contrib.ednish :as ednish]
             [contrib.color :as c]
+            [contrib.data :as data]
             [hyperfiddle.photon-ui2 :as ui2]
+            [hyperfiddle.photon-ui3 :as ui3]
             [hyperfiddle.scrollview :as sw]
-            #?(:clj [hyperfiddle.txn :as txn]))
+            [hyperfiddle.rcf :refer [tests with % tap]]
+            [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.hfql.tree-to-grid-ui])))
 
 (defn replate-state! [!route path value]
@@ -29,13 +33,20 @@
   (let [attr (schema-f db a)]
     (spec/valueType->type (or (:db/valueType attr) (:hf/valueType attr))))) ; datascript rejects valueType other than ref.
 
+(defn schema-cardinality [schema-f db a]
+  (case (:db/cardinality (schema-f db a))
+    :db.cardinality/one  ::hf/one
+    :db.cardinality/many ::hf/many
+    nil))
+
 (defn spec-description [prefer-ret? attr]
-  (when-let [spec (datafy (spec/spec attr))]
-    (if prefer-ret?
-      (case (::spec/type spec)
-        ::spec/fspec (::spec/ret spec)
-        (::spec/description spec))
-      (::spec/description spec))))
+  (when (qualified-ident? attr)
+    (when-let [spec (datafy (spec/spec attr))]
+      (if prefer-ret?
+        (case (::spec/type spec)
+          ::spec/fspec (::spec/ret spec)
+          (::spec/description spec))
+        (::spec/description spec)))))
 
 (def input-type {:hyperfiddle.spec.type/symbol  "text"
                  :hyperfiddle.spec.type/uuid    "text"
@@ -46,8 +57,8 @@
                  :hyperfiddle.spec.type/bigdec  "text"
                  :hyperfiddle.spec.type/keyword "text"
                  :hyperfiddle.spec.type/ref     "text"
-                 :hyperfiddle.spec.type/float   "number"
-                 :hyperfiddle.spec.type/double  "number"
+                 :hyperfiddle.spec.type/float   "double"
+                 :hyperfiddle.spec.type/double  "double"
                  :hyperfiddle.spec.type/long    "number"})
 
 ;; ----
@@ -55,7 +66,7 @@
 (p/def table-picker-options {::group-id nil, ::current-value nil}),
 
 ;; (dom/a
-;;   {::dom/href (str "#" (ednish/encode-uri link))}
+;;   (dom/props {::dom/href (str "#" (ednish/encode-uri link))})
 ;;   (dom/event "click" (fn [e] (.preventDefault e) (hf/navigate! link)))
 ;;   (dom/text value))
 
@@ -67,79 +78,110 @@
 (p/def pagination-offset)
 
 (defmacro cell [row col & body]
-  `(dom/div {::dom/role  "cell"
-             ::dom/style {:grid-column ~col
-                          :grid-row    ~row}}
+  `(dom/div
+     (dom/props {::dom/role  "cell"
+                  ::dom/style {:grid-column ~col
+                                :grid-row    ~row}})
      ~@body))
-
-(p/defn Apply1 [F x] (if F (F. x) x))
 
 (defn find-best-identity [v] ; TODO look up in schema
   (cond (map? v) (or (:db/ident v) (:db/id v))
         :else    v))
 
-(p/defn Default [{::hf/keys [entity link link-label options option-label continuation tx] :as ctx}]
-  (let [route        (when link (new link))
-        value        (hfql/JoinAllTheTree. ctx)
-        options      (or options (::hf/options (::parent ctx)))
-        option-label (or option-label (::hf/option-label (::parent ctx)))
-        continuation (or continuation (::hf/continuation (::parent ctx)))
-        tx           (or tx (::hf/tx (::parent ctx)))
-        tx?          (some? tx)]
-    (cond
-      (some? route)   (p/client (cell grid-row grid-col (hf/Link. route link-label)))
-      (some? options) (let [value (find-best-identity value)]
-                        (p/client
-                          (let [v' (ui2/select (p/server (p/for [e (options.)]
-                                                           (let [v (hfql/JoinAllTheTree. (new continuation e))]
-                                                             {:text  (new option-label v)
-                                                              :value (find-best-identity v)})))
-                                     value
-                                     (dom/props {::dom/role     "cell"
-                                                 ::dom/style    {:grid-row grid-row, :grid-column grid-col}
-                                                 ::dom/disabled (not tx?)}))]
-                            (when (and tx? (not= value v'))
-                              (p/server
-                                (let [ctx (if (::hf/tx ctx) ctx (::parent ctx))]
-                                  (when tx (tx. ctx v'))))))))
-      :else
-      (p/client
-        (dom/pre {::dom/role  "cell"
-                  ::dom/style {:grid-row grid-row, :grid-column grid-col}}
-          (dom/text
-            (str (non-breaking-padder indentation)
-              (pr-str value)))))))),
+(p/defn Identity [x] x)
+
+(defmacro input-props [readonly? grid-row grid-col dom-for]
+  `(do
+     (dom/props {::dom/role     "cell"
+                  ::dom/disabled ~readonly?
+                  ::dom/style    {:grid-row ~grid-row, :grid-column ~grid-col}})
+     (when ~dom-for
+       (dom/props {::dom/id ~dom-for}))))
 
 (p/defn Input [{::hf/keys [tx Value] :as ctx}]
   (let [value-type (::value-type ctx)
-        readonly?  (::readonly ctx)
         tx?        (some? tx)
+        readonly?  (if-some [ro (find ctx ::readonly)] (val ro) (not tx?))
         v          (Value.)
         dom-for    (::dom/for ctx)]
     (p/client
-      (let [type (input-type value-type "text")]
-        (dom/input
-          {::dom/role     "cell"
-           ::dom/type     type,
-           ::dom/disabled readonly?
-           ::dom/style    {:grid-row grid-row, :grid-column grid-col}}
-          (case type
-            "checkbox" (dom/props {::dom/checked v})
-            (dom/props {::dom/value (cond (inst? v) (.slice (.toISOString v) 0 16)
-                                          :else     (str v))}))
-          (when dom-for
-            (dom/props {::dom/id dom-for}))
-          (when tx?
-            (let [!v' (atom nil)
-                  v'  (p/watch !v')]
-              (dom/event "input" (fn [e] (reset! !v' (.. e -target -value))))
-              (when v'
-                (p/server (tx. ctx v')))))))))),
+      (let [type (input-type value-type "text")
+            Tx   (when-not readonly? (p/fn [v] (p/server (hf/Transact!. (tx. ctx v)) nil)))]
+        ;; TODO tests/demo for all branches in photon repo
+        (case type
+          "checkbox"       (ui3/checkbox! v       Tx (input-props readonly? grid-row grid-col dom-for))
+          "datetime-local" (ui3/date!     v       Tx (input-props readonly? grid-row grid-col dom-for))
+          "number"         (ui3/long!     v       Tx (input-props readonly? grid-row grid-col dom-for))
+          "double"         (ui3/double!   v       Tx (input-props readonly? grid-row grid-col dom-for))
+          #_else           (ui3/input!    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))
 
-(defn give-card-n-contexts-a-unique-key [ctxs]
-  (into [] (map-indexed (fn [idx ctx] (assoc ctx ::key idx))) ctxs))
+;; NOTE: No default option renderer, to be handled by the summarizer (typeahead, tag picker, etc...)
+#_(p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx} value]
+  (let [value        (find-best-identity value)
+        options      (or options (::hf/options (::parent ctx)))
+        option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
+        continuation (or continuation (::hf/continuation (::parent ctx)))
+        tx           (or tx (::hf/tx (::parent ctx)))
+        tx?          (some? tx)
+        dom-props    (data/select-ns :hyperfiddle.photon-dom ctx)
+        ]
+    (p/client
+      (let [v' (ui2/select (p/server (p/for [e (options.)]
+                                       (let [v (if continuation (hfql/JoinAllTheTree. (new continuation e)) e)]
+                                         {:text  (new option-label v)
+                                          :value (find-best-identity v)})))
+                 value
+                 (dom/props {::dom/role     "cell"
+                              ::dom/style    {:grid-row grid-row, :grid-column grid-col}
+                              ::dom/disabled (not tx?)})
+                 (dom/props dom-props))]
+        (when (and tx? (not= value v'))
+          (p/server
+            (let [ctx (if (::hf/tx ctx) ctx (::parent ctx))]
+              (when tx (tx. ctx v')))))))))
+
+(p/defn Default [{::hf/keys [entity link link-label options option-label] :as ctx}]
+  (let [route        (when link (new link))
+        value        (hfql/JoinAllTheTree. ctx)
+        options      (or options (::hf/options (::parent ctx)))
+        option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
+        value        (option-label. value)
+        ]
+    (cond
+      (some? route)      (p/client (cell grid-row grid-col (hf/Link. route link-label)))
+      ;; (some? options)    (Options. ctx value)
+      (::value-type ctx) (Input. ctx)
+      :else
+      (p/client
+        (dom/pre
+          (dom/props {::dom/role  "cell"
+                       ::dom/style {:grid-row grid-row, :grid-column grid-col}})
+          (dom/text
+            (pr-str value)))))))
 
 (p/def Render)
+
+#?(:cljs (def extract-borders
+           (let [parse js/parseFloat]
+             (juxt
+               #(map parse (str/split (.-gridTemplateRows %) #"px\s"))
+               #(map parse (str/split (.-gridTemplateColumns %) #"px\s"))
+               #(parse (.-width %))
+               #(parse (.-height %))
+               #(parse (.-gap %))
+               #(.getPropertyValue % "--hf-cell-border-color")
+               ))))
+
+#?(:cljs (defn draw-lines! [node color width height gap rows columns]
+           (let [xs  (reductions (partial + gap) columns)
+                 ys  (reductions (partial + gap) rows)
+                 ctx (and (.-getContext node) (.getContext node "2d"))]
+             (when ctx
+               (.clearRect ctx 0 0 width height)
+               (set! (.-fillStyle ctx) color)
+               (doseq [x xs] (.fillRect ctx (int x) 0 gap height))
+               (doseq [y ys] (.fillRect ctx 0 (int y) width gap)))
+             )))
 
 ;; This should not be see in userland because it’s an implementation detail
 ;; driven by Photon not supporting mutual recursion as of today.
@@ -149,46 +191,88 @@
                Render    Render-impl
                hf/Render Render-impl]
        (p/client ; FIXME don’t force body to run on the client
-         (dom/div {:class "hyperfiddle-gridsheet"} ; FIXME drop the wrapper div
+         (dom/div (dom/props {:class "hyperfiddle-gridsheet"}) ; FIXME drop the wrapper div
+           (let [[rows# columns# width# height# gap# color#] (new ComputedStyle extract-borders hyperfiddle.photon-dom/node)
+                 [scroll-top# scroll-height# client-height#] (new (sw/scroll-state< hyperfiddle.photon-dom/node))
+                 height#                                     (if (zero? scroll-height#) height# scroll-height#)]
+             (dom/canvas (dom/props {:class  "hf-grid-overlay"
+                                       :width  (str width# "px")
+                                       :height (str height# "px")})
+               (draw-lines! hyperfiddle.photon-dom/node color# width# height# gap# rows# columns#)))
            ~@body)))))
 
 ;; TODO adapt to new HFQL macroexpansion
 (p/defn Render-impl [{::hf/keys [type cardinality render Value] :as ctx}]
-  (if render (render. ctx)
-      (case type
-        ::hf/leaf (SpecDispatch. ctx)
-        ::hf/keys (Form. ctx)
-        (case cardinality
-          ::hf/many (Table. ctx (give-card-n-contexts-a-unique-key (Value.)))
-          (let [v (Value.)]
-            (cond
-              (vector? v) (Table. ctx (give-card-n-contexts-a-unique-key v))
-              (map? v)    (Render. (assoc v ::parent ctx))
-              :else       (throw "unreachable" {:v v})))))))
+  (if render
+    (p/client (cell grid-row grid-col (p/server (render. ctx))))
+    (case type
+      ::hf/leaf (SpecDispatch. ctx)
+      ::hf/keys (Form. ctx)
+      (case cardinality
+        ::hf/many (Table. ctx)
+        (let [v (Value.)]
+          (cond
+            (vector? v) (Table. ctx)
+            (map? v)    (Render. (assoc v ::parent ctx))
+            :else       (throw "unreachable" {:v v})))))))
 
-(defn height [ctx]
-  (cond
-    (::hf/height ctx)  (+ (inc (::hf/height ctx))
-                        (count (::hf/arguments ctx)))
-    (::hf/options ctx) 1
-    (::hf/keys ctx)    (+ (count (::hf/arguments ctx)) (count (::hf/keys ctx)))
-    ;; TODO handle unknown height
-    :else              1))
+(defn height
+  ([ctx] (height ctx (::value ctx)))
+  ([{::hf/keys [height arguments keys] :as ctx} value]
+   (let [argc (count arguments)]
+     (+ argc
+       (cond
+         ;; user provided, static height
+         (some? height)                        height
+         ;; transposed form (table)
+         (and keys (pos-int? (::count ctx)))   (+ 1 ; table header
+                                                 (max (::count ctx) 1) ; rows
+                                                 (if (pos? argc) 1 0)) ; args pushes table to next row
+         ;; leaf
+         (or (set? value) (sequential? value)) (count value)
+         ;; static form
+         (some? keys)                          (+ 1 (count keys)) ; form labels on next row
+         :else                                 (max (::count ctx) 1))))))
 
-(p/defn SpecDispatch [{::hf/keys [attribute] :as ctx}]
+(p/defn List-impl [{::hf/keys [height attribute] :as ctx}]
+  (let [ctxs (p/for [v (hfql/JoinAllTheTree. ctx)]
+               {::hf/type        ::hf/keys
+                ::hf/keys        [attribute]
+                ::hf/cardinality ::hf/one
+                ::hf/values      [{::hf/type        ::hf/leaf
+                                   ::hf/attribute   attribute
+                                   ::hf/cardinality ::hf/one
+                                   ::hf/Value       (p/fn [] v)}]})
+        cnt  (count ctxs)]
+    (Table.
+      (-> ctx
+        (dissoc ::hf/type)
+        (merge
+          {::hf/cardinality ::hf/many
+           ::hf/height      height
+           ::hf/count       (p/fn [] cnt)
+           ::count          cnt
+           ::hf/keys        [attribute]
+           ::list?          true
+           ::hf/Value       (p/fn [] (new hf/Paginate ctxs))})))))
+
+
+(p/defn SpecDispatch [{::hf/keys [attribute cardinality] :as ctx}]
   (let [spec-value-type   (spec-value-type attribute)
         schema-value-type (schema-value-type hf/*schema* hf/db attribute)
         defined-by-spec?  (and spec-value-type (not schema-value-type))
-        value-type        (or spec-value-type schema-value-type)]
-    (case value-type
-      (:hyperfiddle.spec.type/string
-       :hyperfiddle.spec.type/instant
-       :hyperfiddle.spec.type/boolean) (Input. (cond-> (assoc ctx ::value-type value-type)
-                                                 defined-by-spec? (assoc ::readonly true)))
-      (Default. ctx))))
+        value-type        (or spec-value-type schema-value-type)
+        cardinality       (or cardinality (schema-cardinality hf/*schema* hf/db attribute))]
+    (case cardinality
+      ::hf/many (List-impl. ctx)
+      (case value-type
+        (:hyperfiddle.spec.type/string
+         :hyperfiddle.spec.type/instant
+         :hyperfiddle.spec.type/boolean) (Default. (cond-> (assoc ctx ::value-type value-type)
+                                                     defined-by-spec? (assoc ::readonly true)))
+        (Default. ctx)))))
 
 (defn non-breaking-padder [n] (apply str (repeat n " ")) )
-
 
 (defn field-name [attr]
   (if (seq? attr)
@@ -199,104 +283,111 @@
   (let [value    (read.)
         options? (some? options)]
     (p/client
-      (let [id       (random-uuid) !steady (atom false)
+      (let [id       (random-uuid)
             list-id  (random-uuid)
             arg-spec (spec/arg spec name)]
         (when label?
-          (dom/label {::dom/role  "cell"
-                      ::dom/class "label"
-                      ::dom/for   id,
-                      ::dom/title (pr-str (:hyperfiddle.spec/form arg-spec))
-                      ::dom/style {:grid-row    grid-row
-                                   :grid-column grid-col
-                                   :color :gray}}
+          (dom/label
+            (dom/props {::dom/role  "cell"
+                         ::dom/class "label"
+                         ::dom/for   id,
+                         ::dom/title (pr-str (:hyperfiddle.spec/form arg-spec))
+                         ::dom/style {:grid-row    grid-row
+                                       :grid-column grid-col
+                                       :color       :gray}})
             (dom/text (str (non-breaking-padder indentation) (field-name  name)))))
         (when options?
-          (dom/datalist {::dom/id list-id}
+          (dom/datalist (dom/props {::dom/id list-id})
             (p/server (let [labelf (or option-label (p/fn [x] x))]
                         (p/for [x (options.)]
                           (let [text (labelf. x)]
                             (p/client (dom/option (dom/text text)))))))))
 
-        (let [type  (spec/type-of spec name)
-              value (if (p/watch !steady) (p/current value) value)
-              v     (atom nil)]
-          (dom/input {::dom/id    id
-                      ::dom/role  "cell"
-                      ::dom/type  (input-type type)
-                      ::dom/style {:grid-row    grid-row
-                                   :grid-column (inc grid-col)}}
+        (case (spec/type-of spec name)
+          ;; "checkbox" ()
+          #_else (ui3/input! value (p/fn [v] (hf/replace-route! (hf/assoc-in-route-state hf/route path v)) nil)
+                   (dom/props {::dom/id    id
+                                ::dom/role  "cell"
+                                ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
+                   (when (seq props) (dom/props props))
+                   (when options? (dom/props {::dom/list list-id}))))
+        value))))
 
-            (case type
-              :hyperfiddle.spec.type/boolean (dom/props {::dom/checked value})
-              (dom/props {::dom/value value}))
-            (when (seq props)
-              (dom/props props))
-            (when options?
-              (dom/props {::dom/list list-id}))
-            (let [route hf/route]
-              (dom/event "input"
-                (fn [e]
-                  (reset! v (.. e -target -value))
-                  (hf/replace-route!
-                    (hf/assoc-in-route-state route path (.. e -target -value))))))
-            (dom/event "focus" (fn [_] (reset! !steady true)))
-            (dom/event "blur" (fn [_] (reset! !steady false))))
-          (p/watch v))))) )
+(defn apply-1 [n F args]
+  (let [syms (vec (repeatedly n gensym))]
+    `(let [~syms ~args]
+       (new ~F ~@syms))))
 
-(p/defn CellPad [row col-offset]
-  (let [n (- grid-width grid-col (dec col-offset))]
-    (p/for [i (range n)]
-      (cell row (+ grid-col (dec col-offset) (inc i))))))
+(defmacro applier [n F args]
+  (let [Fsym     (gensym "f")
+        args-sym (gensym "args")
+        cases    (mapcat (fn [n] [n (apply-1 n Fsym args-sym)]) (rest (range (inc n))))]
+    `(let [~Fsym     ~F
+           ~args-sym ~args
+           n#        (count ~args-sym)]
+       (case n#
+         0 (new ~Fsym)
+         ~@cases
+         (throw (ex-info (str "Apply is defined for up to 20 args, given " n# ".") {}))))))
 
-(p/defn GrayInputs [{::hf/keys [attribute arguments]}]
-  (if-some [arguments (seq arguments)]
-    (let [spec (attr-spec attribute)]
-      (p/for-by second [[idx arg] (map-indexed vector arguments)]
-        (p/client
-          (binding [grid-row (+ grid-row idx)]
-            (p/server
-              (GrayInput. true spec nil arg))
-            (CellPad. grid-row 2))))
-            )))
+(p/defn Apply [F args] (applier 20 F args))
+
+(tests
+  (p/defn Plus [a b c] (+ a b c))
+  (with (p/run (tap (Apply. Plus [1 2 3]))))
+  % := 6)
+
+(p/defn GrayInputs [{::hf/keys [tx attribute arguments] :as ctx}]
+  (when-some [arguments (seq arguments)]
+    (let [spec (attr-spec attribute)
+          args (p/for-by second [[idx arg] (map-indexed vector arguments)]
+                 (p/client
+                   (binding [grid-row (+ grid-row idx)]
+                     (p/server
+                       (GrayInput. true spec nil arg)))))]
+      (when (some? tx)
+        (Apply. tx args)))))
 
 (p/defn Form [{::hf/keys [keys values] :as ctx}]
-  (p/client
-    (dom/form {:role  "form"
-               :style {:border-left-color (c/color hf/db-name)}}
-      (p/server
-        (let [heights (vec (reductions + 0 (map height values)))]
-          (into [] cat
-            (p/for-by (comp first second) [[idx [key ctx]] (map-indexed vector (partition 2 (interleave keys values)))]
-              (let [leaf? (= ::hf/leaf (::hf/type ctx))
-                    argc  (count (::hf/arguments ctx))
-                    h     (get heights idx)]
-                (p/client
-                  (let [row     (+ grid-row idx (- h idx))
-                        dom-for (random-uuid)]
-                    (p/for [i (range (dec grid-col))]
-                      (cell row (inc i)))
-                    (dom/label
-                      {::dom/role  "cell"
-                       ::dom/class "label"
-                       ::dom/for   dom-for
-                       ::dom/style {:grid-row     row
-                                    :grid-column  grid-col
-                                    #_#_:padding-left (str indentation "rem")}
-                       ::dom/title (pr-str (or (spec-description false (attr-spec key))
-                                             (p/server (schema-value-type hf/*schema* hf/db key))))}
-                      (dom/text (str (non-breaking-padder indentation) (field-name key))))
-                    (CellPad. row 2)
-                    (binding [indentation   (if true #_leaf? indentation (inc indentation))]
-                      (binding [grid-col (inc grid-col)]
-                        (p/server (GrayInputs. ctx)))
-                      (binding [grid-row (if leaf? row (+ row argc))
-                                grid-col (inc grid-col)]
-                        (p/server
-                          (let [ctx (assoc ctx ::dom/for dom-for)]
-                            (if (::hf/options ctx)
-                              (Default. ctx)
-                              (Render. (assoc ctx ::dom/for dom-for))))))
+  (let [values (p/for [ctx values]
+                 (assoc ctx ::count (new (::hf/count ctx (p/fn [] 0)))))]
+    (p/client
+      (dom/form
+        (dom/props {::dom/role  "form"
+                     ::dom/style {:border-left-color (c/color hf/db-name)}})
+        (p/server
+          (let [heights (vec (reductions + 0 (map height values)))]
+            (into [] cat
+              (p/for-by (comp first second) [[idx [key ctx]] (map-indexed vector (partition 2 (interleave keys values)))]
+                (let [leaf? (= ::hf/leaf (::hf/type ctx))
+                      argc  (count (::hf/arguments ctx))
+                      h     (get heights idx)]
+                  (p/client
+                    (let [row     (+ grid-row idx (- h idx))
+                          dom-for (random-uuid)]
+                      (dom/label
+                        (dom/props
+                          {::dom/role  "cell"
+                           ::dom/class "label"
+                           ::dom/for   dom-for
+                           ::dom/style {:grid-row         row
+                                         :grid-column      grid-col
+                                         #_#_:padding-left (str indentation "rem")}
+                           ::dom/title (pr-str (or (spec-description false (attr-spec key))
+                                                  (p/server (schema-value-type hf/*schema* hf/db key))))})
+                        (dom/text (str (non-breaking-padder indentation) (field-name key))))
+                      (into [] cat
+                        [(binding [grid-row    (inc row)
+                                   indentation (inc indentation)]
+                           (p/server (GrayInputs. ctx)))
+                         (binding [grid-row    (cond leaf?       row
+                                                     (pos? argc) (+ row (inc argc))
+                                                     :else       (inc row))
+                                   grid-col    (if leaf? (inc grid-col) grid-col)
+                                   indentation (if leaf? indentation (inc indentation))]
+                           (p/server
+                             (let [ctx (assoc ctx ::dom/for dom-for)]
+                               (Render. (assoc ctx ::dom/for dom-for ::parent-argc argc)))))])
                       )))))))))))
 
 (p/defn Row [{::hf/keys [keys values] :as ctx}]
@@ -304,75 +395,106 @@
     (dom/tr
       (when-let [id (::group-id table-picker-options)]
         (let [value (p/server (hfql/JoinAllTheTree. ctx))]
-          (dom/input
-            {::dom/role    "cell"
-             ::dom/type    :radio,
-             ::dom/name    id,
-             ::dom/checked (= (::current-value table-picker-options) value)
-             ::dom/style   {:grid-row grid-row, :grid-column grid-col}})))
-      (let [result (p/server
-                     (into [] cat
-                      (p/for-by second [[idx ctx] (map-indexed vector values)]
-                        (p/client
-                          (binding [grid-col (+ grid-col idx)]
-                            (dom/td (p/server (binding [Form Default]
-                                                (Render. ctx)))))))))]
-        (p/for [i (range (dec grid-col))]
-          (cell grid-row (inc i)))
-        (CellPad. grid-row (inc (count keys)))
-        result))))
+          (ui3/checkbox! (= (::current-value table-picker-options) value) (p/fn [_])
+            (dom/props {::dom/role "cell", ::dom/name id, ::dom/style {:grid-row grid-row, :grid-column grid-col}}))))
+      (p/server
+        (binding [List-impl Default]
+          (into [] cat
+            (p/for-by second [[idx ctx] (map-indexed vector values)]
+              (p/client
+                (binding [grid-col (+ grid-col idx)]
+                  (dom/td (p/server (binding [Form Default]
+                                       (Render. ctx)))))))))))))
+
+(p/def default-height 10)
+
+(defn clamp [lower-bound upper-bound number] (max lower-bound (min number upper-bound)))
+
+(defn give-card-n-contexts-a-unique-key [offset ctxs]
+  (let [offset (max offset 0)]
+    (into [] (map-indexed (fn [idx ctx] (assoc ctx ::key (+ offset idx)))) ctxs)))
 
 (p/def Table)
-(p/defn Table-impl [{::hf/keys [keys height] :as ctx} value]
-  (let [actual-height (count value)]
+(p/defn Table-impl [{::hf/keys [keys height Value] :as ctx}]
+  (let [actual-height (new (::hf/count ctx (p/fn [] 0)))
+        height        (clamp 1 (or height default-height) actual-height)
+        list?         (::list? ctx)
+        nested?       (and (some? (::dom/for ctx)) (not list?))
+        shifted?      (or list? (and (::parent-argc ctx) (zero? (::parent-argc ctx))))]
     (p/client
-      (PaginatedGrid (count keys) height actual-height
-        (dom/table {::dom/role "table"}
-          (dom/thead
-            (dom/tr
-              (p/for [i (range (dec grid-col))]
-                (cell grid-row (inc i)))
-              (when (::group-id table-picker-options)
-                (dom/th {::dom/role  "cell"
-                         ::dom/style {:grid-row grid-row, :grid-column grid-col}}))
-              (p/for-by second [[idx col] (map-indexed vector keys)]
-                (dom/th {::dom/role  "cell"
-                         ::dom/class "label"
-                         ::dom/title (pr-str (or (spec-description true (attr-spec col))
-                                               (p/server (schema-value-type hf/*schema* hf/db col)))),
-                         ::dom/style {:grid-row    grid-row,
-                                      :grid-column (+ grid-col idx)
-                                      :color       (c/color hf/db-name)}}
-                  (str (non-breaking-padder indentation) (field-name col))))
-              (CellPad. grid-row (inc (count keys)))))
-          (dom/tbody
-            (let [offset pagination-offset]
+      (binding [grid-col (if nested? (inc grid-col) grid-col)
+                grid-row (if (or shifted? list?) (dec grid-row) grid-row)]
+        (paginated-grid (count keys) height actual-height
+          (dom/table
+            (dom/props {::dom/role "table"})
+            (when-not list?
+              (dom/thead
+                (dom/tr
+                  (when (::group-id table-picker-options)
+                    (dom/th (dom/props {::dom/role  "cell"
+                                        ::dom/style {:grid-row grid-row, :grid-column grid-col}})))
+                  (p/for-by second [[idx col] (map-indexed vector keys)]
+                    (dom/th (dom/props {::dom/role  "cell"
+                                        ::dom/class "label"
+                                        ::dom/title (pr-str (or (spec-description true (attr-spec col))
+                                                              (p/server (schema-value-type hf/*schema* hf/db col)))),
+                                        ::dom/style {:grid-row    grid-row,
+                                                     :grid-column (+ grid-col idx)
+                                                     :color       (c/color hf/db-name)}})
+                      (dom/text (field-name col)))))))
+            (dom/tbody
               (p/server
-                (into [] cat
-                  (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector (->> value (drop offset) (take (dec height))))]
-                    (p/client (binding [grid-row (+ grid-row idx 1)]
-                                (p/server (Row. ctx))))))))))))))
+                (let [value (give-card-n-contexts-a-unique-key hf/page-drop (Value.))]
+                  (into [] cat
+                    (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector value)]
+                      (p/client (binding [grid-row (+ grid-row idx 1)]
+                                  (p/server (Row. ctx)))))))))))))))
+
+(defn compute-offset [scroll-top row-height]
+  #?(:cljs (max 0 (js/Math.ceil (/ (js/Math.floor scroll-top) row-height)))))
 
 
-(defmacro PaginatedGrid [actual-width max-height actual-height & body]
-  `(let [row-height#    (dom/measure "var(--hf-grid-row-height)")
-         actual-height# (* row-height# (inc ~actual-height))
+#?(:cljs (defn set-css-var! [^js node key value]
+           (.setProperty (.-style node) key value)))
+
+(defmacro paginated-grid [actual-width max-height actual-height & body]
+  `(let [row-height#    (or (js/parseFloat (ComputedStyle. #(.-gridAutoRows %) (.closest hyperfiddle.photon-dom/node ".hyperfiddle-gridsheet"))) 0)
+         actual-height# (* row-height# ~actual-height)
          !scroller#     (atom nil)
          !scroll-top#   (atom 0)]
-     (dom/div {::dom/role  "scrollbar"
-               ::dom/style {:grid-row-start grid-row
-                            :grid-row-end   (+ grid-row ~max-height)
-                            :grid-column    (+ grid-col ~actual-width)}}
-       (do (reset! !scroller# dom/node)
-           (let [[scroll-top#] (new (sw/scroll-state< dom/node))]
+     (dom/div
+       (dom/props {::dom/role  "scrollbar"
+                    ::dom/style {:grid-row-start (inc grid-row)
+                                  :grid-row-end   (+ (inc grid-row) ~max-height)
+                                  :grid-column    (+ grid-col ~actual-width)}})
+       (do (reset! !scroller# hyperfiddle.photon-dom/node)
+           (let [[scroll-top#] (new (sw/scroll-state< hyperfiddle.photon-dom/node))]
              (reset! !scroll-top# scroll-top#))
            nil)
-       (dom/div {:role "filler" "data-height" actual-height# :style {:height (str actual-height# "px")}}))
+       (dom/div (dom/props {::dom/role "filler" "data-height" actual-height# ::dom/style {:height (str actual-height# "px")}})))
 
-     (binding [pagination-offset (max 0 (js/Math.ceil (/ (js/Math.floor (p/watch !scroll-top#)) row-height#)))]
-       (dom/div {::dom/role "scrollview"}
-        (dom/event "wheel" ; TODO support keyboard nav and touchscreens
-          (fn [e#] (let [scroller# @!scroller#]
-                     (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY))))))
-        ~@body))))
+     (dom/div (dom/props {::dom/role "scrollview"})
+       (dom/event "wheel" ; TODO support keyboard nav and touchscreens
+         (fn [e#] (let [scroller# @!scroller#]
+                    (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY))))))
+       (let [offset# (compute-offset (p/watch !scroll-top#) row-height#)]
+         (p/server
+           (binding [hf/page-drop offset#
+                     hf/page-take ~max-height]
+             (p/client
+               ~@body)))))))
 
+(defn get-computed-style [node] #?(:cljs (js/getComputedStyle node)))
+
+(p/defn ComputedStyle
+  "Calls the `keyfn` clojure function, passing it the given DOM node’s
+  CSSStyleDeclaration instance. `keyfn` is meant to extract a property from the
+  live computed style object."
+  ;; Does not return CSSStyleDeclaration directly because a CSSStyleDeclaration
+  ;; is a live object with a stable identity. m/cp would dedupe it even if
+  ;; properties might have changed.
+  [keyfn node]
+  (let [live-object (get-computed-style node)]
+    (->> (m/sample (partial keyfn live-object) dom/<clock)
+      (m/reductions {} (keyfn live-object))
+      (new))))

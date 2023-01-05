@@ -7,7 +7,8 @@
    [datascript.core :as d]
    [clojure.string :as str]
    [clojure.spec.alpha :as s]
-   #?(:clj [wip.orders-datascript :refer [orders order shirt-sizes one-order nav! schema]]))
+   #?(:clj [wip.orders-datascript :refer [orders order shirt-sizes one-order nav! schema]])
+   )
   (:import [hyperfiddle.photon Pending]))
 
 (comment
@@ -17,7 +18,7 @@
   `(try ~@body
         (catch hyperfiddle.photon.Pending e# (throw e#))
         (catch missionary.Cancelled e# (throw e#))
-        (catch Throwable e# (prn (type e#) (ex-message e#) (ex-data e#)) (throw e#))))
+        (catch Throwable e# (prn (type e#) (ex-message e#) (ex-data e#) e#) (throw e#))))
 
 (tests
   (with (p/run (tap (binding [hf/db     hf/*$*
@@ -295,7 +296,7 @@
 
 (tests
   "Static Link on attribute"
-  (with (p/run (tap (debug (-> (precompile (props :db/id {::hf/link [:home]}))
+  (with (p/run (tap (debug (-> (hfql/precompile (props :db/id {::hf/link [:home]}))
                              (::hf/link)
                              (new))))))
   % := [:home])
@@ -383,6 +384,16 @@
                       ))))
   % := "defaulted from photon")
 
+
+(comment
+  "default of fn argument" 
+  (with (p/run (tap (binding [hf/db     hf/*$*
+                              hf/*nav!* nav!]
+                      (debug (hfql [:db/id (foo (Default. db/id))]))   ; TODO allow referencing lexical scope from nested sexprs
+                      ))))
+  % := "defaulted from photon")
+
+
 (comment
   ;; TODO some default logic requires all arguments:
   (defn default [eid nom] [eid (if (and eid (empty? nom)) (suber-name eid) nom)])
@@ -403,3 +414,100 @@
   % := {:db/id 12,
         :order/email nil,
         '(hyperfiddle.hfql.tests/foo order/email) "defaulted"})
+
+;; (hfql/precompile [:order/email
+;;                   (foo (props order/email {::hf/default (p/fn [a] (or a "defaulted"))}))]) 
+
+
+(tests
+  "HFQL on top level entity"
+  (with (p/run (tap (hfql 12))))
+  % := 12)
+
+(tests
+  "HFQL on top level entity"
+  (with (p/run (tap (debug (binding [hf/db     hf/*$*
+                                     hf/*nav!* nav!
+                                     hf/*schema* schema]
+                             (hfql {12 [:db/id]}))))))
+  % := '{12 {:db/id 12}})
+
+(tests
+  "HFQL on top level entity"
+  ;; in `e` is a function, it should act as a
+  ;; function, if it’s not it should be bound to
+  ;; the entity at point
+  (with (p/run (tap (debug (binding [hf/db     hf/*$*
+                                     hf/*nav!* nav!
+                                     hf/*schema* schema]
+                             (let [e 12]
+                               (hfql {e [:db/id]})))))))
+  % := '{e {:db/id 12}})
+
+
+(tests
+  "props on point"
+  (with (p/run (debug (let [plan (hfql/precompile (props 1 {:foo :bar}))]
+                        (tap (hfql/JoinAllTheTree. plan))
+                        (tap (:foo plan))))))
+  % := 1
+  % := :bar)
+
+(tests
+  "props on point 2"
+  (with (p/run (debug (let [plan (hfql/precompile (props [1] {:foo :bar})) ]
+                        (tap (hfql/JoinAllTheTree. plan))
+                        (tap (-> plan ::hf/values first :foo))))))
+  % := {1 1}
+  % := :bar)
+
+(tests
+  "props on point 3"
+  (with (p/run (debug (let [plan (hfql/precompile [(props 1 {:foo :bar})]) ]
+                        (tap (hfql/JoinAllTheTree. plan))
+                        (tap (-> plan ::hf/values first :foo))))))
+  % := {1 1}
+  % := :bar)
+
+
+(tests
+  "Link refer to lexical env"
+  (with (p/run (debug (let [e    9
+                            plan (hfql/precompile {e [(props "link" {::hf/link [e]})]})]
+                        (tap (hfql/JoinAllTheTree. plan))
+                        (tap (-> plan ::hf/values first ::hf/Value (new) ::hf/values first ::hf/link (new)))))))
+  % := {'e {"link" "link"}}
+  % := [9])
+
+(p/defn Foo [x] x)
+(s/fdef Foo :args (s/cat :x any?) :ret any?)
+
+(tests
+  "Call photon function"
+  (with (p/run (tap (hfql (Foo. 1)))))
+  % := 1)
+
+(tests
+  "Escape to photon in rendering point"
+  (with (p/run (tap (hfql [(Foo. 1)]))))
+  % := `{(hyperfiddle.hfql.tests/Foo 1) 1})
+
+(tests
+  "Navigate through photon function"
+  (with (p/run (tap (debug (binding [hf/db     hf/*$*
+                                     hf/*nav!* nav!
+                                     hf/*schema* schema]
+                             (hfql {(Foo. 9) [:order/email]}))))))
+  % := `{(hyperfiddle.hfql.tests/Foo 9) {:order/email "alice@example.com"}})
+
+(comment
+
+  (hfql/precompile {e [(props "link" {::hf/link [e]})]}) 
+  (hfql/precompile {e [(props "link" {#_#_::hf/link [e]})]}) 
+  (hyperfiddle.hfql.impl/graph '{e [(props "link" {::hf/link [e]})]} )
+
+  )
+
+(comment
+  (rcf/enable!))
+

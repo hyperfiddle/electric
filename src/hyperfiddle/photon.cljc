@@ -150,7 +150,7 @@ running on a remote host.
 (defmacro current "Copy the current value (only) and then terminate" [x]  ; TODO rename `constant`, `stable`?
   ;; what does Photon do on terminate? TBD
   ;; L: terminating a continuous flow means the value won't change anymore, so that's OK
-  `(new (current* (p/fn [] ~x))))
+  `(new (current* (hyperfiddle.photon/fn [] ~x))))
 
 (cc/defn wrap* [thunk]
   #?(:clj
@@ -305,7 +305,7 @@ or a provided value if it completes without producing any value."
   (assert (watchable? !x) "Provided argument is not Watchable.")
   (m/watch !x))
 
-(defn Watch [!x]
+(defn ^:deprecated Watch [!x]
   (new (checked-watch !x)))
 
 (def -invalid-watch-usage-message "Invalid p/watch (use from Photon code only, maybe you forgot a p/def?)")
@@ -352,7 +352,10 @@ or a provided value if it completes without producing any value."
       `{:env ~(reduce-kv (cc/fn [r k v] (assoc r (list 'quote k) k)) (empty env) env)}
       (meta &form))))
 
-(defmacro with-cycle [[s i] & body]
+(defmacro with-cycle
+  "evaluates body with symbol s bound to the previous result of the body evaluation.
+  the first evaluation binds s to i."
+  [[s i] & body]
   `(let [a# (atom ~i) ~s (hyperfiddle.photon/watch a#)]
      (reset! a# (do ~@body))))
 

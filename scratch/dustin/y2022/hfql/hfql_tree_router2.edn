@@ -22,3 +22,22 @@
 {{wip.orders-datascript/orders {1 ""}}
  {9 {1 "large"}
   10 {1 "small"}}}
+
+
+(hfql
+  {(orders .)
+   [:db/id
+    :order/gender
+    {:order/shirt-size {:options (shirt-sizes gender .)}}]})
+
+{{wip.orders-datascript/orders {:needle "alice"}}
+ {9 {:order/shirt-size {::hf/options {wip.orders-datascript/shirt-sizes {:needle "large"}}}}}}
+
+
+(binding [hf/entity 9]
+  (hfql
+    [:db/id
+     :order/gender
+     {:order/shirt-size {:options (shirt-sizes gender .)}}]))
+
+{:order/shirt-size {::hf/options {wip.orders-datascript/shirt-sizes {:needle "large"}}}}

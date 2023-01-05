@@ -99,7 +99,7 @@
 (defn spec [spec-or-ident]
   (when spec-or-ident
     (assert (or (s/spec? spec-or-ident) (qualified-ident? spec-or-ident))
-      "Expected a clojure spec object or a qualified identifier for a defined spec.")
+      (str "Expected a clojure spec object or a qualified identifier for a defined spec. Given " spec-or-ident))
     (cond (s/spec? spec-or-ident) (with-meta (form spec-or-ident) {`ccp/datafy (fn [_] (datafy (extend-spec spec-or-ident)))})
           (qualified-ident? spec-or-ident) (when-let [s (get-spec spec-or-ident)]
                                              (with-meta (form s) {`ccp/datafy (fn [_] (datafy s))})))))
@@ -108,7 +108,7 @@
 
 (defn reflect [spec-or-ident]
   (assert (or (s/spec? spec-or-ident) (qualified-ident? spec-or-ident))
-    "Expected a clojure spec object or a qualified identifier for a defined spec.")
+    (str "Expected a clojure spec object or a qualified identifier for a defined spec. Given " spec-or-ident))
   (cond (s/spec? spec-or-ident) (datafy (extend-spec spec-or-ident))
         (qualified-ident? spec-or-ident) (datafy (get-spec spec-or-ident))))
 

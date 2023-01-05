@@ -5,9 +5,10 @@
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :refer [Clock]]
+            hyperfiddle.photon-dom
             [hyperfiddle.spec :as spec])
-  #?(:cljs (:import [goog.math Long]))
+  (:import [hyperfiddle.photon Pending]
+           #?(:cljs [goog.math Long]))
   #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
 
 (def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
@@ -15,21 +16,12 @@
 (declare ref?)
 (p/def secure-db "database value excluding stage, so that user can't tamper")
 (p/def with "inject datomic.api/with or equivalent, used by stage")
-(p/def loading)
+(p/def into-tx')
 (def -read-edn-str-default (partial clojure.edn/read-string
                                     {:readers #?(:cljs {'goog.math/Long goog.math.Long/fromString} ; datomic cloud long ids
                                                 :clj {})}))
 (p/def read-edn-str "inject app-specific edn extensions" -read-edn-str-default) ; avoid photon warning about goog.math.Long
 (p/def ^:dynamic *nav!*)
-
-(p/defn Load-timer []
-  (p/client
-    (let [[x] (p/with-cycle [[elapsed start :as s] [0 nil]]
-                (case hyperfiddle.api/loading
-                  ::loading [(some->> start (- (Clock. 0)))
-                             (js/Date.now)]
-                  s))]
-      x)))
 
 (defmacro hfql ; Alias
   ([query] `(hfql/hfql ~query))
@@ -44,6 +36,7 @@
 
 (defn empty-value? [x] (if (seqable? x) (empty? x) (some? x)))
 
+;; FIXME decomplect route from route state
 (defn route-state->route [route-state]
   (if (= 1 (count route-state))
     (let [[k v] (first route-state)]
@@ -64,9 +57,10 @@
                                             (route-state->route (reduce-kv (fn [r k v] (if (and (not (seq? k)) (empty? v)) (dissoc r k) r)) m m)))
                       :else               m))))
 
+;; FIXME decomplect route from route state
 (defn assoc-in-route-state [m path value]
   (let [empty? (if (seqable? value) (not-empty value) (some? value))
-        m      (if (seq? m) {} m)]
+        m      (if (or (seq? m) (vector? m)) {} m)]
     (if empty?
       (assoc-in m path value)
       (route-cleanup (assoc-in m path value) path))))
@@ -100,6 +94,15 @@
 
 (defmulti tx-meta (fn [schema tx] (if (map? tx) ::map (first tx))))
 
+(s/def ::tx-cardinality (s/or :one :many))
+(s/def ::tx-identifier map?)
+(s/def ::tx-inverse fn?)
+(s/def ::tx-special fn?)
+(s/def ::transaction-meta (s/keys :req [::tx-identifier]
+                                  :opt [::tx-cardinality ::tx-inverse ::tx-special
+                                        ::tx-conflicting?]))
+(s/fdef tx-meta :ret ::transaction-meta)
+
 ; resolve cycle - hyperfiddle.txn needs hf/tx-meta
 #?(:clj (require 'hyperfiddle.txn)) ; [rosie] before rcf turns on due to test/seattle undefined
 #?(:clj (defn expand-hf-tx [tx] (call-sym 'hyperfiddle.txn/expand-hf-tx tx)))
@@ -112,14 +115,63 @@
           ;([tx tx'] (into-tx schema tx tx')) -- needs photon->clojure binding conveyance
           ([schema tx tx'] (call-sym 'hyperfiddle.txn/into-tx schema tx tx'))))
 
-(s/def ::tx-cardinality (s/or :one :many))
-(s/def ::tx-identifier map?)
-(s/def ::tx-inverse fn?)
-(s/def ::tx-special fn?)
-(s/def ::transaction-meta (s/keys :req [::tx-identifier]
-                                  :opt [::tx-cardinality ::tx-inverse ::tx-special
-                                        ::tx-conflicting?]))
-(s/fdef tx-meta :ret ::transaction-meta)
+(p/defn Transact!* [!t tx] ; colorless, !t on server
+  ; need the flattening be atomic?
+  #_(when-some [tx (seq (hyperfiddle.txn/minimal-tx hyperfiddle.api/db tx))]) ; stabilize first loop (optional)
+  (p/wrap
+    ; return basis-t ?
+    (swap! !t (fn [[db tx0]]
+                [(with db tx) ; injected datomic dep
+                 (into-tx' schema tx0 tx)])))) ; datascript is different
 
+(p/def Transact!) ; server
+(p/def stage) ; server
+(p/def loading) ; client
+
+(p/defn Load-timer []
+  (p/client
+    (let [[x] (p/with-cycle [[elapsed start :as s] [0 nil]]
+                (case hyperfiddle.api/loading
+                  true [(some->> start (- hyperfiddle.photon-dom/system-time-ms))
+                             (js/Date.now)]
+                  s))]
+      x)))
+
+(p/defn Branch [Body-server] ; todo colorless
+  (p/server
+    (let [!ret (atom nil)
+          !t (atom #_::unknown [db []])
+          [db stage] (p/watch !t)]
+      (binding [hyperfiddle.api/db db
+                hyperfiddle.api/stage stage
+                hyperfiddle.api/Transact! (p/fn [tx]
+                                            (println "Transact! " (hash !t) "committing: " tx)
+                                            (let [r (Transact!*. !t tx)]
+                                              (println "Transact! " (hash !t) "commit result: " r)
+                                              r))]
+        (p/client
+          (p/with-cycle [loading false]
+            (binding [hyperfiddle.api/loading loading]
+              #_(dom/div (name loading) " " (str (Load-timer.)) "ms")
+              (try
+                (p/server
+                  (let [x (Body-server.)] ; cycle x?
+                    #_(println 'Branch x)
+                    (reset! !ret x))) ; if the body returns something, return it. (Likely not used)
+                false (catch Pending e true))))
+          nil))
+      (p/watch !ret)))) ; do we need this? Popover using it currently
+
+(defmacro branch [& body] `(new Branch (p/fn [] ~@body)))
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)
+
+(p/def page-drop -1)
+(p/def page-take -1)
+
+(p/defn Paginate [xs]
+  (if (coll? xs)
+    (cond->> xs
+      (pos-int? page-drop) (drop page-drop)
+      (pos-int? page-take) (take page-take))
+    xs))
