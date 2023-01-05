@@ -1,6 +1,6 @@
 (ns hyperfiddle.photon-client
-  (:require [hyperfiddle.logger :as log]
-            [missionary.core :as m]
+  (:require [missionary.core :as m]
+            [hyperfiddle.photon-impl.runtime :as r]
             [hyperfiddle.photon-impl.io :as io])
   (:import missionary.Cancelled))
 
@@ -13,69 +13,96 @@
       "//"
       (.. js/window -location -host))))
 
-(defn connect! [socket]
-  (let [deliver (m/dfv)]
-    (log/info "WS Connecting …")
-    (set! (.-binaryType socket) "arraybuffer")
-    (doto socket
-      (.addEventListener "open" (fn [] (log/info "WS Connected.")
-                                  (deliver socket)))
-      (.addEventListener "error" (fn on-error [err]
-                                   (.removeEventListener socket "error" on-error)
-                                   (log/debug "WS Error" err)
-                                   (deliver nil))))
-    deliver))
-
-(defn wait-for-close [socket]
-  (let [ret (m/dfv)]
-    (.addEventListener socket "close" (fn [^js event] (ret [(.-code event) (.-reason event)])))
-    ret))
-
-(defn make-write-chan [socket mailbox]
-  (.addEventListener socket "message" #(mailbox (.-data %)))
-  (fn
-    ([] (.close socket 1000 "graceful shutdown"))
-    ([value]
-     (fn [success failure]
-       (try
-         (log/trace "🔼" value)
-         (.send socket value)
-         (success nil)
-         (catch :default e
-           (log/error "Failed to write on socket" e)
-           (failure e)))
-       #(log/info "Canceling websocket write")))))
-
-(defn connect [mailbox ws-server-url]
-  (m/ap (loop [] (if-let [socket (m/? (connect! (new js/WebSocket ws-server-url)))]
-                   (m/amb (do (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "true"))
-                            (make-write-chan socket mailbox))
-                     (do (log/info "WS Waiting for close…")
-                       (when (let [[code reason] (m/? (wait-for-close socket))]
-                               (case code
-                                 1011 (do (log/error "WS closed" code reason)
-                                          false)
-                                 true))
-                         (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "false"))
-                         (log/info "WS Closed.")
-                         (log/info "WS Retry in 2 seconds…")
-                         (m/? (m/sleep 2000))
-                         (recur))))
-                   (do (log/info "WS Failed to connect, retrying in 2 seconds…")
-                     (some-> js/document (.getElementById "root") (.setAttribute "data-ws-connected" "false"))
-                     (m/? (m/sleep 2000))
-                     (recur))))))
-
 (def ^:dynamic *ws-server-url* (server-url))
 
-(defn client [client server]
-  (m/reduce {} nil
-    (m/ap
-      (let [mailbox (m/mbx)]
-        (if-let [write-chan (m/?< (connect mailbox *ws-server-url*))]
-          (try (log/info "Starting Photon Client")
-               (m/? (write-chan (io/encode server)))        ; bootstrap server
-               (m/? (client (io/message-writer write-chan)
-                      (io/message-reader mailbox)))
-               (finally (write-chan)))
-          (log/info "Stopping Photon Client"))))))
+(defn remove-listeners [ws]
+  (set! (.-onopen ws) nil)
+  (set! (.-onclose ws) nil))
+
+(defn connect [url]
+  (fn [s f]
+    (try
+      (let [ws (new js/WebSocket url)]
+        (set! (.-binaryType ws) "arraybuffer")
+        (set! (.-onopen ws)
+          (fn [_]
+            (remove-listeners ws)
+            (s ws)))
+        (set! (.-onclose ws)
+          (fn [e]
+            (remove-listeners ws)
+            (f (ex-info "Failed to connect."
+                 {:code (.-code e)
+                  :reason (.-reason e)}))))
+        #(when (= (.-CONNECTING js/WebSocket) (.-readyState ws))
+           (.close ws)))
+      (catch :default e
+        (f e) #()))))
+
+(defn wait-for-flush [ws]
+  (m/sp
+    (while (pos? (.-bufferedAmount ws))
+      (m/? (m/sleep 50)))))
+
+(defn wait-for-close [ws]
+  (fn [s f]
+    (set! (.-onclose ws)
+      (fn [e]
+        (set! (.-onclose ws) nil)
+        (s {:code (.-code e)
+            :reason (.-reason e)})))
+    #(do (set! (.-onclose ws) nil)
+         (f (Cancelled.)))))
+
+(defn send! [ws msg]
+  (doto ws (.send msg)))
+
+(defn send-all [ws msgs]
+  (m/reduce {} nil (m/ap (m/? (wait-for-flush ((io/encoder send!) ws (m/?> msgs)))))))
+
+(def decode-message-data
+  (comp (map #(.-data %)) io/decoder))
+
+(defn connector "
+server : the server part of the program
+cb : the callback for incoming messages.
+msgs : the discrete flow of messages to send, spawned when websocket is connected, cancelled on websocket close.
+Returns a task producing nil or failing if the websocket was closed before end of reduction.
+" [server]
+  (fn [cb msgs]
+    (m/sp
+      (let [ws (m/? (connect *ws-server-url*))]
+        (try
+          (send! ws (io/encode server))
+          (set! (.-onmessage ws) (partial (decode-message-data io/foreach) cb))
+          (when-some [close-info (m/? (m/race (send-all ws msgs) (wait-for-close ws)))]
+            (throw (ex-info "Connection lost." close-info)))
+          (finally
+            (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
+              (.close ws) (m/? (m/compel wait-for-close)))))))))
+
+(def retry-delays (iterate (partial * 2) 500))
+
+(defn boot-with-retry [client conn]
+  (m/sp
+    (loop [delays retry-delays]
+      (let [s (object-array 1)]
+        (.log js/console "Connecting...")
+        (when-some [[delay & delays]
+                    (try (m/? (conn (fn [x] ((aget s 0) x))
+                                (m/ap
+                                  (.log js/console "Connected.")
+                                  (let [r (m/rdv)]
+                                    (m/amb=
+                                      (do (m/? (client r (r/subject-at s 0)))
+                                          (m/amb))
+                                      (loop []
+                                        (if-some [x (m/? r)]
+                                          (m/amb x (recur))
+                                          (m/amb))))))))
+                         (catch ExceptionInfo e
+                           (.log js/console (ex-message e))
+                           (case (:code (ex-data e))
+                             1006 delays retry-delays)))]
+          (.log js/console (str "Next attempt in " (/ delay 1000) " seconds."))
+          (recur (m/? (m/sleep delay delays))))))))

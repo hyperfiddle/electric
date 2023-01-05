@@ -1515,10 +1515,11 @@
   "Document desired binding unification and binding transfer:"
   (tests
     "passes"
-    (with (p/run (p/server
-                   (let [foo 1]
-                     (tap foo)
-                     (tap (p/client foo)))))
+    (with (p/run (try (p/server
+                        (let [foo 1]
+                          (tap foo)
+                          (tap (p/client foo))))
+                      (catch Pending _)))
       % := 1
       % := 1))
 
@@ -1531,11 +1532,12 @@
                      (binding [foo 1]
                        (tap foo)
                        (tap (p/client foo))))
-                   (catch ExceptionInfo e
+                   (catch Pending _)
+                   (catch #?(:clj Error :cljs js/Error) e
                      (tap e))))
       % := 1
       ; % := 1 -- target future behavior
-      (type %) := ExceptionInfo)))
+      (type %) := #?(:clj Error :cljs js/Error))))
 
 (tests
   "java interop"
@@ -1546,14 +1548,16 @@
 
   (tests
     "static method call in p/server"
-    (with (p/run (tap (p/server (Math/max 2 1))))
+    (with (p/run (try (tap (p/server (Math/max 2 1)))
+                      (catch Pending _)))
       % := 2))
 
   (tests
     "static method call in p/client"
-    (with (p/run (tap (p/server (subvec (vec (range 10))
-                                      (Math/min 1 1)
-                                      (Math/min 3 3)))))
+    (with (p/run (try (tap (p/server (subvec (vec (range 10))
+                                       (Math/min 1 1)
+                                       (Math/min 3 3))))
+                      (catch Pending _)))
       % := [1 2])))
 
 (tests
