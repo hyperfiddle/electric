@@ -43,7 +43,7 @@
 
 (defn wait-for-flush [ws]
   (m/sp
-    (while (pos? (.-bufferedAmount ws))
+    (while (< 4096 (.-bufferedAmount ws))
       (m/? (m/sleep 50)))))
 
 (defn wait-for-close [ws]
