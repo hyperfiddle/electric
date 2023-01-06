@@ -374,7 +374,9 @@
          (set! raf (.requestAnimationFrame js/window callback))) ; RAF not called until first sampling
        ::tick)))
 
-(def <clock "lazy & efficient logical clock that schedules no work unless sampled."
+(def ^:no-doc <clock
+  "lazy & efficient logical clock that schedules no work unless sampled.
+  Implementation detail - please use `system-time-ms`"
   #?(:cljs (fn [n t]
              (let [cancel (->Clock 0 nil t)]
                (set! (.-callback cancel)
