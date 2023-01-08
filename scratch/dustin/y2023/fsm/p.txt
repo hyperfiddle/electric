@@ -11,10 +11,13 @@ event eSlow;
 event eStop;
 
 machine Stoplight {
-    start state Red { on eGo goto eGo; ignore eSlow, eStop; }
-    state Green     { on eSlow goto Yellow; /* ignore eGo, eStop; */ }
-    state Yellow    { on eStop goto Red; ignore eGo, eSlow; }
+    start state Red { on eGo goto eGo;      ignore eSlow, eStop; }
+    state Green     { on eSlow goto Yellow;    /* bug */         }
+    state Yellow    { on eStop goto Red;    ignore eGo, eSlow;   }
 }
+
+// Green state is missing ignore, therefore undefined for those events
+// Fuzzer/checker will find that
 
 spec StoplightSequence observes eGo, eSlow, eStop {
   start state Red { on eGo   goto Green;  }
@@ -86,5 +89,33 @@ stoplight = Fysom(Stoplight) # RED
 stoplight.eGo()
 stoplight.eSlow()
 stoplight.eStop()
+
+
+// Better
+
+class Stoplight():
+    RED = 0
+    GREEN = 1
+    YELLOW = 2
+
+    state = RED
+    def eNext(self): self.state = (self.state + 1) % 3
+
+stoplight = Stoplight()                   # RED
+stoplight.eNext(); print(stoplight.state) # GREEN
+stoplight.eNext(); print(stoplight.state) # YELLOW
+stoplight.eNext(); print(stoplight.state) # RED
+
+from fysom import *
+Stoplight = {'initial': 'RED',
+             'events': [
+                 {'name': 'eNext', 'src': 'RED',    'dst': 'GREEN'},
+                 {'name': 'eNext', 'src': 'GREEN',  'dst': 'YELLOW'},
+                 {'name': 'eNext', 'src': 'YELLOW', 'dst': 'RED'}]}
+
+stoplight = Fysom(Stoplight)                # RED
+stoplight.eNext(); print(stoplight.current) # GREEN
+stoplight.eNext(); print(stoplight.current) # YELLOW
+stoplight.eNext(); print(stoplight.current) # RED
 
 
