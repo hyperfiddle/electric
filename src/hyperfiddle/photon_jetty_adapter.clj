@@ -15,13 +15,13 @@
   Close the connection when the client is not reachable anymore."
   [^Session s pong-mailbox]
   ;; Ping wisely https://developer.android.com/training/connectivity/network-access-optimization#RadioStateMachine
-  (m/sp (loop []
-          (m/? (m/sleep 15000))
-          (.sendPing (.getRemote s) (ByteBuffer/allocate 0))
-          (let [pong (m/? (m/timeout pong-mailbox 20000 :timeout))]
-            (if (= :timeout pong)
-              (.disconnect s)
-              (recur))))))
+  (m/sp
+    (loop []
+      (m/? (m/sleep 15000))
+      (.sendPing (.getRemote s) (ByteBuffer/allocate 0))
+      (when-not (m/? (m/timeout pong-mailbox 20000))
+        (throw (ex-info "Websocket pong timeout." {})))
+      (recur))))
 
 (defn success [exit-value] (log/debug "Websocket handler completed gracefully." {:exit-value exit-value}))
 (defn failure [^WebSocketAdapter ws ^Throwable e]
@@ -52,10 +52,9 @@
                    (let [session (.getSession ws)]
                      (.setMaxTextMessageSize (.getPolicy session) (* 100 1024 1024))  ; Allow large value paylods, temporary.
                      (aset state on-close-slot
-                       ((m/race
+                       ((m/join {} (make-heartbeat session pong-mailbox)
                           (handler-f (partial write-msg ws)
-                            (r/subject-at state on-message-slot))
-                          (make-heartbeat session pong-mailbox))
+                            (r/subject-at state on-message-slot)))
                         success (partial failure ws)))))  ; Start photon process
      :on-close   (fn on-close [ws status-code reason]
                    (let [status {:status status-code, :reason reason}]
