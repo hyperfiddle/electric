@@ -23,11 +23,12 @@
         (throw (ex-info "Websocket pong timeout." {})))
       (recur))))
 
-(defn success [exit-value] (log/debug "Websocket handler completed gracefully." {:exit-value exit-value}))
 (defn failure [^WebSocketAdapter ws ^Throwable e]
-  (log/error "Websocket handler failure" e)
-  ;; jetty/close! is missing arity 3 for jetty 9. Call close directly to get arity 3.
-  (when-some [s (.getSession ws)] (.close s 1011 "Server process crash")))
+  (if (instance? Cancelled e)
+    (log/debug "Websocket handler completed gracefully.")
+    (do (log/error "Websocket handler failure" e)
+        ;; jetty/close! is missing arity 3 for jetty 9. Call close directly to get arity 3.
+        (when-some [s (.getSession ws)] (.close s 1011 "Server process crash")))))
 
 (defn write-msg
   "Return a task, writing a message on a websocket when run."
@@ -55,7 +56,7 @@
                        ((m/join {} (make-heartbeat session pong-mailbox)
                           (handler-f (partial write-msg ws)
                             (r/subject-at state on-message-slot)))
-                        success (partial failure ws)))))  ; Start photon process
+                        {} (partial failure ws)))))  ; Start photon process
      :on-close   (fn on-close [ws status-code reason]
                    (let [status {:status status-code, :reason reason}]
                      (case (long status-code) ; https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
@@ -87,8 +88,6 @@
     ; Photon can resolve any dynamic var bound at this point
     (let [resolvef (bound-fn [not-found x] (r/dynamic-resolve not-found x))]
       (m/sp
-        (try
-          (m/? ((p/eval resolvef (io/decode (m/? (m/reduce (comp reduced {}) nil (m/observe read-msg)))))   ; read and eval photon program sent by client
-                (partial (io/encoder (fn [r x] (m/sp (m/? r) (m/? (write-msg x))))) (m/sp))
-                (comp read-msg (partial partial (io/decoder io/foreach)))))
-          (catch Cancelled _))))))
+        (m/? ((p/eval resolvef (io/decode (m/? (m/reduce (comp reduced {}) nil (m/observe read-msg)))))   ; read and eval photon program sent by client
+              (partial (io/encoder (fn [r x] (m/sp (m/? r) (m/? (write-msg x))))) (m/sp))
+              (comp read-msg (partial partial (io/decoder io/foreach)))))))))
