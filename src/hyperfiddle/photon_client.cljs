@@ -31,11 +31,9 @@
             (remove-listeners ws)
             (s ws)))
         (set! (.-onclose ws)
-          (fn [e]
+          (fn [_]
             (remove-listeners ws)
-            (f (ex-info "Failed to connect."
-                 {:code (.-code e)
-                  :reason (.-reason e)}))))
+            (s nil)))
         #(when (= (.-CONNECTING js/WebSocket) (.-readyState ws))
            (.close ws)))
       (catch :default e
@@ -53,8 +51,9 @@
         (set! (.-onclose ws) nil)
         (s {:code (.-code e)
             :reason (.-reason e)})))
-    #(do (set! (.-onclose ws) nil)
-         (f (Cancelled.)))))
+    #(when-not (nil? (.-onclose ws))
+       (set! (.-onclose ws) nil)
+       (f (Cancelled.)))))
 
 (defn send! [ws msg]
   (doto ws (.send msg)))
@@ -73,15 +72,15 @@ Returns a task producing nil or failing if the websocket was closed before end o
 " [server]
   (fn [cb msgs]
     (m/sp
-      (let [ws (m/? (connect *ws-server-url*))]
+      (if-some [ws (m/? (connect *ws-server-url*))]
         (try
           (send! ws (io/encode server))
           (set! (.-onmessage ws) (partial (decode-message-data io/foreach) cb))
-          (when-some [close-info (m/? (m/race (send-all ws msgs) (wait-for-close ws)))]
-            (throw (ex-info "Connection lost." close-info)))
+          (m/? (m/race (send-all ws msgs) (wait-for-close ws)))
           (finally
             (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
-              (.close ws) (m/? (m/compel wait-for-close)))))))))
+              (.close ws) (m/? (m/compel wait-for-close)))))
+        {}))))
 
 (defn fib-iter [[a b]]
   (case b
@@ -96,26 +95,29 @@ Returns a task producing nil or failing if the websocket was closed before end o
 
 (comment (take 5 retry-delays))
 
+(def retry-codes #{1006})
+
 (defn boot-with-retry [client conn]
   (m/sp
     (loop [delays retry-delays]
       (let [s (object-array 1)]
         (.log js/console "Connecting...")
         (when-some [[delay & delays]
-                    (try (m/? (conn (fn [x] ((aget s 0) x))
-                                (m/ap
-                                  (.log js/console "Connected.")
-                                  (let [r (m/rdv)]
-                                    (m/amb=
-                                      (do (m/? (client r (r/subject-at s 0)))
-                                          (m/amb))
-                                      (loop []
-                                        (if-some [x (m/? r)]
-                                          (m/amb x (recur))
-                                          (m/amb))))))))
-                         (catch ExceptionInfo e
-                           (.log js/console (ex-message e))
-                           (case (:code (ex-data e))
-                             1006 delays retry-delays)))]
+                    (when-some [info (m/? (conn (fn [x] ((aget s 0) x))
+                                            (m/ap
+                                              (.log js/console "Connected.")
+                                              (let [r (m/rdv)]
+                                                (m/amb=
+                                                  (do (m/? (client r (r/subject-at s 0)))
+                                                      (m/amb))
+                                                  (loop []
+                                                    (if-some [x (m/? r)]
+                                                      (m/amb x (recur))
+                                                      (m/amb))))))))]
+                      (if-some [code (:code info)]
+                        (if (contains? retry-codes code)
+                          (do (.log js/console "Connection lost.") (seq retry-delays))
+                          (throw (ex-info (str "Remote error - " code " " (:reason info)) {})))
+                        (do (.log js/console "Failed to connect.") delays)))]
           (.log js/console (str "Next attempt in " (/ delay 1000) " seconds."))
           (recur (m/? (m/sleep delay delays))))))))
