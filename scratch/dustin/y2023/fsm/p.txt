@@ -1,0 +1,121 @@
+// P lang for checked FSMs
+// https://github.com/p-org/P
+
+// P includes a fuzzer/checker (someday solver) that takes both
+// your state machine definitions, and your state machine temporal specifications,
+// and will fuzz for unhandled states and invariant violations, bascially
+// detecting when the programmer forgets all of their defensive conditionals.
+
+event eGo;
+event eSlow;
+event eStop;
+
+machine Stoplight {
+    start state Red { on eGo goto eGo;      ignore eSlow, eStop; }
+    state Green     { on eSlow goto Yellow;    /* bug */         }
+    state Yellow    { on eStop goto Red;    ignore eGo, eSlow;   }
+}
+
+// Green state is missing ignore, therefore undefined for those events
+// Fuzzer/checker will find that
+
+spec StoplightSequence observes eGo, eSlow, eStop {
+  start state Red { on eGo   goto Green;  }
+  state Green     { on eSlow goto Yellow; }
+  state Yellow    { on eStop goto Red;    }
+}
+
+event eNext;
+machine Stoplight {
+    start state Red { on eNext goto Green; }
+    state Green     { on eNext goto Yellow; }
+    state Yellow    { on eNext goto Red; }
+}
+
+spec StoplightSequence observes eGo, eSlow, eStop {
+  start state Red { on eNext goto Green;  }
+  state Green     { on eNext goto Yellow; }
+  state Yellow    { on eNext goto Red;    }
+}
+
+// The checker forces you to write all your defensive conditionals, that's it
+
+machine StoplightController {
+  start state Init {
+    entry {
+      stoplight = new Stoplight();
+      send stoplight, eGo;
+      send stoplight, eSlow;
+      send stoplight, eStop;
+    }
+  }
+}
+
+
+
+// Python stuff
+
+from enum import Enum
+#Stoplight = Enum('Stoplight', ['RED', 'GREEN', 'YELLOW'])
+class Stoplight(Enum):
+    RED = 1
+    GREEN = 2
+    YELLOW = 3
+
+class Stoplight():
+    RED = 1
+    GREEN = 2
+    YELLOW = 3
+
+    state = RED
+
+    def eGo(self):   assert self.state == RED;    self.state = GREEN
+    def eSlow(self): assert self.state == GREEN;  self.state = YELLOW
+    def eStop(self): assert self.state == YELLOW; self.state = RED
+
+stoplight = Stoplight() # RED
+stoplight.eGo()
+stoplight.eSlow()
+stoplight.eStop()
+
+
+from fysom import *
+Stoplight = {'initial': 'RED',
+             'events': [
+                 {'name': 'eGo',   'src': 'RED',    'dst': 'GREEN'},
+                 {'name': 'eSlow', 'src': 'GREEN',  'dst': 'YELLOW'}
+                 {'name': 'eStop', 'src': 'YELLOW', 'dst': 'RED'}]}
+stoplight = Fysom(Stoplight) # RED
+stoplight.eGo()
+stoplight.eSlow()
+stoplight.eStop()
+
+
+// Better
+
+class Stoplight():
+    RED = 0
+    GREEN = 1
+    YELLOW = 2
+
+    state = RED
+    def eNext(self): self.state = (self.state + 1) % 3
+
+stoplight = Stoplight()                   # RED
+stoplight.eNext(); print(stoplight.state) # GREEN
+stoplight.eNext(); print(stoplight.state) # YELLOW
+stoplight.eNext(); print(stoplight.state) # RED
+
+from fysom import *
+Stoplight = {'initial': 'RED',
+             'events': [
+                 {'name': 'eNext', 'src': 'RED',    'dst': 'GREEN'},
+                 {'name': 'eNext', 'src': 'GREEN',  'dst': 'YELLOW'},
+                 {'name': 'eNext', 'src': 'YELLOW', 'dst': 'RED'}]}
+
+stoplight = Fysom(Stoplight)                # RED
+stoplight.eNext(); print(stoplight.current) # GREEN
+stoplight.eNext(); print(stoplight.current) # YELLOW
+stoplight.eNext(); print(stoplight.current) # RED
+
+
