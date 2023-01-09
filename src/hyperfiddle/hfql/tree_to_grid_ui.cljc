@@ -403,7 +403,8 @@
             (p/for-by second [[idx ctx] (map-indexed vector values)]
               (p/client
                 (binding [grid-col (+ grid-col idx)]
-                  (dom/td (p/server (binding [Form Default]
+                  (dom/td (p/server (binding [Form  Default
+                                              Table Default]
                                        (Render. ctx)))))))))))))
 
 (p/def default-height 10)
@@ -500,8 +501,13 @@
   ;; properties might have changed.
   [keyfn node]
   (let [live-object (get-computed-style node)]
+    ;; HACK clock is throttled because network is not deduping. A message would
+    ;; be sent on each RAF.
     (->> (m/sample (partial keyfn live-object) dom/<clock)
-         (throttle 1000)
-         #_(m/eduction (take 1)) ; tick once only
+      (throttle 1000)
       (m/reductions {} (keyfn live-object))
-      (new))))
+      (m/relieve {})
+      (new))
+    ;; FIXME use this impl once network dedupes
+    #_((fn [_time] (keyfn live-object)) hyperfiddle.photon-dom/system-time-ms)
+    ))
