@@ -260,13 +260,14 @@
           (aset i input-slot-terminator nil) (t))) x)))
 
 (defn input [^objects frame slot]
-  (fn [n t]
-    (n) (->InputIterator
-          (aset ^objects (aget frame frame-slot-inputs) (int slot)
-            (doto (object-array input-slots)
-              (aset input-slot-notifier n)
-              (aset input-slot-terminator t)
-              (aset input-slot-current pending))))))
+  (m/signal!                                                ;; inputs are cancelled when reactor is cancelled
+    (fn [n t]
+      (n) (->InputIterator
+            (aset ^objects (aget frame frame-slot-inputs) (int slot)
+              (doto (object-array input-slots)
+                (aset input-slot-notifier n)
+                (aset input-slot-terminator t)
+                (aset input-slot-current pending)))))))
 
 (defn input-change [^objects i x]
   (when-some [n (aget i input-slot-notifier)]
