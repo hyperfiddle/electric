@@ -40,7 +40,7 @@
           :exception (let [[message data] args]
                        (dbg/error (ex-info message data)))
           :remote    (let [[data] args]
-                       (Failure. (ex-info "Remote error" data)))
+                       (Failure. (ex-info "Remote error" (or data {}))))
           :pending   (Failure. (Pending.))
           :cancelled (Failure. (Cancelled.)))))}})
 
