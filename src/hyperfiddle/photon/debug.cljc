@@ -53,7 +53,7 @@
 (defn serializable [map]
   (if (contains? map ::trace)
     (update map ::trace (partial mapv serializable-frame))
-    error))
+    map))
 
 (defn normalize-frame [frame]
   (let [meta        (::meta frame)
