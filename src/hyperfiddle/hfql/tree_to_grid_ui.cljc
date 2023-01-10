@@ -14,7 +14,8 @@
             [hyperfiddle.scrollview :as sw]
             [hyperfiddle.rcf :refer [tests with % tap]]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.hfql.tree-to-grid-ui])))
+  #?(:cljs (:require-macros [hyperfiddle.hfql.tree-to-grid-ui]))
+  #?(:cljs (:refer-clojure :exclude [List])))
 
 (defn replate-state! [!route path value]
   (swap! !route (fn [[current & history]]
@@ -188,6 +189,8 @@
 (defmacro with-gridsheet-renderer [& body]
   `(p/server
      (binding [Table     Table-impl
+               List      List-impl
+               Form      Form-impl
                Render    Render-impl
                hf/Render Render-impl]
        (p/client ; FIXME don’t force body to run on the client
@@ -234,6 +237,8 @@
          (some? keys)                          (+ 1 (count keys)) ; form labels on next row
          :else                                 (max (::count ctx) 1))))))
 
+(p/def List)
+
 (p/defn List-impl [{::hf/keys [height attribute] :as ctx}]
   (let [ctxs (p/for [v (hfql/JoinAllTheTree. ctx)]
                {::hf/type        ::hf/keys
@@ -264,7 +269,7 @@
         value-type        (or spec-value-type schema-value-type)
         cardinality       (or cardinality (schema-cardinality hf/*schema* hf/db attribute))]
     (case cardinality
-      ::hf/many (List-impl. ctx)
+      ::hf/many (List. ctx)
       (case value-type
         (:hyperfiddle.spec.type/string
          :hyperfiddle.spec.type/instant
@@ -348,7 +353,9 @@
       (when (some? tx)
         (Apply. tx args)))))
 
-(p/defn Form [{::hf/keys [keys values] :as ctx}]
+(p/def Form)
+
+(p/defn Form-impl [{::hf/keys [keys values] :as ctx}]
   (let [values (p/for [ctx values]
                  (assoc ctx ::count (new (::hf/count ctx (p/fn [] 0)))))]
     (p/client
@@ -399,14 +406,14 @@
           (ui3/checkbox! (= (::current-value table-picker-options) value) (p/fn [_])
             (dom/props {::dom/role "cell", ::dom/name id, ::dom/style {:grid-row grid-row, :grid-column grid-col}}))))
       (p/server
-        (binding [List-impl Default]
-          (into [] cat
-            (p/for-by second [[idx ctx] (map-indexed vector values)]
-              (p/client
-                (binding [grid-col (+ grid-col idx)]
-                  (dom/td (p/server (binding [Form  Default
-                                              Table Default]
-                                       (Render. ctx)))))))))))))
+        (into [] cat
+          (p/for-by second [[idx ctx] (map-indexed vector values)]
+            (p/client
+              (binding [grid-col (+ grid-col idx)]
+                (dom/td (p/server (binding [Form  Default
+                                            Table Default
+                                            List Default]
+                                    (Render. ctx))))))))))))
 
 (p/def default-height 10)
 
