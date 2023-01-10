@@ -239,7 +239,6 @@
 
 (defmacro button [waiting & body]
   `(dom2/button
-     (dom2/props {::dom2/type "button"}) ; if you want a button to submit a form, use input type="submit"
      ~@body
      #_(dom2/set-property! dom/node "aria-busy" busy#)
      #_(dom2/set-property! dom/node "disabled" busy#)
@@ -250,7 +249,6 @@
 
 (defmacro button! [V! & body]
   `(dom2/button
-     (dom2/props {::dom2/type "button"}) ; if you want a button to submit a form, use input type="submit"
      ~@body
      #_(dom2/set-property! dom/node "aria-busy" busy#)
      #_(dom2/set-property! dom/node "disabled" busy#)
