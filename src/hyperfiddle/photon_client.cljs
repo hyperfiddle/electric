@@ -95,7 +95,7 @@ Returns a task producing nil or failing if the websocket was closed before end o
 
 (comment (take 5 retry-delays))
 
-(def retry-codes #{1006})
+(def retry-codes #{1006 1005}) ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
 
 (defn boot-with-retry [client conn]
   (m/sp
