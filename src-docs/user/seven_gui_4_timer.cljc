@@ -1,12 +1,13 @@
 (ns user.seven-gui-4-timer
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui])
+            [hyperfiddle.photon-dom2 :as dom2]
+            [hyperfiddle.photon-ui4 :as ui4])
   #?(:cljs (:require-macros user.seven-gui-4-timer)))
 
 ;; https://eugenkiss.github.io/7guis/tasks#timer
 
-(def initial-goal 10000)                ; ms
+(def initial-goal 10)                ; s
 
 (defn seconds [milliseconds] (/ (Math/floor (/ milliseconds 100)) 10))
 
@@ -20,26 +21,23 @@
     (let [!goal (atom initial-goal)
           !start (atom (now))
           goal (p/watch !goal)
+          goal-ms (* 1000 goal)
           start (p/watch !start)
-          time (min goal (- (second-precision dom/system-time-ms)
-                            start))]
+          time (min goal-ms (- (second-precision dom/system-time-ms)
+                              start))]
       (dom/div {:style {:display :grid
                         ;:margin-left "20rem"
                         :width "20em"
                         :grid-gap "0 1rem"
                         :align-items :center}}
         (dom/span "Elapsed Time:")
-        (dom/progress {:max goal
+        (dom/progress {:max goal-ms
                        :value time
                        :style {:grid-column 2}})
         (dom/span (seconds time) " s")
-        (dom/span {:style {:grid-row 3}} "Duration")
-        (ui/input {::ui/value (/ initial-goal 1000)
-                   ::ui/input-event (p/fn [event] (reset! !goal (* 1000 (js/parseInt (dom/oget event :target :value)))) nil)
-                   ::dom/type :range
-                   ::dom/min 0
-                   ::dom/max 60
-                   ::dom/style {:grid-row 3}})
-        (ui/button {::dom/style {:grid-row 4, :grid-column "1/3"}
-                    ::ui/click-event (p/fn [_] (reset! !start (now)))}
-          "Reset")))))
+        (dom/span {:style {:grid-row 3}} "Duration: " goal "s")
+        (ui4/range goal (p/fn [v] (reset! !goal v))
+          (dom2/props {:min 0, :max 60, :style {:grid-row 3}}))
+        (ui4/button (p/fn [] (reset! !start (now)))
+          (dom2/props {:style {:grid-row 4, :grid-column "1/3"}})
+          (dom2/text "Reset"))))))

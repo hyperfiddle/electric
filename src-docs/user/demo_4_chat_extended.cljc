@@ -1,9 +1,11 @@
 (ns user.demo-4-chat-extended
-  (:require [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui]
-            [missionary.core :as m])
+  (:require
+   contrib.str
+   [hyperfiddle.api :as hf]
+   [hyperfiddle.photon :as p]
+   [hyperfiddle.photon-dom :as dom]
+   [hyperfiddle.photon-dom2 :as dom2]
+   [missionary.core :as m])
   #?(:cljs (:require-macros user.demo-4-chat-extended)))
 
 ; Fleshed out chat demo with auth and presence
@@ -24,13 +26,12 @@
           (dom/li username (str " (" session-id ")"))))))
 
   (dom/hr)
-  (ui/input {::dom/type "text"
-             ::dom/placeholder "Type a message"
-             ::ui/keychords #{"enter"}
-             ::ui/keychord-event (p/fn [e]
-                                   (let [v (:value dom/node)]
-                                     (p/server (swap! !msgs conj {::username username ::msg v})))
-                                   (set! (.. e -target -value) ""))})
+  (dom2/input (dom2/props {:placeholder "Type a message"})
+    (dom2/on "keydown" (p/fn [e]
+                         (when (= "Enter" (.-key e))
+                           (when-some [v (contrib.str/empty->nil (.-target.value e))]
+                             (p/server (swap! !msgs conj {::username username ::msg v}))
+                             (set! (.-value dom/node) ""))))))
   (dom/ul
     (p/server
       (p/for [{:keys [::username ::msg]} (take 10 msgs)]

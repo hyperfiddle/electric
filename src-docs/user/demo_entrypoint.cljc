@@ -30,7 +30,7 @@
             wip.teeshirt-orders
 
             ; these demos require datomic on classpath, disabled by default
-            #_user.demo-stage-ui3
+            user.demo-stage-ui3
             #_hyperfiddle.datomic-browser))
 
 (p/def pages
@@ -55,7 +55,7 @@
 (p/def secret-pages
   [[::color user.demo-color/App]
    [::controlled-input user.demo-controlled-input/App]
-   #_[::demo-stage-ui3 user.demo-stage-ui3/Demo]
+   [::demo-stage-ui3 user.demo-stage-ui3/Demo]
    #_[::hfql-teeshirt-orders wip.teeshirt-orders/App] ; todo need nested router
    #_[::explorer user.demo-7-explorer/App] ; todo needs nested router
    #_[::datomic-browser hyperfiddle.datomic-browser/App]
