@@ -152,6 +152,16 @@
                  (comp parse-long (partial -get-input-value! dom/node)))]
        ~@body ic#)))
 
+;(defmacro range)
+
+(defmacro range! [v V! & body]
+  `(dom2/input
+     (dom/props {:type "range"})
+     (let [ic# (new InputController! ~v ~V! "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-long (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
+
 (defmacro double [v waiting & body]
   `(dom2/input (dom/props {:type "number"})
      (let [ic# (new InputController ~v ~waiting "input"
