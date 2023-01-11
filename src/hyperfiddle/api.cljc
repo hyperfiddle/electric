@@ -145,10 +145,9 @@
       (binding [hyperfiddle.api/db db
                 hyperfiddle.api/stage stage
                 hyperfiddle.api/Transact! (p/fn [tx]
-                                            (println "Transact! " (hash !t) "committing: " tx)
+                                            #_(println "Transact! " (hash !t) "committing: " tx)
                                             (let [r (Transact!*. !t tx)]
-                                              (println "Transact! " (hash !t) "commit result: " r)
-                                              r))]
+                                              #_(println "Transact! " (hash !t) "commit result: " r)))]
         (p/client
           (p/with-cycle [loading false]
             (binding [hyperfiddle.api/loading loading]
