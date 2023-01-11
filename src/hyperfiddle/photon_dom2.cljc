@@ -8,6 +8,7 @@
                                             with class-str]]
             [hyperfiddle.rcf :as rcf :refer [tests]]
             [missionary.core :as m])
+  (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom2 :refer [with]])))
 
 #?(:cljs (defn dom-element* [parent type]
@@ -89,7 +90,7 @@
                (.addEventListener dom-node event-name callback)
                #(.removeEventListener dom-node event-name callback))))
 
-(defmacro event [event-name callback] `(new (event* node ~event-name ~callback)))
+(defmacro ^:deprecated event [event-name callback] `(new (event* node ~event-name ~callback)))
 
 (defn happen [s e]
   ; Todo, we need a buffer to force a nil in between events to fix race
@@ -114,6 +115,27 @@
                 :pending (if busy state {:status :idle}))))))
 
 (def <clock hyperfiddle.photon-dom/<clock)
+
+(defmacro on
+  ([typ]   `(new Event ~typ false))
+  ([typ F] `(let [x# (p/with-cycle [?v# nil]
+                       (let [busy# (= ?v# ::p/pending)]
+                         (when-some [evt# (new Event ~typ busy#)]
+                           (try (new ~F evt#) (catch Pending e# ::p/pending)))))]
+              (case x# ::p/pending (throw (Pending.)) #_else x#))))
+
+(defmacro on-pending [pending-body & body] `(try (do ~@body) (catch Pending e# ~pending-body (throw e#))))
+
+(p/defn Focused? []
+  (p/with-cycle [focused false]
+    (if focused (nil? (on "blur")) (some? (on "focus")))))
+
+(defn input-setter [node v] (set! (.-value node) (str v)))
+(defmacro bind-value
+  ([v]        `(bind-value ~v input-setter))
+  ([v setter] `(let [v# ~v]
+                 (when-not (new Focused?)
+                   (case (new p/Unglitch v#) (~setter node v#))))))
 
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
