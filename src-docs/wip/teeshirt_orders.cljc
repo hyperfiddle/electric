@@ -7,7 +7,7 @@
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
-            [hyperfiddle.photon-ui3 :as ui3]
+            [hyperfiddle.photon-ui4 :as ui4]
             [missionary.core :as m]
             wip.orders-datascript
             [contrib.ednish :as ednish]
@@ -123,6 +123,6 @@
                 (p/client
                   (dom/hr)
                   (dom/element "style" (str "dustin-stage" " { display: block; width: 100%; height: 10em; }"))
-                  (ui3/edn-editor (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class "dustin-stage"}))))))
+                  (ui4/edn (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class "dustin-stage"}))))))
           nil)))))
 

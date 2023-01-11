@@ -1,8 +1,9 @@
 (ns user.demo-3-system-properties
-  (:require [clojure.string :as str]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui2 :as ui])
+  (:require
+   [clojure.string :as str]
+   [hyperfiddle.photon :as p]
+   [hyperfiddle.photon-dom2 :as dom]
+   [hyperfiddle.photon-ui4 :as ui])
   #?(:cljs (:require-macros user.demo-3-system-properties)))
 
 ; A web view that queries the backend JVM environment and writes it to the
@@ -17,21 +18,19 @@
 (p/defn App []
   (p/client
     (dom/div
-      (dom/h1 "System Properties")
+      (dom/h1 (dom/text "System Properties"))
       (let [!search (atom ""), search (p/watch !search)]
         (p/server
           (let [system-props (sort-by key (system-properties search))
                 matched-count (count system-props)]
             (p/client
-              (dom/div {:style {:color "gray"}} matched-count " matches")
-              (->> (ui/input search {::dom/type :search
-                                     ::dom/placeholder "java.home"})
-                   ; todo what about getting other events from the input like blur?
-                   (reset! !search)) ; stable cycle
+              (dom/div (dom/props {:style {:color "gray"}}) (dom/text matched-count " matches"))
+              (ui/input search (p/fn [v] (reset! !search v))
+                (dom/props {:placeholder "java.home"}))
               (dom/table
                 (p/server
                   (p/for-by first [[k v] system-props]
                     (p/client
                       (dom/tr
-                        (dom/td k)
-                        (dom/td {:style {:white-space :nowrap}} v)))))))))))))
+                        (dom/td (dom/text k))
+                        (dom/td (dom/props {:style {:white-space :nowrap}}) (dom/text v))))))))))))))
