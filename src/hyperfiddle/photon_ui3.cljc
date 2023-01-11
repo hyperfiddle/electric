@@ -65,10 +65,10 @@
   (let [x (p/with-cycle [?v' nil]
             #_(println "?v' " ?v')
             (let [syncing (= ?v' ::p/pending)]
-              (dom2/props {:style {:background-color (if syncing "yellow")}})
               (when-some [v' (new InputController v syncing event setter getter)]
                 #_(println "input! v': " v')
-                (try (new V! v') ; fmap V!, typically ought to return nil but we permit escape
+                (try (dom2/props {:style {:background-color "yellow"}})
+                     (new V! v') ; fmap V!, typically ought to return nil but we permit escape
                      (catch Pending _ ::p/pending)))))]
     (if (not= x ::p/pending)
       x (throw (Pending.)))))
