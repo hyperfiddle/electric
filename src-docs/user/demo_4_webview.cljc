@@ -3,7 +3,7 @@
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui2 :as ui])
+            [hyperfiddle.photon-ui4 :as ui4])
   #?(:cljs (:require-macros user.demo-4-webview)))
 
 ; A database backed webview with reactive updates.
@@ -30,8 +30,8 @@
     (dom/div {:class "hyperfiddle-hfql"}
       (dom/h2 "frontend/backend webview with server push")
       (let [!search (atom ""), search (p/watch !search)]
-        (->> (ui/input search {::dom/type :search, ::dom/placeholder "Filter…"})
-          (reset! !search))
+        (ui4/input search (p/fn [v] (reset! !search v))
+          (dom/props {:placeholder "Filter…"}))
         (dom/table
           (p/server
             (p/for [id (teeshirt-orders db search)]

@@ -10,7 +10,7 @@
             [contrib.color :as c]
             [contrib.data :as data]
             [hyperfiddle.photon-ui2 :as ui2]
-            [hyperfiddle.photon-ui3 :as ui3]
+            [hyperfiddle.photon-ui4 :as ui4]
             [hyperfiddle.scrollview :as sw]
             [hyperfiddle.rcf :refer [tests with % tap]]
             [missionary.core :as m])
@@ -110,11 +110,11 @@
             Tx   (when-not readonly? (p/fn [v] (p/server (hf/Transact!. (tx. ctx v)) nil)))]
         ;; TODO tests/demo for all branches in photon repo
         (case type
-          "checkbox"       (ui3/checkbox! v       Tx (input-props readonly? grid-row grid-col dom-for))
-          "datetime-local" (ui3/date!     v       Tx (input-props readonly? grid-row grid-col dom-for))
-          "number"         (ui3/long!     v       Tx (input-props readonly? grid-row grid-col dom-for))
-          "double"         (ui3/double!   v       Tx (input-props readonly? grid-row grid-col dom-for))
-          #_else           (ui3/input!    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))
+          "checkbox"       (ui4/checkbox v       Tx (input-props readonly? grid-row grid-col dom-for))
+          "datetime-local" (ui4/date     v       Tx (input-props readonly? grid-row grid-col dom-for))
+          "number"         (ui4/long     v       Tx (input-props readonly? grid-row grid-col dom-for))
+          "double"         (ui4/double   v       Tx (input-props readonly? grid-row grid-col dom-for))
+          #_else           (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))
 
 ;; NOTE: No default option renderer, to be handled by the summarizer (typeahead, tag picker, etc...)
 #_(p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx} value]
@@ -310,7 +310,7 @@
 
         (case (spec/type-of spec name)
           ;; "checkbox" ()
-          #_else (ui3/input! value (p/fn [v] (hf/replace-route! (hf/assoc-in-route-state hf/route path v)) nil)
+          #_else (ui4/input value (p/fn [v] (hf/replace-route! (hf/assoc-in-route-state hf/route path v)) nil)
                    (dom/props {::dom/id    id
                                 ::dom/role  "cell"
                                 ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
@@ -403,7 +403,7 @@
     (dom/tr
       (when-let [id (::group-id table-picker-options)]
         (let [value (p/server (hfql/JoinAllTheTree. ctx))]
-          (ui3/checkbox! (= (::current-value table-picker-options) value) (p/fn [_])
+          (ui4/checkbox (= (::current-value table-picker-options) value) (p/fn [_])
             (dom/props {::dom/role "cell", ::dom/name id, ::dom/style {:grid-row grid-row, :grid-column grid-col}}))))
       (p/server
         (into [] cat

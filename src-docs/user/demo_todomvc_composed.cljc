@@ -1,9 +1,11 @@
 (ns user.demo-todomvc-composed
-  (:require #?(:clj [datascript.core :as d])
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-ui :as ui]
-            [hyperfiddle.photon-dom :as dom]
-            [user.demo-5-todomvc :as todomvc])
+  (:require
+   #?(:clj [datascript.core :as d])
+   [hyperfiddle.photon :as p]
+   [hyperfiddle.photon-dom :as dom]
+   [hyperfiddle.photon-dom2 :as dom2]
+   [hyperfiddle.photon-ui4 :as ui4]
+   [user.demo-5-todomvc :as todomvc])
   #?(:cljs (:require-macros user.demo-todomvc-composed)))
 
 (def !n #?(:clj (atom 1)))
@@ -17,18 +19,18 @@
                   todomvc/transact! (partial d/transact! todomvc/!conn)]
           (p/client
             (dom/link {:rel :stylesheet, :href "/todomvc.css"})
-            (ui/input {::dom/type "range" ::dom/min 1 ::dom/max 25 ::dom/step 1 ::ui/value n
-                       ::ui/input-event (p/fn [e] (p/server (reset! !n (p/client (.. e -target -value)))))})
+            (ui4/range n (p/fn [v] (p/server (reset! !n v)))
+              (dom2/props {:min 1 :max 25 :step 1}))
             (dom/div {:class "todomvc" :style {:position "relative"}}
               (dom/h1 "TodoMVC")
               (p/for [i (range n)]
                 (let [!focused (atom false)
                       focused (p/watch !focused)]
-                  (ui/element dom/div {::dom/style {:position "absolute"
-                                                    :width "50vw"
-                                                    :left (str (* i 40) "px")
-                                                    :top (str (-> i (* 40) (+ 60)) "px")
-                                                    :z-index (+ i (if focused 1000 0))}
-                                       ::ui/mouseenter-event (p/fn [e] (reset! !focused true))
-                                       ::ui/mouseleave-event (p/fn [e] (reset! !focused false))}
+                  (dom2/div (dom2/props {:style {:position "absolute"
+                                                 :width "50vw"
+                                                 :left (str (* i 40) "px")
+                                                 :top (str (-> i (* 40) (+ 60)) "px")
+                                                 :z-index (+ i (if focused 1000 0))}})
+                    (dom2/on "mouseenter" (p/fn [_] (reset! !focused true)))
+                    (dom2/on "mouseleave" (p/fn [_] (reset! !focused false)))
                     (todomvc/TodoApp. state)))))))))))

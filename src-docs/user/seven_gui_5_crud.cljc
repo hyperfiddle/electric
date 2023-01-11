@@ -1,7 +1,8 @@
 (ns user.seven-gui-5-crud
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui]
+            [hyperfiddle.photon-dom2 :as dom2]
+            [hyperfiddle.photon-ui4 :as ui4]
             [clojure.string :as str])
   #?(:cljs (:require-macros user.seven-gui-5-crud)))
 
@@ -54,17 +55,19 @@
     (dom/h1 "7 GUIs: CRUD") 
     (let [state (p/watch !state)
           selected (:selected state)]
-      (dom/div {:style {:display :grid
-                        :grid-gap "0.5rem"
-                        :align-items :baseline
-                        :grid-template-areas "'a b c c'\n
-                                            'd d e f'\n
-                                            'd d g h'\n
-                                            'd d i i'\n
-                                            'j j j j'"}}
+      (dom2/div (dom2/props {:style {:display :grid
+                                     :grid-gap "0.5rem"
+                                     :align-items :baseline
+                                     :grid-template-areas "'a b c c'\n
+                                                           'd d e f'\n
+                                                           'd d g h'\n
+                                                           'd d i i'\n
+                                                           'j j j j'"}})
         (dom/span {:style {:grid-area "a"}}
-                  "Filter prefix:")
-        (let [needle (::ui/value (ui/input {:style {:grid-area "b"}}))]
+          "Filter prefix:")
+        (let [!needle (atom ""), needle (p/watch !needle)]
+          (ui4/input needle (p/fn [v] (reset! !needle v))
+            (dom2/props {:style {:grid-area "b"}}))
           (dom/ul {:style {:grid-area "d"
                            :background-color :white
                            :list-style-type :none
@@ -74,30 +77,25 @@
             (p/for [entry (filter-names (:names state) needle)]
               (let [id (key entry)
                     value (val entry)]
-                (ui/element dom/li {::ui/click-event (p/fn [_] (select! id))
-                                    ::dom/style {:cursor :pointer
-                                                 :color (if (= selected id) :white :inherit)
-                                                 :background-color (if (= selected id) :blue :inherit)
-                                                 :padding "0.1rem 0.5rem"}}
-                  (:surname value) ", " (:name value))))))
+                (dom2/li (dom2/text (:surname value) ", " (:name value))
+                  (dom2/props {:style {:cursor :pointer
+                                       :color (if (= selected id) :white :inherit)
+                                       :background-color (if (= selected id) :blue :inherit)
+                                       :padding "0.1rem 0.5rem"}})
+                  (dom2/on "click" (p/fn [_] (select! id))))))))
         (let [stage (:stage state)]
           (dom/span {:style {:grid-area "e"}} "Name:")
-          (ui/input {::ui/value (:name stage)
-                     ::ui/input-event (p/fn [event] (set-name! (dom/oget event :target :value)))
-                     ::dom/style {:grid-area "f"}})
+          (ui4/input (:name stage) (p/fn [v] (set-name! v))
+            (dom2/props {:style {:grid-area "f"}}))
           (dom/span {:style {:grid-area "g"}} "Surname:")
-          (ui/input {::ui/value (:surname stage)
-                     ::ui/input-event (p/fn [event] (set-surname! (dom/oget event :target :value)))
-                     ::dom/style {:grid-area "h"}}))
+          (ui4/input (:surname stage) (p/fn [v] (set-surname! v))
+            (dom2/props {:style {:grid-area "h"}})))
         (dom/div {:style {:grid-area "j"
                           :display :grid
                           :grid-gap "0.5rem"
                           :grid-template-columns "auto auto auto 1fr"}}
-          (ui/button {::ui/click-event (p/fn [_] (create!) nil)}
-            "Create")
-          (ui/button {::dom/disabled (when-not selected true)
-                      ::ui/click-event (p/fn [_] (update!) nil)}
-            "Update")
-          (ui/button {::dom/disabled (when-not selected true)
-                      ::ui/click-event (p/fn [_] (delete!) nil)}
-            "Delete"))))))
+          (ui4/button (p/fn [] (create!)) (dom2/text "Create"))
+          (ui4/button (p/fn [] (update!)) (dom2/text "Update")
+            (dom2/props {:disabled (not selected)}))
+          (ui4/button (p/fn [] (delete!)) (dom2/text "Delete")
+            (dom2/props {:disabled (not selected)})))))))
