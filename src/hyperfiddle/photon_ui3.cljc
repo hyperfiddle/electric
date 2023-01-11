@@ -44,10 +44,11 @@
 (defmacro input [v syncing & body]
   `(dom2/input
      (dom2/props {:type "text"})
-     ~@body ; discard body result, v' wins always
-     (new InputController ~v ~syncing "input"
-          (partial -set-input-value! dom/node)
-          (partial -get-input-value! dom/node))))
+     (let [ic# (new InputController ~v ~syncing "input"
+                 (partial -set-input-value! dom/node)
+                 (partial -get-input-value! dom/node))]
+       ~@body                           ; discard body result, v' wins always
+       ic#)))
 
 (comment
   (dom/dt (dom/text "name"))
@@ -75,10 +76,10 @@
 
 (defmacro input! [v V! & body] ; todo nominal args
   `(dom2/input (dom2/props {:type "text"})
-     ~@body
-     (new InputController! ~v ~V! "input"
-          (partial -set-input-value! dom/node)
-          (partial -get-input-value! dom/node))))
+     (let [ic# (new InputController! ~v ~V! "input"
+                 (partial -set-input-value! dom/node)
+                 (partial -get-input-value! dom/node))]
+       ~@body ic#)))
 
 (comment
   "callback usage"
@@ -95,17 +96,17 @@
 
 (defmacro textarea [v syncing & body]
   `(dom2/textarea
-     ~@body
-     (new InputController ~v ~syncing "input"
-          (partial -set-input-value! dom/node)
-          (partial -get-input-value! dom/node))))
+     (let [ic# (new InputController ~v ~syncing "input"
+                 (partial -set-input-value! dom/node)
+                 (partial -get-input-value! dom/node))]
+       ~@body ic#)))
 
 (defmacro textarea! [v V! & body]
   `(dom2/textarea
-     ~@body
-     (new InputController! ~v ~V! "input"
-          (partial -set-input-value! dom/node)
-          (partial -get-input-value! dom/node))))
+     (let [ic# (new InputController! ~v ~V! "input"
+                 (partial -set-input-value! dom/node)
+                 (partial -get-input-value! dom/node))]
+       ~@body ic#)))
 
 (defmacro edn-editor [v syncing & body]
   `(ui2/read-str-maybe (textarea (pprint-str ~v) ~syncing ~@body)))
@@ -120,141 +121,137 @@
 (defmacro checkbox [v waiting & body]
   `(dom2/input
      (dom2/props {:type "checkbox"})
-     ~@body
-     (new InputController ~v ~waiting "change"
-          (partial -set-input-checked! dom/node)
-          (partial -get-input-checked! dom/node))))
+     (let [ic# (new InputController ~v ~waiting "change"
+                 (partial -set-input-checked! dom/node)
+                 (partial -get-input-checked! dom/node))]
+       ~@body ic#)))
 
 (defmacro checkbox! [v V! & body]
   `(dom2/input
      (dom2/props {:type "checkbox"})
-     ~@body
-     (new InputController! ~v ~V! "change"
-          (partial -set-input-checked! dom/node)
-          (partial -get-input-checked! dom/node))))
+     (let [ic# (new InputController! ~v ~V! "change"
+                 (partial -set-input-checked! dom/node)
+                 (partial -get-input-checked! dom/node))]
+       ~@body ic#)))
 
 (defmacro long [v waiting & body]
+  ;; note: in firefox, clicking the arrows doesn't trigger focus event so the events are ignored. ui4 fixes this.
   `(dom2/input
      (dom/props {:type "number"})
-     ~@body
-     ; todo - in firefox, clicking the arrows doesn't trigger focus event so the events are ignored
-     (new InputController ~v ~waiting "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-long (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController ~v ~waiting "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-long (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro long! [v V! & body]
+  ;; note: in firefox, clicking the arrows doesn't trigger focus event so the events are ignored. ui4 fixes this.
   `(dom2/input
      (dom/props {:type "number"})
-     ~@body
-     ; todo - in firefox, clicking the arrows doesn't trigger focus event so the events are ignored
-     (new InputController! ~v ~V! "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-long (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController! ~v ~V! "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-long (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro double [v waiting & body]
   `(dom2/input (dom/props {:type "number"})
-     ~@body
-     (new InputController ~v ~waiting "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-double (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController ~v ~waiting "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-double (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro double! [v V! & body]
   `(dom2/input (dom/props {:type "number"})
-     ~@body
-     (new InputController ~v ~V! "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-double (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController! ~v ~V! "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-double (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (def uuid-pattern "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 (defmacro uuid [v waiting & body]
   `(dom2/input (dom/props {:type "text" :pattern uuid-pattern})
-     ~@body
-     (new InputController ~v ~waiting "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-uuid (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController ~v ~waiting "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-uuid (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro uuid! [v V! & body]
   `(dom2/input (dom/props {:type "text" :pattern uuid-pattern})
-     ~@body
-     (new InputController! ~v ~V! "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-uuid (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController! ~v ~V! "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-uuid (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro keyword [v waiting & body]
   `(dom2/input
-     ~@body
-     (new InputController ~v ~waiting "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-keyword (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController ~v ~waiting "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-keyword (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro keyword! [v V! & body]
   `(dom2/input
-     ~@body
-     (new InputController! ~v ~V! "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-keyword (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController! ~v ~V! "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-keyword (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro symbol [v waiting & body]
   `(dom2/input
-     ~@body
-     (new InputController ~v ~waiting "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-symbol (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController ~v ~waiting "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-symbol (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro symbol! [v V! & body]
   `(dom2/input
-     ~@body
-     (new InputController! ~v ~V! "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-symbol (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController! ~v ~V! "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-symbol (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro date [v waiting & body]
   `(dom2/input
      (dom/props {:type "date"})
-     ~@body
-     (new InputController ~v ~waiting "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-date (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController ~v ~waiting "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-date (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro date! [v V! & body]
   `(dom2/input
      (dom/props {:type "date"})
-     ~@body
-     (new InputController! ~v ~V! "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-date (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController! ~v ~V! "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-date (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro edn [v waiting & body]
   `(dom2/textarea
-     ~@body
-     (new InputController ~v ~waiting "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-edn (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController ~v ~waiting "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-edn (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro edn! [v V! & body]
   `(dom2/textarea
-     ~@body
-     (new InputController! ~v ~V! "input"
-          (partial -set-input-value! dom/node)
-          (comp parse-edn (partial -get-input-value! dom/node)))))
+     (let [ic# (new InputController! ~v ~V! "input"
+                 (partial -set-input-value! dom/node)
+                 (comp parse-edn (partial -get-input-value! dom/node)))]
+       ~@body ic#)))
 
 (defmacro button [waiting & body]
   `(dom2/button
-     ~@body
-     #_(dom2/set-property! dom/node "aria-busy" busy#)
-     #_(dom2/set-property! dom/node "disabled" busy#)
-     (new InputController nil ~waiting
-          "click" nil (fn [e#] (doto e# .stopPropagation)))))
+     (let [ic# (new InputController nil ~waiting
+                 "click" nil (fn [e#] (doto e# .stopPropagation)))]
+       ~@body ic#)))
 
 (comment (when (ui/button false (dom/text "hi")) (println 'cliccckk!)))
 
 (defmacro button! [V! & body]
   `(dom2/button
-     ~@body
-     #_(dom2/set-property! dom/node "aria-busy" busy#)
-     #_(dom2/set-property! dom/node "disabled" busy#)
-     (new InputController!
-          nil (p/fn [e#] (new ~V!)) ; fix arity
-          "click" nil (fn [e#] (doto e# .stopPropagation)))))
+     (let [ic# (new InputController!
+                 nil (p/fn [e#] (dom/props {:disabled true, :aria-busy true}) (new ~V!)) ; fix arity
+                 "click" nil (fn [e#] (doto e# .stopPropagation)))]
+       ~@body ic#)))
 
 (comment (ui/button! (p/fn [] (p/server (println 'yo))) (dom/text "hi")))
