@@ -9,8 +9,8 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui3 :as ui]
             [hyperfiddle.photon-ui3 :as ui3]
+            [hyperfiddle.photon-ui4 :as ui]
             [hyperfiddle.popover-ui2 :refer [Popover popover-staged popover staged]])
   (:import [hyperfiddle.photon Pending]))
 
@@ -33,24 +33,24 @@
       (dom/dl
 
         (dom/dt (dom/text "id"))
-        (dom/dd (ui3/input! (:db/id record) nil (dom/props {::dom/disabled true})))
+        (dom/dd (ui/input (:db/id record) nil (dom/props {::dom/disabled true})))
 
         (dom/dt "gid")
-        (dom/dd (ui3/uuid! (:label/gid record) nil (dom/props {::dom/disabled true})))
+        (dom/dd (ui/uuid (:label/gid record) nil (dom/props {::dom/disabled true})))
 
         (dom/dt (dom/text "name"))
-        (dom/dd (ui3/input! (:label/name record)
-                            (p/fn [v]
-                              (println 'ui3/input! v)
+        (dom/dd (ui/input (:label/name record)
+                          (p/fn [v]
+                              (println 'input! v)
                               (p/server #_(when true) (hf/Transact!. [[:db/add e :label/name v]])))))
 
         (dom/dt (dom/text "sortName"))
-        (dom/dd (ui3/input! (:label/sortName record)
-                            (p/fn [v] (p/server (hf/Transact!. [[:db/add e :label/sortName v]])))))
+        (dom/dd (ui/input (:label/sortName record)
+                          (p/fn [v] (p/server (hf/Transact!. [[:db/add e :label/sortName v]])))))
 
         (dom/dt (dom/text "startYear"))
-        (dom/dd (ui3/long! (:label/startYear record)
-                            (p/fn [v] (p/server (hf/Transact!. [[:db/add e :label/startYear v]])))))
+        (dom/dd (ui/long (:label/startYear record)
+                         (p/fn [v] (p/server (hf/Transact!. [[:db/add e :label/startYear v]])))))
         )
 
       (dom/pre (dom/text (pprint-str record))))))
@@ -79,4 +79,4 @@
           (p/client
             (dom/hr)
             (dom/element "style" (str "." (css-slugify `staged) " { display: block; width: 100%; height: 10em; }"))
-            (ui3/edn-editor (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class (css-slugify `staged)}))))))))
+            (ui/edn (p/server hf/stage) nil (dom/props {::dom/disabled true ::dom/class (css-slugify `staged)}))))))))

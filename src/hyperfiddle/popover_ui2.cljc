@@ -3,7 +3,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui3 :as ui])
+            [hyperfiddle.photon-ui4 :as ui])
   (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros hyperfiddle.popover-ui2)))
 
@@ -17,10 +17,11 @@
                            hf/stage)]
       (p/client
         (dom/hr)
-        (let [commit (ui/button! (p/fn [] (p/server (hf/Transact!. stage)) ::close!) (dom/text "commit!"))
-              discard (ui/button! (p/fn [] ::close!) (dom/text "discard"))]
-          (ui/edn-editor (p/server hf/stage) {::dom/disabled true
-                                              ::dom/style {:display "block" :width "100%" :height "3rem"}})
+        (let [commit (ui/button (p/fn [] (p/server (hf/Transact!. stage)) ::close!) (dom/text "commit!"))
+              discard (ui/button (p/fn [] ::close!) (dom/text "discard"))]
+          (ui/edn stage nil (dom/props {::dom/disabled true
+                                        ::dom/style {:display "block" :width "100%" :height "3rem"}}))
+          (println 'commit commit)
           (or commit discard))))))
 
 (p/defn PopoverBody [Body]
@@ -34,9 +35,7 @@
 
 (p/defn Popover [label Body]
   (p/with-cycle [status :closed]
-    (let [toggle (when-some [event (ui/button false (dom/text label))] ; popover anchor
-                   (.preventDefault event)
-                   event)
+    (let [toggle (ui/button (p/fn [] true #_(.preventDefault e)) (dom/text label)) ; popover anchor
           request (case status
                     :closed nil
                     (:open :pending) (PopoverBody. Body))] ; emit to close with request
