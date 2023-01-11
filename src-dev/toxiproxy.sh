@@ -6,7 +6,13 @@
 
 log_level=fatal # even 'error' is too spammy
 
-LOG_LEVEL=${log_level} toxiproxy-server & \
+LOG_LEVEL=${log_level} toxiproxy-server &
+echo "waiting for server to come up:"
+while ! nc -z localhost 8474; do
+    printf .
+    sleep 1
+done
+echo " server up"
 toxiproxy-cli create --listen 0.0.0.0:$1 --upstream localhost:$2 hf_dev_proxy && \
 toxiproxy-cli toxic add --toxicName hf_latency_toxic --type latency --attribute latency=$3 hf_dev_proxy
 
