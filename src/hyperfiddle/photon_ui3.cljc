@@ -24,7 +24,7 @@
     false (case syncing
             true nil ;(throw (Pending.)) -- only the transact callback should throw pending, nil is safe
             false (try ; double d-glitch
-                    (when (p/Unglitch. controlled-value)
+                    (when (some? (p/Unglitch. controlled-value))
                       (setter controlled-value))
                     nil (catch Pending _ nil))
             (assert "InputController missing case, syncing: " syncing))))
@@ -35,7 +35,8 @@
     (case (Focused?.)
       true (when-some [e (dom2/Event. event controlled-value #_(try controlled-value false (catch Pending _ true)))]
              (getter e))
-      false (do (setter controlled-value) nil))))
+      ;; D: some? is a hack that might break in e.g. Datomic context
+      false (when (some? controlled-value) (setter controlled-value) nil))))
 
 #?(:cljs (defn -set-input-value! [node v] (set! (.-value node) v)))
 #?(:cljs (defn -get-input-value! [node e] (.-target.value ^js e)))
