@@ -3,7 +3,8 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui4 :as ui])
+            [hyperfiddle.photon-ui4 :as ui]
+            [missionary.core :as m])
   (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros hyperfiddle.popover-ui2)))
 
@@ -17,15 +18,16 @@
                            hf/stage)]
       (p/client
         (dom/hr)
-        (let [commit (ui/button (p/fn [] (p/server (hf/Transact!. stage)) ::close!) (dom/text "commit!"))
-              discard (ui/button (p/fn [] ::close!) (dom/text "discard"))]
+        (let [return (m/dfv)]
+          (ui/button (p/fn [] (p/server (hf/Transact!. stage)) (return :commit)) (dom/text "commit!"))
+          (ui/button (p/fn [] (return :discard)) (dom/text "discard"))
           (ui/edn stage nil (dom/props {::dom/disabled true
                                         ::dom/style {:display "block" :width "100%" :height "3rem"}}))
-          (println 'commit commit)
-          (or commit discard))))))
+          (new (p/task->cp return)))))))
 
 (p/defn PopoverBody [Body]
-  (dom/div (dom/props {:style {:position "fixed" :z-index "2"}})
+  ;; with position fixed if mounts outside view can't scroll down to commit/discard
+  (dom/div (dom/props {:style {#_ #_:position "fixed" :z-index "2"}})
     (dom/div (dom/props {:style {:border           "1px pink solid" :padding "5px"
                                  :position         "relative" #_#_#_#_:left "3em" :top "2em" :z-index "1"
                                  ;; :width            "fit-content" #_:height "40em"
@@ -34,21 +36,9 @@
       (StageWrap. (p/fn [] (Body.))))))
 
 (p/defn Popover [label Body]
-  (p/with-cycle [status :closed]
-    (let [toggle (ui/button (p/fn [] true #_(.preventDefault e)) (dom/text label)) ; popover anchor
-          request (case status
-                    :closed nil
-                    (:open :pending) (PopoverBody. Body))] ; emit to close with request
-      (println 'Popover status toggle request)
-      (case status
-        :closed (if toggle :open :closed)
-        :open (case request ; if request, transition to pending, then close
-                nil (if toggle :closed :open)
-                :pending)
-
-        ; todo what happens if the parent load fails due to concurrent modification
-        :pending (if false #_hf/loading :pending :closed)))) ; close when loading is finished
-  nil)
+  (let [!open? (atom false), open? (p/watch !open?)]
+    (ui/button (p/fn [] (swap! !open? not)) (dom/text label)) ; popover anchor
+    (when open? (case (PopoverBody. Body) (swap! !open? not)))))
 
 (defmacro staged [& body] `(new StageWrap (p/fn [] ~@body)))
 (defmacro popover [label & body] `(new Popover ~label (p/fn [] ~@body)))
