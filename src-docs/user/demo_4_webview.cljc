@@ -27,8 +27,8 @@
 
 (p/defn Teeshirt-orders-view [db]
   (p/client
-    (dom/div {:class "hyperfiddle-hfql"}
-      (dom/h2 "frontend/backend webview with server push")
+    (dom/div (dom/props {:class "hyperfiddle-hfql"})
+      (dom/h2 (dom/text "frontend/backend webview with server push"))
       (let [!search (atom ""), search (p/watch !search)]
         (ui4/input search (p/fn [v] (reset! !search v))
           (dom/props {:placeholder "Filter…"}))
@@ -38,9 +38,9 @@
               (let [!e (d/entity db id)]
                 (p/client
                   (dom/tr
-                    (dom/td id)
-                    (dom/td (p/server (:order/email !e)))
-                    (dom/td (p/server (:order/gender !e)))))))))))))
+                    (dom/td (dom/text id))
+                    (dom/td (dom/text (p/server (:order/email !e))))
+                    (dom/td (dom/text (p/server (:order/gender !e))))))))))))))
 
 (p/defn App []
   (let [db (p/watch conn)] ; reactive "database value"

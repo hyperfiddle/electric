@@ -1,6 +1,6 @@
 (ns user.demo-1-hello-world
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom])
+            [hyperfiddle.photon-dom2 :as dom])
   #?(:cljs (:require-macros user.demo-1-hello-world)))
 
 ; First demonstration of client/server transfer:
@@ -9,8 +9,8 @@
 
 (p/defn App []
   (p/client
-    (dom/h1 "Hello World")
-    (dom/div "Hello from server, where JVM number type is: "
-      (dom/code (p/server (pr-str (type 1)))))
-    (dom/div "Hello from client, where JS number type is: "
-      (dom/code (p/client (pr-str (type 1)))))))
+    (dom/h1 (dom/text "Hello World"))
+    (dom/div (dom/text "Hello from server, where JVM number type is: ")
+      (dom/code (dom/text (p/server (pr-str (type 1))))))
+    (dom/div (dom/text "Hello from client, where JS number type is: ")
+      (dom/code (dom/text (p/client (pr-str (type 1))))))))

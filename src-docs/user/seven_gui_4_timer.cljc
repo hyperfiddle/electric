@@ -1,7 +1,7 @@
 (ns user.seven-gui-4-timer
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-dom2 :as dom2]
+            [hyperfiddle.photon-dom :as dom1]
+            [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.photon-ui4 :as ui4])
   #?(:cljs (:require-macros user.seven-gui-4-timer)))
 
@@ -17,27 +17,24 @@
 
 (p/defn Timer []
   (p/client
-    (dom/h1 "7 GUIs: Timer")
+    (dom/h1 (dom/text "7 GUIs: Timer"))
     (let [!goal (atom initial-goal)
           !start (atom (now))
           goal (p/watch !goal)
           goal-ms (* 1000 goal)
           start (p/watch !start)
-          time (min goal-ms (- (second-precision dom/system-time-ms)
-                              start))]
-      (dom/div {:style {:display :grid
-                        ;:margin-left "20rem"
-                        :width "20em"
-                        :grid-gap "0 1rem"
-                        :align-items :center}}
-        (dom/span "Elapsed Time:")
-        (dom/progress {:max goal-ms
-                       :value time
-                       :style {:grid-column 2}})
-        (dom/span (seconds time) " s")
-        (dom/span {:style {:grid-row 3}} "Duration: " goal "s")
+          time (min goal-ms (- (second-precision dom1/system-time-ms) start))]
+      (dom/div (dom/props {:style {:display :grid
+                                        ;:margin-left "20rem"
+                                    :width "20em"
+                                    :grid-gap "0 1rem"
+                                    :align-items :center}})
+        (dom/span (dom/text "Elapsed Time:"))
+        (dom/progress (dom/props {:max goal-ms, :value time, :style {:grid-column 2}}))
+        (dom/span (dom/text (seconds time) " s"))
+        (dom/span (dom/props {:style {:grid-row 3}}) (dom/text "Duration: " goal "s"))
         (ui4/range goal (p/fn [v] (reset! !goal v))
-          (dom2/props {:min 0, :max 60, :style {:grid-row 3}}))
+          (dom/props {:min 0, :max 60, :style {:grid-row 3}}))
         (ui4/button (p/fn [] (reset! !start (now)))
-          (dom2/props {:style {:grid-row 4, :grid-column "1/3"}})
-          (dom2/text "Reset"))))))
+          (dom/props {:style {:grid-row 4, :grid-column "1/3"}})
+          (dom/text "Reset"))))))

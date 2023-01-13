@@ -1,8 +1,7 @@
 (ns user.demo-2-toggle
   (:require
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom :as dom]
-   [hyperfiddle.photon-dom2 :as dom2]
+   [hyperfiddle.photon-dom2 :as dom]
    [hyperfiddle.photon-ui4 :as ui])
   #?(:cljs (:require-macros user.demo-2-toggle)))
 
@@ -16,12 +15,12 @@
 
 (p/defn App []
   (p/client
-    (dom/h1 "Toggle")
+    (dom/h1 (dom/text "Toggle"))
     ;; button is auto-disabled while the 'task' is pending
     (ui/button (p/fn [] (p/server (swap! !x not)))
-      (dom2/text "toggle client/server"))
+      (dom/text "toggle client/server"))
     (dom/p
-      "Number type is: "
-      (if (p/server x)
-        (p/client (pr-str (type 1)))           ; javascript number type
-        (p/server (pr-str (type 1)))))))       ; java number type
+      (dom/text "Number type is: "
+        (if (p/server x)
+          (p/client (pr-str (type 1)))      ; javascript number type
+          (p/server (pr-str (type 1))))))))       ; java number type

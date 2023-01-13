@@ -26,7 +26,7 @@
             (p/client
               (dom/div (dom/props {:style {:color "gray"}}) (dom/text matched-count " matches"))
               (ui/input search (p/fn [v] (reset! !search v))
-                (dom/props {:placeholder "java.home"}))
+                (dom/props {:type "search" :placeholder "java.home"}))
               (dom/table
                 (p/server
                   (p/for-by first [[k v] system-props]
