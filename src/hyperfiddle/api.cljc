@@ -36,7 +36,7 @@
 (p/def path []) ; addresses a point in the route map, pass it to `get-in` to get value at path.
 (p/defn Get-in-route [path] (get-in route path)) ; temporary
 
-(defn ^:no-doc route-cleanup* [path m]
+(defn ^:no-doc route-cleanup [path m]
   (let [cleanup (fn [m] (when m
                           (not-empty
                             (persistent!
@@ -46,8 +46,8 @@
                                              r)) (transient m) m)))))]
     (case (count path)
       0 (cleanup m)
-      1 (route-cleanup* [] (update m (first path) cleanup))
-      (route-cleanup* (butlast path) (update-in m path cleanup)))))
+      1 (route-cleanup [] (update m (first path) cleanup))
+      (route-cleanup (butlast path) (update-in m path cleanup)))))
 
 (defn ^:no-doc update-in* [m ks f & args]
   (if (empty? ks)
@@ -65,7 +65,7 @@
     (::route route)
     route))
 
-(defn ^:no-doc swap-route-impl [!route path f & args] (apply swap! !route update-in* path (comp (partial route-cleanup* path) f) args))
+(defn ^:no-doc swap-route-impl [!route path f & args] (apply swap! !route update-in* path (comp (partial route-cleanup path) f) args))
 (p/def ^:no-doc swap-route-base)
 (p/def swap-route!)
 
@@ -112,37 +112,6 @@
 (p/def navigate!) ; to inject a route setter (eg. write to url, html5 history pushState, swap an atom…)
 (p/def replace-route!)                  ; overwrite the current route
 (p/def navigate-back!)                  ; inverse of `navigate!`, to be injected
-
-(defn ^:deprecated empty-value? [x] (if (seqable? x) (empty? x) (some? x)))
-
-;; FIXME decomplect route from route state
-(defn ^:deprecated route-state->route [route-state]
-  (if (= 1 (count route-state))
-    (let [[k v] (first route-state)]
-      (if (seq? k)
-        (let [args (::spec/keys (datafy (spec/args (first k))))]
-          (cons (first k) (map (fn [arg] (get v arg)) args)))
-        (if (empty? v) nil route-state)))
-    route-state))
-
-(defn ^:deprecated route-cleanup [m path]
-  (cond
-    (seq? m)      m
-    (empty? path) m
-    :else         (let [leaf (get-in m path)]
-                    (cond
-                      (empty-value? leaf) (if-some [path' (seq (butlast path))]
-                                            (recur (update-in m path' dissoc (last path)) path')
-                                            (route-state->route (reduce-kv (fn [r k v] (if (and (not (seq? k)) (empty? v)) (dissoc r k) r)) m m)))
-                      :else               m))))
-
-;; FIXME decomplect route from route state
-(defn ^:deprecated assoc-in-route-state [m path value]
-  (let [empty? (if (seqable? value) (not-empty value) (some? value))
-        m      (if (or (seq? m) (vector? m)) {} m)]
-    (if empty?
-      (assoc-in m path value)
-      (route-cleanup (assoc-in m path value) path))))
 
 ;;; Database
 

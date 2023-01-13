@@ -17,10 +17,6 @@
   #?(:cljs (:require-macros [hyperfiddle.hfql.tree-to-grid-ui]))
   #?(:cljs (:refer-clojure :exclude [List])))
 
-(defn replate-state! [!route path value]
-  (swap! !route (fn [[current & history]]
-                  (cons (hf/assoc-in-route-state (or current {}) path value) history))))
-
 (defn attr-spec [attr]
   (cond
     (ident? attr) attr
@@ -310,7 +306,7 @@
 
         (case (spec/type-of spec name)
           ;; "checkbox" ()
-          #_else (ui4/input value (p/fn [v] (hf/swap-route! #(hf/route-cleanup* (butlast path) (assoc-in % path v))) nil)
+          #_else (ui4/input value (p/fn [v] (hf/swap-route! #(hf/route-cleanup (butlast path) (assoc-in % path v))) nil)
                    (dom/props {::dom/id    id
                                 ::dom/role  "cell"
                                 ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
