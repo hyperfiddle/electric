@@ -89,5 +89,4 @@
     (let [resolvef (bound-fn [not-found x] (r/dynamic-resolve not-found x))]
       (m/sp
         (m/? ((p/eval resolvef (io/decode (m/? (m/reduce (comp reduced {}) nil (m/observe read-msg)))))   ; read and eval photon program sent by client
-              (partial (io/encoder (fn [r x] (m/sp (m/? r) (m/? (write-msg x))))) (m/sp))
-              (comp read-msg (partial partial (io/decoder io/foreach)))))))))
+              (comp write-msg io/encode) (fn [cb] (read-msg (comp cb io/decode)))))))))

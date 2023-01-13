@@ -1,14 +1,12 @@
 (ns ^:no-doc hyperfiddle.photon-impl.runtime
   (:refer-clojure :exclude [eval compile])
   (:require [hyperfiddle.photon-impl.yield :refer [yield]]
-            [hyperfiddle.photon-impl.gather :refer [gather]]
             [hyperfiddle.photon-impl.failer :as failer]
-            [hyperfiddle.photon-impl.eventually :refer [eventually]]
             [hyperfiddle.photon-impl.local :as l]
-            [hyperfiddle.photon-impl.ir :as-alias ir]
+            [hyperfiddle.photon-impl.ir :as ir]
             [hyperfiddle.photon.debug :as dbg]
             [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests]]
+            [hyperfiddle.rcf :refer [tests tap %]]
             [clojure.string :as str]
             [contrib.data :as data])
   (:import missionary.Cancelled
@@ -91,8 +89,18 @@
 (defn error [^String msg] ; Could be ex-info (ExceptionInfo inherits Error or js/Error)
   (#?(:clj Error. :cljs js/Error.) msg))
 
+(defn pst [e]
+  #?(:clj (.printStackTrace ^Throwable e)
+     :cljs (js/console.error e)))
+
 (defn select-debug-info [debug-info]
   (merge (select-keys debug-info [::ir/op]) (data/select-ns :hyperfiddle.photon.debug debug-info)))
+
+(defn check-failure [debug-info <x]
+  (m/latest (fn [x]
+              (if (instance? Failure x)
+                (dbg/error (select-debug-info debug-info) x)
+                x)) <x))
 
 (defn latest-apply [debug-info & args]
   (apply m/latest
@@ -110,6 +118,20 @@
 
 (defn pure [x] (m/cp x))
 
+(def empty-event
+  {:acks 0
+   :tree []
+   :change {}
+   :freeze #{}})
+
+(deftype It [state cancel transfer]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_]
+    (cancel state))
+  IDeref
+  (#?(:clj deref :cljs -deref) [_]
+    (transfer state)))
+
 (def lift-cancelled
   (partial comp
     (fn [it]
@@ -125,17 +147,19 @@
 
 (def this (l/local))
 
-(def context-slot-root            (int 0))  ;; Immutable. The root frame.
-(def context-slot-local-id        (int 1))  ;; The next local id (auto incremented).
-(def context-slot-remote-id       (int 2))  ;; The next remote id (auto decremented).
-(def context-slot-frame-store     (int 3))  ;; A transient map associating frame ids to frame objects.
-(def context-slot-remote          (int 4))  ;; The remote callback
-(def context-slot-output          (int 5))  ;; The output callback
-(def context-slot-incoming        (int 6))  ;; The incoming callback
-(def context-slot-queue           (int 7)) ;; The payloads assigned to inputs (used by decoder).
-(def context-slot-frame-register  (int 8)) ;; The frame register (used by decoder).
-(def context-slot-target-register (int 9)) ;; The target register (used by decoder).
-(def context-slots                (int 10))
+(def context-slot-root            (int 0))   ;; Immutable. The root frame.
+(def context-slot-local-id        (int 1))   ;; The next local id (auto incremented).
+(def context-slot-remote-id       (int 2))   ;; The next remote id (auto decremented).
+(def context-slot-pending-rpos    (int 3))   ;; The reading position in the pending circular buffer.
+(def context-slot-pending-wpos    (int 4))   ;; The writing position in the pending circular buffer.
+(def context-slot-pending-buffer  (int 5))   ;; The pending circular buffer of outputs changed for each message sent.
+(def context-slot-frame-store     (int 6))   ;; A transient map associating frame ids to frame objects.
+(def context-slot-event           (int 7))   ;; The next event to transfer.
+(def context-slot-check           (int 8))   ;; The set of inputs that must be checked on next event transfer.
+(def context-slot-notifier        (int 9))   ;; The notifier callback
+(def context-slot-terminator      (int 10))  ;; The terminator callback
+(def context-slot-incoming        (int 11))  ;; The incoming callback
+(def context-slots                (int 12))
 
 (def tier-slot-parent   (int 0))    ;; Immutable. The parent frame.
 (def tier-slot-position (int 1))    ;; Immutable. The static position of the tier in the parent frame.
@@ -160,8 +184,28 @@
 (def frame-slot-inputs    (int 10)) ;; Immutable
 (def frame-slot-tiers     (int 11)) ;; Immutable
 (def frame-slot-constants (int 12)) ;; Immutable
-(def frame-slot-outputs   (int 13)) ;; Immutable
-(def frame-slots          (int 14))
+(def frame-slots          (int 13))
+
+(def input-slot-frame      (int 0))                         ;; parent frame
+(def input-slot-notifier   (int 1))                         ;; consumer notifier
+(def input-slot-terminator (int 2))                         ;; consumer terminator
+(def input-slot-current    (int 3))                         ;; current state
+(def input-slot-dirty      (int 4))                         ;; head of linked list of dirty outputs
+(def input-slot-check      (int 5))                         ;; next item in linked list of check inputs
+(def input-slot-pending    (int 6))                         ;; number of outputs waiting for ack
+(def input-slot-idle       (int 7))                         ;; boolean - no pending transfer
+(def input-slots           (int 8))
+
+(def output-slot-input    (int 0))                          ;; parent input
+(def output-slot-id       (int 1))                          ;; output id, relative to parent frame
+(def output-slot-iterator (int 2))                          ;; producer iterator
+(def output-slot-current  (int 3))                          ;; current state
+(def output-slot-dirty    (int 4))                          ;; tail of linked list of dirty outputs
+(def output-slot-done     (int 5))                          ;; TODO reuse another field ?
+(def output-slot-prev     (int 6))                          ;; previous item in doubly linked list of pending outputs
+(def output-slot-next     (int 7))                          ;; next item in doubly linked list of pending outputs
+(def output-slot-time     (int 8))                          ;; position of the doubly linked list of pending outputs in the circular buffer, nil if not pending
+(def output-slots         (int 9))
 
 (defn aswap
   ([^objects arr slot f]
@@ -182,6 +226,9 @@
   (doto (object-array context-slots)
     (aset context-slot-local-id (identity 0))
     (aset context-slot-remote-id (identity 0))
+    (aset context-slot-pending-rpos (identity 0))
+    (aset context-slot-pending-wpos (identity 0))
+    (aset context-slot-pending-buffer (object-array 2))
     (aset context-slot-frame-store (transient {}))))
 
 (defn make-tier [^objects parent position]
@@ -212,8 +259,7 @@
                 (aset frame-slot-targets (object-array target-count))
                 (aset frame-slot-inputs (object-array input-count))
                 (aset frame-slot-tiers (object-array tier-count))
-                (aset frame-slot-constants (object-array constant-count))
-                (aset frame-slot-outputs (object-array output-count)))]
+                (aset frame-slot-constants (object-array constant-count)))]
     (dotimes [i tier-count] (make-tier frame i))
     (aset buffer (int position) frame)
     (aswap context context-slot-frame-store assoc! id frame)
@@ -233,74 +279,148 @@
         (aget frame frame-slot-dynamic) dynamic)
       (let [result (boot frame vars)]
         (reduce-kv doto-aset vars prevs)
-        (when-some [callback (aget context context-slot-output)]
-          (callback #{frame}))
         result))))
 
-(def input-slot-notifier (int 0))
-(def input-slot-terminator (int 1))
-(def input-slot-current (int 2))
-(def input-slots (int 3))
+(defn input-ready [^objects input]
+  (when (aget input input-slot-idle)
+    (aset input input-slot-idle false)
+    (when-some [n (aget input input-slot-notifier)]
+      (n))))
 
-(deftype InputIterator [^objects i]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_]
-    (when-not (nil? (aget i input-slot-terminator))
-      (when-some [n (aget i input-slot-notifier)]
-        (aset i input-slot-notifier nil)
-        (let [y (aget i input-slot-current)]
-          (aset i input-slot-current (Failure. (Cancelled.)))
-          (when (identical? i y) (n))))))
-  IDeref
-  (#?(:clj deref :cljs -deref) [_]
-    (let [x (aget i input-slot-current)]
-      (aset i input-slot-current i)
-      (when (nil? (aget i input-slot-notifier))
-        (when-some [t (aget i input-slot-terminator)]
-          (aset i input-slot-terminator nil) (t))) x)))
+(defn output-dirty [^objects output]
+  (let [^objects input (aget output output-slot-input)
+        ^objects dirty (aget input input-slot-dirty)]
+    (aset output output-slot-dirty dirty)
+    (aset input input-slot-dirty output)
+    (when (nil? dirty)
+      (when (identical? input (aget input input-slot-check))
+        (let [^objects frame (aget input input-slot-frame)
+              ^objects context (aget frame frame-slot-context)
+              ^objects check (aget context context-slot-check)]
+          (aset context context-slot-check input)
+          (aset input input-slot-check check)
+          (when (nil? (aget context context-slot-event))
+            (aset context context-slot-event empty-event)
+            ((aget context context-slot-notifier))))))
+    (input-ready input)))
 
-(defn input [^objects frame slot]
+(defn output-spawn [^objects input ^objects output]
+  (when-not (nil? output)
+    (aset output output-slot-input input)
+    (aset output output-slot-iterator
+      ((aget output output-slot-iterator)
+       (fn [] (output-dirty output))
+       (fn []
+         (aset output output-slot-done true)
+         (output-dirty output)))))
+  input)
+
+(defn make-output [id <x]
+  (let [output (object-array output-slots)]
+    (aset output output-slot-id id)
+    (aset output output-slot-done false)
+    (aset output output-slot-prev output)
+    (aset output output-slot-next output)
+    (aset output output-slot-dirty output)
+    (aset output output-slot-current output)
+    (aset output output-slot-iterator <x)
+    output))
+
+(defn input-cancel [^objects input]
+  ;; TODO ???
+  (when-not (nil? (aget input input-slot-terminator))
+    (when-some [n (aget input input-slot-notifier)]
+      (aset input input-slot-notifier nil)
+      (let [y (aget input input-slot-current)]
+        (aset input input-slot-current (Failure. (Cancelled.)))
+        (when (identical? input y) (n))))))
+
+(defn input-change [^objects input x]
+  (aset input input-slot-current x)
+  (input-ready input))
+
+(defn input-done [^objects input]
+  (when-some [t (aget input input-slot-terminator)]
+    (aset input input-slot-terminator nil) (t)))
+
+(defn input-freeze [^objects input]
+  (when-not (nil? (aget input input-slot-notifier))
+    (aset input input-slot-notifier nil)
+    (when (aget input input-slot-idle)
+      (input-done input))))
+
+(defn update-event [^objects context k f & args]
+  (if-some [event (aget context context-slot-event)]
+    (aset context context-slot-event (apply update event k f args))
+    (do (aset context context-slot-event (apply update empty-event k f args))
+        ((aget context context-slot-notifier)))))
+
+(defn input-check [^objects input]
+  (let [^objects frame (aget input input-slot-frame)
+        ^objects context (aget frame frame-slot-context)]
+    (loop []
+      (if-some [^objects output (aget input input-slot-dirty)]
+        (let [path [(- (aget frame frame-slot-id)) (aget output output-slot-id)]]
+          (aset input input-slot-dirty (aget output output-slot-dirty))
+          (aset output output-slot-dirty output)
+          (if (aget output output-slot-done)
+            (update-event context :freeze conj path)
+            (let [x @(aget output output-slot-iterator)]
+              (when-not (= (aget output output-slot-current) (aset output output-slot-current x))
+                (let [^objects buffer (aget context context-slot-pending-buffer)
+                      wpos (aget context context-slot-pending-wpos)]
+                  (if-some [t (aget output output-slot-time)]
+                    (let [^objects p (aget output output-slot-prev)
+                          ^objects n (aget output output-slot-next)]
+                      (aset buffer t
+                        (when-not (identical? p output)
+                          (aset p output-slot-next n)
+                          (aset n output-slot-prev p))))
+                    (aswap input input-slot-pending inc))
+                  (aset output output-slot-time wpos)
+                  (if-some [^objects p (aget buffer wpos)]
+                    (let [^objects n (aget p output-slot-next)]
+                      (aset p output-slot-next output)
+                      (aset n output-slot-prev output)
+                      (aset output output-slot-prev p)
+                      (aset output output-slot-next n))
+                    (do (aset buffer wpos output)
+                        (aset output output-slot-prev output)
+                        (aset output output-slot-next output)))
+                  (update-event context :change assoc path x)))))
+          (recur))))))
+
+(defn input-transfer [^objects input]
+  (input-check input)
+  (aset input input-slot-idle true)
+  (if (zero? (aget input input-slot-pending))
+    (let [x (aget input input-slot-current)]
+      (when (nil? (aget input input-slot-notifier))
+        (input-done input)) x) pending))
+
+(defn make-input [^objects frame deps]
+  (let [input (object-array input-slots)]
+    (aset input input-slot-frame frame)
+    (aset input input-slot-pending 0)
+    (aset input input-slot-current pending)
+    (aset input input-slot-idle false)
+    (aset input input-slot-check input)
+    (reduce output-spawn input deps)))
+
+(defn input-spawn [^objects frame slot deps]
   (m/signal!                                                ;; inputs are cancelled when reactor is cancelled
     (fn [n t]
-      (n) (->InputIterator
-            (aset ^objects (aget frame frame-slot-inputs) (int slot)
-              (doto (object-array input-slots)
-                (aset input-slot-notifier n)
-                (aset input-slot-terminator t)
-                (aset input-slot-current pending)))))))
-
-(defn input-change [^objects i x]
-  (when-some [n (aget i input-slot-notifier)]
-    (let [y (aget i input-slot-current)]
-      (aset i input-slot-current x)
-      (when (identical? i y) (n)))))
-
-(defn input-close [^objects i]
-  (when-not (nil? (aget i input-slot-notifier))
-    (aset i input-slot-notifier nil)
-    (when (identical? i (aget i input-slot-current))
-      (when-some [t (aget i input-slot-terminator)]
-        (aset i input-slot-terminator nil) (t)))))
-
-(defn remote [^objects frame slot]
-  (when-some [callback (aget ^objects (aget frame frame-slot-context) context-slot-remote)]
-    (callback [(aget frame frame-slot-id) slot])))
+      (let [input (make-input frame deps)]
+        (aset input input-slot-notifier n)
+        (aset input input-slot-terminator t)
+        (aset ^objects (aget frame frame-slot-inputs) (int slot) input)
+        (n) (->It input input-cancel input-transfer)))))
 
 (defn check-unbound-var [debug-info <x]
   (m/latest (fn [x]
               (if (= ::unbound x)
                 (Failure. (error (str "Unbound var `" (::dbg/name debug-info) "`")))
                 x)) <x))
-
-(defn check-failure [debug-info <x]
-  (m/latest (fn [x]
-              (if (instance? Failure x)
-                (dbg/error (select-debug-info debug-info) x)
-                x)) <x))
-
-(defn output [^objects frame slot <x debug-info]
-  (aset ^objects (aget frame frame-slot-outputs) slot
-    (check-failure debug-info (signal <x))))
 
 (defn static [^objects frame slot]
   (aget ^objects (aget frame frame-slot-static) (int slot)))
@@ -418,52 +538,24 @@
   "Move a frame. If origin position is equal to target position, frame is removed. Will search and call `hook`."
   ([^objects tier from to]
    (let [f (aget ^objects (aget tier tier-slot-buffer) (int from))]
-     (remote f (- to (aget tier tier-slot-size)))
+     (update-event (aget f frame-slot-context) :tree conj
+       {:op       :rotate
+        :frame    (- (aget f frame-slot-id))
+        :position to})
      (frame-rotate f to))))
 
 (defn frame-cancel [^objects f]
   (when-some [pos (aget f frame-slot-position)]
-    (remote f (- pos (aget ^objects (aget f frame-slot-parent) tier-slot-size)))
+    (update-event (aget f frame-slot-context) :tree conj
+      {:op       :rotate
+       :frame    (- (aget f frame-slot-id))
+       :position pos})
     (frame-rotate f pos)))
 
-(defn terminate-observers [^objects ctx]
-  (when-some [cb (aget ctx context-slot-remote)] (cb nil))
-  (when-some [cb (aget ctx context-slot-output)] (cb nil)))
-
-(defn decode-inst [^objects ctx inst]
-  (if-some [id (aget ctx context-slot-frame-register)]
-    (let [^objects f (get (aget ctx context-slot-frame-store) id)]
-      (aset ctx context-slot-frame-register nil)
-      (if (neg? inst)
-        (frame-rotate f (+ (aget ^objects (aget f frame-slot-parent) tier-slot-size) inst))
-        (let [^objects inputs (aget f frame-slot-inputs)
-              offset (alength inputs)]
-          (if (< inst offset)
-            (let [input (aget inputs (int inst))]
-              (if (nil? (aget ctx context-slot-queue))
-                (input-close input)
-                (input-change input
-                  (let [[x & xs] (aget ctx context-slot-queue)]
-                    (aset ctx context-slot-queue xs) x))))
-            (let [inst (- inst offset)
-                  ^objects targets (aget f frame-slot-targets)
-                  offset (alength targets)]
-              (if (< inst offset)
-                (aset ctx context-slot-target-register (aget targets (int inst)))
-                (let [inst (- inst offset)
-                      ^objects sources (aget f frame-slot-sources)
-                      offset (alength sources)]
-                  (if (< inst offset)
-                    (let [source (aget sources (int inst))
-                          target (aget ctx context-slot-target-register)]
-                      (aset ctx context-slot-target-register nil)
-                      (target source (aswap ctx context-slot-remote-id dec)))
-                    (aswap ctx context-slot-frame-store dissoc! id)))))))))
-    (aset ctx context-slot-frame-register (- inst))) ctx)
-
-(defn acopy [dest src size]
-  #?(:clj (System/arraycopy src 0 dest 0 size))
-  #?(:cljs (dotimes [i size] (aset dest i (aget src i)))))
+(defn acopy [src src-off dest dest-off size]
+  #?(:clj (System/arraycopy src src-off dest dest-off size))
+  #?(:cljs (dotimes [i size] (aset dest (+ dest-off i) (aget src (+ src-off i)))))
+  dest)
 
 (defn constructor [static dynamic variable-count source-count constant-count target-count output-count input-count boot]
   (fn [^objects tier id]
@@ -473,8 +565,7 @@
           cap (alength buf)
           buf (if (< pos cap)
                 buf (aset tier tier-slot-buffer
-                      (doto (object-array (bit-shift-left cap 1))
-                        (acopy buf cap))))]
+                      (acopy buf 0 (object-array (bit-shift-left cap 1)) 0 cap)))]
       (aset tier tier-slot-size (inc pos))
       (make-frame (aget par frame-slot-context)
         tier id pos (aget tier tier-slot-foreigns) static dynamic
@@ -500,19 +591,15 @@
               (if-some [^objects tier (l/get-local this)]
                 (let [parent (aget tier tier-slot-parent)
                       id (aswap context context-slot-local-id inc)]
-                  (remote frame (+ (alength ^objects (aget frame frame-slot-outputs)) slot))   ; notify remote peer of frame creation
-                  (remote parent
-                    (+ (alength ^objects (aget parent frame-slot-outputs))
-                      (alength ^objects (aget parent frame-slot-constants))
-                      (aget tier tier-slot-remote)))                                            ; notify remote peer of frame mount point (on which tier we want to create this frame, its parent)
+                  (update-event context :tree conj
+                    {:op     :create
+                     :target [(- (aget frame frame-slot-id)) slot]
+                     :source [(- (aget parent frame-slot-id)) (aget tier tier-slot-remote)]})
                   (let [<x (ctor tier id)
                         ^objects f (get (aget context context-slot-frame-store) id)]
                     (->FrameIterator f
                       (<x n #(do (frame-cancel f)
-                                 (remote f
-                                   (+ (alength ^objects (aget f frame-slot-outputs))
-                                     (alength ^objects (aget f frame-slot-constants))
-                                     (alength ^objects (aget f frame-slot-variables))))
+                                 (update-event context :tree conj {:op :remove :frame (- id)})
                                  (aswap context context-slot-frame-store dissoc!
                                    (aget f frame-slot-id)) (t))))))
                 (failer/run (error "Unable to build frame - not an object.") n t)))))))))
@@ -566,10 +653,10 @@
 (defn source [^objects frame ^objects vars position slot]
   (aset ^objects (aget frame frame-slot-sources) (int slot)
     (doto ^objects (aget ^objects (aget frame frame-slot-tiers) (int position))
-      (aset tier-slot-vars (aclone vars)))))
+      (aset tier-slot-vars (aclone vars)))) nil)
 
 (defn target [^objects frame slot ctor]
-  (aset ^objects (aget frame frame-slot-targets) (int slot) ctor))
+  (aset ^objects (aget frame frame-slot-targets) (int slot) ctor) nil)
 
 (defn hook [k v <x]
   (assert (some? v) "hook value must be non-nil.")
@@ -592,88 +679,139 @@
 
 (def unbound (pure ::unbound))
 
-(defn pst [e]
-  #?(:clj (.printStackTrace ^Throwable e)
-     :cljs (js/console.error e)))
-
-(defn remote-event [x] [x {} #{}])
-(defn change-event [path x] [[] {path x} #{}])
-(defn terminate-event [path] [[] {} #{path}])
-(def merge-events (partial mapv into))
-
-(defn frame-outputs [^objects frame]
-  (let [^objects outputs (aget frame frame-slot-outputs)
-        frame-id (aget frame frame-slot-id)]
-    (map (fn [slot] [[frame-id slot] (aget outputs slot)])
-      (range (alength outputs)))))
-
 (defn subject-at [^objects arr slot]
   (fn [!] (aset arr slot !) #(aset arr slot nil)))
 
-(defn gather-events [>remote >output]
-  (gather merge-events
-    (m/ap
-      (m/amb
-        (m/sample remote-event >remote)
-        (let [[path <out] (m/?> (m/eduction cat (map frame-outputs) cat >output))]
-          (eventually (terminate-event path)
-            (m/latest (partial change-event path) <out)))))))
+(defn context-ack [^objects context]
+  (let [rpos (aget context context-slot-pending-rpos)
+        ^objects buffer (aget context context-slot-pending-buffer)
+        ^objects output (aget buffer rpos)]
+    (when (= rpos (aget context context-slot-pending-wpos))
+      (throw (error "Unexpected ack.")))
+    (aset context context-slot-pending-rpos
+      (bit-and (unchecked-inc rpos)
+        (unchecked-dec (alength buffer))))
+    (aset buffer rpos nil)
+    (loop [output output]
+      (when-not (nil? output)
+        (aset (aget output output-slot-prev) output-slot-next nil)
+        (aset output output-slot-prev nil)
+        (aset output output-slot-time nil)
+        (let [^objects input (aget output output-slot-input)]
+          (when (zero? (aswap input input-slot-pending dec))
+            (input-ready input)))
+        (recur (aget output output-slot-next))))))
 
-;; TODO merge to the IO layer
-(defn event->message [[inst data done]]
-  (-> []
-    (into (vals data))
-    (conj (-> inst
-            (into cat (keys data))
-            (into cat done)))))
+(defn context-cancel [^objects context]
+  (update-event context :cancel identity))
 
-(defn parse-event [^objects ctx msg]
-  (aset ctx context-slot-queue (seq (pop msg)))
-  (reduce decode-inst ctx (peek msg)))
+(defn context-transfer [^objects context]
+  (loop []
+    (if-some [^objects input (aget context context-slot-check)]
+      (do (aset context context-slot-check (aget input input-slot-check))
+          (aset input input-slot-check input)
+          (input-check input)
+          (recur))
+      (let [event (aget context context-slot-event)]
+        (when (contains? event :cancel)
+          ((aget context context-slot-terminator))
+          (throw (Cancelled.)))
+        (when-not (= {} (:change event))
+          (let [^objects buffer (aget context context-slot-pending-buffer)
+                size (alength buffer)
+                rpos (aget context context-slot-pending-rpos)
+                wpos (aget context context-slot-pending-wpos)]
+            (when (= rpos (aset context context-slot-pending-wpos
+                            (bit-and (unchecked-inc wpos)
+                              (unchecked-dec size))))
+              (let [larger (object-array (bit-shift-left size 1))
+                    split (- size rpos)]
+                (acopy buffer rpos larger 0 split)
+                (acopy buffer 0 larger split rpos)
+                (dotimes [t size]
+                  (when-some [output (aget larger t)]
+                    (loop [^objects o output]
+                      (aset o output-slot-time t)
+                      (let [n (aget o output-slot-next)]
+                        (when-not (identical? o n)
+                          (recur n))))))
+                (aset context context-slot-pending-buffer larger)
+                (aset context context-slot-pending-wpos size)
+                (aset context context-slot-pending-rpos 0)))))
+        (aset context context-slot-event nil) event))))
 
-(defn frame-shutdown [^objects frame]
-  (frame-dispose frame)
-  (let [^objects inputs (aget frame frame-slot-inputs)]
-    (dotimes [i (alength inputs)]
-      (input-close (aget inputs i))))
-  (let [^objects tiers (aget frame frame-slot-tiers)]
-    (dotimes [t (alength tiers)]
-      (let [^objects tier (aget tiers t)
-            ^objects buf (aget tier tier-slot-buffer)]
-        (dotimes [f (aget tier tier-slot-size)]
-          (frame-shutdown (aget buf f)))))))
+(defn eval-tree-inst [^objects context inst]
+  (case (:op inst)
+    :create (let [{[target-frame target-slot] :target
+                   [source-frame source-slot] :source} inst]
+              ((-> context
+                 (aget context-slot-frame-store)
+                 ^objects (get target-frame)
+                 ^objects (aget frame-slot-targets)
+                 (aget target-slot))
+               (-> context
+                 (aget context-slot-frame-store)
+                 ^objects (get source-frame)
+                 ^objects (aget frame-slot-sources)
+                 (aget source-slot))
+               (aswap context context-slot-remote-id dec)))
+    :rotate (-> context
+              (aget context-slot-frame-store)
+              (get (:frame inst))
+              (frame-rotate (:position inst)))
+    :remove (aswap context context-slot-frame-store dissoc! (:frame inst)))
+  context)
 
-(defn redirect-errors [cb <x]
-  (m/latest (fn [x] (when (instance? Failure x) (cb (.-error x)))) <x))
+(defn eval-change-inst [^objects context [id slot] value]
+  (-> context
+    (aget context-slot-frame-store)
+    ^objects (get id)
+    ^objects (aget frame-slot-inputs)
+    ^objects (aget slot)
+    (input-change value))
+  context)
+
+(defn eval-freeze-inst [^objects context [id slot]]
+  (-> context
+    (aget context-slot-frame-store)
+    ^objects (get id)
+    ^objects (aget frame-slot-inputs)
+    ^objects (aget slot)
+    (input-freeze))
+  context)
+
+(defn parse-event [^objects context {:keys [acks tree change freeze]}]
+  (dotimes [_ acks] (context-ack context))
+  (reduce eval-tree-inst context tree)
+  (when-not (= {} change)
+    (update-event context :acks inc)
+    (reduce-kv eval-change-inst context change))
+  (reduce eval-freeze-inst context freeze))
 
 (defn process-incoming-events [^objects context >incoming]
   (m/sample (partial reduce parse-event context) >incoming))
 
 (defn write-outgoing-events [write >events]
-  (m/ap (m/? (write (event->message (m/?> >events))))))
+  (m/ap (m/? (write (m/?> >events)))))
 
 (defn peer [var-count dynamic variable-count source-count constant-count target-count output-count input-count ctor]
   (fn rec
     ([write ?read] (rec write ?read pst))
     ([write ?read on-error]
      (m/reactor
-       (let [^objects context (make-context)
-             >remote (->> (subject-at context context-slot-remote)
-                       (m/observe)
-                       (m/eduction (take-while some?))
-                       (m/relieve into)
-                       (m/stream!))
-             >output (->> (subject-at context context-slot-output)
-                       (m/observe)
-                       (m/eduction (take-while some?))
-                       (m/relieve into)
-                       (m/stream!))]
-         (when-some [<main (make-frame context nil 0 0 {} [] dynamic
-                             variable-count source-count constant-count target-count output-count input-count
-                             context (object-array (repeat var-count unbound)) ctor)]
-           (m/stream! (redirect-errors on-error <main)))
-         (m/stream! (process-incoming-events context (m/stream! (m/relieve into (m/sample vector (m/observe ?read))))))
-         (m/stream! (write-outgoing-events write (m/stream! (gather-events >remote >output)))))))))
+       (let [^objects context (make-context)]
+         (m/stream!
+           (write-outgoing-events write
+             (m/stream!
+               (fn [n t]
+                 (aset context context-slot-notifier n)
+                 (aset context context-slot-terminator t)
+                 (when-some [<main (make-frame context nil 0 0 {} [] dynamic
+                                     variable-count source-count constant-count target-count output-count input-count
+                                     context (object-array (repeat var-count unbound)) ctor)]
+                   (m/stream! (m/latest (fn [x] (when (instance? Failure x) (on-error (.-error x)))) <main)))
+                 (->It context context-cancel context-transfer)))))
+         (m/stream! (process-incoming-events context (m/stream! (m/relieve into (m/sample vector (m/observe ?read)))))))))))
 
 (defn collapse [s n f & args]
   (->> (iterate pop s)
@@ -704,7 +842,7 @@
 ;; Same duality with input and output, if there is 3 inputs locally, there is 3 outputs remotely.
 ;; There is no instruction to create inputs and outputs, they are infered from unquote-splicing.
 
-(defn compile [inst {:keys [nop sub pub inject lift vget bind invoke input output static dynamic
+(defn compile [inst {:keys [nop sub pub inject lift vget bind invoke input do output static dynamic
                             global literal variable source constant target main] :as fns}]
   (-> ((fn walk [env off idx dyn inst]
          (case (::ir/op inst)
@@ -721,6 +859,11 @@
                       (walk off idx dyn (::ir/init inst))
                       (walk off (inc idx) dyn (::ir/inst inst))
                       (update :stack collapse 2 pub idx))
+           ::ir/do  (let [deps (::ir/deps inst)]
+                      (-> (reduce (fn [env arg] (walk env off idx dyn arg)) env deps)
+                        (update :stack collapse (count deps) vector)
+                        (walk off idx dyn (::ir/inst inst))
+                        (update :stack collapse 2 do)))
            ::ir/def (let [v (::ir/slot inst)]
                       (-> env
                         (update :vars max v)
@@ -745,7 +888,7 @@
                          (update :stack collapse 1 bind v (- idx (::ir/index inst)))))
            ::ir/apply (let [f (::ir/fn inst)
                             args (::ir/args inst)]
-                        (-> (reduce (fn [env arg] (walk env off idx dyn arg)) env (cons f args))
+                        (-> (reduce (fn [env inst] (walk env off idx dyn inst)) env (cons f args))
                           (update :stack collapse (inc (count args))
                             (partial invoke
                               (loop [f f]
@@ -758,16 +901,17 @@
                                   ::ir/input (assoc f ::dbg/type :apply)
                                   ::ir/apply (recur (::ir/fn f))
                                   {::dbg/type :unknown-apply, :op f}))))))
-           ::ir/input (-> env
-                        (snapshot :input)
-                        (update :input inc)
-                        (update :stack collapse 1 input))
+           ::ir/input (let [deps (::ir/deps inst)]
+                        (-> (reduce (fn [env arg] (walk env off idx dyn arg)) env deps)
+                          (update :stack collapse (count deps) vector)
+                          (snapshot :input)
+                          (update :input inc)
+                          (update :stack collapse 2 input)))
            ::ir/output (-> env
                          (walk off idx dyn (::ir/init inst))
                          (snapshot :output)
                          (update :output inc)
-                         (walk off idx dyn (::ir/inst inst))
-                         (update :stack collapse 3 #(output %1 %2 %3 inst)))
+                         (update :stack collapse 2 (partial output inst)))
            ::ir/global (update env :stack conj (global (::ir/name inst)))
            ::ir/literal (update env :stack conj (literal (::ir/value inst)))
            ::ir/variable (-> env
@@ -780,8 +924,7 @@
                          (snapshot :variable)
                          (snapshot :source)
                          (update :source inc)
-                         (walk off idx dyn (::ir/inst inst))
-                         (update :stack collapse 3 source))
+                         (update :stack collapse 2 source))
            ::ir/constant (-> env
                            (merge empty-frame)
                            (walk idx idx #{} (::ir/init inst))
@@ -797,22 +940,22 @@
                            (snapshot :constant)
                            (update :constant inc)
                            (update :stack collapse 10 (partial constant inst)))
-           ::ir/target (-> env
-                         (merge empty-frame)
-                         (walk idx idx #{} (::ir/init inst))
-                         (snapshot (comp reverse-index :static))
-                         (snapshot (comp reverse-index :dynamic))
-                         (snapshot :variable)
-                         (snapshot :source)
-                         (snapshot :constant)
-                         (snapshot :target)
-                         (snapshot :output)
-                         (snapshot :input)
-                         (merge (select-keys env (keys empty-frame)))
-                         (snapshot :target)
-                         (update :target inc)
-                         (walk off idx dyn (::ir/inst inst))
-                         (update :stack collapse 11 target))))
+           ::ir/target (let [deps (::ir/deps inst)]
+                         (-> (reduce (fn [env inst] (walk env idx idx #{} inst))
+                               (merge env empty-frame) deps)
+                           (update :stack collapse (count deps) vector)
+                           (snapshot (comp reverse-index :static))
+                           (snapshot (comp reverse-index :dynamic))
+                           (snapshot :variable)
+                           (snapshot :source)
+                           (snapshot :constant)
+                           (snapshot :target)
+                           (snapshot :output)
+                           (snapshot :input)
+                           (merge (select-keys env (keys empty-frame)))
+                           (snapshot :target)
+                           (update :target inc)
+                           (update :stack collapse 10 target)))))
        (assoc empty-frame :vars -1) 0 0 #{} inst)
     (snapshot (comp inc :vars))
     (snapshot (comp reverse-index :dynamic))
@@ -835,6 +978,8 @@
      :sub      (fn [idx] (sym prefix 'pub idx))
      :pub      (fn [form cont idx]
                  `(let [~(sym prefix 'pub idx) (signal ~form)] ~cont))
+     :do       (fn [deps form]
+                 `(do (make-input ~(sym prefix 'frame) ~deps) ~form))
      :static   (fn [i] `(static ~(sym prefix 'frame) ~i))
      :dynamic  (fn [i debug-info] `(dynamic ~(sym prefix 'frame) ~i '~(select-debug-info debug-info)))
      :eval     (fn [f] `(pure ~f))
@@ -847,16 +992,16 @@
                       (aset ~(sym prefix 'vars) (int ~slot) ~(sym prefix 'prev))
                       ~(sym prefix 'res))))
      :invoke   (fn [debug-info & forms] `(latest-apply '~(select-debug-info debug-info) ~@forms))
-     :input    (fn [slot] `(input ~(sym prefix 'frame) ~slot))
-     :output   (fn [form slot cont debug-info]
-                 `(do (output ~(sym prefix 'frame) ~slot ~form '~(select-debug-info debug-info)) ~cont))
+     :input    (fn [deps slot] `(input-spawn ~(sym prefix 'frame) ~slot ~deps))
+     :output   (fn [debug-info form slot]
+                 `(make-output ~slot (check-failure '~(select-debug-info debug-info) ~form)))
      :global   (fn [x] `(pure ~(symbol x)))
      :literal  (fn [x] `(pure (quote ~x)))
      :inject   (fn [v] `(pure (inject ~v)))
      :variable (fn [form remote slot]
                  `(variable ~(sym prefix 'frame) ~(sym prefix 'vars) ~(+ remote slot) ~slot ~form))
-     :source   (fn [remote slot cont]
-                 `(do (source ~(sym prefix 'frame) ~(sym prefix 'vars) ~(+ remote slot) ~slot) ~cont))
+     :source   (fn [remote slot]
+                 `(source ~(sym prefix 'frame) ~(sym prefix 'vars) ~(+ remote slot) ~slot))
      :constant (fn [debug-info form static dynamic variable-count source-count constant-count target-count output-count input-count slot]
                  `(constant ~(sym prefix 'frame) ~slot
                     (constructor ~(mapv (fn [p] (sym prefix 'pub p)) static) ~dynamic
@@ -866,15 +1011,15 @@
                       (fn [~(sym prefix 'frame)
                            ~(sym prefix 'vars)]
                         (check-failure '~(select-debug-info debug-info) ~form)))))
-     :target   (fn [form static dynamic variable-count source-count constant-count target-count output-count input-count slot cont]
-                 `(do (target ~(sym prefix 'frame) ~slot
-                        (constructor ~(mapv (fn [p] (sym prefix 'pub p)) static) ~dynamic
-                          ~variable-count ~source-count
-                          ~constant-count ~target-count
-                          ~output-count ~input-count
-                          (fn [~(sym prefix 'frame)
-                               ~(sym prefix 'vars)]
-                            ~form))) ~cont))
+     :target   (fn [deps static dynamic variable-count source-count constant-count target-count output-count input-count slot]
+                 `(target ~(sym prefix 'frame) ~slot
+                    (constructor ~(mapv (fn [p] (sym prefix 'pub p)) static) ~dynamic
+                      ~variable-count ~source-count
+                      ~constant-count ~target-count
+                      ~output-count ~input-count
+                      (fn [~(sym prefix 'frame)
+                           ~(sym prefix 'vars)]
+                        (make-input ~(sym prefix 'frame) ~deps)))))
      :main     (fn [form var-count dynamic variable-count source-count constant-count target-count output-count input-count]
                  `(peer ~var-count ~dynamic
                     ~variable-count ~source-count
@@ -885,15 +1030,14 @@
                       ~form)))}))
 
 (tests
-  (emit nil {::ir/op ::ir/literal ::ir/value 5}) :=
+  (emit nil (ir/literal 5)) :=
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (pure '5)))
 
-  (emit nil {::ir/op   ::ir/apply
-             ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/+}
-             ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
-                        {::ir/op ::ir/literal ::ir/value 3}]}) :=
+  (emit nil (ir/apply
+              (ir/global :clojure.core/+)
+              (ir/literal 2) (ir/literal 3))) :=
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (latest-apply '{::ir/op    ::ir/global
@@ -904,12 +1048,10 @@
          (pure '3))))
 
   (emit nil
-    {::ir/op   ::ir/pub
-     ::ir/init {::ir/op ::ir/literal ::ir/value 1}
-     ::ir/inst {::ir/op   ::ir/apply
-                ::ir/fn   {::ir/op ::ir/global ::ir/name :clojure.core/+}
-                ::ir/args [{::ir/op ::ir/sub ::ir/index 1}
-                           {::ir/op ::ir/literal ::ir/value 2}]}}) :=
+    (ir/pub (ir/literal 1)
+      (ir/apply (ir/global :clojure.core/+)
+        (ir/sub 1)
+        (ir/literal 2)))) :=
   `(peer 0 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (let [~'-pub-0 (signal (pure '1))]
@@ -919,21 +1061,19 @@
            (pure ~'clojure.core/+) ~'-pub-0 (pure '2)))))
 
   (emit nil
-    {::ir/op ::ir/variable
-     ::ir/init {::ir/op ::ir/global
-                ::ir/name :missionary.core/none}}) :=
+    (ir/variable
+      (ir/global :missionary.core/none))) :=
   `(peer 0 [] 1 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (variable ~'-frame ~'-vars 0 0 (pure m/none))))
 
-  (emit nil {::ir/op ::ir/input}) :=
+  (emit nil (ir/input [])) :=
   `(peer 0 [] 0 0 0 0 0 1
      (fn [~'-frame ~'-vars]
-       (input ~'-frame 0)))
+       (input-spawn ~'-frame 0 [])))
 
-  (emit nil {::ir/op   ::ir/constant
-             ::ir/init {::ir/op ::ir/literal
-                        ::ir/value :foo}}) :=
+  (emit nil (ir/constant
+              (ir/literal :foo))) :=
   `(peer 0 [] 0 0 1 0 0 0
      (fn [~'-frame ~'-vars]
        (constant ~'-frame 0
@@ -943,26 +1083,15 @@
                (pure ':foo)))))))
 
   (emit nil
-    {::ir/op   ::ir/variable
-     ::ir/init {::ir/op   ::ir/pub
-                ::ir/init {::ir/op   ::ir/constant
-                           ::ir/init {::ir/op    ::ir/literal
-                                      ::ir/value 3}}
-                ::ir/inst {::ir/op   ::ir/pub
-                           ::ir/init {::ir/op   ::ir/constant
-                                      ::ir/init {::ir/op ::ir/input}}
-                           ::ir/inst {::ir/op   ::ir/apply
-                                      ::ir/fn   {::ir/op   ::ir/apply
-                                                 ::ir/fn   {::ir/op   ::ir/global
-                                                            ::ir/name :clojure.core/hash-map}
-                                                 ::ir/args [{::ir/op ::ir/literal ::ir/value 2}
-                                                            {::ir/op ::ir/sub ::ir/index 2}
-                                                            {::ir/op ::ir/literal ::ir/value 4}
-                                                            {::ir/op ::ir/sub ::ir/index 1}
-                                                            {::ir/op ::ir/literal ::ir/value 5}
-                                                            {::ir/op ::ir/sub ::ir/index 1}]}
-                                      ::ir/args [{::ir/op ::ir/literal ::ir/value 1}
-                                                 {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/literal ::ir/value 7}}]}}}})
+    (ir/variable
+      (ir/pub (ir/constant (ir/literal 3))
+        (ir/pub (ir/constant (ir/input []))
+          (ir/apply
+            (ir/apply (ir/global :clojure.core/hash-map)
+              (ir/literal 2) (ir/sub 2)
+              (ir/literal 4) (ir/sub 1)
+              (ir/literal 5) (ir/sub 1))
+            (ir/literal 1) (ir/constant (ir/literal 7)))))))
   `(peer 0 [] 1 0 3 0 0 0
      (fn [~'-frame ~'-vars]
        (variable ~'-frame ~'-vars 0 0
@@ -975,7 +1104,7 @@
                             (constant ~'-frame 1
                               (constructor [] [] 0 0 0 0 0 1
                                 (fn [~'-frame ~'-vars]
-                                  (check-failure 'nil (input ~'-frame 0))))))]
+                                  (check-failure 'nil (input-spawn ~'-frame 0 []))))))]
              (latest-apply '{::dbg/type :unknown-apply, ; FIXME remove this debug noise
                              :op
                              [:apply
@@ -999,15 +1128,14 @@
                    (fn [~'-frame ~'-vars]
                      (check-failure 'nil (pure '7)))))))))))
 
-  (emit nil {::ir/op ::ir/def ::ir/slot 0}) :=
+  (emit nil (ir/inject 0)) :=
   `(peer 1 [] 0 0 0 0 0 0
      (fn [~'-frame ~'-vars]
        (pure (inject 0))))
 
   (emit nil
-    {::ir/op   ::ir/pub
-     ::ir/init {::ir/op ::ir/literal ::ir/value nil}
-     ::ir/inst {::ir/op ::ir/constant ::ir/init {::ir/op ::ir/sub ::ir/index 1}}}) :=
+    (ir/pub (ir/literal nil)
+      (ir/constant (ir/sub 1)))) :=
   `(peer 0 [] 0 0 1 0 0 0
      (fn [~'-frame ~'-vars]
        (let [~'-pub-0 (signal (pure 'nil))]
@@ -1083,6 +1211,10 @@
       ;;       eval on server. Solution is for server to compile and store
       ;;       programs, client address them by unique name (hash).
       :eval     (fn [form] (constantly (pure (clojure.core/eval form))))
+      :do       (fn [deps inst]
+                  (fn [pubs frame vars]
+                    (do (make-input frame (mapv (fn [inst] (inst pubs frame vars)) deps))
+                        (inst pubs frame vars))))
       :sub      (fn [idx]
                   (fn [pubs frame vars]
                     (nth pubs idx)))
@@ -1108,13 +1240,13 @@
                       (let [res (form pubs frame vars)]
                         (aset vars (int slot) prev) res))))
       :invoke   (fn [debug-info & forms] (apply juxt-with (partial latest-apply debug-info) forms))
-      :input    (fn [slot]
+      :input    (fn [deps slot]
                   (fn [pubs frame vars]
-                    (input frame slot)))
-      :output   (fn [form slot cont debug-info]
+                    (input-spawn frame slot
+                      (mapv (fn [inst] (inst pubs frame vars)) deps))))
+      :output   (fn [debug-info form slot]
                   (fn [pubs frame vars]
-                    (output frame slot (form pubs frame vars) debug-info)
-                    (cont pubs frame vars)))
+                    (make-output slot (check-failure debug-info (form pubs frame vars)))))
       :global   (fn [x]
                   (let [r (resolvef ::not-found x)]
                     (case r
@@ -1126,25 +1258,137 @@
                   (fn [pubs frame vars]
                     (variable frame vars (+ remote slot) slot
                       (form pubs frame vars))))
-      :source   (fn [remote slot cont]
+      :source   (fn [remote slot]
                   (fn [pubs frame vars]
-                    (source frame vars (+ remote slot) slot)
-                    (cont pubs frame vars)))
+                    (source frame vars (+ remote slot) slot)))
       :constant (fn [debug-info form static dynamic variable-count source-count constant-count target-count output-count input-count slot]
                   (fn [pubs frame vars]
                     (constant frame slot
                       (constructor (mapv pubs static) dynamic variable-count source-count constant-count target-count output-count input-count
                         (fn [& args]
                           (check-failure debug-info (apply form pubs args)))))))
-      :target   (fn [form static dynamic variable-count source-count constant-count target-count output-count input-count slot cont]
+      :target   (fn [deps static dynamic variable-count source-count constant-count target-count output-count input-count slot]
                   (fn [pubs frame vars]
                     (target frame slot
                       (constructor (mapv pubs static) dynamic variable-count source-count constant-count target-count output-count input-count
-                        (partial form pubs)))
-                    (cont pubs frame vars)))
+                        (fn [frame vars] (make-input frame (mapv (fn [inst] (inst pubs frame vars)) deps)))))))
       :main     (fn [form var-count dynamic variable-count source-count constant-count target-count output-count input-count]
                   (peer var-count dynamic
                     variable-count source-count
                     constant-count target-count
                     output-count input-count
                     (partial form [])))})))
+
+(tests
+  "uncaught exception crash"
+  (let [!x (atom true)
+        c (((eval (ir/apply (ir/literal tap)
+                    (ir/apply (ir/literal #(when-not % (throw (ex-info "boom" {}))))
+                      (ir/variable (ir/literal (m/watch !x))))))
+            (fn [x] (tap x) (fn [s _] (tap #(s nil)) #()))
+            (fn [!] (tap !) #())
+            (fn [e] (throw e)))
+           tap tap)]
+    % := nil
+    %
+    (swap! !x not)
+    (ex-message %) := "boom"))
+
+(tests
+  "simple input"
+  (let [c (((eval (ir/input []))
+            (fn [x] (tap x) (fn [s _] (tap #(s nil)) #()))
+            (fn [!] (tap !) #())
+            (fn [e] (tap e)))
+           tap tap)]
+    % := (Pending.)
+    (let [writer %]
+      (writer (update empty-event :change assoc [0 0] :a))
+      % := (update empty-event :acks inc)
+      (%)
+      (writer (update empty-event :change assoc [0 0] :b))
+      % := (update empty-event :acks inc)
+      (%))))
+
+(tests
+  '(tap (p/server (new (:hyperfiddle.photon-impl.compiler/closure (p/client 1)))))
+
+  (let [c (((eval (ir/apply (ir/literal tap)
+                    (ir/input [(ir/target [(ir/output (ir/literal 1))])
+                               ir/source])))
+            (fn [x] (tap x) (fn [s _] (tap #(s nil)) #()))
+            (fn [!] (tap !) #())
+            (fn [e] (tap e)))
+           tap tap)]
+    % := (Pending.)
+    (let [! %]
+      (! (assoc empty-event
+           :tree [{:op :create, :target [0 0], :source [0 0]}]
+           :change {[0 0] pending}))
+      % := (assoc empty-event
+             :acks 1
+             :change {[1 0] 1}
+             :freeze #{[1 0]})
+      (%)
+      (! (assoc empty-event
+           :acks 1
+           :change {[0 0] 1}))
+      % := 1
+      % := (assoc empty-event :acks 1)
+      (%)
+      (! (assoc empty-event :tree [{:op :rotate, :frame -1, :position 0} {:op :remove, :frame -1}]))))
+
+  (let [c (((eval (ir/do [(ir/output
+                            (ir/pub (ir/constant (ir/input []))
+                              (ir/apply (ir/literal {})
+                                (ir/sub 1)
+                                (ir/pub (ir/literal 0)
+                                  (ir/apply (ir/literal {})
+                                    (ir/sub 1)
+                                    (ir/bind 0 1 (ir/variable (ir/sub 2))))))))]
+                         ir/nop))
+            (fn [x] (tap x) (fn [s _] (tap #(s nil)) #()))
+            (fn [!] (tap !) #())
+            (fn [e] (tap e)))
+           tap tap)]
+    % := (assoc empty-event
+           :tree [{:op :create, :target [0 0], :source [0 0]}]
+           :change {[0 0] pending})
+    (%)
+    (let [! %]
+      (! (assoc empty-event
+           :acks 1
+           :change {[1 0] 1}
+           :freeze #{[1 0]}))
+      % := (assoc empty-event
+             :acks 1
+             :change {[0 0] 1})
+      (%)
+      (! (assoc empty-event :acks 1))
+      % := (assoc empty-event :tree [{:op :rotate, :frame -1, :position 0} {:op :remove, :frame -1}])
+      (%))))
+
+(tests
+  "d-glitch"
+  (let [!x (atom 1)
+        c (((eval (ir/apply (ir/literal tap) (ir/input [(ir/output (ir/variable (ir/literal (m/watch !x))))])))
+            (fn [x] (tap x) (fn [s _] (tap #(s nil)) #()))
+            (fn [!] (tap !) #())
+            (fn [e] (tap e)))
+           tap tap)]
+    % := (Pending.)                                         ;; input is initially pending
+    % := (assoc empty-event :change {[0 0] 1})              ;; output state 1 is published
+    (%)                                                     ;; backpressure
+    (let [! %]                                              ;; get callback
+      (! (assoc empty-event :acks 1))                       ;; ack previous changeset
+      (! (assoc empty-event :change {[0 0] :a}))            ;; input state changes to :a
+      % := :a                                               ;; main result is sampled
+      % := (assoc empty-event :acks 1)                      ;; changeset is acked
+      (%)                                                   ;; backpressure
+      (swap! !x inc)                                        ;; input is invalidated due to its dep on output (d-glitch)
+      % := (Pending.)                                       ;; main result is sampled
+      % := (assoc empty-event :change {[0 0] 2})            ;; output state 2 is published
+      (%)                                                   ;; backpressure
+      (! (assoc empty-event :acks 1))                       ;; ack previous changeset, previous input state is restored
+      % := :a                                               ;; main result is sampled
+      )))

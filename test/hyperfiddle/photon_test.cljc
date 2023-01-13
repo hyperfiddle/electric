@@ -1501,9 +1501,7 @@
   % := ::pending
   % := [0 0]
   (swap! !x inc)
-  ;% := ::pending  -- bug #1, this pending should happen
-  % := [1 0]     ; -- bug #2 - local x is ahead of remote x, Leo says this is a glitch
-  ; Leo says: the remote x should be marked dirty, and eval as pending
+  % := ::pending
   % := [1 1]
   (dispose))
 

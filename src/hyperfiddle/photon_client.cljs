@@ -55,14 +55,14 @@
        (set! (.-onclose ws) nil)
        (f (Cancelled.)))))
 
+(defn payload [x]
+  (.-data x))
+
 (defn send! [ws msg]
   (doto ws (.send msg)))
 
 (defn send-all [ws msgs]
-  (m/reduce {} nil (m/ap (m/? (wait-for-flush ((io/encoder send!) ws (m/?> msgs)))))))
-
-(def decode-message-data
-  (comp (map #(.-data %)) io/decoder))
+  (m/reduce {} nil (m/ap (m/? (wait-for-flush (send! ws (io/encode (m/?> msgs))))))))
 
 (defn connector "
 server : the server part of the program
@@ -75,7 +75,7 @@ Returns a task producing nil or failing if the websocket was closed before end o
       (if-some [ws (m/? (connect *ws-server-url*))]
         (try
           (send! ws (io/encode server))
-          (set! (.-onmessage ws) (partial (decode-message-data io/foreach) cb))
+          (set! (.-onmessage ws) (comp cb io/decode payload))
           (m/? (m/race (send-all ws msgs) (wait-for-close ws)))
           (finally
             (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
