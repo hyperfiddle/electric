@@ -2,11 +2,13 @@
   (:require [clojure.datafy :refer [datafy]]
             clojure.edn
             [contrib.dynamic :refer [call-sym]]
+            [contrib.data :as data]
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon :as p]
             hyperfiddle.photon-dom
-            [hyperfiddle.spec :as spec])
+            [hyperfiddle.spec :as spec]
+            [hyperfiddle.rcf :refer [tests]])
   (:import [hyperfiddle.photon Pending]
            #?(:cljs [goog.math Long]))
   #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
@@ -29,15 +31,92 @@
 
 (p/def Render hfql/Render)
 
-(p/def route nil) ; Continuous route value
-(p/def navigate!) ; to inject a route setter (eg. write to url, html5 history pushState, swap an atom…)
-(p/def replace-route!) ; overwrite the current route
-(p/def navigate-back!) ; inverse of `navigate!`, to be injected
+(p/def !route (atom nil)) ; Atom holding current route, rebind it to introduce route scopes
+(p/def route (p/watch !route))
+(p/def path []) ; addresses a point in the route map, pass it to `get-in` to get value at path.
+(p/defn Get-in-route [path] (get-in route path)) ; temporary
 
-(defn empty-value? [x] (if (seqable? x) (empty? x) (some? x)))
+(defn ^:no-doc route-cleanup* [path m]
+  (let [cleanup (fn [m] (when m
+                          (not-empty
+                            (persistent!
+                              (reduce-kv (fn [r k v]
+                                           (if (data/nil-or-empty? v)
+                                             (dissoc! r k)
+                                             r)) (transient m) m)))))]
+    (case (count path)
+      0 (cleanup m)
+      1 (route-cleanup* [] (update m (first path) cleanup))
+      (route-cleanup* (butlast path) (update-in m path cleanup)))))
+
+(defn ^:no-doc update-in* [m ks f & args]
+  (if (empty? ks)
+    (apply f m args)
+    (apply update-in m ks f args)))
+
+(tests
+  (update-in  {:a 1} [] (constantly 1)) := {:a 1, nil 1}
+  (update-in* {:a 1} [] (constantly 1)) := 1)
+
+(defn ^:no-doc simplify-route [route]
+  (if (and (map? route)
+        (contains? route ::route)
+        (= 1 (count route)))
+    (::route route)
+    route))
+
+(defn ^:no-doc swap-route-impl [!route path f & args] (apply swap! !route update-in* path (comp (partial route-cleanup* path) f) args))
+(p/def ^:no-doc swap-route-base)
+(p/def swap-route!)
+
+(p/defn BranchRoute [ident body]
+  (binding [path (conj path ident)]
+    (binding [route       (get route ident)
+              swap-route! (partial swap-route-base path)]
+      (new body))))
+
+(defmacro branch-route [ident & body] `(new BranchRoute ~ident (p/fn [] ~@body)))
+
+(s/def ::route       qualified-ident?)
+(s/def ::route-state (s/nilable map?))
+(s/def ::route-map   (s/nilable (s/keys :opt [::route])))
+
+(defn ->route
+  "Given an `identifier` (a qualified keyword or symbol), and some optional `state` map, builds a route.
+  Also accepts an existing route map and check it is conform."
+  ([identifier-or-route]
+   (s/assert* (s/or :ident ::route, :map ::route-map) identifier-or-route)
+   (if (s/valid? ::route identifier-or-route)
+     (->route identifier-or-route nil)
+     identifier-or-route))
+  ([identifier state]
+   (s/assert* ::route-state state)
+   (assoc state ::route identifier)))
+
+(defmacro router [Current-route navigate! navigate-back! replace-state! & body]
+  `(let [!path#         (m/mbx)
+         route#         (new ~Current-route !path#)
+         navigate#      ~navigate!
+         navigate-back# ~navigate-back!
+         replace-state# ~replace-state!]
+     (binding [navigate!      (partial navigate# !path#)
+               navigate-back! navigate-back#
+               !route         (atom (->route route#))]
+       (binding [route           (p/watch !route)
+                 swap-route-base (comp
+                                      (partial replace-state# !path#)
+                                      (partial swap-route-impl !route))]
+         (binding [swap-route! (partial swap-route-base path)]
+           ~@body)))))
+
+(p/def navigate!) ; to inject a route setter (eg. write to url, html5 history pushState, swap an atom…)
+(p/def replace-route!)                  ; overwrite the current route
+(p/def navigate-back!)                  ; inverse of `navigate!`, to be injected
+
+(defn ^:deprecated empty-value? [x] (if (seqable? x) (empty? x) (some? x)))
 
 ;; FIXME decomplect route from route state
-(defn route-state->route [route-state]
+(defn ^:deprecated route-state->route [route-state]
   (if (= 1 (count route-state))
     (let [[k v] (first route-state)]
       (if (seq? k)
@@ -46,7 +125,7 @@
         (if (empty? v) nil route-state)))
     route-state))
 
-(defn route-cleanup [m path]
+(defn ^:deprecated route-cleanup [m path]
   (cond
     (seq? m)      m
     (empty? path) m
@@ -58,7 +137,7 @@
                       :else               m))))
 
 ;; FIXME decomplect route from route state
-(defn assoc-in-route-state [m path value]
+(defn ^:deprecated assoc-in-route-state [m path value]
   (let [empty? (if (seqable? value) (not-empty value) (some? value))
         m      (if (or (seq? m) (vector? m)) {} m)]
     (if empty?
