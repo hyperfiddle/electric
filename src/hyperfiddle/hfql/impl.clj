@@ -685,7 +685,7 @@
       `(p/fn [] ~(:node/name ref))
       `(p/fn [] ~(wrap-default node `(get-in (hyperfiddle.hfql/JoinArg. ~(:node/symbol ref)) ~(:node/reference-path node)))))
     (if (:node/free-input? node)
-      `(p/fn [] ~(wrap-default node `(get-in hf/route ~(:input/path node))))
+      `(p/fn [] ~(wrap-default node `(new hyperfiddle.api/Get-in-route ~(:input/path node))))
       `(p/fn [] ~(wrap-default node
                    (let [form (:node/form node)]
                      (if (= '% form)
