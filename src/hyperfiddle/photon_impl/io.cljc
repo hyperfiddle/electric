@@ -156,7 +156,7 @@
                (recur (subvec xs chunk-size)))
              (m/? (write (encode-numbers xs)))))))))
 
-(defn decoder
+(defn ^:deprecated decoder
   "A transducer partitioning a sequence of network messages into photon events."
   [rf]
   (let [data (doto (object-array 2)
@@ -178,7 +178,7 @@
                (aset data 1 [])
                (rf r x)) r)))))))
 
-(defn encoder
+(defn ^:deprecated encoder
   "A transducer expanding photon events to a sequence of network messages."
   [rf]
   (fn
