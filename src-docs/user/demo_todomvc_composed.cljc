@@ -2,8 +2,7 @@
   (:require
    #?(:clj [datascript.core :as d])
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom :as dom]
-   [hyperfiddle.photon-dom2 :as dom2]
+   [hyperfiddle.photon-dom2 :as dom]
    [hyperfiddle.photon-ui4 :as ui4]
    [user.demo-5-todomvc :as todomvc])
   #?(:cljs (:require-macros user.demo-todomvc-composed)))
@@ -18,19 +17,19 @@
         (binding [todomvc/db (p/watch todomvc/!conn)
                   todomvc/transact! (partial d/transact! todomvc/!conn)]
           (p/client
-            (dom/link {:rel :stylesheet, :href "/todomvc.css"})
+            (dom/link (dom/props {:rel :stylesheet, :href "/todomvc.css"}))
             (ui4/range n (p/fn [v] (p/server (reset! !n v)))
-              (dom2/props {:min 1 :max 25 :step 1}))
-            (dom/div {:class "todomvc" :style {:position "relative"}}
-              (dom/h1 "TodoMVC")
+              (dom/props {:min 1 :max 25 :step 1}))
+            (dom/div (dom/props {:class "todomvc" :style {:position "relative"}})
+              (dom/h1 (dom/text "TodoMVC"))
               (p/for [i (range n)]
                 (let [!focused (atom false)
                       focused (p/watch !focused)]
-                  (dom2/div (dom2/props {:style {:position "absolute"
+                  (dom/div (dom/props {:style {:position "absolute"
                                                  :width "50vw"
                                                  :left (str (* i 40) "px")
                                                  :top (str (-> i (* 40) (+ 60)) "px")
                                                  :z-index (+ i (if focused 1000 0))}})
-                    (dom2/on "mouseenter" (p/fn [_] (reset! !focused true)))
-                    (dom2/on "mouseleave" (p/fn [_] (reset! !focused false)))
+                    (dom/on "mouseenter" (p/fn [_] (reset! !focused true)))
+                    (dom/on "mouseleave" (p/fn [_] (reset! !focused false)))
                     (todomvc/TodoApp. state)))))))))))
