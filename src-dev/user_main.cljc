@@ -3,8 +3,7 @@
   #?(:cljs (:require-macros user-main))
   (:import [hyperfiddle.photon Pending]
            [missionary Cancelled])
-  (:require contrib.sexpr-router
-            contrib.ednish
+  (:require contrib.ednish
             contrib.uri ; data_readers
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
@@ -16,14 +15,28 @@
 
 ; application main is a separate .cljc file because p/server is not valid in user.cljs.
 
-(def home-route [::index])
+(def home-route ::index)
+
+(defn html5-navigate! [!path route]
+  #?(:cljs (if-some [route (hf/simplify-route route)]
+             (do (router/pushState! !path (contrib.ednish/encode-uri route))
+                 (when-some [title (if (qualified-ident? route) route (::hf/route route))]
+                   (set! js/document.title (pr-str title))))
+             (router/pushState! !path "/"))))
+
+(defn html5-replace-state! [!path route]
+  #?(:cljs (router/replaceState! !path (if-some [route (hf/simplify-route route)]
+                                         (contrib.ednish/encode-uri route)
+                                         "/"))))
 
 (p/defn Main []
   (try
-    (let [!path (m/mbx)]
-      (binding [hf/route (contrib.sexpr-router/decode (router/path !path) home-route)
-                router/Link (router/->Link. !path contrib.sexpr-router/encode)
-                dom/node (dom/by-id "root")]
+    (hf/router
+      (p/fn [!path] (or (contrib.ednish/decode-path (router/path !path) hf/read-edn-str) home-route))
+      html5-navigate!
+      #(.back js/window.history)
+      html5-replace-state!
+      (binding [dom/node (dom/by-id "root")]
 
         (p/server
           #_(wip.teeshirt-orders/App.)

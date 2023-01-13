@@ -37,12 +37,6 @@
   (hyperfiddle.popover-ui2/popover ::left "Recur Left" (Page.))
   (hyperfiddle.popover-ui2/popover ::right "Recur Right" (Page.)))
 
-#?(:cljs (defn decode-path [path read-edn-str]
-           {:pre [(string? path) (some? read-edn-str)]}
-           (when-not (= path "/")
-             (let [path (if (str/starts-with? path "/") (subs path 1) path)]
-               (contrib.ednish/decode-uri path)))))
-
 (defn html5-navigate! [!path route]
   #?(:cljs (if-some [route (hf/simplify-route route)]
              (do (router/pushState! !path (ednish/encode-uri route))
@@ -59,7 +53,7 @@
   (hf/branch
     (p/client
       (hf/router
-        (p/fn [!path] (decode-path (router/path !path) hf/read-edn-str))
+        (p/fn [!path] (ednish/decode-path (router/path !path) hf/read-edn-str))
         html5-navigate!
         #(.back js/window.history)
         html5-replace-state!
