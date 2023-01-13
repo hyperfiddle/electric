@@ -1,7 +1,7 @@
 (ns user.demo-6-two-clocks
   "network stress test"
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
             [missionary.core :as m])
   #?(:cljs (:require-macros user.demo-6-two-clocks)))
 
@@ -17,11 +17,11 @@
 
 (p/defn App []
   (p/client
-    (dom/h1 "Two Clocks")
+    (dom/h1 (dom/text "Two Clocks"))
 
     (let [c (p/client (new (clock)))
           s (p/server (new (clock)))]
 
-      (dom/div "client time: " c)
-      (dom/div "server time: " s)
-      (dom/div "latency: " (- s c)))))
+      (dom/div (dom/text "client time: " c))
+      (dom/div (dom/text "server time: " s))
+      (dom/div (dom/text "latency: " (- s c))))))

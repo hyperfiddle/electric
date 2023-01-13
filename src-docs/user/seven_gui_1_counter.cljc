@@ -1,8 +1,7 @@
 (ns user.seven-gui-1-counter
   (:require
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom :as dom]
-   [hyperfiddle.photon-dom2 :as dom2]
+   [hyperfiddle.photon-dom2 :as dom]
    [hyperfiddle.photon-ui4 :as ui4])
   #?(:cljs (:require-macros user.seven-gui-1-counter)))
 
@@ -11,6 +10,6 @@
 (p/defn Counter []
   (p/client
     (let [!state (atom 0)]
-      (dom/p (p/watch !state))
+      (dom/p (dom/text (p/watch !state)))
       (ui4/button (p/fn [] (swap! !state inc))
-        (dom2/text "Count")))))
+        (dom/text "Count")))))

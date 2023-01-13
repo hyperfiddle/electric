@@ -3,52 +3,52 @@
    contrib.str
    [hyperfiddle.api :as hf]
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom :as dom]
-   [hyperfiddle.photon-dom2 :as dom2]
+   [hyperfiddle.photon-dom :as dom1]
+   [hyperfiddle.photon-dom2 :as dom]
    [missionary.core :as m])
   #?(:cljs (:require-macros user.demo-4-chat-extended)))
 
 ; Fleshed out chat demo with auth and presence
 ; Has missionary interop, this is a more advanced demo
 
-(defonce !msgs #?(:clj (atom []) :cljs nil))
-(p/def msgs (p/server (p/watch !msgs)))
+(defonce !msgs #?(:clj (atom '()) :cljs nil))
+(p/def msgs (p/server (reverse (p/watch !msgs))))
 
 (defonce !present #?(:clj (atom {}) :cljs nil)) ; session-id -> user
 (p/def present (p/server (p/watch !present)))
 
 (p/defn Chat [username]
-  (dom/p "Present: ")
+  (dom/p (dom/text "Present: "))
   (dom/ul
     (p/server
       (p/for [[session-id username] present]
         (p/client
-          (dom/li username (str " (" session-id ")"))))))
+          (dom/li (dom/text username (str " (" session-id ")")))))))
 
   (dom/hr)
-  (dom2/input (dom2/props {:placeholder "Type a message"})
-    (dom2/on "keydown" (p/fn [e]
-                         (when (= "Enter" (.-key e))
-                           (when-some [v (contrib.str/empty->nil (.-target.value e))]
-                             (p/server (swap! !msgs conj {::username username ::msg v}))
-                             (set! (.-value dom/node) ""))))))
   (dom/ul
     (p/server
-      (p/for [{:keys [::username ::msg]} (take 10 msgs)]
+      (p/for [{:keys [::username ::msg]} msgs]
         (p/client
           (dom/li
-            (dom/strong username) " " msg))))))
+            (dom/strong (dom/text username)) (dom/text " " msg))))))
+  (dom/input (dom/props {:placeholder "Type a message"})
+    (dom/on "keydown" (p/fn [e]
+                         (when (= "Enter" (.-key e))
+                           (when-some [v (contrib.str/empty->nil (.-target.value e))]
+                             (p/server (swap! !msgs #(cons {::username username ::msg v} (take 9 %))))
+                             (set! (.-value dom1/node) "")))))))
 
 (p/defn App []
   (p/client
-    (dom/h1 "Multiplayer chat app with auth and presence")
+    (dom/h1 (dom/text "Multiplayer chat app with auth and presence"))
     (let [session-id (p/server (get-in hf/*http-request* [:headers "sec-websocket-key"]))
           username (p/server (get-in hf/*http-request* [:cookies "username" :value]))]
       (if-not (some? username)
-        (do (dom/p "Set login cookie here: " (dom/a {::dom/href "/auth"} "/auth") " (blank password)")
-            (dom/p "Example HTTP endpoint is here: "
-              (dom/a {::dom/href "https://github.com/hyperfiddle/photon/blob/master/src/hyperfiddle/photon_jetty_server.clj"}
-                     "photon_jetty_server.clj")))
+        (do (dom/p (dom/text "Set login cookie here: ") (dom/a (dom/props {::dom/href "/auth"}) (dom/text "/auth")) (dom/text " (blank password)"))
+            (dom/p (dom/text "Example HTTP endpoint is here: ")
+              (dom/a (dom/props {::dom/href "https://github.com/hyperfiddle/photon/blob/master/src/hyperfiddle/photon_jetty_server.clj"})
+                (dom/text "photon_jetty_server.clj"))))
         (do
           (p/server
             ; >x is a missionary flow that attaches mount/unmount side effect
@@ -64,5 +64,5 @@
               ; This works because Photon compiles to missionary so this actually typechecks
               ; from a compiler internals perspective.
               (new >x)))
-          (dom/p "Authenticated as: " username)
+          (dom/p (dom/text "Authenticated as: " username))
           (Chat. username))))))
