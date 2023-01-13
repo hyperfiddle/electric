@@ -289,3 +289,8 @@
 (tests
   (orp some? nil false 1) := false
   (orp even? 1 3 5 6 7) := 6)
+
+(defn nil-or-empty? [x]
+  (if (seqable? x)
+    (empty? x)
+    (nil? x)))

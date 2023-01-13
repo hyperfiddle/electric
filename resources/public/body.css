@@ -32,7 +32,7 @@ dl {
 }
 
 dl {
-    display: grid;
+    display: inline-grid;
     grid-template-columns: 33% auto;
 }
 
