@@ -2,7 +2,7 @@
   #?(:cljs (:require-macros user.demo-entrypoint))
   (:require [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.router :as router]
             user.demo-1-hello-world
             user.demo-2-toggle
@@ -28,6 +28,7 @@
             #_wip.hfql
             #_user.demo-hfql
             wip.teeshirt-orders
+            wip.demo-branched-route
 
             ; these demos require datomic on classpath, disabled by default
             user.demo-stage-ui3
@@ -61,27 +62,37 @@
    #_[::datomic-browser hyperfiddle.datomic-browser/App]
    #_[::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
    #_[::hfql user.demo-hfql/App]
-   #_[::hfql2 wip.hfql/App]])
+   #_[::hfql2 wip.hfql/App]
+   [::router wip.demo-branched-route/App]])
 
-(p/defn App [[page & args :as route]]
+(defmacro link [href label On-Click & body]
+  `(dom/a (dom/props {:href ~href})
+     (dom/text ~label)
+     (when-some [e# (dom/Event. "click" false)]
+       (.preventDefault e#)
+       (new ~On-Click e#))
+     ~@body))
+
+(p/defn App [route]
   (p/client
-    (dom/div {:style {:width "90vw"}}
-      (case page
-        :user-main/index
-        (do (dom/h1 (dom/text "Photon Demos"))
-            (dom/p (dom/text "See source code in src-docs."))
-            (p/for [[k _] pages]
-              (dom/div (router/Link. [k] (name k))))
-            (dom/div {:style {:opacity 0}}
-              (router/Link. [::secret-hyperfiddle-demos] "secret-hyperfiddle-demos")))
+    (let [page (::hf/route route)]
+      (dom/div (dom/style {:width "90vw"})
+        (case page
+          :user-main/index
+          (do (dom/h1 (dom/text "Photon Demos"))
+              (dom/p (dom/text "See source code in src-docs."))
+              (p/for [[k _] pages]
+                (dom/div (link k (name k) (p/fn [_] (hf/navigate! k)))))
+              (dom/div (dom/style {:opacity 0})
+                (link ::secret-hyperfiddle-demos "secret-hyperfiddle-demos"
+                  (p/fn [_] (hf/navigate! ::secret-hyperfiddle-demos)))))
 
-        ::secret-hyperfiddle-demos
-        (do (dom/h1 "Hyperfiddle demos, unstable/wip")
-            (dom/p "These may require a Datomic connection and are unstable, wip, often broken")
-            (p/for [[k _] secret-pages]
-              (dom/div (router/Link. [k] (name k)))))
+          ::secret-hyperfiddle-demos
+          (do (dom/h1 "Hyperfiddle demos, unstable/wip")
+              (dom/p "These may require a Datomic connection and are unstable, wip, often broken")
+              (p/for [[k _] secret-pages]
+                (dom/div (link k (name k) (p/fn [_] (hf/navigate! k))))))
 
-        (binding [hf/route args]
           (p/server
             (let [Page (get (into {} (concat pages secret-pages)) page)]
               (new Page))))))))

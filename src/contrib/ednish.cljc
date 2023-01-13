@@ -63,3 +63,9 @@ coalesce into lists and are not disambiguated."
 ;  ;(is (= (decode-ednish encoded) (pr-str v)))
 ;  ; "#uri \"datomic:free://datomic:4334/#dustin.getz\""
 ;  )
+
+(defn decode-path [path read-edn-str]
+   {:pre [(string? path) (some? read-edn-str)]}
+   (when-not (= path "/")
+     (let [path (if (clojure.string/starts-with? path "/") (subs path 1) path)]
+       (decode-uri path))))
