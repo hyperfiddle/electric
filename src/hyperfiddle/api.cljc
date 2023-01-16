@@ -79,7 +79,7 @@
               update-route (partial update-route-base path)]
       (new body))))
 
-(defmacro branch-route [ident & body] `(new BranchRoute ~ident (p/fn [] ~@body)))
+(defmacro branch-route [ident & body] `(new BranchRoute ~ident (p/fn [] ~@body))) ; focus-route? push-route-scope?
 
 (s/def ::route       (s/cat :ident qualified-ident? :args (s/* any?)))
 (s/def ::route-state (s/nilable map?))
