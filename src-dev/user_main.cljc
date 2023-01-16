@@ -15,7 +15,7 @@
 
 ; application main is a separate .cljc file because p/server is not valid in user.cljs.
 
-(def home-route ::index)
+(def home-route [::index])
 
 (defn html5-navigate! [!path route]
   #?(:cljs (if-some [route (hf/simplify-route route)]
