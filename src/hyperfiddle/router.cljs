@@ -1,6 +1,7 @@
 (ns hyperfiddle.router
   (:require [contrib.missionary-contrib :refer [poll-task]]
             [contrib.sexpr-router :refer [encode]]
+            [contrib.ednish :as ednish]
             [hyperfiddle.rcf :as rcf :refer [% tests with tap]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
@@ -103,3 +104,15 @@
           encode-path (clojure.set/map-invert decode-path)]
       (binding [Link (->Link. !path encode-path)]
         (NamedRouterDemo. (decode-path path))))))
+
+(defn html5-navigate! [!path route]
+  (if-some [route (hf/simplify-route route)]
+    (do (pushState! !path (contrib.ednish/encode-uri route))
+        (when-some [title (if (qualified-ident? route) route (::hf/route route))]
+          (set! js/document.title (pr-str title))))
+    (pushState! !path "/")))
+
+(defn html5-replace-state! [!path route]
+  (replaceState! !path (if-some [route (hf/simplify-route route)]
+                         (contrib.ednish/encode-uri route)
+                         "/")))
