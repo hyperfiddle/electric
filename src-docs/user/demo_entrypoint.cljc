@@ -57,7 +57,7 @@
   [[::color user.demo-color/App]
    [::controlled-input user.demo-controlled-input/App]
    [::demo-stage-ui3 user.demo-stage-ui3/Demo]
-   #_[::hfql-teeshirt-orders wip.teeshirt-orders/App] ; todo need nested router
+   [::hfql-teeshirt-orders wip.teeshirt-orders/App] ; todo need nested router
    #_[::explorer user.demo-7-explorer/App] ; todo needs nested router
    #_[::datomic-browser hyperfiddle.datomic-browser/App]
    #_[::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
@@ -65,6 +65,7 @@
    #_[::hfql2 wip.hfql/App]
    [::router wip.demo-branched-route/App]])
 
+;; TODO adapt router/Link and drop this
 (defmacro link [href label On-Click & body]
   `(dom/a (dom/props {:href ~href})
      (dom/text ~label)
