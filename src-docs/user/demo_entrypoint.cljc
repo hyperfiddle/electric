@@ -86,4 +86,6 @@
 
           (p/server
             (let [Page (get (into {} (concat pages secret-pages)) page)]
-              (new Page))))))))
+              (p/client
+                (hf/branch-route page
+                  (p/server (new Page)))))))))))
