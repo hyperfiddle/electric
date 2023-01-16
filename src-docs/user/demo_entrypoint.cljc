@@ -65,34 +65,24 @@
    #_[::hfql2 wip.hfql/App]
    [::router wip.demo-branched-route/App]])
 
-;; TODO adapt router/Link and drop this
-(defmacro link [href label On-Click & body]
-  `(dom/a (dom/props {:href ~href})
-     (dom/text ~label)
-     (when-some [e# (dom/Event. "click" false)]
-       (.preventDefault e#)
-       (new ~On-Click e#))
-     ~@body))
-
 (p/defn App [route]
   (p/client
-    (let [page (::hf/route route)]
+    (let [[page & _args] (::hf/route route)]
       (dom/div (dom/style {:width "90vw"})
         (case page
           :user-main/index
           (do (dom/h1 (dom/text "Photon Demos"))
               (dom/p (dom/text "See source code in src-docs."))
               (p/for [[k _] pages]
-                (dom/div (link k (name k) (p/fn [_] (hf/navigate! k)))))
+                (dom/div (router/Link. [k] (name k))))
               (dom/div (dom/style {:opacity 0})
-                (link ::secret-hyperfiddle-demos "secret-hyperfiddle-demos"
-                  (p/fn [_] (hf/navigate! ::secret-hyperfiddle-demos)))))
+                (router/Link. [::secret-hyperfiddle-demos] "secret-hyperfiddle-demos")))
 
           ::secret-hyperfiddle-demos
           (do (dom/h1 "Hyperfiddle demos, unstable/wip")
               (dom/p "These may require a Datomic connection and are unstable, wip, often broken")
               (p/for [[k _] secret-pages]
-                (dom/div (link k (name k) (p/fn [_] (hf/navigate! k))))))
+                (dom/div (router/Link. [k] (name k)))))
 
           (p/server
             (let [Page (get (into {} (concat pages secret-pages)) page)]

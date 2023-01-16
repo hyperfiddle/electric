@@ -6,6 +6,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             [hyperfiddle.photon-ui4 :as ui4]
+            [hyperfiddle.router :as router]
             wip.orders-datascript
             [clojure.spec.alpha :as s])
   #?(:cljs (:require-macros [wip.teeshirt-orders])))
@@ -60,22 +61,11 @@
              [:db/ident]}
             ]})))))
 
-;; TODO adapt router/Link and drop this
-(defmacro link [href label On-Click & body]
-  `(dom/a (dom/props {:href ~href})
-     (dom/text ~label)
-     (when-some [e# (dom/Event. "click" false)]
-       (.preventDefault e#)
-       (new ~On-Click e#))
-     ~@body))
-
 (p/defn App []
   (p/client
     (dom/h1 (dom/text "HFQL as a grid"))
     (binding [hf/db-name "$"
-              hf/Link    (p/fn [[page eid] _]
-                           (link "fixme" eid (p/fn [_] (hf/navigate! (assoc hf/route ::page [page eid]))))
-                           nil)]
+              hf/Link    (p/fn [[page eid] _] (router/Link. [page eid] eid) nil)]
       (p/server
         (binding
             [hf/db           hf/*$*
@@ -88,12 +78,14 @@
                                     (catch Exception e (println "...failure, e: " e))))]
           (hf/branch
             (p/client
-              (let [[page & args] (::page hf/route `(wip.orders-datascript/orders))]
-                (case page
-                  wip.orders-datascript/orders    (OrdersPage.)
-                  wip.orders-datascript/one-order (let [[sub] args]
-                                                    (OneOrderPage. sub))
-                  (dom/h2 (dom/text "Page not found")))))
+              (hf/branch-route ::orders
+                (prn hf/route)
+                (let [[page & args] (::hf/route hf/route `(wip.orders-datascript/orders))]
+                  (case page
+                    wip.orders-datascript/orders    (OrdersPage.)
+                    wip.orders-datascript/one-order (let [[sub] args]
+                                                      (OneOrderPage. sub))
+                    (dom/h2 (dom/text "Page not found"))))))
             (p/client
               (dom/hr)
               (dom/element "style" (str "dustin-stage" " { display: block; width: 100%; height: 10em; }"))

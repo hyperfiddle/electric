@@ -1,9 +1,11 @@
 (ns hyperfiddle.router
   (:require [contrib.missionary-contrib :refer [poll-task]]
+            [contrib.sexpr-router :refer [encode]]
             [hyperfiddle.rcf :as rcf :refer [% tests with tap]]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [missionary.core :as m])
+            [hyperfiddle.photon-dom2 :as dom]
+            [missionary.core :as m]
+            [hyperfiddle.api :as hf])
   (:import [missionary Cancelled])
   (:require-macros [hyperfiddle.router :refer [path]]))
 
@@ -69,30 +71,27 @@
 ; - ability to encode/decode a route value to a path string
 ; - ability to render links from route value (no knowledge of path encoding)
 
-(p/defn Link [route label] (assert false "no implementation")) ; bind this to result of ->Link
-(p/defn ->Link [!path encode]
-  (p/fn [route label]
-    (p/client
-      (let [path (encode route)]
-        (dom/a {:href path}
-          (when-some [e (dom/Event. "click" false)]
-            (.preventDefault e)
-            (pushState! !path path))
-          label)))))
+(p/defn Link [route label]
+  (p/client
+    (dom/a (dom/props {:href (encode route)})
+      (when-some [e (dom/Event. "click" false)]
+        (.preventDefault e)
+        (hf/navigate! (hf/update-route assoc ::hf/route route)))
+      (dom/text label))))
 
 ; Demo
 
 (p/defn PathRouterDemo [path]
   (case path
-    "/" (do (dom/h1 "Home") (Link. "/a" "a"))
-    "/a" (do (dom/h1 "A") (Link. "/" "home"))
-    (do (dom/h1 "404, route: " (pr-str path)) (Link. "/" "home"))))
+    "/" (do (dom/h1 (dom/text "Home")) (Link. "/a" "a"))
+    "/a" (do (dom/h1 (dom/text "A")) (Link. "/" "home"))
+    (do (dom/h1 (dom/text "404, route: ") (pr-str path)) (Link. "/" "home"))))
 
 (p/defn NamedRouterDemo [route]
   (case route
-    ::home (do (dom/h1 "Home") (Link. ::a "a"))
-    ::a (do (dom/h1 "A") (Link. ::home "home"))
-    (do (dom/h1 "404, route: " (pr-str route)) (Link. "/" "home"))))
+    ::home (do (dom/h1 (dom/text "Home")) (Link. ::a "a"))
+    ::a (do (dom/h1 (dom/text  "A")) (Link. ::home "home"))
+    (do (dom/h1 (dom/text "404, route: ") (pr-str route)) (Link. "/" "home"))))
 
 (p/defn Demo []
   (let [!path (m/mbx), path (path !path)]
