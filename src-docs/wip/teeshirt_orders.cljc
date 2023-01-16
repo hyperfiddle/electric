@@ -78,14 +78,12 @@
                                     (catch Exception e (println "...failure, e: " e))))]
           (hf/branch
             (p/client
-              (hf/branch-route ::orders
-                (prn hf/route)
-                (let [[page & args] (::hf/route hf/route `(wip.orders-datascript/orders))]
-                  (case page
-                    wip.orders-datascript/orders    (OrdersPage.)
-                    wip.orders-datascript/one-order (let [[sub] args]
-                                                      (OneOrderPage. sub))
-                    (dom/h2 (dom/text "Page not found"))))))
+              (let [[page & args] (::hf/route hf/route `(wip.orders-datascript/orders))]
+                (case page
+                  wip.orders-datascript/orders    (OrdersPage.)
+                  wip.orders-datascript/one-order (let [[sub] args]
+                                                    (OneOrderPage. sub))
+                  (dom/h2 (dom/text "Page not found")))))
             (p/client
               (dom/hr)
               (dom/element "style" (str "dustin-stage" " { display: block; width: 100%; height: 10em; }"))
