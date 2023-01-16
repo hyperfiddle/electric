@@ -16,7 +16,8 @@
 (s/def ::created inst?)
 (s/def ::accessed inst?)
 (s/def ::size string?)
-(s/def ::kind (s/nilable qualified-keyword?))
+;; (s/def ::kind (s/nilable qualified-keyword?))
+(s/def ::kind qualified-keyword?) ;; HACK FIXME implement nilable in hyperfiddle.spec
 (s/def ::file (s/keys :opt [::name ::absolute-path ::modified ::created ::accessed ::size ::kind]))
 (s/def ::children (s/coll-of ::file))
 
