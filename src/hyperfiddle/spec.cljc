@@ -79,6 +79,7 @@
             ::coll-of           (let [[_ pred & opts] (form spec)]
                                   {::pred pred
                                    ::opts (apply hash-map opts)})
+            ;; FIXME add ::nilable
             ))
       (with-meta (merge (dissoc (meta spec) `ccp/datafy :clojure.datafy/obj :clojure.datafy/class)
                    {`ccp/nav
@@ -283,3 +284,6 @@
 
 (defn valueType-of [schema attr]
   (valueType->type (:db.valueType (get schema attr))))
+
+(comment
+  (datafy (hyperfiddle.spec/spec :user.datafy-fs/kind)) )

@@ -5,27 +5,54 @@
             clojure.edn
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.gridsheet :as-alias gridsheet]
-            [hyperfiddle.explorer :as explorer :refer [Explorer]]
+            [hyperfiddle.photon-dom2 :as dom]
             [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]
-            #?(:cljs [hyperfiddle.router :as router]))
+            #?(:cljs [hyperfiddle.router :as router])
+            [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
+            [clojure.spec.alpha :as s]
+            #?(:clj [clojure.java.io :as io]))
   #?(:cljs (:require-macros [user.demo-7-explorer :refer [absolute-path]])))
 
 (defmacro absolute-path [path & paths]
   #?(:clj (str (.toAbsolutePath (java.nio.file.Path/of ^String path (into-array String paths))))
      :cljs (throw (js/Error. "Unsupported operation."))))
 
-(p/defn Dir [x]
-  (binding
-    [explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]]
-    (let [m (datafy x)
-          xs (nav m ::fs/children (::fs/children m))]
-      (Explorer. (::fs/absolute-path m) (explorer/tree-lister xs ::fs/children #(explorer/includes-str? (::fs/name %) %2))
-                 {::dom/style {:height "calc((20 + 1) * 24px)"}
-                  ::explorer/page-size 20
-                  ::explorer/row-height 24
-                  ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
+
+(defn list-files [path]
+  #?(:clj (let [m (datafy (clojure.java.io/file path))]
+            (nav m ::fs/children (::fs/children m)))))
+
+(s/fdef list-files :args (s/cat :file any?) :ret (s/coll-of any?))
+
+(defn get-absolute-path []
+  (absolute-path "node_modules"))
+
+(p/defn App []
+  (ttgui/with-gridsheet-renderer
+    (binding [hf/db-name "$"]
+      (dom/style {:grid-template-columns "repeat(5, 1fr)"})
+      (p/server
+        (binding [hf/*nav!*   (fn [db e a] (a (datafy e))) ;; FIXME db is specific, hfql should be general
+                  hf/*schema* (constantly nil)] ;; FIXME this is datomic specific, hfql should be general
+          (let [path (get-absolute-path)]
+            (hf/hfql {(list-files (props path {::dom/disabled true})) ;; FIXME forward props
+                      [::fs/name ;; TODO add links and indentation
+                       ::fs/modified
+                       ::fs/size
+                       ::fs/kind]})))))))
+
+;; Previous impl
+
+;; (p/defn Dir [x]
+;;   (binding
+;;     [explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]]
+;;     (let [m (datafy x)
+;;           xs (nav m ::fs/children (::fs/children m))]
+;;       (Explorer. (::fs/absolute-path m) (explorer/tree-lister xs ::fs/children #(explorer/includes-str? (::fs/name %) %2))
+;;                  {::dom/style {:height "calc((20 + 1) * 24px)"}
+;;                   ::explorer/page-size 20
+;;                   ::explorer/row-height 24
+;;                   ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
 
 ;(p/defn File [x]
 ;  (binding
@@ -41,33 +68,32 @@
 
 (def unicode-folder "\uD83D\uDCC2") ; 📂
 
-(p/defn App []
-  (p/client
-    (dom/h1 "Explorer")
-    (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
-    (dom/div {:class "photon-demo-explorer"}
-      (p/server
-        (binding [explorer/Format (p/fn [m a]
-                                    (let [v (a m)]
-                                      (case a
-                                        ::fs/name (case (::fs/kind m)
-                                                    ::fs/dir (let [absolute-path (::fs/absolute-path m)]
-                                                               (p/client (router/Link. [::fs/dir absolute-path] v)))
-                                                    (::fs/other ::fs/symlink ::fs/unknown-kind) v
-                                                    v #_(p/client (router/Link. [::fs/file x] v)))
-                                        ::fs/modified (p/client (some-> v .toLocaleDateString))
-                                        ::fs/kind (case (::fs/kind m)
-                                                    ::fs/dir unicode-folder
-                                                    (some-> v name))
-                                        (str v))))]
-          (let [[page fs-path] (or (p/client (::hf/route hf/route))
-                                 [::fs/dir (absolute-path "node_modules") ])]
-            (case page
-                                        ;::fs/file (File. (clojure.java.io/file fs-path))
-              ::fs/dir (Dir. (clojure.java.io/file fs-path)))))))))
-
-; Improvements
-; Native search
-; lazy folding/unfolding directories (no need for pagination)
-; forms (currently table hardcoded with recursive pull)
-; useful ::fs/file route
+;; (p/defn PrevApp []
+;;   (p/client
+;;     (dom/h1 "Explorer")
+;;     (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
+;;     (dom/div {:class "photon-demo-explorer"}
+;;       (p/server
+;;         (binding [explorer/Format (p/fn [m a]
+;;                                     (let [v (a m)]
+;;                                       (case a
+;;                                         ::fs/name (case (::fs/kind m)
+;;                                                     ::fs/dir (let [absolute-path (::fs/absolute-path m)]
+;;                                                                (p/client (router/Link. [::fs/dir absolute-path] v)))
+;;                                                     (::fs/other ::fs/symlink ::fs/unknown-kind) v
+;;                                                     v #_(p/client (router/Link. [::fs/file x] v)))
+;;                                         ::fs/modified (p/client (some-> v .toLocaleDateString))
+;;                                         ::fs/kind (case (::fs/kind m)
+;;                                                     ::fs/dir unicode-folder
+;;                                                     (some-> v name))
+;;                                         (str v))))]
+;;           (let [[page fs-path] (or (p/client (::hf/route hf/route))
+;;                                  [::fs/dir (absolute-path "node_modules") ])]
+;;             (case page
+;;                                         ;::fs/file (File. (clojure.java.io/file fs-path))
+;;               ::fs/dir (Dir. (clojure.java.io/file fs-path)))))))))
+;;                                         ; Improvements
+;;                                         ; Native search
+;;                                         ; lazy folding/unfolding directories (no need for pagination)
+;;                                         ; forms (currently table hardcoded with recursive pull)
+;;                                         ; useful ::fs/file route
