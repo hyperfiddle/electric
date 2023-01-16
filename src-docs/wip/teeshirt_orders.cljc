@@ -1,43 +1,14 @@
 (ns wip.teeshirt-orders
-  (:require contrib.ednish
-            clojure.edn
-            datascript.core
+  (:require datascript.core
             dev
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             [hyperfiddle.photon-ui4 :as ui4]
-            [missionary.core :as m]
             wip.orders-datascript
-            [contrib.ednish :as ednish]
-            [clojure.spec.alpha :as s]
-            [hyperfiddle.router :as router]
-            [clojure.string :as str])
+            [clojure.spec.alpha :as s])
   #?(:cljs (:require-macros [wip.teeshirt-orders])))
-
-#?(:cljs (defn encode-path [route] (->> route pr-str ednish/encode (str "/"))))
-
-(defn decode-route [route] ; TODO Fishy. Maybe the HTML5 path value should not be an encoded sexpr. Maybe "domain.com/ns!fn/arg0#{state…}"?
-  (cond (nil? route)    nil
-        (map? route)    (hyperfiddle.walk/prewalk (fn [form] ; HACK ugly
-                                                    (if (and (map-entry? form) (vector? (key form)))
-                                                      [(seq (key form)) (val form)]
-                                                      form))
-                          route)
-        (vector? route) (seq route)
-        :else           (throw (ex-info "A route should be a sexpr or a map" {:route route}))))
-
-#?(:cljs (defn decode-path [path read-edn-str]
-           {:pre [(string? path) (some? read-edn-str)]}
-           (if (= path "/")
-             ['wip.orders-datascript/orders]
-             (let [path (if (str/starts-with? path "/") (subs path 1) path)]
-               (decode-route (contrib.ednish/decode-uri path))))))
-
-(defn parse-route [route]
-  (cond (map? route) (hf/route-state->route route)
-        :else        route))
 
 (defn names [] ["alice" "bob" "charlie"])
 (s/fdef names :ret (s/coll-of names))
@@ -89,40 +60,43 @@
              [:db/ident]}
             ]})))))
 
+;; TODO adapt router/Link and drop this
+(defmacro link [href label On-Click & body]
+  `(dom/a (dom/props {:href ~href})
+     (dom/text ~label)
+     (when-some [e# (dom/Event. "click" false)]
+       (.preventDefault e#)
+       (new ~On-Click e#))
+     ~@body))
+
 (p/defn App []
   (p/client
     (dom/h1 (dom/text "HFQL as a grid"))
-    (let [!path (m/mbx)
-          route (decode-path (router/path !path) hf/read-edn-str)]
-      (binding [router/Link (router/->Link. !path encode-path)]
-        (binding [hf/route          route
-                  hf/navigate!      #(router/pushState! !path (ednish/encode-uri %))
-                  hf/replace-route! #(router/replaceState! !path (ednish/encode-uri %))
-                  hf/navigate-back! #(.back js/window.history)
-                  hf/db-name        "$"
-                  hf/Link           (p/fn [[page eid] _] (router/Link. [page eid] eid) nil)]
-          (p/server
-            (binding
-                [hf/db       hf/*$*
-                 hf/*schema* wip.orders-datascript/schema
-                 hf/*nav!*   wip.orders-datascript/nav!
-                 hf/route    route
-                 ;hf/schema (new (dx/schema> secure-db))
-                 hf/into-tx' (fn [schema tx0 tx] (concat tx0 tx))
-                 hf/with (fn [db tx] ; inject datomic
-                           (try (:db-after (datascript.core/with db tx))
-                                (catch Exception e (println "...failure, e: " e))))]
-              (hf/branch
-                (p/client
-                  (let [[page & args] (parse-route route)]
-                    (case page
-                      wip.orders-datascript/orders (OrdersPage.)
-                      wip.orders-datascript/one-order (let [[sub] args]
-                                                        (OneOrderPage. sub))
-                      (dom/h2 (dom/text "Page not found")))))
-                (p/client
-                  (dom/hr)
-                  (dom/element "style" (str "dustin-stage" " { display: block; width: 100%; height: 10em; }"))
-                  (ui4/edn (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class "dustin-stage"}))))))
-          nil)))))
+    (binding [hf/db-name "$"
+              hf/Link    (p/fn [[page eid] _]
+                           (link "fixme" eid (p/fn [_] (hf/navigate! (assoc hf/route ::page [page eid]))))
+                           nil)]
+      (p/server
+        (binding
+            [hf/db           hf/*$*
+             hf/*schema*     wip.orders-datascript/schema
+             hf/*nav!*       wip.orders-datascript/nav!
+             ;; hf/schema (new (dx/schema> secure-db))
+             hf/into-tx'     (fn [schema tx0 tx] (concat tx0 tx))
+             hf/with         (fn [db tx]  ; inject datomic
+                               (try (:db-after (datascript.core/with db tx))
+                                    (catch Exception e (println "...failure, e: " e))))]
+          (hf/branch
+            (p/client
+              (let [[page & args] (::page hf/route `(wip.orders-datascript/orders))]
+                (case page
+                  wip.orders-datascript/orders    (OrdersPage.)
+                  wip.orders-datascript/one-order (let [[sub] args]
+                                                    (OneOrderPage. sub))
+                  (dom/h2 (dom/text "Page not found")))))
+            (p/client
+              (dom/hr)
+              (dom/element "style" (str "dustin-stage" " { display: block; width: 100%; height: 10em; }"))
+              (ui4/edn (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class "dustin-stage"}))))))
+      nil)))
 
