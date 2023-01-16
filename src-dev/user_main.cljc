@@ -17,25 +17,10 @@
 
 (def home-route [::index])
 
-(defn html5-navigate! [!path route]
-  #?(:cljs (if-some [route (hf/simplify-route route)]
-             (do (router/pushState! !path (contrib.ednish/encode-uri route))
-                 (when-some [title (if (qualified-ident? route) route (::hf/route route))]
-                   (set! js/document.title (pr-str title))))
-             (router/pushState! !path "/"))))
-
-(defn html5-replace-state! [!path route]
-  #?(:cljs (router/replaceState! !path (if-some [route (hf/simplify-route route)]
-                                         (contrib.ednish/encode-uri route)
-                                         "/"))))
-
 (p/defn Main []
   (try
-    (hf/router
-      (p/fn [!path] (or (contrib.ednish/decode-path (router/path !path) hf/read-edn-str) home-route))
-      html5-navigate!
-      #(.back js/window.history)
-      html5-replace-state!
+    (router/html5-router
+      (p/fn [route] (or route home-route))
       (binding [dom/node (dom/by-id "root")]
 
         (p/server
