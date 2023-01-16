@@ -68,27 +68,31 @@
 (defn ^:no-doc swap-route-impl [!route path f & args] (apply swap! !route update-in* path (comp (partial route-cleanup path) f) args))
 (p/def ^:no-doc swap-route-base)
 (p/def swap-route!)
+(defn ^:no-doc update-route-impl [!route path f & args] (apply update-in* @!route path (comp (partial route-cleanup path) f) args))
+(p/def ^:no-doc update-route-base)
+(p/def update-route)
 
 (p/defn BranchRoute [ident body]
   (binding [path (conj path ident)]
-    (binding [route       (get route ident)
-              swap-route! (partial swap-route-base path)]
+    (binding [route        (get route ident)
+              swap-route!  (partial swap-route-base path)
+              update-route (partial update-route-base path)]
       (new body))))
 
 (defmacro branch-route [ident & body] `(new BranchRoute ~ident (p/fn [] ~@body)))
 
-(s/def ::route       qualified-ident?)
+(s/def ::route       (s/cat :ident qualified-ident? :args (s/* any?)))
 (s/def ::route-state (s/nilable map?))
 (s/def ::route-map   (s/nilable (s/keys :opt [::route])))
 
 (defn ->route
-  "Given an `identifier` (a qualified keyword or symbol), and some optional `state` map, builds a route.
-  Also accepts an existing route map and check it is conform."
-  ([identifier-or-route]
-   (s/assert* (s/or :ident ::route, :map ::route-map) identifier-or-route)
-   (if (s/valid? ::route identifier-or-route)
-     (->route identifier-or-route nil)
-     identifier-or-route))
+  "Given an `sexpr` (a qualified keyword or symbol), and some optional `state` map, builds a route.
+  Also accepts an existing route map and check it conforms."
+  ([sexpr-or-route]
+   (s/assert* (s/or :ident ::route, :map ::route-map) sexpr-or-route)
+   (if (s/valid? ::route sexpr-or-route)
+     (->route sexpr-or-route nil)
+     sexpr-or-route))
   ([identifier state]
    (s/assert* ::route-state state)
    (assoc state ::route identifier)))
@@ -104,9 +108,11 @@
                !route         (atom (->route route#))]
        (binding [route           (p/watch !route)
                  swap-route-base (comp
-                                      (partial replace-state# !path#)
-                                      (partial swap-route-impl !route))]
-         (binding [swap-route! (partial swap-route-base path)]
+                                   (partial replace-state# !path#)
+                                   (partial swap-route-impl !route))
+                 update-route-base (partial update-route-impl !route)]
+         (binding [swap-route!  (partial swap-route-base path)
+                   update-route (partial update-route-base path)]
            ~@body)))))
 
 (p/def navigate!) ; to inject a route setter (eg. write to url, html5 history pushState, swap an atom…)
