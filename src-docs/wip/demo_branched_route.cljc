@@ -1,22 +1,16 @@
 (ns wip.demo-branched-route
-  (:require contrib.ednish
-            clojure.edn
-            datascript.core
+  (:require datascript.core
             dev
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.api :as hf]
-            [missionary.core :as m]
             wip.orders-datascript
             [contrib.ednish :as ednish]
             [hyperfiddle.router :as router]
-            [clojure.string :as str]
             [hyperfiddle.popover-ui2]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             wip.orders-datascript)
   #?(:cljs (:require-macros [wip.demo-branched-route])))
-
-(defn vectorize [x] (if (seq? x) (vec x) x))
 
 (p/def Page)
 (p/defn Page-impl []
@@ -24,8 +18,7 @@
   (p/server
     (binding [hf/*nav!*   wip.orders-datascript/nav!
               hf/*schema* wip.orders-datascript/schema
-              hf/db       hf/*$*
-              hf/Get-in-route (p/fn [path] (get-in (p/client hf/route) (mapv vectorize path)))]
+              hf/db       hf/*$*]
       (ttgui/with-gridsheet-renderer
         (binding [ttgui/grid-width 2
                   hf/db-name "$"]
@@ -60,20 +53,3 @@
         (binding [Page Page-impl]
           (Page.))))))
 
-
-(comment
-  #_(dom/div (dom/style {:display               "inline-grid"
-                         :grid-template-columns "1fr auto"
-                         :gap                   "0 1rem"
-                         :align-items           :center})
-      (dom/p (dom/text "Route: "))
-      (dom/pre (dom/style {:white-space :pre-wrap}) (dom/text hf/route))
-      (dom/p (dom/text "Path: "))
-      (dom/pre (dom/text hf/path)))
-
-  ;; (p/defn PageB []
-  ;;   (dom/h2 (dom/text "page B"))
-  ;;   (ui3/button! (p/fn [] (hf/navigate! `pageA) nil)
-  ;;     (dom/text "Go to page A")))
-
-  )

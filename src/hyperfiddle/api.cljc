@@ -34,7 +34,7 @@
 (p/def !route (atom nil)) ; Atom holding current route, rebind it to introduce route scopes
 (p/def route (p/watch !route))
 (p/def path []) ; addresses a point in the route map, pass it to `get-in` to get value at path.
-(p/defn Get-in-route [path] (get-in route path)) ; temporary
+(p/defn Get-in-route [path] (get-in (p/client route) path)) ; temporary, revisit once we settle on an HFQL friendly URL encoding
 
 (defn ^:no-doc route-cleanup [path m]
   (let [cleanup (fn [m] (when m
