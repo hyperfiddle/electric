@@ -6,6 +6,7 @@
     [contrib.str]
     [hyperfiddle.photon :as p]
     [hyperfiddle.photon-dom2 :as dom]
+    [hyperfiddle.photon-dom :as dom1]
     [hyperfiddle.photon-ui2 :as ui2 :refer [parse-edn parse-keyword parse-symbol parse-date]]))
 
 (defmacro handle [getter V!]
@@ -80,3 +81,60 @@
                             (dom/props {:disabled true, :aria-busy true})
                             (new ~V!))) ; do we need to pass the event?
           ~@body)))
+
+
+;;; TYPEAHEAD
+
+;; TODO nil
+(p/defn Latch [impulse init] (p/with-cycle [v init] (if (some? impulse) impulse v)))
+
+;; TODO more robust click-outside handling
+(p/defn CloseOnClickUnlessInput [return input-node]
+  (binding [dom1/node js/document]
+    (dom/on "click" (p/fn [e] (when (not= input-node (.-target e)) (return nil))))))
+
+(defmacro typeahead [v V! Options OptionLabel & body]
+  `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
+     (p/client
+       (dom/div (dom/props {:class "hyperfiddle-typeahead"})
+         (let [container-node# dom1/node]
+           (do1
+             (dom/input
+               (let [input-node# dom1/node
+                     return# (dom/on "focus"
+                               (p/fn [_#]
+                                 (let [return# (m/dfv)
+                                       search# (new Latch (dom/on "input" (p/fn [e#] (.-target.value e#)))
+                                                 (.-value input-node#))]
+                                   (new CloseOnClickUnlessInput return# input-node#)
+                                   (binding [dom1/node container-node#]
+                                     (dom/ul
+                                       (p/server
+                                         (p/for [id# (new Options# search#)]
+                                           (p/client
+                                             (dom/div (dom/text (p/server (new OptionLabel# id#)))
+                                               (dom/on "click" (p/fn [evt#]
+                                                                 (dom/props {:style {:background-color "yellow"}})
+                                                                 (.preventDefault evt#) (.stopPropagation evt#)
+                                                                 (return# (p/server (new V!# id#)))))))))))
+                                   (new (p/task->cp return#)))))]
+                 (when (nil? return#) (let [txt# (p/server (new OptionLabel# v#))] (set! (.-value input-node#) txt#)))
+                 return#))
+             ~@body))))))
+
+;; TODO
+;; - keyboard
+;; - what if the change callback throws
+
+;; tests
+#?(:clj (def -data {:alice "Alice B", :bob "Bob C", :charlie "Charlie D", :derek "Derek B"}))
+#?(:clj (defn q [search] (into [] (comp (filter #(or (empty? search) (str/includes? (second %) search))) (map first)) -data)))
+
+(p/defn TypeaheadDemo []
+  (p/server
+    (let [!v (atom :alice)]
+      (typeahead (p/watch !v) (p/fn [id] (prn [:picked id]) (reset! !v id))
+        (p/fn [search] (prn [:options search]) (q search))
+        (p/fn [e] (prn [:render e]) (get -data e))
+        ;; body
+        ))))
