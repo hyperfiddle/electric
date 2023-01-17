@@ -16,6 +16,10 @@
 (defn names [] ["alice" "bob" "charlie"])
 (s/fdef names :ret (s/coll-of names))
 
+;; TODO option-label shouldn't get nil as value
+(p/defn IdentName [v] (some-> (:db/ident v) name))
+(p/defn Tx [{::hf/keys [entity attribute]} v] (hf/Transact!. [[:db/add entity attribute v]]))
+
 (p/defn OneOrderPage [order]
   (ttgui/with-gridsheet-renderer
     (dom/style {:grid-template-columns "1fr 1fr"})
@@ -28,27 +32,13 @@
           {order
            [(props :db/id {#_#_::hf/link ['wip.orders-datascript/one-order %]})
             (props :order/email {::hf/tx (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
-            ;; (props :order/gender {::hf/options      (wip.orders-datascript/genders2 .)
-            ;;                       ;; ::hf/option-label (p/fn [v] (-> (d/entity hf/*$* v) :db/ident name))
-            ;;                       ::hf/tx (p/fn [_ctx v] (prn :saving v))})
             {(props :order/gender {::hf/options      (wip.orders-datascript/genders2 .)
-                                   ;; TODO option-label shouldn't get nil as value
-                                   ::hf/option-label (p/fn [v] (some-> (:db/ident v) name))
-                                   ::hf/tx (p/fn [{::hf/keys [entity attribute]} v]
-                                             (hf/Transact!. [[:db/add entity attribute v]]))
-                                   ::hf/render (p/fn [ctx]
-                                                 (p/client (dom/style {:z-index 1, :overflow "visible"}))
-                                                 (ttgui/Options. ctx)
-                                                 )
-                                   })
-             [:db/id :db/ident]}
-            {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
-                                   ::hf/option-label (p/fn [v] (name (:db/ident v)))})
-             [:db/id
-              (props :db/ident {::hf/as gender})]}
+                                   ::hf/option-label IdentName
+                                   ::hf/tx Tx})
+             [:db/id (props :db/ident {::hf/as gender})]}
             {(props :order/shirt-size {::hf/options      (wip.orders-datascript/shirt-sizes gender .)
-                                       ::hf/option-label (p/fn [v] (name (:db/ident v)))
-                                       ::hf/tx           (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
+                                       ::hf/option-label IdentName
+                                       ::hf/tx           Tx})
              [#_:db/id
               :db/ident]}
             :order/tags
@@ -64,16 +54,17 @@
           {(props (wip.orders-datascript/orders (props . {::hf/options (names)}))
              {::hf/height 3})
            [(props :db/id {::hf/link ['wip.orders-datascript/one-order %]})
-            (props :order/email {::hf/tx (p/fn [{e ::hf/entity, a ::hf/attribute} v] [[:db/add e a v]])})
+            (props :order/email {::hf/tx Tx})
             :order/email      ; duplicate, readonly, for checking the loop
             {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
-                                   ::hf/option-label (p/fn [v] (name (:db/ident v)))
-                                   ::hf/tx           (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
+                                   ::hf/option-label IdentName
+                                   ::hf/tx           Tx})
              [#_:db/id
               (props :db/ident {::hf/as gender})]}
             :order/tags
             {(props :order/shirt-size {::hf/options      (wip.orders-datascript/shirt-sizes gender .)
-                                       ::hf/option-label (p/fn [v] (name (:db/ident v)))})
+                                       ::hf/option-label IdentName
+                                       ::hf/tx Tx})
              [:db/ident]}
             ]})))))
 
