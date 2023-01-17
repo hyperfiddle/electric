@@ -1,5 +1,7 @@
 (ns wip.teeshirt-orders
-  (:require datascript.core
+  (:require contrib.ednish
+            clojure.edn
+            [datascript.core :as d]
             dev
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
@@ -26,6 +28,20 @@
           {order
            [(props :db/id {#_#_::hf/link ['wip.orders-datascript/one-order %]})
             (props :order/email {::hf/tx (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
+            ;; (props :order/gender {::hf/options      (wip.orders-datascript/genders2 .)
+            ;;                       ;; ::hf/option-label (p/fn [v] (-> (d/entity hf/*$* v) :db/ident name))
+            ;;                       ::hf/tx (p/fn [_ctx v] (prn :saving v))})
+            {(props :order/gender {::hf/options      (wip.orders-datascript/genders2 .)
+                                   ;; TODO option-label shouldn't get nil as value
+                                   ::hf/option-label (p/fn [v] (some-> (:db/ident v) name))
+                                   ::hf/tx (p/fn [{::hf/keys [entity attribute]} v]
+                                             (hf/Transact!. [[:db/add entity attribute v]]))
+                                   ::hf/render (p/fn [ctx]
+                                                 (p/client (dom/style {:z-index 1, :overflow "visible"}))
+                                                 (ttgui/Options. ctx)
+                                                 )
+                                   })
+             [:db/id :db/ident]}
             {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
                                    ::hf/option-label (p/fn [v] (name (:db/ident v)))})
              [:db/id

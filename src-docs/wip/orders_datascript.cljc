@@ -5,11 +5,18 @@
             [datascript.impl.entity :as de]  ; for `entity?` predicate
             [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.rcf :refer [tap % tests]]))
+            [hyperfiddle.rcf :refer [tap % tests]]
+            [clojure.string :as str]))
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (defn genders []
   (into [] (sort (d/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*))))
+
+(defn genders2 [needle]
+  (genders)
+  #_(into [] #_(filter #(and % (str/includes? % (or needle "")))) (doto (genders) prn)))
+
+(s/fdef genders2 :args (s/cat :needle string?) :ret (s/coll-of number?))
 
 (tests
   (genders) := [1 2])
