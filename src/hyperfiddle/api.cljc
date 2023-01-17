@@ -98,7 +98,7 @@
    (assoc state ::route identifier)))
 
 (defmacro router [Current-route navigate! navigate-back! replace-state! & body]
-  `(let [!path#         (m/mbx)
+  `(let [!path#         (missionary.core/mbx)
          route#         (new ~Current-route !path#)
          navigate#      ~navigate!
          navigate-back# ~navigate-back!
