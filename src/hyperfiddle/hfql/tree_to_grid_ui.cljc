@@ -2,6 +2,7 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql :as hfql]
+            [hyperfiddle.photon-dom :as dom1]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.spec :as spec]
             [clojure.datafy :refer [datafy]]
@@ -112,30 +113,21 @@
           "double"         (ui4/double   v       Tx (input-props readonly? grid-row grid-col dom-for))
           #_else           (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))
 
-;; NOTE: No default option renderer, to be handled by the summarizer (typeahead, tag picker, etc...)
-#_(p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx} value]
-  (let [value        (find-best-identity value)
-        options      (or options (::hf/options (::parent ctx)))
+(p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx}]
+  (let [options      (or options (::hf/options (::parent ctx)))
         option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
-        continuation (or continuation (::hf/continuation (::parent ctx)))
+        continuation (or continuation (::hf/continuation (::parent ctx)) Identity)
         tx           (or tx (::hf/tx (::parent ctx)))
         tx?          (some? tx)
-        dom-props    (data/select-ns :hyperfiddle.photon-dom ctx)
-        ]
-    (p/client
-      (let [v' (ui2/select (p/server (p/for [e (options.)]
-                                       (let [v (if continuation (hfql/JoinAllTheTree. (new continuation e)) e)]
-                                         {:text  (new option-label v)
-                                          :value (find-best-identity v)})))
-                 value
-                 (dom/props {::dom/role     "cell"
-                              ::dom/style    {:grid-row grid-row, :grid-column grid-col}
-                              ::dom/disabled (not tx?)})
-                 (dom/props dom-props))]
-        (when (and tx? (not= value v'))
-          (p/server
-            (let [ctx (if (::hf/tx ctx) ctx (::parent ctx))]
-              (when tx (tx. ctx v')))))))))
+        dom-props    (data/select-ns :hyperfiddle.photon-dom2 ctx)]
+    (ui4/typeahead (find-best-identity (hfql/JoinAllTheTree. ctx))
+      (if tx? (p/fn [v] (tx. ctx v)) Identity)
+      (p/fn [_] (options.))
+      (p/fn [id] (option-label. (hfql/JoinAllTheTree. (continuation. id))))
+      (dom/props {:role     "cell"
+                  :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
+                  :disabled (not tx?)})
+      (dom/props dom-props))))
 
 (p/defn Default [{::hf/keys [entity link link-label options option-label] :as ctx}]
   (let [route        (when link (new link))
@@ -146,7 +138,7 @@
         ]
     (cond
       (some? route)      (p/client (cell grid-row grid-col (hf/Link. route link-label)))
-      ;; (some? options)    (Options. ctx value)
+      (some? options)    (Options. ctx)
       (::value-type ctx) (Input. ctx)
       :else
       (p/client
@@ -201,19 +193,19 @@
            ~@body)))))
 
 ;; TODO adapt to new HFQL macroexpansion
-(p/defn Render-impl [{::hf/keys [type cardinality render Value] :as ctx}]
-  (if render
-    (p/client (cell grid-row grid-col (p/server (render. ctx))))
-    (case type
-      ::hf/leaf (SpecDispatch. ctx)
-      ::hf/keys (Form. ctx)
-      (case cardinality
-        ::hf/many (Table. ctx)
-        (let [v (Value.)]
-          (cond
-            (vector? v) (Table. ctx)
-            (map? v)    (Render. (assoc v ::parent ctx))
-            :else       (throw "unreachable" {:v v})))))))
+(p/defn Render-impl [{::hf/keys [type cardinality render Value options] :as ctx}]
+  (cond render  (p/client (cell grid-row grid-col (p/server (render. ctx))))
+        options (Options. ctx)
+        :else   (case type
+                  ::hf/leaf (SpecDispatch. ctx)
+                  ::hf/keys (Form. ctx)
+                  (case cardinality
+                    ::hf/many (Table. ctx)
+                    (let [v (Value.)]
+                      (cond
+                        (vector? v) (Table. ctx)
+                        (map? v)    (Render. (assoc v ::parent ctx))
+                        :else       (throw "unreachable" {:v v})))))))
 
 (defn height
   ([ctx] (height ctx (::value ctx)))
