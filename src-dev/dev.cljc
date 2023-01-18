@@ -59,7 +59,7 @@
                  :order/type       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
                  :order/tags       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
                  :db/ident         {:db/unique :db.unique/identity, :hf/valueType :db.type/keyword}}]
-    #?(:clj (alter-var-root #'hf/*$* (constantly -schema))
+    #?(:clj (alter-var-root #'schema (constantly -schema))
        :cljs (set! schema -schema)))
   ;(log/info "Initializing Test Database")
   (def conn (d/create-conn schema))
