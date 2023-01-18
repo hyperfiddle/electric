@@ -165,7 +165,7 @@
                #(map parse (str/split (.-gridTemplateColumns %) #"px\s"))
                #(parse (.-width %))
                #(parse (.-height %))
-               #(parse (.-gap %))
+               #(parse (.-gap ^js %))
                #(.getPropertyValue % "--hf-cell-border-color")
                ))))
 
