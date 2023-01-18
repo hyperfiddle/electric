@@ -13,13 +13,17 @@
   (into [] (sort (d/q '[:find [?e ...] :where [_ :order/gender ?e]] hf/*$*))))
 
 (defn genders2 [needle]
-  (genders)
-  #_(into [] #_(filter #(and % (str/includes? % (or needle "")))) (doto (genders) prn)))
+  (into [] (filter #(str/includes? (-> (d/entity hf/*$* %) :db/ident name) (or needle "")))
+    (genders)))
 
 (s/fdef genders2 :args (s/cat :needle string?) :ret (s/coll-of number?))
 
 (tests
   (genders) := [1 2])
+
+(tests
+  (set (genders2 "")) := #{1 2}
+  (set (genders2 "fe")) := #{2})
 
 (s/fdef shirt-sizes :args (s/cat :gender keyword?
                                  :needle string?)
