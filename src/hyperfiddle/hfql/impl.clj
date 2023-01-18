@@ -641,6 +641,7 @@
       (:node/form-type point)         (assoc ::hf/attribute (:node/symbolic-form point))
       (= :literal (:node/type point)) (assoc ::hf/attribute (:node/form point))
       (:input/path point)             (assoc ::hf/path (:input/path point))
+
       (seq args)                      (assoc ::hf/arguments (mapv (fn [arg]
                                                                     (let [path (:input/path arg)]
                                                                       [(:spec/name arg)
@@ -651,7 +652,14 @@
                                                                          (when-let [options (props ::hf/options arg)]
                                                                            {::hf/options      (add-scope-bindings options `(p/fn [] ~(emit-call options)))
                                                                             ::hf/option-label (:node/form (props ::hf/option-label arg))}))]))
-                                                        args)))))
+                                                              args))
+
+      (props ::hf/options point)      (assoc ::hf/options-arguments
+                                        (mapv (fn [arg]
+                                                [(:spec/name arg) {::hf/readonly (not (:node/free-input? arg))}])
+                                          (->> (props ::hf/options point) (arguments) (filter is-this-node-a-free-input-in-option-call?))))
+
+      )))
 
 (def ^:dynamic *bindings*)
 
