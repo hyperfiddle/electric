@@ -91,7 +91,7 @@
 
 ;; TODO more robust click-outside handling
 (p/defn CloseOnClickUnlessInput [return input-node]
-  (binding [dom1/node js/document]
+  (binding [dom1/node js/document] ; breaks if stopPropagation is called by non-local component
     (dom/on "click" (p/fn [e] (when (not= input-node (.-target e)) (return nil))))))
 
 (defmacro typeahead [v V! Options OptionLabel & body]
