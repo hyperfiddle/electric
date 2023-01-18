@@ -4,6 +4,7 @@
   (:refer-clojure :exclude [long double keyword symbol uuid range])
   (:require
     [contrib.str]
+    [clojure.string :as str]
     [hyperfiddle.photon :as p]
     [hyperfiddle.photon-dom2 :as dom]
     [hyperfiddle.photon-dom :as dom1]
@@ -103,7 +104,7 @@
                (let [input-node# dom1/node
                      return# (dom/on "focus"
                                (p/fn [_#]
-                                 (let [return# (m/dfv)
+                                 (let [return# (missionary.core/dfv)
                                        search# (new Latch (dom/on "input" (p/fn [e#] (.-target.value e#)))
                                                  (.-value input-node#))]
                                    (new CloseOnClickUnlessInput return# input-node#)
