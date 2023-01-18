@@ -58,7 +58,7 @@
    [::controlled-input user.demo-controlled-input/App]
    #_[::demo-stage-ui3 user.demo-stage-ui3/Demo]
    [::hfql-teeshirt-orders wip.teeshirt-orders/App] ; todo need nested router
-   #_[::explorer user.demo-7-explorer/App] ; todo needs nested router
+   [::explorer user.demo-7-explorer/App] ; todo needs nested router
    #_[::datomic-browser hyperfiddle.datomic-browser/App]
    #_[::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
    #_[::hfql user.demo-hfql/App]
