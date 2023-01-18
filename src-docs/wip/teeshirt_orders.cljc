@@ -56,7 +56,7 @@
            [(props :db/id {::hf/link ['wip.orders-datascript/one-order %]})
             (props :order/email {::hf/tx Tx})
             :order/email      ; duplicate, readonly, for checking the loop
-            {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
+            {(props :order/gender {::hf/options      (wip.orders-datascript/genders2 .)
                                    ::hf/option-label IdentName
                                    ::hf/tx           Tx})
              [#_:db/id

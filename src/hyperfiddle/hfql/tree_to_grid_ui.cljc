@@ -113,6 +113,10 @@
           "double"         (ui4/double   v       Tx (input-props readonly? grid-row grid-col dom-for))
           #_else           (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))
 
+(defn ->picker-type [ctx]
+  (cond (seq (::hf/options-arguments ctx)) ::typeahead
+        :else                              ::select))
+
 (p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx}]
   (let [options      (or options (::hf/options (::parent ctx)))
         option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
@@ -120,33 +124,31 @@
         tx           (or tx (::hf/tx (::parent ctx)))
         tx?          (some? tx)
         dom-props    (data/select-ns :hyperfiddle.photon-dom2 ctx)]
-    (ui4/typeahead (find-best-identity (hfql/JoinAllTheTree. ctx))
-      (if tx? (p/fn [v] (tx. ctx v)) Identity)
-      (p/fn [_] (options.))
-      (p/fn [id] (option-label. (hfql/JoinAllTheTree. (continuation. id))))
-      (dom/props {:role     "cell"
-                  :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
-                  :disabled (not tx?)})
-      (dom/props dom-props))))
+    (case (->picker-type ctx)
+      ::typeahead (ui4/typeahead (find-best-identity (hfql/JoinAllTheTree. ctx))
+                    (if tx? (p/fn [v] (tx. ctx v)) Identity)
+                    options
+                    (p/fn [id] (option-label. (hfql/JoinAllTheTree. (continuation. id))))
+                    (dom/props {:role     "cell"
+                                :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
+                                :disabled (not tx?)})
+                    (dom/props dom-props))
+      ::select (p/client (dom/div (dom/text "TODO ui4/select")
+                           (dom/props {:role     "cell"
+                                       :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
+                                       :disabled (not tx?)}))))))
 
-(p/defn Default [{::hf/keys [entity link link-label options option-label] :as ctx}]
+(p/defn Default [{::hf/keys [link link-label option-label] :as ctx}]
   (let [route        (when link (new link))
         value        (hfql/JoinAllTheTree. ctx)
-        options      (or options (::hf/options (::parent ctx)))
         option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
-        value        (option-label. value)
-        ]
+        value        (option-label. value)]
     (cond
       (some? route)      (p/client (cell grid-row grid-col (hf/Link. route link-label)))
-      (some? options)    (Options. ctx)
       (::value-type ctx) (Input. ctx)
-      :else
-      (p/client
-        (dom/pre
-          (dom/props {::dom/role  "cell"
-                       ::dom/style {:grid-row grid-row, :grid-column grid-col}})
-          (dom/text
-            (pr-str value)))))))
+      :else              (p/client
+                           (dom/pre (dom/text (pr-str value))
+                             (dom/props {:role  "cell", :style {:grid-row grid-row, :grid-column grid-col}}))))))
 
 (p/def Render)
 
