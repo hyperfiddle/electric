@@ -119,7 +119,9 @@
                                                                  (.preventDefault evt#) (.stopPropagation evt#)
                                                                  (return# (p/server (new V!# id#)))))))))))
                                    (new (p/task->cp return#)))))]
-                 (when (nil? return#) (let [txt# (p/server (new OptionLabel# v#))] (set! (.-value input-node#) txt#)))
+                 (case return#
+                   (let [txt# (p/server (new OptionLabel# v#))]
+                     (set! (.-value input-node#) txt#)))
                  return#))
              ~@body))))))
 
