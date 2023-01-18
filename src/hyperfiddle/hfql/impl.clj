@@ -594,11 +594,15 @@
 
 (declare emit-1)
 
+(defn is-this-node-a-free-input-in-option-call? [node]
+ (and (:node/free-input? node) (= ::hf/options (:prop/key (parent node)))))
+
 (defn scope-bindings "Return a toposorted list of lexical bindings in the scope of the given render point"
   [point]
   (->> (:node/_scope point)
     (filter (fn [n] (= :argument (:node/role n))))
     (remove (fn [n] (= 0 (:node/position n))))
+    (remove is-this-node-a-free-input-in-option-call?)
     (sort-by-rank)
     (mapcat (fn [point] [(:node/symbol point) (emit-1 point)]))))
 
@@ -611,11 +615,15 @@
 
 (declare emit-nodes emit-call)
 
+(defn emit-options [node]
+  (let [free-input? (some :node/free-input? (arguments node))]
+    (add-scope-bindings node `(p/fn [~@(when free-input? [E])] ~(emit-call node))))) ;; TODO add args here
+
 (defn emit-props "Emit a map of {prop-key prop-value} for a given render point." [point]
   (let [props-map (->> (props point)
                     (map (fn [{:keys [prop/key node/form] :as prop}]
                            [key (case key
-                                  ::hf/options (add-scope-bindings prop `(p/fn [] ~(emit-call prop)))
+                                  ::hf/options (emit-options prop)
                                   ::hf/link    (add-scope-bindings prop `(p/fn [] ~(emit-call prop)))
                                   ::hf/as      (list 'quote form)
                                   form)]))
@@ -633,6 +641,7 @@
       (:node/form-type point)         (assoc ::hf/attribute (:node/symbolic-form point))
       (= :literal (:node/type point)) (assoc ::hf/attribute (:node/form point))
       (:input/path point)             (assoc ::hf/path (:input/path point))
+
       (seq args)                      (assoc ::hf/arguments (mapv (fn [arg]
                                                                     (let [path (:input/path arg)]
                                                                       [(:spec/name arg)
@@ -643,7 +652,14 @@
                                                                          (when-let [options (props ::hf/options arg)]
                                                                            {::hf/options      (add-scope-bindings options `(p/fn [] ~(emit-call options)))
                                                                             ::hf/option-label (:node/form (props ::hf/option-label arg))}))]))
-                                                        args)))))
+                                                              args))
+
+      (props ::hf/options point)      (assoc ::hf/options-arguments
+                                        (mapv (fn [arg]
+                                                [(:spec/name arg) {::hf/readonly (not (:node/free-input? arg))}])
+                                          (->> (props ::hf/options point) (arguments) (filter is-this-node-a-free-input-in-option-call?))))
+
+      )))
 
 (def ^:dynamic *bindings*)
 
@@ -656,7 +672,11 @@
   (let [[f & args]    (arguments point)
         rendered-f    (or (:function/name f) (:node/form f))
         reactive?     (:function/reactive? f)
-        rendered-args (map (fn [node] `(new ~(:node/symbol node))) args)]
+        rendered-args (map (fn [node]
+                             ;; If parent is options and this is a free input, emit E, otherwise emit node name
+                             (if (is-this-node-a-free-input-in-option-call? node) ; TODO cleanup
+                               E
+                               `(new ~(:node/symbol node)))) args)]
     (if (:node/quoted? point)
       `(list* ~@(when reactive? ['new]) '~rendered-f [~@rendered-args])
       (if reactive?

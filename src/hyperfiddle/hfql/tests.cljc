@@ -132,7 +132,9 @@
                               hf/Render hfql/EdnRender]
                       (hfql [(props :order/shirt-size {::hf/render  Select-option-renderer
                                                        ::hf/options (shirt-sizes :order/female "")})]) ))))
-  % := {:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]]})
+  % := {:order/shirt-size [:select {:value nil} [:option 6] [:option 7] [:option 8]]}
+  % := {:order/shirt-size [:select {:value 8} [:option 6] [:option 7] [:option 8]]}
+  )
 
 (tests
   "hf/options can continue with parent pullexpr"
@@ -219,39 +221,46 @@
             :order/email  "charlie@example.com",
             :order/gender {:db/ident :order/male}}]})
 
+(p/defn Typeahead-option-renderer [{::hf/keys [Value options continuation] :as ctx}]
+  (into [:typeahead {:value (hfql/JoinAllTheTree. ctx)}]
+    (p/for [e (new options "small")]
+      [:option (if continuation (hfql/JoinAllTheTree. (new continuation e)) e)])))
+
 (tests
-    "free inputs"
-    (with (p/run (try (tap (binding [hf/db       hf/*$*
-                                     hf/*nav!*   nav!
-                                     hf/*schema* schema
-                                     hf/Render hfql/EdnRender]
-                             (hfql {(orders .) [{:order/gender [(props :db/ident {::hf/as gender})]}
-                                                {(props :order/shirt-size {::hf/render  Select-option-renderer
-                                                                           ::hf/options (shirt-sizes gender .)})
-                                                 [:db/ident]}]}) ) )
-                      (catch Pending _))))
-    % := {'(wip.orders-datascript/orders .)
-          [{:order/gender {:db/ident :order/female},
-            :order/shirt-size
-            [:select
-             {:value {:db/ident :order/womens-large}}
-             [:option {:db/ident :order/womens-small}]
-             [:option {:db/ident :order/womens-medium}]
-             [:option {:db/ident :order/womens-large}]]}
-           {:order/gender {:db/ident :order/male},
-            :order/shirt-size
-            [:select
-             {:value {:db/ident :order/mens-large}}
-             [:option {:db/ident :order/mens-small}]
-             [:option {:db/ident :order/mens-medium}]
-             [:option {:db/ident :order/mens-large}]]}
-           {:order/gender {:db/ident :order/male},
-            :order/shirt-size
-            [:select
-             {:value {:db/ident :order/mens-medium}}
-             [:option {:db/ident :order/mens-small}]
-             [:option {:db/ident :order/mens-medium}]
-             [:option {:db/ident :order/mens-large}]]}]})
+  "free inputs"
+  (with (p/run (try (tap (binding [hf/db       hf/*$*
+                                   hf/*nav!*   nav!
+                                   hf/*schema* schema
+                                   hf/Render hfql/EdnRender]
+                           (hfql {(orders .) [{:order/gender [(props :db/ident {::hf/as gender})]}
+                                              {(props :order/shirt-size {::hf/render  Typeahead-option-renderer
+                                                                         ::hf/options (shirt-sizes gender .)})
+                                               [:db/ident]}]}) ) )
+                    (catch Pending _))))
+  % := _
+  % := _
+  % := {'(wip.orders-datascript/orders .)
+   [{:order/gender {:db/ident :order/female},
+     :order/shirt-size
+     [:select
+      {:value {:db/ident :order/womens-large}}
+      [:option {:db/ident :order/womens-small}]
+      [:option {:db/ident :order/womens-medium}]
+      [:option {:db/ident :order/womens-large}]]}
+    {:order/gender {:db/ident :order/male},
+     :order/shirt-size
+     [:select
+      {:value {:db/ident :order/mens-large}}
+      [:option {:db/ident :order/mens-small}]
+      [:option {:db/ident :order/mens-medium}]
+      [:option {:db/ident :order/mens-large}]]}
+    {:order/gender {:db/ident :order/male},
+     :order/shirt-size
+     [:select
+      {:value {:db/ident :order/mens-medium}}
+      [:option {:db/ident :order/mens-small}]
+      [:option {:db/ident :order/mens-medium}]
+      [:option {:db/ident :order/mens-large}]]}]})
 
 (defn suber-name [e]
   (first (str/split (:order/email (d/entity hf/*$* e)) #"@" 2)))
@@ -511,3 +520,20 @@
 (comment
   (rcf/enable!))
 
+(comment
+
+  (hyperfiddle.hfql.impl/analyze '[(props :order/shirt-size {::hf/options (shirt-sizes :order/male .)})])
+  (hyperfiddle.hfql.impl/graph '[(props :order/shirt-size {::hf/options (shirt-sizes :order/male .)})])
+
+  (hfql/precompile [(props :order/shirt-size {::hf/options (shirt-sizes :order/male .)})]) 
+  )
+
+
+;; Is there such a thing as gray options?
+;; Yes options on gray inputs
+
+;; typing in the typeahead does not write to the route
+;; picking a value does
+
+;; can there be a typeahead with 2 free inputs?
+;; maybe it can but we don’t have a use case today
