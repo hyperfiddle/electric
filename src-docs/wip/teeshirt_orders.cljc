@@ -63,7 +63,7 @@
 
 (p/defn App []
   (p/client
-    (dom/h1 (dom/text "HFQL as a grid"))
+    (dom/h1 (dom/text "Teeshirt orders"))
     (binding [hf/db-name "$"
               hf/Link    (p/fn [[page eid] _] (router/Link. [page eid] eid) nil)]
       (p/server
@@ -78,15 +78,13 @@
                                     (catch Exception e (println "...failure, e: " e))))]
           (hf/branch
             (p/client
-              (let [[page & args] (::hf/route hf/route `(wip.orders-datascript/orders))]
+              (let [[page x & args] (::hf/route hf/route `(wip.orders-datascript/orders))]
                 (case page
                   wip.orders-datascript/orders    (OrdersPage.)
-                  wip.orders-datascript/one-order (let [[sub] args]
-                                                    (OneOrderPage. sub))
+                  wip.orders-datascript/one-order (OneOrderPage. x)
                   (dom/h2 (dom/text "Page not found")))))
             (p/client
-              (dom/hr)
-              (dom/element "style" (str "dustin-stage" " { display: block; width: 100%; height: 10em; }"))
+              (dom/element "style" (dom/text ".dustin-stage { display: block; width: 100%; height: 10em; }"))
               (ui4/edn (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class "dustin-stage"}))))))
       nil)))
 
