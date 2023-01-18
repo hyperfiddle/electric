@@ -52,14 +52,15 @@
 (def db-config {:store {:backend :mem, :id "default"}})
 
 (defn setup-db! []
-  (def schema
-    ;; FIXME Datascript doesn’t support :db/valueType, using :hf/valueType in the meantime
-    {:order/email      {:hf/valueType :db.type/string :db/cardinality :db.cardinality/one :db/unique :db.unique/identity}
-     :order/gender     {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
-     :order/shirt-size {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
-     :order/type       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
-     :order/tags       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
-     :db/ident         {:db/unique :db.unique/identity, :hf/valueType :db.type/keyword}})
+  ;; FIXME Datascript doesn’t support :db/valueType, using :hf/valueType in the meantime
+  (let [-schema {:order/email      {:hf/valueType :db.type/string :db/cardinality :db.cardinality/one :db/unique :db.unique/identity}
+                 :order/gender     {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+                 :order/shirt-size {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
+                 :order/type       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/one}
+                 :order/tags       {#_#_:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
+                 :db/ident         {:db/unique :db.unique/identity, :hf/valueType :db.type/keyword}}]
+    #?(:clj (alter-var-root #'hf/*$* (constantly -schema))
+       :cljs (set! schema -schema)))
   ;(log/info "Initializing Test Database")
   (def conn (d/create-conn schema))
   (let [$  (-> conn d/db fixtures)]
