@@ -26,6 +26,22 @@
 
 (comment (d/pull test/datomic-db ['*] cobblestone))
 
+#?(:clj (defn type-options [db & [needle]]
+          (->> (d/q '[:find (pull ?e [:db/ident]) :in $ ?needle :where
+                      [?e :db/ident ?ident]
+                      [(namespace ?ident) ?x-ns] [(= ?x-ns "label.type")]
+                      [(name ?ident) ?x-label]
+                      [(contrib.str/includes-str? ?x-label ?needle)]]
+                    db (or needle ""))
+               (map first))))
+
+(comment
+  (type-options test/datomic-db "")
+  (type-options test/datomic-db "prod")
+  (type-options test/datomic-db "bootleg")
+  (type-options test/datomic-db nil))
+
+
 (p/defn Form [e]
   (let [record (d/pull hf/db label-form-spec e)]
     (p/client
@@ -47,6 +63,17 @@
         (dom/dt (dom/text "sortName"))
         (dom/dd (ui/input (:label/sortName record)
                           (p/fn [v] (p/server (hf/Transact!. [[:db/add e :label/sortName v]])))))
+
+
+        (dom/dt (dom/text "type"))
+        (dom/dd (p/server
+                  (ui/typeahead
+                    (:label/type record)
+                    (p/fn V! [option] (hf/Transact!. [[:db/add e :label/type (:db/ident option)]]))
+                    (p/fn Options [search] (type-options hf/db search))
+                    (p/fn OptionLabel [option] (-> option :db/ident name)))))
+
+        ; country
 
         (dom/dt (dom/text "startYear"))
         (dom/dd (ui/long (:label/startYear record)
