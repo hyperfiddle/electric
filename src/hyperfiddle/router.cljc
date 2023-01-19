@@ -1,9 +1,9 @@
-(ns hyperfiddle.router2
+(ns hyperfiddle.router
   (:require [hyperfiddle.rcf :as rcf :refer [tests % tap with]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom])
   #?(:clj (:import [clojure.lang IRef IAtom]))
-  #?(:cljs (:require-macros hyperfiddle.router2)))
+  #?(:cljs (:require-macros hyperfiddle.router)))
 
 ;; TODO move bindings to hyperfiddle.api
 
