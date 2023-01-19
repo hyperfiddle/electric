@@ -118,25 +118,26 @@
         :else                              ::select))
 
 (p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx}]
-  (let [options      (or options (::hf/options (::parent ctx)))
+  (let [Options      (or options (::hf/options (::parent ctx)))
         option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
         continuation (or continuation (::hf/continuation (::parent ctx)) Identity)
         tx           (or tx (::hf/tx (::parent ctx)))
         tx?          (some? tx)
-        dom-props    (data/select-ns :hyperfiddle.photon-dom2 ctx)]
+        dom-props    (data/select-ns :hyperfiddle.photon-dom2 ctx)
+        v            (find-best-identity (hfql/JoinAllTheTree. ctx))
+        V!           (if tx? (p/fn [v] (tx. ctx v)) Identity)
+        OptionLabel  (p/fn [id] (option-label. (hfql/JoinAllTheTree. (continuation. id))))]
     (case (->picker-type ctx)
-      ::typeahead (ui4/typeahead (find-best-identity (hfql/JoinAllTheTree. ctx))
-                    (if tx? (p/fn [v] (tx. ctx v)) Identity)
-                    options
-                    (p/fn [id] (option-label. (hfql/JoinAllTheTree. (continuation. id))))
+      ::typeahead (ui4/typeahead v V! Options OptionLabel
                     (dom/props {:role     "cell"
                                 :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
                                 :disabled (not tx?)})
                     (dom/props dom-props))
-      ::select (p/client (dom/div (dom/text "TODO ui4/select")
-                           (dom/props {:role     "cell"
-                                       :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
-                                       :disabled (not tx?)}))))))
+      ::select    (ui4/select v V! Options OptionLabel
+                    (dom/props {:role     "cell"
+                                :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
+                                :disabled (not tx?)})
+                    (dom/props dom-props)))))
 
 (p/defn Default [{::hf/keys [link link-label option-label] :as ctx}]
   (let [route        (when link (new link))
