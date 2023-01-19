@@ -4,7 +4,8 @@
             [missionary.core :as m]
             #_[hyperfiddle.api :as-alias hf] ; cursive can't handle this, and a close read of the docs say this is still a cycle if it exists
             [clojure.spec.alpha :as s]
-            [hyperfiddle.rcf :as rcf :refer [tests with tap %]])
+            [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
+            [hyperfiddle.router2])
   #?(:cljs (:require-macros [hyperfiddle.hfql])))
 
 (defmacro precompile

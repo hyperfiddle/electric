@@ -6,7 +6,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             [hyperfiddle.photon-ui4 :as ui4]
-            [hyperfiddle.router :as router]
+            [hyperfiddle.router2 :as router]
             wip.orders-datascript
             [clojure.spec.alpha :as s])
   #?(:cljs (:require-macros [wip.teeshirt-orders])))
@@ -65,7 +65,7 @@
   (p/client
     (dom/h1 (dom/text "Teeshirt orders"))
     (binding [hf/db-name "$"
-              hf/Link    (p/fn [[page eid] _] (router/Link. [page eid] eid) nil)]
+              router/build-route (fn [state route] (update-in state router/path assoc ::route route))]
       (p/server
         (binding
             [hf/db           hf/*$*
@@ -78,7 +78,7 @@
                                     (catch Exception e (println "...failure, e: " e))))]
           (hf/branch
             (p/client
-              (let [[page x & args] (::hf/route hf/route `(wip.orders-datascript/orders))]
+              (let [[page x & args] (::route router/route `(wip.orders-datascript/orders))]
                 (case page
                   wip.orders-datascript/orders    (OrdersPage.)
                   wip.orders-datascript/one-order (OneOrderPage. x)

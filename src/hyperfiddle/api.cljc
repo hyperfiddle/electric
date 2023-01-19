@@ -31,94 +31,6 @@
 
 (p/def Render hfql/Render)
 
-(p/def !route (atom nil)) ; Atom holding current route, rebind it to introduce route scopes
-(p/def route (p/watch !route))
-(p/def path []) ; addresses a point in the route map, pass it to `get-in` to get value at path.
-(p/defn Get-in-route [path] (get-in (p/client route) path)) ; temporary, revisit once we settle on an HFQL friendly URL encoding
-
-(defn ^:no-doc route-cleanup [path m]
-  (let [cleanup (fn [m] (when m
-                          (not-empty
-                            (persistent!
-                              (reduce-kv (fn [r k v]
-                                           (if (data/nil-or-empty? v)
-                                             (dissoc! r k)
-                                             r)) (transient m) m)))))]
-    (case (count path)
-      0 (cleanup m)
-      1 (route-cleanup [] (update m (first path) cleanup))
-      (route-cleanup (butlast path) (update-in m path cleanup)))))
-
-(defn ^:no-doc update-in* [m ks f & args]
-  (if (empty? ks)
-    (apply f m args)
-    (apply update-in m ks f args)))
-
-(tests
-  (update-in  {:a 1} [] (constantly 1)) := {:a 1, nil 1}
-  (update-in* {:a 1} [] (constantly 1)) := 1)
-
-(defn ^:no-doc simplify-route [route]
-  (if (and (map? route)
-        (contains? route ::route)
-        (= 1 (count route)))
-    (::route route)
-    route))
-
-(defn ^:no-doc swap-route-impl [!route path f & args] (apply swap! !route update-in* path (comp (partial route-cleanup path) f) args))
-(p/def ^:no-doc swap-route-base)
-(p/def swap-route!)
-(defn ^:no-doc update-route-impl [!route path f & args] (apply update-in* @!route path (comp (partial route-cleanup path) f) args))
-(p/def ^:no-doc update-route-base)
-(p/def update-route)
-
-(p/defn BranchRoute [ident body]
-  (binding [path (conj path ident)]
-    (binding [route        (get route ident)
-              swap-route!  (partial swap-route-base path)
-              update-route (partial update-route-base path)]
-      (new body))))
-
-(defmacro branch-route [ident & body] `(new BranchRoute ~ident (p/fn [] ~@body))) ; focus-route? push-route-scope?
-
-(s/def ::route       (s/cat :ident qualified-ident? :args (s/* any?)))
-(s/def ::route-state (s/nilable map?))
-(s/def ::route-map   (s/nilable (s/keys :opt [::route])))
-
-(defn ->route
-  "Given an `sexpr` (a qualified keyword or symbol), and some optional `state` map, builds a route.
-  Also accepts an existing route map and check it conforms."
-  ([sexpr-or-route]
-   (s/assert* (s/or :ident ::route, :map ::route-map) sexpr-or-route)
-   (if (s/valid? ::route sexpr-or-route)
-     (->route sexpr-or-route nil)
-     sexpr-or-route))
-  ([identifier state]
-   (s/assert* ::route-state state)
-   (assoc state ::route identifier)))
-
-(defmacro router [Current-route navigate! navigate-back! replace-state! & body]
-  `(let [!path#         (missionary.core/mbx)
-         route#         (new ~Current-route !path#)
-         navigate#      ~navigate!
-         navigate-back# ~navigate-back!
-         replace-state# ~replace-state!]
-     (binding [navigate!      (partial navigate# !path#)
-               navigate-back! navigate-back#
-               !route         (atom (->route route#))]
-       (binding [route           (p/watch !route)
-                 swap-route-base (comp
-                                   (partial replace-state# !path#)
-                                   (partial swap-route-impl !route))
-                 update-route-base (partial update-route-impl !route)]
-         (binding [swap-route!  (partial swap-route-base path)
-                   update-route (partial update-route-base path)]
-           ~@body)))))
-
-(p/def navigate!) ; to inject a route setter (eg. write to url, html5 history pushState, swap an atom…)
-(p/def replace-route!)                  ; overwrite the current route
-(p/def navigate-back!)                  ; inverse of `navigate!`, to be injected
-
 ;;; Database
 
 (def db-state #?(:clj (atom nil))) ; Server side only
@@ -134,8 +46,6 @@
       card)))
 
 (p/defn entity []) ;; TODO HFQL only. Is a binding required? could it be an argument?
-
-(p/defn Link [args] args) ; inject how HFQL should generate a Link
 
 (p/defn tx "WIP, this default impl captures the essence" [v' props] ; meant to be called by a renderer
   ;; Does it return a tx or side-effect to the staging area?
