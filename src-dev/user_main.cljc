@@ -5,13 +5,13 @@
            [missionary Cancelled])
   (:require contrib.ednish
             contrib.uri ; data_readers
+            clojure.string
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon.debug :as dbg]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.router :as router]
-            [hyperfiddle.router-html5 :as html5]
-            [missionary.core :as m]
+            #?(:cljs [hyperfiddle.router-html5 :as html5])
             user.demo-entrypoint))
 
 ; application main is a separate .cljc file because p/server is not valid in user.cljs.
@@ -28,11 +28,15 @@
     route
     {::hf/route route}))
 
+(defn set-page-title! [route]
+  (set! (.-title js/document) (str (clojure.string/capitalize (name (first (::hf/route route)))) " - Hyperfiddle")))
+
 (p/defn Main []
   (try
     (binding [router/encode (comp contrib.ednish/encode-uri simplify-route)
               router/decode #(parse-route (or (contrib.ednish/decode-path % hf/read-edn-str) home-route))]
       (router/router (html5/HTML5-History.)
+        (set-page-title! router/route)
         (binding [dom/node (dom/by-id "root")]
           (p/server
             (user.demo-entrypoint/App. (p/client router/route))))))
