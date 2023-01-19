@@ -7,7 +7,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]
-            [hyperfiddle.router2 :as router]
+            [hyperfiddle.router :as router]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             [clojure.spec.alpha :as s]
             #?(:clj [clojure.java.io :as io]))

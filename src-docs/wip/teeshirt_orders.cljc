@@ -6,7 +6,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             [hyperfiddle.photon-ui4 :as ui4]
-            [hyperfiddle.router2 :as router]
+            [hyperfiddle.router :as router]
             wip.orders-datascript
             [clojure.spec.alpha :as s])
   #?(:cljs (:require-macros [wip.teeshirt-orders])))

@@ -14,7 +14,7 @@
             [hyperfiddle.scrollview :as sw]
             [hyperfiddle.rcf :refer [tests with % tap]]
             [missionary.core :as m]
-            [hyperfiddle.router2 :as router])
+            [hyperfiddle.router :as router])
   #?(:cljs (:require-macros [hyperfiddle.hfql.tree-to-grid-ui]))
   #?(:cljs (:refer-clojure :exclude [List])))
 

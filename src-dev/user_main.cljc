@@ -9,7 +9,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon.debug :as dbg]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.router2 :as router]
+            [hyperfiddle.router :as router]
             [hyperfiddle.router-html5 :as html5]
             [missionary.core :as m]
             user.demo-entrypoint))
