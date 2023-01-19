@@ -32,7 +32,7 @@
           {order
            [(props :db/id {#_#_::hf/link ['wip.orders-datascript/one-order %]})
             (props :order/email {::hf/tx (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
-            {(props :order/gender {::hf/options      (wip.orders-datascript/genders2 .)
+            {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
                                    ::hf/option-label IdentName
                                    ::hf/tx Tx})
              [:db/id (props :db/ident {::hf/as gender})]}
@@ -56,7 +56,7 @@
            [(props :db/id {::hf/link ['wip.orders-datascript/one-order %]})
             (props :order/email {::hf/tx Tx})
             :order/email      ; duplicate, readonly, for checking the loop
-            {(props :order/gender {::hf/options      (wip.orders-datascript/genders2 .)
+            {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
                                    ::hf/option-label IdentName
                                    ::hf/tx           Tx})
              [#_:db/id
