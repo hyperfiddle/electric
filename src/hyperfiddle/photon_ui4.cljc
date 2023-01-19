@@ -8,7 +8,8 @@
     [hyperfiddle.photon :as p]
     [hyperfiddle.photon-dom2 :as dom]
     [hyperfiddle.photon-dom :as dom1]
-    [hyperfiddle.photon-ui2 :as ui2 :refer [parse-edn parse-keyword parse-symbol parse-date]]))
+    [hyperfiddle.photon-ui2 :as ui2 :refer [parse-edn parse-keyword parse-symbol parse-date]]
+    [missionary.core :as m]))
 
 (defmacro handle [getter V!]
   `(p/fn [e#]
@@ -94,6 +95,9 @@
   (binding [dom1/node js/document] ; breaks if stopPropagation is called by non-local component
     (dom/on "click" (p/fn [e] (when (not= input-node (.-target e)) (return nil))))))
 
+;; TODO
+;; - keyboard
+;; - what if the change callback throws
 (defmacro typeahead [v V! Options OptionLabel & body]
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
      (p/client
@@ -105,7 +109,7 @@
                      return# (dom/on "focus"
                                (p/fn [_#]
                                  (let [return# (missionary.core/dfv)
-                                       search# (new Latch (dom/on "input" (p/fn [e#] (.-target.value e#)))
+                                       search# (new Latch (dom/on "input" (p/fn [e#] (value e#)))
                                                  (.-value input-node#))]
                                    (new CloseOnClickUnlessInput return# input-node#)
                                    (binding [dom1/node container-node#]
@@ -125,19 +129,32 @@
                  return#))
              ~@body))))))
 
-;; TODO
-;; - keyboard
-;; - what if the change callback throws
-
-;; tests
-#?(:clj (def -data {:alice "Alice B", :bob "Bob C", :charlie "Charlie D", :derek "Derek B"}))
-#?(:clj (defn q [search] (into [] (comp (filter #(or (empty? search) (str/includes? (second %) search))) (map first)) -data)))
-
-(p/defn TypeaheadDemo []
-  (p/server
-    (let [!v (atom :alice)]
-      (typeahead (p/watch !v) (p/fn [id] (prn [:picked id]) (reset! !v id))
-        (p/fn [search] (prn [:options search]) (q search))
-        (p/fn [e] (prn [:render e]) (get -data e))
-        ;; body
-        ))))
+(defmacro select [v V! Options OptionLabel & body]
+  `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
+     (p/client
+       (dom/div (dom/props {:class "hyperfiddle-select"})
+         (let [container-node# dom1/node]
+           (do1
+             (dom/input (dom/props {:style {:caret-color "transparent"}}) ; hides cursor
+               (dom/on "keydown" (p/fn [e#] (.preventDefault e#) (.stopPropagation e#))) ; inhibits typing
+               (let [input-node# dom1/node
+                     return# (dom/on "focus"
+                               (p/fn [_#]
+                                 (let [return# (missionary.core/dfv)]
+                                   (new CloseOnClickUnlessInput return# input-node#)
+                                   (binding [dom1/node container-node#]
+                                     (dom/ul
+                                       (p/server
+                                         (p/for [id# (new Options#)]
+                                           (p/client
+                                             (dom/div (dom/text (p/server (new OptionLabel# id#)))
+                                               (dom/on "click" (p/fn [evt#]
+                                                                 (dom/props {:style {:background-color "yellow"}})
+                                                                 (.preventDefault evt#) (.stopPropagation evt#)
+                                                                 (return# (p/server (new V!# id#)))))))))))
+                                   (new (p/task->cp return#)))))]
+                 (case return#
+                   (let [txt# (p/server (new OptionLabel# v#))]
+                     (set! (.-value input-node#) txt#)))
+                 return#))
+             ~@body))))))

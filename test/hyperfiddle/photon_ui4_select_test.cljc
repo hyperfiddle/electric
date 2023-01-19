@@ -1,5 +1,5 @@
-(ns hyperfiddle.photon-ui4-test
-  #?(:cljs (:require-macros hyperfiddle.photon-ui4-test))
+(ns hyperfiddle.photon-ui4-select-test
+  #?(:cljs (:require-macros hyperfiddle.photon-ui4-select-test))
   (:require
    #?(:cljs [hyperfiddle.ui.test :as uit])
    [hyperfiddle.photon-dom :as dom1]
@@ -16,28 +16,23 @@
            :bob     {:name "Bob C"}
            :charlie {:name "Charlie D"}
            :derek   {:name "Derek E"}})
-(defn q [search] (into [] (keep (fn [[k {nm :name}]] (when (str/includes? nm search) k))) data))
+(defn q [] [:alice :bob :charlie :derek])
 
-(tests
-  (q "B") := [:alice :bob]
-  (q "X") := [])
-
-#?(:cljs (defn get-input [tphd] (-> tphd (.getElementsByTagName "input") first)))
-#?(:cljs (defn get-option [tphd s]
-           (reduce #(when (= s (.-innerText %2)) (reduced %2)) nil (.querySelectorAll tphd "ul > div"))))
+#?(:cljs (defn get-input [select] (-> select (.getElementsByTagName "input") first)))
+#?(:cljs (defn get-option [select s] (some #(when (= s (.-innerText %)) %) (.querySelectorAll select "ul > div"))))
 
 #?(:cljs
    (tests "basic behavior"
-     (def !tphd (atom :missing))
+     (def !select (atom :missing))
      (def discard (p/run (try
                            (binding [dom1/node (dom1/by-id "root")]
                              (p/server
                                (let [!v (atom :alice)]
-                                 (ui/typeahead (p/watch !v)
+                                 (ui/select (p/watch !v)
                                    (p/fn [v] (p/client (tap [:V! v])) (reset! !v v))
-                                   (p/fn [search] (p/client (tap [:Options search])) (q search))
+                                   (p/fn [] (p/client (tap [:Options])) (q))
                                    (p/fn [id] (p/client (tap [:OptionLabel id])) (-> data id :name))
-                                   #_for-test (reset! !tphd dom1/node)))))
+                                   #_for-test (reset! !select dom1/node)))))
                            (catch Pending _)
                            (catch Cancelled _)
                            (catch :default e (prn e)))))
@@ -45,8 +40,8 @@
      "initially OptionLabel runs on the controlled value"
      % := [:OptionLabel :alice]
 
-     (def tphd @!tphd)
-     (def input (get-input tphd))
+     (def select @!select)
+     (def input (get-input select))
      (some? input) := true
 
      "input has the correct value"
@@ -54,16 +49,16 @@
 
      "when focused Options runs along with OptionLabel for each result"
      (uit/focus input)
-     % := [:Options "Alice B"]
-     % := [:OptionLabel :alice]
+     % := [:Options]
+     (hash-set % % % %) := #{[:OptionLabel :alice]
+                             [:OptionLabel :bob]
+                             [:OptionLabel :charlie]
+                             [:OptionLabel :derek]}
 
-     "when we clear the input we'll see a new Options query and the rest of the labels"
-     (uit/set-value! input "")
-     % := [:Options ""]
-     (hash-set % % %) := #{[:OptionLabel :bob] [:OptionLabel :charlie] [:OptionLabel :derek]}
+     "typing has no effect TODO"
 
      "when we click on an option V! runs, OptionLabel recalculates the new string and puts it into the input"
-     (uit/click (get-option tphd "Charlie D"))
+     (uit/click (get-option select "Charlie D"))
      % := [:V! :charlie]
      % := [:OptionLabel :charlie]
      (.-value input) := "Charlie D"
@@ -74,18 +69,18 @@
 
 #?(:cljs
    (tests "controlled value"
-     (def !tphd (atom :missing))
+     (def !select (atom :missing))
      (def !v (atom :alice))
      (def discard (p/run (try
                            (binding [dom1/node (dom1/by-id "root")]
                              (let [v (p/watch !v)]
                                (tap [:controlled-value v])
                                (p/server
-                                 (ui/typeahead v
+                                 (ui/select v
                                    (p/fn [v] (reset! !v v))
-                                   (p/fn [search] (q search))
+                                   (p/fn [] (q))
                                    (p/fn [id] (tap [:OptionLabel id]) (-> data id :name))
-                                   #_for-test (reset! !tphd dom1/node)))))
+                                   #_for-test (reset! !select dom1/node)))))
                            (catch Pending _)
                            (catch Cancelled _)
                            (catch :default e (prn e)))))
@@ -94,25 +89,26 @@
      % := [:controlled-value :alice]
      % := [:OptionLabel :alice]
 
-     (def tphd @!tphd)
-     (def input (get-input tphd))
+     (def select @!select)
+     (def input (get-input select))
      (some? input) := true
 
      "input has the correct value"
      (.-value input) := "Alice B"
 
-     "when picking OptionLabel runs for each result"
+     "when focused OptionLabel runs for each result"
      (uit/focus input)
-     % := [:OptionLabel :alice]
+     (hash-set % % % %) := #{[:OptionLabel :alice]
+                             [:OptionLabel :bob]
+                             [:OptionLabel :charlie]
+                             [:OptionLabel :derek]}
 
      "while picking controlled value changes have no effect"
      (reset! !v :bob)
      % := [:controlled-value :bob]      ; no OptionLabel call here
 
      "after picking we see new value flow through"
-     (uit/set-value! input "Charlie D")
-     % := [:OptionLabel :charlie]
-     (uit/click (get-option tphd "Charlie D"))
+     (uit/click (get-option select "Charlie D"))
      % := [:controlled-value :charlie]
      % := [:OptionLabel :charlie]
 
@@ -121,32 +117,30 @@
 
 #?(:cljs
    (tests "close when clicked outside"
-     (def !tphd (atom :missing))
+     (def !select (atom :missing))
      (def discard (p/run (try
                            (binding [dom1/node (dom1/by-id "root")]
                              (dom/div (dom/props {:id "click-outside"}) (dom/text "w/e"))
                              (p/server
                                (let [!v (atom :alice)]
-                                 (ui/typeahead (p/watch !v)
+                                 (ui/select (p/watch !v)
                                    (p/fn [v] (reset! !v v))
-                                   (p/fn [search] (q search))
+                                   (p/fn [] (q))
                                    (p/fn [id] (-> data id :name))
-                                   #_for-test (reset! !tphd dom1/node)))))
+                                   #_for-test (reset! !select dom1/node)))))
                            (catch Pending _)
                            (catch Cancelled _)
                            (catch :default e (prn e)))))
 
-     (def tphd @!tphd)
-     (def input (get-input tphd))
+     (def select @!select)
+     (def input (get-input select))
      (some? input) := true
 
      "input has the correct value"
      (.-value input) := "Alice B"
 
-     "when we click outside of an open typeahead it closes and reverts value"
+     "when we click outside of an open select it closes and reverts value"
      (uit/focus input)
-     (uit/set-value! input "")
-     (.-value input) := ""
      (uit/click (dom1/by-id "click-outside"))
      (.-value input) := "Alice B"
 
