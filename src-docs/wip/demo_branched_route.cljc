@@ -6,7 +6,7 @@
             [hyperfiddle.api :as hf]
             wip.orders-datascript
             [contrib.ednish :as ednish]
-            [hyperfiddle.router2 :as router]
+            [hyperfiddle.router :as router]
             [hyperfiddle.popover-ui2]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             wip.orders-datascript)

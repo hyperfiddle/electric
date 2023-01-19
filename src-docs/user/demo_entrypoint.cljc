@@ -3,7 +3,7 @@
   (:require [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.router2 :as router]
+            [hyperfiddle.router :as router]
             user.demo-1-hello-world
             user.demo-2-toggle
             user.demo-3-system-properties
