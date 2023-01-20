@@ -31,7 +31,7 @@
             wip.demo-branched-route
 
             ; these demos require datomic on classpath, disabled by default
-            user.demo-stage-ui3
+            #_user.demo-stage-ui3
             #_hyperfiddle.datomic-browser))
 
 (p/def pages
@@ -56,36 +56,40 @@
 (p/def secret-pages
   [[::color user.demo-color/App]
    [::controlled-input user.demo-controlled-input/App]
-   [::demo-stage-ui3 user.demo-stage-ui3/Demo]
-   [::hfql-teeshirt-orders wip.teeshirt-orders/App] ; todo need nested router
-   #_[::explorer user.demo-7-explorer/App] ; todo needs nested router
+   #_[::demo-stage-ui3 user.demo-stage-ui3/Demo]
+   [::hfql-teeshirt-orders wip.teeshirt-orders/App]
+   [::explorer user.demo-7-explorer/App]
    #_[::datomic-browser hyperfiddle.datomic-browser/App]
    #_[::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
    #_[::hfql user.demo-hfql/App]
    #_[::hfql2 wip.hfql/App]
    [::router wip.demo-branched-route/App]])
 
+(p/defn NotFoundPage []
+  (p/client
+    (dom/h1 (dom/text "Page not found"))))
+
 (p/defn App [route]
   (p/client
-    (let [[page & _args] (::hf/route route)]
+    (let [[page & _args] (::hf/route router/route)]
       (dom/div (dom/style {:width "90vw"})
         (case page
           :user-main/index
           (do (dom/h1 (dom/text "Photon Demos"))
               (dom/p (dom/text "See source code in src-docs."))
               (p/for [[k _] pages]
-                (dom/div (router/Link. [k] (name k))))
+                (dom/div (router/link {::hf/route [k]} (dom/text (name k)))))
               (dom/div (dom/style {:opacity 0})
-                (router/Link. [::secret-hyperfiddle-demos] "secret-hyperfiddle-demos")))
+                (router/link {::hf/route [::secret-hyperfiddle-demos]} (dom/text "secret-hyperfiddle-demos"))))
 
           ::secret-hyperfiddle-demos
           (do (dom/h1 "Hyperfiddle demos, unstable/wip")
               (dom/p "These may require a Datomic connection and are unstable, wip, often broken")
               (p/for [[k _] secret-pages]
-                (dom/div (router/Link. [k] (name k)))))
+                (dom/div (router/link {::hf/route [k]} (dom/text (name k))))))
 
           (p/server
-            (let [Page (get (into {} (concat pages secret-pages)) page)]
+            (let [Page (get (into {} (concat pages secret-pages)) page NotFoundPage)]
               (p/client
-                (hf/branch-route page
+                (router/router page
                   (p/server (new Page)))))))))))

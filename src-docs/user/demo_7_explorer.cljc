@@ -7,7 +7,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]
-            #?(:cljs [hyperfiddle.router :as router])
+            [hyperfiddle.router :as router]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             [clojure.spec.alpha :as s]
             #?(:clj [clojure.java.io :as io]))
@@ -27,6 +27,8 @@
 (defn get-absolute-path []
   (absolute-path "node_modules"))
 
+(def unicode-folder "\uD83D\uDCC2") ; 📂
+
 (p/defn App []
   (ttgui/with-gridsheet-renderer
     (binding [hf/db-name "$"]
@@ -35,11 +37,33 @@
         (binding [hf/*nav!*   (fn [db e a] (a (datafy e))) ;; FIXME db is specific, hfql should be general
                   hf/*schema* (constantly nil)] ;; FIXME this is datomic specific, hfql should be general
           (let [path (get-absolute-path)]
-            (hf/hfql {(list-files (props path {::dom/disabled true})) ;; FIXME forward props
-                      [::fs/name ;; TODO add links and indentation
-                       ::fs/modified
+            (hf/hfql {(props (list-files (props path {::dom/disabled true})) ;; FIXME forward props
+                             {::hf/height 30})
+                      [
+                       (props ::fs/name #_{::hf/render (p/fn [{::hf/keys [Value]}]
+                                                       (let [v (Value.)]
+                                                         (case (::fs/kind m)
+                                                           ::fs/dir (let [absolute-path (::fs/absolute-path m)]
+                                                                      (p/client (router/Link. [::fs/dir absolute-path] v)))
+                                                           (::fs/other ::fs/symlink ::fs/unknown-kind) v
+                                                           v #_(p/client (router/Link. [::fs/file x] v)))))})
+
+                       ;; TODO add links and indentation
+
+                       (props ::fs/modified {::hf/render (p/fn [{::hf/keys [Value]}]
+                                                           (p/client
+                                                             (dom/text
+                                                               (-> (p/server (Value.))
+                                                                   .toISOString
+                                                                   (.substring 0 10)))))})
                        ::fs/size
-                       ::fs/kind]})))))))
+                       (props ::fs/kind {::hf/render (p/fn [{::hf/keys [Value]}]
+                                                       (let [v (Value.)]
+                                                         (p/client
+                                                           (case v
+                                                             ::fs/dir (dom/text unicode-folder)
+                                                             (dom/text (some-> v name))))))})
+                       ]})))))))
 
 ;; Previous impl
 

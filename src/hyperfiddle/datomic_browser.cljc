@@ -10,7 +10,8 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.rcf :refer [tests]]
-            #?(:cljs [hyperfiddle.router :as router :refer [Link]])
+            [hyperfiddle.router :as router]
+            #?(:cljs [hyperfiddle.router-html5 :as html5])
             [missionary.core :as m]
             [clojure.string :as str])
   #?(:cljs (:require-macros hyperfiddle.datomic-browser))
@@ -34,7 +35,7 @@
   (binding [explorer/cols [:db/id :db/txInstant]
             explorer/Format (p/fn [[e _ v tx op :as record] a]
                               (case a
-                                :db/id (p/client (Link. [::tx tx] tx))
+                                :db/id (p/client (router/link [::tx tx] (dom/text tx)))
                                 :db/txInstant (pr-str v) #_(p/client (.toLocaleDateString v))))]
     (Explorer.
       "Recent Txs"
@@ -52,7 +53,7 @@
             explorer/Format (p/fn [row col]
                               (let [v (col row)]
                                 (case col
-                                  :db/ident (p/client (Link. [::attribute v] v))
+                                  :db/ident (p/client (router/link [::attribute v] (dom/text v)))
                                   :db/valueType (some-> v :db/ident name)
                                   :db/cardinality (some-> v :db/ident name)
                                   :db/unique (some-> v :db/ident name)
@@ -74,15 +75,15 @@
   (case col
     ::k (cond
           (= :db/id k) k ; :db/id is our schema extension, can't nav to it
-          (contains? schema k) (p/client (Link. [::attribute k] k))
+          (contains? schema k) (p/client (router/link [::attribute k] (dom/text k)))
           () (str k)) ; str is needed for Long db/id, why?
     ::v (if-not (coll? v) ; don't render card :many intermediate row
           (let [[valueType cardinality]
                 ((juxt (comp unqualify dx/identify :db/valueType)
                        (comp unqualify dx/identify :db/cardinality)) (k schema))]
             (cond
-              (= :db/id k) (p/client (Link. [::entity v] v))
-              (= :ref valueType) (p/client (Link. [::entity v] v))
+              (= :db/id k) (p/client (router/link [::entity v] (dom/text v)))
+              (= :ref valueType) (p/client (router/link [::entity v] (dom/text v)))
               () (pr-str v))))))
 
 #?(:clj
@@ -155,11 +156,11 @@
                               (when row ; when this view unmounts, somehow this fires as nil
                                 (case a
                                   ::op (name (case op true :db/add false :db/retract))
-                                  ::e (p/client (Link. [::entity e] e))
+                                  ::e (p/client (router/link [::entity e] (dom/text e)))
                                   ::a (if (some? aa)
                                         (:db/ident (new (p/task->cp (d/pull db {:eid aa :selector [:db/ident]})))))
                                   ::v (some-> v pr-str)
-                                  ::tx (p/client (Link. [::tx tx] tx))
+                                  ::tx (p/client (router/link [::tx tx] (dom/text tx)))
                                   ::tx-instant (pr-str (:db/txInstant (new (p/task->cp (d/pull db {:eid tx :selector [:db/txInstant]})))))
                                   (str v))))]
     (Explorer.
@@ -177,10 +178,10 @@
   (binding [explorer/cols [:e :a :v :tx]
             explorer/Format (p/fn [[e _ v tx op :as x] k]
                               (case k
-                                :e (p/client (Link. [::entity e] e))
+                                :e (p/client (router/link [::entity e] (dom/text e)))
                                 :a (pr-str a) #_(let [aa (new (p/task->cp (dx/ident! db aa)))] aa)
                                 :v (some-> v pr-str) ; when a is ref, render link
-                                :tx (p/client (Link. [::tx tx] tx))))]
+                                :tx (p/client (router/link [::tx tx] (dom/text tx)))))]
     (Explorer.
       (str "Attribute detail: " a)
       (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [a]})
@@ -195,8 +196,8 @@
   (binding [explorer/cols [:e :a :v :tx]
             explorer/Format (p/fn [[e aa v tx op :as x] a]
                               (case a
-                                :e (let [e (new (p/task->cp (dx/ident! db e)))] (p/client (Link. [::entity e] e)))
-                                :a (let [aa (new (p/task->cp (dx/ident! db aa)))] (p/client (Link. [::attribute aa] aa)))
+                                :e (let [e (new (p/task->cp (dx/ident! db e)))] (p/client (router/link [::entity e] (dom/text e))))
+                                :a (let [aa (new (p/task->cp (dx/ident! db aa)))] (p/client (router/link [::attribute aa] (dom/text aa))))
                                 :v (pr-str v) ; when a is ref, render link
                                 (str tx)))]
     (Explorer.
@@ -227,9 +228,9 @@
   (dom/div {:class "user-datomic-browser"}
     (dom/pre (pr-str route))
     (dom/div "Nav: "
-      (Link. [::summary] "home") " "
-      (Link. [::db-stats] "db-stats") " "
-      (Link. [::recent-tx] "recent-tx"))
+      (router/link [::summary] (dom/text "home")) " "
+      (router/link [::db-stats] (dom/text "db-stats")) " "
+      (router/link [::recent-tx] (dom/text "recent-tx")))
     (p/server
       (case page
         ::summary (Attributes.)
@@ -254,6 +255,7 @@
     (binding [db (d/db conn)]
       (binding [schema (new (dx/schema> db))]
         (p/client
-          (let [!path (m/mbx)]
-            (binding [Link (router/->Link. !path encode-path)]
-              (Page. (decode-path (router/path !path))))))))))
+          (binding [router/encode contrib.ednish/encode-uri
+                    router/decode decode-path]
+            (router/router (html5/HTML5-History.)
+              (Page. router/route))))))))
