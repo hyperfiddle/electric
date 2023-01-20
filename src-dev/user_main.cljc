@@ -5,27 +5,41 @@
            [missionary Cancelled])
   (:require contrib.ednish
             contrib.uri ; data_readers
+            clojure.string
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon.debug :as dbg]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.router :as router]
-            [missionary.core :as m]
+            #?(:cljs [hyperfiddle.router-html5 :as html5])
             user.demo-entrypoint))
 
 ; application main is a separate .cljc file because p/server is not valid in user.cljs.
 
-(def home-route [::index])
+(def home-route {::hf/route [::index]})
+
+(defn simplify-route [route]
+  (if (and (= 1 (count route)) (contains? route ::hf/route))
+    (::hf/route route)
+    route))
+
+(defn parse-route [route]
+  (if (map? route)
+    route
+    {::hf/route route}))
+
+(defn set-page-title! [route]
+  (set! (.-title js/document) (str (clojure.string/capitalize (name (first (::hf/route route)))) " - Hyperfiddle")))
 
 (p/defn Main []
   (try
-    (router/html5-router
-      (p/fn [route] (or route home-route))
-      (binding [dom/node (dom/by-id "root")]
-
-        (p/server
-          #_(wip.teeshirt-orders/App.)
-          (user.demo-entrypoint/App. (p/client hf/route)))))
+    (binding [router/encode (comp contrib.ednish/encode-uri simplify-route)
+              router/decode #(parse-route (or (contrib.ednish/decode-path % hf/read-edn-str) home-route))]
+      (router/router (html5/HTML5-History.)
+        (set-page-title! router/route)
+        (binding [dom/node (dom/by-id "root")]
+          (p/server
+            (user.demo-entrypoint/App. (p/client router/route))))))
 
     (catch Pending _)
     (catch Cancelled e (throw e))

@@ -14,7 +14,8 @@
             [hyperfiddle.photon-ui4 :as ui4]
             [hyperfiddle.scrollview :as sw]
             [hyperfiddle.rcf :refer [tests with % tap]]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [hyperfiddle.router :as router])
   #?(:cljs (:require-macros [hyperfiddle.hfql.tree-to-grid-ui]))
   #?(:cljs (:refer-clojure :exclude [List])))
 
@@ -62,11 +63,6 @@
 ;; ----
 
 (p/def table-picker-options {::group-id nil, ::current-value nil}),
-
-;; (dom/a
-;;   (dom/props {::dom/href (str "#" (ednish/encode-uri link))})
-;;   (dom/event "click" (fn [e] (.preventDefault e) (hf/navigate! link)))
-;;   (dom/text value))
 
 (p/def grid-width 2) ; TODO infer from ctx
 
@@ -145,7 +141,7 @@
         option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
         value        (option-label. value)]
     (cond
-      (some? route)      (p/client (cell grid-row grid-col (hf/Link. route link-label)))
+      (some? route)      (p/client (cell grid-row grid-col (router/link route (dom/text value))))
       (::value-type ctx) (Input. ctx)
       :else              (p/client
                            (dom/pre (dom/text (pr-str value))
@@ -301,7 +297,7 @@
 
         (case (spec/type-of spec name)
           ;; "checkbox" ()
-          #_else (ui4/input value (p/fn [v] (hf/swap-route! #(hf/route-cleanup (butlast path) (assoc-in % path v))) nil)
+          #_else (ui4/input value (p/fn [v] (router/swap-route! assoc-in path v) nil)
                    (dom/props {::dom/id    id
                                 ::dom/role  "cell"
                                 ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
