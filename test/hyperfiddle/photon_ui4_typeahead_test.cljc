@@ -24,7 +24,7 @@
 
 #?(:cljs (defn get-input [tphd] (-> tphd (.getElementsByTagName "input") first)))
 #?(:cljs (defn get-option [tphd s]
-           (reduce #(when (= s (.-innerText %2)) (reduced %2)) nil (.querySelectorAll tphd "ul > div"))))
+           (reduce #(when (= s (.-innerText %2)) (reduced %2)) nil (.querySelectorAll tphd "ul > li"))))
 
 #?(:cljs
    (tests "basic behavior"
@@ -124,7 +124,6 @@
      (def !tphd (atom :missing))
      (def discard (p/run (try
                            (binding [dom1/node (dom1/by-id "root")]
-                             (dom/div (dom/props {:id "click-outside"}) (dom/text "w/e"))
                              (p/server
                                (let [!v (atom :alice)]
                                  (ui/typeahead (p/watch !v)
@@ -147,7 +146,7 @@
      (uit/focus input)
      (uit/set-value! input "")
      (.-value input) := ""
-     (uit/click (dom1/by-id "click-outside"))
+     (uit/click (.querySelector js/document ".hyperfiddle-modal-backdrop"))
      (.-value input) := "Alice B"
 
      (discard)

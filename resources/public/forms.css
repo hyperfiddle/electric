@@ -66,18 +66,11 @@ table {
     cursor: pointer;
 }
 
-.hyperfiddle-select .hyperfiddle-modal-backdrop
-, .hyperfiddle-typeahead .hyperfiddle-modal-backdrop
-{
-    display: none;
-}
-
-.hyperfiddle-select:focus-within .hyperfiddle-modal-backdrop
-, .hyperfiddle-typeahead:focus-within .hyperfiddle-modal-backdrop
+.hyperfiddle-modal-backdrop
 {
     display: block;
-    background-color: pink;
-    opacity: 0.1;
+    /* background-color: pink; */
+    /* opacity: 0.1; */
     position: fixed;
     top:0;
     bottom:0;
