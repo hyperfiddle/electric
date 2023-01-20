@@ -31,10 +31,6 @@ body{
 
     position: relative;
 
-
-    overflow-y: auto; /* scroll if needed, js code will shift the background-gradient’s position  */
-    overflow-x:hidden;
-
     box-sizing: border-box; /* nested scrollbars do not add to the width */
 
 }
@@ -83,7 +79,6 @@ body{
     margin: 0;
     box-sizing:border-box;
     white-space: nowrap;
-    overflow: hidden;
 
     height: 100%;
 
