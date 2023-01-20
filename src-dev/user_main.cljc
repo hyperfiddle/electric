@@ -28,8 +28,9 @@
     route
     {::hf/route route}))
 
-(defn set-page-title! [route]
-  (set! (.-title js/document) (str (clojure.string/capitalize (name (first (::hf/route route)))) " - Hyperfiddle")))
+#?(:cljs
+   (defn set-page-title! [route]
+     (set! (.-title js/document) (str (clojure.string/capitalize (name (first (::hf/route route)))) " - Hyperfiddle"))))
 
 (p/defn Main []
   (try
