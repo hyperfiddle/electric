@@ -90,11 +90,6 @@
 ;; TODO nil
 (p/defn Latch [impulse init] (p/with-cycle [v init] (if (some? impulse) impulse v)))
 
-;; TODO more robust click-outside handling
-(p/defn CloseOnClickUnlessInput [return input-node]
-  (binding [dom1/node js/document] ; breaks if stopPropagation is called by non-local component
-    (dom/on "click" (p/fn [e] (when (not= input-node (.-target e)) (return nil))))))
-
 ;; TODO
 ;; - keyboard
 ;; - what if the change callback throws
@@ -102,7 +97,6 @@
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
      (p/client
        (dom/div (dom/props {:class "hyperfiddle-typeahead"})
-         (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"}))
          (let [container-node# dom1/node]
            (do1
              (dom/input
@@ -112,8 +106,9 @@
                                  (let [return# (missionary.core/dfv)
                                        search# (new Latch (dom/on "input" (p/fn [e#] (value e#)))
                                                  (.-value input-node#))]
-                                   (new CloseOnClickUnlessInput return# input-node#)
                                    (binding [dom1/node container-node#]
+                                     (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
+                                       (dom/on "click" (p/fn [e#] (return# nil))))
                                      (dom/ul
                                        (p/server
                                          (p/for [id# (new Options# search#)]
@@ -134,7 +129,6 @@
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
      (p/client
        (dom/div (dom/props {:class "hyperfiddle-select"})
-         (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"}))
          (let [container-node# dom1/node]
            (do1
              (dom/input (dom/props {:style {:caret-color "transparent"}}) ; hides cursor
@@ -143,8 +137,9 @@
                      return# (dom/on "focus"
                                (p/fn [_#]
                                  (let [return# (missionary.core/dfv)]
-                                   (new CloseOnClickUnlessInput return# input-node#)
                                    (binding [dom1/node container-node#]
+                                     (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
+                                       (dom/on "click" (p/fn [e#] (return# nil))))
                                      (dom/ul
                                        (p/server
                                          (p/for [id# (new Options#)]

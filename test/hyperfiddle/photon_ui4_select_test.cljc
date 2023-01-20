@@ -19,7 +19,7 @@
 (defn q [] [:alice :bob :charlie :derek])
 
 #?(:cljs (defn get-input [select] (-> select (.getElementsByTagName "input") first)))
-#?(:cljs (defn get-option [select s] (some #(when (= s (.-innerText %)) %) (.querySelectorAll select "ul > div"))))
+#?(:cljs (defn get-option [select s] (some #(when (= s (.-innerText %)) %) (.querySelectorAll select "ul > li"))))
 
 #?(:cljs
    (tests "basic behavior"
@@ -120,7 +120,6 @@
      (def !select (atom :missing))
      (def discard (p/run (try
                            (binding [dom1/node (dom1/by-id "root")]
-                             (dom/div (dom/props {:id "click-outside"}) (dom/text "w/e"))
                              (p/server
                                (let [!v (atom :alice)]
                                  (ui/select (p/watch !v)
@@ -141,7 +140,7 @@
 
      "when we click outside of an open select it closes and reverts value"
      (uit/focus input)
-     (uit/click (dom1/by-id "click-outside"))
+     (uit/click (.querySelector js/document ".hyperfiddle-modal-backdrop"))
      (.-value input) := "Alice B"
 
      (discard)
