@@ -125,7 +125,7 @@
                                    (new (p/task->cp return#)))))]
                  (case return#
                    (let [txt# (p/server (new OptionLabel# v#))]
-                     (set! (.-value input-node#) txt#)))
+                     (case return# (set! (.-value input-node#) txt#))))
                  return#))
              ~@body))))))
 
@@ -155,6 +155,6 @@
                                    (new (p/task->cp return#)))))]
                  (case return#
                    (let [txt# (p/server (new OptionLabel# v#))]
-                     (set! (.-value input-node#) txt#)))
+                     (case return# (set! (.-value input-node#) txt#))))
                  return#))
              ~@body))))))
