@@ -28,3 +28,60 @@ table {
     table-layout: fixed;
     border-collapse: collapse;
 }
+
+
+.hyperfiddle-select
+, .hyperfiddle-typeahead
+{
+    /* background-color: red; */
+    position: relative;
+}
+.hyperfiddle-select > ul
+, .hyperfiddle-typeahead > ul
+{
+    margin: 0;
+    padding: 0.25rem 0;
+    position:relative;
+    z-index: 2;
+    list-style-type: none;
+    background-color: white;
+    box-shadow: 0 0.5rem 1rem gray;
+
+    display: grid;
+    grid-gap: var(--hf-grid-gap);
+}
+
+.hyperfiddle-select > ul > li
+, .hyperfiddle-typeahead > ul > li
+{
+    height: var(--hf-grid-row-height);
+    padding: 0 0.5rem;
+
+}
+
+.hyperfiddle-select > ul > li:hover
+, .hyperfiddle-typeahead > ul > li:hover
+{
+    background-color: whitesmoke;
+    cursor: pointer;
+}
+
+.hyperfiddle-select .hyperfiddle-modal-backdrop
+, .hyperfiddle-typeahead .hyperfiddle-modal-backdrop
+{
+    display: none;
+}
+
+.hyperfiddle-select:focus-within .hyperfiddle-modal-backdrop
+, .hyperfiddle-typeahead:focus-within .hyperfiddle-modal-backdrop
+{
+    display: block;
+    background-color: pink;
+    opacity: 0.1;
+    position: fixed;
+    top:0;
+    bottom:0;
+    left:0;
+    right:0;
+    z-index:1;
+}
