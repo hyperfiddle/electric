@@ -102,6 +102,7 @@
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
      (p/client
        (dom/div (dom/props {:class "hyperfiddle-typeahead"})
+         (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"}))
          (let [container-node# dom1/node]
            (do1
              (dom/input
@@ -117,7 +118,7 @@
                                        (p/server
                                          (p/for [id# (new Options# search#)]
                                            (p/client
-                                             (dom/div (dom/text (p/server (new OptionLabel# id#)))
+                                             (dom/li (dom/text (p/server (new OptionLabel# id#)))
                                                (dom/on "click" (p/fn [evt#]
                                                                  (dom/props {:style {:background-color "yellow"}})
                                                                  (.preventDefault evt#) (.stopPropagation evt#)
@@ -133,6 +134,7 @@
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
      (p/client
        (dom/div (dom/props {:class "hyperfiddle-select"})
+         (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"}))
          (let [container-node# dom1/node]
            (do1
              (dom/input (dom/props {:style {:caret-color "transparent"}}) ; hides cursor
@@ -147,7 +149,7 @@
                                        (p/server
                                          (p/for [id# (new Options#)]
                                            (p/client
-                                             (dom/div (dom/text (p/server (new OptionLabel# id#)))
+                                             (dom/li (dom/text (p/server (new OptionLabel# id#)))
                                                (dom/on "click" (p/fn [evt#]
                                                                  (dom/props {:style {:background-color "yellow"}})
                                                                  (.preventDefault evt#) (.stopPropagation evt#)
