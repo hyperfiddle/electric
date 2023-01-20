@@ -27,29 +27,12 @@
               (binding [hf/entity order]
                 (hf/hfql {(wip.orders-datascript/orders .) [:db/id]}))))))))
   (dom/hr)
-  (hyperfiddle.popover-ui2/popover ::left "Recur Left" (Page.))
-  (hyperfiddle.popover-ui2/popover ::right "Recur Right" (Page.)))
-
-(defn html5-navigate! [!path route]
-  #?(:cljs (if-some [route (hf/simplify-route route)]
-             (do (router/pushState! !path (ednish/encode-uri route))
-                 (when-some [title (if (qualified-ident? route) route (::hf/route route))]
-                   (set! js/document.title (pr-str title))))
-             (router/pushState! !path "/"))))
-
-(defn html5-replace-state! [!path route]
-  #?(:cljs (router/replaceState! !path (if-some [route (hf/simplify-route route)]
-                                         (ednish/encode-uri route)
-                                         "/"))))
+  (router/router ::left  (hyperfiddle.popover-ui2/popover "Recur Left" (Page.)))
+  (router/router ::right (hyperfiddle.popover-ui2/popover "Recur Right" (Page.))))
 
 (p/defn App []
   (hf/branch
     (p/client
-      (hf/router
-        (p/fn [!path] (ednish/decode-path (router/path !path) hf/read-edn-str))
-        html5-navigate!
-        #(.back js/window.history)
-        html5-replace-state!
-        (binding [Page Page-impl]
-          (Page.))))))
+      (binding [Page Page-impl]
+        (Page.)))))
 

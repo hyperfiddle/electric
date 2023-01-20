@@ -1,0 +1,20 @@
+.hyperfiddle.popover-wrapper{
+    display: inline-block;
+    position: relative;
+}
+
+.hyperfiddle.popover-body{
+    position: absolute;
+    z-index: 2;
+    width: max-content;
+
+    border: 1px pink solid;
+    padding: 0.5rem;
+    background-color: rgb(248 250 252);
+    box-shadow: 0 0 1rem lightgray;
+}
+
+.hyperfiddle.popover-body:focus-within{
+    /* NOTE popover is itself focusable so a click brings it to the top */
+    z-index:3;
+}
