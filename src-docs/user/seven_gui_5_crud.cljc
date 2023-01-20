@@ -11,8 +11,8 @@
 ;;; App state
 
 (def !state (atom {:selected nil
-                   :stage    {:name    nil
-                              :surname nil}
+                   :stage    {:name    ""
+                              :surname ""}
                    :names    (sorted-map 0 {:name "Emil", :surname "Hans"})}))
 
 ;;; Business logic
@@ -31,7 +31,7 @@
 (defn create! [] (swap! !state (fn [{:keys [stage] :as state}]
                                  (-> state
                                      (update :names assoc (next-id) stage)
-                                     (assoc :stage {:name nil, :surname nil})))))
+                                     (assoc :stage {:name "", :surname ""})))))
 (defn delete! [] (swap! !state (fn [{:keys [selected] :as state}] (update state :names dissoc selected))))
 (defn update! [] (swap! !state (fn [{:keys [selected stage] :as state}]
                                  (assoc-in state [:names selected] stage))))
