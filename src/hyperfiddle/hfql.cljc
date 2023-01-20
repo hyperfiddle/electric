@@ -58,7 +58,7 @@
 (p/def Render JoinAllTheTree)
 
 ;; FIXME this is just m/signal in next reactor iteration
-(p/defn ^:no-doc Share [init flow]  ; HACK init value should not be needed
+#_(p/defn ^:no-doc Share [init flow]  ; HACK init value should not be needed
   (let [!subscribers (atom #{})
         !value       (atom init)
         !err         (atom nil)
@@ -79,6 +79,8 @@
         (throw err)
         (p/watch !value)) ; this sees `init` for 1 frame
       )))
+
+(p/defn Share [init flow] flow)
 
 (comment
   (tests
