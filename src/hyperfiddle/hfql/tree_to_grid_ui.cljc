@@ -271,7 +271,7 @@
     (cons (symbol (field-name (first attr))) (seq (::spec/keys (clojure.datafy/datafy (spec/args (first attr))))) )
     (name attr)))
 
-(p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options ::hf/option-label] :as arg}]]
+(p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options ::hf/option-label ::hf/readonly] :as arg}]]
   (let [value    (read.)
         options? (some? options)]
     (p/client
@@ -288,21 +288,23 @@
                                        :grid-column grid-col
                                        :color       :gray}})
             (dom/text (str (non-breaking-padder indentation) (field-name  name)))))
-        (when options?
-          (dom/datalist (dom/props {::dom/id list-id})
-            (p/server (let [labelf (or option-label (p/fn [x] x))]
-                        (p/for [x (options.)]
-                          (let [text (labelf. x)]
-                            (p/client (dom/option (dom/text text)))))))))
-
-        (case (spec/type-of spec name)
-          ;; "checkbox" ()
-          #_else (ui4/input value (p/fn [v] (router/swap-route! assoc-in path v) nil)
-                   (dom/props {::dom/id    id
-                                ::dom/role  "cell"
-                                ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
-                   (when (seq props) (dom/props props))
-                   (when options? (dom/props {::dom/list list-id}))))
+        (if options?
+          ;; FIXME Call Options
+          (p/server (ui4/select value (p/fn [v] (p/client (router/swap-route! assoc-in path v)))
+                      options
+                      (or option-label Identity)
+                      (dom/props {:id list-id
+                                  :role     "cell"
+                                  :style    {:grid-row grid-row, :grid-column (inc grid-col)}
+                                  :disabled readonly})))
+          (case (spec/type-of spec name)
+            ;; "checkbox" ()
+            #_else (ui4/input value (p/fn [v] (router/swap-route! assoc-in path v) nil)
+                     (dom/props {::dom/id    id
+                                 ::dom/role  "cell"
+                                 ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
+                     (when (seq props) (dom/props props))
+                     (when options? (dom/props {::dom/list list-id})))))
         value))))
 
 (defn apply-1 [n F args]
