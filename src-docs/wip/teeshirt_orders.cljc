@@ -13,7 +13,7 @@
             [clojure.spec.alpha :as s])
   #?(:cljs (:require-macros [wip.teeshirt-orders])))
 
-(defn names [] ["alice" "bob" "charlie"])
+(defn names [] ["" "alice" "bob" "charlie"])
 (s/fdef names :ret (s/coll-of names))
 
 ;; TODO option-label shouldn't get nil as value
