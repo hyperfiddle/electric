@@ -110,8 +110,9 @@
           #_else           (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))
 
 (defn ->picker-type [ctx]
-  (cond (seq (::hf/options-arguments ctx)) ::typeahead
-        :else                              ::select))
+  (cond (seq (::hf/options-arguments ctx))            ::typeahead
+        (seq (::hf/options-arguments (::parent ctx))) ::typeahead
+        :else                                         ::select))
 
 (p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx}]
   (let [Options      (or options (::hf/options (::parent ctx)))
@@ -135,17 +136,20 @@
                                 :disabled (not tx?)})
                     (dom/props dom-props)))))
 
-(p/defn Default [{::hf/keys [link link-label option-label] :as ctx}]
-  (let [route        (when link (new link))
-        value        (hfql/JoinAllTheTree. ctx)
-        option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
-        value        (option-label. value)]
-    (cond
-      (some? route)      (p/client (cell grid-row grid-col (router/link route (dom/text value))))
-      (::value-type ctx) (Input. ctx)
-      :else              (p/client
-                           (dom/pre (dom/text (pr-str value))
-                             (dom/props {:role  "cell", :style {:grid-row grid-row, :grid-column grid-col}}))))))
+(p/defn Default [{::hf/keys [link link-label option-label options] :as ctx}]
+  (if (or options (::hf/options (::parent ctx)))
+    (Options. ctx)
+    (let [route        (when link (new link))
+          value        (hfql/JoinAllTheTree. ctx)
+          option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
+          value        (option-label. value)]
+      (cond
+        (some? route)      (p/client (cell grid-row grid-col (router/link route (dom/text value))))
+        (some? options)    (Options. ctx)
+        (::value-type ctx) (Input. ctx)
+        :else              (p/client
+                             (dom/pre (dom/text (pr-str value))
+                               (dom/props {:role  "cell", :style {:grid-row grid-row, :grid-column grid-col}})))))))
 
 (p/def Render)
 
@@ -194,7 +198,6 @@
 ;; TODO adapt to new HFQL macroexpansion
 (p/defn Render-impl [{::hf/keys [type cardinality render Value options] :as ctx}]
   (cond render  (p/client (cell grid-row grid-col (p/server (render. ctx))))
-        options (Options. ctx)
         :else   (case type
                   ::hf/leaf (SpecDispatch. ctx)
                   ::hf/keys (Form. ctx)
