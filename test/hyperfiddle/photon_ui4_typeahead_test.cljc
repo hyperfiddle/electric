@@ -54,13 +54,8 @@
 
      "when focused Options runs along with OptionLabel for each result"
      (uit/focus input)
-     % := [:Options "Alice B"]
-     % := [:OptionLabel :alice]
-
-     "when we clear the input we'll see a new Options query and the rest of the labels"
-     (uit/set-value! input "")
      % := [:Options ""]
-     (hash-set % % %) := #{[:OptionLabel :bob] [:OptionLabel :charlie] [:OptionLabel :derek]}
+     (hash-set % % % %) := #{[:OptionLabel :alice] [:OptionLabel :bob] [:OptionLabel :charlie] [:OptionLabel :derek]}
 
      "when we click on an option V! runs, OptionLabel recalculates the new string and puts it into the input"
      (uit/click (get-option tphd "Charlie D"))
@@ -103,15 +98,13 @@
 
      "when picking OptionLabel runs for each result"
      (uit/focus input)
-     % := [:OptionLabel :alice]
+     (hash-set % % % %) := #{[:OptionLabel :alice] [:OptionLabel :bob] [:OptionLabel :charlie] [:OptionLabel :derek]}
 
      "while picking controlled value changes have no effect"
      (reset! !v :bob)
      % := [:controlled-value :bob]      ; no OptionLabel call here
 
      "after picking we see new value flow through"
-     (uit/set-value! input "Charlie D")
-     % := [:OptionLabel :charlie]
      (uit/click (get-option tphd "Charlie D"))
      % := [:controlled-value :charlie]
      % := [:OptionLabel :charlie]
