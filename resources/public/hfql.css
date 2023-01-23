@@ -10,17 +10,39 @@
     padding-left: 0.25rem;
 }
 
+.hyperfiddle-hfql pre{
+    margin:0;
+}
+
 .hyperfiddle-hfql form .field{
     display:grid;
+    grid-template-columns: auto auto 1fr;
     border-left-width: 0rem;
     border-left-style: solid;
     padding-bottom: 0.5rem;
     grid-gap: 0.5rem;
+    align-items: center;
 }
 
 .hyperfiddle-hfql form .field:last-child{
     padding-bottom: 0;
 }
+
+.hyperfiddle-hfql form .field > *:last-child{
+    grid-column: 2;
+}
+
+.hyperfiddle-hfql form .field > table:last-child
+, .hyperfiddle-hfql form .field > form:last-child{
+    grid-column: 1;
+    grid-row:2;
+}
+
+.hyperfiddle-hfql form .field > label + fieldset /* hf options */
+{
+    grid-column: 1;
+}
+
 
 .hyperfiddle-hfql form .field > label{
     font-size: 1rem;
@@ -73,6 +95,7 @@
     padding: 0.3rem;
     border-width: 1px;
     border-style: solid;
+    border-color: var(--hyperfiddle-hfql-border-color);
 }
 
 .hyperfiddle-hfql thead td:empty{
