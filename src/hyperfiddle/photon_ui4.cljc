@@ -103,6 +103,7 @@
                (let [input-node# dom1/node
                      return# (dom/on "focus"
                                (p/fn [_#]
+                                 (set! (.-value dom1/node) "")
                                  (let [return# (missionary.core/dfv)
                                        search# (new Latch (dom/on "input" (p/fn [e#] (value e#)))
                                                  (.-value input-node#))]
