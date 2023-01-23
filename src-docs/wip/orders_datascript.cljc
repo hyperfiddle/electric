@@ -29,7 +29,8 @@
              [?e :order/gender ?g]
              [?g :db/ident ?gender]
              [?e :db/ident ?ident]  ; remove
-             [(contrib.str/includes-str? ?ident ?needle)]]
+             [(name ?ident) ?nm]
+             [(contrib.str/includes-str? ?nm ?needle)]]
            hf/*$*
            gender (or needle ""))
       (d/q '[:in $ ?needle
@@ -37,13 +38,15 @@
              :where
              [?e :order/type :order/shirt-size]
              [?e :db/ident ?ident]
-             [(contrib.str/includes-str? ?ident ?needle)]]
+             [(name ?ident) ?nm]
+             [(contrib.str/includes-str? ?nm ?needle)]]
            hf/*$*
            (or needle "")))))
 
 (tests
   (shirt-sizes :order/female #_2 "") := [6 7 8]
-  (shirt-sizes :order/female #_2 "med") := [7])
+  (shirt-sizes :order/female #_2 "med") := [7]
+  (shirt-sizes :order/female #_2 "d") := [7])
 
 (defn orders [needle]
   (sort (d/q '[:find [?e ...] :in $ ?needle :where
