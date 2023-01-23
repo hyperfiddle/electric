@@ -90,6 +90,36 @@
 ;; TODO nil
 (p/defn Latch [impulse init] (p/with-cycle [v init] (if (some? impulse) impulse v)))
 
+#?(:cljs (defn first-option [elem] (-> elem .-parentElement .-firstElementChild)))
+#?(:cljs (defn last-option  [elem] (-> elem .-parentElement .-lastElementChild)))
+#?(:cljs (defn next-option  [elem] (-> elem .-nextElementSibling (or (first-option elem)))))
+#?(:cljs (defn prev-option  [elem] (-> elem .-previousElementSibling (or (last-option elem)))))
+
+#?(:cljs (defn own [event] (.stopPropagation event) (.preventDefault event)))
+
+(defmacro ?mark-selected [selected] `(when (= dom1/node ~selected) (dom/props {:class ["hyperfiddle-selected"]})))
+
+(defmacro return-on-click [return V! id]
+  `(dom/on "click" (p/fn [e#] (own e#)
+                     (dom/props {:style {:background-color "yellow"}})
+                     (~return (p/server (new ~V! ~id))))))
+
+(defmacro on-mount [& body] `(new (m/observe #(do (% nil) ~@body (fn [])))))
+(defmacro on-unmount [& body] `(new (m/observe #(do (% nil) (fn [] ~@body)))))
+
+#?(:cljs (defn ?pass-on-to-first [selected elem]
+           (if (= selected elem)
+             (let [fst (first-option elem)]
+               (if (= fst elem)
+                 (-> elem .-parentElement .-nextElementSibling)
+                 fst))
+             selected)))
+
+#?(:cljs (defn select-if-first [selected elem] (if (= elem (first-option elem)) elem selected)))
+
+#?(:cljs (defn track-id [node id] (set! (.-hyperfiddle-id ^js node) id)))
+#?(:cljs (defn get-id [node] (.-hyperfiddle-id ^js node)))
+
 ;; TODO
 ;; - keyboard
 ;; - what if the change callback throws
@@ -105,31 +135,42 @@
                                (p/fn [_#]
                                  (set! (.-value dom1/node) "")
                                  (let [return# (missionary.core/dfv)
-                                       search# (new Latch (dom/on "input" (p/fn [e#] (value e#)))
-                                                 (.-value input-node#))]
+                                       search# (new Latch (dom/on "input" (p/fn [e#] (value e#))) "")]
                                    (binding [dom1/node container-node#]
-                                     (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
-                                       (dom/on "click" (p/fn [e#] (return# nil))))
-                                     (dom/ul
-                                       (p/server
-                                         (p/for [id# (new Options# search#)]
-                                           (p/client
-                                             (dom/li (dom/text (p/server (new OptionLabel# id#)))
-                                               (dom/on "click" (p/fn [e#]
-                                                                 (dom/props {:style {:background-color "yellow"}})
-                                                                 (.preventDefault e#) (.stopPropagation e#)
-                                                                 (return# (p/server (new V!# id#)))))))))))
+                                     (let [!selected# (atom nil), selected# (p/watch !selected#)]
+                                       (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
+                                         (dom/on "click" (p/fn [e#] (return# nil))))
+                                       (dom/on "keydown"
+                                         (p/fn [e#]
+                                           (case (.-key e#)
+                                             "Escape"    (do (own e#) (.blur input-node#) (return# nil))
+                                             "ArrowDown" (do (own e#) (swap! !selected# next-option))
+                                             "ArrowUp"   (do (own e#) (swap! !selected# prev-option))
+                                             "Enter"     (do (own e#) (when-some [elem# @!selected#]
+                                                                        (let [id# (get-id elem#)]
+                                                                          (.blur input-node#)
+                                                                          (return# (p/server (new V!# id#))))))
+                                             "Tab"       (if-some [elem# @!selected#]
+                                                           (let [id# (get-id elem#)] (return# (p/server (new V!# id#))))
+                                                           (return# nil))
+                                             #_else      nil)))
+                                       (dom/ul
+                                         (p/server
+                                           (p/for [id# (new Options# search#)]
+                                             (p/client
+                                               (dom/li (dom/text (p/server (new OptionLabel# id#)))
+                                                 (on-mount (swap! !selected# select-if-first dom1/node))
+                                                 (on-unmount (swap! !selected# ?pass-on-to-first dom1/node))
+                                                 (track-id dom1/node id#)
+                                                 (?mark-selected selected#)
+                                                 (dom/on "mouseover" (p/fn [e#] (reset! !selected# dom1/node)))
+                                                 (return-on-click return# V!# id#))))))))
                                    (new (p/task->cp return#)))))]
                  (case return#
                    (let [txt# (p/server (new OptionLabel# v#))]
                      (case return# (set! (.-value input-node#) txt#))))
                  return#))
              ~@body))))))
-
-#?(:cljs (defn first-option [elem] (-> elem .-parentElement .-firstElementChild)))
-#?(:cljs (defn last-option  [elem] (-> elem .-parentElement .-lastElementChild)))
-#?(:cljs (defn next-option  [elem] (-> elem .-nextElementSibling (or (first-option elem)))))
-#?(:cljs (defn prev-option  [elem] (-> elem .-previousElementSibling (or (last-option elem)))))
 
 (defmacro select [v V! Options OptionLabel & body]
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
