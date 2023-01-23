@@ -114,9 +114,9 @@
                                          (p/for [id# (new Options# search#)]
                                            (p/client
                                              (dom/li (dom/text (p/server (new OptionLabel# id#)))
-                                               (dom/on "click" (p/fn [evt#]
+                                               (dom/on "click" (p/fn [e#]
                                                                  (dom/props {:style {:background-color "yellow"}})
-                                                                 (.preventDefault evt#) (.stopPropagation evt#)
+                                                                 (.preventDefault e#) (.stopPropagation e#)
                                                                  (return# (p/server (new V!# id#)))))))))))
                                    (new (p/task->cp return#)))))]
                  (case return#
@@ -125,6 +125,11 @@
                  return#))
              ~@body))))))
 
+#?(:cljs (defn first-option [elem] (-> elem .-parentElement .-firstElementChild)))
+#?(:cljs (defn last-option  [elem] (-> elem .-parentElement .-lastElementChild)))
+#?(:cljs (defn next-option  [elem] (-> elem .-nextElementSibling (or (first-option elem)))))
+#?(:cljs (defn prev-option  [elem] (-> elem .-previousElementSibling (or (last-option elem)))))
+
 (defmacro select [v V! Options OptionLabel & body]
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
      (p/client
@@ -132,24 +137,43 @@
          (let [container-node# dom1/node]
            (do1
              (dom/input (dom/props {:style {:caret-color "transparent"}}) ; hides cursor
-               (dom/on "keydown" (p/fn [e#] (.preventDefault e#) (.stopPropagation e#))) ; inhibits typing
                (let [input-node# dom1/node
-                     return# (dom/on "focus"
-                               (p/fn [_#]
-                                 (let [return# (missionary.core/dfv)]
-                                   (binding [dom1/node container-node#]
-                                     (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
-                                       (dom/on "click" (p/fn [e#] (return# nil))))
-                                     (dom/ul
-                                       (p/server
-                                         (p/for [id# (new Options#)]
-                                           (p/client
-                                             (dom/li (dom/text (p/server (new OptionLabel# id#)))
-                                               (dom/on "click" (p/fn [evt#]
-                                                                 (dom/props {:style {:background-color "yellow"}})
-                                                                 (.preventDefault evt#) (.stopPropagation evt#)
-                                                                 (return# (p/server (new V!# id#)))))))))))
-                                   (new (p/task->cp return#)))))]
+                     return#
+                     (dom/on "focus"
+                       (p/fn [_#]
+                         (let [return#   (missionary.core/dfv)
+                               !selected (atom nil)
+                               !->id (atom {})]
+                           (binding [dom1/node container-node#]
+                             (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
+                               (dom/on "click" (p/fn [e#] (return# nil))))
+                             (dom/on "keydown" (p/fn [e#]
+                                                 (case (.-key e#)
+                                                   "Escape"    (do (.blur input-node#) (return# nil))
+                                                   "ArrowDown" (swap! !selected next-option)
+                                                   "ArrowUp"   (swap! !selected prev-option)
+                                                   "Enter"     (let [id# (@!->id @!selected)]
+                                                                 (.blur input-node#)
+                                                                 (return# (p/server (new V!# id#))))
+                                                   #_else      (do (.preventDefault e#) (.stopPropagation e#)))))
+                             (dom/ul
+                               (p/server
+                                 (p/for [id# (new Options#)]
+                                   (p/client
+                                     (let [txt# (p/server (new OptionLabel# id#))]
+                                       (dom/li (dom/text txt#)
+                                         (new (m/observe (fn [s#] (s# nil) (swap! !->id assoc dom1/node id#)
+                                                           (fn [] (swap! !->id dissoc dom1/node)))))
+                                         (when (= txt# (.-value input-node#))
+                                           (reset! !selected dom1/node))
+                                         (when (= dom1/node (p/watch !selected))
+                                           (dom/props {:class ["hyperfiddle-selected"]}))
+                                         (dom/on "mouseover" (p/fn [e#] (reset! !selected dom1/node)))
+                                         (dom/on "click" (p/fn [e#]
+                                                           (dom/props {:style {:background-color "yellow"}})
+                                                           (.preventDefault e#) (.stopPropagation e#)
+                                                           (return# (p/server (new V!# id#))))))))))))
+                           (new (p/task->cp return#)))))]
                  (case return#
                    (let [txt# (p/server (new OptionLabel# v#))]
                      (case return# (set! (.-value input-node#) txt#))))
