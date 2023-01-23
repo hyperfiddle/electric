@@ -19,7 +19,8 @@
 (defn q [] [:alice :bob :charlie :derek])
 
 #?(:cljs (defn get-input [select] (-> select (.getElementsByTagName "input") first)))
-#?(:cljs (defn get-option [select s] (some #(when (= s (.-innerText %)) %) (.querySelectorAll select "ul > li"))))
+#?(:cljs (defn get-options [select] (vec (.querySelectorAll select "ul > li"))))
+#?(:cljs (defn get-option [select s] (some #(when (= s (.-innerText %)) %) (get-options select))))
 
 #?(:cljs
    (tests "basic behavior"
@@ -140,8 +141,50 @@
 
      "when we click outside of an open select it closes and reverts value"
      (uit/focus input)
+     (count (get-options select)) := (count data)
      (uit/click (.querySelector js/document ".hyperfiddle-modal-backdrop"))
+     (get-options select) := []
      (.-value input) := "Alice B"
+
+     (discard)
+     ))
+
+#?(:cljs
+   (tests "keyboard"
+     (def !select (atom :missing))
+     (def discard (p/run (try
+                           (binding [dom1/node (dom1/by-id "root")]
+                             (p/server
+                               (let [!v (atom :alice)]
+                                 (ui/select (p/watch !v)
+                                   (p/fn [v] (reset! !v v))
+                                   (p/fn [] (q))
+                                   (p/fn [id] (-> data id :name))
+                                   #_for-test (reset! !select dom1/node)))))
+                           (catch Pending _)
+                           (catch Cancelled _)
+                           (catch :default e (prn e)))))
+
+     (def select @!select)
+     (def input (get-input select))
+     (some? input) := true
+
+     "input has the correct value"
+     (.-value input) := "Alice B"
+
+     "escape closes select"
+     (uit/focus input)
+     (count (get-options select)) := (count data)
+     (uit/press (get-option select "Bob C") "Escape")
+     (get-options select) := []
+
+     "down arrow & Enter selects Bob"
+     (uit/focus input)
+     (count (get-options select)) := (count data)
+     (uit/press select "ArrowDown")
+     (uit/press select "Enter")
+     (get-options select) := []
+     (.-value input) := "Bob C"
 
      (discard)
      ))
