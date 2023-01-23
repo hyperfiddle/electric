@@ -27,7 +27,8 @@
 
 (defmacro hfql ; Alias
   ([query] `(hfql/hfql ~query))
-  ([bindings query] `(hfql/hfql ~bindings ~query)))
+  ([bindings query] `(hfql/hfql ~bindings ~query))
+  ([bindings query eid] `(hfql/hfql ~bindings ~query ~eid)))
 
 (p/def Render hfql/Render)
 
@@ -45,7 +46,8 @@
             :db.cardinality/many ::many} (:db/cardinality (schemaf db attr)))]
       card)))
 
-(p/defn entity []) ;; TODO HFQL only. Is a binding required? could it be an argument?
+(defn entity [ctx] (or (::entity ctx) (::entity (::parent ctx))))
+(defn attribute [ctx] (or (::attribute ctx) (::attribute (::parent ctx))))
 
 (p/defn tx "WIP, this default impl captures the essence" [v' props] ; meant to be called by a renderer
   ;; Does it return a tx or side-effect to the staging area?

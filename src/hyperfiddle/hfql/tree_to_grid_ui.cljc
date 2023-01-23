@@ -110,15 +110,15 @@
           #_else           (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))
 
 (defn ->picker-type [ctx]
-  (cond (seq (::hf/options-arguments ctx))            ::typeahead
-        (seq (::hf/options-arguments (::parent ctx))) ::typeahead
-        :else                                         ::select))
+  (cond (seq (::hf/options-arguments ctx))               ::typeahead
+        (seq (::hf/options-arguments (::hf/parent ctx))) ::typeahead
+        :else                                            ::select))
 
 (p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx}]
-  (let [Options      (or options (::hf/options (::parent ctx)))
-        option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
-        continuation (or continuation (::hf/continuation (::parent ctx)) Identity)
-        tx           (or tx (::hf/tx (::parent ctx)))
+  (let [Options      (or options (::hf/options (::hf/parent ctx)))
+        option-label (or option-label (::hf/option-label (::hf/parent ctx)) Identity)
+        continuation (or continuation (::hf/continuation (::hf/parent ctx)) Identity)
+        tx           (or tx (::hf/tx (::hf/parent ctx)))
         tx?          (some? tx)
         dom-props    (data/select-ns :hyperfiddle.photon-dom2 ctx)
         v            (find-best-identity (hfql/JoinAllTheTree. ctx))
@@ -137,11 +137,11 @@
                     (dom/props dom-props)))))
 
 (p/defn Default [{::hf/keys [link link-label option-label options] :as ctx}]
-  (if (or options (::hf/options (::parent ctx)))
+  (if (or options (::hf/options (::hf/parent ctx)))
     (Options. ctx)
     (let [route        (when link (new link))
           value        (hfql/JoinAllTheTree. ctx)
-          option-label (or option-label (::hf/option-label (::parent ctx)) Identity)
+          option-label (or option-label (::hf/option-label (::hf/parent ctx)) Identity)
           value        (option-label. value)]
       (cond
         (some? route)      (p/client (cell grid-row grid-col (router/link route (dom/text value))))
@@ -206,7 +206,7 @@
                     (let [v (Value.)]
                       (cond
                         (vector? v) (Table. ctx)
-                        (map? v)    (Render. (assoc v ::parent ctx))
+                        (map? v)    (Render. (assoc v ::hf/parent ctx))
                         :else       (throw "unreachable" {:v v})))))))
 
 (defn height

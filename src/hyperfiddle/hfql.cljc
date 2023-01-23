@@ -9,12 +9,14 @@
   #?(:cljs (:require-macros [hyperfiddle.hfql])))
 
 (defmacro precompile
-  ([form] (impl/precompile* &env [] form))
-  ([bindings form] (impl/precompile* &env bindings form)))
+  ([form] (impl/precompile* &env [] form nil))
+  ([bindings form] (impl/precompile* &env bindings form nil))
+  ([bindings form eid] (impl/precompile* &env bindings form eid)))
 
 (defmacro hfql ; Alias for hfql macro in hfql ns
   ([query] `(new hyperfiddle.api/Render (precompile ~query)))
-  ([bindings query] `(new hyperfiddle.api/Render (precompile ~bindings ~query))))
+  ([bindings query] `(new hyperfiddle.api/Render (precompile ~bindings ~query)))
+  ([bindings query eid] `(new hyperfiddle.api/Render (precompile ~bindings ~query ~eid))))
 
 (p/defn JoinArg [ctx-or-V]
   (if (map? ctx-or-V)

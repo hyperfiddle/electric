@@ -23,9 +23,7 @@
         (binding [ttgui/grid-width 2
                   hf/db-name "$"]
           (p/server
-            (let [order 9]
-              (binding [hf/entity order]
-                (hf/hfql {(wip.orders-datascript/orders .) [:db/id]}))))))))
+            (hf/hfql {(wip.orders-datascript/orders .) [:db/id]}))))))
   (dom/hr)
   (router/router ::left  (hyperfiddle.popover-ui2/popover "Recur Left" (Page.)))
   (router/router ::right (hyperfiddle.popover-ui2/popover "Recur Right" (Page.))))
