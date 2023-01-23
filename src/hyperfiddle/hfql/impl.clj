@@ -768,11 +768,11 @@
                                        [(:node/symbol continuation)])
                                    ]
                               ~(case (:node/cardinality (first (arguments point)))
-                                 ::hf/one  `(let [~E ~value] ~(emit-nodes continuation)
+                                 ::hf/one  `(let [~E (new ~value)] ~(emit-nodes continuation)
                                                  #_(new ~continuation-sym ~value))
                                  ::hf/many `(p/for [~E (new hf/Paginate (new ~value))] ~(emit-nodes continuation)))))
                          ;; Some calls don’t have a continuation (e.g. Links)
-                         `(p/fn [] ~value))))))
+                         `(p/fn [] (new ~value)))))))
       (assert false (str "emit-1 - not a renderable point " (:node/type point))))))
 
 (defn emit-nodes [nodes]
@@ -802,12 +802,14 @@
     )
   )
 
-(defn precompile* [env bindings form]
-  (binding [*bindings* bindings]
-    (let [db (->> (analyze form) (apply-passes passes (c/normalize-env env)))
-          roots (get-root db)]
-      `(let [~E hf/entity]
-         ~(emit-nodes roots)))))
+(defn precompile*
+  ([env bindings form] (precompile* env bindings form nil))
+  ([env bindings form eid]
+   (binding [*bindings* bindings]
+     (let [db (->> (analyze form) (apply-passes passes (c/normalize-env env)))
+           roots (get-root db)]
+       `(let [~E ~eid]
+          ~(emit-nodes roots))))))
 
 (defmacro precompile ([form] (precompile* &env [] form))
   ([bindings form] (precompile* &env bindings form)))

@@ -18,7 +18,7 @@
 
 ;; TODO option-label shouldn't get nil as value
 (p/defn IdentName [v] (some-> (:db/ident v) name))
-(p/defn Tx [{::hf/keys [entity attribute]} v] (hf/Transact!. [[:db/add entity attribute v]]))
+(p/defn Tx [ctx v] (hf/Transact!. [[:db/add (hf/entity ctx) (hf/attribute ctx) v]]))
 
 (p/defn OneOrderPage [order]
   (ttgui/with-gridsheet-renderer
@@ -31,7 +31,7 @@
            hf/*nav!*   hf/*nav!*]
           {order
            [(props :db/id {#_#_::hf/link ['wip.orders-datascript/one-order %]})
-            (props :order/email {::hf/tx (p/fn [{::hf/keys [entity attribute]} v] [[:db/add entity attribute v]])})
+            (props :order/email {::hf/tx (p/fn [ctx v] [[:db/add (hf/entity ctx) (hf/attribute ctx) v]])})
             {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
                                    ::hf/option-label IdentName
                                    ::hf/tx Tx})
