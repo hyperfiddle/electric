@@ -1,6 +1,5 @@
 (ns contrib.sexpr-router
   (:require [clojure.string :as string]
-            clojure.tools.reader.edn ; todo inject
             contrib.ednish
             [hyperfiddle.rcf :refer [tests]]))
 
@@ -55,7 +54,7 @@
   ;(decode "//a" home) := `(user/hello)
 
   "routes must pass java.net.URI"
-  #?(:clj (some? (java.net.URI. (encode x))) := true)
+  #?(:clj (some? (java.net.URI. (encode `(user/hello)))) := true)
 
   "non-ascii characters (note: ednish is not a bijection)"
   (encode '(foo "!$&'[]()*+,;=|")) := "/foo/'!$&'()()*+,;=%7C'"
