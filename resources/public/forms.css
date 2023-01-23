@@ -81,3 +81,15 @@ table {
     right:0;
     z-index:1;
 }
+
+table.hyperfiddle td{
+    vertical-align: top;
+    padding: 0.3rem;
+    border-width: 1px;
+    border-style: solid;
+}
+
+table.hyperfiddle thead td:empty{
+    visibility:hidden;
+    border: none;
+}

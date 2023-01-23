@@ -27,12 +27,12 @@
 
 (p/defn Teeshirt-orders-view [db]
   (p/client
-    (dom/div (dom/props {:class "hyperfiddle-hfql"})
+    (dom/div
       (dom/h2 (dom/text "frontend/backend webview with server push"))
       (let [!search (atom ""), search (p/watch !search)]
         (ui4/input search (p/fn [v] (reset! !search v))
           (dom/props {:placeholder "Filter…"}))
-        (dom/table
+        (dom/table (dom/props {:class "hyperfiddle"})
           (p/server
             (p/for [id (teeshirt-orders db search)]
               (let [!e (d/entity db id)]
