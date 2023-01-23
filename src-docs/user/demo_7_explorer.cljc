@@ -90,12 +90,10 @@
 ;                  ::explorer/row-height 24
 ;                  ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
 
-(def unicode-folder "\uD83D\uDCC2") ; 📂
-
 ;; (p/defn PrevApp []
 ;;   (p/client
 ;;     (dom/h1 "Explorer")
-;;     (dom/link {:rel :stylesheet, :href "user_demo_explorer.css"})
+;;     (dom/link {:rel :stylesheet, :href ".archives/user_demo_explorer.css"})
 ;;     (dom/div {:class "photon-demo-explorer"}
 ;;       (p/server
 ;;         (binding [explorer/Format (p/fn [m a]
