@@ -1,3 +1,4 @@
+/* TODO cleanup all of this and migrate to Tailwind */
 @import url('body.css');
 @import url('browser.css');
 @import url('forms.css');
@@ -5,4 +6,3 @@
 @import url('photon_ui.css');
 @import url('hfql.css');
 @import url('popover.css');
-/*@import url('user_demo_explorer.css'); -- mount in the demo */

@@ -36,6 +36,14 @@ table {
     /* background-color: red; */
     position: relative;
 }
+
+.hyperfiddle-select input
+, .hyperfiddle-typeahead input
+{
+    border: none;
+    border-style: none !important;
+}
+
 .hyperfiddle-select > ul
 , .hyperfiddle-typeahead > ul
 {
