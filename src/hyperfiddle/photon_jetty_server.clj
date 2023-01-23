@@ -32,6 +32,7 @@
                     response                     ; send response to trigger auth prompt
                     (-> (res/status response 302) ; redirect
                         (res/header "Location" "/"))))
+      ;; delegate to next middleware
       (next-handler ring-req))))
 
 #_
@@ -51,16 +52,17 @@
   (fn [ring-req]
     (next-handler (assoc ring-req :uri "/index.html" ))))
 
-(defn start-server! [{:keys [resources-path port] :as config
-                      :or   {resources-path "resources/public"}}]
+(defn start-server! [{:keys [resources-path port allow-symlinks?] :as config
+                      :or   {resources-path  "resources/public"
+                             allow-symlinks? false}}]
   (try
-    (ring/run-jetty (cond-> #'default-handler
-                      (file-exsist? resources-path) (wrap-file resources-path)
-                      true                          (wrap-content-type)
-                      true                          (wrap-spa)
-                      (file-exsist? resources-path) (wrap-file resources-path)
-                      true                          (wrap-content-type)
-                      true                          (wrap-default-page)
+    (ring/run-jetty (cond-> #'default-handler  ; these compose as functions, so are applied bottom up
+                      (file-exsist? resources-path) (wrap-file resources-path) ; 6. serve it
+                      true                          (wrap-content-type) ; 5. detect content
+                      true                          (wrap-spa) ; 4. otherwise fallback to default page file
+                      (file-exsist? resources-path) (wrap-file resources-path {:allow-symlinks? allow-symlinks?}) ; 3. serve static file if it exists
+                      true                          (wrap-content-type) ; 2. detect content (e.g. for index.html)
+                      true                          (wrap-default-page) ; 1. route
                       #_(wrap-photon))
       ;; Jetty 9 forces us to declare WS paths out of a ring handler.
       (merge {:port       8080
