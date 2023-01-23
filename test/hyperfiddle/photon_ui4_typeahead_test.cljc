@@ -24,8 +24,8 @@
   (q "X") := [])
 
 #?(:cljs (defn get-input [tphd] (-> tphd (.getElementsByTagName "input") first)))
-#?(:cljs (defn get-option [tphd s]
-           (reduce #(when (= s (.-innerText %2)) (reduced %2)) nil (.querySelectorAll tphd "ul > li"))))
+#?(:cljs (defn get-options [tphd] (vec (.querySelectorAll tphd "ul > li"))))
+#?(:cljs (defn get-option [tphd s] (some #(when (= s (.-innerText %)) %) (get-options tphd))))
 
 #?(:cljs
    (do-browser
@@ -145,6 +145,64 @@
        (.-value input) := ""
        (uit/click (.querySelector js/document ".hyperfiddle-modal-backdrop"))
        (.-value input) := "Alice B"
+
+       (discard)
+       )))
+
+#?(:cljs
+   (do-browser
+     (tests "keyboard"
+       (def !tphd (atom :missing))
+       (def discard (p/run (try
+                             (binding [dom1/node (dom1/by-id "root")]
+                               (p/server
+                                 (let [!v (atom :alice)]
+                                   (ui/typeahead (p/watch !v)
+                                     (p/fn [v] (reset! !v v))
+                                     (p/fn [search] (q search))
+                                     (p/fn [id] (-> data id :name))
+                                     #_for-test (reset! !tphd dom1/node)))))
+                             (catch Pending _)
+                             (catch Cancelled _)
+                             (catch :default e (prn e)))))
+
+       (def tphd @!tphd)
+       (def input (get-input tphd))
+       (some? input) := true
+
+       "input has the correct value"
+       (.-value input) := "Alice B"
+
+       "escape closes typeahead"
+       (uit/focus input)
+       (count (get-options tphd)) := (count data)
+       (uit/press (get-option tphd "Bob C") "Escape")
+       (count (get-options tphd)) := 0
+
+       "down arrow & Enter selects Bob"
+       (uit/focus input)
+       (count (get-options tphd)) := (count data)
+       (uit/press tphd "ArrowDown")
+       (uit/press tphd "Enter")
+       (count (get-options tphd)) := 0
+       (.-value input) := "Bob C"
+
+       "Enter on bad input is noop"
+       (def original-value (.-value input))
+       (uit/focus input)
+       (count (get-options tphd)) := (count data)
+       (uit/set-value! input "xyz")
+       (count (get-options tphd)) := 0
+       (uit/press tphd "Enter")
+       (.-value input) := "xyz"         ; noop
+       (uit/press tphd "Escape")        ; reverts
+       (.-value input) := original-value
+
+       "typing into input filters correctly"
+       (uit/focus input)
+       (uit/set-value! input "B")
+       (into #{} (map #(.-innerText %)) (get-options tphd)) := #{"Alice B" "Bob C"}
+       (uit/press tphd "Escape")
 
        (discard)
        )))
