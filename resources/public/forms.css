@@ -62,8 +62,12 @@ table {
 .hyperfiddle-select > ul > li:hover
 , .hyperfiddle-typeahead > ul > li:hover
 {
-    background-color: whitesmoke;
     cursor: pointer;
+}
+
+.hyperfiddle-selected
+{
+    background-color: orange;
 }
 
 .hyperfiddle-modal-backdrop
