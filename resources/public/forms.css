@@ -15,15 +15,6 @@ input[type="checkbox"]{
     height: 1rem;
 }
 
-.inputs{
-    display:grid;
-    grid-template-columns: auto 1fr;
-    grid-gap: 0.5rem 1rem;
-    align-items: baseline;
-    align-items: center;
-    /* justify-content: flex-start; */
-}
-
 table {
     table-layout: fixed;
     border-collapse: collapse;
