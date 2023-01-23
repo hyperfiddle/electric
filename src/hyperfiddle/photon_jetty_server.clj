@@ -9,7 +9,8 @@
             [ring.middleware.cookies :as cookies]
             [ring.util.response :as res])
   (:import [java.io IOException]
-           [java.net BindException]))
+           [java.net BindException]
+           [org.eclipse.jetty.server.handler.gzip GzipHandler]))
 
 (defn authenticate [username password] username) ; demo (accept-all) authentication
 
@@ -52,6 +53,13 @@
   (fn [ring-req]
     (next-handler (assoc ring-req :uri "/index.html" ))))
 
+(defn- add-gzip-handler [server]
+  (.setHandler server
+    (doto (GzipHandler.)
+      #_(.setIncludedMimeTypes (into-array ["text/css" "text/plain" "text/javascript" "application/javascript" "application/json" "image/svg+xml"]))
+      (.setMinGzipSize 1024)
+      (.setHandler (.getHandler server)))))
+
 (defn start-server! [{:keys [resources-path port allow-symlinks?] :as config
                       :or   {resources-path  "resources/public"
                              allow-symlinks? false}}]
@@ -72,7 +80,8 @@
                                    (partial adapter/photon-ws-message-handler
                                      (-> ring-req
                                        (auth/basic-authentication-request authenticate)
-                                       (cookies/cookies-request)))))}}
+                                       (cookies/cookies-request)))))}
+              :configurator add-gzip-handler}
         config))
     (catch IOException err
       (if (instance? BindException (ex-cause err))
