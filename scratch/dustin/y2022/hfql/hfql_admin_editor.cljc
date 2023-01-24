@@ -28,7 +28,7 @@
    [:user.fn/set-normalized-email e email]])
 
 (s/fdef suber2-create-admin
-        :args (s/cat :e hf/ref?
+        :args (s/cat :e ::hf/ref?
                      :type keyword?
                      :name string?
                      :email string?))
