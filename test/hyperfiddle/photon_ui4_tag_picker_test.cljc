@@ -25,8 +25,8 @@
 
 #?(:cljs (defn get-input [tgpk] (-> tgpk (.getElementsByTagName "input") first)))
 #?(:cljs (defn get-options [tgpk] (vec (.querySelectorAll tgpk ".hyperfiddle-tag-picker-input-container > ul > li"))))
-#?(:cljs (defn get-option [tgpk s] (some #(when (= s (.-innerText %)) %) (get-options tgpk))))
-#?(:cljs (defn picked [tgpk] (vec (.querySelectorAll tgpk ".hyperfiddle-tag-picker-items > li"))))
+#?(:cljs (defn get-picked-items [tgpk] (vec (.querySelectorAll tgpk ".hyperfiddle-tag-picker-items > li"))))
+#?(:cljs (defn find-with-text [elems s] (some #(when (= s (.-innerText %)) %) elems)))
 
 #?(:cljs
    (do-browser
@@ -35,9 +35,11 @@
        (def discard (p/run (try
                              (binding [dom1/node (dom1/by-id "root")]
                                (p/server
-                                 (let [!v (atom [:alice :bob])]
+                                 (let [!v (atom #{:alice :bob})]
                                    (ui/tag-picker (p/watch !v)
                                      (p/fn [v] (p/client (tap [:V! v])) (swap! !v conj v))
+                                     ;; TODO why wrapping the `tap` with `p/client` fails here?
+                                     (p/fn [v] (tap [:unV! v]) (swap! !v disj v))
                                      (p/fn [search] (p/client (tap [:Options search])) (q search))
                                      (p/fn [id] (p/client (tap [:OptionLabel id])) (-> data id :name))
                                      #_for-test (reset! !tgpk dom1/node)))))
@@ -50,7 +52,7 @@
 
        "the picked values are rendered"
        (def tgpk @!tgpk)
-       (count (picked tgpk)) := 2
+       (count (get-picked-items tgpk)) := 2
 
        "there's an input to pick more, and is empty"
        (def input (get-input tgpk))
@@ -65,10 +67,16 @@
        "when we click on an option V! runs, OptionLabel recalculates the new string and the input gets cleared"
        (uit/set-value! input "Cha")
        % := [:Options "Cha"]
-       (uit/click (get-option tgpk "Charlie D"))
+       (uit/click (-> (get-options tgpk) (find-with-text "Charlie D")))
        ;; order doesn't matter
        (hash-set % %) := #{[:V! :charlie] [:OptionLabel :charlie]}
        (.-value input) := ""
+
+       "clicking an item removes it"
+       (def picked-count-before (count (get-picked-items tgpk)))
+       (uit/click (-> (get-picked-items tgpk) (find-with-text "Alice B")))
+       % := [:unV! :alice]
+       (count (get-picked-items tgpk)) := (dec picked-count-before)
 
        (discard)
        )))
