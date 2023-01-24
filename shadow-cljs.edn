@@ -3,7 +3,9 @@
  :builds   {:devkit   {:target        :browser
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}
-                                       :ignore-warnings true}                 ; warnings don't prevent hot-reload
+                                       :ignore-warnings true                  ; warnings don't prevent hot-reload
+                                       :loader-mode     :default              ; faster reload
+                                       }
                        :output-dir    "resources/public/js"
                        :asset-path    "/js"
                        :modules       {:main {:entries [user]
