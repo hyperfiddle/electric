@@ -208,3 +208,42 @@
                      (case return# (set! (.-value input-node#) txt#))))
                  return#))
              ~@body))))))
+
+(defmacro tag-picker [v V! Options OptionLabel & body]
+  `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
+     (p/client
+       (dom/div (dom/props {:class "hyperfiddle-tag-picker"})
+         (do1
+           (dom/div (dom/props {:class "hyperfiddle-tag-picker-input-container"})
+             (let [input-container-node# dom1/node]
+               (dom/input
+                 (let [input-node# dom1/node]
+                   (dom/on "focus"
+                     (p/fn [_#]
+                       (let [return# (missionary.core/dfv)
+                             search# (new Latch (dom/on "input" (p/fn [e#] (value e#))) "")]
+                         (binding [dom1/node input-container-node#]
+                           (let [!selected# (atom nil), selected# (p/watch !selected#)]
+                             (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
+                               (dom/on "click" (p/fn [e#] (return# nil))))
+                             (dom/on "keydown" (p/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
+                             (dom/ul
+                               (p/server
+                                 (p/for [id# (new Options# search#)]
+                                   (p/client
+                                     (dom/li (dom/text (p/server (new OptionLabel# id#)))
+                                       (on-mount (swap! !selected# select-if-first dom1/node))
+                                       (on-unmount (swap! !selected# ?pass-on-to-first dom1/node))
+                                       (track-id dom1/node id#)
+                                       (?mark-selected selected#)
+                                       (dom/on "mouseover" (p/fn [e#] (reset! !selected# dom1/node)))
+                                       (return-on-click return# V!# id#))))))))
+                         (let [ret# (new (p/task->cp return#))]
+                           (case ret# (set! (.-value input-node#) ""))
+                           ret#))))))))
+           (dom/ul (dom/props {:class "hyperfiddle-tag-picker-items"})
+             (p/server
+               (p/for [id# v#]
+                 (let [txt# (new OptionLabel# id#)]
+                   (p/client (dom/li (dom/text txt#)))))))
+           ~@body)))))
