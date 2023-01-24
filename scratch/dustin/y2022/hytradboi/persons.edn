@@ -29,13 +29,13 @@
           :first string?
           :second string?
           :last number?)
-  :ret (s/coll-of hf/ref?))
+  :ret (s/coll-of ::hf/ref?))
 
 (s/fdef genders
-  :ret (s/coll-of hf/ref?))
+  :ret (s/coll-of ::hf/ref?))
 
 (s/fdef shirt-sizes
   :args (s/cat
-          :gender hf/ref?
+          :gender ::hf/ref?
           :needle string?)
-  :ret (s/coll-of hf/ref?))
+  :ret (s/coll-of ::hf/ref?))
