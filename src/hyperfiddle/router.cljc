@@ -1,7 +1,8 @@
 (ns hyperfiddle.router
   (:require [hyperfiddle.rcf :as rcf :refer [tests % tap with]]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom])
+            [hyperfiddle.photon-dom2 :as dom]
+            [missionary.core :as m])
   #?(:clj (:import [clojure.lang IRef IAtom]))
   #?(:cljs (:require-macros hyperfiddle.router)))
 
@@ -214,6 +215,16 @@
   #?(:clj (atom-history)
      :cljs (atom-history)))
 
+(defn cleanup-on-unmount [!history path]
+  (m/observe
+    (fn [!#]
+      (!# nil)
+      (fn []
+        (swap! !history (fn [h]
+                          (cond (empty? path)      h
+                                (= 1 (count path)) (dissoc h (first path))
+                                :else              (update-in* h (butlast path) dissoc (last path)))))))))
+
 (defmacro router
   "
   Evaluates `body` in a routing context, in which:
@@ -270,6 +281,7 @@
            (binding [swap-route! (partial (fn [!history# path# & args#]
                                             (swap! !history# (fn [r#] (apply update-in* r# path# args#))))
                                    !history path)]
+             (new (cleanup-on-unmount !history path#))
              ~@body))))))
 
 (tests
