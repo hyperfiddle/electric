@@ -141,6 +141,66 @@
   ([initial-state] (atom-history initial-state 0))
   ([initial-state max-size] (->AtomHistory (atom [[initial-state] 0]) (atom {}) max-size)))
 
+#?(:clj
+   (defrecord ProxyHistory [parent ^IAtom state]
+     IAtom
+     (swap [this f]           (swap! state f))
+     (swap [this f arg]       (swap! state f arg))
+     (swap [this f arg1 arg2] (swap! state f arg1 arg2))
+     (swap [this f x y args]  (apply swap! state f x y args))
+     (reset [this newval]     (reset! state newval))
+     (compareAndSet [this oldv newv] (compare-and-set! state oldv newv))
+
+     IRef
+     (setValidator [_ _] (throw (UnsupportedOperationException. "History does not support validators")))
+     (getValidator [_] (throw (UnsupportedOperationException. "History does not support validators")))
+     (getWatches [_] (.getWatches state))
+     (addWatch [this key callback] (add-watch state key callback) this)
+     (removeWatch [_ key] (remove-watch state key))
+     (deref [_] (deref state))
+     ))
+
+
+#?(:clj (defmethod print-method ProxyHistory [x w] (print-dup x w)))
+
+#?(:cljs
+   (defrecord ProxyHistory [^IHistory parent ^IAtom state]
+     IAtom
+     ISwap
+     (-swap! [this f]           (swap! state f))
+     (-swap! [this f arg]       (swap! state f arg))
+     (-swap! [this f arg1 arg2] (swap! state f arg1 arg2))
+     (-swap! [this f x y args]  (apply swap! state f x y args))
+
+     IReset
+     (-reset! [this newval]     (reset! state newval))
+
+     IWatchable
+     (-add-watch [this key callback] (add-watch state key callback)
+       this)
+     (-remove-watch [_ key] (remove-watch state key))
+
+     IDeref
+     (-deref [_] (deref state))
+     ))
+
+(extend-type ProxyHistory
+  IHistory
+  (navigate! [this route] (navigate! (.-parent this) route))
+  (back! [this] (back! (.-parent this)))
+  (forward! [this] (forward! (.-parent this)))
+  (replace-state! [this new-state] (reset! this new-state)))
+
+
+(defn proxy-history
+  "Return a new IHistory instance backed by an atom.
+  History state is stored in an atom.
+  Navigation is forwarded to the `parent` history.
+  Initial state is provided with `initial-state`. "
+  ([parent] (proxy-history parent nil))
+  ([parent initial-state] (->ProxyHistory parent (atom initial-state))))
+
+
 (tests
   "navigate"
   (let [h (atom-history)]
@@ -260,20 +320,20 @@
   instance twice is a noop."
 
   [history-or-ident & body]
-  `(let [history-or-ident# ~history-or-ident
-         ident#            (if (ident? history-or-ident#) history-or-ident# nil)
-         path#             (if (nil? ident#) [] [ident#])
-         [history# path#]  (if (ident? history-or-ident#) ; if we focus on a sub route
-                             [!history (into path path#)] ; same history, different path
-                             (let [h# (or history-or-ident# (default-platform-history))]
-                               (if (= h# !history) ; if we rebind to the same history
-                                 [h# path#]        ; noop
-                                 [h# []])          ; new history, root path
-                               ))]
+  `(let [history-or-ident#          ~history-or-ident
+         ident#                     (if (ident? history-or-ident#) history-or-ident# nil)
+         path#                      (if (nil? ident#) [] [ident#])
+         [rebound?# history# path#] (if (ident? history-or-ident#) ; if we focus on a sub route
+                                      [false !history (into path path#)] ; same history, different path
+                                      (let [h# (or history-or-ident# (default-platform-history))]
+                                        (if (= h# !history) ; if we rebind to the same history
+                                          [false h# path#]  ; noop
+                                          [true h# []])     ; new history, root path
+                                        ))]
      (binding [!history history#
                path     path#]
-       (binding [history (if (= ::unset history) (p/watch !history) history)]
-         (binding [route (let [route (if (= ::unset route) history route)]
+       (binding [history (if (or rebound?# (= ::unset history)) (p/watch !history) history)]
+         (binding [route (let [route (if (or rebound?# (= ::unset route)) history route)]
                            (check-route! route)
                            (if (some? ident#)
                              (get route ident#)
