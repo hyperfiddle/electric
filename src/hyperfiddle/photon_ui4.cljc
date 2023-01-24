@@ -209,8 +209,8 @@
                  return#))
              ~@body))))))
 
-(defmacro tag-picker [v V! Options OptionLabel & body]
-  `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
+(defmacro tag-picker [v V! unV! Options OptionLabel & body]
+  `(let [v# ~v, V!# ~V!, unV!# ~unV!, Options# ~Options, OptionLabel# ~OptionLabel]
      (p/client
        (dom/div (dom/props {:class "hyperfiddle-tag-picker"})
          (do1
@@ -245,5 +245,6 @@
              (p/server
                (p/for [id# v#]
                  (let [txt# (new OptionLabel# id#)]
-                   (p/client (dom/li (dom/text txt#)))))))
+                   (p/client (dom/li (dom/text txt#)
+                               (dom/on "click" (p/fn [e#] (own e#) (p/server (new unV!# id#))))))))))
            ~@body)))))
