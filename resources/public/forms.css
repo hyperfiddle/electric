@@ -23,6 +23,7 @@ table {
 
 .hyperfiddle-select
 , .hyperfiddle-typeahead
+, .hyperfiddle-tag-picker
 {
     /* background-color: red; */
     position: relative;
@@ -37,6 +38,7 @@ table {
 
 .hyperfiddle-select > ul
 , .hyperfiddle-typeahead > ul
+, .hyperfiddle-tag-picker-input-container > ul
 {
     margin: 0;
     padding: 0.25rem 0;
@@ -52,6 +54,7 @@ table {
 
 .hyperfiddle-select > ul > li
 , .hyperfiddle-typeahead > ul > li
+, .hyperfiddle-tag-picker-input-container > ul > li
 {
     height: var(--hf-grid-row-height);
     padding: 0 0.5rem;
@@ -60,8 +63,28 @@ table {
 
 .hyperfiddle-select > ul > li:hover
 , .hyperfiddle-typeahead > ul > li:hover
+, .hyperfiddle-tag-picker-input-container > ul > li:hover
 {
     cursor: pointer;
+}
+
+.hyperfiddle-tag-picker
+, .hyperfiddle-tag-picker-input-container
+, .hyperfiddle-tag-picker-items
+, .hyperfiddle-tag-picker-items > li
+{
+    display: inline-block;
+}
+
+.hyperfiddle-tag-picker-items
+{
+    list-style-type: none;
+}
+
+.hyperfiddle-tag-picker-items > li
+{
+    border: 1px solid;
+    margin: 0 5px;
 }
 
 .hyperfiddle-selected
