@@ -185,15 +185,17 @@
                Render    Render-impl
                hf/Render Render-impl]
        (p/client ; FIXME don’t force body to run on the client
-         (dom/div (dom/props {:class "hyperfiddle-gridsheet"}) ; FIXME drop the wrapper div
-           (let [[rows# columns# width# height# gap# color#] (new ComputedStyle extract-borders hyperfiddle.photon-dom/node)
-                 [scroll-top# scroll-height# client-height#] (new (sw/scroll-state< hyperfiddle.photon-dom/node))
-                 height#                                     (if (zero? scroll-height#) height# scroll-height#)]
-             (dom/canvas (dom/props {:class  "hf-grid-overlay"
+         (binding [grid-row 1
+                   grid-col 1]
+           (dom/div (dom/props {:class "hyperfiddle-gridsheet"}) ; FIXME drop the wrapper div
+             (let [[rows# columns# width# height# gap# color#] (new ComputedStyle extract-borders hyperfiddle.photon-dom/node)
+                   [scroll-top# scroll-height# client-height#] (new (sw/scroll-state< hyperfiddle.photon-dom/node))
+                   height#                                     (if (zero? scroll-height#) height# scroll-height#)]
+               (dom/canvas (dom/props {:class  "hf-grid-overlay"
                                        :width  (str width# "px")
                                        :height (str height# "px")})
-               (draw-lines! hyperfiddle.photon-dom/node color# width# height# gap# rows# columns#)))
-           ~@body)))))
+                 (draw-lines! hyperfiddle.photon-dom/node color# width# height# gap# rows# columns#)))
+             ~@body))))))
 
 ;; TODO adapt to new HFQL macroexpansion
 (p/defn Render-impl [{::hf/keys [type cardinality render Value options] :as ctx}]
