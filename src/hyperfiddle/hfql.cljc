@@ -111,3 +111,5 @@
     % := "down"
     ))
 
+
+(defn safe-count [xs] (if (counted? xs) (count xs) 0))
