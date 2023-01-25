@@ -82,7 +82,8 @@
         (p/watch !value)) ; this sees `init` for 1 frame
       )))
 
-(p/defn Share [init flow] flow)
+;; (p/defn Share [init flow] flow)
+(defmacro share [init flow] flow) ; temporary stub
 
 (comment
   (tests
