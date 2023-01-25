@@ -460,8 +460,16 @@
 #?(:cljs (defn set-css-var! [^js node key value]
            (.setProperty (.-style node) key value)))
 
+#?(:cljs
+   (defn parse-row-height [str]
+     (let [float (js/parseFloat str)]
+       (if (NaN? float)
+         (js/parseFloat (first (re-find #"[0-9]+(\.[0-9]+)?" str)))
+         float))))
+
 (defmacro paginated-grid [actual-width max-height actual-height & body]
-  `(let [row-height#    (or (js/parseFloat (ComputedStyle. #(.-gridAutoRows %) (.closest hyperfiddle.photon-dom/node ".hyperfiddle-gridsheet"))) 0)
+  `(let [row-height#    (parse-row-height (ComputedStyle. #(.-gridAutoRows %)
+                                            (.closest hyperfiddle.photon-dom/node ".hyperfiddle-gridsheet")))
          actual-height# (* row-height# ~actual-height)
          !scroller#     (atom nil)
          !scroll-top#   (atom 0)]
