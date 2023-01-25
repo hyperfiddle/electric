@@ -254,22 +254,29 @@ or a provided value if it completes without producing any value."
    ;;     ClojureScript do not have vars at runtime and will not analyze or emit vars meta. No need to quote.
    `(def ~(vary-meta symbol assoc ::c/node (if (:js-globals &env) init `(quote ~init))))))
 
+(cc/defn -check-fn-arity! [name expected actual]
+  (when (not= expected actual)
+    (throw (ex-info (str "You called " (or name (pr-str ::unnamed-pfn)) ", a " expected "-arg p/fn with " actual " arguments.")
+             {:name name}))))
+
 ;; TODO self-refer
 (defmacro fn [name? & [args & body]]
   (let [[name? args body] (if (symbol? name?) [name? args body]
                               [nil name? (cons args body)])]
     (if (bound? #'c/*env*)
       `(::c/closure
-        (let [arity# c/%arity]
-          (if (not= ~(count args) arity#)
-            (throw (ex-info (str "You called " (or '~name? (pr-str ::unnamed-pfn)) ", a "
-                                 ~(count args) "-arg p/fn with " arity# " arguments.")
-                            {:name '~name?}))
-            (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
-              (new c/rec ~@(take (count args) c/arg-sym)))
-            ~{::dbg/name name?, ::dbg/args args, ::dbg/type (or (::dbg/type (meta name?)) :reactive-fn)
-              ::dbg/meta (merge (select-keys (meta &form) [:file :line])
-                                (select-keys (meta name?) [:file :line]))})))
+        ;; FIXME this could be rewritten as `(do (-check-fn-arity! …) (binding
+        ;; …))` where `-check-fn-arity!` would throw the exception. But the
+        ;; functions is called before -check-fn-arity! throws. This does not
+        ;; seem correct. Here we guard the function call branch to ensure
+        ;; -check-fn-arity! throws first.
+        (if-some [e# (-check-fn-arity! '~name? ~(count args) c/%arity)]
+          (throw e#)
+          (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
+            (new c/rec ~@(take (count args) c/arg-sym))))
+        ~{::dbg/name name?, ::dbg/args args, ::dbg/type (or (::dbg/type (meta name?)) :reactive-fn)
+          ::dbg/meta (merge (select-keys (meta &form) [:file :line])
+                       (select-keys (meta name?) [:file :line]))})
       `(throw (ex-info "Invalid p/fn in Clojure code block (use from Photon code only)" ~(into {} (meta &form)))))))
 
 ; syntax quote doesn't qualify special forms like 'def
