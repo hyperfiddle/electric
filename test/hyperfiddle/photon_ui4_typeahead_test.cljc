@@ -229,3 +229,31 @@
 
        (discard)
        )))
+
+#?(:cljs
+   (do-browser
+     (tests "truncated result"
+       (def !tphd (atom :missing))
+       (def discard (p/run (try
+                             (binding [dom1/node (dom1/by-id "root")]
+                               (p/server
+                                 (let [!v (atom :alice)]
+                                   (ui/typeahead (p/watch !v)
+                                     (p/fn [v] (reset! !v v))
+                                     (p/fn [search] (take 30 (cycle (q search))))
+                                     (p/fn [id] (-> data id :name))
+                                     #_for-test (reset! !tphd dom1/node)))))
+                             (catch Pending _)
+                             (catch Cancelled _)
+                             (catch :default e (prn e)))))
+
+       (def tphd @!tphd)
+       (def input (get-input tphd))
+       (some? input) := true
+
+       "when there's too many options we see a signifier telling we should refine our query"
+       (uit/focus input)
+       ((m/sp
+          (try (m/? (-> (->selection tphd "ul > div") (holds #(some-> % first .-innerText) #{"refine your query…"})))
+               (finally (discard))))
+        identity prn))))
