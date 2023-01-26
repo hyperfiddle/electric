@@ -8,6 +8,7 @@
    [hyperfiddle.rcf :as rcf :refer [% tests with tap]]
    [hyperfiddle.photon :as p]
    [clojure.string :as str]
+   [missionary.core :as m]
    [hyperfiddle.photon-dom2 :as dom])
   (:import
    [missionary Cancelled]
@@ -23,8 +24,27 @@
   (q "B") := [:alice :bob]
   (q "X") := [])
 
+#?(:cljs
+   (defn ->selection
+     ([node] (->selection node nil))
+     ([node selector]
+      (fn [transformer pred]
+        (m/sp
+          (loop [try 1]
+            (let [nodes (if selector (vec (.querySelectorAll node selector)) node)]
+              (when-not (pred (transformer nodes))
+                (when (= 5 try)
+                  (throw (ex-info "failed to assert on selection" {:value (transformer nodes), :pred pred})))
+                (m/? (m/sleep (* 10 try try))) (recur (inc try))))))))))
+
+#?(:cljs
+   (defn holds
+     ([selection pred] (holds selection identity pred))
+     ([selection transformer pred] ((selection transformer pred) identity prn))))
+
 #?(:cljs (defn get-input [tphd] (-> tphd (.getElementsByTagName "input") first)))
-#?(:cljs (defn get-options [tphd] (vec (.querySelectorAll tphd "ul > li"))))
+#?(:cljs (def options-selector "ul > li"))
+#?(:cljs (defn get-options [tphd] (vec (.querySelectorAll tphd options-selector))))
 #?(:cljs (defn get-option [tphd s] (some #(when (= s (.-innerText %)) %) (get-options tphd))))
 
 #?(:cljs
@@ -123,17 +143,15 @@
                              (binding [dom1/node (dom1/by-id "root")]
                                (p/server
                                  (let [!v (atom :alice)]
-                                   (tap [:typeahead-returned
-                                         (ui/typeahead (p/watch !v)
-                                           (p/fn [v] (reset! !v v))
-                                           (p/fn [search] (q search))
-                                           (p/fn [id] (-> data id :name))
-                                           #_for-test (reset! !tphd dom1/node))]))))
+                                   (ui/typeahead (p/watch !v)
+                                     (p/fn [v] (reset! !v v))
+                                     (p/fn [search] (q search))
+                                     (p/fn [id] (-> data id :name))
+                                     #_for-test (reset! !tphd dom1/node)))))
                              (catch Pending _)
                              (catch Cancelled _)
                              (catch :default e (prn e)))))
 
-       % := [:typeahead-returned nil]
        (def tphd @!tphd)
        (def input (get-input tphd))
        (some? input) := true
@@ -146,8 +164,8 @@
        (uit/set-value! input "")
        (.-value input) := ""
        (uit/click (.querySelector js/document ".hyperfiddle-modal-backdrop"))
-       % := [:typeahead-returned nil]
-       (.-value input) := "Alice B"
+       (-> (->selection tphd options-selector) (holds count zero?))
+       (-> (->selection input) (holds #(.-value %) #{"Alice B"}))
 
        (discard)
        )))
