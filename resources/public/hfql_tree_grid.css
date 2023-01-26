@@ -22,7 +22,10 @@ body{
     --hf-grid-gap: 1px;
 
     display: grid;
+    /* grid-auto-rows: var(--hf-grid-row-height); */
     grid-auto-rows: minmax(var(--hf-grid-row-height), auto);
+
+    grid-auto-columns: minmax(max-content, 1fr);
     grid-gap: var(--hf-grid-gap);
     justify-items: start; /* cell content is left aligned */
     align-items: center;  /* cells align their content on the row center */
