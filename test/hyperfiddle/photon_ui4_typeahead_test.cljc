@@ -30,17 +30,18 @@
      ([node selector]
       (fn [transformer pred]
         (m/sp
-          (loop [try 1]
+          (loop [attempt 1]
             (let [nodes (if selector (vec (.querySelectorAll node selector)) node)]
-              (when-not (pred (transformer nodes))
-                (when (= 5 try)
-                  (throw (ex-info "failed to assert on selection" {:value (transformer nodes), :pred pred})))
-                (m/? (m/sleep (* 10 try try))) (recur (inc try))))))))))
+              (when-not (try (pred (transformer nodes)) (catch :default _))
+                (when (= 5 attempt)
+                  (let [v (try [:ok (transformer nodes)] (catch :default e [:err e]))]
+                    (throw (ex-info "failed to assert on selection" {:value v, :pred pred}))))
+                (m/? (m/sleep (* 10 attempt attempt))) (recur (inc attempt))))))))))
 
 #?(:cljs
    (defn holds
      ([selection pred] (holds selection identity pred))
-     ([selection transformer pred] ((selection transformer pred) identity prn))))
+     ([selection transformer pred] (selection transformer pred))))
 
 #?(:cljs (defn get-input [tphd] (-> tphd (.getElementsByTagName "input") first)))
 #?(:cljs (def options-selector "ul > li"))
@@ -164,11 +165,12 @@
        (uit/set-value! input "")
        (.-value input) := ""
        (uit/click (.querySelector js/document ".hyperfiddle-modal-backdrop"))
-       (-> (->selection tphd options-selector) (holds count zero?))
-       (-> (->selection input) (holds #(.-value %) #{"Alice B"}))
-
-       (discard)
-       )))
+       ((m/sp
+          (try
+            (m/? (-> (->selection tphd options-selector) (holds count zero?)))
+            (m/? (-> (->selection input) (holds #(.-value %) #{"Alice B"})))
+            (finally (discard))))
+        identity prn))))
 
 #?(:cljs
    (do-browser
