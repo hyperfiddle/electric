@@ -153,27 +153,48 @@
 
 (p/def Render)
 
+#?(:cljs
+   (defn -parse-float [str]
+     (let [f (js/parseFloat str)]
+       (if (NaN? f) 0 f))))
+
 #?(:cljs (def extract-borders
-           (let [parse js/parseFloat]
-             (juxt
-               #(map parse (str/split (.-gridTemplateRows %) #"px\s"))
-               #(map parse (str/split (.-gridTemplateColumns %) #"px\s"))
-               #(parse (.-width %))
-               #(parse (.-height %))
-               #(parse (.-gap ^js %))
-               #(.getPropertyValue % "--hf-cell-border-color")
-               ))))
+           (juxt
+             #(map -parse-float (str/split (.-gridTemplateRows %) #"px\s"))
+             #(map -parse-float (str/split (.-gridTemplateColumns %) #"px\s"))
+             #(-parse-float (.-width %))
+             #(-parse-float (.-height %))
+             #(-parse-float (.-gap ^js %))
+             #(.getPropertyValue % "--hf-cell-border-color")
+             )))
+
+(defn reductions* "like reductions but stop on first reduced value"
+  [f init coll]
+  (reduce (fn [[r prev] v] (let [new (f prev v)]
+                             (if (reduced? new)
+                               (reduced (conj r (unreduced new)))
+                               [(conj r new) new])))
+    [[] init] coll))
 
 #?(:cljs (defn draw-lines! [node color width height gap rows columns]
-           (let [xs  (reductions (partial + gap) columns)
-                 ys  (reductions (partial + gap) rows)
-                 ctx (and (.-getContext node) (.getContext node "2d"))]
-             (when ctx
-               (.clearRect ctx 0 0 width height)
-               (set! (.-fillStyle ctx) color)
-               (doseq [x xs] (.fillRect ctx (int x) 0 gap height))
-               (doseq [y ys] (.fillRect ctx 0 (int y) width gap)))
-             )))
+           (when (and (pos? width) (pos? height)
+                   (some pos? rows)
+                   (some pos? columns))
+             (let [xs  (reductions (partial + gap) columns)
+                   ys  (reductions* (fn [r row]
+                                      (let [h (+ r row gap)]
+                                        (if (>= h height)
+                                          (reduced h)
+                                          h)))
+                         0
+                         (concat rows (repeat (last rows))))
+                   ctx (and (.-getContext node) (.getContext node "2d"))]
+               (when ctx
+                 (.clearRect ctx 0 0 width height)
+                 (set! (.-fillStyle ctx) color)
+                 (doseq [x xs] (.fillRect ctx (int x) 0 gap height))
+                 (doseq [y ys] (.fillRect ctx 0 (int y) width gap)))
+               ))))
 
 ;; This should not be see in userland because it’s an implementation detail
 ;; driven by Photon not supporting mutual recursion as of today.
@@ -187,15 +208,18 @@
        (p/client ; FIXME don’t force body to run on the client
          (binding [grid-row 1
                    grid-col 1]
-           (dom/div (dom/props {:class "hyperfiddle-gridsheet"}) ; FIXME drop the wrapper div
-             (let [[rows# columns# width# height# gap# color#] (new ComputedStyle extract-borders hyperfiddle.photon-dom/node)
-                   [scroll-top# scroll-height# client-height#] (new (sw/scroll-state< hyperfiddle.photon-dom/node))
-                   height#                                     (if (zero? scroll-height#) height# scroll-height#)]
-               (dom/canvas (dom/props {:class  "hf-grid-overlay"
-                                       :width  (str width# "px")
-                                       :height (str height# "px")})
-                 (draw-lines! hyperfiddle.photon-dom/node color# width# height# gap# rows# columns#)))
-             ~@body))))))
+           (dom/div (dom/props {:class "hyperfiddle-gridsheet-wrapper"})
+             (dom/div (dom/props {:class "hyperfiddle-gridsheet"})
+               ~@body)
+             (let [wrapper-height# (new ComputedStyle #(-parse-float (.-height %)) hyperfiddle.photon-dom/node)]
+               (when-let [node (.querySelector hyperfiddle.photon-dom/node ".hyperfiddle-gridsheet")]
+                 (let [[rows# columns# width# height# gap# color#] (new ComputedStyle extract-borders node)
+                       [scroll-top# scroll-height# client-height#] (new (sw/scroll-state< node))
+                       height#                                     (if (zero? scroll-height#) height# scroll-height#)]
+                   (dom/canvas (dom/props {:class  "hf-grid-overlay"
+                                           :width  (str width# "px")
+                                           :height (str wrapper-height# "px")})
+                     (draw-lines! hyperfiddle.photon-dom/node color# width# wrapper-height# gap# rows# columns#)))))))))))
 
 ;; TODO adapt to new HFQL macroexpansion
 (p/defn Render-impl [{::hf/keys [type cardinality render Value options] :as ctx}]
