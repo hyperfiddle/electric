@@ -477,7 +477,8 @@
        (dom/props {::dom/role  "scrollbar"
                     ::dom/style {:grid-row-start (inc grid-row)
                                   :grid-row-end   (+ (inc grid-row) ~max-height)
-                                  :grid-column    (+ grid-col ~actual-width)}})
+                                  :grid-column    (+ grid-col ~actual-width)
+                                 :max-height      (str "calc((var(--hf-grid-row-height) + var(--hf-grid-gap)) * " ~max-height ")")}})
        (do (reset! !scroller# hyperfiddle.photon-dom/node)
            (let [[scroll-top#] (new (sw/scroll-state< hyperfiddle.photon-dom/node))]
              (reset! !scroll-top# scroll-top#))
