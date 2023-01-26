@@ -53,9 +53,10 @@
       (notify-watches this oldval)))
   (forward! [this]
     (let [oldval (deref this)]
+      (forward!)
       (notify-watches this oldval)))
   (replace-state! [this new-state]
-    (.reset this new-state))
+    (reset! this new-state))
 
   ;; TODO Implement equality so that two HTML5History are always equal. The
   ;;      browser history is a singleton. There is no use case for nested
