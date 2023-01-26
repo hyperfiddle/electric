@@ -123,15 +123,17 @@
                              (binding [dom1/node (dom1/by-id "root")]
                                (p/server
                                  (let [!v (atom :alice)]
-                                   (ui/typeahead (p/watch !v)
-                                     (p/fn [v] (reset! !v v))
-                                     (p/fn [search] (q search))
-                                     (p/fn [id] (-> data id :name))
-                                     #_for-test (reset! !tphd dom1/node)))))
+                                   (tap [:typeahead-returned
+                                         (ui/typeahead (p/watch !v)
+                                           (p/fn [v] (reset! !v v))
+                                           (p/fn [search] (q search))
+                                           (p/fn [id] (-> data id :name))
+                                           #_for-test (reset! !tphd dom1/node))]))))
                              (catch Pending _)
                              (catch Cancelled _)
                              (catch :default e (prn e)))))
 
+       % := [:typeahead-returned nil]
        (def tphd @!tphd)
        (def input (get-input tphd))
        (some? input) := true
@@ -144,6 +146,7 @@
        (uit/set-value! input "")
        (.-value input) := ""
        (uit/click (.querySelector js/document ".hyperfiddle-modal-backdrop"))
+       % := [:typeahead-returned nil]
        (.-value input) := "Alice B"
 
        (discard)
