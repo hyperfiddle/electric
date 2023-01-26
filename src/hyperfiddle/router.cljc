@@ -55,7 +55,7 @@
 (defn updatef [[history idx] f] [(update history idx f) idx])
 
 #?(:clj
-   (defrecord AtomHistory [state watches max-size]
+   (defrecord AtomHistory [^IAtom state watches max-size]
      IAtom
      (swap [this f]           (notify-watches this (swap-vals! state updatef f)))
      (swap [this f arg]       (.swap this #(f % arg)))
@@ -129,7 +129,7 @@
       (swap-vals! (.-state this) (fn [[history idx]] [history (max (dec idx) 0)]))))
   (forward! [this] (notify-watches this
                      (swap-vals! (.-state this) (fn [[history idx]] [history (min (inc idx) (dec (count history)))]))))
-  (replace-state! [this new-state] (.reset this new-state)))
+  (replace-state! [this new-state] (reset! this new-state)))
 
 
 (defn atom-history
