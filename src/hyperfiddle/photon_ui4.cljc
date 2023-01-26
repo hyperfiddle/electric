@@ -134,6 +134,14 @@
                    (~return nil))
      #_else      ::unhandled))
 
+(defmacro for-truncated [[sym opts] limit & body]
+  `(let [limit# ~limit, opts# ~opts, truncated# (take limit# opts#), more?# (seq (drop limit# opts#))]
+     (p/for [~sym truncated#] ~@body)
+     (when more?#
+       (p/client
+         (dom/div (dom/text "refine your query…")
+           (dom/props {:disabled true, :style {:background-color "whitesmoke" :font-size "0.8rem" :font-style "italic"}}))))))
+
 ;; TODO
 ;; - what if the change callback throws
 (defmacro typeahead [v V! Options OptionLabel & body]
@@ -156,24 +164,15 @@
                                        (dom/on "keydown" (p/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
                                        (dom/ul
                                          (p/server
-                                           (let [limit# 20, opts# (new Options# search#)
-                                                 truncated# (take limit# opts#), more?# (seq (drop limit# opts#))]
-                                             (p/for [id# truncated#]
-                                               (p/client
-                                                 (dom/li (dom/text (p/server (new OptionLabel# id#)))
-                                                   (on-mount (swap! !selected# select-if-first dom1/node))
-                                                   (on-unmount (swap! !selected# ?pass-on-to-first dom1/node))
-                                                   (track-id dom1/node id#)
-                                                   (?mark-selected selected#)
-                                                   (dom/on "mouseover" (p/fn [e#] (reset! !selected# dom1/node)))
-                                                   (return-on-click return# V!# id#))))
-                                             (when more?#
-                                               (p/client
-                                                 (dom/div (dom/text "refine your query…")
-                                                   (dom/props {:disabled true,
-                                                               :style {:background-color "whitesmoke"
-                                                                       :font-size "0.8rem"
-                                                                       :font-style "italic"}})))))))))
+                                           (for-truncated [id# (new Options# search#)] 20
+                                             (p/client
+                                               (dom/li (dom/text (p/server (new OptionLabel# id#)))
+                                                 (on-mount (swap! !selected# select-if-first dom1/node))
+                                                 (on-unmount (swap! !selected# ?pass-on-to-first dom1/node))
+                                                 (track-id dom1/node id#)
+                                                 (?mark-selected selected#)
+                                                 (dom/on "mouseover" (p/fn [e#] (reset! !selected# dom1/node)))
+                                                 (return-on-click return# V!# id#))))))))
                                    (new (p/task->cp return#)))))]
                  (case return#
                    (let [txt# (p/server (new OptionLabel# v#))]
@@ -254,7 +253,7 @@
                                (dom/on "keydown" (p/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
                                (dom/ul
                                  (p/server
-                                   (p/for [id# (new Options# search#)]
+                                   (for-truncated [id# (new Options# search#)] 20
                                      (p/client
                                        (dom/li (dom/text (p/server (new OptionLabel# id#)))
                                          (on-mount (swap! !selected# select-if-first dom1/node))
