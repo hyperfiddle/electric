@@ -29,6 +29,7 @@
             #_user.demo-hfql
             wip.teeshirt-orders
             wip.demo-branched-route
+            wip.tag-picker
 
             ; these demos require datomic on classpath, disabled by default
             #_user.demo-stage-ui3
@@ -63,7 +64,9 @@
    #_[::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
    #_[::hfql user.demo-hfql/App]
    #_[::hfql2 wip.hfql/App]
-   [::router wip.demo-branched-route/App]])
+   [::router wip.demo-branched-route/App]
+   [::tag-picker wip.tag-picker/App]
+   ])
 
 (p/defn NotFoundPage []
   (p/client
