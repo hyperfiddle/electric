@@ -135,14 +135,10 @@ table {
     padding: 0 0 0 0.5rem;
 }
 
-.hyperfiddle-tag-picker-items > li:after{
-    content:"×";
+.hyperfiddle-tag-picker-items > li > span {
     margin: 0.25rem;
     color: rgb(55 65 81);
-}
-
-.hyperfiddle-tag-picker-items > li:hover:after{
-    cursor: pointer;
+    cursor:pointer;
 }
 
 .hyperfiddle-selected

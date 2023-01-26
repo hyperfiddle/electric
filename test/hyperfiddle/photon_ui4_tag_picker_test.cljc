@@ -26,7 +26,8 @@
 #?(:cljs (defn get-input [tgpk] (-> tgpk (.getElementsByTagName "input") first)))
 #?(:cljs (defn get-options [tgpk] (vec (.querySelectorAll tgpk ".hyperfiddle-tag-picker-input-container > ul > li"))))
 #?(:cljs (defn get-picked-items [tgpk] (vec (.querySelectorAll tgpk ".hyperfiddle-tag-picker-items > li"))))
-#?(:cljs (defn find-with-text [elems s] (some #(when (= s (.-innerText %)) %) elems)))
+#?(:cljs (defn find-with-text [elems s] (some #(when (str/includes? (.-innerText %) s) %) elems)))
+#?(:cljs (defn children [elem] (vec (.-children elem))))
 
 #?(:cljs
    (do-browser
@@ -72,11 +73,16 @@
        (hash-set % %) := #{[:V! :charlie] [:OptionLabel :charlie]}
        (.-value input) := ""
 
-       "clicking an item removes it"
+       "clicking an item's × removes it"
        (def picked-count-before (count (get-picked-items tgpk)))
-       (uit/click (-> (get-picked-items tgpk) (find-with-text "Alice B")))
+       (uit/click (-> (get-picked-items tgpk) (find-with-text "Alice B") children first))
        % := [:unV! :alice]
        (count (get-picked-items tgpk)) := (dec picked-count-before)
+
+       "clicking an item opens the options"
+       (uit/click (-> (get-picked-items tgpk) first))
+       % := [:Options ""]
+       (hash-set % % % %) := #{[:OptionLabel :alice] [:OptionLabel :bob] [:OptionLabel :charlie] [:OptionLabel :derek]}
 
        (discard)
        )))
