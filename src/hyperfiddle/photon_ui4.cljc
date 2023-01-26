@@ -214,6 +214,12 @@
      (p/client
        (dom/div (dom/props {:class "hyperfiddle-tag-picker"})
          (do1
+           (dom/ul (dom/props {:class "hyperfiddle-tag-picker-items"})
+             (p/server
+               (p/for [id# v#]
+                 (let [txt# (new OptionLabel# id#)]
+                   (p/client (dom/li (dom/text txt#)
+                               (dom/on "click" (p/fn [e#] (own e#) (p/server (new unV!# id#))))))))))
            (dom/div (dom/props {:class "hyperfiddle-tag-picker-input-container"})
              (let [input-container-node# dom1/node]
                (dom/input
@@ -241,10 +247,4 @@
                          (let [ret# (new (p/task->cp return#))]
                            (case ret# (set! (.-value input-node#) ""))
                            ret#))))))))
-           (dom/ul (dom/props {:class "hyperfiddle-tag-picker-items"})
-             (p/server
-               (p/for [id# v#]
-                 (let [txt# (new OptionLabel# id#)]
-                   (p/client (dom/li (dom/text txt#)
-                               (dom/on "click" (p/fn [e#] (own e#) (p/server (new unV!# id#))))))))))
            ~@body)))))
