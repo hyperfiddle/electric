@@ -212,8 +212,9 @@
 #?(:cljs
    (defn focus [elem]
      (.focus elem #js {"focusVisible" true})
-     (.dispatchEvent elem (js/FocusEvent. "focus"))
-     (.dispatchEvent elem (js/FocusEvent. "focusin" #js {:bubbles true}))))
+     (.setTimeout js/window #(do
+                               (.dispatchEvent elem (js/FocusEvent. "focus"))
+                               (.dispatchEvent elem (js/FocusEvent. "focusin" #js {:bubbles true}))))))
 
 (defmacro tag-picker [v V! unV! Options OptionLabel & body]
   `(let [v# ~v, V!# ~V!, unV!# ~unV!, Options# ~Options, OptionLabel# ~OptionLabel]
