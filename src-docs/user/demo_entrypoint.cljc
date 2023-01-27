@@ -33,6 +33,7 @@
 
             ; these demos require datomic on classpath, disabled by default
             #_user.demo-stage-ui3
+            wip.dennis-exception-leak
             #_hyperfiddle.datomic-browser))
 
 (p/def pages
@@ -66,6 +67,7 @@
    #_[::hfql2 wip.hfql/App]
    [::router wip.demo-branched-route/App]
    [::tag-picker wip.tag-picker/App]
+   [::dennis-exception-leak wip.dennis-exception-leak/App2]
    ])
 
 (p/defn NotFoundPage []
