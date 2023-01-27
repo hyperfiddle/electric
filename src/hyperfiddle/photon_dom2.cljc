@@ -84,13 +84,17 @@
                (new (unmount-prop node (key prop#) nil))
                nil))))))
 
-(defn event* [dom-node event-name callback]
-  (m/observe (fn [!]
-               (! nil)
-               (.addEventListener dom-node event-name callback)
-               #(.removeEventListener dom-node event-name callback))))
+(defn event*
+  ([dom-node event-name callback] (event* dom-node event-name callback {}))
+  ([dom-node event-name callback options]
+   (m/observe (fn [!]
+                (! nil)
+                (.addEventListener dom-node event-name callback #?(:cljs (clj->js options)))
+                #(.removeEventListener dom-node event-name callback)))))
 
-(defmacro ^:deprecated event [event-name callback] `(new (event* node ~event-name ~callback)))
+(defmacro ^:deprecated event
+  ([event-name callback] `(new (event* hyperfiddle.photon-dom/node ~event-name ~callback)))
+  ([event-name callback options] `(new (event* hyperfiddle.photon-dom/node ~event-name ~callback ~options))))
 
 (defn happen [s e]
   ; Todo, we need a buffer to force a nil in between events to fix race
