@@ -523,7 +523,8 @@
      (dom/div (dom/props {::dom/role "scrollview"})
        (dom/event "wheel" ; TODO support keyboard nav and touchscreens
          (fn [e#] (let [scroller# @!scroller#]
-                    (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY))))))
+                    (set! (.. scroller# -scrollTop) (+ (.. scroller# -scrollTop) (.. e# -deltaY)))))
+         {:passive true})
        (let [offset# (compute-offset (p/watch !scroll-top#) row-height#)]
          (p/server
            (binding [hf/page-drop offset#
