@@ -237,10 +237,11 @@
 
 (defn height
   ([ctx] (height ctx (::value ctx)))
-  ([{::hf/keys [height arguments keys] :as ctx} value]
+  ([{::hf/keys [height arguments keys attribute] :as ctx} value]
    (let [argc (count arguments)]
      (+ argc
        (cond
+         (= '_ attribute)                      1
          ;; user provided, static height
          (some? height)                        height
          ;; transposed form (table)
@@ -546,3 +547,10 @@
     ;; FIXME use this impl once network dedupes
     #_((fn [_time] (keyfn live-object)) hyperfiddle.photon-dom/system-time-ms)
     ))
+
+(p/defn Text [RenderF]
+  (p/fn [ctx]
+    (p/client
+      (dom/props {:class "hyperfiddle-text"
+                  :style {:grid-column (str (dec grid-col) " / span 2")}})
+      (p/server (RenderF. ctx)))))
