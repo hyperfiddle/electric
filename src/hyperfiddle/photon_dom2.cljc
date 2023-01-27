@@ -125,8 +125,12 @@
   ([typ F] `(let [x# (p/with-cycle [?v# nil]
                        (let [busy# (= ?v# ::p/pending)]
                          (when-some [evt# (new Event ~typ busy#)]
-                           (try (new ~F evt#) (catch Pending e# ::p/pending)))))]
-              (case x# ::p/pending (throw (Pending.)) #_else x#))))
+                           (try (new ~F evt#)
+                                (catch Pending e# ::p/pending)
+                                (catch :default e# [::err e#])))))]
+              (cond (= ::p/pending x#)                      (throw (Pending.))
+                    (and (vector? x#) (= ::err (first x#))) (throw (second x#))
+                    :else                                   x#))))
 
 (defmacro on-pending [pending-body & body] `(try (do ~@body) (catch Pending e# ~pending-body (throw e#))))
 
