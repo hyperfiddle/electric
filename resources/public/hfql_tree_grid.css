@@ -112,6 +112,19 @@ body{
     padding: initial;
 }
 
+.hyperfiddle-gridsheet .hyperfiddle-text{
+    background-color: var(--hf-label-background);
+    z-index: 2;
+    padding: 0.5rem;
+}
+
+.hyperfiddle-gridsheet .hyperfiddle-text h1{
+    /* text-3xl */
+    font-size: 1.875rem; /* 30px */
+    line-height: 2.25rem; /* 36px */
+    margin: 0;
+}
+
 
 /* Misc */
 

@@ -529,16 +529,17 @@
                                                                (dissoc :node/_children))))))
                                (mapcat identity)) ; concat into single tx
                              ))
-       (ident? form)     [{:db/id          (gen-id)
-                           :node/_children parent-id
-                           :node/type      :ident
-                           :node/form      form
-                           :node/form-type (cond (keyword? form) :keyword
-                                                 (symbol? form)  :symbol)}]
+       (and (ident? form)
+         (not= '_ form))   [{:db/id          (gen-id)
+                             :node/_children parent-id
+                             :node/type      :ident
+                             :node/form      form
+                             :node/form-type (cond (keyword? form) :keyword
+                                                   (symbol? form)  :symbol)}]
        :else             [(cond-> {:db/id          (gen-id)
                                    :node/type      :literal
                                    :node/_children parent-id}
-                            (some? form) (assoc :node/form form))])
+                            (some? form) (assoc :node/form (if (= '_ form) (list 'quote form) form)))])
      (update 0 assoc
        :form/meta (or (meta form) {})
        :node/continuation continuation?))))
