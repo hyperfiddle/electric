@@ -301,6 +301,15 @@
     (cons (symbol (field-name (first attr))) (seq (::spec/keys (clojure.datafy/datafy (spec/args (first attr))))) )
     (name attr)))
 
+#?(:cljs
+   (defn handle-validity [node hints]
+     (if (seq hints)
+       (do (->> (map :reason hints)
+             (str/join "\n")
+             (.setCustomValidity node))
+           (.reportValidity node))
+       (.setCustomValidity node ""))))
+
 (p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options ::hf/option-label ::hf/readonly] :as arg}]]
   (let [value    (read.)
         options? (some? options)]
@@ -334,7 +343,8 @@
                                  ::dom/role  "cell"
                                  ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
                      (when (seq props) (dom/props props))
-                     (when options? (dom/props {::dom/list list-id})))))
+                     (when options? (dom/props {::dom/list list-id}))
+                     (handle-validity hyperfiddle.photon-dom/node (get hf/validation-hints [name])))))
         value))))
 
 (defn apply-1 [n F args]
