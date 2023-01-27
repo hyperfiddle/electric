@@ -30,12 +30,17 @@
 
 (p/def Rec)
 
+(defn -drop-wildcards "Given a context, build a sequence of key-value pairs, ignoring any wildcard"
+  [{:hyperfiddle.api/keys [keys values]}]
+  (remove (fn [[k _v]] (= '_ k)) (partition 2 (interleave keys values))))
+
 ;; TODO Rename
 (p/defn JoinAllTheTree "Join all the tree, does not call renderers, return EDN." [V]
-  (binding [Rec (p/fn [{:hyperfiddle.api/keys [type keys Value values]}]
+  (binding [Rec (p/fn [{:hyperfiddle.api/keys [type Value] :as ctx}]
                   (case type
                     :hyperfiddle.api/leaf (Value.)
-                    :hyperfiddle.api/keys (into {} (zipmap keys (p/for [ctx values] (Rec. ctx))))
+                    :hyperfiddle.api/keys (into {} (p/for [[k ctx] (-drop-wildcards ctx)]
+                                                     [k (Rec. ctx)]))
                     (let [ctx (Value.)]
                       (cond
                         (vector? ctx) (p/for [ctx ctx] (Rec. ctx))
@@ -45,11 +50,12 @@
 
 ;; TODO Rename, this seems to just be "Render"
 (p/defn EdnRender "Join all the tree, calling renderers when provided, return EDN" [V]
-  (binding [Rec (p/fn [{:hyperfiddle.api/keys [type render keys Value values] :as ctx}]
+  (binding [Rec (p/fn [{:hyperfiddle.api/keys [type render Value] :as ctx}]
                   (if render (render. ctx)
                       (case type
                         :hyperfiddle.api/leaf (Value.)
-                        :hyperfiddle.api/keys (into {} (zipmap keys (p/for [ctx values] (Rec. ctx))))
+                        :hyperfiddle.api/keys (into {} (p/for [[k ctx] (-drop-wildcards ctx)]
+                                                         [k (Rec. ctx)]))
                         (let [ctx (Value.)]
                           (cond
                             (vector? ctx) (p/for [ctx ctx] (Rec. ctx))
