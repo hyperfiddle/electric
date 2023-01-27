@@ -6,6 +6,7 @@
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon :as p]
+            [missionary.core :as m]
             hyperfiddle.photon-dom
             [hyperfiddle.spec :as spec]
             [hyperfiddle.rcf :refer [tests]])
@@ -86,11 +87,14 @@
 (p/defn Transact!* [!t tx] ; colorless, !t on server
   ; need the flattening be atomic?
   #_(when-some [tx (seq (hyperfiddle.txn/minimal-tx hyperfiddle.api/db tx))]) ; stabilize first loop (optional)
-  (p/wrap
-    ; return basis-t ?
-    (swap! !t (fn [[db tx0]]
-                [(with db tx) ; injected datomic dep
-                 (into-tx' schema tx0 tx)])))) ; datascript is different
+  (new (p/task->cp
+         ;; workaround: Datomic doesn't handle a thread interrupt correctly
+         (m/compel
+           (m/via m/blk
+             ;; return basis-t ?
+             (swap! !t (fn [[db tx0]]
+                         [(with db tx) ; injected datomic dep
+                          (into-tx' schema tx0 tx)]))))))) ; datascript is different
 
 (p/def Transact!) ; server
 (p/def stage) ; server
