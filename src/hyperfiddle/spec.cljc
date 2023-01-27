@@ -287,3 +287,33 @@
 
 (comment
   (datafy (hyperfiddle.spec/spec :user.datafy-fs/kind)) )
+
+(defn explain-fspec-data [fspec & args]
+  (let [cat (:args (get-spec fspec))]
+    (assert cat "explain-fspec-data is implemented for function spec arguments only (s/fdef :args).")
+    (dissoc (s/explain-data cat args) :clojure.spec.alpha/spec)))
+
+(defn reformat-explain-data [ed]
+  (when (and (map? ed) (contains? ed :clojure.spec.alpha/problems))
+    (let [problems (->> (:clojure.spec.alpha/problems ed)
+                     (sort-by #(- (count (:in %))))
+                     (sort-by #(- (count (:path %)))))]
+      (->> problems
+        (map (fn [{:keys [path pred val reason via in] :as prob}]
+               {:val      val
+                :in       in
+                :path     path
+                :spec     (last via)
+                :reason   (or reason (s/abbrev pred))
+                :problems (dissoc prob :path :pred :val :reason :via :in)}))
+        (group-by :path)
+        (not-empty)))))
+
+(comment
+
+  (reformat-explain-data (explain-data `swinged.rosie.account/change-email [1 ""]))
+
+  (reformat-explain-data (s/explain-data int? 1.1))
+
+
+  (s/explain-str ))
