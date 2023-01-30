@@ -22,8 +22,9 @@
                                       (throw (ex-info "oh no" {:error true})))))})))
 
 (p/defn App2 []
-  (dom2/input (dom2/props {:placeholder "1) will not error"})
-    (dom2/on "input" (p/fn [e]
-                       (let [v (.. e -target -value)]
-                         (println "dom2 input 1:" v)))))
-  (throw (ex-info "oh no" {:error true})))
+  (p/client
+    (dom2/input (dom2/props {:placeholder "1) will not error"})
+      (dom2/on "input" (p/fn [e]
+                         (let [v (.. e -target -value)]
+                           (println "dom2 input 1:" v)))))
+    (throw (ex-info "oh no" {:error true}))))
