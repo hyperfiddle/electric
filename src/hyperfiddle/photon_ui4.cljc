@@ -73,7 +73,7 @@
      (do1 (dom/on "input" (handle (comp parse-symbol value) ~V!)) ~@body)))
 
 (defmacro date [v V! & body]
-  `(dom/input {:type "date"}
+  `(dom/input (dom/props {:type "date"})
      (dom/bind-value ~v)
      (do1 (dom/on "input" (handle (comp parse-date value) ~V!)) ~@body)))
 
