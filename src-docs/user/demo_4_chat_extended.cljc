@@ -1,12 +1,12 @@
 (ns user.demo-4-chat-extended
+  #?(:cljs (:require-macros user.demo-4-chat-extended))
   (:require
    contrib.str
    [hyperfiddle.api :as hf]
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom1]
    [hyperfiddle.photon-dom2 :as dom]
-   [missionary.core :as m])
-  #?(:cljs (:require-macros user.demo-4-chat-extended)))
+   [missionary.core :as m]))
 
 ; Fleshed out chat demo with auth and presence
 ; Has missionary interop, this is a more advanced demo
@@ -23,7 +23,7 @@
     (p/server
       (p/for [[session-id username] present]
         (p/client
-          (dom/li (dom/text username (str " (" session-id ")")))))))
+          (dom/li (dom/text username (str " (session-id: " session-id ")")))))))
 
   (dom/hr)
   (dom/ul
@@ -51,8 +51,7 @@
                 (dom/text "photon_jetty_server.clj"))))
         (do
           (p/server
-            ; >x is a missionary flow that attaches mount/unmount side effect
-            ; to the lifecycle of the flow
+            ; >x is a missionary flow that attaches side effect to the mount/unmount lifecycle
             (let [>x (->> (m/observe (fn mount [!]
                                        (println `mount username session-id)
                                        (swap! !present assoc session-id username)
@@ -60,9 +59,9 @@
                                          (println `unmount username session-id)
                                          (swap! !present dissoc session-id))))
                           (m/reductions {} nil))]
-              ; missionary flows are mounted with `new` (monadic join).
-              ; This works because Photon compiles to missionary so this actually typechecks
-              ; from a compiler internals perspective.
+              ; missionary flows are booted with `new` (monadic join)
+              ; This works because Photon is essentially a Clojure-to-Missionary compiler,
+              ; so this actually typechecks from a compiler internals perspective.
               (new >x)))
           (dom/p (dom/text "Authenticated as: " username))
           (Chat. username))))))
