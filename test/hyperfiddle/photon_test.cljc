@@ -1787,12 +1787,12 @@
          (bypass-rcf-bug %) := ["href2" "href2"]))))
 
 (tests "p/fn arity check"
-  (with (p/run (try (new (p/fn [x y z] (tap (ex-info "nope" {}))) 100 200 300 400)
+  (with (p/run (try (new (p/fn [x y z] (throw (ex-info "nope" {}))) 100 200 300 400)
                     (catch ExceptionInfo e (tap e))
                     (catch Cancelled _)
                     (catch Throwable t (prn t))))
     (ex-message %) := "You called :hyperfiddle.photon/unnamed-pfn, a 3-arg p/fn with 4 arguments.")
-  (with (p/run (try (new (p/fn [x y] (tap (ex-info "nope" {}))) 100)
+  (with (p/run (try (new (p/fn [x y] (throw (ex-info "nope" {}))) 100)
                     (catch ExceptionInfo e (tap e))
                     (catch Cancelled _)
                     (catch Throwable t (prn t))))
