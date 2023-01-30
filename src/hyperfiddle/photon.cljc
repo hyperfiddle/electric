@@ -265,15 +265,17 @@ or a provided value if it completes without producing any value."
                               [nil name? (cons args body)])]
     (if (bound? #'c/*env*)
       `(::c/closure
-        ;; FIXME this could be rewritten as `(do (-check-fn-arity! …) (binding
-        ;; …))` where `-check-fn-arity!` would throw the exception. But the
-        ;; functions is called before -check-fn-arity! throws. This does not
-        ;; seem correct. Here we guard the function call branch to ensure
-        ;; -check-fn-arity! throws first.
-        (if-some [e# (-check-fn-arity! '~name? ~(count args) c/%arity)]
-          (throw e#)
-          (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
-            (new c/rec ~@(take (count args) c/arg-sym))))
+        ;; Beware, `do` is implemented with `m/latest`, which evaluates
+        ;; arguments in parallel. The p/fn body will be called even if arity is
+        ;; incorrect, then the arity exception will be thrown. This might be
+        ;; confusing to users in presence of effects. Same as `(do (assert
+        ;; false) (prn 42))`: 42 is printed anyway. This is a broader question
+        ;; than "what should the semantics of p/fn should be", so we decided to
+        ;; be consistent with the current model and to not introduce a specific
+        ;; behavior for p/fn.
+        (do (-check-fn-arity! '~name? ~(count args) c/%arity)
+            (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
+              (new c/rec ~@(take (count args) c/arg-sym))))
         ~{::dbg/name name?, ::dbg/args args, ::dbg/type (or (::dbg/type (meta name?)) :reactive-fn)
           ::dbg/meta (merge (select-keys (meta &form) [:file :line])
                        (select-keys (meta name?) [:file :line]))})
