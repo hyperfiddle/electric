@@ -27,10 +27,10 @@ body{
     --hf-grid-gap: 1px;
 
     display: grid;
-    /* grid-auto-rows: var(--hf-grid-row-height); */
-    grid-auto-rows: minmax(var(--hf-grid-row-height), auto);
+    grid-auto-rows: minmax(var(--hf-grid-row-height), auto); /* Rows have dynamic height based on content */
 
-    grid-auto-columns: minmax(max-content, 1fr);
+    /* All columns have the same width (default) */
+    grid-auto-columns: minmax(0, 1fr); /* default min is auto, not 0 */
     grid-gap: var(--hf-grid-gap);
     justify-items: start; /* cell content is left aligned */
     align-items: center;  /* cells align their content on the row center */
@@ -93,6 +93,11 @@ body{
     /* padding: 0.2rem; */
 
     color: #222;
+}
+
+.hyperfiddle-gridsheet [role="cell"] > a {
+    display: block;
+    overflow: hidden;
 }
 
 .hyperfiddle-gridsheet .label[role="cell"] {
