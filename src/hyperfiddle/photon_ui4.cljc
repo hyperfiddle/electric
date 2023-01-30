@@ -8,7 +8,7 @@
     [hyperfiddle.photon :as p]
     [hyperfiddle.photon-dom2 :as dom]
     [hyperfiddle.photon-dom :as dom1]
-    [hyperfiddle.photon-ui2 :as ui2 :refer [parse-edn parse-keyword parse-symbol parse-date]]
+    [hyperfiddle.photon-ui2 :as ui2 :refer [parse-edn parse-keyword parse-symbol parse-date parse-datetime-local]]
     [missionary.core :as m]))
 
 (defmacro handle [getter V!]
@@ -76,6 +76,11 @@
   `(dom/input (dom/props {:type "date"})
      (dom/bind-value ~v)
      (do1 (dom/on "input" (handle (comp parse-date value) ~V!)) ~@body)))
+
+(defmacro datetime-local [v V! & body]
+  `(dom/input (dom/props {:type "datetime-local"})
+     (dom/bind-value ~v)
+     (do1 (dom/on "input" (handle (comp parse-datetime-local value) ~V!)) ~@body)))
 
 (defmacro button [V! & body]
   `(dom/button
