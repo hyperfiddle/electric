@@ -24,13 +24,13 @@
             user.demo-color
             user.tic-tac-toe
             wip.demo-branched-route
-            wip.dennis-exception-leak
             #_wip.hfql
             wip.tag-picker
             wip.teeshirt-orders
 
-            ; these demos require datomic on classpath, disabled by default
-            #_user.demo-stage-ui4
+            ; these demos require extra deps alias
+            #_wip.dennis-exception-leak
+            #_wip.demo-stage-ui4
             #_hyperfiddle.datomic-browser))
 
 (p/def pages
@@ -40,7 +40,7 @@
    [::chat user.demo-4-chat/App]
    [::chat-extended user.demo-4-chat-extended/App]
    [::webview user.demo-4-webview/App]
-   #_[::todos-simple user.todos-simple/Todo-list] ; css fixes
+   [::todos-simple user.todos-simple/Todo-list] ; css fixes
    [::todomvc user.demo-5-todomvc/App]
    [::todomvc-composed user.demo-todomvc-composed/App]
    [::two-clocks user.demo-6-two-clocks/App]
@@ -58,10 +58,10 @@
    [::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
    [::router wip.demo-branched-route/App]
    [::tag-picker wip.tag-picker/App]
-   [::dennis-exception-leak wip.dennis-exception-leak/App2]
 
-   ; need Datomic on classpath
-   #_[::demo-stage-ui4 user.demo-stage-ui4/Demo]
+   ; need extra deps alias
+   #_[::dennis-exception-leak wip.dennis-exception-leak/App2]
+   #_[::demo-stage-ui4 wip.demo-stage-ui4/Demo]
    #_[::datomic-browser hyperfiddle.datomic-browser/App]])
 
 (p/defn NotFoundPage []
