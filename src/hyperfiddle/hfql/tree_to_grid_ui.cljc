@@ -385,6 +385,7 @@
                  (p/client
                    (binding [grid-row (+ grid-row idx)]
                      (p/server
+                       ;; TODO spec search below will break for gray input nested forms
                        (GrayInput. true (-> arg second ::hf/path first attr-spec) nil arg)))))]
       (when (some? tx)
         (Apply. tx args)))))
