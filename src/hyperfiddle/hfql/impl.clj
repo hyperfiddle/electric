@@ -11,6 +11,7 @@
             [clojure.datafy :refer [datafy]]
             [missionary.core :as m]
             [hyperfiddle.photon-impl.runtime :as r]
+            [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as-alias hfql]
             [hyperfiddle.rcf :as rcf :refer [tests with % tap]]))
 
@@ -145,13 +146,29 @@
   (normalize-dot-call 'foo/bar.) := 'foo/bar
   )
 
+(deftype CljSpec [qualified-sym]
+  c/IVar
+  (get-var  [_this] nil)
+  (var-name [_this] qualified-sym)
+  (var-meta [_this] nil)
+  (is-macro [_this] false)
+  (is-node  [_this] false))
+
+(defn find-spec [env sym]
+  (let [ns            (case (c/peer-language env)
+                        :clj  (:name (:ns env))
+                        :cljs (:name (:ns env)))
+        qualified-sym (symbol (str ns) (str sym))]
+    (when (s/get-spec qualified-sym)
+      (CljSpec. qualified-sym))))
+
 (defn resolve-sym [env node sym]
   (when-not (= '. sym)
-    (when-let [var (c/resolve-var env (normalize-dot-call sym))]
-      {:db/id              (:db/id node)
-       :function/var       (c/get-var var)
-       :function/name      (c/var-name var)
-       :function/reactive? (dotted? sym)})))
+    (when-let [var (or (c/resolve-var env (normalize-dot-call sym)) (find-spec env sym))]
+      (cond-> {:db/id              (:db/id node)
+               :function/name      (c/var-name var)
+               :function/reactive? (dotted? sym)}
+        (c/get-var var) (assoc :function/var (c/get-var var))))))
 
 (def _rfpq '[:find [?e ...] :where [?e] (or [?e :node/type :ident]
                                           (and [?e :node/role :argument] [?e :node/position 0]))])
@@ -670,19 +687,20 @@
     sym))
 
 (defn emit-call [point]
-  (let [[f & args]    (arguments point)
-        rendered-f    (or (:function/name f) (:node/form f))
-        reactive?     (:function/reactive? f)
-        rendered-args (map (fn [node]
-                             ;; If parent is options and this is a free input, emit E, otherwise emit node name
-                             (if (is-this-node-a-free-input-in-option-call? node) ; TODO cleanup
-                               E
-                               `(new ~(:node/symbol node)))) args)]
-    (if (:node/quoted? point)
-      `(list* ~@(when reactive? ['new]) '~rendered-f [~@rendered-args])
-      (if reactive?
-        `(new ~rendered-f ~@rendered-args)
-        (cons (convey-dynamic-env rendered-f) rendered-args)))))
+  (let [[f & args]    (arguments point)]
+    (when (:function/var f) ;; if there is no var for this fn (e.g. a spec stub), just emit nil
+      (let [rendered-f    (or (:function/name f) (:node/form f))
+            reactive?     (:function/reactive? f)
+            rendered-args (map (fn [node]
+                                 ;; If parent is options and this is a free input, emit E, otherwise emit node name
+                                 (if (is-this-node-a-free-input-in-option-call? node) ; TODO cleanup
+                                   E
+                                   `(new ~(:node/symbol node)))) args)]
+        (if (:node/quoted? point)
+          `(list* ~@(when reactive? ['new]) '~rendered-f [~@rendered-args])
+          (if reactive?
+            `(new ~rendered-f ~@rendered-args)
+            (cons (convey-dynamic-env rendered-f) rendered-args)))))))
 
 (defn maybe-call-sym [point]
   ;; If a symbol resolves to a function at runtime, call it passing the current
