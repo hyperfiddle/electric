@@ -301,14 +301,15 @@
     (cons (symbol (field-name (first attr))) (seq (::spec/keys (clojure.datafy/datafy (spec/args (first attr))))) )
     (name attr)))
 
-#?(:cljs
-   (defn handle-validity [node hints]
-     (if (seq hints)
-       (do (->> (map :reason hints)
-             (str/join "\n")
-             (.setCustomValidity node))
-           (.reportValidity node))
-       (.setCustomValidity node ""))))
+(defn handle-validity [node hints]
+  #?(:cljs
+     (let [node (or (.querySelector node "input") node)] ;; Find closest input child or consider current node as input
+       (if (seq hints)
+         (do (->> (map :reason hints)
+               (str/join "\n")
+               (.setCustomValidity node))
+             (.reportValidity node))
+         (.setCustomValidity node "")))))
 
 (p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options ::hf/option-label ::hf/readonly] :as arg}]]
   (let [value    (read.)
@@ -335,7 +336,8 @@
                       (dom/props {:id list-id
                                   :role     "cell"
                                   :style    {:grid-row grid-row, :grid-column (inc grid-col)}
-                                  :disabled readonly})))
+                                  :disabled readonly})
+                      (handle-validity hyperfiddle.photon-dom/node (get hf/validation-hints [name]))))
           (case (spec/type-of spec name)
             :hyperfiddle.spec.type/instant
             (ui4/date value (p/fn [v] (router/swap-route! assoc-in path v) nil)
