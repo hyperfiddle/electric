@@ -3,18 +3,11 @@
             [contrib.data :refer [auto-props unqualify]]
             [clojure.datafy :refer [datafy]]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui2 :as ui]
+            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.photon-ui4 :as ui]
             [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet]]
             [hyperfiddle.rcf :refer [tests tap % with]])
   #?(:cljs (:require-macros hyperfiddle.explorer)))
-
-(defn includes-str? [m s]
-  ; org.apache.commons.lang3.StringUtils.containsIgnoreCase()
-  ; common utility for explorer search,
-  ; note this should be done by the database though
-  (clojure.string/includes? (clojure.string/lower-case (str m))
-                            (clojure.string/lower-case (str s))))
 
 (defn- -tree-list [depth xs children-fn keep? input]
   (eduction (mapcat (fn [x]
@@ -38,8 +31,7 @@
 
   "directory is omitted if there are no children matching keep?"
   ((tree-lister [{:dir "x" :children [{:file "a"} {:file "b"}]}] :children (fn [v needle] (-> v :file #{needle}))) "nope")
-  (count (vec *1)) := 0
-  )
+  (count (vec *1)) := 0)
 
 (p/def cols nil)
 (p/def Format (p/server (p/fn [row col] (pr-str (get row col)))))
@@ -61,11 +53,11 @@
   (p/client
     (let [!search (atom "") search (p/watch !search)]
       #_(dom/dl
-        (dom/dt "scroll debug state")
-        (dom/dd (dom/pre (pprint-str (update-keys (p/watch hyperfiddle.scrollview/!scrollStateDebug) unqualify)))))
-      (dom/div {:class "hyperfiddle-explorer-title"} title)
-      (->> (ui/input search {::dom/placeholder "Search files by name" ::dom/type "search"})
-        (reset! !search))
+        (dom/dt (dom/text "scroll debug state"))
+        (dom/dd (dom/pre (dom/text (pprint-str (update-keys (p/watch hyperfiddle.scrollview/!scrollStateDebug) unqualify))))))
+      (dom/div (dom/props {:class "hyperfiddle-explorer-title"}) title)
+      (ui/input search (p/fn V! [v] (reset! !search v))
+        (dom/props {:placeholder "Search files by name" :type "search"}))
       (dom/hr)
       (p/server
         (binding [gridsheet/Format Format]
