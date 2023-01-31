@@ -10,7 +10,6 @@
             ;; [contrib.ednish :as ednish]
             [contrib.color :as c]
             [contrib.data :as data]
-            [hyperfiddle.photon-ui2 :as ui2]
             [hyperfiddle.photon-ui4 :as ui4]
             [hyperfiddle.scrollview :as sw]
             [hyperfiddle.rcf :refer [tests with % tap]]
