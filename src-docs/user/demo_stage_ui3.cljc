@@ -85,7 +85,7 @@
 (p/defn Page []
   #_(p/client (dom/div (if hf/loading "loading" "idle") " " (str (hf/Load-timer.)) "ms"))
   (Form. cobblestone)
-  (Form. cobblestone)
+  #_(Form. cobblestone)
   (p/client (Popover. "open" (p/fn [] (p/server (Form. cobblestone))))))
 
 (p/defn Demo []
