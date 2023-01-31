@@ -1,9 +1,9 @@
 (ns user.seven-gui-5-crud
+  #?(:cljs (:require-macros user.seven-gui-5-crud))
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.photon-ui4 :as ui4]
-            [clojure.string :as str])
-  #?(:cljs (:require-macros user.seven-gui-5-crud)))
+            [clojure.string :as str]))
 
 ;;; Instructions
 ;; https://eugenkiss.github.io/7guis/tasks#crud

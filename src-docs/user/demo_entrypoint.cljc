@@ -15,7 +15,6 @@
             user.demo-6-two-clocks
             user.demo-7-explorer
             user.demo-10k-dom-elements
-            user.demo-controlled-input
             user.todos-simple
             user.seven-gui-1-counter
             user.seven-gui-2-temperature-converter
@@ -24,16 +23,14 @@
             hyperfiddle.scrollview
             user.demo-color
             user.tic-tac-toe
-            wip.typeahead-ui1
-            #_wip.hfql
-            #_user.demo-hfql
-            wip.teeshirt-orders
             wip.demo-branched-route
+            wip.dennis-exception-leak
+            #_wip.hfql
             wip.tag-picker
+            wip.teeshirt-orders
 
             ; these demos require datomic on classpath, disabled by default
-            #_user.demo-stage-ui3
-            wip.dennis-exception-leak
+            #_user.demo-stage-ui4
             #_hyperfiddle.datomic-browser))
 
 (p/def pages
@@ -52,23 +49,20 @@
    [::seven-guis-temperature-converter user.seven-gui-2-temperature-converter/App]
    [::seven-guis-timer user.seven-gui-4-timer/Timer]
    [::seven-guis-crud user.seven-gui-5-crud/App]
-   [::typeahead wip.typeahead-ui1/App]
-   #_[::tic-tac-toe user.tic-tac-toe/App]])
+   [::tic-tac-toe user.tic-tac-toe/App]])
 
 (p/def secret-pages
   [[::color user.demo-color/App]
-   [::controlled-input user.demo-controlled-input/App]
-   #_[::demo-stage-ui3 user.demo-stage-ui3/Demo]
    [::hfql-teeshirt-orders wip.teeshirt-orders/App]
    [::explorer user.demo-7-explorer/App]
-   #_[::datomic-browser hyperfiddle.datomic-browser/App]
-   #_[::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
-   #_[::hfql user.demo-hfql/App]
-   #_[::hfql2 wip.hfql/App]
+   [::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
    [::router wip.demo-branched-route/App]
    [::tag-picker wip.tag-picker/App]
    [::dennis-exception-leak wip.dennis-exception-leak/App2]
-   ])
+
+   ; need Datomic on classpath
+   #_[::demo-stage-ui4 user.demo-stage-ui4/Demo]
+   #_[::datomic-browser hyperfiddle.datomic-browser/App]])
 
 (p/defn NotFoundPage []
   (p/client

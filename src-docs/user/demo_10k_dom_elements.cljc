@@ -1,8 +1,8 @@
 (ns user.demo-10k-dom-elements
   #?(:cljs (:require-macros user.demo-10k-dom-elements))
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui :as ui]
+            [hyperfiddle.photon-dom :refer [node]]
+            [hyperfiddle.photon-dom2 :as dom]
             [missionary.core :as m]))
 
 (def !moves #?(:clj (atom []) :cljs nil))
@@ -10,6 +10,28 @@
 (p/def board-size (p/server (p/watch !board-size)))
 
 (comment (do (reset! !moves []) (reset! !board-size 2000)))
+
+#?(:cljs
+   (defn hot [el]
+     (m/observe (fn mount [!]
+                  (dom/set-property! el "style" {:background-color "red"})
+                  (! nil) ; initial value
+                  (fn unmount []
+                    (dom/set-property! el "style" {:background-color nil}))))))
+
+(p/defn App []
+  (p/client
+    (dom/h1 (dom/text "10k dom elements (multiplayer)"))
+    ; fixed width font + inline-block optimizes browser layout
+    (dom/element "style" (dom/text ".board div { width: 1em; height: 1em; display: inline-block; border: 1px #eee solid; }"))
+    (dom/element "style" (dom/text ".board { font-family: monospace; font-size: 7px; margin: 0; padding: 0; line-height: 0; }"))
+    (dom/div {:class "board"}
+      (p/for [i (range 0 board-size)]
+        (dom/div
+          (dom/on "mouseover" (p/fn [e] (p/server (swap! !moves conj i))))))
+      (p/for [i (p/server (p/watch !moves))]
+        ; differential side effects, indexed by HTMLCollection
+        (new (hot (.item (.. node -children) i)))))))
 
 ;(defn countdown [x]                     ; Count down to 0 then terminate.
 ;  (m/relieve {} (m/ap (loop [x x]
@@ -31,25 +53,3 @@
 ;                        (let [!o (js/MutationObserver !)]
 ;                          (.observe !o !el #js {"attributes" true})
 ;                          (fn unmount [] (.disconnect !o)))))))
-
-#?(:cljs
-   (defn hot [el]
-     (m/observe (fn mount [!]
-                  (dom/set-property! el "style" {:background-color "red"})
-                  (! nil) ; initial value
-                  (fn unmount []
-                    (dom/set-property! el "style" {:background-color nil}))))))
-
-(p/defn App []
-  (p/client
-    (dom/h1 "10k dom elements (multiplayer)")
-    ; fixed width font + inline-block optimizes browser layout
-    (dom/element "style" ".board div { width: 1em; height: 1em; display: inline-block; border: 1px #eee solid; }")
-    (dom/element "style" ".board { font-family: monospace; font-size: 7px; margin: 0; padding: 0; line-height: 0; }")
-    (dom/div {:class "board"}
-      (p/for [i (range 0 board-size)]
-        (ui/element dom/div {::ui/mouseover-event (p/fn [e] (p/server (swap! !moves conj i)))}))
-
-      (p/for [i (p/server (p/watch !moves))]
-        ; differential side effects, indexed by HTMLCollection
-        (new (hot (.item (.. dom/node -children) i)))))))

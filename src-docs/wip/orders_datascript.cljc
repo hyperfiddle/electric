@@ -1,12 +1,12 @@
 (ns wip.orders-datascript
   "query functions used in tee-shirt orders demo"
-  (:require contrib.str
+  (:require [clojure.spec.alpha :as s]
+            clojure.string
+            contrib.str
             [datascript.core :as d]
             [datascript.impl.entity :as de]  ; for `entity?` predicate
-            [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.rcf :refer [tap % tests]]
-            [clojure.string :as str]))
+            [hyperfiddle.rcf :refer [tap % tests]]))
 
 (s/fdef genders :args (s/cat) :ret (s/coll-of number?))
 (defn genders []

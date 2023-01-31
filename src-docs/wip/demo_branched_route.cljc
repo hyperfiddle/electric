@@ -1,16 +1,14 @@
 (ns wip.demo-branched-route
+  #?(:cljs (:require-macros [wip.demo-branched-route]))
   (:require datascript.core
             dev
+            [hyperfiddle.api :as hf]
+            [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.api :as hf]
-            wip.orders-datascript
-            [contrib.ednish :as ednish]
-            [hyperfiddle.router :as router]
             [hyperfiddle.popover-ui2]
-            [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
-            wip.orders-datascript)
-  #?(:cljs (:require-macros [wip.demo-branched-route])))
+            [hyperfiddle.router :as router]
+            wip.orders-datascript))
 
 (p/def Page)
 (p/defn Page-impl []
@@ -33,4 +31,3 @@
     (p/client
       (binding [Page Page-impl]
         (Page.)))))
-

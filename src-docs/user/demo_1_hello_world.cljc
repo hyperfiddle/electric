@@ -1,7 +1,7 @@
 (ns user.demo-1-hello-world
+  #?(:cljs (:require-macros user.demo-1-hello-world))
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom])
-  #?(:cljs (:require-macros user.demo-1-hello-world)))
+            [hyperfiddle.photon-dom2 :as dom]))
 
 ; First demonstration of client/server transfer:
 ; a full stack function with both frontend and backend parts,

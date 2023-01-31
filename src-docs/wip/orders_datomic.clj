@@ -1,7 +1,7 @@
 (ns wip.orders-datomic
   "query functions used in tee-shirt orders demo"
-  (:require contrib.str
-            [clojure.spec.alpha :as s]
+  (:require [clojure.spec.alpha :as s]
+            contrib.str
             [hyperfiddle.api :as hf]
             [hyperfiddle.rcf :refer [tap % tests]]))
 

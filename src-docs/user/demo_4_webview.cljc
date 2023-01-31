@@ -1,10 +1,10 @@
 (ns user.demo-4-webview
   "Photon fullstack query/view composition with client/server transfer"
+  #?(:cljs (:require-macros user.demo-4-webview))
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui4 :as ui4])
-  #?(:cljs (:require-macros user.demo-4-webview)))
+            [hyperfiddle.photon-ui4 :as ui]))
 
 ; A database backed webview with reactive updates.
 ; The webview is subscribed to the database, which updates with each transaction.
@@ -30,7 +30,7 @@
     (dom/div
       (dom/h2 (dom/text "frontend/backend webview with server push"))
       (let [!search (atom ""), search (p/watch !search)]
-        (ui4/input search (p/fn [v] (reset! !search v))
+        (ui/input search (p/fn [v] (reset! !search v))
           (dom/props {:placeholder "Filter…"}))
         (dom/table (dom/props {:class "hyperfiddle"})
           (p/server
