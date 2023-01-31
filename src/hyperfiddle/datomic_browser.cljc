@@ -1,21 +1,25 @@
 (ns hyperfiddle.datomic-browser
-  (:require [contrib.data :refer [index-by unqualify]]
+  #?(:cljs (:require-macros hyperfiddle.datomic-browser))
+  #?(:cljs (:import [goog.math Long])) ; only this require syntax passes shadow in this file, why?
+  (:require clojure.edn
+            [clojure.string :as str]
+            [contrib.data :refer [index-by unqualify]]
             #?(:clj [contrib.datomic-contrib :as dx])
             #?(:cljs contrib.datomic-cloud-contrib)
             [contrib.datomic-m #?(:clj :as :cljs :as-alias) d]
-            clojure.edn
             [contrib.ednish :as ednish]
             [hyperfiddle.explorer :as explorer :refer [Explorer]]
             [hyperfiddle.gridsheet :as-alias gridsheet]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.rcf :refer [tests]]
             [hyperfiddle.router :as router]
             #?(:cljs [hyperfiddle.router-html5 :as html5])
-            [missionary.core :as m]
-            [clojure.string :as str])
-  #?(:cljs (:require-macros hyperfiddle.datomic-browser))
-  #?(:cljs (:import [goog.math Long]))) ; only this require syntax passes shadow in this file, why?
+            [missionary.core :as m]))
+
+; Todo needs cleanup
+; - port to nested router
+; - port to HFQL maybe
 
 (p/def conn)
 (p/def db)
@@ -224,10 +228,10 @@
 
 (p/defn Page [[page x :as route]]
   (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
-  (dom/h1 "Datomic browser")
+  (dom/h1 (dom/text "Datomic browser"))
   (dom/div {:class "user-datomic-browser"}
     (dom/pre (pr-str route))
-    (dom/div "Nav: "
+    (dom/div (dom/text "Nav: ")
       (router/link [::summary] (dom/text "home")) " "
       (router/link [::db-stats] (dom/text "db-stats")) " "
       (router/link [::recent-tx] (dom/text "recent-tx")))
