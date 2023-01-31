@@ -337,7 +337,15 @@
                                   :style    {:grid-row grid-row, :grid-column (inc grid-col)}
                                   :disabled readonly})))
           (case (spec/type-of spec name)
-            ;; "checkbox" ()
+            :hyperfiddle.spec.type/instant
+            (ui4/date value (p/fn [v] (router/swap-route! assoc-in path v) nil)
+              (dom/props {::dom/id    id
+                          ::dom/role  "cell"
+                          ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
+              (when (seq props) (dom/props props))
+              (when options? (dom/props {::dom/list list-id}))
+              (handle-validity hyperfiddle.photon-dom/node (get hf/validation-hints [name])))
+
             #_else (ui4/input value (p/fn [v] (router/swap-route! assoc-in path v) nil)
                      (dom/props {::dom/id    id
                                  ::dom/role  "cell"
@@ -373,12 +381,11 @@
 
 (p/defn GrayInputs [{::hf/keys [tx attribute arguments] :as ctx}]
   (when-some [arguments (seq arguments)]
-    (let [spec (attr-spec attribute)
-          args (p/for-by second [[idx arg] (map-indexed vector arguments)]
+    (let [args (p/for-by second [[idx arg] (map-indexed vector arguments)]
                  (p/client
                    (binding [grid-row (+ grid-row idx)]
                      (p/server
-                       (GrayInput. true spec nil arg)))))]
+                       (GrayInput. true (-> arg second ::hf/path first attr-spec) nil arg)))))]
       (when (some? tx)
         (Apply. tx args)))))
 
