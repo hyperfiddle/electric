@@ -196,7 +196,7 @@
                  return#))
              ~@body))))))
 
-(defmacro select [v V! Options OptionLabel & body]
+(defmacro select [v V! Options OptionLabel & body] ; server biased!
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
      (p/client
        (dom/div (dom/props {:class "hyperfiddle-select"})
