@@ -6,7 +6,7 @@
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.popover-ui2]
+            hyperfiddle.popover
             [hyperfiddle.router :as router]
             wip.orders-datascript))
 
@@ -23,8 +23,8 @@
           (p/server
             (hf/hfql {(wip.orders-datascript/orders .) [:db/id]}))))))
   (dom/hr)
-  (router/router ::left  (hyperfiddle.popover-ui2/popover "Recur Left" (Page.)))
-  (router/router ::right (hyperfiddle.popover-ui2/popover "Recur Right" (Page.))))
+  (router/router ::left  (hyperfiddle.popover/popover "Recur Left" (Page.)))
+  (router/router ::right (hyperfiddle.popover/popover "Recur Right" (Page.))))
 
 (p/defn App []
   (hf/branch

@@ -1,4 +1,4 @@
-(ns user.popover
+(ns user.popover-ui1
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
@@ -7,7 +7,7 @@
             [hyperfiddle.rcf :as rcf :refer [tests ! % with]]
             [hyperfiddle.ui.codemirror :refer [read-edn write-edn]])
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros user.popover)))
+  #?(:cljs (:require-macros user.popover-ui1)))
 
 (defmacro with-cycle [[s i] & body]
   `(let [a# (atom ~i) ~s (p/watch a#)]

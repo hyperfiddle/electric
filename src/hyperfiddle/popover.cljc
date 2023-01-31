@@ -1,65 +1,103 @@
 (ns hyperfiddle.popover
-  (:require [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
-            [hyperfiddle.photon-ui2 :as ui])
+  #?(:cljs (:require-macros hyperfiddle.popover))
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros hyperfiddle.popover)))
+  (:require [contrib.css :refer [css-slugify]]
+            [hyperfiddle.api :as hf]
+            [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.photon-ui4 :as ui]
+            [missionary.core :as m]
+            [hyperfiddle.spec :as spec]
+            [hyperfiddle.router :as router]))
 
 ; data PopoverState = Closed | Open request | Pending request
 ; data BodyState = Idle | Request command | Pending command
 ; data Command = Commit tx | Discard
 
-(p/defn PopoverBody [Body]
-  (dom/div {:style {:position "fixed"
-                    :z-index "2"}}
-    (dom/div {:style {:border           "1px pink solid" :padding "5px"
-                      :position         "relative" #_#_#_#_:left "3em" :top "2em" :z-index "1"
-                      ;; :width            "fit-content" #_:height "40em"
-                      :background-color "rgb(248 250 252)"
-                      :box-shadow       "0 0 1rem lightgrey"}}
-      (let [!stage (atom ::unknown) stage (p/watch !stage)]
-
-        (p/with-cycle [loading ::hf/loading]
-          (binding [hf/loading loading] ; todo distributed glitch
-            ;; (dom/div (name loading) " " (str (hf/Load-timer.)) "ms")
-            (try
-
-              (let [stage (p/server
-                            (p/with-cycle [stage []]
-                              (binding [hf/db (hf/with hf/db stage)]
-                                (p/client (Body.)))))] ;; TODO validation
-                (reset! !stage stage))
-
-              ::hf/idle
-              (catch Pending e ::hf/loading))))
-
+(p/defn BranchWrap [Body-client] ; todo colorless p/fns
+  (p/server
+    (let [stage (hf/branch (p/client (Body-client.))
+                  hf/stage)]
+      (p/client
         (dom/hr)
-        (let [commit (when (ui/Button. "commit!" (not= hf/loading ::hf/idle)) stage) ;; TODO disable when invalid
-              discard (when (ui/Button. "discard" (not= hf/loading ::hf/idle)) [])]
-          (dom/br)
-          (ui/edn-editor stage {::dom/disabled true
-                                ::dom/style {:width "100%"
-                                             :height "3rem"}})
-          (or commit discard))))))
+        (let [return (m/dfv)]
+          (ui/button (p/fn [] (p/server (hf/Transact!. stage)) (return :commit)) (dom/text "commit!"))
+          (ui/button (p/fn []
+                       (return :discard)) (dom/text "discard"))
+          (ui/edn stage nil (dom/props {::dom/disabled true
+                                        ::dom/style {:display "block" :width "100%" :height "3rem"}}))
+          (new (p/task->cp return)))))))
+
+(p/defn PopoverBody [Body]
+  (dom/div (dom/props {:class    "hyperfiddle popover-body"
+                       :tabIndex "1"})
+    (dom/event "click" (fn [e]
+                         (when (= (.-target e) (.-currentTarget e)) ; click on self
+                           (.focus (.-currentTarget e)))))
+    (BranchWrap. (p/fn [] (Body.)))))
 
 (p/defn Popover [label Body]
-  (:request
-    (p/with-cycle [{:keys [status]} {:status :closed}]
-      (let [toggle (when-some [event (ui/Button. label (= :pending status))] ; popover anchor
-                     (.preventDefault event)
-                     event)
-            request (case status
-                      :closed nil
-                      (:open :pending) (PopoverBody. Body))]
-        {:status (case status
-                   :closed (if toggle :open :closed)
-                   :open (case request
-                           nil (if toggle :closed :open)
-                           :pending)
+  (let [!open? (atom false), open? (p/watch !open?)]
+    (dom/div (dom/props {:class "hyperfiddle popover-wrapper"})
+      (ui/button (p/fn [] (swap! !open? not)) (dom/text label)) ; popover anchor
+      (when open? (case (PopoverBody. Body) (swap! !open? not))))))
 
-                   ; todo what happens if the parent load fails due to concurrent modification
-                   :pending (case hf/loading
-                              ::hf/idle :closed ; close when loading is finished
-                              :pending))
-         :request request}))))
+(defmacro staged [& body] `(new BranchWrap (p/fn [] ~@body)))
+(defmacro popover [label & body] `(new Popover ~label (p/fn [] ~@body)))
+(defmacro popover-staged [label & body] `(~'popover ~label (~'staged ~@body)))
+
+;; ----
+
+(p/defn BranchWrap2 [Validate Transact Body-client] ; todo colorless p/fns
+  (binding [hf/validation-hints (spec/reformat-explain-data (Validate.))]
+    (p/server
+      (hf/branch (p/client (Body-client.)) hf/stage)
+      (p/client
+        (dom/hr)
+        (let [return (m/dfv)]
+          (ui/button (p/fn [] (Transact. ) (return :commit))
+            (when hf/validation-hints
+              (dom/props {::dom/disabled true}))
+            (dom/text "commit!"))
+          (ui/button (p/fn []
+                       (return :discard)) (dom/text "discard"))
+          (new (p/task->cp return)))))))
+
+(p/defn PopoverBody2 [Validate Transact Body]
+  (dom/div (dom/props {:class    "hyperfiddle popover-body"
+                       :tabIndex "1"})
+    (dom/event "click" (fn [e]
+                         (when (= (.-target e) (.-currentTarget e)) ; click on self
+                           (.focus (.-currentTarget e)))))
+    (BranchWrap2. Validate Transact (p/fn [] (Body.)))))
+
+(p/defn Popover2 [label Validate Transact Body]
+  (let [!open? (atom false), open? (p/watch !open?)]
+    (dom/div (dom/props {:class "hyperfiddle popover-wrapper"})
+      (ui/button (p/fn [] (swap! !open? not)) (dom/text label)) ; popover anchor
+      (when open?
+        (case (PopoverBody2. Validate Transact Body)
+          (swap! !open? not))
+        nil))))
+
+(defmacro popover2*
+  ([label body]
+   `(popover2* ~label (p/fn []) ~body))
+  ([label Transact body]
+   `(popover2* ~label (p/fn []) ~Transact ~body))
+  ([label Validate Transact & body]
+   `(p/client
+     (router/router (router/proxy-history router/!history)
+      (new Popover2 ~label ~Validate ~Transact (p/fn [] ~@body))))))
+
+(defmacro popover2 
+  ([label HFQL-Expr]
+   `(popover2 ~label (p/fn []) ~HFQL-Expr))
+  ([label Transact HFQL-Expr]
+   `(popover2 ~label (p/fn []) ~Transact ~HFQL-Expr))
+  ([label Validate Transact HFQL-Expr]
+   `(popover2* ~label ~Validate ~Transact
+               (ttgui/with-gridsheet-renderer
+                 (p/server
+                  (hf/hfql [hf/*$* hf/db, suber.web.globals/*db* hf/db, hf/*nav!* hf/*nav!*]
+                           ~HFQL-Expr))))))
