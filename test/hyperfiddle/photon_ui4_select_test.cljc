@@ -1,17 +1,14 @@
 (ns hyperfiddle.photon-ui4-select-test
   #?(:cljs (:require-macros hyperfiddle.photon-ui4-select-test))
+  (:import [missionary Cancelled] [hyperfiddle.photon Pending])
   (:require
    #?(:cljs [hyperfiddle.ui.test :as uit])
    [contrib.cljs-target :refer [do-browser]]
    [hyperfiddle.photon-dom :as dom1]
-   [hyperfiddle.photon-ui4 :as ui]
-   [hyperfiddle.rcf :as rcf :refer [% tests with tap]]
+   [hyperfiddle.photon-dom2 :as dom]
    [hyperfiddle.photon :as p]
-   [clojure.string :as str]
-   [hyperfiddle.photon-dom2 :as dom])
-  (:import
-   [missionary Cancelled]
-   [hyperfiddle.photon Pending]))
+   [hyperfiddle.photon-ui4 :as ui]
+   [hyperfiddle.rcf :as rcf :refer [% tests with tap]]))
 
 (def data {:alice   {:name "Alice B"}
            :bob     {:name "Bob C"}
@@ -28,7 +25,7 @@
      (tests "basic behavior"
        (def !select (atom :missing))
        (def discard (p/run (try
-                             (binding [dom1/node (dom1/by-id "root")]
+                             (binding [dom1/node (dom/by-id "root")]
                                (p/server
                                  (let [!v (atom :alice)]
                                    (ui/select (p/watch !v)
