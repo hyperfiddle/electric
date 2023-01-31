@@ -1,18 +1,15 @@
-(ns user.demo-stage-ui3
-  "ui3/input - don't spam datomic"
-  #?(:cljs (:require-macros user.demo-stage-ui3))
+(ns wip.demo-stage-ui4
+  #?(:cljs (:require-macros wip.demo-stage-ui4))
+  (:import [hyperfiddle.photon Pending])
   (:require [contrib.css :refer [css-slugify]]
-            [contrib.clojurex :refer [bindx]]
             [contrib.str :refer [pprint-str]]
             #?(:clj [contrib.datomic-contrib :as dx])
             #?(:clj [datomic.client.api :as d])
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui3 :as ui3]
             [hyperfiddle.photon-ui4 :as ui]
-            [hyperfiddle.popover-ui2 :refer [Popover popover-staged popover staged]])
-  (:import [hyperfiddle.photon Pending]))
+            [hyperfiddle.popover :refer [Popover]]))
 
 (def cobblestone 536561674378709)
 

@@ -1,11 +1,11 @@
-(ns peter.y2022.controlled-input
+(ns peter.y2022.controlled-input-dom1
   (:require
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom]
    [peter.y2022.dom-pure :as dp]
    [missionary.core :as m])
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros user.demo-controlled-input)))
+  #?(:cljs (:require-macros user.controlled-input-ui2)))
 
 (def latency-ms 2000)
 (defn latency [v] (p/task->cp (m/sp (m/? (m/sleep latency-ms v)))))
