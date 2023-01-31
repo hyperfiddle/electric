@@ -3,7 +3,7 @@
    #?(:clj [datascript.core :as d])
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom2 :as dom]
-   [hyperfiddle.photon-ui4 :as ui4]
+   [hyperfiddle.photon-ui4 :as ui]
    [user.demo-5-todomvc :as todomvc])
   #?(:cljs (:require-macros user.demo-todomvc-composed)))
 
@@ -18,7 +18,7 @@
                   todomvc/transact! (partial d/transact! todomvc/!conn)]
           (p/client
             (dom/link (dom/props {:rel :stylesheet, :href "/todomvc.css"}))
-            (ui4/range n (p/fn [v] (p/server (reset! !n v)))
+            (ui/range n (p/fn [v] (p/server (reset! !n v)))
               (dom/props {:min 1 :max 25 :step 1}))
             (dom/div (dom/props {:class "todomvc" :style {:position "relative"}})
               (dom/h1 (dom/text "TodoMVC"))

@@ -1,17 +1,15 @@
 (ns wip.teeshirt-orders
-  (:require contrib.ednish
-            clojure.edn
+  #?(:cljs (:require-macros [wip.teeshirt-orders]))
+  (:require [clojure.spec.alpha :as s]
             [datascript.core :as d]
             dev
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
-            [hyperfiddle.photon-ui4 :as ui4]
+            [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.photon-ui4 :as ui]
             [hyperfiddle.router :as router]
-            wip.orders-datascript
-            [clojure.spec.alpha :as s])
-  #?(:cljs (:require-macros [wip.teeshirt-orders])))
+            wip.orders-datascript))
 
 (defn names [] ["" "alice" "bob" "charlie"])
 (s/fdef names :ret (s/coll-of names))
@@ -92,6 +90,6 @@
                   (dom/h2 (dom/text "Page not found")))))
             (p/client
               (dom/element "style" (dom/text ".dustin-stage { display: block; width: 100%; height: 10em; }"))
-              (ui4/edn (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class "dustin-stage"}))))))
+              (ui/edn (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class "dustin-stage"}))))))
       nil)))
 

@@ -5,9 +5,9 @@
    #?(:clj [datascript.core :as d])
    contrib.str
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom :as dom1]
+   [hyperfiddle.photon-dom :refer [node]]
    [hyperfiddle.photon-dom2 :as dom]
-   [hyperfiddle.photon-ui4 :as ui4])
+   [hyperfiddle.photon-ui4 :as ui])
   #?(:cljs (:require-macros user.demo-5-todomvc)))
 
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))       ; server
@@ -55,7 +55,7 @@
         (dom/li (Filter-control. (::filter state) :done "Completed")))
 
       (when (pos? done)
-        (ui4/button (p/fn [] (p/server (when-some [ids (seq (query-todos db :done))]
+        (ui/button (p/fn [] (p/server (when-some [ids (seq (query-todos db :done))]
                                           (transact! (mapv (fn [id] [:db/retractEntity id]) ids)) nil)))
           (dom/props {:class ["clear-completed"]})
           (dom/text "Clear completed " done))))))
@@ -68,7 +68,7 @@
           (dom/props {:class [(when (= :done status) "completed")
                                (when (= id (::editing state)) "editing")]})
           (dom/div (dom/props {:class "view"})
-            (ui4/checkbox (= :done status) (p/fn [v]
+            (ui/checkbox (= :done status) (p/fn [v]
                                               (let [status (case v true :done, false :active, nil)]
                                                 (p/server (transact! [{:db/id id, :task/status status}]) nil)))
               (dom/props {:class ["toggle"]}))
@@ -88,8 +88,8 @@
                         "Escape" (swap! !state assoc ::editing nil)
                         nil)))
                   (dom/props {:class ["edit"], :autofocus true})
-                  (when (p/Unglitch. description) (.focus dom1/node))))))
-          (ui4/button (p/fn [] (p/server (transact! [[:db/retractEntity id]]) nil))
+                  (when (p/Unglitch. description) (.focus node))))))
+          (ui/button (p/fn [] (p/server (transact! [[:db/retractEntity id]]) nil))
             (dom/props {:class ["destroy"]})))))))
 
 #?(:clj
@@ -104,9 +104,9 @@
         (let [active (p/server (todo-count db :active))
               all    (p/server (todo-count db :all))
               done   (p/server (todo-count db :done))]
-          (ui4/checkbox (cond (= all done)   true
-                              (= all active) false
-                              :else          nil)
+          (ui/checkbox (cond (= all done)   true
+                             (= all active) false
+                             :else          nil)
             (p/fn [v] (let [status (case v (true nil) :done, false :active)]
                         (p/server (transact! (toggle-all! db status)) nil)))
             (dom/props {:class ["toggle-all"]})))
@@ -124,7 +124,7 @@
             (when (= "Enter" (.-key e))
               (when-some [description (contrib.str/empty->nil (.-target.value e))]
                 (p/server (transact! [{:task/description description, :task/status :active}]) nil)
-                (set! (.-value dom1/node) "")))))
+                (set! (.-value node) "")))))
         (dom/props {:class ["new-todo"], :placeholder "What needs to be done?"})))))
 
 (p/defn TodoApp [state]
@@ -150,7 +150,7 @@
     (dom/dt (dom/text "query :all")) (dom/dd (dom/text (pr-str (p/server (query-todos db :all)))))
     (dom/dt (dom/text "state")) (dom/dd (dom/text (pr-str state)))
     (dom/dt (dom/text "delay")) (dom/dd
-                                   (ui4/long (::delay state) (p/fn [v] (swap! !state assoc ::delay v))
+                                   (ui/long (::delay state) (p/fn [v] (swap! !state assoc ::delay v))
                                      (dom/props {:step 1, :min 0, :style {:width :min-content}}))
                                    (dom/text " ms"))))
 
