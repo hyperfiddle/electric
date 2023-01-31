@@ -5,11 +5,14 @@
             #?(:cljs goog.style)
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :refer [node ; reuse dom1/node for compat
-                                            with class-str]]
-            [hyperfiddle.rcf :as rcf :refer [tests]]
+                                            with]]
             [missionary.core :as m])
   (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom2 :refer [with]])))
+
+;(p/def node) ; use photon-dom1/node for now
+
+#?(:cljs (defn by-id [id] (js/document.getElementById id)))
 
 #?(:cljs (defn dom-element* [parent type]
            (let [node (goog.dom/createElement type)]
@@ -37,6 +40,12 @@
                 `(with (text-node node)
                    (-googDomSetTextContent node ~str)))
            strs)))
+
+(defn class-str [v]
+  (cond
+    (or (string? v) (keyword? v)) (name v)
+    (seq v) (clojure.string/join " " (eduction (remove nil?) (map name) v))
+    :else ""))
 
 #?(:cljs
    (defn set-property! [node k v]
