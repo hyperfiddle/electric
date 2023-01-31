@@ -744,20 +744,18 @@
                                  ::hf/many      (p/for [e# value#] (new ~card-one-continuation e#)))
                                (new ~card-one-continuation value#))))))]
                ~(assoc (emit-props point)
-                  ::hf/count `(p/fn [] (hyperfiddle.hfql/safe-count (new ~value-sym)))
+                  ::hf/count (or (:node/form (props ::hf/count point)) `(p/fn [] (hyperfiddle.hfql/safe-count (new ~value-sym))))
                   ::hf/Value (:node/symbol point))))
           ;; No continuation, so cardinality doesn’t matter, we produce a final value.
           `(let [~(:node/symbol point) (hyperfiddle.hfql/share nil (p/fn [] ~value))]
              ~(assoc (emit-props point)
-                ::hf/count `(p/fn [] (hyperfiddle.hfql/safe-count (new ~(:node/symbol point))))
+                ::hf/count (or (:node/form (props ::hf/count point)) `(p/fn [] (hyperfiddle.hfql/safe-count (new ~(:node/symbol point)))))
                 ::hf/Value (:node/symbol point)))))
       :apply (add-scope-bindings point
                (let [value (gensym "value")]
                  `(let [~value (hyperfiddle.hfql/share nil (p/fn [] ~(emit-call point)))]
                     ~(assoc (emit-props point)
-                       ::hf/count `(p/fn []
-                                     (let [v# (new ~value)]
-                                       (count v#)))
+                       ::hf/count (or (:node/form (props ::hf/count point)) `(p/fn [] (let [v# (new ~value)] (count v#))))
                        ::hf/Value
                        (if-some [continuation (seq (:node/children point))]
                          (let [continuation-sym (gensym "continuation_")]
