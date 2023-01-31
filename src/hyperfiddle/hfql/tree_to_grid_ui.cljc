@@ -4,6 +4,7 @@
             [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.spec :as spec]
+            [hyperfiddle.spec.type :as-alias hf-type]
             [clojure.datafy :refer [datafy]]
             [clojure.string :as str]
             ;; [contrib.ednish :as ednish]
@@ -45,19 +46,6 @@
           (::spec/description spec))
         (::spec/description spec)))))
 
-(def input-type {:hyperfiddle.spec.type/symbol  "text"
-                 :hyperfiddle.spec.type/uuid    "text"
-                 :hyperfiddle.spec.type/uri     "text"
-                 :hyperfiddle.spec.type/instant "datetime-local"
-                 :hyperfiddle.spec.type/boolean "checkbox"
-                 :hyperfiddle.spec.type/string  "text"
-                 :hyperfiddle.spec.type/bigdec  "text"
-                 :hyperfiddle.spec.type/keyword "text"
-                 :hyperfiddle.spec.type/ref     "text"
-                 :hyperfiddle.spec.type/float   "double"
-                 :hyperfiddle.spec.type/double  "double"
-                 :hyperfiddle.spec.type/long    "number"})
-
 ;; ----
 
 (p/def table-picker-options {::group-id nil, ::current-value nil}),
@@ -90,64 +78,10 @@
      (when ~dom-for
        (dom/props {::dom/id ~dom-for}))))
 
-(p/defn Input [{::hf/keys [tx Value] :as ctx}]
-  (let [value-type (::value-type ctx)
-        tx?        (some? tx)
-        readonly?  (if-some [ro (find ctx ::readonly)] (val ro) (not tx?))
-        v          (Value.)
-        dom-for    (::dom/for ctx)]
-    (p/client
-      (let [type (input-type value-type "text")
-            Tx   (when-not readonly? (p/fn [v] (p/server (hf/Transact!. (tx. ctx v)) nil)))]
-        ;; TODO tests/demo for all branches in photon repo
-        (case type
-          "checkbox"       (ui4/checkbox v       Tx (input-props readonly? grid-row grid-col dom-for))
-          "datetime-local" (ui4/date     v       Tx (input-props readonly? grid-row grid-col dom-for))
-          "number"         (ui4/long     v       Tx (input-props readonly? grid-row grid-col dom-for))
-          "double"         (ui4/double   v       Tx (input-props readonly? grid-row grid-col dom-for))
-          #_else           (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))
-
 (defn ->picker-type [ctx]
   (cond (seq (::hf/options-arguments ctx))               ::typeahead
         (seq (::hf/options-arguments (::hf/parent ctx))) ::typeahead
         :else                                            ::select))
-
-(p/defn Options [{::hf/keys [options continuation option-label tx] :as ctx}]
-  (let [Options      (or options (::hf/options (::hf/parent ctx)))
-        option-label (or option-label (::hf/option-label (::hf/parent ctx)) Identity)
-        continuation (or continuation (::hf/continuation (::hf/parent ctx)) Identity)
-        tx           (or tx (::hf/tx (::hf/parent ctx)))
-        tx?          (some? tx)
-        dom-props    (data/select-ns :hyperfiddle.photon-dom2 ctx)
-        v            (find-best-identity (hfql/JoinAllTheTree. ctx))
-        V!           (if tx? (p/fn [v] (tx. ctx v)) Identity)
-        OptionLabel  (p/fn [id] (option-label. (hfql/JoinAllTheTree. (continuation. id))))]
-    (case (->picker-type ctx)
-      ::typeahead (ui4/typeahead v V! Options OptionLabel
-                    (dom/props {:role     "cell"
-                                :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
-                                :disabled (not tx?)})
-                    (dom/props dom-props))
-      ::select    (ui4/select v V! Options OptionLabel
-                    (dom/props {:role     "cell"
-                                :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
-                                :disabled (not tx?)})
-                    (dom/props dom-props)))))
-
-(p/defn Default [{::hf/keys [link link-label option-label options] :as ctx}]
-  (if (or options (::hf/options (::hf/parent ctx)))
-    (Options. ctx)
-    (let [route        (when link (new link))
-          value        (hfql/JoinAllTheTree. ctx)
-          option-label (or option-label (::hf/option-label (::hf/parent ctx)) Identity)
-          value        (option-label. value)]
-      (cond
-        (some? route)      (p/client (cell grid-row grid-col (router/link route (dom/text value))))
-        (some? options)    (Options. ctx)
-        (::value-type ctx) (Input. ctx)
-        :else              (p/client
-                             (dom/pre (dom/text (pr-str value))
-                               (dom/props {:role  "cell", :style {:grid-row grid-row, :grid-column grid-col}})))))))
 
 (p/def Render)
 
@@ -219,19 +153,78 @@
                                            :height (str wrapper-height# "px")})
                      (draw-lines! dom/node color# width# wrapper-height# gap# rows# columns#)))))))))))
 
+(defn grab
+  ([ctx k] (or (get ctx k) (get (::hf/parent ctx) k)))
+  ([ctx k default] (or (get ctx k) (get (::hf/parent ctx) k) default)))
+
+(p/defn Options [ctx]
+  (let [options      (grab ctx ::hf/options)
+        option-label (grab ctx ::hf/option-label Identity)
+        continuation (grab ctx ::hf/continuation Identity)
+        tx           (grab ctx ::hf/tx)
+        tx?          (some? tx)
+        dom-props    (data/select-ns :hyperfiddle.photon-dom2 ctx)
+        v            (find-best-identity (hfql/JoinAllTheTree. ctx))
+        V!           (if tx? (p/fn [v] (tx. ctx v)) Identity)
+        OptionLabel  (p/fn [id] (option-label. (hfql/JoinAllTheTree. (continuation. id))))]
+    (case (->picker-type ctx)
+      ::typeahead (ui4/typeahead v V! options OptionLabel
+                    (dom/props {:role     "cell"
+                                :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
+                                :disabled (not tx?)})
+                    (dom/props dom-props))
+      ::select    (ui4/select v V! options OptionLabel
+                    (dom/props {:role     "cell"
+                                :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
+                                :disabled (not tx?)})
+                    (dom/props dom-props)))))
+
+(p/defn Input [{::hf/keys [attribute tx Value link] :as ctx}]
+  (let [spec-value-type   (spec-value-type attribute)
+        schema-value-type (schema-value-type hf/*schema* hf/db attribute)
+        defined-by-spec?  (and spec-value-type (not schema-value-type))
+        route             (when link (new link))
+        option-label      (grab ctx ::hf/option-label Identity)
+        value             (option-label. (hfql/JoinAllTheTree. ctx))]
+    (if (some? route)
+      (p/client (cell grid-row grid-col (router/link route (dom/text value))))
+      (let [tx?       (some? tx)
+            readonly? (or defined-by-spec? (not tx?)) 
+            v         (Value.)
+            dom-for   (::dom/for ctx)]
+        (p/client
+          (let [Tx   (when-not readonly? (p/fn [v] (p/server (hf/Transact!. (tx. ctx v)) nil)))]
+            (case (or spec-value-type schema-value-type)
+              (::hf-type/boolean) (ui4/checkbox       v Tx (input-props readonly? grid-row grid-col dom-for))
+              (::hf-type/instant) (ui4/datetime-local v Tx (input-props readonly? grid-row grid-col dom-for))
+              (::hf-type/bigdec
+               ::hf-type/long)    (ui4/long           v Tx (input-props readonly? grid-row grid-col dom-for))
+              (::hf-type/float
+              ::hf-type/double)   (ui4/double         v Tx (input-props readonly? grid-row grid-col dom-for))
+              (::hf-type/symbol)  (ui4/symbol         v Tx (input-props readonly? grid-row grid-col dom-for))
+              (::hf-type/keyword) (ui4/keyword        v Tx (input-props readonly? grid-row grid-col dom-for))
+              (::hf-type/uuid)    (ui4/uuid           v Tx (input-props readonly? grid-row grid-col dom-for))
+              (::hf-type/uri
+               ::hf-type/string
+               ::hf-type/ref)     (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))))
+
 ;; TODO adapt to new HFQL macroexpansion
-(p/defn Render-impl [{::hf/keys [type cardinality render Value options] :as ctx}]
-  (cond render  (p/client (cell grid-row grid-col (p/server (render. ctx))))
-        :else   (case type
-                  ::hf/leaf (SpecDispatch. ctx)
-                  ::hf/keys (Form. ctx)
-                  (case cardinality
-                    ::hf/many (Table. ctx)
-                    (let [v (Value.)]
+(p/defn Render-impl [{::hf/keys [type attribute cardinality render Value] :as ctx}]
+  (if render
+    (p/client (cell grid-row grid-col (p/server (render. ctx))))
+    (let [cardinality (or cardinality (schema-cardinality hf/*schema* hf/db attribute))]
+      (case type
+        ::hf/leaf (case cardinality
+                    ::hf/many (List. ctx)
+                    #_else    (if (grab ctx ::hf/options) (Options. ctx) (Input. ctx)))
+        ::hf/keys (Form. ctx)
+        (case cardinality
+          ::hf/many (Table. ctx)
+          #_else    (let [v (Value.)]
                       (cond
                         (vector? v) (Table. ctx)
                         (map? v)    (Render. (assoc v ::hf/parent ctx))
-                        :else       (throw "unreachable" {:v v})))))))
+                        :else       (throw (ex-info "unreachable" {:v v})))))))))
 
 (defn height
   ([ctx] (height ctx (::value ctx)))
@@ -275,22 +268,6 @@
            ::hf/keys        [attribute]
            ::list?          true
            ::hf/Value       (p/fn [] (new hf/Paginate ctxs))})))))
-
-
-(p/defn SpecDispatch [{::hf/keys [attribute cardinality] :as ctx}]
-  (let [spec-value-type   (spec-value-type attribute)
-        schema-value-type (schema-value-type hf/*schema* hf/db attribute)
-        defined-by-spec?  (and spec-value-type (not schema-value-type))
-        value-type        (or spec-value-type schema-value-type)
-        cardinality       (or cardinality (schema-cardinality hf/*schema* hf/db attribute))]
-    (case cardinality
-      ::hf/many (List. ctx)
-      (case value-type
-        (:hyperfiddle.spec.type/string
-         :hyperfiddle.spec.type/instant
-         :hyperfiddle.spec.type/boolean) (Default. (cond-> (assoc ctx ::value-type value-type)
-                                                     defined-by-spec? (assoc ::readonly true)))
-        (Default. ctx)))))
 
 (defn non-breaking-padder [n] (apply str (repeat n " ")) )
 
@@ -447,9 +424,9 @@
           (p/for-by second [[idx ctx] (map-indexed vector values)]
             (p/client
               (binding [grid-col (+ grid-col idx)]
-                (dom/td (p/server (binding [Form  Default
-                                            Table Default
-                                            List Default]
+                (dom/td (p/server (binding [Form  Render-impl
+                                            Table Render-impl
+                                            List Render-impl]
                                     (Render. ctx))))))))))))
 
 (p/def default-height 10)
