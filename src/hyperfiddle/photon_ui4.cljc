@@ -4,11 +4,9 @@
   (:refer-clojure :exclude [long double keyword symbol uuid range])
   (:require
     [contrib.str]
-    [clojure.string :as str]
     [hyperfiddle.photon :as p]
     [hyperfiddle.photon-dom2 :as dom]
     [hyperfiddle.photon-dom :as dom1]
-    [hyperfiddle.photon-ui2 :as ui2 :refer [parse-edn parse-keyword parse-symbol parse-date parse-datetime-local]]
     [missionary.core :as m]))
 
 (defmacro handle [getter V!]
@@ -30,6 +28,11 @@
   `(dom/textarea
      (dom/bind-value ~v)
      (do1 (dom/on "input" (handle value ~V!)) ~@body)))
+
+(defn parse-edn [s] (try (some-> s contrib.str/blank->nil clojure.edn/read-string) (catch #?(:clj Throwable :cljs :default) _)))
+(defn keep-if [pred v] (when (pred v) v))
+(defn parse-keyword [s] (keep-if keyword? (parse-edn s)))
+(defn parse-symbol [s] (keep-if symbol? (parse-edn s)))
 
 (defmacro edn [v V! & body]
   `(dom/textarea
@@ -71,6 +74,14 @@
   `(dom/input
      (dom/bind-value ~v)
      (do1 (dom/on "input" (handle (comp parse-symbol value) ~V!)) ~@body)))
+
+(defn parse-date [s]
+  (try #?(:clj (java.time.LocalDate/parse s) :cljs (js/Date. s))
+       (catch #?(:clj Throwable :cljs :default) _)))
+
+(defn parse-datetime-local [s]
+  (try #?(:clj (java.time.LocalDateTime/parse s) :cljs (js/Date. s))
+       (catch #?(:clj Throwable :cljs :default) _)))
 
 (defmacro date [v V! & body]
   `(dom/input (dom/props {:type "date"})
