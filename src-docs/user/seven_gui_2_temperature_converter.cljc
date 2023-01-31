@@ -1,11 +1,11 @@
 (ns user.seven-gui-2-temperature-converter
+  #?(:cljs (:require-macros user.seven-gui-2-temperature-converter))
   (:require
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom2 :as dom]
    [missionary.core :as m]
    [clojure.math :as math]
-   [hyperfiddle.photon-ui4 :as ui])
-  #?(:cljs (:require-macros user.seven-gui-2-temperature-converter)))
+   [hyperfiddle.photon-ui4 :as ui]))
 
 ;; https://eugenkiss.github.io/7guis/tasks#temp
 

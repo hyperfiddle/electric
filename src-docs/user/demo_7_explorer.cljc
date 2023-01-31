@@ -1,31 +1,25 @@
 (ns user.demo-7-explorer
+  #?(:cljs (:require-macros [user.demo-7-explorer :refer [absolute-path]]))
   (:require [clojure.datafy :refer [datafy]]
             [clojure.core.protocols :refer [nav]]
-            contrib.ednish
-            clojure.edn
+            #?(:clj clojure.java.io)
+            [clojure.spec.alpha :as s]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
-            [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]
             [hyperfiddle.router :as router]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
-            [clojure.spec.alpha :as s]
-            #?(:clj [clojure.java.io :as io]))
-  #?(:cljs (:require-macros [user.demo-7-explorer :refer [absolute-path]])))
+            [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]))
 
 (defmacro absolute-path [path & paths]
   #?(:clj (str (.toAbsolutePath (java.nio.file.Path/of ^String path (into-array String paths))))
      :cljs (throw (js/Error. "Unsupported operation."))))
-
 
 (defn list-files [path]
   #?(:clj (let [m (datafy (clojure.java.io/file path))]
             (nav m ::fs/children (::fs/children m)))))
 
 (s/fdef list-files :args (s/cat :file any?) :ret (s/coll-of any?))
-
-(defn get-absolute-path []
-  (absolute-path "node_modules"))
 
 (def unicode-folder "\uD83D\uDCC2") ; 📂
 
@@ -36,11 +30,10 @@
       (p/server
         (binding [hf/*nav!*   (fn [db e a] (a (datafy e))) ;; FIXME db is specific, hfql should be general
                   hf/*schema* (constantly nil)] ;; FIXME this is datomic specific, hfql should be general
-          (let [path (get-absolute-path)]
+          (let [path (absolute-path "node_modules")]
             (hf/hfql {(props (list-files (props path {::dom/disabled true})) ;; FIXME forward props
                              {::hf/height 30})
-                      [
-                       (props ::fs/name #_{::hf/render (p/fn [{::hf/keys [Value]}]
+                      [(props ::fs/name #_{::hf/render (p/fn [{::hf/keys [Value]}]
                                                        (let [v (Value.)]
                                                          (case (::fs/kind m)
                                                            ::fs/dir (let [absolute-path (::fs/absolute-path m)]
