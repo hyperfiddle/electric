@@ -254,7 +254,7 @@ TODO: what if component loses focus, but the user input is not yet committed ?
 (defn parse-date [s]
   (try
     #?(:clj (java.time.LocalDate/parse s)
-       :cljs (-> s js/Date.parse js/Date. .toISOString (str/replace #"T.*$" "")))
+       :cljs (js/Date. s))
     (catch #?(:clj Throwable :cljs :default) _)))
 
 (defn parse-datetime-local [s]
