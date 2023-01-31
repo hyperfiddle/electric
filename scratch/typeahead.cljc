@@ -1,14 +1,14 @@
 (ns wip.typeahead
+  #?(:cljs (:require-macros wip.typeahead))
   (:refer-clojure :exclude [class])
+  (:import [missionary Cancelled]
+           [hyperfiddle.photon Pending])
   (:require
+   [clojure.string :as str]
    #?(:cljs [hyperfiddle.ui.test :as uit])
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom]
-   [hyperfiddle.rcf :as rcf :refer [tests tap %]]
-   [clojure.string :as str])
-  #?(:cljs (:require-macros wip.typeahead))
-  (:import [missionary Cancelled]
-           [hyperfiddle.photon Pending]))
+   [hyperfiddle.rcf :as rcf :refer [tests tap %]]))
 
 (def class-ns "hf-typeahead-")
 (defn class [& args] (apply str class-ns args))

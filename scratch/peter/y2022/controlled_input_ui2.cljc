@@ -1,11 +1,11 @@
-(ns user.demo-controlled-input
+(ns user.controlled-input-ui2
   (:require
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom :as dom]
+   [hyperfiddle.photon-dom2 :as dom]
    [hyperfiddle.photon-ui2 :as ui]
    [missionary.core :as m])
   (:import [hyperfiddle.photon Pending])
-  #?(:cljs (:require-macros user.demo-controlled-input)))
+  #?(:cljs (:require-macros user.controlled-input-ui2)))
 
 (def latency-ms 2000)
 (defn latency [v] (p/task->cp (m/sp (m/? (m/sleep latency-ms v)))))
