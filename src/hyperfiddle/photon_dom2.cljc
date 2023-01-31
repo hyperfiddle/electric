@@ -29,12 +29,14 @@
            (let [node (goog.dom/createTextNode "")]
              (.appendChild parent node) node)))
 
-#?(:cljs (defn -googDomSetTextContent [node & strs]
-           (goog.dom/setTextContent node (apply str strs))))
+#?(:cljs (defn -googDomSetTextContent [node str]
+           (goog.dom/setTextContent node str)))
 
 (defmacro text [& strs]
-  `(with (text-node node)
-     (-googDomSetTextContent node ~@strs)))
+  `(do ~@(map (fn [str]
+                `(with (text-node node)
+                   (-googDomSetTextContent node ~str)))
+           strs)))
 
 #?(:cljs
    (defn set-property! [node k v]
