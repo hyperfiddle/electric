@@ -733,7 +733,7 @@
                     (loop [^objects o output]
                       (aset o output-slot-time t)
                       (let [n (aget o output-slot-next)]
-                        (when-not (identical? o n)
+                        (when-not (identical? n output)
                           (recur n))))))
                 (aset context context-slot-pending-buffer larger)
                 (aset context context-slot-pending-wpos size)
