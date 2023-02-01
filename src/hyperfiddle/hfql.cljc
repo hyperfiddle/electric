@@ -41,11 +41,13 @@
                     :hyperfiddle.api/leaf (Value.)
                     :hyperfiddle.api/keys (into {} (p/for [[k ctx] (-drop-wildcards ctx)]
                                                      [k (Rec. ctx)]))
-                    (let [ctx (Value.)]
-                      (cond
-                        (vector? ctx) (p/for [ctx ctx] (Rec. ctx))
-                        (map? ctx)    (Rec. ctx)
-                        :else         ctx))))]
+                    (if Value
+                      (let [ctx (Value.)]
+                        (cond
+                          (vector? ctx) (p/for [ctx ctx] (Rec. ctx))
+                          (map? ctx)    (Rec. ctx)
+                          :else         ctx))
+                      ctx)))]
     (new Rec V)))
 
 ;; TODO Rename, this seems to just be "Render"
