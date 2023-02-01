@@ -193,7 +193,7 @@
 (def input-slot-dirty      (int 4))                         ;; head of linked list of dirty outputs
 (def input-slot-check      (int 5))                         ;; next item in linked list of check inputs
 (def input-slot-pending    (int 6))                         ;; number of outputs waiting for ack
-(def input-slot-idle       (int 7))                         ;; boolean - no pending transfer
+(def input-slot-cancel     (int 7))                         ;; nil when no pending transfer, otherwise cancel status
 (def input-slots           (int 8))
 
 (def output-slot-input    (int 0))                          ;; parent input
@@ -201,7 +201,7 @@
 (def output-slot-iterator (int 2))                          ;; producer iterator
 (def output-slot-current  (int 3))                          ;; current state
 (def output-slot-dirty    (int 4))                          ;; tail of linked list of dirty outputs
-(def output-slot-done     (int 5))                          ;; TODO reuse another field ?
+(def output-slot-done     (int 5))                          ;; frozen
 (def output-slot-prev     (int 6))                          ;; previous item in doubly linked list of pending outputs
 (def output-slot-next     (int 7))                          ;; next item in doubly linked list of pending outputs
 (def output-slot-time     (int 8))                          ;; position of the doubly linked list of pending outputs in the circular buffer, nil if not pending
@@ -282,10 +282,9 @@
         result))))
 
 (defn input-ready [^objects input]
-  (when (aget input input-slot-idle)
-    (aset input input-slot-idle false)
-    (when-some [n (aget input input-slot-notifier)]
-      (n))))
+  (when (nil? (aget input input-slot-cancel))
+    (aset input input-slot-cancel false)
+    ((aget input input-slot-notifier))))
 
 (defn output-dirty [^objects output]
   (let [^objects input (aget output output-slot-input)
@@ -327,27 +326,19 @@
     output))
 
 (defn input-cancel [^objects input]
-  ;; TODO ???
-  (when-not (nil? (aget input input-slot-terminator))
-    (when-some [n (aget input input-slot-notifier)]
-      (aset input input-slot-notifier nil)
-      (let [y (aget input input-slot-current)]
-        (aset input input-slot-current (Failure. (Cancelled.)))
-        (when (identical? input y) (n))))))
+  (let [c (aget input input-slot-cancel)]
+    (aset input input-slot-cancel true)
+    (when (nil? c) ((aget input input-slot-notifier)))))
 
 (defn input-change [^objects input x]
   (aset input input-slot-current x)
   (input-ready input))
 
-(defn input-done [^objects input]
-  (when-some [t (aget input input-slot-terminator)]
-    (aset input input-slot-terminator nil) (t)))
-
 (defn input-freeze [^objects input]
-  (when-not (nil? (aget input input-slot-notifier))
-    (aset input input-slot-notifier nil)
-    (when (aget input input-slot-idle)
-      (input-done input))))
+  (aset input input-slot-pending -1)
+  (when (nil? (aget input input-slot-cancel))
+    (aset input input-slot-cancel false)
+    ((aget input input-slot-terminator))))
 
 (defn update-event [^objects context k f & args]
   (if-some [event (aget context context-slot-event)]
@@ -392,18 +383,23 @@
 
 (defn input-transfer [^objects input]
   (input-check input)
-  (aset input input-slot-idle true)
-  (if (zero? (aget input input-slot-pending))
-    (let [x (aget input input-slot-current)]
-      (when (nil? (aget input input-slot-notifier))
-        (input-done input)) x) pending))
+  (if (aget input input-slot-cancel)
+    (do ((aget input input-slot-terminator))
+        (throw (Cancelled.)))
+    (case (aget input input-slot-pending)
+      -1 (do ((aget input input-slot-terminator))
+             (aget input input-slot-current))
+      0 (do (aset input input-slot-cancel nil)
+            (aget input input-slot-current))
+      (do (aset input input-slot-cancel nil)
+          pending))))
 
 (defn make-input [^objects frame deps]
   (let [input (object-array input-slots)]
     (aset input input-slot-frame frame)
     (aset input input-slot-pending 0)
     (aset input input-slot-current pending)
-    (aset input input-slot-idle false)
+    (aset input input-slot-cancel false)
     (aset input input-slot-check input)
     (reduce output-spawn input deps)))
 
@@ -1308,7 +1304,9 @@
       (%)
       (writer (update empty-event :change assoc [0 0] :b))
       % := (update empty-event :acks inc)
-      (%))))
+      (%)
+      (c)
+      (type %) := Cancelled)))
 
 (tests
   '(tap (p/server (new (:hyperfiddle.photon-impl.compiler/closure (p/client 1)))))
