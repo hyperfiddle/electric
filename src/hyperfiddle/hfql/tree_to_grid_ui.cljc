@@ -204,9 +204,10 @@
               (::hf-type/symbol)  (ui4/symbol         v Tx (input-props readonly? grid-row grid-col dom-for))
               (::hf-type/keyword) (ui4/keyword        v Tx (input-props readonly? grid-row grid-col dom-for))
               (::hf-type/uuid)    (ui4/uuid           v Tx (input-props readonly? grid-row grid-col dom-for))
-              #_(::hf-type/uri
+              (::hf-type/uri
                ::hf-type/string
-               ::hf-type/ref)    (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))))
+               ::hf-type/ref
+               nil)               (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))))
 
 (p/defn Simple [ctx] (if (grab ctx ::hf/options) (Options. ctx) (Input. ctx)))
 
@@ -330,9 +331,10 @@
               (::hf-type/keyword) (ui4/keyword  value WriteToRoute (gray-input-props id props list-id options name))
               (::hf-type/symbol)  (ui4/symbol   value WriteToRoute (gray-input-props id props list-id options name))
               (::hf-type/uuid)    (ui4/uuid     value WriteToRoute (gray-input-props id props list-id options name))
-              #_(::hf-type/string
+              (::hf-type/string
                ::hf-type/uri
-               ::hf-type/ref)     (ui4/input    value WriteToRoute (gray-input-props id props list-id options name)))))
+               ::hf-type/ref
+               nil)               (ui4/input    value WriteToRoute (gray-input-props id props list-id options name)))))
         value))))
 
 (defn apply-1 [n F args]
