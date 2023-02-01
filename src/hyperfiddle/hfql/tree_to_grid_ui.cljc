@@ -70,19 +70,6 @@
 
 (p/defn Identity [x] x)
 
-(defmacro input-props [readonly? grid-row grid-col dom-for]
-  `(do
-     (dom/props {::dom/role     "cell"
-                  ::dom/disabled ~readonly?
-                  ::dom/style    {:grid-row ~grid-row, :grid-column ~grid-col}})
-     (when ~dom-for
-       (dom/props {::dom/id ~dom-for}))))
-
-(defn ->picker-type [ctx]
-  (cond (seq (::hf/options-arguments ctx))               ::typeahead
-        (seq (::hf/options-arguments (::hf/parent ctx))) ::typeahead
-        :else                                            ::select))
-
 (p/def Render)
 
 #?(:cljs
@@ -157,6 +144,11 @@
   ([ctx k] (or (get ctx k) (get (::hf/parent ctx) k)))
   ([ctx k default] (or (get ctx k) (get (::hf/parent ctx) k) default)))
 
+(defn ->picker-type [ctx]
+  (cond (seq (::hf/options-arguments ctx))               ::typeahead
+        (seq (::hf/options-arguments (::hf/parent ctx))) ::typeahead
+        :else                                            ::select))
+
 (p/defn Options [ctx]
   (let [options      (grab ctx ::hf/options)
         option-label (grab ctx ::hf/option-label Identity)
@@ -179,6 +171,14 @@
                                 :disabled (not tx?)})
                     (dom/props dom-props)))))
 
+(defmacro input-props [readonly? grid-row grid-col dom-for]
+  `(do
+     (dom/props {::dom/role     "cell"
+                  ::dom/disabled ~readonly?
+                  ::dom/style    {:grid-row ~grid-row, :grid-column ~grid-col}})
+     (when ~dom-for
+       (dom/props {::dom/id ~dom-for}))))
+
 (p/defn Input [{::hf/keys [attribute tx Value link] :as ctx}]
   (let [spec-value-type   (spec-value-type attribute)
         schema-value-type (schema-value-type hf/*schema* hf/db attribute)
@@ -190,7 +190,7 @@
       (p/client (cell grid-row grid-col (router/link route (dom/text value))))
       (let [tx?       (some? tx)
             readonly? (or defined-by-spec? (not tx?)) 
-            v         (Value.)
+            v         (when Value (Value.))
             dom-for   (::dom/for ctx)]
         (p/client
           (let [Tx   (when-not readonly? (p/fn [v] (p/server (hf/Transact!. (tx. ctx v)) nil)))]
@@ -204,9 +204,11 @@
               (::hf-type/symbol)  (ui4/symbol         v Tx (input-props readonly? grid-row grid-col dom-for))
               (::hf-type/keyword) (ui4/keyword        v Tx (input-props readonly? grid-row grid-col dom-for))
               (::hf-type/uuid)    (ui4/uuid           v Tx (input-props readonly? grid-row grid-col dom-for))
-              (::hf-type/uri
+              #_(::hf-type/uri
                ::hf-type/string
-               ::hf-type/ref)     (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))))
+               ::hf-type/ref)    (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))))
+
+(p/defn Simple [ctx] (if (grab ctx ::hf/options) (Options. ctx) (Input. ctx)))
 
 ;; TODO adapt to new HFQL macroexpansion
 (p/defn Render-impl [{::hf/keys [type attribute cardinality render Value] :as ctx}]
@@ -214,9 +216,7 @@
     (p/client (cell grid-row grid-col (p/server (render. ctx))))
     (let [cardinality (or cardinality (schema-cardinality hf/*schema* hf/db attribute))]
       (case type
-        ::hf/leaf (case cardinality
-                    ::hf/many (List. ctx)
-                    #_else    (if (grab ctx ::hf/options) (Options. ctx) (Input. ctx)))
+        ::hf/leaf (case cardinality ::hf/many (List. ctx) (Simple. ctx))
         ::hf/keys (Form. ctx)
         (case cardinality
           ::hf/many (Table. ctx)
@@ -286,6 +286,12 @@
              (.reportValidity node))
          (.setCustomValidity node "")))))
 
+(defmacro gray-input-props [id props list-id options name]
+  `(do (dom/props {:id ~id, :role "cell", :style {:grid-row grid-row, :grid-column (inc grid-col)}})
+       (when (seq ~props) (dom/props ~props))
+       (when (some? ~options) (dom/props {::dom/list ~list-id}))
+       (handle-validity dom/node (get hf/validation-hints [~name]))))
+
 (p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options ::hf/option-label ::hf/readonly] :as arg}]]
   (let [value    (read.)
         options? (some? options)]
@@ -313,23 +319,20 @@
                                   :style    {:grid-row grid-row, :grid-column (inc grid-col)}
                                   :disabled readonly})
                       (handle-validity dom/node (get hf/validation-hints [name]))))
-          (case (spec/type-of spec name)
-            :hyperfiddle.spec.type/instant
-            (ui4/date value (p/fn [v] (router/swap-route! assoc-in path v) nil)
-              (dom/props {::dom/id    id
-                          ::dom/role  "cell"
-                          ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
-              (when (seq props) (dom/props props))
-              (when options? (dom/props {::dom/list list-id}))
-              (handle-validity dom/node (get hf/validation-hints [name])))
-
-            #_else (ui4/input value (p/fn [v] (router/swap-route! assoc-in path v) nil)
-                     (dom/props {::dom/id    id
-                                 ::dom/role  "cell"
-                                 ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
-                     (when (seq props) (dom/props props))
-                     (when options? (dom/props {::dom/list list-id}))
-                     (handle-validity dom/node (get hf/validation-hints [name])))))
+          (let [WriteToRoute (p/fn [v] (router/swap-route! assoc-in path v) nil)]
+            (case (spec/type-of spec name)
+              (::hf-type/boolean) (ui4/checkbox value WriteToRoute (gray-input-props id props list-id options name))
+              (::hf-type/double
+               ::hf-type/float)   (ui4/double   value WriteToRoute (gray-input-props id props list-id options name))
+              (::hf-type/bigdec
+               ::hf-type/long)    (ui4/long     value WriteToRoute (gray-input-props id props list-id options name))
+              (::hf-type/instant) (ui4/date     (when value (-> value .toISOString (subs 0 10))) WriteToRoute (gray-input-props id props list-id options name))
+              (::hf-type/keyword) (ui4/keyword  value WriteToRoute (gray-input-props id props list-id options name))
+              (::hf-type/symbol)  (ui4/symbol   value WriteToRoute (gray-input-props id props list-id options name))
+              (::hf-type/uuid)    (ui4/uuid     value WriteToRoute (gray-input-props id props list-id options name))
+              #_(::hf-type/string
+               ::hf-type/uri
+               ::hf-type/ref)     (ui4/input    value WriteToRoute (gray-input-props id props list-id options name)))))
         value))))
 
 (defn apply-1 [n F args]
@@ -424,9 +427,9 @@
           (p/for-by second [[idx ctx] (map-indexed vector values)]
             (p/client
               (binding [grid-col (+ grid-col idx)]
-                (dom/td (p/server (binding [Form  Render-impl
-                                            Table Render-impl
-                                            List Render-impl]
+                (dom/td (p/server (binding [Form  Simple
+                                            Table Simple
+                                            List Simple]
                                     (Render. ctx))))))))))))
 
 (p/def default-height 10)
