@@ -145,7 +145,7 @@
   ([v]        `(bind-value ~v input-setter))
   ([v setter] `(let [v# ~v]
                  (when-not (new Focused?)
-                   (case (new p/Unglitch v#) (~setter node v#))))))
+                   (~setter node v#)))))
 
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
