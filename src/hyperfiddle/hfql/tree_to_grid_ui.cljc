@@ -196,7 +196,7 @@
           (let [Tx   (when-not readonly? (p/fn [v] (p/server (hf/Transact!. (tx. ctx v)) nil)))]
             (case (or spec-value-type schema-value-type)
               (::hf-type/boolean) (ui4/checkbox       v Tx (input-props readonly? grid-row grid-col dom-for))
-              (::hf-type/instant) (ui4/datetime-local v Tx (input-props readonly? grid-row grid-col dom-for))
+              (::hf-type/instant) (ui4/datetime-local (when v (-> v .toISOString (.slice 0 -1))) Tx (input-props readonly? grid-row grid-col dom-for))
               (::hf-type/bigdec
                ::hf-type/long)    (ui4/long           v Tx (input-props readonly? grid-row grid-col dom-for))
               (::hf-type/float
