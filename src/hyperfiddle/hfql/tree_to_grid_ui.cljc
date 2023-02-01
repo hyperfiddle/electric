@@ -120,7 +120,6 @@
 (defmacro with-gridsheet-renderer [& body]
   `(p/server
      (binding [Table     Table-impl
-               List      List-impl
                Form      Form-impl
                Render    Render-impl
                hf/Render Render-impl]
@@ -144,12 +143,20 @@
   ([ctx k] (or (get ctx k) (get (::hf/parent ctx) k)))
   ([ctx k default] (or (get ctx k) (get (::hf/parent ctx) k) default)))
 
-(defn ->picker-type [ctx]
-  (cond (seq (::hf/options-arguments ctx))               ::typeahead
-        (seq (::hf/options-arguments (::hf/parent ctx))) ::typeahead
-        :else                                            ::select))
+(defn has-needle? [ctx] (seq (grab ctx ::hf/options-arguments)))
 
-(p/defn Options [ctx]
+(defn ->picker-type [needle? many?]
+  (cond many?   ::tag-picker
+        needle? ::typeahead
+        :else   ::select))
+
+(defmacro options-props [disabled? dom-props]
+  `(do (dom/props {:role     "cell"
+                   :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
+                   :disabled ~disabled?})
+       (dom/props ~dom-props)))
+
+(p/defn Options [{::hf/keys [cardinality attribute] :as ctx}]
   (let [options      (grab ctx ::hf/options)
         option-label (grab ctx ::hf/option-label Identity)
         continuation (grab ctx ::hf/continuation Identity)
@@ -159,17 +166,11 @@
         v            (find-best-identity (hfql/JoinAllTheTree. ctx))
         V!           (if tx? (p/fn [v] (tx. ctx v)) Identity)
         OptionLabel  (p/fn [id] (option-label. (hfql/JoinAllTheTree. (continuation. id))))]
-    (case (->picker-type ctx)
-      ::typeahead (ui4/typeahead v V! options OptionLabel
-                    (dom/props {:role     "cell"
-                                :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
-                                :disabled (not tx?)})
-                    (dom/props dom-props))
-      ::select    (ui4/select v V! options OptionLabel
-                    (dom/props {:role     "cell"
-                                :style    {:grid-row grid-row, :grid-column grid-col :overflow "visible"}
-                                :disabled (not tx?)})
-                    (dom/props dom-props)))))
+    (case (->picker-type (has-needle? ctx) (= ::hf/many (or cardinality (schema-cardinality hf/*schema* hf/db attribute))))
+      ::typeahead (ui4/typeahead v V! options OptionLabel (options-props (not tx?) dom-props))
+      ::select    (ui4/select v V! options OptionLabel (options-props (not tx?) dom-props))
+      ::tag-picker (let [unV! (if-some [untx (grab ctx ::hf/untx)] (p/fn [v] (untx. ctx v)) Identity)]
+                     (ui4/tag-picker v V! unV! options OptionLabel (options-props (not tx?) dom-props))))))
 
 (defmacro input-props [readonly? grid-row grid-col dom-for]
   `(do
@@ -215,17 +216,14 @@
 (p/defn Render-impl [{::hf/keys [type attribute cardinality render Value] :as ctx}]
   (if render
     (p/client (cell grid-row grid-col (p/server (render. ctx))))
-    (let [cardinality (or cardinality (schema-cardinality hf/*schema* hf/db attribute))]
-      (case type
-        ::hf/leaf (case cardinality ::hf/many (List. ctx) (Simple. ctx))
-        ::hf/keys (Form. ctx)
-        (case cardinality
-          ::hf/many (Table. ctx)
-          #_else    (let [v (Value.)]
-                      (cond
-                        (vector? v) (Table. ctx)
-                        (map? v)    (Render. (assoc v ::hf/parent ctx))
-                        :else       (throw (ex-info "unreachable" {:v v})))))))))
+    (case type ::hf/leaf (Simple. ctx) ::hf/keys (Form. ctx)
+      (case (or cardinality (schema-cardinality hf/*schema* hf/db attribute))
+        ::hf/many (Table. ctx)
+        #_else    (let [v (Value.)]
+                    (cond
+                      (vector? v) (Table. ctx)
+                      (map? v)    (Render. (assoc v ::hf/parent ctx))
+                      :else       (throw (ex-info "unreachable" {:v v}))))))))
 
 (defn height
   ([ctx] (height ctx (::value ctx)))
@@ -245,30 +243,6 @@
          ;; static form
          (some? keys)                          (+ 1 (count keys)) ; form labels on next row
          :else                                 (max (::count ctx) 1))))))
-
-(p/def List)
-
-(p/defn List-impl [{::hf/keys [height attribute] :as ctx}]
-  (let [ctxs (p/for [v (hfql/JoinAllTheTree. ctx)]
-               {::hf/type        ::hf/keys
-                ::hf/keys        [attribute]
-                ::hf/cardinality ::hf/one
-                ::hf/values      [{::hf/type        ::hf/leaf
-                                   ::hf/attribute   attribute
-                                   ::hf/cardinality ::hf/one
-                                   ::hf/Value       (p/fn [] v)}]})
-        cnt  (count ctxs)]
-    (Table.
-      (-> ctx
-        (dissoc ::hf/type)
-        (merge
-          {::hf/cardinality ::hf/many
-           ::hf/height      height
-           ::hf/count       (p/fn [] cnt)
-           ::count          cnt
-           ::hf/keys        [attribute]
-           ::list?          true
-           ::hf/Value       (p/fn [] (new hf/Paginate ctxs))})))))
 
 (defn non-breaking-padder [n] (apply str (repeat n " ")) )
 
@@ -430,8 +404,7 @@
             (p/client
               (binding [grid-col (+ grid-col idx)]
                 (dom/td (p/server (binding [Form  Simple
-                                            Table Simple
-                                            List Simple]
+                                            Table Simple]
                                     (Render. ctx))))))))))))
 
 (p/def default-height 10)
