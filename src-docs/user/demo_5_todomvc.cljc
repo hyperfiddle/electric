@@ -168,6 +168,8 @@
                   transact! (partial slow-transact! !conn (p/client (::delay state)))]
           (p/client
             (dom/link (dom/props {:rel :stylesheet, :href "/todomvc.css"}))
+            ; exclude #root style from todomvc-composed by inlining here
+            (dom/element "style" (dom/text "body { width: 65vw; margin-left: auto; margin-right: auto; }"))
             (TodoMVC. state)
             #_(Diagnostics. state)))))))
 

@@ -38,7 +38,7 @@
               router/decode #(parse-route (or (contrib.ednish/decode-path % hf/read-edn-str) home-route))]
       (router/router (html5/HTML5-History.)
         (set-page-title! router/route)
-        (binding [dom/node (dom/by-id "root")]
+        (binding [dom/node js/document.body]
           (p/server
             (user.demo-entrypoint/App. (p/client router/route))))))
 

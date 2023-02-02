@@ -71,7 +71,6 @@
 (p/defn App [route]
   (p/client
     (let [[page & _args] (::hf/route router/route)]
-      (dom/div (dom/style {:width "90vw"})
         (case page
           :user-main/index
           (do (dom/h1 (dom/text "Photon Demos"))
@@ -91,4 +90,4 @@
             (let [Page (get (into {} (concat pages secret-pages)) page NotFoundPage)]
               (p/client
                 (router/router page
-                  (p/server (new Page)))))))))))
+                  (p/server (new Page))))))))))
