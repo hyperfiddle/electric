@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [time for])
   (:require [contrib.cljs-target :refer [do-browser]]
             [hyperfiddle.photon :as p]
+            [hyperfiddle.photon-dom2 :refer [node]] ; use dom2/node to standardize entrypoints
             [missionary.core :as m]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])
@@ -80,7 +81,7 @@
 (def nil-subject (fn [!] (! nil) #()))
 (p/def keepalive (new (m/observe nil-subject)))
 
-(p/def ^:deprecated node) ; please upgrade to photon-dom2
+;(p/def ^:deprecated node) ; photon-dom(1) binds to photon-dom2/node to standardize entrypoints
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
@@ -356,57 +357,7 @@
             (map {"focus" true, "blur" false}))
     false))
 
-#?(:cljs
-   (deftype Clock [^:mutable ^number raf
-                   ^:mutable callback
-                   terminator]
-     IFn                                                    ; cancel
-     (-invoke [_]
-       (if (zero? raf)
-         (set! callback nil)
-         (do (.cancelAnimationFrame js/window raf)
-             (terminator))))
-     IDeref                                                 ; sample
-     (-deref [_]
-       ; lazy clock, only resets once sampled
-       (if (nil? callback)
-         (terminator)
-         (set! raf (.requestAnimationFrame js/window callback))) ; RAF not called until first sampling
-       ::tick)))
-
-(def ^:no-doc <clock
-  "lazy & efficient logical clock that schedules no work unless sampled.
-  Implementation detail - please use `system-time-ms`"
-  #?(:cljs (fn [n t]
-             (let [cancel (->Clock 0 nil t)]
-               (set! (.-callback cancel)
-                     (fn [_] (set! (.-raf cancel) 0) (n)))
-               (n) cancel))
-     #_#_:clj  (m/ap (loop [] (m/amb ::tick (do (m/? (m/sleep 1)) (recur)))))))
-
-(comment
-  ; This ticker will skew and therefore is not useful other than as an example.
-  ; It's also dangerous, because if you write a program that does (prn ticker) it will run forever
-  (p/def ticker (new (->> <clock
-                          (m/eduction (map (constantly 1)))
-                          (m/reductions + 0))))
-  (tests (rcf/with (p/run (tap ticker)) [% % %] := [1 2 3])))
-
-(defn -get-system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
-
-(p/def system-time-ms "ms since 1970 Jan 1"
-  (new (m/sample -get-system-time-ms <clock)))
-
-(p/def system-time-secs "seconds since 1970 Jan 1" (/ system-time-ms 1000.0))
-
-#?(:cljs
-   (do-browser
-     (tests
-       "millisecond time as a stable test"
-       (let [dispose (p/run (tap system-time-ms))]
-         [% % %] := [_ _ _]
-         (map int? *1) := [true true true]
-         (dispose)))))
+#?(:cljs (def <clock hyperfiddle.photon-dom2/<clock))
 
 ;(defn truncate-secs [max-hz secs]
 ;  (let [period (/ 1 max-hz)]
