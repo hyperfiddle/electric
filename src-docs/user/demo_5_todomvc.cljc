@@ -57,7 +57,7 @@
       (when (pos? done)
         (ui/button (p/fn [] (p/server (when-some [ids (seq (query-todos db :done))]
                                           (transact! (mapv (fn [id] [:db/retractEntity id]) ids)) nil)))
-          (dom/props {:class ["clear-completed"]})
+          (dom/props {:class "clear-completed"})
           (dom/text "Clear completed " done))))))
 
 (p/defn TodoItem [state id]
@@ -66,16 +66,16 @@
       (p/client
         (dom/li
           (dom/props {:class [(when (= :done status) "completed")
-                               (when (= id (::editing state)) "editing")]})
+                              (when (= id (::editing state)) "editing")]})
           (dom/div (dom/props {:class "view"})
             (ui/checkbox (= :done status) (p/fn [v]
                                               (let [status (case v true :done, false :active, nil)]
                                                 (p/server (transact! [{:db/id id, :task/status status}]) nil)))
-              (dom/props {:class ["toggle"]}))
+              (dom/props {:class "toggle"}))
             (dom/label (dom/text description)
               (dom/on "dblclick" (p/fn [_] (swap! !state assoc ::editing id)))))
           (when (= id (::editing state))
-            (dom/span (dom/props {:class ["input-load-mask"]})
+            (dom/span (dom/props {:class "input-load-mask"})
               (dom/on-pending (dom/props {:aria-busy true})
                 (dom/input
                   (dom/bind-value description )
@@ -90,7 +90,7 @@
                   (dom/props {:class ["edit"], :autofocus true})
                   (when (p/Unglitch. description) (.focus node))))))
           (ui/button (p/fn [] (p/server (transact! [[:db/retractEntity id]]) nil))
-            (dom/props {:class ["destroy"]})))))))
+            (dom/props {:class "destroy"})))))))
 
 #?(:clj
    (defn toggle-all! [db status]
@@ -109,14 +109,14 @@
                              :else          nil)
             (p/fn [v] (let [status (case v (true nil) :done, false :active)]
                         (p/server (transact! (toggle-all! db status)) nil)))
-            (dom/props {:class ["toggle-all"]})))
+            (dom/props {:class "toggle-all"})))
         (dom/label (dom/props {:for "toggle-all"}) (dom/text "Mark all as complete"))
         (dom/ul (dom/props {:class "todo-list"})
           (p/for [id (p/server (sort (query-todos db (::filter state))))]
             (TodoItem. state id)))))))
 
 (p/defn CreateTodo []
-  (dom/span (dom/props {:class ["input-load-mask"]})
+  (dom/span (dom/props {:class "input-load-mask"})
     (dom/on-pending (dom/props {:aria-busy true})
       (dom/input
         (dom/on "keydown"
@@ -125,7 +125,7 @@
               (when-some [description (contrib.str/empty->nil (.-target.value e))]
                 (p/server (transact! [{:task/description description, :task/status :active}]) nil)
                 (set! (.-value node) "")))))
-        (dom/props {:class ["new-todo"], :placeholder "What needs to be done?"})))))
+        (dom/props {:class "new-todo", :placeholder "What needs to be done?"})))))
 
 (p/defn TodoApp [state]
   (dom/section (dom/props {:class "todoapp"})
