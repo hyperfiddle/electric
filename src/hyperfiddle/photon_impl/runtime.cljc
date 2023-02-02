@@ -764,7 +764,9 @@
   (m/sample (partial reduce parse-event context) >incoming))
 
 (defn write-outgoing-events [write >events]
-  (m/ap (m/? (write (m/?> >events)))))
+  (m/ap (let [e (m/?> >events)]
+          (when-not (= e empty-event)
+            (m/? (write e))))))
 
 (defn peer [var-count dynamic variable-count source-count constant-count target-count output-count input-count ctor]
   (fn rec
