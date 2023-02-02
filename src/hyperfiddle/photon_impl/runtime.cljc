@@ -1253,7 +1253,7 @@
                     output-count input-count
                     (partial form [])))})))
 
-(tests
+#?(:clj (tests
   "uncaught exception crash"
   (let [!x (atom true)
         c (((eval (ir/apply (ir/literal tap)
@@ -1266,9 +1266,9 @@
     % := nil
     %
     (swap! !x not)
-    (ex-message %) := "boom"))
+    (ex-message %) := "boom")))
 
-(tests
+#?(:clj (tests
   "simple input"
   (let [c (((eval (ir/input []))
             (fn [x] (tap [::write x]) (fn [s _] (tap [::backpressure #(s nil)]) #()))
@@ -1284,9 +1284,9 @@
       % := [::write (update empty-event :acks inc)]   ; reactor acknowledges by sending a message
       (let [[_backpressure ack] %] (ack))             ; manualy simulate backpressure
       (c)                                             ; terminate reactor
-      (type %) := Cancelled)))
+      (type %) := Cancelled))))
 
-(tests
+#?(:clj (tests
   "Fast changes to simulate backpressure"
   (let [c (((eval (ir/input []))
             (fn [x] (tap [::write x]) (fn [s _] (tap [::backpressure #(s nil)]) #()))
@@ -1309,10 +1309,9 @@
       % := [::write (assoc empty-event :acks 2)] ; Acks are accumulated till there is room in the write buffer - total acks count = 4
       (let [[_backpressure ack] %] (ack))        ; manualy simulate backpressure
       (c)                                        ; terminate reactor
-      (type %) := Cancelled))
-  )
+      (type %) := Cancelled))))
 
-(tests
+#?(:clj (tests
   '(tap (p/server (new (:hyperfiddle.photon-impl.compiler/closure (p/client 1)))))
 
   (let [c (((eval (ir/apply (ir/literal tap)
@@ -1368,9 +1367,9 @@
       (%)
       (! (assoc empty-event :acks 1))
       % := (assoc empty-event :tree [{:op :rotate, :frame -1, :position 0} {:op :remove, :frame -1}])
-      (%))))
+      (%)))))
 
-(tests
+#?(:clj (tests
   "d-glitch"
   (let [!x (atom 1)
         c (((eval (ir/apply (ir/literal tap) (ir/input [(ir/output (ir/variable (ir/literal (m/watch !x))))])))
@@ -1393,6 +1392,6 @@
       (%)                                                   ;; backpressure
       (! (assoc empty-event :acks 1))                       ;; ack previous changeset, previous input state is restored
       % := :a                                               ;; main result is sampled
-      )))
+      ))))
 
 ;; Leo: write a test for the infinite loop bug https://github.com/hyperfiddle/photon/commit/2894b3e23e4406c0d9fed4944b2cb553ad28804a
