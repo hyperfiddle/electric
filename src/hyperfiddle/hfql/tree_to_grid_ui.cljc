@@ -180,18 +180,18 @@
      (when ~dom-for
        (dom/props {::dom/id ~dom-for}))))
 
-(p/defn Input [{::hf/keys [attribute tx Value link] :as ctx}]
+(p/defn Input [{::hf/keys [attribute tx link] :as ctx}]
   (let [spec-value-type   (spec-value-type attribute)
         schema-value-type (schema-value-type hf/*schema* hf/db attribute)
         defined-by-spec?  (and spec-value-type (not schema-value-type))
         route             (when link (new link))
         option-label      (grab ctx ::hf/option-label Identity)
-        value             (option-label. (hfql/JoinAllTheTree. ctx))]
+        v                 (hfql/JoinAllTheTree. ctx)
+        label              (option-label. v)]
     (if (some? route)
-      (p/client (cell grid-row grid-col (router/link route (dom/text value))))
+      (p/client (cell grid-row grid-col (router/link route (dom/text label))))
       (let [tx?       (some? tx)
             readonly? (or defined-by-spec? (not tx?)) 
-            v         (when Value (Value.))
             dom-for   (::dom/for ctx)]
         (p/client
           (let [Tx   (when-not readonly? (p/fn [v] (p/server (hf/Transact!. (tx. ctx v)) nil)))]
