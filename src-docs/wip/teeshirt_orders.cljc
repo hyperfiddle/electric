@@ -90,6 +90,6 @@
                   (dom/h2 (dom/text "Page not found")))))
             (p/client
               (dom/element "style" (dom/text ".dustin-stage { display: block; width: 100%; height: 10em; }"))
-              (ui/edn (p/server hf/stage) false (dom/props {::dom/disabled true ::dom/class "dustin-stage"}))))))
+              (ui/edn (p/server hf/stage) false (dom/props {:disabled true :class "dustin-stage"}))))))
       nil)))
 
