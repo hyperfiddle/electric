@@ -35,11 +35,10 @@
                                (p/server
                                  (let [!v (atom #{:alice :bob})]
                                    (ui/tag-picker (p/watch !v)
-                                     (p/fn [v] (p/client (tap [:V! v])) (swap! !v conj v))
-                                     ;; TODO why wrapping the `tap` with `p/client` fails here?
+                                     (p/fn [v] (tap [:V! v]) (swap! !v conj v))
                                      (p/fn [v] (tap [:unV! v]) (swap! !v disj v))
-                                     (p/fn [search] (p/client (tap [:Options search])) (q search))
-                                     (p/fn [id] (p/client (tap [:OptionLabel id])) (-> data id :name))
+                                     (p/fn [search] (tap [:Options search]) (q search))
+                                     (p/fn [id] (tap [:OptionLabel id]) (-> data id :name))
                                      #_for-test (reset! !tgpk dom/node)))))
                              (catch Pending _)
                              (catch Cancelled _)
@@ -72,7 +71,8 @@
 
        "clicking an item's × removes it"
        (def picked-count-before (count (get-picked-items tgpk)))
-       (uit/click (-> (get-picked-items tgpk) (find-with-text "Alice B") children first))
+       (def remove-alice (-> (get-picked-items tgpk) (find-with-text "Alice B") children first))
+       (uit/click remove-alice)
        % := [:unV! :alice]
        (count (get-picked-items tgpk)) := (dec picked-count-before)
 
