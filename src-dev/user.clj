@@ -25,7 +25,7 @@
 
   "ClojureScript REPL entrypoint"
   ; shadow server exports an repl, connect a second REPL instance to it (DO NOT REUSE JVM REPL it will fail weirdly)
-  (shadow.cljs.devtools.api/repl :devkit)
+  (shadow.cljs.devtools.api/repl :dev)
   (type 1))
 
 (defmacro get-main [default]
@@ -41,11 +41,11 @@
 
 (defn browser-main! "hot switch reactor entrypoint from CLJ REPL" [photon-main-sym]
   ; Save the user the trouble of getting a CLJS repl to switch photon entrypoints
-  (@cljs-eval :devkit (str `(println ::loading (quote ~photon-main-sym))) {})
-  (@cljs-eval :devkit (str `(browser-main! (quote ~photon-main-sym))) {})
-  (fn dispose [] (@cljs-eval :devkit `(user/stop!) {})))
+  (@cljs-eval :dev (str `(println ::loading (quote ~photon-main-sym))) {})
+  (@cljs-eval :dev (str `(browser-main! (quote ~photon-main-sym))) {})
+  (fn dispose [] (@cljs-eval :dev `(user/stop!) {})))
 
-(comment (@(requiring-resolve 'shadow.cljs.devtools.api/cljs-eval) :devkit (str "(println ::x)") {}))
+(comment (@(requiring-resolve 'shadow.cljs.devtools.api/cljs-eval) :dev (str "(println ::x)") {}))
 
 (defn serve! "Start Photon app server" []
   (let [host "0.0.0.0"]
@@ -69,7 +69,7 @@
   "build and serve clojurescript assets"
   (@shadow-start!)                                          ; serves index.html as well
   (@rcf-enable! false) ; don't run cljs tests on compile - in case user enabled at the REPL
-  (@shadow-watch :devkit)                                   ; depends on shadow server
+  (@shadow-watch :dev) ; depends on shadow server
   ; todo report clearly if shadow build failed, i.e. due to yarn not being run
   (serve!)
   (comment (.stop server))
@@ -94,7 +94,7 @@
 
 (defn compile []
   ; optimized artifact but with debug information available to find problems
-  (@shadow-compile :devkit))
+  (@shadow-compile :dev))
 
 (defn release []
   ; optimized artifact but with debug information available to find problems
