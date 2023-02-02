@@ -2,11 +2,11 @@
   (:require [hyperfiddle.ui.test :as uit]
             [hyperfiddle.rcf :as rcf :refer [% tap tests with]]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.ui.codemirror2 :as cm]))
 
 (tests "cm/string"
-  (def discard (p/run (binding [dom/node (dom/by-id "root")]
+  (def discard (p/run (binding [dom/node js/document.body]
                         (tap (new cm/string "hi")))))
   ;; (def line (.querySelector js/document ".cm-line"))
   ;; (def content (.querySelector js/document ".cm-line"))

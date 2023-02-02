@@ -4,12 +4,12 @@
             #?(:cljs goog.object)
             #?(:cljs goog.style)
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :refer [node]] ; reuse dom1/node for compat
+            hyperfiddle.photon-dom
             [missionary.core :as m])
   (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom2 :refer [with]])))
 
-;(p/def node) ; use photon-dom1/node for now
+(p/def node)
 (def nil-subject (fn [!] (! nil) #()))
 (p/def keepalive (new (m/observe nil-subject)))
 

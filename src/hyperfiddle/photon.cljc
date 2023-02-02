@@ -353,6 +353,9 @@ or a provided value if it completes without producing any value."
     `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::server))
     `(throw (ex-info "Invalid p/server in Clojure code block (use from Photon code only)" ~(into {} (meta &form))))))
 
+(defmacro discard "Silence \"Unserializable reference transfer\"; `nil` is idiomatic but this saves a newline"
+  [& body] `(do ~@body nil))
+
 (hyperfiddle.photon/def trace "In a `catch` block, bound by the runtime to the current stacktrace. A photon stacktrace is an ExceptionInfo. Use `hyperfiddle.photon.debug/stack-trace` to get a string representation." nil)
 
 (defmacro lexical-env "Return a map containing lexical bindings" []

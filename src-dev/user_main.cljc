@@ -9,7 +9,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon.debug :as dbg]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.router :as router]
             #?(:cljs [hyperfiddle.router-html5 :as html5])
             user.demo-entrypoint))

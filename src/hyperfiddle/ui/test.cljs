@@ -1,6 +1,6 @@
 (ns hyperfiddle.ui.test
   (:require [contrib.cljs-target :refer [do-browser]]
-            [hyperfiddle.photon-dom :as dom]))
+            [hyperfiddle.photon-dom2 :as dom]))
 
 (do-browser
   (defn ensure-root! []

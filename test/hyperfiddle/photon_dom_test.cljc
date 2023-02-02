@@ -1,7 +1,7 @@
 (ns hyperfiddle.photon-dom-test
   (:require [missionary.core :as m]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.rcf :refer [tests % tap]]
             [clojure.test :as t]))
 

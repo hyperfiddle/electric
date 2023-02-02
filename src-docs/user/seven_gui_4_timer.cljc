@@ -1,7 +1,6 @@
 (ns user.seven-gui-4-timer
   #?(:cljs (:require-macros user.seven-gui-4-timer))
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom1]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.photon-ui4 :as ui4]))
 
@@ -23,7 +22,7 @@
           goal (p/watch !goal)
           goal-ms (* 1000 goal)
           start (p/watch !start)
-          time (min goal-ms (- (second-precision dom1/system-time-ms) start))]
+          time (min goal-ms (- (second-precision dom/system-time-ms) start))]
       (dom/div (dom/props {:style {:display :grid
                                         ;:margin-left "20rem"
                                     :width "20em"

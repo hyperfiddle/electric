@@ -1,7 +1,6 @@
 (ns hyperfiddle.scrollview
   (:require [contrib.data :refer [unqualify]]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom1]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.photon-ui4 :as ui]
             [missionary.core :as m]
@@ -47,7 +46,7 @@
         row-height 22] ; todo use relative measurement (browser zoom impacts px height)
     (p/client
       (dom/div (dom/props {:class "viewport" :style {:overflowX "hidden" :overflowY "auto"}})
-        (let [[scrollTop] (new (scroll-state< dom1/node))
+        (let [[scrollTop] (new (scroll-state< dom/node))
               max-height (* row-count row-height)
               clamped-scroll-top (js/Math.min scrollTop max-height)
               start (/ clamped-scroll-top row-height)] ; (js/Math.floor)
@@ -71,7 +70,7 @@
     (p/client
       (dom/div (dom/props {:class "viewport"})
         (let [!pages (atom 1) pages (p/watch !pages)
-              [scrollTop scrollHeight clientHeight] (new (scroll-state< dom1/node))]
+              [scrollTop scrollHeight clientHeight] (new (scroll-state< dom/node))]
           (when (>= scrollTop (- scrollHeight clientHeight
                                  clientHeight)) ; scrollThresholdPx = clientHeight
             (swap! !pages inc)) ; can this get spammed by photon?

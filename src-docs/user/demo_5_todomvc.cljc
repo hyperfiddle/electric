@@ -1,14 +1,13 @@
 (ns user.demo-5-todomvc
-  "Requires -Xss2m to compile. default 1m JVM ThreadStackSize is exceeded by photon compiler due to large macroexpansion
-  resulting in false StackOverflowError during analysis."
+  "Requires -Xss2m to compile. default 1m JVM ThreadStackSize is exceeded by photon compiler due to
+  large macroexpansion resulting in false StackOverflowError during analysis."
+  #?(:cljs (:require-macros user.demo-5-todomvc))
   (:require
-   #?(:clj [datascript.core :as d])
    contrib.str
+   #?(:clj [datascript.core :as d])
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom :refer [node]]
    [hyperfiddle.photon-dom2 :as dom]
-   [hyperfiddle.photon-ui4 :as ui])
-  #?(:cljs (:require-macros user.demo-5-todomvc)))
+   [hyperfiddle.photon-ui4 :as ui]))
 
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))       ; server
 (p/def db)                                                  ; server
@@ -78,7 +77,6 @@
             (dom/span (dom/props {:class "input-load-mask"})
               (dom/on-pending (dom/props {:aria-busy true})
                 (dom/input
-                  (dom/bind-value description )
                   (dom/on "keydown"
                     (p/fn [e]
                       (case (.-key e)
@@ -87,8 +85,11 @@
                                     (swap! !state assoc ::editing nil)))
                         "Escape" (swap! !state assoc ::editing nil)
                         nil)))
-                  (dom/props {:class ["edit"], :autofocus true})
-                  (when (p/Unglitch. description) (.focus node))))))
+                  (dom/props {:class "edit" #_#_:autofocus true})
+                  (dom/bind-value description) ; first set the initial value, then focus
+                  (when (p/Unglitch. description)
+                    ; todo remove unglitch, but it is currently needed to delay the focus until after the bind-value
+                    (.focus dom/node))))))
           (ui/button (p/fn [] (p/server (transact! [[:db/retractEntity id]]) nil))
             (dom/props {:class "destroy"})))))))
 
@@ -124,7 +125,7 @@
             (when (= "Enter" (.-key e))
               (when-some [description (contrib.str/empty->nil (.-target.value e))]
                 (p/server (transact! [{:task/description description, :task/status :active}]) nil)
-                (set! (.-value node) "")))))
+                (set! (.-value dom/node) "")))))
         (dom/props {:class "new-todo", :placeholder "What needs to be done?"})))))
 
 (p/defn TodoApp [state]

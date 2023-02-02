@@ -11,7 +11,7 @@
             [clojure.pprint :as pprint]
             [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
             [missionary.core :as m]
             ["@codemirror/fold" :as fold]
             ["@codemirror/gutter" :refer [lineNumbers]]
