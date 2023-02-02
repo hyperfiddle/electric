@@ -257,6 +257,7 @@
                  (dom/input
                    (let [input-node# dom/node]
                      (binding [dom/node container-node#] (dom/on "click" (p/fn [e#] (own e#) (focus input-node#))))
+                     (when (nil? V!#) (dom/props {:disabled true}))
                      (dom/on "focus"
                        (p/fn [_#]
                          (let [return# (missionary.core/dfv)
