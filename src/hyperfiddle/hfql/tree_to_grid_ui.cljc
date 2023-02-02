@@ -2,7 +2,6 @@
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql :as hfql]
-            [hyperfiddle.photon-dom :as dom1]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.spec :as spec]
             [clojure.datafy :refer [datafy]]
@@ -210,15 +209,15 @@
            (dom/div (dom/props {:class "hyperfiddle-gridsheet-wrapper"})
              (dom/div (dom/props {:class "hyperfiddle-gridsheet"})
                ~@body)
-             (let [wrapper-height# (new ComputedStyle #(-parse-float (.-height %)) hyperfiddle.photon-dom/node)]
-               (when-let [node (.querySelector hyperfiddle.photon-dom/node ".hyperfiddle-gridsheet")]
+             (let [wrapper-height# (new ComputedStyle #(-parse-float (.-height %)) dom/node)]
+               (when-let [node (.querySelector dom/node ".hyperfiddle-gridsheet")]
                  (let [[rows# columns# width# height# gap# color#] (new ComputedStyle extract-borders node)
                        [scroll-top# scroll-height# client-height#] (new (sw/scroll-state< node))
                        height#                                     (if (zero? scroll-height#) height# scroll-height#)]
                    (dom/canvas (dom/props {:class  "hf-grid-overlay"
                                            :width  (str width# "px")
                                            :height (str wrapper-height# "px")})
-                     (draw-lines! hyperfiddle.photon-dom/node color# width# wrapper-height# gap# rows# columns#)))))))))))
+                     (draw-lines! dom/node color# width# wrapper-height# gap# rows# columns#)))))))))))
 
 ;; TODO adapt to new HFQL macroexpansion
 (p/defn Render-impl [{::hf/keys [type cardinality render Value options] :as ctx}]
@@ -336,7 +335,7 @@
                                   :role     "cell"
                                   :style    {:grid-row grid-row, :grid-column (inc grid-col)}
                                   :disabled readonly})
-                      (handle-validity hyperfiddle.photon-dom/node (get hf/validation-hints [name]))))
+                      (handle-validity dom/node (get hf/validation-hints [name]))))
           (case (spec/type-of spec name)
             :hyperfiddle.spec.type/instant
             (ui4/date value (p/fn [v] (router/swap-route! assoc-in path v) nil)
@@ -345,7 +344,7 @@
                           ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
               (when (seq props) (dom/props props))
               (when options? (dom/props {::dom/list list-id}))
-              (handle-validity hyperfiddle.photon-dom/node (get hf/validation-hints [name])))
+              (handle-validity dom/node (get hf/validation-hints [name])))
 
             #_else (ui4/input value (p/fn [v] (router/swap-route! assoc-in path v) nil)
                      (dom/props {::dom/id    id
@@ -353,7 +352,7 @@
                                  ::dom/style {:grid-row grid-row, :grid-column (inc grid-col)}})
                      (when (seq props) (dom/props props))
                      (when options? (dom/props {::dom/list list-id}))
-                     (handle-validity hyperfiddle.photon-dom/node (get hf/validation-hints [name])))))
+                     (handle-validity dom/node (get hf/validation-hints [name])))))
         value))))
 
 (defn apply-1 [n F args]
@@ -513,7 +512,7 @@
 
 (defmacro paginated-grid [actual-width max-height actual-height & body]
   `(let [row-height#    (parse-row-height (ComputedStyle. #(.-gridAutoRows %)
-                                            (.closest hyperfiddle.photon-dom/node ".hyperfiddle-gridsheet")))
+                                            (.closest dom/node ".hyperfiddle-gridsheet")))
          actual-height# (* row-height# ~actual-height)
          !scroller#     (atom nil)
          !scroll-top#   (atom 0)]
@@ -523,8 +522,8 @@
                                   :grid-row-end   (+ (inc grid-row) ~max-height)
                                   :grid-column    (+ grid-col ~actual-width)
                                  :max-height      (str "calc((var(--hf-grid-row-height) + var(--hf-grid-gap)) * " ~max-height ")")}})
-       (do (reset! !scroller# hyperfiddle.photon-dom/node)
-           (let [[scroll-top#] (new (sw/scroll-state< hyperfiddle.photon-dom/node))]
+       (do (reset! !scroller# dom/node)
+           (let [[scroll-top#] (new (sw/scroll-state< dom/node))]
              (reset! !scroll-top# scroll-top#))
            nil)
        (dom/div (dom/props {::dom/role "filler" "data-height" actual-height# ::dom/style {:height (str actual-height# "px")}})))
