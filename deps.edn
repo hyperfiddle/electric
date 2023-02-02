@@ -1,41 +1,24 @@
-{:paths   ["src"]
- :mvn/repos {"my.datomic.com" {:url "https://my.datomic.com/repo"}}
- :deps    {org.clojure/clojure            {:mvn/version "1.11.1"}
-           missionary/missionary          {:mvn/version "b.27-SNAPSHOT"}
-           com.hyperfiddle/rcf            {:mvn/version "20220926-202227"}
-           nubank/matcher-combinators     {:mvn/version "3.5.1"}
-           org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"}    ;; used by photon
-           borkdude/edamame               {:mvn/version "1.0.0"} ;; configurable edn parser
-
-           ;; Server
-           ;; "0.14.3" is Jetty 9 and Java 8 compatible.
-           ;; "0.17.7" is Jetty 10 and not Java 8 compatible (artifact name is poorly chosen)
-           info.sunng/ring-jetty9-adapter {:mvn/version "0.14.3"
-                                           :exclusions  [org.slf4j/slf4j-api
-                                                         info.sunng/ring-jetty9-adapter-http3 ; no need
-                                                         ]}
-           com.cognitect/transit-clj      {:mvn/version "1.0.329"}
-           ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
-
-           ;; Client
-           org.clojure/clojurescript      {:mvn/version "1.11.60"}
-           com.cognitect/transit-cljs     {:mvn/version "0.8.269"}
-           nextjournal/clojure-mode       {:git/url "https://github.com/nextjournal/clojure-mode" ; clojure codemirror support
-                                           :sha     "699a445ebf2767f41fd0b6eeed5a008511702be6"}
-
-           ;; Databases
-           datascript/datascript          {:mvn/version "1.3.14"}
-           #_#_com.datomic/datomic-free   {:mvn/version "0.9.5656"
-                                           :exclusions  [org.slf4j/slf4j-nop
-                                                         com.google.guava/guava]}
-
-           ;; Misc, might be dropped in the future
-           org.clojure/tools.logging      {:mvn/version "1.2.4"}
-
-           ;; photon does not depend on core.async but provide interop
-           ;; facilities, which will move in a separate lib in the future.
-           org.clojure/core.async {:mvn/version "1.5.648"}
-           }
+{:paths ["src"]
+ :deps {borkdude/edamame {:mvn/version "1.0.0"} ;; configurable edn parser
+        com.cognitect/transit-clj {:mvn/version "1.0.329"}
+        com.cognitect/transit-cljs {:mvn/version "0.8.269"}
+        com.hyperfiddle/rcf {:mvn/version "20220926-202227"}
+        datascript/datascript {:mvn/version "1.3.14"}
+        info.sunng/ring-jetty9-adapter {:mvn/version "0.14.3"
+                                        ;; "0.14.3" (Jetty 9) is Java 8 compatible;
+                                        ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
+                                        :exclusions [org.slf4j/slf4j-api
+                                                     info.sunng/ring-jetty9-adapter-http3]} ; no need
+        missionary/missionary {:mvn/version "b.27-SNAPSHOT"}
+        nextjournal/clojure-mode {:git/url "https://github.com/nextjournal/clojure-mode" ; clojure codemirror support
+                                  :sha "699a445ebf2767f41fd0b6eeed5a008511702be6"}
+        nubank/matcher-combinators {:mvn/version "3.5.1"}
+        org.clojure/clojure {:mvn/version "1.11.1"}
+        org.clojure/clojurescript {:mvn/version "1.11.60"}
+        org.clojure/core.async {:mvn/version "1.5.648"} ; for interop helpers only
+        org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"} ;; used by photon
+        org.clojure/tools.logging {:mvn/version "1.2.4"}
+        ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}}
 
  :aliases {:legacy {:extra-paths ["src-legacy"]}
            :build {:paths ["src-build"] ; no project classpath including user.clj and data_readers
@@ -57,7 +40,7 @@
                                    "-XX:+DebugNonSafepoints"]}
            :test    {:extra-paths [#_"src-dev" "test"]
                      :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true"
-                                   "-XX:-OmitStackTraceInFastThrow"
+                                   "-XX:-OmitStackTraceInFastThrow" ;; https://archive.md/NNt9r
                                    "-Dlogback.configurationFile=src-dev/logback.xml"
                                    "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"]
                      :extra-deps  {ch.qos.logback/logback-classic {:mvn/version "1.2.11"}
@@ -66,8 +49,8 @@
                      :exec-fn     cognitect.test-runner.api/test}
            :scratch {:extra-paths []
                      :extra-deps {com.datomic/dev-local {:mvn/version "1.0.243"}
-                                  com.google.guava/guava {:mvn/version "31.1-jre"} ; fix conflict - datomic cloud & shadow
-                                  #_#_com.datomic/datomic-pro {:mvn/version "1.0.6527" :exclusions [org.slf4j/slf4j-nop]}}}
-           :datomic-pro {:extra-deps {com.datomic/datomic-pro {:mvn/version "1.0.6527" :exclusions [org.slf4j/slf4j-nop]}}}}}
+                                  com.google.guava/guava {:mvn/version "31.1-jre"}}} ; fix conflict - datomic cloud & shadow
+           :datomic-free {:extra-deps {com.datomic/datomic-free {:mvn/version "0.9.5656" :exclusions [org.slf4j/slf4j-nop com.google.guava/guava]}}}
+           :datomic-pro {:extra-deps {com.datomic/datomic-pro {:mvn/version "1.0.6527" :exclusions [org.slf4j/slf4j-nop]}}}}
 
-;; ¹ http://webcache.googleusercontent.com/search?q=cache:4Rya0J2jOb4J:yellerapp.com/posts/2015-05-11-clojure-no-stacktrace.html
+ :mvn/repos {"my.datomic.com" {:url "https://my.datomic.com/repo"}}}
