@@ -80,7 +80,7 @@
 (def nil-subject (fn [!] (! nil) #()))
 (p/def keepalive (new (m/observe nil-subject)))
 
-(p/def node) ; used to be called parent
+(p/def ^:deprecated node) ; please upgrade to photon-dom2
 
 (defn by-id [id] #?(:cljs (js/document.getElementById id)))
 
