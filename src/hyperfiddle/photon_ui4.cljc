@@ -257,28 +257,29 @@
                  (dom/input
                    (let [input-node# dom/node]
                      (binding [dom/node container-node#] (dom/on "click" (p/fn [e#] (own e#) (focus input-node#))))
-                     (when (nil? V!#) (dom/props {:disabled true}))
-                     (dom/on "focus"
-                       (p/fn [_#]
-                         (let [return# (missionary.core/dfv)
-                               search# (new Latch (dom/on "input" (p/fn [e#] (value e#))) "")]
-                           (binding [dom/node input-container-node#]
-                             (let [!selected# (atom nil), selected# (p/watch !selected#)]
-                               (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
-                                 (dom/on "click" (p/fn [e#] (own e#) (return# nil))))
-                               (dom/on "keydown" (p/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
-                               (dom/ul
-                                 (p/server
-                                   (for-truncated [id# (new Options# search#)] 20
-                                     (p/client
-                                       (dom/li (dom/text (p/server (new OptionLabel# id#)))
-                                         (on-mount (swap! !selected# select-if-first dom/node))
-                                         (on-unmount (swap! !selected# ?pass-on-to-first dom/node))
-                                         (track-id dom/node id#)
-                                         (?mark-selected selected#)
-                                         (dom/on "mouseover" (p/fn [e#] (reset! !selected# dom/node)))
-                                         (return-on-click return# V!# id#))))))))
-                           (let [ret# (new (p/task->cp return#))]
-                             (case ret# (set! (.-value input-node#) ""))
-                             ret#))))))))
+                     (if (p/server (nil? V!#))
+                       (dom/props {:disabled true})
+                       (dom/on "focus"
+                         (p/fn [_#]
+                           (let [return# (missionary.core/dfv)
+                                 search# (new Latch (dom/on "input" (p/fn [e#] (value e#))) "")]
+                             (binding [dom/node input-container-node#]
+                               (let [!selected# (atom nil), selected# (p/watch !selected#)]
+                                 (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
+                                   (dom/on "click" (p/fn [e#] (own e#) (return# nil))))
+                                 (dom/on "keydown" (p/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
+                                 (dom/ul
+                                   (p/server
+                                     (for-truncated [id# (new Options# search#)] 20
+                                       (p/client
+                                         (dom/li (dom/text (p/server (new OptionLabel# id#)))
+                                           (on-mount (swap! !selected# select-if-first dom/node))
+                                           (on-unmount (swap! !selected# ?pass-on-to-first dom/node))
+                                           (track-id dom/node id#)
+                                           (?mark-selected selected#)
+                                           (dom/on "mouseover" (p/fn [e#] (reset! !selected# dom/node)))
+                                           (return-on-click return# V!# id#))))))))
+                             (let [ret# (new (p/task->cp return#))]
+                               (case ret# (set! (.-value input-node#) ""))
+                               ret#)))))))))
              ~@body))))))
