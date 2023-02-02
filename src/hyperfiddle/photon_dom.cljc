@@ -1,19 +1,19 @@
 (ns hyperfiddle.photon-dom
+  #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [with oget]]))
+  #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
+                    (goog.ui.KeyboardShortcutHandler EventType)))
   (:refer-clojure :exclude [time for])
-  (:require [contrib.cljs-target :refer [do-browser]]
+  (:require [clojure.string :as str]
+            [contrib.cljs-target :refer [do-browser]]
+            [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :refer [node]] ; use dom2/node to standardize entrypoints
-            [missionary.core :as m]
+            [hyperfiddle.rcf :as rcf :refer [tests tap %]]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])
             #?(:cljs [goog.object :as o])
             #?(:cljs [goog.style])
-            [hyperfiddle.rcf :as rcf :refer [tests tap %]]
-            [hyperfiddle.logger :as log]
-            [clojure.string :as str])
-  #?(:cljs (:require-macros [hyperfiddle.photon-dom :refer [with oget]]))
-  #?(:cljs (:import (goog.ui KeyboardShortcutHandler)
-                    (goog.ui.KeyboardShortcutHandler EventType))))
+            [missionary.core :as m]))
 
 (defn command? "A command is a pair [:keyword any-value], describing an action."
   [x]

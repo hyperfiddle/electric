@@ -1,16 +1,14 @@
 (ns hyperfiddle.photon-ui4-tag-picker-test
   #?(:cljs (:require-macros hyperfiddle.photon-ui4-tag-picker-test))
+  (:import [missionary Cancelled] [hyperfiddle.photon Pending])
   (:require
-   #?(:cljs [hyperfiddle.ui.test :as uit])
-   [contrib.cljs-target :refer [do-browser]]
-   [hyperfiddle.photon-ui4 :as ui]
-   [hyperfiddle.rcf :as rcf :refer [% tests with tap]]
-   [hyperfiddle.photon :as p]
    [clojure.string :as str]
-   [hyperfiddle.photon-dom2 :as dom])
-  (:import
-   [missionary Cancelled]
-   [hyperfiddle.photon Pending]))
+   [contrib.cljs-target :refer [do-browser]]
+   #?(:cljs [hyperfiddle.ui.test :as uit])
+   [hyperfiddle.photon :as p]
+   [hyperfiddle.photon-dom2 :as dom]
+   [hyperfiddle.photon-ui4 :as ui]
+   [hyperfiddle.rcf :as rcf :refer [% tests with tap]]))
 
 (def data {:alice   {:name "Alice B"}
            :bob     {:name "Bob C"}
