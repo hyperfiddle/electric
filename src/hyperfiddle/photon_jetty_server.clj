@@ -36,6 +36,10 @@
       ;; delegate to next middleware
       (next-handler ring-req))))
 
+(defn wrap-no-cache [next-handler]
+  (fn [ring-req]
+    (assoc-in (next-handler ring-req) [:headers "Cache-Control"] "No-Store")))
+
 #_
 (defn wrap-photon [next-handler]        ; Jetty 10 allows such handler
   (fn [ring-request]
@@ -71,7 +75,8 @@
                       (file-exsist? resources-path) (wrap-file resources-path {:allow-symlinks? allow-symlinks?}) ; 3. serve static file if it exists
                       true                          (wrap-content-type) ; 2. detect content (e.g. for index.html)
                       true                          (wrap-default-page) ; 1. route
-                      #_(wrap-photon))
+                      true                          (wrap-no-cache) ; TODO disable in prod
+                      #_                            (wrap-photon))
       ;; Jetty 9 forces us to declare WS paths out of a ring handler.
       (merge {:port       8080
               :join?      false
