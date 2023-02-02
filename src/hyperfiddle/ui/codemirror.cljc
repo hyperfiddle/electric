@@ -1,9 +1,10 @@
 (ns hyperfiddle.ui.codemirror
   ;; TODO move to appropriate namespace
+  #?(:cljs (:require-macros [hyperfiddle.ui.codemirror :refer [CodeMirror]]))
   #?(:clj  (:require clojure.edn
                      clojure.pprint
                      [hyperfiddle.photon :as p]
-                     hyperfiddle.photon-dom
+                     [hyperfiddle.photon-dom2 :as dom]
                      [missionary.core :as m]
                      [clojure.edn :as edn]
                      [clojure.pprint :as pprint]
@@ -13,7 +14,7 @@
              [clojure.pprint :as pprint]
              [hyperfiddle.logger :as log]
              [hyperfiddle.photon :as p]
-             hyperfiddle.photon-dom
+             [hyperfiddle.photon-dom2 :as dom]
              [missionary.core :as m]
              ["@codemirror/fold" :as fold]
              ["@codemirror/gutter" :refer [lineNumbers]]
@@ -21,8 +22,7 @@
              ["@codemirror/history" :refer [history historyKeymap]]
              ["@codemirror/state" :refer [EditorState]]
              ["@codemirror/view" :as view :refer [EditorView]]
-             [nextjournal.clojure-mode :as cm-clj]))
-  #?(:cljs (:require-macros [hyperfiddle.ui.codemirror :refer [CodeMirror]])))
+             [nextjournal.clojure-mode :as cm-clj])))
 
 #?(:cljs
    (def theme
@@ -105,5 +105,5 @@
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 
-(p/defn edn [v] (new CodeMirror {:parent hyperfiddle.photon-dom/node} read-edn write-edn v))
-(p/defn string [v] (new CodeMirror {:parent hyperfiddle.photon-dom/node} identity identity v))
+(p/defn edn [v] (new CodeMirror {:parent dom/node} read-edn write-edn v))
+(p/defn string [v] (new CodeMirror {:parent dom/node} identity identity v))
