@@ -4,7 +4,6 @@
             #?(:cljs goog.object)
             #?(:cljs goog.style)
             [hyperfiddle.photon :as p]
-            hyperfiddle.photon-dom
             [missionary.core :as m])
   (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom2 :refer [with]])))
@@ -147,7 +146,34 @@
                 :impulse (assoc state :status :pending) ; impulse is seen for 1 frame and then cleared
                 :pending (if busy state {:status :idle}))))))
 
-(def <clock hyperfiddle.photon-dom/<clock)
+#?(:cljs
+   (deftype Clock [^:mutable ^number raf
+                   ^:mutable callback
+                   terminator]
+     IFn                                                    ; cancel
+     (-invoke [_]
+       (if (zero? raf)
+         (set! callback nil)
+         (do (.cancelAnimationFrame js/window raf)
+             (terminator))))
+     IDeref                                                 ; sample
+     (-deref [_]
+       ; lazy clock, only resets once sampled
+       (if (nil? callback)
+         (terminator)
+         (set! raf (.requestAnimationFrame js/window callback))) ; RAF not called until first sampling
+       ::tick)))
+
+#?(:cljs (def ^:no-doc <clock "lazy & efficient logical clock that schedules no work unless sampled"
+           (fn [n t]
+             (let [cancel (->Clock 0 nil t)]
+               (set! (.-callback cancel)
+                     (fn [_] (set! (.-raf cancel) 0) (n)))
+               (n) cancel))))
+
+(defn -get-system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
+(p/def system-time-ms "ms since 1970 Jan 1" (new (m/sample -get-system-time-ms <clock)))
+(p/def system-time-secs "seconds since 1970 Jan 1" (/ system-time-ms 1000.0))
 
 (defmacro on
   ([typ]   `(new Event ~typ false))
