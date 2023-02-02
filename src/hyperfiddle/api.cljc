@@ -7,7 +7,7 @@
             [hyperfiddle.hfql :as hfql]
             [hyperfiddle.photon :as p]
             [missionary.core :as m]
-            hyperfiddle.photon-dom
+            hyperfiddle.photon-dom2
             [hyperfiddle.spec :as spec]
             [hyperfiddle.rcf :refer [tests]])
   (:import [hyperfiddle.photon Pending]
@@ -104,7 +104,7 @@
   (p/client
     (let [[x] (p/with-cycle [[elapsed start :as s] [0 nil]]
                 (case hyperfiddle.api/loading
-                  true [(some->> start (- hyperfiddle.photon-dom/system-time-ms))
+                  true [(some->> start (- hyperfiddle.photon-dom2/system-time-ms))
                              (js/Date.now)]
                   s))]
       x)))
