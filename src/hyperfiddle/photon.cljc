@@ -395,7 +395,7 @@ or a provided value if it completes without producing any value."
       (hyperfiddle.photon/fn [x] (new x x))
       (hyperfiddle.photon/fn [x] (new f (hyperfiddle.photon/fn [y] (new (new x x) y)))))))
 
-(hyperfiddle.photon/defn Unglitch "
+(hyperfiddle.photon/defn ^:deprecated Unglitch "
 When x changes, throws Pending for the duration of a round-trip to remote peer, then returns x.
 
 TODO: fix the distribution glitch then get rid of this
