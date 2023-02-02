@@ -5,7 +5,7 @@
             [hyperfiddle.rcf :refer [tests % tap]]
             [clojure.test :as t]))
 
-(def CONTAINER (dom/by-id "test-bench"))
+(def CONTAINER js/document.body)
 (defn text-content [e] (.-textContent e))
 
 (t/use-fixtures :each {:before (fn [] (set! (.-innerHTML CONTAINER) ""))})
