@@ -199,7 +199,7 @@
       (p/client (cell grid-row grid-col (router/link route (dom/text label))))
 
       (= ::hf/many (get-cardinality ctx))
-      (ui4/tag-picker v (p/fn [_]) (p/fn [_]) (p/fn [_]) option-label (input-props readonly? grid-row grid-col dom-for))
+      (ui4/tag-picker v (when-not readonly? (p/fn [_])) (p/fn [_]) nil option-label (input-props readonly? grid-row grid-col dom-for))
 
       :else
       (p/client
