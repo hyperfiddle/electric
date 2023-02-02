@@ -4,13 +4,31 @@
             #?(:cljs goog.object)
             #?(:cljs goog.style)
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :refer [node ; reuse dom1/node for compat
-                                            with]]
+            [hyperfiddle.photon-dom :refer [node]] ; reuse dom1/node for compat
             [missionary.core :as m])
   (:import [hyperfiddle.photon Pending])
   #?(:cljs (:require-macros [hyperfiddle.photon-dom2 :refer [with]])))
 
 ;(p/def node) ; use photon-dom1/node for now
+(def nil-subject (fn [!] (! nil) #()))
+(p/def keepalive (new (m/observe nil-subject)))
+
+(defn unsupported [& _]
+  (throw (ex-info (str "Not available on this peer.") {})))
+
+(def hook "See `with`"
+  #?(:clj  unsupported
+     :cljs (fn ([x] (.removeChild (.-parentNode x) x)) ; unmount
+             ([x y] (.insertBefore (.-parentNode x) x y))))) ; rotate siblings
+
+(defmacro with
+  "Attach `body` to a dom node, which will be moved in the DOM when body moves in the DAG.
+  Given p/for semantics, `body` can only move sideways or be cancelled. If body is cancelled,
+  the node will be unmounted. If body moves, the node will rotate with its siblings."
+  [dom-node & body]
+  `(binding [node ~dom-node]
+     ; wrap body in a constant frame, so it can be moved as a block
+     (new (p/hook hook node (p/fn [] keepalive ~@body)))))
 
 #?(:cljs (defn by-id [id] (js/document.getElementById id)))
 
@@ -104,8 +122,8 @@
                 #(.removeEventListener dom-node event-name callback)))))
 
 (defmacro ^:deprecated event
-  ([event-name callback] `(new (event* hyperfiddle.photon-dom/node ~event-name ~callback)))
-  ([event-name callback options] `(new (event* hyperfiddle.photon-dom/node ~event-name ~callback ~options))))
+  ([event-name callback] `(new (event* node ~event-name ~callback)))
+  ([event-name callback options] `(new (event* node ~event-name ~callback ~options))))
 
 (defn happen [s e]
   ; Todo, we need a buffer to force a nil in between events to fix race
