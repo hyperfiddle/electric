@@ -4,10 +4,9 @@
   (:require
    #?(:cljs [hyperfiddle.ui.test :as uit])
    [contrib.cljs-target :refer [do-browser]]
-   [hyperfiddle.photon-dom :as dom1]
-   [hyperfiddle.photon-dom2 :as dom]
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-ui4 :as ui]
+   [hyperfiddle.photon-dom2 :as dom]
    [hyperfiddle.rcf :as rcf :refer [% tests with tap]]))
 
 (def data {:alice   {:name "Alice B"}
@@ -25,14 +24,14 @@
      (tests "basic behavior"
        (def !select (atom :missing))
        (def discard (p/run (try
-                             (binding [dom1/node (dom/by-id "root")]
+                             (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom :alice)]
                                    (ui/select (p/watch !v)
                                      (p/fn [v] (p/client (tap [:V! v])) (reset! !v v))
                                      (p/fn [] (p/client (tap [:Options])) (q))
                                      (p/fn [id] (p/client (tap [:OptionLabel id])) (-> data id :name))
-                                     #_for-test (reset! !select dom1/node)))))
+                                     #_for-test (reset! !select dom/node)))))
                              (catch Pending _)
                              (catch Cancelled _)
                              (catch :default e (prn e)))))
@@ -73,7 +72,7 @@
        (def !select (atom :missing))
        (def !v (atom :alice))
        (def discard (p/run (try
-                             (binding [dom1/node (dom1/by-id "root")]
+                             (binding [dom/node js/document.body]
                                (let [v (p/watch !v)]
                                  (tap [:controlled-value v])
                                  (p/server
@@ -81,7 +80,7 @@
                                      (p/fn [v] (reset! !v v))
                                      (p/fn [] (q))
                                      (p/fn [id] (tap [:OptionLabel id]) (-> data id :name))
-                                     #_for-test (reset! !select dom1/node)))))
+                                     #_for-test (reset! !select dom/node)))))
                              (catch Pending _)
                              (catch Cancelled _)
                              (catch :default e (prn e)))))
@@ -121,14 +120,14 @@
      (tests "close when clicked outside"
        (def !select (atom :missing))
        (def discard (p/run (try
-                             (binding [dom1/node (dom1/by-id "root")]
+                             (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom :alice)]
                                    (ui/select (p/watch !v)
                                      (p/fn [v] (reset! !v v))
                                      (p/fn [] (q))
                                      (p/fn [id] (-> data id :name))
-                                     #_for-test (reset! !select dom1/node)))))
+                                     #_for-test (reset! !select dom/node)))))
                              (catch Pending _)
                              (catch Cancelled _)
                              (catch :default e (prn e)))))
@@ -155,14 +154,14 @@
      (tests "keyboard"
        (def !select (atom :missing))
        (def discard (p/run (try
-                             (binding [dom1/node (dom1/by-id "root")]
+                             (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom :alice)]
                                    (ui/select (p/watch !v)
                                      (p/fn [v] (reset! !v v))
                                      (p/fn [] (q))
                                      (p/fn [id] (-> data id :name))
-                                     #_for-test (reset! !select dom1/node)))))
+                                     #_for-test (reset! !select dom/node)))))
                              (catch Pending _)
                              (catch Cancelled _)
                              (catch :default e (prn e)))))

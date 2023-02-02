@@ -1,7 +1,6 @@
 (ns user.demo-10k-dom-elements
   #?(:cljs (:require-macros user.demo-10k-dom-elements))
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :refer [node]]
             [hyperfiddle.photon-dom2 :as dom]
             [missionary.core :as m]))
 
@@ -31,7 +30,7 @@
           (dom/on "mouseover" (p/fn [e] (p/server (swap! !moves conj i))))))
       (p/for [i (p/server (p/watch !moves))]
         ; differential side effects, indexed by HTMLCollection
-        (new (hot (.item (.. node -children) i)))))))
+        (new (hot (.item (.. dom/node -children) i)))))))
 
 ;(defn countdown [x]                     ; Count down to 0 then terminate.
 ;  (m/relieve {} (m/ap (loop [x x]

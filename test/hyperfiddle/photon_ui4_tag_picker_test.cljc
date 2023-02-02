@@ -3,7 +3,6 @@
   (:require
    #?(:cljs [hyperfiddle.ui.test :as uit])
    [contrib.cljs-target :refer [do-browser]]
-   [hyperfiddle.photon-dom :as dom1]
    [hyperfiddle.photon-ui4 :as ui]
    [hyperfiddle.rcf :as rcf :refer [% tests with tap]]
    [hyperfiddle.photon :as p]
@@ -34,7 +33,7 @@
      (tests "basic behavior"
        (def !tgpk (atom :missing))
        (def discard (p/run (try
-                             (binding [dom1/node (dom1/by-id "root")]
+                             (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom #{:alice :bob})]
                                    (ui/tag-picker (p/watch !v)
@@ -43,7 +42,7 @@
                                      (p/fn [v] (tap [:unV! v]) (swap! !v disj v))
                                      (p/fn [search] (p/client (tap [:Options search])) (q search))
                                      (p/fn [id] (p/client (tap [:OptionLabel id])) (-> data id :name))
-                                     #_for-test (reset! !tgpk dom1/node)))))
+                                     #_for-test (reset! !tgpk dom/node)))))
                              (catch Pending _)
                              (catch Cancelled _)
                              (catch :default e (prn e)))))
@@ -94,7 +93,7 @@
 ;;        (def !tgpk (atom :missing))
 ;;        (def !v (atom :alice))
 ;;        (def discard (p/run (try
-;;                              (binding [dom1/node (dom1/by-id "root")]
+;;                              (binding [dom/node js/document.body]
 ;;                                (let [v (p/watch !v)]
 ;;                                  (tap [:controlled-value v])
 ;;                                  (p/server
@@ -102,7 +101,7 @@
 ;;                                      (p/fn [v] (reset! !v v))
 ;;                                      (p/fn [search] (q search))
 ;;                                      (p/fn [id] (tap [:OptionLabel id]) (-> data id :name))
-;;                                      #_for-test (reset! !tgpk dom1/node)))))
+;;                                      #_for-test (reset! !tgpk dom/node)))))
 ;;                              (catch Pending _)
 ;;                              (catch Cancelled _)
 ;;                              (catch :default e (prn e)))))
@@ -139,14 +138,14 @@
 ;;      (tests "close when clicked outside"
 ;;        (def !tgpk (atom :missing))
 ;;        (def discard (p/run (try
-;;                              (binding [dom1/node (dom1/by-id "root")]
+;;                              (binding [dom/node js/document.body]
 ;;                                (p/server
 ;;                                  (let [!v (atom :alice)]
 ;;                                    (ui/typeahead (p/watch !v)
 ;;                                      (p/fn [v] (reset! !v v))
 ;;                                      (p/fn [search] (q search))
 ;;                                      (p/fn [id] (-> data id :name))
-;;                                      #_for-test (reset! !tgpk dom1/node)))))
+;;                                      #_for-test (reset! !tgpk dom/node)))))
 ;;                              (catch Pending _)
 ;;                              (catch Cancelled _)
 ;;                              (catch :default e (prn e)))))
@@ -173,14 +172,14 @@
 ;;      (tests "keyboard"
 ;;        (def !tgpk (atom :missing))
 ;;        (def discard (p/run (try
-;;                              (binding [dom1/node (dom1/by-id "root")]
+;;                              (binding [dom/node js/document.body]
 ;;                                (p/server
 ;;                                  (let [!v (atom :alice)]
 ;;                                    (ui/typeahead (p/watch !v)
 ;;                                      (p/fn [v] (reset! !v v))
 ;;                                      (p/fn [search] (q search))
 ;;                                      (p/fn [id] (-> data id :name))
-;;                                      #_for-test (reset! !tgpk dom1/node)))))
+;;                                      #_for-test (reset! !tgpk dom/node)))))
 ;;                              (catch Pending _)
 ;;                              (catch Cancelled _)
 ;;                              (catch :default e (prn e)))))
