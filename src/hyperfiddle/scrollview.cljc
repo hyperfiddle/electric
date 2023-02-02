@@ -87,7 +87,7 @@
 (p/defn Demo []
   (p/client
     ; Requires css {box-sizing: border-box;}
-    (dom/element "style" (dom/text ".header { position: fixed; top: 0; left: 0; right: 0; height: 100px; background-color: #abcdef; }"
+    (dom/element "style" (dom/text ".header { position: fixed; z-index:1; top: 0; left: 0; right: 0; height: 100px; background-color: #abcdef; }"
                                    ".footer { position: fixed; bottom: 0; left: 0; right: 0; height: 100px; background-color: #abcdef; }"
                                    ".viewport { position: fixed; top: 100px; bottom: 100px; left: 0; right: 0; background-color: #F63; overflow: auto; }"))
     (dom/div (dom/props {:class "header"})
