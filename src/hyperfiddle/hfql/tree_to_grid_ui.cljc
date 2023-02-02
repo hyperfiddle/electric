@@ -156,7 +156,10 @@
                    :disabled ~disabled?})
        (dom/props ~dom-props)))
 
-(p/defn Options [{::hf/keys [cardinality attribute] :as ctx}]
+(defmacro get-cardinality [ctx]
+  `(let [ctx# ~ctx] (or (::hf/cardinality ctx#) (schema-cardinality hf/*schema* hf/db (::hf/attribute ctx#)))))
+
+(p/defn Options [ctx]
   (let [options      (grab ctx ::hf/options)
         option-label (grab ctx ::hf/option-label Identity)
         continuation (grab ctx ::hf/continuation Identity)
@@ -166,7 +169,7 @@
         v            (find-best-identity (hfql/JoinAllTheTree. ctx))
         V!           (if tx? (p/fn [v] (tx. ctx v)) Identity)
         OptionLabel  (p/fn [id] (option-label. (hfql/JoinAllTheTree. (continuation. id))))]
-    (case (->picker-type (has-needle? ctx) (= ::hf/many (or cardinality (schema-cardinality hf/*schema* hf/db attribute))))
+    (case (->picker-type (has-needle? ctx) (= ::hf/many (get-cardinality ctx)))
       ::typeahead (ui4/typeahead v V! options OptionLabel (options-props (not tx?) dom-props))
       ::select    (ui4/select v V! options OptionLabel (options-props (not tx?) dom-props))
       ::tag-picker (let [unV! (if-some [untx (grab ctx ::hf/untx)] (p/fn [v] (untx. ctx v)) Identity)]
@@ -187,37 +190,43 @@
         route             (when link (new link))
         option-label      (grab ctx ::hf/option-label Identity)
         v                 (hfql/JoinAllTheTree. ctx)
-        label              (option-label. v)]
-    (if (some? route)
+        label             (option-label. v)
+        tx?               (some? tx)
+        readonly?         (or defined-by-spec? (not tx?))
+        dom-for           (::dom/for ctx)]
+    (cond
+      (some? route)
       (p/client (cell grid-row grid-col (router/link route (dom/text label))))
-      (let [tx?       (some? tx)
-            readonly? (or defined-by-spec? (not tx?)) 
-            dom-for   (::dom/for ctx)]
-        (p/client
-          (let [Tx   (when-not readonly? (p/fn [v] (p/server (hf/Transact!. (tx. ctx v)) nil)))]
-            (case (or spec-value-type schema-value-type)
-              (::hf-type/boolean) (ui4/checkbox       v Tx (input-props readonly? grid-row grid-col dom-for))
-              (::hf-type/instant) (ui4/datetime-local (when v (-> v .toISOString (.slice 0 -1))) Tx (input-props readonly? grid-row grid-col dom-for))
-              (::hf-type/bigdec
-               ::hf-type/long)    (ui4/long           v Tx (input-props readonly? grid-row grid-col dom-for))
-              (::hf-type/float
-              ::hf-type/double)   (ui4/double         v Tx (input-props readonly? grid-row grid-col dom-for))
-              (::hf-type/symbol)  (ui4/symbol         v Tx (input-props readonly? grid-row grid-col dom-for))
-              (::hf-type/keyword) (ui4/keyword        v Tx (input-props readonly? grid-row grid-col dom-for))
-              (::hf-type/uuid)    (ui4/uuid           v Tx (input-props readonly? grid-row grid-col dom-for))
-              (::hf-type/uri
-               ::hf-type/string
-               ::hf-type/ref
-               nil)               (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for)))))))))
+
+      (= ::hf/many (get-cardinality ctx))
+      (ui4/tag-picker v (p/fn [_]) (p/fn [_]) (p/fn [_]) option-label (input-props readonly? grid-row grid-col dom-for))
+
+      :else
+      (p/client
+        (let [Tx (when-not readonly? (p/fn [v] (p/server (hf/Transact!. (tx. ctx v)) nil)))]
+          (case (or spec-value-type schema-value-type)
+            (::hf-type/boolean) (ui4/checkbox       v Tx (input-props readonly? grid-row grid-col dom-for))
+            (::hf-type/instant) (ui4/datetime-local (when v (-> v .toISOString (.slice 0 -1))) Tx (input-props readonly? grid-row grid-col dom-for))
+            (::hf-type/bigdec
+             ::hf-type/long)    (ui4/long           v Tx (input-props readonly? grid-row grid-col dom-for))
+            (::hf-type/float
+             ::hf-type/double)  (ui4/double         v Tx (input-props readonly? grid-row grid-col dom-for))
+            (::hf-type/symbol)  (ui4/symbol         v Tx (input-props readonly? grid-row grid-col dom-for))
+            (::hf-type/keyword) (ui4/keyword        v Tx (input-props readonly? grid-row grid-col dom-for))
+            (::hf-type/uuid)    (ui4/uuid           v Tx (input-props readonly? grid-row grid-col dom-for))
+            (::hf-type/uri
+             ::hf-type/string
+             ::hf-type/ref
+             nil)               (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for))))))))
 
 (p/defn Simple [ctx] (if (grab ctx ::hf/options) (Options. ctx) (Input. ctx)))
 
 ;; TODO adapt to new HFQL macroexpansion
-(p/defn Render-impl [{::hf/keys [type attribute cardinality render Value] :as ctx}]
+(p/defn Render-impl [{::hf/keys [type render Value] :as ctx}]
   (if render
     (p/client (cell grid-row grid-col (p/server (render. ctx))))
     (case type ::hf/leaf (Simple. ctx) ::hf/keys (Form. ctx)
-      (case (or cardinality (schema-cardinality hf/*schema* hf/db attribute))
+      (case (get-cardinality ctx)
         ::hf/many (Table. ctx)
         #_else    (let [v (Value.)]
                     (cond
