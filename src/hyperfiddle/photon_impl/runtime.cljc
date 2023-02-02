@@ -34,51 +34,26 @@
 ;;             - Some frames don't have child tiers : e.g. a frame without any `new`, no variability.
 ;;             - (image: an ordered tree with different kind of nodes at each generation)
 
-;; There is a virtual machine. Its instructions are numbers, they go by pairs.
-;; [ Frame Identifier , Argument ]
-;; If argument is a negative number, it means we are moving the frame.
-;; If argument is a positive number, it identifies a slot in the frame.
-;; Slot are stically known places, exposed to the remote frame over network, it can be :
-;; 1. A frame input address, (when the remote frame produces an output, an instruction will identify then set the addressed local frame input)
-;; 2. The address of p/fn in the remote frame (aka target)
-;; 3. The address of `new` in the remote frame (aka source)
+;; Network protocol
+;; Each peer streams events to its remote peer via a bidirectional channel. An event is a clojure map with 4 entries :
+;; * :acks is a non-negative integer counting the number of non-empty changesets received by the peer sending the event
+;;   since the previous event was sent.
+;; * :tree is a vector of tree instructions. A tree instruction describes an atomic mutation of the tree, it is a map
+;;   with a mandatory :op entry defining the instruction type and defining the rest of the keyset. Instructions are :
+;;   * :create appends a new frame at the end of a tier, owned by the peer sending the event. The frame constructor is
+;;     defined by the entry :target, the endpoint is defined by the entry :source. Both are ordered pairs of two
+;;     numbers, the frame id and the position of the target or the source in the frame.
+;;   * :rotate performs of cyclic permutation of frames in a tier, owned by the peer sending the event. The frame
+;;     identified by the :frame entry is moved to position defined by the :position entry. If the cycle is trivial, the
+;;     frame is removed.
+;;   * :remove dissociates a frame from the index. legacy hack, should be removed.
+;; * :change is a map associating ports with values. A port is represented as an ordered pair of two numbers, a frame id
+;;   and the position of this port in the frame. The value is the new state of port.
+;; * :freeze is a set of ports. Each port present in this set must be considered terminated (i.e. its state won't ever
+;;   change again).
+;; A frame id is negative if the frame is owned by the peer sending the event, positive if the frame is owned by the
+;; peer receiving the event, zero is the root frame.
 
-;; Creating a frame takes 2 instructions: the receipe, then the place where it should be created.
-;; 1. Location (address) of p/fn (which frame receipe do we want to instantiate)
-;; 2. Where (address) do we want the instance of p/fn to be instantiated (which tier should get a new child frame )
-
-
-;; # network protocol
-;; After boot, both peers are allowed to send messages to each other at any point in time without coordination.
-;; A message is a vector of arbitrary values (the data frames) ending with a vector of integers (the control frame).
-;; Each peer must process messages sequentially. Decoding a message requires a queue (input values, initially 
-;; empty) and two registers (the current frame and the current target, initially undefined).
-;; 1. push data frame values to the queue
-;; 2. process control frame integers as a sequence of instructions (for each):
-;;   * if current frame is undefined :
-;;     1. lookup frame identified by instruction :
-;;       * zero identifies the root frame
-;;       * strictly positive numbers identify frames created by local sources, by birth index
-;;       * strictly negative numbers identify frames created by local variables, by negation of birth index
-;;     2. define it as current frame
-;;   * if current frame is defined :
-;;     * if instruction (argument) is strictly negative :
-;;       1. move the current frame to position (+ instruction size-of-source), where
-;;          - instruction is the argument
-;;          - size-of-source: count of frame's siblings + 1 (how many frame children does the parent tier have)
-;;          if target position is the same as current, cancel the frame.
-;;       2. undefine current frame
-;;     * if instruction is positive or zero :
-;;       1. lookup the current frame slot identified by instruction (argument)
-;;         * if slot is an input :
-;;           * if queue is non empty, pop a value and assign this value to the input
-;;           * if queue is empty, terminate the input
-;;         * if slot is a source :
-;;           1. construct a new frame from this target and insert it at the last child of source (a tier)
-;;           2. undefine current target
-;;         * if slot is a target : define it as current target
-;;         * otherwise, remove frame from index
-;;       2. undefine current frame
 
 (defn fail [x] (throw x))
 
