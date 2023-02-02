@@ -3,7 +3,7 @@
   #?(:cljs (:require-macros user.demo-4-webview))
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :as dom]
+            [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.photon-ui4 :as ui]))
 
 ; A database backed webview with reactive updates.

@@ -2,9 +2,7 @@
   #?(:cljs (:require-macros user.demo-4-chat))
   (:require contrib.str
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :refer [node]]
-            [hyperfiddle.photon-dom2 :as dom])
-  #?(:cljs (:require-macros user.demo-4-chat)))
+            [hyperfiddle.photon-dom2 :as dom]))
 
 (defonce !state #?(:clj (atom '()) :cljs nil))
 
@@ -22,7 +20,7 @@
                            (when (= "Enter" (.-key e))
                              (when-some [v (contrib.str/empty->nil (.-target.value e))]
                                (p/server (swap! !state #(cons v (take 9 %))))
-                               (set! (.-value node) ""))))))))
+                               (set! (.-value dom/node) ""))))))))
 
 ; A chat app. Open it in two tabs. When you type a message, both tabs update.
 ; This works because both tabs share a single JVM which means they subscribe to the same atom.

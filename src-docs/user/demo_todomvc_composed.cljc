@@ -1,11 +1,11 @@
 (ns user.demo-todomvc-composed
+  #?(:cljs (:require-macros user.demo-todomvc-composed))
   (:require
    #?(:clj [datascript.core :as d])
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom2 :as dom]
    [hyperfiddle.photon-ui4 :as ui]
-   [user.demo-5-todomvc :as todomvc])
-  #?(:cljs (:require-macros user.demo-todomvc-composed)))
+   [user.demo-5-todomvc :as todomvc]))
 
 (def !n #?(:clj (atom 1)))
 

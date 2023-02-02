@@ -4,7 +4,6 @@
    contrib.str
    [hyperfiddle.api :as hf]
    [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom :refer [node]]
    [hyperfiddle.photon-dom2 :as dom]
    [missionary.core :as m]))
 
@@ -37,7 +36,7 @@
                          (when (= "Enter" (.-key e))
                            (when-some [v (contrib.str/empty->nil (.-target.value e))]
                              (p/server (swap! !msgs #(cons {::username username ::msg v} (take 9 %))))
-                             (set! (.-value node) "")))))))
+                             (set! (.-value dom/node) "")))))))
 
 (p/defn App []
   (p/client

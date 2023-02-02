@@ -2,7 +2,6 @@
   #?(:cljs (:require-macros user.todos-simple))
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom :refer [node]]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.photon-ui4 :as ui]))
 
@@ -14,9 +13,9 @@
     (dom/on "keydown" (p/fn [e]
                         (when (= "Enter" (.-key e))
                           (when-some [v (contrib.str/empty->nil (.-target.value e))]
-                            (p/server (d/transact! !conn [{:task/description v
-                                                           :task/status :active}]))
-                            (set! (.-value node) "")))))))
+                            (p/server (p/discard (d/transact! !conn [{:task/description v
+                                                                     :task/status :active}])))
+                            (set! (.-value dom/node) "")))))))
 
 (p/defn TodoItem [id]
   (p/server
@@ -33,9 +32,8 @@
             (dom/props {:id id}))
           (dom/label (dom/props {:for id}) (dom/text (p/server (:task/description e)))))))))
 
-#?(:clj
-   (defn todo-count [db]
-     (count (d/q '[:find [?e ...] :in $ ?status :where [?e :task/status ?status]] db :active))))
+#?(:clj (defn todo-count [db] (count (d/q '[:find [?e ...] :in $ ?status
+                                            :where [?e :task/status ?status]] db :active))))
 
 (p/defn Todo-list []
   (p/client
@@ -49,4 +47,3 @@
       (dom/p (dom/props {:class "counter"})
         (dom/span (dom/props {:class "count"}) (dom/text (p/server (todo-count db))))
         (dom/text " items left")))))
-
