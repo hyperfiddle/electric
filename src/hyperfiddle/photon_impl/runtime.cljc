@@ -38,17 +38,18 @@
 ;; Each peer streams events to its remote peer via a bidirectional channel. An event is a clojure map with 4 entries :
 ;; * :acks is a non-negative integer counting the number of non-empty changesets received by the peer sending the event
 ;;   since the previous event was sent.
-;; * :tree is a vector of tree instructions. A tree instruction describes an atomic mutation of the tree, it is a map
+;; * :tree is a vector of tree instructions. Order of instructions matters. A tree instruction describes an atomic mutation of the tree, it is a map
 ;;   with a mandatory :op entry defining the instruction type and defining the rest of the keyset. Instructions are :
 ;;   * :create appends a new frame at the end of a tier, owned by the peer sending the event. The frame constructor is
 ;;     defined by the entry :target, the endpoint is defined by the entry :source. Both are ordered pairs of two
 ;;     numbers, the frame id and the position of the target or the source in the frame.
 ;;   * :rotate performs of cyclic permutation of frames in a tier, owned by the peer sending the event. The frame
-;;     identified by the :frame entry is moved to position defined by the :position entry. If the cycle is trivial, the
+;;     identified by the :frame entry is moved to position defined by the :position entry. If the cycle is trivial (A -> A), the
 ;;     frame is removed.
 ;;   * :remove dissociates a frame from the index. legacy hack, should be removed.
-;; * :change is a map associating ports with values. A port is represented as an ordered pair of two numbers, a frame id
-;;   and the position of this port in the frame. The value is the new state of port.
+;; * :change is a map associating ports with values. A port is absolute for the system, inputs and output relative terms for a port (it only make sense from a single peer perspective).
+;;   A port is represented as an ordered pair of two numbers, a frame id
+;;   and the position of this port in the frame. The value is the new state of port. (:assign could be a synonym)
 ;; * :freeze is a set of ports. Each port present in this set must be considered terminated (i.e. its state won't ever
 ;;   change again).
 ;; A frame id is negative if the frame is owned by the peer sending the event, positive if the frame is owned by the
@@ -1268,20 +1269,46 @@
 (tests
   "simple input"
   (let [c (((eval (ir/input []))
-            (fn [x] (tap x) (fn [s _] (tap #(s nil)) #()))
-            (fn [!] (tap !) #())
-            (fn [e] (tap e)))
+            (fn [x] (tap [::write x]) (fn [s _] (tap [::backpressure #(s nil)]) #()))
+            (fn [!] (tap [::read !]) #()) ; reader subject
+            (fn [e] (tap [::error e])))
            tap tap)]
-    % := (Pending.)
-    (let [writer %]
-      (writer (update empty-event :change assoc [0 0] :a))
-      % := (update empty-event :acks inc)
-      (%)
-      (writer (update empty-event :change assoc [0 0] :b))
-      % := (update empty-event :acks inc)
-      (%)
-      (c)
+    % := [::error (Pending.)] ; input starts Pending (a failure state)
+    (let [[_read !] %]        ; on boot, reactor calls the reader subject
+      (! (update empty-event :change assoc [0 0] :a)) ; simulate incomming message: assign value :a to frame 0 (root), port 0 (input)
+      % := [::write (update empty-event :acks inc)]   ; reactor acknowledges by sending a message
+      (let [[_backpressure ack] %] (ack))             ; manualy simulate backpressure
+      (! (update empty-event :change assoc [0 0] :b)) ; simulate incomming message: assign value :b to frame 0 (root), port 0 (input)
+      % := [::write (update empty-event :acks inc)]   ; reactor acknowledges by sending a message
+      (let [[_backpressure ack] %] (ack))             ; manualy simulate backpressure
+      (c)                                             ; terminate reactor
       (type %) := Cancelled)))
+
+(tests
+  "Fast changes to simulate backpressure"
+  (let [c (((eval (ir/input []))
+            (fn [x] (tap [::write x]) (fn [s _] (tap [::backpressure #(s nil)]) #()))
+            (fn [!] (tap [::read !]) #()) ; reader subject
+            (fn [e] (tap [::error e])))
+           tap tap)]
+    % := [::error (Pending.)] ; input starts Pending (a failure state)
+    (let [[_read !] %]        ; on boot, reactor calls the reader subject
+      (! (update empty-event :change assoc [0 0] :a)) ; simulate 4 incomming messages
+      (! (update empty-event :change assoc [0 0] :b))
+      (! (update empty-event :change assoc [0 0] :c))
+      (! (update empty-event :change assoc [0 0] :d))
+      % := [::write (assoc empty-event :acks 1)] ; There is room in the write buffer, reactor acknowledges by sending a message immediatly
+      (let [[_backpressure ack] %] (ack))        ; manualy simulate backpressure
+      ;; We expect to see :acks 1, then :acks 3 (total 4). But because of an
+      ;; implementation detail there still room in the buffer. We therefore see
+      ;; another :acks 1.
+      % := [::write (assoc empty-event :acks 1)]
+      (let [[_backpressure ack] %] (ack))        ; manualy simulate backpressure
+      % := [::write (assoc empty-event :acks 2)] ; Acks are accumulated till there is room in the write buffer - total acks count = 4
+      (let [[_backpressure ack] %] (ack))        ; manualy simulate backpressure
+      (c)                                        ; terminate reactor
+      (type %) := Cancelled))
+  )
 
 (tests
   '(tap (p/server (new (:hyperfiddle.photon-impl.compiler/closure (p/client 1)))))
@@ -1365,3 +1392,5 @@
       (! (assoc empty-event :acks 1))                       ;; ack previous changeset, previous input state is restored
       % := :a                                               ;; main result is sampled
       )))
+
+;; Leo: write a test for the infinite loop bug https://github.com/hyperfiddle/photon/commit/2894b3e23e4406c0d9fed4944b2cb553ad28804a
