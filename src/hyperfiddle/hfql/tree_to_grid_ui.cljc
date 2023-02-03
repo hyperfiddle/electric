@@ -519,18 +519,10 @@
   ;; Does not return CSSStyleDeclaration directly because a CSSStyleDeclaration
   ;; is a live object with a stable identity. m/cp would dedupe it even if
   ;; properties might have changed.
+  ;; NOTE: beware of expensive keyfn
   [keyfn node]
   (let [live-object (get-computed-style node)]
-    ;; HACK clock is throttled because network is not deduping. A message would
-    ;; be sent on each RAF.
-    (->> (m/sample (partial keyfn live-object) dom/<clock)
-      (throttle 1000)
-      (m/reductions {} (keyfn live-object))
-      (m/relieve {})
-      (new))
-    ;; FIXME use this impl once network dedupes
-    #_((fn [_time] (keyfn live-object)) hyperfiddle.photon-dom/system-time-ms)
-    ))
+    ((fn [_time] (keyfn live-object)) dom/system-time-ms)))
 
 (p/defn Text [RenderF]
   (p/fn [ctx]
