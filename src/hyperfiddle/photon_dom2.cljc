@@ -193,9 +193,10 @@
   (p/with-cycle [focused false]
     (if focused (nil? (on "blur")) (some? (on "focus")))))
 
-(defn input-setter [node v] (set! (.-value node) (str v)))
+#?(:cljs (defn set-val [node v] (set! (.-value node) (str v))))
+
 (defmacro bind-value
-  ([v]        `(bind-value ~v input-setter))
+  ([v]        `(bind-value ~v set-val))
   ([v setter] `(let [v# ~v]
                  (when-not (new Focused?)
                    (~setter node v#)))))
