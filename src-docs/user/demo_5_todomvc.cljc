@@ -80,7 +80,7 @@
                   (dom/on "keydown"
                     (p/fn [e]
                       (case (.-key e)
-                        "Enter" (when-some [description (contrib.str/blank->nil (.-target.value e))]
+                        "Enter" (when-some [description (contrib.str/blank->nil (dom/target-value e))]
                                   (case (p/server (transact! [{:db/id id, :task/description description}]) nil)
                                     (swap! !state assoc ::editing nil)))
                         "Escape" (swap! !state assoc ::editing nil)
@@ -123,7 +123,7 @@
         (dom/on "keydown"
           (p/fn [e]
             (when (= "Enter" (.-key e))
-              (when-some [description (contrib.str/empty->nil (.-target.value e))]
+              (when-some [description (contrib.str/empty->nil (dom/target-value e))]
                 (p/server (transact! [{:task/description description, :task/status :active}]) nil)
                 (set! (.-value dom/node) "")))))
         (dom/props {:class "new-todo", :placeholder "What needs to be done?"})))))
