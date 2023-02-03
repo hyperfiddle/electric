@@ -88,10 +88,10 @@
      (tests "nil V! disables input"
        (def !tgpk (atom :missing))
        (with (p/run (try
-                      (binding [dom1/node (dom1/by-id "root")]
+                      (binding [dom/node js/document.body]
                         (p/server
                           (ui/tag-picker [] nil No1 No1 No1
-                            #_for-test (reset! !tgpk dom1/node))))
+                            #_for-test (reset! !tgpk dom/node))))
                       (catch Pending _)
                       (catch Cancelled _)
                       (catch :default e (prn e))))
