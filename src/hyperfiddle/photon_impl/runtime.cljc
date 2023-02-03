@@ -6,7 +6,7 @@
             [hyperfiddle.photon-impl.ir :as ir]
             [hyperfiddle.photon.debug :as dbg]
             [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests tap %]]
+            [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str]
             [contrib.data :as data])
   (:import missionary.Cancelled
@@ -1253,93 +1253,115 @@
                     output-count input-count
                     (partial form [])))})))
 
-#?(:clj (tests
+
+
+;; TESTS
+
+(defn queue []
+  #?(:clj  (let [q (java.util.LinkedList.)]
+             (fn
+               ([] (.remove q))
+               ([x] (.add q x) x)))
+     :cljs (let [q (object-array 0)]
+             (fn
+               ([]
+                (when (zero? (alength q))
+                  (throw (js/Error. "No such element.")))
+                (.shift q))
+               ([x] (.push q x) x)))))
+
+(tests
   "uncaught exception crash"
-  (let [!x (atom true)
-        c (((eval (ir/apply (ir/literal tap)
+  (let [q (queue)
+        !x (atom true)
+        c (((eval (ir/apply (ir/literal q)
                     (ir/apply (ir/literal #(when-not % (throw (ex-info "boom" {}))))
                       (ir/variable (ir/literal (m/watch !x))))))
-            (fn [x] (tap x) (fn [s _] (tap #(s nil)) #()))
-            (fn [!] (tap !) #())
+            (fn [x] (q x) (fn [s _] (q #(s nil)) #()))
+            (fn [!] (q !) #())
             (fn [e] (throw e)))
-           tap tap)]
-    % := nil
-    %
+           q q)]
+    (q) := nil
+    (q)
     (swap! !x not)
-    (ex-message %) := "boom")))
+    (ex-message (q)) := "boom"))
 
-#?(:clj (tests
+(tests
   "simple input"
-  (let [c (((eval (ir/input []))
-            (fn [x] (tap [::write x]) (fn [s _] (tap [::backpressure #(s nil)]) #()))
-            (fn [!] (tap [::read !]) #()) ; reader subject
-            (fn [e] (tap [::error e])))
-           tap tap)]
-    % := [::error (Pending.)] ; input starts Pending (a failure state)
-    (let [[_read !] %]        ; on boot, reactor calls the reader subject
+  (let [q (queue)
+        c (((eval (ir/input []))
+            (fn [x] (q [::write x]) (fn [s _] (q [::backpressure #(s nil)]) #()))
+            (fn [!] (q [::read !]) #()) ; reader subject
+            (fn [e] (q [::error e])))
+           q q)]
+    (q) := [::error (Pending.)] ; input starts Pending (a failure state)
+    (let [[_read !] (q)]        ; on boot, reactor calls the reader subject
       (! (update empty-event :change assoc [0 0] :a)) ; simulate incomming message: assign value :a to frame 0 (root), port 0 (input)
-      % := [::write (update empty-event :acks inc)]   ; reactor acknowledges by sending a message
-      (let [[_backpressure ack] %] (ack))             ; manualy simulate backpressure
+      (q) := [::write (update empty-event :acks inc)]   ; reactor acknowledges by sending a message
+      (let [[_backpressure ack] (q)] (ack))             ; manualy simulate backpressure
       (! (update empty-event :change assoc [0 0] :b)) ; simulate incomming message: assign value :b to frame 0 (root), port 0 (input)
-      % := [::write (update empty-event :acks inc)]   ; reactor acknowledges by sending a message
-      (let [[_backpressure ack] %] (ack))             ; manualy simulate backpressure
+      (q) := [::write (update empty-event :acks inc)]   ; reactor acknowledges by sending a message
+      (let [[_backpressure ack] (q)] (ack))             ; manualy simulate backpressure
       (c)                                             ; terminate reactor
-      (type %) := Cancelled))))
+      (type (q)) := Cancelled)))
 
-#?(:clj (tests
+(tests
   "Fast changes to simulate backpressure"
-  (let [c (((eval (ir/input []))
-            (fn [x] (tap [::write x]) (fn [s _] (tap [::backpressure #(s nil)]) #()))
-            (fn [!] (tap [::read !]) #()) ; reader subject
-            (fn [e] (tap [::error e])))
-           tap tap)]
-    % := [::error (Pending.)] ; input starts Pending (a failure state)
-    (let [[_read !] %]        ; on boot, reactor calls the reader subject
+  (let [q (queue)
+        c (((eval (ir/input []))
+            (fn [x] (q [::write x]) (fn [s _] (q [::backpressure #(s nil)]) #()))
+            (fn [!] (q [::read !]) #()) ; reader subject
+            (fn [e] (q [::error e])))
+           q q)]
+    (q) := [::error (Pending.)] ; input starts Pending (a failure state)
+    (let [[_read !] (q)]        ; on boot, reactor calls the reader subject
       (! (update empty-event :change assoc [0 0] :a)) ; simulate 4 incomming messages
       (! (update empty-event :change assoc [0 0] :b))
       (! (update empty-event :change assoc [0 0] :c))
       (! (update empty-event :change assoc [0 0] :d))
-      % := [::write (assoc empty-event :acks 1)] ; There is room in the write buffer, reactor acknowledges by sending a message immediatly
-      (let [[_backpressure ack] %] (ack))        ; manualy simulate backpressure
+      (q) := [::write (assoc empty-event :acks 1)] ; There is room in the write buffer, reactor acknowledges by sending a message immediatly
+      (let [[_backpressure ack] (q)] (ack))        ; manualy simulate backpressure
       ;; We expect to see :acks 1, then :acks 3 (total 4). But because of an
       ;; implementation detail there still room in the buffer. We therefore see
       ;; another :acks 1.
-      % := [::write (assoc empty-event :acks 1)]
-      (let [[_backpressure ack] %] (ack))        ; manualy simulate backpressure
-      % := [::write (assoc empty-event :acks 2)] ; Acks are accumulated till there is room in the write buffer - total acks count = 4
-      (let [[_backpressure ack] %] (ack))        ; manualy simulate backpressure
+      (q) := [::write (assoc empty-event :acks 1)]
+      (let [[_backpressure ack] (q)] (ack))        ; manualy simulate backpressure
+      (q) := [::write (assoc empty-event :acks 2)] ; Acks are accumulated till there is room in the write buffer - total acks count = 4
+      (let [[_backpressure ack] (q)] (ack))        ; manualy simulate backpressure
       (c)                                        ; terminate reactor
-      (type %) := Cancelled))))
+      (type (q)) := Cancelled)))
 
-#?(:clj (tests
+(tests
   '(tap (p/server (new (:hyperfiddle.photon-impl.compiler/closure (p/client 1)))))
 
-  (let [c (((eval (ir/apply (ir/literal tap)
+  (let [q (queue)
+        c (((eval (ir/apply (ir/literal q)
                     (ir/input [(ir/target [(ir/output (ir/literal 1))])
                                ir/source])))
-            (fn [x] (tap x) (fn [s _] (tap #(s nil)) #()))
-            (fn [!] (tap !) #())
-            (fn [e] (tap e)))
-           tap tap)]
-    % := (Pending.)
-    (let [! %]
+            (fn [x] (q x) (fn [s _] (q #(s nil)) #()))
+            (fn [!] (q !) #())
+            (fn [e] (q e)))
+           q q)]
+    (q) := (Pending.)
+    (let [! (q)]
       (! (assoc empty-event
            :tree [{:op :create, :target [0 0], :source [0 0]}]
            :change {[0 0] pending}))
-      % := (assoc empty-event
-             :acks 1
-             :change {[1 0] 1}
-             :freeze #{[1 0]})
-      (%)
+      (q) := (assoc empty-event
+               :acks 1
+               :change {[1 0] 1}
+               :freeze #{[1 0]})
+      ((q))
       (! (assoc empty-event
            :acks 1
            :change {[0 0] 1}))
-      % := 1
-      % := (assoc empty-event :acks 1)
-      (%)
+      (q) := 1
+      (q) := (assoc empty-event :acks 1)
+      ((q))
       (! (assoc empty-event :tree [{:op :rotate, :frame -1, :position 0} {:op :remove, :frame -1}]))))
 
-  (let [c (((eval (ir/do [(ir/output
+  (let [q (queue)
+        c (((eval (ir/do [(ir/output
                             (ir/pub (ir/constant (ir/input []))
                               (ir/apply (ir/literal {})
                                 (ir/sub 1)
@@ -1348,50 +1370,51 @@
                                     (ir/sub 1)
                                     (ir/bind 0 1 (ir/variable (ir/sub 2))))))))]
                          ir/nop))
-            (fn [x] (tap x) (fn [s _] (tap #(s nil)) #()))
-            (fn [!] (tap !) #())
-            (fn [e] (tap e)))
-           tap tap)]
-    % := (assoc empty-event
-           :tree [{:op :create, :target [0 0], :source [0 0]}]
-           :change {[0 0] pending})
-    (%)
-    (let [! %]
+            (fn [x] (q x) (fn [s _] (q #(s nil)) #()))
+            (fn [!] (q !) #())
+            (fn [e] (q e)))
+           q q)]
+    (q) := (assoc empty-event
+             :tree [{:op :create, :target [0 0], :source [0 0]}]
+             :change {[0 0] pending})
+    ((q))
+    (let [! (q)]
       (! (assoc empty-event
            :acks 1
            :change {[1 0] 1}
            :freeze #{[1 0]}))
-      % := (assoc empty-event
-             :acks 1
-             :change {[0 0] 1})
-      (%)
+      (q) := (assoc empty-event
+               :acks 1
+               :change {[0 0] 1})
+      ((q))
       (! (assoc empty-event :acks 1))
-      % := (assoc empty-event :tree [{:op :rotate, :frame -1, :position 0} {:op :remove, :frame -1}])
-      (%)))))
+      (q) := (assoc empty-event :tree [{:op :rotate, :frame -1, :position 0} {:op :remove, :frame -1}])
+      ((q)))))
 
-#?(:clj (tests
+(tests
   "d-glitch"
-  (let [!x (atom 1)
-        c (((eval (ir/apply (ir/literal tap) (ir/input [(ir/output (ir/variable (ir/literal (m/watch !x))))])))
-            (fn [x] (tap x) (fn [s _] (tap #(s nil)) #()))
-            (fn [!] (tap !) #())
-            (fn [e] (tap e)))
-           tap tap)]
-    % := (Pending.)                                         ;; input is initially pending
-    % := (assoc empty-event :change {[0 0] 1})              ;; output state 1 is published
-    (%)                                                     ;; backpressure
-    (let [! %]                                              ;; get callback
+  (let [q (queue)
+        !x (atom 1)
+        c (((eval (ir/apply (ir/literal q) (ir/input [(ir/output (ir/variable (ir/literal (m/watch !x))))])))
+            (fn [x] (q x) (fn [s _] (q #(s nil)) #()))
+            (fn [!] (q !) #())
+            (fn [e] (q e)))
+           q q)]
+    (q) := (Pending.)                                       ;; input is initially pending
+    (q) := (assoc empty-event :change {[0 0] 1})            ;; output state 1 is published
+    ((q))                                                   ;; backpressure
+    (let [! (q)]                                            ;; get callback
       (! (assoc empty-event :acks 1))                       ;; ack previous changeset
       (! (assoc empty-event :change {[0 0] :a}))            ;; input state changes to :a
-      % := :a                                               ;; main result is sampled
-      % := (assoc empty-event :acks 1)                      ;; changeset is acked
-      (%)                                                   ;; backpressure
+      (q) := :a                                             ;; main result is sampled
+      (q) := (assoc empty-event :acks 1)                    ;; changeset is acked
+      ((q))                                                 ;; backpressure
       (swap! !x inc)                                        ;; input is invalidated due to its dep on output (d-glitch)
-      % := (Pending.)                                       ;; main result is sampled
-      % := (assoc empty-event :change {[0 0] 2})            ;; output state 2 is published
-      (%)                                                   ;; backpressure
+      (q) := (Pending.)                                     ;; main result is sampled
+      (q) := (assoc empty-event :change {[0 0] 2})          ;; output state 2 is published
+      ((q))                                                 ;; backpressure
       (! (assoc empty-event :acks 1))                       ;; ack previous changeset, previous input state is restored
-      % := :a                                               ;; main result is sampled
-      ))))
+      (q) := :a                                             ;; main result is sampled
+      )))
 
 ;; Leo: write a test for the infinite loop bug https://github.com/hyperfiddle/photon/commit/2894b3e23e4406c0d9fed4944b2cb553ad28804a
