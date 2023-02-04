@@ -1,26 +1,20 @@
-(ns hyperfiddle.ui.codemirror2
-  #?(:cljs (:require-macros hyperfiddle.ui.codemirror2))
-  #?(:clj (:require
-           [clojure.edn :as edn]
-           [clojure.pprint :as pprint]
-           [hyperfiddle.logger :as log]
-           [hyperfiddle.photon :as p]
-           [hyperfiddle.photon-dom2 :as dom]
-           [missionary.core :as m]))
-  #?(:cljs (:require
-            [clojure.edn :as edn]
-            [clojure.pprint :as pprint]
-            [hyperfiddle.logger :as log]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
-            [missionary.core :as m]
-            ["@codemirror/fold" :as fold]
-            ["@codemirror/gutter" :refer [lineNumbers]]
-            ["@codemirror/highlight" :as highlight]
-            ["@codemirror/history" :refer [history historyKeymap]]
-            ["@codemirror/state" :refer [EditorState]]
-            ["@codemirror/view" :as view :refer [EditorView]]
-            [nextjournal.clojure-mode :as cm-clj])))
+(ns contrib.photon-codemirror
+  #?(:cljs (:require-macros contrib.photon-codemirror))
+  (:require
+    [clojure.edn :as edn]
+    [clojure.pprint :as pprint]
+    [hyperfiddle.logger :as log]
+    [hyperfiddle.photon :as p]
+    [hyperfiddle.photon-dom2 :as dom]
+    [missionary.core :as m]
+    [hyperfiddle.rcf :as rcf :refer [% tap tests with]]
+    #?@(:cljs [["@codemirror/fold" :as fold]
+               ["@codemirror/gutter" :refer [lineNumbers]]
+               ["@codemirror/highlight" :as highlight]
+               ["@codemirror/history" :refer [history historyKeymap]]
+               ["@codemirror/state" :refer [EditorState]]
+               ["@codemirror/view" :as view :refer [EditorView]]
+               [nextjournal.clojure-mode :as cm-clj]])))
 
 #?(:cljs
    (def theme
@@ -101,3 +95,25 @@
 
 (p/defn edn [v] (new CodeMirror {:parent dom/node} read-edn write-edn v))
 (p/defn string [v] (new CodeMirror {:parent dom/node} identity identity v))
+
+#_
+(tests "cm/string"
+  (def discard (p/run (binding [dom/node js/document.body]
+                        (tap (new string "hi")))))
+  ;; (def line (.querySelector js/document ".cm-line"))
+  ;; (def content (.querySelector js/document ".cm-line"))
+  ;; (.dispatchEvent line (js/Event. "mousedown"))
+  ;; (.dispatchEvent content (js/Event. "mousedown"))
+  ;; (uit/focus line)
+  ;; (uit/focus content)
+  ;; (set! (.-innerText line) "there")
+
+  % := "hi"
+  ;; TODO I see this works when trying out in the REPL and interacting with the browser manually
+  ;; but I can't seem to trigger the user-like typing behavior from the test.
+  ;; Exposing the EditorView doesn't help because the `on-change` handler
+  ;; checks if the action was a user action.
+  ;; % := "there"
+  ;; % := "buddy"
+  (discard)
+  )

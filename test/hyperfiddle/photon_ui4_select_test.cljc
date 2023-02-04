@@ -2,7 +2,7 @@
   #?(:cljs (:require-macros hyperfiddle.photon-ui4-select-test))
   (:import [missionary Cancelled] [hyperfiddle.photon Pending])
   (:require
-   #?(:cljs [hyperfiddle.ui.test :as uit])
+   #?(:cljs [contrib.dom-test-helpers :as uit])
    [contrib.cljs-target :refer [do-browser]]
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-ui4 :as ui]

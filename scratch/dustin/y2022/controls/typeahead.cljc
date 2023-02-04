@@ -5,7 +5,7 @@
            [hyperfiddle.photon Pending])
   (:require
    [clojure.string :as str]
-   #?(:cljs [hyperfiddle.ui.test :as uit])
+   #?(:cljs [hyperfiddle.dom-test-helpers :as uit])
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom :as dom]
    [hyperfiddle.rcf :as rcf :refer [tests tap %]]))
