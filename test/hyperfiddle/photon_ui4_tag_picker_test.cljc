@@ -4,7 +4,7 @@
   (:require
    [clojure.string :as str]
    [contrib.cljs-target :refer [do-browser]]
-   #?(:cljs [hyperfiddle.ui.test :as uit])
+   #?(:cljs [contrib.dom-test-helpers :as uit])
    [hyperfiddle.photon :as p]
    [hyperfiddle.photon-dom2 :as dom]
    [hyperfiddle.photon-ui4 :as ui]

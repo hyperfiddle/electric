@@ -1,16 +1,7 @@
-(ns hyperfiddle.ui.test
-  (:require [contrib.cljs-target :refer [do-browser]]
-            [hyperfiddle.photon-dom2 :as dom]))
+(ns contrib.dom-test-helpers
+  (:require [contrib.cljs-target :refer [do-browser]]))
 
 (do-browser
-  (defn ensure-root! []
-    (when-not (dom/by-id "root")
-      (let [root (.createElement js/document "div")]
-        (set! (.-id root) "root")
-        (.appendChild (.-body js/document) root))))
-
-  (ensure-root!)
-
   (defn focus [elem]
     (.dispatchEvent elem (js/FocusEvent. "focus"))
     (.dispatchEvent elem (js/FocusEvent. "focusin" #js {:bubbles true}))
