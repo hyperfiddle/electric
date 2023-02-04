@@ -1,6 +1,6 @@
-(ns hyperfiddle.gridsheet
+(ns wip.gridsheet
   "todo deprecate, use HFQL grid"
-  #?(:cljs (:require-macros hyperfiddle.gridsheet))
+  #?(:cljs (:require-macros wip.gridsheet))
   #?(:clj (:import [clojure.lang ExceptionInfo]))
   (:require clojure.math
             [contrib.data :refer [unqualify auto-props round-floor]]
