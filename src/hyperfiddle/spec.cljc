@@ -3,7 +3,7 @@
             [clojure.datafy :refer [datafy nav]]
             #?(:clj [clojure.spec.alpha :as s]
                :cljs [cljs.spec.alpha :as s])
-            [hyperfiddle.walk :as walk]
+            [contrib.walk :as walk]
             [hyperfiddle.rcf :as rcf :refer [tests]]))
 
 (defn spec-type [spec]
