@@ -54,7 +54,7 @@
     (let [!search (atom "") search (p/watch !search)]
       #_(dom/dl
         (dom/dt (dom/text "scroll debug state"))
-        (dom/dd (dom/pre (dom/text (pprint-str (update-keys (p/watch hyperfiddle.scrollview/!scrollStateDebug) unqualify))))))
+        (dom/dd (dom/pre (dom/text (pprint-str (update-keys (p/watch user.demo-scrollview/!scrollStateDebug) unqualify))))))
       (dom/div (dom/props {:class "hyperfiddle-explorer-title"}) title)
       (ui/input search (p/fn V! [v] (reset! !search v))
         (dom/props {:placeholder "Search files by name" :type "search"}))
