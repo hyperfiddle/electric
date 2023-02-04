@@ -1,13 +1,13 @@
-(ns hyperfiddle.explorer
+(ns wip.explorer
   (:require [clojure.set :refer [rename-keys]]
             [contrib.data :refer [auto-props unqualify]]
             [clojure.datafy :refer [datafy]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.photon-ui4 :as ui]
-            [hyperfiddle.gridsheet :as gridsheet :refer [GridSheet]]
+            [wip.gridsheet :as gridsheet :refer [GridSheet]]
             [hyperfiddle.rcf :refer [tests tap % with]])
-  #?(:cljs (:require-macros hyperfiddle.explorer)))
+  #?(:cljs (:require-macros wip.explorer)))
 
 (defn- -tree-list [depth xs children-fn keep? input]
   (eduction (mapcat (fn [x]

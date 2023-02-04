@@ -1,5 +1,5 @@
-(ns hyperfiddle.datomic-browser
-  #?(:cljs (:require-macros hyperfiddle.datomic-browser))
+(ns wip.datomic-browser
+  #?(:cljs (:require-macros wip.datomic-browser))
   #?(:cljs (:import [goog.math Long])) ; only this require syntax passes shadow in this file, why?
   (:require clojure.edn
             [clojure.string :as str]
@@ -8,8 +8,8 @@
             #?(:cljs contrib.datomic-cloud-contrib)
             [contrib.datomic-m #?(:clj :as :cljs :as-alias) d]
             [contrib.ednish :as ednish]
-            [hyperfiddle.explorer :as explorer :refer [Explorer]]
-            [hyperfiddle.gridsheet :as-alias gridsheet]
+            [wip.explorer :as explorer :refer [Explorer]]
+            [wip.gridsheet :as-alias gridsheet]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.rcf :refer [tests]]
