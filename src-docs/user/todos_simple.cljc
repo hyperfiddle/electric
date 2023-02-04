@@ -42,7 +42,8 @@
       (TodoCreate.)
       (dom/div {:class "todo-items"}
         (p/server
-          (p/for [id (d/q '[:find [?e ...] :in $ :where [?e :task/status]] db)]
+          (p/for [{:keys [db/id]} (->> (d/q '[:find [(pull ?e [:db/id :task/description]) ...] :where [?e :task/status]] db)
+                                       (sort-by :task/description))]
             (TodoItem. id))))
       (dom/p (dom/props {:class "counter"})
         (dom/span (dom/props {:class "count"}) (dom/text (p/server (todo-count db))))
