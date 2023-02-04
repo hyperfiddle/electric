@@ -356,6 +356,11 @@ or a provided value if it completes without producing any value."
 (defmacro discard "Silence \"Unserializable reference transfer\"; `nil` is idiomatic but this saves a newline"
   [& body] `(do ~@body nil))
 
+(defmacro fuse "to prevent work skipping on references when sampling them
+example: (p/fuse (-> ^js e .-target .-value)) will prevent Photon from work-skipping on the stable
+`-target` reference and wrongly reusing a stale `-value`"
+  [& body] `((cc/fn [] ~@body)))
+
 (hyperfiddle.photon/def trace "In a `catch` block, bound by the runtime to the current stacktrace. A photon stacktrace is an ExceptionInfo. Use `hyperfiddle.photon.debug/stack-trace` to get a string representation." nil)
 
 (defmacro lexical-env "Return a map containing lexical bindings" []
