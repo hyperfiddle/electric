@@ -1,4 +1,4 @@
-(ns hyperfiddle.walk
+(ns contrib.walk
   "Like clojure.walk, but preserves metadata.")
 
 ;; NOTE already implemented slightly differently by `edamame.impl.read-fn`. We

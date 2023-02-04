@@ -1,6 +1,7 @@
 (ns wip.hfql ; adapted from user.demo-hfql
   "wip, unstable"
   (:require #?(:clj dev)
+            contrib.walk
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql :as hfql]
             [hyperfiddle.hfql.ui :as hfui]
@@ -89,7 +90,7 @@
 
 (defn decode-route [route] ; TODO Fishy. Maybe the HTML5 path value should not be an encoded sexpr. Maybe "domain.com/ns!fn/arg0#{state…}"?
   (cond (nil? route)    nil
-        (map? route)    (hyperfiddle.walk/prewalk (fn [form] ; HACK ugly
+        (map? route)    (contrib.walk/prewalk (fn [form] ; HACK ugly
                                                     (if (and (map-entry? form) (vector? (key form)))
                                                       [(seq (key form)) (val form)]
                                                       form))
