@@ -13,7 +13,7 @@
             user.demo-5-todomvc
             user.demo-todomvc-composed
             user.demo-6-two-clocks
-            user.demo-7-explorer
+            user.demo-explorer2
             user.demo-10k-dom-elements
             user.todos-simple
             user.seven-gui-1-counter
@@ -54,7 +54,7 @@
 (p/def secret-pages
   [[::color user.demo-color/App]
    [::hfql-teeshirt-orders wip.teeshirt-orders/App]
-   [::explorer user.demo-7-explorer/App]
+   [::explorer user.demo-explorer2/App]
    [::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
    [::router wip.demo-branched-route/App]
    [::tag-picker wip.tag-picker/App]
