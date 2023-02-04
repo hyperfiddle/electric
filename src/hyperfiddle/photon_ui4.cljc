@@ -283,3 +283,34 @@
                                (case ret# (set! (.-value input-node#) ""))
                                ret#)))))))))
              ~@body))))))
+
+#?(:cljs (defn sample-scroll-state! [scrollable]
+           [(.. scrollable -scrollTop) ; optimization - detect changes (pointless)
+            (.. scrollable -scrollHeight) ; snapshot height to detect layout shifts in flipped mode
+            (.. scrollable -clientHeight)])) ; measured viewport height (scrollbar length)
+
+#?(:cljs (defn scroll-state> [scrollable]
+           (m/observe
+             (fn [!]
+               (let [sample (fn [] (! (sample-scroll-state! scrollable)))]
+                 (.addEventListener scrollable "scroll" sample #js {"passive" true})
+                 #(.removeEventListener scrollable "scroll" sample))))))
+
+#?(:cljs (def !scrollStateDebug (atom nil)))
+
+; in CLJ, wrong number of args (1) passed to: hyperfiddle.photon-ui4/long --- ?????
+#?(:cljs (defn -throttle [dur >in]
+           (m/ap
+             (let [x (m/?> (m/relieve {} >in))]
+               (m/amb x (do (m/? (m/sleep dur)) (m/amb)))))))
+
+#?(:cljs (defn scroll-state< [scrollable]
+           (->> (scroll-state> scrollable)
+                (-throttle 16) ; RAF interval
+                (m/reductions {} [0 0 0])
+                (m/relieve {})
+                (m/latest (fn [[scrollTop scrollHeight clientHeight :as s]]
+                            (reset! !scrollStateDebug {::scrollTop scrollTop
+                                                       ::scrollHeight scrollHeight
+                                                       ::clientHeight clientHeight})
+                            s)))))

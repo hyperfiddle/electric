@@ -1,41 +1,10 @@
-(ns hyperfiddle.scrollview
+(ns user.demo-scrollview
+  #?(:cljs (:require-macros user.demo-scrollview))
   (:require [contrib.data :refer [unqualify]]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.photon-ui4 :as ui]
-            [missionary.core :as m]
-            #?(:cljs goog.object))
-  #?(:cljs (:require-macros hyperfiddle.scrollview)))
-
-#?(:cljs (defn sample-scroll-state! [scrollable]
-           [(.. scrollable -scrollTop) ; optimization - detect changes (pointless)
-            (.. scrollable -scrollHeight) ; snapshot height to detect layout shifts in flipped mode
-            (.. scrollable -clientHeight)])) ; measured viewport height (scrollbar length)
-
-#?(:cljs (defn scroll-state> [scrollable]
-           (m/observe
-             (fn [!]
-               (let [sample (fn [] (! (sample-scroll-state! scrollable)))]
-                 (.addEventListener scrollable "scroll" sample #js {"passive" true})
-                 #(.removeEventListener scrollable "scroll" sample))))))
-
-#?(:cljs (def !scrollStateDebug (atom nil)))
-
-(defn throttle [dur >in]
-  (m/ap
-    (let [x (m/?> (m/relieve {} >in))]
-      (m/amb x (do (m/? (m/sleep dur)) (m/amb))))))
-
-#?(:cljs (defn scroll-state< [scrollable]
-           (->> (scroll-state> scrollable)
-                (throttle 16) ; RAF interval
-                (m/reductions {} [0 0 0])
-                (m/relieve {})
-                (m/latest (fn [[scrollTop scrollHeight clientHeight :as s]]
-                            (reset! !scrollStateDebug {::scrollTop scrollTop
-                                                       ::scrollHeight scrollHeight
-                                                       ::clientHeight clientHeight})
-                            s)))))
+            #?(:cljs goog.object)))
 
 (p/defn DemoFixedHeightCounted
   "Scrolls like google sheets. this can efficiently jump through a large indexed collection"
@@ -46,7 +15,7 @@
         row-height 22] ; todo use relative measurement (browser zoom impacts px height)
     (p/client
       (dom/div (dom/props {:class "viewport" :style {:overflowX "hidden" :overflowY "auto"}})
-        (let [[scrollTop] (new (scroll-state< dom/node))
+        (let [[scrollTop] (new (ui/scroll-state< dom/node))
               max-height (* row-count row-height)
               clamped-scroll-top (js/Math.min scrollTop max-height)
               start (/ clamped-scroll-top row-height)] ; (js/Math.floor)
@@ -70,7 +39,7 @@
     (p/client
       (dom/div (dom/props {:class "viewport"})
         (let [!pages (atom 1) pages (p/watch !pages)
-              [scrollTop scrollHeight clientHeight] (new (scroll-state< dom/node))]
+              [scrollTop scrollHeight clientHeight] (new (ui/scroll-state< dom/node))]
           (when (>= scrollTop (- scrollHeight clientHeight
                                  clientHeight)) ; scrollThresholdPx = clientHeight
             (swap! !pages inc)) ; can this get spammed by photon?
@@ -92,7 +61,7 @@
     (dom/div (dom/props {:class "header"})
       (dom/dl
         (dom/dt (dom/text "scroll debug state"))
-        (dom/dd (dom/pre (dom/text (pr-str (update-keys (p/watch !scrollStateDebug) unqualify))))))
+        (dom/dd (dom/pre (dom/text (pr-str (update-keys (p/watch ui/!scrollStateDebug) unqualify))))))
       (p/server
         (ui/select
           demo
