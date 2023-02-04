@@ -1,25 +1,15 @@
 (ns user.demo-7-explorer
-  #?(:cljs (:require-macros [user.demo-7-explorer :refer [absolute-path]]))
+  #?(:cljs (:require-macros user.demo-7-explorer))
   (:require [clojure.datafy :refer [datafy]]
             [clojure.core.protocols :refer [nav]]
             #?(:clj clojure.java.io)
             [clojure.spec.alpha :as s]
+            [contrib.datafy-fs #?(:clj :as :cljs :as-alias) fs]
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.router :as router]
-            [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
-            [user.datafy-fs #?(:clj :as :cljs :as-alias) fs]))
-
-(defmacro absolute-path [path & paths]
-  #?(:clj (str (.toAbsolutePath (java.nio.file.Path/of ^String path (into-array String paths))))
-     :cljs (throw (js/Error. "Unsupported operation."))))
-
-(defn list-files [path]
-  #?(:clj (let [m (datafy (clojure.java.io/file path))]
-            (nav m ::fs/children (::fs/children m)))))
-
-(s/fdef list-files :args (s/cat :file any?) :ret (s/coll-of any?))
+            [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]))
 
 (def unicode-folder "\uD83D\uDCC2") ; 📂
 
@@ -30,8 +20,8 @@
       (p/server
         (binding [hf/*nav!*   (fn [db e a] (a (datafy e))) ;; FIXME db is specific, hfql should be general
                   hf/*schema* (constantly nil)] ;; FIXME this is datomic specific, hfql should be general
-          (let [path (absolute-path "node_modules")]
-            (hf/hfql {(props (list-files (props path {::dom/disabled true})) ;; FIXME forward props
+          (let [path (fs/absolute-path "node_modules")]
+            (hf/hfql {(props (fs/list-files (props path {::dom/disabled true})) ;; FIXME forward props
                              {::hf/height 30})
                       [(props ::fs/name #_{::hf/render (p/fn [{::hf/keys [Value]}]
                                                        (let [v (Value.)]

@@ -1,4 +1,4 @@
-(ns user.datafy-fs
+(ns contrib.datafy-fs
   "nav implementation for java file system traversals"
   (:require [clojure.core.protocols :as ccp :refer [nav]]
             [clojure.datafy :refer [datafy]]
@@ -57,8 +57,8 @@
   (->> (seq (.listFiles h)) (take 1) first datafy)
   (for [x (take 5 (.listFiles h))] (.getName x)))
 
-(defn file-path [^File f]
-  (-> f .getAbsolutePath (java.nio.file.Paths/get (make-array String 0))))
+(defn file-path "get java.nio.file.Path of j.n.f.File"
+  [^File f] (-> f .getAbsolutePath (java.nio.file.Paths/get (make-array String 0))))
 
 (tests
   (def p (file-path (clojure.java.io/file "src")))
@@ -194,3 +194,22 @@
         (datafy %)
         (::name %))
   := "src")
+
+(defn absolute-path [^String path-str & more]
+  (str (.toAbsolutePath (java.nio.file.Path/of ^String path-str (into-array String more)))))
+
+(comment
+  (absolute-path "./")
+  (absolute-path "node_modules")
+  (clojure.java.io/file (absolute-path "./"))
+  (clojure.java.io/file (absolute-path "node_modules")))
+
+(s/fdef list-files :args (s/cat :file any?) :ret (s/coll-of any?))
+(defn list-files [^String path-str]
+  (try (let [m (datafy (clojure.java.io/file path-str))]
+         (nav m ::children (::children m)))
+       (catch java.nio.file.NoSuchFileException _)))
+
+(comment
+  (list-files (absolute-path "./"))
+  (list-files (absolute-path "node_modules")))
