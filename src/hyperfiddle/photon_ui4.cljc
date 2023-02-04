@@ -159,7 +159,7 @@
 
 ;; TODO
 ;; - what if the change callback throws
-(defmacro typeahead [v V! Options OptionLabel & body]
+(defmacro typeahead [v V! Options OptionLabel & body] ; server biased
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
      (p/client
        (dom/div (dom/props {:class "hyperfiddle-typeahead"})
