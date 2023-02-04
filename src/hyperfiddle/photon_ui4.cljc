@@ -1,5 +1,4 @@
 (ns hyperfiddle.photon-ui4
-  "uses photon-dom2, so no syntax for text and props"
   #?(:cljs (:require-macros hyperfiddle.photon-ui4))
   (:refer-clojure :exclude [long double keyword symbol uuid range])
   (:require
