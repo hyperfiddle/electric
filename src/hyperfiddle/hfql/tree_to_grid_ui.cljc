@@ -11,7 +11,6 @@
             [contrib.color :as c]
             [contrib.data :as data]
             [hyperfiddle.photon-ui4 :as ui4]
-            [hyperfiddle.scrollview :as sw]
             [hyperfiddle.rcf :refer [tests with % tap]]
             [missionary.core :as m]
             [hyperfiddle.router :as router])
@@ -132,7 +131,7 @@
              (let [wrapper-height# (new ComputedStyle #(-parse-float (.-height %)) dom/node)]
                (when-let [node (.querySelector dom/node ".hyperfiddle-gridsheet")]
                  (let [[rows# columns# width# height# gap# color#] (new ComputedStyle extract-borders node)
-                       [scroll-top# scroll-height# client-height#] (new (sw/scroll-state< node))
+                       [scroll-top# scroll-height# client-height#] (new (ui4/scroll-state< node))
                        height#                                     (if (zero? scroll-height#) height# scroll-height#)]
                    (dom/canvas (dom/props {:class  "hf-grid-overlay"
                                            :width  (str width# "px")
@@ -489,7 +488,7 @@
                                   :grid-column    (+ grid-col ~actual-width)
                                  :max-height      (str "calc((var(--hf-grid-row-height) + var(--hf-grid-gap)) * " ~max-height ")")}})
        (do (reset! !scroller# dom/node)
-           (let [[scroll-top#] (new (sw/scroll-state< dom/node))]
+           (let [[scroll-top#] (new (ui4/scroll-state< dom/node))]
              (reset! !scroll-top# scroll-top#))
            nil)
        (dom/div (dom/props {::dom/role "filler" "data-height" actual-height# ::dom/style {:height (str actual-height# "px")}})))

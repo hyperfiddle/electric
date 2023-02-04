@@ -7,7 +7,7 @@
             [clojure.spec.alpha :as s]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
-            #?(:cljs [hyperfiddle.scrollview :as scrollview :refer [scroll-state<]])
+            [hyperfiddle.photon-ui4 :as ui]
             [hyperfiddle.rcf :refer [tests]]
             #?(:cljs goog.object)))
 
@@ -45,7 +45,7 @@
                                           :grid-template-columns (or (::grid-template-columns props)
                                                                      (->> (repeat (p/server (count columns)) "1fr")
                                                                           (interpose " ") (apply str)))})})
-        (let [[scroll-top scroll-height client-height'] (new (scrollview/scroll-state< dom/node))
+        (let [[scroll-top scroll-height client-height'] (new (ui/scroll-state< dom/node))
               max-height (* row-count row-height)
               padding-bottom (js/Math.max (- max-height client-height) 0)
 
@@ -107,7 +107,7 @@
     (p/client
       (dom/table (dom/props {:style {:display "block" :overflowY "auto"
                                      :height "500px"}}) ; fixme
-        (let [[scrollTop scrollHeight clientHeight] (new (scrollview/scroll-state< dom/node))
+        (let [[scrollTop scrollHeight clientHeight] (new (ui/scroll-state< dom/node))
               max-height (* row-count row-height)
 
               ; don't scroll past the end
@@ -175,7 +175,7 @@
       (dom/table
         (dom/props {:style {:display "block" :overflow "hidden auto"
                             :height "500px"}})
-        (let [[scrollTop scrollHeight clientHeight] (new (scrollview/scroll-state< dom/node))]
+        (let [[scrollTop scrollHeight clientHeight] (new (ui/scroll-state< dom/node))]
           (when (> scrollTop (- scrollHeight clientHeight clientHeight)) ; scrollLoadThreshold = clientHeight
             (p/server (swap! !pages inc))))
         (dom/thead

@@ -20,7 +20,7 @@
             user.seven-gui-2-temperature-converter
             user.seven-gui-4-timer
             user.seven-gui-5-crud
-            hyperfiddle.scrollview
+            user.demo-scrollview
             user.demo-color
             user.tic-tac-toe
             wip.demo-branched-route
@@ -44,7 +44,7 @@
    [::todomvc user.demo-5-todomvc/App]
    [::todomvc-composed user.demo-todomvc-composed/App]
    [::two-clocks user.demo-6-two-clocks/App]
-   [::infinite-scroll hyperfiddle.scrollview/Demo]
+   [::infinite-scroll user.demo-scrollview/Demo]
    [::seven-guis-counter user.seven-gui-1-counter/Counter]
    [::seven-guis-temperature-converter user.seven-gui-2-temperature-converter/App]
    [::seven-guis-timer user.seven-gui-4-timer/Timer]
