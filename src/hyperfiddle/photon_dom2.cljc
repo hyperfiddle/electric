@@ -201,9 +201,6 @@
                  (when-not (new Focused?)
                    (~setter node v#)))))
 
-; helper to avoid this in photon: Cannot infer target type in expression (. inst__30273__auto__ -target.value)
-#?(:cljs (defn target-value [e] (.-target.value ^js e)))
-
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
 (defmacro address [& body] `(element :address ~@body))
