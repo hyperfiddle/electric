@@ -18,7 +18,7 @@
     (dom/input (dom/props {:placeholder "Type a message"})
       (dom/on "keydown" (p/fn [e]
                            (when (= "Enter" (.-key e))
-                             (when-some [v (contrib.str/empty->nil (dom/target-value e))]
+                             (when-some [v (contrib.str/empty->nil (-> ^js e .-target .-value))]
                                (p/server (swap! !state #(cons v (take 9 %))))
                                (set! (.-value dom/node) ""))))))))
 
