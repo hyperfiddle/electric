@@ -1,7 +1,7 @@
 (ns hyperfiddle.photon-ui4-typeahead-test
   #?(:cljs (:require-macros hyperfiddle.photon-ui4-typeahead-test))
   (:require
-   #?(:cljs [hyperfiddle.ui.test :as uit])
+   #?(:cljs [contrib.dom-test-helpers :as uit])
    [contrib.cljs-target :refer [do-browser]]
    [hyperfiddle.photon-ui4 :as ui]
    [hyperfiddle.rcf :as rcf :refer [% tests with tap]]

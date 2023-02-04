@@ -22,7 +22,6 @@ It's called Photon because every point in a Photon form can be thought of as sim
 # Setup and healthcheck
 ```bash
 git clone ...
-yarn                        # for codemirror or something, todo remove
 cd photon
 clj -A:dev -X user/main     # healthcheck app http://localhost:8080
 ```
