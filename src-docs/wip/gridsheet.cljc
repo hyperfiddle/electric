@@ -85,12 +85,12 @@
                                            :style {:padding-left (-> depth (* 15) (str "px"))
                                                    :position "sticky" :top (str (* row-height (inc i)) "px")
                                                    :height (str row-height "px")}})
-                        (dom/text (p/server (case m ::empty nil (Format. m (first columns))))))
+                        (p/server (case m ::empty nil (Format. m (first columns))))) ; for effect
                       (p/for [a (rest columns)]
                         (dom/div (dom/props {:role "gridcell"
                                              :style {:position "sticky" :top (str (* row-height (inc i)) "px")
                                                      :height (str row-height "px")}})
-                          (dom/text (p/server (case m ::empty nil (Format. m a))))))))))))
+                          (p/server (case m ::empty nil (Format. m a))))))))))) ; for effect
           (dom/div (dom/props {:style {:padding-bottom (str padding-bottom "px")}})))) ; scrollbar
       (dom/div (dom/text (pr-str {:count row-count}))))))
 
@@ -150,9 +150,9 @@
                         [depth ?Render] (p/watch (get !!rows i))]
                     (dom/td
                       (dom/props {:style {:padding-left (-> depth (* 15) (str "px"))}})
-                      (dom/text (some-> ?Render (new a)))) ; added text node, is it needed?
+                      (some-> ?Render (new a))) ; for effect
                     (p/for [a as]
-                      (dom/td (dom/text (some-> ?Render (new a)))))))) ; todo added text node is it needed?
+                      (dom/td (some-> ?Render (new a))))))) ; for effect
               #_(dom/div (dom/props {:style {:padding-bottom (str padding-bottom "px")}}))
 
               (p/server
@@ -192,10 +192,10 @@
                     (dom/tr
                       (dom/td
                         (dom/props {:style {:padding-left (-> depth (* 15) (str "px"))}})
-                        (dom/text (p/server (Format. m a)))) ; todo check extra text node
+                        (p/server (Format. m a))) ; for effect
                       (p/server
                         (p/for [a as]
-                          (p/client (dom/td (dom/text (p/server (Format. m a))))))))))) ; todo check extra text node
+                          (p/client (dom/td (p/server (Format. m a)))))))))) ; for effect
               (p/client
                 (dom/div
                   (dom/props {:class "no-results"})
