@@ -5,30 +5,31 @@
             [hyperfiddle.rcf :refer [tests % tap]]
             [clojure.test :as t]))
 
-(def CONTAINER js/document.body)
-(defn text-content [e] (.-textContent e))
+(def root js/document.body)
 
-(t/use-fixtures :each {:before (fn [] (set! (.-innerHTML CONTAINER) ""))})
+(t/use-fixtures :each {:before (fn [] (set! (.-innerHTML root) ""))})
 
 (tests
-  (text-content CONTAINER) := ""
-  (let [dispose (p/run (binding [dom/node CONTAINER]
-                          (dom/text "hello")
-                          (tap (text-content CONTAINER))))]
+  "dom text node mount and unmount"
+  (.-textContent root) := ""
+  (let [dispose (p/run (binding [dom/node root]
+                         (dom/text "hello")
+                         (tap (.-textContent root))))]
     % := "hello"
     (dispose)
-    (text-content CONTAINER) := ""))
+    (.-textContent root) := ""))
 
 (tests
+  "switch on dom effect"
   (def !x (atom true))
   (p/run
-    (binding [dom/node CONTAINER]
+    (binding [dom/node root]
       (dom/text "a")
       (if (p/watch !x)
         (dom/text "b")
         (dom/text "c"))
       (dom/text "d"))
-    (tap (text-content CONTAINER)))
+    (tap (.-textContent root)))
 
   % := "abd"
   (swap! !x not)
@@ -38,14 +39,15 @@
   )
 
 (tests
+  "dynamic dom ordering"
   (def !xs (atom ["b" "c"]))
   (p/run
-    (binding [dom/node CONTAINER]
+    (binding [dom/node root]
       (dom/text "a")
       (p/for [x ~(m/watch !xs)]
         (dom/text x))
       (dom/text "d"))
-    (tap (text-content CONTAINER)))
+    (tap (.-textContent root)))
 
   % := "abcd"
   (swap! !xs reverse)
@@ -58,7 +60,7 @@
 (comment
   ;; CLJ
   (alter-var-root #'hyperfiddle.rcf/*generate-tests* (constantly true))
-  (shadow.cljs.devtools.api/repl :devkit)
+  (shadow.cljs.devtools.api/repl :dev)
   ;; CLJS
   (t/run-tests)
   )
