@@ -43,6 +43,7 @@
    [::todos-simple user.todos-simple/Todo-list] ; css fixes
    [::todomvc user.demo-5-todomvc/App]
    [::todomvc-composed user.demo-todomvc-composed/App]
+   [::color user.demo-color/App]
    [::two-clocks user.demo-6-two-clocks/App]
    [::infinite-scroll user.demo-scrollview/Demo]
    [::seven-guis-counter user.seven-gui-1-counter/Counter]
@@ -52,8 +53,7 @@
    [::tic-tac-toe user.tic-tac-toe/App]])
 
 (p/def secret-pages
-  [[::color user.demo-color/App]
-   [::hfql-teeshirt-orders wip.teeshirt-orders/App]
+  [[::hfql-teeshirt-orders wip.teeshirt-orders/App]
    [::explorer user.demo-explorer2/App]
    [::demo-10k-dom-elements user.demo-10k-dom-elements/App] ; todo too slow to unmount, crashes
    [::router wip.demo-branched-route/App]
