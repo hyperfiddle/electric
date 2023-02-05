@@ -40,15 +40,27 @@
      (defmethod ana/macroexpand-hook 'clojure.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))
      (defmethod ana/macroexpand-hook 'cljs.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))))
 
-
+(defmacro with-zero-config-entrypoint [& body]
+  `(try
+     (do ~@body)
+     (catch Pending _#) ; silently ignore
+     (catch Cancelled e# (throw e#)) ; bypass catchall, app is shutting down
+     (catch :default err# ; note client bias
+       (js/console.error
+         (str (ex-message err#) "\n\n" (dbg/stack-trace hyperfiddle.photon/trace))
+         err#))))
 
 (defmacro boot "
 Takes a photon program and returns a task setting up the full system with client part running locally and server part
 running on a remote host.
 " [& body]
   (assert (:js-globals &env))
-  (let [[client server] (c/analyze (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj}) `(do ~@body))]
-    `(hyperfiddle.photon-client/boot-with-retry ~(r/emit (gensym) client) (hyperfiddle.photon-client/connector (quote ~server)))))
+  (let [[client server] (c/analyze
+                          (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj})
+                          `(with-zero-config-entrypoint ~@body))]
+    `(hyperfiddle.photon-client/boot-with-retry
+       ~(r/emit (gensym) client)
+       (hyperfiddle.photon-client/connector (quote ~server)))))
 
 (defmacro vars "
   Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol

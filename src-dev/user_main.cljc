@@ -8,7 +8,6 @@
             clojure.string
             [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon.debug :as dbg]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.router :as router]
             #?(:cljs [hyperfiddle.router-html5 :as html5])
@@ -33,16 +32,10 @@
      (set! (.-title js/document) (str (clojure.string/capitalize (name (first (::hf/route route)))) " - Hyperfiddle"))))
 
 (p/defn Main []
-  (try
-    (binding [router/encode (comp contrib.ednish/encode-uri simplify-route)
-              router/decode #(parse-route (or (contrib.ednish/decode-path % hf/read-edn-str) home-route))]
-      (router/router (html5/HTML5-History.)
-        (set-page-title! router/route)
-        (binding [dom/node js/document.body]
-          (p/server
-            (user.demo-entrypoint/App. (p/client router/route))))))
-
-    (catch Pending _)
-    (catch Cancelled e (throw e))
-    (catch :default err
-      (js/console.error (str (ex-message err) "\n\n" (dbg/stack-trace p/trace)) err))))
+  (binding [router/encode (comp contrib.ednish/encode-uri simplify-route)
+            router/decode #(parse-route (or (contrib.ednish/decode-path % hf/read-edn-str) home-route))]
+    (router/router (html5/HTML5-History.)
+      (set-page-title! router/route)
+      (binding [dom/node js/document.body]
+        (p/server
+          (user.demo-entrypoint/App. (p/client router/route)))))))
