@@ -53,7 +53,9 @@
            (goog.dom/setTextContent node str)))
 
 (defmacro text [& strs]
-  `(do ~@(map (fn [str]
+  `(do (assert (not= (.-nodeType node) (.-TEXT_NODE node))
+               "userland directed dom/text inside dom/text, which is illegal")
+       ~@(map (fn [str]
                 `(with (text-node node)
                    (-googDomSetTextContent node ~str)))
            strs)))
