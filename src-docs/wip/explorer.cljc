@@ -34,7 +34,7 @@
   (count (vec *1)) := 0)
 
 (p/def cols nil)
-(p/def Format (p/server (p/fn [row col] (pr-str (get row col)))))
+(p/def Format (p/server (p/fn [row col] (pr-str (get row col))))) ; in div continuation
 
 ;; TODO move somewhere else or absorb
 (p/defn BasicExplorer [props xs] ; o is an entity with recursive children

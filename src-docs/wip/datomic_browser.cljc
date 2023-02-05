@@ -1,4 +1,5 @@
 (ns wip.datomic-browser
+  "must have datomic on classpath, and must load 'test ns"
   #?(:cljs (:require-macros wip.datomic-browser))
   #?(:cljs (:import [goog.math Long])) ; only this require syntax passes shadow in this file, why?
   (:require clojure.edn
@@ -10,6 +11,7 @@
             [contrib.ednish :as ednish]
             [wip.explorer :as explorer :refer [Explorer]]
             [wip.gridsheet :as-alias gridsheet]
+            [hyperfiddle.api :as hf]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.rcf :refer [tests]]
@@ -55,13 +57,14 @@
   (binding [explorer/cols [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent
                            #_#_#_#_:db/fulltext :db/tupleType :db/tupleTypes :db/tupleAttrs]
             explorer/Format (p/fn [row col]
-                              (let [v (col row)]
-                                (case col
-                                  :db/ident (p/client (router/link [::attribute v] (dom/text v)))
-                                  :db/valueType (some-> v :db/ident name)
-                                  :db/cardinality (some-> v :db/ident name)
-                                  :db/unique (some-> v :db/ident name)
-                                  (str v))))]
+                              (p/client
+                                (let [v (col row)]
+                                  (case col
+                                    :db/ident (router/link [::attribute v] (dom/text v))
+                                    :db/valueType (some-> v :db/ident name dom/text)
+                                    :db/cardinality (some-> v :db/ident name dom/text)
+                                    :db/unique (some-> v :db/ident name dom/text)
+                                    (dom/text (str v))))))]
     (Explorer.
       "Attributes"
       (explorer/tree-lister (->> (dx/attributes> db explorer/cols)
@@ -227,10 +230,10 @@
        ::gridsheet/grid-template-columns "20em auto"})))
 
 (p/defn Page [[page x :as route]]
-  (dom/link {:rel :stylesheet, :href "user/datomic-browser.css"})
+  (dom/link (dom/props {:rel :stylesheet, :href "user/datomic-browser.css"}))
   (dom/h1 (dom/text "Datomic browser"))
-  (dom/div {:class "user-datomic-browser"}
-    (dom/pre (pr-str route))
+  (dom/div (dom/props {:class "user-datomic-browser"})
+    (dom/pre (dom/text (pr-str route)))
     (dom/div (dom/text "Nav: ")
       (router/link [::summary] (dom/text "home")) " "
       (router/link [::db-stats] (dom/text "db-stats")) " "
@@ -243,7 +246,7 @@
         ::entity (do (EntityDetail. x) (EntityHistory. x))
         ::db-stats (DbStats.)
         ::recent-tx (RecentTx.)
-        (str "no matching route: " (pr-str page))))))
+        (p/client (dom/text (str "no matching route: " (pr-str page))))))))
 
 #?(:cljs (def read-edn-str (partial clojure.edn/read-string {:readers {'goog.math/Long goog.math.Long/fromString}})))
 
@@ -255,6 +258,8 @@
 #?(:cljs (defn encode-path [route] (->> route pr-str ednish/encode (str "/"))))
 
 (p/defn App []
+  (println (pr-str (type 1))) ; show we're on the server
+  (p/server ; bug that this is needed; above line shows we're already here
   (binding [conn @(requiring-resolve 'user/datomic-conn)]
     (binding [db (d/db conn)]
       (binding [schema (new (dx/schema> db))]
@@ -262,4 +267,4 @@
           (binding [router/encode contrib.ednish/encode-uri
                     router/decode decode-path]
             (router/router (html5/HTML5-History.)
-              (Page. router/route))))))))
+              (Page. router/route)))))))))

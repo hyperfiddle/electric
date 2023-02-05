@@ -31,7 +31,7 @@
             ; these demos require extra deps alias
             #_wip.dennis-exception-leak
             #_wip.demo-stage-ui4
-            #_hyperfiddle.datomic-browser))
+            #_wip.datomic-browser))
 
 (p/def pages
   [[::hello-world user.demo-1-hello-world/App]
@@ -62,7 +62,7 @@
    ; need extra deps alias
    #_[::dennis-exception-leak wip.dennis-exception-leak/App2]
    #_[::demo-stage-ui4 wip.demo-stage-ui4/Demo]
-   #_[::datomic-browser hyperfiddle.datomic-browser/App]])
+   #_[::datomic-browser wip.datomic-browser/App]])
 
 (p/defn NotFoundPage []
   (p/client
