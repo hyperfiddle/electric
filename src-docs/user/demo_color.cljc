@@ -32,6 +32,17 @@
 
 (defn saturation->chroma [saturation] (* 0.158 (/ saturation 100)))
 
+(p/defn Tile [color]
+  (dom/div (dom/props {:style {:display          :flex
+                               :align-items      :center
+                               :justify-content  :center
+                               :color            :white
+                               :background-color (format-rgb color)
+                               :width            "100px"
+                               :height           "100%"
+                               }})
+    (dom/text "Contrast")))
+
 (p/defn App []
   (p/client
     (let [!lightness  (atom 70)
@@ -80,24 +91,16 @@
                                 :height 100})
           (draw-gradient! dom/node hue (fn [hue] (c/hsl->rgb [hue saturation lightness])))
           )
-        (dom/div (dom/props {:style {:background-color (format-rgb (c/hsl->rgb [hue saturation lightness]))
-                                     :width            "100px"
-                                     :height           "100%"
-                                     }}))
+        (Tile. (c/hsl->rgb [hue saturation lightness]))
 
         (dom/p (dom/text "OKLCH"))
         (dom/canvas (dom/props {:width  360
                                 :height 100})
           (draw-gradient! dom/node hue (fn [hue] (c/oklch->rgb [lightness (saturation->chroma saturation) hue]))))
-        (dom/div (dom/props {:style {:background-color (format-rgb (c/oklch->rgb [lightness (saturation->chroma saturation) hue]))
-                                     :width            "100px"
-                                     :height           "100%"}}))
+        (Tile. (c/oklch->rgb [lightness (saturation->chroma saturation) hue]))
 
         (dom/p (dom/text "HSLuv"))
         (dom/canvas (dom/props {:width  360
                                 :height 100})
           (draw-gradient! dom/node hue (fn [hue] (c/hsluv->rgb [hue saturation lightness]))))
-        (dom/div (dom/props {:style {:background-color (format-rgb (c/hsluv->rgb [hue saturation lightness]))
-                                     :width            "100px"
-                                     :height           "100%"}}))
-        ))))
+        (Tile. (c/hsluv->rgb [hue saturation lightness]))))))
