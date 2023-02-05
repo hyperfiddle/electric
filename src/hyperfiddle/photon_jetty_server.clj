@@ -1,12 +1,12 @@
 (ns hyperfiddle.photon-jetty-server
   (:require [clojure.java.io :as io]
-            [ring.middleware.file :refer [wrap-file]]
-            [ring.middleware.content-type :refer [wrap-content-type]]
-            [ring.adapter.jetty9 :as ring]
             [hyperfiddle.photon-jetty-adapter :as adapter]
             [hyperfiddle.logger :as log]
+            [ring.adapter.jetty9 :as ring]
             [ring.middleware.basic-authentication :as auth]
+            [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.cookies :as cookies]
+            [ring.middleware.file :refer [wrap-file]]
             [ring.util.response :as res])
   (:import [java.io IOException]
            [java.net BindException]
