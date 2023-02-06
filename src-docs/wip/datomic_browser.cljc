@@ -240,7 +240,6 @@
 (p/defn Page [[page x :as route]]
   (dom/link (dom/props {:rel :stylesheet, :href "user/datomic-browser.css"}))
   (dom/h1 (dom/text "Datomic browser"))
-  (dom/pre (dom/text (contrib.str/pprint-str router/route)))
   (dom/div (dom/props {:class "user-datomic-browser"})
     (dom/div (dom/text "Nav: ")
       (router/link [::summary] (dom/text "home")) (dom/text " ")
@@ -264,6 +263,6 @@
       (binding [schema (new (dx/schema> db))]
         (p/client
           (binding [router/build-route (fn [state route]
-                                         ; rewrite local links through this entrypoint for DI
+                                         ; root local links through this entrypoint for DI
                                          (update-in state router/path (constantly route)))]
             (Page. (or router/route [::summary])))))))))

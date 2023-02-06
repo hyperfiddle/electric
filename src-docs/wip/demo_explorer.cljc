@@ -41,29 +41,31 @@
 
 (p/defn App []
   (p/client
-    (dom/h1 "Explorer")
-    (dom/link {:rel :stylesheet, :href ".archives/user_demo_explorer.css"})
-    (dom/div {:class "photon-demo-explorer"}
-      (p/server
-        (binding [explorer/Format
-                  (p/fn [m a]
-                    (let [v (a m)]
-                      (case a
-                        ::fs/name (case (::fs/kind m)
-                                    ::fs/dir (let [absolute-path (::fs/absolute-path m)]
-                                               (p/client (router/link [::fs/dir absolute-path] (dom/text v))))
-                                    (::fs/other ::fs/symlink ::fs/unknown-kind) (p/client (dom/text v))
-                                    (p/client (dom/text v)) #_(p/client (router/Link. [::fs/file x] (dom/text v))))
-                        ::fs/modified (p/client (some-> v .toLocaleDateString dom/text))
-                        ::fs/kind (case (::fs/kind m)
-                                    ::fs/dir (p/client (dom/text unicode-folder))
-                                    (p/client (some-> v name dom/text)))
-                        (p/client (dom/text (str v))))))]
-          (let [[page fs-path] (or (p/client router/route)
-                                   [::fs/dir (fs/absolute-path "node_modules")])]
-            (case page
-              ;::fs/file (File. (clojure.java.io/file fs-path))
-              ::fs/dir (Dir. (clojure.java.io/file fs-path)))))))))
+    (dom/link (dom/props {:rel :stylesheet, :href "user/demo-explorer.css"}))
+    (dom/div (dom/props {:class "photon-demo-explorer"})
+      (binding [router/build-route (fn [state route]
+                                     ; root local links to this app
+                                     (update-in state router/path (constantly route)))]
+        (p/server
+          (binding [explorer/Format
+                    (p/fn [m a]
+                      (let [v (a m)]
+                        (case a
+                          ::fs/name (case (::fs/kind m)
+                                      ::fs/dir (let [absolute-path (::fs/absolute-path m)]
+                                                 (p/client (router/link [::fs/dir absolute-path] (dom/text v))))
+                                      (::fs/other ::fs/symlink ::fs/unknown-kind) (p/client (dom/text v))
+                                      (p/client (dom/text v)) #_(p/client (router/Link. [::fs/file x] (dom/text v))))
+                          ::fs/modified (p/client (some-> v .toLocaleDateString dom/text))
+                          ::fs/kind (case (::fs/kind m)
+                                      ::fs/dir (p/client (dom/text unicode-folder))
+                                      (p/client (some-> v name dom/text)))
+                          (p/client (dom/text (str v))))))]
+            (let [[page fs-path] (or (p/client router/route)
+                                     [::fs/dir (fs/absolute-path "node_modules")])]
+              (case page
+                ;::fs/file (File. (clojure.java.io/file fs-path))
+                ::fs/dir (Dir. (clojure.java.io/file fs-path))))))))))
 
 ; Improvements
 ; Native search
