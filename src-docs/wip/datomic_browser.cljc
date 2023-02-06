@@ -42,7 +42,7 @@
             explorer/Format (p/fn [[e _ v tx op :as record] a]
                               (case a
                                 :db/id (p/client (router/link [::tx tx] (dom/text tx)))
-                                :db/txInstant (pr-str v) #_(p/client (.toLocaleDateString v))))]
+                                :db/txInstant (p/client (dom/text (pr-str v))) #_(p/client (.toLocaleDateString v))))]
     (Explorer.
       "Recent Txs"
       (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
@@ -81,9 +81,9 @@
   (assert (some? schema))
   (case col
     ::k (cond
-          (= :db/id k) k ; :db/id is our schema extension, can't nav to it
+          (= :db/id k) (p/client (dom/text k)) ; :db/id is our schema extension, can't nav to it
           (contains? schema k) (p/client (router/link [::attribute k] (dom/text k)))
-          () (str k)) ; str is needed for Long db/id, why?
+          () (p/client (dom/text (str k)))) ; str is needed for Long db/id, why?
     ::v (if-not (coll? v) ; don't render card :many intermediate row
           (let [[valueType cardinality]
                 ((juxt (comp unqualify dx/identify :db/valueType)
@@ -91,7 +91,7 @@
             (cond
               (= :db/id k) (p/client (router/link [::entity v] (dom/text v)))
               (= :ref valueType) (p/client (router/link [::entity v] (dom/text v)))
-              () (pr-str v))))))
+              () (p/client (dom/text (pr-str v))))))))
 
 #?(:clj
    (defn entity-tree-entry-children [schema [k v :as row]] ; row is either a map-entry or [0 {:db/id _}]
@@ -162,13 +162,15 @@
             explorer/Format (p/fn [[e aa v tx op :as row] a]
                               (when row ; when this view unmounts, somehow this fires as nil
                                 (case a
-                                  ::op (name (case op true :db/add false :db/retract))
+                                  ::op (p/client (dom/text (name (case op true :db/add false :db/retract))))
                                   ::e (p/client (router/link [::entity e] (dom/text e)))
                                   ::a (if (some? aa)
-                                        (:db/ident (new (p/task->cp (d/pull db {:eid aa :selector [:db/ident]})))))
-                                  ::v (some-> v pr-str)
+                                        (let [ident (:db/ident (new (p/task->cp (d/pull db {:eid aa :selector [:db/ident]}))))]
+                                          (p/client (dom/text (pr-str ident)))))
+                                  ::v (p/client (some-> v pr-str dom/text))
                                   ::tx (p/client (router/link [::tx tx] (dom/text tx)))
-                                  ::tx-instant (pr-str (:db/txInstant (new (p/task->cp (d/pull db {:eid tx :selector [:db/txInstant]})))))
+                                  ::tx-instant (let [x (:db/txInstant (new (p/task->cp (d/pull db {:eid tx :selector [:db/txInstant]}))))]
+                                                 (p/client (pr-str (dom/text x))))
                                   (str v))))]
     (Explorer.
       (str "Entity history: " (pr-str e))
@@ -184,11 +186,12 @@
 (p/defn AttributeDetail [a]
   (binding [explorer/cols [:e :a :v :tx]
             explorer/Format (p/fn [[e _ v tx op :as x] k]
-                              (case k
-                                :e (p/client (router/link [::entity e] (dom/text e)))
-                                :a (pr-str a) #_(let [aa (new (p/task->cp (dx/ident! db aa)))] aa)
-                                :v (some-> v pr-str) ; when a is ref, render link
-                                :tx (p/client (router/link [::tx tx] (dom/text tx)))))]
+                              (p/client
+                                (case k
+                                  :e (router/link [::entity e] (dom/text e))
+                                  :a (dom/text (pr-str a)) #_(let [aa (new (p/task->cp (dx/ident! db aa)))] aa)
+                                  :v (some-> v pr-str dom/text) ; when a is ref, render link
+                                  :tx (router/link [::tx tx] (dom/text tx)))))]
     (Explorer.
       (str "Attribute detail: " a)
       (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [a]})
@@ -219,7 +222,12 @@
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
 (p/defn DbStats []
-  (binding [explorer/cols [::k ::v] explorer/Format (p/fn [[k v :as row] col] (case col ::k k ::v v))]
+  (binding [explorer/cols [::k ::v]
+            explorer/Format (p/fn [[k v :as row] col]
+                              (p/client
+                                (case col
+                                  ::k (dom/text (pr-str k))
+                                  ::v (if-not (map? v) (dom/text (pr-str v))))))]
     (Explorer.
       (str "Db Stats:")
       (explorer/tree-lister (new (p/task->cp (d/db-stats db)))
@@ -232,11 +240,11 @@
 (p/defn Page [[page x :as route]]
   (dom/link (dom/props {:rel :stylesheet, :href "user/datomic-browser.css"}))
   (dom/h1 (dom/text "Datomic browser"))
+  (dom/pre (dom/text (contrib.str/pprint-str router/route)))
   (dom/div (dom/props {:class "user-datomic-browser"})
-    (dom/pre (dom/text (pr-str route)))
     (dom/div (dom/text "Nav: ")
-      (router/link [::summary] (dom/text "home")) " "
-      (router/link [::db-stats] (dom/text "db-stats")) " "
+      (router/link [::summary] (dom/text "home")) (dom/text " ")
+      (router/link [::db-stats] (dom/text "db-stats")) (dom/text " ")
       (router/link [::recent-tx] (dom/text "recent-tx")))
     (p/server
       (case page
@@ -248,15 +256,6 @@
         ::recent-tx (RecentTx.)
         (p/client (dom/text (str "no matching route: " (pr-str page))))))))
 
-#?(:cljs (def read-edn-str (partial clojure.edn/read-string {:readers {'goog.math/Long goog.math.Long/fromString}})))
-
-#?(:cljs (defn decode-path [path] {:pre [(string? path) (some? read-edn-str)]}
-           (if-not (= path "/")
-             (-> path (subs 1) ednish/decode read-edn-str)
-             [::summary])))
-
-#?(:cljs (defn encode-path [route] (->> route pr-str ednish/encode (str "/"))))
-
 (p/defn App []
   (println (pr-str (type 1))) ; show we're on the server
   (p/server ; bug that this is needed; above line shows we're already here
@@ -264,7 +263,7 @@
     (binding [db (d/db conn)]
       (binding [schema (new (dx/schema> db))]
         (p/client
-          (binding [router/encode contrib.ednish/encode-uri
-                    router/decode decode-path]
-            (router/router (html5/HTML5-History.)
-              (Page. router/route)))))))))
+          (binding [router/build-route (fn [state route]
+                                         ; rewrite local links through this entrypoint for DI
+                                         (update-in state router/path (constantly route)))]
+            (Page. (or router/route [::summary])))))))))
