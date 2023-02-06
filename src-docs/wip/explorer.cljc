@@ -57,7 +57,7 @@
         (dom/dd (dom/pre (dom/text (pprint-str (update-keys (p/watch user.demo-scrollview/!scrollStateDebug) unqualify))))))
       (dom/div (dom/props {:class "hyperfiddle-explorer-title"}) title)
       (ui/input search (p/fn V! [v] (reset! !search v))
-        (dom/props {:placeholder "Search files by name" :type "search"}))
+        (dom/props {:placeholder "Search" :type "search"}))
       (dom/hr)
       (p/server
         (binding [gridsheet/Format Format]

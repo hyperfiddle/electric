@@ -33,7 +33,7 @@
    ; need extra deps alias
    ::dennis-exception-leak
    ::demo-stage-ui4
-   ::datomic-browser])
+   #_::datomic-browser])
 
 (p/defn Demos []
   (p/client
