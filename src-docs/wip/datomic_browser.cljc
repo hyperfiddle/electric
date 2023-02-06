@@ -38,13 +38,13 @@
   (any-matches? ["abc"] "d") := nil)
 
 (p/defn RecentTx []
+  (p/client (dom/h1 (dom/text "Recent Txs")))
   (binding [explorer/cols [:db/id :db/txInstant]
             explorer/Format (p/fn [[e _ v tx op :as record] a]
                               (case a
                                 :db/id (p/client (router/link [::tx tx] (dom/text tx)))
                                 :db/txInstant (p/client (dom/text (pr-str v))) #_(p/client (.toLocaleDateString v))))]
     (Explorer.
-      "Recent Txs"
       (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
                                    (m/reductions conj ())
                                    (m/relieve {})))
@@ -54,6 +54,7 @@
        ::gridsheet/grid-template-columns "10em auto"})))
 
 (p/defn Attributes []
+  (p/client (dom/h1 (dom/text "Attributes")))
   (binding [explorer/cols [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent
                            #_#_#_#_:db/fulltext :db/tupleType :db/tupleTypes :db/tupleAttrs]
             explorer/Format (p/fn [row col]
@@ -66,7 +67,6 @@
                                     :db/unique (some-> v :db/ident name dom/text)
                                     (dom/text (str v))))))]
     (Explorer.
-      "Attributes"
       (explorer/tree-lister (->> (dx/attributes> db explorer/cols)
                               (m/reductions conj [])
                               (m/relieve {})
@@ -145,9 +145,9 @@
 
 (p/defn EntityDetail [e]
   (assert e)
+  (p/client (dom/h1 (dom/text "Entity detail: " e))) ; treeview on the entity
   (binding [explorer/cols [::k ::v] explorer/Format Format-entity]
     (Explorer.
-      (str "Entity detail: " e) ; treeview on the entity
       ;; TODO inject sort
       (explorer/tree-lister (new (p/task->cp (d/pull db {:eid e :selector ['*] :compare compare})))
         (partial entity-tree-entry-children schema)
@@ -158,6 +158,7 @@
 
 (p/defn EntityHistory [e]
   (assert e)
+  (p/client (dom/h1 (dom/text "Entity history: " (pr-str e))))
   (binding [explorer/cols [::e ::a ::op ::v ::tx-instant ::tx]
             explorer/Format (p/fn [[e aa v tx op :as row] a]
                               (when row ; when this view unmounts, somehow this fires as nil
@@ -173,7 +174,6 @@
                                                  (p/client (pr-str (dom/text x))))
                                   (str v))))]
     (Explorer.
-      (str "Entity history: " (pr-str e))
       ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
       (explorer/tree-lister (new (->> (dx/entity-history-datoms> db e)
                                    (m/reductions conj []) ; track a running count as well?
@@ -184,6 +184,7 @@
        ::gridsheet/grid-template-columns "10em 10em 3em auto auto 9em"})))
 
 (p/defn AttributeDetail [a]
+  (p/client (dom/h1 (dom/text "Attribute detail: " a)))
   (binding [explorer/cols [:e :a :v :tx]
             explorer/Format (p/fn [[e _ v tx op :as x] k]
                               (p/client
@@ -193,7 +194,6 @@
                                   :v (some-> v pr-str dom/text) ; when a is ref, render link
                                   :tx (router/link [::tx tx] (dom/text tx)))))]
     (Explorer.
-      (str "Attribute detail: " a)
       (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [a]})
                                    (m/reductions conj [])
                                    (m/relieve {})))
@@ -203,6 +203,7 @@
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
 (p/defn TxDetail [e]
+  (p/client (dom/h1 (dom/text "Tx detail: " e)))
   (binding [explorer/cols [:e :a :v :tx]
             explorer/Format (p/fn [[e aa v tx op :as x] a]
                               (case a
@@ -211,7 +212,6 @@
                                 :v (pr-str v) ; when a is ref, render link
                                 (str tx)))]
     (Explorer.
-      (str "Tx detail: " e)
       (explorer/tree-lister (new (->> (d/tx-range> conn {:start e, :end (inc e)}) ; global
                                    (m/eduction (map :data) cat)
                                    (m/reductions conj [])
@@ -222,6 +222,7 @@
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
 (p/defn DbStats []
+  (p/client (dom/h1 (dom/text "Db stats")))
   (binding [explorer/cols [::k ::v]
             explorer/Format (p/fn [[k v :as row] col]
                               (p/client
@@ -229,7 +230,6 @@
                                   ::k (dom/text (pr-str k))
                                   ::v (if-not (map? v) (dom/text (pr-str v))))))]
     (Explorer.
-      (str "Db Stats:")
       (explorer/tree-lister (new (p/task->cp (d/db-stats db)))
         (fn [[_ v]] (when (map? v) (into (sorted-map) v)))
         any-matches?)
@@ -254,7 +254,7 @@
         ::entity (do (EntityDetail. x) (EntityHistory. x))
         ::db-stats (DbStats.)
         ::recent-tx (RecentTx.)
-        (p/client (dom/text (str "no matching route: " (pr-str page))))))))
+        (p/client (dom/text "no matching route: " (pr-str page)))))))
 
 (p/defn App []
   (println (pr-str (type 1))) ; show we're on the server

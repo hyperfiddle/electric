@@ -31,9 +31,8 @@
     [explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]]
     (let [m (datafy x)
           xs (nav m ::fs/children (::fs/children m))]
+      (p/client (dom/h1 (dom/text (p/server (::fs/absolute-path m)))))
       (Explorer.
-        "title"
-        ; (::fs/absolute-path m)
         (explorer/tree-lister xs ::fs/children #(contrib.str/includes-str? (::fs/name %) %2))
         {::dom/style {:height "calc((20 + 1) * 24px)"}
          ::explorer/page-size 20

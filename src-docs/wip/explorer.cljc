@@ -49,13 +49,12 @@
                      ::gridsheet/page-size 20
                      ::gridsheet/columns cols}))))))
 
-(p/defn Explorer [title treelister props] ; o is an entity with recursive children
+(p/defn Explorer [treelister props] ; o is an entity with recursive children
   (p/client
     (let [!search (atom "") search (p/watch !search)]
       #_(dom/dl
         (dom/dt (dom/text "scroll debug state"))
         (dom/dd (dom/pre (dom/text (pprint-str (update-keys (p/watch user.demo-scrollview/!scrollStateDebug) unqualify))))))
-      (dom/div (dom/props {:class "hyperfiddle-explorer-title"}) (dom/text title))
       (ui/input search (p/fn V! [v] (reset! !search v))
         (dom/props {:placeholder "Search" :type "search"}))
       (dom/hr)
