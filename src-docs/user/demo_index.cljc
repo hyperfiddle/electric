@@ -1,6 +1,6 @@
 (ns ;^:dev/always ; force rebuild here? We don't understand why
-  user.demo-entrypoint
-  #?(:cljs (:require-macros user.demo-entrypoint))
+  user.demo-index
+  #?(:cljs (:require-macros user.demo-index))
   (:require [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.router :as router])) ; for link only
