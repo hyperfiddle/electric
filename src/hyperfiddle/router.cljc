@@ -321,9 +321,12 @@
 
   [history-or-ident & body]
   `(let [history-or-ident#          ~history-or-ident
-         ident#                     (if (ident? history-or-ident#) history-or-ident# nil)
+         ident#                     (if (or (ident? history-or-ident#)
+                                            (integer? history-or-ident#))
+                                      history-or-ident# nil)
          path#                      (if (nil? ident#) [] [ident#])
-         [rebound?# history# path#] (if (ident? history-or-ident#) ; if we focus on a sub route
+         [rebound?# history# path#] (if (or (ident? history-or-ident#)
+                                            (integer? history-or-ident#)) ; if we focus on a sub route
                                       [false !history (into path path#)] ; same history, different path
                                       (let [h# (or history-or-ident# (default-platform-history))]
                                         (if (= h# !history) ; if we rebind to the same history
@@ -397,7 +400,7 @@
       % := :c
       )))
 
-(p/def encode identity)
+(p/def encode identity) ; turn sexpr to string href - ednish encoding, hopefully simple
 (p/def decode identity)
 
 ;;; 3. Link
@@ -414,6 +417,7 @@
         (navigate! !history next-route)))))
 
 (defmacro link [route & body]
+  ; all links are Sexpr-like and head is qualified name. like [::secrets 1 2]
   `(new Link ~route (p/fn [] ~@body)))
 
 
