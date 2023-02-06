@@ -660,6 +660,7 @@
       (= :literal (:node/type point)) (assoc ::hf/attribute (:node/form point))
       (:input/path point)             (assoc ::hf/path (:input/path point))
 
+      ;; FIXME args should get the same context as the rest of the HFQL expr (they should be unified)
       (seq args)                      (assoc ::hf/arguments (mapv (fn [arg]
                                                                     (let [path (:input/path arg)]
                                                                       [(:spec/name arg)
@@ -668,11 +669,14 @@
                                                                           ::hf/readonly (not (:node/free-input? arg))
                                                                           ::hf/path     path}
                                                                          (when-let [options (props ::hf/options arg)]
-                                                                           {::hf/options      (add-scope-bindings options `(p/fn [] ~(emit-call options)))
-                                                                            ::hf/option-label (:node/form (props ::hf/option-label arg))}))]))
+                                                                           {::hf/options      (emit-options options)
+                                                                            ::hf/option-label (:node/form (props ::hf/option-label arg))
+                                                                            ;; This is repeated
+                                                                            ::hf/options-arguments (mapv (fn [arg] [(:spec/name arg) {::hf/readonly (not (:node/free-input? arg))}])
+                                                                                                     (->> options (arguments) (filter is-this-node-a-free-input-in-option-call?)))}))]))
                                                               args))
 
-      (props ::hf/options point)      (assoc ::hf/options-arguments
+      (props ::hf/options point)      (assoc ::hf/options-arguments ; This is repeated
                                         (mapv (fn [arg]
                                                 [(:spec/name arg) {::hf/readonly (not (:node/free-input? arg))}])
                                           (->> (props ::hf/options point) (arguments) (filter is-this-node-a-free-input-in-option-call?))))

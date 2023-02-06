@@ -277,7 +277,7 @@
        (when (some? ~options) (dom/props {::dom/list ~list-id}))
        (handle-validity dom/node (get hf/validation-hints [~name]))))
 
-(p/defn GrayInput [label? spec props [name {:keys [::hf/read ::hf/path ::hf/options ::hf/option-label ::hf/readonly] :as arg}]]
+(p/defn GrayInput [label? spec props [name {::hf/keys [read path options option-label readonly] :as arg}]]
   (let [value    (read.)
         options? (some? options)]
     (p/client
@@ -294,16 +294,30 @@
                                      :grid-column grid-col
                                      :color       :gray}})
             (dom/text (str (non-breaking-padder indentation) (field-name  name)))))
-        (if options?
+        (cond
+
+          options?
           ;; FIXME Call Options
-          (p/server (ui4/select value (p/fn [v] (p/client (router/swap-route! assoc-in path v)))
-                      options
-                      (or option-label Identity)
-                      (dom/props {:id list-id
-                                  :role     "cell"
-                                  :style    {:grid-row grid-row, :grid-column (inc grid-col)}
-                                  :disabled readonly})
-                      (handle-validity dom/node (get hf/validation-hints [name]))))
+          (p/server
+            (if (has-needle? arg)
+              (ui4/typeahead value (p/fn [v] (p/client (router/swap-route! assoc-in path v)))
+                options
+                (or option-label Identity)
+                (dom/props {:id list-id
+                            :role     "cell"
+                            :style    {:grid-row grid-row, :grid-column (inc grid-col)}
+                            :disabled readonly})
+                (handle-validity dom/node (get hf/validation-hints [name])))
+              (ui4/select value (p/fn [v] (p/client (router/swap-route! assoc-in path v)))
+                options
+                (or option-label Identity)
+                (dom/props {:id list-id
+                            :role     "cell"
+                            :style    {:grid-row grid-row, :grid-column (inc grid-col)}
+                            :disabled readonly})
+                (handle-validity dom/node (get hf/validation-hints [name])))))
+
+          :else
           (let [WriteToRoute (p/fn [v] (router/swap-route! assoc-in path v) nil)]
             (case (spec/type-of spec name)
               (::hf-type/boolean) (ui4/checkbox value WriteToRoute (gray-input-props id props list-id options name readonly))

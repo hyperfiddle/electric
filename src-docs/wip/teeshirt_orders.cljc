@@ -9,10 +9,11 @@
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.photon-ui4 :as ui]
             [hyperfiddle.router :as router]
-            wip.orders-datascript))
+            wip.orders-datascript
+            [clojure.string :as str]))
 
-(defn names [] ["" "alice" "bob" "charlie"])
-(s/fdef names :ret (s/coll-of names))
+(defn names [needle] (filter #(str/includes? % needle) ["" "alice" "bob" "charlie"]))
+(s/fdef names :args (s/cat :needle string?) :ret (s/coll-of names))
 
 ;; TODO option-label shouldn't get nil as value
 (p/defn IdentName [v] (some-> (:db/ident v) name))
@@ -49,7 +50,7 @@
     (binding [ttgui/grid-width 6] ; TODO auto compute grid width from HFQL expression
       (p/server
         (hf/hfql
-          {(props (wip.orders-datascript/orders (props . {::hf/options (names)}))
+          {(props (wip.orders-datascript/orders (props . {::hf/options (names .)}))
              {::hf/height 3})
            [(props :db/id {::hf/link ['wip.orders-datascript/one-order %]})
             (props :order/email {::hf/tx Tx})
