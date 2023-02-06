@@ -352,7 +352,7 @@
                           sym
                           (throw (ex-info (str "Unable to resolve symbol: " sym) (source-map env (meta sym)))))
                   :cljs (let [sym (symbol (or (namespace sym) (name (:name (:ns env)))) (name sym))]
-                          (log/debug "Photon internals - use of undeclared cljs var" sym ". Passing through." (source-map env (meta sym)))
+                          (log/debug "cljs var: " sym " is undeclared, passing through." (source-map env (meta sym)))
                           sym)))]
       (assoc (ir/global (global sym))
         ::dbg/meta (source-map env (meta sym))))))
