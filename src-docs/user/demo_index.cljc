@@ -5,7 +5,7 @@
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.router :as router])) ; for link only
 
-(p/def pages
+(def pages
   [::hello-world
    ::toggle
    ::system-properties
@@ -24,11 +24,11 @@
    ::seven-guis-crud
    ::tic-tac-toe])
 
-(p/def secret-pages
+(def secret-pages
   [::hfql-teeshirt-orders
    ::explorer
    ::demo-10k-dom-elements
-   ::router
+   ::router-recursion
    ::tag-picker
    ; need extra deps alias
    ::dennis-exception-leak
