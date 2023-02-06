@@ -55,7 +55,7 @@
       #_(dom/dl
         (dom/dt (dom/text "scroll debug state"))
         (dom/dd (dom/pre (dom/text (pprint-str (update-keys (p/watch user.demo-scrollview/!scrollStateDebug) unqualify))))))
-      (dom/div (dom/props {:class "hyperfiddle-explorer-title"}) title)
+      (dom/div (dom/props {:class "hyperfiddle-explorer-title"}) (dom/text title))
       (ui/input search (p/fn V! [v] (reset! !search v))
         (dom/props {:placeholder "Search" :type "search"}))
       (dom/hr)
