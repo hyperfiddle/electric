@@ -1,4 +1,4 @@
-(ns ^:dev/always ; force rebuild here? We don't understand why
+(ns ;^:dev/always ; force rebuild here? We don't understand why
   user.demo-entrypoint
   #?(:cljs (:require-macros user.demo-entrypoint))
   (:require [hyperfiddle.photon :as p]
