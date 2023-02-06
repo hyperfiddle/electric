@@ -9,7 +9,7 @@
             hyperfiddle.rcf
             [hyperfiddle.router :as router]
             #?(:cljs [hyperfiddle.router-html5 :as html5])
-            user.demo-entrypoint
+            [user.demo-index :as demos]
 
             user.demo-1-hello-world
             user.demo-2-toggle
@@ -51,41 +51,41 @@
 (p/defn Pages [page]
   (p/server
     (case page
-      :user.demo-entrypoint/Demos user.demo-entrypoint/Demos
-      :user.demo-entrypoint/Secrets user.demo-entrypoint/Secrets
-      :user.demo-entrypoint/hfql-teeshirt-orders wip.teeshirt-orders/App
-      :user.demo-entrypoint/explorer user.demo-explorer2/App
-      :user.demo-entrypoint/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
-      :user.demo-entrypoint/router wip.demo-branched-route/App
-      :user.demo-entrypoint/tag-picker wip.tag-picker/App
-      :user.demo-entrypoint/hello-world user.demo-1-hello-world/App
-      :user.demo-entrypoint/toggle user.demo-2-toggle/App
-      :user.demo-entrypoint/system-properties user.demo-3-system-properties/App
-      :user.demo-entrypoint/chat user.demo-4-chat/App
-      :user.demo-entrypoint/chat-extended user.demo-4-chat-extended/App
-      :user.demo-entrypoint/webview user.demo-4-webview/App
-      :user.demo-entrypoint/todos-simple user.todos-simple/Todo-list ; css fixes
-      :user.demo-entrypoint/todomvc user.demo-5-todomvc/App
-      :user.demo-entrypoint/todomvc-composed user.demo-todomvc-composed/App
-      :user.demo-entrypoint/color user.demo-color/App
-      :user.demo-entrypoint/two-clocks user.demo-6-two-clocks/App
-      :user.demo-entrypoint/infinite-scroll user.demo-scrollview/Demo
-      :user.demo-entrypoint/seven-guis-counter user.seven-gui-1-counter/Counter
-      :user.demo-entrypoint/seven-guis-temperature-converter user.seven-gui-2-temperature-converter/App
-      :user.demo-entrypoint/seven-guis-timer user.seven-gui-4-timer/Timer
-      :user.demo-entrypoint/seven-guis-crud user.seven-gui-5-crud/App
-      :user.demo-entrypoint/tic-tac-toe user.tic-tac-toe/App
-      ;:user.demo-entrypoint/dennis-exception-leak wip.dennis-exception-leak/App2
-      ;:user.demo-entrypoint/demo-stage-ui4 wip.demo-stage-ui4/Demo
-      ;:user.demo-entrypoint/datomic-browser wip.datomic-browser/App
+      ::demos/Demos user.demo-index/Demos
+      ::demos/Secrets user.demo-index/Secrets
+      ::demos/hfql-teeshirt-orders wip.teeshirt-orders/App
+      ::demos/explorer user.demo-explorer2/App
+      ::demos/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
+      ::demos/router wip.demo-branched-route/App
+      ::demos/tag-picker wip.tag-picker/App
+      ::demos/hello-world user.demo-1-hello-world/App
+      ::demos/toggle user.demo-2-toggle/App
+      ::demos/system-properties user.demo-3-system-properties/App
+      ::demos/chat user.demo-4-chat/App
+      ::demos/chat-extended user.demo-4-chat-extended/App
+      ::demos/webview user.demo-4-webview/App
+      ::demos/todos-simple user.todos-simple/Todo-list ; css fixes
+      ::demos/todomvc user.demo-5-todomvc/App
+      ::demos/todomvc-composed user.demo-todomvc-composed/App
+      ::demos/color user.demo-color/App
+      ::demos/two-clocks user.demo-6-two-clocks/App
+      ::demos/infinite-scroll user.demo-scrollview/Demo
+      ::demos/seven-guis-counter user.seven-gui-1-counter/Counter
+      ::demos/seven-guis-temperature-converter user.seven-gui-2-temperature-converter/App
+      ::demos/seven-guis-timer user.seven-gui-4-timer/Timer
+      ::demos/seven-guis-crud user.seven-gui-5-crud/App
+      ::demos/tic-tac-toe user.tic-tac-toe/App
+      ;::demos/dennis-exception-leak wip.dennis-exception-leak/App2
+      ;::demos/demo-stage-ui4 wip.demo-stage-ui4/Demo
+      ;::demos/datomic-browser wip.datomic-browser/App
       NotFoundPage)))
 
 (p/defn Main []
   (binding [router/encode contrib.ednish/encode-uri
             router/decode #(or (contrib.ednish/decode-path % hf/read-edn-str)
-                               [:user.demo-entrypoint/Demos]
-                               #_[[:user.demo-entrypoint/Demos . . .]]
-                               #_{:user.demo-entrypoint/Demos {0 . 1 . 2 .}})]
+                               [::demos/Demos]
+                               #_[[::demos/Demos . . .]]
+                               #_{::demos/Demos {0 . 1 . 2 .}})]
     (router/router (html5/HTML5-History.)
       (set-page-title! router/route)
       (binding [dom/node js/document.body]
