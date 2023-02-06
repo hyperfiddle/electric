@@ -33,6 +33,8 @@
   ; allocations; use org.apache.commons.lang3.StringUtils.containsIgnoreCase() which uses
   ; String.regionMatches under the hood. Or better yet use d/filter on d/datoms (can we pass that
   ; as an input to another query?)
+
+  ; Is this deprecated because of performances?
   (clojure.string/includes? (clojure.string/lower-case (str v))
                             (clojure.string/lower-case (str needle))))
 

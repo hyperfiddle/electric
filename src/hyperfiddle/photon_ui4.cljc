@@ -167,7 +167,7 @@
              (dom/input
                (let [input-node# dom/node
                      return# (dom/on "focus"
-                               (p/fn [_#]
+                               (p/fn [_#] ; FIXME Exceptions seems to be swallowed here
                                  (set! (.-value dom/node) "")
                                  (let [return# (missionary.core/dfv)
                                        search# (new Latch (dom/on "input" (p/fn [e#] (value e#))) "")]
