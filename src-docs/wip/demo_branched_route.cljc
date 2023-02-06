@@ -13,6 +13,7 @@
 (p/def Page)
 (p/defn Page-impl []
   (dom/h1 (dom/text "Branched route"))
+  (dom/pre (dom/text (contrib.str/pprint-str router/route)))
   (p/server
     (binding [hf/*nav!*   wip.orders-datascript/nav!
               hf/*schema* wip.orders-datascript/schema
@@ -31,3 +32,20 @@
     (p/client
       (binding [Page Page-impl]
         (Page.)))))
+
+(comment
+  (p/for [[page nested] s]
+    (router/router page (hyperfiddle.popover/popover "Recur Left"
+                          (hf/eval-as-iframe nested))))
+
+  `(wip.demo-branched-route/App
+     {::needle "root"
+      ::left {::needle ""
+              ::left {::needle ""
+                      ::right {}}}
+      ::right {::needle ""}})
+
+  `(wip.demo-branched-route/App
+     {::left `(wip.demo-branched-route/PDF)
+      ::right `(wip.demo-branched-route/HTML)})
+  )

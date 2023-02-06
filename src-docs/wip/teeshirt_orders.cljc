@@ -69,6 +69,7 @@
 (p/defn App []
   (p/client
     (dom/h1 (dom/text "Teeshirt orders"))
+    (dom/pre (dom/text (contrib.str/pprint-str router/route)))
     (binding [hf/db-name "$"
               router/build-route (fn [state route] (update-in state router/path assoc ::route route))]
       (p/server
