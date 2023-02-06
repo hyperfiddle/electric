@@ -271,8 +271,8 @@
              (.reportValidity node))
          (.setCustomValidity node "")))))
 
-(defmacro gray-input-props [id props list-id options name]
-  `(do (dom/props {:id ~id, :role "cell", :style {:grid-row grid-row, :grid-column (inc grid-col)}})
+(defmacro gray-input-props [id props list-id options name readonly]
+  `(do (dom/props {:id ~id, :role "cell", :style {:grid-row grid-row, :grid-column (inc grid-col)}, :disabled ~readonly})
        (when (seq ~props) (dom/props ~props))
        (when (some? ~options) (dom/props {::dom/list ~list-id}))
        (handle-validity dom/node (get hf/validation-hints [~name]))))
@@ -306,19 +306,19 @@
                       (handle-validity dom/node (get hf/validation-hints [name]))))
           (let [WriteToRoute (p/fn [v] (router/swap-route! assoc-in path v) nil)]
             (case (spec/type-of spec name)
-              (::hf-type/boolean) (ui4/checkbox value WriteToRoute (gray-input-props id props list-id options name))
+              (::hf-type/boolean) (ui4/checkbox value WriteToRoute (gray-input-props id props list-id options name readonly))
               (::hf-type/double
-               ::hf-type/float)   (ui4/double   value WriteToRoute (gray-input-props id props list-id options name))
+               ::hf-type/float)   (ui4/double   value WriteToRoute (gray-input-props id props list-id options name readonly))
               (::hf-type/bigdec
-               ::hf-type/long)    (ui4/long     value WriteToRoute (gray-input-props id props list-id options name))
-              (::hf-type/instant) (ui4/date     (when value (-> value .toISOString (subs 0 10))) WriteToRoute (gray-input-props id props list-id options name))
-              (::hf-type/keyword) (ui4/keyword  value WriteToRoute (gray-input-props id props list-id options name))
-              (::hf-type/symbol)  (ui4/symbol   value WriteToRoute (gray-input-props id props list-id options name))
-              (::hf-type/uuid)    (ui4/uuid     value WriteToRoute (gray-input-props id props list-id options name))
+               ::hf-type/long)    (ui4/long     value WriteToRoute (gray-input-props id props list-id options name readonly))
+              (::hf-type/instant) (ui4/date     (when value (-> value .toISOString (subs 0 10))) WriteToRoute (gray-input-props id props list-id options name readonly))
+              (::hf-type/keyword) (ui4/keyword  value WriteToRoute (gray-input-props id props list-id options name readonly))
+              (::hf-type/symbol)  (ui4/symbol   value WriteToRoute (gray-input-props id props list-id options name readonly))
+              (::hf-type/uuid)    (ui4/uuid     value WriteToRoute (gray-input-props id props list-id options name readonly))
               (::hf-type/string
                ::hf-type/uri
                ::hf-type/ref
-               nil)               (ui4/input    value WriteToRoute (gray-input-props id props list-id options name)))))
+               nil)               (ui4/input    value WriteToRoute (gray-input-props id props list-id options name readonly)))))
         value))))
 
 (defn apply-1 [n F args]
