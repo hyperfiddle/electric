@@ -20,7 +20,8 @@
             user.demo-5-todomvc
             user.demo-todomvc-composed
             user.demo-6-two-clocks
-            user.demo-explorer2
+            wip.demo-explorer
+            wip.demo-explorer2
             user.demo-10k-dom-elements
             user.todos-simple
             user.seven-gui-1-counter
@@ -54,7 +55,8 @@
       ::demos/Demos user.demo-index/Demos
       ::demos/Secrets user.demo-index/Secrets
       ::demos/hfql-teeshirt-orders wip.teeshirt-orders/App
-      ::demos/explorer user.demo-explorer2/App
+      ::demos/explorer wip.demo-explorer/App
+      ::demos/explorer2 wip.demo-explorer2/App
       ::demos/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
       ::demos/router-recursion wip.demo-branched-route/App
       ::demos/tag-picker wip.tag-picker/App

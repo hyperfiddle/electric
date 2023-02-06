@@ -27,6 +27,7 @@
 (def secret-pages
   [::hfql-teeshirt-orders
    ::explorer
+   ::explorer2
    ::demo-10k-dom-elements
    ::router-recursion
    ::tag-picker
