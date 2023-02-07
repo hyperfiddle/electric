@@ -218,7 +218,7 @@
             (::hf-type/uri
              ::hf-type/string
              ::hf-type/ref
-             nil)               (ui4/input    (str v) Tx (input-props readonly? grid-row grid-col dom-for))))))))
+             nil)               (ui4/input    (str label) Tx (input-props readonly? grid-row grid-col dom-for))))))))
 
 (p/defn Simple [ctx] (if (grab ctx ::hf/options) (Options. ctx) (Input. ctx)))
 
