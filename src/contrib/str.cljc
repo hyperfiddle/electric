@@ -7,7 +7,7 @@
 
 (defn pprint-str [x]
   (with-out-str
-    (binding [#_#_clojure.pprint/*print-right-margin* 20
+    (binding [clojure.pprint/*print-right-margin* 100
               #_#_clojure.pprint/*print-miser-width* 1
               #_#_clojure.pprint/*print-pprint-dispatch* hyperfiddle.pprint/simple-dispatch]
       (clojure.pprint/with-pprint-dispatch
