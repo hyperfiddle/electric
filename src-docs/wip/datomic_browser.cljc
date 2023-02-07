@@ -28,7 +28,7 @@
 (p/def schema) ; used by entity-tree-entry-children and FormatEntity in this file only
 
 (defn any-matches? [coll needle]
-  (let [substr (str/lower-case needle)]
+  (let [substr (str/lower-case (str needle))]
     (some #(when % (str/includes? (str/lower-case %) substr)) coll)))
 
 (tests
@@ -237,7 +237,7 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
 
-(p/defn Page [[page x :as route]]
+(p/defn Page [[self state [local-page x]]]
   (dom/link (dom/props {:rel :stylesheet, :href "user/datomic-browser.css"}))
   (dom/h1 (dom/text "Datomic browser"))
   (dom/div (dom/props {:class "user-datomic-browser"})
@@ -245,24 +245,25 @@
       (router/link [::summary] (dom/text "home")) (dom/text " ")
       (router/link [::db-stats] (dom/text "db-stats")) (dom/text " ")
       (router/link [::recent-tx] (dom/text "recent-tx")))
-    (p/server
-      (case page
-        ::summary (Attributes.)
-        ::attribute (AttributeDetail. x)
-        ::tx (TxDetail. x)
-        ::entity (do (EntityDetail. x) (EntityHistory. x))
-        ::db-stats (DbStats.)
-        ::recent-tx (RecentTx.)
-        (p/client (dom/text "no matching route: " (pr-str page)))))))
+    (router/router 1 ; focus explorer state
+      (p/server
+        (case (or local-page ::summary)
+          ::summary (Attributes.)
+          ::attribute (AttributeDetail. x)
+          ::tx (TxDetail. x)
+          ::entity (do (EntityDetail. x) (EntityHistory. x))
+          ::db-stats (DbStats.)
+          ::recent-tx (RecentTx.)
+          (p/client (dom/text "no matching route: " (pr-str local-page))))))))
 
-(p/defn App []
+(p/defn DatomicBrowser []
   (println (pr-str (type 1))) ; show we're on the server
   (p/server ; bug that this is needed; above line shows we're already here
   (binding [conn @(requiring-resolve 'user/datomic-conn)]
     (binding [db (d/db conn)]
       (binding [schema (new (dx/schema> db))]
         (p/client
-          (binding [router/build-route (fn [state route]
+          (binding [router/build-route (fn [[self state local-route] local-route']
                                          ; root local links through this entrypoint for DI
-                                         (update-in state router/path (constantly route)))]
-            (Page. (or router/route [::summary])))))))))
+                                         `[DatomicBrowser ~state ~local-route'])]
+            (Page. router/route))))))))
