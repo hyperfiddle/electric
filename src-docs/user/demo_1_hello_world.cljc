@@ -7,7 +7,7 @@
 ; a full stack function with both frontend and backend parts,
 ; all defined in the same expression
 
-(p/defn App []
+(p/defn HelloWorld []
   (p/client
     (dom/h1 (dom/text "Hello World"))
     (dom/div (dom/text "Hello from server, where JVM number type is: ")

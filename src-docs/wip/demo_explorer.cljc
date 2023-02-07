@@ -39,14 +39,13 @@
          ::explorer/row-height 24
          ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
 
-(p/defn App []
+(p/defn DirectoryExplorer []
   (p/client
     (dom/link (dom/props {:rel :stylesheet, :href "user/demo-explorer.css"}))
     (dom/div (dom/props {:class "photon-demo-explorer"})
-      (binding [router/build-route (fn [[self s & route] route']
-                                     ; links are global, swap-route is local !!!
+      (binding [router/build-route (fn [[self state local-route] local-route']
                                      ; root local links through this entrypoint
-                                     `[App ~s ~route'])]
+                                     `[DirectoryExplorer ~state ~local-route'])]
         (p/server
           (binding [explorer/Format
                     (p/fn [m a]
@@ -65,7 +64,7 @@
             (let [[self s route] (p/client router/route)
                   [page fs-path] (or route [::fs/dir (fs/absolute-path "node_modules")])]
               (p/client
-                (router/router 1
+                (router/router 1 ; focus state slot, todo: fix IndexOutOfBounds exception
                   (p/server
                     (case page
                       ;::fs/file (File. (clojure.java.io/file fs-path))

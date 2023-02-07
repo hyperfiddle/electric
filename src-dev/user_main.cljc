@@ -51,15 +51,15 @@
 (p/defn Pages [page]
   (p/server
     (case page
-      ::demos/Demos user.demo-index/Demos
-      ::demos/Secrets user.demo-index/Secrets
+      `user.demo-index/Demos user.demo-index/Demos
+      `user.demo-index/Secrets user.demo-index/Secrets
+      `user.demo-1-hello-world/HelloWorld user.demo-1-hello-world/HelloWorld
       ::demos/hfql-teeshirt-orders wip.teeshirt-orders/App
-      `wip.demo-explorer/App wip.demo-explorer/App
+      `wip.demo-explorer/DirectoryExplorer wip.demo-explorer/DirectoryExplorer
       ::demos/explorer2 wip.demo-explorer2/App
       ::demos/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
       ::demos/router-recursion wip.demo-branched-route/App
       ::demos/tag-picker wip.tag-picker/App
-      ::demos/hello-world user.demo-1-hello-world/App
       ::demos/toggle user.demo-2-toggle/App
       ::demos/system-properties user.demo-3-system-properties/App
       ::demos/chat user.demo-4-chat/App
@@ -84,9 +84,9 @@
 (p/defn Main []
   (binding [router/encode contrib.ednish/encode-uri
             router/decode #(or (contrib.ednish/decode-path % hf/read-edn-str)
-                               [::demos/Demos]
-                               #_[[::demos/Demos . . .]]
-                               #_{::demos/Demos {0 . 1 . 2 .}})]
+                               [`user.demo-index/Demos]
+                               #_[[`user.demo-index/Demos . . .]]
+                               #_{`user.demo-index/Demos {0 . 1 . 2 .}})]
     (router/router (html5/HTML5-History.)
       (set-page-title! router/route)
       (binding [dom/node js/document.body]
