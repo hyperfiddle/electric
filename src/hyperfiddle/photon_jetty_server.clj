@@ -90,7 +90,8 @@
                                config)
           server (ring/run-jetty jetty-handler jetty-options)
           final-port (-> server (.getConnectors) first (.getPort))]
-      (println "\n👉 App server available at" (str "http://" (:host config) ":" final-port "\n")))
+      (println "\n👉 App server available at" (str "http://" (:host config) ":" final-port "\n"))
+      server)
 
     (catch IOException err
       (if (instance? BindException (ex-cause err))
