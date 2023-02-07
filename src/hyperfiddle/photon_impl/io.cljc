@@ -81,6 +81,8 @@
 
 #?(:cljs (def transit-writer (t/writer :json write-opts)))
 
+(defn ddef [err] (def -last-error-for-repl err)) ; lol
+
 (defn encode
   "Encode a data frame to transit json"
   [x]
@@ -92,6 +94,7 @@
     (catch #?(:clj Throwable, :cljs :default) err
       ; 13:49:25.848 DEBUG h.p.io [qtp966786773-114] - Unserializable reference transfer:  datascript.db.TxReport@a1a5e94a
       ; {:value #datascript.db.TxReport{:db-before #datascript/DB {:schema {}, :datoms [[1 :task/description buy milk  ...
+      (ddef err)
       (do (log/debug "Unserializable reference transfer: "
                      (str #_pr-str x)                       ; i.e. "datascript.db.TxReport@b532aead"
                      #_{:value x}                           ; don't ask logger to pr-str the entire datascript database
