@@ -47,6 +47,17 @@
   (includes-str? nil "") := true
   (includes-str? "" nil) := true)
 
+(defn any-matches? [coll needle]
+  (let [substr (clojure.string/lower-case (str needle))]
+    (some #(when % (clojure.string/includes? (clojure.string/lower-case %) substr)) coll)))
+
+(tests
+  (any-matches? [1 2 nil 3] "3") := true
+  (any-matches? ["xyz"] "Y") := true
+  (any-matches? ["ABC"] "abc") := true
+  (any-matches? ["abc"] "d") := nil)
+
+
 (defn empty? [s] (or (and (string? s) (zero? (count s)))
                      (nil? s)))
 
