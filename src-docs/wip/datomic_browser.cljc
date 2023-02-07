@@ -218,14 +218,24 @@
                               (p/client
                                 (case col
                                   ::k (dom/text (pr-str k))
-                                  ::v (if-not (map? v) (dom/text (pr-str v))))))]
+                                  ::v (cond
+                                        (= k :attrs) nil ; print children instead
+                                        () (dom/text (pr-str v))))))] ; {:count 123}
     (Explorer.
-      (explorer/tree-lister (new (p/task->cp (d/db-stats db)))
-        (fn [[_ v]] (when (map? v) (into (sorted-map) v)))
+      (explorer/tree-lister
+        (new (p/task->cp (d/db-stats db)))
+        (fn [[k v]] (condp = k :attrs (into (sorted-map) v) nil))
         any-matches?)
       {::explorer/page-size 20
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "20em auto"})))
+
+(comment
+  {:datoms 800958,
+   :attrs
+   {:release/script {:count 11435},
+    :label/type {:count 870}
+    ... ...}})
 
 (p/defn Page [[self state [local-page x]]]
   (dom/link (dom/props {:rel :stylesheet, :href "user/datomic-browser.css"}))
