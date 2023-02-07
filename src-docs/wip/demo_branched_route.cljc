@@ -14,24 +14,28 @@
 (p/defn Page-impl []
   (dom/h1 (dom/text "Branched route"))
   (dom/pre (dom/text (contrib.str/pprint-str router/route)))
-  (p/server
-    (binding [hf/*nav!*   wip.orders-datascript/nav!
-              hf/*schema* wip.orders-datascript/schema
-              hf/db       hf/*$*]
-      (ttgui/with-gridsheet-renderer
-        (binding [ttgui/grid-width 2
-                  hf/db-name "$"]
-          (p/server
-            (hf/hfql {(wip.orders-datascript/orders .) [:db/id]}))))))
+
+  (router/router :hfql
+    (p/server
+      (binding [hf/*nav!* wip.orders-datascript/nav!
+                hf/*schema* wip.orders-datascript/schema
+                hf/db hf/*$*]
+        (ttgui/with-gridsheet-renderer
+          (binding [ttgui/grid-width 2
+                    hf/db-name "$"]
+            (p/server
+              (hf/hfql {(wip.orders-datascript/orders .) [:db/id]})))))))
+
   (dom/hr)
-  (router/router ::left  (hyperfiddle.popover/popover "Recur Left" (Page.)))
-  (router/router ::right (hyperfiddle.popover/popover "Recur Right" (Page.))))
+  (router/router :left (hyperfiddle.popover/popover "Recur Left" (Page.)))
+  (router/router :right (hyperfiddle.popover/popover "Recur Right" (Page.))))
 
 (p/defn App []
   (hf/branch
     (p/client
       (binding [Page Page-impl]
-        (Page.)))))
+        (router/router 1 ; ordinal to nominal - representation only
+          (Page.))))))
 
 (comment
   (p/for [[page nested] s]

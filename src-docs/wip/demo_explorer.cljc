@@ -43,9 +43,10 @@
   (p/client
     (dom/link (dom/props {:rel :stylesheet, :href "user/demo-explorer.css"}))
     (dom/div (dom/props {:class "photon-demo-explorer"})
-      (binding [router/build-route (fn [state route]
-                                     ; root local links to this app
-                                     (update-in state router/path (constantly route)))]
+      (binding [router/build-route (fn [[self s & route] route']
+                                     ; links are global, swap-route is local !!!
+                                     ; root local links through this entrypoint
+                                     `[App ~s ~route'])]
         (p/server
           (binding [explorer/Format
                     (p/fn [m a]
@@ -61,11 +62,14 @@
                                       ::fs/dir (p/client (dom/text unicode-folder))
                                       (p/client (some-> v name dom/text)))
                           (p/client (dom/text (str v))))))]
-            (let [[page fs-path] (or (p/client router/route)
-                                     [::fs/dir (fs/absolute-path "node_modules")])]
-              (case page
-                ;::fs/file (File. (clojure.java.io/file fs-path))
-                ::fs/dir (Dir. (clojure.java.io/file fs-path))))))))))
+            (let [[self s route] (p/client router/route)
+                  [page fs-path] (or route [::fs/dir (fs/absolute-path "node_modules")])]
+              (p/client
+                (router/router 1
+                  (p/server
+                    (case page
+                      ;::fs/file (File. (clojure.java.io/file fs-path))
+                      ::fs/dir (Dir. (clojure.java.io/file fs-path)))))))))))))
 
 ; Improvements
 ; Native search

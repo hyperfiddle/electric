@@ -26,7 +26,7 @@
 
 (def secret-pages
   [::hfql-teeshirt-orders
-   ::explorer
+   `wip.demo-explorer/App
    ::explorer2
    ::demo-10k-dom-elements
    ::router-recursion
