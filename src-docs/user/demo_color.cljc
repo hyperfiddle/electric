@@ -1,7 +1,9 @@
 (ns user.demo-color
   #?(:cljs (:require-macros user.demo-color))
-  (:require [hyperfiddle.photon :as p]
+  (:require [contrib.data :refer [assoc-vec]]
+            [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.router :as router]
             [contrib.color :as c]))
 
 ;; Goal is to show:
@@ -45,12 +47,11 @@
 
 (p/defn App []
   (p/client
-    (let [!lightness  (atom 70)
-          lightness   (p/watch !lightness)
-          !saturation (atom 80)
-          saturation  (p/watch !saturation)
-          !hue        (atom 180)
-          hue         (p/watch !hue)]
+    (let [[self h s l] router/route
+          h (or h 180)
+          s (or s 80)
+          l (or l 70)
+          swap-route! router/swap-route!]
       (dom/div (dom/props {:style {:display               :grid
                                    :grid-template-columns "auto 1fr auto"
                                    :gap                   "0 1rem"
@@ -62,18 +63,18 @@
                                :min   0
                                :max   100
                                :step  1
-                               :value lightness})
-          (dom/event "input" (fn [^js e] (reset! !lightness (js/parseInt (.. e -target -value))))))
-        (dom/p (dom/text lightness "%"))
+                               :value l})
+          (dom/event "input" (fn [^js e] (swap-route! assoc-vec 3 (js/parseInt (.. e -target -value))))))
+        (dom/p (dom/text l "%"))
 
         (dom/p (dom/text "Saturation"))
         (dom/input (dom/props {:type  :range
                                :min   0
                                :max   100
                                :step  1
-                               :value saturation})
-          (dom/event "input" (fn [^js e] (reset! !saturation (js/parseInt (.. e -target -value))))))
-        (dom/p (dom/text saturation "%"))
+                               :value s})
+          (dom/event "input" (fn [^js e] (swap-route! assoc-vec 2 (js/parseInt (.. e -target -value))))))
+        (dom/p (dom/text s "%"))
 
 
         (dom/p (dom/text "Hue"))
@@ -81,26 +82,26 @@
                                :min   0
                                :max   360
                                :step  1
-                               :value hue})
-          (dom/event "input" (fn [^js e] (reset! !hue (js/parseInt (.. e -target -value))))))
-        (dom/p (dom/text hue "°"))
+                               :value h})
+          (dom/event "input" (fn [^js e] (swap-route! assoc-vec 1 (js/parseInt (.. e -target -value))))))
+        (dom/p (dom/text h "°"))
 
 
         (dom/p (dom/text "HSL"))
         (dom/canvas (dom/props {:width  360
                                 :height 100})
-          (draw-gradient! dom/node hue (fn [hue] (c/hsl->rgb [hue saturation lightness])))
+          (draw-gradient! dom/node h (fn [h] (c/hsl->rgb [h s l])))
           )
-        (Tile. (c/hsl->rgb [hue saturation lightness]))
+        (Tile. (c/hsl->rgb [h s l]))
 
         (dom/p (dom/text "OKLCH"))
         (dom/canvas (dom/props {:width  360
                                 :height 100})
-          (draw-gradient! dom/node hue (fn [hue] (c/oklch->rgb [lightness (saturation->chroma saturation) hue]))))
-        (Tile. (c/oklch->rgb [lightness (saturation->chroma saturation) hue]))
+          (draw-gradient! dom/node h (fn [h] (c/oklch->rgb [l (saturation->chroma s) h]))))
+        (Tile. (c/oklch->rgb [l (saturation->chroma s) h]))
 
         (dom/p (dom/text "HSLuv"))
         (dom/canvas (dom/props {:width  360
                                 :height 100})
-          (draw-gradient! dom/node hue (fn [hue] (c/hsluv->rgb [hue saturation lightness]))))
-        (Tile. (c/hsluv->rgb [hue saturation lightness]))))))
+          (draw-gradient! dom/node h (fn [h] (c/hsluv->rgb [h s l]))))
+        (Tile. (c/hsluv->rgb [h s l]))))))

@@ -235,6 +235,19 @@
   (padl 8 "0" "xx") := #?(:clj ["0" "0" "0" "0" "0" "0" \x \x]
                           :cljs ["0" "0" "0" "0" "0" "0" "x" "x"]))
 
+(defn assoc-vec [xs k v]
+  (if (>= k (count xs))
+    (assoc (vec (pad k nil xs)) k v)
+    (assoc xs k v)))
+
+(tests
+  (assoc-vec [] 0 :a) := [:a]
+  (assoc-vec [] 1 :b) := [nil :b]
+  (assoc-vec [] 4 :e) := [nil nil nil nil :e]
+  (assoc-vec nil 4 :e) := [nil nil nil nil :e]
+  (assoc-vec [:a :b :c] 1 :B) := [:a :B :c]
+  (assoc-vec [:a :b :c] 4 :E) := [:a :b :c nil :E])
+
 (defn padl-str [n zero s] (apply str (padl n zero s)))
 
 (tests
