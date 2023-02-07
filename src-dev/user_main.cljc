@@ -54,7 +54,7 @@
       ::demos/Demos user.demo-index/Demos
       ::demos/Secrets user.demo-index/Secrets
       ::demos/hfql-teeshirt-orders wip.teeshirt-orders/App
-      ::demos/explorer wip.demo-explorer/App
+      `wip.demo-explorer/App wip.demo-explorer/App
       ::demos/explorer2 wip.demo-explorer2/App
       ::demos/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
       ::demos/router-recursion wip.demo-branched-route/App
@@ -92,7 +92,4 @@
       (binding [dom/node js/document.body]
         (dom/pre (dom/text (contrib.str/pprint-str router/route)))
         (let [[page & args] router/route]
-          ; set up detached sub app with its own state
-          ; routing is still via qualified name in sub apps, so they can route home for example
-          (router/router 1 ; sub-app can't know its own "react key"
-            (p/server (new (Pages. page) #_args))))))))
+          (p/server (new (Pages. page #_args))))))))

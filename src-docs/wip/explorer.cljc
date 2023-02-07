@@ -5,6 +5,7 @@
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom2 :as dom]
             [hyperfiddle.photon-ui4 :as ui]
+            [hyperfiddle.router :as router]
             [wip.gridsheet :as gridsheet :refer [GridSheet]]
             [hyperfiddle.rcf :refer [tests tap % with]])
   #?(:cljs (:require-macros wip.explorer)))
@@ -38,11 +39,11 @@
 
 (p/defn Explorer [treelister props] ; o is an entity with recursive children
   (p/client
-    (let [!search (atom "") search (p/watch !search)]
+    (let [{:keys [::search] :as s} router/route]
       #_(dom/dl
         (dom/dt (dom/text "scroll debug state"))
         (dom/dd (dom/pre (dom/text (pprint-str (update-keys (p/watch user.demo-scrollview/!scrollStateDebug) unqualify))))))
-      (ui/input search (p/fn V! [v] (reset! !search v))
+      (ui/input search (p/fn V! [v] (router/swap-route! assoc ::search v)) ; todo (swap! router/!route assoc ::search v)
         (dom/props {:placeholder "Search" :type "search"}))
       (dom/hr)
       (p/server
