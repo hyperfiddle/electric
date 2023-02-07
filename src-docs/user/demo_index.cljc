@@ -6,7 +6,7 @@
             [hyperfiddle.router :as router])) ; for link only
 
 (def pages
-  [::hello-world
+  [`user.demo-1-hello-world/HelloWorld
    ::toggle
    ::system-properties
    ::chat
@@ -26,7 +26,7 @@
 
 (def secret-pages
   [::hfql-teeshirt-orders
-   `wip.demo-explorer/App
+   `wip.demo-explorer/DirectoryExplorer
    ::explorer2
    ::demo-10k-dom-elements
    ::router-recursion
@@ -43,7 +43,7 @@
     (p/for [k pages]
       (dom/div (router/link [k] (dom/text (name k)))))
     (dom/div (dom/style {:opacity 0})
-      (router/link [::Secrets] (dom/text "secret-hyperfiddle-demos")))))
+      (router/link [`Secrets] (dom/text "secret-hyperfiddle-demos")))))
 
 (p/defn Secrets []
   (p/client
