@@ -61,7 +61,9 @@
             (dom/text "commit!"))
           (ui/button (p/fn []
                        (return :discard)) (dom/text "discard"))
-          (new (p/task->cp return)))))))
+          ;; TODO simplify this gymnastic
+          (try (new (p/task->cp return)) ; Entrypoint treats pending as loading state which this is not
+               (catch Pending _ nil)))))))
 
 (p/defn PopoverBody2 [Validate Transact Body]
   (dom/div (dom/props {:class    "hyperfiddle popover-body"
@@ -77,7 +79,8 @@
       (ui/button (p/fn [] (swap! !open? not)) (dom/text label)) ; popover anchor
       (when open?
         (case (PopoverBody2. Validate Transact Body)
-          (swap! !open? not))
+          (:commit :discard) (swap! !open? not)
+          nil                (do))
         nil))))
 
 (defmacro popover2*
@@ -90,6 +93,7 @@
      (router/router (router/proxy-history router/!history)
       (new Popover2 ~label ~Validate ~Transact (p/fn [] ~@body))))))
 
+;; TODO Move to own namespace so we can retire popover1
 (defmacro popover2 
   ([label HFQL-Expr]
    `(popover2 ~label (p/fn []) ~HFQL-Expr))
