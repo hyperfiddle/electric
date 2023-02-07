@@ -287,12 +287,12 @@
         (when label?
           (dom/label
             (dom/props {::dom/role  "cell"
-                         ::dom/class "label"
-                         ::dom/for   id,
-                         ::dom/title (pr-str (:hyperfiddle.spec/form arg-spec))
-                         ::dom/style {:grid-row    grid-row
-                                       :grid-column grid-col
-                                       :color       :gray}})
+                        ::dom/class "label"
+                        ::dom/for   id,
+                        ::dom/title (pr-str (:hyperfiddle.spec/form arg-spec))
+                        ::dom/style {:grid-row    grid-row
+                                     :grid-column grid-col
+                                     :color       :gray}})
             (dom/text (str (non-breaking-padder indentation) (field-name  name)))))
         (if options?
           ;; FIXME Call Options
