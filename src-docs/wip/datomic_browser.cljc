@@ -3,7 +3,7 @@
   #?(:cljs (:require-macros wip.datomic-browser))
   #?(:cljs (:import [goog.math Long])) ; only this require syntax passes shadow in this file, why?
   (:require clojure.edn
-            [clojure.string :as str]
+            [contrib.str :refer [any-matches?]]
             [contrib.data :refer [index-by unqualify]]
             #?(:clj [contrib.datomic-contrib :as dx])
             #?(:cljs contrib.datomic-cloud-contrib)
@@ -26,16 +26,6 @@
 (p/def conn)
 (p/def db)
 (p/def schema) ; used by entity-tree-entry-children and FormatEntity in this file only
-
-(defn any-matches? [coll needle]
-  (let [substr (str/lower-case (str needle))]
-    (some #(when % (str/includes? (str/lower-case %) substr)) coll)))
-
-(tests
-  (any-matches? [1 2 nil 3] "3") := true
-  (any-matches? ["xyz"] "Y") := true
-  (any-matches? ["ABC"] "abc") := true
-  (any-matches? ["abc"] "d") := nil)
 
 (p/defn RecentTx []
   (p/client (dom/h1 (dom/text "Recent Txs")))
