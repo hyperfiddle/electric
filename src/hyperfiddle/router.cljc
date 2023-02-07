@@ -198,7 +198,7 @@
   Navigation is forwarded to the `parent` history.
   Initial state is provided with `initial-state`. "
   ([parent] (proxy-history parent nil))
-  ([parent initial-state] (->ProxyHistory parent (atom initial-state))))
+  ([parent initial-state] (->ProxyHistory parent (atom initial-state)))) ; keep state local, not in url
 
 
 (tests

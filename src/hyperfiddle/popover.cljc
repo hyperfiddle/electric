@@ -90,7 +90,7 @@
    `(popover2* ~label (p/fn []) ~Transact ~body))
   ([label Validate Transact & body]
    `(p/client
-     (router/router (router/proxy-history router/!history)
+     (router/router (router/proxy-history router/!history) ; sever popover state from URL
       (new Popover2 ~label ~Validate ~Transact (p/fn [] ~@body))))))
 
 ;; TODO Move to own namespace so we can retire popover1
