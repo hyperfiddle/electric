@@ -38,7 +38,7 @@
             ; these demos require extra deps alias
             #_wip.dennis-exception-leak
             #_wip.demo-stage-ui4
-            #_wip.datomic-browser
+            wip.datomic-browser
             ))
 
 #?(:cljs (defn set-page-title! [route]
@@ -78,7 +78,7 @@
       ::demos/tic-tac-toe user.tic-tac-toe/App
       ;::demos/dennis-exception-leak wip.dennis-exception-leak/App2
       ;::demos/demo-stage-ui4 wip.demo-stage-ui4/Demo
-      ;::demos/datomic-browser wip.datomic-browser/App
+      ;`wip.datomic-browser/DatomicBrowser wip.datomic-browser/DatomicBrowser
       NotFoundPage)))
 
 (p/defn Main []
