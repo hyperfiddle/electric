@@ -72,7 +72,7 @@
     (dom/h1 (dom/text "Teeshirt orders"))
     (dom/pre (dom/text (contrib.str/pprint-str router/route)))
     (binding [hf/db-name "$"
-              router/build-route (fn [state route] (update-in state router/path assoc ::route route))]
+              router/build-route (fn [[self state _route] route'] `[~self ~state ~route'])]
       (p/server
         (binding
             [hf/db           hf/*$*
@@ -85,11 +85,13 @@
                                     (catch Exception e (println "...failure, e: " e))))]
           (hf/branch
             (p/client
-              (let [[page x & args] (::route router/route `(wip.orders-datascript/orders))]
-                (case page
-                  wip.orders-datascript/orders    (OrdersPage.)
-                  wip.orders-datascript/one-order (OneOrderPage. x)
-                  (dom/h2 (dom/text "Page not found")))))
+              (let [[_self state local-route] router/route
+                    [page x & args] (or local-route `(wip.orders-datascript/orders))]
+                (router/router 1
+                  (case page
+                    wip.orders-datascript/orders    (OrdersPage.)
+                    wip.orders-datascript/one-order (OneOrderPage. x)
+                    (dom/h2 (dom/text "Page not found"))))))
             (p/client
               (dom/element "style" (dom/text ".dustin-stage { display: block; width: 100%; height: 10em; }"))
               (ui/edn (p/server hf/stage) false (dom/props {:disabled true :class "dustin-stage"}))))))
