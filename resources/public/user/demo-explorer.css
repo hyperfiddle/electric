@@ -1,45 +1,17 @@
-/*.photon-demo-explorer table > thead > td { text-decoration: underline; }*/
-/*.photon-demo-explorer table > tbody > tr:nth-child(even) { background-color: #f2f2f2; }*/
-/*.photon-demo-explorer table > tbody > tr:hover { background-color: #ddd; }*/
-/*.photon-demo-explorer table > tbody > tr > td { padding-left: 3px; padding-right: 3px; white-space: nowrap;}*/
-/*.photon-demo-explorer table > tbody > tr > td:first-child { width: 20em; }*/
-/*.photon-demo-explorer table > tbody > .no-results { text-align: center; }*/
+/* Cosmetic styles for the DirectoryExplorer demo; doesn't impact the scroll */
 
-.photon-demo-explorer > [role=grid] > [role=columnheader] { white-space: nowrap; overflow-x: clip; text-overflow: ellipsis; }
-.photon-demo-explorer > [role=grid] > [role=group]:nth-child(even) > div {
-    /* background-color: #f2f2f2; */
+.photon-demo-explorer > [role=grid] > [role=columnheader] {
+    white-space: nowrap;
+    overflow-x: clip;
+    text-overflow: ellipsis;
 }
-.photon-demo-explorer > [role=grid] > div {	background-color: rgb(249 250 251);}
-.photon-demo-explorer > [role=grid] > [role=gridcell] {
+
+.photon-demo-explorer > [role=grid] > [role=group] > [role=gridcell] {
     white-space: nowrap;
     overflow: hidden;
-    border: 0.5px lightgray solid;
-    margin: 0;
-    padding: 0;
-    position: relative;
-    width: auto;
-    display: inline-box;
+    text-overflow: ellipsis;
 }
 
-.photon-demo-explorer > [role=grid] > [role=gridcell]:hover ,
-.photon-demo-explorer > [role=grid] > [role=gridcell]:focus-within {
-    overflow: visible;
-    position: relative;
-    z-index: 1;
-}
-
-.photon-demo-explorer > [role=grid] > [role=gridcell] > span {
-    display: block;
-    position: relative;
-    min-width:100%;
-}
-
-.photon-demo-explorer > [role=grid] > [role=gridcell]:hover > *,
-.photon-demo-explorer > [role=grid] > [role=gridcell]:focus-within > *
-{
-    z-index: 2;
-    position: absolute;
-    width: fit-content;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    background-color: inherit;
+.photon-demo-explorer > [role=grid] > [role=group]:nth-child(even) > div {
+     background-color: #f2f2f2;
 }
