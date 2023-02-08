@@ -470,10 +470,9 @@
             (dom/tbody
               (p/server
                 (let [value (give-card-n-contexts-a-unique-key hf/page-drop (Value.))]
-                  (case (p/Unglitch. value)
-                    (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector value)]
-                      (p/client (binding [grid-row (+ grid-row idx 1)]
-                                  (p/server (Row. ctx)))))))))))))))
+                  (p/for-by (comp ::key second) [[idx ctx] (map-indexed vector value)]
+                    (p/client (binding [grid-row (+ grid-row idx 1)]
+                                (p/server (Row. ctx))))))))))))))
 
 (defn compute-offset [scroll-top row-height]
   #?(:cljs (max 0 (js/Math.ceil (/ (js/Math.floor scroll-top) row-height)))))
