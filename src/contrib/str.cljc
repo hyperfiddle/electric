@@ -49,7 +49,7 @@
 
 (defn any-matches? [coll needle]
   (let [substr (clojure.string/lower-case (str needle))]
-    (some #(when % (clojure.string/includes? (clojure.string/lower-case %) substr)) coll)))
+    (some #(when % (clojure.string/includes? (clojure.string/lower-case (str %)) substr)) coll)))
 
 (tests
   (any-matches? [1 2 nil 3] "3") := true
