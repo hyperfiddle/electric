@@ -277,6 +277,9 @@
        (when (some? ~options) (dom/props {::dom/list ~list-id}))
        (handle-validity dom/node (get hf/validation-hints [~name]))))
 
+;; Idea
+;; (p/defn ResolveSpec [s] (or (spec/resolve s) ~@(spec/resolve s)))
+
 (p/defn GrayInput [label? spec props [name {::hf/keys [read path options option-label readonly] :as arg}]]
   (let [value    (read.)
         options? (some? options)]
@@ -319,7 +322,7 @@
 
           :else
           (let [WriteToRoute (p/fn [v] (router/swap-route! assoc-in path v) nil)]
-            (case (spec/type-of spec name)
+            (case (p/server (spec/type-of spec name)) ; Always resolve specs on the server (might be defined in a .clj files)
               (::hf-type/boolean) (ui4/checkbox value WriteToRoute (gray-input-props id props list-id options name readonly))
               (::hf-type/double
                ::hf-type/float)   (ui4/double   value WriteToRoute (gray-input-props id props list-id options name readonly))
