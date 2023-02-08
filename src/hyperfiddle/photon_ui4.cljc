@@ -297,15 +297,9 @@
 
 #?(:cljs (def !scrollStateDebug (atom nil)))
 
-; in CLJ, wrong number of args (1) passed to: hyperfiddle.photon-ui4/long --- ?????
-#?(:cljs (defn -throttle [dur >in]
-           (m/ap
-             (let [x (m/?> (m/relieve {} >in))]
-               (m/amb x (do (m/? (m/sleep dur)) (m/amb)))))))
-
 #?(:cljs (defn scroll-state< [scrollable]
            (->> (scroll-state> scrollable)
-                (-throttle 16) ; RAF interval
+                (p/throttle 16) ; RAF interval
                 (m/reductions {} [0 0 0])
                 (m/relieve {})
                 (m/latest (fn [[scrollTop scrollHeight clientHeight :as s]]

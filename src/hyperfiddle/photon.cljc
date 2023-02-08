@@ -350,6 +350,11 @@ or a provided value if it completes without producing any value."
              (debounce-discreet ~delay)
              (m/relieve {}))))
 
+(cc/defn throttle [dur >in] ; in CLJ, wrong number of args (1) passed to: hyperfiddle.photon-ui4/long --- ?????
+  (m/ap
+    (let [x (m/?> (m/relieve {} >in))]
+      (m/amb x (do (m/? (m/sleep dur)) (m/amb))))))
+
 (defmacro remote [& body]
   (if (= 1 (count body))
     `(unquote-splicing ~@body)
