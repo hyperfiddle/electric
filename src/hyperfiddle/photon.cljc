@@ -1,5 +1,5 @@
 (ns hyperfiddle.photon
-  (:refer-clojure :exclude [eval def defn fn for empty? partial])
+  (:refer-clojure :exclude [eval def defn fn for empty? partial sequence])
   (:require [clojure.core :as cc]
             contrib.missionary-contrib
             [hyperfiddle.photon-impl.compiler :as c]
@@ -154,7 +154,7 @@ running on a remote host.
           (if (pred input)
             (rf result input)
             (xf result input)))))))
-  ([pred xf coll] (sequence (bypass-on pred xf) coll)))
+  ([pred xf coll] (cc/sequence (bypass-on pred xf) coll)))
 
 (cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
 
@@ -428,7 +428,14 @@ TODO: not used anymore, remove once users have migrated
     (when-not (= clock ~@clock)                             ;; when the glitch is fixed, this cannot happen
       (throw (Pending.))) value))
 
-
+(defmacro do!
+  "Like do but with causal ordering. Note this will reboot the tail flows when
+  earlier flows update — like a monadic do."
+  [form & forms]
+  (if (seq forms)
+    `(case ~form
+       (hyperfiddle.photon/do! ~@forms))
+    form))
 
 ;; WIP: user space socket reconnection
 
