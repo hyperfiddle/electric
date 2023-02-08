@@ -3,6 +3,7 @@
   #?(:cljs (:require-macros wip.gridsheet))
   #?(:clj (:import [clojure.lang ExceptionInfo]))
   (:require clojure.math
+            [contrib.assert :refer [check]]
             [contrib.data :refer [unqualify auto-props round-floor]]
             [clojure.spec.alpha :as s]
             [hyperfiddle.photon :as p]
@@ -12,18 +13,6 @@
             #?(:cljs goog.object)))
 
 (p/def Format (p/server (p/fn [m a] (pr-str (a m)))))
-
-(defmacro check
-  ([v] `(check some? ~v))
-  ([pred v]
-   `(let [pred# ~pred, v# ~v]
-      (when-not (pred# v#) (throw (ex-info (str "check failed: (" (pr-str '~pred) " " (pr-str '~v) ") for " (pr-str v#)) {})))
-      v#)))
-
-(tests
-  (check nil) :throws ExceptionInfo
-  (check odd? 2) :throws ExceptionInfo
-  (check odd? 1) := 1)
 
 (p/defn GridSheet [xs props]
   (let [props (auto-props props {::dom/class "hyperfiddle-gridsheet"})
