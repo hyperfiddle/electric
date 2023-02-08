@@ -238,9 +238,9 @@
     ... ...}})
 
 (p/defn Page [[self state [local-page x]]]
-  (dom/link (dom/props {:rel :stylesheet, :href "user/datomic-browser.css"}))
   (dom/h1 (dom/text "Datomic browser"))
-  (dom/div (dom/props {:class "user-datomic-browser"})
+  (dom/link (dom/props {:rel :stylesheet, :href "user/gridsheet-optional.css"}))
+  (dom/div (dom/props {:class "user-gridsheet-demo"})
     (dom/div (dom/text "Nav: ")
       (router/link [::summary] (dom/text "home")) (dom/text " ")
       (router/link [::db-stats] (dom/text "db-stats")) (dom/text " ")

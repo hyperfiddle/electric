@@ -41,8 +41,8 @@
 
 (p/defn DirectoryExplorer []
   (p/client
-    (dom/link (dom/props {:rel :stylesheet, :href "user/demo-explorer.css"}))
-    (dom/div (dom/props {:class "photon-demo-explorer"})
+    (dom/link (dom/props {:rel :stylesheet, :href "user/gridsheet-optional.css"}))
+    (dom/div (dom/props {:class "user-gridsheet-demo"})
       (binding [router/build-route (fn [[self state local-route] local-route']
                                      ; root local links through this entrypoint
                                      `[DirectoryExplorer ~state ~local-route'])]
