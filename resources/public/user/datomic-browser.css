@@ -1,6 +1,0 @@
-/*.user-datomic-browser > [role=grid] { height: 500px; }*/
-.user-datomic-browser > [role=grid] > [role=columnheader] {
-    text-decoration: underline; overflow-x: clip; text-overflow: ellipsis; }
-.user-datomic-browser > [role=grid] > [role=group]:nth-child(even) > div { background-color: #f2f2f2; > }
-.user-datomic-browser > [role=grid] > [role=group]:hover > div { background-color: #ddd; }
-.user-datomic-browser > [role=grid] > [role=group] > [role=gridcell] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
