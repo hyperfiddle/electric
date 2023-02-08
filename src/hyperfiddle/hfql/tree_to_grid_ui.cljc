@@ -519,11 +519,6 @@
              (p/client
                ~@body)))))))
 
-(defn throttle [dur >in]
-  (m/ap
-    (let [x (m/?> (m/relieve {} >in))]
-      (m/amb x (do (m/? (m/sleep dur)) (m/amb))))))
-
 (defn get-computed-style [node] #?(:cljs (js/getComputedStyle node)))
 
 (p/defn ComputedStyle
