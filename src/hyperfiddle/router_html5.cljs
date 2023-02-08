@@ -3,28 +3,41 @@
             [hyperfiddle.photon :as p]
             [missionary.core :as m]))
 
+(defn throttler [rate-ms]
+  (let [!nextf   (atom nil)
+        !running (atom false)]
+    (fn rec [f]
+      (if @!running
+        (reset! !nextf f)
+        (do (reset! !running true)
+            (f)
+            (.setTimeout js/window (fn [] (reset! !running false)
+                                     (when-let [nextf @!nextf]
+                                       (reset! !nextf nil)
+                                       (rec nextf)))
+              rate-ms))))))
+
+;; User agent limits HistoryAPI to 100 changes / 30s timeframe (https://bugs.webkit.org/show_bug.cgi?id=156115)
+;; Firefox and Safari log an error and ignore further HistoryAPI calls for security reasons.
+;; Chrome does the same but can also hang the tab: https://bugs.chromium.org/p/chromium/issues/detail?id=1038223
+(let [throttle (throttler 300)]          ; max 3changes/s, 90/30s
+  (defn replaceState! [path] (throttle #(.replaceState js/window.history nil "" path))))
+
 (defn pushState!    [path] (.pushState    js/window.history nil "" path))
-(defn replaceState! [path] (.replaceState js/window.history nil "" path))
 (defn back!         []     (.back         js/window.history))
 (defn forward!      []     (.forward      js/window.history))
-
-(defn notify-watches [this oldval]
-  (let [newval (deref this)]
-    (doseq [[key callback] (deref (:watches this))]
-      (callback key this oldval newval))))
 
 (def location (constantly (.-location js/window)))
 
 (defn path [] (let [loc (location)]
                 (str (.-pathname loc) (.-search loc) (.-hash loc))))
 
-(defrecord HTML5History [encode decode watches]
+(defrecord HTML5History [encode decode !state]
   IAtom
   ISwap
-  (-swap! [this f]           (let [oldval (deref this)
-                                   newval (f oldval)]
+  (-swap! [this f]           (let [[_oldval newval] (swap-vals! !state f)]
                                (replaceState! (encode newval))
-                               (notify-watches this oldval)))
+                               newval))
   (-swap! [this f arg]       (-swap! this #(f % arg)))
   (-swap! [this f arg1 arg2] (-swap! this #(f % arg1 arg2)))
   (-swap! [this f x y args]  (-swap! this #(apply f % x y args)))
@@ -34,27 +47,23 @@
 
   IWatchable
   (-add-watch [this key callback]
-    (swap! watches assoc key callback)
+    (add-watch !state key callback)
     this)
-  (-remove-watch [_ key] (swap! watches dissoc key))
-  (-notify-watches [this oldval newval] (notify-watches this oldval))
+  (-remove-watch [_ key] (remove-watch !state key))
 
   IDeref
-  (-deref [_] (decode (path)))
+  (-deref [_] @!state)
 
   router/IHistory
   (navigate! [this route]
-    (let [oldval (deref this)]
-      (pushState! (encode route))
-      (notify-watches this oldval)))
-  (back! [this]
-    (let [oldval (deref this)]
-      (back!)
-      (notify-watches this oldval)))
-  (forward! [this]
-    (let [oldval (deref this)]
-      (forward!)
-      (notify-watches this oldval)))
+    (pushState! (encode route))
+    (reset! (.-!state this) route))
+  (back! [^HTML5History this]
+    (back!)
+    (reset! (.-!state this) (decode (path))))
+  (forward! [^HTML5History this]
+    (forward!)
+    (reset! (.-!state this) (decode (path))))
   (replace-state! [this new-state]
     (reset! this new-state))
 
@@ -63,13 +72,17 @@
   ;;      HTML5History instances on the page.
   )
 
-(defn html5-history [encode decode] (->HTML5History encode decode (atom {})))
+(defn html5-history [encode decode] (->HTML5History encode decode (atom (decode (path)))))
+
+
+(defn -get-state [^HTML5History this] (.-!state this))
 
 (p/defn HTML5-History [] ; TODO make this flow a singleton (leverage m/signal in next reactor iteration)
-  (let [history (html5-history router/encode router/decode)]
+  (let [history (html5-history router/encode router/decode)
+        decode  router/decode]
     (new (m/observe (fn [!]
                       (! nil)
-                      (let [f (fn [_e] (-notify-watches history nil (deref history)))]
+                      (let [f (fn [_e] (reset! (-get-state history) (decode (path))))]
                         (.addEventListener js/window "popstate" f)
                         #(.removeEventListener js/window "popstate" f)))))
     history))
