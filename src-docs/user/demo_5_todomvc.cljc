@@ -87,8 +87,7 @@
                         nil)))
                   (dom/props {:class "edit" #_#_:autofocus true})
                   (dom/bind-value description) ; first set the initial value, then focus
-                  (when (p/Unglitch. description)
-                    ; todo remove unglitch, but it is currently needed to delay the focus until after the bind-value
+                  (case description ; HACK sequence - run focus after description is available
                     (.focus dom/node))))))
           (ui/button (p/fn [] (p/server (transact! [[:db/retractEntity id]]) nil))
             (dom/props {:class "destroy"})))))))

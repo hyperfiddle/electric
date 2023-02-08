@@ -42,7 +42,6 @@
 (p/defn Form [e]
   (let [record (d/pull hf/db label-form-spec e)]
     (p/client
-      ;(p/Unglitch. record)
       (dom/dl
 
         (dom/dt (dom/text "id"))

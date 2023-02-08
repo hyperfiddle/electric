@@ -417,10 +417,10 @@ example: (p/fuse (-> ^js e .-target .-value)) will prevent Photon from work-skip
       (hyperfiddle.photon/fn [x] (new x x))
       (hyperfiddle.photon/fn [x] (new f (hyperfiddle.photon/fn [y] (new (new x x) y)))))))
 
-(hyperfiddle.photon/defn ^:deprecated Unglitch "
+(hyperfiddle.photon/defn ^:deprecated ^:no-doc Unglitch "
 When x changes, throws Pending for the duration of a round-trip to remote peer, then returns x.
 
-TODO: fix the distribution glitch then get rid of this
+TODO: not used anymore, remove once users have migrated
 " [x]
   (let [[value clock]
         (with-cycle [[p c] [::init 0]]
