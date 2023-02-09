@@ -47,7 +47,8 @@
 
 (p/defn Secrets []
   (p/client
-    (dom/h1 "Hyperfiddle demos, unstable/wip")
-    (dom/p "These may require a Datomic connection and are unstable, wip, often broken")
+    (dom/h1 (dom/text "Wip unpublished demos (unstable/wip)")
+            (dom/comment_ "ssh" "it's a secret"))
+    (dom/p "Some require a database connection and are often broken.")
     (p/for [k secret-pages]
       (dom/div (router/link [k] (dom/text (name k)))))))

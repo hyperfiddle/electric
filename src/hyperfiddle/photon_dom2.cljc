@@ -31,9 +31,14 @@
 
 #?(:cljs (defn by-id [id] (js/document.getElementById id)))
 
-#?(:cljs (defn dom-element* [parent type]
-           (let [node (goog.dom/createElement type)]
-             (.appendChild parent node) node)))
+#?(:cljs
+   (defn new-node [parent type]
+     (let [el (case type
+                :comment (.createComment js/document "")
+                :text (goog.dom/createTextNode "")
+                (goog.dom/createElement type))]
+       (.appendChild parent el)
+       el)))
 
 (defn hide-on-unmount [node]
   (m/observe (fn [!]
@@ -41,24 +46,25 @@
                #(set! (.. node -style -display) "none"))))
 
 (defmacro element [t & body]
-  `(with (dom-element* node ~(name t))
+  `(with (new-node node ~(name t))
      (new (hide-on-unmount node))
      ~@body))
 
-#?(:cljs (defn text-node [parent]
-           (let [node (goog.dom/createTextNode "")]
-             (.appendChild parent node) node)))
-
-#?(:cljs (defn -googDomSetTextContent [node str]
+#?(:cljs (defn -googDomSetTextContentNoWarn [node str]
+           ; Photon says :infer-warning Cannot infer target type in expression, fixme
            (goog.dom/setTextContent node str)))
 
 (defmacro text [& strs]
   `(do (assert (not= (.-nodeType node) (.-TEXT_NODE node))
                "userland directed dom/text inside dom/text, which is illegal")
        ~@(map (fn [str]
-                `(with (text-node node)
-                   (-googDomSetTextContent node ~str)))
+                `(with (new-node node :text)
+                   (-googDomSetTextContentNoWarn node ~str)))
            strs)))
+
+(defmacro comment_ [& strs]
+  (->> strs (map (fn [str] `(with (new-node node :comment)
+                              (-googDomSetTextContentNoWarn node ~str))))))
 
 (defn class-str [v]
   (cond
