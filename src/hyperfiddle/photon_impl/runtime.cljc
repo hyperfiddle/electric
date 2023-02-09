@@ -1428,3 +1428,32 @@
       )))
 
 ;; Leo: write a test for the infinite loop bug https://github.com/hyperfiddle/photon/commit/2894b3e23e4406c0d9fed4944b2cb553ad28804a
+;; (p/client (let [x (p/watch !x)] (p/server x x) (reset! !x nil))) ; two xs
+(tests "infinite loop bug"
+  (let [q (queue)
+        !x (atom 1)
+        c (((eval (ir/apply (ir/literal q)
+                    (ir/pub (ir/variable (ir/literal (m/watch !x)))
+                      (ir/input [(ir/output (ir/sub 1)) (ir/output (ir/sub 1))]))))
+            (fn [x] (q x) (fn [s _] (q #(s nil)) #()))
+            (fn [!] (q !) #())
+            (fn [e] (q e)))
+           q q)]
+    (q) := (Pending.)                            ; input is initially pending
+    (q) := (assoc empty-event
+             :change {[0 0] 1, [0 1] 1})         ; this is sent for `(p/server x x)`
+    ((q))                                        ; backpressure
+    (let [! (q)]                                 ; get callback
+      (swap! !x inc)
+      ;; this caused an infinite loop before fixing the bug in algo
+      (q) := (assoc empty-event
+               :change {[0 0] 2, [0 1] 2}) ; new value for the ports, but the previous wasn't ackd yet
+      ((q))
+      (! (assoc empty-event
+           :acks 1
+           :change {[0 0] :foo}))        ; still pending, the 2s are not acked yet
+      (q) := (assoc empty-event :acks 1) ; send ack to server for the :foo
+      ((q))
+      (! (assoc empty-event :acks 1))   ; now the client
+      (q) := :foo
+      )))
