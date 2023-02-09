@@ -17,20 +17,19 @@
 
 (p/defn App []
   (p/client
-    (dom/div
-      (dom/h1 (dom/text "System Properties"))
-      (let [!search (atom ""), search (p/watch !search)]
-        (p/server
-          (let [system-props (sort-by key (system-properties search))
-                matched-count (count system-props)]
-            (p/client
-              (dom/div (dom/props {:style {:color "gray"}}) (dom/text matched-count " matches"))
-              (ui/input search (p/fn [v] (reset! !search v))
-                (dom/props {:type "search" :placeholder "java.home"}))
-              (dom/table
-                (p/server
-                  (p/for-by first [[k v] system-props]
-                    (p/client
-                      (dom/tr
-                        (dom/td (dom/text k))
-                        (dom/td (dom/props {:style {:white-space :nowrap}}) (dom/text v))))))))))))))
+    (dom/h1 (dom/text "System Properties"))
+    (let [!search (atom ""), search (p/watch !search)]
+      (p/server
+        (let [system-props (sort-by key (system-properties search))
+              matched-count (count system-props)]
+          (p/client
+            (dom/div (dom/props {:style {:color "gray"}}) (dom/text matched-count " matches"))
+            (ui/input search (p/fn [v] (reset! !search v))
+                      (dom/props {:type "search" :placeholder "java.home"}))
+            (dom/table
+              (p/server
+                (p/for-by first [[k v] system-props]
+                  (p/client
+                    (dom/tr
+                      (dom/td (dom/text k))
+                      (dom/td (dom/props {:style {:white-space :nowrap}}) (dom/text v)))))))))))))
