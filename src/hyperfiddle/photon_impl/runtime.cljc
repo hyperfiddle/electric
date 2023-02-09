@@ -1338,26 +1338,31 @@
         c (((eval (ir/apply (ir/literal q)
                     (ir/input [(ir/target [(ir/output (ir/literal 1))])
                                ir/source])))
-            (fn [x] (q x) (fn [s _] (q #(s nil)) #()))
-            (fn [!] (q !) #())
-            (fn [e] (q e)))
+            (fn write-to-network [x] (q x) (fn [s _] (q #(s nil)) #()))
+            (fn read-subject [!] (q !) #())
+            (fn error-handler [e] (q e)))
            q q)]
     (q) := (Pending.)
     (let [! (q)]
+      "client recieves event"
       (! (assoc empty-event
            :tree [{:op :create, :target [0 0], :source [0 0]}]
            :change {[0 0] pending}))
       (q) := (assoc empty-event
-               :acks 1
-               :change {[1 0] 1}
-               :freeze #{[1 0]})
-      ((q))
+               :acks 1                ; 1 means whole changeset
+               :change {[1 0] 1}      ; output of `(p/client 1)`, frame 1 slot 0
+               :freeze #{[1 0]}) ; the port won't change anymore, remote can terminate it
+      ((q))                      ; trigger backpressure
       (! (assoc empty-event
-           :acks 1
-           :change {[0 0] 1}))
+           :acks 1                      ; remote acknowledged our changeset
+           :change {[0 0] 1}))          ; port 0 of frame 0 = 1
       (q) := 1
       (q) := (assoc empty-event :acks 1)
       ((q))
+      ;; frame -1 -> negative sign means it is server's frame
+      ;; it is moving from position 0 to 0, which is interpreted as remove
+      ;; we're terminating the frame because its port is frozen
+      ;; `:op :remove` is legacy, will be removed in future
       (! (assoc empty-event :tree [{:op :rotate, :frame -1, :position 0} {:op :remove, :frame -1}]))))
 
   (let [q (queue)
@@ -1365,7 +1370,7 @@
                             (ir/pub (ir/constant (ir/input []))
                               (ir/apply (ir/literal {})
                                 (ir/sub 1)
-                                (ir/pub (ir/literal 0)
+                                (ir/pub (ir/literal 0) ; bind %arity
                                   (ir/apply (ir/literal {})
                                     (ir/sub 1)
                                     (ir/bind 0 1 (ir/variable (ir/sub 2))))))))]
@@ -1374,9 +1379,14 @@
             (fn [!] (q !) #())
             (fn [e] (q e)))
            q q)]
+    "server sends event, frame got created, output is pending"
     (q) := (assoc empty-event
-             :tree [{:op :create, :target [0 0], :source [0 0]}]
-             :change {[0 0] pending})
+             :tree [{:op :create, :target [0 0], :source [0 0]}] ; create child frame (root frame, tier 0)
+             :change {[0 0] pending})                            ; root frame input 0 = pending
+    ;; (events
+    ;;   (create-frame :target {:frame 0 :slot 0} :source {:frame 0 :slot 0})
+    ;;   (set-input :frame 0 :slot 0 :value pending))
+
     ((q))
     (let [! (q)]
       (! (assoc empty-event
