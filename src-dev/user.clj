@@ -66,8 +66,10 @@
   (install-rcf-shadow-hook)
   (@rcf-enable!))
 
-;(defn compile [] (@shadow-compile :dev))
-;(defn release [] (@shadow-release :dev {:debug true}))
+; shadow-compile vs shadow-release:
+; https://shadow-cljs.github.io/docs/UsersGuide.html#_development_mode
+(defn release "closure optimized target"
+  [& {:as kwargs}] (@shadow-release :dev (merge {:debug false} kwargs)))
 
 ;(when (get (System/getenv) "REPLIT_ENVIRONMENT")
 ;  (compile) (@start-electric-server! electric-server-config))

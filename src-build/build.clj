@@ -8,9 +8,7 @@
             :basis (b/create-basis {:project "deps.edn"})
             :javac-opts ["-source" "8" "-target" "8"]}))
 
-(def defaults
-  {:src-pom "pom.xml"
-   :lib     'com.hyperfiddle/photon})   ; maven group-id and library name
+(def defaults {:src-pom "pom.xml" :lib 'com.hyperfiddle/electric})
 
 (defn clean [opts]
   (bb/clean opts))
