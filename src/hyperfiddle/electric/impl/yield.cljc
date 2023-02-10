@@ -1,4 +1,7 @@
 (ns hyperfiddle.electric.impl.yield
+  (:require
+   [missionary.core :as m]
+   [hyperfiddle.rcf :as rcf :refer [tests with tap %]])
   #?(:clj (:import (clojure.lang IFn IDeref))))
 
 (declare cancel sample)
@@ -77,7 +80,6 @@ until the input flow becomes ready again, at which point the recovery flow is ca
       (doto r (transfer s)))))
 
 (comment
-  (require '[missionary.core :as m])
   (def !e (atom "odd"))
   (def !x (atom 0))
   (def it
@@ -94,4 +96,37 @@ until the input flow becomes ready again, at which point the recovery flow is ca
   (swap! !x inc)
   @it := 2
 
+  )
+
+(tests "work skipping"
+  (def !e (atom "odd"))
+  (def !x (atom 0))
+  (def it
+    ((yield
+       ;; TODO test m/watch is not cancelled
+       (fn [x] (tap x) (when (odd? x) (m/watch !e)))
+       (m/watch !x))
+     #(do) #(do)))
+  @it := 0, % := 0
+  (swap! !x inc)
+  @it := "odd", % := 1
+  (swap! !x identity)
+  @it := "odd", % := 1                  ; this 1 shouldn't happen, work skipping
+  (it)
+  )
+
+(tests "child not cancelled on duplicate"
+  (def !x (atom 0))
+  (def it
+    ((yield
+       (fn [x] (tap x) (when (odd? x) (m/observe (fn [!] (! :init) #(tap :cancelled)))))
+       (m/watch !x))
+     #(do) #(do)))
+  @it := 0, % := 0
+  (swap! !x inc)
+  @it := :init, % := 1
+  (swap! !x identity)
+  % := :cancelled                       ; wrong
+  @it := :init, % := 1
+  (it)
   )
