@@ -2,13 +2,13 @@
   (:refer-clojure :exclude [eval def defn fn for empty? partial])
   (:require [clojure.core :as cc]
             contrib.missionary-contrib
-            [hyperfiddle.photon-impl.compiler :as c]
-            [hyperfiddle.photon-impl.runtime :as r]
-            [hyperfiddle.photon-impl.for :refer [map-by]]
+            [hyperfiddle.photon.impl.compiler :as c]
+            [hyperfiddle.photon.impl.runtime :as r]
+            [hyperfiddle.photon.impl.for :refer [map-by]]
             #?(:clj [hyperfiddle.rcf.analyzer :as ana])     ; todo remove
             [missionary.core :as m]
             #?(:cljs [hyperfiddle.photon-client])
-            [hyperfiddle.photon-impl.io :as io]
+            [hyperfiddle.photon.impl.io :as io]
             [hyperfiddle.photon.debug :as dbg])
   #?(:cljs (:require-macros [hyperfiddle.photon :refer [def defn fn vars boot for for-by local local-with run run-with debounce wrap]]))
   (:import #?(:clj (clojure.lang IDeref))

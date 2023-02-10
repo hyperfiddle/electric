@@ -5,7 +5,7 @@
 ;; * Control frames are vectors of signed integers. Serialization is the concatenation of the binary representation of
 ;; these numbers as fixed-length 32-bit, big endian.
 
-(ns ^:no-doc hyperfiddle.photon-impl.io
+(ns ^:no-doc hyperfiddle.photon.impl.io
   (:require [missionary.core :as m]
             [cognitect.transit :as t]
             [hyperfiddle.logger :as log]

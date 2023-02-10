@@ -2,7 +2,7 @@
   "Photon language unit tests"
   (:require [contrib.cljs-target :refer [do-browser]]
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-impl.io :as photon-io]
+            [hyperfiddle.photon.impl.io :as photon-io]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]
             [clojure.test :as t]
@@ -819,7 +819,7 @@
 
 (tests
   "reactive pending states"
-  ;~(m/reductions {} hyperfiddle.photon-impl.runtime/pending m/none)
+  ;~(m/reductions {} hyperfiddle.photon.impl.runtime/pending m/none)
   (with (p/run (tap (try true (catch Pending _ ::pending))))
     % := true))
 
@@ -1118,7 +1118,7 @@
 
 ;; (tests
 ;;   (let [!xs     (atom [])
-;;         failure (hyperfiddle.photon-impl.runtime/->Failure ":trollface:")
+;;         failure (hyperfiddle.photon.impl.runtime/->Failure ":trollface:")
 ;;         dispose (p/run (! (r/for [x ~(m/watch !xs)] x)))]
 
 ;;     % := []

@@ -1,8 +1,8 @@
 (ns hyperfiddle.photon-client
   (:require [contrib.cljs-target :refer [do-browser]]
             [missionary.core :as m]
-            [hyperfiddle.photon-impl.runtime :as r]
-            [hyperfiddle.photon-impl.io :as io])
+            [hyperfiddle.photon.impl.runtime :as r]
+            [hyperfiddle.photon.impl.io :as io])
   (:import missionary.Cancelled))
 
 (do-browser

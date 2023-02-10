@@ -1,5 +1,5 @@
-(ns hyperfiddle.photon-impl.local
-  #?(:cljs (:require-macros [hyperfiddle.photon-impl.local :refer [local get-local set-local with-local]])))
+(ns hyperfiddle.photon.impl.local
+  #?(:cljs (:require-macros [hyperfiddle.photon.impl.local :refer [local get-local set-local with-local]])))
 
 (defmacro local []
   (if (:js-globals &env) `(volatile! nil) `(ThreadLocal.)))
