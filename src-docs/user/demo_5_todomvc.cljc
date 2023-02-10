@@ -86,8 +86,8 @@
                         "Escape" (swap! !state assoc ::editing nil)
                         nil)))
                   (dom/props {:class "edit" #_#_:autofocus true})
-                  (p/do! ; first set the initial value, then focus
-                    (dom/bind-value description)
+                  (dom/bind-value description) ; first set the initial value, then focus
+                  (case description ; HACK sequence - run focus after description is available
                     (.focus dom/node))))))
           (ui/button (p/fn [] (p/server (transact! [[:db/retractEntity id]]) nil))
             (dom/props {:class "destroy"})))))))
