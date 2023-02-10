@@ -1,6 +1,6 @@
 (ns user.demo-6-two-clocks
   "network stress test"
-  (:require [hyperfiddle.electric :as p]
+  (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m])
   #?(:cljs (:require-macros user.demo-6-two-clocks)))
@@ -12,15 +12,15 @@
              (do (m/? (m/sleep 10))
                  (recur)))))
     (m/sample (fn [_]
-                   #?(:clj  (System/currentTimeMillis)
-                      :cljs (js/Date.now))))))
+                #?(:clj (System/currentTimeMillis)
+                   :cljs (js/Date.now))))))
 
-(p/defn App []
-  (p/client
+(e/defn App []
+  (e/client
     (dom/h1 (dom/text "Two Clocks"))
 
-    (let [c (p/client (new (clock)))
-          s (p/server (new (clock)))]
+    (let [c (e/client (new (clock)))
+          s (e/server (new (clock)))]
 
       (dom/div (dom/text "client time: " c))
       (dom/div (dom/text "server time: " s))

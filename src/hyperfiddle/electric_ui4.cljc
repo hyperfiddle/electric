@@ -3,12 +3,12 @@
   (:refer-clojure :exclude [long double keyword symbol uuid range])
   (:require
     [contrib.str]
-    [hyperfiddle.electric :as p]
+    [hyperfiddle.electric :as e]
     [hyperfiddle.electric-dom2 :as dom]
     [missionary.core :as m]))
 
 (defmacro handle [getter V!]
-  `(p/fn [e#]
+  `(e/fn [e#]
      (dom/props {:style {:background-color "yellow"}})
      (when-some [v# (~getter e#)] (new ~V! v#))))
 
@@ -93,7 +93,7 @@
 
 (defmacro button [V! & body]
   `(dom/button
-     (do1 (dom/on "click" (p/fn [e#]
+     (do1 (dom/on "click" (e/fn [e#]
                             (dom/props {:disabled true, :aria-busy true})
                             (new ~V!))) ; do we need to pass the event?
           ~@body)))
@@ -102,7 +102,7 @@
 ;;; TYPEAHEAD
 
 ;; TODO nil
-(p/defn Latch [impulse init] (p/with-cycle [v init] (if (some? impulse) impulse v)))
+(e/defn Latch [impulse init] (e/with-cycle [v init] (if (some? impulse) impulse v)))
 
 #?(:cljs (defn first-option [elem] (-> elem .-parentElement .-firstElementChild)))
 #?(:cljs (defn last-option  [elem] (-> elem .-parentElement .-lastElementChild)))
@@ -114,9 +114,9 @@
 (defmacro ?mark-selected [selected] `(when (= dom/node ~selected) (dom/props {:class ["hyperfiddle-selected"]})))
 
 (defmacro return-on-click [return V! id]
-  `(dom/on "click" (p/fn [e#] (own e#)
+  `(dom/on "click" (e/fn [e#] (own e#)
                      (dom/props {:style {:background-color "yellow"}})
-                     (~return (p/server (new ~V! ~id))))))
+                     (~return (e/server (new ~V! ~id))))))
 
 (defmacro on-mount [& body] `(new (m/observe #(do (% nil) ~@body (fn [])))))
 (defmacro on-unmount [& body] `(new (m/observe #(do (% nil) (fn [] ~@body)))))
@@ -142,17 +142,17 @@
      "Enter"     (do (own ~e) (when-some [elem# @~!selected]
                                 (let [id# (get-id elem#)]
                                   (.blur ~input-node)
-                                  (~return (p/server (new ~V! id#))))))
+                                  (~return (e/server (new ~V! id#))))))
      "Tab"       (if-some [elem# @~!selected]
-                   (let [id# (get-id elem#)] (~return (p/server (new ~V! id#))))
+                   (let [id# (get-id elem#)] (~return (e/server (new ~V! id#))))
                    (~return nil))
      #_else      ::unhandled))
 
 (defmacro for-truncated [[sym opts] limit & body]
   `(let [limit# ~limit, opts# ~opts, truncated# (take limit# opts#), more?# (seq (drop limit# opts#))]
-     (p/for [~sym truncated#] ~@body)
+     (e/for [~sym truncated#] ~@body)
      (when more?#
-       (p/client
+       (e/client
          (dom/div (dom/text "refine your query…")
            (dom/props {:disabled true, :style {:background-color "whitesmoke" :font-size "0.8rem" :font-style "italic"}}))))))
 
@@ -160,43 +160,43 @@
 ;; - what if the change callback throws
 (defmacro typeahead [v V! Options OptionLabel & body] ; server biased
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
-     (p/client
+     (e/client
        (dom/div (dom/props {:class "hyperfiddle-typeahead"})
          (let [container-node# dom/node]
            (do1
              (dom/input
                (let [input-node# dom/node
                      return# (dom/on "focus"
-                               (p/fn [_#] ; FIXME Exceptions seems to be swallowed here
+                               (e/fn [_#] ; FIXME Exceptions seems to be swallowed here
                                  (set! (.-value dom/node) "")
                                  (let [return# (missionary.core/dfv)
-                                       search# (new Latch (dom/on "input" (p/fn [e#] (value e#))) "")]
+                                       search# (new Latch (dom/on "input" (e/fn [e#] (value e#))) "")]
                                    (binding [dom/node container-node#]
-                                     (let [!selected# (atom nil), selected# (p/watch !selected#)]
+                                     (let [!selected# (atom nil), selected# (e/watch !selected#)]
                                        (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
-                                         (dom/on "click" (p/fn [e#] (return# nil))))
-                                       (dom/on "keydown" (p/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
+                                         (dom/on "click" (e/fn [e#] (return# nil))))
+                                       (dom/on "keydown" (e/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
                                        (dom/ul
-                                         (p/server
+                                         (e/server
                                            (for-truncated [id# (new Options# search#)] 20
-                                             (p/client
-                                               (dom/li (dom/text (p/server (new OptionLabel# id#)))
+                                             (e/client
+                                               (dom/li (dom/text (e/server (new OptionLabel# id#)))
                                                  (on-mount (swap! !selected# select-if-first dom/node))
                                                  (on-unmount (swap! !selected# ?pass-on-to-first dom/node))
                                                  (track-id dom/node id#)
                                                  (?mark-selected selected#)
-                                                 (dom/on "mouseover" (p/fn [e#] (reset! !selected# dom/node)))
+                                                 (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
                                                  (return-on-click return# V!# id#))))))))
-                                   (new (p/task->cp return#)))))]
+                                   (new (e/task->cp return#)))))]
                  (case return#
-                   (let [txt# (p/server (new OptionLabel# v#))]
+                   (let [txt# (e/server (new OptionLabel# v#))]
                      (case return# (set! (.-value input-node#) txt#))))
                  return#))
              ~@body))))))
 
 (defmacro select [v V! Options OptionLabel & body] ; server biased!
   `(let [v# ~v, V!# ~V!, Options# ~Options, OptionLabel# ~OptionLabel]
-     (p/client
+     (e/client
        (dom/div (dom/props {:class "hyperfiddle-select"})
          (let [container-node# dom/node]
            (do1
@@ -204,29 +204,29 @@
                (let [input-node# dom/node
                      return#
                      (dom/on "focus"
-                       (p/fn [_#]
+                       (e/fn [_#]
                          (let [return#    (missionary.core/dfv)
-                               !selected# (atom nil), selected# (p/watch !selected#)]
+                               !selected# (atom nil), selected# (e/watch !selected#)]
                            (binding [dom/node container-node#]
                              (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
-                               (dom/on "click" (p/fn [e#] (return# nil))))
-                             (dom/on "keydown" (p/fn [e#] (case (handle-meta-keys e# input-node# return# !selected# V!#)
+                               (dom/on "click" (e/fn [e#] (return# nil))))
+                             (dom/on "keydown" (e/fn [e#] (case (handle-meta-keys e# input-node# return# !selected# V!#)
                                                             ::unhandled (own e#)
                                                             #_else      nil)))
                              (dom/ul
-                               (p/server
-                                 (p/for [id# (new Options#)]
-                                   (p/client
-                                     (let [txt# (p/server (new OptionLabel# id#))]
+                               (e/server
+                                 (e/for [id# (new Options#)]
+                                   (e/client
+                                     (let [txt# (e/server (new OptionLabel# id#))]
                                        (dom/li (dom/text txt#)
                                          (when (= txt# (.-value input-node#)) (reset! !selected# dom/node))
                                          (track-id dom/node id#)
                                          (?mark-selected selected#)
-                                         (dom/on "mouseover" (p/fn [e#] (reset! !selected# dom/node)))
+                                         (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
                                          (return-on-click return# V!# id#))))))))
-                           (new (p/task->cp return#)))))]
+                           (new (e/task->cp return#)))))]
                  (case return#
-                   (let [txt# (p/server (new OptionLabel# v#))]
+                   (let [txt# (e/server (new OptionLabel# v#))]
                      (case return# (set! (.-value input-node#) txt#))))
                  return#))
              ~@body))))))
@@ -240,45 +240,45 @@
 
 (defmacro tag-picker [v V! unV! Options OptionLabel & body]
   `(let [v# ~v, V!# ~V!, unV!# ~unV!, Options# ~Options, OptionLabel# ~OptionLabel]
-     (p/client
+     (e/client
        (dom/div (dom/props {:class "hyperfiddle-tag-picker"})
          (let [container-node# dom/node]
            (do1
              (dom/ul (dom/props {:class "hyperfiddle-tag-picker-items"})
-               (p/server
-                 (p/for [id# v#]
+               (e/server
+                 (e/for [id# v#]
                    (let [txt# (new OptionLabel# id#)]
-                     (p/client (dom/li (dom/text txt#)
+                     (e/client (dom/li (dom/text txt#)
                                  (dom/span (dom/text "×")
-                                   (dom/on "click" (p/fn [e#] (own e#) (p/server (new unV!# id#)))))))))))
+                                   (dom/on "click" (e/fn [e#] (own e#) (e/server (new unV!# id#)))))))))))
              (dom/div (dom/props {:class "hyperfiddle-tag-picker-input-container"})
                (let [input-container-node# dom/node]
                  (dom/input
                    (let [input-node# dom/node]
-                     (binding [dom/node container-node#] (dom/on "click" (p/fn [e#] (own e#) (focus input-node#))))
-                     (if (p/server (nil? V!#))
+                     (binding [dom/node container-node#] (dom/on "click" (e/fn [e#] (own e#) (focus input-node#))))
+                     (if (e/server (nil? V!#))
                        (dom/props {:disabled true})
                        (dom/on "focus"
-                         (p/fn [_#]
+                         (e/fn [_#]
                            (let [return# (missionary.core/dfv)
-                                 search# (new Latch (dom/on "input" (p/fn [e#] (value e#))) "")]
+                                 search# (new Latch (dom/on "input" (e/fn [e#] (value e#))) "")]
                              (binding [dom/node input-container-node#]
-                               (let [!selected# (atom nil), selected# (p/watch !selected#)]
+                               (let [!selected# (atom nil), selected# (e/watch !selected#)]
                                  (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
-                                   (dom/on "click" (p/fn [e#] (own e#) (return# nil))))
-                                 (dom/on "keydown" (p/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
+                                   (dom/on "click" (e/fn [e#] (own e#) (return# nil))))
+                                 (dom/on "keydown" (e/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
                                  (dom/ul
-                                   (p/server
+                                   (e/server
                                      (for-truncated [id# (new Options# search#)] 20
-                                       (p/client
-                                         (dom/li (dom/text (p/server (new OptionLabel# id#)))
+                                       (e/client
+                                         (dom/li (dom/text (e/server (new OptionLabel# id#)))
                                            (on-mount (swap! !selected# select-if-first dom/node))
                                            (on-unmount (swap! !selected# ?pass-on-to-first dom/node))
                                            (track-id dom/node id#)
                                            (?mark-selected selected#)
-                                           (dom/on "mouseover" (p/fn [e#] (reset! !selected# dom/node)))
+                                           (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
                                            (return-on-click return# V!# id#))))))))
-                             (let [ret# (new (p/task->cp return#))]
+                             (let [ret# (new (e/task->cp return#))]
                                (case ret# (set! (.-value input-node#) ""))
                                ret#)))))))))
              ~@body))))))
@@ -299,7 +299,7 @@
 
 #?(:cljs (defn scroll-state< [scrollable]
            (->> (scroll-state> scrollable)
-                (p/throttle 16) ; RAF interval
+                (e/throttle 16) ; RAF interval
                 (m/reductions {} [0 0 0])
                 (m/relieve {})
                 (m/latest (fn [[scrollTop scrollHeight clientHeight :as s]]

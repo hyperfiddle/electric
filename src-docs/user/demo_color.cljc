@@ -1,7 +1,7 @@
 (ns user.demo-color
   #?(:cljs (:require-macros user.demo-color))
   (:require [contrib.data :refer [assoc-vec]]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router]
             [contrib.color :as c]))
@@ -34,7 +34,7 @@
 
 (defn saturation->chroma [saturation] (* 0.158 (/ saturation 100)))
 
-(p/defn Tile [color]
+(e/defn Tile [color]
   (dom/div (dom/props {:style {:display          :flex
                                :align-items      :center
                                :justify-content  :center
@@ -45,8 +45,8 @@
                                }})
     (dom/text "Contrast")))
 
-(p/defn App []
-  (p/client
+(e/defn App []
+  (e/client
     (let [[self h s l] router/route
           h (or h 180)
           s (or s 80)

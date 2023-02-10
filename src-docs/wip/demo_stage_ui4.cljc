@@ -6,7 +6,7 @@
             #?(:clj [contrib.datomic-contrib :as dx])
             #?(:clj [datomic.client.api :as d])
             [hyperfiddle.api :as hf]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
             [hyperfiddle.popover :refer [Popover]]))
@@ -39,9 +39,9 @@
   (type-options test/datomic-db nil))
 
 
-(p/defn Form [e]
+(e/defn Form [e]
   (let [record (d/pull hf/db label-form-spec e)]
-    (p/client
+    (e/client
       (dom/dl
 
         (dom/dt (dom/text "id"))
@@ -52,41 +52,41 @@
 
         (dom/dt (dom/text "name"))
         (dom/dd (ui/input (:label/name record)
-                          (p/fn [v]
+                          (e/fn [v]
                               (println 'input! v)
-                              (p/server #_(when true) (hf/Transact!. [[:db/add e :label/name v]])))))
+                              (e/server #_(when true) (hf/Transact!. [[:db/add e :label/name v]])))))
 
         (dom/dt (dom/text "sortName"))
         (dom/dd (ui/input (:label/sortName record)
-                          (p/fn [v] (p/server (hf/Transact!. [[:db/add e :label/sortName v]])))))
+                          (e/fn [v] (e/server (hf/Transact!. [[:db/add e :label/sortName v]])))))
 
 
         (dom/dt (dom/text "type"))
-        (dom/dd (p/server
+        (dom/dd (e/server
                   (ui/typeahead
                     (:label/type record)
-                    (p/fn V! [option] (hf/Transact!. [[:db/add e :label/type (:db/ident option)]]))
-                    (p/fn Options [search] (type-options hf/db search))
-                    (p/fn OptionLabel [option] (-> option :db/ident name)))))
+                    (e/fn V! [option] (hf/Transact!. [[:db/add e :label/type (:db/ident option)]]))
+                    (e/fn Options [search] (type-options hf/db search))
+                    (e/fn OptionLabel [option] (-> option :db/ident name)))))
 
         ; country
 
         (dom/dt (dom/text "startYear"))
         (dom/dd (ui/long (:label/startYear record)
-                         (p/fn [v] (p/server (hf/Transact!. [[:db/add e :label/startYear v]])))))
+                         (e/fn [v] (e/server (hf/Transact!. [[:db/add e :label/startYear v]])))))
         )
 
       (dom/pre (dom/text (pprint-str record))))))
 
-(p/defn Page []
-  #_(p/client (dom/div (if hf/loading "loading" "idle") " " (str (hf/Load-timer.)) "ms"))
+(e/defn Page []
+  #_(e/client (dom/div (if hf/loading "loading" "idle") " " (str (hf/Load-timer.)) "ms"))
   (Form. cobblestone)
   #_(Form. cobblestone)
-  (p/client (Popover. "open" (p/fn [] (p/server (Form. cobblestone))))))
+  (e/client (Popover. "open" (e/fn [] (e/server (Form. cobblestone))))))
 
-(p/defn Demo []
-  (p/client (dom/h1 (dom/text (str `Demo))))
-  (p/server
+(e/defn Demo []
+  (e/client (dom/h1 (dom/text (str `Demo))))
+  (e/server
     (let [conn @(requiring-resolve 'test/datomic-conn)
           secure-db (d/with-db conn)] ; todo datomic-tx-listener
       (binding [hf/schema (new (dx/schema> secure-db))
@@ -99,7 +99,7 @@
                 hf/db secure-db]
         (hf/branch
           (Page.)
-          (p/client
+          (e/client
             (dom/hr)
             (dom/element "style" (str "." (css-slugify `staged) " { display: block; width: 100%; height: 10em; }"))
-            (ui/edn (p/server hf/stage) nil (dom/props {::dom/disabled true ::dom/class (css-slugify `staged)}))))))))
+            (ui/edn (e/server hf/stage) nil (dom/props {::dom/disabled true ::dom/class (css-slugify `staged)}))))))))

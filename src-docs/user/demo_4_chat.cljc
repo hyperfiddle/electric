@@ -3,28 +3,28 @@
   (:import [hyperfiddle.electric Pending])
   (:require [contrib.data :refer [pad]]
             [contrib.str :refer [empty->nil]]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]))
 
 (defonce !state #?(:clj (atom (list)) :cljs nil))
 
-(p/defn App []
-  (p/client
+(e/defn App []
+  (e/client
     (dom/h1 (dom/text "Multiplayer chat app in 30 LOC"))
     (dom/ul (dom/style {:padding-left "1.5em"})
-      (p/server
-        (p/for-by identity [msg (reverse (pad 10 nil (p/watch !state)))]
-          (p/client
+      (e/server
+        (e/for-by identity [msg (reverse (pad 10 nil (e/watch !state)))]
+          (e/client
             (dom/li (dom/style {:visibility (if (nil? msg) "hidden" "visible")})
-              (dom/text msg))))))
+                    (dom/text msg))))))
 
     (dom/input
       (dom/props {:placeholder "Type a message"})
-      (dom/on "keydown" (p/fn [e]
+      (dom/on "keydown" (e/fn [e]
                           (when (= "Enter" (.-key e))
                             (when-some [v (empty->nil (-> e .-target .-value))]
                               (dom/style {:background-color "yellow"})
-                              (p/server (swap! !state #(cons v (take 9 %))))
+                              (e/server (swap! !state #(cons v (take 9 %))))
                               (set! (.-value dom/node) ""))))))))
 
 ; A chat app. Open it in two tabs. When you type a message, both tabs update.

@@ -1,7 +1,7 @@
 (ns user.demo-2-toggle
   #?(:cljs (:require-macros user.demo-2-toggle))
   (:require
-   [hyperfiddle.electric :as p]
+   [hyperfiddle.electric :as e]
    [hyperfiddle.electric-dom2 :as dom]
    [hyperfiddle.electric-ui4 :as ui]))
 
@@ -11,15 +11,15 @@
 ; the functions will recompute and you'll get a small adjustment to the DOM
 
 (defonce !x #?(:clj (atom true) :cljs nil)) ; server state
-(p/def x (p/server (p/watch !x))) ; reactive signal derived from reference
+(e/def x (e/server (e/watch !x))) ; reactive signal derived from reference
 
-(p/defn App []
-  (p/client
+(e/defn App []
+  (e/client
     (dom/h1 (dom/text "Toggle"))
-    (ui/button (p/fn [] (p/server (swap! !x not)))
+    (ui/button (e/fn [] (e/server (swap! !x not)))
       (dom/text "toggle client/server"))
     (dom/p
       (dom/text "Number type is: "
-        (if (p/server x)
-          (p/client (pr-str (type 1)))            ; javascript number type
-          (p/server (pr-str (type 1))))))))       ; java number type
+        (if (e/server x)
+          (e/client (pr-str (type 1))) ; javascript number type
+          (e/server (pr-str (type 1)))))))) ; java number type

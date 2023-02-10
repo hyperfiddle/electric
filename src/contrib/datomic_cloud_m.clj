@@ -5,7 +5,7 @@
             [clojure.datafy :refer [datafy]]
             [datomic.client.api.async :as d]
             [missionary.core :as m]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.rcf :refer [tests tap %]])
   (:import (datomic.core.db Datum)))
 
@@ -84,7 +84,7 @@
   todo)
 
 (defn datoms> [db arg-map]
-  (m/ap (m/?> (m/eduction cat (p/chan->ap (d/datoms db arg-map))))))
+  (m/ap (m/?> (m/eduction cat (e/chan->ap (d/datoms db arg-map))))))
 
 (comment
   (time (take 3 (m/? (m/reduce conj [] (datoms> test/datomic-db {:index :aevt, :components [:db/ident]})))))
@@ -99,7 +99,7 @@
   := [[?tx 50 _ ?tx true]])
 
 (defn tx-range> [conn arg-map] ; has pagination
-  (m/ap (m/?> (p/chan->ap (d/tx-range conn arg-map)))))
+  (m/ap (m/?> (e/chan->ap (d/tx-range conn arg-map)))))
 
 (tests
   "first datom"
@@ -108,7 +108,7 @@
        (m/reduce conj ()) m/? (take 1))
   := [[0 10 :db.part/db 13194139533312 true]])
 
-(defn q [arg-map] (->> (p/chan->ap (d/q arg-map))
+(defn q [arg-map] (->> (e/chan->ap (d/q arg-map))
                        (m/eduction cat)
                        (m/reduce conj [])))
 
@@ -119,7 +119,7 @@
   (m/? (q {:query query-attrs :args [test/datomic-db]}))
   := _)
 
-(defn qseq [arg-map] (->> (p/chan->ap (d/qseq arg-map))
+(defn qseq [arg-map] (->> (e/chan->ap (d/qseq arg-map))
                           (m/eduction cat))) ; qseq returns chunks, smooth them out
 
 (tests

@@ -3,14 +3,14 @@
   (:require #?(:cljs goog.dom)
             #?(:cljs goog.object)
             #?(:cljs goog.style)
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [missionary.core :as m])
   (:import [hyperfiddle.electric Pending])
   #?(:cljs (:require-macros [hyperfiddle.electric-dom2 :refer [with]])))
 
-(p/def node)
+(e/def node)
 (def nil-subject (fn [!] (! nil) #()))
-(p/def keepalive (new (m/observe nil-subject)))
+(e/def keepalive (new (m/observe nil-subject)))
 
 (defn unsupported [& _]
   (throw (ex-info (str "Not available on this peer.") {})))
@@ -27,7 +27,7 @@
   [dom-node & body]
   `(binding [node ~dom-node]
      ; wrap body in a constant frame, so it can be moved as a block
-     (new (p/hook hook node (p/fn [] keepalive ~@body)))))
+     (new (e/hook hook node (e/fn [] keepalive ~@body)))))
 
 #?(:cljs (defn by-id [id] (js/document.getElementById id)))
 
@@ -97,7 +97,7 @@
     `(do ~@(mapcat (fn [[k v]] [`(set-property! node "style" {~k ~v})
                                 `(new (unmount-prop node "style" {~k nil}))]) m)
          nil) ; static keyset
-    `(p/for-by first [sty# (vec ~m)]
+    `(e/for-by first [sty# (vec ~m)]
        (set-property! node "style" {(key sty#) (val sty#)})
        (new (unmount-prop node {(key sty#) nil}))
        nil)))
@@ -113,7 +113,7 @@
                                     `(new (unmount-prop node ~k nil))]))
                      m)
            nil)
-      `(p/for-by key [prop# (vec ~m)]
+      `(e/for-by key [prop# (vec ~m)]
          (if (~style? (key prop#))
            (style (val prop#))
            (do (set-property! node (key prop#) (val prop#))
@@ -140,10 +140,10 @@
     :impulse (assert false "two events in the same frame? that's weird and wrong")))
 
 ; data EventState = Idle | Impulse event | Pending event
-(p/defn Event [type busy]
+(e/defn Event [type busy]
   (:event
     (let [!state (atom {:status :idle})
-          state (p/watch !state)]
+          state (e/watch !state)]
 
       ; rising edge happens once, even if busy state (prevent infinite loop) -- [DJG] I don't understand
       (event type (partial swap! !state happen)) ; discrete rising edge
@@ -180,25 +180,25 @@
                (n) cancel))))
 
 (defn -get-system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
-(p/def system-time-ms "ms since 1970 Jan 1" (new (m/sample -get-system-time-ms <clock)))
-(p/def system-time-secs "seconds since 1970 Jan 1" (/ system-time-ms 1000.0))
+(e/def system-time-ms "ms since 1970 Jan 1" (new (m/sample -get-system-time-ms <clock)))
+(e/def system-time-secs "seconds since 1970 Jan 1" (/ system-time-ms 1000.0))
 
 (defmacro on
   ([typ]   `(new Event ~typ false))
-  ([typ F] `(let [x# (p/with-cycle [?v# nil]
-                       (let [busy# (= ?v# ::p/pending)]
+  ([typ F] `(let [x# (e/with-cycle [?v# nil]
+                       (let [busy# (= ?v# ::e/pending)]
                          (when-some [evt# (new Event ~typ busy#)]
                            (try (new ~F evt#)
-                                (catch Pending e# ::p/pending)
+                                (catch Pending e# ::e/pending)
                                 (catch :default e# [::err e#])))))]
-              (cond (= ::p/pending x#)                      (throw (Pending.))
+              (cond (= ::e/pending x#) (throw (Pending.))
                     (and (vector? x#) (= ::err (first x#))) (throw (second x#))
-                    :else                                   x#))))
+                    :else x#))))
 
 (defmacro on-pending [pending-body & body] `(try (do ~@body) (catch Pending e# ~pending-body (throw e#))))
 
-(p/defn Focused? []
-  (p/with-cycle [focused false]
+(e/defn Focused? []
+  (e/with-cycle [focused false]
     (if focused (nil? (on "blur")) (some? (on "focus")))))
 
 #?(:cljs (defn set-val [node v] (set! (.-value node) (str v))))
