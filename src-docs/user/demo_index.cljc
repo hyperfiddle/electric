@@ -1,7 +1,7 @@
 (ns ;^:dev/always ; force rebuild here? We don't understand why
   user.demo-index
   #?(:cljs (:require-macros user.demo-index))
-  (:require [hyperfiddle.electric :as p]
+  (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router])) ; for link only
 
@@ -36,19 +36,19 @@
    ::demo-stage-ui4
    #_`wip.datomic-browser/DatomicBrowser])
 
-(p/defn Demos []
-  (p/client
+(e/defn Demos []
+  (e/client
     (dom/h1 (dom/text "Demos — Electric Clojure/Script"))
     (dom/p (dom/text "See source code in src-docs."))
-    (p/for [k pages]
+    (e/for [k pages]
       (dom/div (router/link [k] (dom/text (name k)))))
     (dom/div (dom/style {:opacity 0})
       (router/link [`Secrets] (dom/text "secret-hyperfiddle-demos")))))
 
-(p/defn Secrets []
-  (p/client
+(e/defn Secrets []
+  (e/client
     (dom/h1 (dom/text "Wip unpublished demos (unstable/wip)")
-            (dom/comment_ "ssh" "it's a secret"))
+      (dom/comment_ "ssh" "it's a secret"))
     (dom/p "Some require a database connection and are often broken.")
-    (p/for [k secret-pages]
+    (e/for [k secret-pages]
       (dom/div (router/link [k] (dom/text (name k)))))))

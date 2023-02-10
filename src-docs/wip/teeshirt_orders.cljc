@@ -5,7 +5,7 @@
             dev
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
             [hyperfiddle.router :as router]
@@ -16,21 +16,21 @@
 (s/fdef names :args (s/cat :needle string?) :ret (s/coll-of names))
 
 ;; TODO option-label shouldn't get nil as value
-(p/defn IdentName [v] (some-> (:db/ident v) name))
-(p/defn Tx [ctx v] (hf/Transact!. [[:db/add (hf/entity ctx) (hf/attribute ctx) v]]))
+(e/defn IdentName [v] (some-> (:db/ident v) name))
+(e/defn Tx [ctx v] (hf/Transact!. [[:db/add (hf/entity ctx) (hf/attribute ctx) v]]))
 
-(p/defn OneOrderPage [order]
+(e/defn OneOrderPage [order]
   (ttgui/with-gridsheet-renderer
     (dom/style {:grid-template-columns "1fr 1fr"})
     (binding [ttgui/grid-width 2] ; TODO auto compute grid width from HFQL expression
-      (p/server
+      (e/server
         (hf/hfql
           [hf/*$*      hf/db
            hf/*schema* hf/*schema*
            hf/*nav!*   hf/*nav!*]
           {order
            [(props :db/id {#_#_::hf/link ['wip.orders-datascript/one-order %]})
-            (props :order/email {::hf/tx (p/fn [ctx v] [[:db/add (hf/entity ctx) (hf/attribute ctx) v]])})
+            (props :order/email {::hf/tx (e/fn [ctx v] [[:db/add (hf/entity ctx) (hf/attribute ctx) v]])})
             {(props :order/gender {::hf/options      (wip.orders-datascript/genders)
                                    ::hf/option-label IdentName
                                    ::hf/tx Tx})
@@ -44,11 +44,11 @@
             ]})
         nil ))))
 
-(p/defn OrdersPage []
+(e/defn OrdersPage []
   (ttgui/with-gridsheet-renderer
     (dom/style {:grid-template-columns "repeat(6, 1fr)"})
     (binding [ttgui/grid-width 6] ; TODO auto compute grid width from HFQL expression
-      (p/server
+      (e/server
         (hf/hfql
           {(props (wip.orders-datascript/orders (props . {::hf/options (names .)}))
              {::hf/height 3})
@@ -67,13 +67,13 @@
              [:db/ident]}
             ]})))))
 
-(p/defn App []
-  (p/client
+(e/defn App []
+  (e/client
     (dom/h1 (dom/text "Teeshirt orders"))
     (dom/pre (dom/text (contrib.str/pprint-str router/route)))
     (binding [hf/db-name "$"
               router/build-route (fn [[self state _route] route'] `[~self ~state ~route'])]
-      (p/server
+      (e/server
         (binding
             [hf/db           hf/*$*
              hf/*schema*     wip.orders-datascript/schema
@@ -84,7 +84,7 @@
                                (try (:db-after (datascript.core/with db tx))
                                     (catch Exception e (println "...failure, e: " e))))]
           (hf/branch
-            (p/client
+            (e/client
               (let [[_self state local-route] router/route
                     [page x & args] (or local-route `(wip.orders-datascript/orders))]
                 (router/router 1
@@ -92,8 +92,8 @@
                     wip.orders-datascript/orders    (OrdersPage.)
                     wip.orders-datascript/one-order (OneOrderPage. x)
                     (dom/h2 (dom/text "Page not found"))))))
-            (p/client
+            (e/client
               (dom/element "style" (dom/text ".dustin-stage { display: block; width: 100%; height: 10em; }"))
-              (ui/edn (p/server hf/stage) false (dom/props {:disabled true :class "dustin-stage"}))))))
+              (ui/edn (e/server hf/stage) false (dom/props {:disabled true :class "dustin-stage"}))))))
       nil)))
 

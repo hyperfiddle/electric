@@ -4,7 +4,7 @@
   (:require contrib.uri ; data_readers
             contrib.ednish
             [hyperfiddle.api :as hf]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router]
             #?(:cljs [hyperfiddle.router-html5 :as html5])
@@ -45,11 +45,11 @@
            (set! (.-title js/document)
                  (str (clojure.string/capitalize (name (first route))) " - Hyperfiddle"))))
 
-(p/defn NotFoundPage []
-  (p/client (dom/h1 (dom/text "Page not found"))))
+(e/defn NotFoundPage []
+  (e/client (dom/h1 (dom/text "Page not found"))))
 
-(p/defn Pages [page]
-  (p/server
+(e/defn Pages [page]
+  (e/server
     (case page
       `user.demo-index/Demos user.demo-index/Demos
       `user.demo-index/Secrets user.demo-index/Secrets
@@ -81,7 +81,7 @@
       ;`wip.datomic-browser/DatomicBrowser wip.datomic-browser/DatomicBrowser
       NotFoundPage)))
 
-(p/defn Main []
+(e/defn Main []
   (binding [router/encode contrib.ednish/encode-uri
             router/decode #(or (contrib.ednish/decode-path % hf/read-edn-str)
                                [`user.demo-index/Demos]
@@ -92,4 +92,4 @@
       (binding [dom/node js/document.body]
         (dom/pre (dom/text (contrib.str/pprint-str router/route)))
         (let [[page & args] router/route]
-          (p/server (new (Pages. page #_args))))))))
+          (e/server (new (Pages. page #_args))))))))

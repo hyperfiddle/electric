@@ -1,10 +1,10 @@
-(ns contrib.photon-codemirror
-  #?(:cljs (:require-macros contrib.photon-codemirror))
+(ns contrib.electric-codemirror
+  #?(:cljs (:require-macros contrib.electric-codemirror))
   (:require
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
     [hyperfiddle.logger :as log]
-    [hyperfiddle.electric :as p]
+    [hyperfiddle.electric :as e]
     [hyperfiddle.electric-dom2 :as dom]
     [missionary.core :as m]
     [hyperfiddle.rcf :as rcf :refer [% tap tests with]]
@@ -82,7 +82,7 @@
                             (reset! on-change! !)
                             #(.destroy view)))]))))
 
-(p/defn CodeMirror [props readf writef value]
+(e/defn CodeMirror [props readf writef value]
   (let [[view >value] (codemirror props)]
     (set-editor-value! view (writef value))
     (new (->> >value (m/reductions #(readf %2) value)))))
@@ -93,12 +93,12 @@
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 
-(p/defn edn [v] (new CodeMirror {:parent dom/node} read-edn write-edn v))
-(p/defn string [v] (new CodeMirror {:parent dom/node} identity identity v))
+(e/defn edn [v] (new CodeMirror {:parent dom/node} read-edn write-edn v))
+(e/defn string [v] (new CodeMirror {:parent dom/node} identity identity v))
 
 #_
 (tests "cm/string"
-  (def discard (p/run (binding [dom/node js/document.body]
+  (def discard (e/run (binding [dom/node js/document.body]
                         (tap (new string "hi")))))
   ;; (def line (.querySelector js/document ".cm-line"))
   ;; (def content (.querySelector js/document ".cm-line"))

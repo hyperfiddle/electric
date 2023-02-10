@@ -1,12 +1,12 @@
 (ns user.demo-10k-dom-elements
   #?(:cljs (:require-macros user.demo-10k-dom-elements))
-  (:require [hyperfiddle.electric :as p]
+  (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m]))
 
 (def !moves #?(:clj (atom []) :cljs nil))
 (def !board-size #?(:clj (atom 10000) :cljs nil))
-(p/def board-size (p/server (p/watch !board-size)))
+(e/def board-size (e/server (e/watch !board-size)))
 
 (comment (do (reset! !moves []) (reset! !board-size 2000)))
 
@@ -18,17 +18,17 @@
                   (fn unmount []
                     (dom/set-property! el "style" {:background-color nil}))))))
 
-(p/defn App []
-  (p/client
+(e/defn App []
+  (e/client
     (dom/h1 (dom/text "10k dom elements (multiplayer)"))
     ; fixed width font + inline-block optimizes browser layout
     (dom/element "style" (dom/text ".board div { width: 1em; height: 1em; display: inline-block; border: 1px #eee solid; }"))
     (dom/element "style" (dom/text ".board { font-family: monospace; font-size: 7px; margin: 0; padding: 0; line-height: 0; }"))
     (dom/div {:class "board"}
-      (p/for [i (range 0 board-size)]
+      (e/for [i (range 0 board-size)]
         (dom/div
-          (dom/on "mouseover" (p/fn [e] (p/server (swap! !moves conj i))))))
-      (p/for [i (p/server (p/watch !moves))]
+          (dom/on "mouseover" (e/fn [e] (e/server (swap! !moves conj i))))))
+      (e/for [i (e/server (e/watch !moves))]
         ; differential side effects, indexed by HTMLCollection
         (new (hot (.item (.. dom/node -children) i)))))))
 

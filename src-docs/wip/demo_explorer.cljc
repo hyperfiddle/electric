@@ -6,7 +6,7 @@
             [contrib.datafy-fs #?(:clj :as :cljs :as-alias) fs]
             contrib.str
             [hyperfiddle.api :as hf]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router]
             [wip.explorer :as explorer :refer [Explorer]]
@@ -26,12 +26,12 @@
 ;                  ::explorer/row-height 24
 ;                  ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
 
-(p/defn Dir [x]
+(e/defn Dir [x]
   (binding
     [explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]]
     (let [m (datafy x)
           xs (nav m ::fs/children (::fs/children m))]
-      (p/client (dom/h1 (dom/text (p/server (::fs/absolute-path m)))))
+      (e/client (dom/h1 (dom/text (e/server (::fs/absolute-path m)))))
       (Explorer.
         (explorer/tree-lister xs ::fs/children #(contrib.str/includes-str? (::fs/name %) %2))
         {::dom/style {:height "calc((20 + 1) * 24px)"}
@@ -39,33 +39,33 @@
          ::explorer/row-height 24
          ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
 
-(p/defn DirectoryExplorer []
-  (p/client
+(e/defn DirectoryExplorer []
+  (e/client
     (dom/link (dom/props {:rel :stylesheet, :href "user/gridsheet-optional.css"}))
     (dom/div (dom/props {:class "user-gridsheet-demo"})
       (binding [router/build-route (fn [[self state local-route] local-route']
                                      ; root local links through this entrypoint
                                      `[DirectoryExplorer ~state ~local-route'])]
-        (p/server
+        (e/server
           (binding [explorer/Format
-                    (p/fn [m a]
+                    (e/fn [m a]
                       (let [v (a m)]
                         (case a
                           ::fs/name (case (::fs/kind m)
                                       ::fs/dir (let [absolute-path (::fs/absolute-path m)]
-                                                 (p/client (router/link [::fs/dir absolute-path] (dom/text v))))
-                                      (::fs/other ::fs/symlink ::fs/unknown-kind) (p/client (dom/text v))
-                                      (p/client (dom/text v)) #_(p/client (router/Link. [::fs/file x] (dom/text v))))
-                          ::fs/modified (p/client (some-> v .toLocaleDateString dom/text))
+                                                 (e/client (router/link [::fs/dir absolute-path] (dom/text v))))
+                                      (::fs/other ::fs/symlink ::fs/unknown-kind) (e/client (dom/text v))
+                                      (e/client (dom/text v)) #_(e/client (router/Link. [::fs/file x] (dom/text v))))
+                          ::fs/modified (e/client (some-> v .toLocaleDateString dom/text))
                           ::fs/kind (case (::fs/kind m)
-                                      ::fs/dir (p/client (dom/text unicode-folder))
-                                      (p/client (some-> v name dom/text)))
-                          (p/client (dom/text (str v))))))]
-            (let [[self s route] (p/client router/route)
+                                      ::fs/dir (e/client (dom/text unicode-folder))
+                                      (e/client (some-> v name dom/text)))
+                          (e/client (dom/text (str v))))))]
+            (let [[self s route] (e/client router/route)
                   [page fs-path] (or route [::fs/dir (fs/absolute-path "node_modules")])]
-              (p/client
+              (e/client
                 (router/router 1 ; focus state slot, todo: fix IndexOutOfBounds exception
-                  (p/server
+                  (e/server
                     (case page
                       ;::fs/file (File. (clojure.java.io/file fs-path))
                       ::fs/dir (Dir. (clojure.java.io/file fs-path)))))))))))))

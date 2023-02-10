@@ -1,6 +1,6 @@
 (ns hyperfiddle.router
   (:require [hyperfiddle.rcf :as rcf :refer [tests % tap with]]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m])
   #?(:clj (:import [clojure.lang IRef IAtom]))
@@ -257,11 +257,11 @@
 
 ;;; 1. and 2.
 
-(p/def !history nil)                    ; History instance mutable ref
-(p/def history ::unset)
-(p/def route ::unset)
-(p/def path [])
-(p/def swap-route! nil)
+(e/def !history nil)                    ; History instance mutable ref
+(e/def history ::unset)
+(e/def route ::unset)
+(e/def path [])
+(e/def swap-route! nil)
 
 (defn update-in* [m path f & args]
   (if (empty? path)
@@ -335,7 +335,7 @@
                                         ))]
      (binding [!history history#
                path     path#]
-       (binding [history (if (or rebound?# (= ::unset history)) (p/watch !history) history)]
+       (binding [history (if (or rebound?# (= ::unset history)) (e/watch !history) history)]
          (binding [route (let [route (if (or rebound?# (= ::unset route)) history route)]
                            (check-route! route)
                            (if (some? ident#)
@@ -348,13 +348,13 @@
              ~@body))))))
 
 (tests
-  (with (p/run (try (router nil (tap route))
+  (with (e/run (try (router nil (tap route))
                     (catch Throwable t
                       (prn t))))
     % := nil))
 
 (tests
-  (with (p/run (router (atom-history {:a "hello"})
+  (with (e/run (router (atom-history {:a "hello"})
                  (tap route)
                  (router :a
                    (tap route))))
@@ -362,7 +362,7 @@
     % := "hello"))
 
 (tests
-  (with (p/run (router nil
+  (with (e/run (router nil
                  (tap route)
                  (swap-route! assoc :key "top")
                  (router :child
@@ -377,10 +377,10 @@
 (tests
   "History + route"
   (let [!command (atom nil)]
-    (with (p/run (binding [!history (atom-history)]
+    (with (e/run (binding [!history (atom-history)]
                    (router :page
                      (tap route)
-                     (let [[command value] (p/watch !command)]
+                     (let [[command value] (e/watch !command)]
                        (case command
                          ::navigate!      (navigate! !history value)
                          ::back!          (back! !history)
@@ -400,14 +400,14 @@
       % := :c
       )))
 
-(p/def encode identity) ; turn sexpr to string href - ednish encoding, hopefully simple
-(p/def decode identity)
+(e/def encode identity) ; turn sexpr to string href - ednish encoding, hopefully simple
+(e/def decode identity)
 
 ;;; 3. Link
 
-(p/def build-route {})
+(e/def build-route {})
 
-(p/defn Link [route Body]
+(e/defn Link [route Body]
   (let [next-route (build-route history route)]
     (dom/a
       (dom/props {::dom/href (encode next-route)})
@@ -418,7 +418,7 @@
 
 (defmacro link [route & body]
   ; all links are Sexpr-like and head is qualified name. like [::secrets 1 2]
-  `(new Link ~route (p/fn [] ~@body)))
+  `(new Link ~route (e/fn [] ~@body)))
 
 
 (comment

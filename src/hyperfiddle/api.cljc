@@ -5,7 +5,7 @@
             [contrib.data :as data]
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as hfql]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [missionary.core :as m]
             hyperfiddle.electric-dom2
             [hyperfiddle.spec :as spec]
@@ -15,32 +15,32 @@
   #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
 
 (def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
-(p/def db "inject database value for hyperfiddle stage and HFQL")
+(e/def db "inject database value for hyperfiddle stage and HFQL")
 (s/def ::ref? any?)
-(p/def secure-db "database value excluding stage, so that user can't tamper")
-(p/def with "inject datomic.api/with or equivalent, used by stage")
-(p/def into-tx')
+(e/def secure-db "database value excluding stage, so that user can't tamper")
+(e/def with "inject datomic.api/with or equivalent, used by stage")
+(e/def into-tx')
 (def -read-edn-str-default (partial clojure.edn/read-string
                                     {:readers #?(:cljs {'goog.math/Long goog.math.Long/fromString} ; datomic cloud long ids
                                                 :clj {})}))
-(p/def read-edn-str "inject app-specific edn extensions" -read-edn-str-default) ; avoid Electric warning about goog.math.Long
-(p/def ^:dynamic *nav!*)
+(e/def read-edn-str "inject app-specific edn extensions" -read-edn-str-default) ; avoid Electric warning about goog.math.Long
+(e/def ^:dynamic *nav!*)
 
 (defmacro hfql ; Alias
   ([query] `(hfql/hfql ~query))
   ([bindings query] `(hfql/hfql ~bindings ~query))
   ([bindings query eid] `(hfql/hfql ~bindings ~query ~eid)))
 
-(p/def Render hfql/Render)
+(e/def Render hfql/Render)
 
 ;;; Database
 
 (def db-state #?(:clj (atom nil))) ; Server side only
-(p/def db-name)
+(e/def db-name)
 
-(p/def schema "pre-fetched schema for explorer")
-(p/def ^{:dynamic true, :doc "To be bound to a function [db attribute] -> schema"} *schema*)
-(p/def ^{:dynamic true, :doc "To be bound to a function schema -> ::hf/one | ::hf/many"} *cardinality*
+(e/def schema "pre-fetched schema for explorer")
+(e/def ^{:dynamic true, :doc "To be bound to a function [db attribute] -> schema"} *schema*)
+(e/def ^{:dynamic true, :doc "To be bound to a function schema -> ::hf/one | ::hf/many"} *cardinality*
   (fn cardinality [schemaf db attr]
     (let [card
           ({:db.cardinality/one ::one
@@ -50,9 +50,9 @@
 (defn entity [ctx] (or (::entity ctx) (::entity (::parent ctx))))
 (defn attribute [ctx] (or (::attribute ctx) (::attribute (::parent ctx))))
 
-(p/def validation-hints nil)
+(e/def validation-hints nil)
 
-(p/defn tx "WIP, this default impl captures the essence" [v' props] ; meant to be called by a renderer
+(e/defn tx "WIP, this default impl captures the essence" [v' props] ; meant to be called by a renderer
   ;; Does it return a tx or side-effect to the staging area?
   (assert false "TBD")
   #_(if-let [Txfn (::tx props)] ; provided by hfql (props … {::hf/tx (p/fn [] …)})
@@ -84,10 +84,10 @@
           ;([tx tx'] (into-tx schema tx tx')) -- needs Electric->Clojure binding conveyance
           ([schema tx tx'] (call-sym 'hyperfiddle.txn/into-tx schema tx tx'))))
 
-(p/defn Transact!* [!t tx] ; colorless, !t on server
+(e/defn Transact!* [!t tx] ; colorless, !t on server
   ; need the flattening be atomic?
   #_(when-some [tx (seq (hyperfiddle.txn/minimal-tx hyperfiddle.api/db tx))]) ; stabilize first loop (optional)
-  (new (p/task->cp
+  (new (e/task->cp
          ;; workaround: Datomic doesn't handle a thread interrupt correctly
          (m/compel
            (m/via m/blk
@@ -96,51 +96,51 @@
                          [(with db tx) ; injected datomic dep
                           (into-tx' schema tx0 tx)]))))))) ; datascript is different
 
-(p/def Transact!) ; server
-(p/def stage) ; server
-(p/def loading) ; client
+(e/def Transact!) ; server
+(e/def stage) ; server
+(e/def loading) ; client
 
-(p/defn Load-timer []
-  (p/client
-    (let [[x] (p/with-cycle [[elapsed start :as s] [0 nil]]
+(e/defn Load-timer []
+  (e/client
+    (let [[x] (e/with-cycle [[elapsed start :as s] [0 nil]]
                 (case hyperfiddle.api/loading
                   true [(some->> start (- hyperfiddle.electric-dom2/system-time-ms))
                              (js/Date.now)]
                   s))]
       x)))
 
-(p/defn Branch [Body-server] ; todo colorless
-  (p/server
+(e/defn Branch [Body-server] ; todo colorless
+  (e/server
     (let [!ret (atom nil)
           !t (atom #_::unknown [db []])
-          [db stage] (p/watch !t)]
+          [db stage] (e/watch !t)]
       (binding [hyperfiddle.api/db db
                 hyperfiddle.api/stage stage
-                hyperfiddle.api/Transact! (p/fn [tx]
+                hyperfiddle.api/Transact! (e/fn [tx]
                                             #_(println "Transact! " (hash !t) "committing: " tx)
                                             (let [r (Transact!*. !t tx)]
                                               #_(println "Transact! " (hash !t) "commit result: " r)))]
-        (p/client
-          (p/with-cycle [loading false]
+        (e/client
+          (e/with-cycle [loading false]
             (binding [hyperfiddle.api/loading loading]
               #_(dom/div (name loading) " " (str (Load-timer.)) "ms")
               (try
-                (p/server
+                (e/server
                   (let [x (Body-server.)] ; cycle x?
                     #_(println 'Branch x)
                     (reset! !ret x))) ; if the body returns something, return it. (Likely not used)
                 false (catch Pending e true))))
           nil))
-      (p/watch !ret)))) ; do we need this? Popover using it currently
+      (e/watch !ret)))) ; do we need this? Popover using it currently
 
-(defmacro branch [& body] `(new Branch (p/fn [] ~@body)))
+(defmacro branch [& body] `(new Branch (e/fn [] ~@body)))
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current Electric program is running." nil)
 
-(p/def page-drop -1)
-(p/def page-take -1)
+(e/def page-drop -1)
+(e/def page-take -1)
 
-(p/defn Paginate [xs]
+(e/defn Paginate [xs]
   (if (coll? xs)
     (cond->> xs
       (pos-int? page-drop) (drop page-drop)
