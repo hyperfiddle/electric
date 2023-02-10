@@ -2,7 +2,7 @@
   (:require [clojure.set :refer [rename-keys]]
             [contrib.data :refer [auto-props unqualify]]
             [clojure.datafy :refer [datafy]]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
             [hyperfiddle.router :as router]
@@ -34,19 +34,19 @@
   ((tree-lister [{:dir "x" :children [{:file "a"} {:file "b"}]}] :children (fn [v needle] (-> v :file #{needle}))) "nope")
   (count (vec *1)) := 0)
 
-(p/def cols nil)
-(p/def Format (p/server (p/fn [row col] (pr-str (get row col))))) ; in div continuation
+(e/def cols nil)
+(e/def Format (e/server (e/fn [row col] (pr-str (get row col))))) ; in div continuation
 
-(p/defn Explorer [treelister props] ; o is an entity with recursive children
-  (p/client
+(e/defn Explorer [treelister props] ; o is an entity with recursive children
+  (e/client
     (let [{:keys [::search] :as s} router/route]
       #_(dom/dl
         (dom/dt (dom/text "scroll debug state"))
-        (dom/dd (dom/pre (dom/text (pprint-str (update-keys (p/watch user.demo-scrollview/!scrollStateDebug) unqualify))))))
-      (ui/input search (p/fn V! [v] (router/swap-route! assoc ::search v)) ; todo (swap! router/!route assoc ::search v)
+        (dom/dd (dom/pre (dom/text (pprint-str (update-keys (e/watch user.demo-scrollview/!scrollStateDebug) unqualify))))))
+      (ui/input search (e/fn V! [v] (router/swap-route! assoc ::search v)) ; todo (swap! router/!route assoc ::search v)
         (dom/props {:placeholder "Search" :type "search"}))
       (dom/hr)
-      (p/server
+      (e/server
         (binding [gridsheet/Format Format]
           (GridSheet.
             (treelister search)

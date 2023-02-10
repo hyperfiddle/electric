@@ -1,6 +1,6 @@
 (ns user.seven-gui-4-timer
   #?(:cljs (:require-macros user.seven-gui-4-timer))
-  (:require [hyperfiddle.electric :as p]
+  (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui4]))
 
@@ -14,14 +14,14 @@
 
 (defn now [] #?(:cljs (second-precision (js/Date.now))))
 
-(p/defn Timer []
-  (p/client
+(e/defn Timer []
+  (e/client
     (dom/h1 (dom/text "7 GUIs: Timer"))
     (let [!goal (atom initial-goal)
           !start (atom (now))
-          goal (p/watch !goal)
+          goal (e/watch !goal)
           goal-ms (* 1000 goal)
-          start (p/watch !start)
+          start (e/watch !start)
           time (min goal-ms (- (second-precision dom/system-time-ms) start))]
       (dom/div (dom/props {:style {:display :grid
                                         ;:margin-left "20rem"
@@ -32,8 +32,8 @@
         (dom/progress (dom/props {:max goal-ms, :value time, :style {:grid-column 2}}))
         (dom/span (dom/text (seconds time) " s"))
         (dom/span (dom/props {:style {:grid-row 3}}) (dom/text "Duration: " goal "s"))
-        (ui4/range goal (p/fn [v] (reset! !goal v))
+        (ui4/range goal (e/fn [v] (reset! !goal v))
           (dom/props {:min 0, :max 60, :style {:grid-row 3}}))
-        (ui4/button (p/fn [] (reset! !start (now)))
+        (ui4/button (e/fn [] (reset! !start (now)))
           (dom/props {:style {:grid-row 4, :grid-column "1/3"}})
           (dom/text "Reset"))))))

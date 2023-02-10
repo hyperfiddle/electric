@@ -1,6 +1,6 @@
 (ns hyperfiddle.router-html5
   (:require [hyperfiddle.router :as router]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [missionary.core :as m]))
 
 (defn throttler [rate-ms]
@@ -77,7 +77,7 @@
 
 (defn -get-state [^HTML5History this] (.-!state this))
 
-(p/defn HTML5-History [] ; TODO make this flow a singleton (leverage m/signal in next reactor iteration)
+(e/defn HTML5-History [] ; TODO make this flow a singleton (leverage m/signal in next reactor iteration)
   (let [history (html5-history router/encode router/decode)
         decode  router/decode]
     (new (m/observe (fn [!]

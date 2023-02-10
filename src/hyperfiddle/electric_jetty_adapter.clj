@@ -2,7 +2,7 @@
   (:require [ring.adapter.jetty9 :as jetty]
             [hyperfiddle.api :as hf]
             [hyperfiddle.logger :as log]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [missionary.core :as m]
             [hyperfiddle.electric.impl.io :as io]
             [hyperfiddle.electric.impl.runtime :as r])
@@ -88,5 +88,5 @@
     ;; Electric can resolve any dynamic var bound at this point
     (let [resolvef (bound-fn [not-found x] (r/dynamic-resolve not-found x))]
       (m/sp
-        (m/? ((p/eval resolvef (io/decode (m/? (m/reduce (comp reduced {}) nil (m/observe read-msg)))))   ; read and eval Electric program sent by client
+        (m/? ((e/eval resolvef (io/decode (m/? (m/reduce (comp reduced {}) nil (m/observe read-msg)))))   ; read and eval Electric program sent by client
               (comp write-msg io/encode) (fn [cb] (read-msg (comp cb io/decode)))))))))

@@ -12,7 +12,7 @@
             [wip.explorer :as explorer :refer [Explorer]]
             [wip.gridsheet :as-alias gridsheet]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.rcf :refer [tests]]
             [hyperfiddle.router :as router]
@@ -23,17 +23,17 @@
 ; - port to nested router
 ; - port to HFQL maybe
 
-(p/def conn)
-(p/def db)
-(p/def schema) ; used by entity-tree-entry-children and FormatEntity in this file only
+(e/def conn)
+(e/def db)
+(e/def schema) ; used by entity-tree-entry-children and FormatEntity in this file only
 
-(p/defn RecentTx []
-  (p/client (dom/h1 (dom/text "Recent Txs")))
+(e/defn RecentTx []
+  (e/client (dom/h1 (dom/text "Recent Txs")))
   (binding [explorer/cols [:db/id :db/txInstant]
-            explorer/Format (p/fn [[e _ v tx op :as record] a]
+            explorer/Format (e/fn [[e _ v tx op :as record] a]
                               (case a
-                                :db/id (p/client (router/link [::tx tx] (dom/text tx)))
-                                :db/txInstant (p/client (dom/text (pr-str v))) #_(p/client (.toLocaleDateString v))))]
+                                :db/id (e/client (router/link [::tx tx] (dom/text tx)))
+                                :db/txInstant (e/client (dom/text (pr-str v))) #_(e/client (.toLocaleDateString v))))]
     (Explorer.
       (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
                                    (m/reductions conj ())
@@ -43,12 +43,12 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em auto"})))
 
-(p/defn Attributes []
-  (p/client (dom/h1 (dom/text "Attributes")))
+(e/defn Attributes []
+  (e/client (dom/h1 (dom/text "Attributes")))
   (binding [explorer/cols [:db/ident :db/valueType :db/cardinality :db/unique :db/isComponent
                            #_#_#_#_:db/fulltext :db/tupleType :db/tupleTypes :db/tupleAttrs]
-            explorer/Format (p/fn [row col]
-                              (p/client
+            explorer/Format (e/fn [row col]
+                              (e/client
                                 (let [v (col row)]
                                   (case col
                                     :db/ident (router/link [::attribute v] (dom/text v))
@@ -67,21 +67,21 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "auto 6em 4em 4em 4em"})))
 
-(p/defn Format-entity [[k v :as row] col]
+(e/defn Format-entity [[k v :as row] col]
   (assert (some? schema))
   (case col
     ::k (cond
-          (= :db/id k) (p/client (dom/text k)) ; :db/id is our schema extension, can't nav to it
-          (contains? schema k) (p/client (router/link [::attribute k] (dom/text k)))
-          () (p/client (dom/text (str k)))) ; str is needed for Long db/id, why?
+          (= :db/id k) (e/client (dom/text k)) ; :db/id is our schema extension, can't nav to it
+          (contains? schema k) (e/client (router/link [::attribute k] (dom/text k)))
+          () (e/client (dom/text (str k)))) ; str is needed for Long db/id, why?
     ::v (if-not (coll? v) ; don't render card :many intermediate row
           (let [[valueType cardinality]
                 ((juxt (comp unqualify dx/identify :db/valueType)
                        (comp unqualify dx/identify :db/cardinality)) (k schema))]
             (cond
-              (= :db/id k) (p/client (router/link [::entity v] (dom/text v)))
-              (= :ref valueType) (p/client (router/link [::entity v] (dom/text v)))
-              () (p/client (dom/text (pr-str v))))))))
+              (= :db/id k) (e/client (router/link [::entity v] (dom/text v)))
+              (= :ref valueType) (e/client (router/link [::entity v] (dom/text v)))
+              () (e/client (dom/text (pr-str v))))))))
 
 #?(:clj
    (defn entity-tree-entry-children [schema [k v :as row]] ; row is either a map-entry or [0 {:db/id _}]
@@ -133,35 +133,35 @@
          nil]
      nil))
 
-(p/defn EntityDetail [e]
+(e/defn EntityDetail [e]
   (assert e)
-  (p/client (dom/h1 (dom/text "Entity detail: " e))) ; treeview on the entity
+  (e/client (dom/h1 (dom/text "Entity detail: " e))) ; treeview on the entity
   (binding [explorer/cols [::k ::v] explorer/Format Format-entity]
     (Explorer.
       ;; TODO inject sort
-      (explorer/tree-lister (new (p/task->cp (d/pull db {:eid e :selector ['*] :compare compare})))
+      (explorer/tree-lister (new (e/task->cp (d/pull db {:eid e :selector ['*] :compare compare})))
         (partial entity-tree-entry-children schema)
         any-matches?)
       {::explorer/page-size 15
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em auto"})))
 
-(p/defn EntityHistory [e]
+(e/defn EntityHistory [e]
   (assert e)
-  (p/client (dom/h1 (dom/text "Entity history: " (pr-str e))))
+  (e/client (dom/h1 (dom/text "Entity history: " (pr-str e))))
   (binding [explorer/cols [::e ::a ::op ::v ::tx-instant ::tx]
-            explorer/Format (p/fn [[e aa v tx op :as row] a]
+            explorer/Format (e/fn [[e aa v tx op :as row] a]
                               (when row ; when this view unmounts, somehow this fires as nil
                                 (case a
-                                  ::op (p/client (dom/text (name (case op true :db/add false :db/retract))))
-                                  ::e (p/client (router/link [::entity e] (dom/text e)))
+                                  ::op (e/client (dom/text (name (case op true :db/add false :db/retract))))
+                                  ::e (e/client (router/link [::entity e] (dom/text e)))
                                   ::a (if (some? aa)
-                                        (let [ident (:db/ident (new (p/task->cp (d/pull db {:eid aa :selector [:db/ident]}))))]
-                                          (p/client (dom/text (pr-str ident)))))
-                                  ::v (p/client (some-> v pr-str dom/text))
-                                  ::tx (p/client (router/link [::tx tx] (dom/text tx)))
-                                  ::tx-instant (let [x (:db/txInstant (new (p/task->cp (d/pull db {:eid tx :selector [:db/txInstant]}))))]
-                                                 (p/client (pr-str (dom/text x))))
+                                        (let [ident (:db/ident (new (e/task->cp (d/pull db {:eid aa :selector [:db/ident]}))))]
+                                          (e/client (dom/text (pr-str ident)))))
+                                  ::v (e/client (some-> v pr-str dom/text))
+                                  ::tx (e/client (router/link [::tx tx] (dom/text tx)))
+                                  ::tx-instant (let [x (:db/txInstant (new (e/task->cp (d/pull db {:eid tx :selector [:db/txInstant]}))))]
+                                                 (e/client (pr-str (dom/text x))))
                                   (str v))))]
     (Explorer.
       ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
@@ -173,14 +173,14 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "10em 10em 3em auto auto 9em"})))
 
-(p/defn AttributeDetail [a]
-  (p/client (dom/h1 (dom/text "Attribute detail: " a)))
+(e/defn AttributeDetail [a]
+  (e/client (dom/h1 (dom/text "Attribute detail: " a)))
   (binding [explorer/cols [:e :a :v :tx]
-            explorer/Format (p/fn [[e _ v tx op :as x] k]
-                              (p/client
+            explorer/Format (e/fn [[e _ v tx op :as x] k]
+                              (e/client
                                 (case k
                                   :e (router/link [::entity e] (dom/text e))
-                                  :a (dom/text (pr-str a)) #_(let [aa (new (p/task->cp (dx/ident! db aa)))] aa)
+                                  :a (dom/text (pr-str a)) #_(let [aa (new (e/task->cp (dx/ident! db aa)))] aa)
                                   :v (some-> v pr-str dom/text) ; when a is ref, render link
                                   :tx (router/link [::tx tx] (dom/text tx)))))]
     (Explorer.
@@ -192,13 +192,13 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
-(p/defn TxDetail [e]
-  (p/client (dom/h1 (dom/text "Tx detail: " e)))
+(e/defn TxDetail [e]
+  (e/client (dom/h1 (dom/text "Tx detail: " e)))
   (binding [explorer/cols [:e :a :v :tx]
-            explorer/Format (p/fn [[e aa v tx op :as x] a]
+            explorer/Format (e/fn [[e aa v tx op :as x] a]
                               (case a
-                                :e (let [e (new (p/task->cp (dx/ident! db e)))] (p/client (router/link [::entity e] (dom/text e))))
-                                :a (let [aa (new (p/task->cp (dx/ident! db aa)))] (p/client (router/link [::attribute aa] (dom/text aa))))
+                                :e (let [e (new (e/task->cp (dx/ident! db e)))] (e/client (router/link [::entity e] (dom/text e))))
+                                :a (let [aa (new (e/task->cp (dx/ident! db aa)))] (e/client (router/link [::attribute aa] (dom/text aa))))
                                 :v (pr-str v) ; when a is ref, render link
                                 (str tx)))]
     (Explorer.
@@ -211,11 +211,11 @@
        ::explorer/row-height 24
        ::gridsheet/grid-template-columns "15em 15em calc(100% - 15em - 15em - 9em) 9em"})))
 
-(p/defn DbStats []
-  (p/client (dom/h1 (dom/text "Db stats")))
+(e/defn DbStats []
+  (e/client (dom/h1 (dom/text "Db stats")))
   (binding [explorer/cols [::k ::v]
-            explorer/Format (p/fn [[k v :as row] col]
-                              (p/client
+            explorer/Format (e/fn [[k v :as row] col]
+                              (e/client
                                 (case col
                                   ::k (dom/text (pr-str k))
                                   ::v (cond
@@ -223,7 +223,7 @@
                                         () (dom/text (pr-str v))))))] ; {:count 123}
     (Explorer.
       (explorer/tree-lister
-        (new (p/task->cp (d/db-stats db)))
+        (new (e/task->cp (d/db-stats db)))
         (fn [[k v]] (condp = k :attrs (into (sorted-map) v) nil))
         any-matches?)
       {::explorer/page-size 20
@@ -237,7 +237,7 @@
     :label/type {:count 870}
     ... ...}})
 
-(p/defn Page [[self state [local-page x]]]
+(e/defn Page [[self state [local-page x]]]
   (dom/h1 (dom/text "Datomic browser"))
   (dom/link (dom/props {:rel :stylesheet, :href "user/gridsheet-optional.css"}))
   (dom/div (dom/props {:class "user-gridsheet-demo"})
@@ -246,7 +246,7 @@
       (router/link [::db-stats] (dom/text "db-stats")) (dom/text " ")
       (router/link [::recent-tx] (dom/text "recent-tx")))
     (router/router 1 ; focus explorer state
-      (p/server
+      (e/server
         (case (or local-page ::summary)
           ::summary (Attributes.)
           ::attribute (AttributeDetail. x)
@@ -254,15 +254,15 @@
           ::entity (do (EntityDetail. x) (EntityHistory. x))
           ::db-stats (DbStats.)
           ::recent-tx (RecentTx.)
-          (p/client (dom/text "no matching route: " (pr-str local-page))))))))
+          (e/client (dom/text "no matching route: " (pr-str local-page))))))))
 
-(p/defn DatomicBrowser []
+(e/defn DatomicBrowser []
   (println (pr-str (type 1))) ; show we're on the server
-  (p/server ; bug that this is needed; above line shows we're already here
+  (e/server ; bug that this is needed; above line shows we're already here
   (binding [conn @(requiring-resolve 'user/datomic-conn)]
     (binding [db (d/db conn)]
       (binding [schema (new (dx/schema> db))]
-        (p/client
+        (e/client
           (binding [router/build-route (fn [[self state local-route] local-route']
                                          ; root local links through this entrypoint for DI
                                          `[DatomicBrowser ~state ~local-route'])]

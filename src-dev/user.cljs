@@ -1,14 +1,14 @@
-(ns ;^:dev/always ; recompile Photon entrypoint when Photon source changes
+(ns ;^:dev/always ; recompile Electric entrypoint when Electric source changes
   user
   (:require hyperfiddle.electric
             hyperfiddle.rcf
             user-main))
 
-(def photon-main (hyperfiddle.electric/boot (user-main/Main.)))
+(def electric-main (hyperfiddle.electric/boot (user-main/Main.)))
 (defonce reactor nil)
 
 (defn ^:dev/after-load ^:export start! []
-  (set! reactor (photon-main
+  (set! reactor (electric-main
                  #(js/console.log "Reactor success:" %)
                  #(js/console.error "Reactor failure:" %)))
   (hyperfiddle.rcf/enable!))

@@ -6,15 +6,15 @@
             [contrib.assert :refer [check]]
             [contrib.data :refer [unqualify auto-props round-floor]]
             [clojure.spec.alpha :as s]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
             [hyperfiddle.rcf :refer [tests]]
             #?(:cljs goog.object)))
 
-(p/def Format (p/server (p/fn [m a] (pr-str (a m)))))
+(e/def Format (e/server (e/fn [m a] (pr-str (a m)))))
 
-(p/defn GridSheet [xs props]
+(e/defn GridSheet [xs props]
   (let [props (auto-props props)
         {:keys [::columns
                 ::grid-template-columns
@@ -24,14 +24,14 @@
         rows (seq xs)
         row-count (count rows)]
     (assert columns)
-    (p/client
+    (e/client
       (dom/div (dom/props {:role "grid"
                            :class (::dom/class props)
                            :style (merge (::dom/style props)
                                          {:height (str client-height "px")
                                           :display "grid" :overflowY "auto"
                                           :grid-template-columns (or (::grid-template-columns props)
-                                                                     (->> (repeat (p/server (count columns)) "1fr")
+                                                                     (->> (repeat (e/server (count columns)) "1fr")
                                                                           (interpose " ") (apply str)))})})
         (let [[scroll-top scroll-height client-height'] (new (ui/scroll-state< dom/node))
               max-height (* row-count row-height)
@@ -51,7 +51,7 @@
                     :start-row start-row :start-row-page-aligned start-row-page-aligned
                     :take page-size :max-height max-height])
 
-          (p/for [k columns]
+          (e/for [k columns]
             (dom/div (dom/props {:role "columnheader"
                                  :style {:position "sticky" #_"fixed" :top (str 0 "px")
                                          :background-color "rgb(248 250 252)" :box-shadow "0 1px gray"}})
@@ -61,28 +61,28 @@
           ; for grid to be aware of columns, it's just vertical scroll.
           ; horizontal scroll changes things.
           ; except for the tricky styles ...
-          (p/server
+          (e/server
             (when (seq rows) (check vector? (first rows)))
             (let [xs (vec (->> rows (drop start-row) (take page-size)))]
-              (p/for [i (range page-size)]
+              (e/for [i (range page-size)]
                 (let [[depth m] (get xs i [0 ::empty])]
-                  (p/client
+                  (e/client
                     (dom/div (dom/props {:role "group" :style {:display "contents"
                                                                :grid-row (inc i)}})
                       (dom/div (dom/props {:role "gridcell"
                                            :style {:padding-left (-> depth (* 15) (str "px"))
                                                    :position "sticky" :top (str (* row-height (inc i)) "px")
                                                    :height (str row-height "px")}})
-                        (p/server (case m ::empty nil (Format. m (first columns))))) ; for effect
-                      (p/for [a (rest columns)]
+                        (e/server (case m ::empty nil (Format. m (first columns))))) ; for effect
+                      (e/for [a (rest columns)]
                         (dom/div (dom/props {:role "gridcell"
                                              :style {:position "sticky" :top (str (* row-height (inc i)) "px")
                                                      :height (str row-height "px")}})
-                          (p/server (case m ::empty nil (Format. m a))))))))))) ; for effect
+                          (e/server (case m ::empty nil (Format. m a))))))))))) ; for effect
           (dom/div (dom/props {:style {:padding-bottom (str padding-bottom "px")}})))) ; scrollbar
       (dom/div (dom/text (pr-str {:count row-count}))))))
 
-(p/defn ^:deprecated TableSheet
+(e/defn ^:deprecated TableSheet
   "Perhaps useful to keep around? Prefer the css-grid sheet
   This does not align column headers with body columns due to position:sticky layout"
   [xs props]
@@ -92,7 +92,7 @@
         (auto-props props)
         rows (seq xs)
         row-count (count rows)]
-    (p/client
+    (e/client
       (dom/table (dom/props {:style {:display "block" :overflowY "auto"
                                      :height "500px"}}) ; fixme
         (let [[scrollTop scrollHeight clientHeight] (new (ui/scroll-state< dom/node))
@@ -122,69 +122,69 @@
             (dom/props {:style {:position "sticky" #_"fixed" :top "0"
                                 ; :position breaks column layout - detaches thead from tbody layout
                                 :background-color "rgb(248 250 252)" :box-shadow "0 1px gray"}})
-            (p/for [k columns]
+            (e/for [k columns]
               (dom/td (dom/text (name k)))))
 
           (dom/tbody
             (dom/props {:style {:height (str max-height "px")}})
             (let [!!rows (vec (repeatedly page-size (partial atom nil)))]
               #_(dom/div (dom/props {:style {:padding-top (str padding-top "px")}}))
-              (p/for [i (range page-size)]
+              (e/for [i (range page-size)]
                 (dom/tr
                   (dom/props {:style {:position "fixed"
                                       :margin-top (str (* row-height i) "px")
                                       :height (str row-height "px")}}) ; freeze layout
                   (let [[a & as] columns
-                        [depth ?Render] (p/watch (get !!rows i))]
+                        [depth ?Render] (e/watch (get !!rows i))]
                     (dom/td
                       (dom/props {:style {:padding-left (-> depth (* 15) (str "px"))}})
                       (some-> ?Render (new a))) ; for effect
-                    (p/for [a as]
+                    (e/for [a as]
                       (dom/td (some-> ?Render (new a))))))) ; for effect
               #_(dom/div (dom/props {:style {:padding-bottom (str padding-bottom "px")}}))
 
-              (p/server
+              (e/server
                 (let [xs (->> rows (drop start-row) (take page-size))]
-                  (p/for-by first [[i [depth m]] (map vector (range) xs)]
-                    (p/client
+                  (e/for-by first [[i [depth m]] (map vector (range) xs)]
+                    (e/client
                       (reset! (get-in !!rows [i])
-                              [depth (p/fn [a] (p/server (Format. m a)))])))))))))
+                              [depth (e/fn [a] (e/server (Format. m a)))])))))))))
       (dom/div (pr-str {:count row-count})))))
 
 ; How to do transactionally with a fragment to avoid the churn? (for variable infinite seq)
 
-(p/defn RenderTableInfinite [xs props]
+(e/defn RenderTableInfinite [xs props]
   (let [{:keys [::columns
                 ::row-height ; px, same unit as scrollTop
                 ::page-size]} ; you want this loose, like 100
         (auto-props props {::page-size 100})
-        !pages (atom 1) pages (p/watch !pages)]
-    (p/client
+        !pages (atom 1) pages (e/watch !pages)]
+    (e/client
       (dom/table
         (dom/props {:style {:display "block" :overflow "hidden auto"
                             :height "500px"}})
         (let [[scrollTop scrollHeight clientHeight] (new (ui/scroll-state< dom/node))]
           (when (> scrollTop (- scrollHeight clientHeight clientHeight)) ; scrollLoadThreshold = clientHeight
-            (p/server (swap! !pages inc))))
+            (e/server (swap! !pages inc))))
         (dom/thead
           (dom/props {:style {:position "sticky" :top "0" :background-color "rgb(248 250 252)"
                               :box-shadow "0 1px gray"}})
-          (p/for [k columns]
+          (e/for [k columns]
             (dom/td (dom/text (name k)))))
         (dom/tbody
-          (p/server
+          (e/server
             (if-let [rows (take (* pages page-size) (seq xs))]
-              (p/for [[depth m] rows]
+              (e/for [[depth m] rows]
                 (let [[a & as] columns]
-                  (p/client
+                  (e/client
                     (dom/tr
                       (dom/td
                         (dom/props {:style {:padding-left (-> depth (* 15) (str "px"))}})
-                        (p/server (Format. m a))) ; for effect
-                      (p/server
-                        (p/for [a as]
-                          (p/client (dom/td (p/server (Format. m a)))))))))) ; for effect
-              (p/client
+                        (e/server (Format. m a))) ; for effect
+                      (e/server
+                        (e/for [a as]
+                          (e/client (dom/td (e/server (Format. m a)))))))))) ; for effect
+              (e/client
                 (dom/div
                   (dom/props {:class "no-results"})
                   (dom/text "no results matched"))))))))))
