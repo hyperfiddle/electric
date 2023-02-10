@@ -1,6 +1,6 @@
 (ns hyperfiddle.photon-ui
   (:require [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
-            [hyperfiddle.photon :as p]
+            [hyperfiddle.electric :as p]
             [hyperfiddle.photon-dom :as dom]
             [missionary.core :as m]
             [hyperfiddle.logger :as log]
@@ -9,7 +9,7 @@
             #?(:cljs [goog.string.format])
             #?(:cljs [goog.string :refer [format]]))
   #?(:cljs (:require-macros hyperfiddle.photon-ui))
-  (:import (hyperfiddle.photon Pending Failure)
+  (:import (hyperfiddle.electric Pending Failure)
            (missionary Cancelled)))
 
 (comment

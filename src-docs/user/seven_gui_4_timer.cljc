@@ -1,8 +1,8 @@
 (ns user.seven-gui-4-timer
   #?(:cljs (:require-macros user.seven-gui-4-timer))
-  (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui4 :as ui4]))
+  (:require [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
+            [hyperfiddle.electric-ui4 :as ui4]))
 
 ;; https://eugenkiss.github.io/7guis/tasks#timer
 

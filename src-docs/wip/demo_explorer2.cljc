@@ -6,8 +6,8 @@
             [clojure.spec.alpha :as s]
             [contrib.datafy-fs #?(:clj :as :cljs :as-alias) fs]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]))
 

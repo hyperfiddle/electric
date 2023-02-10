@@ -1,8 +1,8 @@
 (ns user.tic-tac-toe
   #?(:cljs (:require-macros user.tic-tac-toe))
-  (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui4 :as ui]))
+  (:require [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
+            [hyperfiddle.electric-ui4 :as ui]))
 
 (def !x #?(:clj (atom (vec (repeat 10 0))) :cljs nil))
 (p/def x (p/server (p/watch !x)))

@@ -7,7 +7,7 @@
     https://www.hyperfiddle.net/
     https://twitter.com/dustingetz/status/1520397540386091009"
 
-  (:require [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.electric :as p]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]))
 
 

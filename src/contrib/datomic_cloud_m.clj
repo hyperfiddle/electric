@@ -5,7 +5,7 @@
             [clojure.datafy :refer [datafy]]
             [datomic.client.api.async :as d]
             [missionary.core :as m]
-            [hyperfiddle.photon :as p]
+            [hyperfiddle.electric :as p]
             [hyperfiddle.rcf :refer [tests tap %]])
   (:import (datomic.core.db Datum)))
 

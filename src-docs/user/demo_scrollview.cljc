@@ -1,9 +1,9 @@
 (ns user.demo-scrollview
   #?(:cljs (:require-macros user.demo-scrollview))
   (:require [contrib.data :refer [unqualify]]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui4 :as ui]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
+            [hyperfiddle.electric-ui4 :as ui]
             #?(:cljs goog.object)))
 
 (p/defn DemoFixedHeightCounted
@@ -42,7 +42,7 @@
               [scrollTop scrollHeight clientHeight] (new (ui/scroll-state< dom/node))]
           (when (>= scrollTop (- scrollHeight clientHeight
                                  clientHeight)) ; scrollThresholdPx = clientHeight
-            (swap! !pages inc)) ; can this get spammed by photon?
+            (swap! !pages inc)) ; can this get spammed by Electric?
           (dom/div ; content is unstyled, uses natural layout
             (p/server
               (p/for [x (->> xs (take (* pages page-size)))] ; leave dom

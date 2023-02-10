@@ -1,5 +1,5 @@
 (ns user.photon.photon-advanced
-  (:require [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.electric :as p]
             [hyperfiddle.rcf :refer [tests tap % with]]
             [missionary.core :as m]))
 

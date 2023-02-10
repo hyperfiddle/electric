@@ -6,12 +6,12 @@
   (:require [missionary.core :as m]
             hyperfiddle.rcf))
 
-; Userland photon code is lazy loaded by the shadow build due to usage of :require-macros
-; in all Photon source files.
+; Userland Electric code is lazy loaded by the shadow build due to usage of :require-macros
+; in all Electric source files.
 ; WARNING: make sure your REPL and shadow-cljs are sharing the same JVM!
 
 (comment
-  (main) ; Photon Clojure(JVM) REPL entrypoint
+  (main) ; Electric Clojure(JVM) REPL entrypoint
   (hyperfiddle.rcf/enable!) ; turn on RCF after all transitive deps have loaded
   (shadow.cljs.devtools.api/repl :dev) ; shadow server hosts the cljs repl
   ; connect a second REPL instance to it
@@ -22,7 +22,7 @@
 (def shadow-watch (delay @(requiring-resolve 'shadow.cljs.devtools.api/watch)))
 (def shadow-compile (delay @(requiring-resolve 'shadow.cljs.devtools.api/compile)))
 (def shadow-release (delay @(requiring-resolve 'shadow.cljs.devtools.api/release)))
-(def start-photon-server! (delay @(requiring-resolve 'hyperfiddle.photon-jetty-server/start-server!)))
+(def start-electric-server! (delay @(requiring-resolve 'hyperfiddle.electric-jetty-server/start-server!)))
 (def rcf-enable! (delay @(requiring-resolve 'hyperfiddle.rcf/enable!)))
 
 (defn rcf-shadow-hook {:shadow.build/stages #{:compile-prepare :compile-finish}}
@@ -37,15 +37,15 @@
                     :compile-finish (@rcf-enable!))
                   build-state))))
 
-(def photon-server-config {:host "0.0.0.0", :port 8080, :resources-path "resources/public"})
+(def electric-server-config {:host "0.0.0.0", :port 8080, :resources-path "resources/public"})
 
 (defn main [& args]
-  (println "Starting Photon compiler and server...")
+  (println "Starting Electric compiler and server...")
   (@shadow-start!) ; serves index.html as well
   (@rcf-enable! false) ; don't run cljs tests on compile (user may have enabled it at the REPL already)
   (@shadow-watch :dev) ; depends on shadow server
   ; todo report clearly if shadow build failed, i.e. due to yarn not being run
-  (def server (@start-photon-server! photon-server-config))
+  (def server (@start-electric-server! electric-server-config))
   (comment (.stop server))
 
   "Datomic Cloud (optional, requires :scratch alias)"
@@ -70,7 +70,7 @@
 ;(defn release [] (@shadow-release :dev {:debug true}))
 
 ;(when (get (System/getenv) "REPLIT_ENVIRONMENT")
-;  (compile) (@start-photon-server! photon-server-config))
+;  (compile) (@start-electric-server! electric-server-config))
 
 (when (contains? (System/getenv) "HYPERFIDDLE_AUTO_BOOT")
   (main)) ; blocks repl until build is ready, should we run it in a future?

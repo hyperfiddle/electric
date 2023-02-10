@@ -1,7 +1,7 @@
 (ns user.demo-6-two-clocks
   "network stress test"
-  (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
+  (:require [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m])
   #?(:cljs (:require-macros user.demo-6-two-clocks)))
 

@@ -2,9 +2,9 @@
   #?(:cljs (:require-macros user.demo-3-system-properties))
   (:require
    [clojure.string :as str]
-   [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom2 :as dom]
-   [hyperfiddle.photon-ui4 :as ui]))
+   [hyperfiddle.electric :as p]
+   [hyperfiddle.electric-dom2 :as dom]
+   [hyperfiddle.electric-ui4 :as ui]))
 
 ; A web view that queries the backend JVM environment and writes it to the
 ; frontend dom, all in a single composed expression.

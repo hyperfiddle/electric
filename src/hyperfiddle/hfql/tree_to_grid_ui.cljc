@@ -1,8 +1,8 @@
 (ns hyperfiddle.hfql.tree-to-grid-ui
-  (:require [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.electric :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql :as hfql]
-            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.spec :as spec]
             [hyperfiddle.spec.type :as-alias hf-type]
             [clojure.datafy :refer [datafy]]
@@ -10,7 +10,7 @@
             ;; [contrib.ednish :as ednish]
             [contrib.color :as c]
             [contrib.data :as data]
-            [hyperfiddle.photon-ui4 :as ui4]
+            [hyperfiddle.electric-ui4 :as ui4]
             [hyperfiddle.rcf :refer [tests with % tap]]
             [missionary.core :as m]
             [hyperfiddle.router :as router])
@@ -164,7 +164,7 @@
         continuation (grab ctx ::hf/continuation Identity)
         tx           (grab ctx ::hf/tx)
         tx?          (some? tx)
-        dom-props    (data/select-ns :hyperfiddle.photon-dom2 ctx)
+        dom-props    (data/select-ns :hyperfiddle.electric-dom2 ctx)
         v            (find-best-identity (hfql/JoinAllTheTree. ctx))
         V!           (if tx? (p/fn [v] (tx. ctx v)) Identity)
         OptionLabel  (p/fn [id] (option-label. (hfql/JoinAllTheTree. (continuation. id))))]

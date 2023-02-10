@@ -1,11 +1,11 @@
-(ns ^:dev/always ; recompile Photon entrypoint when Photon source changes
+(ns ^:dev/always ; recompile Electric entrypoint when Electric sources change
   user-main
   #?(:cljs (:require-macros user-main))
   (:require contrib.uri ; data_readers
             contrib.ednish
             [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router]
             #?(:cljs [hyperfiddle.router-html5 :as html5])
             [user.demo-index :as demos]
