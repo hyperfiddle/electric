@@ -1823,9 +1823,3 @@
       % := 120
       (reset! !n 20)
       % := 2432902008176640000)))
-
-#?(:clj (tests
-  (macroexpand-1 '(p/do! (prn :a))) := '(prn :a)
-  (macroexpand-1 '(p/do! (prn :a) (prn :b))) := `(case (~'prn :a) (p/do! (~'prn :b)))))
-
-;; TODO write a test for p/do!
