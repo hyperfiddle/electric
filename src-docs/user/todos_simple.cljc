@@ -12,7 +12,7 @@
   (dom/input (dom/props {:placeholder "Buy milk"})
     (dom/on "keydown" (p/fn [e]
                         (when (= "Enter" (.-key e))
-                          (when-some [v (contrib.str/empty->nil (p/fuse (-> ^js e .-target .-value)))]
+                          (when-some [v (contrib.str/empty->nil (-> e .-target .-value))]
                             (p/server (p/discard (d/transact! !conn [{:task/description v
                                                                      :task/status :active}])))
                             (set! (.-value dom/node) "")))))))
