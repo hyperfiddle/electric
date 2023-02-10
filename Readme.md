@@ -26,11 +26,14 @@ clj -A:dev -X user/main     # healthcheck app http://localhost:8080
 * `dev` alias
 * `(user/main)` compiles assets and serves app
 
-Run tests:
+Check tests:
 ```bash
 yarn
 ci/run_tests_all.sh
 ```
+[![JVM](https://github.com/hyperfiddle/electric/actions/workflows/tests_clj.yml/badge.svg?branch=master)](https://github.com/hyperfiddle/electric/actions/workflows/tests_clj.yml)
+[![Node](https://github.com/hyperfiddle/electric/actions/workflows/tests_node.yml/badge.svg?branch=master)](https://github.com/hyperfiddle/electric/actions/workflows/tests_node.yml)
+[![Browser](https://github.com/hyperfiddle/electric/actions/workflows/tests_browser.yml/badge.svg?branch=master)](https://github.com/hyperfiddle/electric/actions/workflows/tests_browser.yml)
 
 # Examples
 * see [src-docs/user/](https://github.com/hyperfiddle/photon/tree/master/src-docs/user) for demos and tutorials
