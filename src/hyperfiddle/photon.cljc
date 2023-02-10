@@ -373,7 +373,7 @@ or a provided value if it completes without producing any value."
 (defmacro discard "Silence \"Unserializable reference transfer\"; `nil` is idiomatic but this saves a newline"
   [& body] `(do ~@body nil))
 
-(defmacro fuse "to prevent work skipping on references when sampling them
+(defmacro ^:deprecated fuse "to prevent work skipping on references when sampling them
 example: (p/fuse (-> ^js e .-target .-value)) will prevent Photon from work-skipping on the stable
 `-target` reference and wrongly reusing a stale `-value`"
   [& body] `((cc/fn [] ~@body)))
