@@ -1,4 +1,4 @@
-(ns hyperfiddle.photon-impl.failer
+(ns hyperfiddle.photon.impl.failer
   #?(:clj (:import (clojure.lang IDeref IFn))))
 
 (defn run [e n t]

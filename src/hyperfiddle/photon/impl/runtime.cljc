@@ -1,9 +1,9 @@
-(ns ^:no-doc hyperfiddle.photon-impl.runtime
+(ns ^:no-doc hyperfiddle.photon.impl.runtime
   (:refer-clojure :exclude [eval compile])
-  (:require [hyperfiddle.photon-impl.yield :refer [yield]]
-            [hyperfiddle.photon-impl.failer :as failer]
-            [hyperfiddle.photon-impl.local :as l]
-            [hyperfiddle.photon-impl.ir :as ir]
+  (:require [hyperfiddle.photon.impl.yield :refer [yield]]
+            [hyperfiddle.photon.impl.failer :as failer]
+            [hyperfiddle.photon.impl.local :as l]
+            [hyperfiddle.photon.impl.ir :as ir]
             [hyperfiddle.photon.debug :as dbg]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
@@ -1332,7 +1332,7 @@
       (type (q)) := Cancelled)))
 
 (tests
-  '(tap (p/server (new (:hyperfiddle.photon-impl.compiler/closure (p/client 1)))))
+  '(tap (p/server (new (:hyperfiddle.photon.impl.compiler/closure (p/client 1)))))
 
   (let [q (queue)
         c (((eval (ir/apply (ir/literal q)

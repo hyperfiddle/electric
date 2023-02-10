@@ -1,4 +1,4 @@
-(ns hyperfiddle.photon-impl.analyzer
+(ns hyperfiddle.photon.impl.analyzer
   "Utilities to analyze and transform clojure/script code. Not photon code.
   Use case: support `clojure.core/fn` in a photon program.
   Long term goal is to build a unified clojure/script code walker and get rid of tools.analyzer deps."

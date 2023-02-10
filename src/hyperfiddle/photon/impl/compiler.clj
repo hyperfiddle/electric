@@ -1,15 +1,15 @@
-(ns hyperfiddle.photon-impl.compiler
+(ns hyperfiddle.photon.impl.compiler
   (:require [clojure.tools.analyzer.jvm :as clj]
             [clojure.tools.analyzer.env :as env]
             [cljs.analyzer :as cljs]
             [cljs.util]
-            [hyperfiddle.photon-impl.local :as l]
-            [hyperfiddle.photon-impl.runtime :as r]
-            [hyperfiddle.photon-impl.ir :as ir]
+            [hyperfiddle.photon.impl.local :as l]
+            [hyperfiddle.photon.impl.runtime :as r]
+            [hyperfiddle.photon.impl.ir :as ir]
             [hyperfiddle.photon.debug :as dbg]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str]
-            [hyperfiddle.photon-impl.analyzer :as ana]
+            [hyperfiddle.photon.impl.analyzer :as ana]
             [hyperfiddle.logger :as log]
             [clojure.tools.analyzer.jvm.utils :refer [maybe-class-from-string]]
             [missionary.core :as m])
@@ -969,8 +969,8 @@
                            ::dbg/name _
                            ::dbg/scope :lexical
                            ::dbg/meta nil)
-                         (assoc (ir/constant (ir/apply (assoc (ir/global :hyperfiddle.photon-impl.runtime/fail) ::dbg/meta {})
-                                               (ir/apply (ir/eval '(hyperfiddle.photon-impl.compiler/ctor-call java.lang.IllegalArgumentException 1))
+                         (assoc (ir/constant (ir/apply (assoc (ir/global :hyperfiddle.photon.impl.runtime/fail) ::dbg/meta {})
+                                               (ir/apply (ir/eval '(hyperfiddle.photon.impl.compiler/ctor-call java.lang.IllegalArgumentException 1))
                                                  (ir/apply (assoc (ir/global :clojure.core/str) ::dbg/meta {})
                                                    (ir/literal "No matching clause: ")
                                                    (assoc (ir/sub 3)
@@ -1255,7 +1255,7 @@
 
 (tests "method access"
   (analyze {} '(. Math abs -1))  :=
-  [(ir/apply (assoc (ir/eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1))
+  [(ir/apply (assoc (ir/eval '(hyperfiddle.photon.impl.compiler/static-call java.lang.Math abs 1))
                ::dbg/action :static-call
                ::dbg/target 'java.lang.Math
                ::dbg/method 'abs
@@ -1265,7 +1265,7 @@
    (ir/do [] ir/nop)]
 
   (analyze {} '(Math/abs -1))  :=
-  [(ir/apply (assoc (ir/eval '(hyperfiddle.photon-impl.compiler/static-call java.lang.Math abs 1))
+  [(ir/apply (assoc (ir/eval '(hyperfiddle.photon.impl.compiler/static-call java.lang.Math abs 1))
                ::dbg/action :static-call
                ::dbg/target 'java.lang.Math
                ::dbg/method 'abs

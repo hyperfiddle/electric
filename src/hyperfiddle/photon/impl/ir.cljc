@@ -1,4 +1,4 @@
-(ns hyperfiddle.photon-impl.ir
+(ns hyperfiddle.photon.impl.ir
   (:refer-clojure :exclude [apply eval]))
 
 (defn literal [x]

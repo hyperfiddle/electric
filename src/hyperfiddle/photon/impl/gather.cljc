@@ -1,7 +1,7 @@
-(ns hyperfiddle.photon-impl.gather
-  (:require [hyperfiddle.photon-impl.failer :as failer])
+(ns hyperfiddle.photon.impl.gather
+  (:require [hyperfiddle.photon.impl.failer :as failer])
   #?(:clj (:import (clojure.lang IDeref IFn)))
-  #?(:cljs (:require-macros [hyperfiddle.photon-impl.gather :refer [aget-aset]])))
+  #?(:cljs (:require-macros [hyperfiddle.photon.impl.gather :refer [aget-aset]])))
 
 #?(:clj
    (defmacro aget-aset [arr idx val]

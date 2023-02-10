@@ -5,12 +5,12 @@
   (:require [datascript.core :as d] ; An HFQL expr is easily represented as a graph
             [hyperfiddle.api :as-alias hf] ; db, Renderer, e a v model
             [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-impl.compiler :as c] ; var resolution
+            [hyperfiddle.photon.impl.compiler :as c] ; var resolution
             [hyperfiddle.spec :as spec] ; extract cardinality from fn specs
             [clojure.string :as str]
             [clojure.datafy :refer [datafy]]
             [missionary.core :as m]
-            [hyperfiddle.photon-impl.runtime :as r]
+            [hyperfiddle.photon.impl.runtime :as r]
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as-alias hfql]
             [hyperfiddle.rcf :as rcf :refer [tests with % tap]]))

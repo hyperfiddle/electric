@@ -4,8 +4,8 @@
             [hyperfiddle.logger :as log]
             [hyperfiddle.photon :as p]
             [missionary.core :as m]
-            [hyperfiddle.photon-impl.io :as io]
-            [hyperfiddle.photon-impl.runtime :as r])
+            [hyperfiddle.photon.impl.io :as io]
+            [hyperfiddle.photon.impl.runtime :as r])
   (:import [missionary Cancelled]
            [java.nio ByteBuffer]
            [org.eclipse.jetty.websocket.api Session WebSocketAdapter]))
