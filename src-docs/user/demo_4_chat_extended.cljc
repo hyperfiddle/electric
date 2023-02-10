@@ -31,10 +31,13 @@
         (p/client
           (dom/li
             (dom/strong (dom/text username)) (dom/text " " msg))))))
-  (dom/input (dom/props {:placeholder "Type a message"})
+
+  (dom/input
+    (dom/props {:placeholder "Type a message"})
     (dom/on "keydown" (p/fn [e]
                          (when (= "Enter" (.-key e))
-                           (when-some [v (contrib.str/empty->nil (p/fuse (-> ^js e .-target .-value)))]
+                           (when-some [v (contrib.str/empty->nil (-> e .-target .-value))]
+                             (dom/style {:background-color "yellow"})
                              (p/server (swap! !msgs #(cons {::username username ::msg v} (take 9 %))))
                              (set! (.-value dom/node) "")))))))
 
