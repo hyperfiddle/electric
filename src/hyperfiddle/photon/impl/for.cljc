@@ -1,7 +1,7 @@
-(ns hyperfiddle.photon-impl.for
-  (:require [hyperfiddle.photon-impl.gather :refer [gather]]
-            [hyperfiddle.photon-impl.eventually :refer [eventually]]
-            [hyperfiddle.photon-impl.runtime :as r]
+(ns hyperfiddle.photon.impl.for
+  (:require [hyperfiddle.photon.impl.gather :refer [gather]]
+            [hyperfiddle.photon.impl.eventually :refer [eventually]]
+            [hyperfiddle.photon.impl.runtime :as r]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.string :as str])

@@ -1,8 +1,8 @@
 (ns hyperfiddle.photon.debug
-  (:require #_[hyperfiddle.photon-impl.runtime :as-alias r]
+  (:require #_[hyperfiddle.photon.impl.runtime :as-alias r]
             [clojure.string :as str]
             [contrib.data :as data]
-            [hyperfiddle.photon-impl.ir :as-alias ir])
+            [hyperfiddle.photon.impl.ir :as-alias ir])
   (:import (hyperfiddle.photon Failure Pending)
            (missionary Cancelled)
            #?(:clj (clojure.lang ExceptionInfo))))
@@ -79,7 +79,7 @@
                       (into
                         (case type
                           :apply         `["(" ~(case name
-                                                  hyperfiddle.photon-impl.runtime/fail 'throw
+                                                  hyperfiddle.photon.impl.runtime/fail 'throw
                                                   name)
                                            ~@(map render-arg args) ")"]
                           :eval (let [{::keys [action target method args]} frame]

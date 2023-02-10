@@ -1,6 +1,6 @@
 (ns user.photon.photon-missionary-interop
   (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-impl.runtime :as r]
+            [hyperfiddle.photon.impl.runtime :as r]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m])
   (:import hyperfiddle.photon.Failure
