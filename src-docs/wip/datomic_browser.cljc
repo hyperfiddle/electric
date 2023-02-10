@@ -12,8 +12,8 @@
             [wip.explorer :as explorer :refer [Explorer]]
             [wip.gridsheet :as-alias gridsheet]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.rcf :refer [tests]]
             [hyperfiddle.router :as router]
             #?(:cljs [hyperfiddle.router-html5 :as html5])

@@ -1,7 +1,7 @@
 (ns user.demo-1-hello-world
   #?(:cljs (:require-macros user.demo-1-hello-world))
-  (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]))
+  (:require [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]))
 
 ; First demonstration of client/server transfer:
 ; a full stack function with both frontend and backend parts,
@@ -9,7 +9,7 @@
 
 (p/defn HelloWorld []
   (p/client
-    (dom/h1 (dom/text "Hello World"))
+    (dom/h1 (dom/text "Hello Electric"))
     (dom/div (dom/text "Hello from server, where JVM number type is: ")
       (dom/code (dom/text (p/server (pr-str (type 1))))))
     (dom/div (dom/text "Hello from client, where JS number type is: ")

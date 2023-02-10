@@ -5,12 +5,12 @@
             [contrib.data :as data]
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as hfql]
-            [hyperfiddle.photon :as p]
+            [hyperfiddle.electric :as p]
             [missionary.core :as m]
-            hyperfiddle.photon-dom2
+            hyperfiddle.electric-dom2
             [hyperfiddle.spec :as spec]
             [hyperfiddle.rcf :refer [tests]])
-  (:import [hyperfiddle.photon Pending]
+  (:import [hyperfiddle.electric Pending]
            #?(:cljs [goog.math Long]))
   #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
 
@@ -23,7 +23,7 @@
 (def -read-edn-str-default (partial clojure.edn/read-string
                                     {:readers #?(:cljs {'goog.math/Long goog.math.Long/fromString} ; datomic cloud long ids
                                                 :clj {})}))
-(p/def read-edn-str "inject app-specific edn extensions" -read-edn-str-default) ; avoid photon warning about goog.math.Long
+(p/def read-edn-str "inject app-specific edn extensions" -read-edn-str-default) ; avoid Electric warning about goog.math.Long
 (p/def ^:dynamic *nav!*)
 
 (defmacro hfql ; Alias
@@ -77,11 +77,11 @@
 #?(:clj (defn expand-hf-tx [tx] (call-sym 'hyperfiddle.txn/expand-hf-tx tx)))
 ;#?(:clj
 ;   (defmacro into-tx
-;     ([tx tx'] `(call-sym ~'hyperfiddle.txn/into-tx ~hyperfiddle.api/schema ~tx ~tx')) ; photon call can infer schema
+;     ([tx tx'] `(call-sym ~'hyperfiddle.txn/into-tx ~hyperfiddle.api/schema ~tx ~tx')) ; Electric call can infer schema
 ;     ([schema tx tx'] `(call-sym ~'hyperfiddle.txn/into-tx ~schema ~tx ~tx'))) ; clojure compatible call
 ;   :cljs (def into-tx nil))
 #?(:clj (defn into-tx
-          ;([tx tx'] (into-tx schema tx tx')) -- needs photon->clojure binding conveyance
+          ;([tx tx'] (into-tx schema tx tx')) -- needs Electric->Clojure binding conveyance
           ([schema tx tx'] (call-sym 'hyperfiddle.txn/into-tx schema tx tx'))))
 
 (p/defn Transact!* [!t tx] ; colorless, !t on server
@@ -104,7 +104,7 @@
   (p/client
     (let [[x] (p/with-cycle [[elapsed start :as s] [0 nil]]
                 (case hyperfiddle.api/loading
-                  true [(some->> start (- hyperfiddle.photon-dom2/system-time-ms))
+                  true [(some->> start (- hyperfiddle.electric-dom2/system-time-ms))
                              (js/Date.now)]
                   s))]
       x)))
@@ -135,7 +135,7 @@
 
 (defmacro branch [& body] `(new Branch (p/fn [] ~@body)))
 
-(def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current photon program is running." nil)
+(def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current Electric program is running." nil)
 
 (p/def page-drop -1)
 (p/def page-take -1)

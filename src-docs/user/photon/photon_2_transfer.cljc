@@ -1,8 +1,8 @@
 (ns user.photon.photon-2-transfer
-  "Photon with client/server transfer at the REPL"
-  (:require [hyperfiddle.photon :as p]
+  "Electric with client/server transfer at the REPL"
+  (:require [hyperfiddle.electric :as p]
             [hyperfiddle.rcf :refer [tests tap % with]])
-  (:import (hyperfiddle.photon Pending)))
+  (:import (hyperfiddle.electric Pending)))
 
 
 (hyperfiddle.rcf/enable!)

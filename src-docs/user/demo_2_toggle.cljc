@@ -1,12 +1,12 @@
 (ns user.demo-2-toggle
   #?(:cljs (:require-macros user.demo-2-toggle))
   (:require
-   [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom2 :as dom]
-   [hyperfiddle.photon-ui4 :as ui]))
+   [hyperfiddle.electric :as p]
+   [hyperfiddle.electric-dom2 :as dom]
+   [hyperfiddle.electric-ui4 :as ui]))
 
 ; A stateful app with a server-side counter
-; Photon functions are reactive and incrementally maintained,
+; Electric functions are reactive and incrementally maintained,
 ; which means that when you make a small change to the state,
 ; the functions will recompute and you'll get a small adjustment to the DOM
 

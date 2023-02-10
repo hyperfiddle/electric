@@ -1,13 +1,13 @@
 (ns user.demo-5-todomvc
-  "Requires -Xss2m to compile. default 1m JVM ThreadStackSize is exceeded by photon compiler due to
-  large macroexpansion resulting in false StackOverflowError during analysis."
+  "Requires -Xss2m to compile. The Electric compiler exceeds the default 1m JVM ThreadStackSize
+  due to large macroexpansion resulting in false StackOverflowError during analysis."
   #?(:cljs (:require-macros user.demo-5-todomvc))
   (:require
    contrib.str
    #?(:clj [datascript.core :as d])
-   [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom2 :as dom]
-   [hyperfiddle.photon-ui4 :as ui]))
+   [hyperfiddle.electric :as p]
+   [hyperfiddle.electric-dom2 :as dom]
+   [hyperfiddle.electric-ui4 :as ui]))
 
 (defonce !conn #?(:clj (d/create-conn {}) :cljs nil))       ; server
 (p/def db)                                                  ; server

@@ -1,14 +1,14 @@
 (ns wip.demo-stage-ui4
   #?(:cljs (:require-macros wip.demo-stage-ui4))
-  (:import [hyperfiddle.photon Pending])
+  (:import [hyperfiddle.electric Pending])
   (:require [contrib.css :refer [css-slugify]]
             [contrib.str :refer [pprint-str]]
             #?(:clj [contrib.datomic-contrib :as dx])
             #?(:clj [datomic.client.api :as d])
             [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui4 :as ui]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
+            [hyperfiddle.electric-ui4 :as ui]
             [hyperfiddle.popover :refer [Popover]]))
 
 (def cobblestone 536561674378709)

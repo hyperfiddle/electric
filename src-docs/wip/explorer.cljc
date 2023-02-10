@@ -2,9 +2,9 @@
   (:require [clojure.set :refer [rename-keys]]
             [contrib.data :refer [auto-props unqualify]]
             [clojure.datafy :refer [datafy]]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui4 :as ui]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
+            [hyperfiddle.electric-ui4 :as ui]
             [hyperfiddle.router :as router]
             [wip.gridsheet :as gridsheet :refer [GridSheet]]
             [hyperfiddle.rcf :refer [tests tap % with]])

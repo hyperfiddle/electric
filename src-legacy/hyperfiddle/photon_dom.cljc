@@ -6,8 +6,8 @@
   (:require [clojure.string :as str]
             [contrib.cljs-target :refer [do-browser]]
             [hyperfiddle.logger :as log]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :refer [node]] ; use dom2/node to standardize entrypoints
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :refer [node]] ; use dom2/node to standardize entrypoints
             [hyperfiddle.rcf :as rcf :refer [tests tap %]]
             #?(:cljs [goog.dom :as d])
             #?(:cljs [goog.events :as e])

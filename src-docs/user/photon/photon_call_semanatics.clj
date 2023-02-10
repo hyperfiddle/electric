@@ -1,5 +1,5 @@
 (ns user.photon.photon-call-semanatics
-  (:require [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.electric :as p]
             [hyperfiddle.rcf :refer [tests tap % with]]))
 
 (p/def trace! println)

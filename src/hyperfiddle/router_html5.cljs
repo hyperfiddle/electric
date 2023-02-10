@@ -1,6 +1,6 @@
 (ns hyperfiddle.router-html5
   (:require [hyperfiddle.router :as router]
-            [hyperfiddle.photon :as p]
+            [hyperfiddle.electric :as p]
             [missionary.core :as m]))
 
 (defn throttler [rate-ms]

@@ -1,14 +1,14 @@
 (ns user.demo-color
   #?(:cljs (:require-macros user.demo-color))
   (:require [contrib.data :refer [assoc-vec]]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router]
             [contrib.color :as c]))
 
-;; Goal is to show:
-;; - fine grained reactivity on CSS properties
-;; - Non trivial DOM api usage (canvas)
+;; Goal is to demonstrate:
+;; - fine-grained reactivity on CSS properties
+;; - Non-trivial DOM api usage (canvas)
 
 (def CANVAS-WIDTH 360)                  ; px
 (def CANVAS-HEIGHT 100)                 ; px

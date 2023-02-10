@@ -1,11 +1,11 @@
 (ns hyperfiddle.popover
   #?(:cljs (:require-macros hyperfiddle.popover))
-  (:import [hyperfiddle.photon Pending])
+  (:import [hyperfiddle.electric Pending])
   (:require [contrib.css :refer [css-slugify]]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui4 :as ui]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
+            [hyperfiddle.electric-ui4 :as ui]
             [missionary.core :as m]
             [hyperfiddle.spec :as spec]
             [hyperfiddle.router :as router]))

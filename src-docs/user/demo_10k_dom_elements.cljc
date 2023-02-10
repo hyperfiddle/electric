@@ -1,7 +1,7 @@
 (ns user.demo-10k-dom-elements
   #?(:cljs (:require-macros user.demo-10k-dom-elements))
-  (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
+  (:require [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m]))
 
 (def !moves #?(:clj (atom []) :cljs nil))
@@ -41,7 +41,7 @@
 ;                            x))))))
 ;
 ;(defn cell-color [x]
-;  (if (> x 1) ; In photon-land, this conditional would introduce a switch and trigger a ws message for client-server frame coordination.
+;  (if (> x 1) ; In Electric-land, this conditional would introduce a switch and trigger a ws message for client-server frame coordination.
 ;    (apply css-rgb-str (hsv->rgb (/ 0 360)
 ;                 (-> x (/ 7.5) (* 1.33))
 ;                 0.95))

@@ -1,4 +1,4 @@
-name: Photon Test Suite
+name: hyperfiddle/electric
 on:
   push:
     branches:

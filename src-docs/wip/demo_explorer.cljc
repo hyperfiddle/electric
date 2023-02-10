@@ -6,8 +6,8 @@
             [contrib.datafy-fs #?(:clj :as :cljs :as-alias) fs]
             contrib.str
             [hyperfiddle.api :as hf]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router]
             [wip.explorer :as explorer :refer [Explorer]]
             [wip.gridsheet :as-alias gridsheet]))

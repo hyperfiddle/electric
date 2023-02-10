@@ -2,21 +2,21 @@
   (:require
    [hyperfiddle.api :as hf :refer [hfql]]
    [hyperfiddle.hfql :as hfql]
-   [hyperfiddle.photon :as p]
+   [hyperfiddle.electric :as p]
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
    [datascript.core :as d]
    [clojure.string :as str]
    [clojure.spec.alpha :as s]
    #?(:clj [wip.orders-datascript :refer [orders order shirt-sizes one-order nav! schema]])
    )
-  (:import [hyperfiddle.photon Pending]))
+  (:import [hyperfiddle.electric Pending]))
 
 (comment
   (rcf/enable! true))
 
 (defmacro debug [& body]
   `(try ~@body
-        (catch hyperfiddle.photon.Pending e# (throw e#))
+        (catch hyperfiddle.electric.Pending e# (throw e#))
         (catch missionary.Cancelled e# (throw e#))
         (catch Throwable e# (prn (type e#) (ex-message e#) (ex-data e#) e#) (throw e#))))
 
@@ -371,7 +371,7 @@
 
 (p/defn Default [a]
   ;; TODO Default fn should see hf context (e.g. injected from dynamic scope.
-  (or a "defaulted from photon"))
+  (or a "defaulted from Electric"))
 
 (tests
   "default of fn argument" ; only for gray inputs
@@ -379,7 +379,7 @@
                               hf/*nav!* nav!]
                       (hfql (foo (Default. nil)))   ; TODO allow referencing lexical scope from nested sexprs
                       ))))
-  % := "defaulted from photon")
+  % := "defaulted from Electric")
 
 
 (comment
@@ -388,7 +388,7 @@
                               hf/*nav!* nav!]
                       (debug (hfql [:db/id (foo (Default. db/id))]))   ; TODO allow referencing lexical scope from nested sexprs
                       ))))
-  % := "defaulted from photon")
+  % := "defaulted from Electric")
 
 
 (comment
@@ -480,17 +480,17 @@
 (s/fdef Foo :args (s/cat :x any?) :ret any?)
 
 (tests
-  "Call photon function"
+  "Call Electric function"
   (with (p/run (tap (hfql (Foo. 1)))))
   % := 1)
 
 (tests
-  "Escape to photon in rendering point"
+  "Escape to Electric in rendering point"
   (with (p/run (tap (hfql [(Foo. 1)]))))
   % := `{(hyperfiddle.hfql.tests/Foo 1) 1})
 
 (tests
-  "Navigate through photon function"
+  "Navigate through Electric function"
   (with (p/run (tap (debug (binding [hf/db     hf/*$*
                                      hf/*nav!* nav!
                                      hf/*schema* schema]
