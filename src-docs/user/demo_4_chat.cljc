@@ -1,10 +1,10 @@
 (ns user.demo-4-chat
   #?(:cljs (:require-macros user.demo-4-chat))
-  (:import [hyperfiddle.photon Pending])
+  (:import [hyperfiddle.electric Pending])
   (:require [contrib.data :refer [pad]]
             [contrib.str :refer [empty->nil]]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]))
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]))
 
 (defonce !state #?(:clj (atom (list)) :cljs nil))
 

@@ -22,11 +22,11 @@
                        :modules       {:main {:entries [user]}}}
             :test     {:target           :node-test
                        :output-to        "out/node-tests.js"
-                       :ns-regexp        "^(hyperfiddle.(photon-[^dom]|core-async|zero)|contrib.(ednish|sexpr-router)).*$"
+                       :ns-regexp        "^(hyperfiddle.(electric-[^dom]|core-async|zero)|contrib.(ednish|sexpr-router)).*$"
                        :build-options    {:cache-level :off}
                        :modules          {:main {:entries [hyperfiddle.zero
-                                                           hyperfiddle.photon
-                                                           hyperfiddle.photon-test
+                                                           hyperfiddle.electric
+                                                           hyperfiddle.electric-test
                                                            #_hyperfiddle.missionary-test
                                                            hyperfiddle.core-async-test
                                                            contrib.ednish
@@ -35,11 +35,11 @@
                        :compiler-options {:warnings {:redef-in-file false}}}
             :browser-test {:target           :karma
                            :output-to        "out/karma-tests.js"
-                           :ns-regexp        "^(hyperfiddle.(photon-[^dom]|core-async|zero)|contrib.(ednish|sexpr-router)).*$"
+                           :ns-regexp        "^(hyperfiddle.(electric-[^dom]|core-async|zero)|contrib.(ednish|sexpr-router)).*$"
                            :build-options    {:cache-level :off}
                            :modules          {:main {:entries [hyperfiddle.zero
-                                                               hyperfiddle.photon
-                                                               hyperfiddle.photon-test
+                                                               hyperfiddle.electric
+                                                               hyperfiddle.electric-test
                                                                #_hyperfiddle.missionary-test
                                                                hyperfiddle.core-async-test
                                                                contrib.ednish

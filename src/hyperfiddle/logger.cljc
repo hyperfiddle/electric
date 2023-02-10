@@ -1,10 +1,10 @@
 (ns ^:no-doc hyperfiddle.logger
-  "A Photon compatible logger. Not public API. 
+  "An Electric compatible logger. Not public API.
   Thin uniform macro wrapper on top of clojure.tools.logging and js/console.log|warn|error.
-  `Timbre` rely on `cc/fn`, which is not yet supported by photon. It will be at some point.
-  `cc/print` flushes to `*out*` immediatly, concurent writes produces gibberish. A proper logger
+  `Timbre` relies on `cc/fn`, which is not yet supported by Electric. It will be at some point.
+  `cc/print` flushes to `*out*` immediately, concurrent writes produces gibberish. A proper logger
   sequences writes.
-  To be removed when timbre (or an equivalent) is supported by photon.
+  To be removed when timbre (or an equivalent) is supported by Electric.
   Backed by clojure.tools.logging > backed by SLF4J > backed by logback. See logback.xml."
   (:refer-clojure :exclude [time])
   #?(:clj (:require [clojure.tools.logging :as log]
@@ -35,7 +35,7 @@
                 :error "  ERROR"})
 
 (defn log*
-  "When photon compiles to clojurescript, the server peer still don't know about the js/ namespace."
+  "When Electric compiles to clojurescript, the server peer still don't know about the js/ namespace."
   [level ns & args]
   (when (active? level)
     #?(:clj  (let [logger (impl/get-logger log/*logger-factory* ns)]

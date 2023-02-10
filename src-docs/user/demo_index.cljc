@@ -1,8 +1,8 @@
 (ns ;^:dev/always ; force rebuild here? We don't understand why
   user.demo-index
   #?(:cljs (:require-macros user.demo-index))
-  (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
+  (:require [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router])) ; for link only
 
 (def pages
@@ -38,7 +38,7 @@
 
 (p/defn Demos []
   (p/client
-    (dom/h1 (dom/text "Photon Demos"))
+    (dom/h1 (dom/text "Demos — Electric Clojure/Script"))
     (dom/p (dom/text "See source code in src-docs."))
     (p/for [k pages]
       (dom/div (router/link [k] (dom/text (name k)))))

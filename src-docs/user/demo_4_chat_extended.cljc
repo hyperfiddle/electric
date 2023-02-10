@@ -3,8 +3,8 @@
   (:require
    contrib.str
    [hyperfiddle.api :as hf]
-   [hyperfiddle.photon :as p]
-   [hyperfiddle.photon-dom2 :as dom]
+   [hyperfiddle.electric :as p]
+   [hyperfiddle.electric-dom2 :as dom]
    [missionary.core :as m]))
 
 ; Fleshed out chat demo with auth and presence
@@ -49,11 +49,11 @@
       (if-not (some? username)
         (do (dom/p (dom/text "Set login cookie here: ") (dom/a (dom/props {::dom/href "/auth"}) (dom/text "/auth")) (dom/text " (blank password)"))
             (dom/p (dom/text "Example HTTP endpoint is here: ")
-              (dom/a (dom/props {::dom/href "https://github.com/hyperfiddle/photon/blob/master/src/hyperfiddle/photon_jetty_server.clj"})
-                (dom/text "photon_jetty_server.clj"))))
+              (dom/a (dom/props {::dom/href "https://github.com/hyperfiddle/electric/blob/master/src/hyperfiddle/electric_jetty_server.clj"})
+                (dom/text "electric_jetty_server.clj"))))
         (do
           (p/server
-            ; >x is a missionary flow that attaches side effect to the mount/unmount lifecycle
+            ; >x is a Missionary flow that attaches side effect to the mount/unmount lifecycle
             (let [>x (->> (m/observe (fn mount [!]
                                        (println `mount username session-id)
                                        (swap! !present assoc session-id username)
@@ -61,8 +61,8 @@
                                          (println `unmount username session-id)
                                          (swap! !present dissoc session-id))))
                           (m/reductions {} nil))]
-              ; missionary flows are booted with `new` (monadic join)
-              ; This works because Photon is essentially a Clojure-to-Missionary compiler,
+              ; Missionary flows are booted with `new` (monadic join)
+              ; This works because Electric is essentially a Clojure-to-Missionary compiler,
               ; so this actually typechecks from a compiler internals perspective.
               (new >x)))
           (dom/p (dom/text "Authenticated as: " username))

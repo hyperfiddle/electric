@@ -1,8 +1,8 @@
 (ns user.seven-gui-5-crud
   #?(:cljs (:require-macros user.seven-gui-5-crud))
-  (:require [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui4 :as ui4]
+  (:require [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
+            [hyperfiddle.electric-ui4 :as ui4]
             [clojure.string :as str]))
 
 ;;; Instructions

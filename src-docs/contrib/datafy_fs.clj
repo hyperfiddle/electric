@@ -66,8 +66,8 @@
   (-> (datafy Path) :members keys)
   (-> p .getRoot str) := "/"
   (-> p .getFileName str) := "src"
-  (-> p .getParent .getFileName str) := "photon"
-  (-> p .getParent .toFile .getName) := "photon"
+  (-> p .getParent .getFileName str) := "electric"
+  (-> p .getParent .toFile .getName) := "electric"
   #_(-> p .getParent .toFile datafy))
 
 (defn path-attrs [^Path p]

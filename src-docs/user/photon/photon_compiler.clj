@@ -1,12 +1,12 @@
 (ns user.photon.photon-compiler
   (:require [clojure.datafy :refer [datafy]]
-            [hyperfiddle.photon :as p]
+            [hyperfiddle.electric :as p]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]))
 
 (hyperfiddle.rcf/enable!)
 
-(tests "Photon baseline program - a dataflow diamond"
+(tests "Electric baseline program - a dataflow diamond"
   (def !x (atom 0))
   (def dispose (p/run
                  (let [x (p/watch !x)                       ; reactive x
@@ -19,8 +19,8 @@
   % := 6
   (dispose))
 
-; Since in Photon everything is a missionary flow, it feels like nothing is, so you don't see the flow types.
-; (except at the missionary/photon interop boundary)
+; Since in Electric everything is a Missionary signal, it feels like nothing is,
+; so you don't see the signal types, except at the Missionary<>Electric interop boundary.
 
 (tests
   "Approximately equivalent program as missionary, for understanding"

@@ -21,13 +21,16 @@ It's called Photon because every point in a Photon form can be thought of as sim
 
 # Setup and healthcheck
 ```bash
-git clone ...
-cd photon
 clj -A:dev -X user/main     # healthcheck app http://localhost:8080
 ```
-
 * `dev` alias
 * `(user/main)` compiles assets and serves app
+
+Run tests:
+```bash
+yarn
+ci/run_tests_all.sh
+```
 
 # Examples
 * see [src-docs/user/](https://github.com/hyperfiddle/photon/tree/master/src-docs/user) for demos and tutorials

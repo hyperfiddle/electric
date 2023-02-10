@@ -1,10 +1,10 @@
 (ns ;^:dev/always ; recompile Photon entrypoint when Photon source changes
   user
-  (:require hyperfiddle.photon
+  (:require hyperfiddle.electric
             hyperfiddle.rcf
             user-main))
 
-(def photon-main (hyperfiddle.photon/boot (user-main/Main.)))
+(def photon-main (hyperfiddle.electric/boot (user-main/Main.)))
 (defonce reactor nil)
 
 (defn ^:dev/after-load ^:export start! []

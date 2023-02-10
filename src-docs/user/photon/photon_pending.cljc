@@ -1,7 +1,7 @@
 (ns user.photon.photon-pending
-  (:require [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.electric :as p]
             [hyperfiddle.rcf :refer [tests tap % with]])
-  (:import (hyperfiddle.photon Pending)))
+  (:import (hyperfiddle.electric Pending)))
 
 
 (hyperfiddle.rcf/enable!)

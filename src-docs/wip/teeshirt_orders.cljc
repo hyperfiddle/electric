@@ -5,9 +5,9 @@
             dev
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
-            [hyperfiddle.photon-ui4 :as ui]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
+            [hyperfiddle.electric-ui4 :as ui]
             [hyperfiddle.router :as router]
             wip.orders-datascript
             [clojure.string :as str]))

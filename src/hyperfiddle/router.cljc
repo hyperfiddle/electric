@@ -1,7 +1,7 @@
 (ns hyperfiddle.router
   (:require [hyperfiddle.rcf :as rcf :refer [tests % tap with]]
-            [hyperfiddle.photon :as p]
-            [hyperfiddle.photon-dom2 :as dom]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m])
   #?(:clj (:import [clojure.lang IRef IAtom]))
   #?(:cljs (:require-macros hyperfiddle.router)))
@@ -22,7 +22,7 @@
 ;; 9. a push-state! resets the current hf/!history binding.
 
 
-;; Based on a reflexion of the use of cursors in Photon, I’m challengineg goal 1. because:
+;; Based on a reflexion of the use of cursors in Electric, I’m challengineg goal 1. because:
 ;; - A cursor is a read-write interface supporting m/watch.
 ;; - m/watch is eager, so a change to the watched cursor immedately triggers a reactor propagation turn
 ;; - a cursor always write to the original root atom
@@ -36,7 +36,7 @@
 
 ;; By separating the read from the write:
 ;; we would have a single m/watch on the root atom, ensuring a change triggers one propagation turn.
-;; deduping would be lazy (handled by photon)
+;; deduping would be lazy (handled by Electric)
 ;; loops would still be possible but would be easier to track (is this a strong argument?)
 
 (comment

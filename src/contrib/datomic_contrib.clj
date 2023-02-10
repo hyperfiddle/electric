@@ -1,7 +1,7 @@
 (ns contrib.datomic-contrib
   (:require [contrib.data :refer [index-by unqualify]]
             [contrib.datomic-m :as d]
-            [hyperfiddle.photon :as p] ; ?
+            [hyperfiddle.electric :as p] ; ?
             [hyperfiddle.rcf :refer [tests % tap]]
             [missionary.core :as m]))
 

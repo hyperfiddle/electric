@@ -1,7 +1,6 @@
-;; TODO move core.async interop out of core photon, and move these tests with it.
+;; TODO move core.async interop out of core Electric, and move these tests with it.
 (ns hyperfiddle.core-async-test
-  "Photon language unit tests"
-  (:require [hyperfiddle.photon :as p]
+  (:require [hyperfiddle.electric :as p]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [clojure.core.async :as a]
             [missionary.core :as m])
@@ -76,7 +75,7 @@
 
 #?(:clj
    (tests
-     "Turn a channel into a discreet flow"
+     "Turn a channel into a discrete flow"
      (let [c (a/chan)
            f (p/chan->ap c)
            it (f #(tap :ready) #(tap :done))]
@@ -98,7 +97,7 @@
 
 #?(:clj
    (tests
-     "When transfering values from a discreet flow to a channel, values are not lost if the channel is closed."
+     "When transferring values from a discrete flow to a channel, values are not lost if the channel is closed."
      (def input (a/chan))
      (def c (a/chan))
      (future (m/? (m/reduce {} nil ; just run the flow until it terminates
@@ -114,7 +113,7 @@
 
 #?(:clj
    (tests
-     "Using a core.async channel from Photon"
+     "Using a core.async channel from Electric"
      (def c (a/to-chan [1 2 3]))
      (with (p/run (tap (p/use-channel c)))
            % := nil
@@ -126,7 +125,7 @@
 (comment
   #?(:clj
      (tests
-      "Putting values on a channel from photon"
+      "Putting values on a channel from Electric"
       (def !a (atom 0))
       (def c (a/chan))
       (with (p/run (tap (new (onto-chan (p/fn [] (p/watch !a)) c))))
