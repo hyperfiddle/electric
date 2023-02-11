@@ -72,5 +72,5 @@
 ;(when (get (System/getenv) "REPLIT_ENVIRONMENT")
 ;  (compile) (@start-electric-server! electric-server-config))
 
-(when (contains? (System/getenv) "HYPERFIDDLE_AUTO_BOOT")
-  (main)) ; blocks repl until build is ready, should we run it in a future?
+(when (= "true" (get (System/getenv) "HYPERFIDDLE_AUTO_BOOT"))
+  (main))
