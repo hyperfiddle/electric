@@ -2,6 +2,7 @@
   #?(:cljs (:require-macros hyperfiddle.electric-ui4))
   (:refer-clojure :exclude [long double keyword symbol uuid range])
   (:require
+    clojure.edn
     [contrib.str]
     [hyperfiddle.electric :as e]
     [hyperfiddle.electric-dom2 :as dom]
