@@ -1,4 +1,10 @@
-# Alternate emacs configuration
+# Emacs setup
+
+# simple configuration
+* C-u M-x cider-jack-in-clj
+* append ":dev" to end of the command string like "-M:cider/nrepl:dev"
+
+# alternate configuration
 
 Create `.dir-locals.el`
 ```
