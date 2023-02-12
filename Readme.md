@@ -19,7 +19,7 @@ Electric (formerly known as Photon) is a **reactive and network-aware Clojure/Sc
 - **Multiplayer-native:** everything is automatically multiplayer, 0 LOC cost.
 
 
-Our mission is to raise the abstraction ceiling in web development in the same way that garbage collection did to enable functional programming, paving the way for something new.
+Our mission is to raise the abstraction ceiling in web development in the same way that garbage collection did for functional programming, paving the way for something new.
 
 ## Demos
 * [Photon progress update Dec 2022](https://hyperfiddle.notion.site/Photon-progress-Dec-2022-5416dda526e24e5ab7ccb7eb48c797ed)
