@@ -33,7 +33,7 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 
 ```clojure
 ; stable
-{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-0-g7bac2441"}}}
+{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-0-g40c3384e"}}}
 ```
 
 - Production ready for, let's say back office apps, after 8 months of private user testing and extreme dogfooding in the Hyperfiddle sister project.
