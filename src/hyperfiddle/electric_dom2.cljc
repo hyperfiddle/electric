@@ -63,8 +63,10 @@
            strs)))
 
 (defmacro comment_ [& strs]
-  (->> strs (map (fn [str] `(with (new-node node :comment)
-                              (-googDomSetTextContentNoWarn node ~str))))))
+  (cons `do
+    (map (fn [str] `(with (new-node node :comment)
+                      (-googDomSetTextContentNoWarn node ~str)))
+      strs)))
 
 (defn class-str [v]
   (cond
