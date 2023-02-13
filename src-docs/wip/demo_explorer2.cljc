@@ -9,7 +9,7 @@
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router]
-            [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]))
+            [hyperfiddle.hfql-tree-grid :as ttgui]))
 
 (def unicode-folder "\uD83D\uDCC2") ; 📂
 

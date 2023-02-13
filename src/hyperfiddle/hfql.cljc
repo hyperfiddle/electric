@@ -1,5 +1,5 @@
 (ns hyperfiddle.hfql
-  (:require #?(:clj [hyperfiddle.hfql.impl :as impl])
+  (:require #?(:clj [hyperfiddle.hfql-compiler :as impl])
             [hyperfiddle.electric :as p]
             [missionary.core :as m]
             #_[hyperfiddle.api :as-alias hf] ; cursive can't handle this, and a close read of the docs say this is still a cycle if it exists
