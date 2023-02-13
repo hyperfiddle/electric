@@ -6,6 +6,12 @@
   sequences writes.
   To be removed when timbre (or an equivalent) is supported by Electric.
   Backed by clojure.tools.logging > backed by SLF4J > backed by logback. See logback.xml."
+
+  ; G: The reason this logger exists is because it uses a queue to sequence effects (prints) at the repl,
+  ; otherwise they interleave. Timbre does the same thing. Timbre has a complex
+  ; Q is if the timbre macroexpansion is too complex for electric to handle properly? we should check.
+  ; and it should be compatible with clojure & coojurescript
+
   (:refer-clojure :exclude [time])
   #?(:clj (:require [clojure.tools.logging :as log]
                     [clojure.tools.logging.impl :as impl])
