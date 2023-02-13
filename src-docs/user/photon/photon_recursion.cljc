@@ -47,7 +47,6 @@
     % := 5
     (swap! !x inc)
     ; reactive engine will reuse the topmost frame, it is still naive fib though
-    ; If Missionary implements continuous flow memoization, this recursive fib becomes iterative!
     % := 8))
 
 ; Todo: self-recursion and Clojure recur form
