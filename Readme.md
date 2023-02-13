@@ -43,10 +43,12 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 - As a maturity indicator, the only low level bug in recent memory was a hash collision triggered by scrolling a server-paginated grid over thousands of server-streamed elements.
 - Stack traces aren't great; we do have async stack traces already but they need work
 
-Roadmap
-* developer experience
+Current development priorities:
+* developer experience improvements
 * network planner improvements
 * language semantics improvements
+
+To date we have focused on correct semantics over syntax and performance. Now that we are useful in production, we are using production learnings to drive our priorities.
 
 ## Community
 
