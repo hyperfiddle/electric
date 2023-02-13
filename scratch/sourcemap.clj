@@ -1,4 +1,5 @@
 (ns hfdl.sourcemap
+  "experiment to take a photon IR and map back to original code; used by viz to render nodes as sexprs"
   (:import (hfdl.impl.compiler Dataflow)))
 
 #_(defn decompile [program]
