@@ -25,8 +25,8 @@ Electric (formerly known as Photon) is a **reactive and network-aware Clojure/Sc
 Our mission is to raise the abstraction ceiling in web development in the same way that garbage collection did for functional programming, paving the way for something new.
 
 ## Demos
-* [Photon progress update Dec 2022](https://hyperfiddle.notion.site/Photon-progress-Dec-2022-5416dda526e24e5ab7ccb7eb48c797ed)
-* [Photon progress update June 2022](https://hyperfiddle.notion.site/Photon-progress-June-2022-57aee367c20e45b3b80366d1abe4fbc3)
+* [Electric progress update Dec 2022](https://hyperfiddle.notion.site/Electric-Clojure-progress-Dec-2022-5416dda526e24e5ab7ccb7eb48c797ed)
+* [Electric progress update June 2022](https://hyperfiddle.notion.site/Photon-progress-June-2022-57aee367c20e45b3b80366d1abe4fbc3)
 
 ## How it works
 * [UIs are streaming DAGs (2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
@@ -60,10 +60,10 @@ To date we have focused on correct semantics over syntax and performance. Now th
 Standalone starter repo to fork:
 * https://github.com/hyperfiddle/electric-starter-app
 
-Demos, examples, tutorials are in this repo, see [src-docs/user/](https://github.com/hyperfiddle/photon/tree/master/src-docs/user).
+Demos, examples, tutorials are in this repo, see [src-docs/user/](https://github.com/hyperfiddle/electric/tree/master/src-docs/user).
 
 * `clj -A:dev -X user/main` serves demos at `http://localhost:8080`
-* `dev` alias;  `(user/main)` compiles assets and serves app. see [src-dev/user.clj](https://github.com/hyperfiddle/photon/blob/master/src-dev/user.clj) & [user.cljs](https://github.com/hyperfiddle/photon/blob/master/src-dev/user.cljs)
+* `dev` alias;  `(user/main)` compiles assets and serves app. see [src-dev/user.clj](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.clj) & [user.cljs](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.cljs)
 
 ## IDE setup
 
