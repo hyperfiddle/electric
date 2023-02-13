@@ -1,4 +1,4 @@
-(ns hyperfiddle.hfql.tree-to-grid-ui
+(ns hyperfiddle.hfql-tree-grid
   (:require [hyperfiddle.electric :as p]
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql :as hfql]
@@ -14,7 +14,7 @@
             [hyperfiddle.rcf :refer [tests with % tap]]
             [missionary.core :as m]
             [hyperfiddle.router :as router])
-  #?(:cljs (:require-macros [hyperfiddle.hfql.tree-to-grid-ui]))
+  #?(:cljs (:require-macros [hyperfiddle.hfql-tree-grid]))
   #?(:cljs (:refer-clojure :exclude [List])))
 
 (defn attr-spec [attr]
@@ -322,7 +322,7 @@
 
           :else
           (let [WriteToRoute (p/fn [v] (router/swap-route! assoc-in path v) nil)]
-            (case (p/server (spec/type-of spec name)) ; Always resolve specs on the server (might be defined in a .clj files)
+            (case (spec/type-of spec name) ; Always resolve specs on the server (might be defined in a .clj files)
               (::hf-type/boolean) (ui4/checkbox value WriteToRoute (gray-input-props id props list-id options name readonly))
               (::hf-type/double
                ::hf-type/float)   (ui4/double   value WriteToRoute (gray-input-props id props list-id options name readonly))

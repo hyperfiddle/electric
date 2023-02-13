@@ -4,7 +4,7 @@
             [datascript.core :as d]
             dev
             [hyperfiddle.api :as hf]
-            [hyperfiddle.hfql.tree-to-grid-ui :as ttgui]
+            [hyperfiddle.hfql-tree-grid :as ttgui]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]

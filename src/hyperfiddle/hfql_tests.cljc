@@ -1,4 +1,4 @@
-(ns hyperfiddle.hfql.tests
+(ns hyperfiddle.hfql-tests
   (:require
    [hyperfiddle.api :as hf :refer [hfql]]
    [hyperfiddle.hfql :as hfql]
@@ -288,7 +288,7 @@
                         (hfql [*db* hf/db]
                           {(bound-order "alice") [:db/id]}) ))
                     (catch Pending _))))
-  % := '{(hyperfiddle.hfql.tests/bound-order "alice") #:db{:id 9}})
+  % := '{(hyperfiddle.hfql-tests/bound-order "alice") #:db{:id 9}})
 
 (tests
   (with (p/run (tap (new (tap (with-meta (p/fn [] 1) {:contains :integer, :flow-type :constant}))))))
@@ -349,10 +349,10 @@
 
 (comment
 
-  (hyperfiddle.hfql.impl/graph '(props :db/id {::hf/link '(:link db/id)}))
+  (hyperfiddle.hfql-compiler/graph '(props :db/id {::hf/link '(:link db/id)}))
 
   (precompile (props :db/id {::hf/link '(:link db/id)}))
-  (hyperfiddle.hfql.impl/graph '[:db/id
+  (hyperfiddle.hfql-compiler/graph '[:db/id
                                   (props :order/email {::hf/link '(:link db/id)})])
 
   )
@@ -410,7 +410,7 @@
                       ))))
   % := {:db/id 12,
         :order/email nil,
-        '(hyperfiddle.hfql.tests/foo order/email) "defaulted"})
+        '(hyperfiddle.hfql-tests/foo order/email) "defaulted"})
 
 ;; (hfql/precompile [:order/email
 ;;                   (foo (props order/email {::hf/default (p/fn [a] (or a "defaulted"))}))]) 
@@ -487,7 +487,7 @@
 (tests
   "Escape to Electric in rendering point"
   (with (p/run (tap (hfql [(Foo. 1)]))))
-  % := `{(hyperfiddle.hfql.tests/Foo 1) 1})
+  % := `{(hyperfiddle.hfql-tests/Foo 1) 1})
 
 (tests
   "Navigate through Electric function"
@@ -495,13 +495,13 @@
                                      hf/*nav!* nav!
                                      hf/*schema* schema]
                              (hfql {(Foo. 9) [:order/email]}))))))
-  % := `{(hyperfiddle.hfql.tests/Foo 9) {:order/email "alice@example.com"}})
+  % := `{(hyperfiddle.hfql-tests/Foo 9) {:order/email "alice@example.com"}})
 
 (comment
 
   (hfql/precompile {e [(props "link" {::hf/link [e]})]}) 
   (hfql/precompile {e [(props "link" {#_#_::hf/link [e]})]}) 
-  (hyperfiddle.hfql.impl/graph '{e [(props "link" {::hf/link [e]})]} )
+  (hyperfiddle.hfql-compiler/graph '{e [(props "link" {::hf/link [e]})]} )
 
   )
 
@@ -510,8 +510,8 @@
 
 (comment
 
-  (hyperfiddle.hfql.impl/analyze '[(props :order/shirt-size {::hf/options (shirt-sizes :order/male .)})])
-  (hyperfiddle.hfql.impl/graph '[(props :order/shirt-size {::hf/options (shirt-sizes :order/male .)})])
+  (hyperfiddle.hfql-compiler/analyze '[(props :order/shirt-size {::hf/options (shirt-sizes :order/male .)})])
+  (hyperfiddle.hfql-compiler/graph '[(props :order/shirt-size {::hf/options (shirt-sizes :order/male .)})])
 
   (hfql/precompile [(props :order/shirt-size {::hf/options (shirt-sizes :order/male .)})]) 
   )

@@ -1,4 +1,4 @@
-(ns hyperfiddle.hfql.impl
+(ns hyperfiddle.hfql-compiler
   "Parses an HFQL expression into a graph (using datascript as the graph data
   structure), then reorder the graph and emit Electric code."
   (:refer-clojure :exclude [munge ancestors])
