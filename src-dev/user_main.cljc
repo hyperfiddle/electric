@@ -35,9 +35,13 @@
             wip.tag-picker
             wip.teeshirt-orders
 
+            ; this demo require `npm install`
+            #_user.demo-reagent-interop
+
             ; these demos require extra deps alias
             #_wip.dennis-exception-leak
             #_wip.demo-stage-ui4
+
             wip.datomic-browser
             ))
 
@@ -76,6 +80,7 @@
       ::demos/seven-guis-timer user.seven-gui-4-timer/Timer
       ::demos/seven-guis-crud user.seven-gui-5-crud/App
       ::demos/tic-tac-toe user.tic-tac-toe/App
+      ;`user.demo-reagent-interop/ReagentInterop user.demo-reagent-interop/ReagentInterop
       ;::demos/dennis-exception-leak wip.dennis-exception-leak/App2
       ;::demos/demo-stage-ui4 wip.demo-stage-ui4/Demo
       ;`wip.datomic-browser/DatomicBrowser wip.datomic-browser/DatomicBrowser

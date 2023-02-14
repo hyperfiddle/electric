@@ -1,5 +1,6 @@
 {
     "dependencies": {
+        "recharts": "^2.4.1",
         "@codemirror/autocomplete": "^0.18.0",
         "@codemirror/closebrackets": "^0.18.0",
         "@codemirror/commands": "^0.18.0",
