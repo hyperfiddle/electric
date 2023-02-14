@@ -17,7 +17,7 @@
                   (let [[_ Component & args] (r/argv this)]
                     (into [Component] args)))})))
 
-(def react-root-hook "See `p/with`"
+(def react-root-hook "See `e/with`"
   #?(:clj  dom/unsupported
      :cljs (fn ([x] (.unmount x))
              ([x y] (.insertBefore (.-parentNode x) x y)))))
