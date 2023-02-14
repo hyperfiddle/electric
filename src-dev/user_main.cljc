@@ -41,7 +41,6 @@
             ; these demos require extra deps alias
             #_wip.dennis-exception-leak
             #_wip.demo-stage-ui4
-
             wip.datomic-browser
             ))
 
