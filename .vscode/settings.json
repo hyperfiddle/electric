@@ -1,0 +1,14 @@
+{
+    "calva.replConnectSequences": [
+        {
+            "name": "Electric Server + Client",
+            "projectType": "shadow-cljs",
+            "cljsType": "shadow-cljs",
+            "afterCLJReplJackInCode": "(Thread/sleep 3000) (require '[user]) (user/main)",
+            "menuSelections": {
+                "cljsLaunchBuilds": ["dev"],
+                "cljsDefaultBuild": "dev"
+            }
+        }
+    ]
+}

@@ -69,6 +69,7 @@ Demos, examples, tutorials are in this repo, see [src-docs/user/](https://github
 
 * [docs/ide_emacs.md](docs/ide_emacs.md)
 * [docs/ide_cursive.md](docs/ide_cursive.md)
+* [docs/ide_calva.md](docs/ide_calva.md)
 
 ## Clojure compat matrix
 
