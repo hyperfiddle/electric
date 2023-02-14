@@ -130,9 +130,14 @@
                 (.addEventListener dom-node event-name callback #?(:cljs (clj->js options)))
                 #(.removeEventListener dom-node event-name callback)))))
 
-(defmacro ^:deprecated event
+(defmacro on!
+  "Call the `callback` clojure function on event.
+   (on! \"click\" (fn [event] ...)) "
   ([event-name callback] `(new (event* node ~event-name ~callback)))
-  ([event-name callback options] `(new (event* node ~event-name ~callback ~options))))
+  ([dom-node event-name callback] `(new (event* ~dom-node ~event-name ~callback)))
+  ([dom-node event-name callback options] `(new (event* ~dom-node ~event-name ~callback ~options))))
+
+(defmacro ^:deprecated ^:no-doc event "Deprecated, please use `on!`" [& args] `(on! ~@args))
 
 (defn happen [s e]
   ; Todo, we need a buffer to force a nil in between events to fix race
@@ -186,16 +191,21 @@
 (e/def system-time-secs "seconds since 1970 Jan 1" (/ system-time-ms 1000.0))
 
 (defmacro on
+  "Run the given electric function on event.
+  (on \"click\" (e/fn [event] ...))"
+  ;; TODO add support of event options (see `event*`)
   ([typ]   `(new Event ~typ false))
-  ([typ F] `(let [x# (e/with-cycle [?v# nil]
-                       (let [busy# (= ?v# ::e/pending)]
-                         (when-some [evt# (new Event ~typ busy#)]
-                           (try (new ~F evt#)
-                                (catch Pending e# ::e/pending)
-                                (catch :default e# [::err e#])))))]
-              (cond (= ::e/pending x#) (throw (Pending.))
-                    (and (vector? x#) (= ::err (first x#))) (throw (second x#))
-                    :else x#))))
+  ([typ F] `(on node ~typ ~F))
+  ([node typ F] `(binding [node ~node]
+                   (let [x# (e/with-cycle [?v# nil]
+                              (let [busy# (= ?v# ::e/pending)]
+                                (when-some [evt# (new Event ~typ busy#)]
+                                  (try (new ~F evt#)
+                                       (catch Pending e# ::e/pending)
+                                       (catch :default e# [::err e#])))))]
+                     (cond (= ::e/pending x#) (throw (Pending.))
+                           (and (vector? x#) (= ::err (first x#))) (throw (second x#))
+                           :else x#)))))
 
 (defmacro on-pending [pending-body & body] `(try (do ~@body) (catch Pending e# ~pending-body (throw e#))))
 
