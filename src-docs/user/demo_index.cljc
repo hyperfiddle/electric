@@ -23,7 +23,7 @@
    ::seven-guis-timer
    ::seven-guis-crud
    ::tic-tac-toe
-   `user.demo-reagent-interop/ReagentInterop])
+   #_`user.demo-reagent-interop/ReagentInterop])
 
 (def secret-pages
   [::hfql-teeshirt-orders
