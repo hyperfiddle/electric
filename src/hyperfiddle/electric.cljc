@@ -291,7 +291,7 @@ or a provided value if it completes without producing any value."
         ~{::dbg/name name?, ::dbg/args args, ::dbg/type (or (::dbg/type (meta name?)) :reactive-fn)
           ::dbg/meta (merge (select-keys (meta &form) [:file :line])
                        (select-keys (meta name?) [:file :line]))})
-      `(throw (ex-info "Invalid p/fn in Clojure code block (use from Electric code only)" ~(into {} (meta &form)))))))
+      `(throw (ex-info "Invalid e/fn in Clojure code block (use from Electric code only)" ~(into {} (meta &form)))))))
 
 ; syntax quote doesn't qualify special forms like 'def
 (defmacro defn [sym & fdecl]
@@ -329,7 +329,7 @@ or a provided value if it completes without producing any value."
 (defn ^:deprecated Watch [!x]
   (new (checked-watch !x)))
 
-(def -invalid-watch-usage-message "Invalid p/watch (use from Electric code only, maybe you forgot a p/def?)")
+(def -invalid-watch-usage-message "Invalid e/watch (use from Electric code only, maybe you forgot a p/def?)")
 
 (defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
   [!x]
@@ -363,12 +363,12 @@ or a provided value if it completes without producing any value."
 (defmacro client [& body]
   (if (bound? #'c/*env*)
     `(::c/client (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::client))
-    `(throw (ex-info "Invalid p/client in Clojure code block (use from Electric code only)" ~(into {} (meta &form))))))
+    `(throw (ex-info "Invalid e/client in Clojure code block (use from Electric code only)" ~(into {} (meta &form))))))
 
 (defmacro server [& body]
   (if (bound? #'c/*env*)
     `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::server))
-    `(throw (ex-info "Invalid p/server in Clojure code block (use from Electric code only)" ~(into {} (meta &form))))))
+    `(throw (ex-info "Invalid e/server in Clojure code block (use from Electric code only)" ~(into {} (meta &form))))))
 
 (defmacro discard "Silence \"Unserializable reference transfer\"; `nil` is idiomatic but this saves a newline"
   [& body] `(do ~@body nil))
