@@ -34,7 +34,7 @@
    ::tag-picker
    ; need extra deps alias
    ::dennis-exception-leak
-   ::demo-stage-ui4
+   #_::demo-stage-ui4
    #_`wip.datomic-browser/DatomicBrowser])
 
 (e/defn Demos []
