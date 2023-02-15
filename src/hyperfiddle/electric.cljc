@@ -77,7 +77,6 @@ running on a remote host.
   ([fa fb & fs]
    (reduce merge-vars (merge-vars fa fb) fs)))
 
-
 (def eval "Takes a resolve map and a program, returns a booting function.
   The booting function takes
   * as first argument a function Any->Task[Unit] returned task writes the value on the wire.
@@ -88,15 +87,6 @@ running on a remote host.
 (def hook r/hook)
 (def bind r/bind) ; for when you want to spawn a p/fn without a new
 (def with r/with)
-
-(defmacro ^:deprecated main "
-  Takes an Electric program and returns a pair
-  * the first item is the local booting function (cf eval)
-  * the second item is the remote program.
-  " [& body]
-  (-> (c/analyze &env (cons 'do body))
-    (update 0 (cc/partial r/emit (gensym)))
-    (update 1 (cc/partial list 'quote))))
 
 (cc/defn pair [c s]
   (m/sp
@@ -129,40 +119,7 @@ running on a remote host.
 (defmacro run-with "test entrypoint with whitelist." [vars & body]
   `((local-with ~vars ~@body) (cc/fn [_#]) (cc/fn [_#])))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;         EXPERIMENTAL ZONE             ;;
-;;                                       ;;
-;; Everything below should be considered ;;
-;; guilty until proven innocent          ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(cc/defn ^:no-doc continuous "EXPERIMENTAL"
-  ([>x] (continuous nil >x))
-  ([init >x] (m/relieve {} (m/reductions {} init >x))))
-
 (cc/defn failure? [x] (instance? Failure x))
-
-(cc/defn bypass-on "Return a transducer feeding values into `xf` only if they match `pred`, return them unchanged otherwise."
-  ([pred xf]
-   (cc/fn [rf]
-     (let [xf (xf rf)]
-       (cc/fn
-         ([] (xf))
-         ([result] (xf result))
-         ([result input]
-          (if (pred input)
-            (rf result input)
-            (xf result input)))))))
-  ([pred xf coll] (sequence (bypass-on pred xf) coll)))
-
-(cc/defn ^:no-doc newest "EXPERIMENTAL" [>left >right] (m/ap (m/?< (m/amb= >left >right))))
-
-(def current* (cc/partial m/eduction (take 1)))
-(defmacro current "Copy the current value (only) and then terminate" [x]  ; TODO rename `constant`, `stable`?
-  ;; what does Electric do on terminate? TBD
-  ;; L: terminating a continuous flow means the value won't change anymore, so that's OK
-  `(new (current* (hyperfiddle.electric/fn [] ~x))))
 
 (cc/defn wrap* [thunk]
   #?(:clj
@@ -173,71 +130,6 @@ running on a remote host.
 (defmacro wrap "Run blocking body (io-bound) on a threadpool. JVM only"
   [& body]
   `(new (wrap* (cc/fn [] (do ~@body)))))
-
-(cc/defn ^:no-doc empty?
-  "A task completing with true on first successful transfer of given flow, or false
-if it completes without producing any value."
-  [& args]
-  (apply m/reduce (constantly (reduced false)) true args))
-
-(cc/defn ^:no-doc first-or "A task completing with the value of the first successful transfer of given flow,
-or a provided value if it completes without producing any value."
-  [& args]
-  (apply m/reduce (comp reduced {}) args))
-
-(cc/defn ^:no-doc fsm
-  "A continuous time impulse as a discreet flow. This is a state machine. It first
-  emit `init`, then the first value of the `>values` discreet flow, called the
-  impulse. The impulse is expected to be acknowledge soon by a new value in
-  `>control`, at which point it restart emitting `init`.
-
-   Start ———> 1. emit `init`
-          |   2. listen to `>values`, wait for a value
-          |
-          |   3. emit first value of `>values`           |
-          |    . stop listening to `>values`             | Toggles
-          |    . listen to `>control`, wait for a value  |
-          |
-           —— 4. stop listening to `>control`
-               . discard value
-               . GOTO 1.
-
-   Time ——————— 0 ———— 1 ———— 2 ————3——————————>
-                |
-               -|       ————————————
-   >values      |      |            |
-               -|——————              ——————————
-               -|               —————————
-   >control     |              |         |
-               -|——————————————           —————
-             v -|       ———————      ————
-   result       |      |       |    |    |
-          init -|——————         ————      —————
-                |
-  "
-  [init >control >values]
-  (m/ap
-    (loop []
-      (m/amb init
-        (if-some [e (m/? >values)]
-          (m/amb e (if (m/? >control) (m/amb) (recur)))
-          (m/amb))))))
-
-(cc/defn ^:no-doc impulse* [down-value tier >ack >xs]
-  (fsm down-value
-    (empty? (m/eduction (drop 1) (with tier >ack)))
-    (first-or down-value >xs)))
-
-(defmacro impulse
-  "Translates a discrete event stream `>xs` into an equivalent continuous signal of impulses. Each impulse will stay
-   'up' until it is sampled and acknowledged by signal `ack`. (Thus the duration of the impulse depends on sampling
-   rate.) Upon ack, the impulse restarts from nil.
-
-   Useful for modeling discrete events in Electric's continuous time model."
-  ([ack >xs]
-   `(impulse nil ~ack ~>xs))
-  ([down-value ack >xs]
-   `(new (bind (cc/partial impulse* ~down-value) (hyperfiddle.electric/fn [] ~ack) ~>xs))))
 
 ; Should these be in missionary?
 (def chan-read! contrib.missionary-contrib/chan-read!)
@@ -326,9 +218,6 @@ or a provided value if it completes without producing any value."
   (assert (watchable? !x) "Provided argument is not Watchable.")
   (m/watch !x))
 
-(defn ^:deprecated Watch [!x]
-  (new (checked-watch !x)))
-
 (def -invalid-watch-usage-message "Invalid e/watch (use from Electric code only, maybe you forgot a p/def?)")
 
 (defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
@@ -343,7 +232,7 @@ or a provided value if it completes without producing any value."
                                                    (try (m/? (m/sleep delay x))
                                                         (catch Cancelled _ (m/amb))))))) )
 
-(defmacro debounce
+(defmacro ^:deprecated debounce ; immoral? introduces avoidable delays
   "Debounce a continous flow by `delay` milliseconds."
   [delay flow]
   `(new (->> (fn [] ~flow)
@@ -355,7 +244,7 @@ or a provided value if it completes without producing any value."
     (let [x (m/?> (m/relieve {} >in))]
       (m/amb x (do (m/? (m/sleep dur)) (m/amb))))))
 
-(defmacro remote [& body]
+(defmacro ^:deprecated remote [& body]
   (if (= 1 (count body))
     `(unquote-splicing ~@body)
     `(unquote-splicing (do ~@body))))
@@ -370,13 +259,9 @@ or a provided value if it completes without producing any value."
     `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::server))
     `(throw (ex-info "Invalid e/server in Clojure code block (use from Electric code only)" ~(into {} (meta &form))))))
 
-(defmacro discard "Silence \"Unserializable reference transfer\"; `nil` is idiomatic but this saves a newline"
+(defmacro discard
+  "Silence \"Unserializable reference transfer\"; inlining `(do ... nil)` is idiomatic as well"
   [& body] `(do ~@body nil))
-
-(defmacro ^:deprecated fuse "to prevent work skipping on references when sampling them
-example: (p/fuse (-> ^js e .-target .-value)) will prevent Electric from work-skipping on the stable
-`-target` reference and wrongly reusing a stale `-value`"
-  [& body] `((cc/fn [] ~@body)))
 
 (hyperfiddle.electric/def trace "In a `catch` block, bound by the runtime to the current stacktrace. An Electric stacktrace is an ExceptionInfo. Use `hyperfiddle.electric.debug/stack-trace` to get a string representation." nil)
 
@@ -410,25 +295,6 @@ example: (p/fuse (-> ^js e .-target .-value)) will prevent Electric from work-sk
       `(let [F# ~F]
          (hyperfiddle.electric/fn ~@(when (symbol? F) [F]) [~@rest-args]
                                   (new F# ~@args ~@rest-args))))))
-
-(hyperfiddle.electric/def Y "Y-Combinator"
-  (hyperfiddle.electric/fn [f]
-                           (new
-                             (hyperfiddle.electric/fn [x] (new x x))
-                             (hyperfiddle.electric/fn [x] (new f (hyperfiddle.electric/fn [y] (new (new x x) y)))))))
-
-(hyperfiddle.electric/defn ^:deprecated ^:no-doc Unglitch "
-When x changes, throws Pending for the duration of a round-trip to remote peer, then returns x.
-
-TODO: not used anymore, remove once users have migrated
-" [x]
-  (let [[value clock]
-        (with-cycle [[p c] [::init 0]]
-          [x (if (= p x) c (inc c))])]
-    (when-not (= clock ~@clock)                             ;; when the glitch is fixed, this cannot happen
-      (throw (Pending.))) value))
-
-
 
 ;; WIP: user space socket reconnection
 
