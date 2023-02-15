@@ -1,6 +1,6 @@
 (ns user.photon.photon-diffing
   (:require [hyperfiddle.electric :as p]
-            [hyperfiddle.rcf :refer [tests ! %]])
+            [hyperfiddle.rcf :as rcf :refer [tests ! %]])
   #?(:cljs (:require-macros user.photon.photon-diffing)))
 
 (hyperfiddle.rcf/enable!)
