@@ -1671,19 +1671,19 @@
   "p/fn is undefined in clojure-land"
   (with (p/run (try (tap ((fn [] (p/fn []))))
                     (catch Throwable t (tap (ex-message t)))))
-    % := "Invalid p/fn in Clojure code block (use from Electric code only)"))
+    % := "Invalid e/fn in Clojure code block (use from Electric code only)"))
 
 (tests
   "p/client is undefined in clojure-land"
   (with (p/run (try (tap ((fn [] (p/client 1))))
                     (catch Throwable t (tap (ex-message t)))))
-    % := "Invalid p/client in Clojure code block (use from Electric code only)"))
+    % := "Invalid e/client in Clojure code block (use from Electric code only)"))
 
 (tests
   "p/server is undefined in clojure-land"
   (with (p/run (try (tap ((fn [] (p/server 1))))
                     (catch Throwable t (tap (ex-message t)))))
-    % := "Invalid p/server in Clojure code block (use from Electric code only)"))
+    % := "Invalid e/server in Clojure code block (use from Electric code only)"))
 
 (tests
   (try (p/watch (atom :nomatter))
