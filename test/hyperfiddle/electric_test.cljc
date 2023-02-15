@@ -1429,12 +1429,6 @@
     (= (ex-info "a" {}) (ex-info "a" {})) := false
     (= (Failure. (ex-info "err" {})) (Failure. (ex-info "err" {}))) := false))
 
-(tests
-  "p/bypass-on applies a given transducer on values only if they match a predicate."
-  (p/bypass-on odd? (map identity) [1 2 3]) := '(1 2 3)
-  (p/bypass-on odd? (map inc) [1 2 3])      := '(1 3 3) ; 1 and 3 bypassed, 2 passed to next transducer
-  )
-
 (tests          ; temporary test because p/run does not serilize to transit.
   "Electric transit layer serializes unserializable values to nil"
   (electric-io/decode (electric-io/encode 1)) := 1
@@ -1816,10 +1810,16 @@
                            1
                            (* n (new Rec (dec n)))))))
 
+(p/def Y "Y-Combinator"
+  (p/fn [f]
+    (new
+      (p/fn [x] (new x x))
+      (p/fn [x] (new f (p/fn [y] (new (new x x) y)))))))
+
 (tests
   "Y-Combinator"
   (let [!n (atom 5)]
-    (with (p/run (tap (new (p/Y. Factorial-gen) (p/watch !n))))
+    (with (p/run (tap (new (Y. Factorial-gen) (p/watch !n))))
       % := 120
       (reset! !n 20)
       % := 2432902008176640000)))
