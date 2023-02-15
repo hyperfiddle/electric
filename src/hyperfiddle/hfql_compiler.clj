@@ -407,7 +407,7 @@
 (def ^:const E (gensym "entity_"))
 
 (defn input-path
-  "An input path is a unique indentifier for an input in the HFQL runtime
+  "An input path is a unique identifier for an input in the HFQL runtime
   tree. An HFQL tree’s input state can be persisted in the form of a map {path
   value}. A node path is the breadcrumbs from root to node.
   eg.: [`(orders needle) e :order/shirt-size `(shirt-sizes gender .) :needle], where
