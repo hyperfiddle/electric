@@ -41,7 +41,7 @@
     (assoc-in (next-handler ring-req) [:headers "Cache-Control"] "No-Store")))
 
 #_
-(defn wrap-electric [next-handler]        ; Jetty 10 allows such handler
+(defn wrap-electric-websocket [next-handler]        ; Jetty 10 allows such handler
   (fn [ring-request]
     (if (ring/ws-upgrade-request? ring-request)
       (ring/ws-upgrade-response (adapter/electric-ws-adapter adapter/electric-ws-message-handler))
@@ -68,7 +68,7 @@
                       :or   {resources-path  "resources/public"
                              allow-symlinks? false}}]
   (try
-    (let [jetty-handler (cond-> #'default-handler ; these compose as functions, so are applied bottom up
+    (let [ring-handler (cond-> #'default-handler ; these compose as functions, so are applied bottom up
                                 (file-exsist? resources-path) (wrap-file resources-path) ; 6. serve it
                                 true (wrap-content-type) ; 5. detect content
                                 true (wrap-spa) ; 4. otherwise fallback to default page file
@@ -76,10 +76,16 @@
                                 true (wrap-content-type) ; 2. detect content (e.g. for index.html)
                                 true (wrap-default-page) ; 1. route
                                 true (wrap-no-cache) ; TODO disable in prod
-                                #_(wrap-electric))
+                                #_(wrap-electric-websocket)) ; Jetty 10 ws configuration with userland entrypoint
+
+          ; For Jetty 10 (NOT Java 8 compatible), use `wrap-electric-websocket` as above
+          ; For Jetty 9 (Java 8 compatible), use :websocket jetty-option as below
+          ; This hardcoded configuration is for Jetty 9 (for Java 8 compat).
+          ; Java 8 is macos system java, and supporting it simplifies setup for non-Clojure devs.
+
           jetty-options (merge {:port 8080
                                 :join? false
-                                ;; Jetty 9 forces us to declare WS paths out of a ring handler.
+                                ;; For Jetty 9 forces us to declare WS paths out of a ring handler.
                                 :websockets {"/" (fn [ring-req]
                                                    (adapter/electric-ws-adapter
                                                      (partial adapter/electric-ws-message-handler
@@ -88,7 +94,7 @@
                                                                   (cookies/cookies-request)))))}
                                 :configurator add-gzip-handler}
                                config)
-          server (ring/run-jetty jetty-handler jetty-options)
+          server (ring/run-jetty ring-handler jetty-options)
           final-port (-> server (.getConnectors) first (.getPort))]
       (println "\n👉 App server available at" (str "http://" (:host config) ":" final-port "\n"))
       server)
