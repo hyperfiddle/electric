@@ -845,7 +845,7 @@
            ::ir/lift (-> env
                        (walk off idx dyn (::ir/init inst))
                        (update :stack collapse 1 lift))
-           ::ir/eval (update env :stack conj ((:eval fns) (::ir/form inst))) ; can't shadow eval in advanced CLJS compilation
+           ::ir/eval (update env :stack conj ((:eval fns) (::ir/form inst) (::ir/ns inst))) ; can't shadow eval in advanced CLJS compilation
            ::ir/node (let [v (::ir/slot inst)
                            env (update env :vars max v)]
                        (if (dyn v)
@@ -956,7 +956,7 @@
                  `(do (make-input ~(sym prefix 'frame) ~deps) ~form))
      :static   (fn [i] `(static ~(sym prefix 'frame) ~i))
      :dynamic  (fn [i debug-info] `(dynamic ~(sym prefix 'frame) ~i '~(select-debug-info debug-info)))
-     :eval     (fn [f] `(pure ~f))
+     :eval     (fn [form _ns] `(pure ~form))
      :lift     (fn [f] `(pure ~f))
      :vget     (fn [v] `(aget ~(sym prefix 'vars) (int ~v)))
      :bind     (fn [form slot idx]
@@ -1184,7 +1184,10 @@
       ;; FIXME Eval is a security hazard, client should not send any program to
       ;;       eval on server. Solution is for server to compile and store
       ;;       programs, client address them by unique name (hash).
-      :eval     (fn [form] (constantly (pure (clojure.core/eval form))))
+      :eval     (fn [form ns]
+                  (if-some [ns (some-> ns find-ns)]
+                    (constantly (pure (binding [*ns* ns] (clojure.core/eval form))))
+                    (constantly (pure (clojure.core/eval form)))))
       :do       (fn [deps inst]
                   (fn [pubs frame vars]
                     (do (make-input frame (mapv (fn [inst] (inst pubs frame vars)) deps))

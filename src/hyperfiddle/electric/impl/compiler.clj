@@ -2,6 +2,7 @@
   (:require [clojure.tools.analyzer.jvm :as clj]
             [clojure.tools.analyzer.env :as env]
             [cljs.analyzer :as cljs]
+            [cljs.env]
             [cljs.util]
             [hyperfiddle.electric.impl.local :as l]
             [hyperfiddle.electric.impl.runtime :as r]
@@ -299,7 +300,7 @@
       (update :locals assoc sym {::pub [l i]}))))
 
 (defn qualify-sym "If ast node is `:var`, update :form to be a fully qualified symbol" [env ast]
-  (if (= :var (:op ast))
+  (if (and (= :var (:op ast)) (not (-> ast :env :def-var)))
     (assoc ast :form (case (peer-language env)
                        :clj  (symbol (str (:ns (:meta ast))) (str (:name (:meta ast))))
                        :cljs (:name (:info ast))))
@@ -526,9 +527,6 @@
     (quote)
     (pure-res (ir/literal (first args)))
 
-    (def)
-    (pure-res (ir/inject (resolve-node env (first args))))
-
     ;; TODO
     (js*)
     (if-some [[f & args] args]
@@ -549,6 +547,7 @@
           (partial ir/apply
             (merge
               (ir/eval `(fn-call ~form ~(vals bindings)))
+              {::ir/ns (or (some-> env :ns :name) 'user)}
               {::dbg/action :fn-call
                ::dbg/params ['…]}                         ; TODO add parameters to debug info
               (when sym {::dbg/name sym}))))))
@@ -664,7 +663,7 @@
                    `(r/bind r/recover
                       (some-fn
                         ~@(map (fn [[c s & body]]
-                                 (let [f `(partial (def exception) (::closure
+                                 (let [f `(partial (::inject exception) (::closure
                                                                     (let [~s (dbg/unwrap exception)]
                                                                       (binding [hyperfiddle.electric/trace exception]
                                                                         ~@body))
@@ -682,6 +681,18 @@
 
     (recur)
     (analyze-form env `(new rec ~@args))
+
+    (def)
+    (let [[sym v] args]
+      (if (some->> sym (resolve-var env) is-node)
+        (throw (ex-info "Cannot `def` a reactive var" {:var sym}))
+        (analyze-form env (if (= :cljs (peer-language env))
+                            (let [ns (-> env :ns :name)]
+                              (swap! cljs.env/*compiler* assoc-in [::cljs/namespaces ns :defs sym]
+                                {:name sym})
+                              ;; FIXME don't let when `set!` is fixed
+                              `(let [v# ~v] (set! ~(symbol (str ns) (str sym)) v#)))
+                            `((fn [x#] (def ~sym x#)) ~v)))))
 
     (::lift)
     (map-res ir/lift
@@ -701,6 +712,9 @@
     (::server)
     (let [[form debug-info] args]
       ((if (::local env) #(toggle %1 %2 {::dbg/meta (source-map env debug-info)}) analyze-form) env form))
+
+    (::inject)
+    (pure-res (ir/inject (resolve-node env (first args))))
 
     (if (symbol? op)
       (let [n (name op)
@@ -1007,13 +1021,13 @@
              ::dbg/scope :dynamic)))))
    (ir/do [] (ir/do [] (ir/do [] ir/nop)))]
 
-  (analyze {} '(def foo)) :=
+  (analyze {} '(::inject foo)) :=
   [(ir/pub (ir/literal nil)
      (ir/bind 0 1
        (ir/inject 0)))
    (ir/do [] (ir/do [] ir/nop))]
 
-  (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new (::closure ~@foo))) (::closure a)))))
+  (analyze {} '(let [a 1] (new ((::inject foo) (::closure ~@(new (::closure ~@foo))) (::closure a)))))
   :=
   [(ir/pub (ir/literal nil)
      (ir/bind 0 1
@@ -1059,7 +1073,7 @@
                      ir/source] ir/nop))]
 
   (doto (def baz) (alter-meta! assoc :macro true ::node '(::closure ~@foo)))
-  (analyze {} '(let [a 1] (new ((def foo) (::closure ~@(new baz)) (::closure a))))) :=
+  (analyze {} '(let [a 1] (new ((::inject foo) (::closure ~@(new baz)) (::closure a))))) :=
   [(ir/pub (ir/literal nil)
      (ir/bind 0 1
        (ir/do [(ir/target
@@ -1299,3 +1313,9 @@
 (tests "loop/recur"
   ;; just check if it compiles
   (analyze {} '(loop [x 1] (recur (inc x)))) := _)
+
+(tests "clojure def for electric def is a mistake"
+  (def ^{::node ::unbound, :macro true} wont-work)
+  (try (analyze {} '(def wont-work 12))
+       (catch clojure.lang.ExceptionInfo e
+         (ex-message e) := "Cannot `def` a reactive var")))

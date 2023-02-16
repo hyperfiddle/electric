@@ -203,7 +203,7 @@ running on a remote host.
                  (list* `for-by kf bindings)
                  (list `let [s (first c/arg-sym)])
                  (list `fn [])
-                 (list `cc/partial (list 'def (first c/arg-sym))))
+                 (list `cc/partial (list ::c/inject (first c/arg-sym))))
               (::c/lift xs#))))
     (cons `do body))) ; todo, buggy: (e/for [x []] (println 42)) should not print
 
