@@ -160,7 +160,7 @@ running on a remote host.
 
 (cc/defn -check-fn-arity! [name expected actual]
   (when (not= expected actual)
-    (throw (ex-info (str "You called " (or name (pr-str ::unnamed-pfn)) ", a " expected "-arg e/fn with " actual " arguments.")
+    (throw (ex-info (str "You called " (or name (pr-str ::unnamed-efn)) ", a " expected "-arg e/fn with " actual " arguments.")
              {:name name}))))
 
 ;; TODO self-refer
