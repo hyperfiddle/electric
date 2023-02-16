@@ -1,24 +1,24 @@
-(ns user.photon.photon-call-semanatics
-  (:require [hyperfiddle.electric :as p]
+(ns user.electric.electric-call-semanatics
+  (:require [hyperfiddle.electric :as e]
             [hyperfiddle.rcf :refer [tests tap % with]]))
 
-(p/def trace! println)
+(e/def trace! println)
 
-(p/defn Foo [n]
+(e/defn Foo [n]
   (let [x (trace! (+ n 2))]      ; this is computed once, as you'd expect
-    (p/fn [y]
+    (e/fn [y]
       (+ y x))))
 
-(p/defn Bar [c n]
+(e/defn Bar [c n]
   (let [F (Foo. c)]
-    (p/for [x (range n)]
+    (e/for [x (range n)]
       (F. x))))
 
 (tests
   (def !n (atom 3))
-  (with (p/run
+  (with (e/run
           (binding [trace! tap]
-            (tap (Bar. 5 (p/watch !n)))))
+            (tap (Bar. 5 (e/watch !n)))))
     % := 7
     % := [7 8 9]
     (swap! !n inc)
