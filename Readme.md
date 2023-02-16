@@ -24,7 +24,32 @@ Electric (formerly known as Photon) is a **reactive and network-aware Clojure/Sc
 
 Our mission is to raise the abstraction ceiling in web development in the same way that garbage collection did for functional programming, paving the way for something new.
 
-## Demos
+## Demos, examples, tutorials
+
+Demos
+
+* [Proof of client/server transfer](https://gist.github.com/dustingetz/35f0e036283c49605f73917132931414)
+* [TodoMVC](https://gist.github.com/dustingetz/2c1916766be8a61baa39f9f88feafc44)
+* [TodoMVC Composed – network transparent composition](https://gist.github.com/dustingetz/bba2aa18acc5de8d2685d3de23bad515)
+* Folder explorer: frontend table over node_modules
+* Database browser
+* Infinite scroll
+* Multiplayer chat with presence
+* Recursive tree-view (my favorite)
+* REPL
+* Webcomponents
+
+Tutorials
+
+* React.js/Reagent interop
+* Two Clocks – a network stress test
+* Full-stack webview
+* Todos Basic
+* Electric Y-Combinator: network-transparent composition
+* [SQL data backend](https://gist.github.com/dustingetz/1960436eb4044f65ddfcfce3ee0641b7)
+
+Scrap
+
 * [Electric progress update Dec 2022](https://hyperfiddle.notion.site/Electric-Clojure-progress-Dec-2022-5416dda526e24e5ab7ccb7eb48c797ed)
 * [Electric progress update June 2022](https://hyperfiddle.notion.site/Photon-progress-June-2022-57aee367c20e45b3b80366d1abe4fbc3)
 

@@ -22,7 +22,7 @@
               (dom/props {:min 1 :max 25 :step 1}))
             (dom/div (dom/props {:class "todomvc" :style {:position "relative"}})
               (dom/h1 (dom/text "TodoMVC"))
-              (e/for [i (range n)]
+              (e/for [i (range n)] ; <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
                 (let [!focused (atom false)
                       focused (e/watch !focused)]
                   (dom/div (dom/props {:style {:position "absolute"
@@ -32,4 +32,4 @@
                                                :z-index (+ i (if focused 1000 0))}})
                     (dom/on "mouseenter" (e/fn [_] (reset! !focused true)))
                     (dom/on "mouseleave" (e/fn [_] (reset! !focused false)))
-                    (todomvc/TodoApp. state)))))))))))
+                    (todomvc/TodoApp. state))))))))))) ; <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
