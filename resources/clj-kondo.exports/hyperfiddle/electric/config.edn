@@ -1,0 +1,6 @@
+{:lint-as {hyperfiddle.electric/def        clojure.core/def
+           hyperfiddle.electric/defn       clojure.core/defn
+           hyperfiddle.electric/for        clojure.core/for
+           hyperfiddle.electric/with-cycle clojure.core/let
+           hyperfiddle.electric/fn         clojure.core/fn}
+ :linters {:redundant-expression {:level :off}}}
