@@ -7,3 +7,7 @@
     * run with Deps
     * alias: `dev`
 * Run configuration
+
+Indentation
+
+![./electric-cursive-indent-setting.png]()
