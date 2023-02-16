@@ -1,5 +1,5 @@
-(ns user.photon.photon-diffing
-  (:require [hyperfiddle.electric :as p]
+(ns user.electric.electric-diffing
+  (:require [hyperfiddle.electric :as e]
             [hyperfiddle.rcf :as rcf :refer [tests ! %]])
   #?(:cljs (:require-macros user.photon.photon-diffing)))
 
@@ -9,13 +9,13 @@
   (def !order (atom {:account/email "alice@example.com" :order/items [{:item/sku 100 :order/count 2}]}))
 
   (def dispose
-    (p/run
-      (let [order (p/watch !order)
+    (e/run
+      (let [order (e/watch !order)
             {:keys [account/email
                     order/items]} order]
         (println "email: " (! email))
         (println "item count: " (! (count items)))
-        (p/for-by :item/sku [{:keys [item/sku order/count]} items]
+        (e/for-by :item/sku [{:keys [item/sku order/count]} items]
           (println "sku: " (! sku))
           (println "sku count: " (! count))))))
 
