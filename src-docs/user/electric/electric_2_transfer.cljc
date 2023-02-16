@@ -7,16 +7,16 @@
 (hyperfiddle.rcf/enable!)
 
 (e/defn App [x]
-  (if (even? x)
-    (pr-str (type 1))
-    ~@(pr-str (type 1))))                   ; client/server transfer
+  (e/client
+    (if (even? x)
+      (pr-str (type 1))
+      (e/server (pr-str (type 1)))))) ; client/server transfer
 
 #?(:cljs
    (tests
      "client/server transfer, pure functional!"
      (def !x (atom 0))
-     (def dispose ((e/boot (try (tap (App. (e/watch !x)))
-                                (catch Pending _)))
+     (def dispose ((e/boot (tap (new App (e/watch !x))))
                    js/console.log js/console.error))
      % := "#object[Number]"
      (swap! !x inc)
