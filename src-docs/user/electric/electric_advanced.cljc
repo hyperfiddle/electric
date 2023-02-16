@@ -1,16 +1,16 @@
-(ns user.photon.photon-advanced
-  (:require [hyperfiddle.electric :as p]
+(ns user.electric.electric-advanced
+  (:require [hyperfiddle.electric :as e]
             [hyperfiddle.rcf :refer [tests tap % with]]
             [missionary.core :as m]))
 
 (tests
   "Photon lambdas of non-zero arity also compile to missionary continuous flows (not just thunks)"
   (def !x (atom 0))
-  (with (p/run
-          (tap (->> (p/fn [y] y)                              ; this Photon lambda is also a missionary continuous flow
-                  (m/eduction (dedupe))
-                  (m/relieve {})
-                  (new (p/watch !x)))))                     ; so long as you bind the parameters on construction, when the flow eventually runs the parameters are present
+  (with (e/run
+          (let [flow (->> (e/fn [y] y) ; this Photon lambda is also a missionary continuous flow
+                          (m/eduction (dedupe))
+                          (m/relieve {}))]
+            (tap (new flow (e/watch !x))))) ; so long as you bind the parameters on construction, when the flow eventually runs the parameters are present
         % := 0
         (swap! !x inc)
         % := 1
@@ -19,7 +19,7 @@
         (swap! !x inc)
         % := 2))
 
-; p/fn actually is not primitive. p/fn macroexpands to continuous flows with parameters injected
+; e/fn actually is not primitive. e/fn macroexpands to continuous flows with parameters injected
 ; through dynamic scope. Therefore, F (a Photon closure) is concretely a missionary continuous flow,
 ; whose argv must be injected by dynamic bindings, which is done by the special form (new).
 
@@ -32,4 +32,5 @@
 (comment
   "infinite loop on construction, hangs RCF"
   (def !x (atom 0))
-  (with (p/run (reset! !x (tap (inc ~(m/watch !x)))))))
+  (with (e/run (reset! !x (tap (inc (new (m/watch !x))))))))
+
