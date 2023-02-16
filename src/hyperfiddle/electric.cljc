@@ -85,7 +85,7 @@ running on a remote host.
   r/eval)
 
 (def hook r/hook)
-(def bind r/bind) ; for when you want to spawn a p/fn without a new
+(def bind r/bind) ; for when you want to spawn a e/fn without a new
 (def with r/with)
 
 (cc/defn pair [c s]
@@ -127,7 +127,7 @@ running on a remote host.
           (m/reductions {} (Failure. (Pending.)))
           (m/relieve {}))))
 
-(defmacro wrap "Run blocking body (io-bound) on a threadpool. JVM only"
+(defmacro wrap "Run blocking clojure code body (io-bound) on a threadpool. JVM only"
   [& body]
   `(new (wrap* (cc/fn [] (do ~@body)))))
 
@@ -160,7 +160,7 @@ running on a remote host.
 
 (cc/defn -check-fn-arity! [name expected actual]
   (when (not= expected actual)
-    (throw (ex-info (str "You called " (or name (pr-str ::unnamed-pfn)) ", a " expected "-arg p/fn with " actual " arguments.")
+    (throw (ex-info (str "You called " (or name (pr-str ::unnamed-pfn)) ", a " expected "-arg e/fn with " actual " arguments.")
              {:name name}))))
 
 ;; TODO self-refer
@@ -170,13 +170,13 @@ running on a remote host.
     (if (bound? #'c/*env*)
       `(::c/closure
         ;; Beware, `do` is implemented with `m/latest`, which evaluates
-        ;; arguments in parallel. The p/fn body will be called even if arity is
+        ;; arguments in parallel. The e/fn body will be called even if arity is
         ;; incorrect, then the arity exception will be thrown. This might be
         ;; confusing to users in presence of effects. Same as `(do (assert
         ;; false) (prn 42))`: 42 is printed anyway. This is a broader question
-        ;; than "what should the semantics of p/fn should be", so we decided to
+        ;; than "what should the semantics of e/fn should be", so we decided to
         ;; be consistent with the current model and to not introduce a specific
-        ;; behavior for p/fn.
+        ;; behavior for e/fn.
         (do (-check-fn-arity! '~name? ~(count args) c/%arity)
             (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
               (new c/rec ~@(take (count args) c/arg-sym))))
@@ -205,7 +205,7 @@ running on a remote host.
                  (list `fn [])
                  (list `cc/partial (list 'def (first c/arg-sym))))
               (::c/lift xs#))))
-    (cons `do body))) ; todo, buggy: (p/for [x []] (println 42)) should not print
+    (cons `do body))) ; todo, buggy: (e/for [x []] (println 42)) should not print
 
 (defmacro for [bindings & body]
   `(hyperfiddle.electric/for-by identity ~bindings ~@body))
@@ -218,7 +218,7 @@ running on a remote host.
   (assert (watchable? !x) "Provided argument is not Watchable.")
   (m/watch !x))
 
-(def -invalid-watch-usage-message "Invalid e/watch (use from Electric code only, maybe you forgot a p/def?)")
+(def -invalid-watch-usage-message "Invalid e/watch (use from Electric code only, maybe you forgot a e/def?)")
 
 (defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
   [!x]
@@ -287,7 +287,7 @@ running on a remote host.
   "Like `cc/partial` for reactive functions. Requires the target function
   arity (`argc`) until reactive function supports variadic arguments.
 
-  e.g. (new (partial 2 (p/fn [a b] [a b]) :a) :b) ;; => [:a :b]"
+  e.g. (new (partial 2 (e/fn [a b] [a b]) :a) :b) ;; => [:a :b]"
   [argc F & args]
   (if (= 0 argc)
     F
