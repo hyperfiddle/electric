@@ -1,6 +1,6 @@
-(ns user.photon.photon-compiler
+(ns user.electric.electric-compiler
   (:require [clojure.datafy :refer [datafy]]
-            [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]))
 
@@ -8,10 +8,10 @@
 
 (tests "Electric baseline program - a dataflow diamond"
   (def !x (atom 0))
-  (def dispose (p/run
-                 (let [x (p/watch !x)                       ; reactive x
+  (def dispose (e/run
+                 (let [x (e/watch !x)                       ; reactive x
                        a (inc x)]                           ; reactive a depends on reactive x
-                   (tap (+ a (inc x))))))                     ; reactive +
+                   (tap (+ a (inc x))))))                   ; reactive +
   % := 2
   (swap! !x inc)
   % := 4
@@ -30,7 +30,7 @@
           <a (m/signal! (m/latest inc <x))]
       (m/latest rcf/tap (m/latest + <a (m/latest inc <x)))))
   (def main (m/reactor (m/stream! (user))))                 ; entrypoint that runs for effect
-  (def dispose (main (fn [_] (rcf/tap ::success))             ; start process, will run until disposed
+  (def dispose (main (fn [_] (rcf/tap ::success))           ; start process, will run until disposed
                      (fn [err] (rcf/tap ::error) (rcf/tap err))))
   % := 2
   (swap! !x inc)
