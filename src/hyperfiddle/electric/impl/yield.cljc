@@ -4,6 +4,8 @@
    [hyperfiddle.rcf :as rcf :refer [tests with tap %]])
   #?(:clj (:import (clojure.lang IFn IDeref))))
 
+;; Superseded by yield2 namespace, which adds work skipping
+
 (defn aswap
   ([^objects arr slot f]            (aset arr slot (f (aget arr slot))))
   ([^objects arr slot f a]          (aset arr slot (f (aget arr slot) a)))
