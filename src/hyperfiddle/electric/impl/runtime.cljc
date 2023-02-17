@@ -1,6 +1,6 @@
 (ns ^:no-doc hyperfiddle.electric.impl.runtime
   (:refer-clojure :exclude [eval compile])
-  (:require [hyperfiddle.electric.impl.yield :refer [yield]]
+  (:require [hyperfiddle.electric.impl.yield2 :refer [yield]]
             [hyperfiddle.electric.impl.failer :as failer]
             [hyperfiddle.electric.impl.local :as l]
             [hyperfiddle.electric.impl.ir :as ir]
