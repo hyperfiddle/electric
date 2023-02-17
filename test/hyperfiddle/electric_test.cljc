@@ -1406,6 +1406,17 @@
     % := [1 2 3 4 5]))
 
 (tests
+  "fn destructuring"
+  (with (p/run
+          (try
+            (tap (p/client ((fn [{:keys [a] ::keys [b]}] [::client a b]) {:a 1 ::b 2})))
+            (tap (p/server ((fn [{:keys [a] ::keys [b]}] [::server a b]) {:a 1 ::b 2})))
+            (catch Pending _)))
+          )
+    % := [::client 1 2]
+    % := [::server 1 2])
+
+(tests
   (def !xs (atom [false]))
   (with
     (p/run
