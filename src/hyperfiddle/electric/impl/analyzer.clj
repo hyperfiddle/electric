@@ -18,14 +18,22 @@
   (binding [cljs-ana/*passes* []]
     (cljs/analyze env form)))
 
-(defn emit-clj [ast]
-  (emit-form/emit-form ast))
-
-(defmethod emit-form/-emit-form :the-var
- [{:keys [var]} opts]
-  `(var ~(.toSymbol var)))
+(defn specialize-clj-ast-op [ast]
+  (update ast :op (fn [op] (case op
+                             :const ::const
+                             op))))
 
 (defn walk-clj "Prewalk a clj ast" [ast f] (clj-ast/prewalk ast f))
+
+(defn emit-clj [ast]
+  (emit-form/emit-form (walk-clj ast specialize-clj-ast-op)))
+
+(defmethod emit-form/-emit-form ::const
+  [{:keys [type val] :as ast} opts]
+  (if (= type :class)
+    (symbol (.getName ^Class val))
+    (emit-form/-emit-form (assoc ast :op :const) opts)))
+
 (defn walk-cljs "Prewalk a cljs ast" [ast f] (cljs-ast/walk ast [(fn [env ast opts] (f ast))]))
 
 (declare emit-cljs)
