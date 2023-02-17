@@ -1841,3 +1841,16 @@
   (with (p/run (def --foo (tap (p/watch !x))))
                     % := 0, --foo := 0
     (swap! !x inc)  % := 1, --foo := 1))
+
+;; add correct test when we fix async stack traces equality
+#_
+(tests
+  (def !x (atom 0))
+  (with (p/run (try (p/watch !x)
+                    (throw (ex-info "hy" {}))
+                    (catch ExceptionInfo e (tap e))
+                    (catch #?(:clj Throwable :cljs :default) e (println (type e) (ex-message e)))))
+    (def ex %)                          ; tuck away first exception
+    (swap! !x inc)                      ; trigger a flow
+    % := ex                             ; passes, yet it should be work skipped
+    ))

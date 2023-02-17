@@ -2,5 +2,6 @@
            hyperfiddle.electric/defn       clojure.core/defn
            hyperfiddle.electric/for        clojure.core/for
            hyperfiddle.electric/with-cycle clojure.core/let
-           hyperfiddle.electric/fn         clojure.core/fn}
+           hyperfiddle.electric/fn         clojure.core/fn
+           hyperfiddle.electric.impl.array-fields/deffields clojure.core/declare}
  :linters {:redundant-expression {:level :off}}}
