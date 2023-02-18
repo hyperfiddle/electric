@@ -62,7 +62,7 @@ Scrap
 
 ```clojure
 ; stable
-{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-0-g40c3384e"}}}
+{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-60-g4cb70086"}}}
 ```
 
 - Production ready for, let's say back office apps, after 8 months of private user testing and extreme dogfooding in the Hyperfiddle sister project.
