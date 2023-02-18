@@ -1,6 +1,6 @@
-(ns wip.gridsheet
-  "todo deprecate, use HFQL grid"
-  #?(:cljs (:require-macros wip.gridsheet))
+(ns contrib.gridsheet
+  "todo deprecate, use HFQL grid. Used by datomic-browser and folder-explorer"
+  #?(:cljs (:require-macros contrib.gridsheet))
   (:require clojure.math
             [contrib.assert :refer [check]]
             [contrib.data :refer [auto-props round-floor]]
