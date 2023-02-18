@@ -10,7 +10,7 @@
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router]
-            [wip.gridsheet :as-alias gridsheet :refer [Explorer]]))
+            [contrib.gridsheet :as gridsheet :refer [Explorer]]))
 
 (def unicode-folder "\uD83D\uDCC2") ; 📂
 
