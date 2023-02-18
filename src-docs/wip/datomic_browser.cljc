@@ -4,7 +4,7 @@
   #?(:cljs (:import [goog.math Long])) ; only this require syntax passes shadow in this file, why?
   (:require clojure.edn
             [contrib.str :refer [any-matches?]]
-            [contrib.data :refer [index-by unqualify]]
+            [contrib.data :refer [unqualify treelister]]
             #?(:clj [contrib.datomic-contrib :as dx])
             #?(:cljs contrib.datomic-cloud-contrib)
             [contrib.datomic-m #?(:clj :as :cljs :as-alias) d]
@@ -14,7 +14,6 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
-            [hyperfiddle.rcf :refer [tests]]
             [hyperfiddle.router :as router]
             #?(:cljs [hyperfiddle.router-html5 :as html5])
             [missionary.core :as m]))
@@ -35,7 +34,7 @@
                                 :db/id (e/client (router/link [::tx tx] (dom/text tx)))
                                 :db/txInstant (e/client (dom/text (pr-str v))) #_(e/client (.toLocaleDateString v))))]
     (Explorer.
-      (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
+      (treelister (new (->> (d/datoms> db {:index :aevt, :components [:db/txInstant]})
                                    (m/reductions conj ())
                                    (m/relieve {})))
         (fn [_]) any-matches?)
@@ -57,7 +56,7 @@
                                     :db/unique (some-> v :db/ident name dom/text)
                                     (dom/text (str v))))))]
     (Explorer.
-      (explorer/tree-lister (->> (dx/attributes> db explorer/cols)
+      (treelister (->> (dx/attributes> db explorer/cols)
                               (m/reductions conj [])
                               (m/relieve {})
                               new
@@ -83,64 +82,14 @@
               (= :ref valueType) (e/client (router/link [::entity v] (dom/text v)))
               () (e/client (dom/text (pr-str v))))))))
 
-#?(:clj
-   (defn entity-tree-entry-children [schema [k v :as row]] ; row is either a map-entry or [0 {:db/id _}]
-     ; This shorter expr works as well but is a bit "lucky" with types in that you cannot see
-     ; the intermediate cardinality many traversal. Unclear what level of power is needed here
-     ;(cond
-     ;  (map? v) (into (sorted-map) v)
-     ;  (sequential? v) (index-by identify v))
-
-     ; instead, dispatch on static schema in controlled way to reveal the structure
-     (cond
-       (contains? schema k)
-       (let [x ((juxt (comp unqualify dx/identify :db/valueType)
-                      (comp unqualify dx/identify :db/cardinality)) (k schema))]
-         (case x
-           [:ref :one] (into (sorted-map) v) ; todo lift sort to the pull object
-           [:ref :many] (index-by dx/identify v) ; can't sort, no sort key
-           nil #_(println `unmatched x))) ; no children
-
-       ; in card :many traversals k can be an index or datomic identifier, like
-       ; [0 {:db/id 20512488927800905}]
-       ; [20512488927800905 {:db/id 20512488927800905}]
-       ; [:release.type/single {:db/id 35435060739965075, :db/ident :release.type/single}]
-       (number? k) (into (sorted-map) v)
-
-       () (assert false (str "unmatched tree entry, k: " k " v: " v)))))
-
-#?(:clj
-   (tests
-     ; watch out, test schema needs to match
-     (entity-tree-entry-children test/schema [:db/id 87960930235113]) := nil
-     (entity-tree-entry-children test/schema [:abstractRelease/name "Pour l’amour..."]) := nil
-     (entity-tree-entry-children test/schema [:abstractRelease/type #:db{:id 35435060739965075, :ident :release.type/single}])
-     := #:db{:id 35435060739965075, :ident :release.type/single}
-     (entity-tree-entry-children test/schema [:abstractRelease/artists [#:db{:id 20512488927800905}
-                                                                        #:db{:id 68459991991856131}]])
-     := {20512488927800905 #:db{:id 20512488927800905},
-         68459991991856131 #:db{:id 68459991991856131}}
-
-     (def tree (m/? (d/pull test/datomic-db {:eid test/pour-lamour :selector ['*]})))
-     (->> tree (map (fn [row]
-                      (entity-tree-entry-children test/schema row))))
-     := [nil
-         nil
-         nil
-         #:db{:id 35435060739965075, :ident :release.type/single}
-         {20512488927800905 #:db{:id 20512488927800905},
-          68459991991856131 #:db{:id 68459991991856131}}
-         nil]
-     nil))
-
 (e/defn EntityDetail [e]
   (assert e)
   (e/client (dom/h1 (dom/text "Entity detail: " e))) ; treeview on the entity
   (binding [explorer/cols [::k ::v] explorer/Format Format-entity]
     (Explorer.
       ;; TODO inject sort
-      (explorer/tree-lister (new (e/task->cp (d/pull db {:eid e :selector ['*] :compare compare})))
-        (partial entity-tree-entry-children schema)
+      (treelister (new (e/task->cp (d/pull db {:eid e :selector ['*] :compare compare})))
+        (partial dx/entity-tree-entry-children schema)
         any-matches?)
       {::explorer/page-size 15
        ::explorer/row-height 24
@@ -165,7 +114,7 @@
                                   (str v))))]
     (Explorer.
       ; accumulate what we've seen so far, for pagination. Gets a running count. Bad?
-      (explorer/tree-lister (new (->> (dx/entity-history-datoms> db e)
+      (treelister (new (->> (dx/entity-history-datoms> db e)
                                    (m/reductions conj []) ; track a running count as well?
                                    (m/relieve {})))
         (fn [_]) any-matches?)
@@ -184,7 +133,7 @@
                                   :v (some-> v pr-str dom/text) ; when a is ref, render link
                                   :tx (router/link [::tx tx] (dom/text tx)))))]
     (Explorer.
-      (explorer/tree-lister (new (->> (d/datoms> db {:index :aevt, :components [a]})
+      (treelister (new (->> (d/datoms> db {:index :aevt, :components [a]})
                                    (m/reductions conj [])
                                    (m/relieve {})))
         (fn [_]) any-matches?)
@@ -202,7 +151,7 @@
                                 :v (pr-str v) ; when a is ref, render link
                                 (str tx)))]
     (Explorer.
-      (explorer/tree-lister (new (->> (d/tx-range> conn {:start e, :end (inc e)}) ; global
+      (treelister (new (->> (d/tx-range> conn {:start e, :end (inc e)}) ; global
                                    (m/eduction (map :data) cat)
                                    (m/reductions conj [])
                                    (m/relieve {})))
@@ -222,7 +171,7 @@
                                         (= k :attrs) nil ; print children instead
                                         () (dom/text (pr-str v))))))] ; {:count 123}
     (Explorer.
-      (explorer/tree-lister
+      (treelister
         (new (e/task->cp (d/db-stats db)))
         (fn [[k v]] (condp = k :attrs (into (sorted-map) v) nil))
         any-matches?)

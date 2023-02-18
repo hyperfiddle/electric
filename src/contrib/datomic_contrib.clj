@@ -173,3 +173,52 @@
 ;  (m/? (entity-datoms! db 1))
 ;  (m/? (entity-datoms! db :db/ident))
 ;  (take 3 (m/? (m/reduce conj [] (entity-datoms> db :db/ident)))))
+
+
+(defn entity-tree-entry-children [schema [k v :as row]] ; row is either a map-entry or [0 {:db/id _}]
+  ; This shorter expr works as well but is a bit "lucky" with types in that you cannot see
+  ; the intermediate cardinality many traversal. Unclear what level of power is needed here
+  ;(cond
+  ;  (map? v) (into (sorted-map) v)
+  ;  (sequential? v) (index-by identify v))
+
+  ; instead, dispatch on static schema in controlled way to reveal the structure
+  (cond
+    (contains? schema k)
+    (let [x ((juxt (comp unqualify identify :db/valueType)
+               (comp unqualify identify :db/cardinality)) (k schema))]
+      (case x
+        [:ref :one] (into (sorted-map) v) ; todo lift sort to the pull object
+        [:ref :many] (index-by identify v) ; can't sort, no sort key
+        nil #_(println `unmatched x))) ; no children
+
+    ; in card :many traversals k can be an index or datomic identifier, like
+    ; [0 {:db/id 20512488927800905}]
+    ; [20512488927800905 {:db/id 20512488927800905}]
+    ; [:release.type/single {:db/id 35435060739965075, :db/ident :release.type/single}]
+    (number? k) (into (sorted-map) v)
+
+    () (assert false (str "unmatched tree entry, k: " k " v: " v))))
+
+(tests
+  ; watch out, test schema needs to match
+  (entity-tree-entry-children test/schema [:db/id 87960930235113]) := nil
+  (entity-tree-entry-children test/schema [:abstractRelease/name "Pour l’amour..."]) := nil
+  (entity-tree-entry-children test/schema [:abstractRelease/type #:db{:id 35435060739965075, :ident :release.type/single}])
+  := #:db{:id 35435060739965075, :ident :release.type/single}
+  (entity-tree-entry-children test/schema [:abstractRelease/artists [#:db{:id 20512488927800905}
+                                                                     #:db{:id 68459991991856131}]])
+  := {20512488927800905 #:db{:id 20512488927800905},
+      68459991991856131 #:db{:id 68459991991856131}}
+
+  (def tree (m/? (d/pull test/datomic-db {:eid test/pour-lamour :selector ['*]})))
+  (->> tree (map (fn [row]
+                   (entity-tree-entry-children test/schema row))))
+  := [nil
+      nil
+      nil
+      #:db{:id 35435060739965075, :ident :release.type/single}
+      {20512488927800905 #:db{:id 20512488927800905},
+       68459991991856131 #:db{:id 68459991991856131}}
+      nil]
+  nil)
