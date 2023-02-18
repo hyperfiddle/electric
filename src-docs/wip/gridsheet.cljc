@@ -9,30 +9,34 @@
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
+            [hyperfiddle.router :as router] ; todo remove
             [hyperfiddle.rcf :refer [tests]]
             #?(:cljs goog.object)))
 
-(e/def Format (e/server (e/fn [m a] (pr-str (a m)))))
-
 (e/defn GridSheet [xs props]
-  (let [props (auto-props props)
-        {:keys [::columns
+  (let [props (auto-props props
+                {::row-height 24
+                 ::page-size 20})
+        _ (def props props)
+        {:keys [::Format
+                ::columns
                 ::grid-template-columns
                 ::row-height ; px, same unit as scrollTop
                 ::page-size #_ "tight"]} props
+        Format (or Format (e/fn [m a] (e/client (dom/text (pr-str (a m))))))
         client-height (* (inc (check number? page-size)) (check number? row-height))
         rows (seq xs)
         row-count (count rows)]
-    (assert columns)
+    (assert columns "gridsheet: ::columns prop is required")
     (e/client
       (dom/div (dom/props {:role "grid"
-                           :class (::dom/class props)
-                           :style (merge (::dom/style props)
-                                         {:height (str client-height "px")
-                                          :display "grid" :overflowY "auto"
-                                          :grid-template-columns (or (::grid-template-columns props)
-                                                                     (->> (repeat (e/server (count columns)) "1fr")
-                                                                          (interpose " ") (apply str)))})})
+                           :class (e/server (::dom/class props))
+                           :style (merge (e/server (::dom/style props))
+                                    {:height (str client-height "px")
+                                     :display "grid" :overflowY "auto"
+                                     :grid-template-columns (or (e/server (::grid-template-columns props))
+                                                              (->> (repeat (e/server (count columns)) "1fr")
+                                                                (interpose " ") (apply str)))})})
         (let [[scroll-top scroll-height client-height'] (new (ui/scroll-state< dom/node))
               max-height (* row-count row-height)
               padding-bottom (js/Math.max (- max-height client-height) 0)
@@ -81,6 +85,15 @@
                           (e/server (case m ::empty nil (Format. m a))))))))))) ; for effect
           (dom/div (dom/props {:style {:padding-bottom (str padding-bottom "px")}})))) ; scrollbar
       (dom/div (dom/text (pr-str {:count row-count}))))))
+
+(e/defn Explorer [query-fn props] ; o is an entity with recursive children
+  (e/client
+    (let [{:keys [::search] :as s} router/route]
+      (ui/input search (e/fn V! [v] (router/swap-route! assoc ::search v)) ; todo (swap! router/!route assoc ::search v)
+        (dom/props {:placeholder "Search" :type "search"}))
+      (dom/hr)
+      (e/server
+        (GridSheet. (query-fn search) props)))))
 
 (e/defn ^:deprecated TableSheet
   "Perhaps useful to keep around? Prefer the css-grid sheet
