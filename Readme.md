@@ -38,6 +38,7 @@ Demos
 * Recursive tree-view (my favorite)
 * REPL
 * Webcomponents
+* multiplayer canvas as a stock component
 
 Tutorials
 
@@ -87,8 +88,13 @@ Standalone starter repo to fork:
 
 Demos, examples, tutorials are in this repo, see [src-docs/user/](https://github.com/hyperfiddle/electric/tree/master/src-docs/user).
 
-* `clj -A:dev -X user/main` serves demos at `http://localhost:8080`
-* `dev` alias;  `(user/main)` compiles assets and serves app. see [src-dev/user.clj](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.clj) & [user.cljs](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.cljs)
+```shell
+yarn                       # optional, for React interop demo only
+clj -A:dev -X user/main    # serves demos at http://localhost:8080
+```
+
+From REPL:
+* `dev` alias; `(user/main)` compiles assets and serves app. see [src-dev/user.clj](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.clj) & [user.cljs](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.cljs)
 
 ## IDE setup
 
