@@ -1,7 +1,7 @@
 (ns contrib.datomic-m
-  (:require [missionary.core :as m]
-            [hyperfiddle.rcf :refer [tests]]
-            [contrib.deptector :as dep]))
+  (:require contrib.deptector
+            [missionary.core :as m]
+            [hyperfiddle.rcf :refer [tests]]))
 
 ; Peer API https://docs.datomic.com/on-prem/clojure/index.html#datomic.api/squuid
 ; Client API https://docs.datomic.com/client-api/index.html
@@ -11,7 +11,7 @@
   (->> ['datomic.api
         'datomic.client.api
         'datomic.client.api.async]
-       (filter dep/available?)
+       (filter contrib.deptector/ns-available?)
        set))
 
 (comment

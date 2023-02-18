@@ -28,8 +28,31 @@
   [ns-sym]
   (or (find-ns ns-sym) (find-ns-file ns-sym)))
 
-(defn available?
+(defn ns-available?
   "State if a namespace is available WITHOUT requiring it.
   A namespace is available if it is already loaded or if it can be loaded from the classpath."
   [ns-sym]
   (boolean (locate-namespace ns-sym)))
+
+(comment
+  (contrib.deptector/ns-available? 'datomic.client.api)
+  (contrib.deptector/ns-available? 'wip.datomic-browser)
+  (find-ns 'user)
+
+  (.-namespaces clojure.lang.Namespace)
+  (clojure.lang.Namespace/all)
+  (def x (first (all-ns)))
+  (require '[clojure.datafy :refer [datafy]])
+  (datafy x)
+  (type (.-name x))
+  )
+
+(defn ns-matching [needle]
+  (->> (all-ns)
+    (filter (fn [x]
+              (clojure.string/includes? (.-name x) needle)))))
+
+(comment
+  (ns-matching "user")
+  (ns-matching "wip")
+  )
