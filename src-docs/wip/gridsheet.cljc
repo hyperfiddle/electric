@@ -14,7 +14,6 @@
   (let [props (auto-props props
                 {::row-height 24
                  ::page-size 20})
-        _ (def props props)
         {:keys [::Format
                 ::columns
                 ::grid-template-columns
