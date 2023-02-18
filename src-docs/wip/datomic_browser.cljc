@@ -9,7 +9,7 @@
             #?(:cljs contrib.datomic-cloud-contrib)
             [contrib.datomic-m #?(:clj :as :cljs :as-alias) d]
             [contrib.ednish :as ednish]
-            [wip.gridsheet :as-alias gridsheet :refer [Explorer]]
+            [contrib.gridsheet :as gridsheet :refer [Explorer]]
             [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
