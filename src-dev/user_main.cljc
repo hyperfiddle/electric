@@ -60,7 +60,7 @@
       ::demos/hfql-teeshirt-orders wip.teeshirt-orders/App
       `wip.demo-explorer/DirectoryExplorer wip.demo-explorer/DirectoryExplorer
       ::demos/explorer2 wip.demo-explorer2/App
-      ::demos/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
+      ;::demos/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
       ::demos/router-recursion wip.demo-branched-route/App
       ::demos/tag-picker wip.tag-picker/App
       ::demos/toggle user.demo-2-toggle/App
