@@ -1,4 +1,5 @@
 (ns wip.explorer
+  #?(:cljs (:require-macros wip.explorer))
   (:require [clojure.set :refer [rename-keys]]
             [contrib.data :refer [auto-props unqualify]]
             [hyperfiddle.electric :as e]
@@ -13,9 +14,6 @@
 (e/defn Explorer [query-fn props] ; o is an entity with recursive children
   (e/client
     (let [{:keys [::search] :as s} router/route]
-      #_(dom/dl
-        (dom/dt (dom/text "scroll debug state"))
-        (dom/dd (dom/pre (dom/text (pprint-str (update-keys (e/watch user.demo-scrollview/!scrollStateDebug) unqualify))))))
       (ui/input search (e/fn V! [v] (router/swap-route! assoc ::search v)) ; todo (swap! router/!route assoc ::search v)
         (dom/props {:placeholder "Search" :type "search"}))
       (dom/hr)

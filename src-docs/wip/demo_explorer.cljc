@@ -15,18 +15,6 @@
 
 (def unicode-folder "\uD83D\uDCC2") ; 📂
 
-;(p/defn File [x]
-;  (binding
-;    [explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]
-;     explorer/Search? (p/fn [m s] (includes-str? (::fs/name m) s))]
-;    (let [m (datafy x)
-;          xs [m]]
-;      (Explorer. (::fs/absolute-path m) xs
-;                 {::dom/style {:height "calc((20 + 1) * 24px)"}
-;                  ::explorer/page-size 20
-;                  ::explorer/row-height 24
-;                  ::gridsheet/grid-template-columns "auto 8em 5em 3em"}))))
-
 (e/defn Dir [x]
   (binding
     [explorer/cols [::fs/name ::fs/modified ::fs/size ::fs/kind]]
@@ -54,25 +42,22 @@
                         (case a
                           ::fs/name (case (::fs/kind m)
                                       ::fs/dir (let [absolute-path (::fs/absolute-path m)]
-                                                 (e/client (router/link [::fs/dir absolute-path] (dom/text v))))
+                                                 (e/client (router/link absolute-path (dom/text v))))
                                       (::fs/other ::fs/symlink ::fs/unknown-kind) (e/client (dom/text v))
-                                      (e/client (dom/text v)) #_(e/client (router/Link. [::fs/file x] (dom/text v))))
+                                      (e/client (dom/text v)))
                           ::fs/modified (e/client (some-> v .toLocaleDateString dom/text))
                           ::fs/kind (case (::fs/kind m)
                                       ::fs/dir (e/client (dom/text unicode-folder))
                                       (e/client (some-> v name dom/text)))
                           (e/client (dom/text (str v))))))]
             (let [[self s route] (e/client router/route)
-                  [page fs-path] (or route [::fs/dir (fs/absolute-path "node_modules")])]
+                  fs-path (or route (fs/absolute-path "./"))]
               (e/client
                 (router/router 1 ; focus state slot, todo: fix IndexOutOfBounds exception
                   (e/server
-                    (case page
-                      ;::fs/file (File. (clojure.java.io/file fs-path))
-                      ::fs/dir (Dir. (clojure.java.io/file fs-path)))))))))))))
+                    (Dir. (clojure.java.io/file fs-path))))))))))))
 
 ; Improvements
 ; Native search
 ; lazy folding/unfolding directories (no need for pagination)
 ; forms (currently table hardcoded with recursive pull)
-; useful ::fs/file route
