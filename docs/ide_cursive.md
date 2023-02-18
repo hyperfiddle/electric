@@ -10,4 +10,4 @@
 
 Indentation
 
-![./electric-cursive-indent-setting.png]()
+![](electric-cursive-indent-setting.png)
