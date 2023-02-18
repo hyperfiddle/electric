@@ -51,6 +51,8 @@
 (e/defn NotFoundPage []
   (e/client (dom/h1 (dom/text "Page not found"))))
 
+; todo: macro to auto-install demos by attaching clj metadata to e/defn vars?
+
 (e/defn Pages [page]
   (e/server
     (case page
@@ -79,7 +81,7 @@
       ::demos/seven-guis-timer user.seven-gui-4-timer/Timer
       ::demos/seven-guis-crud user.seven-gui-5-crud/App
       ::demos/tic-tac-toe user.tic-tac-toe/App
-      ;`user.demo-reagent-interop/ReagentInterop user.demo-reagent-interop/ReagentInterop
+      ;`user.demo-reagent-interop/ReagentInterop (when react-available user.demo-reagent-interop/ReagentInterop)
       ;::demos/dennis-exception-leak wip.dennis-exception-leak/App2
       ;::demos/demo-stage-ui4 wip.demo-stage-ui4/Demo
       ;`wip.datomic-browser/DatomicBrowser wip.datomic-browser/DatomicBrowser
