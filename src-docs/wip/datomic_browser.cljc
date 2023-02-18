@@ -9,18 +9,13 @@
             #?(:cljs contrib.datomic-cloud-contrib)
             [contrib.datomic-m #?(:clj :as :cljs :as-alias) d]
             [contrib.ednish :as ednish]
-            [wip.explorer :as explorer :refer [Explorer]]
-            [wip.gridsheet :as-alias gridsheet]
+            [wip.gridsheet :as-alias gridsheet :refer [Explorer]]
             [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.router :as router]
             #?(:cljs [hyperfiddle.router-html5 :as html5])
             [missionary.core :as m]))
-
-; Todo needs cleanup
-; - port to nested router
-; - port to HFQL maybe
 
 (e/def conn)
 (e/def db)
