@@ -1,5 +1,6 @@
 (ns contrib.data
   (:require clojure.math
+            [clojure.datafy :refer [datafy]] ; todo remove
             [hyperfiddle.rcf :refer [tests]])
   #?(:cljs (:require-macros [contrib.data :refer [auto-props]])))
 
@@ -307,3 +308,27 @@
   (if (seqable? x)
     (empty? x)
     (nil? x)))
+
+(defn- -tree-list [depth xs children-fn keep? input]
+  (eduction (mapcat (fn [x]
+                      (let [x (datafy x)]
+                        (if-let [children (children-fn x)]
+                          (when-let [rows (seq (-tree-list (inc depth) children children-fn keep? input))]
+                            (into [[depth x]] rows))
+                          (cond-> [] (keep? x input) (conj [depth x]))))))
+    (datafy xs)))
+
+(defn treelister
+  ([xs] (treelister xs (fn [_]) (fn [_ _] true)))
+  ([xs children-fn keep?] (fn [input] (-tree-list 0 xs children-fn keep? input))))
+
+(tests
+  (vec ((treelister [1 2 [3 4] [5 [6 [7]]]] #(when (vector? %) %) (fn [v _] (odd? v))) nil))
+  := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]]
+
+  ((treelister [{:dir "x" :children [{:file "a"} {:file "b"}]}] :children (fn [v needle] (-> v :file #{needle})) ) "a")
+  (count (vec *1)) := 2
+
+  "directory is omitted if there are no children matching keep?"
+  ((treelister [{:dir "x" :children [{:file "a"} {:file "b"}]}] :children (fn [v needle] (-> v :file #{needle}))) "nope")
+  (count (vec *1)) := 0)
