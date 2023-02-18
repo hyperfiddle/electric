@@ -88,9 +88,7 @@
 (e/defn Main []
   (binding [router/encode contrib.ednish/encode-uri
             router/decode #(or (contrib.ednish/decode-path % hf/read-edn-str)
-                               [`user.demo-index/Demos]
-                               #_[[`user.demo-index/Demos . . .]]
-                               #_{`user.demo-index/Demos {0 . 1 . 2 .}})]
+                               [`user.demo-index/Demos])]
     (router/router (html5/HTML5-History.)
       (set-page-title! router/route)
       (binding [dom/node js/document.body]
