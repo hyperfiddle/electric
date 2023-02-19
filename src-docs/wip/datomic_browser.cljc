@@ -13,8 +13,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
-            [hyperfiddle.history :as router]
-            #?(:cljs [hyperfiddle.router-html5 :as html5])
+            [hyperfiddle.history :as history]
             [missionary.core :as m]))
 
 (e/def conn)
@@ -35,7 +34,7 @@
      ::gridsheet/Format
      (e/fn [[e _ v tx op :as record] a]
        (case a
-         :db/id (e/client (router/link [::tx tx] (dom/text tx)))
+         :db/id (e/client (history/link [::tx tx] (dom/text tx)))
          :db/txInstant (e/client (dom/text (pr-str v))) #_(e/client (.toLocaleDateString v))))}))
 
 (e/defn Attributes []
@@ -58,7 +57,7 @@
          (e/client
            (let [v (col row)]
              (case col
-               :db/ident (router/link [::attribute v] (dom/text v))
+               :db/ident (history/link [::attribute v] (dom/text v))
                :db/valueType (some-> v :db/ident name dom/text)
                :db/cardinality (some-> v :db/ident name dom/text)
                :db/unique (some-> v :db/ident name dom/text)
@@ -69,15 +68,15 @@
   (case col
     ::k (cond
           (= :db/id k) (e/client (dom/text k)) ; :db/id is our schema extension, can't nav to it
-          (contains? schema k) (e/client (router/link [::attribute k] (dom/text k)))
+          (contains? schema k) (e/client (history/link [::attribute k] (dom/text k)))
           () (e/client (dom/text (str k)))) ; str is needed for Long db/id, why?
     ::v (if-not (coll? v) ; don't render card :many intermediate row
           (let [[valueType cardinality]
                 ((juxt (comp unqualify dx/identify :db/valueType)
                        (comp unqualify dx/identify :db/cardinality)) (k schema))]
             (cond
-              (= :db/id k) (e/client (router/link [::entity v] (dom/text v)))
-              (= :ref valueType) (e/client (router/link [::entity v] (dom/text v)))
+              (= :db/id k) (e/client (history/link [::entity v] (dom/text v)))
+              (= :ref valueType) (e/client (history/link [::entity v] (dom/text v)))
               () (e/client (dom/text (pr-str v))))))))
 
 (e/defn EntityDetail [e]
@@ -112,12 +111,12 @@
        (when row ; when this view unmounts, somehow this fires as nil
          (case a
            ::op (e/client (dom/text (name (case op true :db/add false :db/retract))))
-           ::e (e/client (router/link [::entity e] (dom/text e)))
+           ::e (e/client (history/link [::entity e] (dom/text e)))
            ::a (if (some? aa)
                  (let [ident (:db/ident (new (e/task->cp (d/pull db {:eid aa :selector [:db/ident]}))))]
                    (e/client (dom/text (pr-str ident)))))
            ::v (e/client (some-> v pr-str dom/text))
-           ::tx (e/client (router/link [::tx tx] (dom/text tx)))
+           ::tx (e/client (history/link [::tx tx] (dom/text tx)))
            ::tx-instant (let [x (:db/txInstant (new (e/task->cp (d/pull db {:eid tx :selector [:db/txInstant]}))))]
                           (e/client (pr-str (dom/text x))))
            (str v))))}))
@@ -137,10 +136,10 @@
      (e/fn [[e _ v tx op :as x] k]
        (e/client
          (case k
-           :e (router/link [::entity e] (dom/text e))
+           :e (history/link [::entity e] (dom/text e))
            :a (dom/text (pr-str a)) #_(let [aa (new (e/task->cp (dx/ident! db aa)))] aa)
            :v (some-> v pr-str dom/text) ; when a is ref, render link
-           :tx (router/link [::tx tx] (dom/text tx)))))}))
+           :tx (history/link [::tx tx] (dom/text tx)))))}))
 
 (e/defn TxDetail [e]
   (e/client (dom/h1 (dom/text "Tx detail: " e)))
@@ -157,8 +156,8 @@
      ::gridsheet/Format
      (e/fn [[e aa v tx op :as x] a]
        (case a
-         :e (let [e (new (e/task->cp (dx/ident! db e)))] (e/client (router/link [::entity e] (dom/text e))))
-         :a (let [aa (new (e/task->cp (dx/ident! db aa)))] (e/client (router/link [::attribute aa] (dom/text aa))))
+         :e (let [e (new (e/task->cp (dx/ident! db e)))] (e/client (history/link [::entity e] (dom/text e))))
+         :a (let [aa (new (e/task->cp (dx/ident! db aa)))] (e/client (history/link [::attribute aa] (dom/text aa))))
          :v (pr-str v) ; when a is ref, render link
          (str tx)))}))
 
@@ -194,10 +193,10 @@
   (dom/link (dom/props {:rel :stylesheet, :href "user/gridsheet-optional.css"}))
   (dom/div (dom/props {:class "user-gridsheet-demo"})
     (dom/div (dom/text "Nav: ")
-      (router/link [::summary] (dom/text "home")) (dom/text " ")
-      (router/link [::db-stats] (dom/text "db-stats")) (dom/text " ")
-      (router/link [::recent-tx] (dom/text "recent-tx")))
-    (router/router 1 ; focus explorer state
+      (history/link [::summary] (dom/text "home")) (dom/text " ")
+      (history/link [::db-stats] (dom/text "db-stats")) (dom/text " ")
+      (history/link [::recent-tx] (dom/text "recent-tx")))
+    (history/router 1 ; focus explorer state
       (e/server
         (case (or local-page ::summary)
           ::summary (Attributes.)
@@ -215,7 +214,7 @@
     (binding [db (d/db conn)]
       (binding [schema (new (dx/schema> db))]
         (e/client
-          (binding [router/build-route (fn [[self state local-route] local-route']
+          (binding [history/build-route (fn [[self state local-route] local-route']
                                          ; root local links through this entrypoint for DI
                                          `[DatomicBrowser ~state ~local-route'])]
-            (Page. router/route))))))))
+            (Page. history/route))))))))
