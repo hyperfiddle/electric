@@ -16,11 +16,12 @@
 #?(:cljs (def !x (atom true)))
 
 (e/defn MyObject [id]
-  (new (->> (m/observe (fn mount [!]
-                         (println 'mount id)
-                         (fn unmount []
-                           (println 'unmount id))))
-         (m/reductions {} nil))))
+  (new (m/observe (fn mount [!]
+                    (println 'mount id)
+                    (! nil) ; emit initial value, or (new) would fail
+                    ; because Electric reactive values can never be undefined
+                    (fn unmount []
+                      (println 'unmount id))))))
 
 (e/defn App []
   (e/client
