@@ -49,21 +49,46 @@ Tutorials
 * Electric Y-Combinator: network-transparent composition
 * [SQL data backend](https://gist.github.com/dustingetz/1960436eb4044f65ddfcfce3ee0641b7)
 
+How it works
+* [UIs are streaming DAGs (2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
+* [You don't need a web framework, you need a web language (2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
+
 Scrap
 
 * [Electric progress update Dec 2022](https://hyperfiddle.notion.site/Electric-Clojure-progress-Dec-2022-5416dda526e24e5ab7ccb7eb48c797ed)
 * [Electric progress update June 2022](https://hyperfiddle.notion.site/Photon-progress-June-2022-57aee367c20e45b3b80366d1abe4fbc3)
 
-## How it works
-* [UIs are streaming DAGs (2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
-* [You don't need a web framework, you need a web language (2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
+## Getting Started
+
+First run the demos:
+
+```shell
+git clone git@github.com:hyperfiddle/electric.git
+cd electric
+yarn                       # optional, only needed for demo of React interop
+clj -A:dev -X user/main    # serves demos at http://localhost:8080
+```
+
+From the REPL:
+* `dev` alias; `(user/main)` compiles assets and serves app. 
+* see [src-dev/user.clj](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.clj) & [user.cljs](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.cljs)
+* demo source code at [src-docs/user/](https://github.com/hyperfiddle/electric/tree/master/src-docs/user)
+
+Standalone starter repo to fork: 
+* https://github.com/hyperfiddle/electric-starter-app
+
+## IDE setup
+
+* [docs/ide_emacs.md](docs/ide_emacs.md)
+* [docs/ide_cursive.md](docs/ide_cursive.md)
+* [docs/ide_calva.md](docs/ide_calva.md)
 
 ## Dependency
 
 ```clojure
-; stable
-{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-60-g4cb70086"}}}
+{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-68-g7e22216c"}}}
 ```
+[![Clojars Project](https://img.shields.io/clojars/v/com.hyperfiddle/electric.svg)](https://clojars.org/com.hyperfiddle/electric)
 
 - Production ready for, let's say back office apps, after 8 months of private user testing and extreme dogfooding in the Hyperfiddle sister project.
 - As a maturity indicator, the only low level bug in recent memory was a hash collision triggered by scrolling a server-paginated grid over thousands of server-streamed elements.
@@ -76,31 +101,7 @@ Current development priorities:
 
 To date we have focused on correct semantics over syntax and performance. Now that we are useful in production, we are using production learnings to drive our priorities.
 
-## Community
-
-* #hyperfiddle @ clojurians.net for support
-* follow https://twitter.com/dustingetz for progress updates
-
-## Getting Started
-
-Standalone starter repo to fork:
-* https://github.com/hyperfiddle/electric-starter-app
-
-Demos, examples, tutorials are in this repo, see [src-docs/user/](https://github.com/hyperfiddle/electric/tree/master/src-docs/user).
-
-```shell
-yarn                       # optional, for React interop demo only
-clj -A:dev -X user/main    # serves demos at http://localhost:8080
-```
-
-From REPL:
-* `dev` alias; `(user/main)` compiles assets and serves app. see [src-dev/user.clj](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.clj) & [user.cljs](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.cljs)
-
-## IDE setup
-
-* [docs/ide_emacs.md](docs/ide_emacs.md)
-* [docs/ide_cursive.md](docs/ide_cursive.md)
-* [docs/ide_calva.md](docs/ide_calva.md)
+**Community**: #hyperfiddle @ clojurians.net for support; follow https://twitter.com/dustingetz for progress updates
 
 ## Clojure compat matrix
 
