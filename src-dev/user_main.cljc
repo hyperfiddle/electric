@@ -6,8 +6,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
-            [hyperfiddle.history :as router]
-            #?(:cljs [hyperfiddle.router-html5 :as html5])
+            [hyperfiddle.history :as history]
             [user.demo-index :as demos]
 
             user.demo-1-hello-world
@@ -84,12 +83,12 @@
       NotFoundPage)))
 
 (e/defn Main []
-  (binding [router/encode contrib.ednish/encode-uri
-            router/decode #(or (contrib.ednish/decode-path % hf/read-edn-str)
+  (binding [history/encode contrib.ednish/encode-uri
+            history/decode #(or (contrib.ednish/decode-path % hf/read-edn-str)
                                [`user.demo-index/Demos])]
-    (router/router (html5/HTML5-History.)
+    (history/router (history/HTML5-History.)
       (set! (.-title js/document) (str (clojure.string/capitalize (name (first history/route))) " - Hyperfiddle"))
       (binding [dom/node js/document.body]
-        (dom/pre (dom/text (contrib.str/pprint-str router/route)))
-        (let [[page & args] router/route]
+        (dom/pre (dom/text (contrib.str/pprint-str history/route)))
+        (let [[page & args] history/route]
           (e/server (new (Pages. page #_args))))))))
