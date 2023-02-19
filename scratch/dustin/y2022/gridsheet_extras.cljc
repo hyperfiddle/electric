@@ -7,7 +7,7 @@
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
-            [hyperfiddle.router :as router] ; todo remove
+            [hyperfiddle.history :as router] ; todo remove
             #?(:cljs goog.object)))
 
 (e/defn GridSheet [xs props]

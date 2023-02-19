@@ -1,5 +1,5 @@
 (ns hyperfiddle.router-html5
-  (:require [hyperfiddle.router :as router]
+  (:require [hyperfiddle.history :as router]
             [hyperfiddle.electric :as e]
             [missionary.core :as m]))
 
