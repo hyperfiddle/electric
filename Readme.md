@@ -109,7 +109,7 @@ We target full Clojure/Script compatibility (say 99%). That means you can take a
 Gaps:
 
 - no variable e/fn arity yet
-- no recursion yet - see workaround in [src-docs/user/photon/photon_recursion](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/photon/photon_recursion.cljc)
+- no recursion yet - see workaround in [src-docs/user/photon/photon_recursion](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/electric/electric_recursion.cljc)
 - reactive multimethods
 - reactive protocols
 - ...
