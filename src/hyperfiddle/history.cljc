@@ -347,6 +347,8 @@
              (new (cleanup-on-unmount !history path#))
              ~@body))))))
 
+;::render-title (set! (.-title js/document) (str (clojure.string/capitalize (name (first route))) " - Hyperfiddle"))
+
 (tests
   (with (e/run (try (router nil (tap route))
                     (catch Throwable t
