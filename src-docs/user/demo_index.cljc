@@ -3,7 +3,7 @@
   #?(:cljs (:require-macros user.demo-index))
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
-            [hyperfiddle.router :as router])) ; for link only
+            [hyperfiddle.history :as router])) ; for link only
 
 (def pages
   [`user.demo-1-hello-world/HelloWorld

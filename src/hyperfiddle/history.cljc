@@ -1,10 +1,10 @@
-(ns hyperfiddle.router
+(ns hyperfiddle.history
   (:require [hyperfiddle.rcf :as rcf :refer [tests % tap with]]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m])
   #?(:clj (:import [clojure.lang IRef IAtom]))
-  #?(:cljs (:require-macros hyperfiddle.router)))
+  #?(:cljs (:require-macros hyperfiddle.history)))
 
 ;; TODO move bindings to hyperfiddle.api
 

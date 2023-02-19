@@ -8,7 +8,7 @@
             [hyperfiddle.electric-ui4 :as ui]
             [missionary.core :as m]
             [hyperfiddle.spec :as spec]
-            [hyperfiddle.router :as router]))
+            [hyperfiddle.history :as router]))
 
 ; data PopoverState = Closed | Open request | Pending request
 ; data BodyState = Idle | Request command | Pending command
