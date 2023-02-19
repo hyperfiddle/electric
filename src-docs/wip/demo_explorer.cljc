@@ -6,7 +6,6 @@
             [contrib.data :refer [treelister]]
             [contrib.datafy-fs #?(:clj :as :cljs :as-alias) fs]
             contrib.str
-            [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.history :as router]
