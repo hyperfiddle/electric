@@ -9,7 +9,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
-            [hyperfiddle.router :as router]
+            [hyperfiddle.history :as router]
             [contrib.gridsheet :as gridsheet :refer [Explorer]]))
 
 (def unicode-folder "\uD83D\uDCC2") ; 📂

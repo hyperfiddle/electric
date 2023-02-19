@@ -6,7 +6,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
-            [hyperfiddle.router :as router]
+            [hyperfiddle.history :as router]
             #?(:cljs [hyperfiddle.router-html5 :as html5])
             [user.demo-index :as demos]
 

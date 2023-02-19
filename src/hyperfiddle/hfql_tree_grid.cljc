@@ -13,7 +13,7 @@
             [hyperfiddle.electric-ui4 :as ui4]
             [hyperfiddle.rcf :refer [tests with % tap]]
             [missionary.core :as m]
-            [hyperfiddle.router :as router])
+            [hyperfiddle.history :as router])
   #?(:cljs (:require-macros [hyperfiddle.hfql-tree-grid]))
   #?(:cljs (:refer-clojure :exclude [List])))
 
