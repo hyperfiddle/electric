@@ -44,10 +44,6 @@
             #_wip.datomic-browser
             ))
 
-#?(:cljs (defn set-page-title! [route]
-           (set! (.-title js/document)
-                 (str (clojure.string/capitalize (name (first route))) " - Hyperfiddle"))))
-
 (e/defn NotFoundPage []
   (e/client (dom/h1 (dom/text "Page not found"))))
 
@@ -92,7 +88,7 @@
             router/decode #(or (contrib.ednish/decode-path % hf/read-edn-str)
                                [`user.demo-index/Demos])]
     (router/router (html5/HTML5-History.)
-      (set-page-title! router/route)
+      (set! (.-title js/document) (str (clojure.string/capitalize (name (first history/route))) " - Hyperfiddle"))
       (binding [dom/node js/document.body]
         (dom/pre (dom/text (contrib.str/pprint-str router/route)))
         (let [[page & args] router/route]
