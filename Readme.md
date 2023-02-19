@@ -32,7 +32,7 @@ Demos
 * [TodoMVC](https://gist.github.com/dustingetz/2c1916766be8a61baa39f9f88feafc44)
 * [TodoMVC Composed – network transparent composition](https://gist.github.com/dustingetz/bba2aa18acc5de8d2685d3de23bad515)
 * Folder explorer: frontend table over node_modules
-* Database browser
+* [Datomic database browser](https://github.com/hyperfiddle/electric-datomic-browser)
 * Infinite scroll
 * Multiplayer chat with presence
 * Recursive tree-view (my favorite)
@@ -110,7 +110,7 @@ We target full Clojure/Script compatibility (say 99%). That means you can take a
 Gaps:
 
 - no variable e/fn arity yet
-- no recursion yet - see workaround in [src-docs/user/photon/photon_recursion](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/photon/photon_recursion.cljc)
+- no recursion yet - see workaround in [src-docs/user/electric/electric_recursion](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/electric/electric_recursion.cljc)
 - reactive multimethods
 - reactive protocols
 - ...
@@ -119,3 +119,8 @@ Gaps:
 * Requires -Xss2m to compile. The default of 1m ThreadStackSize is exceeded by the Electric compiler due to large macroexpansions resulting in false StackOverflowError during analysis.
 * :eval opcode - probably interop syntax, or a macro like assert that expands to interop syntax
 * `Unbound var.` Usually means wrong peer, i.e. accessed server-only var on client
+
+## Contributing
+
+* PRs require a signed contributors agreement (like Clojure), DM dustingetz on slack.
+* No typo fixes please, we are not all native English speakers and we decided it's not worth it.
