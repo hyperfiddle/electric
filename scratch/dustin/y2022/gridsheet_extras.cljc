@@ -1,6 +1,6 @@
-(ns wip.gridsheet
+(ns dustin.y2022.gridsheet-extras
   "todo deprecate, use HFQL grid"
-  #?(:cljs (:require-macros wip.gridsheet))
+  #?(:cljs (:require-macros dustin.y2022.gridsheet-extras))
   (:require clojure.math
             [contrib.assert :refer [check]]
             [contrib.data :refer [auto-props round-floor]]
