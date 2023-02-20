@@ -18,6 +18,11 @@
     (dom/h1 (dom/text "Toggle"))
     (ui/button (e/fn [] (e/server (swap! !x not)))
       (dom/text "toggle client/server"))
+   
+    (dom/h3 (dom/text (str "current: " (case x
+                                        true "Clojurescript / Client"
+                                        false "Clojure / Server"))))
+
     (dom/p
       (dom/text "Number type is: "
         (if (e/server x)
