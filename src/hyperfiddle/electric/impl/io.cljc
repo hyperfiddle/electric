@@ -19,6 +19,15 @@
 
 #?(:cljs (extend-type com.cognitect.transit.types/UUID IUUID)) ; https://github.com/hyperfiddle/hyperfiddle/issues/728
 
+(def default-write-handler ; Intercepts unserializable values, logs and return nil
+  (t/write-handler ; Adapted from `com.cognitect.transit.impl.WriteHandlers.NullWriteHandler`
+    (fn [x]
+      (def -last-unserializable-for-repl x)
+      (log/info "Unserializable reference transfer:" (pr-str (type x)) (str x))
+      "_")
+    (fn [x] nil)
+    (fn [_] "")))
+
 (def write-opts
   {:handlers
    {Failure
@@ -29,7 +38,9 @@
           (cond (instance? Cancelled err) [:cancelled]
                 (instance? Pending err)   [:pending]
                 (instance? Remote err)    [:remote (dbg/serializable (ex-data err))]
-                :else                     [:exception (ex-message err) (dbg/serializable (ex-data err))]))))}})
+                :else                     [:exception (ex-message err) (dbg/serializable (ex-data err))]))))
+    :default default-write-handler} ; cljs
+   :default-handler default-write-handler}) ; clj
 
 (def read-opts
   {:handlers
@@ -81,28 +92,13 @@
 
 #?(:cljs (def transit-writer (t/writer :json write-opts)))
 
-(defn ddef [err] (def -last-error-for-repl err)) ; lol
-
 (defn encode
   "Encode a data frame to transit json"
   [x]
-  (try
-    #?(:clj (let [out (ByteArrayOutputStream.)]
-              (t/write (t/writer out :json write-opts) x)
-              (.toString out))
-       :cljs (t/write transit-writer x))
-    (catch #?(:clj Throwable, :cljs :default) err
-      ; 13:49:25.848 DEBUG h.p.io [qtp966786773-114] - Unserializable reference transfer:  datascript.db.TxReport@a1a5e94a
-      ; {:value #datascript.db.TxReport{:db-before #datascript/DB {:schema {}, :datoms [[1 :task/description buy milk  ...
-      (ddef err)
-      (do (log/debug "Unserializable reference transfer: "
-                     (str #_pr-str x)                       ; i.e. "datascript.db.TxReport@b532aead"
-                     #_{:value x}                           ; don't ask logger to pr-str the entire datascript database
-                     #_err)                                 ; don't spam log with scary error
-
-          (if (instance? Failure x)
-            (encode (Failure. (Remote.))) ; Failed to encode this exception, send a stub.
-            (encode nil))))))
+  #?(:clj (let [out (ByteArrayOutputStream.)]
+            (t/write (t/writer out :json write-opts) x)
+            (.toString out))
+     :cljs (t/write transit-writer x)))
 
 #?(:cljs (def transit-reader (t/reader :json read-opts)))
 
