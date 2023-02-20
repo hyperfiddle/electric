@@ -162,7 +162,7 @@ label[for='toggle-all'] {
 	position: absolute;
 	top: -42px;
 	left: -4px;
-	width: 40px;
+	width: 40px!important;
 	text-align: center;
 	/* Mobile Safari */
 	border: none;
@@ -402,8 +402,8 @@ label[for='toggle-all'] {
 	.toggle-all {
 		top: -56px;
 		left: -15px;
-		width: 65px;
-		height: 41px;
+		width: 65px!important;
+		height: 41px!important;
 		-webkit-transform: rotate(90deg);
 		-ms-transform: rotate(90deg);
 		transform: rotate(90deg);
