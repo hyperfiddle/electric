@@ -1,6 +1,5 @@
 (ns user.demo-4-chat
   #?(:cljs (:require-macros user.demo-4-chat))
-  (:import [hyperfiddle.electric Pending])
   (:require [contrib.data :refer [pad]]
             [contrib.str :refer [empty->nil]]
             [hyperfiddle.electric :as e]
