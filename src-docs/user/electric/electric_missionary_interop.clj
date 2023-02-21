@@ -50,8 +50,8 @@
           (tap
             (new                       ; call Electric fn with new
               (e/fn [x y] (+ x y))
-              (e/watch !x)             ; Electric flow from atom
-              42)))                    ; Electric literals are lifted
+              (e/watch !x)             ; reactive value
+              42)))                    ; reactive 42 (lifted constant)
     % := 42)
 
   "To call an Electric fn with a Missionary flow, first join the Missionary flow into Electric with (new)
