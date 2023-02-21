@@ -12,7 +12,7 @@
             [hyperfiddle.electric.debug :as dbg])
   #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn vars boot for for-by local local-with run run-with debounce wrap]]))
   (:import #?(:clj (clojure.lang IDeref))
-           (hyperfiddle.electric Pending Failure)
+           (hyperfiddle.electric Pending Failure FailureInfo)
            (missionary Cancelled)))
 
 ;; Equality semantics for Failure and Pending
@@ -29,6 +29,14 @@
      (-equiv [this other]
        (and (instance? Failure other)
             (= (.-error this) (.-error other))))))
+
+#?(:cljs (set! (.. FailureInfo -prototype -__proto__) cljs.core/ExceptionInfo.prototype))
+#?(:cljs
+   (extend-type FailureInfo
+     IEquiv
+     (-equiv [this other]
+       (and (instance? FailureInfo other)
+            (= (.-cause this) (.-cause other))))))
 
 #?(:clj
    (do
