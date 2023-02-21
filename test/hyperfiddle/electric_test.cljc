@@ -699,7 +699,7 @@
   (with ((p/local (tap (assert (p/watch !x)))) tap tap)
     % := nil ; assert returns nil or throws
     (swap! !x not) ; will crash the reactor
-    #?(:clj (instance? clojure.lang.ExceptionInfo %)
+    #?(:clj (instance? clojure.lang.IExceptionInfo %)
        :cljs (instance? ExceptionInfo %)) := true
     (swap! !x not) ; reactor will not come back.
     % := ::rcf/timeout))
@@ -722,7 +722,6 @@
                            (tap [ex p/trace]))))]
     (let [[ex trace] %]
       (instance? #?(:clj AssertionError, :cljs js/Error) ex) := true
-      (instance? ExceptionInfo trace) := true
       (= ex (ex-cause trace)) := true
       (contains? (ex-data trace) :hyperfiddle.electric.debug/trace) := true)
     := _                                ; HACK RCF cljs bug: % resolves to nil outside of assertion
@@ -1841,3 +1840,15 @@
   (with (p/run (def --foo (tap (p/watch !x))))
                     % := 0, --foo := 0
     (swap! !x inc)  % := 1, --foo := 1))
+
+(tests "catch handlers are work skipped"
+  (def !x (atom 0))
+  (def discard (p/run (try (p/watch !x)
+                           (throw (ex-info "hy" {}))
+                           (catch ExceptionInfo e (tap e))
+                           (catch Cancelled _ (tap :cancelled)))))
+  (ex-message %) := "hy"                ; exception tapped by `ExceptionInfo` catch block
+  (swap! !x inc)                        ; same exception, so work skipped
+  (discard)
+  % := :cancelled
+  )

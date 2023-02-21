@@ -1,6 +1,5 @@
 (ns wip.demo-stage-ui4
   #?(:cljs (:require-macros wip.demo-stage-ui4))
-  (:import [hyperfiddle.electric Pending])
   (:require [contrib.css :refer [css-slugify]]
             [contrib.str :refer [pprint-str]]
             #?(:clj [contrib.datomic-contrib :as dx])

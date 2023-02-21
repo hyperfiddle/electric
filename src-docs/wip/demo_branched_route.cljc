@@ -7,7 +7,7 @@
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             hyperfiddle.popover
-            [hyperfiddle.router :as router]
+            [hyperfiddle.history :as router]
             wip.orders-datascript))
 
 (e/def Page)

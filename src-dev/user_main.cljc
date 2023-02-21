@@ -6,8 +6,7 @@
             [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
-            [hyperfiddle.router :as router]
-            #?(:cljs [hyperfiddle.router-html5 :as html5])
+            [hyperfiddle.history :as history]
             [user.demo-index :as demos]
 
             user.demo-1-hello-world
@@ -41,15 +40,13 @@
             ; these demos require extra deps alias
             #_wip.dennis-exception-leak
             #_wip.demo-stage-ui4
-            wip.datomic-browser
+            #_wip.datomic-browser
             ))
-
-#?(:cljs (defn set-page-title! [route]
-           (set! (.-title js/document)
-                 (str (clojure.string/capitalize (name (first route))) " - Hyperfiddle"))))
 
 (e/defn NotFoundPage []
   (e/client (dom/h1 (dom/text "Page not found"))))
+
+; todo: macro to auto-install demos by attaching clj metadata to e/defn vars?
 
 (e/defn Pages [page]
   (e/server
@@ -60,7 +57,7 @@
       ::demos/hfql-teeshirt-orders wip.teeshirt-orders/App
       `wip.demo-explorer/DirectoryExplorer wip.demo-explorer/DirectoryExplorer
       ::demos/explorer2 wip.demo-explorer2/App
-      ::demos/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
+      ;::demos/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
       ::demos/router-recursion wip.demo-branched-route/App
       ::demos/tag-picker wip.tag-picker/App
       ::demos/toggle user.demo-2-toggle/App
@@ -79,21 +76,19 @@
       ::demos/seven-guis-timer user.seven-gui-4-timer/Timer
       ::demos/seven-guis-crud user.seven-gui-5-crud/App
       ::demos/tic-tac-toe user.tic-tac-toe/App
-      ;`user.demo-reagent-interop/ReagentInterop user.demo-reagent-interop/ReagentInterop
+      ;`user.demo-reagent-interop/ReagentInterop (when react-available user.demo-reagent-interop/ReagentInterop)
       ;::demos/dennis-exception-leak wip.dennis-exception-leak/App2
       ;::demos/demo-stage-ui4 wip.demo-stage-ui4/Demo
       ;`wip.datomic-browser/DatomicBrowser wip.datomic-browser/DatomicBrowser
       NotFoundPage)))
 
 (e/defn Main []
-  (binding [router/encode contrib.ednish/encode-uri
-            router/decode #(or (contrib.ednish/decode-path % hf/read-edn-str)
-                               [`user.demo-index/Demos]
-                               #_[[`user.demo-index/Demos . . .]]
-                               #_{`user.demo-index/Demos {0 . 1 . 2 .}})]
-    (router/router (html5/HTML5-History.)
-      (set-page-title! router/route)
+  (binding [history/encode contrib.ednish/encode-uri
+            history/decode #(or (contrib.ednish/decode-path % hf/read-edn-str)
+                               [`user.demo-index/Demos])]
+    (history/router (history/HTML5-History.)
+      (set! (.-title js/document) (str (clojure.string/capitalize (name (first history/route))) " - Hyperfiddle"))
       (binding [dom/node js/document.body]
-        (dom/pre (dom/text (contrib.str/pprint-str router/route)))
-        (let [[page & args] router/route]
+        (dom/pre (dom/text (contrib.str/pprint-str history/route)))
+        (let [[page & args] history/route]
           (e/server (new (Pages. page #_args))))))))

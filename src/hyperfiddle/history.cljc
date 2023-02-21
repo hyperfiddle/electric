@@ -1,10 +1,11 @@
-(ns hyperfiddle.router
-  (:require [hyperfiddle.rcf :as rcf :refer [tests % tap with]]
+(ns hyperfiddle.history
+  (:require [contrib.cljs-target :refer [do-browser]]
+            [hyperfiddle.rcf :as rcf :refer [tests % tap with]]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m])
   #?(:clj (:import [clojure.lang IRef IAtom]))
-  #?(:cljs (:require-macros hyperfiddle.router)))
+  #?(:cljs (:require-macros hyperfiddle.history)))
 
 ;; TODO move bindings to hyperfiddle.api
 
@@ -347,6 +348,8 @@
              (new (cleanup-on-unmount !history path#))
              ~@body))))))
 
+;::render-title (set! (.-title js/document) (str (clojure.string/capitalize (name (first route))) " - Hyperfiddle"))
+
 (tests
   (with (e/run (try (router nil (tap route))
                     (catch Throwable t
@@ -434,3 +437,96 @@
         0 (cleanup m)
         1 (route-cleanup [] (update m (first path) cleanup))
         (route-cleanup (butlast path) (update-in m path cleanup))))))
+
+
+;; HTML5 integration
+
+#?(:cljs
+   (do-browser
+
+     (defn throttler [rate-ms]
+       (let [!nextf (atom nil)
+             !running (atom false)]
+         (fn rec [f]
+           (if @!running
+             (reset! !nextf f)
+             (do (reset! !running true)
+                 (f)
+                 (.setTimeout js/window (fn [] (reset! !running false)
+                                          (when-let [nextf @!nextf]
+                                            (reset! !nextf nil)
+                                            (rec nextf)))
+                   rate-ms))))))
+
+     ;; User agent limits HistoryAPI to 100 changes / 30s timeframe (https://bugs.webkit.org/show_bug.cgi?id=156115)
+     ;; Firefox and Safari log an error and ignore further HistoryAPI calls for security reasons.
+     ;; Chrome does the same but can also hang the tab: https://bugs.chromium.org/p/chromium/issues/detail?id=1038223
+     (let [throttle (throttler 300)]          ; max 3changes/s, 90/30s
+       (defn replaceState! [path] (throttle #(.replaceState js/window.history nil "" path))))
+
+     (defn html5-pushState! [path] (.pushState js/window.history nil "" path))
+     (defn html5-back! [] (.back js/window.history))
+     (defn html5-forward! [] (.forward js/window.history))
+
+     (def html5-location (constantly (.-location js/window)))
+
+     (defn html5-path []
+       (let [loc (html5-location)]
+         (str (.-pathname loc) (.-search loc) (.-hash loc))))
+
+     (defrecord HTML5History [encode decode !state]
+       IAtom
+       ISwap
+       (-swap! [this f] (let [[_oldval newval] (swap-vals! !state f)]
+                          (replaceState! (encode newval))
+                          newval))
+       (-swap! [this f arg] (-swap! this #(f % arg)))
+       (-swap! [this f arg1 arg2] (-swap! this #(f % arg1 arg2)))
+       (-swap! [this f x y args] (-swap! this #(apply f % x y args)))
+
+       IReset
+       (-reset! [this newval] (-swap! this (constantly newval)))
+
+       IWatchable
+       (-add-watch [this key callback]
+         (add-watch !state key callback)
+         this)
+       (-remove-watch [_ key] (remove-watch !state key))
+
+       IDeref
+       (-deref [_] @!state)
+
+       IHistory
+       (navigate! [this route]
+         (html5-pushState! (encode route))
+         (reset! (.-!state this) route))
+       (back! [^HTML5History this]
+         (html5-back!)
+         (reset! (.-!state this) (decode (html5-path))))
+       (forward! [^HTML5History this]
+         (html5-forward!)
+         (reset! (.-!state this) (decode (html5-path))))
+       (replace-state! [this new-state]
+         (reset! this new-state))
+
+       ;; TODO Implement equality so that two HTML5History are always equal. The
+       ;;      browser history is a singleton. There is no use case for nested
+       ;;      HTML5History instances on the page.
+       )
+
+     (defn html5-history [encode decode] (->HTML5History encode decode (atom (decode (html5-path)))))
+
+
+     (defn -html5-history-get-state [^HTML5History this] (.-!state this))
+
+     (e/defn HTML5-History [] ; TODO make this flow a singleton (leverage m/signal in next reactor iteration)
+       (let [history (html5-history encode decode)
+             decode' decode]
+         (new (m/observe (fn [!]
+                           (! nil)
+                           (let [f (fn [_e] (reset! (-html5-history-get-state history) (decode' (html5-path))))]
+                             (.addEventListener js/window "popstate" f)
+                             #(.removeEventListener js/window "popstate" f)))))
+         history))
+
+     ))

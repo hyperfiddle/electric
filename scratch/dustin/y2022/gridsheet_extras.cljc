@@ -1,38 +1,39 @@
-(ns wip.gridsheet
+(ns dustin.y2022.gridsheet-extras
   "todo deprecate, use HFQL grid"
-  #?(:cljs (:require-macros wip.gridsheet))
-  #?(:clj (:import [clojure.lang ExceptionInfo]))
+  #?(:cljs (:require-macros dustin.y2022.gridsheet-extras))
   (:require clojure.math
             [contrib.assert :refer [check]]
-            [contrib.data :refer [unqualify auto-props round-floor]]
-            [clojure.spec.alpha :as s]
+            [contrib.data :refer [auto-props round-floor]]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
-            [hyperfiddle.rcf :refer [tests]]
+            [hyperfiddle.history :as router] ; todo remove
             #?(:cljs goog.object)))
 
-(e/def Format (e/server (e/fn [m a] (pr-str (a m)))))
-
 (e/defn GridSheet [xs props]
-  (let [props (auto-props props)
-        {:keys [::columns
+  (let [props (auto-props props
+                {::row-height 24
+                 ::page-size 20})
+        _ (def props props)
+        {:keys [::Format
+                ::columns
                 ::grid-template-columns
                 ::row-height ; px, same unit as scrollTop
                 ::page-size #_ "tight"]} props
+        Format (or Format (e/fn [m a] (e/client (dom/text (pr-str (a m))))))
         client-height (* (inc (check number? page-size)) (check number? row-height))
         rows (seq xs)
         row-count (count rows)]
-    (assert columns)
+    (assert columns "gridsheet: ::columns prop is required")
     (e/client
       (dom/div (dom/props {:role "grid"
-                           :class (::dom/class props)
-                           :style (merge (::dom/style props)
-                                         {:height (str client-height "px")
-                                          :display "grid" :overflowY "auto"
-                                          :grid-template-columns (or (::grid-template-columns props)
-                                                                     (->> (repeat (e/server (count columns)) "1fr")
-                                                                          (interpose " ") (apply str)))})})
+                           :class (e/server (::dom/class props))
+                           :style (merge (e/server (::dom/style props))
+                                    {:height (str client-height "px")
+                                     :display "grid" :overflowY "auto"
+                                     :grid-template-columns (or (e/server (::grid-template-columns props))
+                                                              (->> (repeat (e/server (count columns)) "1fr")
+                                                                (interpose " ") (apply str)))})})
         (let [[scroll-top scroll-height client-height'] (new (ui/scroll-state< dom/node))
               max-height (* row-count row-height)
               padding-bottom (js/Math.max (- max-height client-height) 0)
@@ -47,9 +48,9 @@
               ; clamp start to the nearest page
               start-row-page-aligned (round-floor start-row page-size)]
           #_(println [:scrollTop scroll-top :scrollHeight scroll-height :clientHeight client-height
-                    :padding-bottom padding-bottom
-                    :start-row start-row :start-row-page-aligned start-row-page-aligned
-                    :take page-size :max-height max-height])
+                      :padding-bottom padding-bottom
+                      :start-row start-row :start-row-page-aligned start-row-page-aligned
+                      :take page-size :max-height max-height])
 
           (e/for [k columns]
             (dom/div (dom/props {:role "columnheader"
@@ -81,6 +82,15 @@
                           (e/server (case m ::empty nil (Format. m a))))))))))) ; for effect
           (dom/div (dom/props {:style {:padding-bottom (str padding-bottom "px")}})))) ; scrollbar
       (dom/div (dom/text (pr-str {:count row-count}))))))
+
+(e/defn Explorer [query-fn props] ; o is an entity with recursive children
+  (e/client
+    (let [{:keys [::search] :as s} router/route]
+      (ui/input search (e/fn V! [v] (router/swap-route! assoc ::search v)) ; todo (swap! router/!route assoc ::search v)
+        (dom/props {:placeholder "Search" :type "search"}))
+      (dom/hr)
+      (e/server
+        (GridSheet. (query-fn search) props)))))
 
 (e/defn ^:deprecated TableSheet
   "Perhaps useful to keep around? Prefer the css-grid sheet
@@ -148,7 +158,7 @@
                   (e/for-by first [[i [depth m]] (map vector (range) xs)]
                     (e/client
                       (reset! (get-in !!rows [i])
-                              [depth (e/fn [a] (e/server (Format. m a)))])))))))))
+                        [depth (e/fn [a] (e/server (Format. m a)))])))))))))
       (dom/div (pr-str {:count row-count})))))
 
 ; How to do transactionally with a fragment to avoid the churn? (for variable infinite seq)

@@ -3,7 +3,7 @@
   (:require [contrib.data :refer [assoc-vec]]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
-            [hyperfiddle.router :as router]
+            [hyperfiddle.history :as router]
             [contrib.color :as c]))
 
 ;; Goal is to demonstrate:

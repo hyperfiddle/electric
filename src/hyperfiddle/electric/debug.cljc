@@ -2,10 +2,12 @@
   (:require #_[hyperfiddle.electric.impl.runtime :as-alias r]
             [clojure.string :as str]
             [contrib.data :as data]
-            [hyperfiddle.electric.impl.ir :as-alias ir])
+            [hyperfiddle.electric.impl.ir :as-alias ir]
+            [hyperfiddle.rcf :as rcf :refer [tests]])
   (:import (hyperfiddle.electric Failure Pending)
            (missionary Cancelled)
-           #?(:clj (clojure.lang ExceptionInfo))))
+           #?(:clj (clojure.lang ExceptionInfo))
+           (hyperfiddle.electric FailureInfo)))
 
 (defonce ^{:doc "A random unique ID generated for each Electric runtime instance (browser tab, jvm). Used to identify origin of a transfered value."}
   PEER-ID
@@ -13,15 +15,27 @@
   #?(:clj  (java.util.UUID/randomUUID)
      :cljs (random-uuid)))
 
+(defn ex-info*
+  ([message data]
+   (ex-info* message data nil))
+  ([message data cause]
+   (FailureInfo. message data cause)))
+
+(tests "2 traces with equal values are ="
+  (let [cause #?(:clj (Throwable.) :cljs (js/Error.))]
+    (ex-info* "" {} cause) := (ex-info* "" {} cause)
+    (Failure. (ex-info* "" {} cause)) := (Failure. (ex-info* "" {} cause))
+    nil))
+
 (defn add-stack-frame [frame ex] ; TODO use Throwable.setStackTrace if possible instead of allocating a new ExInfo for each frame
-  (ex-info (ex-message ex)
+  (ex-info* (ex-message ex)
     (-> (update (ex-data ex) ::trace (fnil conj []) (assoc frame ::origin PEER-ID))
       (assoc :hyperfiddle.electric/type ::trace))
     (or (ex-cause ex) ex)))
 
 (defn error ; TODO Don’t use ExceptionInfo. It is slow because it computes the stacktrace on instantiation. We don’t need it.
   ([^ExceptionInfo ex]
-   (Failure. (ex-info (ex-message ex) (assoc (ex-data ex) :hyperfiddle.electric/type ::trace) (ex-cause ex))))
+   (Failure. (ex-info* (ex-message ex) (assoc (ex-data ex) :hyperfiddle.electric/type ::trace) (ex-cause ex))))
   ([debug-info ^Failure failure]
    (let [err (.-error failure)]
      (if (or (instance? Pending err)

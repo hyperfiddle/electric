@@ -32,12 +32,13 @@ Demos
 * [TodoMVC](https://gist.github.com/dustingetz/2c1916766be8a61baa39f9f88feafc44)
 * [TodoMVC Composed – network transparent composition](https://gist.github.com/dustingetz/bba2aa18acc5de8d2685d3de23bad515)
 * Folder explorer: frontend table over node_modules
-* Database browser
+* [Datomic database browser](https://github.com/hyperfiddle/electric-datomic-browser)
 * Infinite scroll
 * Multiplayer chat with presence
 * Recursive tree-view (my favorite)
 * REPL
 * Webcomponents
+* multiplayer canvas as a stock component
 
 Tutorials
 
@@ -48,21 +49,46 @@ Tutorials
 * Electric Y-Combinator: network-transparent composition
 * [SQL data backend](https://gist.github.com/dustingetz/1960436eb4044f65ddfcfce3ee0641b7)
 
+How it works
+* [UIs are streaming DAGs (2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
+* [You don't need a web framework, you need a web language (2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
+
 Scrap
 
 * [Electric progress update Dec 2022](https://hyperfiddle.notion.site/Electric-Clojure-progress-Dec-2022-5416dda526e24e5ab7ccb7eb48c797ed)
 * [Electric progress update June 2022](https://hyperfiddle.notion.site/Photon-progress-June-2022-57aee367c20e45b3b80366d1abe4fbc3)
 
-## How it works
-* [UIs are streaming DAGs (2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
-* [You don't need a web framework, you need a web language (2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
+## Getting Started
+
+First run the demos:
+
+```shell
+git clone git@github.com:hyperfiddle/electric.git
+cd electric
+yarn                       # optional, only needed for demo of React interop
+clj -A:dev -X user/main    # serves demos at http://localhost:8080
+```
+
+From the REPL:
+* `dev` alias; `(user/main)` compiles assets and serves app. 
+* see [src-dev/user.clj](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.clj) & [user.cljs](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.cljs)
+* demo source code at [src-docs/user/](https://github.com/hyperfiddle/electric/tree/master/src-docs/user)
+
+Standalone starter repo to fork: 
+* https://github.com/hyperfiddle/electric-starter-app
+
+## IDE setup
+
+* [docs/ide_emacs.md](docs/ide_emacs.md)
+* [docs/ide_cursive.md](docs/ide_cursive.md)
+* [docs/ide_calva.md](docs/ide_calva.md)
 
 ## Dependency
 
 ```clojure
-; stable
-{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-0-g40c3384e"}}}
+{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-68-g7e22216c"}}}
 ```
+[![Clojars Project](https://img.shields.io/clojars/v/com.hyperfiddle/electric.svg)](https://clojars.org/com.hyperfiddle/electric)
 
 - Production ready for, let's say back office apps, after 8 months of private user testing and extreme dogfooding in the Hyperfiddle sister project.
 - As a maturity indicator, the only low level bug in recent memory was a hash collision triggered by scrolling a server-paginated grid over thousands of server-streamed elements.
@@ -75,26 +101,7 @@ Current development priorities:
 
 To date we have focused on correct semantics over syntax and performance. Now that we are useful in production, we are using production learnings to drive our priorities.
 
-## Community
-
-* #hyperfiddle @ clojurians.net for support
-* follow https://twitter.com/dustingetz for progress updates
-
-## Getting Started
-
-Standalone starter repo to fork:
-* https://github.com/hyperfiddle/electric-starter-app
-
-Demos, examples, tutorials are in this repo, see [src-docs/user/](https://github.com/hyperfiddle/electric/tree/master/src-docs/user).
-
-* `clj -A:dev -X user/main` serves demos at `http://localhost:8080`
-* `dev` alias;  `(user/main)` compiles assets and serves app. see [src-dev/user.clj](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.clj) & [user.cljs](https://github.com/hyperfiddle/electric/blob/master/src-dev/user.cljs)
-
-## IDE setup
-
-* [docs/ide_emacs.md](docs/ide_emacs.md)
-* [docs/ide_cursive.md](docs/ide_cursive.md)
-* [docs/ide_calva.md](docs/ide_calva.md)
+**Community**: #hyperfiddle @ clojurians.net for support; follow https://twitter.com/dustingetz for progress updates
 
 ## Clojure compat matrix
 
@@ -103,7 +110,7 @@ We target full Clojure/Script compatibility (say 99%). That means you can take a
 Gaps:
 
 - no variable e/fn arity yet
-- no recursion yet - see workaround in [src-docs/user/photon/photon_recursion](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/photon/photon_recursion.cljc)
+- no recursion yet - see workaround in [src-docs/user/electric/electric_recursion](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/electric/electric_recursion.cljc)
 - reactive multimethods
 - reactive protocols
 - ...
@@ -112,3 +119,8 @@ Gaps:
 * Requires -Xss2m to compile. The default of 1m ThreadStackSize is exceeded by the Electric compiler due to large macroexpansions resulting in false StackOverflowError during analysis.
 * :eval opcode - probably interop syntax, or a macro like assert that expands to interop syntax
 * `Unbound var.` Usually means wrong peer, i.e. accessed server-only var on client
+
+## Contributing
+
+* PRs require a signed contributors agreement (like Clojure), DM dustingetz on slack.
+* No typo fixes please, we are not all native English speakers and we decided it's not worth it.
