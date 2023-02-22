@@ -10,7 +10,7 @@
 ; which means that when you make a small change to the state,
 ; the functions will recompute and you'll get a small adjustment to the DOM
 
-(defonce !x #?(:clj (atom true) :cljs nil)) ; server state
+#?(:clj (defonce !x (atom true))) ; server state
 (e/def x (e/server (e/watch !x))) ; reactive signal derived from reference
 
 (e/defn App []

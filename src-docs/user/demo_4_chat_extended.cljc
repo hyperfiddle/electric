@@ -10,10 +10,10 @@
 ; Fleshed out chat demo with auth and presence
 ; Has missionary interop, this is a more advanced demo
 
-(defonce !msgs #?(:clj (atom '()) :cljs nil))
+#?(:clj (defonce !msgs (atom '())))
 (e/def msgs (e/server (reverse (e/watch !msgs))))
 
-(defonce !present #?(:clj (atom {}) :cljs nil)) ; session-id -> user
+#?(:clj (defonce !present (atom {}))) ; session-id -> user
 (e/def present (e/server (e/watch !present)))
 
 (e/defn Chat [username]
