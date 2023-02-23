@@ -40,14 +40,9 @@
        (.appendChild parent el)
        el)))
 
-(defn hide-on-unmount [node]
-  (m/observe (fn [!]
-               (! nil)
-               #(set! (.. node -style -display) "none"))))
-
 (defmacro element [t & body]
   `(with (new-node node ~(name t))
-     (new (hide-on-unmount node))
+     (e/on-unmount #(set! (.. node -style -display) "none"))
      ~@body))
 
 #?(:cljs (defn -googDomSetTextContentNoWarn [node str]
