@@ -533,7 +533,7 @@
   ;; NOTE: beware of expensive keyfn
   [keyfn node]
   (let [live-object (get-computed-style node)]
-    ((fn [_time] (keyfn live-object)) dom/system-time-ms)))
+    ((fn [_time] (keyfn live-object)) p/system-time-ms)))
 
 (p/defn Text [RenderF]
   (p/fn [ctx]
