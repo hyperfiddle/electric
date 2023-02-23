@@ -10,7 +10,8 @@
             #?(:cljs [hyperfiddle.electric-client])
             [hyperfiddle.electric.impl.io :as io]
             [hyperfiddle.electric.debug :as dbg])
-  #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn vars boot for for-by local local-with run run-with debounce wrap]]))
+  #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn vars boot for for-by local local-with
+                                                          run run-with debounce wrap on-mount on-unmount]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.electric Pending Failure FailureInfo)
            (missionary Cancelled)))
@@ -303,6 +304,9 @@ running on a remote host.
       `(let [F# ~F]
          (hyperfiddle.electric/fn ~@(when (symbol? F) [F]) [~@rest-args]
                                   (new F# ~@args ~@rest-args))))))
+
+(defmacro on-mount [f] `(new (m/observe (cc/fn [!#] (~f) (!# nil) (cc/fn []))))) ; experimental, may not be needed
+(defmacro on-unmount [f] `(new (m/observe (cc/fn [!#] (!# nil) ~f)))) ; experimental
 
 ;; WIP: user space socket reconnection
 

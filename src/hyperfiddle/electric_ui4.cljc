@@ -119,9 +119,6 @@
                      (dom/props {:style {:background-color "yellow"}})
                      (~return (e/server (new ~V! ~id))))))
 
-(defmacro on-mount [& body] `(new (m/observe #(do (% nil) ~@body (fn [])))))
-(defmacro on-unmount [& body] `(new (m/observe #(do (% nil) (fn [] ~@body)))))
-
 #?(:cljs (defn ?pass-on-to-first [selected elem]
            (if (= selected elem)
              (let [fst (first-option elem)]
@@ -182,8 +179,8 @@
                                            (for-truncated [id# (new Options# search#)] 20
                                              (e/client
                                                (dom/li (dom/text (e/server (new OptionLabel# id#)))
-                                                 (on-mount (swap! !selected# select-if-first dom/node))
-                                                 (on-unmount (swap! !selected# ?pass-on-to-first dom/node))
+                                                 (e/on-mount #(swap! !selected# select-if-first dom/node))
+                                                 (e/on-unmount #(swap! !selected# ?pass-on-to-first dom/node))
                                                  (track-id dom/node id#)
                                                  (?mark-selected selected#)
                                                  (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
@@ -273,8 +270,8 @@
                                      (for-truncated [id# (new Options# search#)] 20
                                        (e/client
                                          (dom/li (dom/text (e/server (new OptionLabel# id#)))
-                                           (on-mount (swap! !selected# select-if-first dom/node))
-                                           (on-unmount (swap! !selected# ?pass-on-to-first dom/node))
+                                           (e/on-mount #(swap! !selected# select-if-first dom/node))
+                                           (e/on-unmount #(swap! !selected# ?pass-on-to-first dom/node))
                                            (track-id dom/node id#)
                                            (?mark-selected selected#)
                                            (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
