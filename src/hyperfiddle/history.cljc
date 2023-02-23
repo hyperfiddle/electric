@@ -276,15 +276,10 @@
   #?(:clj (atom-history)
      :cljs (atom-history)))
 
-(defn cleanup-on-unmount [!history path]
-  (m/observe
-    (fn [!#]
-      (!# nil)
-      (fn []
-        (swap! !history (fn [h]
-                          (cond (empty? path)      h
-                                (= 1 (count path)) (dissoc h (first path))
-                                :else              (update-in* h (butlast path) dissoc (last path)))))))))
+(defn cleanup-on-unmount [h path]
+  (cond (empty? path)      h
+        (= 1 (count path)) (dissoc h (first path))
+        :else              (update-in* h (butlast path) dissoc (last path))))
 
 (defmacro router
   "
@@ -345,7 +340,7 @@
            (binding [swap-route! (partial (fn [!history# path# & args#]
                                             (swap! !history# (fn [r#] (apply update-in* r# path# args#))))
                                    !history path)]
-             (new (cleanup-on-unmount !history path#))
+             (e/on-unmount #(swap! !history cleanup-on-unmount path#))
              ~@body))))))
 
 ;::render-title (set! (.-title js/document) (str (clojure.string/capitalize (name (first route))) " - Hyperfiddle"))
