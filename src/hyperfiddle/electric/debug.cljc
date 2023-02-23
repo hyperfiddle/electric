@@ -102,8 +102,8 @@
                                     :static-call  `["(" ~(str target "/" method) ~@(map render-arg (rest args)) ")"]
                                     :call         `["(" ~(str "." method) ~target ~@(map render-arg (rest args))")"]
                                     :fn-call      (if (some? name)
-                                                    `["(" (clojure.core/fn ~name [~@params] ~'…) ~@(map render-arg args) ")"]
-                                                    `["(" (clojure.core/fn [~@params] ~'…) ~@(map render-arg args) ")"])
+                                                    `["(" (clojure.core/fn ~name [~@params] ~'...) ~@(map render-arg args) ")"]
+                                                    `["(" (clojure.core/fn [~@params] ~'...) ~@(map render-arg args) ")"])
 
                                     ["<unknown interop>" frame]))
                           :reactive-fn   ["reactive" (if (some? name)

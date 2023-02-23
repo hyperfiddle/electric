@@ -154,7 +154,7 @@
      (e/for [~sym truncated#] ~@body)
      (when more?#
        (e/client
-         (dom/div (dom/text "refine your query…")
+         (dom/div (dom/text "refine your query...")
            (dom/props {:disabled true, :style {:background-color "whitesmoke" :font-size "0.8rem" :font-style "italic"}}))))))
 
 ;; TODO

@@ -55,10 +55,10 @@
 (e/defn tx "WIP, this default impl captures the essence" [v' props] ; meant to be called by a renderer
   ;; Does it return a tx or side-effect to the staging area?
   (assert false "TBD")
-  #_(if-let [Txfn (::tx props)] ; provided by hfql (props … {::hf/tx (p/fn [] …)})
+  #_(if-let [Txfn (::tx props)] ; provided by hfql (props ... {::hf/tx (p/fn [] ...)})
       (Txfn. v')
       (when v'
-        (let [[E a _] (first context)] ; context is a stack of [[E a] …] in dynamic scope ; MISSING today
+        (let [[E a _] (first context)] ; context is a stack of [[E a] ...] in dynamic scope ; MISSING today
           [[:db/add (E.) a v']]))))
 
 (defmulti tx-meta (fn [schema tx] (if (map? tx) ::map (first tx))))
