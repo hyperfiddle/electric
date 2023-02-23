@@ -1,6 +1,4 @@
-(ns ^:dev/always ; recompile Electric entrypoint when Electric sources change
-  user-main
-  #?(:cljs (:require-macros user-main))
+(ns user-main
   (:require contrib.uri ; data_readers
             contrib.ednish
             [hyperfiddle.api :as hf]
