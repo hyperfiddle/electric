@@ -5,12 +5,10 @@
   (:require [datascript.core :as d] ; An HFQL expr is easily represented as a graph
             [hyperfiddle.api :as-alias hf] ; db, Renderer, e a v model
             [hyperfiddle.electric :as p]
-            [hyperfiddle.electric.impl.compiler :as c] ; var resolution
+            [hyperfiddle.electric.impl.env :as env] ; var resolution
             [hyperfiddle.spec :as spec] ; extract cardinality from fn specs
             [clojure.string :as str]
             [clojure.datafy :refer [datafy]]
-            [missionary.core :as m]
-            [hyperfiddle.electric.impl.runtime :as r]
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as-alias hfql]
             [hyperfiddle.rcf :as rcf :refer [tests with % tap]]))
@@ -147,7 +145,7 @@
   )
 
 (deftype CljSpec [qualified-sym]
-  c/IVar
+  env/IVar
   (get-var  [_this] nil)
   (var-name [_this] qualified-sym)
   (var-meta [_this] nil)
@@ -155,7 +153,7 @@
   (is-node  [_this] false))
 
 (defn find-spec [env sym]
-  (let [ns            (case (c/peer-language env)
+  (let [ns            (case (env/peer-language env)
                         :clj  (:name (:ns env))
                         :cljs (:name (:ns env)))
         qualified-sym (symbol (str ns) (str sym))]
@@ -164,11 +162,11 @@
 
 (defn resolve-sym [env node sym]
   (when-not (= '. sym)
-    (when-let [var (or (c/resolve-var env (normalize-dot-call sym)) (find-spec env sym))]
+    (when-let [var (or (env/resolve-var env (normalize-dot-call sym)) (find-spec env sym))]
       (cond-> {:db/id              (:db/id node)
-               :function/name      (c/var-name var)
+               :function/name      (env/var-name var)
                :function/reactive? (dotted? sym)}
-        (c/get-var var) (assoc :function/var (c/get-var var))))))
+        (env/get-var var) (assoc :function/var (env/get-var var))))))
 
 (def _rfpq '[:find [?e ...] :where [?e] (or [?e :node/type :ident]
                                           (and [?e :node/role :argument] [?e :node/position 0]))])
@@ -584,7 +582,7 @@
 (defn graph "Return graph nodes as edn"
   ([form] (graph {} form))
   ([env form]
-   (let [db (apply-passes passes (c/normalize-env env) (analyze form))]
+   (let [db (apply-passes passes (env/normalize-env env) (analyze form))]
      (->> (d/q '[:find [?e ...] :where [?e]] db)
           (nodes db)
           (sort-by :db/id)
@@ -823,7 +821,7 @@
   ([env bindings form] (precompile* env bindings form nil))
   ([env bindings form eid]
    (binding [*bindings* bindings]
-     (let [db (->> (analyze form) (apply-passes passes (c/normalize-env env)))
+     (let [db (->> (analyze form) (apply-passes passes (env/normalize-env env)))
            roots (get-root db)]
        `(let [~E ~eid]
           ~(emit-nodes roots))))))

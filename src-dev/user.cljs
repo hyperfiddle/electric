@@ -1,4 +1,4 @@
-(ns ;^:dev/always ; recompile Electric entrypoint when Electric source changes
+(ns ^:dev/always ; recompile Electric entrypoint when Electric source changes
   user
   (:require hyperfiddle.electric
             hyperfiddle.rcf
