@@ -276,20 +276,6 @@
               (when (= 'cljs.core/unquote-splicing (:name (cljs/resolve-var env sym)))
                 'cljs.core/unquote-splicing)))))
 
-(defn resolve-runtime-throwing [env form]
-  (when-not (symbol? form) (throw (ex-info "Symbol expected." {:form form})))
-  (doto (resolve-runtime env form)
-    (-> (when-not (throw (ex-info "Unable to resolve symbol." {:form form}))))))
-
-(defn vars [env forms]
-  (let [resolved (into {} (map (comp (juxt global identity)
-                                     (partial resolve-runtime-throwing (normalize-env env))))
-                       forms)]
-    `(fn ~'global-var-resolver [not-found# ident#]
-       (case ident#
-         ~@(mapcat identity resolved)
-         not-found#))))
-
 ;;; ----
 
 (defn with-local [env sym]
