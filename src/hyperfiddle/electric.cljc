@@ -10,8 +10,7 @@
             #?(:cljs [hyperfiddle.electric-client])
             [hyperfiddle.electric.impl.io :as io]
             [hyperfiddle.electric.debug :as dbg])
-  #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn vars boot for for-by local local-with
-                                                          run run-with debounce wrap on-mount on-unmount]]))
+  #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn boot for for-by local run debounce wrap on-mount on-unmount]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.electric Pending Failure FailureInfo)
            (missionary Cancelled)))
@@ -49,20 +48,27 @@
      (defmethod ana/macroexpand-hook 'clojure.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))
      (defmethod ana/macroexpand-hook 'cljs.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))))
 
-(defmacro vars "
-  Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
-  of this var to the value currently bound to this var.
-  " [& forms] (c/vars &env forms))
+(defmacro with-zero-config-entrypoint [& body]
+  `(try
+     (do ~@body)
+     (catch Pending _#) ; silently ignore
+     (catch Cancelled e# (throw e#)) ; bypass catchall, app is shutting down
+     (catch :default err# ; note client bias
+       (js/console.error
+         (str (ex-message err#) "\n\n" (dbg/stack-trace hyperfiddle.electric/trace))
+         err#))))
 
-(cc/defn merge-vars
-  ([fa fb]
-   (cc/fn [not-found ident]
-     (let [a (fa not-found ident)]
-       (if (= not-found a)
-         (fb not-found ident)
-         a))))
-  ([fa fb & fs]
-   (reduce merge-vars (merge-vars fa fb) fs)))
+(defmacro boot "
+Takes an Electric program and returns a task setting up the full system with client part running locally and server part
+running on a remote host.
+" [& body]
+  (assert (:js-globals &env))
+  (let [[client server] (c/analyze
+                          (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj})
+                          `(with-zero-config-entrypoint ~@body))]
+    `(hyperfiddle.electric-client/boot-with-retry
+       ~(r/emit (gensym) client)
+       (hyperfiddle.electric-client/connector (quote ~server)))))
 
 (def eval "Takes a resolve map and a program, returns a booting function.
   The booting function takes
@@ -94,17 +100,8 @@
   (let [[client server] (c/analyze &env `(do ~@body))]
     `(pair ~(r/emit (gensym) client) ~(r/emit (gensym) server))))
 
-(defmacro local-with
-  "Single peer loopback system with whitelist. Returns boot task."
-  [vars & body]
-  (let [[client server] (c/analyze &env `(do ~@body))]
-    `(pair ~(r/emit (gensym) client) (r/eval ~vars (quote ~server)))))
-
 (defmacro run "test entrypoint without whitelist." [& body]
   `((local ~@body) (cc/fn [_#]) (cc/fn [_#])))
-
-(defmacro run-with "test entrypoint with whitelist." [vars & body]
-  `((local-with ~vars ~@body) (cc/fn [_#]) (cc/fn [_#])))
 
 (cc/defn failure? [x] (instance? Failure x))
 
