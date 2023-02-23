@@ -16,7 +16,7 @@
                    (let [next-index (aget state (int 2))]
                      ;; add item to current index
                      (aset state (int 2) ; set next index
-                       (assoc next-index k (conj (get next-index k []) o))) ; next-index new looks like {k [?o], …}. Must map to a vector in case of keyfn collision
+                       (assoc next-index k (conj (get next-index k []) o))) ; next-index new looks like {k [?o], ...}. Must map to a vector in case of keyfn collision
                      ;; append item to current list
                      (if-some [^objects next-head (aget state (int 3))] ; list is not empty
                        (let [^objects next-tail (aget next-head (int 0))]
@@ -93,7 +93,7 @@
        [bob alice-msn]
        []]) :=
     [                    ; first change (initial)
-     [?a alice-caramail] ; set value of ?a to be {:id "alice", :email "…"}
+     [?a alice-caramail] ; set value of ?a to be {:id "alice", :email "..."}
      [nil [?a nil]]      ; if first element is nil -> movement, if it's an object -> event on an item
                          ; second element is a pair:
                          ;  - first element is an identifier for the object we are moving
@@ -202,7 +202,7 @@
         :vals (conj vals nil)))))
 
 (defn apply-change [{:keys [vals index failed] :as r} k v]
-  (if-some [i (index k)] ; look up branch id (?a, ?b, …) in [id -> position] index map
+  (if-some [i (index k)] ; look up branch id (?a, ?b, ...) in [id -> position] index map
     (assoc r
       :vals (assoc vals i v)
       :failed ((if (instance? Failure v) ; if v is a Failure, store its corresponding branch position in :failed set

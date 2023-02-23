@@ -31,7 +31,7 @@
       (dom/h2 (dom/text "frontend/backend webview with server push"))
       (let [!search (atom ""), search (e/watch !search)]
         (ui/input search (e/fn [v] (reset! !search v))
-          (dom/props {:placeholder "Filter…"}))
+          (dom/props {:placeholder "Filter..."}))
         (dom/table (dom/props {:class "hyperfiddle"})
           (e/server
             (e/for [id (teeshirt-orders db search)]

@@ -1,16 +1,16 @@
 (ns user.demo-4-chat
   #?(:cljs (:require-macros user.demo-4-chat))
-  (:import [hyperfiddle.electric Pending])
   (:require [contrib.data :refer [pad]]
             [contrib.str :refer [empty->nil]]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]))
 
-(defonce !state #?(:clj (atom (list)) :cljs nil))
+#?(:clj (defonce !state (atom (list))))
 
 (e/defn App []
   (e/client
     (dom/h1 (dom/text "Multiplayer chat app in 30 LOC"))
+    (dom/p (dom/text "try two tabs!"))
     (dom/ul (dom/style {:padding-left "1.5em"})
       (e/server
         (e/for-by identity [msg (reverse (pad 10 nil (e/watch !state)))]

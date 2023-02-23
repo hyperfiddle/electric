@@ -21,7 +21,7 @@
 (def ^{::node ::unbound, :macro true, :doc "for loop/recur impl"} rec)
 (def ^{::node ::unbound, :macro true, :doc "for runtime arity check"} %arity)
 
-;; %1, %2 … %n p/def generator.
+;; %1, %2 ... %n p/def generator.
 ;; A lazy seq of vars. Forcing the seq will intern them.
 ;; GG: Why are %n macros?
 ;;     Since they are declared in a clojure file, they must be tagged as :macro true for cljs analyzer to resolve them.
@@ -449,7 +449,7 @@
               (list* '. target (symbol (subs (name op) 1)) args))
             form)
     :clj (let [env (clj-env env)]
-           (binding [*ns* (the-ns (:ns env))] ; tools.analyzer use *ns* to resolve implicit imports (java.lang …)
+           (binding [*ns* (the-ns (:ns env))] ; tools.analyzer use *ns* to resolve implicit imports (java.lang ...)
              (if (and (seq? form) (qualified-symbol? (first form)))
                (env/with-env {:namespaces {(:ns env) (resolve-ns (:ns env))}}
                  (clj/desugar-host-expr form env))
@@ -549,7 +549,7 @@
               (ir/eval `(fn-call ~form ~(vals bindings)))
               {::ir/ns (or (some-> env :ns :name) 'user)}
               {::dbg/action :fn-call
-               ::dbg/params ['…]}                         ; TODO add parameters to debug info
+               ::dbg/params ['...]}                         ; TODO add parameters to debug info
               (when sym {::dbg/name sym}))))))
 
     (letfn*)

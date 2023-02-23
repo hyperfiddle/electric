@@ -460,7 +460,7 @@
 ;; Parse & Analyze ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
-(defn props? "State if an sexp is `(props …)" [form] (and (seq? form) (= 'props (first form))))
+(defn props? "State if an sexp is `(props ...)" [form] (and (seq? form) (= 'props (first form))))
 
 (declare parse)
 
@@ -474,7 +474,7 @@
         :else       `first)
      ~@x))
 
-(defn parse-props "Parse a props map declared with (props <form> {k1 v1, …}). `parent-id` must be the node id the props are attached to."
+(defn parse-props "Parse a props map declared with (props <form> {k1 v1, ...}). `parent-id` must be the node id the props are attached to."
   [gen-id parent-id props]
   (->> (map-indexed vector props) ; we want to emit-1 code in the same order as the hfql expr is read.
     (reduce (fn [r [index [k v]]] ; for each k v pair of the map, in seq order.
