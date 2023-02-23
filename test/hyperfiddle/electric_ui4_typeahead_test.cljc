@@ -253,6 +253,6 @@
        "when there's too many options we see a signifier telling we should refine our query"
        (uit/focus input)
        ((m/sp
-          (try (m/? (-> (->selection tphd "ul > div") (holds #(some-> % first .-innerText) #{"refine your query…"})))
+          (try (m/? (-> (->selection tphd "ul > div") (holds #(some-> % first .-innerText) #{"refine your query..."})))
                (finally (discard))))
         identity prn))))
