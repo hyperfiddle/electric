@@ -37,7 +37,7 @@
         (let [out (do (create-recover Y >recover) (transfer-recover Y))]
           (a/set (a/fget Y recover) on-notify #(recover-notified Y))
           (a/fset Y last-in in, last-out out))
-        in))))
+        (do (when-some [rec (a/fget Y recover)] (trash rec))  in)))))
 (defn transfer [^Yield Y]
   (try (cond (a/get (a/fget Y input)   notified?) (transfer-input Y)
              (a/get (a/fget Y recover) notified?) (transfer-recover Y)
@@ -125,3 +125,11 @@
            #(tap :notified) #(tap :terminated)))
   #_start         % := :notified, @it := 0
   (swap! !x inc), % := :notified, @it :throws ExceptionInfo, % := :terminated)
+(tests "recovery unmounts when we switch back to input"
+  (def !x (atom 0))
+  (let [->recover (m/observe (fn [!] (! :init) #(tap :unmounted)))]
+    (def it ((yield (fn [x] (when (odd? x) ->recover)) (m/watch !x))  #(do) #(tap :terminated))))
+  #_start         @it := 0
+  (swap! !x inc)  @it := :init              ; recovery starts
+  (swap! !x inc)  @it := 2, % := :unmounted ; back to input, recovery stops
+  (it)            @it :throws Cancelled, % := :terminated)
