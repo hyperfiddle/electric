@@ -10,9 +10,11 @@
             [cognitect.transit :as t]
             [hyperfiddle.logger :as log]
             [hyperfiddle.electric.debug :as dbg]
-            #?(:cljs [com.cognitect.transit.types]))
+            [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
+            #?(:cljs [com.cognitect.transit.types])
+            [hyperfiddle.electric.impl.array-fields :as a])
   (:import (missionary Cancelled)
-           (hyperfiddle.electric Failure Pending Remote)
+           (hyperfiddle.electric Failure Pending Remote FailureInfo)
            #?(:clj (java.nio ByteBuffer))
            #?(:clj (java.io ByteArrayInputStream ByteArrayOutputStream))
            #?(:clj (clojure.lang IReduceInit))))
@@ -28,6 +30,53 @@
     (fn [x] nil)
     (fn [_] "")))
 
+(defn ->cache "Builds a minimal, cljc map/bounded-queue cache.
+  One slot per key (map).
+  Reaching `size` pops oldest value (bounded-queue)." [size]
+  (doto (object-array (inc (* size 2))) (a/set (* size 2) 0)))
+(defn cache-add [cache k v]
+  (when-not (loop [i 0]
+              (when (< i (dec (count cache)))
+                (if (= k (a/get cache i))
+                  (do (a/set cache (inc i) v) true)
+                  (recur (+ i 2)))))
+    (let [widx (a/getswap cache (dec (count cache)) #(mod (+ % 2) (dec (count cache))))]
+      (a/set cache widx k, (inc widx) v))))
+(defn cache-get [cache k]
+  (loop [i 0]
+    (when (< i (dec (count cache)))
+      (if (= k (a/get cache i))
+        (a/get cache (inc i))
+        (recur (+ i 2))))))
+(defn cache->map [cache]
+  (loop [i 0, ac (transient {})]
+    (if (< i (dec (count cache)))
+      (recur (+ i 2) (assoc! ac (a/get cache i) (a/get cache (inc i))))
+      (persistent! ac))))
+
+(tests "keyed cache"
+  (def !c (->cache 1))
+  (cache-add !c 1 2) (cache-get !c 1) := 2
+  (cache-add !c 1 3) (cache-get !c 1) := 3
+  (cache-add !c 2 4) (cache-get !c 2) := 4
+  (cache->map !c) := {2 4}
+
+  "size 2"
+  (def !c (->cache 2))
+  (cache-add !c 1 1)
+  (cache-add !c 2 2)
+  (cache-add !c 2 2)
+  (cache->map !c) := {1 1, 2 2})
+
+(def !ex-cache (->cache 16))
+(defn save-original-ex! [fi]
+  (let [id (dbg/ex-id fi)]
+    (when-some [cause (ex-cause fi)]
+      (when-not (instance? FailureInfo cause)
+        (cache-add !ex-cache id cause)))
+    id))
+(defn get-original-ex [id] (cache-get !ex-cache id))
+
 (def write-opts
   {:handlers
    {Failure
@@ -38,8 +87,9 @@
           (cond (instance? Cancelled err) [:cancelled]
                 (instance? Pending err)   [:pending]
                 (instance? Remote err)    [:remote (dbg/serializable (ex-data err))]
-                :else                     [:exception (ex-message err) (dbg/serializable (ex-data err))]))))
-    :default default-write-handler} ; cljs
+                :else                     [:exception (ex-message err) (dbg/serializable (ex-data err))
+                                           (save-original-ex! err)]))))
+    :default default-write-handler}         ; cljs
    :default-handler default-write-handler}) ; clj
 
 (def read-opts
@@ -48,8 +98,8 @@
     (t/read-handler
       (fn [[tag & args]]
         (case tag
-          :exception (let [[message data] args]
-                       (dbg/error (dbg/ex-info* message data)))
+          :exception (let [[message data id] args]
+                       (Failure. (dbg/ex-info* message data id nil)))
           :remote    (let [[data] args]
                        (Failure. (dbg/ex-info* "Remote error" (or data {}))))
           :pending   (Failure. (Pending.))
@@ -112,6 +162,16 @@
   (try (doto (decode x) (->> (log/trace "🔽")))
     (catch #?(:clj Throwable :cljs :default) t
       (throw (ex-info "Failed to decode" {:value x} t)))))
+
+(tests "FailureInfo"
+  (def cause (ex-info "boom" {}))
+  (def ex (dbg/ex-info* "x" {} cause))
+  (def sent (-> ex Failure. encode decode .-error))
+  "keeps the ID across the wire"
+  (dbg/ex-id ex) := (dbg/ex-id sent)
+  "can restore cause"
+  (get-original-ex (dbg/ex-id sent)) := cause
+  nil)
 
 ; Jetty rejects websocket payloads larger than 65536 bytes by default
 ; We’ll chop messages if needed
