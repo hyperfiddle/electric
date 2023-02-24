@@ -15,6 +15,7 @@
    ::todos-simple
    ::todomvc
    ::todomvc-composed
+   `user.blinker/Blinker
    ::color
    ::two-clocks
    ::infinite-scroll

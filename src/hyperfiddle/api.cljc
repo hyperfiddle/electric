@@ -104,7 +104,7 @@
   (e/client
     (let [[x] (e/with-cycle [[elapsed start :as s] [0 nil]]
                 (case hyperfiddle.api/loading
-                  true [(some->> start (- hyperfiddle.electric-dom2/system-time-ms))
+                  true [(some->> start (- e/system-time-ms))
                              (js/Date.now)]
                   s))]
       x)))

@@ -40,14 +40,9 @@
        (.appendChild parent el)
        el)))
 
-(defn hide-on-unmount [node]
-  (m/observe (fn [!]
-               (! nil)
-               #(set! (.. node -style -display) "none"))))
-
 (defmacro element [t & body]
   `(with (new-node node ~(name t))
-     (new (hide-on-unmount node))
+     (e/on-unmount #(set! (.. node -style -display) "none"))
      ~@body))
 
 #?(:cljs (defn -googDomSetTextContentNoWarn [node str]
@@ -161,34 +156,8 @@
                 :impulse (assoc state :status :pending) ; impulse is seen for 1 frame and then cleared
                 :pending (if busy state {:status :idle}))))))
 
-#?(:cljs
-   (deftype Clock [^:mutable ^number raf
-                   ^:mutable callback
-                   terminator]
-     IFn                                                    ; cancel
-     (-invoke [_]
-       (if (zero? raf)
-         (set! callback nil)
-         (do (.cancelAnimationFrame js/window raf)
-             (terminator))))
-     IDeref                                                 ; sample
-     (-deref [_]
-       ; lazy clock, only resets once sampled
-       (if (nil? callback)
-         (terminator)
-         (set! raf (.requestAnimationFrame js/window callback))) ; RAF not called until first sampling
-       ::tick)))
-
-#?(:cljs (def ^:no-doc <clock "lazy & efficient logical clock that schedules no work unless sampled"
-           (fn [n t]
-             (let [cancel (->Clock 0 nil t)]
-               (set! (.-callback cancel)
-                     (fn [_] (set! (.-raf cancel) 0) (n)))
-               (n) cancel))))
-
-(defn -get-system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
-(e/def system-time-ms "ms since 1970 Jan 1" (new (m/sample -get-system-time-ms <clock)))
-(e/def system-time-secs "seconds since 1970 Jan 1" (/ system-time-ms 1000.0))
+(e/def ^:deprecated system-time-ms e/system-time-ms)
+(e/def ^:deprecated system-time-secs e/system-time-secs)
 
 (defmacro on
   "Run the given electric function on event.

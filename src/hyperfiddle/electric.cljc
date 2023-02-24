@@ -10,7 +10,8 @@
             #?(:cljs [hyperfiddle.electric-client])
             [hyperfiddle.electric.impl.io :as io]
             [hyperfiddle.electric.debug :as dbg])
-  #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn vars boot for for-by local local-with run run-with debounce wrap]]))
+  #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn vars boot for for-by local local-with
+                                                          run run-with debounce wrap on-mount on-unmount]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.electric Pending Failure FailureInfo)
            (missionary Cancelled)))
@@ -153,6 +154,34 @@ running on a remote host.
   ([chan] `(use-channel nil ~chan))
   ([init chan] `(new (m/reductions {} ~init (chan->ap ~chan)))))
 
+#?(:cljs
+   (deftype Clock [^:mutable ^number raf
+                   ^:mutable callback
+                   terminator]
+     IFn                                                    ; cancel
+     (-invoke [_]
+       (if (zero? raf)
+         (set! callback nil)
+         (do (.cancelAnimationFrame js/window raf)
+             (terminator))))
+     IDeref                                                 ; sample
+     (-deref [_]
+       ; lazy clock, only resets once sampled
+       (if (nil? callback)
+         (terminator)
+         (set! raf (.requestAnimationFrame js/window callback))) ; RAF not called until first sampling
+       ::tick)))
+
+; cc def, must be above defmacro def
+(def ^:no-doc <clock "lazy & efficient logical clock that schedules no work unless sampled"
+  #?(:cljs (cc/fn [n t]
+             (let [cancel (->Clock 0 nil t)]
+               (set! (.-callback cancel)
+                 (cc/fn [_] (set! (.-raf cancel) 0) (n)))
+               (n) cancel))
+     :clj (m/ap (loop [] (m/amb nil (do (m/? (m/sleep 1)) (recur)))))
+     #_(m/ap (m/? (m/sleep 1 (m/?> (m/seed (repeat nil))))))))
+
 ;; --------------------------------------
 
 (defmacro def
@@ -165,6 +194,10 @@ running on a remote host.
    ;;     Clojure compiler will analyze vars metas, which would analyze form as clojure, so we quote it.
    ;;     ClojureScript do not have vars at runtime and will not analyze or emit vars meta. No need to quote.
    `(def ~(vary-meta symbol assoc ::c/node (if (:js-globals &env) init `(quote ~init))))))
+
+(cc/defn -get-system-time-ms [_] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
+(hyperfiddle.electric/def system-time-ms "ms since 1970 Jan 1" (new (m/sample -get-system-time-ms <clock)))
+(hyperfiddle.electric/def system-time-secs "seconds since 1970 Jan 1" (/ system-time-ms 1000.0))
 
 (cc/defn -check-fn-arity! [name expected actual]
   (when (not= expected actual)
@@ -303,6 +336,9 @@ running on a remote host.
       `(let [F# ~F]
          (hyperfiddle.electric/fn ~@(when (symbol? F) [F]) [~@rest-args]
                                   (new F# ~@args ~@rest-args))))))
+
+(defmacro on-mount [f] `(new (m/observe (cc/fn [!#] (~f) (!# nil) (cc/fn []))))) ; experimental, may not be needed
+(defmacro on-unmount [f] `(new (m/observe (cc/fn [!#] (!# nil) ~f)))) ; experimental
 
 ;; WIP: user space socket reconnection
 

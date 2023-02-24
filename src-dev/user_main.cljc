@@ -29,6 +29,7 @@
             user.demo-scrollview
             user.demo-color
             user.tic-tac-toe
+            user.blinker
             wip.demo-branched-route
             #_wip.hfql
             wip.tag-picker
@@ -54,6 +55,7 @@
       `user.demo-index/Demos user.demo-index/Demos
       `user.demo-index/Secrets user.demo-index/Secrets
       `user.demo-1-hello-world/HelloWorld user.demo-1-hello-world/HelloWorld
+      `user.blinker/Blinker user.blinker/Blinker
       ::demos/hfql-teeshirt-orders wip.teeshirt-orders/App
       `wip.demo-explorer/DirectoryExplorer wip.demo-explorer/DirectoryExplorer
       ::demos/explorer2 wip.demo-explorer2/App

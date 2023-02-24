@@ -22,7 +22,7 @@
           goal (e/watch !goal)
           goal-ms (* 1000 goal)
           start (e/watch !start)
-          time (min goal-ms (- (second-precision dom/system-time-ms) start))]
+          time (min goal-ms (- (second-precision e/system-time-ms) start))]
       (dom/div (dom/props {:style {:display :grid
                                         ;:margin-left "20rem"
                                     :width "20em"

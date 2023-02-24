@@ -4,8 +4,7 @@
    contrib.str
    [hyperfiddle.api :as hf]
    [hyperfiddle.electric :as e]
-   [hyperfiddle.electric-dom2 :as dom]
-   [missionary.core :as m]))
+   [hyperfiddle.electric-dom2 :as dom]))
 
 ; Fleshed out chat demo with auth and presence
 ; Has missionary interop, this is a more advanced demo
@@ -53,17 +52,7 @@
                 (dom/text "electric_jetty_server.clj"))))
         (do
           (e/server
-            ; >x is a Missionary flow that attaches side effect to the mount/unmount lifecycle
-            (let [>x (->> (m/observe (fn mount [!]
-                                       (println `mount username session-id)
-                                       (swap! !present assoc session-id username)
-                                       (fn unmount []
-                                         (println `unmount username session-id)
-                                         (swap! !present dissoc session-id))))
-                          (m/reductions {} nil))]
-              ; Missionary flows are booted with `new` (monadic join)
-              ; This works because Electric is essentially a Clojure-to-Missionary compiler,
-              ; so this actually typechecks from a compiler internals perspective.
-              (new >x)))
+            (e/on-mount #(swap! !present assoc session-id username))
+            (e/on-unmount #(swap! !present dissoc session-id username)))
           (dom/p (dom/text "Authenticated as: " username))
           (Chat. username))))))
