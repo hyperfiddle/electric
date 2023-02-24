@@ -174,13 +174,13 @@
 (tests
   "reactive for with stabilized body (mount/unmount lifecycle)"
   (def !xs (atom [1 2 3]))
-  (with (e/run (tap (e/for [x (e/watch !xs)]                ; p/for is concurrent
-                      (inc (tap x)))))                      ; like React.js we want to stabilize over time
-    (hash-set % % %) := #{2 1 3}                            ; the for branches are visited concurrently
-    % := [2 3 4]                                            ; the end result is ordered
+  (with (e/run (tap (e/for [x (e/watch !xs)]   ; p/for is concurrent
+                      (tap (- x)))))           ; like React.js we want to stabilize over time
+    (hash-set % % %) := #{-2 -1 -3}            ; the for branches are visited concurrently
+    % := [-1 -2 -3]                            ; the end result is ordered
     (swap! !xs conj 4)
-    % := 4                                                  ; only the new item is visited
-    % := [2 3 4 5]))
+    % := -4                                    ; only the new item is visited
+    % := [-1 -2 -3 -4]))
 
 #?(:clj
    (tests
