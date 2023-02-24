@@ -29,7 +29,7 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 Demos
 
 * [Proof of client/server transfer](https://gist.github.com/dustingetz/35f0e036283c49605f73917132931414)
-* [Two Clocks – streaming lexical scope](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/demo_6_two_clocks.cljc)
+* [Two Clocks – streaming lexical scope](https://gist.github.com/dustingetz/13c99420fe9bf75dd8178c1a633d3bbe)
 * [Frontend treeview as direct recursion over filesystem](https://gist.github.com/dustingetz/89ca122af0175933042e481ee9aa59f8)
 * [Folder explorer: node_modules paginated from frontend (virtual scroll)](https://gist.github.com/dustingetz/dd67a35d818e3a1bf6733147cf5cdea7)
 * [Datomic database browser](https://github.com/hyperfiddle/electric-datomic-browser)
