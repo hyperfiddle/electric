@@ -27,7 +27,7 @@
   [dom-node & body]
   `(binding [node ~dom-node]
      ; wrap body in a constant frame, so it can be moved as a block
-     (new (e/hook hook node (e/fn [] keepalive ~@body)))))
+     (new (e/hook hook node (e/fn [] keepalive ~@body))))) ; todo remove
 
 #?(:cljs (defn by-id [id] (js/document.getElementById id)))
 
@@ -42,7 +42,9 @@
 
 (defmacro element [t & body]
   `(with (new-node node ~(name t))
-     (e/on-unmount #(set! (.. node -style -display) "none"))
+     ; hack: speed up streamy unmount by removing from layout first
+     ; it also feels faster visually
+     (e/on-unmount #(set! (.. node -style -display) "none")) ; hack
      ~@body))
 
 #?(:cljs (defn -googDomSetTextContentNoWarn [node str]
