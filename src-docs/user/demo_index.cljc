@@ -8,6 +8,7 @@
 (def pages
   [`user.demo-1-hello-world/HelloWorld
    ::toggle
+   ::two-clocks
    ::system-properties
    ::chat
    ::chat-extended
@@ -15,10 +16,10 @@
    ::todos-simple
    ::todomvc
    ::todomvc-composed
+   `user.demo-explorer/DirectoryExplorer
+   ::infinite-scroll
    `user.blinker/Blinker
    ::color
-   ::two-clocks
-   ::infinite-scroll
    ::seven-guis-counter
    ::seven-guis-temperature-converter
    ::seven-guis-timer
@@ -28,7 +29,6 @@
 
 (def secret-pages
   [::hfql-teeshirt-orders
-   `wip.demo-explorer/DirectoryExplorer
    ::explorer2
    ::demo-10k-dom-elements
    ::router-recursion
