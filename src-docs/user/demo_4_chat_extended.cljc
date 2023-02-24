@@ -53,6 +53,6 @@
         (do
           (e/server
             (e/on-mount #(swap! !present assoc session-id username))
-            (e/on-unmount #(swap! !present dissoc session-id username)))
+            (e/on-unmount #(swap! !present dissoc session-id)))
           (dom/p (dom/text "Authenticated as: " username))
           (Chat. username))))))
