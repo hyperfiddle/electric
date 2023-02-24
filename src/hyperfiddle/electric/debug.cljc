@@ -9,39 +9,42 @@
            #?(:clj (clojure.lang ExceptionInfo))
            (hyperfiddle.electric FailureInfo)))
 
-(defonce ^{:doc "A random unique ID generated for each Electric runtime instance (browser tab, jvm). Used to identify origin of a transfered value."}
-  PEER-ID
-  ;; UUID v4 collision probability assumed insignificant for this use case
+(defn ->id []
   #?(:clj  (java.util.UUID/randomUUID)
      :cljs (random-uuid)))
 
+(defonce ^{:doc "A random unique ID generated for each Electric runtime instance (browser tab, jvm). Used to identify origin of a transfered value."}
+  PEER-ID
+  ;; UUID v4 collision probability assumed insignificant for this use case
+  (->id))
+
 (defn ex-info*
-  ([message data]
-   (ex-info* message data nil))
-  ([message data cause]
-   (FailureInfo. message data cause)))
+  ([message data] (ex-info* message data nil))
+  ([message data cause] (ex-info* message data (str (->id)) cause))
+  ([message data id cause] (FailureInfo. message (assoc data :hyperfiddle.electric/type ::trace) id cause)))
 
 (tests "2 traces with equal values are ="
   (let [cause #?(:clj (Throwable.) :cljs (js/Error.))]
     (ex-info* "" {} cause) := (ex-info* "" {} cause)
-    (Failure. (ex-info* "" {} cause)) := (Failure. (ex-info* "" {} cause))
     nil))
 
-(defn add-stack-frame [frame ex] ; TODO use Throwable.setStackTrace if possible instead of allocating a new ExInfo for each frame
-  (ex-info* (ex-message ex)
-    (-> (update (ex-data ex) ::trace (fnil conj []) (assoc frame ::origin PEER-ID))
-      (assoc :hyperfiddle.electric/type ::trace))
-    (or (ex-cause ex) ex)))
+(defn ex-id [ex] (.-id ^FailureInfo ex))
 
-(defn error ; TODO Don’t use ExceptionInfo. It is slow because it computes the stacktrace on instantiation. We don’t need it.
-  ([^ExceptionInfo ex]
-   (Failure. (ex-info* (ex-message ex) (assoc (ex-data ex) :hyperfiddle.electric/type ::trace) (ex-cause ex))))
-  ([debug-info ^Failure failure]
-   (let [err (.-error failure)]
-     (if (or (instance? Pending err)
-           (instance? Cancelled err))
-       failure
-       (Failure. (add-stack-frame debug-info err))))))
+(defn add-stack-frame [frame ex]
+  (let [frame (assoc frame ::origin PEER-ID)]
+   (if (instance? FailureInfo ex)
+    (ex-info* (ex-message ex) (update (ex-data ex) ::trace conj frame) (ex-id ex) (or (ex-cause ex) ex))
+    (ex-info* (ex-message ex) {::trace [frame]} ex))))
+
+(defn error [debug-info ^Failure failure]
+  (let [err (.-error failure)]
+    (if (or (instance? Pending err) (instance? Cancelled err))
+      failure
+      (Failure. (add-stack-frame debug-info err)))))
+
+(tests "rewrapping keeps same ID"
+  (def ex (ex-info* "x" {}))
+  (ex-id ex) := (ex-id (add-stack-frame {} ex)))
 
 (defn render-arg [arg]
   (cond

@@ -49,28 +49,6 @@
      (defmethod ana/macroexpand-hook 'clojure.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))
      (defmethod ana/macroexpand-hook 'cljs.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))))
 
-(defmacro with-zero-config-entrypoint [& body]
-  `(try
-     (do ~@body)
-     (catch Pending _#) ; silently ignore
-     (catch Cancelled e# (throw e#)) ; bypass catchall, app is shutting down
-     (catch :default err# ; note client bias
-       (js/console.error
-         (str (ex-message err#) "\n\n" (dbg/stack-trace hyperfiddle.electric/trace))
-         err#))))
-
-(defmacro boot "
-Takes an Electric program and returns a task setting up the full system with client part running locally and server part
-running on a remote host.
-" [& body]
-  (assert (:js-globals &env))
-  (let [[client server] (c/analyze
-                          (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj})
-                          `(with-zero-config-entrypoint ~@body))]
-    `(hyperfiddle.electric-client/boot-with-retry
-       ~(r/emit (gensym) client)
-       (hyperfiddle.electric-client/connector (quote ~server)))))
-
 (defmacro vars "
   Turns an arbitrary number of symbols resolving to vars into a map associating the fully qualified symbol
   of this var to the value currently bound to this var.
@@ -339,6 +317,37 @@ running on a remote host.
 
 (defmacro on-mount [f] `(new (m/observe (cc/fn [!#] (~f) (!# nil) (cc/fn []))))) ; experimental, may not be needed
 (defmacro on-unmount [f] `(new (m/observe (cc/fn [!#] (!# nil) ~f)))) ; experimental
+
+(defn ?PrintServerException [id]
+  (try (server
+         (when-some [ex (io/get-original-ex id)]
+           (println ex)
+           (try (client (js/console.log "server logged the root exception"))
+                (catch Pending _))))
+       (catch Pending _)))
+
+(defmacro with-zero-config-entrypoint [& body]
+  `(try
+     (do ~@body)
+     (catch Pending _#)                 ; silently ignore
+     (catch Cancelled e# (throw e#))    ; bypass catchall, app is shutting down
+     (catch :default err#               ; note client bias
+       (js/console.error
+         (str (ex-message err#) "\n\n" (dbg/stack-trace hyperfiddle.electric/trace)) "\n\n"
+         (or (io/get-original-ex (dbg/ex-id hyperfiddle.electric/trace)) err#))
+       (new ?PrintServerException (dbg/ex-id hyperfiddle.electric/trace)))))
+
+(defmacro boot "
+Takes an Electric program and returns a task setting up the full system with client part running locally and server part
+running on a remote host.
+" [& body]
+  (assert (:js-globals &env))
+  (let [[client server] (c/analyze
+                          (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj})
+                          `(with-zero-config-entrypoint ~@body))]
+    `(hyperfiddle.electric-client/boot-with-retry
+       ~(r/emit (gensym) client)
+       (hyperfiddle.electric-client/connector (quote ~server)))))
 
 ;; WIP: user space socket reconnection
 
