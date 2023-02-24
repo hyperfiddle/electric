@@ -120,3 +120,13 @@ Gaps:
 
 * PRs require a signed contributors agreement (like Clojure), DM dustingetz on slack.
 * No typo fixes please, we are not all native English speakers and we decided it's not worth it.
+
+## References and reading
+
+Electric Clojure implements a form of arrowized continuous time dataflow programming with extensions for network-transparent function composition.
+
+* [The Haskell School of Music: From Signals to Symphonies (2018)](https://www.amazon.com/Haskell-School-Music-Signals-Symphonies/dp/1108416756) – best starting point
+* [The Essence of Dataflow Programming (2006)](http://cs.ioc.ee/~tarmo/papers/essence.pdf) – great category theory overview of dataflow programming
+* [Push-pull functional reactive programming, Elliot (2009)](http://conal.net/papers/push-pull-frp/)
+* [Breaking down FRP, Jane Street (2014)](https://blog.janestreet.com/breaking-down-frp/)
+* [Seven Implementations of Incremental (lecture), Jane Street, 2016](https://www.youtube.com/watch?v=G6a5G5i4gQU)
