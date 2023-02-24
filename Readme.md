@@ -37,7 +37,7 @@ Demos
 * [TodoMVC Composed – network transparent composition](https://gist.github.com/dustingetz/bba2aa18acc5de8d2685d3de23bad515)
 * [React.js/Reagent interop](https://gist.github.com/dustingetz/9854d23037b55bfab3845539f3e66e02)
 * [Electric Painter, by Dag](https://gist.github.com/dustingetz/d58a6134be310e05307ca0b586c30947)
-* [Electric Soduku, by s-ol](https://twitter.com/S0lll0s/status/1628798014042083328)
+* [Electric Soduku, by s-ol](https://github.com/s-ol/electric-sudoku)
 * [Map demo - OpenLayers webcomponents](https://twitter.com/tatut/status/1625192601354641408)
 
 Tutorials
