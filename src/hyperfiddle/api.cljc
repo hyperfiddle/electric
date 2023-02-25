@@ -1,18 +1,14 @@
 (ns hyperfiddle.api
-  (:require [clojure.datafy :refer [datafy]]
-            clojure.edn
+  #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]]))
+  (:import [hyperfiddle.electric Pending]
+           #?(:cljs [goog.math Long]))
+  (:require clojure.edn
             [contrib.dynamic :refer [call-sym]]
-            [contrib.data :as data]
             [clojure.spec.alpha :as s]
             [hyperfiddle.hfql :as hfql]
             [hyperfiddle.electric :as e]
             [missionary.core :as m]
-            hyperfiddle.electric-dom2
-            [hyperfiddle.spec :as spec]
-            [hyperfiddle.rcf :refer [tests]])
-  (:import [hyperfiddle.electric Pending]
-           #?(:cljs [goog.math Long]))
-  #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]])))
+            hyperfiddle.electric-dom2))
 
 (def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
 (e/def db "inject database value for hyperfiddle stage and HFQL")

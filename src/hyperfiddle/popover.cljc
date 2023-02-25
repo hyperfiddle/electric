@@ -1,8 +1,7 @@
 (ns hyperfiddle.popover
   #?(:cljs (:require-macros hyperfiddle.popover))
   (:import [hyperfiddle.electric Pending])
-  (:require [contrib.css :refer [css-slugify]]
-            [hyperfiddle.api :as hf]
+  (:require [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
