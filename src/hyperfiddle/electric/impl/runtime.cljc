@@ -1174,14 +1174,11 @@
 (defn dynamic-resolve [nf x]
   ;; For an Electric Clojure program to run, the server program must be loaded.
   ;; Multiple approaches:
+  ;; - bootstrap server, eagerly loading namespaces on server JVM process start (current choice),
   ;; - lazy load namespaces on client request (requires CORS rules),
-  ;; - bootstrap server, eagerly loading namespaces on server JVM process start,
   ;; - precompile and lazy load server program on client request - server program is uniquely identified.
-  #?(:clj (try (or (some-> (symbol x) requiring-resolve deref) ; find a clojure var
-                 nf)
-               (catch java.io.FileNotFoundException _
-                 (try (clojure.core/eval (symbol x)) ; find a java class or static field (e.g. PersistentArrayMap/EMPTY)
-                      (catch clojure.lang.Compiler$CompilerException _ nf))))
+  #?(:clj (try (clojure.core/eval (symbol x)) ; find a java class or static field (e.g. PersistentArrayMap/EMPTY)
+               (catch clojure.lang.Compiler$CompilerException _ nf))
      :cljs nf))
 
 (defn eval
