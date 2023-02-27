@@ -1,6 +1,5 @@
 (ns ;^:dev/always ; force rebuild here? We don't understand why
   user.demo-index
-  #?(:cljs (:require-macros user.demo-index))
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.history :as router])) ; for link only

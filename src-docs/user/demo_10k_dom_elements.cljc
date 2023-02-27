@@ -1,5 +1,4 @@
 (ns user.demo-10k-dom-elements
-  #?(:cljs (:require-macros user.demo-10k-dom-elements))
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m]))

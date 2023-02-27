@@ -1,5 +1,4 @@
 (ns user.demo-explorer
-  #?(:cljs (:require-macros user.demo-explorer))
   (:require [clojure.datafy :refer [datafy]]
             [clojure.core.protocols :refer [nav]]
             #?(:clj clojure.java.io)

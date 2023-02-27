@@ -1,5 +1,4 @@
 (ns user.demo-3-system-properties
-  #?(:cljs (:require-macros user.demo-3-system-properties))
   (:require
    [clojure.string :as str]
    [hyperfiddle.electric :as e]

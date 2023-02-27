@@ -1,5 +1,4 @@
 (ns user.demo-scrollview
-  #?(:cljs (:require-macros user.demo-scrollview))
   (:require [contrib.data :refer [unqualify]]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]

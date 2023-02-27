@@ -1,5 +1,4 @@
 (ns hyperfiddle.electric-ui4-select-test
-  #?(:cljs (:require-macros hyperfiddle.electric-ui4-select-test))
   (:import [missionary Cancelled] [hyperfiddle.electric Pending])
   (:require
    #?(:cljs [contrib.dom-test-helpers :as uit])

@@ -1,5 +1,4 @@
 (ns user.blinker
-  #?(:cljs (:require-macros user.blinker))
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]))
 
