@@ -6,8 +6,6 @@
   (:require [missionary.core :as m]
             hyperfiddle.rcf))
 
-; Userland Electric code is lazy loaded by the shadow build due to usage of :require-macros
-; in all Electric source files.
 ; WARNING: make sure your REPL and shadow-cljs are sharing the same JVM!
 
 (comment

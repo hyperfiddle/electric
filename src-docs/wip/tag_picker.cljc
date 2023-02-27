@@ -1,8 +1,7 @@
 (ns wip.tag-picker
   (:require [clojure.string :as str]
             [hyperfiddle.electric :as e]
-            [hyperfiddle.electric-ui4 :as ui])
-  #?(:cljs (:require-macros [wip.tag-picker])))
+            [hyperfiddle.electric-ui4 :as ui]))
 
 (def data {:alice   {:name "Alice B"}
            :bob     {:name "Bob C"}

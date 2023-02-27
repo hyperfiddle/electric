@@ -1,5 +1,4 @@
 (ns hyperfiddle.electric-ui4-typeahead-test
-  #?(:cljs (:require-macros hyperfiddle.electric-ui4-typeahead-test))
   (:require
    #?(:cljs [contrib.dom-test-helpers :as uit])
    [contrib.cljs-target :refer [do-browser]]

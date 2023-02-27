@@ -1,8 +1,7 @@
 (ns user.demo-6-two-clocks
   "network stress test"
   (:require [hyperfiddle.electric :as e]
-            [hyperfiddle.electric-dom2 :as dom])
-  #?(:cljs (:require-macros user.demo-6-two-clocks)))
+            [hyperfiddle.electric-dom2 :as dom]))
 
 (e/defn App []
   (e/client

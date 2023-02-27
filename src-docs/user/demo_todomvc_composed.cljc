@@ -1,5 +1,4 @@
 (ns user.demo-todomvc-composed
-  #?(:cljs (:require-macros user.demo-todomvc-composed))
   (:require
    #?(:clj [datascript.core :as d])
    [hyperfiddle.electric :as e]

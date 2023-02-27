@@ -1,5 +1,4 @@
 (ns wip.demo-branched-route
-  #?(:cljs (:require-macros [wip.demo-branched-route]))
   (:require datascript.core
             dev
             [hyperfiddle.api :as hf]
