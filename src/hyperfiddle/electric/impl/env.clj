@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [hyperfiddle.logger :as log]
             [cljs.analyzer :as cljs]
+            [cljs.env :as env]
             [hyperfiddle.rcf :refer [tests]]
             [hyperfiddle.electric.impl.compiler :as-alias c])
   (:import (clojure.lang Var)))
@@ -220,10 +221,11 @@
       (when (or (nil? last-loaded) (< last-loaded current-timestamp))
         (if (nil? last-loaded)
           (log/debug "Loading" ns-sym)
-          (log/debug "Reloading" ns-sym last-loaded))
+          (log/debug "Reloading" ns-sym))
         (try (require ns-sym :reload) ; will throw if source code is invalid CLJ(C)
              (catch java.io.FileNotFoundException _) ; Some namespaces don’t map to files (e.g. Math)
-             (catch clojure.lang.Compiler$CompilerException _)) ; TODO print more human friendly error messages
+             (catch clojure.lang.Compiler$CompilerException e
+               (log/info "Failed to load" ns-sym e))) ; TODO print more human friendly error messages
         (swap! !macro-load-cache assoc-in [ns-sym ::last-loaded] current-timestamp)))))
 
 (defn peer-language
@@ -269,8 +271,9 @@
   ;; First try to resolve a cljs var, then fallback to resolving a cljs macro var
   (when (:js-globals env)
     (let [!found? (volatile! true)
-          var     (binding [cljs/*private-var-access-nowarn* true]
-                    (when-let [ns (find-ns (:name (:ns env)))]
+          ns-sym (:name (:ns env))
+          var     (when-some [ns (find-ns ns-sym)]
+                    (binding [cljs/*private-var-access-nowarn* true]
                       (let [klass (clojure.lang.Compiler/maybeResolveIn ns sym)]
                         (if (class? klass)
                           (CljClass. klass)
@@ -279,9 +282,26 @@
                                                                    (cljs/confirm-var-exists env prefix suffix
                                                                      (fn missiing-fn [_env _prefix _suffix]
                                                                        (vreset! !found? false)))))))))))]
-      (if (and @!found? var) var
-          (when-some [v (cljs/resolve-macro-var env sym)]
-            (CljsVar. v))))))
+      (if (and @!found? var)
+        (if (instance? CljClass var)
+          var
+          (cond
+            (= :local (:op (get-var var))) nil ; ignore lexical bindings
+
+            ;; If the symbol is unqualified, the var will resolve in current ns.
+            ;; The returned value could therefor describe
+            ;; a :use, :refer, :use-macro, :refer-macro, or :rename. This var
+            ;; description would only contain the var :name and :ns, missing all
+            ;; other var info - especially if it is a macro or not. In this case,
+            ;; we resolve the var again, using the fully qualified name. This
+            ;; ensures the returned var definition includes all info about the
+            ;; var.
+            (and (simple-symbol? sym) (not= ns-sym (namespace (var-name var))))
+            (resolve-cljs-var env (var-name var))
+
+            :else var))
+        (when-some [v (cljs/resolve-macro-var env sym)]
+          (CljsVar. v))))))
 
 (defn resolve-cljs
   "Resolve a cljs var, which can be either
@@ -292,13 +312,11 @@
   ([env sym include-potential-twin-var?]
    (when (:js-globals env)
      (let [var (resolve-cljs-var env sym)] ; resolve cljs var decription (a map)
-       (if (and var (= :local (:op (get-var var)))) ; ignore lexical bindings
-         nil
-         (if-not include-potential-twin-var?
-           var
-           (if-let [expander (cljs/get-expander (if (some? var) (var-name var) sym) env)] ; find corresponding clojure var
-             (CljVar. expander true) ; mark this clj var as a twin
-             var)))))))
+       (if-not include-potential-twin-var?
+         var
+         (if-let [expander (cljs/get-expander (if (some? var) (var-name var) sym) env)] ; find corresponding clojure var
+           (CljVar. expander true) ; mark this clj var as a twin
+           var))))))
 
 (defn find-interned-var
   "Look up for an interned var in a namespace. Efficient direct lookup."
