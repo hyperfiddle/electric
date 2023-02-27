@@ -1,5 +1,4 @@
 (ns user.demo-4-chat-extended
-  #?(:cljs (:require-macros user.demo-4-chat-extended))
   (:require
    contrib.str
    [hyperfiddle.api :as hf]

@@ -1,5 +1,4 @@
 (ns user.tic-tac-toe
-  #?(:cljs (:require-macros user.tic-tac-toe))
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]))

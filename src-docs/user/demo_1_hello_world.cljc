@@ -1,5 +1,4 @@
 (ns user.demo-1-hello-world
-  #?(:cljs (:require-macros user.demo-1-hello-world))
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]))
 

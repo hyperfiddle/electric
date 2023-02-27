@@ -1,5 +1,4 @@
 (ns user.seven-gui-5-crud
-  #?(:cljs (:require-macros user.seven-gui-5-crud))
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui4]

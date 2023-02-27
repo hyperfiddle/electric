@@ -1,5 +1,4 @@
 (ns wip.teeshirt-orders
-  #?(:cljs (:require-macros [wip.teeshirt-orders]))
   (:require [clojure.spec.alpha :as s]
             [datascript.core :as d]
             dev
