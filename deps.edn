@@ -49,7 +49,7 @@
                                                                          :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
                      :exec-fn     cognitect.test-runner.api/test}
 
-           :build ; this is photon lib build, excludes demos
+           #_#_:build ; this is photon lib build, excludes demos
            {:paths ["src-build"]} ; no project classpath including user.clj and data_readers
 
            ;; demos with bundled library, combine with :dev:scratch
