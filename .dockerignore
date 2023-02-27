@@ -18,6 +18,6 @@ out
 **/tsconfig.tsbuildinfo
 **/output.calva-repl
 resources/public/*.min.css
-resources/public/js
+resources/public/js/cljs-runtime
 
 # **/src/**/*.js -- we commit precompiled js files (Failure.js, Pending.js), as well as .class

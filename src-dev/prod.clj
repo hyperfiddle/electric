@@ -1,7 +1,7 @@
 (ns prod
   (:require [contrib.datomic-m :as d]
             [missionary.core :as m]
-            [hyperfiddle.photon-jetty-server :refer [start-server!]]
+            [hyperfiddle.electric-jetty-server :refer [start-server!]]
             shadow.cljs.devtools.api
             user-main))
 
@@ -10,7 +10,7 @@
 
 (defn build [& args]
   (println "Compiling shadow...")
-  (shadow.cljs.devtools.api/compile :devkit))
+  (shadow.cljs.devtools.api/compile :dev))
 
 (defn main [& args]
   (println "Starting Photon server...")
