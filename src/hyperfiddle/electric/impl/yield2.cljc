@@ -37,7 +37,7 @@
         (let [out (do (create-recover Y >recover) (transfer-recover Y))]
           (a/set (a/fget Y recover) on-notify #(recover-notified Y))
           (a/fset Y last-in in, last-out out))
-        (do (when-some [rec (a/fget Y recover)] (trash rec))  in)))))
+        (do (a/fset Y last-in ::none) (when-some [rec (a/fget Y recover)] (trash rec))  in)))))
 (defn transfer [^Yield Y]
   (try (cond (a/get (a/fget Y input)   notified?) (transfer-input Y)
              (a/get (a/fget Y recover) notified?) (transfer-recover Y)
@@ -132,4 +132,13 @@
   #_start         @it := 0
   (swap! !x inc)  @it := :init              ; recovery starts
   (swap! !x inc)  @it := 2, % := :unmounted ; back to input, recovery stops
+  (it)            @it :throws Cancelled, % := :terminated)
+(tests "work skipping is invalidated after successful input"
+  (def !x (atom 0))
+  (def it ((yield (fn [x] (when (odd? x) (tap :recover) (m/cp :recover))) (m/watch !x))  #(do) #(tap :terminated)))
+  #_start         @it := 0
+  (swap! !x inc)  @it := :recover, % := :recover
+  (swap! !x inc)  @it := 2
+  "same input but good input in between, so won't work skip"
+  (swap! !x dec)  @it := :recover, % := :recover
   (it)            @it :throws Cancelled, % := :terminated)
