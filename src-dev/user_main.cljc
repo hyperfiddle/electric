@@ -19,6 +19,7 @@
             user.demo-explorer
             wip.demo-explorer2
             user.demo-10k-dom-elements
+            user.demo-svg
             user.todos-simple
             user.seven-gui-1-counter
             user.seven-gui-2-temperature-converter
@@ -76,6 +77,7 @@
       ::demos/seven-guis-timer user.seven-gui-4-timer/Timer
       ::demos/seven-guis-crud user.seven-gui-5-crud/App
       ::demos/tic-tac-toe user.tic-tac-toe/App
+      `user.demo-svg/SVG user.demo-svg/SVG
       ;`user.demo-reagent-interop/ReagentInterop (when react-available user.demo-reagent-interop/ReagentInterop)
       ;::demos/dennis-exception-leak wip.dennis-exception-leak/App2
       ;::demos/demo-stage-ui4 wip.demo-stage-ui4/Demo
