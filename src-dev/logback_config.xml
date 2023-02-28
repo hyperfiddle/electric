@@ -14,6 +14,7 @@
     <logger name="hyperfiddle" level="DEBUG" additivity="false"><appender-ref ref="ERGONOMIC" /></logger>
     <logger name="hyperfiddle.electric.impl.compiler" level="DEBUG" additivity="false"><appender-ref ref="ERGONOMIC" /></logger>
     <logger name="hyperfiddle.electric.impl.runtime" level="DEBUG" additivity="false"><appender-ref ref="ERGONOMIC" /></logger>
+    <logger name="hyperfiddle.electric.impl.env" level="DEBUG" additivity="false"><appender-ref ref="ERGONOMIC" /></logger>
     <logger name="hyperfiddle.electric-jetty-adapter" level="WARN" additivity="false"><appender-ref ref="ERGONOMIC" /></logger>
 
     <logger name="org.jboss" level="WARN" additivity="false"><appender-ref ref="FULL" /></logger>

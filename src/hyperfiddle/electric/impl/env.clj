@@ -220,7 +220,7 @@
           current-timestamp (ns-file-timestamp env ns-sym)]
       (when (or (nil? last-loaded) (< last-loaded current-timestamp))
         (if (nil? last-loaded)
-          (log/debug "Loading" ns-sym)
+          (log/trace "Loading" ns-sym)
           (log/debug "Reloading" ns-sym))
         (try (require ns-sym :reload) ; will throw if source code is invalid CLJ(C)
              (catch java.io.FileNotFoundException _) ; Some namespaces don’t map to files (e.g. Math)
