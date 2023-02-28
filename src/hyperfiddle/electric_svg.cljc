@@ -1,4 +1,5 @@
 (ns hyperfiddle.electric-svg
+  (:refer-clojure :exclude [filter set symbol use])
   (:require [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric :as e])
   #?(:cljs (:require-macros [hyperfiddle.electric-svg])))
