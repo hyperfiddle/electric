@@ -24,6 +24,7 @@
    ::seven-guis-timer
    ::seven-guis-crud
    ::tic-tac-toe
+   `user.demo-svg/SVG
    #_`user.demo-reagent-interop/ReagentInterop])
 
 (def secret-pages

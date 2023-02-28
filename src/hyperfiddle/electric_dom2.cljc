@@ -71,22 +71,28 @@
     (seq v) (clojure.string/join " " (eduction (remove nil?) (map name) v))
     :else ""))
 
+(def ^:const SVG-NS "http://www.w3.org/2000/svg")
+
 #?(:cljs
-   (defn set-property! [node k v]
-     (let [k (name k)
-           v (clj->js v)]
-       (if (and (nil? v) (.hasAttribute node k))
-         (.removeAttribute node k)
-         (case k
-           "style" (goog.style/setStyle node v)
-           "class" (set! (.-className node) (class-str v))
-           "for"   (set! (.-htmlFor node) v)
-           "list"  (.setAttribute node k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
-           (if-let [k (goog.object/get goog.dom/DIRECT_ATTRIBUTE_MAP_ k)]
-             (.setAttribute node k v)
-             (if (goog.object/containsKey node k) ; is there an object property for this key?
-               (goog.object/set node k v)
-               (.setAttribute node k v))))))))
+   (defn set-property!
+     ([node k v] (set-property! node (.-namespaceURI node) k v))
+     ([node ns k v]
+      (let [k (name k)
+            v (clj->js v)]
+        (if (and (nil? v) (.hasAttributeNS node nil k))
+          (.removeAttributeNS node nil k)
+          (case k
+            "style" (goog.style/setStyle node v)
+            "class" (set! (.-className node) (class-str v))
+            "for"   (set! (.-htmlFor node) v)
+            "list"  (.setAttributeNS node nil k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
+            (if-let [k (goog.object/get goog.dom/DIRECT_ATTRIBUTE_MAP_ k)]
+              (.setAttributeNS node nil k v)
+              (if (= SVG-NS ns)
+                (.setAttributeNS node nil k v)
+                (if (goog.object/containsKey node k) ; is there an object property for this key?
+                  (goog.object/set node k v)
+                  (.setAttributeNS node nil k v))))))))))
 
 #?(:cljs (defn unmount-prop [node k v]
            (m/observe (fn [!] (! nil) #(set-property! node k v)))))
