@@ -47,7 +47,7 @@
 (defn yield [checker >input]
   (fn [n t]
     (let [^Yield Y (->Yield checker n t (object-array 5))
-          me (a/fset Y children 1, input (object-array 3))]
+          me (a/fset Y children 1, last-in ::none, input (object-array 3))]
       (a/set me on-notify #(input-notified Y), iterator (>input #((a/get me on-notify)) #(terminated Y)))
       Y)))
 ;;; TESTS ;;;
@@ -142,3 +142,6 @@
   "same input but good input in between, so won't work skip"
   (swap! !x dec)  @it := :recover, % := :recover
   (it)            @it :throws Cancelled, % := :terminated)
+(tests "initial nil isn't work skipped"
+  (def it ((yield (fn [_] (tap :recover) nil) (m/cp nil))  #(do) #(do)))
+  @it := nil, % := :recover)
