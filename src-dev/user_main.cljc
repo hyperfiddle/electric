@@ -1,6 +1,4 @@
-(ns ^:dev/always ; recompile Electric entrypoint when Electric sources change
-  user-main
-  #?(:cljs (:require-macros user-main))
+(ns user-main
   (:require contrib.uri ; data_readers
             contrib.ednish
             [hyperfiddle.api :as hf]
@@ -18,7 +16,7 @@
             user.demo-5-todomvc
             user.demo-todomvc-composed
             user.demo-6-two-clocks
-            wip.demo-explorer
+            user.demo-explorer
             wip.demo-explorer2
             user.demo-10k-dom-elements
             user.todos-simple
@@ -57,7 +55,7 @@
       `user.demo-1-hello-world/HelloWorld user.demo-1-hello-world/HelloWorld
       `user.blinker/Blinker user.blinker/Blinker
       ::demos/hfql-teeshirt-orders wip.teeshirt-orders/App
-      `wip.demo-explorer/DirectoryExplorer wip.demo-explorer/DirectoryExplorer
+      `user.demo-explorer/DirectoryExplorer user.demo-explorer/DirectoryExplorer
       ::demos/explorer2 wip.demo-explorer2/App
       ;::demos/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
       ::demos/router-recursion wip.demo-branched-route/App

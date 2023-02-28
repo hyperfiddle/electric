@@ -1,6 +1,5 @@
 (ns ;^:dev/always ; force rebuild here? We don't understand why
   user.demo-index
-  #?(:cljs (:require-macros user.demo-index))
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.history :as router])) ; for link only
@@ -8,6 +7,7 @@
 (def pages
   [`user.demo-1-hello-world/HelloWorld
    ::toggle
+   ::two-clocks
    ::system-properties
    ::chat
    ::chat-extended
@@ -15,10 +15,10 @@
    ::todos-simple
    ::todomvc
    ::todomvc-composed
+   `user.demo-explorer/DirectoryExplorer
+   ::infinite-scroll
    `user.blinker/Blinker
    ::color
-   ::two-clocks
-   ::infinite-scroll
    ::seven-guis-counter
    ::seven-guis-temperature-converter
    ::seven-guis-timer
@@ -28,7 +28,6 @@
 
 (def secret-pages
   [::hfql-teeshirt-orders
-   `wip.demo-explorer/DirectoryExplorer
    ::explorer2
    ::demo-10k-dom-elements
    ::router-recursion

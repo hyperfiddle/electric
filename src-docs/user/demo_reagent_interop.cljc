@@ -2,7 +2,6 @@
 ;; This demo requires `npm install`
 
 (ns user.demo-reagent-interop
-  #?(:cljs (:require-macros user.demo-reagent-interop))
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             #?(:cljs [reagent.core :as r])

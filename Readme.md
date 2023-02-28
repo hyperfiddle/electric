@@ -29,34 +29,30 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 Demos
 
 * [Proof of client/server transfer](https://gist.github.com/dustingetz/35f0e036283c49605f73917132931414)
+* [Two Clocks – streaming lexical scope](https://gist.github.com/dustingetz/13c99420fe9bf75dd8178c1a633d3bbe)
+* [Frontend treeview as direct recursion over filesystem](https://gist.github.com/dustingetz/89ca122af0175933042e481ee9aa59f8)
+* [Folder explorer: node_modules paginated from frontend (virtual scroll)](https://gist.github.com/dustingetz/dd67a35d818e3a1bf6733147cf5cdea7)
+* [Datomic database browser](https://github.com/hyperfiddle/electric-datomic-browser)
 * [TodoMVC](https://gist.github.com/dustingetz/2c1916766be8a61baa39f9f88feafc44)
 * [TodoMVC Composed – network transparent composition](https://gist.github.com/dustingetz/bba2aa18acc5de8d2685d3de23bad515)
-* Folder explorer: frontend table over node_modules
-* [Datomic database browser](https://github.com/hyperfiddle/electric-datomic-browser)
-* Infinite scroll
-* Multiplayer chat with presence
-* Recursive tree-view (my favorite)
-* REPL
-* Webcomponents
-* multiplayer canvas as a stock component
+* [React.js/Reagent interop](https://gist.github.com/dustingetz/9854d23037b55bfab3845539f3e66e02)
+* [Electric Painter, by Dag](https://gist.github.com/dustingetz/d58a6134be310e05307ca0b586c30947)
+* [Electric Soduku, by s-ol](https://github.com/s-ol/electric-sudoku)
+* [Map demo - OpenLayers webcomponents](https://twitter.com/tatut/status/1625192601354641408)
 
 Tutorials
 
-* React.js/Reagent interop
-* Two Clocks – a network stress test
-* Full-stack webview
-* Todos Basic
-* Electric Y-Combinator: network-transparent composition
+* [Todos Basic](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/todos_simple.cljc)
+* [Full-stack webview with datascript](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/demo_4_webview.cljc)
+* [Routing integration - goog.history](https://github.com/hyperfiddle/electric/blob/master/src/contrib/electric_goog_history.cljc)
+* [Multiplayer chat with presence](https://gist.github.com/dustingetz/3e0761f51137cbf945b701c3ce9e3c74)
 * [SQL data backend](https://gist.github.com/dustingetz/1960436eb4044f65ddfcfce3ee0641b7)
+* [virtual scroll internals](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/demo_scrollview.cljc)
+* Electric Y-Combinator: network-transparent composition
 
 How it works
 * [UIs are streaming DAGs (2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
 * [You don't need a web framework, you need a web language (2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
-
-Scrap
-
-* [Electric progress update Dec 2022](https://hyperfiddle.notion.site/Electric-Clojure-progress-Dec-2022-5416dda526e24e5ab7ccb7eb48c797ed)
-* [Electric progress update June 2022](https://hyperfiddle.notion.site/Photon-progress-June-2022-57aee367c20e45b3b80366d1abe4fbc3)
 
 ## Getting Started
 
@@ -124,3 +120,13 @@ Gaps:
 
 * PRs require a signed contributors agreement (like Clojure), DM dustingetz on slack.
 * No typo fixes please, we are not all native English speakers and we decided it's not worth it.
+
+## References and reading
+
+Electric Clojure implements a form of arrowized continuous time dataflow programming with extensions for network-transparent function composition.
+
+* [The Haskell School of Music: From Signals to Symphonies (2018)](https://www.amazon.com/Haskell-School-Music-Signals-Symphonies/dp/1108416756) – best starting point
+* [The Essence of Dataflow Programming (2006)](http://cs.ioc.ee/~tarmo/papers/essence.pdf) – great category theory overview of dataflow programming
+* [Push-pull functional reactive programming, Elliot (2009)](http://conal.net/papers/push-pull-frp/)
+* [Breaking down FRP, Jane Street (2014)](https://blog.janestreet.com/breaking-down-frp/)
+* [Seven Implementations of Incremental (lecture), Jane Street, 2016](https://www.youtube.com/watch?v=G6a5G5i4gQU)

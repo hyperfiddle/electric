@@ -1,5 +1,4 @@
-(ns wip.demo-explorer
-  #?(:cljs (:require-macros wip.demo-explorer))
+(ns user.demo-explorer
   (:require [clojure.datafy :refer [datafy]]
             [clojure.core.protocols :refer [nav]]
             #?(:clj clojure.java.io)

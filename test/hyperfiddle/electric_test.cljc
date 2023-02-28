@@ -1106,8 +1106,8 @@
   (swap! !x inc)
   % := :ok)
 
-(tests
-  (p/run-with (p/vars vector) (prn (p/for [id (p/server [1])] id))))
+;; (tests
+;;   (p/run-with (p/vars vector) (prn (p/for [id (p/server [1])] id))))
 
 ;; (tests
 ;;   (r/run (! ~#'(when (true? true) :ok)))

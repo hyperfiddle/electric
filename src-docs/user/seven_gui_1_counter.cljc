@@ -1,5 +1,4 @@
 (ns user.seven-gui-1-counter
-  #?(:cljs (:require-macros user.seven-gui-1-counter))
   (:require
     [hyperfiddle.electric :as e]
     [hyperfiddle.electric-dom2 :as dom]

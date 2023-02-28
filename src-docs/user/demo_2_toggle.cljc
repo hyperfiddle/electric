@@ -1,5 +1,4 @@
 (ns user.demo-2-toggle
-  #?(:cljs (:require-macros user.demo-2-toggle))
   (:require
    [hyperfiddle.electric :as e]
    [hyperfiddle.electric-dom2 :as dom]

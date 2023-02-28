@@ -1,9 +1,4 @@
 (ns user.todos-simple
-
-  ; trick shadow into ensuring that client/server always have the same version
-  ; all .cljc files containing Electric code must have this line!
-  #?(:cljs (:require-macros user.todos-simple)) ; <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
   (:require #?(:clj [datascript.core :as d]) ; database on server
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]

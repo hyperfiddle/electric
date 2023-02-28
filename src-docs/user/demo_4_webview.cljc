@@ -1,6 +1,5 @@
 (ns user.demo-4-webview
   "Electric fullstack query/view composition with client/server transfer"
-  #?(:cljs (:require-macros user.demo-4-webview))
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]

@@ -1172,7 +1172,12 @@
       (map symbol))))
 
 (defn dynamic-resolve [nf x]
-  #?(:clj (try (clojure.core/eval (symbol x))
+  ;; For an Electric Clojure program to run, the server program must be loaded.
+  ;; Multiple approaches:
+  ;; - bootstrap server, eagerly loading namespaces on server JVM process start (current choice),
+  ;; - lazy load namespaces on client request (requires CORS rules),
+  ;; - precompile and lazy load server program on client request - server program is uniquely identified.
+  #?(:clj (try (clojure.core/eval (symbol x)) ; find a java class or static field (e.g. PersistentArrayMap/EMPTY)
                (catch clojure.lang.Compiler$CompilerException _ nf))
      :cljs nf))
 

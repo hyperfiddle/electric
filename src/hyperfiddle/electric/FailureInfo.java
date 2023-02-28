@@ -9,18 +9,16 @@ import clojure.lang.IPersistentMap;
  */
 public class FailureInfo extends RuntimeException implements IExceptionInfo{
     public final IPersistentMap data;
+    public final Object id;
 
-    public FailureInfo(String s, IPersistentMap data) {
-        this(s, data, null);
-    }
-
-    public FailureInfo(String s, IPersistentMap data, Throwable throwable) {
+    public FailureInfo(String s, IPersistentMap data, Object id, Throwable throwable) {
         super(s, throwable, false, false);
         if (data != null) {
             this.data = data;
         }  else {
             throw new IllegalArgumentException("Additional data must be non-nil.");
         }
+        this.id = id;
     }
 
     public IPersistentMap getData() {

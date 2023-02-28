@@ -1,5 +1,4 @@
 (ns user.seven-gui-2-temperature-converter
-  #?(:cljs (:require-macros user.seven-gui-2-temperature-converter))
   (:require
    [hyperfiddle.electric :as e]
    [hyperfiddle.electric-dom2 :as dom]

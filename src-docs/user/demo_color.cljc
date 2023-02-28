@@ -1,5 +1,4 @@
 (ns user.demo-color
-  #?(:cljs (:require-macros user.demo-color))
   (:require [contrib.data :refer [assoc-vec]]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]

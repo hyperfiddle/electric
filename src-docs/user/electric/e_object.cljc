@@ -1,5 +1,4 @@
 (ns user.electric.e-object
-  #?(:cljs (:require-macros user.electric.e-object))
   (:require
     [hyperfiddle.electric :as e]
     [hyperfiddle.electric-dom2 :as dom]

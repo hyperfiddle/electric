@@ -28,6 +28,11 @@
     `(let [~ar ~arr, k# ~k, ret# (get ~ar k#)]
        (set ~ar k# ~v)
        ret#)))
+(defmacro getswap [arr k f]
+  (let [ar (with-meta (gensym "arr") {:tag 'objects})]
+    `(let [~ar ~arr, k# ~k, v# (get ~ar k#)]
+       (aset ~ar k# (~f v#))  v#)))
+
 ;;; TESTS ;;;
 (deftype P [state-])
 (tests
@@ -41,4 +46,6 @@
     (fgetset aP x 0)             := 3
     (getset (.-state- aP) x 100) := 0
     (fget aP x)                  := 100
+    (getswap (.-state- aP) x inc) := 100
+    (fget aP x)                   := 101
     ))
