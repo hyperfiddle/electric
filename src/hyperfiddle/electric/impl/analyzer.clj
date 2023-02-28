@@ -78,10 +78,12 @@
       (emit-cljs (:body ast)))
 
     :try
-    (list* 'try (emit-cljs (:body ast))
-      (list 'catch :default (:name ast) (emit-cljs (:catch ast)))
-      (when-some [f (:finally ast)]
-        [(list 'finally (emit-cljs f))]))
+    `(~'try ~(emit-cljs (:body ast))
+      ~@(when-not (= :throw (:op (:catch ast)))
+          (let [name (get-in ast [:name])]
+            [(list 'catch :default name (emit-cljs (:catch ast)))]))
+      ~@(when-some [f (:finally ast)]
+          [(list 'finally (emit-cljs f))]))
 
     :throw
     (list 'throw (emit-cljs (:exception ast)))
