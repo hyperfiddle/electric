@@ -124,19 +124,15 @@
                (new (unmount-prop node (key prop#) nil))
                nil))))))
 
-(defn event*
-  ([dom-node event-name callback] (event* dom-node event-name callback {}))
-  ([dom-node event-name callback options]
-   (m/observe (fn [!]
-                (! nil)
-                (.addEventListener dom-node event-name callback #?(:cljs (clj->js options)))
-                #(.removeEventListener dom-node event-name callback)))))
+#?(:cljs (defn- listen [node typ f opts] (.addEventListener node typ f opts) #(.removeEventListener node typ f)))
+#?(:cljs (defn- event* [node typ f opts]
+           (m/relieve {} (m/observe (fn [!] (! nil) (listen node typ #(-> % f !) (clj->js opts)))))))
 
 (defmacro on!
   "Call the `callback` clojure function on event.
    (on! \"click\" (fn [event] ...)) "
-  ([event-name callback] `(new (event* node ~event-name ~callback)))
-  ([dom-node event-name callback] `(new (event* ~dom-node ~event-name ~callback)))
+  ([event-name callback] `(on! node ~event-name ~callback))
+  ([dom-node event-name callback] `(on! ~dom-node ~event-name ~callback nil))
   ([dom-node event-name callback options] `(new (event* ~dom-node ~event-name ~callback ~options))))
 
 (defmacro ^:deprecated ^:no-doc event "Deprecated, please use `on!`" [& args] `(on! ~@args))
