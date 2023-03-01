@@ -173,15 +173,15 @@
   ([typ]   `(new Event ~typ false))
   ([typ F] `(on node ~typ ~F))
   ([node typ F] `(binding [node ~node]
-                   (let [x# (e/with-cycle [?v# nil]
-                              (let [busy# (= ?v# ::e/pending)]
-                                (when-some [evt# (new Event ~typ busy#)]
-                                  (try (new ~F evt#)
-                                       (catch Pending e# ::e/pending)
-                                       (catch :default e# [::err e#])))))]
-                     (cond (= ::e/pending x#) (throw (Pending.))
-                           (and (vector? x#) (= ::err (first x#))) (throw (second x#))
-                           :else x#)))))
+                   ;; checking types is not enough, one could return an exception without throwing
+                   (let [[state# v#] (e/with-cycle [x# [::init nil]]
+                                       (if-some [evt# (new Event ~typ (= (first x#) ::pending))]
+                                         (try [::ok (new ~F evt#)]
+                                              (catch Pending  e# [::pending e#])
+                                              (catch :default e# [::err e#]))
+                                         x#))]
+                     (case state# (::init ::ok) v#, (::err ::pending) (throw v#))))))
+
 
 (defmacro on-pending [pending-body & body] `(try (do ~@body) (catch Pending e# ~pending-body (throw e#))))
 
