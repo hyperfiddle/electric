@@ -105,15 +105,21 @@ running on a remote host.
 
 (cc/defn failure? [x] (instance? Failure x))
 
-(cc/defn wrap* [thunk]
-  #?(:clj
-     (->> (m/ap (m/? (m/via m/blk (thunk))))
-          (m/reductions {} (Failure. (Pending.)))
-          (m/relieve {}))))
+#?(:clj
+   (cc/defn -offload [thunk executor]
+     (->> (m/ap (m/? (m/via executor (thunk))))
+       (m/reductions {} (Failure. (Pending.)))
+       (m/relieve {}))))
 
-(defmacro wrap "Run blocking clojure code body (io-bound) on a threadpool. JVM only"
-  [& body]
-  `(new (wrap* (cc/fn [] (do ~@body)))))
+(defmacro offload
+  "run a blocking function (i.e. query) on threadpool specified by `executor` (i.e. m/blk or m/cpu).
+IO-bound fns should use m/blk, which is the default. Compute-bound fns should pass m/cpu. Custom
+executors are allowed (i.e. to control max concurrency, timeouts etc). Currently JVM only."
+  ([f! executor] `(new (-offload ~f! ~executor)))
+  ; no varadic arity, user should explicitly state unit of work, so no ambiguity about concurrent tasks
+  ([f!] `(new (-offload ~f! m/blk))))
+
+(defmacro ^:deprecated wrap [& body] `(offload #(do ~@body)))
 
 ; Should these be in missionary?
 (def chan-read! contrib.missionary-contrib/chan-read!)
