@@ -10,21 +10,30 @@
             [cljs.analyzer.passes :as cljs-ast]
             [hyperfiddle.logger :as log]))
 
+(defn walk-clj "Prewalk a clj ast" [ast f] (clj-ast/prewalk ast f))
+(defn walk-cljs "Prewalk a cljs ast" [ast f] (cljs-ast/walk ast [(fn [env ast opts] (f ast))]))
+
 (defn analyze-clj "Analyze a clj form to ast without any passes." [env form]
   (binding [clj/run-passes identity]
     (clj/analyze form env)))
 
 (defn analyze-cljs "Analyze a cljs form to ast without any passes." [env form]
   (binding [cljs-ana/*passes* []]
-    (cljs/analyze env form)))
+    (walk-cljs (cljs/analyze env form)
+      (fn [ast]
+        (case (:op ast)
+          :binding (let [var-info (get-in ast [:init :info])]
+                     (if (some? (:hyperfiddle.electric.impl.compiler/node var-info))
+                       (throw (ex-info (str "`"(:name var-info) "` is an Electric var and cannot be bound from a Clojure context.")
+                                (merge {:file (:file (:meta (:ns env)))}
+                                  (select-keys ast #{:file :line}))))
+                       ast))
+          ast)))))
 
 (defn specialize-clj-ast-op [ast]
   (update ast :op (fn [op] (case op
                              :const ::const
                              op))))
-
-(defn walk-clj "Prewalk a clj ast" [ast f] (clj-ast/prewalk ast f))
-
 (defn emit-clj [ast]
   (emit-form/emit-form (walk-clj ast specialize-clj-ast-op)))
 
@@ -34,7 +43,6 @@
     (symbol (.getName ^Class val))
     (emit-form/-emit-form (assoc ast :op :const) opts)))
 
-(defn walk-cljs "Prewalk a cljs ast" [ast f] (cljs-ast/walk ast [(fn [env ast opts] (f ast))]))
 
 (declare emit-cljs)
 (defn emit-cljs-method [{:keys [variadic? params body]}]
@@ -78,10 +86,12 @@
       (emit-cljs (:body ast)))
 
     :try
-    (list* 'try (emit-cljs (:body ast))
-      (list 'catch :default (:name ast) (emit-cljs (:catch ast)))
-      (when-some [f (:finally ast)]
-        [(list 'finally (emit-cljs f))]))
+    `(~'try ~(emit-cljs (:body ast))
+      ~@(when-not (= :throw (:op (:catch ast)))
+          (let [name (get-in ast [:name])]
+            [(list 'catch :default name (emit-cljs (:catch ast)))]))
+      ~@(when-some [f (:finally ast)]
+          [(list 'finally (emit-cljs f))]))
 
     :throw
     (list 'throw (emit-cljs (:exception ast)))

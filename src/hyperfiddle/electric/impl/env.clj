@@ -7,7 +7,8 @@
             [cljs.env :as env]
             [hyperfiddle.rcf :refer [tests]]
             [hyperfiddle.electric.impl.compiler :as-alias c])
-  (:import (clojure.lang Var)))
+  (:import (clojure.lang Var)
+           (java.io FileNotFoundException)))
 
 ;; Dedicated namespace because:
 ;; - used by both electric compiler and HFQL
@@ -220,12 +221,14 @@
           current-timestamp (ns-file-timestamp env ns-sym)]
       (when (or (nil? last-loaded) (< last-loaded current-timestamp))
         (if (nil? last-loaded)
-          (log/debug "Loading" ns-sym)
+          (log/trace "Loading" ns-sym)
           (log/debug "Reloading" ns-sym))
         (try (require ns-sym :reload) ; will throw if source code is invalid CLJ(C)
-             (catch java.io.FileNotFoundException _) ; Some namespaces don’t map to files (e.g. Math)
-             (catch clojure.lang.Compiler$CompilerException e
-               (log/info "Failed to load" ns-sym e))) ; TODO print more human friendly error messages
+             (catch FileNotFoundException _) ; Some namespaces don’t map to files (e.g. Math)
+             (catch Throwable e
+               ;; HACK using log/debug or log/info here breaks shadow build (because it expands to `(log* … ~*ns* …)
+               ;; https://www.notion.so/hyperfiddle/Shadow-fails-to-run-clj-file-containing-ns-form-returned-from-macro-7c015ec32ace4e82872333f86819da76
+               (prn "Failed to load" ns-sym e)))
         (swap! !macro-load-cache assoc-in [ns-sym ::last-loaded] current-timestamp)))))
 
 (defn peer-language
