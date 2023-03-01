@@ -100,10 +100,8 @@
           ~@body)))
 
 
-;;; TYPEAHEAD
 
-;; TODO nil
-(e/defn Latch [impulse init] (e/with-cycle [v init] (if (some? impulse) impulse v)))
+;;; TYPEAHEAD
 
 #?(:cljs (defn first-option [elem] (-> elem .-parentElement .-firstElementChild)))
 #?(:cljs (defn last-option  [elem] (-> elem .-parentElement .-lastElementChild)))
@@ -168,7 +166,7 @@
                                (e/fn [_#] ; FIXME Exceptions seems to be swallowed here
                                  (set! (.-value dom/node) "")
                                  (let [return# (missionary.core/dfv)
-                                       search# (new Latch (dom/on "input" (e/fn [e#] (value e#))) "")]
+                                       search# (or (dom/on! "input" value) "")]
                                    (binding [dom/node container-node#]
                                      (let [!selected# (atom nil), selected# (e/watch !selected#)]
                                        (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
@@ -259,7 +257,7 @@
                        (dom/on "focus"
                          (e/fn [_#]
                            (let [return# (missionary.core/dfv)
-                                 search# (new Latch (dom/on "input" (e/fn [e#] (value e#))) "")]
+                                 search# (or (dom/on! "input" value) "")]
                              (binding [dom/node input-container-node#]
                                (let [!selected# (atom nil), selected# (e/watch !selected#)]
                                  (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
