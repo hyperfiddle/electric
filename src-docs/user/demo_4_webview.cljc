@@ -33,7 +33,7 @@
           (dom/props {:placeholder "Filter..."}))
         (dom/table (dom/props {:class "hyperfiddle"})
           (e/server
-            (e/for [id (teeshirt-orders db search)]
+            (e/for [id (e/offload #(teeshirt-orders db search))]
               (let [!e (d/entity db id)]
                 (e/client
                   (dom/tr
