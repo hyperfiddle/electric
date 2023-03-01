@@ -135,8 +135,6 @@
   ([dom-node event-name callback] `(on! ~dom-node ~event-name ~callback nil))
   ([dom-node event-name callback options] `(new (event* ~dom-node ~event-name ~callback ~options))))
 
-(defmacro ^:deprecated ^:no-doc event "Deprecated, please use `on!`" [& args] `(on! ~@args))
-
 (defn happen [s e]
   ; Todo, we need a buffer to force a nil in between events to fix race
   (case (:status s)
@@ -151,7 +149,7 @@
           state (e/watch !state)]
 
       ; rising edge happens once, even if busy state (prevent infinite loop) -- [DJG] I don't understand
-      (event type (partial swap! !state happen)) ; discrete rising edge
+      (on! type (partial swap! !state happen)) ; discrete rising edge
 
       (reset! !state
               (case (:status state)

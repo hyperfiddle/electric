@@ -63,7 +63,7 @@
                                :max   100
                                :step  1
                                :value l})
-          (dom/event "input" (fn [^js e] (swap-route! assoc-vec 3 (js/parseInt (.. e -target -value))))))
+          (dom/on! "input" (fn [^js e] (swap-route! assoc-vec 3 (js/parseInt (.. e -target -value))))))
         (dom/p (dom/text l "%"))
 
         (dom/p (dom/text "Saturation"))
@@ -72,7 +72,7 @@
                                :max   100
                                :step  1
                                :value s})
-          (dom/event "input" (fn [^js e] (swap-route! assoc-vec 2 (js/parseInt (.. e -target -value))))))
+          (dom/on! "input" (fn [^js e] (swap-route! assoc-vec 2 (js/parseInt (.. e -target -value))))))
         (dom/p (dom/text s "%"))
 
 
@@ -82,7 +82,7 @@
                                :max   360
                                :step  1
                                :value h})
-          (dom/event "input" (fn [^js e] (swap-route! assoc-vec 1 (js/parseInt (.. e -target -value))))))
+          (dom/on! "input" (fn [^js e] (swap-route! assoc-vec 1 (js/parseInt (.. e -target -value))))))
         (dom/p (dom/text h "°"))
 
 
