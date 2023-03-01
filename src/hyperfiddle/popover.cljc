@@ -30,9 +30,9 @@
 (e/defn PopoverBody [Body]
   (dom/div (dom/props {:class    "hyperfiddle popover-body"
                        :tabIndex "1"})
-    (dom/event "click" (fn [e]
-                         (when (= (.-target e) (.-currentTarget e)) ; click on self
-                           (.focus (.-currentTarget e)))))
+    (dom/on! "click" (fn [e]
+                       (when (= (.-target e) (.-currentTarget e)) ; click on self
+                         (.focus (.-currentTarget e)))))
     (BranchWrap. (e/fn [] (Body.)))))
 
 (e/defn Popover [label Body]
@@ -67,9 +67,9 @@
 (e/defn PopoverBody2 [Validate Transact Body]
   (dom/div (dom/props {:class    "hyperfiddle popover-body"
                        :tabIndex "1"})
-    (dom/event "click" (fn [e]
-                         (when (= (.-target e) (.-currentTarget e)) ; click on self
-                           (.focus (.-currentTarget e)))))
+    (dom/on! "click" (fn [e]
+                       (when (= (.-target e) (.-currentTarget e)) ; click on self
+                         (.focus (.-currentTarget e)))))
     (BranchWrap2. Validate Transact (e/fn [] (Body.)))))
 
 (e/defn Popover2 [label Validate Transact Body]

@@ -380,7 +380,7 @@
                  (assoc ctx ::count (new (::hf/count ctx (p/fn [] 0)))))]
     (p/client
       (dom/form
-        (dom/event "submit" (fn [e] (.preventDefault e))) ; an HFQL form is semantic only, it is never submitted
+        (dom/on! "submit" (fn [e] (.preventDefault e))) ; an HFQL form is semantic only, it is never submitted
         (dom/props {::dom/role  "form"
                      ::dom/style {:border-left-color (c/color hf/db-name)}})
         (p/server
