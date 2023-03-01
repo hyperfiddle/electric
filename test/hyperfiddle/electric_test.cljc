@@ -61,6 +61,15 @@
     % := 1))
 
 (tests
+  "p/def defines a singleton"
+  (def !x (atom 0))
+  (defn incer [] (m/cp (swap! !x inc)))
+  (with (p/run (tap [(new (incer)) (new (incer))])) % := [1 2])
+  (reset! !x 0)
+  (p/def X (new (incer)))
+  (with (p/run (tap [X X]))                         % := [1 1]))
+
+(tests
   "introduce foreign missionary signal"
   (def !x (atom 0))                                         ; atoms model variable inputs
   (with (p/run (tap (new (m/watch !x))))                      ; clojure flow derived from atom
