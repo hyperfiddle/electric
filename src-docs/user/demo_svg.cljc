@@ -8,9 +8,9 @@
 
 (e/defn SVG []
   (e/client
-    (let [offset (* 3 (wave dom/system-time-ms))]
+    (let [offset (* 3 (wave e/system-time-ms))]
       (dom/h1 (dom/text "SVG Example"))
-      (svg/svg (dom/props {:viewBox "0 0 1000 1000"})
+      (svg/svg (dom/props {:viewBox "0 0 300 100"})
         (svg/circle (dom/props {:cx    50
                                 :cy    50
                                 :r     (+ 30 offset)
