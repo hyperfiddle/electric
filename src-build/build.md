@@ -30,8 +30,7 @@ clj -A:dev -X user/main :replace-deps '{:deps {com.hyperfiddle/electric {:mvn/ve
 Clojars:
 
 ```shell
-CLOJARS_PASSWORD= \
-CLOJARS_USERNAME=dustingetz clojure -T:build deploy :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
+env $(cat .env | xargs) CLOJARS_USERNAME=dustingetz clojure -T:build deploy :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 ```
 
 - `CLOJARS_USERNAME` is your clojars username.
