@@ -14,6 +14,12 @@
                                        (user/rcf-shadow-hook)]
                        :compiler-options {:fn-invoke-direct true}  ; performances
                   :release {:compiler-options {:optimizations :simple}}}
+            :prod {:target           :browser
+                   :output-dir       "resources/public/js"
+                   :asset-path       "/js"
+                   :modules          {:main {:entries [user] :init-fn user/start!}}
+                   :compiler-options {:fn-invoke-direct true}
+                   :release          {:compiler-options {:optimizations :simple}}}
             :editor   {:target        :browser
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}

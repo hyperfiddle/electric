@@ -20,10 +20,14 @@
         ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}}
 
  :aliases {:legacy {:extra-paths ["src-legacy"]}
-           :build {:paths ["src-build"] ; no project classpath including user.clj and data_readers
-                   :deps {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
-                          io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}
-                   :ns-default build}
+           :build {:extra-paths ["src-build" "src-dev" "src-docs"]
+                   :ns-default build
+                   :extra-deps {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
+                                io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}
+                                thheller/shadow-cljs {:mvn/version "2.20.1"}}
+                   :jvm-opts ["-Xss2m"
+                              "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
+                              "-Dlogback.configurationFile=src-dev/logback_dev.xml"]}
            :dev     {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
                      :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}
                                    criterium/criterium                      {:mvn/version "0.4.6"}
