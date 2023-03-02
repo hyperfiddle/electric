@@ -1,5 +1,6 @@
 (ns user ; Must be ".clj" file, Clojure doesn't auto-load user.cljc
   "Start a REPL with `clj -A:dev`, or jack in with :dev alias."
+  (:gen-class)
   (:refer-clojure :exclude [compile])
   ; For fastest REPL startup, no heavy deps here, REPL conveniences only
   ; (Clojure has to compile all this stuff on startup)
@@ -7,6 +8,8 @@
             hyperfiddle.rcf))
 
 ; WARNING: make sure your REPL and shadow-cljs are sharing the same JVM!
+
+(hyperfiddle.rcf/enable! false)
 
 (comment
   (main) ; Electric Clojure(JVM) REPL entrypoint
@@ -35,7 +38,7 @@
                     :compile-finish (@rcf-enable!))
                   build-state))))
 
-(def electric-server-config {:host "0.0.0.0", :port 8080, :resources-path "resources/public"})
+(def electric-server-config {:host "0.0.0.0", :port 8080, :resources-path "public"})
 
 (defn main [& args]
   (println "Starting Electric compiler and server...")
@@ -74,3 +77,7 @@
 
 (when (= "true" (get (System/getenv) "HYPERFIDDLE_AUTO_BOOT"))
   (main))
+
+(defn -main [& args]
+  (require 'user-main)
+  (@start-electric-server! electric-server-config))
