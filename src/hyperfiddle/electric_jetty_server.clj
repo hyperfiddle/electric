@@ -6,7 +6,7 @@
             [ring.middleware.basic-authentication :as auth]
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.cookies :as cookies]
-            [ring.middleware.file :refer [wrap-file]]
+            [ring.middleware.resource :refer [wrap-resource]]
             [ring.util.response :as res])
   (:import [java.io IOException]
            [java.net BindException]
@@ -69,10 +69,10 @@
                              allow-symlinks? false}}]
   (try
     (let [ring-handler (cond-> #'default-handler ; these compose as functions, so are applied bottom up
-                                (file-exsist? resources-path) (wrap-file resources-path) ; 6. serve it
+                                true  (wrap-resource resources-path) ; 6. serve it from jar
                                 true (wrap-content-type) ; 5. detect content
                                 true (wrap-spa) ; 4. otherwise fallback to default page file
-                                (file-exsist? resources-path) (wrap-file resources-path {:allow-symlinks? allow-symlinks?}) ; 3. serve static file if it exists
+                                true  (wrap-resource resources-path {:allow-symlinks? allow-symlinks?}) ; 3. serve static file from jar
                                 true (wrap-content-type) ; 2. detect content (e.g. for index.html)
                                 true (wrap-default-page) ; 1. route
                                 true (wrap-no-cache) ; TODO disable in prod
