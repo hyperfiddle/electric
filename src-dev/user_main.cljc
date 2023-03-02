@@ -54,11 +54,11 @@
       `user.demo-index/Demos user.demo-index/Demos
       `user.demo-index/Secrets user.demo-index/Secrets
       `user.demo-two-clocks/TwoClocks user.demo-two-clocks/TwoClocks
-      `wip.teeshirt-orders/Webview-HFQL wip.teeshirt-orders/Webview-HFQL
+      ;`wip.teeshirt-orders/Webview-HFQL wip.teeshirt-orders/Webview-HFQL
       `user.demo-explorer/DirectoryExplorer user.demo-explorer/DirectoryExplorer
-      `wip.demo-explorer2/DirectoryExplorer-HFQL wip.demo-explorer2/DirectoryExplorer-HFQL
+      ;`wip.demo-explorer2/DirectoryExplorer-HFQL wip.demo-explorer2/DirectoryExplorer-HFQL
       ;user.demo-10k-dom/Dom-10k-Elements user.demo-10k-dom/Dom-10k-Elements ; todo too slow to unmount, crashes
-      `wip.demo-branched-route/RecursiveRouter wip.demo-branched-route/RecursiveRouter
+      ;`wip.demo-branched-route/RecursiveRouter wip.demo-branched-route/RecursiveRouter
       `wip.tag-picker/TagPicker wip.tag-picker/TagPicker
       `user.demo-toggle/Toggle user.demo-toggle/Toggle
       `user.demo-system-properties/SystemProperties user.demo-system-properties/SystemProperties
