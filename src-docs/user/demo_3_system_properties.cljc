@@ -21,7 +21,7 @@
     (let [!search (atom "")
           search (e/watch !search)]
       (e/server
-        (let [system-props (sort-by key (system-properties search))
+        (let [system-props (e/offload #(sort-by key (system-properties search)))
               matched-count (count system-props)]
           (e/client
             (dom/div (dom/props {:style {:color "gray"}}) (dom/text matched-count " matches"))

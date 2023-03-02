@@ -587,7 +587,8 @@
            ;; GG: Report problematic form in context.
            ;;     Build a stack of forms as the call stack unwinds, from failed form to top-level form.
            ;;     Push current form into ex-data, then rethrow.
-           (throw (ex-info (ex-message ex) (update (ex-data ex) :in #(if (< (count %) 10)
+           ;; TODO revisit
+           (throw (ex-info (ex-message ex) (update (ex-data ex) :in #(if (< (count %) 1)
                                                                        (conj (or % []) form)
                                                                        %)) (ex-cause ex))))
          (catch Throwable t ; base case
@@ -629,10 +630,18 @@
   (defn analyze [env form]
     (let [[res nodes]
           (l/with-local nodes {}
-            (-> env
-                (env/normalize-env)
-                (assoc ::local true)
-                (analyze-form form)))
+            (let [env (assoc (env/normalize-env env) ::local true)]
+              ;; ClojureScript compiler binds *ns* to the current ns: where macroexpand is happening.
+              ;; When syntax-quoted, the `*ns*` form expands to `(read-string #=(find-ns current-ns-sym))` - because of print-dup.
+              ;; If the current ns is a cljs only namespace, it won’t exist on the JVM, and `find-ns` will fail to resolve with this error:
+              ;; Error: ExceptionInInitializerError, Caused by RuntimeException: Can't resolve find-ns
+              ;; An `ExceptionInInitializerError` means the Clojure compiler fails to resolve a var during the static initialization
+              ;; of a class.
+              ;; hyperfiddle.logger macros (or Timbre) includes *ns* in their macroexpansion.
+              ;; From now on in the code, we carry ns info info in `env`, and we reset `*ns*` to the current clj namespace
+              ;; to *ns* is an available namespace. The Electric compiler never rely on *ns*, only on `env`.
+              (binding [*ns* (find-ns 'hyperfiddle.electric.impl.compiler)]
+                (analyze-form env form))))
           nodes (->> nodes
                      (mapcat (fn [[peer nodes]]
                                (map (partial merge {:peer peer}) (vals nodes))))

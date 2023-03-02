@@ -225,10 +225,8 @@
           (log/debug "Reloading" ns-sym))
         (try (require ns-sym :reload) ; will throw if source code is invalid CLJ(C)
              (catch FileNotFoundException _) ; Some namespaces don’t map to files (e.g. Math)
-             (catch Throwable e
-               ;; HACK using log/debug or log/info here breaks shadow build (because it expands to `(log* … ~*ns* …)
-               ;; https://www.notion.so/hyperfiddle/Shadow-fails-to-run-clj-file-containing-ns-form-returned-from-macro-7c015ec32ace4e82872333f86819da76
-               (prn "Failed to load" ns-sym e)))
+             (catch Throwable e              ; TODO improve error messages
+               (log/warn "Failed to load" ns-sym e)))
         (swap! !macro-load-cache assoc-in [ns-sym ::last-loaded] current-timestamp)))))
 
 (defn peer-language
