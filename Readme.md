@@ -82,7 +82,7 @@ Standalone starter repo to fork:
 ## Dependency
 
 ```clojure
-{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-68-g7e22216c"}}}
+{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-123-ga7fa624f"}}}
 ```
 [![Clojars Project](https://img.shields.io/clojars/v/com.hyperfiddle/electric.svg)](https://clojars.org/com.hyperfiddle/electric)
 
