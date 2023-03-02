@@ -119,7 +119,7 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
   ; no varadic arity, user should explicitly state unit of work, so no ambiguity about concurrent tasks
   ([f!] `(new (-offload ~f! m/blk))))
 
-(defmacro ^:deprecated wrap [& body] `(offload #(do ~@body)))
+(defmacro ^:deprecated wrap "Deprecated. Use `offload` instead." [& body] `(offload #(do ~@body)))
 
 ; Should these be in missionary?
 (def chan-read! contrib.missionary-contrib/chan-read!)
