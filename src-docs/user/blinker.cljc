@@ -6,7 +6,7 @@
 
 (e/defn MyComponent []
   (dom/h1 (dom/text (e/server (query))))
-  (e/on-mount #(println 'component-did-mount))
+  (println 'component-did-mount)
   (e/on-unmount #(println 'component-will-unmount)))
 
 (e/defn Blinker []
