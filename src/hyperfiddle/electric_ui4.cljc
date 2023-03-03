@@ -179,7 +179,7 @@
                                            (for-truncated [id# (new Options# search#)] 20
                                              (e/client
                                                (dom/li (dom/text (e/server (new OptionLabel# id#)))
-                                                 (e/on-mount #(swap! !selected# select-if-first dom/node))
+                                                 (swap! !selected# select-if-first dom/node)
                                                  (e/on-unmount #(swap! !selected# ?pass-on-to-first dom/node))
                                                  (track-id dom/node id#)
                                                  (?mark-selected selected#)
@@ -270,7 +270,7 @@
                                      (for-truncated [id# (new Options# search#)] 20
                                        (e/client
                                          (dom/li (dom/text (e/server (new OptionLabel# id#)))
-                                           (e/on-mount #(swap! !selected# select-if-first dom/node))
+                                           (swap! !selected# select-if-first dom/node)
                                            (e/on-unmount #(swap! !selected# ?pass-on-to-first dom/node))
                                            (track-id dom/node id#)
                                            (?mark-selected selected#)

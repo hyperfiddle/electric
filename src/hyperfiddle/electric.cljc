@@ -10,7 +10,7 @@
             #?(:cljs [hyperfiddle.electric-client])
             [hyperfiddle.electric.impl.io :as io]
             [hyperfiddle.electric.debug :as dbg])
-  #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn boot for for-by local run debounce wrap on-mount on-unmount]]))
+  #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn boot for for-by local run debounce wrap on-unmount]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.electric Pending Failure FailureInfo)
            (missionary Cancelled)))
@@ -318,8 +318,10 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
          (hyperfiddle.electric/fn ~@(when (symbol? F) [F]) [~@rest-args]
                                   (new F# ~@args ~@rest-args))))))
 
-(defmacro on-mount [f] `(new (m/observe (cc/fn [!#] (~f) (!# nil) (cc/fn []))))) ; experimental, may not be needed
-(defmacro on-unmount [f] `(new (m/observe (cc/fn [!#] (!# nil) ~f)))) ; experimental
+(defmacro on-unmount "Run clojure(script) thunk `f` during unmount.
+
+  Standard electric code runs on mount, therefore there is no `on-mount`."
+  [f] `(new (m/observe (cc/fn [!#] (!# nil) ~f)))) ; experimental
 
 (defn ?PrintServerException [id]
   (try (server
