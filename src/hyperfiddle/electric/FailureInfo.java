@@ -1,7 +1,7 @@
 package hyperfiddle.electric;
-import clojure.lang.IPersistentVector;
 import clojure.lang.IExceptionInfo;
 import clojure.lang.IPersistentMap;
+import clojure.lang.Util;
 
 /*
   Like ExceptionInfo, but for electric failure.
@@ -30,7 +30,7 @@ public class FailureInfo extends RuntimeException implements IExceptionInfo{
     }
 
     public boolean equals(Object o){
-        return (o instanceof FailureInfo) && (this.getCause().equals(((FailureInfo) o).getCause())) ;
+        return (o instanceof FailureInfo) && Util.equals(this.getCause(), ((FailureInfo) o).getCause());
     }
 
 }
