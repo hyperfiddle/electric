@@ -74,52 +74,23 @@ Standalone starter repo to fork:
 * https://github.com/hyperfiddle/electric-starter-app
 
 ## IDE setup
+* [Cursive](docs/ide_cursive.md)
+* [Emacs](docs/ide_emacs.md)
+<!-- * [Calva](docs/ide_calva.md) – todo fix -->
 
-* [docs/ide_emacs.md](docs/ide_emacs.md)
-* [docs/ide_cursive.md](docs/ide_cursive.md)
-* [docs/ide_calva.md](docs/ide_calva.md)
+## Dependency and changelog
 
-## Dependency
+`com.hyperfiddle/electric {:mvn/version "v2-alpha-123-ga7fa624f"}`
 
-```clojure
-{:deps {com.hyperfiddle/electric {:mvn/version "v2-alpha-123-ga7fa624f"}}}
-```
-[![Clojars Project](https://img.shields.io/clojars/v/com.hyperfiddle/electric.svg)](https://clojars.org/com.hyperfiddle/electric)
-
-- Production ready for, let's say back office apps, after 8 months of private user testing and extreme dogfooding in the Hyperfiddle sister project.
-- As a maturity indicator, the only low level bug in recent memory was a hash collision triggered by scrolling a server-paginated grid over thousands of server-streamed elements.
-- Stack traces aren't great; we do have async stack traces already but they need work
-
-Current development priorities:
-* developer experience improvements
-* network planner improvements
-* language semantics improvements
-
-To date we have focused on correct semantics over syntax and performance. Now that we are useful in production, we are using production learnings to drive our priorities.
-
-**Community**: #hyperfiddle @ clojurians.net for support; follow https://twitter.com/dustingetz for progress updates
-
-## Clojure compat matrix
-
-We target full Clojure/Script compatibility (say 99%). That means you can take a pre-existing Clojure snippet and copy/paste it into an Electric function body and it will "work" and produce the correct result. Including host interop syntax, use of pre-existing macros, etc.
-
-Gaps:
-
-- no variable e/fn arity yet
-- no recursion yet - see workaround in [src-docs/user/electric/electric_recursion](https://github.com/hyperfiddle/electric/blob/master/src-docs/user/electric/electric_recursion.cljc)
-- reactive multimethods
-- reactive protocols
-- ...
+* [Changelog](docs/CHANGELOG.md)
+* [Clojure compatibiltiy matrix](docs/clojure-compat-matrix.md)
+* Support chatroom: #hyperfiddle @ clojurians.net; follow https://twitter.com/dustingetz for progress updates
+* Contributing: PRs require a signed contributors agreement (like Clojure), DM dustingetz on slack. No typo fixes please, we are not all native English speakers and we decided it's not worth it.
 
 ## Errors and issues
 * Requires -Xss2m to compile. The default of 1m ThreadStackSize is exceeded by the Electric compiler due to large macroexpansions resulting in false StackOverflowError during analysis.
 * :eval opcode - probably interop syntax, or a macro like assert that expands to interop syntax
 * `Unbound var.` Usually means wrong peer, i.e. accessed server-only var on client
-
-## Contributing
-
-* PRs require a signed contributors agreement (like Clojure), DM dustingetz on slack.
-* No typo fixes please, we are not all native English speakers and we decided it's not worth it.
 
 ## References and reading
 
