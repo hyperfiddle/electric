@@ -1,6 +1,7 @@
 (ns contrib.element-syntax
   "Experimental electric-dom syntax contributed by @tatut. Unsupported, expect breaking changes,
   use at your own risk!"
+  #?(:cljs (:require-macros [contrib.element-syntax :refer [<%]]))
   (:require [clojure.string :as str]
             [hyperfiddle.electric-dom2 :as dom]))
 
@@ -63,3 +64,67 @@
           (if (string? c)
             `(dom/text ~c)
             c)))))
+
+(comment
+
+  ; Gotchas:
+  ; 1. (dom/style {:background-color "yellow"}) -- can be fixed
+  ; 2. (dom/text x) needed for non-literal x -- hard to fix
+  ; 3. overloaded semantics for string literals. What if we want to pass them out the return channel?
+
+  (ns user.demo-4-chat-extended
+    (:require
+      contrib.str
+      [contrib.element-syntax :refer [<%]]
+      [hyperfiddle.api :as hf]
+      [hyperfiddle.electric :as e]
+      [hyperfiddle.electric-dom2 :as dom]))
+
+  #?(:clj (defonce !msgs (atom '())))
+  (e/def msgs (e/server (reverse (e/watch !msgs))))
+
+  #?(:clj (defonce !present (atom {}))) ; session-id -> user
+  (e/def present (e/server (e/watch !present)))
+
+  (e/defn Chat [username]
+    (<% :p "Present: ")
+    (<% :ul
+      (e/server
+        (e/for [[session-id username] present]
+          (e/client
+            (<% :li (dom/text username (str " (session-id: " session-id ")")))))))
+
+    (<% :hr)
+    (<% :ul
+      (e/server
+        (e/for [{:keys [::username ::msg]} msgs]
+          (e/client
+            (<% :li (<% :strong (dom/text username)) " " (dom/text msg))))))
+
+    (<% :input
+      {:props {:placeholder "Type a message"}
+       :on-keydown (e/fn [e]
+                     (when (= "Enter" (.-key e))
+                       (when-some [v (contrib.str/empty->nil (-> e .-target .-value))]
+                         (dom/style {:background-color "yellow"})
+                         (e/server (swap! !msgs #(cons {::username username ::msg v} (take 9 %))))
+                         (set! (.-value dom/node) ""))))}))
+
+  (e/defn App []
+    (e/client
+      (<% :h1 "Multiplayer chat app with auth and presence")
+      (let [session-id (e/server (get-in hf/*http-request* [:headers "sec-websocket-key"]))
+            username (e/server (get-in hf/*http-request* [:cookies "username" :value]))]
+        (if-not (some? username)
+          (do (<% :p "Set login cookie here: " (<% :a {:href "/auth"} "/auth") " (blank password)")
+              (<% :p "Example HTTP endpoint is here: "
+                (<% :a {:href "https://github.com/hyperfiddle/electric/blob/master/src/hyperfiddle/electric_jetty_server.clj"}
+                  "electric_jetty_server.clj")))
+          (do
+            (e/server
+              (swap! !present assoc session-id username)
+              (e/on-unmount #(swap! !present dissoc session-id)))
+            (<% :p "Authenticated as: " (dom/text username))
+            (Chat. username))))))
+
+  )
