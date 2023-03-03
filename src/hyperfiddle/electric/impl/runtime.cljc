@@ -1478,11 +1478,11 @@
     (let [! (q)]
       (! (assoc empty-event
            :change {[0 0] (Failure. (dbg/ex-info* "0" {} "f0f38709-0191-45b7-85e9-1266abb467df" nil))}))
-      (q) := (assoc empty-event :acks 1 :change {[0 0] _})
+      (q) := {:acks 1, :tree [], :change {[0 0] _}, :freeze #{}}
       ((q))
 
       (! (assoc empty-event
            :change {[0 0] (Failure. (dbg/ex-info* "1" {} "064710fe-35bb-4dc6-bfdf-667702434acd" nil))}))
-      (q) := (assoc empty-event :acks 1 :change {[0 0] _})
+      (q) := {:acks 1, :tree [], :change {}, :freeze #{}}
       ((q))
       )))
