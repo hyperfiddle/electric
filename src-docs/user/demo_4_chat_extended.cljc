@@ -6,7 +6,6 @@
    [hyperfiddle.electric-dom2 :as dom]))
 
 ; Fleshed out chat demo with auth and presence
-; Has missionary interop, this is a more advanced demo
 
 #?(:clj (defonce !msgs (atom '())))
 (e/def msgs (e/server (reverse (e/watch !msgs))))
