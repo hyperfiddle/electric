@@ -221,8 +221,8 @@
           current-timestamp (ns-file-timestamp env ns-sym)]
       (when (or (nil? last-loaded) (< last-loaded current-timestamp))
         (if (nil? last-loaded)
-          (log/trace "Loading" ns-sym)
-          (log/debug "Reloading" ns-sym))
+          (log/trace "loading" ns-sym)
+          (log/debug "reloading" ns-sym))
         (try (require ns-sym :reload) ; will throw if source code is invalid CLJ(C)
              (catch FileNotFoundException _) ; Some namespaces don’t map to files (e.g. Math)
              (catch Throwable e              ; TODO improve error messages
