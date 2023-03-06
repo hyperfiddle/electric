@@ -84,7 +84,6 @@
           (case k
             "style" (goog.style/setStyle node v)
             "class" (.setAttributeNS node nil "class" (class-str v))
-            "for"   (set! (.-htmlFor node) v)
             "list"  (.setAttributeNS node nil k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
             (if-let [k (goog.object/get goog.dom/DIRECT_ATTRIBUTE_MAP_ k)]
               (.setAttributeNS node nil k v)
