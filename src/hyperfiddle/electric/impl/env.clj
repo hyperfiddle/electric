@@ -193,7 +193,13 @@
            ;; not files. We also don’t want to reload them.
            nil))))
 
-(defn resolve-file [env ns-sym]
+(defn resolve-file
+  "Resolve a source file from namespace symbol.
+  Precedence:
+  - cljc,
+  - cljs if we are compiling clojurescript,
+  - clj otherwise."
+  [env ns-sym]
   (let [file-name (ns-filename ns-sym)
         cljc      (find-file (str file-name ".cljc"))
         clj       (find-file (str file-name ".clj"))
@@ -206,28 +212,41 @@
         (when (and clj (.exists clj))
           clj)))))
 
-(defn ns-file-timestamp [env ns-sym]
-  (if-let [file (resolve-file env ns-sym)]
-    (.lastModified file)
-    0))
+(defn file-timestamp [^java.io.File file] (when (some? file) (.lastModified file)))
+(defn file-extension [^java.io.File file] (when (some? file) (peek (str/split (.getName file) #"\."))))
 
 (def !macro-load-cache (atom {})) ; records the last time a source file was loaded
 
-(defn maybe-load-clj-ns!
-  "Reload a namespace if the source file changed on disk since the last time it was loaded by Electric Compiler."
-  [env ns-sym]
-  (when-not (re-find #"^(hyperfiddle\.electric|clojure\.|cljs\.)" (str ns-sym)) ; electric impl cannot not reload itself, they must resort to :require-macros.
-    (let [last-loaded       (get-in @!macro-load-cache [ns-sym ::last-loaded])
-          current-timestamp (ns-file-timestamp env ns-sym)]
-      (when (or (nil? last-loaded) (< last-loaded current-timestamp))
-        (if (nil? last-loaded)
-          (log/trace "loading" ns-sym)
-          (log/debug "reloading" ns-sym))
-        (try (require ns-sym :reload) ; will throw if source code is invalid CLJ(C)
-             (catch FileNotFoundException _) ; Some namespaces don’t map to files (e.g. Math)
-             (catch Throwable e              ; TODO improve error messages
-               (log/warn "Failed to load" ns-sym e)))
-        (swap! !macro-load-cache assoc-in [ns-sym ::last-loaded] current-timestamp)))))
+(defn load-ns! [ns-sym & args]
+  (try (apply require ns-sym args) ; will throw if source code is invalid CLJ(C)
+       (catch FileNotFoundException _) ; Some namespaces don’t map to files (e.g. Math)
+       (catch Throwable e              ; TODO improve error messages
+         (log/warn "Failed to load" ns-sym e))))
+
+(defn maybe-load-clj-ns! [env ns-sym]
+  (when-not (re-find #"^hyperfiddle\.electric" (str ns-sym)) ; electric doesn't reload itself
+    (let [last-loaded (get-in @!macro-load-cache [ns-sym ::last-loaded])]
+      (if (find-ns ns-sym) ; ns is already loaded on JVM?
+        (when-let [file (resolve-file env ns-sym)] ; if source is in userland
+          (when (not= "cljs" (file-extension file)) ; cljs files are not reloadable, homonym reloading is handled by shadow with :require-macros
+            (let [current-timestamp (file-timestamp file)]
+              (if (some? last-loaded)
+                (when (< last-loaded current-timestamp) ; source is newer
+                  (log/debug "reloading" ns-sym)
+                  (load-ns! ns-sym :reload))
+                (when (empty? (ns-interns (find-ns ns-sym)))  ; FIXME support macros defined in cljs (no need to load corresponding clj ns if cljs macro is available in cljs space)
+                  (log/trace "initial load" ns-sym)
+                  (load-ns! ns-sym)))
+              (swap! !macro-load-cache assoc-in [ns-sym ::last-loaded] current-timestamp))))
+        ;; ns is not loaded
+        (if-let [file (resolve-file env ns-sym)]  ; try to load it from userland source
+          (when-not (= "cljs" (file-extension file)) ; cljs files are not loadable on the JVM
+            (let [current-timestamp (file-timestamp file)]
+              (log/trace "loading source" ns-sym)
+              (load-ns! ns-sym)
+              (swap! !macro-load-cache assoc-in [ns-sym ::last-loaded] current-timestamp)))
+          (do (log/trace "loading external" ns-sym)  ; maybe ns-sym refers to a library
+              (load-ns! ns-sym)))))))
 
 (defn peer-language
   "Given a compiler environment, return :clj or :cljs, according to the peer-config map (set by `e/boot`)"
