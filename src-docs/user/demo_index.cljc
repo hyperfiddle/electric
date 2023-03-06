@@ -5,9 +5,8 @@
             [hyperfiddle.history :as router])) ; for link only
 
 (def pages
-  [`user.demo-1-hello-world/HelloWorld
+  [`user.demo-two-clocks/Two-clocks
    ::toggle
-   ::two-clocks
    ::system-properties
    ::chat
    ::chat-extended
@@ -17,7 +16,7 @@
    ::todomvc-composed
    `user.demo-explorer/DirectoryExplorer
    ::infinite-scroll
-   `user.blinker/Blinker
+   `user.tutorial-blinker/Blinker
    ::color
    ::seven-guis-counter
    ::seven-guis-temperature-converter
@@ -40,7 +39,7 @@
 
 (e/defn Demos []
   (e/client
-    (dom/h1 (dom/text "Demos — Electric Clojure/Script"))
+    (dom/h1 (dom/text "Demos — Electric Clojure"))
     (dom/p (dom/text "See source code in src-docs."))
     (e/for [k pages]
       (dom/div (router/link [k] (dom/text (name k)))))

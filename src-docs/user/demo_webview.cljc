@@ -1,4 +1,4 @@
-(ns user.demo-4-webview
+(ns user.demo-webview
   "Electric fullstack query/view composition with client/server transfer"
   (:require #?(:clj [datascript.core :as d])
             [hyperfiddle.electric :as e]

@@ -1,4 +1,4 @@
-(ns user.demo-5-todomvc
+(ns user.demo-todomvc
   "Requires -Xss2m to compile. The Electric compiler exceeds the default 1m JVM ThreadStackSize
   due to large macroexpansion resulting in false StackOverflowError during analysis."
   (:require
