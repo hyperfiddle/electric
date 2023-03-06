@@ -1,4 +1,4 @@
-(ns user.demo-4-chat
+(ns user.demo-chat
   (:import [hyperfiddle.electric Pending])
   (:require [contrib.data :refer [pad]]
             [contrib.str :refer [empty->nil]]

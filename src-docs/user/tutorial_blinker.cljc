@@ -1,4 +1,4 @@
-(ns user.blinker
+(ns user.tutorial-blinker
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]))
 
