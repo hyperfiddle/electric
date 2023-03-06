@@ -1,4 +1,4 @@
-(ns user.demo-4-chat-extended
+(ns user.demo-chat-extended
   (:require
    contrib.str
    [hyperfiddle.api :as hf]

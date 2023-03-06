@@ -1,4 +1,4 @@
-(ns user.demo-3-system-properties
+(ns user.demo-system-properties
   (:require
    [clojure.string :as str]
    [hyperfiddle.electric :as e]
