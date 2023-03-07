@@ -7,17 +7,17 @@
 
 ; Fleshed out chat demo with auth and presence
 
-#?(:clj (defonce !msgs (atom '())))
+#?(:clj (defonce !msgs (atom (list))))
 (e/def msgs (e/server (reverse (e/watch !msgs))))
 
 #?(:clj (defonce !present (atom {}))) ; session-id -> user
 (e/def present (e/server (e/watch !present)))
 
-(e/defn Chat [username]
+(e/defn Chat-UI [username]
   (dom/p (dom/text "Present: "))
   (dom/ul
     (e/server
-      (e/for [[session-id username] present]
+      (e/for-by first [[session-id username] present]
         (e/client
           (dom/li (dom/text username (str " (session-id: " session-id ")")))))))
 
@@ -26,8 +26,8 @@
     (e/server
       (e/for [{:keys [::username ::msg]} msgs]
         (e/client
-          (dom/li
-            (dom/strong (dom/text username)) (dom/text " " msg))))))
+          (dom/li (dom/strong (dom/text username))
+            (dom/text " " msg))))))
 
   (dom/input
     (dom/props {:placeholder "Type a message"})
@@ -38,7 +38,7 @@
                             (e/server (swap! !msgs #(cons {::username username ::msg v} (take 9 %))))
                             (set! (.-value dom/node) "")))))))
 
-(e/defn App []
+(e/defn ChatExtended []
   (e/client
     (dom/h1 (dom/text "Multiplayer chat app with auth and presence"))
     (let [session-id (e/server (get-in hf/*http-request* [:headers "sec-websocket-key"]))
@@ -53,4 +53,4 @@
             (swap! !present assoc session-id username)
             (e/on-unmount #(swap! !present dissoc session-id)))
           (dom/p (dom/text "Authenticated as: " username))
-          (Chat. username))))))
+          (Chat-UI. username))))))

@@ -1,4 +1,4 @@
-(ns user.todos-simple
+(ns user.demo-todos-simple
   (:require #?(:clj [datascript.core :as d]) ; database on server
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
@@ -50,7 +50,7 @@
                       :where [?e :task/status]] db)
             (sort-by :task/description))))
 
-(e/defn Todo-list []
+(e/defn TodoList []
   (e/server
     (binding [db (e/watch !conn)]
       (e/client

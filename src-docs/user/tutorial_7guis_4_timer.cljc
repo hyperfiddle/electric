@@ -1,4 +1,4 @@
-(ns user.seven-gui-4-timer
+(ns user.tutorial-7guis-4-timer
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui4]))

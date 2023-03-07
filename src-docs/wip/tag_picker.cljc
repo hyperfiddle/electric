@@ -9,7 +9,7 @@
            :derek   {:name "Derek E"}})
 (defn q [search] (into [] (keep (fn [[k {nm :name}]] (when (str/includes? nm search) k))) data))
 
-(e/defn App []
+(e/defn TagPicker []
   (e/server
     (let [!v (atom #{:alice :bob})]
       (ui/tag-picker (e/watch !v)

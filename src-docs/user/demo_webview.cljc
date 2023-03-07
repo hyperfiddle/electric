@@ -41,7 +41,7 @@
                     (dom/td (dom/text (e/server (:order/email !e))))
                     (dom/td (dom/text (e/server (:order/gender !e))))))))))))))
 
-(e/defn App []
+(e/defn Webview []
   (let [db (e/watch conn)] ; reactive "database value"
     (Teeshirt-orders-view. db)))
 

@@ -126,7 +126,7 @@
                 (set! (.-value dom/node) "")))))
         (dom/props {:class "new-todo", :placeholder "What needs to be done?"})))))
 
-(e/defn TodoApp [state]
+(e/defn TodoMVC-UI [state]
   (dom/section (dom/props {:class "todoapp"})
     (dom/header (dom/props {:class "header"})
       (CreateTodo.))
@@ -135,10 +135,10 @@
     (dom/footer (dom/props {:class "footer"})
       (TodoStats. state))))
 
-(e/defn TodoMVC [state]
+(e/defn TodoMVC-body [state]
   (dom/div (dom/props {:class "todomvc"})
     (dom/h1 (dom/text "TodoMVC"))
-    (TodoApp. state)
+    (TodoMVC-UI. state)
     (dom/footer (dom/props {:class "info"})
       (dom/p (dom/text "Double-click to edit a todo")))))
 
@@ -159,7 +159,7 @@
           (d/transact! !conn tx)
           (catch InterruptedException _))))
 
-(e/defn App []
+(e/defn TodoMVC []
   (e/client
     (let [state (e/watch !state)]
       (e/server
@@ -169,7 +169,7 @@
             (dom/link (dom/props {:rel :stylesheet, :href "/todomvc.css"}))
             ; exclude #root style from todomvc-composed by inlining here
             (dom/element "style" (dom/text "body { width: 65vw; margin-left: auto; margin-right: auto; }"))
-            (TodoMVC. state)
+            (TodoMVC-body. state)
             #_(Diagnostics. state)))))))
 
 (comment
