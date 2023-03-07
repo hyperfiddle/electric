@@ -5,35 +5,38 @@
             [hyperfiddle.history :as router])) ; for link only
 
 (def pages
-  [`user.demo-two-clocks/Two-clocks
-   ::toggle
-   ::system-properties
-   ::chat
-   ::chat-extended
-   ::webview
-   ::todos-simple
-   ::todomvc
-   ::todomvc-composed
+  [`user.demo-two-clocks/TwoClocks
+   `user.demo-toggle/Toggle
+   `user.demo-system-properties/SystemProperties
+   `user.demo-chat/Chat
+   `user.demo-chat-extended/ChatExtended
+   `user.demo-webview/Webview
+   `user.demo-todos-simple/TodoList
+   `user.demo-todomvc/TodoMVC
+   `user.demo-todomvc-composed/TodoMVC-composed
    `user.demo-explorer/DirectoryExplorer
-   ::infinite-scroll
+   `user.demo-virtual-scroll/VirtualScroll
    `user.tutorial-blinker/Blinker
-   ::color
-   ::seven-guis-counter
-   ::seven-guis-temperature-converter
-   ::seven-guis-timer
-   ::seven-guis-crud
-   ::tic-tac-toe
+   `user.demo-color/Color
    `user.demo-svg/SVG
+   `user.demo-tic-tac-toe/TicTacToe
    #_`user.demo-reagent-interop/ReagentInterop])
 
+(def seven-guis
+  [`user.tutorial-7guis-1-counter/Counter
+   `user.tutorial-7guis-2-temperature/TemperatureConverter
+   `user.tutorial-7guis-4-timer/Timer
+   `user.tutorial-7guis-5-crud/CRUD])
+
 (def secret-pages
-  [::hfql-teeshirt-orders
-   ::explorer2
-   ::demo-10k-dom-elements
-   ::router-recursion
-   ::tag-picker
+  [`wip.teeshirt-orders/Webview-HFQL
+   `wip.demo-explorer2/DirectoryExplorer-HFQL
+   ;`user.demo-10k-dom/Dom-10k-Elements
+   `wip.demo-branched-route/RecursiveRouter
+   `wip.tag-picker/TagPicker
+
    ; need extra deps alias
-   ::dennis-exception-leak
+   ;::dennis-exception-leak
    #_::demo-stage-ui4
    #_`wip.datomic-browser/DatomicBrowser])
 
@@ -43,6 +46,11 @@
     (dom/p (dom/text "See source code in src-docs."))
     (e/for [k pages]
       (dom/div (router/link [k] (dom/text (name k)))))
+
+    (dom/h2 (dom/text "7 GUIs"))
+    (e/for [k seven-guis]
+      (dom/div (router/link [k] (dom/text (name k)))))
+
     (dom/div (dom/style {:opacity 0})
       (router/link [`Secrets] (dom/text "secret-hyperfiddle-demos")))))
 

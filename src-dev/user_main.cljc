@@ -18,16 +18,16 @@
 
             user.demo-explorer
             wip.demo-explorer2
-            user.demo-10k-dom-elements
+            user.demo-10k-dom
             user.demo-svg
-            user.todos-simple
-            user.seven-gui-1-counter
-            user.seven-gui-2-temperature-converter
-            user.seven-gui-4-timer
-            user.seven-gui-5-crud
-            user.demo-scrollview
+            user.demo-todos-simple
+            user.tutorial-7guis-1-counter
+            user.tutorial-7guis-2-temperature
+            user.tutorial-7guis-4-timer
+            user.tutorial-7guis-5-crud
+            user.demo-virtual-scroll
             user.demo-color
-            user.tic-tac-toe
+            user.demo-tic-tac-toe
             user.tutorial-blinker
             wip.demo-branched-route
             #_wip.hfql
@@ -53,28 +53,28 @@
     (case page
       `user.demo-index/Demos user.demo-index/Demos
       `user.demo-index/Secrets user.demo-index/Secrets
-      `user.demo-two-clocks/Two-clocks user.demo-two-clocks/Two-clocks
-      ::demos/hfql-teeshirt-orders wip.teeshirt-orders/App
+      `user.demo-two-clocks/TwoClocks user.demo-two-clocks/TwoClocks
+      `wip.teeshirt-orders/Webview-HFQL wip.teeshirt-orders/Webview-HFQL
       `user.demo-explorer/DirectoryExplorer user.demo-explorer/DirectoryExplorer
-      ::demos/explorer2 wip.demo-explorer2/App
-      ;::demos/demo-10k-dom-elements user.demo-10k-dom-elements/App ; todo too slow to unmount, crashes
-      ::demos/router-recursion wip.demo-branched-route/App
-      ::demos/tag-picker wip.tag-picker/App
-      ::demos/toggle user.demo-toggle/App
-      ::demos/system-properties user.demo-system-properties/App
-      ::demos/chat user.demo-chat/App
-      ::demos/chat-extended user.demo-chat-extended/App
-      ::demos/webview user.demo-webview/App
-      ::demos/todos-simple user.todos-simple/Todo-list ; css fixes
-      ::demos/todomvc user.demo-todomvc/App
-      ::demos/todomvc-composed user.demo-todomvc-composed/App
-      ::demos/color user.demo-color/App
-      ::demos/infinite-scroll user.demo-scrollview/Demo
-      ::demos/seven-guis-counter user.seven-gui-1-counter/Counter
-      ::demos/seven-guis-temperature-converter user.seven-gui-2-temperature-converter/App
-      ::demos/seven-guis-timer user.seven-gui-4-timer/Timer
-      ::demos/seven-guis-crud user.seven-gui-5-crud/App
-      ::demos/tic-tac-toe user.tic-tac-toe/App
+      `wip.demo-explorer2/DirectoryExplorer-HFQL wip.demo-explorer2/DirectoryExplorer-HFQL
+      ;user.demo-10k-dom/Dom-10k-Elements user.demo-10k-dom/Dom-10k-Elements ; todo too slow to unmount, crashes
+      `wip.demo-branched-route/RecursiveRouter wip.demo-branched-route/RecursiveRouter
+      `wip.tag-picker/TagPicker wip.tag-picker/TagPicker
+      `user.demo-toggle/Toggle user.demo-toggle/Toggle
+      `user.demo-system-properties/SystemProperties user.demo-system-properties/SystemProperties
+      `user.demo-chat/Chat user.demo-chat/Chat
+      `user.demo-chat-extended/ChatExtended user.demo-chat-extended/ChatExtended
+      `user.demo-webview/Webview user.demo-webview/Webview
+      `user.demo-todos-simple/TodoList user.demo-todos-simple/TodoList ; css fixes
+      `user.demo-todomvc/TodoMVC user.demo-todomvc/TodoMVC
+      `user.demo-todomvc-composed/TodoMVC-composed user.demo-todomvc-composed/TodoMVC-composed
+      `user.demo-color/Color user.demo-color/Color
+      `user.demo-virtual-scroll/VirtualScroll user.demo-virtual-scroll/VirtualScroll
+      `user.tutorial-7guis-1-counter/Counter user.tutorial-7guis-1-counter/Counter
+      `user.tutorial-7guis-2-temperature/TemperatureConverter user.tutorial-7guis-2-temperature/TemperatureConverter
+      `user.tutorial-7guis-4-timer/Timer user.tutorial-7guis-4-timer/Timer
+      `user.tutorial-7guis-5-crud/CRUD user.tutorial-7guis-5-crud/CRUD
+      `user.demo-tic-tac-toe/TicTacToe user.demo-tic-tac-toe/TicTacToe
       `user.demo-svg/SVG user.demo-svg/SVG
       `user.tutorial-blinker/Blinker user.tutorial-blinker/Blinker
       ;`user.demo-reagent-interop/ReagentInterop (when react-available user.demo-reagent-interop/ReagentInterop)

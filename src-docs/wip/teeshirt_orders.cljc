@@ -66,7 +66,7 @@
              [:db/ident]}
             ]})))))
 
-(e/defn App []
+(e/defn Webview-HFQL []
   (e/client
     (dom/h1 (dom/text "Teeshirt orders"))
     (dom/pre (dom/text (contrib.str/pprint-str router/route)))

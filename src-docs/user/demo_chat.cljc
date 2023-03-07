@@ -5,16 +5,17 @@
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]))
 
-#?(:clj (defonce !state (atom (list))))
+#?(:clj (defonce !msgs (atom (list))))
+(e/def msgs (e/server (reverse (pad 10 nil (e/watch !msgs)))))
 
-(e/defn App []
+(e/defn Chat []
   (e/client
     (try
       (dom/h1 (dom/text "Multiplayer chat app in 30 LOC"))
       (dom/p (dom/text "try two tabs!"))
       (dom/ul (dom/style {:padding-left "1.5em"})
         (e/server
-          (e/for-by identity [msg (reverse (pad 10 nil (e/watch !state)))]
+          (e/for-by identity [msg msgs]
             (e/client
               (dom/li (dom/style {:visibility (if (nil? msg) "hidden" "visible")})
                 (dom/text msg))))))
@@ -25,7 +26,7 @@
                             (when (= "Enter" (.-key e))
                               (when-some [v (empty->nil (-> e .-target .-value))]
                                 #_(dom/style {:background-color "yellow"})
-                                (e/server (swap! !state #(cons v (take 9 %))))
+                                (e/server (swap! !msgs #(cons v (take 9 %))))
                                 (set! (.-value dom/node) ""))))))
       (catch Pending e
         (dom/style {:background-color "yellow"})))))
