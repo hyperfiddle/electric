@@ -7,7 +7,9 @@
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.cookies :as cookies]
             [ring.middleware.resource :refer [wrap-resource]]
-            [ring.util.response :as res])
+            [ring.util.response :as res]
+            [clojure.string :as str]
+            [clojure.edn :as edn])
   (:import [java.io IOException]
            [java.net BindException]
            [org.eclipse.jetty.server.handler.gzip GzipHandler]))
@@ -24,10 +26,9 @@
     (cookies/wrap-cookies)
     (auth/wrap-basic-authentication authenticate)))
 
-(defn wrap-default-page [next-handler]
+(defn wrap-router [next-handler]
   (fn [ring-req]
     (case (:uri ring-req)
-      ("" "/") (next-handler (assoc ring-req :uri "/index.html"))
       ("/auth") (let [response  ((wrap-demo-authentication next-handler) ring-req)]
                   (if (= 401 (:status response)) ; authenticated?
                     response                     ; send response to trigger auth prompt
@@ -53,9 +54,20 @@
 
 (defn file-exsist? [path] (.exists (io/as-file path)))
 
-(defn wrap-spa [next-handler]
+(defn template [string opts]
+  (reduce-kv (fn [r k v] (str/replace r (str "$" k "$") v)) string opts))
+
+(defn get-modules [js-path]             ; TODO improve error message if `manifest` is missing
+  (->> (slurp (io/resource (str js-path "/manifest.edn")))
+    (edn/read-string)
+    (reduce (fn [r module] (assoc r (keyword "hyperfiddle.client.module" (name (:name module))) (str "/js/" (:output-name module)))) {})))
+
+(defn wrap-index-page [next-handler resources-path js-path]
   (fn [ring-req]
-    (next-handler (assoc ring-req :uri "/index.html" ))))
+    (if-let [response (res/resource-response (str resources-path "/index.html"))]
+      (-> (update response :body #(template (slurp %) (get-modules js-path)))
+        (res/content-type "text/html"))
+      (next-handler ring-req))))
 
 (defn- add-gzip-handler [server]
   (.setHandler server
@@ -64,18 +76,16 @@
       (.setMinGzipSize 1024)
       (.setHandler (.getHandler server)))))
 
-(defn start-server! [{:keys [resources-path port allow-symlinks?] :as config
-                      :or   {resources-path  "resources/public"
+(defn start-server! [{:keys [resources-path js-path port allow-symlinks?] :as config
+                      :or   {resources-path  "public"
+                             js-path         "public/js"
                              allow-symlinks? false}}]
   (try
     (let [ring-handler (cond-> #'default-handler ; these compose as functions, so are applied bottom up
-                                true  (wrap-resource resources-path) ; 6. serve it from jar
-                                true (wrap-content-type) ; 5. detect content
-                                true (wrap-spa) ; 4. otherwise fallback to default page file
-                                true  (wrap-resource resources-path {:allow-symlinks? allow-symlinks?}) ; 3. serve static file from jar
+                                true (wrap-index-page resources-path js-path) ; 4. otherwise fallback to default page file
+                                true (wrap-resource resources-path {:allow-symlinks? allow-symlinks?}) ; 3. serve static file from jar
                                 true (wrap-content-type) ; 2. detect content (e.g. for index.html)
-                                true (wrap-default-page) ; 1. route
-                                true (wrap-no-cache) ; TODO disable in prod
+                                true (wrap-router) ; 1. route
                                 #_(wrap-electric-websocket)) ; Jetty 10 ws configuration with userland entrypoint
 
           ; For Jetty 10 (NOT Java 8 compatible), use `wrap-electric-websocket` as above
