@@ -5,7 +5,8 @@
 (hyperfiddle.rcf/enable!)
 
 (tests
-  (def !order (atom {:account/email "alice@example.com" :order/items [{:item/sku 100 :order/count 2}]}))
+  (def !order (atom {:account/email "alice@example.com"
+                     :order/items [{:item/sku 100 :order/count 2}]}))
 
   (def dispose
     (e/run

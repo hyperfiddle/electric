@@ -44,7 +44,7 @@
                                }})
     (dom/text "Contrast")))
 
-(e/defn App []
+(e/defn Color []
   (e/client
     (let [[self h s l] router/route
           h (or h 180)

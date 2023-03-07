@@ -1,4 +1,4 @@
-(ns user.seven-gui-2-temperature-converter
+(ns user.tutorial-7guis-2-temperature
   (:require
    [hyperfiddle.electric :as e]
    [hyperfiddle.electric-dom2 :as dom]
@@ -12,7 +12,7 @@
 (defn f->c [f] (* (- f 32) (/ 5 9)))
 (defn random-value [_] (m/sp (m/? (m/sleep 2000)) (rand-int 250)))
 
-(e/defn App []
+(e/defn TemperatureConverter []
   (e/client
     (dom/h1 (dom/text "Temperature Converter"))
     (let [!t (atom 0), t (e/watch !t)]

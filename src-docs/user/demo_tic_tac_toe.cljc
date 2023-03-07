@@ -1,4 +1,4 @@
-(ns user.tic-tac-toe
+(ns user.demo-tic-tac-toe
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]))
@@ -17,7 +17,7 @@
         1 "o"
         0 "-"))))
 
-(e/defn App []
+(e/defn TicTacToe []
   (e/client
     (dom/h1 (dom/text "Tic Tac Toe \uD83C\uDFAE"))
     (dom/p (dom/text "multiplayer works, try two tabs"))

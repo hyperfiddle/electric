@@ -10,7 +10,7 @@
 #?(:clj (defonce !x (atom true))) ; server state
 (e/def x (e/server (e/watch !x))) ; reactive signal derived from atom
 
-(e/defn App []
+(e/defn Toggle []
   (e/client
     (dom/h1 (dom/text "Toggle Client/Server"))
 

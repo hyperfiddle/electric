@@ -1,4 +1,4 @@
-(ns user.demo-scrollview
+(ns user.demo-virtual-scroll
   (:require [contrib.data :refer [unqualify]]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
@@ -46,11 +46,14 @@
               (e/for [x (->> xs (take (* pages page-size)))] ; leave dom
                 (e/client (dom/div (dom/text x)))))))))))
 
-(defonce !demo #?(:clj (atom {:text "DemoFixedHeightCounted" ::value `DemoFixedHeightCounted}) :cljs nil))
+#?(:clj (defonce !demo (atom {:text "DemoFixedHeightCounted" ::value `DemoFixedHeightCounted})))
+
 (e/def demo (e/server (e/watch !demo)))
+
 (e/def demos {`DemoVariableHeightInfinite DemoVariableHeightInfinite
               `DemoFixedHeightCounted DemoFixedHeightCounted})
-(e/defn Demo []
+
+(e/defn VirtualScroll []
   (e/client
     ; Requires css {box-sizing: border-box;}
     (dom/element "style" (dom/text ".header { position: fixed; z-index:1; top: 0; left: 0; right: 0; height: 100px; background-color: #abcdef; }"
@@ -68,4 +71,5 @@
                             {:text "DemoVariableHeightInfinite" ::value `DemoVariableHeightInfinite}])
           (e/fn OptionLabel [x] (:text x)))))
     (e/server (new (get demos (::value demo))))
-    (dom/div (dom/props {:class "footer"}) (dom/text "Try scrolling to the top, and resizing the window."))))
+    (dom/div (dom/props {:class "footer"})
+      (dom/text "Try scrolling to the top, and resizing the window."))))

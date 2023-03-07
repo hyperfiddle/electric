@@ -1,4 +1,4 @@
-(ns user.seven-gui-5-crud
+(ns user.tutorial-7guis-5-crud
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui4]
@@ -48,7 +48,7 @@
 
 ;;; Presentation
 
-(e/defn App []
+(e/defn CRUD []
   (e/client
     (dom/h1 (dom/text "7 GUIs: CRUD"))
     (let [state (e/watch !state)

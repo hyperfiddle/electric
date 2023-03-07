@@ -29,7 +29,7 @@
   (router/router :left (hyperfiddle.popover/popover "Recur Left" (Page.)))
   (router/router :right (hyperfiddle.popover/popover "Recur Right" (Page.))))
 
-(e/defn App []
+(e/defn RecursiveRouter []
   (hf/branch
     (e/client
       (binding [Page Page-impl]
@@ -41,14 +41,14 @@
     (router/router page (hyperfiddle.popover/popover "Recur Left"
                           (hf/eval-as-iframe nested))))
 
-  `(wip.demo-branched-route/App
+  `(wip.demo-branched-route/RecursiveRouter
      {::needle "root"
       ::left {::needle ""
               ::left {::needle ""
                       ::right {}}}
       ::right {::needle ""}})
 
-  `(wip.demo-branched-route/App
+  `(wip.demo-branched-route/RecursiveRouter
      {::left `(wip.demo-branched-route/PDF)
       ::right `(wip.demo-branched-route/HTML)})
   )
