@@ -43,13 +43,16 @@
   (b/delete {:path "resources/public/js/main.js.map"})
   (b/delete {:path "resources/public/js/manifest.edn"}))
 
-(defn build-client [_]
+(defn build-client [{:keys [optimize debug verbose] :or {optimize true, debug false, verbose false}}]
   (shadow-server/start!)
-  (shadow-api/release :prod {:verbose true})
+  (shadow-api/release :prod {:debug debug,
+                             :verbose verbose,
+                             :config-merge (when-not optimize
+                                             [{:compiler-options {:optimizations :simple}}])})
   (shadow-server/stop!))
 
-(defn uberjar [{:keys [jar-name]
-                :or   {jar-name default-jar-name}}]
+(defn uberjar [{:keys [jar-name optimize debug verbose]
+                :or   {jar-name default-jar-name, optimize true, debug false, verbose false}}]
   (println "Cleaning up before build")
   (clean nil)
 
@@ -57,7 +60,7 @@
   (clean-cljs nil)
 
   (println "Building client")
-  (build-client nil)
+  (build-client {:optimize optimize, :debug debug, :verbose verbose})
 
   (println "Bundling sources")
   (b/copy-dir {:src-dirs   ["src" "src-dev" "src-docs" "resources"]
