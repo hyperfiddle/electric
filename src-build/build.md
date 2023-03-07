@@ -53,3 +53,25 @@ $ clojure -T:build compile-java
 warning: [options] bootstrap class path not set in conjunction with -source 8
 ```
 The above warning is expected and can be ignored.
+
+
+# Build client production bundle
+
+```shell
+clojure -X:build build-client
+```
+Will compile client program into a single `.js` file, optimized for production.
+
+
+# Build an uberjar
+
+```shell
+clojure -X:build uberjar
+```
+
+Will build:
+- a production-optimized client program
+- an executable, self-contained jar, including:
+  - sources,
+  - resources,
+  - the built client program
