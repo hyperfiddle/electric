@@ -6,6 +6,7 @@
             [ring.middleware.basic-authentication :as auth]
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.cookies :as cookies]
+            [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.resource :refer [wrap-resource]]
             [ring.util.response :as res]
             [clojure.string :as str]
@@ -65,7 +66,8 @@
 (defn wrap-index-page [next-handler resources-path js-path]
   (fn [ring-req]
     (if-let [response (res/resource-response (str resources-path "/index.html"))]
-      (-> (update response :body #(template (slurp %) (get-modules js-path)))
+      (-> (res/response (template (slurp (:body response)) (get-modules js-path))) ; TODO should be cached in prod mode
+        (res/header "Last-Modified" (get-in response [:headers "Last-Modified"]))
         (res/content-type "text/html"))
       (next-handler ring-req))))
 
@@ -76,17 +78,36 @@
       (.setMinGzipSize 1024)
       (.setHandler (.getHandler server)))))
 
+(defn get-server-version [js-path]
+  (if-let [version-file (io/resource (str js-path "/.version"))]
+    (slurp version-file)
+    ""))
+
+(defn wrap-reject-stale-client [next-handler js-path]
+  (let [server-version (get-server-version js-path)]
+    (fn [ring-req]
+      (let [client-version (get-in ring-req [:query-params "version"])]
+        (cond
+          (= "dev" client-version)          (next-handler ring-req)
+          (= client-version server-version) (next-handler ring-req)
+          :else (adapter/reject-websocket-handler 1008 "stale client") ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
+          )))))
+
 (defn start-server! [{:keys [resources-path js-path port allow-symlinks?] :as config
                       :or   {resources-path  "public"
                              js-path         "public/js"
                              allow-symlinks? false}}]
   (try
-    (let [ring-handler (cond-> #'default-handler ; these compose as functions, so are applied bottom up
-                                true (wrap-index-page resources-path js-path) ; 4. otherwise fallback to default page file
-                                true (wrap-resource resources-path {:allow-symlinks? allow-symlinks?}) ; 3. serve static file from jar
-                                true (wrap-content-type) ; 2. detect content (e.g. for index.html)
-                                true (wrap-router) ; 1. route
-                                #_(wrap-electric-websocket)) ; Jetty 10 ws configuration with userland entrypoint
+    (let [ring-handler (-> #'default-handler ; these compose as functions, so are applied bottom up
+                         (wrap-index-page resources-path js-path) ; 4. otherwise fallback to default page file
+                         (wrap-resource resources-path {:allow-symlinks? allow-symlinks?}) ; 3. serve static file from jar
+                         (wrap-content-type) ; 2. detect content (e.g. for index.html)
+                         (wrap-router) ; 1. route
+                         #_(wrap-electric-websocket)) ; Jetty 10 ws configuration with userland entrypoint
+          ring-websocket-handler (fn [next-handler]
+                                   (-> (cookies/wrap-cookies next-handler)
+                                     (wrap-reject-stale-client js-path)
+                                     (wrap-params)))
 
           ; For Jetty 10 (NOT Java 8 compatible), use `wrap-electric-websocket` as above
           ; For Jetty 9 (Java 8 compatible), use :websocket jetty-option as below
@@ -96,12 +117,11 @@
           jetty-options (merge {:port 8080
                                 :join? false
                                 ;; For Jetty 9 forces us to declare WS paths out of a ring handler.
-                                :websockets {"/" (fn [ring-req]
-                                                   (adapter/electric-ws-adapter
-                                                     (partial adapter/electric-ws-message-handler
-                                                              (-> ring-req
-                                                                  (auth/basic-authentication-request authenticate)
-                                                                  (cookies/cookies-request)))))}
+                                :websockets {"/" (ring-websocket-handler
+                                                   (fn [ring-req]
+                                                     (adapter/electric-ws-adapter
+                                                       (partial adapter/electric-ws-message-handler
+                                                         (auth/basic-authentication-request ring-req authenticate)))))}
                                 :configurator add-gzip-handler}
                                config)
           server (ring/run-jetty ring-handler jetty-options)
