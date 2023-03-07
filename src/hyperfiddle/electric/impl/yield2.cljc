@@ -26,11 +26,11 @@
   (when-some [rec (a/fget Y recover)] (trash rec))
   (a/fswap Y children inc)
   (let [me (a/fset Y recover (object-array 3))]
-    (a/set me on-notify #(do), iterator (>r #((a/get me on-notify)) #(terminated Y)))))
-(defn transfer-recover [^Yield Y] (a/set (a/fget Y recover) notified? false) @(a/get (a/fget Y recover) iterator))
+    (a/set me on-notify #(a/set me notified? true), iterator (>r #((a/get me on-notify)) #(terminated Y)))))
+(defn transfer-loop [o] (a/set o notified? false) (let [v @(a/get o iterator)] (if (a/get o notified?) (recur o) v)))
+(defn transfer-recover [^Yield Y] (transfer-loop (a/fget Y recover)))
 (defn transfer-input [^Yield Y]
-  (a/set (a/fget Y input) notified? false)
-  (let [in @(a/get (a/fget Y input) iterator)]
+  (let [in (transfer-loop (a/fget Y input))]
     (if (= in (a/fget Y last-in))
       (a/fget Y last-out)
       (if-some [>recover ((.-checker Y) in)]
@@ -112,7 +112,12 @@
   (it)            @it :throws Cancelled, % := :unmounted, % := :terminated)
 (tests "an immediately ready input works"
   (def it ((yield (fn [x] (when (pos? x) (m/cp :recover))) (m/seed [0 1 2]))  #(do) #(tap :terminated)))
-  @it := 0, @it := :recover, @it := :recover, (it), % := :terminated)
+  ;; 0 and 1 are not seen because of the consecutive transfer
+  @it := :recover, (it), % := :terminated)
+(tests "an immediately ready recovery works"
+  (def it ((yield (fn [_] (m/seed [0 1 2])) (m/cp :hi)) #(do) #(tap :terminated)))
+  ;; 0 and 1 are not seen because of the consecutive transfer
+  @it := 2, (it), % := :terminated)
 (tests "input throws"
   (def !x (atom 0))
   (def it ((yield (constantly nil) (m/latest #(if (pos? %) (throw (ex-info "pos" {})) %) (m/watch !x)))
