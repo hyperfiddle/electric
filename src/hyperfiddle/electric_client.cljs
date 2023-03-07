@@ -5,15 +5,19 @@
             [hyperfiddle.electric.impl.io :as io])
   (:import missionary.Cancelled))
 
+(goog-define VERSION "dev")
+
 (do-browser
   (defn server-url []
-    (let [proto (.. js/window -location -protocol)]
-      (str (case proto
-             "http:" "ws:"
-             "https:" "wss:"
-             (throw (ex-info "Unexpected protocol" proto)))
-           "//"
-           (.. js/window -location -host)))))
+    (let [url (new js/URL (.-location js/window))
+          proto (.-protocol url)]
+      (set! (.-protocol url)
+        (case proto
+          "http:" "ws:"
+          "https:" "wss:"
+          (throw (ex-info "Unexpected protocol" proto))))
+      (.. url -searchParams (set "version" VERSION))
+      (.toString url))))
 
 (def ^:dynamic *ws-server-url* (do-browser (server-url)))
 
@@ -95,8 +99,6 @@ Returns a task producing nil or failing if the websocket was closed before end o
 
 (comment (take 5 retry-delays))
 
-(def retry-codes #{1006 1005}) ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
-
 (defn boot-with-retry [client conn]
   (m/sp
     (loop [delays retry-delays]
@@ -115,8 +117,9 @@ Returns a task producing nil or failing if the websocket was closed before end o
                                                       (m/amb x (recur))
                                                       (m/amb))))))))]
                       (if-some [code (:code info)]
-                        (if (contains? retry-codes code)
-                          (do (.log js/console "Connection lost.") (seq retry-delays))
+                        (case code ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
+                          (1005 1006) (do (.log js/console "Connection lost.") (seq retry-delays))
+                          (1008) (throw (ex-info "Stale client" {:hyperfiddle.electric/type ::stale-client}))
                           (throw (ex-info (str "Remote error - " code " " (:reason info)) {})))
                         (do (.log js/console "Failed to connect.") delays)))]
           (.log js/console (str "Next attempt in " (/ delay 1000) " seconds."))
