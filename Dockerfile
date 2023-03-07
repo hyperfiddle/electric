@@ -22,7 +22,7 @@ COPY src-docs src-docs
 COPY src-build src-build
 COPY resources resources
 ARG REBUILD=unknown
-RUN clojure -X:build uberjar :jar-name "app.jar"
+RUN clojure -X:build uberjar :jar-name "app.jar" :verbose true
 
 FROM amazoncorretto:11 AS app
 WORKDIR /app
