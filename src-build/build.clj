@@ -38,10 +38,7 @@
 (def default-jar-name (format "target/%s-%s-standalone.jar" (name lib) version))
 
 (defn clean-cljs [_]
-  (b/delete {:path "resources/public/js/cljs-runtime"})
-  (b/delete {:path "resources/public/js/main.js"})
-  (b/delete {:path "resources/public/js/main.js.map"})
-  (b/delete {:path "resources/public/js/manifest.edn"}))
+  (b/delete {:path "resources/public/js"}))
 
 (defn build-client [{:keys [optimize debug verbose] :or {optimize true, debug false, verbose false}}]
   (shadow-server/start!)
