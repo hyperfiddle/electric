@@ -125,7 +125,7 @@
                nil))))))
 
 #?(:cljs (defn- listen [node typ f opts] (.addEventListener node typ f opts) #(.removeEventListener node typ f)))
-#?(:cljs (defn- event* [node typ f opts]
+#?(:cljs (defn event* [node typ f opts]
            (m/relieve {} (m/observe (fn [!] (! nil) (listen node typ #(-> % f !) (clj->js opts)))))))
 
 (defmacro on!
@@ -157,6 +157,7 @@
                 :impulse (assoc state :status :pending) ; impulse is seen for 1 frame and then cleared
                 :pending (if busy state {:status :idle}))))))
 
+(defmacro ^:deprecated ^:no-doc event "Deprecated, please use `on!`" [& args] `(on! ~@args))
 (e/def ^:deprecated system-time-ms e/system-time-ms)
 (e/def ^:deprecated system-time-secs e/system-time-secs)
 
