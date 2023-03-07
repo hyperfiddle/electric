@@ -28,7 +28,7 @@
   (let [me (a/fset Y recover (object-array 3))]
     (a/set me on-notify #(a/set me notified? true), iterator (>r #((a/get me on-notify)) #(terminated Y)))))
 (defn transfer-loop [o] (a/set o notified? false) (let [v @(a/get o iterator)] (if (a/get o notified?) (recur o) v)))
-(defn transfer-recover [^Yield Y] (transfer-loop (a/fget Y recover)))
+(defn transfer-recover [^Yield Y] (a/fset Y last-out (transfer-loop (a/fget Y recover))))
 (defn transfer-input [^Yield Y]
   (let [in (transfer-loop (a/fget Y input))]
     (if (= in (a/fget Y last-in))
@@ -150,3 +150,10 @@
 (tests "initial nil isn't work skipped"
   (def it ((yield (fn [_] (tap :recover) nil) (m/cp nil))  #(do) #(do)))
   @it := nil, % := :recover)
+(tests "cache updates on recover values"
+  (def !in (atom 0))
+  (def !x (atom 0))
+  (def it ((yield (fn [_] (m/watch !x)) (m/watch !in)) #(do) #(do)))
+  #_start              @it := 0
+  (swap! !x inc)       @it := 1
+  (swap! !in identity) @it := 1)
