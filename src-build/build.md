@@ -75,3 +75,9 @@ Will build:
   - sources,
   - resources,
   - the built client program
+
+# Build a Docker image
+
+```shell
+docker build --build-arg VERSION=$(git describe --tags --long) -t electric .
+```

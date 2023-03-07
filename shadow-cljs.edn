@@ -17,9 +17,7 @@
                    :output-dir       "resources/public/js"
                    :asset-path       "/js"
                    :module-hash-names true
-                   :modules          {:main {:entries [user] :init-fn user/start!}}
-                   :compiler-options {:fn-invoke-direct true}
-                   :release          {:compiler-options {:optimizations :advanced}}}
+                   :modules          {:main {:entries [user] :init-fn user/start!}}}
             :editor   {:target        :browser
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}

@@ -90,3 +90,13 @@
       (m/sp
         (m/? ((e/eval resolvef (io/decode (m/? (m/reduce (comp reduced {}) nil (m/observe read-msg)))))   ; read and eval Electric program sent by client
               (comp write-msg io/encode) (fn [cb] (read-msg (comp cb io/decode)))))))))
+
+(defn reject-websocket-handler
+  "Will accept socket connection upgrade and immediately close the socket on
+  connection, with given `code` and `reason`. Use this to cleanly reject a
+  websocket connection."
+  ;; Rejecting the HTTP 101 Upgrade request would also prevent the socket to
+  ;; open, but for security reasons, the client is never informed of the HTTP
+  ;; 101 failure cause.
+  [code reason]
+  {:on-connect (fn [^WebSocketAdapter ws] (.. ws getSession (close code reason)))})

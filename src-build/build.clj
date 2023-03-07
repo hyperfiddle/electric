@@ -7,7 +7,7 @@
             ))
 
 (def lib 'com.hyperfiddle/electric)
-(def version "0.0.0-alpha0")
+(def version (b/git-process {:git-args "describe --tags --long"}))
 (def basis (b/create-basis {:project "deps.edn"}))
 
 ;;; Library
@@ -40,16 +40,19 @@
 (defn clean-cljs [_]
   (b/delete {:path "resources/public/js"}))
 
-(defn build-client [{:keys [optimize debug verbose] :or {optimize true, debug false, verbose false}}]
+(defn build-client [{:keys [optimize debug verbose version]
+                     :or {optimize true, debug false, verbose false, version version}}]
+  (prn "Building client for version:" version)
   (shadow-server/start!)
   (shadow-api/release :prod {:debug debug,
                              :verbose verbose,
-                             :config-merge (when-not optimize
-                                             [{:compiler-options {:optimizations :simple}}])})
+                             :config-merge [{:compiler-options {:optimizations (if optimize :advanced :simple)}
+                                             :closure-defines {'hyperfiddle.electric-client/VERSION version}}]})
+  (b/write-file {:path "resources/public/js/.version", :string version})
   (shadow-server/stop!))
 
-(defn uberjar [{:keys [jar-name optimize debug verbose]
-                :or   {jar-name default-jar-name, optimize true, debug false, verbose false}}]
+(defn uberjar [{:keys [jar-name version optimize debug verbose]
+                :or   {jar-name default-jar-name, version version, optimize true, debug false, verbose false}}]
   (println "Cleaning up before build")
   (clean nil)
 
@@ -57,7 +60,7 @@
   (clean-cljs nil)
 
   (println "Building client")
-  (build-client {:optimize optimize, :debug debug, :verbose verbose})
+  (build-client {:optimize optimize, :debug debug, :verbose verbose, :version version})
 
   (println "Bundling sources")
   (b/copy-dir {:src-dirs   ["src" "src-dev" "src-docs" "resources"]
