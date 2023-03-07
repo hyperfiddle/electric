@@ -16,6 +16,7 @@
             :prod {:target           :browser
                    :output-dir       "resources/public/js"
                    :asset-path       "/js"
+                   :module-hash-names true
                    :modules          {:main {:entries [user] :init-fn user/start!}}
                    :compiler-options {:fn-invoke-direct true}
                    :release          {:compiler-options {:optimizations :advanced}}}
