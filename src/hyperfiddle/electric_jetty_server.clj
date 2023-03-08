@@ -78,20 +78,16 @@
       (.setMinGzipSize 1024)
       (.setHandler (.getHandler server)))))
 
-(defn get-server-version [js-path]
-  (if-let [version-file (io/resource (str js-path "/.version"))]
-    (slurp version-file)
-    ""))
+(def ^:const VERSION (not-empty (System/getProperty "HYPERFIDDLE_ELECTRIC_VERSION")))
 
-(defn wrap-reject-stale-client [next-handler js-path]
-  (let [server-version (get-server-version js-path)]
-    (fn [ring-req]
-      (let [client-version (get-in ring-req [:query-params "version"])]
-        (cond
-          (= "dev" client-version)          (next-handler ring-req)
-          (= client-version server-version) (next-handler ring-req)
-          :else (adapter/reject-websocket-handler 1008 "stale client") ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
-          )))))
+(defn wrap-reject-stale-client [next-handler]
+  (fn [ring-req]
+    (let [client-version (get-in ring-req [:query-params "version"])]
+      (cond
+        (nil? VERSION)             (next-handler ring-req)
+        (= client-version VERSION) (next-handler ring-req)
+        :else (adapter/reject-websocket-handler 1008 "stale client") ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
+        ))))
 
 (defn start-server! [{:keys [resources-path js-path port allow-symlinks?] :as config
                       :or   {resources-path  "public"
@@ -106,7 +102,7 @@
                          #_(wrap-electric-websocket)) ; Jetty 10 ws configuration with userland entrypoint
           ring-websocket-handler (fn [next-handler]
                                    (-> (cookies/wrap-cookies next-handler)
-                                     (wrap-reject-stale-client js-path)
+                                     (wrap-reject-stale-client)
                                      (wrap-params)))
 
           ; For Jetty 10 (NOT Java 8 compatible), use `wrap-electric-websocket` as above

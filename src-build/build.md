@@ -81,3 +81,12 @@ Will build:
 ```shell
 docker build --build-arg VERSION=$(git describe --tags --long) -t electric .
 ```
+
+# Deploy to fly.io
+```shell
+NO_COLOR=1 flyctl deploy --build-arg VERSION=$(git describe --tags --long)
+```
+
+- `NO_COLOR=1` forces to print the full docker build log.
+- pass `--build-only` to test it builds on fly.io without deploying.
+

@@ -35,38 +35,37 @@
 ;;; Uberjar
 
 (def class-dir "target/classes")
-(def default-jar-name (format "target/%s-%s-standalone.jar" (name lib) version))
+(defn default-jar-name [{:keys [version] :or {version version}}]
+  (format "target/%s-%s-standalone.jar" (name lib) version))
 
 (defn clean-cljs [_]
   (b/delete {:path "resources/public/js"}))
 
 (defn build-client [{:keys [optimize debug verbose version]
                      :or {optimize true, debug false, verbose false, version version}}]
-  (prn "Building client for version:" version)
+  (println "Building client. Version:" version)
   (shadow-server/start!)
   (shadow-api/release :prod {:debug debug,
                              :verbose verbose,
                              :config-merge [{:compiler-options {:optimizations (if optimize :advanced :simple)}
                                              :closure-defines {'hyperfiddle.electric-client/VERSION version}}]})
-  (b/write-file {:path "resources/public/js/.version", :string version})
   (shadow-server/stop!))
 
 (defn uberjar [{:keys [jar-name version optimize debug verbose]
-                :or   {jar-name default-jar-name, version version, optimize true, debug false, verbose false}}]
+                :or   {version version, optimize true, debug false, verbose false}}]
   (println "Cleaning up before build")
   (clean nil)
 
   (println "Cleaning cljs compiler output")
   (clean-cljs nil)
 
-  (println "Building client")
   (build-client {:optimize optimize, :debug debug, :verbose verbose, :version version})
 
   (println "Bundling sources")
   (b/copy-dir {:src-dirs   ["src" "src-dev" "src-docs" "resources"]
                :target-dir class-dir})
 
-  (println "Compiling server entrypoint")
+  (println "Compiling server. Version:" version)
   (b/compile-clj {:basis      basis
                   :src-dirs   ["src" "src-dev" "src-docs"]
                   :ns-compile '[user]
@@ -74,7 +73,7 @@
 
   (println "Building uberjar")
   (b/uber {:class-dir class-dir
-           :uber-file (str jar-name)
+           :uber-file (str (or jar-name (default-jar-name {:version version})))
            :basis     basis
            :main      'user}))
 
