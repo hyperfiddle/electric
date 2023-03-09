@@ -2,7 +2,7 @@
   "build electric.jar library artifact and demos"
   (:require [clojure.tools.build.api :as b]
             [org.corfield.build :as bb]
-            [shadow.cljs.devtools.api :as shadow-api]
+            [shadow.cljs.devtools.api :as shadow-api] ; so as not to shell out to NPM for shadow
             [shadow.cljs.devtools.server :as shadow-server]
             ))
 
