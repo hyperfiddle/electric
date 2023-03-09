@@ -140,6 +140,7 @@ jobs:
 
   deploy:
     needs: [jvm, browser]
+    if: success() && github.ref == 'refs/heads/master'
     name: Deploy to Fly.io
     runs-on: ubuntu-latest
     steps:
