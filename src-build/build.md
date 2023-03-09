@@ -9,11 +9,11 @@
 
 ```shell
 git tag v2-alpha  # manually set a new tag, or skip to use commit distance from current tag
-clojure -T:build clean && rm -rf ./resources/public/js
+clojure -X:build clean && rm -rf ./resources/public/js
 #clj -A:dev -X user/release -- distribute sources, lib consumer will build
 HYPERFIDDLE_ELECTRIC_BUILD=`git describe --tags --long`
-clojure -T:build jar :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
-clojure -T:build install :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
+clojure -X:build jar :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
+clojure -X:build install :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 ```
 
 Test local maven repo:
@@ -30,7 +30,7 @@ clj -A:dev -X user/main :replace-deps '{:deps {com.hyperfiddle/electric {:mvn/ve
 Clojars:
 
 ```shell
-env $(cat .env | xargs) CLOJARS_USERNAME=dustingetz clojure -T:build deploy :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
+env $(cat .env | xargs) CLOJARS_USERNAME=dustingetz clojure -X:build deploy :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 ```
 
 - `CLOJARS_USERNAME` is your clojars username.
