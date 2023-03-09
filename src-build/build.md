@@ -14,32 +14,28 @@ clojure -X:build clean && rm -rf ./resources/public/js
 HYPERFIDDLE_ELECTRIC_BUILD=`git describe --tags --long`
 clojure -X:build jar :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 clojure -X:build install :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
-```
-
-Test local maven repo:
-```clojure
-{:deps 
- {org.clojure/clojure {:mvn/version "1.11.1"}
-  com.hyperfiddle/electric {:mvn/version $HYPERFIDDLE_ELECTRIC_BUILD}}}
-```
-```shell 
-clj -A:dev -X user/main :replace-deps '{:deps {com.hyperfiddle/electric {:mvn/version "'$HYPERFIDDLE_ELECTRIC_BUILD'"}}}'
-# how to run tests cli?
-```
-
-Clojars:
-
-```shell
+clj -A:dev -X user/main :replace-deps '{:deps {com.hyperfiddle/electric {:mvn/version "'$HYPERFIDDLE_ELECTRIC_BUILD'"}}}' # test demos with maven version
+# No way to test remote clojars version without rm in .m2/repositories/com/hyperfiddle
+# Optional: test electric-starter-app with local maven install
 env $(cat .env | xargs) CLOJARS_USERNAME=dustingetz clojure -X:build deploy :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 ```
 
 - `CLOJARS_USERNAME` is your clojars username.
 - `CLOJARS_PASSWORD` is not your account password, but rather a genareted token granting
 deploy rights to the target coordinates.
+- idea: how to run tests cli? (No need, deployed artifacts already passed CI)
 
-Check deployment
-- `rm -rf ~/.m2/repository/com/hyperfiddle/electric/"$HYPERFIDDLE_ELECTRIC_BUILD"/`
-- test again
+# Continuous deployment of demos
+
+```shell
+clojure -X:build build-client          # optimized release build
+clojure -X:build uberjar               # contains demos and demo server, currently
+docker build --build-arg VERSION=$(git describe --tags --long) -t electric .
+NO_COLOR=1 flyctl deploy --build-arg VERSION=$(git describe --tags --long)
+```
+
+- `NO_COLOR=1` disables docker-cli fancy shell GUI, so that we see the full log (not paginated) in case of exception
+- `--build-only` tests the build on fly.io without deploying
 
 # Java build (skip unless Java code changes)
 
@@ -53,40 +49,3 @@ $ clojure -T:build compile-java
 warning: [options] bootstrap class path not set in conjunction with -source 8
 ```
 The above warning is expected and can be ignored.
-
-
-# Build client production bundle
-
-```shell
-clojure -X:build build-client
-```
-Will compile client program into a single `.js` file, optimized for production.
-
-
-# Build an uberjar
-
-```shell
-clojure -X:build uberjar
-```
-
-Will build:
-- a production-optimized client program
-- an executable, self-contained jar, including:
-  - sources,
-  - resources,
-  - the built client program
-
-# Build a Docker image
-
-```shell
-docker build --build-arg VERSION=$(git describe --tags --long) -t electric .
-```
-
-# Deploy to fly.io
-```shell
-NO_COLOR=1 flyctl deploy --build-arg VERSION=$(git describe --tags --long)
-```
-
-- `NO_COLOR=1` forces to print the full docker build log.
-- pass `--build-only` to test it builds on fly.io without deploying.
-
