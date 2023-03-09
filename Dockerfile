@@ -28,7 +28,8 @@ RUN clojure -X:build uberjar :jar-name "app.jar" :verbose true :version $VERSION
 FROM amazoncorretto:11 AS app
 WORKDIR /app
 COPY --from=build /app/app.jar app.jar
-COPY --from=node-deps /app/node_modules node_modules # not required - included for Directory Explorer demo
+# not required - included for Directory Explorer demo
+COPY --from=node-deps /app/node_modules node_modules
 EXPOSE 8080
 ARG VERSION
 ENV VERSION=$VERSION
