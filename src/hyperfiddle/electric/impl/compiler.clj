@@ -545,7 +545,8 @@
                     (analyze-apply env form)
                     (cond (instance? CljVar v) ; "manual" macroexpansion: call the var as a function, passing it &form and the appropriate &env
                           (analyze-form env
-                            (binding [*env* env]
+                            (binding [*env* env
+                                      *ns* (find-ns (if (:js-globals env) (:name (:ns env)) (:ns env)))]
                               (apply (env/get-var v) form (if (:js-globals env) env (:locals env)) args)))
 
                           (instance? CljsVar v) ;; TODO GG: is this case possible? A cljs macro var without a corresponding clj macro var.
