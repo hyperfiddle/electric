@@ -4,6 +4,7 @@
             [hyperfiddle.electric :as p]
             [hyperfiddle.electric.impl.compiler :as c]
             [hyperfiddle.electric.impl.io :as electric-io]
+            [hyperfiddle.electric.impl.runtime :as r]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]
             [clojure.test :as t]
@@ -1861,3 +1862,12 @@
   (discard)
   % := :cancelled
   )
+
+(tests "pendings don't enter cc/fn's"
+  (with (p/run (try (let [v (new (m/observe (fn [!] (! r/pending) (def ! !) #(do))))]
+                      (#(tap [:v %]) v))
+                    (catch Pending _ (tap :pending))
+                    (catch #?(:clj Throwable :cljs :default) e (prn [(type e) (ex-message e)]))))
+    % := :pending
+    (! 1)
+    % := [:v 1]))
