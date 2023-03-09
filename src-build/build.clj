@@ -7,7 +7,7 @@
             ))
 
 (def lib 'com.hyperfiddle/electric)
-(def version (b/git-process {:git-args "describe --tags --long"}))
+(def version (b/git-process {:git-args "describe --tags --long --always --dirty"}))
 (def basis (b/create-basis {:project "deps.edn"}))
 
 ;;; Library
