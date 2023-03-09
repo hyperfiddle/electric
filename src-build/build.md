@@ -11,7 +11,7 @@
 git tag v2-alpha  # manually set a new tag, or skip to use commit distance from current tag
 clojure -X:build clean && rm -rf ./resources/public/js
 #clj -A:dev -X user/release -- distribute sources, lib consumer will build
-HYPERFIDDLE_ELECTRIC_BUILD=`git describe --tags --long`
+HYPERFIDDLE_ELECTRIC_BUILD=`git describe --tags --long --always --dirty`
 clojure -X:build jar :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 clojure -X:build install :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 clj -A:dev -X user/main :replace-deps '{:deps {com.hyperfiddle/electric {:mvn/version "'$HYPERFIDDLE_ELECTRIC_BUILD'"}}}' # test demos with maven version
