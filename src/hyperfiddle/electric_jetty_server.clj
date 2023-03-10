@@ -49,26 +49,33 @@
       (ring/ws-upgrade-response (adapter/electric-ws-adapter adapter/electric-ws-message-handler))
       (next-handler ring-request))))
 
-(defn default-handler [ring-request]
-  {:status 404
-   :body "not found"})
+(defn default-handler [_ring-request]
+  (-> (res/not-found "Not found")
+    (res/content-type "text/plain")))
 
 (defn file-exsist? [path] (.exists (io/as-file path)))
 
 (defn template [string opts]
   (reduce-kv (fn [r k v] (str/replace r (str "$" k "$") v)) string opts))
 
-(defn get-modules [manifest-path] ; TODO improve error message if `manifest` is missing
-  (->> (slurp (io/resource (str manifest-path "/manifest.edn")))
-    (edn/read-string)
-    (reduce (fn [r module] (assoc r (keyword "hyperfiddle.client.module" (name (:name module))) (str "/js/" (:output-name module)))) {})))
+(defn get-modules [manifest-path]
+  (when-let [manifest (io/resource manifest-path)]
+    (let [manifest-folder (when-let [folder-name (second (rseq (str/split manifest-path #"\/")))]
+                            (str "/" folder-name "/"))]
+      (->> (slurp manifest)
+        (edn/read-string)
+        (reduce (fn [r module] (assoc r (keyword "hyperfiddle.client.module" (name (:name module))) (str manifest-folder (:output-name module)))) {})))))
 
 (defn wrap-index-page [next-handler resources-path manifest-path]
   (fn [ring-req]
     (if-let [response (res/resource-response (str resources-path "/index.html"))]
-      (-> (res/response (template (slurp (:body response)) (get-modules manifest-path))) ; TODO should be cached in prod mode
-        (res/header "Last-Modified" (get-in response [:headers "Last-Modified"]))
-        (res/content-type "text/html"))
+      (if-let [modules (get-modules manifest-path)]
+        (-> (res/response (template (slurp (:body response)) modules)) ; TODO cache in prod mode
+          (res/header "Last-Modified" (get-in response [:headers "Last-Modified"]))
+          (res/header "Cache-Control" "no-store")
+          (res/content-type "text/html"))
+        (-> (res/not-found "Missing client program manifest")
+          (res/content-type "text/plain")))
       (next-handler ring-req))))
 
 (defn- add-gzip-handler [server]
