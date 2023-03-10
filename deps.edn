@@ -1,5 +1,5 @@
 {:paths ["src"
-         "resources"] ; for uberjar
+         "resources"] ; to serve static assets
  :deps {borkdude/edamame {:mvn/version "1.0.0"} ;; configurable edn parser
         com.cognitect/transit-clj {:mvn/version "1.0.329"}
         com.cognitect/transit-cljs {:mvn/version "0.8.269"}
