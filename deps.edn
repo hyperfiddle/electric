@@ -19,19 +19,7 @@
          org.clojure/tools.logging                           {:mvn/version "1.2.4"}
          ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}}
 
- :aliases {:legacy      {:extra-paths ["src-legacy"]}
-           :build       {:extra-paths ["src-build"]
-                         :ns-default  build
-                         :extra-deps  {io.github.clojure/tools.build    {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
-                                       io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}}
-           :uberjar     {:extra-paths ["src-build"]
-                         :ns-default  uberjar
-                         :extra-deps  {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}}}
-           :shadow-cljs {:extra-deps {thheller/shadow-cljs {:mvn/version "2.20.1"}}
-                         :main-opts  ["-m" "shadow.cljs.devtools.cli"]
-                         :jvm-opts   ["-Xss2m"]}
-           :prod        {:extra-paths ["src-prod" "src-dev" "src-docs"]}
-           :dev         {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
+ :aliases {:dev         {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
                          :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}
                                        criterium/criterium                      {:mvn/version "0.4.6"}
                                        binaryage/devtools                       {:mvn/version "1.0.6"}
@@ -56,19 +44,18 @@
                                                                              :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
                          :exec-fn     cognitect.test-runner.api/test}
 
-           #_#_:build ; this is photon lib build, excludes demos
-           {:paths ["src-build"]} ; no project classpath including user.clj and data_readers
 
-           ;; demos with bundled library, combine with :dev:scratch
-           ;:demo-uberjar {:extra-deps {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
-           ;                            io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}
-           ;                            thheller/shadow-cljs {:mvn/version "2.20.1"}
-           ;                            uberdeps/uberdeps {:mvn/version "1.1.4" #_"0.1.8"}} ; todo 1.1.4 crashes on --alias
-           ;               :extra-paths ["deploy"]
-           ;               :ns-default build-demo
-           ;               :exec-fn    prod/build
-           ;               :exec-args  {}
-           ;               #_#_:main-opts ["-m" "uberdeps.uberjar" "--aliases" "dev:scratch"]}
+           :build       {:extra-paths ["src-build"]
+                         :ns-default  build
+                         :extra-deps  {io.github.clojure/tools.build    {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
+                                       io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}}
+           :uberjar     {:extra-paths ["src-build"]
+                         :ns-default  uberjar
+                         :extra-deps  {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}}}
+           :shadow-cljs {:extra-deps {thheller/shadow-cljs {:mvn/version "2.20.1"}}
+                         :main-opts  ["-m" "shadow.cljs.devtools.cli"]
+                         :jvm-opts   ["-Xss2m"]}
+           :prod        {:extra-paths ["src-prod" "src-dev" "src-docs"]}
 
            :scratch {:extra-paths []
                      :extra-deps {nextjournal/clojure-mode {:git/url "https://github.com/nextjournal/clojure-mode" ; clojure codemirror support

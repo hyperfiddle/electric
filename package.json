@@ -1,23 +1,6 @@
 {
     "dependencies": {
-        "recharts": "^2.4.1",
-        "@codemirror/autocomplete": "^0.18.0",
-        "@codemirror/closebrackets": "^0.18.0",
-        "@codemirror/commands": "^0.18.0",
-        "@codemirror/comment": "^0.18.0",
-        "@codemirror/fold": "^0.18.0",
-        "@codemirror/gutter": "^0.18.0",
-        "@codemirror/highlight": "^0.18.3",
-        "@codemirror/history": "^0.18.0",
-        "@codemirror/language": "^0.18.0",
-        "@codemirror/lint": "^0.18.0",
-        "@codemirror/matchbrackets": "^0.18.0",
-        "@codemirror/rectangular-selection": "^0.18.0",
-        "@codemirror/search": "^0.18.0",
-        "@codemirror/state": "^0.18.0",
-        "@codemirror/view": "^0.18.0",
-        "jamsocket": "^0.2.1",
-        "lezer-clojure": "0.1.10"
+        "recharts": "^2.4.1"
     },
     "devDependencies": {
         "karma": "6.4.0",
