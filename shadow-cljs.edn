@@ -1,6 +1,4 @@
-{:deps     {:aliases [:dev]}
- :nrepl    {:port 9001}
- :builds   {:dev {:target        :browser
+{:builds   {:dev {:target        :browser
                        :devtools      {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}
                                        :ignore-warnings true                  ; warnings don't prevent hot-reload
