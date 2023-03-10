@@ -78,11 +78,11 @@
       (.setMinGzipSize 1024)
       (.setHandler (.getHandler server)))))
 
-(def ^:const VERSION (not-empty (System/getProperty "HYPERFIDDLE_ELECTRIC_VERSION")))
+(def ^:const VERSION (not-empty (System/getProperty "HYPERFIDDLE_ELECTRIC_SERVER_VERSION")))
 
 (defn wrap-reject-stale-client [next-handler]
   (fn [ring-req]
-    (let [client-version (get-in ring-req [:query-params "version"])]
+    (let [client-version (get-in ring-req [:query-params "HYPERFIDDLE_ELECTRIC_CLIENT_VERSION"])]
       (cond
         (nil? VERSION)             (next-handler ring-req)
         (= client-version VERSION) (next-handler ring-req)

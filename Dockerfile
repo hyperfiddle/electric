@@ -22,8 +22,8 @@ COPY src-docs src-docs
 COPY src-build src-build
 COPY resources resources
 ARG REBUILD=unknown
-ARG VERSION
-RUN clojure -X:build uberjar :jar-name "app.jar" :verbose true :version $VERSION
+ARG HYPERFIDDLE_ELECTRIC_VERSION
+RUN clojure -X:build uberjar :jar-name "app.jar" :verbose true :version $HYPERFIDDLE_ELECTRIC_VERSION
 
 FROM amazoncorretto:11 AS app
 WORKDIR /app
@@ -31,6 +31,6 @@ COPY --from=build /app/app.jar app.jar
 # not required - included for Directory Explorer demo
 COPY --from=node-deps /app/node_modules node_modules
 EXPOSE 8080
-ARG VERSION
-ENV VERSION=$VERSION
-CMD java -DHYPERFIDDLE_ELECTRIC_VERSION=$VERSION -jar app.jar
+ARG HYPERFIDDLE_ELECTRIC_VERSION
+ENV HYPERFIDDLE_ELECTRIC_VERSION=$HYPERFIDDLE_ELECTRIC_VERSION
+CMD java -DHYPERFIDDLE_ELECTRIC_VERSION=$HYPERFIDDLE_ELECTRIC_VERSION -jar app.jar
