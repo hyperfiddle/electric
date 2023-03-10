@@ -45,6 +45,7 @@
   (@shadow-start!) ; serves index.html as well
   (@rcf-enable! false) ; don't run cljs tests on compile (user may have enabled it at the REPL already)
   (@shadow-watch :dev) ; depends on shadow server
+  #_(@shadow-release :dev {:debug false})
   ; todo report clearly if shadow build failed, i.e. due to yarn not being run
   (def server (@start-electric-server! electric-server-config))
   (comment (.stop server))
