@@ -52,31 +52,31 @@
   (e/server
     (case page
       `user.demo-index/Demos user.demo-index/Demos
-      `user.demo-index/Secrets user.demo-index/Secrets
-      `user.demo-two-clocks/TwoClocks user.demo-two-clocks/TwoClocks
+      ;; `user.demo-index/Secrets user.demo-index/Secrets
+      ;; `user.demo-two-clocks/TwoClocks user.demo-two-clocks/TwoClocks
       ;`wip.teeshirt-orders/Webview-HFQL wip.teeshirt-orders/Webview-HFQL
       `user.demo-explorer/DirectoryExplorer user.demo-explorer/DirectoryExplorer
       ;`wip.demo-explorer2/DirectoryExplorer-HFQL wip.demo-explorer2/DirectoryExplorer-HFQL
       ;user.demo-10k-dom/Dom-10k-Elements user.demo-10k-dom/Dom-10k-Elements ; todo too slow to unmount, crashes
       ;`wip.demo-branched-route/RecursiveRouter wip.demo-branched-route/RecursiveRouter
-      `wip.tag-picker/TagPicker wip.tag-picker/TagPicker
-      `user.demo-toggle/Toggle user.demo-toggle/Toggle
-      `user.demo-system-properties/SystemProperties user.demo-system-properties/SystemProperties
-      `user.demo-chat/Chat user.demo-chat/Chat
-      `user.demo-chat-extended/ChatExtended user.demo-chat-extended/ChatExtended
-      `user.demo-webview/Webview user.demo-webview/Webview
-      `user.demo-todos-simple/TodoList user.demo-todos-simple/TodoList ; css fixes
-      `user.demo-todomvc/TodoMVC user.demo-todomvc/TodoMVC
-      `user.demo-todomvc-composed/TodoMVC-composed user.demo-todomvc-composed/TodoMVC-composed
-      `user.demo-color/Color user.demo-color/Color
-      `user.demo-virtual-scroll/VirtualScroll user.demo-virtual-scroll/VirtualScroll
-      `user.tutorial-7guis-1-counter/Counter user.tutorial-7guis-1-counter/Counter
-      `user.tutorial-7guis-2-temperature/TemperatureConverter user.tutorial-7guis-2-temperature/TemperatureConverter
-      `user.tutorial-7guis-4-timer/Timer user.tutorial-7guis-4-timer/Timer
-      `user.tutorial-7guis-5-crud/CRUD user.tutorial-7guis-5-crud/CRUD
-      `user.demo-tic-tac-toe/TicTacToe user.demo-tic-tac-toe/TicTacToe
-      `user.demo-svg/SVG user.demo-svg/SVG
-      `user.tutorial-blinker/Blinker user.tutorial-blinker/Blinker
+      ;; `wip.tag-picker/TagPicker wip.tag-picker/TagPicker
+      ;; `user.demo-toggle/Toggle user.demo-toggle/Toggle
+      ;; `user.demo-system-properties/SystemProperties user.demo-system-properties/SystemProperties
+      ;; `user.demo-chat/Chat user.demo-chat/Chat
+      ;; `user.demo-chat-extended/ChatExtended user.demo-chat-extended/ChatExtended
+      ;; `user.demo-webview/Webview user.demo-webview/Webview
+      ;; `user.demo-todos-simple/TodoList user.demo-todos-simple/TodoList ; css fixes
+      ;; `user.demo-todomvc/TodoMVC user.demo-todomvc/TodoMVC
+      ;; `user.demo-todomvc-composed/TodoMVC-composed user.demo-todomvc-composed/TodoMVC-composed
+      ;; `user.demo-color/Color user.demo-color/Color
+      ;; `user.demo-virtual-scroll/VirtualScroll user.demo-virtual-scroll/VirtualScroll
+      ;; `user.tutorial-7guis-1-counter/Counter user.tutorial-7guis-1-counter/Counter
+      ;; `user.tutorial-7guis-2-temperature/TemperatureConverter user.tutorial-7guis-2-temperature/TemperatureConverter
+      ;; `user.tutorial-7guis-4-timer/Timer user.tutorial-7guis-4-timer/Timer
+      ;; `user.tutorial-7guis-5-crud/CRUD user.tutorial-7guis-5-crud/CRUD
+      ;; `user.demo-tic-tac-toe/TicTacToe user.demo-tic-tac-toe/TicTacToe
+      ;; `user.demo-svg/SVG user.demo-svg/SVG
+      ;; `user.tutorial-blinker/Blinker user.tutorial-blinker/Blinker
       ;`user.demo-reagent-interop/ReagentInterop (when react-available user.demo-reagent-interop/ReagentInterop)
       ;::demos/dennis-exception-leak wip.dennis-exception-leak/App2
       ;::demos/demo-stage-ui4 wip.demo-stage-ui4/Demo

@@ -9,15 +9,15 @@
 
 ```shell
 git tag v2-alpha  # manually set a new tag, or skip to use commit distance from current tag
-clojure -X:build clean && rm -rf ./resources/public/js
-#clj -A:dev -X user/release -- distribute sources, lib consumer will build
+clojure -T:build clean && rm -rf ./resources/public/js
+#clj -A:dev -T user/release -- distribute sources, lib consumer will build
 HYPERFIDDLE_ELECTRIC_BUILD=`git describe --tags --long --always --dirty`
-clojure -X:build jar :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
-clojure -X:build install :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
-clj -A:dev -X user/main :replace-deps '{:deps {com.hyperfiddle/electric {:mvn/version "'$HYPERFIDDLE_ELECTRIC_BUILD'"}}}' # test demos with maven version
+clojure -T:build jar :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
+clojure -T:build install :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
+clj -A:dev -T user/main :replace-deps '{:deps {com.hyperfiddle/electric {:mvn/version "'$HYPERFIDDLE_ELECTRIC_BUILD'"}}}' # test demos with maven version
 # No way to test remote clojars version without rm in .m2/repositories/com/hyperfiddle
 # Optional: test electric-starter-app with local maven install
-env $(cat .env | xargs) CLOJARS_USERNAME=dustingetz clojure -X:build deploy :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
+env $(cat .env | xargs) CLOJARS_USERNAME=dustingetz clojure -T:build deploy :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 ```
 
 - `CLOJARS_USERNAME` is your clojars username.
@@ -28,10 +28,10 @@ deploy rights to the target coordinates.
 # Continuous deployment of demos
 
 ```shell
-clojure -X:build build-client          # optimized release build
-clojure -X:build uberjar               # contains demos and demo server, currently
-docker build --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long) -t electric .
-NO_COLOR=1 flyctl deploy --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long)
+clojure -T:uberjar build-client          # optimized release build
+clojure -T:uberjar uberjar               # contains demos and demo server, currently
+docker build --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --dirty) -t electric .
+NO_COLOR=1 flyctl deploy --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --dirty)
 ```
 
 - `NO_COLOR=1` disables docker-cli fancy shell GUI, so that we see the full log (not paginated) in case of exception
