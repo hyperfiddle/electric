@@ -8,7 +8,7 @@
                                                               ;; "0.14.3" (Jetty 9) is Java 8 compatible;
                                                               ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
                                                               :exclusions  [org.slf4j/slf4j-api
-                                                                           info.sunng/ring-jetty9-adapter-http3]} ; no need
+                                                                            info.sunng/ring-jetty9-adapter-http3]} ; no need
          missionary/missionary                               {:mvn/version "b.28"}
          org.clojure/clojure                                 {:mvn/version "1.11.1"}
          org.clojure/clojurescript                           {:mvn/version "1.11.60"}
@@ -17,30 +17,30 @@
          org.clojure/tools.logging                           {:mvn/version "1.2.4"}
          ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}}
 
- :aliases {:dev         {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
-                         :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}
-                                       criterium/criterium                      {:mvn/version "0.4.6"}
-                                       binaryage/devtools                       {:mvn/version "1.0.6"}
-                                       thheller/shadow-cljs                     {:mvn/version "2.20.1"}
-                                       ch.qos.logback/logback-classic           {:mvn/version "1.2.11"}
-                                       reagent/reagent                          {:mvn/version "1.1.1"} ; for reagent interop demo
-                                       }
-                         :jvm-opts    ["-Xss2m"                 ; https://github.com/hyperfiddle/electric/issues/11
-                                       "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
-                                       "-Dlogback.configurationFile=src-dev/logback_dev.xml"
-                                       "-XX:-OmitStackTraceInFastThrow" ;; RCF
-                                       "-Djdk.attach.allowAttachSelf" ;; profiling
-                                       "-XX:+UnlockDiagnosticVMOptions"
-                                       "-XX:+DebugNonSafepoints"]}
-           :test        {:extra-paths [#_"src-dev" "test"]
-                         :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true"
-                                       "-XX:-OmitStackTraceInFastThrow" ;; https://archive.md/NNt9r
-                                       "-Dlogback.configurationFile=src-dev/logback.xml"
-                                       "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"]
-                         :extra-deps  {ch.qos.logback/logback-classic       {:mvn/version "1.2.11"}
-                                       io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
-                                                                             :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
-                         :exec-fn     cognitect.test-runner.api/test}
+ :aliases {:dev  {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
+                  :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}
+                                criterium/criterium                      {:mvn/version "0.4.6"}
+                                binaryage/devtools                       {:mvn/version "1.0.6"}
+                                thheller/shadow-cljs                     {:mvn/version "2.20.1"}
+                                ch.qos.logback/logback-classic           {:mvn/version "1.2.11"}
+                                reagent/reagent                          {:mvn/version "1.1.1"} ; for reagent interop demo
+                                }
+                  :jvm-opts    ["-Xss2m"                 ; https://github.com/hyperfiddle/electric/issues/11
+                                "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
+                                "-Dlogback.configurationFile=src-dev/logback_dev.xml"
+                                "-XX:-OmitStackTraceInFastThrow" ;; RCF
+                                "-Djdk.attach.allowAttachSelf" ;; profiling
+                                "-XX:+UnlockDiagnosticVMOptions"
+                                "-XX:+DebugNonSafepoints"]}
+           :test {:extra-paths [#_"src-dev" "test"]
+                  :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true"
+                                "-XX:-OmitStackTraceInFastThrow" ;; https://archive.md/NNt9r
+                                "-Dlogback.configurationFile=src-dev/logback.xml"
+                                "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"]
+                  :extra-deps  {ch.qos.logback/logback-classic       {:mvn/version "1.2.11"}
+                                io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                                                      :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
+                  :exec-fn     cognitect.test-runner.api/test}
 
 
            :build       {:extra-paths ["src-build"]
@@ -55,9 +55,9 @@
                          :jvm-opts   ["-Xss2m"]}
            :prod        {:extra-paths ["src-prod" "src-dev" "src-docs"]}
 
-           :scratch {:extra-deps {com.datomic/dev-local {:mvn/version "1.0.243"}
-                                  com.google.guava/guava {:mvn/version "31.1-jre"}}} ; fix conflict - datomic cloud & shadow
+           :scratch      {:extra-deps {com.datomic/dev-local  {:mvn/version "1.0.243"}
+                                       com.google.guava/guava {:mvn/version "31.1-jre"}}} ; fix conflict - datomic cloud & shadow
            :datomic-free {:extra-deps {com.datomic/datomic-free {:mvn/version "0.9.5656" :exclusions [org.slf4j/slf4j-nop com.google.guava/guava]}}}
-           :datomic-pro {:extra-deps {com.datomic/datomic-pro {:mvn/version "1.0.6527" :exclusions [org.slf4j/slf4j-nop]}}}}
+           :datomic-pro  {:extra-deps {com.datomic/datomic-pro {:mvn/version "1.0.6527" :exclusions [org.slf4j/slf4j-nop]}}}}
 
  :mvn/repos {"my.datomic.com" {:url "https://my.datomic.com/repo"}}}
