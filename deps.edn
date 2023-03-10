@@ -10,7 +10,7 @@
                                         ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
                                         :exclusions [org.slf4j/slf4j-api
                                                      info.sunng/ring-jetty9-adapter-http3]} ; no need
-        missionary/missionary {:mvn/version "b.27-SNAPSHOT"}
+        missionary/missionary {:mvn/version "b.28"}
         nubank/matcher-combinators {:mvn/version "3.5.1"}
         org.clojure/clojure {:mvn/version "1.11.1"}
         org.clojure/clojurescript {:mvn/version "1.11.60"}
