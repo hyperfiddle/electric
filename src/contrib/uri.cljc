@@ -74,16 +74,16 @@
 #?(:clj (defn uri-cljs-reader [s] `(goog.Uri. ~s))) ; called from cljs compiler jvm
 ; https://github.com/clojure/clojurescript/commit/5379f722588370f9f1934e9a78e777e24e953c81
 
-(tests
-  "#user/uri code literals are auto-wired from data_readers.cljc"
-  (def x #user/uri "http://localhost:8080/a?b#c")
-  (uri? x) := true
-  (str x) := "http://localhost:8080/a?b#c"
-  (pr-str x) := "#user/uri \"http://localhost:8080/a?b#c\""
+;; (tests
+;;   "#user/uri code literals are auto-wired from data_readers.cljc" ; data_readers is not part of contrib
+;;   (def x #user/uri "http://localhost:8080/a?b#c")
+;;   (uri? x) := true
+;;   (str x) := "http://localhost:8080/a?b#c"
+;;   (pr-str x) := "#user/uri \"http://localhost:8080/a?b#c\""
 
-  "note goog.Uri is mutable, so no equality in cljs"
-  (= #user/uri "http://localhost:8080/a?b#c"
-     #user/uri "http://localhost:8080/a?b#c") := #?(:clj true :cljs false))
+;;   "note goog.Uri is mutable, so no equality in cljs"
+;;   (= #user/uri "http://localhost:8080/a?b#c"
+;;      #user/uri "http://localhost:8080/a?b#c") := #?(:clj true :cljs false))
 
 
 ; Readers
