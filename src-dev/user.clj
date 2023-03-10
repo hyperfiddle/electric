@@ -38,7 +38,7 @@
                     :compile-finish (@rcf-enable!))
                   build-state))))
 
-(def electric-server-config {:host "0.0.0.0", :port 8080, :resources-path "public", :js-path "public/js"})
+(def electric-server-config {:host "0.0.0.0", :port 8080, :resources-path "public", :manifest-path "public/js/manifest.edn"})
 
 (defn main [& args]
   (println "Starting Electric compiler and server...")
