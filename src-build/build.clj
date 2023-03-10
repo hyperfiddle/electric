@@ -32,7 +32,7 @@
 
 (def class-dir "target/classes")
 (defn default-uberjar-name [{:keys [lib version] :or {version version}}]
-  (format "target/%s-%s-standalone.jar" 'com.hyperfiddle/electric-demos version))
+  (format "target/%s-%s-standalone.jar" "electric-demos" version))
 
 (defn noop [_]) ; to preload mvn deps
 (defn clean-cljs [_] (b/delete {:path "resources/public/js"}))
@@ -60,12 +60,12 @@
   (clean nil)
 
   (println "Cleaning cljs compiler output")
-  ;; (clean-cljs nil)
+  (clean-cljs nil)
 
-  ;; (build-client {:optimize optimize, :debug debug, :verbose verbose, :version version})
+  (build-client {:optimize optimize, :debug debug, :verbose verbose, :version version})
 
   (println "Bundling sources")
-  (b/copy-dir {:src-dirs   ["src" "src-prod" "src-dev" "src-docs" "resources"]
+  (b/copy-dir {:src-dirs   ["src" "src-prod" "src-docs" "resources"]
                :target-dir class-dir})
 
   (println "Building uberjar")
