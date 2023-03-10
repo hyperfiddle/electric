@@ -58,15 +58,15 @@
 (defn template [string opts]
   (reduce-kv (fn [r k v] (str/replace r (str "$" k "$") v)) string opts))
 
-(defn get-modules [js-path]             ; TODO improve error message if `manifest` is missing
-  (->> (slurp (io/resource (str js-path "/manifest.edn")))
+(defn get-modules [manifest-path] ; TODO improve error message if `manifest` is missing
+  (->> (slurp (io/resource (str manifest-path "/manifest.edn")))
     (edn/read-string)
     (reduce (fn [r module] (assoc r (keyword "hyperfiddle.client.module" (name (:name module))) (str "/js/" (:output-name module)))) {})))
 
-(defn wrap-index-page [next-handler resources-path js-path]
+(defn wrap-index-page [next-handler resources-path manifest-path]
   (fn [ring-req]
     (if-let [response (res/resource-response (str resources-path "/index.html"))]
-      (-> (res/response (template (slurp (:body response)) (get-modules js-path))) ; TODO should be cached in prod mode
+      (-> (res/response (template (slurp (:body response)) (get-modules manifest-path))) ; TODO should be cached in prod mode
         (res/header "Last-Modified" (get-in response [:headers "Last-Modified"]))
         (res/content-type "text/html"))
       (next-handler ring-req))))
@@ -89,13 +89,13 @@
         :else (adapter/reject-websocket-handler 1008 "stale client") ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
         ))))
 
-(defn start-server! [{:keys [resources-path js-path port allow-symlinks?] :as config
+(defn start-server! [{:keys [resources-path manifest-path port allow-symlinks?] :as config
                       :or   {resources-path  "public"
-                             js-path         "public/js"
+                             manifest-path   "public/js/manifest.edn"
                              allow-symlinks? false}}]
   (try
     (let [ring-handler (-> #'default-handler ; these compose as functions, so are applied bottom up
-                         (wrap-index-page resources-path js-path) ; 4. otherwise fallback to default page file
+                         (wrap-index-page resources-path manifest-path) ; 4. otherwise fallback to default page file
                          (wrap-resource resources-path {:allow-symlinks? allow-symlinks?}) ; 3. serve static file from jar
                          (wrap-content-type) ; 2. detect content (e.g. for index.html)
                          (wrap-router) ; 1. route
