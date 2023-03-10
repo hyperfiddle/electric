@@ -28,8 +28,8 @@ deploy rights to the target coordinates.
 # Continuous deployment of demos
 
 ```shell
-clojure -T:uberjar build-client          # optimized release build
-clojure -T:uberjar uberjar               # contains demos and demo server, currently
+clojure -T:build build-client          # optimized release build
+clojure -T:build uberjar               # contains demos and demo server, currently
 docker build --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --dirty) -t electric .
 NO_COLOR=1 flyctl deploy --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --dirty)
 ```
