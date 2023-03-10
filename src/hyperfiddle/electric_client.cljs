@@ -5,7 +5,7 @@
             [hyperfiddle.electric.impl.io :as io])
   (:import missionary.Cancelled))
 
-(goog-define VERSION "dev")
+(goog-define VERSION "")
 
 (do-browser
   (defn server-url []
@@ -16,7 +16,7 @@
           "http:" "ws:"
           "https:" "wss:"
           (throw (ex-info "Unexpected protocol" proto))))
-      (.. url -searchParams (set "version" VERSION))
+      (.. url -searchParams (set "HYPERFIDDLE_ELECTRIC_CLIENT_VERSION" VERSION))
       (.toString url))))
 
 (def ^:dynamic *ws-server-url* (do-browser (server-url)))
