@@ -1,44 +1,44 @@
-{:builds   {:dev {:target        :browser
-                       :devtools      {:watch-dir       "resources/public"    ; live reload CSS
+{:builds {:dev          {:target      :browser
+                         :devtools    {:watch-dir       "resources/public"    ; live reload CSS
                                        :hud             #{:errors :progress}
                                        :ignore-warnings true                  ; warnings don't prevent hot-reload
                                        :loader-mode     :default              ; faster reload
                                        }
-                       :output-dir    "resources/public/js"
-                       :asset-path    "/js"
-                       :modules       {:main {:entries [user]
+                         :output-dir  "resources/public/js"
+                         :asset-path  "/js"
+                         :modules     {:main {:entries [user]
                                               :init-fn user/start!}}
-                       :build-hooks   [(shadow.cljs.build-report/hook {:output-to "target/build_report.html"})
+                         :build-hooks [(shadow.cljs.build-report/hook {:output-to "target/build_report.html"})
                                        (user/rcf-shadow-hook)]
-                  :release {:compiler-options {:optimizations :simple}}}
-            :test     {:target           :node-test
-                       :output-to        "out/node-tests.js"
-                       :ns-regexp        "^(hyperfiddle.(electric-[^dom]|core-async|zero)|contrib.(ednish|sexpr-router)).*$"
-                       :build-options    {:cache-level :off}
-                       :modules          {:main {:entries [hyperfiddle.zero
-                                                           hyperfiddle.electric
-                                                           hyperfiddle.electric-test
-                                                           #_hyperfiddle.missionary-test
-                                                           hyperfiddle.core-async-test
-                                                           contrib.ednish
-                                                           contrib.sexpr-router]}}
-                       :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
-                       :compiler-options {:warnings {:redef-in-file false}}}
-            :browser-test {:target           :karma
-                           :output-to        "out/karma-tests.js"
-                           :ns-regexp        "^(hyperfiddle.(electric-[^dom]|core-async|zero)|contrib.(ednish|sexpr-router)).*$"
-                           :build-options    {:cache-level :off}
-                           :modules          {:main {:entries [hyperfiddle.zero
-                                                               hyperfiddle.electric
-                                                               hyperfiddle.electric-test
-                                                               #_hyperfiddle.missionary-test
-                                                               hyperfiddle.core-async-test
-                                                               contrib.ednish
-                                                               contrib.sexpr-router]}}
-                           :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
-                           :compiler-options {:warnings {:redef-in-file false}}}
-            :prod {:target           :browser
-                   :output-dir       "resources/public/js"
-                   :asset-path       "/js"
-                   :module-hash-names true
-                   :modules          {:main {:entries [prod] :init-fn prod/start!}}}}}
+                         :release     {:compiler-options {:optimizations :simple}}}
+          :test         {:target           :node-test
+                         :output-to        "out/node-tests.js"
+                         :ns-regexp        "^(hyperfiddle.(electric-[^dom]|core-async|zero)|contrib.(ednish|sexpr-router)).*$"
+                         :build-options    {:cache-level :off}
+                         :modules          {:main {:entries [hyperfiddle.zero
+                                                             hyperfiddle.electric
+                                                             hyperfiddle.electric-test
+                                                             #_hyperfiddle.missionary-test
+                                                             hyperfiddle.core-async-test
+                                                             contrib.ednish
+                                                             contrib.sexpr-router]}}
+                         :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
+                         :compiler-options {:warnings {:redef-in-file false}}}
+          :browser-test {:target           :karma
+                         :output-to        "out/karma-tests.js"
+                         :ns-regexp        "^(hyperfiddle.(electric-[^dom]|core-async|zero)|contrib.(ednish|sexpr-router)).*$"
+                         :build-options    {:cache-level :off}
+                         :modules          {:main {:entries [hyperfiddle.zero
+                                                             hyperfiddle.electric
+                                                             hyperfiddle.electric-test
+                                                             #_hyperfiddle.missionary-test
+                                                             hyperfiddle.core-async-test
+                                                             contrib.ednish
+                                                             contrib.sexpr-router]}}
+                         :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
+                         :compiler-options {:warnings {:redef-in-file false}}}
+          :prod         {:target            :browser
+                         :output-dir        "resources/public/js"
+                         :asset-path        "/js"
+                         :module-hash-names true
+                         :modules           {:main {:entries [prod] :init-fn prod/start!}}}}}
