@@ -17,7 +17,7 @@ COPY --from=clojure-deps /root/.m2 /root/.m2
 COPY shadow-cljs.edn shadow-cljs.edn
 COPY deps.edn deps.edn
 COPY src src
-COPY src-dev src-dev
+COPY src-prod src-prod
 COPY src-docs src-docs
 COPY src-build src-build
 COPY resources resources
