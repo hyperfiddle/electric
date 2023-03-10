@@ -13,18 +13,6 @@
                        :build-hooks   [(shadow.cljs.build-report/hook {:output-to "target/build_report.html"})
                                        (user/rcf-shadow-hook)]
                   :release {:compiler-options {:optimizations :simple}}}
-            :prod {:target           :browser
-                   :output-dir       "resources/public/js"
-                   :asset-path       "/js"
-                   :module-hash-names true
-                   :modules          {:main {:entries [prod] :init-fn prod/start!}}}
-            :editor   {:target        :browser
-                       :devtools      {:watch-dir       "resources/public"    ; live reload CSS
-                                       :hud             #{:errors :progress}
-                                       :ignore-warnings true}                 ; warnings don't prevent hot-reload
-                       :output-dir    "resources/public/js/editor"
-                       :asset-path    "/js"
-                       :modules       {:main {:entries [user]}}}
             :test     {:target           :node-test
                        :output-to        "out/node-tests.js"
                        :ns-regexp        "^(hyperfiddle.(electric-[^dom]|core-async|zero)|contrib.(ednish|sexpr-router)).*$"
@@ -50,4 +38,9 @@
                                                                contrib.ednish
                                                                contrib.sexpr-router]}}
                            :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
-                           :compiler-options {:warnings {:redef-in-file false}}}}}
+                           :compiler-options {:warnings {:redef-in-file false}}}
+            :prod {:target           :browser
+                   :output-dir       "resources/public/js"
+                   :asset-path       "/js"
+                   :module-hash-names true
+                   :modules          {:main {:entries [prod] :init-fn prod/start!}}}}}
