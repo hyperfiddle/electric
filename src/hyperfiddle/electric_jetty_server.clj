@@ -34,7 +34,7 @@
                   (if (= 401 (:status response)) ; authenticated?
                     response                     ; send response to trigger auth prompt
                     (-> (res/status response 302) ; redirect
-                        (res/header "Location" "/"))))
+                        (res/header "Location" (get-in ring-req [:headers "referer"])))))
       ;; delegate to next middleware
       (next-handler ring-req))))
 
