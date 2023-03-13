@@ -1871,3 +1871,11 @@
     % := :pending
     (! 1)
     % := [:v 1]))
+
+(tests "catch code reacts to changes"
+  (def !x (atom 0))
+  (p/run (tap (try (throw (ex-info "boom" {}))
+                   (catch Throwable _ (p/watch !x)))))
+  % := 0
+  (swap! !x inc)
+  % := 1)
