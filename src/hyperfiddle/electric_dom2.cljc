@@ -4,7 +4,8 @@
             #?(:cljs goog.object)
             #?(:cljs goog.style)
             [hyperfiddle.electric :as e]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [clojure.string :as str])
   (:import [hyperfiddle.electric Pending])
   #?(:cljs (:require-macros [hyperfiddle.electric-dom2 :refer [with]])))
 
@@ -72,6 +73,27 @@
     :else ""))
 
 (def ^:const SVG-NS "http://www.w3.org/2000/svg")
+(def ^:const XLINK-NS "http://www.w3.org/1999/xlink")
+
+(def alias->ns {"svg" SVG-NS, "xlink" XLINK-NS})
+
+(defn attr-alias [attr] (second (re-find #"^([^:]+):" (name attr))))
+
+(defn resolve-attr-alias [attr]
+  (let [attr (name attr)]
+    (if-let [alias (attr-alias attr)]
+      (let [attr (-> (str/replace-first attr alias "")
+                   (str/replace-first #"^:" ""))]
+        [(alias->ns alias) attr])
+      [nil attr])))
+
+#?(:cljs
+   (defn set-attribute-ns
+     ([node attr v]
+      (let [[ns attr] (resolve-attr-alias attr)]
+        (set-attribute-ns node ns attr v)))
+     ([^js node ns attr v]
+      (.setAttributeNS node ns attr v))))
 
 #?(:cljs
    (defn set-property!
@@ -83,15 +105,15 @@
           (.removeAttributeNS node nil k)
           (case k
             "style" (goog.style/setStyle node v)
-            "class" (.setAttributeNS node nil "class" (class-str v))
-            "list"  (.setAttributeNS node nil k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
+            "class" (set-attribute-ns node nil "class" (class-str v))
+            "list"  (set-attribute-ns node nil k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
             (if-let [k (goog.object/get goog.dom/DIRECT_ATTRIBUTE_MAP_ k)]
-              (.setAttributeNS node nil k v)
+              (set-attribute-ns node k v)
               (if (= SVG-NS ns)
-                (.setAttributeNS node nil k v)
+                (set-attribute-ns node k v)
                 (if (goog.object/containsKey node k) ; is there an object property for this key?
                   (goog.object/set node k v)
-                  (.setAttributeNS node nil k v))))))))))
+                  (set-attribute-ns node k v))))))))))
 
 #?(:cljs (defn unmount-prop [node k v]
            (m/observe (fn [!] (! nil) #(set-property! node k v)))))
