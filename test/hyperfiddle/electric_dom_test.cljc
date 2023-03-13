@@ -56,6 +56,15 @@
   % := "abcd"
   )
 
+(tests
+  "namespaced attributes"
+  (dom/resolve-attr-alias :href) := [nil "href"]
+  (dom/resolve-attr-alias "href") := [nil "href"]
+  (dom/resolve-attr-alias :svg:rect) := ["http://www.w3.org/2000/svg" "rect"]
+  (dom/resolve-attr-alias :xlink:href) := ["http://www.w3.org/1999/xlink" "href"]
+  (dom/resolve-attr-alias "xlink:href") := ["http://www.w3.org/1999/xlink" "href"]
+  )
+
 
 (comment
   ;; CLJ
