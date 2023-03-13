@@ -30,8 +30,8 @@ deploy rights to the target coordinates.
 ```shell
 clojure -T:build build-client          # optimized release build
 clojure -T:build uberjar               # contains demos and demo server, currently
-docker build --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --dirty) -t electric .
-NO_COLOR=1 flyctl deploy --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --dirty)
+docker build --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --always --dirty) -t electric .
+NO_COLOR=1 flyctl deploy --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --always --dirty)
 ```
 
 - `NO_COLOR=1` disables docker-cli fancy shell GUI, so that we see the full log (not paginated) in case of exception
