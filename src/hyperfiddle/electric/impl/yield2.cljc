@@ -18,7 +18,7 @@
 (defn recover-notified [^Yield Y]
   (when-not (or (a/getset (a/fget Y recover) notified? true) (a/get (a/fget Y input) notified?))
     ((.-notifier Y))))
-(defn terminated [^Yield Y] (a/fswap Y children dec))
+(defn terminated [^Yield Y] (when (zero? (a/fswap Y children dec)) ((.-terminator Y))))
 (defn swallow [o] (try @(a/get o iterator) (catch #?(:clj Throwable :cljs :default) _)))
 (defn trash [o] (a/set o on-notify #(swallow o)) ((a/get o iterator)) (when (a/getset o notified? false) (swallow o)))
 (defn cancel [^Yield Y] ((a/get (a/fget Y input) iterator)) (when-some [rec (a/fget Y recover)] (trash rec)))
@@ -39,15 +39,13 @@
           (a/fset Y last-in in, last-out out))
         (do (a/fset Y last-in ::none) (when-some [rec (a/fget Y recover)] (trash rec))  in)))))
 (defn transfer [^Yield Y]
-  (try (let [ret (cond (a/get (a/fget Y input)   notified?) (transfer-input Y)
-                       (a/get (a/fget Y recover) notified?) (transfer-recover Y)
-                       :else (throw (ex-info "You cannot transfer a value if I haven't notified you" {})))]
-         (when (zero? (a/fget Y children)) ((.-terminator Y)))
-         ret)
+  (try (a/fswap Y children inc)
+       (cond (a/get (a/fget Y input)   notified?) (transfer-input Y)
+             (a/get (a/fget Y recover) notified?) (transfer-recover Y)
+             :else (throw (ex-info "You cannot transfer a value if I haven't notified you" {})))
        (catch #?(:clj Throwable :cljs :default) e
-         (trash (a/fget Y input)) (when-some [rec (a/fget Y recover)] (trash rec))
-         (when (zero? (a/fget Y children)) ((.-terminator Y)))
-         (throw e))))
+         (trash (a/fget Y input)) (when-some [rec (a/fget Y recover)] (trash rec)) (throw e))
+       (finally (terminated Y))))
 (defn yield [checker >input]
   (fn [n t]
     (let [^Yield Y (->Yield checker n t (object-array 5))
