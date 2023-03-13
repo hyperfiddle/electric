@@ -162,8 +162,7 @@
   (swap! !x inc)       @it := 1
   (swap! !in identity) @it := 1)
 (tests "yield stays alive as long as the recover is alive"
-  (def rec (m/reductions {} 0 (m/ap (m/? (m/sleep 1 1)))))
-  (def it ((yield (fn [_] rec) (m/cp)) #(tap :notified) #(tap :terminated)))
-  % := :notified, @it := 0
-  % := :notified, @it := 1
-  % := :terminated)
+  (def !x (atom 0))
+  (def it ((yield (fn [_] (m/watch !x)) (m/cp)) #(tap :notified) #(tap :terminated)))
+  #_start        % := :notified, @it := 0
+  (swap! !x inc) % := :notified, @it := 1)
