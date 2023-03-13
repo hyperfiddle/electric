@@ -32,7 +32,9 @@
 (defn transfer-input [^Yield Y]
   (let [in (transfer-loop (a/fget Y input))]
     (if (= in (a/fget Y last-in))
-      (a/fget Y last-out)
+      (if (some-> (a/fget Y recover) (a/get notified?))
+        (transfer-recover Y)
+        (a/fget Y last-out))
       (if-some [>recover ((.-checker Y) in)]
         (let [out (do (create-recover Y >recover) (transfer-recover Y))]
           (a/set (a/fget Y recover) on-notify #(recover-notified Y))
@@ -164,3 +166,10 @@
   (def it ((yield (fn [_] (m/watch !x)) (m/cp)) #(tap :notified) #(tap :terminated)))
   #_start        % := :notified, @it := 0
   (swap! !x inc) % := :notified, @it := 1)
+(tests "if same input arrives and recover notified recover is re-transferred"
+  (def !x (atom 0))
+  (def !err (atom 100))
+  (def it ((yield (fn [_] (m/watch !err)) (m/watch !x)) #(tap :notified) #(tap :terminated)))
+  #_start                              % := :notified, @it := 100
+  (swap! !err inc) (swap! !x identity) % := :notified, @it := 101
+  (swap! !err inc)                     % := :notified, @it := 102)
