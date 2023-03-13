@@ -76,7 +76,6 @@
     (:require
       contrib.str
       [contrib.element-syntax :refer [<%]]
-      [hyperfiddle.api :as hf]
       [hyperfiddle.electric :as e]
       [hyperfiddle.electric-dom2 :as dom]))
 
@@ -113,8 +112,8 @@
   (e/defn App []
     (e/client
       (<% :h1 "Multiplayer chat app with auth and presence")
-      (let [session-id (e/server (get-in hf/*http-request* [:headers "sec-websocket-key"]))
-            username (e/server (get-in hf/*http-request* [:cookies "username" :value]))]
+      (let [session-id (e/server (get-in e/*http-request* [:headers "sec-websocket-key"]))
+            username (e/server (get-in e/*http-request* [:cookies "username" :value]))]
         (if-not (some? username)
           (do (<% :p "Set login cookie here: " (<% :a {:href "/auth"} "/auth") " (blank password)")
               (<% :p "Example HTTP endpoint is here: "
