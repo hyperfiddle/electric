@@ -10,17 +10,17 @@ jobs:
     runs-on: [ubuntu-latest]
     timeout-minutes: 5
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - run: git status
 
-    - uses: actions/setup-java@v2
+    - uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
         java-version: '11'
 
     - name: Cache local Maven repository
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
          path: ~/.m2/repository
          key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn') }}
@@ -28,12 +28,9 @@ jobs:
            ${{ runner.os }}-maven-
 
     - name: Install clojure tools
-      uses: DeLaGuardo/setup-clojure@3.4
+      uses: DeLaGuardo/setup-clojure@10.2
       with:
         cli: 1.11.1.1113
-
-    - name: prep
-      run: clojure -A:test -P
 
     - name: Run tests
       run: ./ci/run_tests_jvm.sh
@@ -44,17 +41,17 @@ jobs:
     timeout-minutes: 5
     steps:
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - run: git status
 
-    - uses: actions/setup-java@v2
+    - uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
         java-version: '11'
 
     - name: Cache local Maven repository
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
          path: ~/.m2/repository
          key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn') }}
@@ -62,15 +59,12 @@ jobs:
            ${{ runner.os }}-maven-
 
     - name: Install clojure tools
-      uses: DeLaGuardo/setup-clojure@3.4
+      uses: DeLaGuardo/setup-clojure@10.2
       with:
         cli: 1.11.1.1113
 
-    - name: prep
-      run: clojure -A:test -P
-
     - name: Use Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v3
       with:
         node-version: 18.x
 
@@ -93,17 +87,17 @@ jobs:
     runs-on: [ubuntu-latest]
     timeout-minutes: 5
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - run: git status
 
-    - uses: actions/setup-java@v2
+    - uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
         java-version: '11'
 
     - name: Cache local Maven repository
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
          path: ~/.m2/repository
          key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn') }}
@@ -111,15 +105,12 @@ jobs:
            ${{ runner.os }}-maven-
 
     - name: Install clojure tools
-      uses: DeLaGuardo/setup-clojure@3.4
+      uses: DeLaGuardo/setup-clojure@10.2
       with:
         cli: 1.11.1.1113
 
-    - name: prep
-      run: clojure -A:test -P
-
     - name: Use Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v3
       with:
         node-version: 18.x
 
