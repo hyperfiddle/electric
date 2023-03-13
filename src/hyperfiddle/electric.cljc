@@ -397,3 +397,5 @@ running on a remote host.
                              {:status :waiting
                               :since  time
                               :delay  1000})))))))
+
+(def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current Electric program is running." nil)

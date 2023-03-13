@@ -84,7 +84,7 @@
   program named by the client. Original HTTP upgrade ring request map is
   accessible using `(ring.adapter.jetty9/req-of ws)`."
   [ring-req write-msg read-msg]
-  (binding [hf/*http-request* ring-req]
+  (binding [e/*http-request* ring-req]
     ;; Electric can resolve any dynamic var bound at this point
     (let [resolvef (bound-fn [not-found x] (r/dynamic-resolve not-found x))]
       (m/sp
