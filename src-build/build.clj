@@ -16,7 +16,12 @@
 
 (def defaults {:src-pom "pom.xml" :lib lib})
 
+(defn clean-client [_] (b/delete {:path "resources/public/js"}))
+(defn clean-server [_] (b/delete {:path "resources/private/electric/server_programs"}))
+
 (defn clean [opts]
+  (clean-client opts)
+  (clean-server opts)
   (bb/clean opts))
 
 (defn jar [opts]
@@ -35,7 +40,6 @@
   (format "target/%s-%s-standalone.jar" "electric-demos" version))
 
 (defn noop [_]) ; to preload mvn deps
-(defn clean-cljs [_] (b/delete {:path "resources/public/js"}))
 
 (defn build-client [{:keys [optimize debug verbose version]
                      :or   {optimize true, debug false, verbose false, version version}}]
@@ -60,7 +64,7 @@
   (clean nil)
 
   (println "Cleaning cljs compiler output")
-  (clean-cljs nil)
+  (clean-client nil)
 
   (build-client {:optimize optimize, :debug debug, :verbose verbose, :version version})
 
