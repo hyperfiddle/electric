@@ -131,8 +131,6 @@
 
 (defmacro branch [& body] `(new Branch (e/fn [] ~@body)))
 
-(def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current Electric program is running." nil)
-
 (e/def page-drop -1)
 (e/def page-take -1)
 
