@@ -2,7 +2,7 @@
   (:require
     [datascript.core :as d]
     [hyperfiddle.api :as hf]
-    [hyperfiddle.logger :as log]
+    [taoensso.timbre :as log]
     [hyperfiddle.rcf :refer [tests % tap]]))
 
 
@@ -145,7 +145,7 @@
   (clojure.test/run-all-tests #"(hyperfiddle.api|user.orders)"))
 
 (comment
-  "Performance profiling"
+  "Performance profiling, use :profile deps alias"
   (require '[clj-async-profiler.core :as prof])
   (prof/serve-files 8082)
   ;; Navigate to http://localhost:8082

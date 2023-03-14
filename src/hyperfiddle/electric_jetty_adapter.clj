@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric-jetty-adapter
   (:require [ring.adapter.jetty9 :as jetty]
             [hyperfiddle.api :as hf]
-            [hyperfiddle.logger :as log]
+            [taoensso.timbre :as log]
             [hyperfiddle.electric :as e]
             [missionary.core :as m]
             [hyperfiddle.electric.impl.io :as io]
@@ -26,7 +26,7 @@
 (defn failure [^WebSocketAdapter ws ^Throwable e]
   (if (instance? Cancelled e)
     (log/debug "Websocket handler completed gracefully.")
-    (do (log/error "Websocket handler failure" e)
+    (do (log/error e "Websocket handler failure")
         ;; jetty/close! is missing arity 3 for jetty 9. Call close directly to get arity 3.
         (when-some [s (.getSession ws)] (.close s 1011 "Server process crash")))))
 
@@ -67,7 +67,7 @@
                        (log/debug "Client disconnected for an unexpected reason." status))
                      ((aget state on-close-slot))))
      :on-error   (fn on-error [ws err]
-                   (log/error "Websocket error" err))
+                   (log/error err "Websocket error"))
      :on-ping    (fn on-ping [ws bytebuffer]) ; Ignore client ping, no use case.
      :on-pong    (fn on-pong [ws bytebuffer]
                    (log/trace "pong")

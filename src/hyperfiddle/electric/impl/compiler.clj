@@ -11,7 +11,7 @@
             [hyperfiddle.electric.debug :as dbg]
             [hyperfiddle.rcf :refer [tests]]
             [hyperfiddle.electric.impl.analyzer :as ana]
-            [hyperfiddle.logger :as log]
+            [taoensso.timbre :as log]
             [clojure.tools.analyzer.jvm.utils :refer [maybe-class-from-string]]
             [missionary.core :as m])
   (:import cljs.tagged_literals.JSValue
@@ -638,7 +638,7 @@
               ;; Error: ExceptionInInitializerError, Caused by RuntimeException: Can't resolve find-ns
               ;; An `ExceptionInInitializerError` means the Clojure compiler fails to resolve a var during the static initialization
               ;; of a class.
-              ;; hyperfiddle.logger macros (or Timbre) includes *ns* in their macroexpansion.
+              ;; taoensso.timbre macros includes *ns* in their macroexpansion.
               ;; From now on in the code, we carry ns info info in `env`, and we reset `*ns*` to the current clj namespace
               ;; to *ns* is an available namespace. The Electric compiler never rely on *ns*, only on `env`.
               (binding [*ns* (find-ns 'hyperfiddle.electric.impl.compiler)]
