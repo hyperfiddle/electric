@@ -1,4 +1,4 @@
-input:not([type="radio"]):not([type="checkbox"]), select {
+.hyperfiddle input:not([type="radio"]):not([type="checkbox"]), select {
     box-sizing: border-box;
     /* width:100%; */
     border-width: 1px;
@@ -9,36 +9,36 @@ input:not([type="radio"]):not([type="checkbox"]), select {
     width: 100%;
 }
 
-input[type="checkbox"]{
+.hyperfiddle input[type="checkbox"]{
     margin:0;
     width: 1rem;
     height: 1rem;
 }
 
-table {
+.hyperfiddle table {
     table-layout: fixed;
     border-collapse: collapse;
 }
 
 
-.hyperfiddle-select
-, .hyperfiddle-typeahead
-, .hyperfiddle-tag-picker
+.hyperfiddle .hyperfiddle-select
+, .hyperfiddle .hyperfiddle-typeahead
+, .hyperfiddle .hyperfiddle-tag-picker
 {
     /* background-color: red; */
     position: relative;
 }
 
-.hyperfiddle-select input
-, .hyperfiddle-typeahead input
+.hyperfiddle .hyperfiddle-select input,
+.hyperfiddle .hyperfiddle-typeahead input
 {
     border: none;
     border-style: none !important;
 }
 
-.hyperfiddle-select > ul
-, .hyperfiddle-typeahead > ul
-, .hyperfiddle-tag-picker-input-container > ul
+.hyperfiddle .hyperfiddle-select > ul
+, .hyperfiddle .hyperfiddle-typeahead > ul
+, .hyperfiddle .hyperfiddle-tag-picker-input-container > ul
 {
     margin: 0;
     padding: 0.25rem 0;
@@ -53,36 +53,36 @@ table {
     grid-gap: var(--hf-grid-gap);
 }
 
-.hyperfiddle-select > ul > li
-, .hyperfiddle-typeahead > ul > li
-, .hyperfiddle-tag-picker-input-container > ul > li
+.hyperfiddle .hyperfiddle-select > ul > li
+, .hyperfiddle .hyperfiddle-typeahead > ul > li
+, .hyperfiddle .hyperfiddle-tag-picker-input-container > ul > li
 {
     height: var(--hf-grid-row-height);
     padding: 0 0.5rem;
 
 }
 
-.hyperfiddle-select > ul > li:hover
-, .hyperfiddle-typeahead > ul > li:hover
-, .hyperfiddle-tag-picker-input-container > ul > li:hover
+.hyperfiddle .hyperfiddle-select > ul > li:hover
+, .hyperfiddle .hyperfiddle-typeahead > ul > li:hover
+, .hyperfiddle .hyperfiddle-tag-picker-input-container > ul > li:hover
 {
     cursor: pointer;
 }
 
-.hyperfiddle-tag-picker
-, .hyperfiddle-tag-picker-input-container
-, .hyperfiddle-tag-picker-items
-, .hyperfiddle-tag-picker-items > li
+.hyperfiddle .hyperfiddle-tag-picker
+, .hyperfiddle .hyperfiddle-tag-picker-input-container
+, .hyperfiddle .hyperfiddle-tag-picker-items
+, .hyperfiddle .hyperfiddle-tag-picker-items > li
 {
     display: inline-block;
 }
 
-.hyperfiddle-tag-picker-items
+.hyperfiddle .hyperfiddle-tag-picker-items
 {
     list-style-type: none;
 }
 
-.hyperfiddle-tag-picker{
+.hyperfiddle .hyperfiddle-tag-picker{
     display: inline-flex;
     flex-direction: row;
     flex-wrap: wrap;
@@ -92,22 +92,22 @@ table {
     background: white;
 }
 
-.hyperfiddle-tag-picker:focus-within{
+.hyperfiddle .hyperfiddle-tag-picker:focus-within{
     box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
 }
 
-.hyperfiddle-tag-picker-items{
+.hyperfiddle .hyperfiddle-tag-picker-items{
     display:contents;
 }
 
-.hyperfiddle-tag-picker-items > li
+.hyperfiddle .hyperfiddle-tag-picker-items > li
 {
     border: 1px solid;
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     white-space: nowrap;
 }
 
-.hyperfiddle-tag-picker-input-container{
+.hyperfiddle .hyperfiddle-tag-picker-input-container{
     position: relative;
     height: 100%;
     max-height: 100%;
@@ -115,12 +115,12 @@ table {
 
 }
 
-.hyperfiddle-tag-picker-input-container > input{
+.hyperfiddle .hyperfiddle-tag-picker-input-container > input{
     height: 100%;
     border-width:0!important; /* TODO drop the !important once we have a clean CSS system (tailwind) */
     outline: none;
 }
-.hyperfiddle-tag-picker-input-container > ul{
+.hyperfiddle .hyperfiddle-tag-picker-input-container > ul{
     position: absolute;
     width: max-content;
     margin-top: 0.25rem;
@@ -129,23 +129,23 @@ table {
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
-.hyperfiddle-tag-picker-items > li {
+.hyperfiddle .hyperfiddle-tag-picker-items > li {
     border-radius: 0.25rem;
     padding: 0 0 0 0.5rem;
 }
 
-.hyperfiddle-tag-picker-items > li > span {
+.hyperfiddle .hyperfiddle-tag-picker-items > li > span {
     margin: 0.25rem;
     color: rgb(55 65 81);
     cursor:pointer;
 }
 
-.hyperfiddle-selected
+.hyperfiddle .hyperfiddle-selected
 {
     background-color: orange;
 }
 
-.hyperfiddle-modal-backdrop
+.hyperfiddle .hyperfiddle-modal-backdrop
 {
     display: block;
     /* background-color: pink; */
@@ -158,14 +158,14 @@ table {
     z-index:1;
 }
 
-table.hyperfiddle td{
+.hyperfiddle table td{
     vertical-align: top;
     padding: 0.3rem;
     border-width: 1px;
     border-style: solid;
 }
 
-table.hyperfiddle thead td:empty{
+.hyperfiddle table thead td:empty{
     visibility:hidden;
     border: none;
 }

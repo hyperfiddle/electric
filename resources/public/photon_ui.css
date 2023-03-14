@@ -1,8 +1,8 @@
-button[aria-disabled=true], input[type="button"][aria-disabled="true"]{
+.hyperfiddle button[aria-disabled=true], input[type="button"][aria-disabled="true"]{
     color: GrayText;
 }
 
-button[aria-busy=true]
+.hyperfiddle button[aria-busy=true]
 , input[type=checkbox][aria-busy=true]
 {
     cursor:wait;
@@ -10,9 +10,9 @@ button[aria-busy=true]
 }
 
 /* Button spinner */
-button[aria-busy=true]::before
-, input[type=checkbox][aria-busy=true]::after
-, .input-load-mask[aria-busy=true]::after
+.hyperfiddle button[aria-busy=true]::before
+, .hyperfiddle input[type=checkbox][aria-busy=true]::after
+, .hyperfiddle .input-load-mask[aria-busy=true]::after
 {
     content:"";
     position:absolute;
@@ -24,28 +24,28 @@ button[aria-busy=true]::before
     bottom:0;
     left:0;
     right:0;
-    animation: spin 1s linear infinite;
+    animation: hyperfiddle-spinner-spin 1s linear infinite;
     border-width: 2px;
     border-style: solid;
     border-left-color: transparent;
     border-radius: 50%;
 }
 
-.input-load-mask[aria-busy=true] {
+.hyperfiddle .input-load-mask[aria-busy=true] {
     position: relative;
 }
-.input-load-mask[aria-busy=true]::after{
+.hyperfiddle .input-load-mask[aria-busy=true]::after{
     left: auto;
     right: 1rem;
 }
 
 /* Button spinner color */
-button[aria-busy=true]::before{
+.hyperfiddle button[aria-busy=true]::before{
     border-color: initial;
     border-left-color: transparent;
 }
 
-@keyframes spin{
+@keyframes hyperfiddle-spinner-spin{
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
 }
