@@ -294,6 +294,7 @@
 (defmacro span [& body] `(element :span ~@body))
 (defmacro strong [& body] `(element :strong ~@body))
 (defmacro sub [& body] `(element :sub ~@body))
+(defmacro summary [& body] `(element :summary ~@body))
 (defmacro sup [& body] `(element :sup ~@body))
 (defmacro table [& body] `(element :table ~@body))
 (defmacro tbody [& body] `(element :tbody ~@body))
