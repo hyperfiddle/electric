@@ -9,17 +9,17 @@
      /* rgb(226 232 240); /\* bg-slate-200 *\/ */
 }
 
-body{
+body.hyperfiddle{
     background-color: var(--hf-page-background);
     /* background-color: white; */
 }
 
-.hyperfiddle-gridsheet-wrapper{
+.hyperfiddle .hyperfiddle-gridsheet-wrapper{
     position: relative;
     flex:1;
 }
 
-.hyperfiddle-gridsheet{
+.hyperfiddle .hyperfiddle-gridsheet{
 
     --hf-grid-row-height: 1.5rem; /* source of truth, all rows inherit this height, js code will measure this */
     --hf-cell-border-color: rgb(203 213 225);
@@ -41,7 +41,7 @@ body{
 
 }
 
-.hyperfiddle-gridsheet-wrapper > .hf-grid-overlay{
+.hyperfiddle .hyperfiddle-gridsheet-wrapper > .hf-grid-overlay{
     position: absolute;
     top:0;
     bottom: 0;
@@ -54,7 +54,7 @@ body{
 }
 
 /* A vertical, standalone scrollbar. Meant to render in a single column next to some rows. */
-.hyperfiddle-gridsheet [role="scrollbar"] {
+.hyperfiddle .hyperfiddle-gridsheet [role="scrollbar"] {
     overflow-y: scroll;
     overflow-x: hidden;
     width: 1.1rem;
@@ -65,13 +65,13 @@ body{
 
 
 /* In a grid layout, these are semantic only */
-.hyperfiddle-gridsheet [role="scrollview"]
-, .hyperfiddle-gridsheet [role="table"]
-, .hyperfiddle-gridsheet [role="table"] thead
-, .hyperfiddle-gridsheet [role="table"] tbody
-, .hyperfiddle-gridsheet [role="table"] tr
-, .hyperfiddle-gridsheet [role="table"] td
-, .hyperfiddle-gridsheet [role="form"]
+.hyperfiddle .hyperfiddle-gridsheet [role="scrollview"]
+, .hyperfiddle .hyperfiddle-gridsheet [role="table"]
+, .hyperfiddle .hyperfiddle-gridsheet [role="table"] thead
+, .hyperfiddle .hyperfiddle-gridsheet [role="table"] tbody
+, .hyperfiddle .hyperfiddle-gridsheet [role="table"] tr
+, .hyperfiddle .hyperfiddle-gridsheet [role="table"] td
+, .hyperfiddle .hyperfiddle-gridsheet [role="form"]
 {
     display:contents;
 }
@@ -79,7 +79,7 @@ body{
 
 
 /* Anything can be considered a cell */
-.hyperfiddle-gridsheet [role="cell"] {
+.hyperfiddle .hyperfiddle-gridsheet [role="cell"] {
     display: block;
     width: 100%;
     margin: 0;
@@ -95,35 +95,34 @@ body{
     color: #222;
 }
 
-.hyperfiddle-gridsheet [role="cell"] > a {
+.hyperfiddle .hyperfiddle-gridsheet [role="cell"] > a {
     display: block;
     overflow: hidden;
 }
 
-.hyperfiddle-gridsheet .label[role="cell"] {
+.hyperfiddle .hyperfiddle-gridsheet .label[role="cell"] {
     font-weight: 500;
     background-color: var(--hf-label-background);
 }
 
-.hyperfiddle-gridsheet input[role="cell"] {
-
+.hyperfiddle .hyperfiddle-gridsheet input[role="cell"] {
     border:none;
 }
 
 /* Edge case: checkboxes should not grow to fill the row height  */
-.hyperfiddle-gridsheet input[role="cell"][type="checkbox"] {
+.hyperfiddle .hyperfiddle-gridsheet input[role="cell"][type="checkbox"] {
     margin: initial;
     width: initial;
     padding: initial;
 }
 
-.hyperfiddle-gridsheet .hyperfiddle-text{
+.hyperfiddle .hyperfiddle-gridsheet .hyperfiddle-text{
     background-color: var(--hf-label-background);
     z-index: 2;
     padding: 0.5rem;
 }
 
-.hyperfiddle-gridsheet .hyperfiddle-text h1{
+.hyperfiddle .hyperfiddle-gridsheet .hyperfiddle-text h1{
     /* text-3xl */
     font-size: 1.875rem; /* 30px */
     line-height: 2.25rem; /* 36px */
@@ -133,7 +132,7 @@ body{
 
 /* Misc */
 
-.hyperfiddle-hfql pre{
+.hyperfiddle .hyperfiddle-hfql pre{
     margin:0;
 }
 

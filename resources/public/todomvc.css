@@ -1,25 +1,10 @@
 html,
-body {
+body.hyperfiddle {
 	margin: 0;
 	padding: 0;
 }
 
-button {
-	margin: 0;
-	padding: 0;
-	border: 0;
-	background: none;
-	font-size: 100%;
-	vertical-align: baseline;
-	font-family: inherit;
-	color: inherit;
-	-webkit-appearance: none;
-	-ms-appearance: none;
-	-o-appearance: none;
-	appearance: none;
-}
-
-body {
+body.hyperfiddle {
 	font: 14px 'Helvetica Neue', Helvetica, Arial, sans-serif;
 	line-height: 1.4em;
 	background: #eaeaea;
@@ -34,12 +19,27 @@ body {
 	font-smoothing: antialiased;
 }
 
-button,
-input[type="checkbox"] {
+.hyperfiddle .todomvc button {
+	  margin: 0;
+	  padding: 0;
+	  border: 0;
+	  background: none;
+	  font-size: 100%;
+	  vertical-align: baseline;
+	  font-family: inherit;
+	  color: inherit;
+	  -webkit-appearance: none;
+	  -ms-appearance: none;
+	  -o-appearance: none;
+	  appearance: none;
+}
+
+.hyperfiddle .todomvc button,
+.hyperfiddle .todomvc input[type="checkbox"] {
   outline: none;
 }
 
-.todoapp {
+.hyperfiddle .todomvc .todoapp {
 	background: #fff;
 	background: rgba(255, 255, 255, 0.9);
 	/*margin: 130px 0 40px 0;*/
@@ -51,7 +51,7 @@ input[type="checkbox"] {
 				0 25px 50px 0 rgba(0, 0, 0, 0.15);
 }
 
-.todoapp:before {
+.hyperfiddle .todomvc .todoapp:before {
 	content: '';
 	border-left: 1px solid #f5d6d6;
 	border-right: 1px solid #f5d6d6;
@@ -62,20 +62,20 @@ input[type="checkbox"] {
 	height: 100%;
 }
 
-.todoapp input::-webkit-input-placeholder {
+.hyperfiddle .todomvc .todoapp input::-webkit-input-placeholder {
 	font-style: italic;
 }
 
-.todoapp input::-moz-placeholder {
+.hyperfiddle .todomvc .todoapp input::-moz-placeholder {
 	font-style: italic;
 	color: #a9a9a9;
 }
 
-.todomvc {
+.hyperfiddle .todomvc {
 	position: relative;
 }
 
-.todomvc h1 {
+.hyperfiddle .todomvc h1 {
 	/*position: absolute;*/
 	/*top: -120px;*/
 	width: 100%;
@@ -92,12 +92,12 @@ input[type="checkbox"] {
 	text-rendering: optimizeLegibility;
 }
 
-.header {
+.hyperfiddle .todomvc .header {
 	padding-top: 15px;
 	border-radius: inherit;
 }
 
-.header:before {
+.hyperfiddle .todomvc .header:before {
 	content: '';
 	position: absolute;
 	top: 0;
@@ -115,8 +115,8 @@ input[type="checkbox"] {
 	border-top-right-radius: 1px;
 }
 
-.todoapp input.new-todo,
-.edit {
+.hyperfiddle .todomvc .todoapp input.new-todo,
+.hyperfiddle .todomvc .edit {
 	position: relative;
 	margin: 0;
 	width: 100%;
@@ -140,7 +140,7 @@ input[type="checkbox"] {
 	font-smoothing: antialiased;
 }
 
-.todoapp input.new-todo { /* override hfql input styles with more specific selector on input */
+.hyperfiddle .todomvc .todoapp input.new-todo { /* override hfql input styles with more specific selector on input */
 	padding: 16px 16px 16px 60px;
 	border: none;
 	background: rgba(0, 0, 0, 0.02);
@@ -148,70 +148,70 @@ input[type="checkbox"] {
 	box-shadow: none;
 }
 
-.main {
+.hyperfiddle .todomvc .main {
 	position: relative;
 	z-index: 2;
 	border-top: 1px dotted #adadad;
 }
 
-label[for='toggle-all'] {
+.hyperfiddle .todomvc label[for='toggle-all'] {
 	display: none;
 }
 
-.toggle-all {
+.hyperfiddle .todomvc .toggle-all {
 	position: absolute;
 	top: -42px;
 	left: -4px;
-	width: 40px!important;
+	width: 40px;
 	text-align: center;
 	/* Mobile Safari */
 	border: none;
 }
 
-.toggle-all:before {
+.hyperfiddle .todomvc .toggle-all:before {
 	content: '»';
 	font-size: 28px;
 	color: #d9d9d9;
 	padding: 0 25px 7px;
 }
 
-.toggle-all:checked:before {
+.hyperfiddle .todomvc .toggle-all:checked:before {
 	color: #737373;
 }
 
-.todo-list {
+.hyperfiddle .todomvc .todo-list {
 	margin: 0;
 	padding: 0;
 	list-style: none;
 }
 
-.todo-list li {
+.hyperfiddle .todomvc .todo-list li {
 	position: relative;
 	font-size: 24px;
 	border-bottom: 1px dotted #ccc;
 }
 
-.todo-list li:last-child {
+.hyperfiddle .todomvc .todo-list li:last-child {
 	border-bottom: none;
 }
 
-.todo-list li.editing {
+.hyperfiddle .todomvc .todo-list li.editing {
 	border-bottom: none;
 	padding: 0;
 }
 
-.todo-list li.editing .edit {
+.hyperfiddle .todomvc .todo-list li.editing .edit {
 	display: block;
 	width: 506px;
 	padding: 13px 17px 12px 17px;
 	margin: 0 0 0 43px;
 }
 
-.todo-list li.editing .view {
+.hyperfiddle .todomvc .todo-list li.editing .view {
 	display: none;
 }
 
-.todo-list li .toggle {
+.hyperfiddle .todomvc .todo-list li .toggle {
 	text-align: center;
 	width: 40px;
 	/* auto, since non-WebKit browsers doesn't support input styling */
@@ -228,7 +228,7 @@ label[for='toggle-all'] {
 	appearance: none;
 }
 
-.todo-list li .toggle:before {
+.hyperfiddle .todomvc .todo-list li .toggle:before {
 	content: '✔';
 	/* 40 + a couple of pixels visual adjustment */
 	line-height: 43px;
@@ -237,14 +237,14 @@ label[for='toggle-all'] {
 	text-shadow: 0 -1px 0 #bfbfbf;
 }
 
-.todo-list li .toggle:checked:before {
+.hyperfiddle .todomvc .todo-list li .toggle:checked:before {
 	color: #85ada7;
 	text-shadow: 0 1px 0 #669991;
 	bottom: 1px;
 	position: relative;
 }
 
-.todo-list li label {
+.hyperfiddle .todomvc .todo-list li label {
 	white-space: pre;
 	word-break: break-word;
 	padding: 15px 60px 15px 15px;
@@ -255,12 +255,12 @@ label[for='toggle-all'] {
 	transition: color 0.4s;
 }
 
-.todo-list li.completed label {
+.hyperfiddle .todomvc .todo-list li.completed label {
 	color: #a9a9a9;
 	text-decoration: line-through;
 }
 
-.todo-list li .destroy {
+.hyperfiddle .todomvc .todo-list li .destroy {
 	display: none;
 	position: absolute;
 	top: 0;
@@ -275,7 +275,7 @@ label[for='toggle-all'] {
 	transition: all 0.2s;
 }
 
-.todo-list li .destroy:hover {
+.hyperfiddle .todomvc .todo-list li .destroy:hover {
 	text-shadow: 0 0 1px #000,
 				 0 0 10px rgba(199, 107, 107, 0.8);
 	-webkit-transform: scale(1.3);
@@ -283,24 +283,24 @@ label[for='toggle-all'] {
 	transform: scale(1.3);
 }
 
-.todo-list li .destroy:after {
+.hyperfiddle .todomvc .todo-list li .destroy:after {
 	content: '✖';
 }
 
-.todo-list li:hover .destroy
-, .todo-list .destroy[aria-busy=true] {
+.hyperfiddle .todomvc .todo-list li:hover .destroy
+,  .hyperfiddle .todomvc .todo-list .destroy[aria-busy=true] {
 	display: block;
 }
 
-.todo-list li .edit {
+.hyperfiddle .todomvc .todo-list li .edit {
 	display: none;
 }
 
-.todo-list li.editing:last-child {
+.hyperfiddle .todomvc .todo-list li.editing:last-child {
 	margin-bottom: -1px;
 }
 
-.footer {
+.hyperfiddle .todomvc .footer {
 	color: #777;
 	padding: 0 15px;
 	position: absolute;
@@ -312,7 +312,7 @@ label[for='toggle-all'] {
 	text-align: center;
 }
 
-.footer:before {
+.hyperfiddle .todomvc .footer:before {
 	content: '';
 	position: absolute;
 	right: 0;
@@ -327,12 +327,12 @@ label[for='toggle-all'] {
 				0 44px 2px -6px rgba(0, 0, 0, 0.2);
 }
 
-.todo-count {
+.hyperfiddle .todomvc .todo-count {
 	float: left;
 	text-align: left;
 }
 
-.filters {
+.hyperfiddle .todomvc .filters {
 	margin: 0;
 	padding: 0;
 	list-style: none;
@@ -341,21 +341,21 @@ label[for='toggle-all'] {
 	left: 0;
 }
 
-.filters li {
+.hyperfiddle .todomvc .filters li {
 	display: inline;
 }
 
-.filters li a {
+.hyperfiddle .todomvc .filters li a {
 	color: #83756f;
 	margin: 2px;
 	text-decoration: none;
 }
 
-.filters li a.selected {
+.hyperfiddle .todomvc .filters li a.selected {
 	font-weight: bold;
 }
 
-.clear-completed {
+.hyperfiddle .todomvc .clear-completed {
 	float: right;
 	position: relative;
 	line-height: 20px;
@@ -367,12 +367,12 @@ label[for='toggle-all'] {
 	box-shadow: 0 -1px 0 0 rgba(0, 0, 0, 0.2);
 }
 
-.clear-completed:hover {
+.hyperfiddle .todomvc .clear-completed:hover {
 	background: rgba(0, 0, 0, 0.15);
 	box-shadow: 0 -1px 0 0 rgba(0, 0, 0, 0.3);
 }
 
-.info {
+.hyperfiddle .todomvc .info {
 	margin: 65px auto 0;
 	color: #a6a6a6;
 	font-size: 12px;
@@ -380,7 +380,7 @@ label[for='toggle-all'] {
 	text-align: center;
 }
 
-.info a {
+.hyperfiddle .todomvc .info a {
 	color: inherit;
 }
 
@@ -390,20 +390,20 @@ label[for='toggle-all'] {
 */
 
 @media screen and (-webkit-min-device-pixel-ratio:0) {
-	.toggle-all,
-	.todo-list li .toggle {
+	.hyperfiddle .todomvc  .toggle-all,
+	.hyperfiddle .todomvc  .todo-list li .toggle {
 		background: none;
 	}
 
-	.todo-list li .toggle {
+	.hyperfiddle .todomvc  .todo-list li .toggle {
 		height: 40px;
 	}
 
-	.toggle-all {
+	.hyperfiddle .todomvc .toggle-all {
 		top: -56px;
 		left: -15px;
-		width: 65px!important;
-		height: 41px!important;
+		width: 65px;
+		height: 41px;
 		-webkit-transform: rotate(90deg);
 		-ms-transform: rotate(90deg);
 		transform: rotate(90deg);

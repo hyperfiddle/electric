@@ -10,31 +10,31 @@
     box-sizing: border-box;
 }
 
-body {
+body.hyperfiddle {
     font-family: 'Open Sans', Arial, Verdana, sans-serif;
     /* font-size: 0.8rem; */
     /*min-height: 101vh; !* DEMO ONLY, force scrollbar to show up, preventing paint flashing  *!*/
     background-color: rgb(248 250 252);
 }
 
-ol,
-ul,
-dl {
+.hyperfiddle ol,
+.hyperfiddle ul,
+.hyperfiddle dl {
     margin-top: 0;
     margin-bottom: 1rem;
 }
 
-dl {
+.hyperfiddle dl {
     display: inline-grid;
     grid-template-columns: 33% auto;
 }
 
-dt {
+.hyperfiddle dt {
     grid-column: 1;
     font-weight: 700;
 }
 
-dd {
+.hyperfiddle dd {
     grid-column: 2;
     margin-bottom: .5rem;
     margin-left: 0;
