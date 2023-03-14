@@ -4,18 +4,12 @@
          com.cognitect/transit-cljs                          {:mvn/version "0.8.269"}
          com.hyperfiddle/rcf                                 {:mvn/version "20220926-202227"}
          datascript/datascript                               {:mvn/version "1.3.14"}
-         info.sunng/ring-jetty9-adapter                      {:mvn/version "0.14.3"
-                                                              ;; "0.14.3" (Jetty 9) is Java 8 compatible;
-                                                              ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
-                                                              :exclusions  [org.slf4j/slf4j-api
-                                                                            info.sunng/ring-jetty9-adapter-http3]} ; no need
          missionary/missionary                               {:mvn/version "b.28"}
          org.clojure/clojure                                 {:mvn/version "1.11.1"}
          org.clojure/clojurescript                           {:mvn/version "1.11.60"}
          org.clojure/core.async                              {:mvn/version "1.5.648"} ; for interop helpers only
          org.clojure/tools.analyzer.jvm                      {:mvn/version "1.2.2"} ;; used by Electric
-         org.clojure/tools.logging                           {:mvn/version "1.2.4"}
-         ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}}
+         org.clojure/tools.logging                           {:mvn/version "1.2.4"}}
 
  :aliases {:dev  {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
                   :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}
@@ -24,6 +18,12 @@
                                 thheller/shadow-cljs                     {:mvn/version "2.20.1"}
                                 ch.qos.logback/logback-classic           {:mvn/version "1.2.11"}
                                 reagent/reagent                          {:mvn/version "1.1.1"} ; for reagent interop demo
+                                info.sunng/ring-jetty9-adapter           {:mvn/version "0.14.3"
+                                                                          ;; "0.14.3" (Jetty 9) is Java 8 compatible;
+                                                                          ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
+                                                                          :exclusions  [org.slf4j/slf4j-api
+                                                                                        info.sunng/ring-jetty9-adapter-http3]} ; no need
+                                ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
                                 }
                   :jvm-opts    ["-Xss2m"                 ; https://github.com/hyperfiddle/electric/issues/11
                                 "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
@@ -50,7 +50,13 @@
            :shadow-cljs {:extra-deps {thheller/shadow-cljs {:mvn/version "2.20.1"}}
                          :main-opts  ["-m" "shadow.cljs.devtools.cli"]
                          :jvm-opts   ["-Xss2m"]}
-           :prod        {:extra-paths ["src-prod" "src-dev" "src-docs"]}
+           :prod        {:extra-paths ["src-prod" "src-dev" "src-docs"]
+                         :extra-deps {info.sunng/ring-jetty9-adapter {:mvn/version "0.14.3"
+                                                                      ;; "0.14.3" (Jetty 9) is Java 8 compatible;
+                                                                      ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
+                                                                      :exclusions  [org.slf4j/slf4j-api
+                                                                                    info.sunng/ring-jetty9-adapter-http3]} ; no need
+                                      ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}}}
 
            :scratch      {:extra-deps {com.datomic/dev-local  {:mvn/version "1.0.243"}
                                        com.google.guava/guava {:mvn/version "31.1-jre"}}} ; fix conflict - datomic cloud & shadow

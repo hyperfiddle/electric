@@ -30,6 +30,7 @@ deploy rights to the target coordinates.
 ```shell
 clojure -T:build build-client          # optimized release build
 clojure -T:build uberjar               # contains demos and demo server, currently
+java -jar target/electric-demos-<version>-standalone.jar clojure.main -m prod
 docker build --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --always --dirty) -t electric .
 NO_COLOR=1 flyctl deploy --build-arg HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --always --dirty)
 ```
