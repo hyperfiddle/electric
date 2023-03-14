@@ -63,9 +63,6 @@
   (println "Cleaning up before build")
   (clean nil)
 
-  (println "Cleaning cljs compiler output")
-  (clean-client nil)
-
   (build-client {:optimize optimize, :debug debug, :verbose verbose, :version version})
 
   (println "Bundling sources")
@@ -75,4 +72,5 @@
   (println "Building uberjar")
   (b/uber {:class-dir class-dir
            :uber-file (str (or jar-name (default-uberjar-name {:version version})))
-           :basis     basis}))
+           :basis     (b/create-basis {:project "deps.edn"
+                                       :aliases [:prod]})}))

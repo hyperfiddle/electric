@@ -5,6 +5,8 @@
 ;; This implementation uses Jetty 9 for Java 8 compat.
 ;; Java 8 is macos system java, and supporting it simplifies setup for non-Clojure devs.
 
+;; See `deps.edn` for alternative Jetty versions.
+
 (ns hyperfiddle.electric-jetty-server
   (:require [clojure.java.io :as io]
             [hyperfiddle.electric-jetty-adapter :as adapter]
