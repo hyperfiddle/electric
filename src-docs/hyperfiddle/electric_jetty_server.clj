@@ -118,11 +118,11 @@
     ))
 
 (defn- add-gzip-handler
-  "Makes Jetty server compress responses. Optional."
+  "Makes Jetty server compress responses. Optional but recommended."
   [server]
   (.setHandler server
     (doto (GzipHandler.)
-      #_(.setIncludedMimeTypes (into-array ["text/css" "text/plain" "text/javascript" "application/javascript" "application/json" "image/svg+xml"])) ; only compress these mime types
+      #_(.setIncludedMimeTypes (into-array ["text/css" "text/plain" "text/javascript" "application/javascript" "application/json" "image/svg+xml"])) ; only compress these
       (.setMinGzipSize 1024)
       (.setHandler (.getHandler server)))))
 
