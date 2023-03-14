@@ -1,6 +1,5 @@
 (ns hyperfiddle.electric-jetty-adapter
   (:require [ring.adapter.jetty9 :as jetty]
-            [hyperfiddle.api :as hf]
             [taoensso.timbre :as log]
             [hyperfiddle.electric :as e]
             [missionary.core :as m]
