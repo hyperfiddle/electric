@@ -1,28 +1,28 @@
 {:paths ["src"
          "resources"] ; to serve static assets
- :deps  {com.cognitect/transit-clj                           {:mvn/version "1.0.329"}
-         com.cognitect/transit-cljs                          {:mvn/version "0.8.269"}
-         com.hyperfiddle/rcf                                 {:mvn/version "20220926-202227"}
-         datascript/datascript                               {:mvn/version "1.3.14"}
-         missionary/missionary                               {:mvn/version "b.28"}
-         org.clojure/clojure                                 {:mvn/version "1.11.1"}
-         org.clojure/clojurescript                           {:mvn/version "1.11.60"}
-         org.clojure/core.async                              {:mvn/version "1.5.648"} ; for interop helpers only
-         org.clojure/tools.analyzer.jvm                      {:mvn/version "1.2.2"} ;; used by Electric
-         com.taoensso/timbre {:mvn/version "6.1.0"} ; logging
+ :deps  {com.cognitect/transit-clj      {:mvn/version "1.0.329"}
+         com.cognitect/transit-cljs     {:mvn/version "0.8.269"}
+         com.hyperfiddle/rcf            {:mvn/version "20220926-202227"}
+         datascript/datascript          {:mvn/version "1.3.14"}
+         missionary/missionary          {:mvn/version "b.28"}
+         org.clojure/clojure            {:mvn/version "1.11.1"}
+         org.clojure/clojurescript      {:mvn/version "1.11.60"}
+         org.clojure/core.async         {:mvn/version "1.5.648"} ; for interop helpers only
+         org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"} ;; used by Electric
+         com.taoensso/timbre            {:mvn/version "6.1.0"} ; logging
          }
 
  :aliases {:dev  {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
-                  :extra-deps  {binaryage/devtools                       {:mvn/version "1.0.6"} ; for chrome devtools pretty printing
-                                thheller/shadow-cljs                     {:mvn/version "2.20.1"}
-                                reagent/reagent                          {:mvn/version "1.1.1"} ; for reagent interop demo
-                                info.sunng/ring-jetty9-adapter           {:mvn/version "0.14.3"
-                                                                          ;; "0.14.3" (Jetty 9) is Java 8 compatible;
-                                                                          ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
-                                                                          :exclusions  [org.slf4j/slf4j-api
-                                                                                        info.sunng/ring-jetty9-adapter-http3]} ; no need
+                  :extra-deps  {binaryage/devtools                                  {:mvn/version "1.0.6"} ; for chrome devtools pretty printing
+                                thheller/shadow-cljs                                {:mvn/version "2.20.1"}
+                                reagent/reagent                                     {:mvn/version "1.1.1"} ; for reagent interop demo
+                                info.sunng/ring-jetty9-adapter                      {:mvn/version "0.14.3"
+                                                                                     ;; "0.14.3" (Jetty 9) is Java 8 compatible;
+                                                                                     ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
+                                                                                     :exclusions  [org.slf4j/slf4j-api
+                                                                                                   info.sunng/ring-jetty9-adapter-http3]} ; no need
                                 ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
-                                com.fzakaria/slf4j-timbre {:mvn/version "0.3.21"} ; redirect jetty logs to timbre
+                                com.fzakaria/slf4j-timbre                           {:mvn/version "0.3.21"} ; redirect jetty logs to timbre
                                 }
                   :jvm-opts    ["-Xss2m"                 ; https://github.com/hyperfiddle/electric/issues/11
                                 "-XX:-OmitStackTraceInFastThrow" ;; RCF
@@ -37,22 +37,22 @@
                   :exec-fn     cognitect.test-runner.api/test}
 
 
-           :build       {:extra-paths ["src-build"]
-                         :ns-default  build
-                         :extra-deps  {io.github.clojure/tools.build    {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
-                                       io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}}
-           :shadow-cljs {:extra-deps {thheller/shadow-cljs {:mvn/version "2.20.1"}}
-                         :main-opts  ["-m" "shadow.cljs.devtools.cli"]
-                         :jvm-opts   ["-Xss2m"]}
-           :prod        {:extra-paths ["src-prod" "src-dev" "src-docs"]
-                         :extra-deps {info.sunng/ring-jetty9-adapter {:mvn/version "0.14.3"
-                                                                      ;; "0.14.3" (Jetty 9) is Java 8 compatible;
-                                                                      ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
-                                                                      :exclusions  [org.slf4j/slf4j-api
-                                                                                    info.sunng/ring-jetty9-adapter-http3]} ; no need
-                                      ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
-                                      com.fzakaria/slf4j-timbre {:mvn/version "0.3.21"} ; redirect jetty logs to timbre
-                                      }}
+           :build        {:extra-paths ["src-build"]
+                          :ns-default  build
+                          :extra-deps  {io.github.clojure/tools.build    {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
+                                        io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}}
+           :shadow-cljs  {:extra-deps {thheller/shadow-cljs {:mvn/version "2.20.1"}}
+                          :main-opts  ["-m" "shadow.cljs.devtools.cli"]
+                          :jvm-opts   ["-Xss2m"]}
+           :prod         {:extra-paths ["src-prod" "src-dev" "src-docs"]
+                          :extra-deps  {info.sunng/ring-jetty9-adapter                      {:mvn/version "0.14.3"
+                                                                                             ;; "0.14.3" (Jetty 9) is Java 8 compatible;
+                                                                                             ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
+                                                                                             :exclusions  [org.slf4j/slf4j-api
+                                                                                                           info.sunng/ring-jetty9-adapter-http3]} ; no need
+                                        ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
+                                        com.fzakaria/slf4j-timbre                           {:mvn/version "0.3.21"} ; redirect jetty logs to timbre
+                                        }}
            :scratch      {:extra-deps {com.datomic/dev-local  {:mvn/version "1.0.243"}
                                        com.google.guava/guava {:mvn/version "31.1-jre"}}} ; fix conflict - datomic cloud & shadow
            :datomic-free {:extra-deps {com.datomic/datomic-free {:mvn/version "0.9.5656" :exclusions [org.slf4j/slf4j-nop com.google.guava/guava]}}}
@@ -60,8 +60,8 @@
 
            :profile {:extra-deps {criterium/criterium                      {:mvn/version "0.4.6"}
                                   com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}}
-                     :jvm-opts ["-Djdk.attach.allowAttachSelf"
-                                "-XX:+UnlockDiagnosticVMOptions"
-                                "-XX:+DebugNonSafepoints"]}}
+                     :jvm-opts   ["-Djdk.attach.allowAttachSelf"
+                                  "-XX:+UnlockDiagnosticVMOptions"
+                                  "-XX:+DebugNonSafepoints"]}}
 
  :mvn/repos {"my.datomic.com" {:url "https://my.datomic.com/repo"}}}
