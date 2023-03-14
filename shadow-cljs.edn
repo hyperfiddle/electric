@@ -22,7 +22,6 @@
                                                              hyperfiddle.core-async-test
                                                              contrib.ednish
                                                              contrib.sexpr-router]}}
-                         :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
                          :compiler-options {:warnings {:redef-in-file false}}}
           :browser-test {:target           :karma
                          :output-to        "out/karma-tests.js"
@@ -35,7 +34,6 @@
                                                              hyperfiddle.core-async-test
                                                              contrib.ednish
                                                              contrib.sexpr-router]}}
-                         :dev              {:closure-defines {hyperfiddle.logger/LEVEL "debug"}}
                          :compiler-options {:warnings {:redef-in-file false}}}
           :prod         {:target            :browser
                          :output-dir        "resources/public/js"

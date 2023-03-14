@@ -8,7 +8,7 @@
 (ns ^:no-doc hyperfiddle.electric.impl.io
   (:require [missionary.core :as m]
             [cognitect.transit :as t]
-            [hyperfiddle.logger :as log]
+            [taoensso.timbre :as log]
             [hyperfiddle.electric.debug :as dbg]
             [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
             #?(:cljs [com.cognitect.transit.types])

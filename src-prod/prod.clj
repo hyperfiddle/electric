@@ -1,6 +1,8 @@
 (ns prod
   (:require [contrib.datomic-m :as d]
             [missionary.core :as m]
+            taoensso.timbre
+            clojure.string
             [hyperfiddle.electric-jetty-server :refer [start-server!]]
             user-main))
 
@@ -21,3 +23,15 @@
     (def datomic-client (d/client datomic-config))
     (def datomic-conn (m/? (d/connect datomic-client {:db-name "mbrainz-subset"})))
     (catch Exception _ "no datomic on classpath")))
+
+
+(taoensso.timbre/merge-config!
+  {:min-level :warn
+   :timestamp-opts {:pattern "HH:mm:ss.SSS"}
+   :output-fn (fn output-fn
+                ([data] (output-fn nil data))
+                ([opts {:keys [level ?err timestamp_ ?line ?ns-str msg_]}]
+                 (let [color ({:info :blue, :warn :yellow, :error :red, :fatal :red} level)]
+                   (str (force timestamp_) " " (taoensso.timbre/color-str color (clojure.string/upper-case (name level))) " [" ?ns-str ":" ?line "] - "  (force msg_)
+                     (when ?err
+                       (str "\n" (taoensso.timbre/stacktrace ?err opts)))))))})
