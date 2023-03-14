@@ -168,7 +168,7 @@
           (e/client
             (dom/link (dom/props {:rel :stylesheet, :href "/todomvc.css"}))
             ; exclude #root style from todomvc-composed by inlining here
-            (dom/element "style" (dom/text "body { width: 65vw; margin-left: auto; margin-right: auto; }"))
+            (dom/element "style" (dom/text "body.hyperfiddle { width: 65vw; margin-left: auto; margin-right: auto; }"))
             (TodoMVC-body. state)
             #_(Diagnostics. state)))))))
 
