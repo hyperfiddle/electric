@@ -2,7 +2,7 @@
   "Logic to resolve cljs or clj vars (and macros) and to reload source files in dev mode."
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
-            [hyperfiddle.logger :as log]
+            [taoensso.timbre :as log]
             [cljs.analyzer :as cljs]
             [cljs.env :as env]
             [hyperfiddle.rcf :refer [tests]]
@@ -221,7 +221,7 @@
   (try (apply require ns-sym args) ; will throw if source code is invalid CLJ(C)
        (catch FileNotFoundException _) ; Some namespaces don’t map to files (e.g. Math)
        (catch Throwable e              ; TODO improve error messages
-         (log/warn "Failed to load" ns-sym e))))
+         (log/warn e "Failed to load" ns-sym))))
 
 (defn maybe-load-clj-ns! [env ns-sym]
   (when-not (re-find #"^hyperfiddle\.electric" (str ns-sym)) ; electric doesn't reload itself

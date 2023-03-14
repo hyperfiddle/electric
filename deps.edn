@@ -9,14 +9,12 @@
          org.clojure/clojurescript                           {:mvn/version "1.11.60"}
          org.clojure/core.async                              {:mvn/version "1.5.648"} ; for interop helpers only
          org.clojure/tools.analyzer.jvm                      {:mvn/version "1.2.2"} ;; used by Electric
-         org.clojure/tools.logging                           {:mvn/version "1.2.4"}}
+         com.taoensso/timbre {:mvn/version "6.1.0"} ; logging
+         }
 
  :aliases {:dev  {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
-                  :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}
-                                criterium/criterium                      {:mvn/version "0.4.6"}
-                                binaryage/devtools                       {:mvn/version "1.0.6"}
+                  :extra-deps  {binaryage/devtools                       {:mvn/version "1.0.6"} ; for chrome devtools pretty printing
                                 thheller/shadow-cljs                     {:mvn/version "2.20.1"}
-                                ch.qos.logback/logback-classic           {:mvn/version "1.2.11"}
                                 reagent/reagent                          {:mvn/version "1.1.1"} ; for reagent interop demo
                                 info.sunng/ring-jetty9-adapter           {:mvn/version "0.14.3"
                                                                           ;; "0.14.3" (Jetty 9) is Java 8 compatible;
@@ -24,19 +22,15 @@
                                                                           :exclusions  [org.slf4j/slf4j-api
                                                                                         info.sunng/ring-jetty9-adapter-http3]} ; no need
                                 ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
+                                com.fzakaria/slf4j-timbre {:mvn/version "0.3.21"} ; redirect jetty logs to timbre
                                 }
                   :jvm-opts    ["-Xss2m"                 ; https://github.com/hyperfiddle/electric/issues/11
-                                "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"
-                                "-Dlogback.configurationFile=src-dev/logback_dev.xml"
                                 "-XX:-OmitStackTraceInFastThrow" ;; RCF
-                                "-Djdk.attach.allowAttachSelf" ;; profiling
-                                "-XX:+UnlockDiagnosticVMOptions"
-                                "-XX:+DebugNonSafepoints"]}
+                                ]}
            :test {:extra-paths [#_"src-dev" "test"]
                   :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true"
                                 "-XX:-OmitStackTraceInFastThrow" ;; https://archive.md/NNt9r
-                                "-Dlogback.configurationFile=src-dev/logback.xml"
-                                "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/slf4j-factory"]
+                                ]
                   :extra-deps  {ch.qos.logback/logback-classic       {:mvn/version "1.2.11"}
                                 io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                       :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
@@ -56,11 +50,18 @@
                                                                       ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
                                                                       :exclusions  [org.slf4j/slf4j-api
                                                                                     info.sunng/ring-jetty9-adapter-http3]} ; no need
-                                      ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}}}
-
+                                      ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
+                                      com.fzakaria/slf4j-timbre {:mvn/version "0.3.21"} ; redirect jetty logs to timbre
+                                      }}
            :scratch      {:extra-deps {com.datomic/dev-local  {:mvn/version "1.0.243"}
                                        com.google.guava/guava {:mvn/version "31.1-jre"}}} ; fix conflict - datomic cloud & shadow
            :datomic-free {:extra-deps {com.datomic/datomic-free {:mvn/version "0.9.5656" :exclusions [org.slf4j/slf4j-nop com.google.guava/guava]}}}
-           :datomic-pro  {:extra-deps {com.datomic/datomic-pro {:mvn/version "1.0.6527" :exclusions [org.slf4j/slf4j-nop]}}}}
+           :datomic-pro  {:extra-deps {com.datomic/datomic-pro {:mvn/version "1.0.6527" :exclusions [org.slf4j/slf4j-nop]}}}
+
+           :profile {:extra-deps {criterium/criterium                      {:mvn/version "0.4.6"}
+                                  com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}}
+                     :jvm-opts ["-Djdk.attach.allowAttachSelf"
+                                "-XX:+UnlockDiagnosticVMOptions"
+                                "-XX:+DebugNonSafepoints"]}}
 
  :mvn/repos {"my.datomic.com" {:url "https://my.datomic.com/repo"}}}

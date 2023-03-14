@@ -3,7 +3,7 @@
   (:require
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
-    [hyperfiddle.logger :as log]
+    [taoensso.timbre :as log]
     [hyperfiddle.electric :as e]
     [hyperfiddle.electric-dom2 :as dom]
     [missionary.core :as m]
@@ -89,7 +89,7 @@
 
 (defn read-edn [edn-str]
   (try (edn/read-string edn-str)
-       (catch #?(:clj Throwable :cljs :default) t (hyperfiddle.logger/error t) nil)))
+       (catch #?(:clj Throwable :cljs :default) t (taoensso.timbre/error t) nil)))
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 

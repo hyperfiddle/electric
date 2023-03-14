@@ -8,7 +8,7 @@
             [cljs.analyzer.api :as cljs]
             [cljs.analyzer :as cljs-ana]
             [cljs.analyzer.passes :as cljs-ast]
-            [hyperfiddle.logger :as log]))
+            [taoensso.timbre :as log]))
 
 (defn walk-clj "Prewalk a clj ast" [ast f] (clj-ast/prewalk ast f))
 (defn walk-cljs "Prewalk a cljs ast" [ast f] (cljs-ast/walk ast [(fn [env ast opts] (f ast))]))
@@ -163,5 +163,5 @@
     ;; :ns*
 
 
-    (do (hyperfiddle.logger/warn "This cljs form is not supported yet. Please log a ticket." {:op (:op ast) :form (:form ast)})
+    (do (taoensso.timbre/warn "This cljs form is not supported yet. Please log a ticket." {:op (:op ast) :form (:form ast)})
         (:form ast))))

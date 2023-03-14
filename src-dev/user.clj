@@ -5,6 +5,8 @@
   ; For fastest REPL startup, no heavy deps here, REPL conveniences only
   ; (Clojure has to compile all this stuff on startup)
   (:require [missionary.core :as m]
+            taoensso.timbre
+            clojure.string
             hyperfiddle.rcf))
 
 ; WARNING: make sure your REPL and shadow-cljs are sharing the same JVM!
@@ -82,3 +84,23 @@
 (defn -main [& args]
   (require 'user-main)
   (@start-electric-server! electric-server-config))
+
+(taoensso.timbre/merge-config!
+  {:min-level [["org.xnio" :warn]      ; Shadow cljs
+               ["org.xnio.*" :warn]    ;
+               ["org.jboss.*" :warn]   ;
+               ["io.undertow.*" :warn] ;
+               ["org.eclipse.jetty.*" :warn]
+               ["hyperfiddle.electric-jetty-adapter" :warn]
+               ["hyperfiddle.*" :debug]
+               ["datomic.*" :warn]
+               ["*" :debug]]
+   :timestamp-opts {:pattern "HH:mm:ss.SSS"}
+   :output-fn (fn output-fn
+                ([data] (output-fn nil data))
+                ([opts {:keys [level ?err timestamp_ ?line ?ns-str msg_]}]
+                 (let [color ({:info :blue, :warn :yellow, :error :red, :fatal :red} level)]
+                   (str (force timestamp_) " " (taoensso.timbre/color-str color (clojure.string/upper-case (name level))) " [" ?ns-str ":" ?line "] - "  (force msg_)
+                     (when ?err
+                       (str "\n" (taoensso.timbre/stacktrace ?err opts)))))))})
+
