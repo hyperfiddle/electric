@@ -1,6 +1,7 @@
 ;; TODO move core.async interop out of core Electric, and move these tests with it.
 (ns hyperfiddle.core-async-test
   (:require [hyperfiddle.electric :as p]
+            [contrib.missionary-contrib :as mc]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [clojure.core.async :as a]
             [missionary.core :as m])
@@ -37,7 +38,7 @@
    (tests
      "Read a value from a channel"
      (let [c (a/chan)
-           t (p/chan-read! c)]
+           t (mc/chan-read! c)]
        (a/put! c 1)
        (m/? t) := 1)))
 
@@ -45,7 +46,7 @@
    (tests
      "Reading a value from a channel blocks until a value is available."
      (let [c (a/chan)
-           t (p/chan-read! c)]
+           t (mc/chan-read! c)]
        (future (tap (m/? t))) ; don't block main (repl) thread
        (a/put! c 1)
        % := 1)))
@@ -77,7 +78,7 @@
    (tests
      "Turn a channel into a discrete flow"
      (let [c (a/chan)
-           f (p/chan->ap c)
+           f (mc/chan->ap c)
            it (f #(tap :ready) #(tap :done))]
        (a/put! c 1)
        ;; chan-read rely on a go block, which will run its body in another thread.
@@ -91,7 +92,7 @@
      (def c (a/chan))
      (future (tap (m/? (m/reduce conj ; just run the flow until it terminates
                                (m/ap (m/amb= (m/?> (onto-chan (m/seed [1 2]) c))
-                                             (m/?> (p/chan->ap c))))))))
+                                             (m/?> (mc/chan->ap c))))))))
      (a/close! c)
      % := [1 2]))
 
@@ -101,8 +102,8 @@
      (def input (a/chan))
      (def c (a/chan))
      (future (m/? (m/reduce {} nil ; just run the flow until it terminates
-                            (m/ap (m/amb= (tap [:success (m/?> (p/chan->ap c))])
-                                          (tap [:failure (m/?> (onto-chan (p/chan->ap input) c))]))))))
+                            (m/ap (m/amb= (tap [:success (m/?> (mc/chan->ap c))])
+                                          (tap [:failure (m/?> (onto-chan (mc/chan->ap input) c))]))))))
      (a/>!! input 1) ; put 1 on input, which transfers to a flow, then is put onto c.
      (Thread/sleep 100) ; even if >!! is blocking, go blocks might race with the next instruction
      (a/close! c)
@@ -115,7 +116,7 @@
    (tests
      "Using a core.async channel from Electric"
      (def c (a/to-chan [1 2 3]))
-     (with (p/run (tap (p/use-channel c)))
+     (with (p/run (tap (mc/use-channel c)))
            % := nil
            % := 1
            % := 2

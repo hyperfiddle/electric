@@ -80,6 +80,10 @@
         ;; parent m/ap block has nothing to produce anymore and will also terminate.
         (m/amb)))))
 
+(defmacro use-channel ; TODO rename
+  ([chan] `(use-channel nil ~chan))
+  ([init chan] `(new (m/reductions {} ~init (chan->ap ~chan)))))
+
 (defn chan->task [ch]
   ; for streaming database results into a vector at the repl (which is not great)
   (->> (chan->ap ch)
