@@ -1,7 +1,6 @@
 (ns hyperfiddle.electric
   (:refer-clojure :exclude [eval def defn fn for empty? partial])
   (:require [clojure.core :as cc]
-            contrib.missionary-contrib
             [hyperfiddle.electric.impl.compiler :as c]
             [hyperfiddle.electric.impl.runtime :as r]
             [hyperfiddle.electric.impl.for :refer [map-by]]
@@ -109,6 +108,7 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
   ([!x] (task->cp !x (Failure. (Pending.)))) ; note Electric dependency
   ([!x pending] (->> (m/ap (m/? !x)) (m/reductions {} pending))))
 
+; Moved to contrib.missionary-contrib
 ;(defmacro use-channel ;; TODO rename
 ;  ([chan] `(use-channel nil ~chan))
 ;  ([init chan] `(new (m/reductions {} ~init (chan->ap ~chan)))))

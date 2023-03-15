@@ -1,5 +1,4 @@
-;; TODO move core.async interop out of core Electric, and move these tests with it.
-(ns hyperfiddle.core-async-test
+(ns contrib.missionary-contrib-test
   (:require [hyperfiddle.electric :as p]
             [contrib.missionary-contrib :as mc]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]

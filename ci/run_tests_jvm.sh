@@ -8,7 +8,7 @@ clojure -X:test \
       \"hyperfiddle.electric-test\"            \
       \"hyperfiddle.zero\"                   \
       \"hyperfiddle.missionary-test\"        \
-      \"hyperfiddle.core-async-test\"        \
+      \"contrib.missionary-contrib-test\"    \
       \"contrib.ednish\"                     \
       \"contrib.sexpr-router\"               \
      ]"
