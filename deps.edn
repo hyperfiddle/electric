@@ -8,7 +8,6 @@
          missionary/missionary          {:mvn/version "b.28"}
          org.clojure/clojure            {:mvn/version "1.11.1"}
          org.clojure/clojurescript      {:mvn/version "1.11.60"}
-         org.clojure/core.async         {:mvn/version "1.5.648"} ; for interop helpers only
          org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"} ;; used by Electric
          com.taoensso/timbre            {:mvn/version "6.1.0"} ; logging
          }
@@ -32,7 +31,8 @@
                   :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true"
                                 "-XX:-OmitStackTraceInFastThrow" ;; https://archive.md/NNt9r
                                 ]
-                  :extra-deps  {ch.qos.logback/logback-classic       {:mvn/version "1.2.11"}
+                  :extra-deps  {org.clojure/core.async               {:mvn/version "1.5.648"} ; for interop helpers only
+                                ch.qos.logback/logback-classic       {:mvn/version "1.2.11"}
                                 io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                       :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
                   :exec-fn     cognitect.test-runner.api/test}

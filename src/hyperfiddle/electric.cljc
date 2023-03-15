@@ -100,18 +100,18 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 (defmacro ^:deprecated wrap "Deprecated. Use `offload` instead." [& body] `(offload #(do ~@body)))
 
 ; Should these be in missionary?
-(def chan-read! contrib.missionary-contrib/chan-read!)
-(def chan->ap contrib.missionary-contrib/chan->ap)
-(def chan->task contrib.missionary-contrib/chan->task)
+;(def chan-read! contrib.missionary-contrib/chan-read!)
+;(def chan->ap contrib.missionary-contrib/chan->ap)
+;(def chan->task contrib.missionary-contrib/chan->task)
 ;(def chan->cp contrib.missionary-contrib/chan->cp)
 
 (cc/defn task->cp ; leo to review
   ([!x] (task->cp !x (Failure. (Pending.)))) ; note Electric dependency
   ([!x pending] (->> (m/ap (m/? !x)) (m/reductions {} pending))))
 
-(defmacro use-channel ;; TODO rename
-  ([chan] `(use-channel nil ~chan))
-  ([init chan] `(new (m/reductions {} ~init (chan->ap ~chan)))))
+;(defmacro use-channel ;; TODO rename
+;  ([chan] `(use-channel nil ~chan))
+;  ([init chan] `(new (m/reductions {} ~init (chan->ap ~chan)))))
 
 #?(:cljs
    (deftype Clock [^:mutable ^number raf
