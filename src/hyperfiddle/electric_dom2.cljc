@@ -18,7 +18,7 @@
 
 (def hook "See `with`"
   #?(:clj  unsupported
-     :cljs (fn ([x] (.removeChild (.-parentNode x) x)) ; unmount
+     :cljs (fn ([x] (some-> (.-parentNode x) (.removeChild x)))
              ([x y] (.insertBefore (.-parentNode x) x y))))) ; rotate siblings
 
 (defmacro with
