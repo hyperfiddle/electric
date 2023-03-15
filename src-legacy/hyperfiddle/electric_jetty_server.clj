@@ -7,7 +7,7 @@
 (ns hyperfiddle.electric-jetty-server
   (:require [clojure.java.io :as io]
             [hyperfiddle.electric-jetty-adapter :as adapter]
-            [taoensso.timbre :as log]
+            [clojure.tools.logging :as log]
             [ring.adapter.jetty9 :as ring]
             [ring.middleware.basic-authentication :as auth]
             [ring.middleware.content-type :refer [wrap-content-type]]

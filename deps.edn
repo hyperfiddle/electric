@@ -10,19 +10,20 @@
          org.clojure/clojurescript      {:mvn/version "1.11.60"}
          org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"} ;; used by Electric
          com.taoensso/timbre            {:mvn/version "6.1.0"} ; logging
+         org.clojure/tools.logging      {:mvn/version "1.2.4"}
          }
 
  :aliases {:dev  {:extra-paths ["src-dev" "src-docs" "test" "scratch"] ; for clj command
                   :extra-deps  {binaryage/devtools                                  {:mvn/version "1.0.6"} ; for chrome devtools pretty printing
                                 thheller/shadow-cljs                                {:mvn/version "2.20.1"}
                                 reagent/reagent                                     {:mvn/version "1.1.1"} ; for reagent interop demo
+                                ch.qos.logback/logback-classic                      {:mvn/version "1.2.11"} ; logging implementation
                                 info.sunng/ring-jetty9-adapter                      {:mvn/version "0.14.3"
                                                                                      ;; "0.14.3" (Jetty 9) is Java 8 compatible;
                                                                                      ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
                                                                                      :exclusions  [org.slf4j/slf4j-api
                                                                                                    info.sunng/ring-jetty9-adapter-http3]} ; no need
                                 ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
-                                com.fzakaria/slf4j-timbre                           {:mvn/version "0.3.21"} ; redirect jetty logs to timbre
                                 }
                   :jvm-opts    ["-Xss2m"                 ; https://github.com/hyperfiddle/electric/issues/11
                                 "-XX:-OmitStackTraceInFastThrow" ;; RCF
@@ -46,13 +47,13 @@
                           :main-opts  ["-m" "shadow.cljs.devtools.cli"]
                           :jvm-opts   ["-Xss2m"]}
            :prod         {:extra-paths ["src-prod" "src-dev" "src-docs"]
-                          :extra-deps  {info.sunng/ring-jetty9-adapter                      {:mvn/version "0.14.3"
+                          :extra-deps  {ch.qos.logback/logback-classic                      {:mvn/version "1.2.11"} ; logging implementation
+                                        info.sunng/ring-jetty9-adapter                      {:mvn/version "0.14.3"
                                                                                              ;; "0.14.3" (Jetty 9) is Java 8 compatible;
                                                                                              ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
                                                                                              :exclusions  [org.slf4j/slf4j-api
                                                                                                            info.sunng/ring-jetty9-adapter-http3]} ; no need
                                         ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
-                                        com.fzakaria/slf4j-timbre                           {:mvn/version "0.3.21"} ; redirect jetty logs to timbre
                                         }}
            :scratch      {:extra-deps {com.datomic/dev-local  {:mvn/version "1.0.243"}
                                        com.google.guava/guava {:mvn/version "31.1-jre"}}} ; fix conflict - datomic cloud & shadow

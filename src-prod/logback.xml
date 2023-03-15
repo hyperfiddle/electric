@@ -1,0 +1,14 @@
+<!-- Options: http://logback.qos.ch/manual/layouts.html -->
+<configuration debug="false">
+
+    <appender name="FULL" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %cyan(%logger{15}) %white([%thread]) - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="WARN">
+        <appender-ref ref="FULL"/>
+    </root>
+
+</configuration>
