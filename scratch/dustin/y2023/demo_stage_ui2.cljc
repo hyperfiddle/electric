@@ -6,7 +6,7 @@
             #?(:clj [contrib.datomic-contrib :as dx])
             #?(:clj [datomic.client.api :as d])
             [hyperfiddle.api :as hf]
-            [taoensso.timbre :as log]
+            [clojure.tools.logging :as log]
             [hyperfiddle.photon :as p]
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.photon-ui2 :as ui]

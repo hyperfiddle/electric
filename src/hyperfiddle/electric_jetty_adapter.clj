@@ -1,6 +1,6 @@
 (ns hyperfiddle.electric-jetty-adapter
   (:require [ring.adapter.jetty9 :as jetty]
-            [taoensso.timbre :as log]
+            [clojure.tools.logging :as log]
             [hyperfiddle.electric :as e]
             [missionary.core :as m]
             [hyperfiddle.electric.impl.io :as io]
