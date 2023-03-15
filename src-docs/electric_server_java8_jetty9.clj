@@ -1,13 +1,4 @@
-;; Example Jetty server
-;; Electric can be integrated into your existing Jetty app.
-;; For new projects, copy and adapt this file.
-
-;; This implementation uses Jetty 9 for Java 8 compat.
-;; Java 8 is macos system java, and supporting it simplifies setup for non-Clojure devs.
-
-;; See `deps.edn` for alternative Jetty versions.
-
-(ns hyperfiddle.electric-jetty-server
+(ns electric-server-java8-jetty9
   (:require [clojure.java.io :as io]
             [hyperfiddle.electric-jetty-adapter :as adapter]
             [taoensso.timbre :as log]
@@ -76,7 +67,7 @@
       ;; index.html file not found on classpath
       (next-handler ring-req))))
 
-(def ^:const VERSION (not-empty (System/getProperty "HYPERFIDDLE_ELECTRIC_SERVER_VERSION"))) ; Setted by starting server with `java -DHYPERFIDDLE_ELECTRIC_VERSION=<version>`
+(def ^:const VERSION (not-empty (System/getProperty "HYPERFIDDLE_ELECTRIC_SERVER_VERSION"))) ; see Dockerfile
 
 (defn wrap-reject-stale-client
   "Intercept websocket UPGRADE request and check if client and server versions matches.
@@ -91,17 +82,9 @@
         :else (adapter/reject-websocket-handler 1008 "stale client") ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
         ))))
 
-#_
-(defn wrap-electric-websocket [next-handler] ; Jetty 10 allows such handler
-  (fn [ring-request]
-    (if (ring/ws-upgrade-request? ring-request)
-      (ring/ws-upgrade-response (adapter/electric-ws-adapter adapter/electric-ws-message-handler))
-      (next-handler ring-request))))
-
 (def websocket-middleware
   (fn [next-handler]
-    (-> #_(wrap-electric-websocket next-handler) ; Jetty 10 only
-      (cookies/wrap-cookies next-handler) ; makes cookies available to Electric app
+    (-> (cookies/wrap-cookies next-handler) ; makes cookies available to Electric app
       (wrap-reject-stale-client)
       (wrap-params))))
 
@@ -116,7 +99,6 @@
     (wrap-resource resources-path) ; 3. serve static file from classpath
     (wrap-content-type) ; 2. detect content (e.g. for index.html)
     (wrap-demo-router) ; 1. route
-    #_(wrap-electric-websocket) ; Jetty 10 only
     ))
 
 (defn- add-gzip-handler
@@ -129,10 +111,10 @@
       (.setHandler (.getHandler server)))))
 
 (defn start-server! [{:keys [port resources-path manifest-path]
-                      :or   {port            8080
-                             resources-path "public"
-                             manifest-path  "public/js/manifest.edn"}
-                      :as   config}]
+                                   :or   {port            8080
+                                          resources-path "public"
+                                          manifest-path  "public/js/manifest.edn"}
+                                   :as   config}]
   (try
     (let [server (ring/run-jetty (http-middleware resources-path manifest-path)
                    (merge {:port port

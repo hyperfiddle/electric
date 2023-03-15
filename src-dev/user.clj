@@ -25,7 +25,7 @@
 (def shadow-watch (delay @(requiring-resolve 'shadow.cljs.devtools.api/watch)))
 (def shadow-compile (delay @(requiring-resolve 'shadow.cljs.devtools.api/compile)))
 (def shadow-release (delay @(requiring-resolve 'shadow.cljs.devtools.api/release)))
-(def start-electric-server! (delay @(requiring-resolve 'hyperfiddle.electric-jetty-server/start-server!)))
+(def start-electric-server! (delay @(requiring-resolve 'electric-server-java8-jetty9/start-server!)))
 (def rcf-enable! (delay @(requiring-resolve 'hyperfiddle.rcf/enable!)))
 
 (defn rcf-shadow-hook {:shadow.build/stages #{:compile-prepare :compile-finish}}
