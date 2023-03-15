@@ -8,7 +8,7 @@
 (ns ^:no-doc hyperfiddle.electric.impl.io
   (:require [missionary.core :as m]
             [cognitect.transit :as t]
-            [taoensso.timbre :as log]
+            #?(:clj [clojure.tools.logging :as log])
             [hyperfiddle.electric.debug :as dbg]
             [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
             #?(:cljs [com.cognitect.transit.types])
@@ -25,7 +25,7 @@
   (t/write-handler ; Adapted from `com.cognitect.transit.impl.WriteHandlers.NullWriteHandler`
     (fn [x]
       (def -last-unserializable-for-repl x)
-      (log/info "Unserializable reference transfer:" (pr-str (type x)) (str x))
+      (#?(:clj log/info, :cljs js/console.log) "Unserializable reference transfer:" (pr-str (type x)) (str x))
       "_")
     (fn [x] nil)
     (fn [_] "")))
@@ -159,7 +159,7 @@
      :cljs (t/read transit-reader s)))
 
 (defn decode-str [x]
-  (try (doto (decode x) (->> (log/trace "🔽")))
+  (try (doto (decode x) (->> (#?(:clj log/trace, :cljs js/console.debug) "🔽")))
     (catch #?(:clj Throwable :cljs :default) t
       (throw (ex-info "Failed to decode" {:value x} t)))))
 
@@ -203,7 +203,7 @@
   #(m/sp
      (loop [xs (seq (pop %))]
        (if-some [[x & xs] xs]
-         (do (log/trace "🔼" x)
+         (do (#?(:clj log/trace, :cljs js/console.debug) "🔼" x)
            (m/? (write
                   (try (encode x)
                     (catch #?(:clj Throwable :cljs :default) t

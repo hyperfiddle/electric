@@ -2,7 +2,7 @@
   "Logic to resolve cljs or clj vars (and macros) and to reload source files in dev mode."
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
-            [taoensso.timbre :as log]
+            [clojure.tools.logging :as log]
             [cljs.analyzer :as cljs]
             [cljs.env :as env]
             [hyperfiddle.rcf :refer [tests]]

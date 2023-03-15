@@ -1,0 +1,17 @@
+<!-- Options: http://logback.qos.ch/manual/layouts.html -->
+<configuration debug="false" scan="true" scanPeriod="10 seconds">
+
+    <appender name="ERGONOMIC" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%highlight(%-5level) %logger: %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="hyperfiddle" level="DEBUG" additivity="false"><appender-ref ref="ERGONOMIC" /></logger>
+    <logger name="hyperfiddle.electric-jetty-adapter" level="WARN" additivity="false"><appender-ref ref="ERGONOMIC" /></logger>
+
+    <root level="WARN">
+        <appender-ref ref="ERGONOMIC"/>
+    </root>
+
+</configuration>

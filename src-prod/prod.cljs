@@ -1,9 +1,6 @@
 (ns prod
-  (:require taoensso.timbre
-            hyperfiddle.electric
+  (:require hyperfiddle.electric
             user-main))
-
-(taoensso.timbre/set-min-level! :warn)
 
 (def electric-main (hyperfiddle.electric/boot (user-main/Main.)))
 

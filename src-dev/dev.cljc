@@ -2,7 +2,6 @@
   (:require
     [datascript.core :as d]
     [hyperfiddle.api :as hf]
-    [taoensso.timbre :as log]
     [hyperfiddle.rcf :refer [tests % tap]]))
 
 
