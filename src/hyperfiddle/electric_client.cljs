@@ -101,26 +101,28 @@ Returns a task producing nil or failing if the websocket was closed before end o
 
 (defn boot-with-retry [client conn]
   (m/sp
-    (loop [delays retry-delays]
-      (let [s (object-array 1)]
-        (.log js/console "Connecting...")
-        (when-some [[delay & delays]
-                    (when-some [info (m/? (conn (fn [x] ((aget s 0) x))
-                                            (m/ap
-                                              (.log js/console "Connected.")
-                                              (let [r (m/rdv)]
-                                                (m/amb=
-                                                  (do (m/? (client r (r/subject-at s 0)))
-                                                      (m/amb))
-                                                  (loop []
-                                                    (if-some [x (m/? r)]
-                                                      (m/amb x (recur))
-                                                      (m/amb))))))))]
-                      (if-some [code (:code info)]
-                        (case code ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
-                          (1005 1006) (do (.log js/console "Connection lost.") (seq retry-delays))
-                          (1008) (throw (ex-info "Stale client" {:hyperfiddle.electric/type ::stale-client}))
-                          (throw (ex-info (str "Remote error - " code " " (:reason info)) {})))
-                        (do (.log js/console "Failed to connect.") delays)))]
-          (.log js/console (str "Next attempt in " (/ delay 1000) " seconds."))
-          (recur (m/? (m/sleep delay delays))))))))
+    (let [ws-server-url *ws-server-url*]
+      (loop [delays retry-delays]
+        (let [s (object-array 1)]
+          (.log js/console "Connecting...")
+          (when-some [[delay & delays]
+                      (when-some [info (binding [*ws-server-url* ws-server-url]
+                                         (m/? (conn (fn [x] ((aget s 0) x))
+                                                (m/ap
+                                                  (.log js/console "Connected.")
+                                                  (let [r (m/rdv)]
+                                                    (m/amb=
+                                                      (do (m/? (client r (r/subject-at s 0)))
+                                                          (m/amb))
+                                                      (loop []
+                                                        (if-some [x (m/? r)]
+                                                          (m/amb x (recur))
+                                                          (m/amb)))))))))]
+                        (if-some [code (:code info)]
+                          (case code ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
+                            (1005 1006) (do (.log js/console "Connection lost.") (seq retry-delays))
+                            (1008) (throw (ex-info "Stale client" {:hyperfiddle.electric/type ::stale-client}))
+                            (throw (ex-info (str "Remote error - " code " " (:reason info)) {})))
+                          (do (.log js/console "Failed to connect.") delays)))]
+            (.log js/console (str "Next attempt in " (/ delay 1000) " seconds."))
+            (recur (m/? (m/sleep delay delays)))))))))
