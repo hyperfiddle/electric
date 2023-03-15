@@ -48,28 +48,6 @@
      (defmethod ana/macroexpand-hook 'clojure.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))
      (defmethod ana/macroexpand-hook 'cljs.core/binding [_the-var _form _env [bindings & body]] (reduced `(binding ~bindings (do ~@body))))))
 
-(defmacro with-zero-config-entrypoint [& body]
-  `(try
-     (do ~@body)
-     (catch Pending _#) ; silently ignore
-     (catch Cancelled e# (throw e#)) ; bypass catchall, app is shutting down
-     (catch :default err# ; note client bias
-       (js/console.error
-         (str (ex-message err#) "\n\n" (dbg/stack-trace hyperfiddle.electric/trace))
-         err#))))
-
-(defmacro boot "
-Takes an Electric program and returns a task setting up the full system with client part running locally and server part
-running on a remote host.
-" [& body]
-  (assert (:js-globals &env))
-  (let [[client server] (c/analyze
-                          (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj})
-                          `(with-zero-config-entrypoint ~@body))]
-    `(hyperfiddle.electric-client/boot-with-retry
-       ~(r/emit (gensym) client)
-       (hyperfiddle.electric-client/connector (quote ~server)))))
-
 (def eval "Takes a resolve map and a program, returns a booting function.
   The booting function takes
   * as first argument a function Any->Task[Unit] returned task writes the value on the wire.
