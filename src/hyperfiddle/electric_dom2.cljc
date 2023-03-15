@@ -158,7 +158,8 @@
   ([dom-node event-name callback options] `(new (event* ~dom-node ~event-name ~callback ~options))))
 
 (defn happen [s e]
-  ; Todo, we need a buffer to force a nil in between events to fix race
+  ; Todo, we need a buffer (unbounded) to force a nil in between overlapping events to fix race
+  ; Buffer is unbounded because all events matter. (This is sequential unbounded queue)
   (case (:status s)
     :idle {:status :impulse :event e} ; rising edge
     :pending {:status :impulse :event e} ; supersede the outstanding event with a new event
