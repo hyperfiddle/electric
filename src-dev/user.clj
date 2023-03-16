@@ -1,13 +1,12 @@
 (ns user ; Must be ".clj" file, Clojure doesn't auto-load user.cljc
   "Start a REPL with `clj -A:dev`, or jack in with :dev alias."
-  (:gen-class)
   (:refer-clojure :exclude [compile])
-  ; For fastest REPL startup, no heavy deps here, REPL conveniences only
-  ; (Clojure has to compile all this stuff on startup)
+  ;; For fastest REPL startup, no heavy deps here, REPL conveniences only
+  ;; (Clojure has to compile all this stuff on startup)
   (:require [missionary.core :as m]
             hyperfiddle.rcf))
 
-; WARNING: make sure your REPL and shadow-cljs are sharing the same JVM!
+;; WARNING: make sure your REPL and shadow-cljs are sharing the same JVM!
 
 (hyperfiddle.rcf/enable! false)
 
@@ -31,12 +30,12 @@
 
 (defn install-rcf-shadow-hook []
   (alter-var-root #'rcf-shadow-hook
-    (constantly (fn [build-state & args]
-                  ;; NOTE this won’t prevent RCF tests to run during :require-macros phase
-                  (case (:shadow.build/stage build-state)
-                    :compile-prepare (@rcf-enable! false)
-                    :compile-finish (@rcf-enable!))
-                  build-state))))
+                  (constantly (fn [build-state & args]
+                                ;; NOTE this won’t prevent RCF tests to run during :require-macros phase
+                                (case (:shadow.build/stage build-state)
+                                  :compile-prepare (@rcf-enable! false)
+                                  :compile-finish (@rcf-enable!))
+                                build-state))))
 
 (def electric-server-config {:host "0.0.0.0", :port 8080, :resources-path "public", :manifest-path "public/js/manifest.edn"})
 
@@ -46,7 +45,7 @@
   (@rcf-enable! false) ; don't run cljs tests on compile (user may have enabled it at the REPL already)
   (@shadow-watch :dev) ; depends on shadow server
   #_(@shadow-release :dev {:debug false})
-  ; todo report clearly if shadow build failed, i.e. due to yarn not being run
+  ;; todo report clearly if shadow build failed, i.e. due to yarn not being run
   (def server (@start-electric-server! electric-server-config))
   (comment (.stop server))
 
@@ -56,30 +55,26 @@
     #_(contrib.datomic-m/install-datomic-onprem)
     (eval '(contrib.datomic-m/install-datomic-cloud))
     (def datomic-config {:server-type :dev-local :system "datomic-samples"})
-    ; install prod globals
+    ;; install prod globals
     (def datomic-client (eval '(d/client datomic-config)))
     (def datomic-conn (m/? (eval '(d/connect datomic-client {:db-name "mbrainz-subset"}))))
 
-    ; install test globals, which are different
+    ;; install test globals, which are different
     (require 'test)
     (eval '(test/install-test-state)))
 
-  ; enable RCF after Datomic is loaded – to resolve circular dependency
+  ;; enable RCF after Datomic is loaded – to resolve circular dependency
   (install-rcf-shadow-hook)
   (@rcf-enable!))
 
-; shadow-compile vs shadow-release:
-; https://shadow-cljs.github.io/docs/UsersGuide.html#_development_mode
+;; shadow-compile vs shadow-release:
+;; https://shadow-cljs.github.io/docs/UsersGuide.html#_development_mode
 (defn release "closure optimized target"
   [& {:as kwargs}] (@shadow-release :dev (merge {:debug false} kwargs)))
 
-;(when (get (System/getenv) "REPLIT_ENVIRONMENT")
-;  (compile) (@start-electric-server! electric-server-config))
+;; (when (get (System/getenv) "REPLIT_ENVIRONMENT")
+;;  (compile) (@start-electric-server! electric-server-config))
 
 (when (= "true" (get (System/getenv) "HYPERFIDDLE_AUTO_BOOT"))
   (main))
-
-(defn -main [& args]
-  (require 'user-main)
-  (@start-electric-server! electric-server-config))
 
