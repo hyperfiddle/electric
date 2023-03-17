@@ -9,7 +9,6 @@
          org.clojure/clojure            {:mvn/version "1.11.1"}
          org.clojure/clojurescript      {:mvn/version "1.11.60"}
          org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"} ;; used by Electric
-         com.taoensso/timbre            {:mvn/version "6.1.0"} ; logging
          org.clojure/tools.logging      {:mvn/version "1.2.4"}
          }
 
