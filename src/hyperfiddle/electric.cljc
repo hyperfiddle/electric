@@ -84,7 +84,7 @@
 
 #?(:clj
    (cc/defn -offload [thunk executor]
-     (->> (m/ap (m/? (m/via executor (thunk))))
+     (->> (m/ap (m/? (m/via executor (thunk)))) ; run once
        (m/reductions {} (Failure. (Pending.)))
        (m/relieve {}))))
 
