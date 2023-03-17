@@ -130,9 +130,12 @@
                              resources-path "public"
                              manifest-path  "public/js/manifest.edn"}
                       :as   config}]
-  (println "Namespace `hyperfiddle.electric-jetty-server` is deprecated because it contains userland
-  concerns such as an /auth endpoint for the Electric demos. Please see electric-starter-app for an
-  example jetty server and modify it to your needs.")
+  (println ; formatted on purpose
+   "
+ℹ️ Namespace `hyperfiddle.electric-jetty-server` is deprecated because it
+contains userland concerns such as an /auth endpoint for the Electric demos.
+Please see the `hyperfiddle/electric-starter-app` repo for an example jetty
+server and modify it to your needs.")
   (try
     (let [server (ring/run-jetty (http-middleware resources-path manifest-path)
                    (merge {:port port
