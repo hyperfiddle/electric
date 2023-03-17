@@ -1,7 +1,7 @@
 (ns wip.teeshirt-orders
   (:require [clojure.spec.alpha :as s]
             [datascript.core :as d]
-            dev
+            #?(:clj user.example-datascript-db)
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql-tree-grid :as ttgui]
             [hyperfiddle.electric :as e]

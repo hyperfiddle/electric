@@ -1,6 +1,6 @@
 (ns wip.demo-branched-route
   (:require datascript.core
-            dev
+            #?(:clj user.example-datascript-db)
             [hyperfiddle.api :as hf]
             [hyperfiddle.hfql-tree-grid :as ttgui]
             [hyperfiddle.electric :as e]
