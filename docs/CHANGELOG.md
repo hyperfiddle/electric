@@ -6,6 +6,10 @@
 * minor breaking changes allowed at this time, pay attention to the slack
 * major versions ("v2-alpha") are marketing numbers and will increment with major milestones.
 
+# v2-next
+
+* if you cloned the starter app before March 2, your hot code reloads are broken. Fix: in your user.cljs, change `(ns user ^:dev/always` to `(ns ^:dev/always user` as in [this starter-app commit](https://github.com/hyperfiddle/electric-starter-app/commit/a8810accfdd96f82eefc2d976645538223a88de9#diff-06a7049242ecf7dac4e22b30db9faa22ebae4e22e72d1bfbb916e03e3075e5c1). We had it backwards on launch day for about two weeks. Sorry!
+
 # v2-alpha-123-ga7fa624f — 2023 March 2
 
 * hot code reloading stability improvements. **note: you MUST run Shadow and your CLJ REPL from the same JVM! Do NOT use shadow from node_modules** as this results in two JVMs because your Electric client/server code versions will desync.
