@@ -77,33 +77,37 @@
     id))
 (defn get-original-ex [id] (cache-get !ex-cache id))
 
-(def write-opts
-  {:handlers
-   {Failure
-    (t/write-handler
-      (fn [_] "failure")
-      (fn [x]
-        (let [err (.-error ^Failure x)]
-          (cond (instance? Cancelled err) [:cancelled]
-                (instance? Pending err)   [:pending]
-                (instance? Remote err)    [:remote (dbg/serializable (ex-data err))]
-                :else                     [:exception (ex-message err) (dbg/serializable (ex-data err))
-                                           (save-original-ex! err)]))))
-    :default default-write-handler}         ; cljs
+(def ^:dynamic *write-handlers* nil)
+
+(def failure-writer (t/write-handler
+                      (fn [_] "failure")
+                      (fn [x]
+                        (let [err (.-error ^Failure x)]
+                          (cond (instance? Cancelled err) [:cancelled]
+                                (instance? Pending err)   [:pending]
+                                (instance? Remote err)    [:remote (dbg/serializable (ex-data err))]
+                                :else                     [:exception (ex-message err) (dbg/serializable (ex-data err))
+                                                           (save-original-ex! err)])))))
+
+(defn write-opts []
+  {:handlers (merge *write-handlers*
+               {Failure failure-writer
+                :default default-write-handler}) ; cljs
    :default-handler default-write-handler}) ; clj
 
-(def read-opts
-  {:handlers
-   {"failure"
-    (t/read-handler
-      (fn [[tag & args]]
-        (case tag
-          :exception (let [[message data id] args]
-                       (Failure. (dbg/ex-info* message data id nil)))
-          :remote    (let [[data] args]
-                       (Failure. (dbg/ex-info* "Remote error" (or data {}))))
-          :pending   (Failure. (Pending.))
-          :cancelled (Failure. (Cancelled.)))))}})
+(def ^:dynamic *read-handlers* nil)
+
+(def failure-reader (t/read-handler
+                      (fn [[tag & args]]
+                        (case tag
+                          :exception (let [[message data id] args]
+                                       (Failure. (dbg/ex-info* message data id nil)))
+                          :remote    (let [[data] args]
+                                       (Failure. (dbg/ex-info* "Remote error" (or data {}))))
+                          :pending   (Failure. (Pending.))
+                          :cancelled (Failure. (Cancelled.))))))
+
+(defn read-opts [] {:handlers (merge *read-handlers* {"failure" failure-reader})})
 
 (def set-ints
   (partial reduce-kv
@@ -140,23 +144,43 @@
                        (recur (rf r (.getInt32 v i))
                          (+ i 4)) r))))))))
 
-#?(:cljs (def transit-writer (t/writer :json write-opts)))
+
+;; #?(:cljs (def transit-writer (t/writer :json (write-opts))))
+#?(:cljs (let [!cache (atom {:write-handlers *write-handlers*, :writer nil})]
+           (defn transit-writer []
+             (:writer (swap! !cache (fn [{:keys [write-handlers writer] :as cache}]
+                                      (if (= write-handlers *write-handlers*)
+                                        (if writer
+                                          cache
+                                          (assoc cache :writer (t/writer :json (write-opts))))
+                                        {:write-handlers *write-handlers*
+                                         :writer         (t/writer :json (write-opts))})))))))
 
 (defn encode
   "Encode a data frame to transit json"
   [x]
   #?(:clj (let [out (ByteArrayOutputStream.)]
-            (t/write (t/writer out :json write-opts) x)
+            (t/write (t/writer out :json (write-opts)) x)
             (.toString out))
-     :cljs (t/write transit-writer x)))
+     :cljs (t/write (transit-writer) x)))
 
-#?(:cljs (def transit-reader (t/reader :json read-opts)))
+;; #?(:cljs (def transit-reader (t/reader :json (read-opts))))
+#?(:cljs (let [!cache (atom {:read-handlers *read-handlers*, :reader nil})]
+           (defn transit-reader []
+             (:reader (swap! !cache (fn [{:keys [read-handlers reader] :as cache}]
+                                      (if (= read-handlers *read-handlers*)
+                                        (if reader
+                                          cache
+                                          (assoc cache :reader (t/reader :json (read-opts))))
+                                        {:read-handlers *read-handlers*
+                                         :reader        (t/reader :json (read-opts))})))))))
+
 
 (defn decode
   "Decode a data frame from transit json"
   [^String s]
-  #?(:clj (t/read (t/reader (ByteArrayInputStream. (.getBytes s "UTF-8")) :json read-opts))
-     :cljs (t/read transit-reader s)))
+  #?(:clj (t/read (t/reader (ByteArrayInputStream. (.getBytes s "UTF-8")) :json (read-opts)))
+     :cljs (t/read (transit-reader) s)))
 
 (defn decode-str [x]
   (try (doto (decode x) (->> (#?(:clj log/trace, :cljs js/console.debug) "🔽")))

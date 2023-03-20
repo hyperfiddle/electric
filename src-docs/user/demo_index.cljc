@@ -34,6 +34,7 @@
    ;`user.demo-10k-dom/Dom-10k-Elements
    `wip.demo-branched-route/RecursiveRouter
    `wip.tag-picker/TagPicker
+   `wip.demo-custom-types/CustomTypes
 
    ; need extra deps alias
    ;::dennis-exception-leak

@@ -33,6 +33,7 @@
             #_wip.hfql
             wip.tag-picker
             wip.teeshirt-orders
+            wip.demo-custom-types
 
             ; this demo require `npm install`
             #_user.demo-reagent-interop
@@ -61,6 +62,7 @@
       `wip.demo-branched-route/RecursiveRouter wip.demo-branched-route/RecursiveRouter
       `wip.tag-picker/TagPicker wip.tag-picker/TagPicker
       `user.demo-toggle/Toggle user.demo-toggle/Toggle
+      `wip.demo-custom-types/CustomTypes wip.demo-custom-types/CustomTypes
       `user.demo-system-properties/SystemProperties user.demo-system-properties/SystemProperties
       `user.demo-chat/Chat user.demo-chat/Chat
       `user.demo-chat-extended/ChatExtended user.demo-chat-extended/ChatExtended
