@@ -81,7 +81,7 @@
       `user.tutorial-blinker/Blinker user.tutorial-blinker/Blinker
       ;`user.demo-reagent-interop/ReagentInterop (when react-available user.demo-reagent-interop/ReagentInterop)
       ;::demos/dennis-exception-leak wip.dennis-exception-leak/App2
-      ;::demos/demo-stage-ui4 wip.demo-stage-ui4/Demo
+      ;`wip.demo-stage-ui4/CrudForm wip.demo-stage-ui4/CrudForm
       ;`wip.datomic-browser/DatomicBrowser wip.datomic-browser/DatomicBrowser
       NotFoundPage)))
 

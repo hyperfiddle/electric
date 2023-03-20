@@ -38,7 +38,7 @@
 
    ; need extra deps alias
    ;::dennis-exception-leak
-   #_::demo-stage-ui4
+   #_`wip.demo-stage-ui4/CrudForm
    #_`wip.datomic-browser/DatomicBrowser])
 
 (e/defn Demos []

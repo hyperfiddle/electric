@@ -82,8 +82,8 @@
   #_(Form. cobblestone)
   (e/client (Popover. "open" (e/fn [] (e/server (Form. cobblestone))))))
 
-(e/defn Demo []
-  (e/client (dom/h1 (dom/text (str `Demo))))
+(e/defn CrudForm []
+  (e/client (dom/h1 (dom/text (str `CrudForm))))
   (e/server
     (let [conn @(requiring-resolve 'test/datomic-conn)
           secure-db (d/with-db conn)] ; todo datomic-tx-listener
