@@ -5,13 +5,9 @@
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
             [hyperfiddle.rcf :as rcf :refer [% tap tests with]]
-            #?(:cljs [goog.crypt.Sha256 :as sha256])
-            #?(:cljs [goog.crypt :as crypt])
-            #?(:cljs [goog.crypt.base64 :as base64])
-            [contrib.base64]
+            [contrib.crypt :as crypt]
             [datascript.core :as d])
-  (:import [hyperfiddle.electric Pending]
-           #?(:clj [java.util Base64]))
+  (:import [hyperfiddle.electric Pending])
   #?(:cljs (:require-macros contrib.trace.datascript-tracer)))
 
 (e/def conn)
@@ -33,17 +29,7 @@
                         (instance? #?(:clj Throwable :cljs js/Error) v) (ex-message v)
                         :else v))
 
-;; TODO move to separate contrib ns
-(defn sha256 [o]
-  #?(:clj
-     (let [sha256er (java.security.MessageDigest/getInstance "SHA-256")]
-       (String. (->> (.getBytes (pr-str o) "UTF-8") (.digest sha256er) (.encode (Base64/getEncoder))) "UTF-8"))
-     :cljs
-     (let [sha256er (goog.crypt.Sha256.)]
-       (.update sha256er (goog.crypt.stringToByteArray (pr-str o)))
-       (goog.crypt.base64/encodeByteArray (.digest sha256er)))))
-
-(defn default-point-id [id parent] (sha256 [id parent]))
+(defn default-point-id [id parent] (crypt/sha256-base64 [id parent]))
 (defn ->default-trace-id []
   (let [!cache (atom {})]
     (fn [point-id _v]
