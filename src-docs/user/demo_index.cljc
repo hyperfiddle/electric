@@ -35,6 +35,7 @@
    `wip.demo-branched-route/RecursiveRouter
    `wip.tag-picker/TagPicker
    `wip.demo-custom-types/CustomTypes
+   `wip.tracing/TracingDemo
 
    ; need extra deps alias
    ;::dennis-exception-leak
