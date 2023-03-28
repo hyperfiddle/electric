@@ -13,9 +13,37 @@
 (defn walk-clj "Prewalk a clj ast" [ast f] (clj-ast/prewalk ast f))
 (defn walk-cljs "Prewalk a cljs ast" [ast f] (cljs-ast/walk ast [(fn [env ast opts] (f ast))]))
 
+(defn macroexpand-1-clj
+  ;; like clj/macroexpand-1 except:
+  ;; - doesn't inline - not needed
+  ;; - drop tags - not needed and can cause issues in emitted code (Class object in cljs compiler)
+  ;; - *env* is not ensured - expensive to compute and not needed in this context
+  "If form represents a macro form, returns its expansion, else returns form."
+  ([form] (macroexpand-1-clj form (clj/empty-env)))
+  ([form env]
+   (cond
+     (seq? form)
+     (let [[op & args] form]
+       (if (clj/specials op)
+         form
+         (let [v      (clojure.tools.analyzer.utils/resolve-sym op env)
+               m      (meta v)
+               local? (-> env :locals (get op))
+               macro? (and (not local?) (:macro m))] ; locals shadow macros
+           (cond
+             macro? (let [res (apply v form (:locals env) (rest form))] ; (m &form &env & args)
+                      (when-not (clj/ns-safe-macro v)
+                        (clj/update-ns-map!))
+                      (if (clojure.tools.analyzer.utils/obj? res)
+                        (vary-meta res merge (meta form))
+                        res))
+             :else  (clj/desugar-host-expr form env)))))
+     (symbol? form) (clj/desugar-symbol form env)
+     :else          form)))
+
 (defn analyze-clj "Analyze a clj form to ast without any passes." [env form]
   (binding [clj/run-passes identity]
-    (clj/analyze form env)))
+    (clj/analyze form env {:bindings {#'clojure.tools.analyzer/macroexpand-1 macroexpand-1-clj}})))
 
 (defn analyze-cljs "Analyze a cljs form to ast without any passes." [env form]
   (binding [cljs-ana/*passes* []]
