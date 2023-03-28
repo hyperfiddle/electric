@@ -8,7 +8,7 @@
 
 ### RUNNING
 
-# ./toxiproxy.sh 8083 8080 200
+# src-dev/toxiproxy.sh 7080 8080 200
 # toxiproxy-cli list
 # killall toxiproxy-server
 # toxiproxy-cli toxic help
