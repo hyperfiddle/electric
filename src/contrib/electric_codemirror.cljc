@@ -3,7 +3,7 @@
   (:require
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
-    [clojure.tools.logging :as log]
+    #?(:clj clojure.tools.logging)
     [hyperfiddle.electric :as e]
     [hyperfiddle.electric-dom2 :as dom]
     [missionary.core :as m]
@@ -56,40 +56,42 @@
                                                                               true)))])))})))
 
 #?(:cljs
-   (defn make-editor [props on-change]
+   (defn make-cm! [props on-change]
      (new EditorView #js{:parent (:parent props) :state (make-state props "nil" on-change)})))
 
-(def set-editor-value!
-  #?(:cljs
-     (fn [^js view, new-value]
-       (let [change #js {:from   0
-                         :to     (.. view -state -doc -length)
-                         :insert (str new-value)}]
-         (.dispatch view #js {:changes change})))))
+#?(:cljs
+   (defn cm-set! [^js !cm v]
+     (.dispatch !cm #js {:changes #js {:insert (str v)
+                                       :from 0 :to (.. !cm -state -doc -length)}})))
 
-(def ^{:doc "Return a pair of `[view >value]` :
-  - `view` is an Editor instance.
-  - `>value` is a discreet flow of the editor content (string)."}
-  codemirror
-  #?(:cljs
-     (fn [props]
-       (let [on-change! (atom (constantly nil))
-             ^js view   (make-editor props (fn [^js view-update]
-                                             (when (and (.. view-update -view -hasFocus) ;; user manual action
-                                                     (.-docChanged view-update))                                                     (prn "CM - Change!" (.. view-update -state -doc (toString)))
-                                                   (@on-change! (.. view-update -state -doc (toString))))))]
-         [view (m/observe (fn [!]
-                            (reset! on-change! !)
-                            #(.destroy view)))]))))
+#?(:cljs
+   (defn codemirror [props]
+     (let [!hook (atom nil)
+           >cm-v (m/observe
+                   (fn [!]
+                     #_(println 'cm-mount)
+                     (let [^js !cm (make-cm! props (fn [^js cm-view-update]
+                                                     (when (and (.. cm-view-update -view -hasFocus) ;; user manual action
+                                                             (.-docChanged cm-view-update))
+                                                       (let [v (.. cm-view-update -state -doc (toString))]
+                                                         (assert (some? v))
+                                                         (! v)))))]
+                       (reset! !hook !cm) ; ref escapes
+                       #(do #_(println 'cm-unmount) (.destroy !cm)))))]
+       (m/cp [(m/?< (m/watch !hook)) ; cm ref escapes
+              >cm-v])))) ; this is discrete. Don't accidentally damage this by giving it a nil initial value
 
-(e/defn CodeMirror [props readf writef value]
-  (let [[view >value] (codemirror props)]
-    (set-editor-value! view (writef value))
-    (new (->> >value (m/reductions #(readf %2) value)))))
+(e/defn CodeMirror [props readf writef controlled-value]
+  (when-some [[!cm >cm-v] (new (codemirror props))] ; stable through cv changes
+    (cm-set! !cm (writef controlled-value))
+    (doto (new (m/relieve {} (m/reductions #(readf %2) controlled-value >cm-v))) ; reduction rebuilt if cv changes, which is fine
+      #_(as-> $ (println 'cm-v (hash $))))))
 
 (defn read-edn [edn-str]
   (try (edn/read-string edn-str)
-       (catch #?(:clj Throwable :cljs :default) t (clojure.tools.logging/error t) nil)))
+       (catch #?(:clj Throwable :cljs :default) t
+         #?(:clj (clojure.tools.logging/error t)
+            :cljs (js/console.warn t)) nil)))
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 
