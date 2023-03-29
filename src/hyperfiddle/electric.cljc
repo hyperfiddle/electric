@@ -377,9 +377,3 @@ running on a remote host.
                               :delay  1000})))))))
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current Electric program is running." nil)
-
-(hyperfiddle.electric/defn Unglitch [x]
-  (let [[value clock] (with-cycle [[p c] [::init 0]]
-                        [x (if (= p x) c (inc c))])]
-    (when-not (= clock ~@clock) (throw (Pending.)))
-    value))

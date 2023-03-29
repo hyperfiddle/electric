@@ -211,10 +211,8 @@
 
 (defmacro bind-value
   ([v]        `(bind-value ~v set-val))
-  ([v setter] `(let [v# ~v] ; <- fixes focus glitch on "when true" bug
-                 (when-not (new Focused?)
-                   (case (new e/Unglitch v#) ; <- usually & accidentally fixes input glitch
-                     (~setter node v#))))))
+  ([v setter] `(when-some [v# (when-not (new Focused?) ~v)]
+                 (~setter node v#))))
 
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
