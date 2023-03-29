@@ -1,5 +1,6 @@
 (ns contrib.crypt
   (:require #?(:cljs [goog.crypt :as crypt])
+            #?(:cljs [goog.crypt.Sha256])
             #?(:cljs [goog.crypt.base64 :as base64])
             [hyperfiddle.rcf :as rcf :refer [% tap tests with]]
             [contrib.base64])
