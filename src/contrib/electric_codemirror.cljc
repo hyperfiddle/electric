@@ -18,10 +18,10 @@
 
 #?(:cljs
    (def theme
-     (.theme EditorView (clj->js {".cm-content"             {:white-space "pre-wrap"
+     (.theme EditorView (clj->js {#_#_".cm-content"             {:white-space "pre-wrap"
                                                              :padding     "10px 0"}
                                   "&.cm-focused"            {:outline "none"}
-                                  ".cm-line"                {:padding     "0 0.5rem"
+                                  #_#_".cm-line"                {:padding     "0 0.5rem"
                                                              :line-height "1.6"
                                                              :font-size   "16px"
                                                              :font-family "var(--code-font)"}
