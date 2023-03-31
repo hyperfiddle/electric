@@ -36,24 +36,26 @@
 
 #?(:cljs
    (defonce inline-extensions
-     [theme
-      (history)
-      highlight/defaultHighlightStyle
-      (view/drawSelection #js{:cursorBlinkRate 0})
-      cm-clj/default-extensions
-      (.of view/keymap cm-clj/complete-keymap)
-      (.of view/keymap historyKeymap)]))
+     (list
+       theme
+       (history)
+       highlight/defaultHighlightStyle
+       (view/drawSelection #js{:cursorBlinkRate 0})
+       cm-clj/default-extensions
+       (.of view/keymap cm-clj/complete-keymap)
+       (.of view/keymap historyKeymap))))
 
 #?(:cljs
    (defn make-state [props ^string doc, on-update]
      (.create EditorState
        #js{:doc        doc
            :extensions (into-array
-                         (cond-> inline-extensions
-                           (not (:inline props)) (concat [(lineNumbers) (fold/foldGutter)])
-                           true (concat [(.. EditorView -updateListener (of (fn [^js view-update]
-                                                                              (on-update view-update)
-                                                                              true)))])))})))
+                         (cond->> inline-extensions
+                           (:theme props) (cons (.theme EditorView (clj->js (:theme props))))
+                           (not (:inline props)) (into (list (lineNumbers) (fold/foldGutter)))
+                           true (cons (.. EditorView -updateListener (of (fn [^js view-update]
+                                                                           (on-update view-update)
+                                                                           true))))))})))
 
 #?(:cljs
    (defn make-cm! [props on-change]
