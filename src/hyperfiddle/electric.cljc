@@ -138,7 +138,10 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                (set! (.-callback cancel)
                  (cc/fn [_] (set! (.-raf cancel) 0) (n)))
                (n) cancel))
-     :clj (m/ap (loop [] (m/amb nil (do (m/? (m/sleep (/ 1000 30))) (recur))))) ; 30 hz by default to save bandwidth in demo-two-clocks
+     
+     ; 120 hz server, careful this impacts bandwidth in demo-two-clocks
+     ; typical UI animation rate is 60 or 120hz, no point in going higher 
+     :clj (m/ap (loop [] (m/amb nil (do (m/? (m/sleep (/ 1000 120))) (recur)))))
      #_(m/ap (m/? (m/sleep 1 (m/?> (m/seed (repeat nil))))))))
 
 ;; --------------------------------------
