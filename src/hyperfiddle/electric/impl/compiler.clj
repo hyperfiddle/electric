@@ -13,7 +13,8 @@
             [hyperfiddle.electric.impl.analyzer :as ana]
             [clojure.tools.logging :as log]
             [clojure.tools.analyzer.jvm.utils :refer [maybe-class-from-string]]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [clojure.string :as str])
   (:import cljs.tagged_literals.JSValue
            (hyperfiddle.electric.impl.env CljsVar CljVar CljClass)))
 
@@ -55,8 +56,6 @@
 (defmacro js-call [template arity]
   (let [args (repeatedly arity gensym)]
     `(fn [~@args] (~'js* ~template ~@args))))
-
-(defmacro fn-call [f args] `(fn [~@args] ~f))
 
 (defn parse-decl [decl]
   (map (fn [[args & body]] (cons (cons `do body) args))
@@ -115,33 +114,86 @@
                        :cljs (:name (:info ast))))
     ast))
 
-(defn provided-bindings [env form]
-  (let [bindings         (volatile! {})
-        provided?        (fn [ast-info] (or (::provided? ast-info) (some? (::node (:meta ast-info)))))
-        record-provided! (fn [{:keys [form] :as ast}]
-                           (if (contains? @bindings form)
-                             (assoc ast :form (get @bindings form))
-                             (let [safe-name (gensym (name form))]
-                               (vswap! bindings assoc form safe-name)
-                               (assoc ast :form safe-name))))
-        env              (update env :locals update-vals #(if (map? %) (assoc %  ::provided? true) {::provided? true}))]
-    [(case (env/peer-language env)
-       :clj  (-> (ana/analyze-clj (env/clj-env env) form)
-               (ana/walk-clj (fn [ast] (if (provided? ast)
-                                         (record-provided! ast)
-                                         (qualify-sym env ast))))
-               (ana/emit-clj))
-       :cljs (-> (ana/analyze-cljs env form)
-               (ana/walk-cljs (fn [ast] (if (provided? (:info ast))
-                                          (record-provided! ast)
-                                          (qualify-sym env ast))))
-               ana/emit-cljs))
-     @bindings]))
+(defn closure
+  "Analyze a cc/fn form, looking for electric defs and electric lexical bindings references.
+  Rewrites the cc/fn form into a closure over electric dynamic and lexical scopes.
+  Return a triple [closure form, references hygienic syms mapping, rest-args sym].
+  See `fn-call`.
+
+  e.g.:
+  (let [x 1]
+    (binding [y 2]
+      (fn [arg] [x y arg])))
+
+   =>
+  [(fn [x123 y123]
+     (fn [& rest-args123]
+       (binding [y y123]
+         (let [x x123]
+           (apply (fn [arg] [x y arg]) rest-args123)))))
+   [x y]]
+  "
+  [env form]
+  (let [refered-evars   (atom {})
+        refered-lexical (atom {})
+        edef?           (fn [ast] (or (some? (::node (:meta ast)))
+                                    (some? (::node (:meta (:info ast))))))
+        dynamic?        (fn [ast] (or (:assignable? ast) ; clj
+                                    (:dynamic (:meta (:info ast))) ; cljs
+                                    ))
+        lexical?        (fn [ast] (or (::provided? ast) ; clj
+                                    (::provided? (:info ast)) ;cljs
+                                    ))
+        namespaced?     (fn [ast] (qualified-symbol? (:form ast)))
+        safe-let-name   (fn [sym] (if (qualified-symbol? sym)
+                                    (symbol (str/replace (str (munge sym)) #"\." "_"))
+                                    sym))
+        record-lexical! (fn [{:keys [form]}]
+                          (swap! refered-lexical assoc form (gensym (name form))))
+        record-edef!    (fn [{:keys [form] :as ast}]
+                          (if (dynamic? ast)
+                            (swap! refered-evars assoc form #_(ana/var-name ast) (gensym (name form)))
+                            (record-lexical! ast)))
+        env             (update env :locals update-vals #(if (map? %) (assoc % ::provided? true) {::provided? true}))
+        rewrite-ast     (fn [ast]
+                          (cond
+                            (edef? ast)    (do (record-edef! ast)
+                                               (cond (dynamic? ast)    (qualify-sym env ast)
+                                                     (namespaced? ast) (update ast :form safe-let-name)
+                                                     :else             ast))
+                            (lexical? ast) (do (record-lexical! ast) ast)
+                            :else          (qualify-sym env ast)))
+        form            (case (env/peer-language env)
+                          :clj  (-> (ana/analyze-clj (env/clj-env env) form)
+                                  (ana/walk-clj rewrite-ast)
+                                  (ana/emit-clj))
+                          :cljs (-> (ana/analyze-cljs env form)
+                                  (ana/walk-cljs rewrite-ast)
+                                  (ana/emit-cljs)))
+        rest-args-sym   (gensym "rest-args")
+        all-syms        (merge @refered-evars @refered-lexical)
+        [syms gensyms]  [(keys all-syms) (vals all-syms)]
+        fn?             (and (seq? form) (#{'fn 'fn* 'clojure.core/fn 'clojure.core/fn* 'cljs.core/fn 'cljs.core/fn*} (first form)))
+        form            (if fn?
+                          `(apply ~form ~rest-args-sym)
+                          form)
+        form            (if (seq @refered-lexical)
+                          `(let [~@(flatten (map (fn [[k v]] [(safe-let-name k) v]) @refered-lexical))]
+                             ~form)
+                          form)
+        form            (if (seq @refered-evars)
+                          `(binding [~@(flatten (seq @refered-evars))]
+                             ~form)
+                          form)
+        form            (if fn?
+                          `(fn [~@gensyms] (fn [~'& ~rest-args-sym] ~form))
+                          `(fn [~@gensyms] ~form))]
+    [form syms]))
 
 (tests
   (def -env {:ns (symbol (str *ns*)) ::peers-config {::local :clj, ::remote :clj} ::local true})
-  (provided-bindings -env '(fn* ([a b c] [a b c rec])))
-  := [_ {'rec _}]
+  (closure -env '(fn* ([a b c] [a b c rec])))
+  := [_ ['rec]]
   )
 
 (defn source-map
@@ -348,14 +400,14 @@
       (throw (ex-info "Wrong number of arguments - js*" {})))
 
     (fn*)
-    (let [sym             (and (symbol? (first args)) (first args))
-          [form bindings] (provided-bindings env form)]
-      (->> (keys bindings)
+    (let [sym         (and (symbol? (first args)) (first args))
+          [form refs] (closure env form)]
+      (->> refs
         (map (partial analyze-form env))
         (apply map-res
           (partial ir/apply
             (merge
-              (ir/eval `(fn-call ~form ~(vals bindings)))
+              (ir/eval form)
               {::ir/ns (or (some-> env :ns :name) 'user)}
               {::dbg/action :fn-call
                ::dbg/params ['...]}                         ; TODO add parameters to debug info
@@ -365,21 +417,21 @@
     (analyze-sexpr env (split-letfn*-clj&photon-analysis form))
 
     (::letfn)
-    (let [[form bindings] (provided-bindings env (rewrite-letfn*-bindings-for-clj-analysis (first args)))]
-      (->> (keys bindings)
+    (let [[form refs] (closure env (rewrite-letfn*-bindings-for-clj-analysis (first args)))]
+      (->> refs
         (map (partial analyze-form env))
         (apply map-res
           (partial ir/apply
-            (assoc (ir/eval `(fn-call ~form ~(vals bindings)))
+            (assoc (ir/eval form)
               ::dbg/type :letfn)))))
 
     (set!)
-    (let [[form bindings] (provided-bindings env form)]
-      (->> (keys bindings)
+    (let [[form refs] (closure env form)]
+      (->> refs
         (map (partial analyze-form env))
         (apply map-res
           (partial ir/apply
-            (assoc (ir/eval `(fn-call ~form ~(vals bindings)))
+            (assoc (ir/eval form)
               ::dbg/type :set!)))))
 
     (new)                                                   ; argument binding + monadic join

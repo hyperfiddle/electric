@@ -10,6 +10,12 @@
             [cljs.analyzer.passes :as cljs-ast]
             [clojure.tools.logging :as log]))
 
+(defn var-name [ast]
+  (if-let [var (:var ast)]
+    (.toSymbol var)
+    (or (:name ast)
+        (:form ast))))
+
 (defn walk-clj "Prewalk a clj ast" [ast f] (clj-ast/prewalk ast f))
 (defn walk-cljs "Prewalk a cljs ast" [ast f] (cljs-ast/walk ast [(fn [env ast opts] (f ast))]))
 
@@ -46,17 +52,9 @@
     (clj/analyze form env {:bindings {#'clojure.tools.analyzer/macroexpand-1 macroexpand-1-clj}})))
 
 (defn analyze-cljs "Analyze a cljs form to ast without any passes." [env form]
-  (binding [cljs-ana/*passes* []]
-    (walk-cljs (cljs/analyze env form)
-      (fn [ast]
-        (case (:op ast)
-          :binding (let [var-info (get-in ast [:init :info])]
-                     (if (some? (:hyperfiddle.electric.impl.compiler/node var-info))
-                       (throw (ex-info (str "`"(:name var-info) "` is an Electric var and cannot be bound from a Clojure context.")
-                                (merge {:file (:file (:meta (:ns env)))}
-                                  (select-keys ast #{:file :line}))))
-                       ast))
-          ast)))))
+  (binding [cljs-ana/*cljs-ns* (:name (:ns env))
+            cljs-ana/*passes*  []]
+    (cljs/analyze env form #_#_nil {:warning-handlers [(fn [type env info] (prn type))]})))
 
 (defn specialize-clj-ast-op [ast]
   (update ast :op (fn [op] (case op
