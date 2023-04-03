@@ -1879,3 +1879,121 @@
   % := 0
   (swap! !x inc)
   % := 1)
+
+(tests
+  "Electric dynamic scope is available in cc/fn"
+  (p/def ^:dynamic dynfoo 1)
+  (with (p/run
+          (try
+            ((fn []
+               (tap dynfoo)))
+            (binding [dynfoo 2]
+              ((fn [] (tap dynfoo))))
+            (catch #?(:clj Throwable, :cljs js/Error) t (prn t))))
+    % := 1
+    % := 2))
+
+#?(:clj ; fail to compile in cljs: `Can't set! local var or non-mutable field` (foo177584 is not dynamic)
+   (tests
+     "e/def are not dynamic by default in cc/fn"
+     (p/def foo177584 1)
+     (with (p/run
+             (try
+               ((fn [] (binding [foo177584 2] (tap foo177584)))) ; foo177584 is not ^:dynamic
+               (catch #?(:clj Throwable, :cljs js/Error) t (tap (ex-message t)))))
+       % := "Can't dynamically bind non-dynamic var: hyperfiddle.electric-test/foo177584"
+       )))
+
+(tests
+  "Injecting an e/def binding in cc/fn respects dynamic scope rules"
+  (p/def ^:dynamic dynfoo 1)
+  (with (p/run
+          (try
+            (tap dynfoo) ; electric dynamic context
+            (binding [dynfoo 2] ; rebound in electic context
+              ((fn []
+                 (tap dynfoo) ; injected dynamic context
+                 (binding [dynfoo 3] ; rebound in clojure context
+                   (tap dynfoo) ; read clojure context
+                   )))
+              (tap dynfoo) ; cc/fn scope doesn't alter electric scope
+              )
+            (catch #?(:clj Throwable, :cljs js/Error) t (prn t))))
+    % := 1
+    % := 2
+    % := 3
+    % := 2))
+
+(tests
+  "In Clojure, unqualified names first resolves to lexical scope"
+  (def ^:dynamic foo 1)
+  foo := 1 ; no lexical binding shadowing -> resolve to foo var
+  (let [foo 2] ; lexical shadowing
+    foo := 2   ; resolve to lexical scope
+    (binding [#?(:clj foo, :cljs hyperfiddle.electric-test/foo) 3] ; always rebind var in clojure. Cljs requires fully qualified name.
+      foo := 2 ; unqualified name resolves to lexical scope
+      hyperfiddle.electric-test/foo := 3 ; qualified name resolves to the var
+      )))
+
+#?(:clj
+   (tests
+     "cc/fn args shadow e/def injections"
+     (p/def ^:dynamic dynfoo 1)
+     (with (p/run
+             (try
+               (tap dynfoo) ; electric dynamic context
+               ((fn [dynfoo] ; dynvar shadowed by argument
+                  (tap dynfoo)
+                  (binding [dynfoo 2] ; rebinds the vars
+                    (tap dynfoo) ; still resolves to argument in lexical scope
+                    (tap hyperfiddle.electric-test/dynfoo)))
+                :argument)
+               (catch #?(:clj Throwable, :cljs js/Error) t (prn t))))
+       % := 1
+       % := :argument
+       % := :argument
+       % := 2)))
+
+#?(:clj
+   (tests
+     "Injected lexical scope respects precedence over injected dynamic scope"
+     (p/def ^:dynamic dynfoo 1)
+     (with (p/run
+             (try
+               (tap dynfoo)
+               (let [dynfoo :shadowed]
+                 ((fn []
+                    (tap dynfoo)
+                    (binding [dynfoo 2]
+                      (tap dynfoo)
+                      (tap hyperfiddle.electric-test/dynfoo)))
+                  ))
+               (catch #?(:clj Throwable, :cljs js/Error) t (prn t))))
+       % := 1
+       % := :shadowed
+       % := :shadowed
+       % := 2
+       )))
+
+#?(:clj
+   (tests
+     "Shadowing injected dynamic scope in cc context respects clojure shadowing rules"
+     (p/def ^:dynamic dynfoo 1)
+     (with (p/run
+             (try
+               (tap dynfoo)
+               ((fn []
+                  (tap dynfoo)
+                  (let [dynfoo :shadowed]
+                    (tap dynfoo)
+                    (binding [dynfoo 2]
+                      (tap dynfoo)
+                      (tap hyperfiddle.electric-test/dynfoo)))))
+               (catch #?(:clj Throwable, :cljs js/Error) t (prn t))))
+       % := 1
+       % := 1
+       % := :shadowed
+       % := :shadowed
+       % := 2
+       )))
+
