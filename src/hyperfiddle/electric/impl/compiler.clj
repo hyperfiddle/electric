@@ -117,8 +117,7 @@
 (defn closure
   "Analyze a cc/fn form, looking for electric defs and electric lexical bindings references.
   Rewrites the cc/fn form into a closure over electric dynamic and lexical scopes.
-  Return a triple [closure form, references hygienic syms mapping, rest-args sym].
-  See `fn-call`.
+  Return a pair [closure form, references to close over].
 
   e.g.:
   (let [x 1]

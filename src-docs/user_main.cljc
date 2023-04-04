@@ -43,7 +43,6 @@
             #_wip.dennis-exception-leak
             #_wip.demo-stage-ui4
             #_wip.datomic-browser
-            [hyperfiddle.rcf :refer [tests % tap with]]
             ))
 
 (e/defn NotFoundPage []
