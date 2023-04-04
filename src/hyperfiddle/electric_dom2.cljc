@@ -277,6 +277,7 @@
 (defmacro object [& body] `(element :object ~@body))
 (defmacro ol [& body] `(element :ol ~@body))
 (defmacro option [& body] `(element :option ~@body))
+(defmacro optgroup [& body] `(element :optgroup ~@body))
 (defmacro output [& body] `(element :output ~@body))
 (defmacro p [& body] `(element :p ~@body))
 (defmacro picture [& body] `(element :picture ~@body))
