@@ -32,7 +32,7 @@
 ;;; Database
 
 (def db-state #?(:clj (atom nil))) ; Server side only
-(e/def db-name)
+(e/def db-name "$")
 
 (e/def schema "pre-fetched schema for explorer")
 (e/def ^{:dynamic true, :doc "To be bound to a function [db attribute] -> schema"} *schema*)
