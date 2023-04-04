@@ -8,12 +8,10 @@
     [hyperfiddle.electric-dom2 :as dom]
     [missionary.core :as m]
     [hyperfiddle.rcf :as rcf :refer [% tap tests with]]
-    #?@(:cljs [["@codemirror/fold" :as fold]
-               ["@codemirror/gutter" :refer [lineNumbers]]
-               ["@codemirror/highlight" :as highlight]
-               ["@codemirror/history" :refer [history historyKeymap]]
+    #?@(:cljs [["@codemirror/language" :as language]
                ["@codemirror/state" :refer [EditorState]]
-               ["@codemirror/view" :as view :refer [EditorView]]
+               ["@codemirror/commands" :refer [history historyKeymap]]
+               ["@codemirror/view" :as view :refer [EditorView lineNumbers]]
                [nextjournal.clojure-mode :as cm-clj]])))
 
 #?(:cljs
@@ -39,11 +37,13 @@
      (list
        theme
        (history)
-       highlight/defaultHighlightStyle
+       (language/syntaxHighlighting language/defaultHighlightStyle)
        (view/drawSelection #js{:cursorBlinkRate 0})
-       cm-clj/default-extensions
-       (.of view/keymap cm-clj/complete-keymap)
-       (.of view/keymap historyKeymap))))
+       ;; cm-clj/default-extensions
+       ;; (.of view/keymap cm-clj/complete-keymap)
+       (cm-clj/syntax)
+       (.of view/keymap historyKeymap)
+       )))
 
 #?(:cljs
    (defn make-state [props ^string doc, on-update]
@@ -52,7 +52,8 @@
            :extensions (into-array
                          (cond->> inline-extensions
                            (:theme props) (cons (.theme EditorView (clj->js (:theme props))))
-                           (not (:inline props)) (into (list (lineNumbers) (fold/foldGutter)))
+                           (:readonly props) (cons (.. EditorState -readOnly (of true)))
+                           (not (:inline props)) (into (list (lineNumbers) (language/foldGutter)))
                            true (cons (.. EditorView -updateListener (of (fn [^js view-update]
                                                                            (on-update view-update)
                                                                            true))))))})))
