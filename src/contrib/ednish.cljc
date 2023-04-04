@@ -64,8 +64,11 @@ coalesce into lists and are not disambiguated."
 ;  ; "#uri \"datomic:free://datomic:4334/#dustin.getz\""
 ;  )
 
+(defn discard-leading-slash [path]
+  (if (clojure.string/starts-with? path "/") (subs path 1) path))
+
 (defn decode-path [path read-edn-str]
    {:pre [(string? path) (some? read-edn-str)]}
    (when-not (= path "/")
-     (let [path (if (clojure.string/starts-with? path "/") (subs path 1) path)]
+     (let [path (discard-leading-slash path)]
        (decode-uri path))))
