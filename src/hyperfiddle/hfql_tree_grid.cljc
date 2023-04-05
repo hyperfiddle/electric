@@ -280,6 +280,13 @@
 ;; Idea
 ;; (p/defn ResolveSpec [s] (or (spec/resolve s) ~@(spec/resolve s)))
 
+(defn css-class [x]
+  (cond
+    (coll? x)    (str/join " " (eduction (remove nil?) (map css-class x)))
+    (keyword? x) (subs (str x) 1)
+    (= '. x)     nil
+    :else        (str x)))
+
 (p/defn GrayInput [label? spec props [name {::hf/keys [read path options option-label readonly] :as arg}]]
   (let [value    (read.)
         options? (some? options)]
@@ -321,7 +328,8 @@
                 (handle-validity dom/node (get hf/validation-hints [name])))))
 
           :else
-          (let [WriteToRoute (p/fn [v] (router/swap-route! assoc-in path v) nil)]
+          (let [WriteToRoute (p/fn [v] (router/swap-route! assoc-in path v) nil)
+                props (assoc props :class (css-class path))]
             (case (spec/type-of spec name) ; Always resolve specs on the server (might be defined in a .clj files)
               (::hf-type/boolean) (ui4/checkbox value WriteToRoute (gray-input-props id props list-id options name readonly))
               (::hf-type/double
