@@ -26,7 +26,8 @@ body.hyperfiddle {
 
 .hyperfiddle dl {
     display: inline-grid;
-    grid-template-columns: 33% auto;
+    grid-template-columns: auto auto;
+    grid-gap: 0 1em;
 }
 
 .hyperfiddle dt {
