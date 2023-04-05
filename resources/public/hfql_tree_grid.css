@@ -21,7 +21,7 @@ body.hyperfiddle{
 
 .hyperfiddle .hyperfiddle-gridsheet{
 
-    --hf-grid-row-height: 1.5rem; /* source of truth, all rows inherit this height, js code will measure this */
+    --hf-grid-row-height: 1.5em; /* source of truth, all rows inherit this height, js code will measure this */
     --hf-cell-border-color: rgb(203 213 225);
     --hf-columns-border-gradient: transparent;
     --hf-grid-gap: 1px;
@@ -57,7 +57,7 @@ body.hyperfiddle{
 .hyperfiddle .hyperfiddle-gridsheet [role="scrollbar"] {
     overflow-y: scroll;
     overflow-x: hidden;
-    width: 1.1rem;
+    width: 1.1em;
     max-height: 100%;  /* Fit the rows span height */
     align-self: start; /* scroll height does not participate to the first row’s vertical alignment */
     z-index:2;
@@ -89,8 +89,8 @@ body.hyperfiddle{
     height: 100%;
 
     font-family: 'Roboto Mono', monospace;
-    font-size: 0.9rem;
-    /* padding: 0.2rem; */
+    font-size: 0.9em;
+    /* padding: 0.2em; */
 
     color: #222;
 }
@@ -119,13 +119,13 @@ body.hyperfiddle{
 .hyperfiddle .hyperfiddle-gridsheet .hyperfiddle-text{
     background-color: var(--hf-label-background);
     z-index: 2;
-    padding: 0.5rem;
+    padding: 0.5em;
 }
 
 .hyperfiddle .hyperfiddle-gridsheet .hyperfiddle-text h1{
     /* text-3xl */
-    font-size: 1.875rem; /* 30px */
-    line-height: 2.25rem; /* 36px */
+    font-size: 1.875em; /* 30px */
+    line-height: 2.25em; /* 36px */
     margin: 0;
 }
 
