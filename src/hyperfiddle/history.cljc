@@ -3,7 +3,8 @@
             [hyperfiddle.rcf :as rcf :refer [tests % tap with]]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [clojure.string :as str])
   #?(:clj (:import [clojure.lang IRef IAtom]))
   #?(:cljs (:require-macros hyperfiddle.history)))
 
@@ -436,6 +437,16 @@
 
 ;; HTML5 integration
 
+(defn absolute [path]
+  (assert (string? path))
+  (str "/" (str/replace-first path #"^/+" "")))
+
+(tests
+  (absolute "foo")        := "/foo"
+  (absolute "/foo")       := "/foo"
+  (absolute "//foo")      := "/foo"
+  (absolute "//foo//bar") := "/foo//bar")
+
 #?(:cljs
    (do-browser
 
@@ -457,9 +468,9 @@
      ;; Firefox and Safari log an error and ignore further HistoryAPI calls for security reasons.
      ;; Chrome does the same but can also hang the tab: https://bugs.chromium.org/p/chromium/issues/detail?id=1038223
      (let [throttle (throttler 300)]          ; max 3changes/s, 90/30s
-       (defn replaceState! [path] (throttle #(.replaceState js/window.history nil "" path))))
+       (defn replaceState! [path] (throttle #(.replaceState js/window.history nil "" (absolute path)))))
 
-     (defn html5-pushState! [path] (.pushState js/window.history nil "" path))
+     (defn html5-pushState! [path] (.pushState js/window.history nil "" (absolute path)))
      (defn html5-back! [] (.back js/window.history))
      (defn html5-forward! [] (.forward js/window.history))
 
