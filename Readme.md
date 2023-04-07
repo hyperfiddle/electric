@@ -35,9 +35,8 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 - https://clojureverse.org/t/electric-clojure-a-signals-dsl-for-fullstack-web-ui/9788
 - https://clojureverse.org/t/signals-vs-streams/9840/1
 
-# Dependency, [Changelog](CHANGELOG.md), Contributing
+# Community
 
-* [Clojure compatibiltiy matrix](docs/clojure-compat-matrix.md)
 * Support chatroom: #hyperfiddle @ [clojurians.net](https://clojurians.net/)
 * follow https://twitter.com/dustingetz for progress updates
 * Contributing: PRs require a signed contributors agreement (like Clojure), DM dustingetz on slack. No typo fixes please.
