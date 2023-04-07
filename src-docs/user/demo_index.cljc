@@ -29,10 +29,7 @@
    `user.tutorial-7guis-5-crud/CRUD])
 
 (def secret-pages
-  [`wip.teeshirt-orders/Webview-HFQL
-   `wip.demo-explorer2/DirectoryExplorer-HFQL
-   ;`user.demo-10k-dom/Dom-10k-Elements
-   `wip.demo-branched-route/RecursiveRouter
+  [;`user.demo-10k-dom/Dom-10k-Elements
    `wip.tag-picker/TagPicker
    `wip.demo-custom-types/CustomTypes
    `wip.tracing/TracingDemo
