@@ -1,11 +1,9 @@
 (ns hyperfiddle.api
-  #?(:cljs (:require-macros [hyperfiddle.api :refer [hfql]]))
   (:import [hyperfiddle.electric Pending]
            #?(:cljs [goog.math Long]))
   (:require clojure.edn
             [contrib.dynamic :refer [call-sym]]
             [clojure.spec.alpha :as s]
-            [hyperfiddle.hfql :as hfql]
             [hyperfiddle.electric :as e]
             [missionary.core :as m]
             hyperfiddle.electric-dom2))
@@ -21,13 +19,6 @@
                                                 :clj {})}))
 (e/def read-edn-str "inject app-specific edn extensions" -read-edn-str-default) ; avoid Electric warning about goog.math.Long
 (e/def ^:dynamic *nav!*)
-
-(defmacro hfql ; Alias
-  ([query] `(hfql/hfql ~query))
-  ([bindings query] `(hfql/hfql ~bindings ~query))
-  ([bindings query eid] `(hfql/hfql ~bindings ~query ~eid)))
-
-(e/def Render hfql/Render)
 
 ;;; Database
 
