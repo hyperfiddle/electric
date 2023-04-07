@@ -17,7 +17,6 @@
             user.demo-todomvc-composed
 
             user.demo-explorer
-            wip.demo-explorer2
             user.demo-10k-dom
             user.demo-svg
             user.demo-todos-simple
@@ -29,10 +28,7 @@
             user.demo-color
             user.demo-tic-tac-toe
             user.tutorial-blinker
-            wip.demo-branched-route
-            #_wip.hfql
             wip.tag-picker
-            wip.teeshirt-orders
             wip.demo-custom-types
             wip.tracing
 
@@ -56,11 +52,8 @@
       `user.demo-index/Demos user.demo-index/Demos
       `user.demo-index/Secrets user.demo-index/Secrets
       `user.demo-two-clocks/TwoClocks user.demo-two-clocks/TwoClocks
-      `wip.teeshirt-orders/Webview-HFQL wip.teeshirt-orders/Webview-HFQL
       `user.demo-explorer/DirectoryExplorer user.demo-explorer/DirectoryExplorer
-      ;`wip.demo-explorer2/DirectoryExplorer-HFQL wip.demo-explorer2/DirectoryExplorer-HFQL
       ;user.demo-10k-dom/Dom-10k-Elements user.demo-10k-dom/Dom-10k-Elements ; todo too slow to unmount, crashes
-      `wip.demo-branched-route/RecursiveRouter wip.demo-branched-route/RecursiveRouter
       `wip.tag-picker/TagPicker wip.tag-picker/TagPicker
       `user.demo-toggle/Toggle user.demo-toggle/Toggle
       `wip.demo-custom-types/CustomTypes wip.demo-custom-types/CustomTypes
