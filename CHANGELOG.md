@@ -6,9 +6,49 @@
 * minor breaking changes allowed at this time, pay attention to the slack
 * major versions ("v2-alpha") are marketing numbers and will increment with major milestones.
 
-# v2-next
+# next
 
-* if you cloned the starter app before March 2, your hot code reloads are broken. Fix: in your user.cljs, change `(ns user ^:dev/always` to `(ns ^:dev/always user` as in [this starter-app commit](https://github.com/hyperfiddle/electric-starter-app/commit/a8810accfdd96f82eefc2d976645538223a88de9#diff-06a7049242ecf7dac4e22b30db9faa22ebae4e22e72d1bfbb916e03e3075e5c1). We had it backwards on launch day for about two weeks. Sorry!
+- `hyperfiddle.electric-jetty-server` will be removed
+
+# v2-alpha-261-g007a5782-dirty — 2023 April 6
+
+**Warning!** If you cloned the starter app before March 2, your hot code reloads are broken. Fix: in your user.cljs, change `(ns user ^:dev/always` to `(ns ^:dev/always user` as in [this starter-app commit](https://github.com/hyperfiddle/electric-starter-app/commit/a8810accfdd96f82eefc2d976645538223a88de9#diff-06a7049242ecf7dac4e22b30db9faa22ebae4e22e72d1bfbb916e03e3075e5c1). We had it backwards on launch day for about two weeks. Sorry!
+
+TLDR: Deployment, hot code reloading fixes, cljs advanced mode fixed, bugfixes.
+
+- deployment guide, uberjar, dockerfile, github actions CD scripts - see [electric-starter-app](https://github.com/hyperfiddle/electric-starter-app)
+- Electric support for continuous deployment
+  - Fingerprinted client build output for cache busting on deploy
+  - Client/server version mismatch forces client to refresh the page
+  - on websocket reconnect, client will detect that backend version has changed and will refresh the page to get the latest client version: [screenshot](docs/electric-cd-version-mismatch-refresh.png)
+- ClojureScript advanced mode compilation enabled for demos
+- Add support for SVG :xlink attribute alias
+- transit handlers are now configurable: [demo_custom_types.cljc](https://github.com/hyperfiddle/electric-examples-app/blob/main/src/wip/demo_custom_types.cljc), **todo move out of wip**
+- **breaking**: move `hf/http-request` to `e/http-request`
+- **breaking**: remove unused electric <> core.async adapters to eliminate hard dep on core.async. the unused fns are [moved to contrib.missionary-contrib and commented out](https://github.com/hyperfiddle/electric/commit/ca10f5beb5df60a7be3d6f45f1c546e8864b04dd#diff-30ca46c3b78b7d5dd9db533c8639c307f68e5c1d5b9788ae24d9f34b188b56d0) until we revisit.
+- **breaking**: remove hyperfiddle.logger; migrate to clojure.tools.logging (which uses Log4J internally) and js/console.log; drop `com.taoensso/timbre` dep. note: the Jetty server example still uses log4j internally as well. So you at least need a logback.xml to silence jetty log spam.
+- **breaking**: move `hyperfiddle.electric-jetty-server` out of electric lib and into electric-starter-app. **Please migrate!** (It's just an example, all serious apps customize the server endpoints, middleware, etc).
+- **breaking**: **must add "resources" to classpath and update electric-server-config**, the example jetty server loads resources from classpath not filesystem now. see [starter app change](https://github.com/hyperfiddle/electric-starter-app/commit/3ab72a62d3be66b2567e7ad3c1a88a21db409fc2)
+- **breaking**: ring-basic-auth is no longer included in electric deps. Add this to your project if you are using the example jetty server: `ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}` (or copy/paste the example server into your project and remove basic auth)
+- fix: custom `hyperfiddle.electric-client/*ws-server-url*` binding is lost on reconnect
+- fix: compilation with advanced optimization
+- fix: m/sleep deadlock in missionary (impacts Two Clocks demo)
+- fix: regressions realted to "reactive exceptions no longer spam the console"
+- fix: new hot-code reloading strategy breaks XTDB starter app
+- fix: ns auto reloading should not reload external libs (fixes protocol redefinition issues exhibited in XTDB-starter-app)
+- fix: ui/input glitch after blur under latency
+- fix: `*ns*` bound incorrectly during macroexpansion
+- fix: SVG elements don't get class prop
+- fix: async traces lose original exception on transfer
+- fix: reactive exceptions inside a `dom/on` callback can be silently swallowed
+- fix: shadow-css live css reload causes NPE in electric-dom
+- fix: xtdb starter app prints “Datomic libs detected: #{}” at console
+- fix: hyperfiddle.history incorrectly stacking paths on pushState and replaceState
+- fix: electric-codemirror mount/unmount handling
+- electric-codemirror upgraded to latest codemirror version. adds readonly mode and custom theme support, relax default css
+- HFQL tree grid css now uses `em` units to be embeddable
+- electric-starter-app: remove package.json, no more npm dependencies
+- example jetty server: better error messages on missing index.html or manifest.edn
 
 # v2-alpha-123-ga7fa624f — 2023 March 2
 
