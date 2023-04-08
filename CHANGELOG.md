@@ -14,7 +14,7 @@
 
 # v2-alpha-263-g89da9d11 — 2023 April 8
 
-**Warning!** If you cloned the starter app before March 2, your hot code reloads are broken. Fix: in your user.cljs, change `(ns user ^:dev/always` to `(ns ^:dev/always user` as in [this starter-app commit](https://github.com/hyperfiddle/electric-starter-app/commit/a8810accfdd96f82eefc2d976645538223a88de9#diff-06a7049242ecf7dac4e22b30db9faa22ebae4e22e72d1bfbb916e03e3075e5c1). We had it backwards on launch day for about two weeks. Sorry!
+**Warning!** If you cloned the starter app before March 2, your hot code reloads are unreliable. Fix: in your user.cljs, change `(ns user ^:dev/always` to `(ns ^:dev/always user` as in [this starter-app commit](https://github.com/hyperfiddle/electric-starter-app/commit/a8810accfdd96f82eefc2d976645538223a88de9#diff-06a7049242ecf7dac4e22b30db9faa22ebae4e22e72d1bfbb916e03e3075e5c1). We had it backwards on launch day for about two weeks. Sorry!
 
 TLDR: Deployment, hot code reloading fixes, cljs advanced mode fixed, bugfixes. **There are breaking changes, upgrade steps required!**
 
