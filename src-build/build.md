@@ -17,7 +17,7 @@ clojure -T:build install :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 clj -A:dev -T user/main :replace-deps '{:deps {com.hyperfiddle/electric {:mvn/version "'$HYPERFIDDLE_ELECTRIC_BUILD'"}}}' # test demos with maven version
 # No way to test remote clojars version without rm in .m2/repositories/com/hyperfiddle
 # Optional: test electric-starter-app with local maven install
-env $(cat .env | xargs) CLOJARS_USERNAME=dustingetz clojure -T:build deploy :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
+env $(cat .env | xargs) clojure -T:build deploy :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 ```
 
 - `CLOJARS_USERNAME` is your clojars username.
