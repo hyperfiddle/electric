@@ -6,15 +6,15 @@
 * minor breaking changes allowed at this time, pay attention to the slack
 * major versions ("v2-alpha") are marketing numbers and will increment with major milestones.
 
-# next
+# next up
+* low-level runtime & missionary design improvements to unblock the next Electric major version
+* documentation
 
-- `hyperfiddle.electric-jetty-server` will be removed
-
-# v2-alpha-261-g007a5782-dirty — 2023 April 6
+# v2-alpha-263-g89da9d11 — 2023 April 8
 
 **Warning!** If you cloned the starter app before March 2, your hot code reloads are broken. Fix: in your user.cljs, change `(ns user ^:dev/always` to `(ns ^:dev/always user` as in [this starter-app commit](https://github.com/hyperfiddle/electric-starter-app/commit/a8810accfdd96f82eefc2d976645538223a88de9#diff-06a7049242ecf7dac4e22b30db9faa22ebae4e22e72d1bfbb916e03e3075e5c1). We had it backwards on launch day for about two weeks. Sorry!
 
-TLDR: Deployment, hot code reloading fixes, cljs advanced mode fixed, bugfixes.
+TLDR: Deployment, hot code reloading fixes, cljs advanced mode fixed, bugfixes. **There are breaking changes, upgrade steps required!**
 
 - deployment guide, uberjar, dockerfile, github actions CD scripts - see [electric-starter-app](https://github.com/hyperfiddle/electric-starter-app)
 - Electric support for continuous deployment
@@ -24,12 +24,16 @@ TLDR: Deployment, hot code reloading fixes, cljs advanced mode fixed, bugfixes.
 - ClojureScript advanced mode compilation enabled for demos
 - Add support for SVG :xlink attribute alias
 - transit handlers are now configurable: [demo_custom_types.cljc](https://github.com/hyperfiddle/electric-examples-app/blob/main/src/wip/demo_custom_types.cljc), **todo move out of wip**
+- **breaking**: `hyperfiddle.electric-jetty-server` has moved out of electric and into electric-starter-app.
+  - **Action required: you must copy one of the example servers into your app, because it is part of the starter app now!** 
+    - [`electric_server_java8_jetty9.clj`](https://github.com/hyperfiddle/electric-starter-app/blob/main/src/electric_server_java8_jetty9.clj)
+    - [`electric_server_java11_jetty10.clj`](https://github.com/hyperfiddle/electric-starter-app/blob/main/src/electric_server_java11_jetty10.clj)
+  - Q: Why is it not included in the library? A: because it has hardcoded http routes and auth examples
+- **breaking: must add "resources" to classpath and update electric-server-config**, the example jetty server loads resources from classpath not filesystem now. see [starter app change](https://github.com/hyperfiddle/electric-starter-app/commit/3ab72a62d3be66b2567e7ad3c1a88a21db409fc2)
+- **breaking: ring-basic-auth is no longer included in electric deps. Add this to your project** if you are using the example jetty server: `ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}` (or copy/paste the example server into your project and remove basic auth)
 - **breaking**: move `hf/http-request` to `e/http-request`
 - **breaking**: remove unused electric <> core.async adapters to eliminate hard dep on core.async. the unused fns are [moved to contrib.missionary-contrib and commented out](https://github.com/hyperfiddle/electric/commit/ca10f5beb5df60a7be3d6f45f1c546e8864b04dd#diff-30ca46c3b78b7d5dd9db533c8639c307f68e5c1d5b9788ae24d9f34b188b56d0) until we revisit.
 - **breaking**: remove hyperfiddle.logger; migrate to clojure.tools.logging (which uses Log4J internally) and js/console.log; drop `com.taoensso/timbre` dep. note: the Jetty server example still uses log4j internally as well. So you at least need a logback.xml to silence jetty log spam.
-- **breaking**: move `hyperfiddle.electric-jetty-server` out of electric lib and into electric-starter-app. **Please migrate!** (It's just an example, all serious apps customize the server endpoints, middleware, etc).
-- **breaking**: **must add "resources" to classpath and update electric-server-config**, the example jetty server loads resources from classpath not filesystem now. see [starter app change](https://github.com/hyperfiddle/electric-starter-app/commit/3ab72a62d3be66b2567e7ad3c1a88a21db409fc2)
-- **breaking**: ring-basic-auth is no longer included in electric deps. Add this to your project if you are using the example jetty server: `ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}` (or copy/paste the example server into your project and remove basic auth)
 - fix: custom `hyperfiddle.electric-client/*ws-server-url*` binding is lost on reconnect
 - fix: compilation with advanced optimization
 - fix: m/sleep deadlock in missionary (impacts Two Clocks demo)
