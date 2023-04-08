@@ -9,7 +9,7 @@
 # next up
 
 * low-level runtime & missionary design improvements to unblock the next Electric major version
-* Electric UI control improvements (high level local-first UI controls that account for sync/latency/failure state)
+* Electric UI control improvements (high level UI controls with optimistic updates that account for sync/latency/failure state)
 * documentation and demos
 
 # v2-alpha-263-g89da9d11 — 2023 April 8
