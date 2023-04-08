@@ -19,8 +19,7 @@ TLDR: Deployment, hot code reloading fixes, cljs advanced mode fixed, bugfixes. 
 - deployment guide, uberjar, dockerfile, github actions CD scripts - see [electric-starter-app](https://github.com/hyperfiddle/electric-starter-app)
 - Electric support for continuous deployment
   - Fingerprinted client build output for cache busting on deploy
-  - Client/server version mismatch forces client to refresh the page
-  - on websocket reconnect, client will detect that backend version has changed and will refresh the page to get the latest client version: [screenshot](docs/electric-cd-version-mismatch-refresh.png)
+  - Client/server version mismatch forces client to refresh the page: [screenshot](docs/electric-cd-version-mismatch-refresh.png)
 - ClojureScript advanced mode compilation enabled for demos
 - Add support for SVG :xlink attribute alias
 - transit handlers are now configurable: [demo_custom_types.cljc](https://github.com/hyperfiddle/electric-examples-app/blob/main/src/wip/demo_custom_types.cljc), **todo move out of wip**
@@ -37,7 +36,7 @@ TLDR: Deployment, hot code reloading fixes, cljs advanced mode fixed, bugfixes. 
 - fix: custom `hyperfiddle.electric-client/*ws-server-url*` binding is lost on reconnect
 - fix: compilation with advanced optimization
 - fix: m/sleep deadlock in missionary (impacts Two Clocks demo)
-- fix: regressions realted to "reactive exceptions no longer spam the console"
+- fix: regressions related to "reactive exceptions no longer spam the console"
 - fix: new hot-code reloading strategy breaks XTDB starter app
 - fix: ns auto reloading should not reload external libs (fixes protocol redefinition issues exhibited in XTDB-starter-app)
 - fix: ui/input glitch after blur under latency
