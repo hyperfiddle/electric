@@ -3,12 +3,14 @@
 [![Clojars Project](https://img.shields.io/clojars/v/com.hyperfiddle/electric.svg)](https://clojars.org/com.hyperfiddle/electric)
  
 * alpha (new feature work and enhancements in development)
-* minor breaking changes allowed at this time, pay attention to the slack
-* major versions ("v2-alpha") are marketing numbers and will increment with major milestones.
+* minor breaking changes allowed at this time
+* major versions ("v2-alpha") are marketing numbers and will increment with major milestones
 
 # next up
+
 * low-level runtime & missionary design improvements to unblock the next Electric major version
-* documentation
+* Electric UI control improvements (high level local-first UI controls that account for sync/latency/failure state)
+* documentation and demos
 
 # v2-alpha-263-g89da9d11 — 2023 April 8
 
