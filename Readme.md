@@ -1,4 +1,4 @@
-# Electric Clojure – a signals DSL for fullstack web UI, with compiler-managed network sync
+# Electric Clojure – a reactive DSL for full-stack web development, with compiler-managed frontend/backend network sync
 
 `com.hyperfiddle/electric {:mvn/version "v2-alpha-263-g89da9d11"}` · 2023 April 8 · [Changelog](CHANGELOG.md)
 
