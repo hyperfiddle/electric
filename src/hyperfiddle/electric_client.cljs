@@ -126,3 +126,11 @@ Returns a task producing nil or failing if the websocket was closed before end o
                           (do (.log js/console "Failed to connect.") delays)))]
             (.log js/console (str "Next attempt in " (/ delay 1000) " seconds."))
             (recur (m/? (m/sleep delay delays)))))))))
+
+(defn reload-when-stale [task]
+  (fn [s f]
+    (task s (fn [error]
+              (when (= ::stale-client (:hyperfiddle.electric/type (ex-data error)))
+                (do (js/console.log "Server and client version mismatch. Refreshing page.")
+                  (.reload (.-location js/window))))
+              (f error)))))

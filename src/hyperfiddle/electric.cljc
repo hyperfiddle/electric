@@ -331,9 +331,10 @@ running on a remote host.
   (let [[client server] (c/analyze
                           (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj})
                           `(with-zero-config-entrypoint ~@body))]
-    `(hyperfiddle.electric-client/boot-with-retry
+    `(hyperfiddle.electric-client/reload-when-stale
+      (hyperfiddle.electric-client/boot-with-retry
        ~(r/emit (gensym) client)
-       (hyperfiddle.electric-client/connector (quote ~server)))))
+       (hyperfiddle.electric-client/connector (quote ~server))))))
 
 ;; WIP: user space socket reconnection
 
