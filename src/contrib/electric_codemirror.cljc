@@ -86,7 +86,7 @@
 
 (e/defn CodeMirror [props readf writef controlled-value]
   (when-some [[!cm >cm-v] (new (codemirror props))] ; stable through cv changes
-    (cm-set! !cm (writef controlled-value))
+    (some-> !cm (cm-set! (writef controlled-value))) ; guard "when true" bug causing NPE in certain tutorials
     (doto (new (m/relieve {} (m/reductions #(readf %2) controlled-value >cm-v))) ; reduction rebuilt if cv changes, which is fine
       #_(as-> $ (println 'cm-v (hash $))))))
 
