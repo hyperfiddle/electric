@@ -151,16 +151,16 @@
                        (catch Throwable t ::boom))))
     % := ::boom))
 
-; raw missionary flow - see https://github.com/leonoel/flow
-(def >F (fn [n t]
-          (n)                                               ; notify 42 is ready
+; raw missionary continuous flow - see https://github.com/leonoel/flow
+(def <f (fn [n t]
+          (n) ; continuous flows notify immediately                                              ; notify 42 is ready
           (reify
-            IFn (invoke [_])                                ; no resources to release
-            IDeref (deref [this] 42))))                     ; never notify again
+            IFn (invoke [_])            ; no resources to release
+            IDeref (deref [this] 42)))) ; never notify again
 
 (tests
   "raw Missionary flow called from Electric"
-  (def !it (>F #(tap ::notify)
+  (def !it (<f #(tap ::notify)
                #(tap ::terminate)))
   % := ::notify
   @!it := 42
@@ -168,9 +168,9 @@
 
 (comment
   "Document surprising edge case: Electric cannot use new to join foreign missionary flow from cc/def global"
-  (tests (with (e/run (tap (new >F))) % := 42)) ; -- compile time error
+  (tests (with (e/run (tap (new <f))) % := 42)) ; -- compile time error
   ; Syntax error macroexpanding hyperfiddle.electric/local
-  ; Cannot call `new` on >F
+  ; Cannot call `new` on <f
   ;
   ; Why?
   ; It collides with Clojure constructor syntax. At compile time, Electric must decide if (new X) should
@@ -198,12 +198,12 @@
   ; In Electric, dynamic class construction syntax is given meaning: join flow.
   ; By inversing Clojure syntax, this is guaranteed not to break any existing Clojure code that compiles.
 
-  (with (e/run (new >F))) ; -- Electric compiles this to a Clojure constructor call
+  (with (e/run (new <f))) ; -- Electric compiles this to a Clojure constructor call
   ; Syntax error macroexpanding hyperfiddle.electric/local
   ; Cannot call `new` on >F
   )
 
 (tests
   "workaround syntax gap by making static calls dynamic"
-  (with (e/run (tap (new (identity >F)))) % := 42)
-  (with (e/run (tap (let [>F >F] (new >F)))) % := 42))
+  (with (e/run (tap (new (identity <f)))) % := 42)
+  (with (e/run (tap (let [>F <f] (new >F)))) % := 42))
