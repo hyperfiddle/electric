@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric
   (:refer-clojure :exclude [eval def defn fn for empty? partial])
   (:require [clojure.core :as cc]
+            [contrib.cljs-target :refer [do-browser]]
             [hyperfiddle.electric.impl.compiler :as c]
             [hyperfiddle.electric.impl.runtime :as r]
             [hyperfiddle.electric.impl.for :refer [map-by]]
@@ -167,9 +168,8 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                              (-listen node typ #(-> % f! !) (clj->js opts))))
              (m/relieve {}))))
 
-(def <dom-visibility-state #?(:cljs (->> (event* js/document "visibilitychange" identity {})
-                                      (m/latest (cc/fn [_] 
-                                                  (.-visibilityState js/document))))))
+(def <dom-visibility-state #?(:cljs (do-browser (->> (event* js/document "visibilitychange" identity {})
+                                                  (m/latest (cc/fn [_] (.-visibilityState js/document)))))))
 
 (hyperfiddle.electric/def dom-visibility-state (client (new (identity <dom-visibility-state)))) ; starts Pending on server
 
