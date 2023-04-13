@@ -146,9 +146,8 @@
                (new (unmount-prop node (key prop#) nil))
                nil))))))
 
-#?(:cljs (defn- listen [node typ f opts] (.addEventListener node typ f opts) #(.removeEventListener node typ f)))
-#?(:cljs (defn event* [node typ f! opts] ; f! is discrete
-           (m/relieve {} (m/observe (fn [!] (! nil) (listen node typ #(-> % f! !) (clj->js opts)))))))
+#?(:cljs (def listen e/-listen)) ; private
+#?(:cljs (def event* e/event*))
 
 (defmacro on!
   "Call the `callback` clojure function on event.
