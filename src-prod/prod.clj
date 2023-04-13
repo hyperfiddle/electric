@@ -12,7 +12,7 @@
   (throw (ex-info "$HYPERFIDDLE_ELECTRIC_SERVER_VERSION must be set in prod" {})))
 
 (defn -main [& args]
-  (println "Starting Photon server...")
+  (println "Starting Electric server...")
   (def server (start-server! {:host host :port port :resources-path "public" :manifest-path "public/js/manifest.edn"}))
   (comment (.stop server))
 
