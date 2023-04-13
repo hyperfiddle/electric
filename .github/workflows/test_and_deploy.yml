@@ -130,7 +130,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set Environment Variables
-        run: echo "HYPERFIDDLE_ELECTRIC_VERSION=$(git describe --tags --long --always --dirty)" >> $GITHUB_ENV
+        run: echo "HYPERFIDDLE_ELECTRIC_SERVER_VERSION=$(git describe --tags --long --always --dirty)" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -146,7 +146,7 @@ jobs:
           push: true
           tags: registry.fly.io/electric-demo:latest
           build-args: |
-            HYPERFIDDLE_ELECTRIC_VERSION=${{ env.HYPERFIDDLE_ELECTRIC_VERSION }}
+            HYPERFIDDLE_ELECTRIC_SERVER_VERSION=${{ env.HYPERFIDDLE_ELECTRIC_SERVER_VERSION }}
 
   deploy:
     needs: [docker_build]
