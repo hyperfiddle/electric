@@ -302,9 +302,13 @@
                  (- (count ns) i) inst)) res))
          (apply f env args) ns))) env (seq bs) []))
 
+(defn dotted-symbol? "Return true if `sym` starts with `.`, excluding `..`."
+  [sym]
+  (some? (re-find #"^\.[^.]" (name sym))))
+
 (defn desugar-host [env form]
   (case (env/peer-language env)
-    :cljs (if (and (seq? form) (cljs/dotted-symbol? (first form)))
+    :cljs (if (and (seq? form) (dotted-symbol? (first form)))
             (let [[op target & args] form]
               (list* '. target (symbol (subs (name op) 1)) args))
             form)
