@@ -5,7 +5,8 @@
             #?(:cljs goog.style)
             [hyperfiddle.electric :as e]
             [missionary.core :as m]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [contrib.data :as data])
   (:import [hyperfiddle.electric Pending])
   #?(:cljs (:require-macros [hyperfiddle.electric-dom2 :refer [with]])))
 
@@ -128,6 +129,18 @@
        (new (unmount-prop node {(key sty#) nil}))
        nil)))
 
+
+(def LAST-PROPS
+  "Due to a bug in both Webkit and FF, input type range's knob renders in the
+  wrong place if value is set after `min` and `max`, and `max` is above 100.
+  Other UI libs circumvent this issue by setting `value` last."
+ [:value ::value])
+
+(defn ordered-props "Sort props by key to ensure they are applied in a predefined order. See `LAST-PROPS`."
+  [props-map]
+  (let [props (apply dissoc props-map LAST-PROPS)]
+    (concat (seq props) (seq (select-keys props-map LAST-PROPS)))))
+
 ;; TODO JS runtimes intern litteral strings, so call `name` on keywords at
 ;; macroexpension.
 (defmacro props [m]
@@ -137,9 +150,9 @@
                                    [`(style ~v)]
                                    [`(set-property! node ~k ~v)
                                     `(new (unmount-prop node ~k nil))]))
-                     m)
+               (ordered-props m))
            nil)
-      `(e/for-by key [prop# (vec ~m)]
+      `(e/for-by key [prop# (vec (ordered-props ~m))]
          (if (~style? (key prop#))
            (style (val prop#))
            (do (set-property! node (key prop#) (val prop#))
