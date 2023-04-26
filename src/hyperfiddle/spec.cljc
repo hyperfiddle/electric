@@ -33,6 +33,12 @@
 (declare datafy* spec)
 (defn extend-spec [spec] (when spec (vary-meta spec assoc `ccp/datafy datafy*)))
 
+;; FIXME get-spec fails to find specs at cljs macroexpansion time. Specs
+;; compiled by cljs compiler are stored in `cljs.spec.alpha/registry-ref`,
+;; whereas `s/get-spec` refers to the JVM equivalent ns at macroexpansion.
+;; Current workaround is a `:require-macros` on the spec-defining ns (cljs or
+;; cljc), so the spec is registered on both side. We might want to detect the
+;; compilation target and resolve into the corresponding registry.
 (defn get-spec "Like s/get-spec, but resolve aliases" [ident]
   (when-let [s (s/get-spec ident)]
     (extend-spec (if (ident? s) (vary-meta (get-spec s) assoc ::alias ident) s))))
