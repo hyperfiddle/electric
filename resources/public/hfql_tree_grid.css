@@ -1,6 +1,7 @@
 @import url('popover.css');
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@100;200;300;400;500;600;700&display=swap');
 
+/* TODO move to HFQL repo */
 
 :root{
     --hf-input-cell-background: rgb(255 255 255);
@@ -12,6 +13,15 @@
 body.hyperfiddle{
     background-color: var(--hf-page-background);
     /* background-color: white; */
+}
+
+
+.hyperfiddle input:not([type="radio"]):not([type="checkbox"]), select { /* reset */
+    border-width: initial;
+    border-style: initial;
+    border-radius: initial;
+
+    width: 100%;
 }
 
 .hyperfiddle .hyperfiddle-gridsheet-wrapper{
@@ -93,6 +103,13 @@ body.hyperfiddle{
     /* padding: 0.2em; */
 
     color: #222;
+    border:none;
+}
+
+.hyperfiddle .hyperfiddle-gridsheet [role="cell"] > * {
+    width: 100%;
+    height: 100%;
+    border: none;
 }
 
 .hyperfiddle .hyperfiddle-gridsheet [role="cell"] > a {
@@ -105,12 +122,8 @@ body.hyperfiddle{
     background-color: var(--hf-label-background);
 }
 
-.hyperfiddle .hyperfiddle-gridsheet input[role="cell"] {
-    border:none;
-}
-
 /* Edge case: checkboxes should not grow to fill the row height  */
-.hyperfiddle .hyperfiddle-gridsheet input[role="cell"][type="checkbox"] {
+.hyperfiddle .hyperfiddle-gridsheet [role="cell"] > input[type="checkbox"] {
     margin: initial;
     width: initial;
     padding: initial;
@@ -137,3 +150,68 @@ body.hyperfiddle{
 }
 
 
+.hyperfiddle .hyperfiddle-gridsheet .hfql-input-validator{
+    position: relative;
+}
+
+.hyperfiddle .hyperfiddle-gridsheet .hfql-input-validator.hfql-invalid{
+    outline: 1px red solid;
+}
+
+.hyperfiddle .hyperfiddle-gridsheet .hfql-input-validator-invalid-icon {
+	  position: absolute;
+}
+
+.hyperfiddle .hyperfiddle-gridsheet .hfql-input-validator-invalid-icon {
+	  fill: none;
+	  stroke: red;
+	  position: absolute;
+	  bottom: 0;
+	  top: 0;
+	  margin: auto;
+	  right: 0.2em;
+	  font-size: 1.2em;
+	  width: 1em;
+	  height: 1em;
+}
+
+.hyperfiddle .hyperfiddle-gridsheet .hfql-input-validator .hfql-input-validator-invalid-message{
+    visibility:hidden;
+	  border: 1px red solid;
+	  padding: 0 0.5em;
+	  margin-left: 1em;
+	  position: absolute;
+	  background-color: white;
+	  z-index: 2;
+	  font-size: 0.9em;
+	  border-radius: 0.25em;
+	  text-align: center;
+	  display: inline-flex;
+	  align-items: center;
+    width: fit-content;
+    max-width: 100%;
+}
+
+
+.hyperfiddle .hyperfiddle-gridsheet .hfql-input-validator .hfql-input-validator-invalid-message > * {
+    overflow:hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+
+.hyperfiddle .hyperfiddle-gridsheet .hfql-input-validator .hfql-input-validator-invalid-message::after{
+	  content: " ";
+	  width: 0;
+	  height: 0;
+	  position: absolute;
+	  border: 0.5em transparent solid;
+	  border-right-color: red;
+	  margin-left: -1.5em;
+}
+
+.hyperfiddle .hyperfiddle-gridsheet .hfql-input-validator.hfql-invalid:hover > .hfql-input-validator-invalid-message
+, .hyperfiddle .hyperfiddle-gridsheet .hfql-input-validator.hfql-invalid:focus-within > .hfql-input-validator-invalid-message
+{
+    visibility: visible;
+}
