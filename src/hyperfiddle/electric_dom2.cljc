@@ -67,12 +67,6 @@
                       (-googDomSetTextContentNoWarn node ~str)))
       strs)))
 
-(defn class-str [v]
-  (cond
-    (or (string? v) (keyword? v)) (name v)
-    (seq v) (clojure.string/join " " (eduction (remove nil?) (map name) v))
-    :else ""))
-
 (def ^:const SVG-NS "http://www.w3.org/2000/svg")
 (def ^:const XLINK-NS "http://www.w3.org/1999/xlink")
 
@@ -106,7 +100,6 @@
           (.removeAttributeNS node nil k)
           (case k
             "style" (goog.style/setStyle node v)
-            "class" (set-attribute-ns node nil "class" (class-str v))
             "list"  (set-attribute-ns node nil k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
             (if-let [k (goog.object/get goog.dom/DIRECT_ATTRIBUTE_MAP_ k)]
               (set-attribute-ns node k v)
@@ -141,23 +134,53 @@
   (let [props (apply dissoc props-map LAST-PROPS)]
     (concat (seq props) (seq (select-keys props-map LAST-PROPS)))))
 
+(defn parse-class [xs]
+  (cond (string? xs) (parse-class (str/split xs #"\s+"))
+        (coll? xs)   (into [] (comp (filter string?) (remove str/blank?)) xs)
+        :else        nil))
+
+#?(:cljs
+   (defn register-class! [^js node class]
+     (let [refs (or (.-hyperfiddle_electric_dom2_class_refs node) {})]
+       (.add (.-classList node) class)
+       (set! (.-hyperfiddle_electric_dom2_class_refs node) (update refs class (fn [cnt] (inc (or cnt 0))))))))
+
+#?(:cljs
+   (defn unregister-class! [^js node class]
+     (let [refs (or (.-hyperfiddle_electric_dom2_class_refs node) {})
+           refs (if (= 1 (get refs class))
+                  (do (.remove (.-classList node) class)
+                      (dissoc refs class))
+                  (update refs class dec))]
+       (set! (.-hyperfiddle_electric_dom2_class_refs node) refs))))
+
+(e/defn ClassList [node classes]
+  (e/for [class classes]
+    (new (m/relieve {} (m/observe (fn [!]
+                                    (! nil)
+                                    (register-class! node class)
+                                    #(unregister-class! node class)))))))
+
 ;; TODO JS runtimes intern litteral strings, so call `name` on keywords at
 ;; macroexpension.
 (defmacro props [m]
-  (let [style? #{:style ::style}]       ; TODO disambiguate
+  (let [style? #{:style ::style}       ; TODO disambiguate
+        class? #{:class ::class}]
     (if (map? m)
-      `(do ~@(mapcat (fn [[k v]] (if (style? k) ; static keyset
-                                   [`(style ~v)]
-                                   [`(set-property! node ~k ~v)
-                                    `(new (unmount-prop node ~k nil))]))
+      `(do ~@(mapcat (fn [[k v]] (cond  ; static keyset
+                                   (style? k) [`(style ~v)]
+                                   (class? k) [`(new ClassList dom/node (parse-class ~v))]
+                                   :else      [`(set-property! node ~k ~v)
+                                          `(new (unmount-prop node ~k nil))]))
                (ordered-props m))
            nil)
       `(e/for-by key [prop# (vec (ordered-props ~m))]
-         (if (~style? (key prop#))
-           (style (val prop#))
-           (do (set-property! node (key prop#) (val prop#))
-               (new (unmount-prop node (key prop#) nil))
-               nil))))))
+         (cond
+           (~style? (key prop#)) (style (val prop#))
+           (~class? (key prop#)) (new ClassList dom/node (parse-class (val prop#)))
+           :else                 (do (set-property! node (key prop#) (val prop#))
+                                     (new (unmount-prop node (key prop#) nil))
+                                     nil))))))
 
 #?(:cljs (def listen e/-listen)) ; private
 #?(:cljs (def event* e/event*))
