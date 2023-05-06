@@ -242,7 +242,7 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 
 (def -invalid-watch-usage-message "Invalid e/watch (use from Electric code only, maybe you forgot a e/def?)")
 
-(defmacro watch "for tutorials (to delay teaching constructor syntax); m/watch is also idiomatic"
+(defmacro watch "Derive a reactive value from a Clojure atom or reference."
   [!x]
   (if (bound? #'c/*env*)
     `(new (checked-watch ~!x))
