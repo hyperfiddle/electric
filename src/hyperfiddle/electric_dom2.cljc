@@ -169,7 +169,7 @@
     (if (map? m)
       `(do ~@(mapcat (fn [[k v]] (cond  ; static keyset
                                    (style? k) [`(style ~v)]
-                                   (class? k) [`(new ClassList dom/node (parse-class ~v))]
+                                   (class? k) [`(new ClassList node (parse-class ~v))]
                                    :else      [`(set-property! node ~k ~v)
                                           `(new (unmount-prop node ~k nil))]))
                (ordered-props m))
@@ -177,7 +177,7 @@
       `(e/for-by key [prop# (vec (ordered-props ~m))]
          (cond
            (~style? (key prop#)) (style (val prop#))
-           (~class? (key prop#)) (new ClassList dom/node (parse-class (val prop#)))
+           (~class? (key prop#)) (new ClassList node (parse-class (val prop#)))
            :else                 (do (set-property! node (key prop#) (val prop#))
                                      (new (unmount-prop node (key prop#) nil))
                                      nil))))))
