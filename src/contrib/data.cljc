@@ -201,6 +201,18 @@
 ;
 ;(tests (positional {0 :foo 1 :bar}) := [:foo :bar])
 
+;; https://github.com/weavejester/medley/blob/master/src/medley/core.cljc
+;; https://clojure.atlassian.net/browse/CLJ-1451
+(defn take-upto [pred]
+  (fn [rf] 
+    (fn 
+      ([] (rf))
+      ([ac] (rf ac))
+      ([ac nx] (cond-> (rf ac nx) (pred nx) ensure-reduced)))))
+
+(tests
+  (into [] (take-upto odd?) [2 4 6 8 9 10 12 14]) := [2 4 6 8 9])
+
 (defn round-floor [n base] (* base (clojure.math/floor (/ n base))))
 
 (comment
