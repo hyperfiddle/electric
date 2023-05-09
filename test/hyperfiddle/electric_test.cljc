@@ -2,6 +2,7 @@
   "Electric Clojure/Script core language unit tests"
   (:require [contrib.cljs-target :refer [do-browser]]
             [hyperfiddle.electric :as p]
+            [hyperfiddle.electric :as e]
             [hyperfiddle.electric.impl.compiler :as c]
             [hyperfiddle.electric.impl.io :as electric-io]
             [hyperfiddle.electric.impl.runtime :as r]
@@ -2040,3 +2041,140 @@
 
   (tap ::done), % := ::done, (println " ok")
   )
+
+(tests "for-event"
+  (def ! (atom nil))
+  (def !resolvers (atom {}))
+  (defn !! [k v] (reset! (@!resolvers k) v))
+  (with (p/run (tap (try (p/for-event [e (m/observe (fn [!!] (reset! ! !!) #(do)))]
+                           (let [!v (atom :pending)]
+                             (swap! !resolvers assoc e !v)
+                             (try (let [v (p/watch !v)]
+                                    (case v
+                                      :pending (throw (Pending.))
+                                      :caught (throw (ex-info "caught" {}))
+                                      :uncaught (throw (ex-info "uncaught" {}))
+                                      #_else v))
+                                  (catch Pending _ :pending)
+                                  (catch #?(:clj Throwable :cljs :default) e
+                                    (case (ex-message e)
+                                      "caught" (reduced nil)
+                                      #_else (throw e))))))
+                         (catch #?(:clj Throwable :cljs :default) e [(type e) (ex-message e)]))))
+    #_init                 % := []
+    (@! 0),                % := [:pending]
+    (@! 1),                % := [:pending :pending]
+    (!! 1 (reduced nil)),  % := [:pending nil], % := [:pending]
+    (!! 0 (reduced true)), % := [nil], % := []
+    (@! 2),                % := [:pending]
+    (!! 2 :caught),        % := [nil], % := []
+    (@! 99),               % := [:pending]
+    (!! 99 :uncaught),     % := [ExceptionInfo "uncaught"]
+    (!! 99 :alive),        % := [:alive]
+    (!! 99 (reduced nil)), % := [nil], % := []
+
+    (tap ::done), % := ::done, (println " ok")))
+
+(tests "for-event-pending"
+  (def ! (atom nil))
+  (def !resolvers (atom {}))
+  (defn !! [k v] (reset! (@!resolvers k) v))
+  (def fail (ex-info "i fail" {}))
+  (with (e/run (tap (e/for-event-pending [e (m/observe (fn [!!] (reset! ! !!) #(do)))]
+                      (let [!v (atom :pending)]
+                        (swap! !resolvers assoc e !v)
+                        (let [v (e/watch !v)]
+                          (case v
+                            :pending (throw (Pending.))
+                            :fail (throw fail)
+                            #_else v))))))
+    #_init        % := [::e/init]
+    (@! 0),       % := [::e/pending e/pending]
+    (@! 1)        ;; work skipped
+    (!! 1 nil)    ;; work skipped, 0 still pending
+    (!! 0 false)  % := [::e/ok false]
+    (@! 2),       % := [::e/pending e/pending]
+    (!! 2 :fail), % := [::e/failed fail]
+
+    (tap ::done), % := ::done, (println " ok")))
+
+(tests "for-event-pending-switch"
+  (def ! (atom nil))
+  (def !resolvers (atom {}))
+  (defn !! [k v] (reset! (@!resolvers k) v))
+  (def fail (ex-info "i fail" {}))
+  (with (e/run (tap (e/for-event-pending-switch [e (m/observe (fn [!!] (reset! ! !!) #(do)))]
+                      (let [!v (atom :pending)]
+                        (swap! !resolvers assoc e !v)
+                        (e/on-unmount #(tap [:unmounted e]))
+                        (let [v (e/watch !v)]
+                          (case v
+                            :pending (throw (Pending.))
+                            :fail (throw fail)
+                            #_else v))))))
+
+    #_init                             % := [::e/init]
+    (@! 0),                            % := [::e/pending e/pending]
+    (@! 1),       % := [:unmounted 0]
+    (@! 2),       % := [:unmounted 1]
+    (!! 2 nil),   % := [:unmounted 2], % := [::e/ok nil]
+    (@! 3),                            % := [::e/pending e/pending]
+    (!! 3 :fail), % := [:unmounted 3], % := [::e/failed fail]
+
+    (tap ::done), % := ::done, (println " ok")))
+
+(tests "do-event"
+  (def ! (atom nil))
+  (def !resolvers (atom {}))
+  (defn !! [k v] (reset! (@!resolvers k) v))
+  (with (e/run (tap (try (e/do-event [e (m/observe (fn [!!] (reset! ! !!) #(do)))]
+                           (tap [:mount e])
+                           (let [!v (atom :pending)]
+                             (swap! !resolvers assoc e !v)
+                             (try (let [v (e/watch !v)]
+                                    (case v
+                                      :pending (throw (Pending.))
+                                      :caught (throw (ex-info "caught" {}))
+                                      :uncaught (throw (ex-info "uncaught" {}))
+                                      #_else v))
+                                  (catch Pending _ :pending)
+                                  (catch #?(:clj Throwable :cljs :default) e
+                                    (case (ex-message e)
+                                      "caught" (reduced nil)
+                                      #_else (throw e))))))
+                         (catch #?(:clj Throwable :cljs :default) e [(type e) (ex-message e)]))))
+    #_init                   % := nil
+    (@! 0), % := [:mount 0], % := :pending
+    (@! 1)                              ; skipped, previous still running
+    (!! 0 (reduced false)),  % := nil
+    (@! 2), % := [:mount 2], % := :pending
+    (!! 2 :caught),          % := nil
+    (@! 9), % := [:mount 9], % := :pending
+    (!! 9 :uncaught),        % := [ExceptionInfo "uncaught"]
+    (!! 9 :alive),           % := :alive
+    (!! 9 (reduced true)),   % := nil
+
+    (tap ::done), % := ::done, (println " ok")))
+
+(tests "do-event-pending"
+  (def ! (atom nil))
+  (def !resolvers (atom {}))
+  (defn !! [k v] (reset! (@!resolvers k) v))
+  (def fail (ex-info "i fail" {}))
+  (with (e/run (tap (e/do-event-pending [e (m/observe (fn [!!] (reset! ! !!) #(do)))]
+                      (tap [:mount e])
+                      (let [!v (atom :pending)]
+                        (swap! !resolvers assoc e !v)
+                        (let [v (e/watch !v)]
+                          (case v
+                            :pending (throw (Pending.))
+                            :fail (throw fail)
+                            #_else v))))))
+    #_init                   % := [::e/init]
+    (@! 0), % := [:mount 0], % := [::e/pending e/pending]
+    (@! 1)        ;; skipped
+    (!! 0 false)             % := [::e/ok false]
+    (@! 2), % := [:mount 2], % := [::e/pending e/pending]
+    (!! 2 :fail),            % := [::e/failed fail]
+
+    (tap ::done), % := ::done, (println " ok")))

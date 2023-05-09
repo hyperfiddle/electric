@@ -11,6 +11,9 @@
     (.dispatchEvent elem (js/FocusEvent. "blur"))
     (.blur elem))
 
+  (defn hover [elem]
+    (.dispatchEvent elem (js/MouseEvent. "mouseenter" #js {:bubbles true})))
+
   (defn click [elem]
     (blur (.-activeElement js/document))
     (.click elem)
