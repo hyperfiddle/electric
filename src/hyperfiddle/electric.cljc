@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric
   (:refer-clojure :exclude [eval def defn fn for empty? partial])
   (:require [clojure.core :as cc]
+            contrib.data
             [contrib.cljs-target :refer [do-browser]]
             [hyperfiddle.electric.impl.compiler :as c]
             [hyperfiddle.electric.impl.runtime :as r]
@@ -400,3 +401,15 @@ running on a remote host.
                               :delay  1000})))))))
 
 (def ^:dynamic *http-request* "Bound to the HTTP request of the page in which the current Electric program is running." nil)
+
+(defmacro check-electric [fn form]
+  (if (bound? #'c/*env*)
+    form
+    (throw (ex-info (str "Electric code (" fn ") inside a Clojure function") (into {:electric-fn fn} (meta &form))))))
+
+(cc/defn -snapshot [flow] (->> flow (m/eduction (contrib.data/take-upto (complement #{r/pending})))))
+
+(defmacro snapshot 
+  "Snapshots the first non-Pending value of reactive value `x` and freezes it, 
+inhibiting all further reactive updates." 
+  [x] `(check-electric snapshot (new (-snapshot (hyperfiddle.electric/fn [] ~x)))))

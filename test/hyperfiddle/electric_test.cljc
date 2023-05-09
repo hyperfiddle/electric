@@ -1997,3 +1997,46 @@
        % := 2
        )))
 
+(tests "snapshot"
+  (def flow (p/-snapshot (m/observe (fn [!] (def ! !) #()))))
+  "1 2 -> 1"
+  (def it (flow #(tap :notified) #(tap :terminated)))
+  (! 1),         % := :notified, @it := 1
+  (! 2)
+  (it),           % := :terminated
+  "Pending 1 2 -> Pending 1"
+  (def it (flow #(tap :notified) #(tap :terminated)))
+  (! r/pending), % := :notified, @it := r/pending
+  (! 1),         % := :notified, @it := 1
+  (! 2)
+  (it),           % := :terminated
+  "Pending Pending 1 2 -> Pending Pending 1"
+  (def it (flow #(tap :notified) #(tap :terminated)))
+  (! r/pending), % := :notified, @it := r/pending
+  (! r/pending), % := :notified, @it := r/pending
+  (! 1),         % := :notified, @it := 1
+  (! 2)
+  (it),           % := :terminated
+  "ex-info 1 2 -> ex-info"
+  (def it (flow #(tap :notified) #(tap :terminated)))
+  (def boom (Failure. (ex-info "boom" {})))
+  (! boom),      % := :notified, @it := boom
+  (! 1)
+  (! 2)
+  (it),           % := :terminated
+  "1 Pending 2 -> 1"
+  (def it (flow #(tap :notified) #(tap :terminated)))
+  (! 1),         % := :notified, @it := 1
+  (! r/pending)
+  (! 2)
+  (it),           % := :terminated
+  "Pending ex-info 1 -> Pending ex-info"
+  (def it (flow #(tap :notified) #(tap :terminated)))
+  (def boom (Failure. (ex-info "boom" {})))
+  (! r/pending), % := :notified, @it := r/pending
+  (! boom),      % := :notified, @it := boom
+  (! 1)
+  (it),           % := :terminated
+
+  (tap ::done), % := ::done, (println " ok")
+  )
