@@ -5,6 +5,8 @@
             [hyperfiddle.rcf :refer [tests]])
   (:import (missionary Cancelled)))
 
+(defn mix [& flows] (m/ap (m/?> (m/?> (count flows) (m/seed flows)))))
+
 (defn iterator-consumer "blocking iterable pattern"
   [^java.util.Iterator it]
   ; why not one thread tied to the iterator extent?
@@ -40,13 +42,25 @@
           (m/reduce conj []) m/?)
      := ["java.specification.version" "sun.jnu.encoding" "java.class.path"]))
 
-; Core.async interop
-
-(defn poll-task "run task (or mbox) repeatedly, producing a stream of results"
+(defn poll-task
+  "derive discrete flow from succession of polled values from a task (or mbox)"
   [task]
+  #_(m/ap (m/? (m/?> (m/seed (repeat mbox)))))
   (m/ap
     (loop [v (m/? task)]
       (m/amb v (recur (m/? task))))))
+
+(defn document
+  "compare (document log) to (d/entity db eid). if a datomic txn is [op eid a v], 
+log here is [op a v], or in other words, there is only one entity (the `eid` is 
+constant) so we are left with not an entity but a document."
+  [>txs]
+  (m/reductions (fn [m [op a v]] ; or is the a actually e?
+                  (case op
+                    ::add (assoc m a v)
+                    ::retract (dissoc m a))) {} >txs))
+
+;; Core.async interop
 
 (defn chan-read!
   "Return a task taking one value from `chan`. Return nil if chan is closed. Does not close chan,

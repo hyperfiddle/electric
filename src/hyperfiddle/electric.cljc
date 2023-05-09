@@ -3,6 +3,8 @@
   (:require [clojure.core :as cc]
             contrib.data
             [contrib.cljs-target :refer [do-browser]]
+            [contrib.missionary-contrib :as mx]
+            contrib.data
             [hyperfiddle.electric.impl.compiler :as c]
             [hyperfiddle.electric.impl.runtime :as r]
             [hyperfiddle.electric.impl.for :refer [map-by]]
@@ -10,7 +12,8 @@
             [missionary.core :as m]
             #?(:cljs [hyperfiddle.electric-client])
             [hyperfiddle.electric.impl.io :as io]
-            [hyperfiddle.electric.debug :as dbg])
+            [hyperfiddle.electric.debug :as dbg]
+            [hyperfiddle.electric :as e])
   #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn boot for for-by local run debounce wrap on-unmount]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.electric Pending Failure FailureInfo)
@@ -413,3 +416,64 @@ running on a remote host.
   "Snapshots the first non-Pending value of reactive value `x` and freezes it, 
 inhibiting all further reactive updates." 
   [x] `(check-electric snapshot (new (-snapshot (hyperfiddle.electric/fn [] ~x)))))
+
+(cc/defn ->Object [] #?(:clj (Object.) :cljs (js/Object.))) ; private
+
+;; low-level, most powerful, hardest to use
+(defmacro for-event
+  ; Progress in UI is a continuous flow (succession of values) that eventually completes with a final result.
+  "For each value of >flow, spawn concurrent `body` branches which individually 
+progress towards completion. Keeps each branch alive to progress in isolation 
+until it signals completion by returning a reduced value, at which point the branch
+is unmounted. Returns active progress values as a vector. Exceptions bubble out.
+
+Useful to process a discrete event stream (e.g. DOM events) in Electric."
+  [[sym >flow] & body]
+  `(let [mbx# (m/mbx)]
+     (new (m/reductions {} nil (m/eduction (map #(mbx# [::mx/add (->Object) %])) ~>flow)))
+     (for-by first [[progressing-event# ~sym] (new (mx/document (mx/poll-task mbx#)))]
+       (let [v# (do ~@body)]
+         (if (reduced? v#)
+           (do (mbx# [::mx/retract progressing-event#]) nil)
+           v#)))))
+
+(def pending (Pending.))
+
+;; high-level wrapper of above, returns a union type, waits for non-Pending value
+(defmacro for-event-pending [bind & body]
+  `(let [!state# (atom [::init]), state# (e/watch !state#)]
+     (if (seq (for-event ~bind
+                (try (reduced (reset! !state# [::ok (do ~@body)]))
+                     (catch hyperfiddle.electric.Pending ex#)
+                     (catch missionary.Cancelled ex# (reduced nil))
+                     (catch ~(if (:ns &env) :default `Throwable) ex# (reduced (reset! !state# [::failed ex#]))))))
+       [::pending pending] state#)))
+
+;; like above but when a new event arrives it cancels the previous one
+(defmacro for-event-pending-switch [bind & body]
+  `(let [!i# (atom 0), i# (e/watch !i#)
+         !state# (atom [::init]), state# (e/watch !state#)]
+     (if (seq (for-event ~bind
+                (try (when (<= i# (inc @!i#)) (reset! !state# [::ok (do ~@body)])) (reduced (swap! !i# inc))
+                     (catch hyperfiddle.electric.Pending ex#)
+                     (catch missionary.Cancelled ex# (reduced nil))
+                     (catch ~(if (:ns &env) :default `Throwable) ex# (reduced (reset! !state# [::failed ex#]))))))
+       [::pending pending] state#)))
+
+;; low-level, waits for event to resolve, during which new events are dropped
+(defmacro do-event [[sym >flow] & body]
+  `(let [!e# (atom nil)]
+     (->> ~>flow (m/reductions #(swap! !e# (cc/fn [cur#] (if (nil? cur#) %2 cur#))) nil) new)
+     (when-some [~sym (e/watch !e#)]
+       (let [v# (do ~@body)]
+         (if (reduced? v#) (reset! !e# nil) v#)))))
+
+;; high-level wrapper of above, returns a union type, waits for non-Pending value
+(defmacro do-event-pending [bind & body]
+  `(let [!state# (atom [::init])]
+     (do-event ~bind
+       (try (reduced (reset! !state# [::ok (do ~@body)]))
+            (catch hyperfiddle.electric.Pending ex# (reset! !state# [::pending pending]))
+            (catch missionary.Cancelled ex# (reduced nil))
+            (catch ~(if (:ns &env) :default `Throwable) ex# (reduced (reset! !state# [::failed ex#])))))
+     (e/watch !state#)))
