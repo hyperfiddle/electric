@@ -25,7 +25,7 @@
                          :compiler-options {:warnings {:redef-in-file false}}}
           :browser-test {:target           :karma
                          :output-to        "out/karma-tests.js"
-                         :ns-regexp        "^(hyperfiddle.electric-[^dom]|contrib.(ednish|sexpr-router|missionary-contrib-test)).*$"
+                         :ns-regexp        "^(hyperfiddle.electric-|contrib.(ednish|sexpr-router|missionary-contrib-test)).*$"
                          :build-options    {:cache-level :off}
                          :modules          {:main {:entries [hyperfiddle.zero
                                                              hyperfiddle.electric
