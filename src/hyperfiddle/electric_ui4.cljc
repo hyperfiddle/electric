@@ -17,8 +17,8 @@
   `(let [[state# v#] (e/for-event-pending-switch [e# (dom/listen> ~event-type)]
                        (some->> (~parse e#) (new ~V!)))]
      (dom/style {:background-color (when (= ::e/pending state#) "yellow")})
-     (when (and (not (new dom/Focused?)) (#{::e/init ::e/ok} state#))
-       (~setter dom/node (~unparse ~v)))
+     (when-some [v# (when (and (not (new dom/Focused?)) (#{::e/init ::e/ok} state#)) ~v)]
+       (~setter dom/node (~unparse v#)))
      ~@body
      (case state# (::e/pending ::e/failed) (throw v#) (::e/init ::e/ok) v#)))
 
