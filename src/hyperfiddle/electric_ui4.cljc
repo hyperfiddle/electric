@@ -87,7 +87,9 @@
   `(dom/button
      (let [[state# v#] (e/do-event-pending [e# (dom/listen> "click")] (new ~V!))
            busy# (= ::e/pending state#)]
-       (dom/style {:background-color (when busy# "yellow")})
+       (dom/style {:border (str "2px solid "
+                             (case state# ::e/init "gray" ::e/ok "green" ::e/pending "yellow" ::e/failed "red"))
+                   :border-radius "0.2rem"})
        (dom/props {:disabled busy#, :aria-busy busy#})
        ~@body
        (case state# (::e/pending ::e/failed) (throw v#) (::e/init ::e/ok) v#))))
