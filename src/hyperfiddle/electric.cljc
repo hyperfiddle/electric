@@ -11,7 +11,7 @@
             [hyperfiddle.electric.impl.io :as io]
             [hyperfiddle.electric.debug :as dbg])
   #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn boot for for-by local run debounce wrap on-unmount]]))
-  (:import #?(:clj (clojure.lang IDeref))
+  (:import #?(:clj (clojure.lang IDeref IFn))
            (hyperfiddle.electric Pending Failure FailureInfo)
            (missionary Cancelled)))
 
