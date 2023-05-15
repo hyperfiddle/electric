@@ -23,23 +23,6 @@
             (dom/props {:id id}))
           (dom/label (dom/props {:for id}) (dom/text (e/server (:task/description e)))))))))
 
-(e/defn InputSubmit [F]
-  ; Custom input control using lower dom interface for Enter handling
-  (dom/input (dom/props {:placeholder "Buy milk"})
-    (dom/on "keydown" (e/fn [e]
-                        (when (= "Enter" (.-key e))
-                          (when-some [v (contrib.str/empty->nil (-> e .-target .-value))]
-                            (new F v)
-                            (set! (.-value dom/node) "")))))))
-
-(e/defn TodoCreate []
-  (e/client
-    (InputSubmit. (e/fn [v]
-                    (e/server
-                      (e/discard
-                        (d/transact! !conn [{:task/description v
-                                             :task/status :active}])))))))
-
 #?(:clj (defn todo-count [db]
           (count
             (d/q '[:find [?e ...] :in $ ?status
@@ -57,7 +40,8 @@
         (dom/h1 (dom/text "minimal todo list"))
         (dom/p (dom/text "it's multiplayer, try two tabs"))
         (dom/div (dom/props {:class "todo-list"})
-          (TodoCreate.)
+          (dom/input (dom/props {:placeholder "Buy milk"})
+            (ui/on-submit (e/fn [v] (e/server (d/transact! !conn [{:task/description v, :task/status :active}]) nil))))
           (dom/div {:class "todo-items"}
             (e/server
               (e/for-by :db/id [{:keys [db/id]} (todo-records db)]
