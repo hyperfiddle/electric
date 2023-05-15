@@ -98,6 +98,16 @@ can be pending."
        ~@body
        (case state# (::e/pending ::e/failed) (throw v#) (::e/init ::e/ok) v#))))
 
+#?(:cljs (defn ?read-line! [node e]
+           (let [line (.-value node)]
+             (when (and (= "Enter" (.-key e)) (contrib.str/empty->nil line))
+               (set! (.-value node) "") line))))
+
+(defmacro on-submit
+  ([V!] `(on-submit (dom/listen> dom/node "keydown" (partial ?read-line! dom/node)) ~V!))
+  ([>event V!]
+   `(let [[state# v#] (e/for-event-pending [e# ~>event] (new ~V! e#))]
+      (case state# (::e/pending ::e/failed) (throw v#) (::e/init ::e/ok) v#))))
 
 ;;; TYPEAHEAD
 
