@@ -83,7 +83,11 @@
   `(dom/input (dom/props {:type "datetime-local"})
      (control "input" (comp parse-datetime-local value) identity ~v ~V! dom/set-val ~@body)))
 
-(defmacro button [V! & body]
+(defmacro button [V! & body] 
+  "On click, run possibly remote effect V! and disable the button (preventing 
+further clicks) until V! completes (is not pending). Returns the state of the 
+button which starts nil and then when clicked becomes the result of V!, which 
+can be pending."
   `(dom/button
      (let [[state# v#] (e/do-event-pending [e# (dom/listen> "click")] (new ~V!))
            busy# (= ::e/pending state#)]
