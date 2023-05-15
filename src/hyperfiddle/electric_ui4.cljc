@@ -8,72 +8,32 @@
     [hyperfiddle.electric-dom2 :as dom]
     [missionary.core :as m]))
 
-(defmacro handle [getter V!]
-  `(e/fn [e#]
-     (dom/props {:style {:background-color "yellow"}})
-     (when-some [v# (~getter e#)] (new ~V! v#))))
-
 (defmacro do1 [x & body] `(let [ret# ~x] ~@body ret#))
 
 #?(:cljs (defn value [^js e] (.-target.value e)))
 #?(:cljs (defn checked [^js e] (.-target.checked e)))
 
-(defmacro input [v V! & body]           ; todo nominal args
+(defmacro control [event-type parse unparse v V! setter & body]
+  `(let [[state# v#] (e/for-event-pending-switch [e# (dom/listen> ~event-type)]
+                       (some->> (~parse e#) (new ~V!)))]
+     (dom/style {:background-color (when (= ::e/pending state#) "yellow")})
+     (when (and (not (new dom/Focused?)) (#{::e/init ::e/ok} state#))
+       (~setter dom/node (~unparse ~v)))
+     ~@body
+     (case state# (::e/pending ::e/failed) (throw v#) (::e/init ::e/ok) v#)))
+
+(defmacro input [v V! & body]
   `(dom/input
-     (dom/bind-value ~v)
-     (do1 (dom/on "input" (handle value ~V!)) ~@body)))
+     (control "input" value identity ~v ~V! dom/set-val ~@body)))
 
 (defmacro textarea [v V! & body]
   `(dom/textarea
-     (dom/bind-value ~v)
-     (do1 (dom/on "input" (handle value ~V!)) ~@body)))
+     (control "input" value identity ~v ~V! dom/set-val ~@body)))
 
 (defn parse-edn [s] (try (some-> s contrib.str/blank->nil clojure.edn/read-string) (catch #?(:clj Throwable :cljs :default) _)))
 (defn keep-if [pred v] (when (pred v) v))
 (defn parse-keyword [s] (keep-if keyword? (parse-edn s)))
 (defn parse-symbol [s] (keep-if symbol? (parse-edn s)))
-
-(defmacro edn [v V! & body]
-  `(dom/textarea
-     (dom/bind-value (contrib.str/pprint-str ~v))
-     (do1 (dom/on "input" (handle (comp parse-edn value) ~V!)) ~@body)))
-
-(defmacro checkbox [v V! & body]
-  `(dom/input (dom/props {:type "checkbox"})
-     (dom/bind-value ~v (fn [node# v#] (set! (.-checked node#) v#)))
-     (do1 (dom/on "change" (handle checked ~V!)) ~@body)))
-
-(defmacro long [v V! & body]
-  `(dom/input (dom/props {:type "number"})
-     (dom/bind-value ~v)
-     (do1 (dom/on "input" (handle (comp parse-long value) ~V!)) ~@body)))
-
-(defmacro range [v V! & body]
-  `(dom/input (dom/props {:type "range"})
-     (dom/bind-value ~v)
-     (do1 (dom/on "input" (handle (comp parse-long value) ~V!)) ~@body)))
-
-(defmacro double [v V! & body]
-  `(dom/input (dom/props {:type "number"})
-     (dom/bind-value ~v)
-     (do1 (dom/on "input" (handle (comp parse-double value) ~V!)) ~@body)))
-
-(def uuid-pattern "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-(defmacro uuid [v V! & body]
-  `(dom/input (dom/props {:type "text" :pattern uuid-pattern})
-     (dom/bind-value ~v)
-     (do1 (dom/on "input" (handle (comp parse-uuid value) ~V!)) ~@body)))
-
-(defmacro keyword [v V! & body]
-  `(dom/input
-     (dom/bind-value ~v)
-     (do1 (dom/on "input" (handle (comp parse-keyword value) ~V!)) ~@body)))
-
-(defmacro symbol [v V! & body]
-  `(dom/input
-     (dom/bind-value ~v)
-     (do1 (dom/on "input" (handle (comp parse-symbol value) ~V!)) ~@body)))
-
 (defn parse-date [s]
   (try #?(:clj (java.time.LocalDate/parse s) :cljs (js/Date. s))
        (catch #?(:clj Throwable :cljs :default) _)))
@@ -82,23 +42,55 @@
   (try #?(:clj (java.time.LocalDateTime/parse s) :cljs (js/Date. s))
        (catch #?(:clj Throwable :cljs :default) _)))
 
+(defmacro edn [v V! & body]
+  `(dom/textarea
+     (control "input" (comp parse-edn value) contrib.str/pprint-str ~v ~V! dom/set-val ~@body)))
+
+(defmacro checkbox [v V! & body]
+  `(dom/input (dom/props {:type "checkbox"})
+     (control "change" checked identity ~v ~V! #(set! (.-checked %) %2) ~@body)))
+
+(defmacro long [v V! & body]
+  `(dom/input (dom/props {:type "number"})
+     (control "input" (comp parse-long value) identity ~v ~V! dom/set-val ~@body)))
+
+(defmacro range [v V! & body]
+  `(dom/input (dom/props {:type "range"})
+     (control "input" (comp parse-long value) identity ~v ~V! dom/set-val ~@body)))
+
+(defmacro double [v V! & body]
+  `(dom/input (dom/props {:type "number"})
+     (control "input" (comp parse-double value) identity ~v ~V! dom/set-val ~@body)))
+
+(def uuid-pattern "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+(defmacro uuid [v V! & body]
+  `(dom/input (dom/props {:type "text" :pattern uuid-pattern})
+     (control "input" (comp parse-uuid value) identity ~v ~V! dom/set-val ~@body)))
+
+(defmacro keyword [v V! & body]
+  `(dom/input
+     (control "input" (comp parse-keyword value) identity ~v ~V! dom/set-val ~@body)))
+
+(defmacro symbol [v V! & body]
+  `(dom/input
+     (control "input" (comp parse-symbol value) identity ~v ~V! dom/set-val ~@body)))
+
 (defmacro date [v V! & body]
   `(dom/input (dom/props {:type "date"})
-     (dom/bind-value ~v)
-     (do1 (dom/on "input" (handle (comp parse-date value) ~V!)) ~@body)))
+     (control "input" (comp parse-date value) identity ~v ~V! dom/set-val ~@body)))
 
 (defmacro datetime-local [v V! & body]
   `(dom/input (dom/props {:type "datetime-local"})
-     (dom/bind-value ~v)
-     (do1 (dom/on "input" (handle (comp parse-datetime-local value) ~V!)) ~@body)))
+     (control "input" (comp parse-datetime-local value) identity ~v ~V! dom/set-val ~@body)))
 
 (defmacro button [V! & body]
   `(dom/button
-     (do1 (dom/on "click" (e/fn [e#]
-                            (dom/props {:disabled true, :aria-busy true})
-                            (new ~V!))) ; do we need to pass the event?
-          ~@body)))
-
+     (let [[state# v#] (e/do-event-pending [e# (dom/listen> "click")] (new ~V!))
+           busy# (= ::e/pending state#)]
+       (dom/style {:background-color (when busy# "yellow")})
+       (dom/props {:disabled busy#, :aria-busy busy#})
+       ~@body
+       (case state# (::e/pending ::e/failed) (throw v#) (::e/init ::e/ok) v#))))
 
 
 ;;; TYPEAHEAD
