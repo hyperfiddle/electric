@@ -50,9 +50,17 @@
 
         (dom/dt (dom/text "name"))
         (dom/dd (ui/input (:label/name record)
-                          (e/fn [v]
-                              (println 'input! v)
-                              (e/server #_(when true) (hf/Transact!. [[:db/add e :label/name v]])))))
+                  (e/fn [v]
+                    (println 'input! v)
+                    (e/server #_(when true) (hf/Transact!. [[:db/add e :label/name v]])))
+                  (dom/props {:id "name"})))
+
+        (dom/dt (dom/text "name2"))
+        (dom/dd (ui/input (:label/name record)
+                  (e/fn [v]
+                    (println 'input2! v)
+                    (e/server #_(when true) (hf/Transact!. [[:db/add e :label/name v]])))
+                  (dom/props {:id "name2"})))
 
         (dom/dt (dom/text "sortName"))
         (dom/dd (ui/input (:label/sortName record)
