@@ -118,12 +118,8 @@
   (dom/span (dom/props {:class "input-load-mask"})
     (dom/on-pending (dom/props {:aria-busy true})
       (dom/input
-        (dom/on "keydown"
-          (e/fn [e]
-            (when (= "Enter" (.-key e))
-              (when-some [description (contrib.str/empty->nil (-> e .-target .-value))]
-                (e/server (transact! [{:task/description description, :task/status :active}]) nil)
-                (set! (.-value dom/node) "")))))
+        (ui/on-submit (e/fn [description]
+                        (e/server (transact! [{:task/description description, :task/status :active}]) nil)))
         (dom/props {:class "new-todo", :placeholder "What needs to be done?"})))))
 
 (e/defn TodoMVC-UI [state]
