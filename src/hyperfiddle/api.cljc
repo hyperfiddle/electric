@@ -84,6 +84,7 @@
                           (into-tx' schema tx0 tx)]))))))) ; datascript is different
 
 (e/def Transact!) ; server
+(e/def ClearStage!) ; server
 (e/def stage) ; server
 (e/def loading) ; client
 
@@ -99,6 +100,7 @@
 (e/defn Branch [Body-server] ; todo colorless
   (e/server
     (let [!ret (atom nil)
+          parent-db db
           !t (atom #_::unknown [db []])
           [db stage] (e/watch !t)]
       (binding [hyperfiddle.api/db db
@@ -106,7 +108,8 @@
                 hyperfiddle.api/Transact! (e/fn [tx]
                                             #_(println "Transact! " (hash !t) "committing: " tx)
                                             (let [r (Transact!*. !t tx)]
-                                              #_(println "Transact! " (hash !t) "commit result: " r)))]
+                                              #_(println "Transact! " (hash !t) "commit result: " r)))
+                hyperfiddle.api/ClearStage! (e/fn [] (reset! !t [parent-db []]) nil)]
         (e/client
           (e/with-cycle [loading false]
             (binding [hyperfiddle.api/loading loading]
