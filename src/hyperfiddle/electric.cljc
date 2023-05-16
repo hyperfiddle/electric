@@ -424,9 +424,7 @@ inhibiting all further reactive updates."
   "For each value of >flow, spawn concurrent `body` branches which individually 
 progress towards completion. Keeps each branch alive to progress in isolation 
 until it signals completion by returning a reduced value, at which point the branch
-is unmounted. Returns active progress values as a vector. Exceptions bubble out.
-
-Useful to process a discrete event stream (e.g. DOM events) in Electric."
+is unmounted. Returns active progress values as a vector. Exceptions bubble out."
   [[sym >flow] & body]
   `(let [mbx# (m/mbx)]
      (new (m/reductions {} nil (m/eduction (map #(mbx# [::mx/add (->Object) %])) ~>flow)))
@@ -439,40 +437,75 @@ Useful to process a discrete event stream (e.g. DOM events) in Electric."
 (def pending (Pending.))
 
 ;; high-level wrapper of above, returns a union type, waits for non-Pending value
-(defmacro for-event-pending [bind & body]
+(defmacro for-event-pending
+  "Like for-event, but each branch completes as soon as a non-Pending value or 
+exception is available. Returns [::pending e/pending] if there are one or more
+uncompleted branches, otherwise returns a 4-colored result corresponding to the
+progress of the most recently completed branch."
+  [bind & body]
   `(let [!state# (atom [::init]), state# (hyperfiddle.electric/watch !state#)]
      (if (seq (for-event ~bind
                 (try (reduced (reset! !state# [::ok (do ~@body)]))
-                     (catch hyperfiddle.electric.Pending ex#)
-                     (catch missionary.Cancelled ex# (reduced nil))
-                     (catch ~(if (:ns &env) :default `Throwable) ex# (reduced (reset! !state# [::failed ex#]))))))
-       [::pending pending] state#)))
+                     (catch Pending ex#)
+                     (catch Cancelled ex# (reduced nil))
+                     (catch ~(if (:ns &env) :default `Throwable) ex# 
+                       (reduced (reset! !state# [::failed ex#]))))))
+       [::pending pending] ; save Pending exception for easy re-throw
+       state#)))
 
-;; like above but when a new event arrives it cancels the previous one
-(defmacro for-event-pending-switch [bind & body]
+;; e/for-event-pending-switch is similar to m/?<. 
+;; When a new event comes in a new branch is immediately spawned and the previous cancelled
+;; ok, so these operators are basically the equivalent of m/?< m/?> and m/?= extended into continuous time. 
+;; one runs events concurrently, one runs events sequentially, and one interrupts
+;; for-event-sequence, for-event-concurrent, for-event-interrupt
+(defmacro for-event-pending-switch ; for-event?<
+  "Like for-event, but each new event supersedes the prior event, canceling and 
+discarding previous it even if in progress. The single active branch completes 
+on the first non-Pending value. Returns a single four-colored result 
+corresponding to the progress of the most recent event."
+  [[sym >flow :as bind] & body]
   `(let [!i# (atom 0), i# (hyperfiddle.electric/watch !i#)
          !state# (atom [::init]), state# (hyperfiddle.electric/watch !state#)]
      (if (seq (for-event ~bind
-                (try (when (<= i# (inc @!i#)) (reset! !state# [::ok (do ~@body)])) (reduced (swap! !i# inc))
-                     (catch hyperfiddle.electric.Pending ex#)
-                     (catch missionary.Cancelled ex# (reduced nil))
-                     (catch ~(if (:ns &env) :default `Throwable) ex# (reduced (reset! !state# [::failed ex#]))))))
+                (try (when (<= i# (inc @!i#)) 
+                       (reset! !state# [::ok (do ~@body)])) 
+                  (reduced (swap! !i# inc))
+                  (catch Pending ex#)
+                  (catch Cancelled ex# (reduced nil))
+                  (catch ~(if (:ns &env) :default `Throwable) 
+                    ex# (reduced (reset! !state# [::failed ex#]))))))
        [::pending pending] state#)))
 
-;; low-level, waits for event to resolve, during which new events are dropped
-(defmacro do-event [[sym >flow] & body]
+(defmacro do-event ; for-one-event
+  "Run `body` continuation in response to next event (silently discarding subsequent 
+events) until it completes by evaluating to a `reduced` value. On completion, 
+unmounts the body, returning nil while waiting for a fresh event."
+  ; Useful for button case because it discards. Not useful for create-new, because it discards.
+  ; Does this blink-and-clear on completion?
+  
+  [[sym >flow] & body]
   `(let [!e# (atom nil)]
-     (->> ~>flow (m/reductions #(swap! !e# (cc/fn [cur#] (if (nil? cur#) %2 cur#))) nil) new)
-     (when-some [~sym (hyperfiddle.electric/watch !e#)]
-       (let [v# (do ~@body)]
-         (if (reduced? v#) (reset! !e# nil) v#)))))
+     (new (m/reductions #(swap! !e# (cc/fn [cur#] ; latch first non-nil event
+                                      (if (nil? cur#) %2 cur#))) ; discarding events until event processing completes
+            nil ~>flow))
+     (when-some [~sym (hyperfiddle.electric/watch !e#)] ; wait for non-nil event (rising edge), bind in scope for body
+       (let [v# (do ~@body)] ; nil is insignificant here
+         (if (reduced? v#) ; never seen
+           (reset! !e# nil) ; reset, unmount body, wait for fresh event
+           v#)))))
 
-;; high-level wrapper of above, returns a union type, waits for non-Pending value
-(defmacro do-event-pending [bind & body]
+(defmacro do-event-pending
+  "Run `body` continuation in response to next event (silently discarding subsequent 
+events) until it completes by evaluating to a non-Pending result. On completion, 
+unmounts the body, latches and returns the 4-colored result while waiting for a 
+fresh event."
+  [[sym >flow :as bind] & body]
   `(let [!state# (atom [::init])]
      (do-event ~bind
-       (try (reduced (reset! !state# [::ok (do ~@body)]))
-            (catch hyperfiddle.electric.Pending ex# (reset! !state# [::pending pending]))
-            (catch missionary.Cancelled ex# (reduced nil))
-            (catch ~(if (:ns &env) :default `Throwable) ex# (reduced (reset! !state# [::failed ex#])))))
+       ; D: Why not leave the body alive, is the signal state the same as this explicit latch?
+       (try (reduced (reset! !state# [::ok (do ~@body)])) ; latch result
+            (catch Pending ex# (reset! !state# [::pending pending])) ; wait longer
+            (catch Cancelled ex# (reduced nil))
+            (catch ~(if (:ns &env) :default `Throwable) ex#
+              (reduced (reset! !state# [::failed ex#]))))) ; latch result
      (hyperfiddle.electric/watch !state#)))
