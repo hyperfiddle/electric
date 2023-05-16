@@ -10,16 +10,16 @@
 
 (defmacro do1 [x & body] `(let [ret# ~x] ~@body ret#))
 
-#?(:cljs (defn value [^js e] (.-target.value e)))
+#?(:cljs (defn value [^js e] (.-target.value e))) ; workaround inference warnings, todo rename
 #?(:cljs (defn checked [^js e] (.-target.checked e)))
 
 (defmacro control [event-type parse unparse v V! setter & body]
   `(let [[state# v#] (e/for-event-pending-switch [e# (dom/listen> ~event-type)]
                        (some->> (~parse e#) (new ~V!)))]
      (dom/style {:background-color (when (= ::e/pending state#) "yellow")})
-     ; workaround "when-true" bug: when-some guards a nil from incorrectly sneaking through
+     ; workaround "when-true" bug: extra outer when-some added to guard a nil from incorrectly sneaking through
      (when-some [v# (when (and (not (new dom/Focused?)) (#{::e/init ::e/ok} state#)) ~v)]
-       (~setter dom/node (~unparse v#)))
+       (~setter dom/node (~unparse v#))) ; js coerce
      ~@body
      (case state# (::e/pending ::e/failed) (throw v#) (::e/init ::e/ok) v#)))
 
