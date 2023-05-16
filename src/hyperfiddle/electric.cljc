@@ -12,8 +12,7 @@
             [missionary.core :as m]
             #?(:cljs [hyperfiddle.electric-client])
             [hyperfiddle.electric.impl.io :as io]
-            [hyperfiddle.electric.debug :as dbg]
-            [hyperfiddle.electric :as e])
+            [hyperfiddle.electric.debug :as dbg])
   #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn boot for for-by local run debounce wrap on-unmount]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.electric Pending Failure FailureInfo)
@@ -441,7 +440,7 @@ Useful to process a discrete event stream (e.g. DOM events) in Electric."
 
 ;; high-level wrapper of above, returns a union type, waits for non-Pending value
 (defmacro for-event-pending [bind & body]
-  `(let [!state# (atom [::init]), state# (e/watch !state#)]
+  `(let [!state# (atom [::init]), state# (hyperfiddle.electric/watch !state#)]
      (if (seq (for-event ~bind
                 (try (reduced (reset! !state# [::ok (do ~@body)]))
                      (catch hyperfiddle.electric.Pending ex#)
@@ -451,8 +450,8 @@ Useful to process a discrete event stream (e.g. DOM events) in Electric."
 
 ;; like above but when a new event arrives it cancels the previous one
 (defmacro for-event-pending-switch [bind & body]
-  `(let [!i# (atom 0), i# (e/watch !i#)
-         !state# (atom [::init]), state# (e/watch !state#)]
+  `(let [!i# (atom 0), i# (hyperfiddle.electric/watch !i#)
+         !state# (atom [::init]), state# (hyperfiddle.electric/watch !state#)]
      (if (seq (for-event ~bind
                 (try (when (<= i# (inc @!i#)) (reset! !state# [::ok (do ~@body)])) (reduced (swap! !i# inc))
                      (catch hyperfiddle.electric.Pending ex#)
@@ -464,7 +463,7 @@ Useful to process a discrete event stream (e.g. DOM events) in Electric."
 (defmacro do-event [[sym >flow] & body]
   `(let [!e# (atom nil)]
      (->> ~>flow (m/reductions #(swap! !e# (cc/fn [cur#] (if (nil? cur#) %2 cur#))) nil) new)
-     (when-some [~sym (e/watch !e#)]
+     (when-some [~sym (hyperfiddle.electric/watch !e#)]
        (let [v# (do ~@body)]
          (if (reduced? v#) (reset! !e# nil) v#)))))
 
@@ -476,4 +475,4 @@ Useful to process a discrete event stream (e.g. DOM events) in Electric."
             (catch hyperfiddle.electric.Pending ex# (reset! !state# [::pending pending]))
             (catch missionary.Cancelled ex# (reduced nil))
             (catch ~(if (:ns &env) :default `Throwable) ex# (reduced (reset! !state# [::failed ex#])))))
-     (e/watch !state#)))
+     (hyperfiddle.electric/watch !state#)))
