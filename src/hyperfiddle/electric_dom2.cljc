@@ -251,7 +251,7 @@
                  (~setter node v#))))
 
 #?(:cljs (defn- -listen>-impl [node typ keep-fn opts]
-           (m/observe (fn [!] (listen node typ #(when-some [v (keep-fn %)] (! v)) (clj->js opts))))))
+           (m/relieve {} (m/observe (fn [!] (listen node typ #(when-some [v (keep-fn %)] (! v)) (clj->js opts)))))))
 
 (defmacro listen> 
   "Derive a discrete flow from a sequence of DOM events. Use `keep-fn` to 
