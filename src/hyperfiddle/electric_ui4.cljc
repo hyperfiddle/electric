@@ -84,13 +84,20 @@
   `(dom/input (dom/props {:type "datetime-local"})
      (control "input" (comp parse-datetime-local value) identity ~v ~V! dom/set-val ~@body)))
 
-(defmacro button [V! & body]
+(defmacro button [V! & body] 
+  "On click, run possibly remote effect V! and disable the button (preventing 
+further clicks) until V! completes (is not pending). Returns the state of the 
+button which starts nil and then when clicked becomes the result of V!, which 
+can be pending."
   `(dom/button
-     (do1 (dom/on "click" (e/fn [e#]
-                            (dom/props {:disabled true, :aria-busy true})
-                            (new ~V!))) ; do we need to pass the event?
-          ~@body)))
-
+     (let [[state# v#] (e/do-event-pending [e# (dom/listen> "click")] (new ~V!))
+           busy# (= ::e/pending state#)]
+       (dom/style {:border (str "2px solid "
+                             (case state# ::e/init "gray" ::e/ok "green" ::e/pending "yellow" ::e/failed "red"))
+                   :border-radius "0.2rem"})
+       (dom/props {:disabled busy#, :aria-busy busy#})
+       ~@body
+       (case state# (::e/pending ::e/failed) (throw v#) (::e/init ::e/ok) v#))))
 
 
 ;;; TYPEAHEAD
