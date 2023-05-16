@@ -224,7 +224,7 @@
   "Run the given electric function on event.
   (on \"click\" (e/fn [event] ...))"
   ;; TODO add support of event options (see `event*`)
-  ([typ]   `(new Event ~typ false))
+  (^:deprecated [typ]  `(new Event ~typ false)) ; use `on!` for local side effects
   ([typ F] `(on node ~typ ~F))
   ([node typ F] `(binding [node ~node]
                    (let [[state# v#] (e/for-event-pending-switch [e# (listen> ~typ)] (new ~F e#))]
