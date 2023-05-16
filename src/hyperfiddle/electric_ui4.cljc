@@ -84,20 +84,24 @@
   `(dom/input (dom/props {:type "datetime-local"})
      (control "input" (comp parse-datetime-local value) identity ~v ~V! dom/set-val ~@body)))
 
-(defmacro button [V! & body] 
+(defmacro button [V! & body] ; "submit-1" vs "submit-N"
   "On click, run possibly remote effect V! and disable the button (preventing 
 further clicks) until V! completes (is not pending). Returns the state of the 
 button which starts nil and then when clicked becomes the result of V!, which 
 can be pending."
+  ; This is really a "simple transaction button"
   `(dom/button
-     (let [[state# v#] (e/do-event-pending [e# (dom/listen> "click")] (new ~V!))
+     (let [[state# v#] (e/do-event-pending [e# (dom/listen> "click")]
+                         (new ~V!))
            busy# (= ::e/pending state#)]
        (dom/style {:border (str "2px solid "
                              (case state# ::e/init "gray" ::e/ok "green" ::e/pending "yellow" ::e/failed "red"))
                    :border-radius "0.2rem"})
-       (dom/props {:disabled busy#, :aria-busy busy#})
+       (dom/props {:disabled busy#, :aria-busy busy#}) ; backpressure the user
        ~@body
-       (case state# (::e/pending ::e/failed) (throw v#) (::e/init ::e/ok) v#))))
+       (case state# ; 4 colors
+         (::e/pending ::e/failed) (throw v#)
+         (::e/init ::e/ok) v#))))
 
 #?(:cljs (defn ?read-line! [node e]
            (let [line (.-value node)]
