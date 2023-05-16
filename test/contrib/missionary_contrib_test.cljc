@@ -1,8 +1,8 @@
 (ns contrib.missionary-contrib-test
-  (:require [hyperfiddle.electric :as p]
-            [contrib.missionary-contrib :as mc]
-            [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
-            [clojure.core.async :as a]
+  (:require [clojure.core.async :as a]
+            [contrib.missionary-core-async :as mc]
+            [hyperfiddle.electric :as p]
+            [hyperfiddle.rcf :as rcf :refer [tests tap % with]] 
             [missionary.core :as m])
   (:import missionary.Cancelled))
 
