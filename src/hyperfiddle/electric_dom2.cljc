@@ -183,15 +183,14 @@
                                      (new (unmount-prop node (key prop#) nil))
                                      nil))))))
 
-#?(:cljs (def listen e/-listen)) ; private
-#?(:cljs (def event* e/event*))
-
 (defmacro on!
   "Call the `callback` clojure function on event.
    (on! \"click\" (fn [event] ...)) "
   ([event-name callback] `(on! node ~event-name ~callback))
   ([dom-node event-name callback] `(on! ~dom-node ~event-name ~callback nil))
-  ([dom-node event-name callback options] `(new (event* ~dom-node ~event-name ~callback ~options))))
+  ([dom-node event-name callback options] 
+   `(new (->> (e/listen> ~dom-node ~event-name ~callback ~options)
+           (m/reductions {} nil)))))
 
 (defn happen [s e]
   ; Todo, we need a buffer (unbounded) to force a nil in between overlapping events to fix race
@@ -227,14 +226,15 @@
   (^:deprecated [typ]  `(new Event ~typ false)) ; use `on!` for local side effects
   ([typ F] `(on node ~typ ~F))
   ([node typ F] `(binding [node ~node]
-                   (let [[state# v#] (e/for-event-pending-switch [e# (listen> ~typ)] (new ~F e#))]
+                   (let [[state# v#] (e/for-event-pending-switch [e# (e/listen> node ~typ)] (new ~F e#))]
                      (case state#
                        (::e/init ::e/ok) v# ; could be `nil`, for backward compat we keep it
                        (::e/pending) (throw (Pending.))
                        (::e/failed)  (throw v#))))))
 
 #?(:cljs (e/def visibility-state "'hidden' | 'visible'"
-           (new (->> (event* js/document "visibilitychange" identity {}) 
+           (new (->> (e/listen> js/document "visibilitychange")
+                  (m/reductions {} nil)
                   (m/latest #(.-visibilityState js/document))))))
 
 (defmacro on-pending [pending-body & body] `(try (do ~@body) (catch Pending e# ~pending-body (throw e#))))
@@ -250,45 +250,25 @@
   ([v setter] `(when-some [v# (when-not (new Focused?) ~v)]
                  (~setter node v#))))
 
-#?(:cljs (defn- -listen>-impl [node typ keep-fn opts]
-           (m/relieve {} (m/observe (fn [!] (listen node typ #(when-some [v (keep-fn %)] (! v)) (clj->js opts)))))))
-
-(defmacro listen> 
-  "Derive a discrete flow from a sequence of DOM events. Use `keep-fn` to 
-map/filter events as `clojure.core/keep`. `opts` (a CLJS map) will be passed as 
-options to `node.addEventListener` with clj->js. Use with `e/for-event`."
-  ([typ] `(listen> node ~typ))
-  ([node typ] `(listen> ~node ~typ identity))
-  ([node typ keep-fn] `(listen> ~node ~typ ~keep-fn {}))
-  ([node typ keep-fn opts] (list `-listen>-impl node typ keep-fn opts)))
-
-(defmacro events->value "Turns discrete `flows` into an Electric value with initial value `init`."
-  [init & flows]
-  `(->> (mx/mix ~@flows) (m/reductions {} ~init) (m/relieve {}) new))
-
 (defmacro focused? "Returns whether this DOM `node` is focused."
   ([] `(focused? node))
   ([node] `(let [node# ~node]
-             (events->value (= node# (.-activeElement js/document))
-               (listen> node# "focus" (constantly true))
-               (listen> node# "blur" (constantly false))))))
+             (->> (mx/mix
+                    (e/listen> node# "focus" (constantly true))
+                    (e/listen> node# "blur" (constantly false)))
+               (m/reductions {} (= node# (.-activeElement js/document)))
+               (m/relieve {})
+               new))))
 
 (defmacro hovered? "Returns whether this DOM `node` is hovered over. Starts `false`."
   ([] `(hovered? node))
   ([node] `(let [node# ~node]
-             (events->value false
-               (listen> node# "mouseenter" (constantly true))
-               (listen> node# "mouseleave" (constantly false))))))
-
-#?(:cljs (defn- gobj-get [o k] (goog.object/get o k)))
-
-(defmacro sample "Returns value of `node`'s `prop` on every event of type `typ`."
-  ([] `(sample "value"))
-  ([prop] `(sample "input" ~prop))
-  ([typ prop] `(sample node ~typ ~prop))
-  ([node typ prop] `(let [node# ~node, typ# ~typ, prop# ~prop]
-                      (events->value (gobj-get node# prop#)
-                        (listen> node# typ# #(gobj-get node# prop#))))))
+             (->> (mx/mix 
+                    (e/listen> node# "mouseenter" (constantly true))
+                    (e/listen> node# "mouseleave" (constantly false)))
+               (m/reductions {} false)
+               (m/relieve {})
+               new))))
 
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))

@@ -164,15 +164,25 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 (cc/defn -get-system-time-ms [& [_]] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
 
 ; DOM event utilities promoted due to visibility-state being critical
-#?(:cljs (cc/defn -listen [node typ f opts] (.addEventListener node typ f opts) #(.removeEventListener node typ f)))
-#?(:cljs (cc/defn event* [node typ f! opts] ; f! is discrete
-           (->> (m/observe (cc/fn [!] 
-                             (! nil)
-                             (-listen node typ #(-> % f! !) (clj->js opts))))
-             (m/relieve {}))))
 
-(def <dom-visibility-state #?(:cljs (do-browser (->> (event* js/document "visibilitychange" identity {})
-                                                  (m/latest (cc/fn [_] (.-visibilityState js/document)))))))
+#?(:cljs (cc/defn dom-listener [node typ f opts] 
+           (.addEventListener node typ f (clj->js opts))
+           #(.removeEventListener node typ f)))
+
+#?(:cljs (cc/defn listen>
+           ([node event-type] (listen> node event-type identity {}))
+           ([node event-type keep-fn!] (listen> node event-type keep-fn! {}))
+           ([node event-type keep-fn! opts]
+            (m/relieve {}
+              (m/observe (cc/fn [!]
+                           (dom-listener node event-type #(when-some [v (keep-fn! %)]
+                                                            (! v)) opts)))))))
+
+#?(:cljs (def <dom-visibility-state 
+           (do-browser 
+             (->> (listen> js/document "visibilitychange")
+               (m/reductions {} (.-visibilityState js/document))
+               (m/latest (cc/fn [_] (.-visibilityState js/document)))))))
 
 (hyperfiddle.electric/def dom-visibility-state (client (new (identity <dom-visibility-state)))) ; starts Pending on server
 

@@ -14,7 +14,7 @@
 #?(:cljs (defn checked [^js e] (.-target.checked e)))
 
 (defmacro control [event-type parse unparse v V! setter & body]
-  `(let [[state# v#] (e/for-event-pending-switch [e# (dom/listen> ~event-type)]
+  `(let [[state# v#] (e/for-event-pending-switch [e# (e/listen> dom/node ~event-type)]
                        (some->> (~parse e#) (new ~V!)))]
      (dom/style {:background-color (when (= ::e/pending state#) "yellow")})
      ; workaround "when-true" bug: extra outer when-some added to guard a nil from incorrectly sneaking through
@@ -91,7 +91,7 @@ button which starts nil and then when clicked becomes the result of V!, which
 can be pending."
   ; This is really a "simple transaction button"
   `(dom/button
-     (let [[state# v#] (e/do-event-pending [e# (dom/listen> "click")]
+     (let [[state# v#] (e/do-event-pending [e# (e/listen> dom/node "click")]
                          (new ~V!))
            busy# (= ::e/pending state#)]
        (dom/style {:border (str "2px solid "
@@ -109,7 +109,7 @@ can be pending."
                (set! (.-value node) "") line))))
 
 (defmacro on-submit
-  ([V!] `(on-submit (dom/listen> dom/node "keydown" (partial ?read-line! dom/node)) ~V!))
+  ([V!] `(on-submit (e/listen> dom/node "keydown" (partial ?read-line! dom/node)) ~V!))
   ([>event V!]
    `(let [[state# v#] (e/for-event-pending [e# ~>event] (new ~V! e#))]
       (case state# (::e/pending ::e/failed) (throw v#) (::e/init ::e/ok) v#))))
@@ -176,7 +176,7 @@ can be pending."
              (dom/input
                (let [input-node# dom/node
                      [state# return#]
-                     (e/do-event-pending [e# (dom/listen> "focus")]
+                     (e/do-event-pending [e# (e/listen> dom/node "focus")]
                        (set! (.-value dom/node) "")
                        (let [return# (missionary.core/dfv)
                              search# (or (dom/on! "input" value) "")]
@@ -213,7 +213,7 @@ can be pending."
              (dom/input (dom/props {:style {:caret-color "transparent"}}) ; hides cursor
                (let [input-node# dom/node
                      [state# return#]
-                     (e/do-event-pending [e# (dom/listen> "focus")]
+                     (e/do-event-pending [e# (e/listen> dom/node "focus")]
                        (let [return#    (missionary.core/dfv)
                              !selected# (atom nil), selected# (e/watch !selected#)]
                          (binding [dom/node container-node#]
@@ -269,7 +269,7 @@ can be pending."
                      (if (e/server (nil? V!#))
                        (dom/props {:disabled true})
                        (let [[state# ret#]
-                             (e/do-event-pending [e# (dom/listen> "focus")]
+                             (e/do-event-pending [e# (e/listen> dom/node "focus")]
                                (let [return# (missionary.core/dfv)
                                      search# (or (dom/on! "input" value) "")]
                                  (binding [dom/node input-container-node#]
