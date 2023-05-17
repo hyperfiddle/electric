@@ -407,13 +407,18 @@
 (e/def build-route {})
 
 (e/defn Link [route Body]
-  (let [next-route (build-route history route)]
+  (let [next-route (build-route history route)
+        !h !history]
     (dom/a
       (dom/props {::dom/href (encode next-route)})
       (new Body)
-      (when-some [e (dom/Event. "click" false)]
-        (.preventDefault e)
-        (navigate! !history next-route)))))
+      (new (m/relieve {}
+             (m/reductions {} nil
+               (e/listen> dom/node "click"
+                 (fn [e] ; todo e/for-event-pending-switch? Or missionary itself
+                   (.preventDefault e)
+                   ;; TODO why !history doesn't work and we have to lexically bind it?
+                   (navigate! !h next-route)))))))))
 
 (defmacro link [route & body]
   ; all links are Sexpr-like and head is qualified name. like [::secrets 1 2]
