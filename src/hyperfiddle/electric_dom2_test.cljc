@@ -13,26 +13,25 @@
 
 #?(:cljs
    (do-browser
-     (tests "dom/events->value, dom/focused?, dom/hovered?"
+     (tests "dom/focused?, dom/hovered?"
        (def !in (atom nil))
        (with (e/run (binding [dom/node (.-body js/document)]
                       (dom/input
                         (reset! !in dom/node)
-                        (tap [(dom/sample) (dom/focused?) (dom/hovered?)]))))
-         #_init                     % := [""   false false]
-         (uit/set-value! @!in "hi") % := ["hi" false false]
-         (uit/focus @!in)           % := ["hi" true  false]
-         (uit/hover @!in)           % := ["hi" true  true]))))
+                        (tap [(dom/focused?) (dom/hovered?)]))))
+         #_init                     % := [false false]
+         (uit/focus @!in)           % := [true  false]
+         (uit/hover @!in)           % := [true  true]))))
 
 #?(:cljs
    (do-browser
-     (tests "dom/listen>"
+     (tests "e/listen>"
        (def !in (atom nil))
        (def !it (atom nil))
        (with (e/run (binding [dom/node (.-body js/document)]
                       (dom/input
                         (reset! !in dom/node)
-                        (reset! !it (dom/listen> dom/node "keydown"
+                        (reset! !it (e/listen> dom/node "keydown"
                                       (fn [e] (when (= (.-key e) "Enter") (.-value dom/node))))))))
          (def it (@!it #() #()))
          (uit/set-value! @!in "hi") (uit/press @!in "Enter") @it := "hi"
