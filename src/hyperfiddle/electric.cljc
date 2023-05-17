@@ -186,6 +186,9 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 
 (hyperfiddle.electric/def dom-visibility-state (client (new (identity <dom-visibility-state)))) ; starts Pending on server
 
+(hyperfiddle.electric/def dom-mousemove "mousemove events, Pending if unknown"
+  (client (new (m/reductions {} r/pending (e/listen> js/document "mousemove")))))
+
 (hyperfiddle.electric/def system-time-ms "ms since 1970 Jan 1" 
   (if (= "visible" dom-visibility-state)
     (new (m/sample -get-system-time-ms <clock))
