@@ -175,31 +175,32 @@ can be pending."
            (do1
              (dom/input
                (let [input-node# dom/node
-                     return# (dom/on "focus"
-                               (e/fn [_#] ; FIXME Exceptions seems to be swallowed here
-                                 (set! (.-value dom/node) "")
-                                 (let [return# (missionary.core/dfv)
-                                       search# (or (dom/on! "input" value) "")]
-                                   (binding [dom/node container-node#]
-                                     (let [!selected# (atom nil), selected# (e/watch !selected#)]
-                                       (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
-                                         (dom/on "click" (e/fn [e#] (return# nil))))
-                                       (dom/on "keydown" (e/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
-                                       (dom/ul
-                                         (e/server
-                                           (for-truncated [id# (new Options# search#)] 20
-                                             (e/client
-                                               (dom/li (dom/text (e/server (new OptionLabel# id#)))
-                                                 (swap! !selected# select-if-first dom/node)
-                                                 (e/on-unmount #(swap! !selected# ?pass-on-to-first dom/node))
-                                                 (track-id dom/node id#)
-                                                 (?mark-selected selected#)
-                                                 (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
-                                                 (return-on-click return# V!# id#))))))))
-                                   (new (e/task->cp return#)))))]
-                 (case return#
-                   (let [txt# (e/server (new OptionLabel# v#))]
-                     (case return# (set! (.-value input-node#) txt#))))
+                     [state# return#]
+                     (e/do-event-pending [e# (dom/listen> "focus")]
+                       (set! (.-value dom/node) "")
+                       (let [return# (missionary.core/dfv)
+                             search# (or (dom/on! "input" value) "")]
+                         (binding [dom/node container-node#]
+                           (let [!selected# (atom nil), selected# (e/watch !selected#)]
+                             (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
+                               (dom/on "click" (e/fn [e#] (return# nil))))
+                             (dom/on "keydown" (e/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
+                             (dom/ul
+                               (e/server
+                                 (for-truncated [id# (new Options# search#)] 20
+                                   (e/client
+                                     (dom/li (dom/text (e/server (new OptionLabel# id#)))
+                                       (swap! !selected# select-if-first dom/node)
+                                       (e/on-unmount #(swap! !selected# ?pass-on-to-first dom/node))
+                                       (track-id dom/node id#)
+                                       (?mark-selected selected#)
+                                       (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
+                                       (return-on-click return# V!# id#))))))))
+                         (new (e/task->cp return#))))]
+                 (case state#
+                   (::e/failed ::e/pending) (throw return#)
+                   (::e/init ::e/ok) (let [txt# (e/server (new OptionLabel# v#))]
+                                       (case return# (set! (.-value input-node#) txt#))))
                  return#))
              ~@body))))))
 
@@ -211,32 +212,32 @@ can be pending."
            (do1
              (dom/input (dom/props {:style {:caret-color "transparent"}}) ; hides cursor
                (let [input-node# dom/node
-                     return#
-                     (dom/on "focus"
-                       (e/fn [_#]
-                         (let [return#    (missionary.core/dfv)
-                               !selected# (atom nil), selected# (e/watch !selected#)]
-                           (binding [dom/node container-node#]
-                             (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
-                               (dom/on "click" (e/fn [e#] (return# nil))))
-                             (dom/on "keydown" (e/fn [e#] (case (handle-meta-keys e# input-node# return# !selected# V!#)
-                                                            ::unhandled (own e#)
-                                                            #_else      nil)))
-                             (dom/ul
-                               (e/server
-                                 (e/for [id# (new Options#)]
-                                   (e/client
-                                     (let [txt# (e/server (new OptionLabel# id#))]
-                                       (dom/li (dom/text txt#)
-                                         (when (= txt# (.-value input-node#)) (reset! !selected# dom/node))
-                                         (track-id dom/node id#)
-                                         (?mark-selected selected#)
-                                         (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
-                                         (return-on-click return# V!# id#))))))))
-                           (new (e/task->cp return#)))))]
-                 (case return#
-                   (let [txt# (e/server (new OptionLabel# v#))]
-                     (case return# (set! (.-value input-node#) txt#))))
+                     [state# return#]
+                     (e/do-event-pending [e# (dom/listen> "focus")]
+                       (let [return#    (missionary.core/dfv)
+                             !selected# (atom nil), selected# (e/watch !selected#)]
+                         (binding [dom/node container-node#]
+                           (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
+                             (dom/on "click" (e/fn [e#] (return# nil))))
+                           (dom/on "keydown" (e/fn [e#] (case (handle-meta-keys e# input-node# return# !selected# V!#)
+                                                          ::unhandled (own e#)
+                                                          #_else      nil)))
+                           (dom/ul
+                             (e/server
+                               (e/for [id# (new Options#)]
+                                 (e/client
+                                   (let [txt# (e/server (new OptionLabel# id#))]
+                                     (dom/li (dom/text txt#)
+                                       (when (= txt# (.-value input-node#)) (reset! !selected# dom/node))
+                                       (track-id dom/node id#)
+                                       (?mark-selected selected#)
+                                       (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
+                                       (return-on-click return# V!# id#))))))))
+                         (new (e/task->cp return#))))]
+                 (case state#
+                   (::e/pending ::e/failed) (throw return#)
+                   (::e/init ::e/ok) (let [txt# (e/server (new OptionLabel# v#))]
+                                       (case return# (set! (.-value input-node#) txt#))))
                  return#))
              ~@body))))))
 
@@ -267,29 +268,30 @@ can be pending."
                      (binding [dom/node container-node#] (dom/on "click" (e/fn [e#] (own e#) (focus input-node#))))
                      (if (e/server (nil? V!#))
                        (dom/props {:disabled true})
-                       (dom/on "focus"
-                         (e/fn [_#]
-                           (let [return# (missionary.core/dfv)
-                                 search# (or (dom/on! "input" value) "")]
-                             (binding [dom/node input-container-node#]
-                               (let [!selected# (atom nil), selected# (e/watch !selected#)]
-                                 (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
-                                   (dom/on "click" (e/fn [e#] (own e#) (return# nil))))
-                                 (dom/on "keydown" (e/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
-                                 (dom/ul
-                                   (e/server
-                                     (for-truncated [id# (new Options# search#)] 20
-                                       (e/client
-                                         (dom/li (dom/text (e/server (new OptionLabel# id#)))
-                                           (swap! !selected# select-if-first dom/node)
-                                           (e/on-unmount #(swap! !selected# ?pass-on-to-first dom/node))
-                                           (track-id dom/node id#)
-                                           (?mark-selected selected#)
-                                           (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
-                                           (return-on-click return# V!# id#))))))))
-                             (let [ret# (new (e/task->cp return#))]
-                               (case ret# (set! (.-value input-node#) ""))
-                               ret#)))))))))
+                       (let [[state# ret#]
+                             (e/do-event-pending [e# (dom/listen> "focus")]
+                               (let [return# (missionary.core/dfv)
+                                     search# (or (dom/on! "input" value) "")]
+                                 (binding [dom/node input-container-node#]
+                                   (let [!selected# (atom nil), selected# (e/watch !selected#)]
+                                     (dom/div (dom/props {:class "hyperfiddle-modal-backdrop"})
+                                       (dom/on "click" (e/fn [e#] (own e#) (return# nil))))
+                                     (dom/on "keydown" (e/fn [e#] (handle-meta-keys e# input-node# return# !selected# V!#)))
+                                     (dom/ul
+                                       (e/server
+                                         (for-truncated [id# (new Options# search#)] 20
+                                           (e/client
+                                             (dom/li (dom/text (e/server (new OptionLabel# id#)))
+                                               (swap! !selected# select-if-first dom/node)
+                                               (e/on-unmount #(swap! !selected# ?pass-on-to-first dom/node))
+                                               (track-id dom/node id#)
+                                               (?mark-selected selected#)
+                                               (dom/on "mouseover" (e/fn [e#] (reset! !selected# dom/node)))
+                                               (return-on-click return# V!# id#))))))))
+                                 (let [ret# (new (e/task->cp return#))]
+                                   (case ret# (set! (.-value input-node#) ""))
+                                   ret#)))]
+                         (case state# (::e/pending ::e/failed) (throw ret#) nil)))))))
              ~@body))))))
 
 #?(:cljs (defn sample-scroll-state! [scrollable]
