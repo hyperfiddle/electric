@@ -64,8 +64,9 @@
 
 (e/defn ReagentInterop []
   (e/client
-    (dom/h1 (dom/text "Reagent/React Interop"))
-    (let [[x y] (dom/on! js/document "mousemove" (fn [e] [(.-clientX e) (.-clientY e)]))]
+    (dom/h1 (dom/text "Reagent/React Interop")) 
+    (let [[x y] [(.-clientX e/dom-mousemove)
+                 (.-clientY e/dom-mousemove)]]
       ;; Adapted from https://recharts.org/en-US/examples/TinyLineChart
       (with-reagent TinyLineChart [{:name "Page A", :uv 4000, :pv 2400, :amt 2400}
                                    {:name "Page B", :uv 3000, :pv 1398, :amt 2210}
