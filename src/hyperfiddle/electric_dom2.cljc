@@ -192,29 +192,6 @@
    `(new (->> (e/listen> ~dom-node ~event-name ~callback ~options)
            (m/reductions {} nil)))))
 
-(defn happen [s e]
-  ; Todo, we need a buffer (unbounded) to force a nil in between overlapping events to fix race
-  ; Buffer is unbounded because all events matter. (This is sequential unbounded queue)
-  (case (:status s)
-    :idle {:status :impulse :event e} ; rising edge
-    :pending {:status :impulse :event e} ; supersede the outstanding event with a new event
-    :impulse (assert false "two events in the same frame? that's weird and wrong")))
-
-; data EventState = Idle | Impulse event | Pending event
-(e/defn Event [type busy]
-  (:event
-    (let [!state (atom {:status :idle})
-          state (e/watch !state)]
-
-      ; rising edge happens once, even if busy state (prevent infinite loop) -- [DJG] I don't understand
-      (on! type (partial swap! !state happen)) ; discrete rising edge
-
-      (reset! !state
-              (case (:status state)
-                :idle state
-                :impulse (assoc state :status :pending) ; impulse is seen for 1 frame and then cleared
-                :pending (if busy state {:status :idle}))))))
-
 (defmacro ^:deprecated ^:no-doc event "Deprecated, please use `on!`" [& args] `(on! ~@args))
 (e/def ^:deprecated system-time-ms e/system-time-ms)
 (e/def ^:deprecated system-time-secs e/system-time-secs)
@@ -223,7 +200,7 @@
   "Run the given electric function on event.
   (on \"click\" (e/fn [event] ...))"
   ;; TODO add support of event options (see `event*`)
-  (^:deprecated [typ]  `(new Event ~typ false)) ; use `on!` for local side effects
+  ;(^:deprecated [typ]  `(new Event ~typ false)) ; use `on!` for local side effects
   ([typ F] `(on node ~typ ~F))
   ([node typ F] `(binding [node ~node]
                    (let [[state# v#] (e/for-event-pending-switch [e# (e/listen> node ~typ)] (new ~F e#))]
