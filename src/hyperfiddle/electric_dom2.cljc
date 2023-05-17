@@ -239,9 +239,14 @@
 
 (defmacro on-pending [pending-body & body] `(try (do ~@body) (catch Pending e# ~pending-body (throw e#))))
 
-(e/defn Focused? []
-  (e/with-cycle [focused false]
-    (if focused (nil? (on "blur")) (some? (on "focus")))))
+(e/defn Focused? "Returns whether this DOM `node` is focused."
+  []
+  (->> (mx/mix
+         (e/listen> node "focus" (constantly true))
+         (e/listen> node "blur" (constantly false)))
+    (m/reductions {} (= node (.-activeElement js/document)))
+    (m/relieve {})
+    new))
 
 #?(:cljs (defn set-val [node v] (set! (.-value node) (str v))))
 
@@ -250,25 +255,14 @@
   ([v setter] `(when-some [v# (when-not (new Focused?) ~v)]
                  (~setter node v#))))
 
-(defmacro focused? "Returns whether this DOM `node` is focused."
-  ([] `(focused? node))
-  ([node] `(let [node# ~node]
-             (->> (mx/mix
-                    (e/listen> node# "focus" (constantly true))
-                    (e/listen> node# "blur" (constantly false)))
-               (m/reductions {} (= node# (.-activeElement js/document)))
-               (m/relieve {})
-               new))))
-
-(defmacro hovered? "Returns whether this DOM `node` is hovered over. Starts `false`."
-  ([] `(hovered? node))
-  ([node] `(let [node# ~node]
-             (->> (mx/mix 
-                    (e/listen> node# "mouseenter" (constantly true))
-                    (e/listen> node# "mouseleave" (constantly false)))
-               (m/reductions {} false)
-               (m/relieve {})
-               new))))
+(e/defn Hovered? "Returns whether this DOM `node` is hovered over."
+  []
+  (->> (mx/mix
+         (e/listen> node "mouseenter" (constantly true))
+         (e/listen> node "mouseleave" (constantly false)))
+    (m/reductions {} false)
+    (m/relieve {})
+    new))
 
 (defmacro a [& body] `(element :a ~@body))
 (defmacro abbr [& body] `(element :abbr ~@body))
