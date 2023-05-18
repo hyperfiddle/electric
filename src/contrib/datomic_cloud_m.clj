@@ -1,6 +1,6 @@
 (ns contrib.datomic-cloud-m
   (:require [contrib.data :refer [omit-keys-ns auto-props]]
-            [contrib.missionary-contrib :as mx]
+            [contrib.missionary-core-async :as mxca]
             [clojure.core.protocols :as ccp :refer [nav]]
             [clojure.datafy :refer [datafy]]
             [datomic.client.api.async :as d]
@@ -18,16 +18,16 @@
 
 (defn client [arg-map] (d/client arg-map)) ; synchronous
 
-(defn connect [client arg-map] (mx/chan-read! (d/connect client arg-map))
+(defn connect [client arg-map] (mxca/chan-read! (d/connect client arg-map))
   #_
-  (let [!conn (mx/chan-read! (d/connect client arg-map))]
+  (let [!conn (mxca/chan-read! (d/connect client arg-map))]
     (m/? !conn))) ; blocking! for dependency setup without missionary
 
 (defn db [conn] (d/db conn)) ; synchronous
 
-(defn with [db tx-data] (mx/chan-read! (d/with db tx-data)))
+(defn with [db tx-data] (mxca/chan-read! (d/with db tx-data)))
 
-(defn with-db [conn] (mx/chan-read! (d/with-db conn)))
+(defn with-db [conn] (mxca/chan-read! (d/with-db conn)))
 
 (extend-protocol ccp/Datafiable
   Datum
@@ -36,7 +36,7 @@
 ;(defn entity! [db e] (reify ...))
 ;(defn touch! [!e] (pull! (d/entity-db !e) (:db/id !e) ['*]))
 
-(defn db-stats [db] (mx/chan-read! (d/db-stats db)))
+(defn db-stats [db] (mxca/chan-read! (d/db-stats db)))
 
 (comment (m/? (db-stats test/datomic-db)))
 
@@ -45,16 +45,16 @@
   ([db pattern eid]
    (if (tempid? eid)
      (m/sp (if (some #{:db/id} pattern) {:db/id eid} {}))
-     (mx/chan-read! (d/pull db {:selector pattern :eid eid})))))
+     (mxca/chan-read! (d/pull db {:selector pattern :eid eid})))))
 
 (tests
   "control - datomic operators work on number tempids"
-  (m/? (mx/chan-read! (d/pull test/datomic-db {:selector [:db/id] :eid -1}))) := #:db{:id -1}
-  (m/? (mx/chan-read! (d/pull test/datomic-db {:selector ['*] :eid -1}))) := #:db{:id -1}
+  (m/? (mxca/chan-read! (d/pull test/datomic-db {:selector [:db/id] :eid -1}))) := #:db{:id -1}
+  (m/? (mxca/chan-read! (d/pull test/datomic-db {:selector ['*] :eid -1}))) := #:db{:id -1}
 
   "control - datomic cloud operators elide string tempids, wtf"
-  (m/? (mx/chan-read! (d/pull test/datomic-db {:selector [:db/id] :eid "a"}))) := {:db/id nil}
-  (m/? (mx/chan-read! (d/pull test/datomic-db {:selector ['*] :eid "a"}))) := {:db/id nil}
+  (m/? (mxca/chan-read! (d/pull test/datomic-db {:selector [:db/id] :eid "a"}))) := {:db/id nil}
+  (m/? (mxca/chan-read! (d/pull test/datomic-db {:selector ['*] :eid "a"}))) := {:db/id nil}
 
   "hyperfiddle needs this defined to represent empty forms"
   (m/? (pull test/datomic-db [:db/id] "a")) := {:db/id "a"}
@@ -83,7 +83,7 @@
   todo)
 
 (defn datoms> [db arg-map]
-  (m/ap (m/?> (m/eduction cat (mx/chan->ap (d/datoms db arg-map))))))
+  (m/ap (m/?> (m/eduction cat (mxca/chan->ap (d/datoms db arg-map))))))
 
 (comment
   (time (take 3 (m/? (m/reduce conj [] (datoms> test/datomic-db {:index :aevt, :components [:db/ident]})))))
@@ -98,7 +98,7 @@
   := [[?tx 50 _ ?tx true]])
 
 (defn tx-range> [conn arg-map] ; has pagination
-  (m/ap (m/?> (mx/chan->ap (d/tx-range conn arg-map)))))
+  (m/ap (m/?> (mxca/chan->ap (d/tx-range conn arg-map)))))
 
 (tests
   "first datom"
@@ -107,7 +107,7 @@
        (m/reduce conj ()) m/? (take 1))
   := [[0 10 :db.part/db 13194139533312 true]])
 
-(defn q [arg-map] (->> (mx/chan->ap (d/q arg-map))
+(defn q [arg-map] (->> (mxca/chan->ap (d/q arg-map))
                        (m/eduction cat)
                        (m/reduce conj [])))
 
@@ -118,7 +118,7 @@
   (m/? (q {:query query-attrs :args [test/datomic-db]}))
   := _)
 
-(defn qseq [arg-map] (->> (mx/chan->ap (d/qseq arg-map))
+(defn qseq [arg-map] (->> (mxca/chan->ap (d/qseq arg-map))
                           (m/eduction cat))) ; qseq returns chunks, smooth them out
 
 (tests
