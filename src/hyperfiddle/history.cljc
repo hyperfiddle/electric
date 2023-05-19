@@ -4,6 +4,7 @@
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m]
+            [clojure.edn :as edn]
             [clojure.string :as str])
   #?(:clj (:import [clojure.lang IRef IAtom]))
   #?(:cljs (:require-macros hyperfiddle.history)))
@@ -406,9 +407,21 @@
 
 (e/def build-route {})
 
+#?(:cljs
+   (defn on-link-click [next-route ^js e]
+     ;; enrich click event with:
+     ;; - the route
+     ;; - is the link internal or external (soft vs hard nav)
+     (let [node   (.-target e)
+           target (.getAttribute node "target")]
+       (set! (.-hyperfiddle_history_route e) next-route)
+       (set! (.-hyperfiddle_history_route_external_nav e)
+         (or (some? (.getAttribute node "download"))
+           (and (some? target) (not= "_self" target))))
+       nil)))
+
 (e/defn Link [route Body]
-  (let [next-route (build-route history route)
-        !h !history]
+  (let [next-route (build-route history route)]
     (dom/a
       (dom/props {::dom/href (encode next-route)})
       (new Body)
@@ -416,14 +429,12 @@
              (m/reductions {} nil
                (e/listen> dom/node "click"
                  (fn [e] ; todo e/for-event-pending-switch? Or missionary itself
-                   (.preventDefault e)
                    ;; TODO why !history doesn't work and we have to lexically bind it?
-                   (navigate! !h next-route)))))))))
+                   (on-link-click next-route e)))))))))
 
 (defmacro link [route & body]
   ; all links are Sexpr-like and head is qualified name. like [::secrets 1 2]
   `(new Link ~route (e/fn [] ~@body)))
-
 
 (comment
   (defn ^:no-doc route-cleanup [path m]
@@ -472,10 +483,12 @@
      ;; User agent limits HistoryAPI to 100 changes / 30s timeframe (https://bugs.webkit.org/show_bug.cgi?id=156115)
      ;; Firefox and Safari log an error and ignore further HistoryAPI calls for security reasons.
      ;; Chrome does the same but can also hang the tab: https://bugs.chromium.org/p/chromium/issues/detail?id=1038223
-     (let [throttle (throttler 300)]          ; max 3changes/s, 90/30s
-       (defn replaceState! [path] (throttle #(.replaceState js/window.history nil "" (absolute path)))))
+     (let [throttle (throttler 300)]    ; max 3changes/s, 90/30s
+       (defn replaceState! [path] (throttle #(.replaceState js/window.history (.. js/window -history -state) "" (absolute path)))))
 
-     (defn html5-pushState! [path] (.pushState js/window.history nil "" (absolute path)))
+     (def history-entry-position (partial swap! (atom -1) inc) #_#(.now js/Date))
+
+     (defn html5-pushState! [next-position path] (.pushState js/window.history #js{:position next-position} "" (absolute path)))
      (defn html5-back! [] (.back js/window.history))
      (defn html5-forward! [] (.forward js/window.history))
 
@@ -485,7 +498,14 @@
        (let [loc (html5-location)]
          (str (.-pathname loc) (.-search loc) (.-hash loc))))
 
-     (defrecord HTML5History [encode decode !state]
+     (defn- index-of [xs val]
+       (loop [i 0
+              [x & xs] xs]
+         (cond (= x val) i
+               (seq xs) (recur (inc i) xs)
+               :else -1)))
+
+     (defrecord HTML5History [encode decode !state !stack !position]
        IAtom
        ISwap
        (-swap! [this f] (let [[_oldval newval] (swap-vals! !state f)]
@@ -509,13 +529,29 @@
 
        IHistory
        (navigate! [this route]
-         (html5-pushState! (encode route))
+         (let [prev-position @!position
+               next-position (history-entry-position)]
+           (swap! !stack (fn [stack]
+                           (let [index (index-of stack prev-position)]
+                             (case index
+                               -1 (conj stack next-position)
+                               (conj (subvec stack 0 (inc index)) next-position)))))
+           (reset! !position next-position)
+           (html5-pushState! next-position (encode route)))
          (reset! (.-!state this) route))
        (back! [^HTML5History this]
          (html5-back!)
+         (swap! !position (fn [pos stack]
+                            (let [index (index-of stack pos)]
+                              (if (= 0 index) pos (get stack (dec index)))))
+           @!stack)
          (reset! (.-!state this) (decode (html5-path))))
        (forward! [^HTML5History this]
          (html5-forward!)
+         (swap! !position (fn [pos stack]
+                            (let [index (index-of stack pos)]
+                              (if (= index (dec (count stack))) pos (get stack (inc index)))))
+           @!stack)
          (reset! (.-!state this) (decode (html5-path))))
        (replace-state! [this new-state]
          (reset! this new-state))
@@ -525,19 +561,91 @@
        ;;      HTML5History instances on the page.
        )
 
-     (defn html5-history [encode decode] (->HTML5History encode decode (atom (decode (html5-path)))))
+     (defn html5-history [encode decode]
+       ;; Browser History API forbids to prevent navigation. Use case: prompt user for confirmation of unsaved data loss.
+       ;; We must implement it ourselves by reverting the navigation action. However:
+       ;;  - navigation direction (back/forward) is not provided.
+       ;;  - current position in history is not provided.
+       ;; To mitigate, we keep a stack of navigated pages and persist it to
+       ;; SessionStorage, so it survives refreshes.
+
+       ;; "popstate" events will contain the current page position, the history
+       ;; instance will contain the previous one. Given the stack, the previous
+       ;; position and current position, we compute the distance (delta) between the two
+       ;; pages (one can jump over multiple pages at once through history).
+       ;; We then call History.go(-delta) to revert the navigation.
+       ;; See `HTML5-Navigation-Intents`.
+       (let [position  (or (when-let [state (.. js/window -history -state)]
+                             (.-position state))
+                         (history-entry-position))
+             stack     (if-let [array (.. js/window -sessionStorage (getItem "hyperfiddle_history_stack"))]
+                         (edn/read-string array)
+                         [position])
+             !position (atom position)
+             !stack    (atom stack)]
+         (.replaceState (.-history js/window) #js{:position position} nil)
+         (add-watch !stack ::stack (fn [_ _ _ stack] (.. js/window -sessionStorage (setItem "hyperfiddle_history_stack" (pr-str stack)))))
+         (->HTML5History encode decode (atom (decode (html5-path))) !stack !position)))
 
 
      (defn -html5-history-get-state [^HTML5History this] (.-!state this))
 
+     (e/defn OnBeforeNavigate! [])
+     (e/def confirm-navigation? (fn [_dom-event] true))
+
+     #?(:cljs
+        (defn nav-delta [stack prev-position curr-position]
+          (- (index-of stack curr-position) (index-of stack prev-position))))
+
+     (e/defn HTML5-Navigation-Intents [history]
+       (let [!idle (atom false)]
+         (try
+           (dom/on js/window "beforeunload" ; refresh or close tabe
+             (e/fn [^js e]
+               (when-not (confirm-navigation? e)
+                 (.preventDefault e))))
+
+           (dom/on (.-document js/window) "click" ; navigation by link click (also supports keyboard nav)
+             ;; only intercepts internal links. See `Link`.
+             (e/fn [^js e]
+               (when (and (= "A" (.. e -target -nodeName))
+                       (some? (.-hyperfiddle_history_route e))
+                       (not (.-hyperfiddle_history_route_external_nav e)))
+                 (.preventDefault e)
+                 (when (confirm-navigation? e)
+                   (case (OnBeforeNavigate!.) ; sequence effects
+                     (navigate! history (.-hyperfiddle_history_route e)))))))
+
+           (dom/on js/window "popstate" ; previous and next button
+             (e/fn [^js e]
+               ;; "popstate" event can't be cancelled. We are forced to detect
+               ;; navigation direction (back/forward) and to invert it. History
+               ;; must be idle during this back and forth operation to prevent a
+               ;; page flicker.
+               (let [stack         @(.-!stack history)
+                     curr-position (.. e -state -position)
+                     prev-position @(.-!position history)]
+                 (reset! (.-!position history) curr-position)
+                 (let [delta (nav-delta stack prev-position curr-position)]
+                   (cond
+                     @!idle (reset! !idle false)
+                     (confirm-navigation? e) (OnBeforeNavigate!.)
+                     :else (do (reset! !idle true)
+                               (.. js/window -history (go (- delta)))))))))
+
+           (catch hyperfiddle.electric.Pending _)) ; temporary hack, fixes page reload on click, needs sync on dom/on, hf/branch, and Pending interaction
+         (e/watch !idle)))
+
      (e/defn HTML5-History [] ; TODO make this flow a singleton (leverage m/signal in next reactor iteration)
        (let [history (html5-history encode decode)
              decode' decode]
-         (new (m/observe (fn [!]
-                           (! nil)
-                           (let [f (fn [_e] (reset! (-html5-history-get-state history) (decode' (html5-path))))]
-                             (.addEventListener js/window "popstate" f)
-                             #(.removeEventListener js/window "popstate" f)))))
+         (when-not (HTML5-Navigation-Intents. history) ; idles history while user confirms navigation
+           (new (m/observe (fn [!]
+                             (! nil)
+                             (let [f (fn [_e] (reset! (-html5-history-get-state history) (decode' (html5-path))))]
+                               (f nil)
+                               (.addEventListener js/window "popstate" f)
+                               #(.removeEventListener js/window "popstate" f))))))
          history))
 
      ))
