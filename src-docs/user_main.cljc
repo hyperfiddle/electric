@@ -20,6 +20,7 @@
             user.demo-10k-dom
             user.demo-svg
             user.demo-todos-simple
+            wip.demo-todos-advanced-old
             user.tutorial-7guis-1-counter
             user.tutorial-7guis-2-temperature
             user.tutorial-7guis-4-timer
