@@ -596,8 +596,11 @@
 
      (defn -html5-history-get-state [^HTML5History this] (.-!state this))
 
-     (e/defn OnBeforeNavigate! [])
-     (e/def confirm-navigation? (fn [_dom-event] true))
+     (e/defn OnBeforeNavigate! "Run for effect on history navigation" [])
+     (e/def confirm-navigation?
+       "A predicate called on user navigation intent. If false, the current navigation intent is prevented.
+        Called during DOM event bubbling phase, it must be synchronous and therefore must be bound to a clojure function."
+       (fn [_dom-event] true))
 
      #?(:cljs
         (defn nav-delta [stack prev-position curr-position]
