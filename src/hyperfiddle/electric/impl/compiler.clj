@@ -46,12 +46,12 @@
   (let [args (repeatedly arity gensym)]
     `(fn [~@args] (. ~klass ~method ~@args))))
 
-(defmacro method-call [method arity]
+(defmacro method-call [method arity] ; used for cljs only
   (let [args (repeatedly arity gensym)]
-    `(fn [inst# ~@args] (. inst# ~method ~@args))))
+    `(fn [inst# ~@args] (. ^js inst# ~method ~@args))))
 
-(defmacro field-access [field]
-  `(fn [inst#] (. inst# ~(symbol (str "-" (name field))))))
+(defmacro field-access [field] ; used for cljs only
+  `(fn [inst#] (. ^js inst# ~(symbol (str "-" (name field))))))
 
 (defmacro js-call [template arity]
   (let [args (repeatedly arity gensym)]
