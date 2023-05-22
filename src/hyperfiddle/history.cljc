@@ -486,7 +486,13 @@
      (let [throttle (throttler 300)]    ; max 3changes/s, 90/30s
        (defn replaceState! [path] (throttle #(.replaceState js/window.history (.. js/window -history -state) "" (absolute path)))))
 
-     (def history-entry-position (partial swap! (atom -1) inc) #_#(.now js/Date))
+     ;; History entries' ids must be unique across page refreshes.
+     ;; - A monotonic counter would reset and ids would collide after a refresh.
+     ;; - Date.now() is not precise enough, two programatic navigations could happen at the same millisecond.
+     ;; - We use a mix of both: monotonic counter seeded by current time * 100.
+     ;;   - Supports 100 navigations per millisecond.
+     ;;   - doesn't collide after a page refresh.
+     (def history-entry-uid (partial swap! (atom (* (.now js/Date) 100)) inc))
 
      (defn html5-pushState! [next-position path] (.pushState js/window.history #js{:position next-position} "" (absolute path)))
      (defn html5-back! [] (.back js/window.history))
@@ -530,7 +536,7 @@
        IHistory
        (navigate! [this route]
          (let [prev-position @!position
-               next-position (history-entry-position)]
+               next-position (history-entry-uid)]
            (swap! !stack (fn [stack]
                            (let [index (index-of stack prev-position)]
                              (case index
@@ -577,7 +583,7 @@
        ;; See `HTML5-Navigation-Intents`.
        (let [position  (or (when-let [state (.. js/window -history -state)]
                              (.-position state))
-                         (history-entry-position))
+                         (history-entry-uid))
              stack     (if-let [array (.. js/window -sessionStorage (getItem "hyperfiddle_history_stack"))]
                          (edn/read-string array)
                          [position])
