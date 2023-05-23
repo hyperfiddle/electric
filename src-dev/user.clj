@@ -50,8 +50,10 @@
   (comment (.stop server))
 
   "Datomic Cloud (optional, requires :scratch alias)"
-  (require '[contrib.datomic-m :as d])
-  (when (not-empty (eval '(d/detect-datomic-products)))
+  ;; failing with new datomic peer dependency
+  ;; resolve issues once this is needed
+  #_(require '[contrib.datomic-m :as d])
+  #_(when (not-empty (eval '(d/detect-datomic-products)))
     #_(contrib.datomic-m/install-datomic-onprem)
     (eval '(contrib.datomic-m/install-datomic-cloud))
     (def datomic-config {:server-type :dev-local :system "datomic-samples"})
