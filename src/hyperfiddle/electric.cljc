@@ -96,7 +96,7 @@
   "run a blocking function (i.e. query) on threadpool specified by `executor` (i.e. m/blk or m/cpu).
 IO-bound fns should use m/blk, which is the default. Compute-bound fns should pass m/cpu. Custom
 executors are allowed (i.e. to control max concurrency, timeouts etc). Currently JVM only."
-  ([f! executor] `(new (-offload ~f! ~executor)))
+  ([f! executor] `(new (-offload ~f! ~executor))) ; rebuild flow and cancel old thread
   ; no varadic arity, user should explicitly state unit of work, so no ambiguity about concurrent tasks
   ([f!] `(new (-offload ~f! m/blk))))
 
