@@ -13,6 +13,7 @@
    `user.demo-webview/Webview
    `user.demo-todos-simple/TodoList
    `user.demo-todomvc/TodoMVC
+   `user.demo-todomvc-branched/TodoMVCBranched
    `user.demo-todomvc-composed/TodoMVC-composed
    `user.demo-explorer/DirectoryExplorer
    `user.demo-virtual-scroll/VirtualScroll

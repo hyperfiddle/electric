@@ -14,6 +14,7 @@
             user.demo-chat-extended
             user.demo-webview
             user.demo-todomvc
+            user.demo-todomvc-branched
             user.demo-todomvc-composed
 
             user.demo-explorer
@@ -65,6 +66,7 @@
       `user.demo-webview/Webview user.demo-webview/Webview
       `user.demo-todos-simple/TodoList user.demo-todos-simple/TodoList ; css fixes
       `user.demo-todomvc/TodoMVC user.demo-todomvc/TodoMVC
+      `user.demo-todomvc-branched/TodoMVCBranched user.demo-todomvc-branched/TodoMVCBranched
       `user.demo-todomvc-composed/TodoMVC-composed user.demo-todomvc-composed/TodoMVC-composed
       `user.demo-color/Color user.demo-color/Color
       `user.demo-virtual-scroll/VirtualScroll user.demo-virtual-scroll/VirtualScroll
