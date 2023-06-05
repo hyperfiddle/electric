@@ -124,6 +124,11 @@
                                     (swap! !state assoc ::editing nil)))
                         "Escape" (swap! !state assoc ::editing nil)
                         nil)))
+                  (dom/on "blur"
+                    (e/fn [e]
+                      (when-some [description (contrib.str/blank->nil (-> e .-target .-value))]
+                        (case (e/server (transact! [{:db/id id, :task/description description}]) nil)
+                          (swap! !state assoc ::editing nil)))))
                   (dom/props {:class "edit" #_#_:autofocus true})
                   (dom/bind-value description) ; first set the initial value, then focus
                   (case description ; HACK sequence - run focus after description is available
