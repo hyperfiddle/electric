@@ -1,6 +1,6 @@
 (ns user.demo-todomvc-composed
   (:require
-    #?(:clj [datascript.core :as d])
+    #?(:clj [datomic.api :as d])
     [hyperfiddle.electric :as e]
     [hyperfiddle.electric-dom2 :as dom]
     [hyperfiddle.electric-ui4 :as ui]
@@ -24,8 +24,8 @@
     (let [state (e/watch todomvc/!state)
           n (e/server (e/watch !n))]
       (e/server
-        (binding [todomvc/db (e/watch todomvc/!conn)
-                  todomvc/transact! (partial d/transact! todomvc/!conn)]
+        (binding [todomvc/db (e/watch todomvc/!db)
+                  todomvc/transact! (partial d/transact todomvc/!conn)]
           (e/client
             (dom/link (dom/props {:rel :stylesheet, :href "/todomvc.css"}))
             (ui/range n (e/fn [v] (e/server (reset! !n v)))
