@@ -103,13 +103,12 @@
           (case k
             "style" (goog.style/setStyle node v)
             "list"  (set-attribute-ns node nil k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
-            (if-let [k (goog.object/get goog.dom/DIRECT_ATTRIBUTE_MAP_ k)]
+            (if (or (= SVG-NS ns)
+                  (some? (goog.object/get goog.dom/DIRECT_ATTRIBUTE_MAP_ k)))
               (set-attribute-ns node k v)
-              (if (= SVG-NS ns)
-                (set-attribute-ns node k v)
-                (if (goog.object/containsKey node k) ; is there an object property for this key?
-                  (goog.object/set node k v)
-                  (set-attribute-ns node k v))))))))))
+              (if (goog.object/containsKey node k) ; is there an object property for this key?
+                (goog.object/set node k v)
+                (set-attribute-ns node k v)))))))))
 
 #?(:cljs (defn unmount-prop [node k v]
            (m/observe (fn [!] (! nil) #(set-property! node k v)))))
