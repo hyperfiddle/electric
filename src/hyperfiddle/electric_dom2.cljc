@@ -7,7 +7,8 @@
             [hyperfiddle.electric :as e]
             [missionary.core :as m]
             [clojure.string :as str]
-            [contrib.data :as data])
+            [contrib.data :as data]
+            [hyperfiddle.rcf :as rcf :refer [tests]])
   (:import [hyperfiddle.electric Pending])
   #?(:cljs (:require-macros [hyperfiddle.electric-dom2 :refer [with]])))
 
@@ -136,9 +137,17 @@
     (concat (seq props) (seq (select-keys props-map LAST-PROPS)))))
 
 (defn parse-class [xs]
-  (cond (string? xs) (parse-class (str/split xs #"\s+"))
-        (coll? xs)   (into [] (comp (filter string?) (remove str/blank?)) xs)
-        :else        nil))
+  (cond (string? xs) (str/split xs #"\s+")
+        (or (vector? xs) (seq? xs) (list? xs) (set? xs)) (into [] (mapcat parse-class) xs)
+        :else nil))
+
+(tests
+  (parse-class "a") := ["a"]
+  (parse-class "a b") := ["a" "b"]
+  (parse-class ["a"]) := ["a"]
+  (parse-class ["a" "b"]) := ["a" "b"]
+  (parse-class ["a b" "c"]) := ["a" "b" "c"]
+  (parse-class [["a b"] '("c d") #{#{"e"} "f"}]) := ["a" "b" "c" "d" "e" "f"])
 
 #?(:cljs
    (defn register-class! [^js node class]
