@@ -102,39 +102,40 @@
     ;; https://ask.datomic.com/index.php/859/equality-on-d-entity-ignores-db?show=859#q859
     (let [{:keys [:task/status :task/description]} (d/pull db '[:task/status :task/description] id)]
       (e/client
-        (dom/li
-          (dom/props {:class [(when (= :done status) "completed")
-                              (when (= id (::editing state)) "editing")]})
-          (dom/div (dom/props {:class "view"})
-            (ui/checkbox (= :done status) (e/fn [v]
+        (let [uuid (random-uuid)]
+          (dom/li
+            (dom/props {:class [(when (= :done status) "completed")
+                                (when (= uuid (::editing state)) "editing")]})
+            (dom/div (dom/props {:class "view"})
+              (ui/checkbox (= :done status) (e/fn [v]
                                               (let [status (case v true :done, false :active, nil)]
                                                 (e/server (transact! [{:db/id id, :task/status status}]) nil)))
-              (dom/props {:class "toggle"}))
-            (dom/label (dom/text description)
-                       (dom/on "dblclick" (e/fn [_] (swap! !state assoc ::editing id)))))
-          (when (= id (::editing state))
-            (dom/span (dom/props {:class "input-load-mask"})
-              (dom/on-pending (dom/props {:aria-busy true})
-                (dom/input
-                  (dom/on "keydown"
-                    (e/fn [e]
-                      (case (.-key e)
-                        "Enter" (when-some [description (contrib.str/blank->nil (-> e .-target .-value))]
-                                  (case (e/server (transact! [{:db/id id, :task/description description}]) nil)
-                                    (swap! !state assoc ::editing nil)))
-                        "Escape" (swap! !state assoc ::editing nil)
-                        nil)))
-                  (dom/on "blur"
-                    (e/fn [e]
-                      (when-some [description (contrib.str/blank->nil (-> e .-target .-value))]
-                        (case (e/server (transact! [{:db/id id, :task/description description}]) nil)
-                          (swap! !state assoc ::editing nil)))))
-                  (dom/props {:class "edit" #_#_:autofocus true})
-                  (dom/bind-value description) ; first set the initial value, then focus
-                  (case description ; HACK sequence - run focus after description is available
-                    (.focus dom/node))))))
-          (ui/button (e/fn [] (e/server (transact! [[:db/retractEntity id]]) nil))
-            (dom/props {:class "destroy"})))))))
+                (dom/props {:class "toggle"}))
+              (dom/label (dom/text description)
+                (dom/on "dblclick" (e/fn [_] (swap! !state assoc ::editing uuid)))))
+            (when (= uuid (::editing state))
+              (dom/span (dom/props {:class "input-load-mask"})
+                (dom/on-pending (dom/props {:aria-busy true})
+                  (dom/input
+                    (dom/on "keydown"
+                      (e/fn [e]
+                        (case (.-key e)
+                          "Enter" (when-some [description (contrib.str/blank->nil (-> e .-target .-value))]
+                                    (case (e/server (transact! [{:db/id id, :task/description description}]) nil)
+                                      (swap! !state assoc ::editing nil)))
+                          "Escape" (swap! !state assoc ::editing nil)
+                          nil)))
+                    (dom/on "blur"
+                      (e/fn [e]
+                        (when-some [description (contrib.str/blank->nil (-> e .-target .-value))]
+                          (case (e/server (transact! [{:db/id id, :task/description description}]) nil)
+                            (swap! !state assoc ::editing nil)))))
+                    (dom/props {:class "edit" #_#_:autofocus true})
+                    (dom/bind-value description) ; first set the initial value, then focus
+                    (case description ; HACK sequence - run focus after description is available
+                      (.focus dom/node))))))
+            (ui/button (e/fn [] (e/server (transact! [[:db/retractEntity id]]) nil))
+              (dom/props {:class "destroy"}))))))))
 
 #?(:clj
    (defn toggle-all! [db status]
