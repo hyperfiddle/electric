@@ -12,6 +12,29 @@
 * Electric UI control improvements (high level UI controls with optimistic updates that account for sync/latency/failure state)
 * documentation and demos
 
+# v2-alpha-338-geec2f3df — 2023 June 9
+
+- introduce new internal DOM event handling strategies, used internally by `electric-dom2` and `electric-ui4`. This fixes long-standing bugs:
+  - **breaking**: remove `dom2/Event`, `dom2/event*` (likely no userland impact)
+  - remove `dom2/on` (1-arity only, other arities remain). Likely no userland impact.
+  - fix: `dom2/on`’s e/fn callback can unintentionally see multiple events under conditions of rapid successive dom events. Note: due to the quirks of this API, userland `dom2/on` usages might possibly rely on the above broken behavior, which means you may need to debug some call sites.
+  - fix: console error "two events in the same frame"
+  - fix: ui4/input focus glitch under latency
+- fix: Two Clocks demo drains battery life even if tab is hidden.
+  - Server-streamed clocks now pause when the tab is blurred, thus not holding network stream open and draining battery life on mobile when the tab is running in the background. Note, pausing network in userland based on visibility is a workaround for the underlying issue which is that websockets don't have native backpressure in all browsers yet.
+- introduce `e/dom-visibility-state`, used by [e/system-time-ms to pause server clock streaming on tab blur](https://github.com/hyperfiddle/electric/blob/fef8b661966a26e09f3c0683b0a18c759182747f/src/hyperfiddle/electric.cljc#L192-L195).
+- introduce `e/dom-mousemove` singleton for current mouse coordinates. Note: for efficiency and glitch-prevention, singletons should be used for all globally shared signals like this.
+- error handling: detect missing HYPERFIDDLE_ELECTRIC_SERVER_VERSION environment variable in production build
+- fix: docker files HYPERFIDDLE_ELECTRIC_SERVER_VERSION misconfiguration
+- fix: websocket no longer fails to reconnect in presence of URL fragment
+- fix: dom :class prop prematurely removed in edge case where that prop had been shadowed from subsequent (dom/props) call
+- fix: input type range displaying knob in wrong position on max > 100
+- fix: "cannot infer target" shadow warning on js field/method interop
+- fix: TodoMVC commit edit changes on blur
+- fix: "`inst_[...].lause` is not a function" error on hot code reload
+- fix: missionary-contrib no longer requires core.async on classpath; this ns is used in the datomic client missionary adapters.
+- bump shadow-cljs to 2.22.10
+
 # v2-alpha-263-g89da9d11 — 2023 April 8
 
 **Warning!** If you cloned the starter app before March 2, your hot code reloads are unreliable. Fix: in your user.cljs, change `(ns user ^:dev/always` to `(ns ^:dev/always user` as in [this starter-app commit](https://github.com/hyperfiddle/electric-starter-app/commit/a8810accfdd96f82eefc2d976645538223a88de9#diff-06a7049242ecf7dac4e22b30db9faa22ebae4e22e72d1bfbb916e03e3075e5c1). We had it backwards on launch day for about two weeks. Sorry!
