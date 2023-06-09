@@ -25,6 +25,6 @@
                  true "ClojureScript (client)"
                  false "Clojure (server)")))
 
-    (ui/button (e/fn []
+    (ui/button-colored (e/fn []
                  (e/server (swap! !x not)))
       (dom/text "toggle client/server"))))
