@@ -169,7 +169,7 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
            (.addEventListener node typ f (clj->js opts))
            #(.removeEventListener node typ f)))
 
-#?(:cljs (cc/defn listen>
+#?(:cljs (cc/defn listen> ; we intend to replace this in UI5 workstream
            ([node event-type] (listen> node event-type identity {}))
            ([node event-type keep-fn!] (listen> node event-type keep-fn! {}))
            ([node event-type keep-fn! opts]
