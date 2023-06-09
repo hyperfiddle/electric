@@ -16,7 +16,7 @@
   (let [!progress (atom 0), progress (e/watch !progress)]
     (e/client
       (dom/div (dom/style {:display "flex", :align-items "center", :gap "1rem"})
-        (ui/button (e/fn [] (e/server (new Download! !progress 0)))
+        (ui/button-colored (e/fn [] (e/server (new Download! !progress 0)))
           (dom/text "Download"))
         (dom/div (dom/style {:border "1px solid gray", :border-radius "0.4rem"
                               :overflow "hidden", :width "5rem", :height "1rem"})

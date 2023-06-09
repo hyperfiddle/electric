@@ -94,6 +94,17 @@ can be pending."
      (let [[state# v#] (e/do-event-pending [e# (e/listen> dom/node "click")]
                          (new ~V!))
            busy# (= ::e/pending state#)]
+       (dom/props {:disabled busy#, :aria-busy busy#}) ; backpressure the user
+       ~@body
+       (case state# ; 4 colors
+         (::e/pending ::e/failed) (throw v#)
+         (::e/init ::e/ok) v#))))
+
+(defmacro button-colored [V! & body]
+  `(dom/button
+     (let [[state# v#] (e/do-event-pending [e# (e/listen> dom/node "click")]
+                         (new ~V!))
+           busy# (= ::e/pending state#)]
        (dom/style {:border (str "2px solid "
                              (case state# ::e/init "gray" ::e/ok "green" ::e/pending "yellow" ::e/failed "red"))
                    :border-radius "0.2rem"})
