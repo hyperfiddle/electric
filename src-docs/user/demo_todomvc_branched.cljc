@@ -23,6 +23,7 @@
                                           true
                                           (catch InterruptedException _))
                                  (recur)))]
+                      (.setDaemon t true)
                       (.start t)
                       #(doto t .interrupt .join)))))))
 
