@@ -2220,10 +2220,10 @@
 
 #?(:clj
    (tests "e/offload-latest thunk is running on another thread"
-     (defn ->thread-id [] (.threadId (Thread/currentThread)))
-     (with (e/run (try (tap (e/offload-latest ->thread-id))
+     (defn get-thread [] (Thread/currentThread))
+     (with (e/run (try (tap (e/offload-latest get-thread))
                        (catch Pending _)
                        (catch Throwable ex (prn ex))))
-       (count (hash-set % (->thread-id))) := 2
+       (count (hash-set % (get-thread))) := 2
 
        (tap ::done), % := ::done, (println " ok"))))
