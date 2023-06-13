@@ -2178,3 +2178,52 @@
     (!! 2 :fail),            % := [::e/failed fail]
 
     (tap ::done), % := ::done, (println " ok")))
+
+#?(:clj
+   (tests "e/offload-latest starts Pending"
+     (with (e/run (tap (try (e/offload-latest identity 1)
+                            (catch Pending ex ex)
+                            (catch Throwable ex (prn ex)))))
+       % := e/pending
+       % := 1
+
+       (tap ::done), % := ::done, (println " ok"))))
+
+#?(:clj
+   (tests "e/offload-latest doesn't throw Pending subsequently"
+     (def !x (atom 1))
+     (with (e/run (tap (try (e/offload-latest identity (e/watch !x))
+                            (catch Pending ex ex)
+                            (catch Throwable ex (prn ex)))))
+       % := e/pending
+       % := 1
+       (swap! !x inc)
+       % := 2
+
+       (tap ::done), % := ::done, (println " ok"))))
+
+#?(:clj
+    (tests "e/offload-latest on overlap uses latest value and discards previous"
+      (def d1 (m/dfv))
+      (def !dfv (atom d1))
+      (def discard (e/run (try (tap (e/offload-latest #(m/? %) (e/watch !dfv)))
+                               (catch Pending _)
+                               (catch Throwable ex (prn [(type ex) (ex-message ex)])))))
+
+      (def d2 (reset! !dfv (m/dfv)))
+      (d2 2)
+      % := 2
+      (d1 1)
+
+      (tap ::done), % := ::done, (println " ok")
+      (discard)))
+
+#?(:clj
+   (tests "e/offload-latest thunk is running on another thread"
+     (defn ->thread-id [] (.threadId (Thread/currentThread)))
+     (with (e/run (try (tap (e/offload-latest ->thread-id))
+                       (catch Pending _)
+                       (catch Throwable ex (prn ex))))
+       (count (hash-set % (->thread-id))) := 2
+
+       (tap ::done), % := ::done, (println " ok"))))
