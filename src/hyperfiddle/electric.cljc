@@ -522,3 +522,18 @@ fresh event."
             (catch ~(if (:ns &env) :default `Throwable) ex#
               (reduced (reset! !state# [::failed ex#]))))) ; latch result
      (hyperfiddle.electric/watch !state#)))
+
+#?(:clj (cc/defn -offload-latest [tsk]
+          (m/reductions {} r/pending
+            (m/ap (try (m/? (m/via-call m/blk (m/?< (mx/poll-task tsk))))
+                       (catch Cancelled _ (m/amb)))))))
+
+(defmacro offload-latest "Applies supplied function and arguments on a separate thread.
+  Returns result of latest successful call.
+
+  `(offload-latest query-db! arg1 arg2)`"
+  [& args]
+  (let [gsyms (into [] (take (count args)) (repeatedly gensym))]
+    `(let [mbx# (m/mbx) ~gsyms [~@args]]
+       (mbx# #(~@gsyms))
+       (new (-offload-latest mbx#)))))
