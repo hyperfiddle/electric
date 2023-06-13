@@ -12,14 +12,14 @@
     (let [e (d/entity db id)
           status (:task/status e)]
       (e/client
+        (prn :render id)
         (dom/div
           (ui/checkbox
             (case status :active false, :done true)
             (e/fn [v]
               (e/server
                 (e/discard
-                  (d/transact! !conn [{:db/id id
-                                       :task/status (if v :done :active)}]))))
+                  (e/offload-latest d/transact! !conn [{:db/id id, :task/status (if v :done :active)}]))))
             (dom/props {:id id}))
           (dom/label (dom/props {:for id}) (dom/text (e/server (:task/description e)))))))))
 
@@ -41,11 +41,11 @@
         (dom/p (dom/text "it's multiplayer, try two tabs"))
         (dom/div (dom/props {:class "todo-list"})
           (dom/input (dom/props {:placeholder "Buy milk"})
-            (ui/on-submit (e/fn [v] (e/server (d/transact! !conn [{:task/description v, :task/status :active}]) nil))))
+            (ui/on-submit (e/fn [v] (e/server (e/offload-latest d/transact! !conn [{:task/description v, :task/status :active}]) nil))))
           (dom/div {:class "todo-items"}
             (e/server
-              (e/for-by :db/id [{:keys [db/id]} (todo-records db)]
+              (e/for-by :db/id [{:keys [db/id]} (e/offload-latest todo-records db)]
                 (TodoItem. id))))
           (dom/p (dom/props {:class "counter"})
-            (dom/span (dom/props {:class "count"}) (dom/text (e/server (todo-count db))))
+            (dom/span (dom/props {:class "count"}) (dom/text (e/server (e/offload-latest todo-count db))))
             (dom/text " items left")))))))
