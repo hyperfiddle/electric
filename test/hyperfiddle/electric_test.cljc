@@ -2181,23 +2181,27 @@
 
 #?(:clj
    (tests "e/offload-latest starts Pending"
-     (with (e/run (tap (try (e/offload-latest identity 1)
+     (def dfv (m/dfv))
+     (with (e/run (tap (try (e/offload-latest #(m/? dfv))
                             (catch Pending ex ex)
                             (catch Throwable ex (prn ex)))))
        % := e/pending
+       (dfv 1)
        % := 1
 
        (tap ::done), % := ::done, (println " ok"))))
 
 #?(:clj
    (tests "e/offload-latest doesn't throw Pending subsequently"
-     (def !x (atom 1))
-     (with (e/run (tap (try (e/offload-latest identity (e/watch !x))
+     (def !dfv (atom (m/dfv)))
+     (with (e/run (tap (try (e/offload-latest #(m/? %) (e/watch !dfv))
                             (catch Pending ex ex)
                             (catch Throwable ex (prn ex)))))
        % := e/pending
+       (@!dfv 1)
        % := 1
-       (swap! !x inc)
+       (reset! !dfv (m/dfv))
+       (@!dfv 2)
        % := 2
 
        (tap ::done), % := ::done, (println " ok"))))
