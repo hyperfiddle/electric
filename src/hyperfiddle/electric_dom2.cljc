@@ -137,6 +137,7 @@
 
 (defn parse-class [xs]
   (cond (string? xs) (parse-class (str/split xs #"\s+"))
+        (keyword? xs) (parse-class (name xs))
         (coll? xs)   (into [] (comp (filter string?) (remove str/blank?)) xs)
         :else        nil))
 
