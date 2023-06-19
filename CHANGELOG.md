@@ -12,6 +12,13 @@
 * Electric UI control improvements (high level UI controls with optimistic updates that account for sync/latency/failure state)
 * documentation and demos
 
+# v2-alpha-349-ge9996713 — 2023 June 19
+
+- fix: `e/offload` no longer introduces unintended re-runs of electric code
+- fix: regression on using keywords/symbols as DOM classes
+- fix: DOM class parsing
+- fix: regression on dom2/props improperly setting some DOM attributes 
+
 # v2-alpha-338-geec2f3df — 2023 June 9
 
 - introduce new internal DOM event handling strategies, used internally by `electric-dom2` and `electric-ui4`. This fixes long-standing bugs:
