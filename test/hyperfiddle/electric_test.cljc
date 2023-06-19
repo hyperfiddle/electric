@@ -2180,9 +2180,9 @@
     (tap ::done), % := ::done, (println " ok")))
 
 #?(:clj
-   (tests "e/offload-latest starts Pending"
+   (tests "e/offload starts Pending"
      (def dfv (m/dfv))
-     (with (e/run (tap (try (e/offload-latest #(m/? dfv))
+     (with (e/run (tap (try (e/offload #(m/? dfv))
                             (catch Pending ex ex)
                             (catch Throwable ex (prn ex)))))
        % := e/pending
@@ -2192,9 +2192,10 @@
        (tap ::done), % := ::done, (println " ok"))))
 
 #?(:clj
-   (tests "e/offload-latest doesn't throw Pending subsequently"
+   (tests "e/offload doesn't throw Pending subsequently"
      (def !dfv (atom (m/dfv)))
-     (with (e/run (tap (try (e/offload-latest #(m/? %) (e/watch !dfv))
+     (with (e/run (tap (try (let [dfv (e/watch !dfv)]
+                              (e/offload #(m/? dfv)))
                             (catch Pending ex ex)
                             (catch Throwable ex (prn ex)))))
        % := e/pending
@@ -2207,10 +2208,11 @@
        (tap ::done), % := ::done, (println " ok"))))
 
 #?(:clj
-    (tests "e/offload-latest on overlap uses latest value and discards previous"
+    (tests "e/offload on overlap uses latest value and discards previous"
       (def d1 (m/dfv))
       (def !dfv (atom d1))
-      (def discard (e/run (try (tap (e/offload-latest #(m/? %) (e/watch !dfv)))
+      (def discard (e/run (try (let [dfv (e/watch !dfv)]
+                                 (tap (e/offload #(m/? dfv))))
                                (catch Pending _)
                                (catch Throwable ex (prn [(type ex) (ex-message ex)])))))
 
@@ -2223,9 +2225,9 @@
       (discard)))
 
 #?(:clj
-   (tests "e/offload-latest thunk is running on another thread"
+   (tests "e/offload thunk is running on another thread"
      (defn get-thread [] (Thread/currentThread))
-     (with (e/run (try (tap (e/offload-latest get-thread))
+     (with (e/run (try (tap (e/offload get-thread))
                        (catch Pending _)
                        (catch Throwable ex (prn ex))))
        (count (hash-set % (get-thread))) := 2
