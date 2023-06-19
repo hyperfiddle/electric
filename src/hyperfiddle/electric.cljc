@@ -87,18 +87,30 @@
 (cc/defn failure? [x] (instance? Failure x))
 
 #?(:clj
-   (cc/defn -offload [thunk executor]
+   (cc/defn -offload-task [thunk executor]
      (->> (m/ap (m/? (m/via executor (thunk)))) ; run once
        (m/reductions {} (Failure. (Pending.)))
        (m/relieve {}))))
+
+(defmacro offload-task ; speculative
+  ([f! executor] `(new (-offload-task ~f! ~executor))) ; rebuild flow and cancel old thread
+  ; no varadic arity, user should explicitly state unit of work, so no ambiguity about concurrent tasks
+  ([f!] `(new (-offload-task ~f! m/blk))))
+
+#?(:clj (cc/defn -offload [tsk executor]
+          (m/reductions {} r/pending
+            (m/ap (try (m/? (m/via-call executor (m/?< (mx/poll-task tsk))))
+                       (catch Cancelled _ (m/amb)))))))
 
 (defmacro offload
   "run a blocking function (i.e. query) on threadpool specified by `executor` (i.e. m/blk or m/cpu).
 IO-bound fns should use m/blk, which is the default. Compute-bound fns should pass m/cpu. Custom
 executors are allowed (i.e. to control max concurrency, timeouts etc). Currently JVM only."
-  ([f! executor] `(new (-offload ~f! ~executor))) ; rebuild flow and cancel old thread
-  ; no varadic arity, user should explicitly state unit of work, so no ambiguity about concurrent tasks
-  ([f!] `(new (-offload ~f! m/blk))))
+  ([f! executor]
+   `(let [mbx# (m/mbx)]
+      (mbx# ~f!)
+      (new (-offload mbx# ~executor))))
+  ([f!] `(offload ~f! m/blk)))
 
 (defmacro ^:deprecated wrap "Deprecated. Use `offload` instead." [& body] `(offload #(do ~@body)))
 
@@ -522,18 +534,3 @@ fresh event."
             (catch ~(if (:ns &env) :default `Throwable) ex#
               (reduced (reset! !state# [::failed ex#]))))) ; latch result
      (hyperfiddle.electric/watch !state#)))
-
-#?(:clj (cc/defn -offload-latest [tsk]
-          (m/reductions {} r/pending
-            (m/ap (try (m/? (m/via-call m/blk (m/?< (mx/poll-task tsk))))
-                       (catch Cancelled _ (m/amb)))))))
-
-(defmacro offload-latest "Applies supplied function and arguments on a separate thread.
-  Returns result of latest successful call.
-
-  `(offload-latest query-db! arg1 arg2)`"
-  [& args]
-  (let [gsyms (into [] (take (count args)) (repeatedly gensym))]
-    `(let [mbx# (m/mbx) ~gsyms [~@args]]
-       (mbx# #(~@gsyms))
-       (new (-offload-latest mbx#)))))
