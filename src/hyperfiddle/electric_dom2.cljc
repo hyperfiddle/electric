@@ -137,10 +137,11 @@
     (concat (seq props) (seq (select-keys props-map LAST-PROPS)))))
 
 (defn parse-class [xs]
-  (cond (or (string? xs) (keyword? xs) (symbol? xs)) (str/split (name xs) #"\s+")
-        (or (vector? xs) (seq? xs) (list? xs) (set? xs)) (into [] (comp (mapcat parse-class) (distinct)) xs)
-        (nil? xs) nil
-        :else (throw (ex-info "don't know how to parse into a classlist" {:data xs}))))
+  (when-not (nil? xs)
+    (->> (cond (or (string? xs) (keyword? xs) (symbol? xs)) (str/split (name xs) #"\s+")
+               (or (vector? xs) (seq? xs) (list? xs) (set? xs)) (into [] (comp (mapcat parse-class) (distinct)) xs)
+               :else (throw (ex-info "don't know how to parse into a classlist" {:data xs})))
+         (filterv (complement str/blank?)))))
 
 (tests
   (parse-class "a") := ["a"]
@@ -153,6 +154,8 @@
   (parse-class ["a b" "c"]) := ["a" "b" "c"]
   (parse-class [["a b"] '("c d") #{#{"e"} "f"}]) := ["a" "b" "c" "d" "e" "f"]
   (parse-class nil) := nil
+  (parse-class "") := []
+  (parse-class " a") := ["a"]
   (try (parse-class 42) (throw (ex-info "" {}))
        (catch ExceptionInfo ex (ex-data ex) := {:data 42})))
 
