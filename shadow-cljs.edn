@@ -27,6 +27,7 @@
                          :output-to        "out/karma-tests.js"
                          :ns-regexp        "^(hyperfiddle.electric-|contrib.(ednish|sexpr-router|missionary-contrib-test)).*$"
                          :build-options    {:cache-level :off}
+                         :build-hooks [(hyperfiddle.browser-test-setup/blow-up-tests-on-warnings)]
                          :modules          {:main {:entries [hyperfiddle.zero
                                                              hyperfiddle.electric
                                                              hyperfiddle.electric-test
