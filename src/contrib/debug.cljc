@@ -1,7 +1,6 @@
 (ns contrib.debug
   #?(:cljs (:require-macros contrib.debug))
-  (:require [clojure.string :as str]
-            [hyperfiddle.electric :as e])
+  (:require [clojure.string :as str])
   (:import #?(:clj [clojure.lang IFn IDeref])
            [hyperfiddle.electric Failure]))
 
@@ -40,4 +39,4 @@
                          [(type e) (ex-message e)])
                        v))
                    v))))))
-(defmacro instrument [nm & body] `(new (instrument* ~nm (e/fn [] ~@body))))
+(defmacro instrument [nm & body] `(new (instrument* ~nm (hyperfiddle.electric/fn [] ~@body))))
