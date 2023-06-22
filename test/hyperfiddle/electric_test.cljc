@@ -6,6 +6,7 @@
             [hyperfiddle.electric.impl.compiler :as c]
             [hyperfiddle.electric.impl.io :as electric-io]
             [hyperfiddle.electric.impl.runtime :as r]
+            #?(:cljs [hyperfiddle.goog-calls-test])
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]
             [clojure.test :as t]
@@ -2233,3 +2234,9 @@
        (count (hash-set % (get-thread))) := 2
 
        (tap ::done), % := ::done, (println " ok"))))
+
+#?(:cljs
+   (tests "goog module calls don't trigger warnings"
+     ;; this includes a goog test namespace, so if there are warnings the CI will blow up.
+     ;; The blow up is configured as a shadow build hook in `hyperfiddle.browser-test-setup`
+     (with (e/run (hyperfiddle.goog-calls-test/Main.)))))

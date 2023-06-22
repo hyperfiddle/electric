@@ -4,6 +4,7 @@
             [cljs.analyzer :as cljs]
             [cljs.env]
             [cljs.util]
+            [hyperfiddle.electric.impl.cljs-hacks] ; required for loading side effects
             [hyperfiddle.electric.impl.local :as l]
             [hyperfiddle.electric.impl.runtime :as r]
             [hyperfiddle.electric.impl.ir :as ir]
