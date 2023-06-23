@@ -9,7 +9,6 @@
   (list
     (goog.color/hslToHex 0.5 0.5 0.5)
     (Uri. "http://example.com")
-    ;; TODO this doesn't work, says: undeclared var: hyperfiddle.goog-calls-test/EventType
-    ;; EventType.CLICK
+    EventType.CLICK
     goog.events.EventType.CLICK
     (gm/clamp -1 0 5)))

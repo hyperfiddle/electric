@@ -306,7 +306,17 @@
         (if (instance? CljClass var)
           var
           (cond
-            (= :local (:op (get-var var))) nil ; ignore lexical bindings
+            (= :local (:op (get-var var)))
+            (when (cljs/dotted-symbol? sym) ; ignore lexical bindings except dotted symbols
+              (let [[prefix suffix] (str/split (str sym) #"\." 2)]
+                (when-some [full-ns (get-in (:ns env) [:imports (symbol prefix)])]
+                  ;; `var` resolved to e.g. {:op :local, :name goog.events.EventType/CLICK}
+                  ;; which is wrong, the name should have .CLICK not /CLICK
+                  ;; Also not sure why shadow-cljs sets :op to :local when cljs analyzer sets it to :var.
+                  ;; Nevertheless both seem to work in this case
+                  ;; https://github.com/thheller/shadow-cljs/blob/faab284fe45b04328639718583a7d70feb613d26/src/main/shadow/build/cljs_hacks.cljc#L308
+                  ;; https://github.com/clojure/clojurescript/blob/r1.11.60/src/main/clojure/cljs/analyzer.cljc#L1298
+                  (CljsVar. {:op :local, :name (symbol (str full-ns "." suffix))}))))
 
             ;; If the symbol is unqualified, the var will resolve in current ns.
             ;; The returned value could therefor describe
