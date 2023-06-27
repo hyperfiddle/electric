@@ -11,4 +11,5 @@
     (Uri. "http://example.com")
     EventType.CLICK
     goog.events.EventType.CLICK
-    (gm/clamp -1 0 5)))
+    (gm/clamp -1 0 5)
+    (js/matchMedia (e/watch (atom "(max-width: 600px)")))))
