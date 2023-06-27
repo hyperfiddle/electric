@@ -2236,7 +2236,10 @@
        (tap ::done), % := ::done, (println " ok"))))
 
 #?(:cljs
-   (tests "goog module calls don't trigger warnings"
-     ;; this includes a goog test namespace, so if there are warnings the CI will blow up.
-     ;; The blow up is configured as a shadow build hook in `hyperfiddle.browser-test-setup`
-     (with (e/run (hyperfiddle.goog-calls-test/Main.)))))
+   (do-browser
+     (tests "goog module calls don't trigger warnings"
+       ;; this includes a goog test namespace, so if there are warnings the CI will blow up.
+       ;; The blow up is configured as a shadow build hook in `hyperfiddle.browser-test-setup`
+       (with (e/run (tap (try (hyperfiddle.goog-calls-test/Main.) :ok
+                              (catch :default ex (ex-message ex)))))
+         % := :ok))))
