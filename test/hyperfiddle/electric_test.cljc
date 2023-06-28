@@ -2243,3 +2243,7 @@
        (with (e/run (tap (try (hyperfiddle.goog-calls-test/Main.) :ok
                               (catch :default ex (ex-message ex)))))
          % := :ok))))
+
+(tests
+  (with (e/run (tap (try (new nil) (catch #?(:clj Throwable :cljs :default) e e))))
+    (ex-message %) := "called `new` on nil"))

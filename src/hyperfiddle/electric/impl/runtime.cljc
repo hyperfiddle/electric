@@ -617,8 +617,9 @@
     (aset ^objects (aget frame frame-slot-variables) (int slot)
       (m/signal!
         (m/cp (try (let [<x (m/?< <<x)]
-                     (if (failure <x)
-                       <x (m/?< (with tier <x))))
+                     (cond (failure <x) <x
+                           (nil? <x)    (Failure. (ex-info "called `new` on nil" {}))
+                           :else        (m/?< (with tier <x))))
                    (catch #?(:clj Throwable :cljs :default) e
                      (Failure. e))))))))
 
