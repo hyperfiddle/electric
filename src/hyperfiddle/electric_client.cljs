@@ -69,6 +69,13 @@
 (defn send-all [ws msgs]
   (m/reduce {} nil (m/ap (m/? (wait-for-flush (send! ws (io/encode (m/?> msgs))))))))
 
+(defn keepalive! [ws delay message]
+  (m/sp ; temporary hack. We should emit pings X seconds after the LAST message, not every X seconds. Need a fix for immediate switch in `ap`.
+    (loop []
+      (m/? (m/sleep delay))
+      (send! ws message)
+      (recur))))
+
 (defn connector "
 server : the server part of the program
 cb : the callback for incoming messages.
@@ -81,7 +88,7 @@ Returns a task producing nil or failing if the websocket was closed before end o
         (try
           (send! ws (io/encode server))
           (set! (.-onmessage ws) (comp cb io/decode payload))
-          (m/? (m/race (send-all ws msgs) (wait-for-close ws)))
+          (m/? (m/race (send-all ws msgs) (wait-for-close ws) (keepalive! ws 60000 "HEARTBEAT")))
           (finally
             (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
               (.close ws) (m/? (m/compel wait-for-close)))))
