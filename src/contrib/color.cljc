@@ -31,6 +31,20 @@
        (hsluv->rgb [(* 360 (mod (+ seed-angle (* (hash x) PHI)) 1)) ; Hue
                     saturation lightness])))))
 
+(defn saturation->chroma [saturation] (* 0.158 (/ saturation 100)))
+
+(defn oklch->rgb [[l c h]] (mapv rgbint (oklab/oklch->rgb [(/ l 100) c h])))
+
+(defn color-oklch "Hash a value into an harmonious color. Contrast is consistent. Plays well with text and colored backgrounds."
+  ([x] (color x SEED-ANGLE 50 70 #_85))
+  ([x seed-angle saturation lightness]
+   (apply css-rgb-str
+     (if (nil? x)
+       (oklch->rgb [80 (saturation->chroma 0) 0])
+       (oklch->rgb [lightness
+                    (saturation->chroma saturation)
+                    (* 360 (mod (+ seed-angle (* (hash x) PHI)) 1)) ])))))
+
 ;;; Misc
 
 (defn hsl->rgb* [[H S L]]
@@ -78,7 +92,6 @@
 
 ;; OKLCH
 
-(defn oklch->rgb [[l c h]] (mapv rgbint (oklab/oklch->rgb [(/ l 100) c h])))
 
 (comment
   ;; XYZ
