@@ -365,9 +365,10 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
      (catch Pending _#)                 ; silently ignore
      (catch Cancelled e# (throw e#))    ; bypass catchall, app is shutting down
      (catch :default err#               ; note client bias
-       (js/console.error
-         (str (ex-message err#) "\n\n" (dbg/stack-trace hyperfiddle.electric/trace)) "\n\n"
-         (or (io/get-original-ex (dbg/ex-id hyperfiddle.electric/trace)) err#))
+       (let [reactive-stacktrace (str (ex-message err#) "\n\n" (dbg/stack-trace hyperfiddle.electric/trace))]
+         (if-some [client-exception (io/get-original-ex (dbg/ex-id hyperfiddle.electric/trace))]
+           (js/console.error reactive-stacktrace "\n\n" client-exception)
+           (js/console.error reactive-stacktrace)))
        (new ?PrintServerException (dbg/ex-id hyperfiddle.electric/trace)))))
 
 (defmacro boot "
