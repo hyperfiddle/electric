@@ -1801,6 +1801,16 @@
          (reset! !href "href2")
          (bypass-rcf-bug %) := ["href2" "href2"]))))
 
+#?(:clj (tests "set! with electric value"
+          (with (p/run (tap (let [pt (java.awt.Point. 1 2)]
+                              (set! (.-y pt) (new (p/fn [] 0))))))
+            % := 0)))
+
+#?(:cljs (tests "set! with electric value"
+           (with (p/run (tap (let [o (js/Object.)]
+                               (set! (.-x o) (new (p/fn [] 0))))))
+             % := 0)))
+
 (tests "p/fn arity check"
   (with (p/run (try (new (p/fn [x y z] (throw (ex-info "nope" {}))) 100 200 300 400)
                     (catch ExceptionInfo e (tap e))
