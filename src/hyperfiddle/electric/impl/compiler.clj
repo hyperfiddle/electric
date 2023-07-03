@@ -430,13 +430,7 @@
               ::dbg/type :letfn)))))
 
     (set!)
-    (let [[form refs] (closure env form)]
-      (->> refs
-        (map (partial analyze-form env))
-        (apply map-res
-          (partial ir/apply
-            (assoc (ir/eval form)
-              ::dbg/type :set!)))))
+    (recur env `((fn [v#] (set! ~(nth form 1) v#)) ~(nth form 2)))
 
     (new)                                                   ; argument binding + monadic join
     (if-some [[f & args] args]
