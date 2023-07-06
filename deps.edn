@@ -4,7 +4,6 @@
  :deps  {com.cognitect/transit-clj      {:mvn/version "1.0.329"}
          com.cognitect/transit-cljs     {:mvn/version "0.8.269"}
          com.hyperfiddle/rcf            {:mvn/version "20220926-202227"}
-         datascript/datascript          {:mvn/version "1.3.14"}
          missionary/missionary          {:mvn/version "b.28"}
          org.clojure/clojure            {:mvn/version "1.11.1"}
          org.clojure/clojurescript      {:mvn/version "1.11.60"}
@@ -23,7 +22,8 @@
                                                                                      :exclusions  [org.slf4j/slf4j-api
                                                                                                    info.sunng/ring-jetty9-adapter-http3]} ; no need
                                 ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
-                                com.datomic/peer {:mvn/version "1.0.6733"} ; for TodoMVC demo
+                                com.datomic/peer {:mvn/version "1.0.6733"} ; for demos
+                                datascript/datascript {:mvn/version "1.3.14"} ; for demos
                                 }
                   :jvm-opts    ["-Xss2m"                 ; https://github.com/hyperfiddle/electric/issues/11
                                 "-XX:-OmitStackTraceInFastThrow" ;; RCF
@@ -33,6 +33,7 @@
                                 "-XX:-OmitStackTraceInFastThrow" ;; https://archive.md/NNt9r
                                 ]
                   :extra-deps  {org.clojure/core.async               {:mvn/version "1.5.648"} ; for interop helpers only
+                                datascript/datascript                {:mvn/version "1.3.14"}
                                 ch.qos.logback/logback-classic       {:mvn/version "1.2.11"}
                                 io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                       :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
