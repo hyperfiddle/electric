@@ -4,7 +4,6 @@
             contrib.data
             [contrib.cljs-target :refer [do-browser]]
             [contrib.missionary-contrib :as mx]
-            contrib.data
             [contrib.assert :as ca]
             [hyperfiddle.electric.impl.compiler :as c]
             [hyperfiddle.electric.impl.runtime :as r]
