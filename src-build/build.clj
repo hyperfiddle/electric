@@ -73,4 +73,4 @@
   (b/uber {:class-dir class-dir
            :uber-file (str (or jar-name (default-uberjar-name {:version version})))
            :basis     (b/create-basis {:project "deps.edn"
-                                       :aliases [:prod :datomic-peer :datascript]})}))
+                                       :aliases [:prod]})}))

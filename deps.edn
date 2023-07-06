@@ -55,13 +55,13 @@
                                                                                              :exclusions  [org.slf4j/slf4j-api
                                                                                                            info.sunng/ring-jetty9-adapter-http3]} ; no need
                                         ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
+                                        datascript/datascript {:mvn/version "1.3.14"} ; for demos
+                                        com.datomic/peer {:mvn/version "1.0.6733"} ; for demos
                                         }}
            :scratch      {:extra-deps {com.datomic/dev-local  {:mvn/version "1.0.243"}
                                        com.google.guava/guava {:mvn/version "31.1-jre"}}} ; fix conflict - datomic cloud & shadow
            :datomic-free {:extra-deps {com.datomic/datomic-free {:mvn/version "0.9.5656" :exclusions [org.slf4j/slf4j-nop com.google.guava/guava]}}}
            :datomic-pro  {:extra-deps {com.datomic/datomic-pro {:mvn/version "1.0.6527" :exclusions [org.slf4j/slf4j-nop]}}}
-           :datomic-peer {:extra-deps {com.datomic/peer {:mvn/version "1.0.6733"}}} ; for demos
-           :datascript   {:extra-deps {datascript/datascript {:mvn/version "1.3.14"}}} ; for demos
 
            :profile {:extra-deps {criterium/criterium                      {:mvn/version "0.4.6"}
                                   com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}}
