@@ -6,7 +6,7 @@
 
 (def lib 'com.hyperfiddle/electric)
 (def version (b/git-process {:git-args "describe --tags --long --always --dirty"}))
-(def basis (b/create-basis {:project "deps.edn" :aliases [:datomic-peer :datascript]}))
+(def basis (b/create-basis {:project "deps.edn"}))
 
 (defn compile-java [_]
   (b/javac {:src-dirs ["src"]
@@ -73,4 +73,4 @@
   (b/uber {:class-dir class-dir
            :uber-file (str (or jar-name (default-uberjar-name {:version version})))
            :basis     (b/create-basis {:project "deps.edn"
-                                       :aliases [:prod]})}))
+                                       :aliases [:prod :datomic-peer :datascript]})}))
