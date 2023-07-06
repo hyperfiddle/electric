@@ -152,7 +152,11 @@
       [#:db{:ident :db.sys/partiallyIndexed} 24]
       [#:db{:ident :db.sys/reId} 20]])
 
-(defn qseq [query-map] (mx/seq-consumer (d/qseq query-map)))
+(let [d-qseq (resolve `d/qseq)]
+  (defn qseq [query-map]
+    (if (some? d-qseq)
+      (mx/seq-consumer (d-qseq query-map))
+      (throw (ex-info "Datomic is loaded, but `datomic.api/qseq` is not available. `d/qseq` was added on version 1.0.6165: 2020/05/14. Please check your Datomic version." {})))))
 
 (tests
   (m/? (->> (qseq {:query '[:find (pull ?e [:db/ident]) ?f
