@@ -2257,3 +2257,8 @@
 (tests
   (with (e/run (tap (try (new nil) (catch #?(:clj Throwable :cljs :default) e e))))
     (ex-message %) := "called `new` on nil"))
+
+(tests
+  (with (e/run (tap (try (e/watch :foo) (throw (ex-info "nope" {}))
+                         (catch ExceptionInfo e e))))
+    (str/includes? (ex-message %) ":foo") := true))
