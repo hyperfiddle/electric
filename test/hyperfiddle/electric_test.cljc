@@ -2262,3 +2262,8 @@
   (with (e/run (tap (try (e/watch :foo) (throw (ex-info "nope" {}))
                          (catch ExceptionInfo e e))))
     (str/includes? (ex-message %) ":foo") := true))
+
+(tests "e/def initialized to `nil` works in cc/fn"
+  (e/def foo nil)
+  (with (e/run (binding [foo "foo"] (let [f foo] (#(tap [f foo])))))
+    % := ["foo" "foo"]))
