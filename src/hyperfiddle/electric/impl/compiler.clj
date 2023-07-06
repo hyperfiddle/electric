@@ -136,8 +136,9 @@
   [env form]
   (let [refered-evars   (atom {})
         refered-lexical (atom {})
-        edef?           (fn [ast] (or (some? (::node (:meta ast)))
-                                    (some? (::node (:meta (:info ast))))))
+        edef?           (fn [ast]
+                          (or (contains? (:meta ast) ::node)
+                            (contains? (:meta (:info ast)) ::node)))
         dynamic?        (fn [ast] (or (:assignable? ast) ; clj
                                     (:dynamic (:meta (:info ast))) ; cljs
                                     ))
