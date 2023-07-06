@@ -5,6 +5,7 @@
             [contrib.cljs-target :refer [do-browser]]
             [contrib.missionary-contrib :as mx]
             contrib.data
+            [contrib.assert :as ca]
             [hyperfiddle.electric.impl.compiler :as c]
             [hyperfiddle.electric.impl.runtime :as r]
             [hyperfiddle.electric.impl.for :refer [map-by]]
@@ -265,8 +266,7 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
      :cljs (satisfies? IWatchable x)))
 
 (cc/defn ^:no-doc checked-watch [!x]
-  (assert (watchable? !x) "Provided argument is not Watchable.")
-  (m/watch !x))
+  (->> !x (ca/check watchable?) m/watch))
 
 (def -invalid-watch-usage-message "Invalid e/watch (use from Electric code only, maybe you forgot a e/def?)")
 
