@@ -36,7 +36,7 @@
 (defn parse-keyword [s] (keep-if keyword? (parse-edn s)))
 (defn parse-symbol [s] (keep-if symbol? (parse-edn s)))
 (defn parse-date [s]
-  (try #?(:clj (java.time.LocalDate/parse s) :cljs (js/Date. s))
+  (try (some-> s contrib.str/blank->nil #?(:clj java.time.LocalDate/parse :cljs js/Date.))
        (catch #?(:clj Throwable :cljs :default) _)))
 
 (defn parse-datetime-local [s]
