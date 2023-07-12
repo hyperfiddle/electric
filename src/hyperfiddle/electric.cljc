@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric
   (:refer-clojure :exclude [eval def defn fn for empty? partial])
   (:require [clojure.core :as cc]
+            #?(:clj [clojure.tools.logging :as log])
             contrib.data
             [contrib.cljs-target :refer [do-browser]]
             [contrib.missionary-contrib :as mx]
@@ -350,10 +351,14 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
   Standard electric code runs on mount, therefore there is no `on-mount`."
   [f] `(new (m/observe (cc/fn [!#] (!# nil) ~f)))) ; experimental
 
+(cc/defn log-root-error [exception]
+  #?(:clj (log/error exception)
+     :cljs (println exception)))
+
 (defn ?PrintServerException [id]
   (try (server
          (when-some [ex (io/get-original-ex id)]
-           (println ex)
+           (log-root-error ex)
            (try (client (js/console.log "server logged the root exception"))
                 (catch Pending _))))
        (catch Pending _)))
