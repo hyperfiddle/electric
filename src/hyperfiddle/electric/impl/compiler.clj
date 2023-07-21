@@ -51,8 +51,11 @@
   (let [args (repeatedly arity gensym)]
     `(fn [inst# ~@args] (. ^js inst# ~method ~@args))))
 
-(defmacro field-access [field] ; used for cljs only
-  `(fn [inst#] (. ^js inst# ~(symbol (str "-" (name field))))))
+(defmacro field-access [target-form field] ; used for cljs only
+  (let [target (cond (symbol? target-form) (symbol (name target-form))
+                     (seq? target-form) (symbol (str/replace-first (name (last target-form)) #"-" ""))
+                     :else (gensym "field-access-target_"))]
+    `(fn [~target] (. ^js ~target ~(symbol (str "-" (name field)))))))
 
 (defmacro js-call [template arity]
   (let [args (repeatedly arity gensym)]
@@ -472,9 +475,10 @@
     (.)
     (let [dot    (cljs/build-dot-form [(first args) (second args) (nnext args)])
           target (:target dot)
-          target (cond (class? target)  (CljClass. (:target dot))
-                       (symbol? target) (env/resolve-var env (:target dot))
-                       :else            target)]
+          target (cond (class? target)  (CljClass. target)
+                       (symbol? target) (or (env/resolve-var env target) target)
+                       :else            target)
+          target-form (if (satisfies? env/IVar target) (env/var-name target) target)]
       (->> (if (instance? CljClass target)
              (:args dot)
              (cons (:target dot) (:args dot)))
@@ -486,19 +490,19 @@
                        `(static-call ~(env/var-name target) ~(:method dot) ~(count (:args dot)))
                        (case (:dot-action dot)
                          ::cljs/call `(method-call ~(:method dot) ~(count (:args dot)))
-                         ::cljs/access `(field-access ~(:field dot)))))
+                         ::cljs/access `(field-access ~target-form ~(:field dot)))))
               ::dbg/meta (meta form)
               ::dbg/action (if (instance? CljClass target)
                              :static-call
                              (case (:dot-action dot)
                                ::cljs/call   :call
                                ::cljs/access :field-access))
-              ::dbg/target (if (satisfies? env/IVar target) (env/var-name target) target)
+              ::dbg/target target-form
               ::dbg/method (or (:method dot) (:field dot))
               ::dbg/args   (:args dot))))))
 
     (throw)
-    (analyze-form env `(r/fail ~(first args)))
+    (analyze-form env `(r/fail ~(first args) hyperfiddle.electric/trace))
 
     (try)
     (let [[forms catches finally]

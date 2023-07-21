@@ -56,7 +56,14 @@
 ;; peer receiving the event, zero is the root frame.
 
 
-(defn fail [x] (throw x))
+(defn fail [exception _in-scope-stacktrace]
+  ;; When throwing from a `catch` block, we want to throw an exception while preserving the stack trace of the exception that triggered the catch block.
+  ;; first arg is the exception we want to throw
+  ;; second arg is the exception in scope (if we are in a catch block) or nil
+  ;; second arg is ignored here, but being part of the arguments, it will be
+  ;; visible to `latest-apply` and so be part of the async stack trace.
+  ;; See `handle-apply-error`.
+  (throw exception))
 
 (def failure (some-fn #(when (instance? Failure %) %)))
 
@@ -78,15 +85,21 @@
                 (dbg/error (select-debug-info debug-info) x)
                 x)) <x))
 
+(defn handle-apply-error [debug-info args error]
+  (if (= `fail (::dbg/name debug-info))
+    (let [[thrown context] args]
+      (dbg/error (assoc (select-debug-info debug-info) ::dbg/args [thrown]) (Failure. error) context))
+    (dbg/error (assoc (select-debug-info debug-info) ::dbg/args args) (Failure. error))))
+
 (defn latest-apply [debug-info & args]
   (apply m/latest
-    (fn [f & args]
-      (if-let [err (apply failure f args)]
-        (dbg/error (assoc (select-debug-info debug-info) ::dbg/args args) err)
-        (try (apply f args)
-             (catch #?(:clj Throwable :cljs :default) e
-               (dbg/error (assoc (select-debug-info debug-info) ::dbg/args args) (Failure. e))))))
-    args))
+         (fn [f & args]
+           (if-let [err (apply failure f args)]
+             (dbg/error (assoc (select-debug-info debug-info) ::dbg/args args) err)
+             (try (apply f args)
+                  (catch #?(:clj Throwable :cljs :default) e
+                    (handle-apply-error debug-info args e)))))
+         args))
 
 (def latest-first
   (partial m/latest
