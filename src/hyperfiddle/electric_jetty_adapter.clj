@@ -36,6 +36,8 @@
         (throw (ex-info "No message received after specified time" {:time time})))
       (recur))))
 
+(def ELECTRIC-SERVER-CONNECTION-TIMEOUT 59000) ; https://www.notion.so/hyperfiddle/electric-server-heartbeat-issues-4243f981954c419f8eb0785e8e789fb7?pvs=4
+
 (defn electric-ws-adapter
   "Start and manage an Electric server process hooked onto a websocket."
   [handler-f]
@@ -47,7 +49,7 @@
                    (log/debug "WS connect" (jetty/req-of ws))
                    (.setMaxTextMessageSize (.getPolicy (.getSession ws)) (* 100 1024 1024))  ; Allow large value payloads, temporary.
                    (aset state on-close-slot
-                     ((m/join {} (timeout keepalive-mailbox 90000)
+                     ((m/join {} (timeout keepalive-mailbox ELECTRIC-SERVER-CONNECTION-TIMEOUT)
                         (handler-f (partial write-msg ws)
                           (r/subject-at state on-message-slot)))
                       {} (partial failure ws))))  ; Start Electric process

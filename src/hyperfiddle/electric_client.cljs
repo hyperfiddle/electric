@@ -76,6 +76,8 @@
       (send! ws message)
       (recur))))
 
+(def ELECTRIC-CLIENT-HEARTBEAT-INTERVAL 45000) ; https://www.notion.so/hyperfiddle/electric-server-heartbeat-issues-4243f981954c419f8eb0785e8e789fb7?pvs=4
+
 (defn connector "
 server : the server part of the program
 cb : the callback for incoming messages.
@@ -88,7 +90,8 @@ Returns a task producing nil or failing if the websocket was closed before end o
         (try
           (send! ws (io/encode server))
           (set! (.-onmessage ws) (comp cb io/decode payload))
-          (m/? (m/race (send-all ws msgs) (wait-for-close ws) (keepalive! ws 60000 "HEARTBEAT")))
+          (m/? (m/race (send-all ws msgs) (wait-for-close ws) 
+                 (keepalive! ws ELECTRIC-CLIENT-HEARTBEAT-INTERVAL "HEARTBEAT")))
           (finally
             (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
               (.close ws) (m/? (m/compel wait-for-close)))))
