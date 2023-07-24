@@ -631,16 +631,16 @@
                ;; navigation direction (back/forward) and to invert it. History
                ;; must be idle during this back and forth operation to prevent a
                ;; page flicker.
-               (let [stack         @(.-!stack history)
-                     curr-position (.. e -state -position)
-                     prev-position @(.-!position history)]
-                 (reset! (.-!position history) curr-position)
-                 (let [delta (nav-delta stack prev-position curr-position)]
-                   (cond
-                     @!idle (reset! !idle false)
-                     (confirm-navigation? e) (OnBeforeNavigate!.)
-                     :else (do (reset! !idle true)
-                               (.. js/window -history (go (- delta)))))))))
+               (when-let [curr-position (some-> e .-state .-position)]
+                 (let [stack         @(.-!stack history)
+                       prev-position @(.-!position history)]
+                   (reset! (.-!position history) curr-position)
+                   (let [delta (nav-delta stack prev-position curr-position)]
+                     (cond
+                       @!idle (reset! !idle false)
+                       (confirm-navigation? e) (OnBeforeNavigate!.)
+                       :else (do (reset! !idle true)
+                                 (.. js/window -history (go (- delta))))))))))
 
            (catch hyperfiddle.electric.Pending _)) ; temporary hack, fixes page reload on click, needs sync on dom/on, hf/branch, and Pending interaction
          (e/watch !idle)))
