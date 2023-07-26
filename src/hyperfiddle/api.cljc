@@ -9,10 +9,10 @@
             hyperfiddle.electric-dom2))
 
 (def ^:dynamic *$*) ; dbval, for REPL usage. Available in cljs for HFQL datascript tests
-(e/def db "inject database value for hyperfiddle stage and HFQL")
+(e/def db "inject database value for hyperfiddle stage and HFQL" nil)
 (s/def ::ref? any?)
-(e/def secure-db "database value excluding stage, so that user can't tamper")
-(e/def with "inject datomic.api/with or equivalent, used by stage")
+(e/def secure-db "database value excluding stage, so that user can't tamper" nil)
+(e/def with "inject datomic.api/with or equivalent, used by stage" nil)
 (e/def into-tx')
 (def -read-edn-str-default (partial clojure.edn/read-string
                                     {:readers #?(:cljs {'goog.math/Long goog.math.Long/fromString} ; datomic cloud long ids
@@ -25,7 +25,7 @@
 (def db-state #?(:clj (atom nil))) ; Server side only
 (e/def db-name "$")
 
-(e/def schema "pre-fetched schema for explorer")
+(e/def schema "pre-fetched schema for explorer" nil)
 (e/def ^{:dynamic true, :doc "To be bound to a function [db attribute] -> schema"} *schema*)
 (e/def ^{:dynamic true, :doc "To be bound to a function schema -> ::hf/one | ::hf/many"} *cardinality*
   (fn cardinality [schemaf db attr]
