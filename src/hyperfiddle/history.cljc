@@ -602,6 +602,22 @@
         Called during DOM event bubbling phase, it must be synchronous and therefore must be bound to a clojure function."
        (fn [_dom-event] true))
 
+
+     (e/defn OnNavigate "Will call `Callback` on internal `history/Link` click. `Callback` takes 2 arguments:
+       - the route to navigate to
+       - the dom click js event."
+       [Callback]
+       (dom/on (.-document js/window) "click" ; navigation by link click (also supports keyboard nav)
+         ;; only intercepts internal links. See `Link`.
+         (e/fn [^js e]
+           (when (and (= "A" (.. e -target -nodeName))
+                   (some? (.-hyperfiddle_history_route e))
+                   (not (.-hyperfiddle_history_route_external_nav e)))
+             (.preventDefault e)
+             (when (confirm-navigation? e)
+               (case (OnBeforeNavigate!.) ; sequence effects
+                 (Callback. (.-hyperfiddle_history_route e) e)))))))
+
      #?(:cljs
         (defn nav-delta [stack prev-position curr-position]
           (- (index-of stack curr-position) (index-of stack prev-position))))
@@ -614,16 +630,7 @@
                (when-not (confirm-navigation? e)
                  (.preventDefault e))))
 
-           (dom/on (.-document js/window) "click" ; navigation by link click (also supports keyboard nav)
-             ;; only intercepts internal links. See `Link`.
-             (e/fn [^js e]
-               (when (and (= "A" (.. e -target -nodeName))
-                       (some? (.-hyperfiddle_history_route e))
-                       (not (.-hyperfiddle_history_route_external_nav e)))
-                 (.preventDefault e)
-                 (when (confirm-navigation? e)
-                   (case (OnBeforeNavigate!.) ; sequence effects
-                     (navigate! history (.-hyperfiddle_history_route e)))))))
+           (OnNavigate. (e/fn [route _] (navigate! history route)))
 
            (dom/on js/window "popstate" ; previous and next button
              (e/fn [^js e]
