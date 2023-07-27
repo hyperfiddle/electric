@@ -826,66 +826,73 @@
            ir/source]
           ir/nop)]
 
-  (analyze {} '(case 1 2 3 (4 5) ~@6)) :=
-  [(ir/pub (ir/pub (ir/literal 1)
-             (ir/apply (ir/literal {})
-               (ir/sub 1)
-               (ir/pub (assoc (ir/constant (ir/literal 3))
-                         ::dbg/type :case-clause
-                         ::dbg/args [2]
-                         ::dbg/meta nil)
-                 (ir/apply (ir/literal {})
-                   (ir/sub 1)
-                   (ir/pub (assoc (ir/constant (ir/input []))
-                             ::dbg/type :case-clause
-                             ::dbg/args ['(4 5)]
-                             ::dbg/meta nil)
-                     (ir/apply (ir/literal {})
-                       (ir/sub 1)
-                       (ir/apply (ir/apply (assoc (ir/global :clojure.core/hash-map)
-                                             ::dbg/meta {})
-                                   (ir/literal 2)
-                                   (assoc (ir/sub 2)
-                                     ::dbg/name _
-                                     ::dbg/scope :lexical
-                                     ::dbg/meta nil)
-                                   (ir/literal 4)
-                                   (assoc (ir/sub 1)
-                                     ::dbg/name _
-                                     ::dbg/scope :lexical
-                                     ::dbg/meta nil)
-                                   (ir/literal 5)
-                                   (assoc (ir/sub 1)
-                                     ::dbg/name _
-                                     ::dbg/scope :lexical
-                                     ::dbg/meta nil))
-                         (assoc (ir/sub 3)
-                           ::dbg/name _
-                           ::dbg/scope :lexical
-                           ::dbg/meta nil)
-                         (assoc (ir/constant (ir/apply (assoc (ir/global :hyperfiddle.electric.impl.runtime/fail) ::dbg/meta {})
-                                               (ir/apply (ir/eval '(hyperfiddle.electric.impl.compiler/ctor-call java.lang.IllegalArgumentException 1))
-                                                 (ir/apply (assoc (ir/global :clojure.core/str) ::dbg/meta {})
-                                                   (ir/literal "No matching clause: ")
-                                                   (assoc (ir/sub 3)
-                                                     ::dbg/name _
-                                                     ::dbg/scope :lexical
-                                                     ::dbg/meta nil)))))
-                           ::dbg/type :case-default))))))))
-     (ir/apply (ir/literal {})
-       (ir/sub 1)
-       (ir/pub (ir/literal 0)
-         (ir/apply (ir/literal {})
-           (ir/sub 1)
-           (ir/bind 0 1 (ir/variable (ir/sub 2)))))))
+  (analyze {} '(case 1 2 3 (4 5) ~@6))
+   :=
+   [(ir/pub (ir/literal nil)
+      (ir/bind 0 1
+        (ir/pub (ir/pub (ir/literal 1)
+                  (ir/apply (ir/literal {})
+                    (ir/sub 1)
+                    (ir/pub (assoc (ir/constant (ir/literal 3))
+                              ::dbg/type :case-clause
+                              ::dbg/args [2]
+                              ::dbg/meta nil)
+                      (ir/apply (ir/literal {})
+                        (ir/sub 1)
+                        (ir/pub (assoc (ir/constant (ir/input []))
+                                  ::dbg/type :case-clause
+                                  ::dbg/args ['(4 5)]
+                                  ::dbg/meta nil)
+                          (ir/apply (ir/literal {})
+                            (ir/sub 1)
+                            (ir/apply (ir/apply (assoc (ir/global :clojure.core/hash-map)
+                                                  ::dbg/meta {})
+                                        (ir/literal 2)
+                                        (assoc (ir/sub 2)
+                                          ::dbg/name _
+                                          ::dbg/scope :lexical
+                                          ::dbg/meta nil)
+                                        (ir/literal 4)
+                                        (assoc (ir/sub 1)
+                                          ::dbg/name _
+                                          ::dbg/scope :lexical
+                                          ::dbg/meta nil)
+                                        (ir/literal 5)
+                                        (assoc (ir/sub 1)
+                                          ::dbg/name _
+                                          ::dbg/scope :lexical
+                                          ::dbg/meta nil))
+                              (assoc (ir/sub 3)
+                                ::dbg/name _
+                                ::dbg/scope :lexical
+                                ::dbg/meta nil)
+                              (assoc (ir/constant (ir/apply (assoc (ir/global :hyperfiddle.electric.impl.runtime/fail) ::dbg/meta {})
+                                                    (ir/apply (ir/eval '(hyperfiddle.electric.impl.compiler/ctor-call java.lang.IllegalArgumentException 1))
+                                                      (ir/apply (assoc (ir/global :clojure.core/str) ::dbg/meta {})
+                                                        (ir/literal "No matching clause: ")
+                                                        (assoc (ir/sub 3)
+                                                          ::dbg/name _
+                                                          ::dbg/scope :lexical
+                                                          ::dbg/meta nil)))
+                                                    (assoc (ir/node 0)
+                                                      ::dbg/name 'hyperfiddle.electric/trace
+                                                      ::dbg/scope :dynamic)))
+                                ::dbg/type :case-default))))))))
+          (ir/apply (ir/literal {})
+            (ir/sub 1)
+            (ir/pub (ir/literal 0)
+              (ir/apply (ir/literal {})
+                (ir/sub 1)
+                (ir/bind 1 1 (ir/variable (ir/sub 2)))))))))
 
-   (ir/do [(ir/target [])
-           (ir/target [(assoc (ir/output (ir/literal 6))
-                         ::dbg/meta nil
-                         ::dbg/type :toggle)])
-           (ir/target [])
-           ir/source]
-          ir/nop)]
+    (ir/do [] ; G: Harmless, but not sure why an extra `do` is generated here.
+           (ir/do [(ir/target [])
+                   (ir/target [(assoc (ir/output (ir/literal 6))
+                                 ::dbg/meta nil
+                                 ::dbg/type :toggle)])
+                   (ir/target [])
+                   ir/source]
+                  ir/nop))]
 
   (doto (def foo) (alter-meta! assoc :macro true ::node nil))
   (doto (def bar) (alter-meta! assoc :macro true ::node 'foo))
