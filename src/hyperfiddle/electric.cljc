@@ -77,12 +77,15 @@
 
 (defmacro local
   "Single peer loopback system without whitelist. Returns boot task."
+  {:style/indent 0}
   [& body]
                                         ; use compiler (client) because no need for exports
   (let [[client server] (c/analyze &env `(do ~@body))]
     `(pair ~(r/emit (gensym) client) ~(r/emit (gensym) server))))
 
-(defmacro run "test entrypoint without whitelist." [& body]
+(defmacro run "test entrypoint without whitelist."
+  {:style/indent 0}
+  [& body]
   `((local ~@body) (cc/fn [_#]) (cc/fn [_#])))
 
 (cc/defn failure? [x] (instance? Failure x))
@@ -246,7 +249,9 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                                          (rest fdecl)
                                          fdecl)))))
 
-(defmacro for-by [kf bindings & body]
+(defmacro for-by
+  {:style/indent 2}
+  [kf bindings & body]
   (if-some [[s v & bindings] (seq bindings)]
     `(let [xs# ~v]
        (new (r/bind map-by ~kf
@@ -258,7 +263,9 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
               (::c/lift xs#))))
     (cons `do body))) ; todo, buggy: (e/for [x []] (println 42)) should not print
 
-(defmacro for [bindings & body]
+(defmacro for
+  {:style/indent 1}
+  [bindings & body]
   `(hyperfiddle.electric/for-by identity ~bindings ~@body))
 
 (cc/defn ^:no-doc watchable? [x]
@@ -299,18 +306,23 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
     `(unquote-splicing ~@body)
     `(unquote-splicing (do ~@body))))
 
-(defmacro client [& body]
+(defmacro client
+  {:style/indent 0}
+  [& body]
   (if (bound? #'c/*env*)
     `(::c/client (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::client))
     `(throw (ex-info "Invalid e/client in Clojure code block (use from Electric code only)" ~(into {} (meta &form))))))
 
-(defmacro server [& body]
+(defmacro server
+  {:style/indent 0}
+  [& body]
   (if (bound? #'c/*env*)
     `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::server))
     `(throw (ex-info "Invalid e/server in Clojure code block (use from Electric code only)" ~(into {} (meta &form))))))
 
 (defmacro discard
   "Silence \"Unserializable reference transfer\"; inlining `(do ... nil)` is idiomatic as well"
+  {:style/indent 0}
   [& body] `(do ~@body nil))
 
 (hyperfiddle.electric/def trace "In a `catch` block, bound by the runtime to the current stacktrace. An Electric stacktrace is an ExceptionInfo. Use `hyperfiddle.electric.debug/stack-trace` to get a string representation." nil)
@@ -324,6 +336,7 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 (defmacro with-cycle
   "evaluates body with symbol s bound to the previous result of the body evaluation.
   the first evaluation binds s to i."
+  {:style/indent 1}
   [[s i] & body]
   `(let [a# (atom ~i) ~s (hyperfiddle.electric/watch a#)]
      (reset! a# (do ~@body))))
@@ -363,7 +376,9 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                 (catch Pending _))))
        (catch Pending _)))
 
-(defmacro with-zero-config-entrypoint [& body]
+(defmacro with-zero-config-entrypoint
+  {:style/indent 0}
+  [& body]
   `(try
      (do ~@body)
      (catch Pending _#)                 ; silently ignore
@@ -378,7 +393,9 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 (defmacro boot "
 Takes an Electric program and returns a task setting up the full system with client part running locally and server part
 running on a remote host.
-" [& body]
+"
+  {:style/indent 0}
+  [& body]
   (assert (:js-globals &env))
   (let [[client server] (c/analyze
                           (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj})
@@ -455,6 +472,7 @@ inhibiting all further reactive updates."
 progress towards completion. Keeps each branch alive to progress in isolation 
 until it signals completion by returning a reduced value, at which point the branch
 is unmounted. Returns active progress values as a vector. Exceptions bubble out."
+  {:style/indent 1}
   [[sym >flow] & body]
   `(let [mbx# (m/mbx)]
      (new (m/reductions {} nil (m/eduction (map #(mbx# [::mx/add (->Object) %])) ~>flow)))
@@ -472,6 +490,7 @@ is unmounted. Returns active progress values as a vector. Exceptions bubble out.
 exception is available. Returns [::pending e/pending] if there are one or more
 uncompleted branches, otherwise returns a 4-colored result corresponding to the
 progress of the most recently completed branch."
+  {:style/indent 1}
   [bind & body]
   `(let [!state# (atom [::init]), state# (hyperfiddle.electric/watch !state#)]
      (if (seq (for-event ~bind
@@ -493,6 +512,7 @@ progress of the most recently completed branch."
 discarding previous it even if in progress. The single active branch completes 
 on the first non-Pending value. Returns a single four-colored result 
 corresponding to the progress of the most recent event."
+  {:style/indent 1}
   [[sym >flow :as bind] & body]
   `(let [!i# (atom 0), i# (hyperfiddle.electric/watch !i#)
          !state# (atom [::init]), state# (hyperfiddle.electric/watch !state#)]
@@ -512,7 +532,7 @@ events) until it completes by evaluating to a `reduced` value. On completion,
 unmounts the body, returning nil while waiting for a fresh event."
   ; Useful for button case because it discards. Not useful for create-new, because it discards.
   ; Does this blink-and-clear on completion?
-  
+  {:style/indent 1}
   [[sym >flow] & body]
   `(let [!e# (atom nil)]
      (new (m/reductions #(swap! !e# (cc/fn [cur#] ; latch first non-nil event
@@ -529,6 +549,7 @@ unmounts the body, returning nil while waiting for a fresh event."
 events) until it completes by evaluating to a non-Pending result. On completion, 
 unmounts the body, latches and returns the 4-colored result while waiting for a 
 fresh event."
+  {:style/indent 1}
   [[sym >flow :as bind] & body]
   `(let [!state# (atom [::init])]
      (do-event ~bind
