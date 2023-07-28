@@ -130,9 +130,12 @@ Returns a task producing nil or failing if the websocket was closed before end o
                                                           (m/amb x (recur))
                                                           (m/amb)))))))))]
                         (if-some [code (:code info)]
+                          ;; TODO wait for tab to be visible before reconnecting. No need to connect a sleeping/throttled tab.
                           (case code ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
                             (1005 1006) (do (.log js/console "Connection lost.") (seq retry-delays))
                             (1008) (throw (ex-info "Stale client" {:hyperfiddle.electric/type ::stale-client}))
+                            (1013) (do (.log js/console "Server timed out, considering this client inactive.")
+                                       (seq retry-delays))
                             (throw (ex-info (str "Remote error - " code " " (:reason info)) {})))
                           (do (.log js/console "Failed to connect.") delays)))]
             (.log js/console (str "Next attempt in " (/ delay 1000) " seconds."))
