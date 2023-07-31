@@ -611,12 +611,12 @@
          ;; only intercepts internal links. See `Link`.
          (e/fn [^js e]
            (when (and (= "A" (.. e -target -nodeName))
-                   (some? (.-hyperfiddle_history_route e))
-                   (not (.-hyperfiddle_history_route_external_nav e)))
+                   (some? (.-hyperfiddle_history_route ^js e))
+                   (not (.-hyperfiddle_history_route_external_nav ^js e)))
              (.preventDefault e)
              (when (confirm-navigation? e)
                (case (OnBeforeNavigate!.) ; sequence effects
-                 (Callback. (.-hyperfiddle_history_route e) e)))))))
+                 (Callback. (.-hyperfiddle_history_route ^js e) e)))))))
 
      #?(:cljs
         (defn nav-delta [stack prev-position curr-position]
