@@ -52,10 +52,12 @@
     `(fn [inst# ~@args] (. ^js inst# ~method ~@args))))
 
 (defmacro field-access [target-form field] ; used for cljs only
-  (let [target (cond (symbol? target-form) (symbol (name target-form))
-                     (seq? target-form) (symbol (str/replace-first (name (last target-form)) #"-" ""))
-                     :else (gensym "field-access-target_"))]
-    `(fn [~target] (. ^js ~target ~(symbol (str "-" (name field)))))))
+  (let [target (cond (symbol? target-form) (with-meta (symbol (name target-form)) (meta target-form))
+                     (seq? target-form)    (let [field (last target-form)
+                                                 meta  (meta (second target-form))]
+                                             (with-meta (symbol (str/replace-first (name field) #"^-" "")) meta))
+                     :else                 (gensym "field-access-target_"))]
+    `(fn [^js ~target] (. ~target ~(symbol (str "-" (name field)))))))
 
 (defmacro js-call [template arity]
   (let [args (repeatedly arity gensym)]
@@ -473,12 +475,12 @@
       (throw (ex-info "Wrong number of arguments - new" {})))
 
     (.)
-    (let [dot    (cljs/build-dot-form [(first args) (second args) (nnext args)])
-          target (:target dot)
-          target (cond (class? target)  (CljClass. target)
-                       (symbol? target) (or (env/resolve-var env target) target)
-                       :else            target)
-          target-form (if (satisfies? env/IVar target) (env/var-name target) target)]
+    (let [dot             (cljs/build-dot-form [(first args) (second args) (nnext args)])
+          original-target (:target dot)
+          target          (cond (class? original-target)  (CljClass. original-target)
+                                (symbol? original-target) (or (env/resolve-var env original-target) original-target)
+                                :else                     original-target)
+          target-form     (if (satisfies? env/IVar target) (with-meta (env/var-name target) (meta original-target)) target)]
       (->> (if (instance? CljClass target)
              (:args dot)
              (cons (:target dot) (:args dot)))
