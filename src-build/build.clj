@@ -1,7 +1,8 @@
 (ns build
   "build electric.jar library artifact"
   (:require [clojure.tools.build.api :as b]
-            [clojure.java.shell :as sh]))
+            [clojure.java.shell :as sh]
+            [deps-deploy.deps-deploy :as dd]))
 
 (def lib 'com.hyperfiddle/electric)
 (def version (b/git-process {:git-args "describe --tags --long --always --dirty"}))
@@ -56,13 +57,10 @@
     (assert version ":version is required to deploy")
     (when (and installer (not= :remote installer))
       (println ":installer" installer "is deprecated -- use install task for local deployment"))
-    (let [jar-file  (or jar-file (format "target/%s-%s.jar" (name (or lib 'application)) version))
-          dd-deploy (try (requiring-resolve 'deps-deploy.deps-deploy/deploy) (catch Throwable _))]
-      (if dd-deploy
-        (dd-deploy (merge {:installer :remote :artifact (b/resolve-path jar-file)
-                           :pom-file (b/pom-path {:lib lib :class-dir class-dir})}
-                          opts))
-        (throw (ex-info "deps-deploy is not available in the 'slim' build-clj" {}))))))
+    (let [jar-file  (or jar-file (format "target/%s-%s.jar" (name (or lib 'application)) version))]
+      (dd/deploy (merge {:installer :remote :artifact (b/resolve-path jar-file)
+                         :pom-file (b/pom-path {:lib lib :class-dir class-dir})}
+                        opts)))))
 
 ;; Uberjar
 
