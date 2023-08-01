@@ -14,11 +14,12 @@
     (log/debug "Websocket handler completed gracefully.")
     ;; jetty/close! is missing arity 3 for jetty 9. Call close directly to get arity 3.
     (when-some [s (.getSession ws)]
-      (case (::type (ex-data e))
-        ::timeout (do (log/info "Connection to client lost. Closing socket.")
-                      (.close s 1013 "Try again later"))
-        (do (log/error e "Websocket handler failure")
-            (.close s 1011 "Server process crash"))))))
+      (let [{::keys [type time-seconds] :as data} (ex-data e)]
+        (case type
+          ::timeout (do (log/info (format "Connection to client lost after %ss. Closing socket." time-seconds))
+                        (.close s 1013 "Try again later"))
+          (do (log/error e "Websocket handler failure." data)
+              (.close s 1011 "Server process crash")))))))
 
 (defn write-msg
   "Return a task, writing a message on a websocket when run."
@@ -37,7 +38,7 @@
   (m/sp
     (loop []
       (when (= :timeout (m/? (m/timeout mailbox time :timeout)))
-        (throw (ex-info "No message received after specified time" {:time time, ::type ::timeout})))
+        (throw (ex-info "No message received after specified time" {::type ::timeout, ::time-seconds (int (/ time 1000))})))
       (recur))))
 
 (def ELECTRIC-SERVER-CONNECTION-TIMEOUT 59000) ; https://www.notion.so/hyperfiddle/electric-server-heartbeat-issues-4243f981954c419f8eb0785e8e789fb7?pvs=4
