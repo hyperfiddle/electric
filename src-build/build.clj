@@ -1,12 +1,14 @@
 (ns build
   "build electric.jar library artifact"
   (:require [clojure.tools.build.api :as b]
-            [org.corfield.build :as bb]
-            [clojure.java.shell :as sh]))
+            [clojure.java.shell :as sh]
+            [deps-deploy.deps-deploy :as dd]))
 
 (def lib 'com.hyperfiddle/electric)
 (def version (b/git-process {:git-args "describe --tags --long --always --dirty"}))
 (def basis (b/create-basis {:project "deps.edn"}))
+
+(def class-dir "target/classes")
 
 (defn compile-java [_]
   (b/javac {:src-dirs ["src"]
@@ -14,7 +16,7 @@
             :basis basis
             :javac-opts ["-source" "8" "-target" "8"]}))
 
-(def defaults {:src-pom "pom.xml" :lib lib})
+(def defaults {:src-pom "pom-template.xml" :lib lib})
 
 (defn clean-client [_] (b/delete {:path "resources/public/js"}))
 (defn clean-server [_] (b/delete {:path "resources/private/electric/server_programs"}))
@@ -22,22 +24,44 @@
 (defn clean [opts]
   (clean-client opts)
   (clean-server opts)
-  (bb/clean opts))
+  (b/delete {:path "target"}))
 
-(defn jar [opts]
-  (bb/jar (merge defaults opts)))
+(defn jar [{:keys [version] :or {version version}}]
+  (let [jar-file (format "target/%s-%s.jar" (name lib) version)
+        opts (assoc defaults
+               :version    version
+               :basis      basis
+               :class-dir  class-dir
+               :jar-file   jar-file
+               :scm        {:tag version}
+               :src-dirs   ["src"])]
+    (println "Writing pom.xml")
+    (b/write-pom opts)
+    (println "Copying resources to" class-dir)
+    (b/copy-dir {:src-dirs ["src" "resources"]
+                 :target-dir class-dir})
+    (println "Building jar" jar-file)
+    (b/jar opts)))
 
-(defn install [opts]
-  (bb/install (merge defaults opts)))
+(defn install [{:keys [version] :or {version version}}]
+  (let [jar-file (format "target/%s-%s.jar" (name lib) version)]
+    (b/install {:basis      basis
+                :lib        lib
+                :version    version
+                :jar-file   jar-file
+                :class-dir  class-dir})))
 
 (defn deploy [opts]
-  (bb/deploy (merge defaults opts)))
+  (let [{:keys [lib version class-dir installer jar-file] :as opts} (merge defaults opts)]
+    (assert version ":version is required to deploy")
+    (when (and installer (not= :remote installer))
+      (println ":installer" installer "is deprecated -- use install task for local deployment"))
+    (let [jar-file (or jar-file (format "target/%s-%s.jar" (name (or lib 'application)) version))]
+      (dd/deploy (merge {:installer :remote :artifact (b/resolve-path jar-file)
+                         :pom-file (b/pom-path {:lib lib :class-dir class-dir})}
+                   opts)))))
 
 ;; Uberjar
-
-(def class-dir "target/classes")
-(defn default-uberjar-name [{:keys [lib version] :or {version version}}]
-  (format "target/%s-%s-standalone.jar" "electric-demos" version))
 
 (defn noop [_]) ; to preload mvn deps
 
@@ -71,6 +95,6 @@
 
   (println "Building uberjar")
   (b/uber {:class-dir class-dir
-           :uber-file (str (or jar-name (default-uberjar-name {:version version})))
+           :uber-file (or jar-name (format "target/%s-%s-standalone.jar" "electric-demos" version))
            :basis     (b/create-basis {:project "deps.edn"
                                        :aliases [:prod]})}))
