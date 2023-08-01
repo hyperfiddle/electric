@@ -33,8 +33,7 @@
                            :class-dir  class-dir
                            :jar-file   jar-file
                            :scm        {:tag version}
-                           :src-dirs   ["src"]
-                           :src+dirs   ["src" "resources"])]
+                           :src-dirs   ["src"])]
     (println "Writing pom.xml ...")
     (b/write-pom opts)
     (println "Copying resources to" class-dir "...")
