@@ -1,12 +1,14 @@
 (ns build
   "build electric.jar library artifact"
   (:require [clojure.tools.build.api :as b]
-            [org.corfield.build :as bb]
             [clojure.java.shell :as sh]))
 
 (def lib 'com.hyperfiddle/electric)
 (def version (b/git-process {:git-args "describe --tags --long --always --dirty"}))
 (def basis (b/create-basis {:project "deps.edn"}))
+
+(def class-dir "target/classes")
+(def defaults {:src-pom "pom.xml" :lib lib})
 
 (defn compile-java [_]
   (b/javac {:src-dirs ["src"]
@@ -14,30 +16,55 @@
             :basis basis
             :javac-opts ["-source" "8" "-target" "8"]}))
 
-(def defaults {:src-pom "pom.xml" :lib lib})
-
 (defn clean-client [_] (b/delete {:path "resources/public/js"}))
 (defn clean-server [_] (b/delete {:path "resources/private/electric/server_programs"}))
 
 (defn clean [opts]
   (clean-client opts)
   (clean-server opts)
-  (bb/clean opts))
+  (b/delete {:path "target"}))
 
-(defn jar [opts]
-  (bb/jar (merge defaults opts)))
+(defn jar [{:keys [version] :or {version version}}]
+  (let [jar-file    (format "target/%s-%s.jar" (name lib) version)
+        opts        (assoc defaults
+                           :version    version
+                           :basis      basis
+                           :class-dir  class-dir
+                           :jar-file   jar-file
+                           :scm        {:tag version}
+                           :src-dirs   ["src"]
+                           :src+dirs   ["src" "resources"])]
+    (println "Writing pom.xml ...")
+    (b/write-pom opts)
+    (println "Copying resources to" class-dir "...")
+    (b/copy-dir {:src-dirs   ["src" "resources"]
+                 :target-dir class-dir})
+    (println "Building jar" jar-file "...")
+    (b/jar opts)))
 
-(defn install [opts]
-  (bb/install (merge defaults opts)))
+(defn install [{:keys [version] :or {version version}}]
+  (let [jar-file (format "target/%s-%s.jar" (name lib) version)]
+    (b/install {:basis      basis
+                :lib        lib
+                :version    version
+                :jar-file   jar-file
+                :class-dir  class-dir})))
 
 (defn deploy [opts]
-  (bb/deploy (merge defaults opts)))
+  (let [{:keys [lib version class-dir installer jar-file] :as opts}
+        (merge defaults opts)]
+    (assert version ":version is required to deploy")
+    (when (and installer (not= :remote installer))
+      (println ":installer" installer "is deprecated -- use install task for local deployment"))
+    (let [jar-file  (or jar-file (format "target/%s-%s.jar" (name (or lib 'application)) version))
+          dd-deploy (try (requiring-resolve 'deps-deploy.deps-deploy/deploy) (catch Throwable _))]
+      (if dd-deploy
+        (dd-deploy (merge {:installer :remote :artifact (b/resolve-path jar-file)
+                           :pom-file (b/pom-path {:lib lib :class-dir class-dir})}
+                          opts))
+        (throw (ex-info "deps-deploy is not available in the 'slim' build-clj" {}))))))
 
 ;; Uberjar
-
-(def class-dir "target/classes")
-(defn default-uberjar-name [{:keys [lib version] :or {version version}}]
-  (format "target/%s-%s-standalone.jar" "electric-demos" version))
 
 (defn noop [_]) ; to preload mvn deps
 
@@ -50,15 +77,14 @@
                       "--config-merge"
                       (pr-str {:compiler-options {:optimizations (if optimize :advanced :simple)}
                                :closure-defines  {'hyperfiddle.electric-client/VERSION version}})]
-                  (remove nil?))]
+                     (remove nil?))]
     (apply println "Running:" command)
     (let [{:keys [exit out err]} (apply sh/sh command)]
       (when-not (zero? exit)  (println "Exit code" exit))
       (when err (println err))
       (when out (println out)))))
 
-
-(defn uberjar [{:keys [jar-name version optimize debug verbose]
+(defn uberjar [{:keys [version optimize debug verbose]
                 :or   {version version, optimize true, debug false, verbose false}}]
   (println "Cleaning up before build")
   (clean nil)
@@ -71,6 +97,6 @@
 
   (println "Building uberjar")
   (b/uber {:class-dir class-dir
-           :uber-file (str (or jar-name (default-uberjar-name {:version version})))
+           :uber-file (format "target/%s-%s-standalone.jar" "electric-demos" version)
            :basis     (b/create-basis {:project "deps.edn"
                                        :aliases [:prod]})}))
