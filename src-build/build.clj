@@ -9,7 +9,7 @@
 (def basis (b/create-basis {:project "deps.edn"}))
 
 (def class-dir "target/classes")
-(def defaults {:src-pom "pom.xml" :lib lib})
+(def defaults {:src-pom "template-pom.xml" :lib lib})
 
 (defn compile-java [_]
   (b/javac {:src-dirs ["src"]
