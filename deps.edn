@@ -39,10 +39,10 @@
                                                                       :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
                   :exec-fn     cognitect.test-runner.api/test}
 
-
            :build        {:extra-paths ["src-build"]
                           :ns-default  build
-                          :extra-deps  {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}}}
+                          :extra-deps  {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
+                                        slipset/deps-deploy           {:mvn/version "0.2.0"}}}
            :shadow-cljs  {:extra-deps {thheller/shadow-cljs {:mvn/version "2.22.10"}}
                           :main-opts  ["-m" "shadow.cljs.devtools.cli"]
                           :jvm-opts   ["-Xss2m"]}
