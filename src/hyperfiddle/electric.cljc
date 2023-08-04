@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric
-  (:refer-clojure :exclude [eval def defn fn for empty? partial])
+  (:refer-clojure :exclude [eval def defn fn for empty? partial apply])
   (:require [clojure.core :as cc]
             #?(:clj [clojure.tools.logging :as log])
             contrib.data
@@ -209,31 +209,60 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 
 (hyperfiddle.electric/def system-time-secs "seconds since 1970 Jan 1" (/ system-time-ms 1000.0))
 
-(cc/defn -check-fn-arity! [name expected actual]
-  (when (not= expected actual)
-    (throw (ex-info (str "You called " (or name (pr-str ::unnamed-efn)) ", a " expected "-arg e/fn with " actual " arguments.")
-             {:name name}))))
+(cc/defn -check-varargs-arity [provided actual fname]
+  (when (< provided actual)
+    (throw (ex-info (str "You called varargs " (or fname "<unnamed-efn>") " with " provided
+                      " argument" (when-not (= 1 provided) "s") " but it has " actual
+                      " positional argument" (when-not (= 1 actual) "s"))
+             {}))))
+
+(cc/defn -check-recur-arity [provided actual fname]
+  (when (not= provided actual)
+    (throw (ex-info (str "You `recur`d in " (or fname "<unnamed-efn>") " with " provided
+                      " argument" (when-not (= 1 provided) "s") " but it has " actual
+                      " positional argument" (when-not (= 1 actual) "s"))
+             {}))))
+
+#?(:clj (cc/defn- varargs? [args] (and (seq args) (= '& (-> args pop peek)))))
+
+#?(:clj (cc/defn- ->varargs-arity-switch [F npos]
+          `(case c/%arity
+             ~@(into [] (mapcat #(do `[~% (new ~F ~@(take npos c/arg-sym)
+                                           [~@(->> c/arg-sym (drop npos) (take (- % npos)))])]))
+                 (range npos 21)))))
+
+#?(:clj
+   (cc/defn -build-arity [?name args body common-debug-info]
+     (let [debug-info (assoc common-debug-info ::dbg/args args)]
+       (if (varargs? args)
+         (let [npos (-> args count (- 2)), unvarargd (-> args pop pop (conj (peek args)))]
+           [:varargs `(::c/closure
+                       (binding [c/rec (::c/closure
+                                        (case (-check-recur-arity c/%arity ~(inc npos) '~?name)
+                                          (let [~@(interleave unvarargd c/arg-sym)] ~@body)))]
+                         (-check-varargs-arity c/%arity ~npos '~?name)
+                         ~(->varargs-arity-switch `c/rec npos))
+                       ~debug-info)])
+         [(count args) `(::c/closure
+                         (binding [c/rec (::c/closure
+                                          (case (-check-recur-arity c/%arity ~(count args) '~?name)
+                                            (let [~@(interleave args c/arg-sym)] ~@body)))]
+                           (new c/rec ~@(take (count args) c/arg-sym)))
+                         ~debug-info)]))))
 
 ;; TODO self-refer
-(defmacro fn [name? & [args & body]]
-  (let [[name? args body] (if (symbol? name?) [name? args body]
-                              [nil name? (cons args body)])]
+(defmacro fn [& args]
+  (let [[?name args2] (if (symbol? (first args)) [(first args) (rest args)] [nil args])
+        arities (cond-> args2 (vector? (first args2)) list)
+        common-debug-info {::dbg/name ?name, ::dbg/type (or (::dbg/type (meta ?name)) :reactive-fn)
+                           ::dbg/meta (merge (select-keys (meta &form) [:file :line])
+                                        (select-keys (meta ?name) [:file :line]))}]
     (if (bound? #'c/*env*)
-      `(::c/closure
-        ;; Beware, `do` is implemented with `m/latest`, which evaluates
-        ;; arguments in parallel. The e/fn body will be called even if arity is
-        ;; incorrect, then the arity exception will be thrown. This might be
-        ;; confusing to users in presence of effects. Same as `(do (assert
-        ;; false) (prn 42))`: 42 is printed anyway. This is a broader question
-        ;; than "what should the semantics of e/fn should be", so we decided to
-        ;; be consistent with the current model and to not introduce a specific
-        ;; behavior for e/fn.
-        (do (-check-fn-arity! '~name? ~(count args) c/%arity)
-            (binding [c/rec (::c/closure (let [~@(interleave args c/arg-sym)] ~@body))]
-              (new c/rec ~@(take (count args) c/arg-sym))))
-        ~{::dbg/name name?, ::dbg/args args, ::dbg/type (or (::dbg/type (meta name?)) :reactive-fn)
-          ::dbg/meta (merge (select-keys (meta &form) [:file :line])
-                       (select-keys (meta name?) [:file :line]))})
+      (if (and (= 1 (count arities)) (= [] (ffirst arities))) ; support e/fn thunk as a missionary flow
+        `(::c/closure (do ~@(nfirst arities)) ~(assoc common-debug-info ::dbg/args []))
+        `{:name '~?name
+          :arities ~(into {} (map #(-build-arity ?name (first %) (rest %) common-debug-info)) arities)})
+
       `(throw (ex-info "Invalid e/fn in Clojure code block (use from Electric code only)" ~(into {} (meta &form)))))))
 
 ; syntax quote doesn't qualify special forms like 'def
@@ -331,7 +360,7 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 (defmacro partial-dynamic
   "Return a function calling given function `f` with given dynamic environment."
   [bindings f]
-  `(cc/fn [& args#] (binding ~bindings (apply ~f args#))))
+  `(cc/fn [& args#] (binding ~bindings (cc/apply ~f args#))))
 
 (defmacro partial
   "Like `cc/partial` for reactive functions. Requires the target function
@@ -445,6 +474,31 @@ running on a remote host.
   "Snapshots the first non-Pending value of reactive value `x` and freezes it, 
 inhibiting all further reactive updates." 
   [x] `(check-electric snapshot (new (-snapshot (hyperfiddle.electric/fn [] ~x)))))
+
+(defmacro apply [F & args]
+  `(let [F# ~F, as# [~@args], args# (object-array (concat (pop as#) (peek as#)))]
+     (case (alength args#)
+       0 (new F#)
+       1 (new F# (aget args# 0))
+       2 (new F# (aget args# 0) (aget args# 1))
+       3 (new F# (aget args# 0) (aget args# 1) (aget args# 2))
+       4 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3))
+       5 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4))
+       6 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5))
+       7 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6))
+       8 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7))
+       9 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8))
+       10 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9))
+       11 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10))
+       12 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11))
+       13 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12))
+       14 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13))
+       15 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14))
+       16 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14) (aget args# 15))
+       17 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14) (aget args# 15) (aget args# 16))
+       18 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14) (aget args# 15) (aget args# 16) (aget args# 17))
+       19 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14) (aget args# 15) (aget args# 16) (aget args# 17) (aget args# 18))
+       20 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14) (aget args# 15) (aget args# 16) (aget args# 17) (aget args# 18) (aget args# 19)))))
 
 (cc/defn ->Object [] #?(:clj (Object.) :cljs (js/Object.))) ; private
 

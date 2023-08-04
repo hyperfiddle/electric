@@ -103,9 +103,8 @@
     (p/run (tap (let [x 1
                     F (p/fn [] x)]                          ; capitalized
                 [(number? x)
-                 (fn? F)
                  (new F)])))                                ; construct/flatmap
-    % := [true true 1]))
+    % := [true 1]))
 
 (tests "dataflow diamond - let introduces shared nodes in the dag"
   (def !x (atom 0))
@@ -1811,17 +1810,23 @@
                                (set! (.-x o) (new (p/fn [] 0))))))
              % := 0)))
 
+(p/defn ThreeThrow [_ _ _] (throw (ex-info "nope")))
 (tests "p/fn arity check"
   (with (p/run (try (new (p/fn [x y z] (throw (ex-info "nope" {}))) 100 200 300 400)
                     (catch ExceptionInfo e (tap e))
                     (catch Cancelled _)
                     (catch Throwable t (prn t))))
-    (ex-message %) := "You called :hyperfiddle.electric/unnamed-efn, a 3-arg e/fn with 4 arguments.")
-  (with (p/run (try (new (p/fn [x y] (throw (ex-info "nope" {}))) 100)
+    (ex-message %) := "You called <unnamed-efn> with 4 arguments but it only supports [3]")
+  (with (p/run (try (new ThreeThrow 100 200 300 400)
                     (catch ExceptionInfo e (tap e))
                     (catch Cancelled _)
                     (catch Throwable t (prn t))))
-    (ex-message %) := "You called :hyperfiddle.electric/unnamed-efn, a 2-arg e/fn with 1 arguments."))
+    (ex-message %) := "You called ThreeThrow with 4 arguments but it only supports [3]")
+  (with (p/run (try (new (p/fn Named [x y] (throw (ex-info "nope" {}))) 100)
+                    (catch ExceptionInfo e (tap e))
+                    (catch Cancelled _)
+                    (catch Throwable t (prn t))))
+    (ex-message %) := "You called Named with 1 argument but it only supports [2]"))
 
 (tests
   "Partial application"
@@ -2267,3 +2272,59 @@
   (e/def foo nil)
   (with (e/run (binding [foo "foo"] (let [f foo] (#(tap [f foo])))))
     % := ["foo" "foo"]))
+
+(tests "e/fn varargs"
+  (with (e/run (new (e/fn [x & xs] (tap [x xs])) 1 2 3 4))
+    % := [1 [2 3 4]])
+
+  "recursion with recur"
+  (with (e/run (tap (new (e/fn [& args] (if (seq args) (recur (rest args)) :done)) 1 2)))
+    % := :done)
+
+  "recur is arity-checked"
+  (with (e/run (tap (try (new (e/fn [x & xs] (recur)) 1 2 3)
+                         (catch ExceptionInfo e e))))
+    (ex-message %) := "You `recur`d in <unnamed-efn> with 0 arguments but it has 2 positional arguments")
+  )
+
+(tests "e/fn recur is arity checked"
+  (with (e/run (tap (try (new (e/fn X [x] (recur x x)) 1)
+                         (catch ExceptionInfo e e))))
+    (ex-message %) := "You `recur`d in X with 2 arguments but it has 1 positional argument"))
+
+(e/defn One [x] x)
+(e/defn Two [x y] [x y])
+(e/defn VarArgs [x & xs] [x xs])
+(tests "new"
+  "(new One 1)"
+  (with (e/run (tap (new One 1)))
+    % := 1)
+
+  "(new VarArgs 1 2 3)"
+  (with (e/run (tap (new VarArgs 1 2 3)))
+    % := [1 [2 3]]))
+
+(tests "e/apply"
+  (with (e/run (tap (e/apply VarArgs [1 2 3])))
+    % := [1 [2 3]])
+  (with (e/run (tap (e/apply Two 1 [2])))
+    % := [1 2])
+  (with (e/run (tap (e/apply Two [1 2])))
+    % := [1 2])
+  (with (e/run (tap (e/apply Two [1 (inc 1)])))
+    % := [1 2])
+  (with (e/run (tap (try (e/apply Two [1 2 3]) (throw (ex-info "boo" {}))
+                         (catch ExceptionInfo e e))))
+    (ex-message %) := "You called Two with 3 arguments but it only supports [2]"))
+
+(tests "multi-arity e/fn"
+  (with (e/run (tap (new (e/fn ([_] :one) ([_ _] :two)) 1)))
+    % := :one)
+  (with (e/run (tap (new (e/fn ([_] :one) ([_ _] :two)) 1 2)))
+    % := :two)
+  (with (e/run (tap (new (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 3 4)))
+    % := [3 4 5])
+  (with (e/run (tap (e/apply (e/fn ([_] :one) ([_ _] :two)) 1 [2])))
+    % := :two)
+  (with (e/run (tap (e/apply (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 [3 4])))
+    % := [3 4 5]))
