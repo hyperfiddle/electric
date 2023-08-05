@@ -414,8 +414,8 @@
      ;; - is the link internal or external (soft vs hard nav)
      (let [node   (.-target e)
            target (.getAttribute node "target")]
-       (set! (.-hyperfiddle_history_route e) next-route)
-       (set! (.-hyperfiddle_history_route_external_nav e)
+       (set! (.-hyperfiddle_history_route ^js e) next-route)
+       (set! (.-hyperfiddle_history_route_external_nav ^js e)
          (or (some? (.getAttribute node "download"))
            (and (some? target) (not= "_self" target))))
        nil)))
@@ -639,9 +639,9 @@
                ;; must be idle during this back and forth operation to prevent a
                ;; page flicker.
                (when-let [curr-position (some-> e .-state .-position)]
-                 (let [stack         @(.-!stack history)
-                       prev-position @(.-!position history)]
-                   (reset! (.-!position history) curr-position)
+                 (let [stack         @(.-!stack ^js history)
+                       prev-position @(.-!position ^js history)]
+                   (reset! (.-!position ^js history) curr-position)
                    (let [delta (nav-delta stack prev-position curr-position)]
                      (cond
                        @!idle (reset! !idle false)
