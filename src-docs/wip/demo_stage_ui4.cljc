@@ -1,4 +1,5 @@
 (ns wip.demo-stage-ui4
+  "Requires datomic mbrains database available, which is not in-mem so nontrivial to CI"
   (:require [contrib.css :refer [css-slugify]]
             [contrib.str :refer [pprint-str]]
             #?(:clj [contrib.datomic-contrib :as dx])
