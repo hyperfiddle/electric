@@ -2,14 +2,13 @@
   (:require [contrib.css :refer [css-slugify]]
             [contrib.str :refer [pprint-str]]
             #?(:clj [contrib.datomic-contrib :as dx])
-            #?(:clj [datomic.client.api :as d])
+            #?(:clj [datomic.api :as d])
             [hyperfiddle.api :as hf]
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
-            [hyperfiddle.popover :refer [Popover]]))
-
-(def cobblestone 536561674378709)
+            [hyperfiddle.popover :refer [Popover]]
+            #?(:clj [contrib.test.datomic-peer-mbrainz :as test])))
 
 (def label-form-spec [:db/id
                       :label/gid
@@ -19,7 +18,7 @@
                       {:label/country [:db/ident]}
                       :label/startYear])
 
-(comment (d/pull test/datomic-db ['*] cobblestone))
+(comment (d/pull test/db ['*] test/cobblestone))
 
 #?(:clj (defn type-options [db & [needle]]
           (->> (d/q '[:find (pull ?e [:db/ident]) :in $ ?needle :where
@@ -31,10 +30,10 @@
                (map first))))
 
 (comment
-  (type-options test/datomic-db "")
-  (type-options test/datomic-db "prod")
-  (type-options test/datomic-db "bootleg")
-  (type-options test/datomic-db nil))
+  (type-options test/db "")
+  (type-options test/db "prod")
+  (type-options test/db "bootleg")
+  (type-options test/db nil))
 
 
 (e/defn Form [e]
@@ -86,15 +85,15 @@
 
 (e/defn Page []
   #_(e/client (dom/div (if hf/loading "loading" "idle") " " (str (hf/Load-timer.)) "ms"))
-  (Form. cobblestone)
-  #_(Form. cobblestone)
-  (e/client (Popover. "open" (e/fn [] (e/server (Form. cobblestone))))))
+  (Form. test/cobblestone)
+  #_(Form. test/cobblestone)
+  (e/client (Popover. "open" (e/fn [] (e/server (Form. test/cobblestone))))))
 
 (e/defn CrudForm []
   (e/client (dom/h1 (dom/text (str `CrudForm))))
   (e/server
-    (let [conn @(requiring-resolve 'test/datomic-conn)
-          secure-db (d/with-db conn)] ; todo datomic-tx-listener
+    (let [conn @(requiring-resolve 'contrib.test.datomic-peer-mbrainz/conn)
+          secure-db (d/db conn)] ; todo datomic-tx-listener
       (binding [hf/schema (new (dx/schema> secure-db))
                 hf/into-tx' hf/into-tx
                 hf/with (fn [db tx] ; inject datomic
