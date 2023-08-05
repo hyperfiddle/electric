@@ -1,4 +1,4 @@
-(ns wip.orders-datascript
+(ns contrib.test.teeshirt-orders-model-datascript
   "query functions used in tee-shirt orders demo"
   (:require [clojure.spec.alpha :as s]
             clojure.string

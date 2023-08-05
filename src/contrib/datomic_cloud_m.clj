@@ -38,7 +38,7 @@
 
 (defn db-stats [db] (mxca/chan-read! (d/db-stats db)))
 
-(comment (m/? (db-stats test/datomic-db)))
+(comment (m/? (db-stats test/db)))
 
 (defn pull
   ([db {:keys [selector eid]}] (pull db selector eid))
@@ -49,16 +49,16 @@
 
 (tests
   "control - datomic operators work on number tempids"
-  (m/? (mxca/chan-read! (d/pull test/datomic-db {:selector [:db/id] :eid -1}))) := #:db{:id -1}
-  (m/? (mxca/chan-read! (d/pull test/datomic-db {:selector ['*] :eid -1}))) := #:db{:id -1}
+  (m/? (mxca/chan-read! (d/pull test/db {:selector [:db/id] :eid -1}))) := #:db{:id -1}
+  (m/? (mxca/chan-read! (d/pull test/db {:selector ['*] :eid -1}))) := #:db{:id -1}
 
   "control - datomic cloud operators elide string tempids, wtf"
-  (m/? (mxca/chan-read! (d/pull test/datomic-db {:selector [:db/id] :eid "a"}))) := {:db/id nil}
-  (m/? (mxca/chan-read! (d/pull test/datomic-db {:selector ['*] :eid "a"}))) := {:db/id nil}
+  (m/? (mxca/chan-read! (d/pull test/db {:selector [:db/id] :eid "a"}))) := {:db/id nil}
+  (m/? (mxca/chan-read! (d/pull test/db {:selector ['*] :eid "a"}))) := {:db/id nil}
 
   "hyperfiddle needs this defined to represent empty forms"
-  (m/? (pull test/datomic-db [:db/id] "a")) := {:db/id "a"}
-  (m/? (pull test/datomic-db [:db/ident] "a")) := {})
+  (m/? (pull test/db [:db/id] "a")) := {:db/id "a"}
+  (m/? (pull test/db [:db/ident] "a")) := {})
 
 (defn pull-sorted
   ([db {:keys [selector eid] :as arg-map}] (pull-sorted db selector eid arg-map #_(dissoc arg-map :selector :eid)))
@@ -76,7 +76,7 @@
 (comment
   (def cobblestone 536561674378709)
   "pulls are sorted at top layer"
-  (take 3 (keys (m/? (d/pull! test/datomic-db {:eid cobblestone :selector '[*]}))))
+  (take 3 (keys (m/? (d/pull! test/db {:eid cobblestone :selector '[*]}))))
   := [:db/id :label/country :label/gid] ; sorted!
 
   "pulls are sorted at intermedate layers"
@@ -86,12 +86,12 @@
   (m/ap (m/?> (m/eduction cat (mxca/chan->ap (d/datoms db arg-map))))))
 
 (comment
-  (time (take 3 (m/? (m/reduce conj [] (datoms> test/datomic-db {:index :aevt, :components [:db/ident]})))))
-  (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> test/datomic-db {:index :aevt, :components [:db/ident]})))))
-  (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> test/datomic-db {:index :aevt, :components [:db/txInstant]}))))))
+  (time (take 3 (m/? (m/reduce conj [] (datoms> test/db {:index :aevt, :components [:db/ident]})))))
+  (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> test/db {:index :aevt, :components [:db/ident]})))))
+  (time (m/? (m/reduce conj [] (m/eduction (take 3) (datoms> test/db {:index :aevt, :components [:db/txInstant]}))))))
 
 (tests
-  (->> (datoms> test/datomic-db {:index :aevt, :components [:db/txInstant]})
+  (->> (datoms> test/db {:index :aevt, :components [:db/txInstant]})
        (m/eduction (map datafy))
        (m/eduction (take 1))
        (m/reduce conj ()) m/?)
@@ -115,7 +115,7 @@
 
 (comment
   (def query-attrs '[:find (pull ?e [:db/ident]) ?f :where [?e :db/valueType ?f]])
-  (m/? (q {:query query-attrs :args [test/datomic-db]}))
+  (m/? (q {:query query-attrs :args [test/db]}))
   := _)
 
 (defn qseq [arg-map] (->> (mxca/chan->ap (d/qseq arg-map))
@@ -123,7 +123,7 @@
 
 (tests
   (m/? (->> (qseq {:query '[:find (pull ?e [:db/ident]) ?f :where [?e :db/valueType ?f]]
-                   :args [test/datomic-db]})
+                   :args [test/db]})
             (m/eduction (take 3))
             (m/reduce conj []))))
 
