@@ -3,7 +3,10 @@
             [contrib.datomic-m :as d]
             [hyperfiddle.electric :as e] ; ?
             [hyperfiddle.rcf :refer [tests % tap]]
-            [missionary.core :as m]))
+            [missionary.core :as m]
+            [contrib.test.datomic-peer-mbrainz :as test]))
+
+(tests (some? test/db) := true)
 
 ; These should use entity API & fetch data when necessary, doing on trees is not ergonomic enough
 ; (in Hyperfiddle-2020, much complexity stemmed from tree-passing, root cause batch data loading)
@@ -68,9 +71,9 @@
         (m/eduction (map first)))))
 
 (tests
-  (m/? (m/reduce conj [] (attributes> test/datomic-db [:db/ident])))
-  (m/? (m/reduce conj [] (attributes> test/datomic-db)))
-  (m/? (d/pull test/datomic-db {:eid 50 :selector [:db/ident :db/valueType :db/cardinality]})))
+  (count (m/? (m/reduce conj [] (attributes> test/db [:db/ident])))) := 83
+  (count (m/? (m/reduce conj [] (attributes> test/db)))) := 83
+  (count (m/? (d/pull test/db {:eid 50 :selector [:db/ident :db/valueType :db/cardinality]}))) := 3)
 
 (defn schema! [db] ; todo stream
   (m/sp
@@ -92,17 +95,17 @@
 (defn schema> [db] (e/task->cp (schema! db)))
 
 (tests
-  (:db/ident (m/? (schema! test/datomic-db)))
+  (:db/ident (m/? (schema! test/db)))
   := #:db{:ident :db/ident,
           :valueType #:db{:ident :db.type/keyword},
           :cardinality #:db{:ident :db.cardinality/one}}
 
-  (:db/id (m/? (schema! test/datomic-db)))
+  (:db/id (m/? (schema! test/db)))
   := #:db{:ident :db/id,
           :cardinality #:db{:ident :db.cardinality/one},
           :valueType #:db{:ident :db.type/long}}
 
-  (count (m/? (schema! test/datomic-db))))
+  (count (m/? (schema! test/db))))
 
 (defn entity-history-datoms>
   ([db e] (entity-history-datoms> db e nil))
@@ -115,9 +118,9 @@
             (m/amb= (m/?> >fwd-xs) (m/?> >rev-xs)))))))
 
 (comment
-  (time (m/? (m/reduce conj [] (entity-history-datoms> test/datomic-db 74766790739005 nil))))
-  (time (count (m/? (m/reduce conj [] (entity-history-datoms> test/datomic-db nil nil)))))
-  (def it ((entity-history-datoms> test/datomic-db 74766790739005 nil)
+  (time (m/? (m/reduce conj [] (entity-history-datoms> test/db 74766790739005 nil))))
+  (time (count (m/? (m/reduce conj [] (entity-history-datoms> test/db nil nil)))))
+  (def it ((entity-history-datoms> test/db 74766790739005 nil)
            #(println ::notify) #(println ::terminate)))
   @it
   (it))
@@ -137,10 +140,10 @@
 (comment
   (m/? (d/query {:query '[:find (pull ?e [:db/ident]) ?f :in $ ?e
                           :where [?e :db/ident ?f]]
-                 :args [test/datomic-db 17]}))
+                 :args [test/db 17]}))
 
-  (m/? (ident! test/datomic-db 17)) := :db.excise/beforeT
-  (m/? (ident! test/datomic-db nil)) := nil)
+  (m/? (ident! test/db 17)) := :db.excise/beforeT
+  (m/? (ident! test/db nil)) := nil)
 
 ;#?(:clj (defn before? [^java.util.Date a ^java.util.Date b] (<= (.getTime a) (.getTime b))))
 ;(defn- xf-filter-before-date [before] #?(:clj (filter (fn [[tx e a v added?]] (before? t before)))))
@@ -211,7 +214,7 @@
   := {20512488927800905 #:db{:id 20512488927800905},
       68459991991856131 #:db{:id 68459991991856131}}
 
-  (def tree (m/? (d/pull test/datomic-db {:eid test/pour-lamour :selector ['*]})))
+  (def tree (m/? (d/pull test/db {:eid test/pour-lamour :selector ['*]})))
   (->> tree (map (fn [row]
                    (entity-tree-entry-children test/schema row))))
   := [nil

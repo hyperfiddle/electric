@@ -8,7 +8,7 @@
    [datascript.core :as d]
    [clojure.string :as str]
    [clojure.spec.alpha :as s]
-   #?(:clj [wip.orders-datascript :refer [orders order shirt-sizes one-order nav! schema]]))
+   #?(:clj [contrib.test.teeshirt-orders-datascript :refer [orders order shirt-sizes one-order nav! schema]]))
   (:import [hyperfiddle.photon Pending]))
 
 (comment (rcf/enable! true))

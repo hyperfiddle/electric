@@ -6,7 +6,7 @@
             [hyperfiddle.photon-dom :as dom]
             [hyperfiddle.ui.codemirror :as codemirror]
             [hyperfiddle.ui :as ui]
-            [wip.orders-datascript :refer [orders genders shirt-sizes]]
+            [contrib.test.orders-datascripttascript :refer [orders genders shirt-sizes]]
             dustin.y2022.edn-render)
   (:import (hyperfiddle.photon Pending Remote))
   #?(:cljs (:require-macros dustin.y2022.livecoding-hfql)))

@@ -1,4 +1,5 @@
 (ns contrib.datomic-m
+  "datomic compatibility facade"
   (:require contrib.deptector
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]))
@@ -98,6 +99,11 @@
 
 (install-defs!)
 
-(comment
-  (take 3 (keys (m/? (pull test/datomic-db {:eid 50 :selector '[*]}))))
+(tests
+  (cond 
+    (datomic-products 'datomic.api) (require '[test.datomic-peer-mbrainz :as test])
+    () (assert false (str "no tests for this datomic product: " (pr-str datomic-products))))
+  (some? test/db) := true
+  
+  (take 3 (keys (m/? (pull test/db {:eid 50 :selector '[*]}))))
   := [:db/id :db/ident :db/valueType])

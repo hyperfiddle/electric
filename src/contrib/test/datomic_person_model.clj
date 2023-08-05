@@ -1,4 +1,4 @@
-(ns test.person-model
+(ns contrib.test.datomic-person-model
   (:require [contrib.data :refer [index-by]]))
 
 (def schema
