@@ -1,4 +1,6 @@
 (ns contrib.test.datomic-peer-mbrainz
+  "Don't use for inline tests, this has external database connection dependency 
+not in-mem"
   (:require #_[contrib.datomic-contrib :as dx] ; no cycle
             [datomic.api :as d]
             [hyperfiddle.rcf :refer [tests]]))
@@ -12,6 +14,7 @@
 (def cobblestone 17592186068764)
 
 (defn install-test-state []
+  ; todo must auto-provision, better to use in-mem for bundled tests
   (alter-var-root #'conn (constantly (d/connect "datomic:dev://localhost:4334/mbrainz-1968-1973")))
   (assert (some? conn))
 
@@ -22,10 +25,11 @@
   (alter-var-root #'schema (constantly (m/? (dx/schema! db))))
   (assert (some? schema)))
 
-(install-test-state)
+(tests
+  (install-test-state)
+  (some? db) := true)
 
 (tests
-  ;(some? schema) := true
 
   (d/pull db ['*] pour-lamour)
   := {:db/id 17592186058336,
