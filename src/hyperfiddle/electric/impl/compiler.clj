@@ -23,6 +23,7 @@
 (def ^{:dynamic true, :doc "Bound to Electric compiler env when macroexpension is managed by Electric."} *env*)
 (def ^{::node ::unbound, :macro true, :doc "for loop/recur impl"} rec)
 (def ^{::node ::unbound, :macro true, :doc "for runtime arity check"} %arity)
+(def ^{::node ::unbound, :macro true, :doc "for self-recur"} %closure)
 
 ;; %1, %2 ... %n p/def generator.
 ;; A lazy seq of vars. Forcing the seq will intern them.
@@ -378,16 +379,6 @@
   (split-letfn*-clj&photon-analysis '(letfn* [f (fn f [] (g)) g (fn g [] (f))] (new Foo)))
   := '(clojure.core/let [[f g] (::letfn [f (fn f [] (g)) g (fn g [] (f))])] (new Foo)))
 
-;; edit me with my twin .cljs variant
-;; I am used indirectly in `analyze-sexpr` as `::extract-closure`
-(defn extract-closure [o nargs]
-  (if-some [as (:arities o)]
-    (or (get as nargs) (get as :varargs)
-      (throw (ex-info (str "You called " (or (:name o) "<unnamed-efn>") " with " nargs
-                        " argument" (when (> nargs 1) "s") " but it only supports " (vec (keys as)))
-               {})))
-    o))
-
 (defn analyze-sexpr [env [op & args :as form]]
   (case op
     (ns ns* deftype* defrecord* var)
@@ -494,16 +485,12 @@
                         (env/var-name var)
                         (throw (ex-info (str "Not a reactive def: " f) (source-map env (meta form)))))
                       (throw (ex-info (str "Unable to resolve symbol: " f) (source-map env (meta form))))))]
-          (let-res [ctor (analyze-form env sym)
-                    inst (analyze-binding (update env ::index update (::local env) (fnil inc 0))
-                           (list* `%arity (count args) (interleave arg-sym args))
-                           (fn [_]
-                             (pure-res
-                               (ir/variable (ir/apply (ir/global ::extract-closure)
-                                              (ir/sub (+ 2 (count args)))
-                                              (ir/literal (count args))))
-                               ir/source)))]
-            (causal-publish ctor inst))))
+          (analyze-binding env
+            (list* `%closure sym `%arity (count args) (interleave arg-sym args))
+            (fn [_]
+              (pure-res
+                (ir/variable (ir/sub (+ 2 (count args))))
+                ir/source)))))
       (throw (ex-info "Wrong number of arguments - new" {})))
 
     (.)
@@ -804,8 +791,9 @@
        (ir/pub (ir/literal 0)
          (ir/apply (ir/literal {})
            (ir/sub 1)
-           (ir/bind 1 1
-             (ir/variable (ir/apply (ir/global ::extract-closure) (ir/sub 2) (ir/literal 0))))))))
+           (ir/bind 2 1
+             (ir/bind 1 2
+               (ir/variable (ir/sub 2))))))))
    (ir/do [ir/source] ir/nop)]
 
   (analyze {} '~@:foo) :=
@@ -866,7 +854,7 @@
        (ir/pub (ir/literal 0)
          (ir/apply (ir/literal {})
            (ir/sub 1)
-           (ir/bind 0 1 (ir/variable (ir/apply (ir/global ::extract-closure) (ir/sub 2) (ir/literal 0))))))))
+           (ir/bind 1 1 (ir/bind 0 2 (ir/variable (ir/sub 2))))))))
    (ir/do [(ir/target [])
            (ir/target [(assoc (ir/output (ir/literal 6))
                          ::dbg/meta nil
@@ -912,11 +900,9 @@
            (ir/pub (ir/literal 0)
              (ir/apply (ir/literal {})
                (ir/sub 1)
-               (ir/bind 1 1
-                 (ir/variable
-                   (ir/apply (ir/global :hyperfiddle.electric.impl.compiler/extract-closure)
-                     (ir/sub 2)
-                     (ir/literal 0))))))))))
+               (ir/bind 2 1
+                 (ir/bind 1 2
+                   (ir/variable (ir/sub 2))))))))))
    (ir/do []
           (ir/do [(ir/target [])
                   (ir/target [(ir/output (ir/literal 6))])
@@ -971,10 +957,9 @@
                (ir/pub (ir/literal 0)
                  (ir/apply (ir/literal {})
                    (ir/sub 1)
-                   (ir/bind 1 1
-                     (ir/variable (ir/apply (ir/global ::extract-closure)
-                                    (ir/sub 2)
-                                    (ir/literal 0))))))))))))
+                   (ir/bind 2 1
+                     (ir/bind 1 2
+                       (ir/variable (ir/sub 2))))))))))))
 
    (ir/do [] (ir/do [(ir/target
                        [(assoc (ir/output
@@ -984,10 +969,9 @@
                                      (ir/pub (ir/literal 0)
                                        (ir/apply (ir/literal {})
                                          (ir/sub 1)
-                                         (ir/bind 0 1
-                                           (ir/variable (ir/apply (ir/global ::extract-closure)
-                                                          (ir/sub 2)
-                                                          (ir/literal 0)))))))))
+                                         (ir/bind 1 1
+                                           (ir/bind 0 2
+                                             (ir/variable (ir/sub 2)))))))))
                           ::dbg/meta nil
                           ::dbg/type :toggle)])
                      (ir/target [])
@@ -1018,9 +1002,7 @@
                       (ir/pub (ir/literal 0)
                         (ir/apply (ir/literal {})
                           (ir/sub 1)
-                          (ir/bind 1 1 (ir/variable (ir/apply (ir/global ::extract-closure)
-                                                      (ir/sub 2)
-                                                      (ir/literal 0)))))))))))))
+                          (ir/bind 2 1 (ir/bind 1 2 (ir/variable (ir/sub 2)))))))))))))
    (ir/do [] (ir/pub (ir/constant (ir/input []))
                (ir/bind 0 1
                  (ir/do [(ir/target
@@ -1033,10 +1015,9 @@
                                          (ir/pub (ir/literal 0)
                                            (ir/apply (ir/literal {})
                                              (ir/sub 1)
-                                             (ir/bind 1 1
-                                               (ir/variable (ir/apply (ir/global ::extract-closure)
-                                                              (ir/sub 2)
-                                                              (ir/literal 0)))))))))
+                                             (ir/bind 2 1
+                                               (ir/bind 1 2
+                                                 (ir/variable (ir/sub 2)))))))))
                               ::dbg/meta nil
                               ::dbg/type :toggle)])
                          (ir/target [])
@@ -1064,10 +1045,9 @@
        (ir/pub (ir/literal 0)
          (ir/apply (ir/literal {})
            (ir/sub 1)
-           (ir/bind 0 1
-             (ir/variable (ir/apply (ir/global ::extract-closure)
-                            (ir/sub 2)
-                            (ir/literal 0))))))))
+           (ir/bind 1 1
+             (ir/bind 0 2
+               (ir/variable (ir/sub 2))))))))
    (ir/do [(ir/target [])
            (ir/target [])
            (ir/target [])
@@ -1118,10 +1098,9 @@
            (ir/pub (ir/literal 0)
              (ir/apply (ir/literal {})
                (ir/sub 1)
-               (ir/bind 2 1
-                 (ir/variable (ir/apply (ir/global ::extract-closure)
-                                (ir/sub 2)
-                                (ir/literal 0))))))))))
+               (ir/bind 3 1
+                 ir/bind 2 2
+                 (ir/variable (ir/sub 2)))))))))
    (ir/do [] (ir/do [(ir/target [])
                      (ir/target [])
                      (ir/target [])
