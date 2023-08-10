@@ -13,7 +13,8 @@
             [missionary.core :as m]
             #?(:cljs [hyperfiddle.electric-client])
             [hyperfiddle.electric.impl.io :as io]
-            [hyperfiddle.electric.debug :as dbg])
+            [hyperfiddle.electric.debug :as dbg]
+            [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.electric :refer [def defn fn boot for for-by local run debounce wrap on-unmount]]))
   (:import #?(:clj (clojure.lang IDeref))
            (hyperfiddle.electric Pending Failure FailureInfo)
@@ -212,13 +213,6 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 
 (hyperfiddle.electric/def system-time-secs "seconds since 1970 Jan 1" (/ system-time-ms 1000.0))
 
-(cc/defn -check-varargs-arity [provided actual fname]
-  (when (< provided actual)
-    (throw (ex-info (str "You called varargs " (or fname "<unnamed-efn>") " with " provided
-                      " argument" (when-not (= 1 provided) "s") " but it has " actual
-                      " positional argument" (when-not (= 1 actual) "s"))
-             {}))))
-
 (cc/defn -check-recur-arity [provided actual fname]
   (when (not= provided actual)
     (throw (ex-info (str "You `recur`d in " (or fname "<unnamed-efn>") " with " provided
@@ -226,46 +220,67 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                       " positional argument" (when-not (= 1 actual) "s"))
              {}))))
 
-#?(:clj (cc/defn- varargs? [args] (and (seq args) (= '& (-> args pop peek)))))
+#?(:clj (cc/defn- varargs? [args] (boolean (and (seq args) (= '& (-> args pop peek))))))
 
-#?(:clj (cc/defn- ->varargs-arity-switch [F npos]
-          `(case c/%arity
-             ~@(into [] (mapcat #(do `[~% (new ~F ~@(take npos c/arg-sym)
-                                           [~@(->> c/arg-sym (drop npos) (take (- % npos)))])]))
-                 (range npos 21)))))
+#?(:clj (cc/defn- ?bind-self [code ?name] (cond->> code ?name (list 'let [?name `c/%closure]))))
 
-#?(:clj
-   (cc/defn -build-arity [?name args body common-debug-info]
-     (let [debug-info (assoc common-debug-info ::dbg/args args)]
-       (if (varargs? args)
-         (let [npos (-> args count (- 2)), unvarargd (-> args pop pop (conj (peek args)))]
-           [:varargs `(::c/closure
-                       (binding [c/rec (::c/closure
-                                        (case (-check-recur-arity c/%arity ~(inc npos) '~?name)
-                                          (let [~@(interleave unvarargd c/arg-sym)] ~@body)))]
-                         (-check-varargs-arity c/%arity ~npos '~?name)
-                         ~(->varargs-arity-switch `c/rec npos))
-                       ~debug-info)])
-         [(count args) `(::c/closure
-                         (binding [c/rec (::c/closure
-                                          (case (-check-recur-arity c/%arity ~(count args) '~?name)
-                                            (let [~@(interleave args c/arg-sym)] ~@body)))]
-                           (new c/rec ~@(take (count args) c/arg-sym)))
-                         ~debug-info)]))))
+#?(:clj (cc/defn- -build-fn-arity [?name args body]
+          [(count args)
+           `(binding [c/rec (::c/closure
+                             (case (-check-recur-arity c/%arity ~(count args) '~?name)
+                               (let [~@(interleave args c/arg-sym)] ~@body)))]
+              (new c/rec ~@(take (count args) c/arg-sym)))]))
 
-;; TODO self-refer
+#?(:clj (cc/defn- -build-vararg-arities [?name args body]
+          (let [npos (-> args count (- 2)), unvarargd (-> args pop pop (conj (peek args)))]
+            (into [] (map (cc/fn [n]
+                            [n `(binding [c/rec (::c/closure (case (-check-recur-arity c/%arity ~(inc npos) '~?name)
+                                                               (let [~@(interleave unvarargd c/arg-sym)] ~@body)))]
+                                  (new c/rec ~@(take npos c/arg-sym) [~@(->> c/arg-sym (drop npos) (take (- n npos)))]))]))
+              (range npos 21)))))
+
+#?(:clj (cc/defn ->narity-vec [arities] (into (sorted-set) (comp (map (cc/partial remove #{'&})) (map count)) arities)))
+
+(cc/defn -throw-arity [?name nargs arities]
+  (throw (ex-info (str "You called " (or ?name "<unnamed-efn>") " with " nargs
+                    " argument" (when (not= nargs 1) "s") " but it only supports " arities)
+           {})))
+
+#?(:clj (cc/defn- throw-arity-conflict! [?name group]
+          (throw (ex-info (str "Conflicting arity definitions" (when ?name (str " in " ?name)) ": "
+                            (str/join " and " group))
+                   {:name ?name}))))
+
+#?(:clj (cc/defn- check-only-one-vararg! [?name varargs]
+          (when (> (count varargs) 1)
+            (throw-arity-conflict! ?name varargs))))
+
+#?(:clj (cc/defn- check-arity-conflicts! [?name positionals vararg]
+          (let [grouped (group-by count positionals)]
+            (doseq [[_ group] grouped]
+              (when (> (count group) 1)
+                (throw-arity-conflict! ?name group)))
+            (when-some [same (get grouped (-> vararg count dec))]
+              (throw-arity-conflict! ?name (conj same vararg))))))
+
 (defmacro fn [& args]
   (let [[?name args2] (if (symbol? (first args)) [(first args) (rest args)] [nil args])
         arities (cond-> args2 (vector? (first args2)) list)
-        common-debug-info {::dbg/name ?name, ::dbg/type (or (::dbg/type (meta ?name)) :reactive-fn)
-                           ::dbg/meta (merge (select-keys (meta &form) [:file :line])
-                                        (select-keys (meta ?name) [:file :line]))}]
+        {positionals false, varargs true} (group-by (comp varargs? first) arities)
+        _ (check-only-one-vararg! ?name (mapv first varargs))
+        _ (check-arity-conflicts! ?name (mapv first positionals) (ffirst varargs))
+        positional-branches (into [] (map (cc/fn [[args & body]] (-build-fn-arity ?name args body))) positionals)
+        vararg-branches (when (seq varargs) (-build-vararg-arities ?name (ffirst varargs) (nfirst varargs)))]
     (if (bound? #'c/*env*)
-      (if (and (= 1 (count arities)) (= [] (ffirst arities))) ; support e/fn thunk as a missionary flow
-        `(::c/closure (do ~@(nfirst arities)) ~(assoc common-debug-info ::dbg/args []))
-        `{:name '~?name
-          :arities ~(into {} (map #(-build-arity ?name (first %) (rest %) common-debug-info)) arities)})
-
+      (list ::c/closure
+        (-> `(let [arity# c/%arity]
+               (case arity#
+                 ~@(into [] (comp cat cat) [positional-branches vararg-branches])
+                 (-throw-arity '~?name arity# ~(->> arities (eduction (map first)) ->narity-vec (str/join ", ")))))
+          (?bind-self ?name))
+        {::dbg/name ?name, ::dbg/type (or (::dbg/type (meta ?name)) :reactive-fn)
+         ::dbg/meta (merge (select-keys (meta &form) [:file :line])
+                      (select-keys (meta ?name) [:file :line]))})
       `(throw (ex-info "Invalid e/fn in Clojure code block (use from Electric code only)" ~(into {} (meta &form)))))))
 
 ; syntax quote doesn't qualify special forms like 'def
