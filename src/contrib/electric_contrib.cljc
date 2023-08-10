@@ -4,8 +4,10 @@
             [missionary.core :as m]))
 
 (defmacro after
+  "2-arg: throw Pending for `ms`, then return `form`
+  3-arg: return `init` for `ms`, then return `form`"
   ([ms form] `(case (new (e/task->cp (m/sleep ~ms))) ~form))
-  ([ms pending form] `(case (new (e/task->cp (m/sleep ~ms ::done) ~pending)) ::done ~form nil)))
+  ([ms init form] `(case (new (e/task->cp (m/sleep ~ms ::done) nil)) ::done ~form ~init)))
 
 (defmacro keep-for [ms & body] `(when (new (e/task->cp (m/sleep ~ms false) true)) ~@body))
 
