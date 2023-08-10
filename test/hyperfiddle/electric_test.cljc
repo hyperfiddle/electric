@@ -1816,17 +1816,17 @@
                     (catch ExceptionInfo e (tap e))
                     (catch Cancelled _)
                     (catch Throwable t (prn t))))
-    (ex-message %) := "You called <unnamed-efn> with 4 arguments but it only supports [3]")
+    (ex-message %) := "You called <unnamed-efn> with 4 arguments but it only supports 3")
   (with (p/run (try (new ThreeThrow 100 200 300 400)
                     (catch ExceptionInfo e (tap e))
                     (catch Cancelled _)
                     (catch Throwable t (prn t))))
-    (ex-message %) := "You called ThreeThrow with 4 arguments but it only supports [3]")
+    (ex-message %) := "You called ThreeThrow with 4 arguments but it only supports 3")
   (with (p/run (try (new (p/fn Named [x y] (throw (ex-info "nope" {}))) 100)
                     (catch ExceptionInfo e (tap e))
                     (catch Cancelled _)
                     (catch Throwable t (prn t))))
-    (ex-message %) := "You called Named with 1 argument but it only supports [2]"))
+    (ex-message %) := "You called Named with 1 argument but it only supports 2"))
 
 (tests
   "Partial application"
@@ -2315,7 +2315,7 @@
     % := [1 2])
   (with (e/run (tap (try (e/apply Two [1 2 3]) (throw (ex-info "boo" {}))
                          (catch ExceptionInfo e e))))
-    (ex-message %) := "You called Two with 3 arguments but it only supports [2]"))
+    (ex-message %) := "You called Two with 3 arguments but it only supports 2"))
 
 (tests "multi-arity e/fn"
   (with (e/run (tap (new (e/fn ([_] :one) ([_ _] :two)) 1)))
@@ -2328,3 +2328,49 @@
     % := :two)
   (with (e/run (tap (e/apply (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 [3 4])))
     % := [3 4 5]))
+
+(tests "self-recur by name"
+  "e/fn"
+  (with (e/run (tap (new (e/fn fib [n] (case n 0 0 1 1 (+ (fib. (- n 1)) (fib. (- n 2))))) 6)))
+    % := 8)
+
+  "e/defn"
+  (e/defn Fib [n] (case n 0 0 1 1 (+ (Fib. (- n 1)) (Fib. (- n 2)))))
+  (with (e/run (tap (Fib. 7)))
+    % := 13)
+
+  "e/fn thunk is a special case in the compiler"
+  (def !x (atom 2))
+  (with (e/run (new (e/fn X [] (if (pos-int? (tap (swap! !x dec))) (X.) (tap :done)))))
+    % := 1
+    % := 0
+    % := :done)
+
+  "to different arity"
+  (with (e/run (tap (new (e/fn X ([] (X. 0)) ([n] (inc n))))))
+    % := 1)
+
+  "varargs"
+  (with (e/run (new (e/fn Chomp [& xs] (if (tap (seq xs)) (e/apply Chomp (rest xs)) (tap :done))) 0 1 2))
+    % := [0 1 2]
+    % := [1 2]
+    % := [2]
+    % := nil
+    % := :done)
+  )
+
+#?(:clj
+   (tests "e/fn multi-arity mistakes"
+     (binding [c/*env* {}]
+       (try (macroexpand-1 '(e/fn Named ([x] x) ([y] y)))
+            (catch Throwable e (tap e)))
+       (ex-message (ex-cause %)) := "Conflicting arity definitions in Named: [x] and [y]"
+
+       (try (macroexpand-1 '(e/fn Named ([x] x) ([& ys] ys)))
+            (catch Throwable e (tap e)))
+       (ex-message (ex-cause %)) := "Conflicting arity definitions in Named: [x] and [& ys]"
+
+       (try (macroexpand-1 '(e/fn ([x & ys] x) ([x y & zs] ys)))
+            (catch Throwable e (tap e)))
+       (ex-message (ex-cause %)) := "Conflicting arity definitions: [x & ys] and [x y & zs]"
+       )))
