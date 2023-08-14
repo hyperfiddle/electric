@@ -2374,3 +2374,15 @@
             (catch Throwable e (tap e)))
        (ex-message (ex-cause %)) := "Conflicting arity definitions: [x & ys] and [x y & zs]"
        )))
+
+#?(:cljs
+   (tests "#js"
+     (def !x (atom 0))
+     (with (e/run (let [x (e/watch !x)]
+                    (tap #js {:x x})
+                    (tap #js [:x x])))
+       (.-x %) := 0
+       (aget % 1) := 0
+       (swap! !x inc)
+       (.-x %) := 1
+       (aget % 1) := 1)))
