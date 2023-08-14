@@ -653,8 +653,11 @@
 (defn analyze-vector [env form]
   (analyze-form env (cons `vector form)))
 
-(defn analyze-js [_env _form]
-  (assert nil "Not implemented : #js"))
+(defn analyze-js [env form]
+  (let [o (.-val ^JSValue form)]
+    (if (map? o)
+      (analyze-form env (cons 'cljs.core/js-obj (into [] (mapcat (fn [[k v]] [(name k) v])) o)))
+      (analyze-form env (cons 'array o)))))
 
 (defn analyze-form [env form]
   (if-let [analyze
