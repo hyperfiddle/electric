@@ -93,8 +93,7 @@
   {:handlers (merge *write-handlers*
                {Failure failure-writer
                 :default default-write-handler}) ; cljs
-   :default-handler default-write-handler        ; clj
-   :transform t/write-meta})
+   :default-handler default-write-handler}) ; clj
 
 (def ^:dynamic *read-handlers* nil)
 
