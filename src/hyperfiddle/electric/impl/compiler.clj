@@ -757,8 +757,8 @@
 
 (tests
   (undebug [{::dbg/a 1 :a 1}]) := [{:a 1}])
-(tests
 
+(tests
   (analyze {} '5) :=
   [(ir/literal 5)
    (ir/do [] ir/nop)]
@@ -1099,8 +1099,8 @@
              (ir/apply (ir/literal {})
                (ir/sub 1)
                (ir/bind 3 1
-                 ir/bind 2 2
-                 (ir/variable (ir/sub 2)))))))))
+                 (ir/bind 2 2
+                   (ir/variable (ir/sub 2))))))))))
    (ir/do [] (ir/do [(ir/target [])
                      (ir/target [])
                      (ir/target [])
