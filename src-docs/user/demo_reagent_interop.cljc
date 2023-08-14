@@ -16,11 +16,6 @@
                   (let [[_ Component & args] (r/argv this)]
                     (into [Component] args)))})))
 
-(def react-root-hook "See `e/with`"
-  #?(:clj  dom/unsupported
-     :cljs (fn ([x] (.unmount x))
-             ([x y] (.insertBefore (.-parentNode x) x y)))))
-
 (defn create-root
   "See `https://reactjs.org/docs/react-dom-client.html#createroot`"
   ([node] (create-root node (str (gensym))))
@@ -30,10 +25,9 @@
 
 (defmacro with-reagent [& args]
   `(dom/div  ; React will hijack this element and empty it.
-     (binding [dom/node (create-root dom/node)]
-       (new (e/hook react-root-hook dom/node
-              (e/fn [] dom/keepalive
-                (render dom/node ~@args)))))))
+     (let [root# (create-root dom/node)]
+       (render root# ~@args)
+       (e/on-unmount #(.unmount root#)))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Reagent World ;;
