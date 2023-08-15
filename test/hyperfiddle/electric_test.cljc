@@ -2386,3 +2386,23 @@
        (swap! !x inc)
        (.-x %) := 1
        (aget % 1) := 1)))
+
+#?(:clj
+   (tests "jvm interop"
+     (with (e/run
+             (let [f (java.io.File. "src")
+                   pt (java.awt.Point. 1 2)]
+               (tap [(.getName f)                             ; instance method
+                     (.-x pt)                                 ; field access
+                     (java.awt.geom.Point2D/distance 0 0 1 0) ; static method
+                     ])))
+       % := ["src" 1 1.0])))
+
+#?(:cljs
+   (tests "js interop"
+     (with (e/run
+             (let [o #js {:a 1 :aPlus (fn [n] (inc n))}]
+               (tap [(.aPlus o 1)       ; instance method
+                     (.-a o)            ; field access
+                     ])))
+       % := [2 1])))
