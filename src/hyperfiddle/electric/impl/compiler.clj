@@ -70,17 +70,17 @@
   (let [args (repeatedly arity gensym)]
     `(fn [~@args] (. ~klass ~method ~@args))))
 
-(defmacro method-call [method arity] ; used for cljs only
+(defmacro method-call [method arity]
   (let [args (repeatedly arity gensym)]
-    `(fn [inst# ~@args] (. ^js inst# ~method ~@args))))
+    `(fn [inst# ~@args] (. inst# ~method ~@args))))
 
-(defmacro field-access [target-form field] ; used for cljs only
+(defmacro field-access [target-form field]
   (let [target (cond (symbol? target-form) (with-meta (symbol (name target-form)) (meta target-form))
                      (seq? target-form)    (let [field (last target-form)
                                                  meta  (meta (second target-form))]
                                              (with-meta (symbol (str/replace-first (name field) #"^-" "")) meta))
                      :else                 (gensym "field-access-target_"))]
-    `(fn [^js ~target] (. ~target ~(symbol (str "-" (name field)))))))
+    `(fn [~target] (. ~target ~(symbol (str "-" (name field)))))))
 
 (defmacro js-call [template arity]
   (let [args (repeatedly arity gensym)]
@@ -499,25 +499,24 @@
           target          (cond (class? original-target)  (CljClass. original-target)
                                 (symbol? original-target) (or (env/resolve-var env original-target) original-target)
                                 :else                     original-target)
+          dot             (cond-> dot (instance? CljClass target) (assoc :dot-action ::static-call))
           target-form     (if (satisfies? env/IVar target) (with-meta (env/var-name target) (meta original-target)) target)]
-      (->> (if (instance? CljClass target)
-             (:args dot)
-             (cons (:target dot) (:args dot)))
+      (->> (case (:dot-action dot)
+             ::static-call               (:args dot)
+             (::cljs/call ::cljs/access) (cons (:target dot) (:args dot)))
         (map (partial analyze-form env))
         (apply map-res
           (partial ir/apply
             (assoc (ir/eval
-                     (if (instance? CljClass target)
-                       `(static-call ~(env/var-name target) ~(:method dot) ~(count (:args dot)))
-                       (case (:dot-action dot)
-                         ::cljs/call `(method-call ~(:method dot) ~(count (:args dot)))
-                         ::cljs/access `(field-access ~target-form ~(:field dot)))))
+                     (case (:dot-action dot)
+                       ::static-call `(static-call ~(env/var-name target) ~(:method dot) ~(count (:args dot)))
+                       ::cljs/call   `(method-call ~(:method dot) ~(count (:args dot)))
+                       ::cljs/access `(field-access ~target-form ~(:field dot))))
               ::dbg/meta (meta form)
-              ::dbg/action (if (instance? CljClass target)
-                             :static-call
-                             (case (:dot-action dot)
-                               ::cljs/call   :call
-                               ::cljs/access :field-access))
+              ::dbg/action (case (:dot-action dot)
+                             ::static-call :static-call
+                             ::cljs/call   :call
+                             ::cljs/access :field-access)
               ::dbg/target target-form
               ::dbg/method (or (:method dot) (:field dot))
               ::dbg/args   (:args dot))))))
