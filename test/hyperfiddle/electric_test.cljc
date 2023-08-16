@@ -2401,7 +2401,7 @@
 #?(:cljs
    (tests "js interop"
      (with (e/run
-             (let [o #js {:a 1 :aPlus (fn [n] (inc n))}]
+             (let [^js o #js {:a 1 :aPlus (fn [n] (inc n))}]
                (tap [(.aPlus o 1)       ; instance method
                      (.-a o)            ; field access
                      ])))

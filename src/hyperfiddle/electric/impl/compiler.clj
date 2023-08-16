@@ -70,9 +70,10 @@
   (let [args (repeatedly arity gensym)]
     `(fn [~@args] (. ~klass ~method ~@args))))
 
-(defmacro method-call [method arity]
-  (let [args (repeatedly arity gensym)]
-    `(fn [inst# ~@args] (. inst# ~method ~@args))))
+(defmacro method-call [method arity obj-meta]
+  (let [args (repeatedly arity gensym)
+        inst (with-meta (gensym) obj-meta)]
+    `(fn [~inst ~@args] (. ~inst ~method ~@args))))
 
 (defmacro field-access [target-form field]
   (let [target (cond (symbol? target-form) (with-meta (symbol (name target-form)) (meta target-form))
@@ -502,8 +503,8 @@
                                 (symbol? original-target) (or (env/resolve-var env original-target) original-target)
                                 :else                     original-target)
           dot             (cond-> dot (instance? CljClass target) (assoc :dot-action ::static-call))
-          target-form     (with-meta (if (satisfies? env/IVar target) (env/var-name target) target)
-                            (merge (get-in env [:locals original-target ::meta]) (meta original-target)))]
+          obj-meta        (merge (get-in env [:locals original-target ::meta]) (meta original-target))
+          target-form     (with-meta (if (satisfies? env/IVar target) (env/var-name target) target) obj-meta)]
       (->> (case (:dot-action dot)
              ::static-call               (:args dot)
              (::cljs/call ::cljs/access) (cons (:target dot) (:args dot)))
@@ -513,7 +514,7 @@
             (assoc (ir/eval
                      (case (:dot-action dot)
                        ::static-call `(static-call ~(env/var-name target) ~(:method dot) ~(count (:args dot)))
-                       ::cljs/call   `(method-call ~(:method dot) ~(count (:args dot)))
+                       ::cljs/call   `(method-call ~(:method dot) ~(count (:args dot)) ~obj-meta)
                        ::cljs/access `(field-access ~target-form ~(:field dot))))
               ::dbg/meta (meta form)
               ::dbg/action (case (:dot-action dot)
