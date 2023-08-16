@@ -622,7 +622,7 @@
         (defn nav-delta [stack prev-position curr-position]
           (- (index-of stack curr-position) (index-of stack prev-position))))
 
-     (e/defn HTML5-Navigation-Intents [history]
+     (e/defn HTML5-Navigation-Intents [^HTML5History history]
        (let [!idle (atom false)]
          (try
            (dom/on js/window "beforeunload" ; refresh or close tabe
