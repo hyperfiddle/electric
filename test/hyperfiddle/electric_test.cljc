@@ -2351,10 +2351,8 @@
     % := 1)
 
   "varargs"
-  (with (e/run (new (e/fn Chomp [& xs] (if (tap (seq xs)) (e/apply Chomp (rest xs)) (tap :done))) 0 1 2))
+  (with (e/run (new (e/fn Chomp [& xs] (if (tap (seq xs)) (Chomp.) (tap :done))) 0 1 2))
     % := [0 1 2]
-    % := [1 2]
-    % := [2]
     % := nil
     % := :done)
   )
