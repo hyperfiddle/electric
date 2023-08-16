@@ -134,7 +134,9 @@
         i (get (::index env) l 0)]
     (-> env
       (update ::index assoc l (inc i))
-      (update :locals assoc sym {::pub [l i]}))))
+      (update :locals assoc sym {::pub [l i]
+                                 ::meta (meta sym) ; record local binding meta (e.g. ^js tag) for further code generation
+                                 }))))
 
 (defn qualify-sym "If ast node is `:var`, update :form to be a fully qualified symbol" [env ast]
   (if (and (= :var (:op ast)) (not (-> ast :env :def-var)))
@@ -500,7 +502,8 @@
                                 (symbol? original-target) (or (env/resolve-var env original-target) original-target)
                                 :else                     original-target)
           dot             (cond-> dot (instance? CljClass target) (assoc :dot-action ::static-call))
-          target-form     (if (satisfies? env/IVar target) (with-meta (env/var-name target) (meta original-target)) target)]
+          target-form     (with-meta (if (satisfies? env/IVar target) (env/var-name target) target)
+                            (merge (get-in env [:locals original-target ::meta]) (meta original-target)))]
       (->> (case (:dot-action dot)
              ::static-call               (:args dot)
              (::cljs/call ::cljs/access) (cons (:target dot) (:args dot)))
