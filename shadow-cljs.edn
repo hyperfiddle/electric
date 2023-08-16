@@ -35,7 +35,7 @@
                                                              contrib.missionary-contrib-test
                                                              contrib.ednish
                                                              contrib.sexpr-router]}}
-                         :compiler-options {:warnings {:redef-in-file false}}}
+                         :compiler-options {:warnings-as-errors {:warning-types #{:infer-warning}}}}
           :prod         {:target            :browser
                          :output-dir        "resources/public/js"
                          :asset-path        "/js"
