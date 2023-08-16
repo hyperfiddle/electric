@@ -5,6 +5,7 @@
             [clojure.tools.logging :as log]
             [cljs.analyzer :as cljs]
             [cljs.env :as env]
+            [cljs.tagged-literals :as cljs-tags]
             [hyperfiddle.rcf :refer [tests]]
             [hyperfiddle.electric.impl.compiler :as-alias c])
   (:import (clojure.lang Var)
@@ -218,7 +219,7 @@
 (def !macro-load-cache (atom {})) ; records the last time a source file was loaded
 
 (defn load-ns! [ns-sym & args]
-  (try (apply require ns-sym args) ; will throw if source code is invalid CLJ(C)
+  (try (binding [*data-readers* cljs-tags/*cljs-data-readers*] (apply require ns-sym args)) ; will throw if source code is invalid CLJ(C)
        (catch FileNotFoundException _) ; Some namespaces don’t map to files (e.g. Math)
        (catch Throwable e              ; TODO improve error messages
          (log/warn e "Failed to load" ns-sym))))
