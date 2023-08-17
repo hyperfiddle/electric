@@ -282,20 +282,28 @@
       (throw (ex-info (str "Not a reactive var: " (env/var-name var)) {})))
     (throw (ex-info (str "Unable to resolve symbol: " sym) {}))))
 
+(defn- js-safe [o]
+  (cond-> o (and (map? o) (class? (:tag o))) (update :tag (comp symbol pr-str))))
+
+(tests
+  (js-safe {}) := {}
+  (js-safe 1) := 1
+  (js-safe {:tag clojure.lang.IPersistentVector}) := {:tag 'clojure.lang.IPersistentVector})
+
 (defn analyze-symbol [env sym]
   (if (contains? (:locals env) sym)
     (if-some [[p i] (::pub (get (:locals env) sym))]
       (let [s (assoc (ir/sub (- (get (::index env) p) i))
-                ::dbg/name sym
+                ::dbg/name (with-meta sym nil)
                 ::dbg/scope :lexical
-                ::dbg/meta (meta sym))]
+                ::dbg/meta (js-safe (meta sym)))]
         (if (= p (::local env))
           (pure-res s)
           (pure-res
             (assoc (ir/input [])
-              ::dbg/name  sym
+              ::dbg/name  (with-meta sym nil)
               ::dbg/scope :dynamic
-              ::dbg/meta  (meta sym))
+              ::dbg/meta  (js-safe (meta sym)))
             (ir/output s))))
       (pure-res (assoc (ir/global (keyword sym))
                   ::dbg/meta (source-map env (meta sym)))))
