@@ -1,4 +1,5 @@
-(ns contrib.missionary-core-async
+(ns ^:no-doc ; quick band-aid fix for clj-build needing core-async provided for dynamic analysis
+  contrib.missionary-core-async
   "Missionary adapters for core.async. Isolated so as to not create a hard 
 library dependency on core.async."
   (:import (missionary Cancelled))
