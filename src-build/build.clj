@@ -16,7 +16,7 @@
             :basis basis
             :javac-opts ["-source" "8" "-target" "8"]}))
 
-(def defaults {:src-pom "pom-template.xml" :lib lib})
+(def defaults {:src-pom "src-build/pom-template.xml" :lib lib})
 
 (defn clean-client [_] (b/delete {:path "resources/public/js"}))
 (defn clean-server [_] (b/delete {:path "resources/private/electric/server_programs"}))
