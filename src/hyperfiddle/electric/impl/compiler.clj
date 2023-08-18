@@ -670,6 +670,8 @@
       (analyze-form env (cons 'cljs.core/js-obj (into [] (mapcat (fn [[k v]] [(name k) v])) o)))
       (analyze-form env (cons 'array o)))))
 
+(defn analyze-ns [env a-ns] (analyze-sexpr env `(the-ns '~(ns-name a-ns))))
+
 (defn analyze-form [env form]
   (if-let [analyze
            (or
@@ -678,6 +680,7 @@
             (and (map? form) analyze-map)
             (and (vector? form) analyze-vector)
             (and (set? form) analyze-set)
+            (and (instance? clojure.lang.Namespace form) analyze-ns)
             (and (instance? JSValue form) analyze-js))]
     (try (analyze env form)
          (catch clojure.lang.ExceptionInfo ex
@@ -1204,3 +1207,9 @@
   (try (analyze {} '(def wont-work 12))
        (catch clojure.lang.ExceptionInfo e
          (ex-message e) := "Cannot `def` a reactive var")))
+
+(tests "namespace object is compiled to `the-ns` lookup"
+  ;; otherwise the ns obj ends up in cljs compiled code and fails to compile
+  (mapv undebug (analyze {} *ns*))
+  := [(ir/apply (ir/global :clojure.core/the-ns) (ir/literal (ns-name *ns*)))
+      _])
