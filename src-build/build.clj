@@ -84,6 +84,9 @@
 
 (defn uberjar [{:keys [jar-name version optimize debug verbose]
                 :or   {version version, optimize true, debug false, verbose false}}]
+  #_(doseq [[k v] args] (println (pr-str v) (pr-str (type v)))) ; clojure.main option type reader diagnostics
+  ; https://github.com/clojure/clojure/blob/38524061dcb14c598c239be87184b3378ffc5bac/src/clj/clojure/main.clj#L482-L516
+
   (println "Cleaning up before build")
   (clean nil)
 
@@ -95,6 +98,7 @@
 
   (println "Building uberjar")
   (b/uber {:class-dir class-dir
-           :uber-file (or jar-name (format "target/%s-%s-standalone.jar" "electric-demos" version))
+           :uber-file (or (str jar-name) ; defend against shell misquoting causing clj to read "app.jar" without quotes thus as symbol
+                        (format "target/%s-%s-standalone.jar" "electric-demos" version))
            :basis     (b/create-basis {:project "deps.edn"
                                        :aliases [:prod]})}))
