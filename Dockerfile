@@ -23,7 +23,7 @@ COPY src-build src-build
 COPY resources resources
 ARG REBUILD=unknown
 ARG HYPERFIDDLE_ELECTRIC_SERVER_VERSION
-RUN clojure -X:build uberjar :jar-name "app.jar" :verbose true :version $HYPERFIDDLE_ELECTRIC_SERVER_VERSION
+RUN clojure -X:build uberjar :jar-name '"app.jar"' :verbose true :version $HYPERFIDDLE_ELECTRIC_SERVER_VERSION
 
 FROM amazoncorretto:11 AS app
 WORKDIR /app
