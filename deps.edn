@@ -1,6 +1,6 @@
 {:paths ["src"
          "src-legacy" ; compat, deprecated
-         "resources"] ; to serve static assets
+         ]
  :deps  {com.cognitect/transit-clj      {:mvn/version "1.0.329"}
          com.cognitect/transit-cljs     {:mvn/version "0.8.269"}
          com.hyperfiddle/rcf            {:mvn/version "20220926-202227"}
@@ -47,7 +47,9 @@
            :shadow-cljs  {:extra-deps {thheller/shadow-cljs {:mvn/version "2.22.10"}}
                           :main-opts  ["-m" "shadow.cljs.devtools.cli"]
                           :jvm-opts   ["-Xss2m"]}
-           :prod         {:extra-paths ["src-prod" "src-docs"]
+           :prod         {:extra-paths ["src-prod" "src-docs" 
+                                        "resources" ; demo static assets
+                                        ]
                           :extra-deps  {ch.qos.logback/logback-classic                      {:mvn/version "1.2.11"} ; logging implementation
                                         info.sunng/ring-jetty9-adapter                      {:mvn/version "0.14.3"
                                                                                              ;; "0.14.3" (Jetty 9) is Java 8 compatible;
