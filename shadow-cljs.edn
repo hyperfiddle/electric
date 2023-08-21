@@ -1,10 +1,10 @@
 {:builds {:dev          {:target      :browser
-                         :devtools    {:watch-dir       "resources/public"    ; live reload CSS
+                         :devtools    {:watch-dir       "resources-demo/public"    ; live reload CSS
                                        :hud             #{:errors :progress}
                                        :ignore-warnings true                  ; warnings don't prevent hot-reload
                                        :loader-mode     :default              ; faster reload
                                        }
-                         :output-dir  "resources/public/js"
+                         :output-dir  "resources-demo/public/js"
                          :asset-path  "/js"
                          :modules     {:main {:entries [user]
                                               :init-fn user/start!}}
@@ -37,7 +37,7 @@
                                                              contrib.sexpr-router]}}
                          :compiler-options {:warnings-as-errors {:warning-types #{:infer-warning}}}}
           :prod         {:target            :browser
-                         :output-dir        "resources/public/js"
+                         :output-dir        "resources-demo/public/js"
                          :asset-path        "/js"
                          :module-hash-names true
                          :modules           {:main {:entries [prod] :init-fn prod/start!}}}}}
