@@ -18,8 +18,8 @@
 
 (def defaults {:src-pom "src-build/pom-template.xml" :lib lib})
 
-(defn clean-client [_] (b/delete {:path "resources/public/js"}))
-(defn clean-server [_] (b/delete {:path "resources/private/electric/server_programs"}))
+(defn clean-client [_] (b/delete {:path "resources-demo/public/js"}))
+(defn clean-server [_] (b/delete {:path "resources-demo/private/electric/server_programs"}))
 
 (defn clean [opts]
   (clean-client opts)
@@ -38,7 +38,7 @@
     (println "Writing pom.xml")
     (b/write-pom opts)
     (println "Copying resources to" class-dir)
-    (b/copy-dir {:src-dirs ["src" "resources"]
+    (b/copy-dir {:src-dirs ["src" "resources-demo"]
                  :target-dir class-dir})
     (println "Building jar" jar-file)
     (b/jar opts)))
@@ -93,7 +93,7 @@
   (build-client {:optimize optimize, :debug debug, :verbose verbose, :version version})
 
   (println "Bundling sources")
-  (b/copy-dir {:src-dirs   ["src" "src-prod" "src-docs" "resources"]
+  (b/copy-dir {:src-dirs   ["src" "src-prod" "src-docs" "resources-demo"]
                :target-dir class-dir})
 
   (println "Building uberjar")

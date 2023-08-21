@@ -20,7 +20,7 @@ COPY src src
 COPY src-prod src-prod
 COPY src-docs src-docs
 COPY src-build src-build
-COPY resources resources
+COPY resources-demo resources-demo
 ARG REBUILD=unknown
 ARG HYPERFIDDLE_ELECTRIC_SERVER_VERSION
 RUN clojure -X:build uberjar :jar-name '"app.jar"' :verbose true :version $HYPERFIDDLE_ELECTRIC_SERVER_VERSION
