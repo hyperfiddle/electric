@@ -12,6 +12,45 @@
 * Electric UI control improvements (high level UI controls with optimistic updates that account for sync/latency/failure state)
 * documentation and demos
 
+# v2-alpha-422-g96e5c0a5 — 2023 August 21
+
+- Electric Clojure/Script compatibility improvements:
+  - add e/fn multi-arity support
+  - add e/fn varargs support
+  - add e/apply to call e/fn with list of arguments (i.e. now possible to call e/fn where the number of arguments is only known at runtime)
+  - allow e/fn to call itself recursively by name
+  - allow #js tagged literals in client code
+  - implement/fix Java interop forms (e.g. `(e/server (.getName h))`) in Electric
+  - core.match support
+  - clojure.logging support
+  - fix: allow js/alert, js/prompt etc. in electric client code
+  - fix: allow using shorthand syntax on imported js enums, e.g. `EventType.CLICK`
+  - fix: `set!` should support an Electric expression in the value position
+- Electric compiler improvements:
+  - fix: false positive ClojureScript warnings using goog modules
+    - "undeclared Var goog.color/hslToHex"
+    - "No such namespace: goog.color"
+    - "cljs var: hyperfiddle.electric-dom2-test/hyperfiddle.electric_dom2_test.goog$module$goog$object.get is undeclared, passing through."
+  - fix: false positive ClojureScript warnings due to missing type hints (e.g. `^js`). Hints are now properly propagated from Electric code to ClojureScript. We expect more type hint bugs, please file an issue for any such warnings you see after this release.
+  - fix: JVM class type hints (e.g. `^File`) were wrongly sent to ClojureScript, breaking core.match usage in e/server context
+  - fix: clojure.lang.Namespace objects (like `*ns*`) in e/server failed to compile (fixes clojure.tools.logging Electric compatibility)
+- Error message improvements:
+  - improve error messages (new on nil, e/watch on non-watchable value)
+  - fix: rethrow `throw` in `catch` reports the wrong async stack trace
+  - fix: send uncaught server-side error to default logger
+- Example app improvements
+  - electric-starter-app: improve logger config and document the working logger configuration in readme
+  - electric-xtdb-starter: move blocking queries to threadpool (see [commit](https://github.com/hyperfiddle/electric-xtdb-starter/commit/99d9aac82aba3c7d14a81ee928ef031ea776a22b)) so as not to block the server, this is necessary for correctness. This is now possible because the e/offload cycle bug was fixed in v2-349.
+- feature: add Fulcro and HTTPKit adapters
+- hyperfiddle.history router improvements
+- add clj-kondo library-level configuration
+- fix: blank-page-after-sleep (clients will now reconnect after server heartbeat timeout)
+- fix: dom2/parse-class regressions
+- fix: reagent interop broken in e/for
+- fix: ui4/date throws NumberFormatException on blank input
+- fix: electric binding not seen from cc/fn (Clojure fn closing over an initially nil e/def causes Clojure fn to not react to changes to rebinding the Electric binding)
+- upgrade to Clojure 1.12-alpha
+
 # v2-alpha-349-ge9996713 — 2023 June 19
 
 - fix: `e/offload` no longer introduces unintended re-runs of electric code
