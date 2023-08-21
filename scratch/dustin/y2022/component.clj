@@ -10,11 +10,12 @@
              {:database  :db
               :scheduler :scheduler})))
 
-  ; Photon DAG
-  (p/defn system [{:keys [host port] :as config}]
-    (let [database  (Database host port)
-          scheduler (Scheduler)]
-      (Example-component database scheduler config)))
-
-
+  ; Electric DAG w/ reactive bindings
+  (e/defn Example-system [{:keys [host port] :as config}]
+    (binding [db (Database. host port)
+              scheduler (Scheduler.)
+              app (Example-component. config)]
+        ; return events if you want
+      ))
+  
   )
