@@ -110,14 +110,13 @@
 (comment
   ; This doesn't work - no p/rec for a while
   ; there are other ways to do this, todo
-  (p/defn bmi-component []
-    (dom/div
-      (let [height (Slider. 170 100 220)]
+  (e/defn bmi-component []
+    (let [height (Slider. 170 100 220)]
         ; Looped interdependent bindings
-        (p/rec [weight (Slider. (* (or bmi 50) height height) 30 150)
-                bmi (Slider. (/ (or weight 70) (* height height)) 10 50)]
-               (dom/p (dom/text "BMI: ")
-                      (dom/text bmi)))))))
+      (let [weight (Slider. (* (or bmi 50) height height) 30 150)
+            bmi (Slider. (/ (or weight 70) (* height height)) 10 50)]
+        (dom/p (dom/text "BMI: ")
+          (dom/text bmi))))))
 
 ; Example 10 — Clock
 
