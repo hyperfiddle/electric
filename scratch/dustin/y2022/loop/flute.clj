@@ -1,12 +1,12 @@
 (ns dustin.y2022.loop.flute
   (:require [hyperfiddle.photon :as p]))
 
-(p/defn linseg [] ...)
-(p/defn oscils [a b] ...)
+(e/defn linseg [] ...)
+(e/defn oscils [a b] ...)
 (declare breath)
-(p/defn tone [x n])
+(e/defn tone [x n])
 
-(p/defn flute [dur freq amp vfreq]
+(e/defn flute [dur freq amp vfreq]
   (let [amp1 (linseg)
         amp2 (linseg)
         ampv (linseg)

@@ -8,8 +8,8 @@
 
 (declare rec)
 
-(p/defn Fix1 [f]
-  (rec [x (f x)]
+(defn Fix1 [f]
+  (let [x (f x)]
        x))
 
 (p/defn Fix2 [f]
@@ -27,7 +27,7 @@
     c))
 
 (declare linseg oscils breath tone)
-(p/defn Flute [dur freq amp vfreq]
+(e/defn Flute [dur freq amp vfreq]
   (let [amp1 (linseg)
         amp2 (linseg)
         ampv (linseg)
