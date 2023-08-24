@@ -12,6 +12,13 @@
 * Electric UI control improvements (high level UI controls with optimistic updates that account for sync/latency/failure state)
 * documentation and demos
 
+# v2-alpha-428-g22937f75 — 2023 August 24
+
+- fix: build failures on goog `:refer`s. The hotfix disables warnings on all
+  `:refer`s, so e.g. `(:require [goog.string :refer (blabla)])` will *not*
+  produce a compile-time warning. We will revisit this hotfix after incremental
+  compilation, at which point it most likely won't be necessary.
+
 # v2-alpha-422-g96e5c0a5 — 2023 August 21
 
 - Electric Clojure/Script compatibility improvements:
