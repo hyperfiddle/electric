@@ -45,6 +45,7 @@
          '[cljs.externs :as externs]
          '[cljs.js-deps :as deps]
          '[shadow.build.compiler] ; rebinds ana/parse 'ns, so we need to load it
+         '[shadow.build.cljs-bridge]
          ) true
        (catch java.io.FileNotFoundException _ false)))
 
@@ -74,4 +75,9 @@
         (filter #(re-find #"^goog\." (name %)))
         (remove #(re-find #"[A-Z]" (name %))) ; e.g. `goog.math.Long`
         (run! (partial ensure-goog-ns-in-compiler-state! env/*compiler*)))
-      ns-op)))
+      ns-op))
+
+  ;; the filling of env/*compiler* falsely triggers this check
+  ;; on e.g. `(require [goog.string :refer (format)])`
+  (some-> (find-var 'shadow.build.cljs-bridge/check-uses!) (alter-var-root (constantly (constantly nil))))
+  )

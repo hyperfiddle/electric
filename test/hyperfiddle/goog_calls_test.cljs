@@ -1,7 +1,9 @@
 (ns hyperfiddle.goog-calls-test
   (:require [hyperfiddle.electric :as e]
             [goog.color]
-            [goog.math :as gm])
+            [goog.math :as gm]
+            [goog.string.format]
+            [goog.string :refer (format)])
   (:import [goog Uri]
            [goog.events EventType]))
 
@@ -12,4 +14,5 @@
     EventType.CLICK
     goog.events.EventType.CLICK
     (gm/clamp -1 0 5)
+    (format "%4d" 12)
     (js/matchMedia (e/watch (atom "(max-width: 600px)")))))
