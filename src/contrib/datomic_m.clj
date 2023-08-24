@@ -1,6 +1,7 @@
 (ns contrib.datomic-m
   "datomic compatibility facade"
   (:require contrib.deptector
+            [clojure.tools.logging :as log]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]))
 
@@ -89,7 +90,7 @@
   )
 
 (defn install-defs! []
-  (println "Datomic APIs detected: " (pr-str datomic-products))
+  (log/info "Datomic APIs detected: " (pr-str datomic-products)) ; logger
   (cond
     (datomic-products 'datomic.api)
     (install-datomic-onprem)
