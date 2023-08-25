@@ -3,25 +3,18 @@
 [![Clojars Project](https://img.shields.io/clojars/v/com.hyperfiddle/electric.svg)](https://clojars.org/com.hyperfiddle/electric)
  
 * alpha (new feature work and enhancements in development)
-* minor breaking changes allowed at this time
+* minor breaking changes allowed at this time, please join #hyperfiddle @ Clojurians slack
 * major versions ("v2-alpha") are marketing numbers and will increment with major milestones
 
-# next up
+# Roadmap
 
-* low-level runtime & missionary design improvements to unblock the next Electric major version
-* Electric UI control improvements (high level UI controls with optimistic updates that account for sync/latency/failure state)
-* documentation and demos
+* wip: Differential Electric (major Electric upgrades, needed for seamless reconnect/resync, optimistic CRUD UI controls with rollback, network planner improvements)
+* wip: incremental Electric compliation (fast dev rebuilds)
+* wip: Missionary documentation
 
 # v2-alpha-428-g22937f75 — 2023 August 24
 
-- fix: build failures on goog `:refer`s. The hotfix disables warnings on all
-  `:refer`s, so e.g. `(:require [goog.string :refer (blabla)])` will *not*
-  produce a compile-time warning. We will revisit this hotfix after incremental
-  compilation, at which point it most likely won't be necessary.
-
-# v2-alpha-422-g96e5c0a5 — 2023 August 21
-
-- Electric Clojure/Script compatibility improvements:
+- **Electric Clojure/Script compatibility improvements:**
   - add e/fn multi-arity support
   - add e/fn varargs support
   - add e/apply to call e/fn with list of arguments (i.e. now possible to call e/fn where the number of arguments is only known at runtime)
@@ -33,7 +26,7 @@
   - fix: allow js/alert, js/prompt etc. in electric client code
   - fix: allow using shorthand syntax on imported js enums, e.g. `EventType.CLICK`
   - fix: `set!` should support an Electric expression in the value position
-- Electric compiler improvements:
+- **Electric compiler improvements:**
   - fix: false positive ClojureScript warnings using goog modules
     - "undeclared Var goog.color/hslToHex"
     - "No such namespace: goog.color"
@@ -41,22 +34,25 @@
   - fix: false positive ClojureScript warnings due to missing type hints (e.g. `^js`). Hints are now properly propagated from Electric code to ClojureScript. We expect more type hint bugs, please file an issue for any such warnings you see after this release.
   - fix: JVM class type hints (e.g. `^File`) were wrongly sent to ClojureScript, breaking core.match usage in e/server context
   - fix: clojure.lang.Namespace objects (like `*ns*`) in e/server failed to compile (fixes clojure.tools.logging Electric compatibility)
-- Error message improvements:
+  - fix: build failures on goog `:refer`s like `(:require [goog.string :refer (blabla)])`. This temporary fix disables warnings on all `:refer`s, so e.g. will *not* produce a compile-time warning. We anticipate that these hacks can be removed when incremental compilation lands.
+- **Error message improvements:**
   - improve error messages (new on nil, e/watch on non-watchable value)
   - fix: rethrow `throw` in `catch` reports the wrong async stack trace
   - fix: send uncaught server-side error to default logger
-- Example app improvements
+- **Example app improvements:**
   - electric-starter-app: improve logger config and document the working logger configuration in readme
   - electric-xtdb-starter: move blocking queries to threadpool (see [commit](https://github.com/hyperfiddle/electric-xtdb-starter/commit/99d9aac82aba3c7d14a81ee928ef031ea776a22b)) so as not to block the server, this is necessary for correctness. This is now possible because the e/offload cycle bug was fixed in v2-349.
 - feature: add Fulcro and HTTPKit adapters
 - hyperfiddle.history router improvements
 - add clj-kondo library-level configuration
+- fix: electric.jar accidentally bundles public/index.html and other demo resources which conflict with userland classpath
 - fix: blank-page-after-sleep (clients will now reconnect after server heartbeat timeout)
 - fix: dom2/parse-class regressions
 - fix: reagent interop broken in e/for
 - fix: ui4/date throws NumberFormatException on blank input
 - fix: electric binding not seen from cc/fn (Clojure fn closing over an initially nil e/def causes Clojure fn to not react to changes to rebinding the Electric binding)
-- upgrade to Clojure 1.12-alpha
+- fix: remove org.corfield.build, rewrite uberjar task, fix pom.xml
+- deps: Clojure 1.12-alpha, missionary b.31, shadow-cljs, tools.build
 
 # v2-alpha-349-ge9996713 — 2023 June 19
 
