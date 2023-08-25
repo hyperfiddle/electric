@@ -7,8 +7,6 @@
 /.lsp
 /.nrepl-port
 /out
-/resources-demo/public/*.min.css
-/resources-demo/public/js/
 node_modules
 #src/**/*.js -- for tsc modules only, see https://github.com/hyperfiddle/photon/commit/0aa9b26c35d961151891c1e42ec13fcf52e38fa2
 /target/
