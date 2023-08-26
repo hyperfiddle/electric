@@ -42,7 +42,7 @@
 - **Example app improvements:**
   - electric-starter-app: improve logger config and document the working logger configuration in readme
   - electric-xtdb-starter: move blocking queries to threadpool (see [commit](https://github.com/hyperfiddle/electric-xtdb-starter/commit/99d9aac82aba3c7d14a81ee928ef031ea776a22b)) so as not to block the server, this is necessary for correctness. This is now possible because the e/offload cycle bug was fixed in v2-349.
-- feature: add Fulcro and HTTPKit adapters
+- feature: add [Fulcro](https://github.com/hyperfiddle/fulcro-electric-template) and [HTTPKit](https://github.com/hyperfiddle/fulcro-electric-template/blob/master/src/main/app/server_components/http_server.clj) adapters
 - hyperfiddle.history router improvements
 - add clj-kondo library-level configuration
 - fix: electric.jar accidentally bundles public/index.html and other demo resources which conflict with userland classpath
