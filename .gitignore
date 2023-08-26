@@ -1,18 +1,16 @@
-.DS_Store
+# Please add user editor configs to system gitignore:
+# git config --global core.excludesfile
+# git config --global core.excludesfile ~/.gitignore
+# see also: https://gist.github.com/subfuzion/db7f57fff2fb6998a16c
+.clj-kondo/.cache
 .cpcache
-.idea
-.shadow-cljs
 .env
-/.clj-kondo/.cache
-/.lsp
-/.nrepl-port
-/out
-node_modules
-#src/**/*.js -- for tsc modules only, see https://github.com/hyperfiddle/photon/commit/0aa9b26c35d961151891c1e42ec13fcf52e38fa2
-/target/
-/pom.xml
-tsconfig.tsbuildinfo
-output.calva-repl
-
-/yarn.lock
+.idea
+.lsp
+.nrepl-port
+.shadow-cljs
 *.~undo-tree~
+/pom.xml
+node_modules
+target
+tsconfig.tsbuildinfo
