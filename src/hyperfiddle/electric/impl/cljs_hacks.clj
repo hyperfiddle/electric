@@ -79,5 +79,26 @@
 
   ;; the filling of env/*compiler* falsely triggers this check
   ;; on e.g. `(require [goog.string :refer (format)])`
-  (some-> (find-var 'shadow.build.cljs-bridge/check-uses!) (alter-var-root (constantly (constantly nil))))
-  )
+  (some-> (find-var 'shadow.build.cljs-bridge/check-uses!) (alter-var-root (constantly (constantly nil)))))
+
+(def found-transit? (try (require 'cognitect.transit 'shadow.build.cache) true (catch java.io.FileNotFoundException _ false)))
+(when found-transit?
+  (some-> (find-var 'shadow.build.cache/write-stream)
+    (alter-var-root
+      (fn [_]
+        ;; copied from shadow-cljs, added `write-meta`
+        (fn [out data]
+          (let [w (cognitect.transit/writer out :json
+                    {:handlers
+                     {java.net.URL
+                      (cognitect.transit/write-handler "url" str)
+                      java.io.File
+                      (cognitect.transit/write-handler "file" #(.getAbsolutePath %))
+                      cljs.tagged_literals.JSValue
+                      (cognitect.transit/write-handler "js-value" #(.-val %))
+                      java.util.regex.Pattern
+                      (cognitect.transit/write-handler "regexp"
+                        (fn [re]
+                          [(.pattern re) (.flags re)]))}
+                     :transform cognitect.transit/write-meta})]
+            (cognitect.transit/write w data)))))))
