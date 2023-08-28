@@ -236,7 +236,14 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
             (into [] (map (cc/fn [n]
                             [n `(binding [c/rec (::c/closure (case (-check-recur-arity c/%arity ~(inc npos) '~?name)
                                                                (let [~@(interleave unvarargd c/arg-sym)] ~@body)))]
-                                  (new c/rec ~@(take npos c/arg-sym) [~@(->> c/arg-sym (drop npos) (take (- n npos)))]))]))
+                                  (new c/rec ~@(take npos c/arg-sym)
+                                    ~(let [rst (into [] (comp (drop npos) (take (- n npos))) c/arg-sym)]
+                                       (when (seq rst) ; varargs value is `nil` when no args provided
+                                         (if (map? (peek args))
+                                           (if (even? (count rst))
+                                             (list* `hash-map rst) ; (MapVararg. :x 1)
+                                             `(merge (hash-map ~@(pop rst)) ~(peek rst))) ; (MapVararg. :x 1 {:y 2})
+                                           (list* `vector rst))))))]))
               (range npos 21)))))
 
 #?(:clj (cc/defn ->narity-vec [arities] (into (sorted-set) (comp (map (cc/partial remove #{'&})) (map count)) arities)))
