@@ -2284,8 +2284,27 @@
   "recur is arity-checked"
   (with (e/run (tap (try (new (e/fn [x & xs] (recur)) 1 2 3)
                          (catch ExceptionInfo e e))))
-    (ex-message %) := "You `recur`d in <unnamed-efn> with 0 arguments but it has 2 positional arguments")
-  )
+    (ex-message %) := "You `recur`d in <unnamed-efn> with 0 arguments but it has 2 positional arguments"))
+
+(e/defn MapVararg [& {:keys [x] :or {x 1} :as mp}] [x mp])
+(tests "map vararg with no args is nil"
+  (with (e/run (tap (MapVararg.)))
+    % := [1 nil]))
+(tests "map vararg with kw args"
+  (with (e/run (tap (MapVararg. :x 2)))
+    % := [2 {:x 2}]))
+(tests "map vararg with map arg"
+  (with (e/run (tap (MapVararg. {:x 2})))
+    % := [2 {:x 2}]))
+(tests "map vararg with mixture"
+  (with (e/run (tap (MapVararg. :y 3 {:x 2})))
+    % := [2 {:x 2, :y 3}]))
+(tests "map vararg trailing map takes precedence"
+  (with (e/run (tap (MapVararg. :x 3 {:x 2})))
+    % := [2 {:x 2}]))
+(tests "map vararg with positional arguments"
+  (with (e/run (tap (new (e/fn [a & {:keys [x]}] [a x]) 1 :x 2)))
+    % := [1 2]))
 
 (tests "e/fn recur is arity checked"
   (with (e/run (tap (try (new (e/fn X [x] (recur x x)) 1)
