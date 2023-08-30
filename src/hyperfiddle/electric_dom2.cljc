@@ -281,6 +281,8 @@
 (defmacro canvas {:style/indent 0} [& body] `(element :canvas ~@body))
 (defmacro cite {:style/indent 0} [& body] `(element :cite ~@body))
 (defmacro code {:style/indent 0} [& body] `(element :code ~@body))
+(defmacro colgroup {:style/indent 0} [& body] `(element :colgroup ~@body))
+(defmacro col {:style/indent 0} [& body] `(element :col ~@body))
 (defmacro data {:style/indent 0} [& body] `(element :data ~@body))
 (defmacro datalist {:style/indent 0} [& body] `(element :datalist ~@body))
 (defmacro del {:style/indent 0} [& body] `(element :del ~@body))
