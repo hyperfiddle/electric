@@ -610,8 +610,7 @@
        (dom/on (.-document js/window) "click" ; navigation by link click (also supports keyboard nav)
          ;; only intercepts internal links. See `Link`.
          (e/fn [^js e]
-           (when (and (= "A" (.. e -target -nodeName))
-                   (some? (.-hyperfiddle_history_route e))
+           (when (and (some? (.-hyperfiddle_history_route e))
                    (not (.-hyperfiddle_history_route_external_nav e)))
              (.preventDefault e)
              (when (confirm-navigation? e)
