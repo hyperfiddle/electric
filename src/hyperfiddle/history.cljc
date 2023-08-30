@@ -266,6 +266,8 @@
 (e/def path [])
 (e/def swap-route! nil)
 
+(e/defn Navigate! [route _event] (navigate! !history route))
+
 (defn update-in* [m path f & args]
   (if (empty? path)
     (apply f m args)
@@ -602,7 +604,6 @@
         Called during DOM event bubbling phase, it must be synchronous and therefore must be bound to a clojure function."
        (fn [_dom-event] true))
 
-
      (e/defn OnNavigate "Will call `Callback` on internal `history/Link` click. `Callback` takes 2 arguments:
        - the route to navigate to
        - the dom click js event."
@@ -629,7 +630,7 @@
                (when-not (confirm-navigation? e)
                  (.preventDefault e))))
 
-           (OnNavigate. (e/fn [route _] (navigate! history route)))
+           (OnNavigate. Navigate!)
 
            (dom/on js/window "popstate" ; previous and next button
              (e/fn [^js e]
