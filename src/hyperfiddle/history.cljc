@@ -630,7 +630,7 @@
                (when-not (confirm-navigation? e)
                  (.preventDefault e))))
 
-           (OnNavigate. Navigate!)
+           (OnNavigate. (e/fn [route event] (binding [!history history] (Navigate!. route event))))
 
            (dom/on js/window "popstate" ; previous and next button
              (e/fn [^js e]
