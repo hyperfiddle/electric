@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [eval def defn fn for empty? partial apply])
   (:require [clojure.core :as cc]
             #?(:clj [clojure.tools.logging :as log])
+            [clojure.spec.alpha :as s]
             contrib.data
             [contrib.cljs-target :refer [do-browser]]
             [contrib.missionary-contrib :as mx]
@@ -24,6 +25,8 @@
                                              for-event-pending-switch do-event do-event-pending]]))
   (:import (hyperfiddle.electric Failure Pending FailureInfo)
            (missionary Cancelled)))
+
+(s/def ::user-version string?)
 
 ;; Equality semantics for Failure and Pending
 ;; For JVM, defined in java class.

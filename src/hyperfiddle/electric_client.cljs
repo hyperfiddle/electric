@@ -5,7 +5,7 @@
             [hyperfiddle.electric.impl.io :as io])
   (:import missionary.Cancelled))
 
-(goog-define VERSION "")
+(goog-define ELECTRIC_USER_VERSION "")
 
 (do-browser
   (defn server-url []
@@ -16,7 +16,7 @@
           "http:" "ws:"
           "https:" "wss:"
           (throw (ex-info "Unexpected protocol" proto))))
-      (.. url -searchParams (set "HYPERFIDDLE_ELECTRIC_CLIENT_VERSION" VERSION))
+      (.. url -searchParams (set "ELECTRIC_USER_VERSION" ELECTRIC_USER_VERSION))
       (set! (.-hash url) "") ; fragment is forbidden in WS URL https://websockets.spec.whatwg.org/#ref-for-dom-websocket-websocket%E2%91%A0
       (.toString url))))
 
