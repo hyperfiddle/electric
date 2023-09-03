@@ -5,7 +5,7 @@
             [hyperfiddle.electric.impl.io :as io])
   (:import missionary.Cancelled))
 
-(goog-define ELECTRIC_USER_VERSION "")
+(goog-define ELECTRIC_USER_VERSION "hyperfiddle_electric_client__dirty") ; url safe
 
 (do-browser
   (defn server-url []
