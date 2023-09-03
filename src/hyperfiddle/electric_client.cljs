@@ -81,9 +81,9 @@ cb : the callback for incoming messages.
 msgs : the discrete flow of messages to send, spawned when websocket is connected, cancelled on websocket close.
 Returns a task producing nil or failing if the websocket was closed before end of reduction.
 " [server]
-  (fn [cb msgs]
+  (fn [ws-server-url cb msgs]
     (m/sp
-      (if-some [ws (m/? (connect *ws-server-url*))]
+      (if-some [ws (m/? (connect ws-server-url))]
         (try
           (send! ws (io/encode server))
           (set! (.-onmessage ws) (comp (handle-hf-heartbeat ws cb) payload))
@@ -113,8 +113,8 @@ Returns a task producing nil or failing if the websocket was closed before end o
         (let [s (object-array 1)]
           (.log js/console "Connecting...")
           (when-some [[delay & delays]
-                      (when-some [info (binding [*ws-server-url* ws-server-url]
-                                         (m/? (conn (fn [x] ((aget s 0) x))
+                      (when-some [info (binding []
+                                         (m/? (conn ws-server-url (fn [x] ((aget s 0) x))
                                                 (m/ap
                                                   (.log js/console "Connected.")
                                                   (let [r (m/rdv)]
