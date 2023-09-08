@@ -1500,3 +1500,8 @@
       (q) := {:acks 1, :tree [], :change {}, :freeze #{}}
       ((q))
       )))
+
+;; used indirectly in compiler `analyze-case`
+(defn case-default-throw [v] (throw (new #?(:clj IllegalArgumentException :cljs js/Error) (str "No matching clause: " v))))
+(defn pick-case-branch [picker-map v default-branch & branches]
+  (if-some [i (picker-map v)] (nth branches i) default-branch))

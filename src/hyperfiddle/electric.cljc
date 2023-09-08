@@ -280,10 +280,9 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
         vararg-branches (when (seq varargs) (-build-vararg-arities ?name (ffirst varargs) (nfirst varargs)))]
     (if (bound? #'c/*env*)
       (list ::c/closure
-        (-> `(let [arity# c/%arity]
-               (case arity#
-                 ~@(into [] (comp cat cat) [positional-branches vararg-branches])
-                 (-throw-arity '~?name arity# ~(->> arities (eduction (map first)) ->narity-vec (str/join ", ")))))
+        (-> `(case c/%arity
+               ~@(into [] (comp cat cat) [positional-branches vararg-branches])
+               (-throw-arity '~?name c/%arity ~(->> arities (eduction (map first)) ->narity-vec (str/join ", "))))
           (?bind-self ?name))
         {::dbg/name ?name, ::dbg/type (or (::dbg/type (meta ?name)) :reactive-fn)
          ::dbg/meta (merge (select-keys (meta &form) [:file :line])
