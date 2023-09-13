@@ -289,6 +289,18 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                       (select-keys (meta ?name) [:file :line]))})
       `(throw (ex-info "Invalid e/fn in Clojure code block (use from Electric code only)" ~(into {} (meta &form)))))))
 
+(defmacro fn*
+  "Low-level construct. Use `hyperfiddle.electric/fn` instead.
+   Bare-bone reactive anonymous function. Single arity, no arity check, no variadic args support, no self-recur."
+  ;; G: `e/fn*` produces a smaller program than `e/fn`. Experts can use `e/fn*` in internals and libraries.
+  ;;    Users should default to `e/fn`.
+  [args & body]
+  (let [debug-info {::dbg/type :reactive-fn
+                    ::dbg/meta (select-keys (meta &form) [:file :line])}]
+    (if (seq args)
+      `(::c/closure (let [~@(interleave args c/arg-sym)] ~@body) ~debug-info)
+      `(::c/closure (do ~@body) ~debug-info))))
+
 ; syntax quote doesn't qualify special forms like 'def
 (defmacro defn [sym & fdecl]
   (let [[_defn sym' & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: docstring support
@@ -308,7 +320,7 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
               ~(->> body
                  (list* `for-by kf bindings)
                  (list `let [s (first c/arg-sym)])
-                 (list `fn [])
+                 (list `hyperfiddle.electric/fn* [])
                  (list `cc/partial (list ::c/inject (first c/arg-sym))))
               (::c/lift xs#))))
     (cons `do body))) ; todo, buggy: (e/for [x []] (println 42)) should not print
@@ -513,7 +525,7 @@ running on a remote host.
 (defmacro snapshot 
   "Snapshots the first non-Pending value of reactive value `x` and freezes it, 
 inhibiting all further reactive updates." 
-  [x] `(check-electric snapshot (new (-snapshot (hyperfiddle.electric/fn [] ~x)))))
+  [x] `(check-electric snapshot (new (-snapshot (hyperfiddle.electric/fn* [] ~x)))))
 
 (defmacro apply [F & args]
   `(let [F# ~F, as# [~@args], args# (object-array (concat (pop as#) (peek as#)))]
