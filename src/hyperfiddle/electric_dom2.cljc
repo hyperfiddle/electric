@@ -46,13 +46,15 @@
        (.appendChild parent el)
        el)))
 
+(defn ^:no-doc hide [node] (set! (.. node -style -display) "none"))
+
 (defmacro element
   {:style/indent 1}
   [t & body]
   `(with (new-node node ~(name t))
      ; hack: speed up streamy unmount by removing from layout first
      ; it also feels faster visually
-     (e/on-unmount #(set! (.. node -style -display) "none")) ; hack
+     (e/on-unmount (partial hide node)) ; hack
      ~@body))
 
 #?(:cljs (defn -googDomSetTextContentNoWarn [node str]
