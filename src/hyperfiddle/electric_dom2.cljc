@@ -33,7 +33,7 @@
   [dom-node & body]
   `(binding [node ~dom-node]
      ; wrap body in a constant frame, so it can be moved as a block
-     (new (e/hook hook node (e/fn [] keepalive ~@body))))) ; todo remove
+     (new (e/hook hook node (e/fn* [] keepalive ~@body))))) ; todo remove
 
 #?(:cljs (defn by-id [id] (js/document.getElementById id)))
 
