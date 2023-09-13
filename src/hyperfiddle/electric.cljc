@@ -409,10 +409,12 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
          (hyperfiddle.electric/fn ~@(when (symbol? F) [F]) [~@rest-args]
                                   (new F# ~@args ~@rest-args))))))
 
+(cc/defn on-unmount* [f] (m/observe (cc/fn [!] (! nil) f)))
+
 (defmacro on-unmount "Run clojure(script) thunk `f` during unmount.
 
   Standard electric code runs on mount, therefore there is no `on-mount`."
-  [f] `(new (m/observe (cc/fn [!#] (!# nil) ~f)))) ; experimental
+  [f] `(new (on-unmount* ~f))) ; experimental
 
 (cc/defn log-root-error [exception]
   #?(:clj (log/error exception)

@@ -15,7 +15,7 @@
   `(dom/with (new-svg-node dom/node ~(name t))
                                         ; hack: speed up streamy unmount by removing from layout first
                                         ; it also feels faster visually
-     (e/on-unmount #(set! (.. dom/node -style -display) "none")) ; hack
+     (e/on-unmount (partial dom/hide dom/node)) ; hack
      ~@body))
 
 (defmacro a                   [& body] `(svg-element :a ~@body))
