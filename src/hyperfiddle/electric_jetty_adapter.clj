@@ -81,6 +81,7 @@
                      ((aget state on-message-slot) text)))
      :on-bytes   (fn [^WebSocketAdapter ws ^bytes bytes offset length]
                    (log/trace "bytes received" {:length length})
+                   (keepalive-mailbox nil)
                    ((aget state on-message-slot) (ByteBuffer/wrap bytes offset length)))}))
 
 (defn electric-ws-message-handler
