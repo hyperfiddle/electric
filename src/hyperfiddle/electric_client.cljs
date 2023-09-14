@@ -69,14 +69,11 @@
 (defn send-all [ws msgs]
   (m/reduce {} nil (m/ap (m/? (wait-for-flush (send! ws (io/encode (m/?> msgs))))))))
 
-(defn keepalive! [ws delay message]
-  (m/sp ; temporary hack. We should emit pings X seconds after the LAST message, not every X seconds. Need a fix for immediate switch in `ap`.
-    (loop []
-      (m/? (m/sleep delay))
-      (send! ws message)
-      (recur))))
-
-(def ELECTRIC-CLIENT-HEARTBEAT-INTERVAL 45000) ; https://www.notion.so/hyperfiddle/electric-server-heartbeat-issues-4243f981954c419f8eb0785e8e789fb7?pvs=4
+(defn handle-hf-heartbeat [ws cb]
+  (fn [msg]
+    (if (= msg "HEARTBEAT")
+      (send! ws "HEARTBEAT")
+      (cb (io/decode msg)))))
 
 (defn connector "
 server : the server part of the program
@@ -89,9 +86,8 @@ Returns a task producing nil or failing if the websocket was closed before end o
       (if-some [ws (m/? (connect *ws-server-url*))]
         (try
           (send! ws (io/encode server))
-          (set! (.-onmessage ws) (comp cb io/decode payload))
-          (m/? (m/race (send-all ws msgs) (wait-for-close ws) 
-                 (keepalive! ws ELECTRIC-CLIENT-HEARTBEAT-INTERVAL "HEARTBEAT")))
+          (set! (.-onmessage ws) (comp (handle-hf-heartbeat ws cb) payload))
+          (m/? (m/race (send-all ws msgs) (wait-for-close ws)))
           (finally
             (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
               (.close ws) (m/? (m/compel wait-for-close)))))

@@ -41,7 +41,11 @@
         (throw (ex-info "No message received after specified time" {::type ::timeout, ::time-seconds (int (/ time 1000))})))
       (recur))))
 
-(def ELECTRIC-SERVER-CONNECTION-TIMEOUT 59000) ; https://www.notion.so/hyperfiddle/electric-server-heartbeat-issues-4243f981954c419f8eb0785e8e789fb7?pvs=4
+(defn send-hf-heartbeat [delay send!]
+  (m/sp (loop [] (m/? (m/sleep delay)) (send! "HEARTBEAT") (recur))))
+
+(def ELECTRIC-CONNECTION-TIMEOUT 59000) ; https://www.notion.so/hyperfiddle/electric-server-heartbeat-issues-4243f981954c419f8eb0785e8e789fb7?pvs=4
+(def ELECTRIC-HEARTBEAT-INTERVAL 45000)
 
 (defn electric-ws-adapter
   "Start and manage an Electric server process hooked onto a websocket."
@@ -54,10 +58,11 @@
                    (log/debug "WS connect" (jetty/req-of ws))
                    (.setMaxTextMessageSize (.getPolicy (.getSession ws)) (* 100 1024 1024))  ; Allow large value payloads, temporary.
                    (aset state on-close-slot
-                     ((m/join {} (timeout keepalive-mailbox ELECTRIC-SERVER-CONNECTION-TIMEOUT)
-                        (handler-f (partial write-msg ws)
-                          (r/subject-at state on-message-slot)))
-                      {} (partial failure ws))))  ; Start Electric process
+                     ((m/join (fn [& _])
+                        (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
+                        (handler-f (partial write-msg ws) (r/subject-at state on-message-slot))
+                        (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(jetty/send! ws %)))
+                      {} (partial failure ws)))) ; Start Electric process
      :on-close   (fn on-close [ws status-code reason]
                    (let [status {:status status-code, :reason reason}]
                      (case (long status-code) ; https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
@@ -76,13 +81,13 @@
                    (log/trace "pong"))
      :on-text    (fn on-text [^WebSocketAdapter ws text]
                    (log/trace "text received" text)
-                   (keepalive-mailbox nil)
                    (when-not (= "HEARTBEAT" text)
-                     ((aget state on-message-slot) text)))
+                     ((aget state on-message-slot) text))
+                   (keepalive-mailbox nil))
      :on-bytes   (fn [^WebSocketAdapter ws ^bytes bytes offset length]
                    (log/trace "bytes received" {:length length})
-                   (keepalive-mailbox nil)
-                   ((aget state on-message-slot) (ByteBuffer/wrap bytes offset length)))}))
+                   ((aget state on-message-slot) (ByteBuffer/wrap bytes offset length))
+                   (keepalive-mailbox nil))}))
 
 (defn electric-ws-message-handler
   "Given a ring request, a writer task function and a subject emitting messages, run an Electric
