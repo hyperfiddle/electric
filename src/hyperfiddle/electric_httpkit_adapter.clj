@@ -41,6 +41,12 @@
         (throw (ex-info "No message received after specified time" {::type ::timeout, ::time-seconds (int (/ time 1000))})))
       (recur))))
 
+(defn send-hf-heartbeat [delay send!]
+  (m/sp (loop [] (m/? (m/sleep delay)) (send! "HEARTBEAT") (recur))))
+
+(def ELECTRIC-CONNECTION-TIMEOUT 59000) ; https://www.notion.so/hyperfiddle/electric-server-heartbeat-issues-4243f981954c419f8eb0785e8e789fb7?pvs=4
+(def ELECTRIC-HEARTBEAT-INTERVAL 45000)
+
 (defn handle-electric-ws [request handler-f]
   (let [state             (object-array 2)
         on-message-slot   (int 0)
@@ -48,9 +54,10 @@
         keepalive-mailbox (m/mbx)]
     {:init (fn on-connect [^AsyncChannel ch]
              (aset state on-close-slot
-               ((m/join {} (timeout keepalive-mailbox 90000)
-                  (handler-f (partial write-msg ch)
-                    (r/subject-at state on-message-slot)))
+               ((m/join (fn [& _])
+                  (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
+                  (handler-f (partial write-msg ch) (r/subject-at state on-message-slot))
+                  (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(http-kit/send! ch %)))
                  {} (partial failure ch))))  ; Start Electric process
      :on-close   (fn on-close [^AsyncChannel ch status]
                    (case status ; https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
@@ -64,12 +71,12 @@
      :on-ping    (fn on-ping [ch data] ; Pong automatically sent by HttpKit. Browsers don't ping.
                    (keepalive-mailbox nil))
      :on-receive (fn on-receive [^AsyncChannel ch text-or-buff]
-                   (keepalive-mailbox nil)
                    (when-not (= "HEARTBEAT" text-or-buff)
                      ((aget state on-message-slot)
                       (if (string? text-or-buff)
                         text-or-buff
-                        (ByteBuffer/wrap text-or-buff)))))}))
+                        (ByteBuffer/wrap text-or-buff))))
+                   (keepalive-mailbox nil))}))
 
 (defn electric-ws-message-handler
   "Given a ring request, a writer task function and a subject emitting messages, run an Electric
