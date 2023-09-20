@@ -1178,6 +1178,56 @@ sequence.
       @ps := {:grow 0, :shrink 0, :degree 2, :permutation {}, :change {0 1, 1 :b}, :freeze #{}})
 
     (let [q (queue)
+          ps ((diff-by identity (fn [n t] (q n) (q t) (->Ps q #(% :cancel) #(%))))
+              #(q :step) #(q :done))
+          n (q)
+          t (q)]
+      (n) (q) := :step
+      (q [:a :b :c]) @ps := {:grow 3 :degree 3 :shrink 0 :permutation {}, :change {0 :a, 1 :b, 2 :c} :freeze #{}}
+      (n) (q) := :step
+      (q [:b :c :a]) @ps := {:grow 0 :degree 3 :shrink 0 :permutation (cycle 0 1 2) :change {} :freeze #{}}
+      (n) (q) := :step
+      (q [:b :a   ]) @ps := {:grow 0 :degree 3 :shrink 1 :permutation (cycle 1 2) :change {} :freeze #{}}
+      (n) (q) := :step
+      (q [        ]) @ps := {:grow 0 :degree 2 :shrink 2 :permutation {} :change {} :freeze #{}}
+      (n) (q) := :step
+      (q [:a :b :a]) @ps := {:grow 3 :degree 3 :shrink 0 :permutation {} :change {0 :a, 1 :b, 2 :a} :freeze #{}}
+      (n) (q) := :step
+      (q [:b :a :a]) @ps := {:grow 0 :degree 3 :shrink 0 :permutation (cycle 0 1) :change {} :freeze #{}}
+      (n) (q) := :step
+      (q [:b :a :a]) @ps := {:grow 0 :degree 3 :shrink 0 :permutation {} :change {} :freeze #{}}
+      (t) (q) := :step
+      @ps := {:grow 0 :degree 3 :shrink 0 :permutation {} :change {} :freeze #{0 1 2}}
+      (q) := :done)
+
+    (let [alice-caramail {:id "alice" :email "alice@caramail.com"}
+          alice-gmail    {:id "alice" :email "alice@gmail.com"}
+          bob            {:id "bob" :email "bob@yahoo.com"}
+          alice-msn      {:id "alice" :email "alice@msn.com"}
+          q (queue)
+          ps ((diff-by :id (fn [n t] (q n) (q t) (->Ps q #(% :cancel) #(%))))
+              #(q :step) #(q :done))
+          n (q)
+          t (q)]
+      (n) (q) := :step
+      (q [alice-caramail           ]) @ps := {:grow 1 :degree 1 :shrink 0 :permutation {} :change {0 alice-caramail} :freeze #{}}
+      (n) (q) := :step
+      (q [alice-gmail bob          ]) @ps := {:grow 1 :degree 2 :shrink 0 :permutation {} :change {0 alice-gmail, 1 bob} :freeze #{}}
+      (n) (q) := :step
+      (q [alice-gmail alice-msn bob]) @ps := {:grow 1 :degree 3 :shrink 0 :permutation (cycle 1 2) :change {1 alice-msn} :freeze #{}}
+      (n) (q) := :step
+      (q [alice-gmail bob alice-msn]) @ps := {:grow 0 :degree 3 :shrink 0 :permutation (cycle 1 2) :change {} :freeze #{}}
+      (n) (q) := :step
+      (q [bob alice-msn            ]) @ps := {:grow 0 :degree 3 :shrink 1 :permutation (cycle 0 1) :change {1 alice-msn} :freeze #{}}
+      (n) (q) := :step
+      (q [                         ]) @ps := {:grow 0 :degree 2 :shrink 2 :permutation {} :change {} :freeze #{}}
+      (n) (q) := :step
+      (q [                         ]) @ps := {:grow 0 :degree 0 :shrink 0 :permutation {} :change {} :freeze #{}}
+      (t) (q) := :step
+      @ps := {:grow 0 :degree 0 :shrink 0 :permutation {} :change {} :freeze #{}}
+      (q) := :done)
+
+    (let [q (queue)
           ps ((latest-product identity (fn [n t] (q n) (->Ps q #(% :cancel) #(%))))
               #(q :step) #(q :done))
           n (q)]
