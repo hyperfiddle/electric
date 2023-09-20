@@ -32,7 +32,7 @@ Diffs form a semigroup with `combine`.
 
 ## Incremental sequences
 
-An incremental sequence describes a variable finite sequence of states. It is represented as a flow producing
+An incremental sequence describes a finite sequence of states varying over time. It is represented as a flow producing
 successive sequence diffs. Incremental sequences are applicative functors with `latest-product` and monads with
 `latest-concat`.
 "} hyperfiddle.incseq
