@@ -3,7 +3,9 @@
   (:require clojure.pprint
             clojure.string
             [contrib.data :refer [orp]]
-            [hyperfiddle.rcf :refer [tests]]))
+            [hyperfiddle.rcf :refer [tests]])
+  #?(:cljs (:import [goog.i18n MessageFormat DateTimeFormat]
+                    [goog.i18n.DateTimeFormat Format])))
 
 (defn pprint-str [x]
   (with-out-str
@@ -100,3 +102,57 @@
   (or-str "" "b") := "b"
   (or-str "a" "b") := "a"
   (or-str " " "b") := " ")
+
+#?(:cljs
+   (defn message "
+Given a template, return a function taking a map of template arguments and returning a formatted message string.
+
+Template example:
+\"I see {NUM_PEOPLE, plural, offset:1
+         =0 {no one at all}
+         =1 {{WHO}}
+         one {{WHO} and one other person}
+         other {{WHO} and # other people}}
+ in {PLACE}.\"
+
+ Providing {'NUM_PEOPLE': 2, 'WHO': 'Mark', 'PLACE': 'Athens'} as arguments, would
+ produce \"I see Mark and one other person in Athens.\" as output.
+
+OR:
+
+\"{NUM_FLOOR, selectordinal,
+     one {Take the elevator to the #st floor.}
+     two {Take the elevator to the #nd floor.}
+     few {Take the elevator to the #rd floor.}
+     other {Take the elevator to the #th floor.}}\"
+
+ Providing {'NUM_FLOOR': 22} as arguments would produce:
+ \"Take the elevator to the 22nd floor\"
+
+Message templates are ICU message pattern. http://userguide.icu-project.org/formatparse/messages
+
+This function is a wrapper for goog.i18n.MessageFormat, supporting a subset of the ICU MessageFormatSyntax.
+"
+     ([icu-pattern] (partial message (new MessageFormat icu-pattern)))
+     ([formatter args-map] (.format formatter (clj->js args-map)))))
+
+#?(:cljs
+   (def DATE-FORMATS
+     {:FULL-DATE       goog.i18n.DateTimeFormat.Format/FULL_DATE
+      :LONG-DATE       goog.i18n.DateTimeFormat.Format/LONG_DATE,
+      :MEDIUM-DATE     goog.i18n.DateTimeFormat.Format/MEDIUM_DATE,
+      :SHORT-DATE      goog.i18n.DateTimeFormat.Format/SHORT_DATE
+      :FULL-TIME       goog.i18n.DateTimeFormat.Format/FULL_TIME
+      :LONG-TIME       goog.i18n.DateTimeFormat.Format/LONG_TIME
+      :MEDIUM-TIME     goog.i18n.DateTimeFormat.Format/MEDIUM_TIME
+      :SHORT-TIME      goog.i18n.DateTimeFormat.Format/SHORT_TIME
+      :FULL-DATETIME   goog.i18n.DateTimeFormat.Format/FULL_DATETIME
+      :LONG-DATETIME   goog.i18n.DateTimeFormat.Format/FULL_DATE
+      :MEDIUM-DATETIME goog.i18n.DateTimeFormat.Format/MEDIUM_DATETIME
+      :SHORT-DATETIME  goog.i18n.DateTimeFormat.Format/SHORT_DATETIME}
+))
+
+#?(:cljs
+   (defn date
+     ([pattern] (partial date (new DateTimeFormat (or (DATE-FORMATS pattern) pattern))))
+     ([formatter date] (.format formatter date))))
