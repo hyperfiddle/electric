@@ -99,6 +99,14 @@
       (.setAttributeNS node ns attr v))))
 
 #?(:cljs
+   (defn set-style! [node js-kvs]
+     (goog.object/forEach js-kvs
+       (fn [v k]
+         (if (str/starts-with? k "--") ; CSS variable
+           (.setProperty (.-style node) k v)
+           (goog.style/setStyle node (js-obj k v)))))))
+
+#?(:cljs
    (defn set-property!
      ([node k v] (set-property! node (.-namespaceURI node) k v))
      ([node ns k v]
@@ -107,7 +115,7 @@
         (if (and (nil? v) (.hasAttributeNS node nil k))
           (.removeAttributeNS node nil k)
           (case k
-            "style" (goog.style/setStyle node v)
+            "style" (set-style! node v)
             "list"  (set-attribute-ns node nil k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
             (if (or (= SVG-NS ns)
                   (some? (goog.object/get goog.dom/DIRECT_ATTRIBUTE_MAP_ k)))
