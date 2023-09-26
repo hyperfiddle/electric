@@ -196,6 +196,15 @@
 (def output-slot-time     (int 8))                          ;; position of the doubly linked list of pending outputs in the circular buffer, nil if not pending
 (def output-slots         (int 9))
 
+(defn frame-id []
+  (fn [n t]
+    (let [^objects tier (l/get-local this)
+          ^objects frame (aget tier tier-slot-parent)
+          id (aget frame frame-slot-id)]
+      (n) (reify
+            IFn (#?(:clj invoke :cljs -invoke) [_])
+            IDeref (#?(:clj deref :cljs -invoke) [_] (t) id)))))
+
 (defn aswap
   ([^objects arr slot f]
    (aset arr slot (f (aget arr slot))))
