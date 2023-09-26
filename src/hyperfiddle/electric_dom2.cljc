@@ -7,7 +7,6 @@
             [hyperfiddle.electric :as e]
             [missionary.core :as m]
             [clojure.string :as str]
-            [contrib.data :as data]
             [hyperfiddle.rcf :as rcf :refer [tests]])
   (:import [hyperfiddle.electric Pending]
            #?(:clj [clojure.lang ExceptionInfo]))
@@ -99,12 +98,12 @@
       (.setAttributeNS node ns attr v))))
 
 #?(:cljs
-   (defn set-style! [node js-kvs]
-     (goog.object/forEach js-kvs
-       (fn [v k]
-         (if (str/starts-with? k "--") ; CSS variable
-           (.setProperty (.-style node) k v)
-           (goog.style/setStyle node (js-obj k v)))))))
+   (defn set-style! [node k v]
+     (let [k (clj->js k)
+           v (clj->js v)]
+       (if (str/starts-with? k "--") ; CSS variable
+         (.setProperty (.-style node) k v)
+         (goog.style/setStyle_ node v k)))))
 
 #?(:cljs
    (defn set-property!
@@ -115,7 +114,6 @@
         (if (and (nil? v) (.hasAttributeNS node nil k))
           (.removeAttributeNS node nil k)
           (case k
-            "style" (set-style! node v)
             "list"  (set-attribute-ns node nil k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
             (if (or (= SVG-NS ns)
                   (some? (goog.object/get goog.dom/DIRECT_ATTRIBUTE_MAP_ k)))
@@ -123,20 +121,6 @@
               (if (goog.object/containsKey node k) ; is there an object property for this key?
                 (goog.object/set node k v)
                 (set-attribute-ns node k v)))))))))
-
-#?(:cljs (defn unmount-prop [node k v]
-           (m/observe (fn [!] (! nil) #(set-property! node k v)))))
-
-(defmacro style [m]
-  (if (map? m)
-    `(do ~@(mapcat (fn [[k v]] [`(set-property! node "style" {~k ~v})
-                                `(new (unmount-prop node "style" {~k nil}))]) m)
-         nil) ; static keyset
-    `(e/for-by first [sty# (vec ~m)]
-       (set-property! node "style" {(key sty#) (val sty#)})
-       (new (unmount-prop node {(key sty#) nil}))
-       nil)))
-
 
 (def LAST-PROPS
   "Due to a bug in both Webkit and FF, input type range's knob renders in the
@@ -186,33 +170,68 @@
                   (update refs class dec))]
        (set! (.-hyperfiddle_electric_dom2_class_refs node) refs))))
 
-(e/defn ClassList [node classes]
-  (e/for [class classes]
-    (new (m/relieve {} (m/observe (fn [!]
-                                    (! nil)
-                                    (register-class! node class)
-                                    #(unregister-class! node class)))))))
+#?(:cljs
+   (defn- manage-class [node class]
+     (m/relieve {}
+       (m/observe (fn [!]
+                    (! nil)
+                    (register-class! node class)
+                    #(unregister-class! node class))))))
 
-;; TODO JS runtimes intern litteral strings, so call `name` on keywords at
-;; macroexpension.
+(e/def ClassList
+  (e/fn* [node classes]
+    (e/for [class (parse-class classes)]
+      (new (manage-class node class)))
+    nil))
+
+(e/def Style
+  (e/fn* [node k v]
+    (set-style! node k v)
+    (e/on-unmount (partial set-style! node k nil))
+    nil))
+
+(e/def Styles
+  (e/fn* [node kvs]
+    (e/for-by first [[k v] kvs]
+      (Style. node k v))
+    nil))
+
+(defmacro style [m]
+  (if (map? m)
+    `(do ~@(map (fn [[k v]] `(new Style node ~k ~v)) m)) ; static keyset
+    `(new Styles ~m)))
+
+(e/def Attribute
+  (e/fn* [node k v]
+    (set-property! node k v)
+    (e/on-unmount (partial set-property! node k nil))
+    nil))
+
+(def ^:private style? #{:style ::style})       ; TODO disambiguate
+(def ^:private class? #{:class ::class})
+
+(e/def Property
+  (e/fn* [node k v]
+    (cond
+      (style? k) (Style. node k v)
+      (class? k) (ClassList. node v)
+      :else      (Attribute. node k v))))
+
+(e/def Properties
+  (e/fn* [node kvs]
+    (e/for-by key [[k v] (ordered-props kvs)]
+      (new Property node k v))))
+
 (defmacro props [m]
-  (let [style? #{:style ::style}       ; TODO disambiguate
-        class? #{:class ::class}]
-    (if (map? m)
-      `(do ~@(mapcat (fn [[k v]] (cond  ; static keyset
-                                   (style? k) [`(style ~v)]
-                                   (class? k) [`(new ClassList node (parse-class ~v))]
-                                   :else      [`(set-property! node ~k ~v)
-                                          `(new (unmount-prop node ~k nil))]))
-               (ordered-props m))
-           nil)
-      `(e/for-by key [prop# (vec (ordered-props ~m))]
-         (cond
-           (~style? (key prop#)) (style (val prop#))
-           (~class? (key prop#)) (new ClassList node (parse-class (val prop#)))
-           :else                 (do (set-property! node (key prop#) (val prop#))
-                                     (new (unmount-prop node (key prop#) nil))
-                                     nil))))))
+  (if (map? m)
+    `(do ~@(map (fn [[k v]] (cond  ; static keyset
+                              (style? k) `(style ~v)
+                              (class? k) `(new ClassList node ~v)
+                              :else      `(new Property node ~k ~v)))
+             (ordered-props m)))
+    `(do (e/for-by key [[k# v#] (ordered-props ~m)]
+           (new Property node k# v#))
+         nil)))
 
 (defmacro on!
   "Call the `callback` clojure function on event.
@@ -250,14 +269,14 @@
   [pending-body & body]
   `(try (do ~@body) (catch Pending e# ~pending-body (throw e#))))
 
-(e/defn Focused? "Returns whether this DOM `node` is focused."
-  []
-  (->> (mx/mix
-         (e/listen> node "focus" (constantly true))
-         (e/listen> node "blur" (constantly false)))
-    (m/reductions {} (= node (.-activeElement js/document)))
-    (m/relieve {})
-    new))
+(e/def Focused? "Returns whether this DOM `node` is focused."
+  (e/fn* []
+    (->> (mx/mix
+           (e/listen> node "focus" (constantly true))
+           (e/listen> node "blur" (constantly false)))
+      (m/reductions {} (= node (.-activeElement js/document)))
+      (m/relieve {})
+      new)))
 
 #?(:cljs (defn set-val [node v] (set! (.-value node) (str v))))
 
@@ -266,14 +285,14 @@
   ([v setter] `(when-some [v# (when-not (new Focused?) ~v)]
                  (~setter node v#))))
 
-(e/defn Hovered? "Returns whether this DOM `node` is hovered over."
-  []
-  (->> (mx/mix
-         (e/listen> node "mouseenter" (constantly true))
-         (e/listen> node "mouseleave" (constantly false)))
-    (m/reductions {} false)
-    (m/relieve {})
-    new))
+(e/def Hovered? "Returns whether this DOM `node` is hovered over."
+  (e/fn* []
+    (->> (mx/mix
+           (e/listen> node "mouseenter" (constantly true))
+           (e/listen> node "mouseleave" (constantly false)))
+      (m/reductions {} false)
+      (m/relieve {})
+      new)))
 
 (defmacro a {:style/indent 0} [& body] `(element :a ~@body))
 (defmacro abbr {:style/indent 0} [& body] `(element :abbr ~@body))
