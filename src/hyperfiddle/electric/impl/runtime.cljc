@@ -203,7 +203,7 @@
           id (aget frame frame-slot-id)]
       (n) (reify
             IFn (#?(:clj invoke :cljs -invoke) [_])
-            IDeref (#?(:clj deref :cljs -invoke) [_] (t) id)))))
+            IDeref (#?(:clj deref :cljs -deref) [_] (t) id)))))
 
 (defn aswap
   ([^objects arr slot f]
