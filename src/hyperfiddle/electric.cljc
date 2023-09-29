@@ -311,6 +311,13 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                                          (rest fdecl)
                                          fdecl)))))
 
+(defmacro ^:no-doc defn* [sym & fdecl]
+  (let [[_defn sym' & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: docstring support
+    `(hyperfiddle.electric/def ~sym' (hyperfiddle.electric/fn*
+                                       ~@(if (string? (first fdecl)) ; GG: skip docstring
+                                           (rest fdecl)
+                                           fdecl)))))
+
 (defmacro for-by
   {:style/indent 2}
   [kf bindings & body]
