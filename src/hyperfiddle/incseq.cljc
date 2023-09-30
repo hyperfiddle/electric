@@ -38,7 +38,8 @@ successive sequence diffs. Incremental sequences are applicative functors with `
 "} hyperfiddle.incseq
   (:refer-clojure :exclude [cycle int-array])
   (:require [hyperfiddle.rcf :refer [tests]])
-  #?(:clj (:import (clojure.lang IFn IDeref))))
+  (:import #?(:clj (clojure.lang IFn IDeref))
+           missionary.Cancelled))
 
 
 ;; internal use
@@ -1052,6 +1053,302 @@ sequence.
             (aset state slot-value (empty-diff 0))
             (aset state slot-process (input #(ready state state) #(terminated state)))
             (->Ps state cancel transfer)))))))
+
+(def ^{:arglists '([] [sentinel] [sentinel compare])
+       :doc "
+Returns a new port maintaining a sorted map, initially empty. The successive values in each map entry can be observed
+using the port as an incremental sequence.
+
+The map is mutated by calling the port with 3 arguments : a key, a reducing function and an arbitrary value. The state
+associated with the key will be updated with the result of calling the reducing function with the current state and the
+argument. Absence of entry is indicated by optional `sentinel` value, `nil` by default. Keys must be comparable with
+optional `compare` function, `clojure.core/compare` by default.
+"} spine
+  (let [slot-root 0
+        slot-readers 1
+        slots 2
+        reader-slot-prev 0
+        reader-slot-next 1
+        reader-slot-parent 2
+        reader-slot-notifier 3
+        reader-slot-terminator 4
+        reader-slot-prop 5
+        reader-slot-diff 6
+        reader-slots 7
+        node-slot-parent 2
+        node-slot-key 3
+        node-slot-size 4
+        node-slot-red? 5
+        node-slot-value 6
+        node-slots 7]
+    (letfn [(notify-readers [readers diff]
+              (loop [^objects r readers
+                     p nil]
+                (let [p (if-some [d (aget r reader-slot-diff)]
+                          (do (aset r reader-slot-diff (combine d diff)) p)
+                          (do (aset r reader-slot-diff diff)
+                              (aset r reader-slot-prop p) r))
+                      r (aget r reader-slot-next)]
+                  (if (identical? r readers)
+                    p (recur r p)))))
+            (propagate [^objects r]
+              (when-not (nil? r)
+                (let [p (aget r reader-slot-prop)]
+                  (aset r reader-slot-prop nil)
+                  ((aget r reader-slot-notifier))
+                  (recur p))))
+            (reader-cancel [^objects r]
+              (let [^objects state (aget r reader-slot-parent)]
+                ((locking state
+                   (if-some [^objects p (aget r reader-slot-prev)]
+                     (do (aset r reader-slot-prev nil)
+                         (if (identical? p r)
+                           (aset state slot-readers nil)
+                           (let [^objects n (aget r reader-slot-next)]
+                             (aset state slot-readers p)
+                             (aset p reader-slot-next (aget r reader-slot-next))
+                             (aset n reader-slot-prev (aget r reader-slot-prev))))
+                         (if (nil? (aget r reader-slot-diff))
+                           (aget r reader-slot-notifier)
+                           (do (aset r reader-slot-diff nil)
+                               nop))) nop)))))
+            (reader-transfer [^objects r]
+              (if-some [d (locking (aget r reader-slot-parent)
+                            (let [d (aget r reader-slot-diff)]
+                              (aset r reader-slot-diff nil) d))]
+                d (do ((aget r reader-slot-terminator))
+                      (throw (Cancelled. "Spine reader cancelled.")))))
+            (traverse [rf r ^objects x]
+              (if (nil? x)
+                r (traverse rf
+                    (rf (traverse rf r (aget x 0))
+                      (aget x node-slot-value)) (aget x 1))))
+            (rotate [^objects node ^objects child i]
+              (let [i (int i)
+                    j (unchecked-subtract-int 1 i)
+                    size (aget node node-slot-size)]
+                (aset node node-slot-size
+                  (+ (- size (aget child node-slot-size))
+                    (if-some [^objects x (aset node i (aget child j))]
+                      (do (aset x node-slot-parent node)
+                          (aget x node-slot-size)) 0)))
+                (aset child j node)
+                (aset child node-slot-size size)
+                (aset node node-slot-parent child)))
+            (update-size [node d]
+              (loop [^objects node node]
+                (aset node node-slot-size (+ d (aget node node-slot-size)))
+                (when-some [parent (aget node node-slot-parent)]
+                  (recur parent))))
+            (insert-fixup [^objects state x i k v]
+              (loop [^objects x x
+                     ^objects z (aset x i
+                                  (doto (object-array node-slots)
+                                    (aset node-slot-key k)
+                                    (aset node-slot-size 1)
+                                    (aset node-slot-red? true)
+                                    (aset node-slot-value v)
+                                    (aset node-slot-parent x)))]
+                (if (aget x node-slot-red?)
+                  (let [^objects p (aget x node-slot-parent)
+                        i (if (identical? x (aget p 0)) 0 1)
+                        j (unchecked-subtract-int 1 i)
+                        ^objects y (aget p j)]
+                    (aset x node-slot-size (inc (aget x node-slot-size)))
+                    (aset p node-slot-size (inc (aget p node-slot-size)))
+                    (if (and (some? y) (aget y node-slot-red?))
+                      (do (aset x node-slot-red? false)
+                          (aset y node-slot-red? false)
+                          (when-some [^objects g (aget p node-slot-parent)]
+                            (aset p node-slot-red? true)
+                            (recur g p)))
+                      (let [^objects x (if (identical? z (aget x i))
+                                         x (do (aset z node-slot-parent p)
+                                               (aset p i z)
+                                               (rotate x z j)))]
+                        (aset x node-slot-red? false)
+                        (aset p node-slot-red? true)
+                        (if-some [^objects g (aset x node-slot-parent (aget p node-slot-parent))]
+                          (do (aset g (if (identical? p (aget g 0)) 0 1) x)
+                              (update-size g 1))
+                          (aset state slot-root x))
+                        (rotate p x i))))
+                  (update-size x 1))))
+            (remove-extra-black [^objects state ^objects p ^objects x i]
+              (aset x node-slot-red? (aget p node-slot-red?))
+              (aset p node-slot-red? false)
+              (aset ^objects (aget x i) node-slot-red? false)
+              (if-some [^objects g (aset x node-slot-parent (aget p node-slot-parent))]
+                (aset g (if (identical? p (aget g 0)) 0 1) x)
+                (aset state slot-root x))
+              (rotate p x i))
+            (delete-fixup [^objects state p x i]
+              (loop [^objects p p
+                     ^objects x x
+                     i (int i)]
+                (if (aget x node-slot-red?)
+                  (do (aset x node-slot-red? false)
+                      (update-size p -1))
+                  (let [j (unchecked-subtract-int 1 i)
+                        ^objects w (aget p j)
+                        ^objects w (if (aget w node-slot-red?)
+                                     (do (aset w node-slot-red? false)
+                                         (aset p node-slot-red? true)
+                                         (if-some [^objects g (aset w node-slot-parent (aget p node-slot-parent))]
+                                           (aset g (if (identical? p (aget g 0)) 0 1) w)
+                                           (aset state slot-root w))
+                                         (rotate p w j) (aget p j)) w)
+                        ^objects l (aget w i)
+                        ^objects r (aget w j)]
+                    (if (and (some? r) (aget r node-slot-red?))
+                      (do (remove-extra-black state p w j)
+                          (update-size p -1))
+                      (if (and (some? l) (aget l node-slot-red?))
+                        (do (aset l node-slot-red? false)
+                            (aset w node-slot-red? true)
+                            (aset l node-slot-parent p)
+                            (aset p j l) (rotate w l i)
+                            (remove-extra-black state p l j)
+                            (update-size p -1))
+                        (do (aset w node-slot-red? true)
+                            (aset p node-slot-size (dec (aget p node-slot-size)))
+                            (if-some [^objects g (aget p node-slot-parent)]
+                              (recur g p (if (identical? p (aget g 0)) 0 1))
+                              (aset p node-slot-red? false)))))))))
+            (remove-single [^objects state ^objects node ^objects child]
+              (if-some [^objects p (aset child node-slot-parent (aget node node-slot-parent))]
+                (let [i (if (identical? node (aget p 0)) 0 1)]
+                  (aset p i child)
+                  (if (aget node node-slot-red?)
+                    (update-size p -1)
+                    (delete-fixup state p child i)))
+                (do (aset child node-slot-red? false)
+                    (aset state slot-root child))))
+            (remove-noleft [^objects state ^objects y]
+              (if-some [x (aget y 1)]
+                (remove-single state y x)
+                (if-some [^objects p (aget y node-slot-parent)]
+                  (let [i (if (identical? y (aget p 0)) 0 1)]
+                    (aset p i nil) (delete-fixup state p y i))
+                  (aset state slot-root nil))))
+            (assoc-count [r x] (assoc r (count r) x))]
+      (fn spine
+        ([] (spine nil))
+        ([sentinel] (spine sentinel compare))
+        ([sentinel compare]
+         (let [state (object-array slots)]
+           (fn
+             ([n t]
+              (let [ps (locking state
+                         (let [c (traverse assoc-count {} (aget state slot-root))
+                               r (object-array reader-slots)]
+                           (if-some [^objects p (aget state slot-readers)]
+                             (let [^objects n (aget p reader-slot-next)]
+                               (aset r reader-slot-prev p)
+                               (aset p reader-slot-next r)
+                               (aset r reader-slot-next n)
+                               (aset n reader-slot-prev r))
+                             (do (aset r reader-slot-prev r)
+                                 (aset r reader-slot-next r)
+                                 (aset state slot-readers r)))
+                           (aset r reader-slot-parent state)
+                           (aset r reader-slot-notifier n)
+                           (aset r reader-slot-terminator t)
+                           (aset r reader-slot-diff
+                             {:grow        (count c)
+                              :degree      (count c)
+                              :shrink      0
+                              :permutation {}
+                              :freeze      #{}
+                              :change      c})
+                           (->Ps r reader-cancel reader-transfer)))]
+                (n) ps))
+             ([k f arg]
+              (propagate
+                (locking state
+                  (if-some [root (aget state slot-root)]
+                    (let [size (aget root node-slot-size)]
+                      (loop [^objects node root
+                             rank 0]
+                        (let [c (compare k (aget node node-slot-key))]
+                          (if (neg? c)
+                            (if-some [l (aget node 0)]
+                              (recur l rank)
+                              (let [curr (f sentinel arg)]
+                                (when-not (= curr sentinel)
+                                  (insert-fixup state node 0 k curr)
+                                  (when-some [readers (aget state slot-readers)]
+                                    (notify-readers readers
+                                      {:grow        1
+                                       :degree      (inc size)
+                                       :shrink      0
+                                       :permutation (rotation size rank)
+                                       :change      {rank curr}
+                                       :freeze      #{}})))))
+                            (if (pos? c)
+                              (let [rank (unchecked-add-int rank (aget node node-slot-size))]
+                                (if-some [r (aget node 1)]
+                                  (recur r (unchecked-subtract-int rank (aget r node-slot-size)))
+                                  (let [curr (f sentinel arg)]
+                                    (when-not (= curr sentinel)
+                                      (insert-fixup state node 1 k curr)
+                                      (when-some [readers (aget state slot-readers)]
+                                        (notify-readers readers
+                                          {:grow        1
+                                           :degree      (inc size)
+                                           :shrink      0
+                                           :permutation (rotation size rank)
+                                           :change      {rank curr}
+                                           :freeze      #{}}))))))
+                              (let [^objects l (aget node 0)
+                                    rank (if (nil? l) rank (unchecked-add-int rank (aget l node-slot-size)))
+                                    prev (aget node node-slot-value)
+                                    curr (f prev arg)]
+                                (if (= curr sentinel)
+                                  (do (if (nil? l)
+                                        (remove-noleft state node)
+                                        (if-some [y (aget node 1)]
+                                          (loop [^objects y y]
+                                            (if-some [y (aget y 0)]
+                                              (recur y)
+                                              (do (aset node node-slot-key (aget y node-slot-key))
+                                                  (aset node node-slot-value (aget y node-slot-value))
+                                                  (remove-noleft state y))))
+                                          (remove-single state node l)))
+                                      (when-some [readers (aget state slot-readers)]
+                                        (notify-readers readers
+                                          {:grow        0
+                                           :degree      size
+                                           :shrink      1
+                                           :permutation (rotation rank (dec size))
+                                           :change      {}
+                                           :freeze      #{}})))
+                                  (when-not (= prev curr)
+                                    (aset node node-slot-value curr)
+                                    (when-some [readers (aget state slot-readers)]
+                                      (notify-readers readers
+                                        {:grow        0
+                                         :degree      size
+                                         :shrink      0
+                                         :permutation {}
+                                         :change      {rank curr}
+                                         :freeze      #{}}))))))))))
+                    (let [curr (f sentinel arg)]
+                      (when-not (= curr sentinel)
+                        (aset state slot-root
+                          (doto (object-array node-slots)
+                            (aset node-slot-key k)
+                            (aset node-slot-size 1)
+                            (aset node-slot-red? false)
+                            (aset node-slot-value curr)))
+                        (when-some [readers (aget state slot-readers)]
+                          (notify-readers readers
+                            {:grow        1
+                             :degree      1
+                             :shrink      0
+                             :permutation {}
+                             :change      {0 curr}
+                             :freeze      #{}})))))))))))))))
 
 
 ;; unit tests
