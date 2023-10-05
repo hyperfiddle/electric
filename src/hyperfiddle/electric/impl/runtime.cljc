@@ -242,7 +242,7 @@
 (defn make-frame [^objects context parent id position
                   foreign static dynamic variable-count source-count
                   constant-count target-count output-count input-count
-                  ^objects buffer ^objects vars boot]
+                  ^objects buffer ^objects vars boot env]
   (let [tier-count (+ variable-count source-count)
         frame (doto (object-array frame-slots)
                 (aset frame-slot-context context)
@@ -275,7 +275,7 @@
       (reduce-kv (fn [^objects arr i v]
                    (aset arr (int i) (signal (aget vars (int v)))) arr)
         (aget frame frame-slot-dynamic) dynamic)
-      (let [result (boot frame vars)]
+      (let [result (boot frame vars env)]
         (reduce-kv doto-aset vars prevs)
         result))))
 
@@ -551,20 +551,21 @@
   #?(:cljs (dotimes [i size] (aset dest (+ dest-off i) (aget src (+ src-off i)))))
   dest)
 
-(defn constructor [static dynamic variable-count source-count constant-count target-count output-count input-count boot]
-  (fn [^objects tier id]
-    (let [^objects par (aget tier tier-slot-parent)
-          ^objects buf (aget tier tier-slot-buffer)
-          pos (aget tier tier-slot-size)
-          cap (alength buf)
-          buf (if (< pos cap)
-                buf (aset tier tier-slot-buffer
-                      (acopy buf 0 (object-array (bit-shift-left cap 1)) 0 cap)))]
-      (aset tier tier-slot-size (inc pos))
-      (make-frame (aget par frame-slot-context)
-        tier id pos (aget tier tier-slot-foreigns) static dynamic
-        variable-count source-count constant-count target-count output-count input-count
-        buf (aget tier tier-slot-vars) boot))))
+(defn constructor [dynamic variable-count source-count constant-count target-count output-count input-count boot]
+  (fn [env static]
+    (fn [^objects tier id]
+      (let [^objects par (aget tier tier-slot-parent)
+            ^objects buf (aget tier tier-slot-buffer)
+            pos (aget tier tier-slot-size)
+            cap (alength buf)
+            buf (if (< pos cap)
+                  buf (aset tier tier-slot-buffer
+                        (acopy buf 0 (object-array (bit-shift-left cap 1)) 0 cap)))]
+        (aset tier tier-slot-size (inc pos))
+        (make-frame (aget par frame-slot-context)
+          tier id pos (aget tier tier-slot-foreigns) static dynamic
+          variable-count source-count constant-count target-count output-count input-count
+          buf (aget tier tier-slot-vars) boot env)))))
 
 (deftype FrameIterator [f it]
   IFn
@@ -791,7 +792,7 @@
           (when-not (= e empty-event)
             (m/? (write e))))))
 
-(defn peer [var-count dynamic variable-count source-count constant-count target-count output-count input-count ctor]
+(defn peer [var-count dynamic variable-count source-count constant-count target-count output-count input-count ctor env]
   (fn rec
     ([write ?read] (rec write ?read pst))
     ([write ?read on-error]
@@ -805,7 +806,7 @@
                  (aset context context-slot-terminator t)
                  (when-some [<main (make-frame context nil 0 0 {} [] dynamic
                                      variable-count source-count constant-count target-count output-count input-count
-                                     context (object-array (repeat var-count unbound)) ctor)]
+                                     context (object-array (repeat var-count unbound)) ctor env)]
                    (m/stream! (m/latest (fn [x] (when (instance? Failure x) (on-error (.-error x)))) <main)))
                  (->It context context-cancel context-transfer)))))
          (m/stream! (process-incoming-events context (m/stream! (m/relieve into (m/sample vector (m/observe ?read)))))))))))
@@ -830,6 +831,7 @@
    :target   0
    :output   0
    :input    0
+   :free     #{}
    :static   {}
    :dynamic  {}})
 
@@ -849,6 +851,7 @@
                         (let [f (:static env)
                               i (f p (count f))]
                           (-> env
+                            (update :free conj p)
                             (assoc :static (assoc f p i))
                             (update :stack conj (static i))))
                         (update env :stack conj (sub p))))
@@ -925,6 +928,7 @@
            ::ir/constant (-> env
                            (merge empty-frame)
                            (walk idx idx #{} (::ir/init inst))
+                           (snapshot (comp vec :free))
                            (snapshot (comp reverse-index :static))
                            (snapshot (comp reverse-index :dynamic))
                            (snapshot :variable)
@@ -933,14 +937,16 @@
                            (snapshot :target)
                            (snapshot :output)
                            (snapshot :input)
-                           (merge (select-keys env (keys empty-frame)))
+                           (update :free (partial into (:free env) (filter #(< % off))))
+                           (merge (select-keys env (keys (dissoc empty-frame :free))))
                            (snapshot :constant)
                            (update :constant inc)
-                           (update :stack collapse 10 (partial constant inst)))
+                           (update :stack collapse 11 (partial constant inst)))
            ::ir/target (let [deps (::ir/deps inst)]
                          (-> (reduce (fn [env inst] (walk env idx idx #{} inst))
                                (merge env empty-frame) deps)
                            (update :stack collapse (count deps) vector)
+                           (snapshot (comp vec :free))
                            (snapshot (comp reverse-index :static))
                            (snapshot (comp reverse-index :dynamic))
                            (snapshot :variable)
@@ -949,10 +955,11 @@
                            (snapshot :target)
                            (snapshot :output)
                            (snapshot :input)
-                           (merge (select-keys env (keys empty-frame)))
+                           (update :free (partial into (:free env) (filter #(< % off))))
+                           (merge (select-keys env (keys (dissoc empty-frame :free))))
                            (snapshot :target)
                            (update :target inc)
-                           (update :stack collapse 10 target)))))
+                           (update :stack collapse 11 target)))))
        (assoc empty-frame :vars -1) 0 0 #{} inst)
     (snapshot (comp inc :vars))
     (snapshot (comp reverse-index :dynamic))
@@ -970,114 +977,226 @@
   (symbol (str/join "-" args)))
 
 (defn emit [prefix inst]
-  (compile inst
-    {:nop      nil
-     :sub      (fn [idx] (sym prefix 'pub idx))
-     :pub      (fn [form cont idx]
-                 `(let [~(sym prefix 'pub idx) (signal ~form)] ~cont))
-     :do       (fn [deps form]
-                 `(do (make-input ~(sym prefix 'frame) ~deps) ~form))
-     :static   (fn [i] `(static ~(sym prefix 'frame) ~i))
-     :dynamic  (fn [i debug-info] `(dynamic ~(sym prefix 'frame) ~i '~(select-debug-info debug-info)))
-     :eval     (fn [form _ns] `(pure ~form))
-     :lift     (fn [f] `(pure ~f))
-     :vget     (fn [v] `(aget ~(sym prefix 'vars) (int ~v)))
-     :bind     (fn [form slot idx]
-                 `(let [~(sym prefix 'prev) (aget ~(sym prefix 'vars) ~slot)]
-                    (aset ~(sym prefix 'vars) (int ~slot) ~(sym prefix 'pub idx))
-                    (let [~(sym prefix 'res) ~form]
-                      (aset ~(sym prefix 'vars) (int ~slot) ~(sym prefix 'prev))
-                      ~(sym prefix 'res))))
-     :invoke   (fn [debug-info & forms] `(latest-apply '~(select-debug-info debug-info) ~@forms))
-     :input    (fn [deps slot] `(input-spawn ~(sym prefix 'frame) ~slot ~deps))
-     :output   (fn [debug-info form slot]
-                 `(make-output ~slot (check-failure '~(select-debug-info debug-info) ~form)))
-     :global   (fn [x] `(pure ~(symbol x)))
-     :literal  (fn [x] `(pure (quote ~x)))
-     :inject   (fn [v] `(pure (inject ~v)))
-     :variable (fn [form remote slot]
-                 `(variable ~(sym prefix 'frame) ~(sym prefix 'vars) ~(+ remote slot) ~slot ~form))
-     :source   (fn [remote slot]
-                 `(source ~(sym prefix 'frame) ~(sym prefix 'vars) ~(+ remote slot) ~slot))
-     :constant (fn [debug-info form static dynamic variable-count source-count constant-count target-count output-count input-count slot]
-                 `(constant ~(sym prefix 'frame) ~slot
-                    (constructor ~(mapv (fn [p] (sym prefix 'pub p)) static) ~dynamic
-                      ~variable-count ~source-count
-                      ~constant-count ~target-count
-                      ~output-count ~input-count
-                      (fn [~(sym prefix 'frame)
-                           ~(sym prefix 'vars)]
-                        (check-failure '~(select-debug-info debug-info) ~form)))))
-     :target   (fn [deps static dynamic variable-count source-count constant-count target-count output-count input-count slot]
-                 `(target ~(sym prefix 'frame) ~slot
-                    (constructor ~(mapv (fn [p] (sym prefix 'pub p)) static) ~dynamic
-                      ~variable-count ~source-count
-                      ~constant-count ~target-count
-                      ~output-count ~input-count
-                      (fn [~(sym prefix 'frame)
-                           ~(sym prefix 'vars)]
-                        (make-input ~(sym prefix 'frame) ~deps)))))
-     :main     (fn [form var-count dynamic variable-count source-count constant-count target-count output-count input-count]
-                 `(peer ~var-count ~dynamic
-                    ~variable-count ~source-count
-                    ~constant-count ~target-count
-                    ~output-count ~input-count
-                    (fn [~(sym prefix 'frame)
-                         ~(sym prefix 'vars)]
-                      ~form)))}))
+  (let [frame (sym prefix 'frame)
+        vars (sym prefix 'vars)
+        ctor-at (fn [i] (sym prefix 'ctor i))
+        expr-at (fn [i] (sym prefix 'expr i))
+        restore-free (fn [env free]
+                       (reduce-kv (fn [env i f] (assoc env f (list `aget (sym prefix 'env) i))) env free))
+        capture-free (fn [env free]
+                       `(doto (object-array ~(count free))
+                          ~@(eduction (map-indexed (fn [i f] (list `aset i (env f)))) free)))
+        emit-exprs (fn [exprs]
+                     (list `fn [frame vars (sym prefix 'env)]
+                       (list `let
+                         (into [] (comp (map-indexed (fn [i expr] [(expr-at i) expr])) cat) (pop exprs))
+                         (peek exprs))))
+        update-current (fn [ctors f & args] (conj (pop ctors) (apply f (peek ctors) args)))
+        from-last-expr (fn [exprs f & args] (conj exprs (apply f (expr-at (dec (count exprs))) args)))
+        add-many (fn [ctors env args]
+                   (reduce
+                     (fn [[ctors args] arg]
+                       (let [ctors (arg ctors env)]
+                         [ctors (conj args (expr-at (dec (count (peek ctors)))))]))
+                     [ctors []] args))]
+    (compile inst
+      {:nop      (fn [ctors env] (update-current ctors conj nil))
+       :sub      (fn [idx]
+                   (fn [ctors env]
+                     (update-current ctors conj (env idx))))
+       :pub      (fn [form cont idx]
+                   (fn [ctors env]
+                     (let [ctors (form ctors env)]
+                       (-> ctors
+                         (update-current from-last-expr (fn [x] `(signal ~x)))
+                         (cont (assoc env idx (expr-at (count (peek ctors)))))))))
+       :do       (fn [deps form]
+                   (fn [ctors env]
+                     (let [[ctors deps] (add-many ctors env deps)]
+                       (-> ctors
+                         (update-current conj `(make-input ~frame ~deps))
+                         (form env)))))
+       :static   (fn [i]
+                   (fn [ctors env]
+                     (update-current ctors conj `(static ~frame ~i))))
+       :dynamic  (fn [i debug-info]
+                   (fn [ctors env]
+                     (update-current ctors conj `(dynamic ~frame ~i '~(select-debug-info debug-info)))))
+       :eval     (fn [form _ns]
+                   (fn [ctors env]
+                     (update-current ctors conj `(pure ~form))))
+       :lift     (fn [f]
+                   (fn [ctors env]
+                     (-> ctors
+                       (f env)
+                       (update-current from-last-expr (fn [x] `(pure ~x))))))
+       :vget     (fn [v]
+                   (fn [ctors env]
+                     (update-current ctors conj `(aget ~vars (int ~v)))))
+       :bind     (fn [form slot idx]
+                   (fn [ctors env]
+                     (-> ctors
+                       (update-current conj `(aget ~vars ~slot) `(aset ~vars ~slot ~(env idx)))
+                       (form env)
+                       (update-current conj `(aset ~vars ~slot ~(expr-at (count (peek ctors)))))
+                       (update-current (fn [exprs] (conj exprs (expr-at (- (count exprs) 2))))))))
+       :invoke   (fn [debug-info & forms]
+                   (fn [ctors env]
+                     (let [[ctors forms] (add-many ctors env forms)]
+                       (update-current ctors conj `(latest-apply '~(select-debug-info debug-info) ~@forms)))))
+       :input    (fn [deps slot]
+                   (fn [ctors env]
+                     (let [[ctors deps] (add-many ctors env deps)]
+                       (update-current ctors conj `(input-spawn ~frame ~slot ~deps)))))
+       :output   (fn [debug-info form slot]
+                   (fn [ctors env]
+                     (-> ctors
+                       (form env)
+                       (update-current from-last-expr (fn [x] `(make-output ~slot (check-failure '~(select-debug-info debug-info) ~x)))))))
+       :global   (fn [x]
+                   (fn [ctors env]
+                     (update-current ctors conj `(pure ~(symbol x)))))
+       :literal  (fn [x]
+                   (fn [ctors env]
+                     (update-current ctors conj `(pure (quote ~x)))))
+       :inject   (fn [v]
+                   (fn [ctors env]
+                     (update-current ctors conj `(pure (inject ~v)))))
+       :variable (fn [form remote slot]
+                   (fn [ctors env]
+                     (-> ctors
+                       (form env)
+                       (update-current from-last-expr
+                         (fn [x]
+                           `(variable ~frame ~vars
+                              ~(+ remote slot) ~slot ~x))))))
+       :source   (fn [remote slot]
+                   (fn [ctors env]
+                     (update-current ctors conj `(source ~frame ~vars ~(+ remote slot) ~slot))))
+       :constant (fn [debug-info form free static dynamic variable-count source-count constant-count target-count output-count input-count slot]
+                   (fn [ctors env]
+                     (let [exprs (peek ctors)
+                           ctors (-> (pop ctors)
+                                   (conj [])
+                                   (form (restore-free env free)))]
+                       (-> ctors
+                         (update-current from-last-expr (fn [x] `(check-failure '~(select-debug-info debug-info) ~x)))
+                         (update-current
+                           (fn [exprs]
+                             (list `constructor dynamic
+                               variable-count source-count
+                               constant-count target-count
+                               output-count input-count
+                               (emit-exprs exprs))))
+                         (conj exprs)
+                         (update-current conj
+                           (list `constant frame slot
+                             (list (ctor-at (dec (count ctors)))
+                               (capture-free env free) (mapv env static))))))))
+       :target   (fn [deps free static dynamic variable-count source-count constant-count target-count output-count input-count slot]
+                   (fn [ctors env]
+                     (let [exprs (peek ctors)
+                           [ctors deps] (-> (pop ctors)
+                                          (conj [])
+                                          (add-many (restore-free env free) deps))]
+                       (-> ctors
+                         (update-current conj `(make-input ~frame ~deps))
+                         (update-current
+                           (fn [exprs]
+                             (list `constructor dynamic
+                               variable-count source-count
+                               constant-count target-count
+                               output-count input-count
+                               (emit-exprs exprs))))
+                         (conj exprs)
+                         (update-current conj
+                           (list `target frame slot
+                             (list (ctor-at (dec (count ctors)))
+                               (capture-free env free) (mapv env static))))))))
+       :main     (fn [form var-count dynamic variable-count source-count constant-count target-count output-count input-count]
+                   (let [ctors (form [[]] {})]
+                     (list `let (into []
+                                  (comp
+                                    (map-indexed
+                                      (fn [i ctor]
+                                        [(ctor-at i) ctor]))
+                                    cat)
+                                  (pop ctors))
+                       (list `peer var-count dynamic variable-count source-count constant-count target-count output-count input-count
+                         (emit-exprs (peek ctors)) nil))))})))
+
 
 (tests
   (emit nil (ir/literal 5)) :=
-  `(peer 0 [] 0 0 0 0 0 0
-     (fn [~'-frame ~'-vars]
-       (pure '5)))
+  `(let []
+     (peer 0 [] 0 0 0 0 0 0
+       (fn [~'-frame ~'-vars ~'-env]
+         (let [] (pure '5)))
+       nil))
 
   (emit nil (ir/apply
               (ir/global :clojure.core/+)
               (ir/literal 2) (ir/literal 3))) :=
-  `(peer 0 [] 0 0 0 0 0 0
-     (fn [~'-frame ~'-vars]
-       (latest-apply '{::ir/op    ::ir/global
-                       ::dbg/type :apply
-                       ::dbg/name ~'clojure.core/+}
-         (pure ~'clojure.core/+)
-         (pure '2)
-         (pure '3))))
+  `(let []
+     (peer 0 [] 0 0 0 0 0 0
+       (fn [~'-frame ~'-vars ~'-env]
+         (let [~'-expr-0 (pure ~'clojure.core/+)
+               ~'-expr-1 (pure '2)
+               ~'-expr-2 (pure '3)]
+           (latest-apply '{::ir/op    ::ir/global
+                           ::dbg/type :apply
+                           ::dbg/name ~'clojure.core/+}
+             ~'-expr-0 ~'-expr-1 ~'-expr-2)))
+       nil))
 
   (emit nil
     (ir/pub (ir/literal 1)
       (ir/apply (ir/global :clojure.core/+)
         (ir/sub 1)
         (ir/literal 2)))) :=
-  `(peer 0 [] 0 0 0 0 0 0
-     (fn [~'-frame ~'-vars]
-       (let [~'-pub-0 (signal (pure '1))]
-         (latest-apply '{::ir/op    ::ir/global
-                         ::dbg/type :apply
-                         ::dbg/name ~'clojure.core/+}
-           (pure ~'clojure.core/+) ~'-pub-0 (pure '2)))))
+  `(let []
+     (peer 0 [] 0 0 0 0 0 0
+       (fn [~'-frame ~'-vars ~'-env]
+         (let [~'-expr-0 (pure '1)
+               ~'-expr-1 (signal ~'-expr-0)
+               ~'-expr-2 (pure ~'clojure.core/+)
+               ~'-expr-3 ~'-expr-1
+               ~'-expr-4 (pure '2)]
+           (latest-apply '{::ir/op    ::ir/global
+                           ::dbg/type :apply
+                           ::dbg/name ~'clojure.core/+}
+             ~'-expr-2 ~'-expr-3 ~'-expr-4)))
+       nil))
 
   (emit nil
     (ir/variable
       (ir/global :missionary.core/none))) :=
-  `(peer 0 [] 1 0 0 0 0 0
-     (fn [~'-frame ~'-vars]
-       (variable ~'-frame ~'-vars 0 0 (pure m/none))))
+  `(let []
+     (peer 0 [] 1 0 0 0 0 0
+       (fn [~'-frame ~'-vars ~'-env]
+         (let [~'-expr-0 (pure m/none)]
+           (variable ~'-frame ~'-vars 0 0 ~'-expr-0)))
+       nil))
 
   (emit nil (ir/input [])) :=
-  `(peer 0 [] 0 0 0 0 0 1
-     (fn [~'-frame ~'-vars]
-       (input-spawn ~'-frame 0 [])))
+  `(let []
+     (peer 0 [] 0 0 0 0 0 1
+       (fn [~'-frame ~'-vars ~'-env]
+         (let []
+           (input-spawn ~'-frame 0 [])))
+       nil))
 
   (emit nil (ir/constant
               (ir/literal :foo))) :=
-  `(peer 0 [] 0 0 1 0 0 0
-     (fn [~'-frame ~'-vars]
-       (constant ~'-frame 0
-         (constructor [] [] 0 0 0 0 0 0
-           (fn [~'-frame ~'-vars]
-             (check-failure '{::ir/op ::ir/constant}
-               (pure ':foo)))))))
+  `(let [~'-ctor-0 (constructor [] 0 0 0 0 0 0
+                     (fn [~'-frame ~'-vars ~'-env]
+                       (let [~'-expr-0 (pure ':foo)]
+                         (check-failure '{::ir/op ::ir/constant} ~'-expr-0))))]
+     (peer 0 [] 0 0 1 0 0 0
+       (fn [~'-frame ~'-vars ~'-env]
+         (let []
+           (constant ~'-frame 0 (~'-ctor-0 (doto (object-array 0)) []))))
+       nil))
 
   (emit nil
     (ir/variable
@@ -1089,58 +1208,99 @@
               (ir/literal 4) (ir/sub 1)
               (ir/literal 5) (ir/sub 1))
             (ir/literal 1) (ir/constant (ir/literal 7)))))))
-  `(peer 0 [] 1 0 3 0 0 0
-     (fn [~'-frame ~'-vars]
-       (variable ~'-frame ~'-vars 0 0
-         (let [~'-pub-0 (signal
-                          (constant ~'-frame 0
-                            (constructor [] [] 0 0 0 0 0 0
-                              (fn [~'-frame ~'-vars]
-                                (check-failure 'nil (pure '3))))))]
-           (let [~'-pub-1 (signal
-                            (constant ~'-frame 1
-                              (constructor [] [] 0 0 0 0 0 1
-                                (fn [~'-frame ~'-vars]
-                                  (check-failure 'nil (input-spawn ~'-frame 0 []))))))]
-             (latest-apply '{::dbg/type :unknown-apply, ; FIXME remove this debug noise
-                             :op
-                             [:apply
-                              [:global :clojure.core/hash-map nil]
-                              [:literal 2]
-                              [:sub 2]
-                              [:literal 4]
-                              [:sub 1]
-                              [:literal 5]
-                              [:sub 1]]}
-               (latest-apply '{::ir/op ::ir/global
-                               ::dbg/type :apply,
-                               ::dbg/name clojure.core/hash-map}
-                 (pure hash-map)
-                 (pure '2) ~'-pub-0
-                 (pure '4) ~'-pub-1
-                 (pure '5) ~'-pub-1)
-               (pure '1)
-               (constant ~'-frame 2
-                 (constructor [] [] 0 0 0 0 0 0
-                   (fn [~'-frame ~'-vars]
-                     (check-failure 'nil (pure '7)))))))))))
+  `(let [~'-ctor-0 (constructor [] 0 0 0 0 0 0
+                     (fn [~'-frame ~'-vars ~'-env]
+                       (let [~'-expr-0 (pure '3)]
+                         (check-failure 'nil ~'-expr-0))))
+         ~'-ctor-1 (constructor [] 0 0 0 0 0 1
+                     (fn [~'-frame ~'-vars ~'-env]
+                       (let [~'-expr-0 (input-spawn ~'-frame 0 [])]
+                         (check-failure 'nil ~'-expr-0))))
+         ~'-ctor-2 (constructor [] 0 0 0 0 0 0
+                     (fn [~'-frame ~'-vars ~'-env]
+                       (let [~'-expr-0 (pure '7)]
+                         (check-failure 'nil ~'-expr-0))))]
+     (peer 0 [] 1 0 3 0 0 0
+       (fn [~'-frame ~'-vars ~'-env]
+         (let [~'-expr-0 (constant ~'-frame 0 (~'-ctor-0 (doto (object-array 0)) []))
+               ~'-expr-1 (signal ~'-expr-0)
+               ~'-expr-2 (constant ~'-frame 1 (~'-ctor-0 (doto (object-array 0)) []))
+               ~'-expr-3 (signal ~'-expr-2)
+               ~'-expr-4 (pure hash-map)
+               ~'-expr-5 (pure '2)
+               ~'-expr-6 ~'-expr-1
+               ~'-expr-7 (pure '4)
+               ~'-expr-8 ~'-expr-3
+               ~'-expr-9 (pure '5)
+               ~'-expr-10 ~'-expr-3
+               ~'-expr-11 (latest-apply '{::ir/op    ::ir/global
+                                          ::dbg/type :apply,
+                                          ::dbg/name clojure.core/hash-map}
+                            ~'-expr-4
+                            ~'-expr-5
+                            ~'-expr-6
+                            ~'-expr-7
+                            ~'-expr-8
+                            ~'-expr-9
+                            ~'-expr-10)
+               ~'-expr-12 (pure '1)
+               ~'-expr-13 (constant ~'-frame 2 (~'-ctor-2 (doto (object-array 0)) []))
+               ~'-expr-14 (latest-apply '{::dbg/type :unknown-apply, ; FIXME remove this debug noise
+                                          :op
+                                          [:apply
+                                           [:global :clojure.core/hash-map nil]
+                                           [:literal 2]
+                                           [:sub 2]
+                                           [:literal 4]
+                                           [:sub 1]
+                                           [:literal 5]
+                                           [:sub 1]]}
+                            ~'-expr-11
+                            ~'-expr-12
+                            ~'-expr-13)]
+           (variable ~'-frame ~'-vars 0 0 ~'-expr-14)))
+       nil))
 
   (emit nil (ir/inject 0)) :=
-  `(peer 1 [] 0 0 0 0 0 0
-     (fn [~'-frame ~'-vars]
-       (pure (inject 0))))
+  `(let []
+     (peer 1 [] 0 0 0 0 0 0
+       (fn [~'-frame ~'-vars ~'-env]
+         (let []
+           (pure (inject 0))))
+       nil))
 
   (emit nil
     (ir/pub (ir/literal nil)
       (ir/constant (ir/sub 1)))) :=
-  `(peer 0 [] 0 0 1 0 0 0
-     (fn [~'-frame ~'-vars]
-       (let [~'-pub-0 (signal (pure 'nil))]
-         (constant ~'-frame 0
-           (constructor [~'-pub-0] [] 0 0 0 0 0 0
-             (fn [~'-frame ~'-vars]
-               (check-failure '{::ir/op ::ir/constant}
-                 (static ~'-frame 0)))))))))
+  `(let [~'-ctor-0 (constructor [] 0 0 0 0 0 0
+                     (fn [~'-frame ~'-vars ~'-env]
+                       (let [~'-expr-0 (static ~'-frame 0)]
+                         (check-failure '{::ir/op ::ir/constant} ~'-expr-0))))]
+     (peer 0 [] 0 0 1 0 0 0
+       (fn [~'-frame ~'-vars ~'-env]
+         (let [~'-expr-0 (pure 'nil)
+               ~'-expr-1 (signal ~'-expr-0)]
+           (constant ~'-frame 0 (~'-ctor-0 (doto (object-array 1) (aset 0 ~'-expr-1)) [~'-expr-1]))))
+       nil))
+
+  (emit nil
+    (ir/pub (ir/literal nil)
+      (ir/constant
+        (ir/constant (ir/sub 1))))) :=
+  `(let [~'-ctor-0 (constructor [] 0 0 0 0 0 0
+                     (fn [~'-frame ~'-vars ~'-env]
+                       (let [~'-expr-0 (static ~'-frame 0)]
+                         (check-failure '{::ir/op ::ir/constant} ~'-expr-0))))
+         ~'-ctor-1 (constructor [] 0 0 1 0 0 0
+                     (fn [~'-frame ~'-vars ~'-env]
+                       (let [~'-expr-0 (constant ~'-frame 0 (~'-ctor-0 (doto (object-array 1) (aset 0 (aget ~'-env 0))) [(aget ~'-env 0)]))]
+                         (check-failure '{::ir/op ::ir/constant} ~'-expr-0))))]
+     (peer 0 [] 0 0 1 0 0 0
+       (fn [~'-frame ~'-vars ~'-env]
+         (let [~'-expr-0 (pure 'nil)
+               ~'-expr-1 (signal ~'-expr-0)]
+           (constant ~'-frame 0 (~'-ctor-1 (doto (object-array 1) (aset 0 ~'-expr-1)) []))))
+       nil)))
 
 (defn juxt-with ;;juxt = juxt-with vector, juxt-with f & gs = apply f (apply juxt gs)
   ([f]
@@ -1217,41 +1377,41 @@
                     (constantly (pure (binding [*ns* ns] (clojure.core/eval form))))
                     (constantly (pure (clojure.core/eval form)))))
       :do       (fn [deps inst]
-                  (fn [pubs frame vars]
-                    (do (make-input frame (mapv (fn [inst] (inst pubs frame vars)) deps))
-                        (inst pubs frame vars))))
+                  (fn [frame vars env]
+                    (do (make-input frame (mapv (fn [inst] (inst frame vars env)) deps))
+                        (inst frame vars env))))
       :sub      (fn [idx]
-                  (fn [pubs frame vars]
-                    (nth pubs idx)))
-      :pub      (fn [form cont _]
-                  (fn [pubs frame vars]
-                    (cont (conj pubs (signal (form pubs frame vars))) frame vars)))
+                  (fn [frame vars env]
+                    (env idx)))
+      :pub      (fn [form cont idx]
+                  (fn [frame vars env]
+                    (cont frame vars (assoc env idx (signal (form frame vars env))))))
       :lift     (fn [form]
-                  (fn [pubs frame vars]
-                    (pure (form pubs frame vars))))
+                  (fn [frame vars env]
+                    (pure (form frame vars env))))
       :vget     (fn [slot]
-                  (fn [pubs frame ^objects vars]
+                  (fn [frame ^objects vars env]
                     (aget vars (int slot))))
       :static   (fn [slot]
-                  (fn [pubs frame vars]
+                  (fn [frame vars env]
                     (static frame slot)))
       :dynamic  (fn [slot debug-info]
-                  (fn [pubs frame vars]
+                  (fn [frame vars env]
                     (dynamic frame slot debug-info)))
       :bind     (fn [form slot s]
-                  (fn [pubs frame ^objects vars]
+                  (fn [frame ^objects vars env]
                     (let [prev (aget vars (int slot))]
-                      (aset vars (int slot) (nth pubs s))
-                      (let [res (form pubs frame vars)]
+                      (aset vars (int slot) (env s))
+                      (let [res (form frame vars env)]
                         (aset vars (int slot) prev) res))))
       :invoke   (fn [debug-info & forms] (apply juxt-with (partial latest-apply debug-info) forms))
       :input    (fn [deps slot]
-                  (fn [pubs frame vars]
+                  (fn [frame vars env]
                     (input-spawn frame slot
-                      (mapv (fn [inst] (inst pubs frame vars)) deps))))
+                      (mapv (fn [inst] (inst frame vars env)) deps))))
       :output   (fn [debug-info form slot]
-                  (fn [pubs frame vars]
-                    (make-output slot (check-failure debug-info (form pubs frame vars)))))
+                  (fn [frame vars env]
+                    (make-output slot (check-failure debug-info (form frame vars env)))))
       :global   (fn [x]
                   (let [r (resolvef ::not-found x)]
                     (case r
@@ -1260,29 +1420,30 @@
       :literal  (fn [x] (constantly (pure x)))
       :inject   (fn [slot] (constantly (pure (inject slot))))
       :variable (fn [form remote slot]
-                  (fn [pubs frame vars]
+                  (fn [frame vars env]
                     (variable frame vars (+ remote slot) slot
-                      (form pubs frame vars))))
+                      (form frame vars env))))
       :source   (fn [remote slot]
-                  (fn [pubs frame vars]
+                  (fn [frame vars env]
                     (source frame vars (+ remote slot) slot)))
-      :constant (fn [debug-info form static dynamic variable-count source-count constant-count target-count output-count input-count slot]
-                  (fn [pubs frame vars]
-                    (constant frame slot
-                      (constructor (mapv pubs static) dynamic variable-count source-count constant-count target-count output-count input-count
-                        (fn [& args]
-                          (check-failure debug-info (apply form pubs args)))))))
-      :target   (fn [deps static dynamic variable-count source-count constant-count target-count output-count input-count slot]
-                  (fn [pubs frame vars]
-                    (target frame slot
-                      (constructor (mapv pubs static) dynamic variable-count source-count constant-count target-count output-count input-count
-                        (fn [frame vars] (make-input frame (mapv (fn [inst] (inst pubs frame vars)) deps)))))))
+      :constant (fn [debug-info form free static dynamic variable-count source-count constant-count target-count output-count input-count slot]
+                  (let [ctor (constructor dynamic variable-count source-count constant-count target-count output-count input-count
+                               (fn [frame vars env]
+                                 (check-failure debug-info (form frame vars env))))]
+                    (fn [frame vars env]
+                      (constant frame slot (ctor (into {} (map (juxt identity env)) free) (mapv env static))))))
+      :target   (fn [deps free static dynamic variable-count source-count constant-count target-count output-count input-count slot]
+                  (let [ctor (constructor dynamic variable-count source-count constant-count target-count output-count input-count
+                               (fn [frame vars env]
+                                 (make-input frame (mapv (fn [inst] (inst frame vars env)) deps))))]
+                    (fn [frame vars env]
+                      (target frame slot (ctor (into {} (map (juxt identity env)) free) (mapv env static))))))
       :main     (fn [form var-count dynamic variable-count source-count constant-count target-count output-count input-count]
                   (peer var-count dynamic
                     variable-count source-count
                     constant-count target-count
                     output-count input-count
-                    (partial form [])))})))
+                    form {}))})))
 
 
 
