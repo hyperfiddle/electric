@@ -9,8 +9,7 @@
                          :modules     {:main {:entries [user]
                                               :init-fn user/start!}}
                          :build-hooks [(shadow.cljs.build-report/hook {:output-to "target/build_report.html"})
-                                       (user/rcf-shadow-hook)]
-                         :release     {:compiler-options {:optimizations :simple}}}
+                                       (user/rcf-shadow-hook)]}
           :test         {:target           :node-test
                          :output-to        "out/node-tests.js"
                          :ns-regexp        "^(hyperfiddle.electric-[^dom|fulcro]|contrib.(ednish|sexpr-router|missionary-contrib-test)).*$"
