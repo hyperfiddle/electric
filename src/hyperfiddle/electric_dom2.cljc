@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric-dom2
-  (:refer-clojure :exclude [time])
+  (:refer-clojure :exclude [time class?])
   (:require [contrib.missionary-contrib :as mx]
             #?(:cljs goog.dom)
             #?(:cljs goog.object)
