@@ -236,9 +236,19 @@
        (merge {:file file} debug-info)
        (or debug-info {})))))
 
+(defn bound-js-fn
+  "Given a js global (e.g js/alert or js/console.log), ensures that it is called
+  under the correct `this` context, if it resolves to a function."
+  [sym]
+  (let [fields (clojure.string/split (name sym) #"\.")]
+    `(r/bound-js-fn ~(symbol "js" (if (seq (rest fields))
+                                    (clojure.string/join (interpose '. (butlast fields)))
+                                    "window"))
+       ~sym)))
+
 (defn analyze-global [env sym]
   (case (namespace sym)
-    "js" (ir/eval sym)
+    "js" (ir/eval (bound-js-fn sym))
     (let [sym (if-some [var (env/resolve-var env sym)]
                 (env/var-name var)
                 (case (env/peer-language env)
@@ -634,38 +644,32 @@
           (analyze-sexpr env (with-meta `(new ~(symbol (namespace op) (subs n 0 e)) ~@args) (meta form)))
           (if (contains? (:locals env) op)
             (analyze-apply env form)
-            (if (= "js" (namespace op))
-              ;; calls like js/alert expect this=Window
-              ;; - the thunk forces cljs compilation where this is true
-              ;; - the `let` over args allows electric code (e.g. calling `new`)
-              (let [gs (repeatedly (count form) gensym)]
-                (recur env `(let [[~@gs] [~@form]] (#(~@gs)))))
-              (if-some [sym (env/resolve-runtime env op)]
-                (case sym
-                  (clojure.core/unquote-splicing cljs.core/unquote-splicing) (toggle env (first args) {::dbg/meta (meta form) ::dbg/type :toggle})
-                  (analyze-apply env form))
-                (if-some [v (env/resolve-var env op)]
-                  (case (env/var-name v)
-                    (clojure.core/binding cljs.core/binding)
-                    (analyze-binding env (first args) analyze-sexpr (cons `do (next args)))
+            (if-some [sym (env/resolve-runtime env op)]
+              (case sym
+                (clojure.core/unquote-splicing cljs.core/unquote-splicing) (toggle env (first args) {::dbg/meta (meta form) ::dbg/type :toggle})
+                (analyze-apply env form))
+              (if-some [v (env/resolve-var env op)]
+                (case (env/var-name v)
+                  (clojure.core/binding cljs.core/binding)
+                  (analyze-binding env (first args) analyze-sexpr (cons `do (next args)))
 
-                    (if (env/is-node v)
-                      (analyze-apply env form)
-                      (cond (instance? CljVar v) ; "manual" macroexpansion: call the var as a function, passing it &form and the appropriate &env
-                            (analyze-form env
-                              (binding [*env* env
-                                        *ns* (find-ns (if (:js-globals env) (:name (:ns env)) (:ns env)))]
-                                (apply (env/get-var v) form (if (:js-globals env) env (:locals env)) args)))
+                  (if (env/is-node v)
+                    (analyze-apply env form)
+                    (cond (instance? CljVar v) ; "manual" macroexpansion: call the var as a function, passing it &form and the appropriate &env
+                          (analyze-form env
+                            (binding [*env* env
+                                      *ns* (find-ns (if (:js-globals env) (:name (:ns env)) (:ns env)))]
+                              (apply (env/get-var v) form (if (:js-globals env) env (:locals env)) args)))
 
-                            (instance? CljsVar v) ;; TODO GG: is this case possible? A cljs macro var without a corresponding clj macro var.
-                            (throw (ex-info "Failed to resolve macro expander" {:name (env/var-name v)}))
+                          (instance? CljsVar v) ;; TODO GG: is this case possible? A cljs macro var without a corresponding clj macro var.
+                          (throw (ex-info "Failed to resolve macro expander" {:name (env/var-name v)}))
 
-                            :else (throw (ex-info "Invalid call" {:form form})))))
-                  (let [desugared-form (desugar-host env form)]
-                    (if (= form desugared-form)
-                      ;; Nothing got desugared, this is not host interop, meaning `op` var wasn't found.
-                      (analyze-apply env form) ; pass through
-                      (analyze-form env desugared-form)))))))))
+                          :else (throw (ex-info "Invalid call" {:form form})))))
+                (let [desugared-form (desugar-host env form)]
+                  (if (= form desugared-form)
+                    ;; Nothing got desugared, this is not host interop, meaning `op` var wasn't found.
+                    (analyze-apply env form) ; pass through
+                    (analyze-form env desugared-form))))))))
       (analyze-apply env form))))
 
 (defn analyze-map [env form]
