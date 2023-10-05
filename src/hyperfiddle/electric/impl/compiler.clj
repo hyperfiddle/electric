@@ -76,10 +76,11 @@
     `(fn [~inst ~@args] (. ~inst ~method ~@args))))
 
 (defmacro field-access [target-form field]
-  (let [target (cond (symbol? target-form) (with-meta (symbol (name target-form)) (meta target-form))
+  (let [dot->underscore #(str/replace % #"\." "__")
+        target (cond (symbol? target-form) (with-meta (symbol (dot->underscore (name target-form))) (meta target-form))
                      (seq? target-form)    (let [field (last target-form)
                                                  meta  (meta (second target-form))]
-                                             (with-meta (symbol (str/replace-first (name field) #"^-" "")) meta))
+                                             (with-meta (symbol (dot->underscore (str/replace-first (name field) #"^-" ""))) meta))
                      :else                 (gensym "field-access-target_"))]
     `(fn [~target] (. ~target ~(symbol (str "-" (name field)))))))
 
