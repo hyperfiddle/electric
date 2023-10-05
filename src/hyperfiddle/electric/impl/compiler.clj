@@ -243,7 +243,7 @@
   (let [fields (clojure.string/split (name sym) #"\.")]
     `(r/bound-js-fn ~(symbol "js" (if (seq (rest fields))
                                     (clojure.string/join (interpose '. (butlast fields)))
-                                    "window"))
+                                    "globalThis"))
        ~sym)))
 
 (defn analyze-global [env sym]

@@ -7,6 +7,7 @@
             [hyperfiddle.electric.impl.io :as electric-io]
             [hyperfiddle.electric.impl.runtime :as r]
             #?(:cljs [hyperfiddle.goog-calls-test])
+            #?(:cljs [hyperfiddle.js-calls-test])
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m]
             [clojure.test :as t]
