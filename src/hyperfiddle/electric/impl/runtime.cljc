@@ -105,12 +105,6 @@
   (partial m/latest
     (fn [x y] (if (instance? Failure y) y x))))
 
-#?(:cljs
-   (defn bound-js-fn [this ^js obj]
-     (if (instance? js/Function obj)
-       (.bind obj this)
-       obj)))
-
 (defn pure [x] (m/cp x))
 
 (def empty-event
