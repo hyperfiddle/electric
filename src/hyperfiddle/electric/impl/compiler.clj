@@ -237,19 +237,9 @@
        (merge {:file file} debug-info)
        (or debug-info {})))))
 
-(defn bound-js-fn
-  "Given a js global (e.g js/alert or js/console.log), ensures that it is called
-  under the correct `this` context, if it resolves to a function."
-  [sym]
-  (let [fields (clojure.string/split (name sym) #"\.")]
-    `(r/bound-js-fn ~(symbol "js" (if (seq (rest fields))
-                                    (clojure.string/join (interpose '. (butlast fields)))
-                                    "globalThis"))
-       ~sym)))
-
 (defn analyze-global [env sym]
   (case (namespace sym)
-    "js" (ir/eval (bound-js-fn sym))
+    "js" (ir/eval sym)
     (let [sym (if-some [var (env/resolve-var env sym)]
                 (env/var-name var)
                 (case (env/peer-language env)
@@ -329,10 +319,35 @@
         (pure-res (analyze-global env (env/resolve-alias env sym))) ; pass through
         ))))
 
+(defn js-var? [env sym]
+  (when-let [var (env/resolve-var env sym)]
+    (when (instance? CljsVar var)
+      (= 'js (:ns (env/get-var var))))))
+
+(defn bound-js-fn
+  "Given a js global resolving to a function (e.g js/alert, js/console.log required-js-ns/js-fn), ensures it
+  is called under the correct `this` context."
+  [sym]
+  (let [fields (clojure.string/split (name sym) #"\.")]
+    `(.bind ~sym ~(symbol (namespace sym)
+                    (if (seq (rest fields))
+                      (clojure.string/join (interpose '. (butlast fields)))
+                      "globalThis")))))
+
 (defn analyze-apply [env sexp]
-  (->> sexp
-    (map (partial analyze-form env))
-    (apply map-res ir/apply)))
+  (let [[f & args] sexp] ; f may be composite
+    (apply map-res ir/apply
+      (cons (if (and (symbol? f) (js-var? env f))
+              ;; Special case - we must preserve `this` scope when calling a js fn from its global var (e.g.
+              ;; js/alert). Can’t move this logic to `analyze-global` without damaging equality semantics: a
+              ;; bound js fn is not equal to the original fn, so (= js/alert js/alert) would return true in
+              ;; cljs and false in Electric. As of 2023 there is no reliable way to detect a js Class from a
+              ;; Function, moving this logic to `analyze-global` would bind all classes. While it seems
+              ;; harmless, we shouldn't alter userland values unless strictly necessary.
+              ;; See `js_calls_test.cljs`.
+              (pure-res (ir/eval (bound-js-fn f)))
+              (analyze-form env f))
+        (map (partial analyze-form env) args)))))
 
 (defn causal [stmt expr]
   (ir/apply (ir/literal {}) stmt expr))
