@@ -410,12 +410,11 @@
 (e/def build-route {})
 
 #?(:cljs
-   (defn on-link-click [next-route ^js e]
+   (defn on-link-click [next-route ^js node ^js e]
      ;; enrich click event with:
      ;; - the route
      ;; - is the link internal or external (soft vs hard nav)
-     (let [node   (.-target e)
-           target (.getAttribute node "target")]
+     (let [target (.getAttribute node "target")]
        (set! (.-hyperfiddle_history_route e) next-route)
        (set! (.-hyperfiddle_history_route_external_nav e)
          (or (some? (.getAttribute node "download"))
@@ -432,7 +431,7 @@
                (e/listen> dom/node "click"
                  (fn [e] ; todo e/for-event-pending-switch? Or missionary itself
                    ;; TODO why !history doesn't work and we have to lexically bind it?
-                   (on-link-click next-route e)))))))))
+                   (on-link-click next-route dom/node e)))))))))
 
 (defmacro link [route & body]
   ; all links are Sexpr-like and head is qualified name. like [::secrets 1 2]
