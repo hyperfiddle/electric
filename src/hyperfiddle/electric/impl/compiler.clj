@@ -327,12 +327,13 @@
 (defn bound-js-fn
   "Given a js global resolving to a function (e.g js/alert, js/console.log required-js-ns/js-fn), ensures it
   is called under the correct `this` context."
-  [sym]
-  (let [fields (clojure.string/split (name sym) #"\.")]
-    `(.bind ~sym ~(symbol (namespace sym)
-                    (if (seq (rest fields))
-                      (clojure.string/join (interpose '. (butlast fields)))
-                      "globalThis")))))
+  [env sym]
+  (let [resolved-sym (:name (env/get-var (env/resolve-var env sym)))
+        fields (clojure.string/split (name resolved-sym) #"\.")]
+    `(.bind ~resolved-sym ~(symbol (namespace resolved-sym)
+                             (if (seq (rest fields))
+                               (clojure.string/join (interpose '. (butlast fields)))
+                               "globalThis")))))
 
 (defn analyze-apply [env sexp]
   (let [[f & args] sexp] ; f may be composite
@@ -345,7 +346,7 @@
               ;; Function, moving this logic to `analyze-global` would bind all classes. While it seems
               ;; harmless, we shouldn't alter userland values unless strictly necessary.
               ;; See `js_calls_test.cljs`.
-              (pure-res (ir/eval (bound-js-fn f)))
+              (pure-res (ir/eval (bound-js-fn env f)))
               (analyze-form env f))
         (map (partial analyze-form env) args)))))
 
