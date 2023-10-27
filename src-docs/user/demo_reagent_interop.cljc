@@ -6,7 +6,8 @@
             [hyperfiddle.electric-dom2 :as dom]
             #?(:cljs [reagent.core :as r])
             #?(:cljs ["recharts" :refer [ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid]])
-            #?(:cljs ["react-dom/client" :as ReactDom])))
+            #?(:cljs ["react-dom/client" :as ReactDom]))
+  #?(:cljs (:require-macros [user.demo-reagent-interop])))
 
 (def ReactRootWrapper
   #?(:cljs
