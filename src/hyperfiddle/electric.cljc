@@ -389,6 +389,12 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
     `(::c/server (do ~@body) ~(assoc (meta &form) ::dbg/type :transfer, ::dbg/name ::server))
     `(throw (ex-info "Invalid e/server in Clojure code block (use from Electric code only)" ~(into {} (meta &form))))))
 
+(defmacro flow
+  "Transform an Electric value into a Missionary flow by \"quoting\" it with e/fn.
+Quoting it directly is idiomatic as well."
+  {:style/indent 0}
+  [x] `(hyperfiddle.electric/fn [] ~x))
+
 (defmacro discard
   "Silence \"Unserializable reference transfer\"; inlining `(do ... nil)` is idiomatic as well"
   {:style/indent 0}
