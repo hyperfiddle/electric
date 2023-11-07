@@ -656,3 +656,9 @@ fresh event."
             (catch ~(if (:ns &env) :default `Throwable) ex#
               (reduced (reset! !state# [::failed ex#]))))) ; latch result
      (hyperfiddle.electric/watch !state#)))
+
+(cc/defn -inhibit [>x] (m/reductions nil nil (m/ap (m/?< >x) (m/amb))))
+
+(defmacro inhibit "Run body for effects, ignore result. Returns an invariable nil."
+  {:style/indent 1}
+  [& body] `(new (-inhibit (hyperfiddle.electric/fn [] ~@body))))
