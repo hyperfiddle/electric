@@ -336,6 +336,7 @@ Returns the application of diff `d` to vector `v`.
          (change! (:change d))
          (persistent!))))))
 
+(defn patch-count [v d] (- (:degree d) (:shrink d)))
 
 (defn ^{:doc "
 Returns the diff applying given diffs successively.
