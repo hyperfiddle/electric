@@ -113,6 +113,8 @@
       (:line meta) (assoc ::line (:line meta))
       (:file meta) (assoc ::file (:file meta)))))
 
+(def fail? '#{hyperfiddle.electric.impl.runtime/fail})
+
 (defn render-frame [frame]
   (let [{::keys [remote file line macro scope type name params args meta]} frame]
     (->> ["in"
@@ -124,39 +126,42 @@
             nil)
 
           (str/join " "
-                    (case type
-                      :apply (case name
-                               hyperfiddle.electric.impl.runtime/fail `["(throw" ~(render-arg (first args)) ")"]
-                               `["(" ~name ~@(map render-arg args) ")"])
-                      :eval  (let [{::keys [action target method args]} frame]
-                               (case action
-                                 :field-access ["(" (str ".-" method) target ")"]
-                                 :static-call  `["(" ~(str target "/" method) ~@(map render-arg (rest args)) ")"]
-                                 :call         `["(" ~(str "." method) ~target ~@(map render-arg (rest args))")"]
-                                 :fn-call      (if (some? name)
-                                                 `["(" (clojure.core/fn ~name [~@params] ~'...) ~@(map render-arg args) ")"]
-                                                 `["(" (clojure.core/fn [~@params] ~'...) ~@(map render-arg args) ")"])
-
-                                 ["<unknown interop>" frame]))
-                      :reactive-fn   ["reactive" (if (some? name)
-                                                   `(~'fn ~name ~args ~'...)
-                                                   `(~'fn ~args ~'...))]
-                      :reactive-defn ["reactive" `(~'defn ~name ~args ~'...)]
-                      :try           ["(try ...)" ]
-                      :catch         [`(~'catch ~@args ~'...)]
-                      :finally       ["(finally ...)"]
-                      :case-clause   [`(~'case ~@args ~'...)]
-                      :case-default  ["case default branch"]
-                      :transfer      ["transfer to" (clojure.core/name name)]
-                      :toggle        ["transfer"]
-                      `["<unknow frame>" ~(::ir/op frame)]
-                      ))
+            (case type
+              :apply (if (fail? name)
+                       ["(throw" ~(render-arg (first args)) ")"]
+                       `["(" ~name ~@(map render-arg args) ")"])
+              :eval  (if (fail? (::fn frame))
+                       `["(throw" ~(render-arg (first args)) ")"]
+                       (let [{::keys [action target method args]} frame]
+                         (case action
+                           :field-access ["(" (str ".-" method) target ")"]
+                           :static-call  `["(" ~(str target "/" method) ~@(map render-arg (rest args)) ")"]
+                           :call         `["(" ~(str "." method) ~target ~@(map render-arg (rest args))")"]
+                           :fn-call      (if (some? name)
+                                           `["(" (clojure.core/fn ~name [~@params] ~'...) ~@(map render-arg args) ")"]
+                                           `["(" (clojure.core/fn [~@params] ~'...) ~@(map render-arg args) ")"])
+                           #_else (if-some [f (::fn frame)]
+                                    `["(" ~f ~@(map render-arg args) ")"]
+                                    ["<unknown interop>" frame]))))
+              :reactive-fn   ["reactive" (if (some? name)
+                                           `(~'fn ~name ~args ~'...)
+                                           `(~'fn ~args ~'...))]
+              :reactive-defn ["reactive" `(~'defn ~name ~args ~'...)]
+              :try           ["(try ...)" ]
+              :catch         [`(~'catch ~@args ~'...)]
+              :finally       ["(finally ...)"]
+              :case-clause   [`(~'case ~@args ~'...)]
+              :case-default  ["case default branch"]
+              :transfer      ["transfer to" (clojure.core/name name)]
+              :toggle        ["transfer"]
+              `["<unknow frame>" ~(::ir/op frame)]
+              ))
 
           (when file (str "in " file))
           (when line (str "line " line))
           ]
-         (remove nil?)
-         (str/join " "))))
+      (remove nil?)
+      (str/join " "))))
 
 (defn render-stack-trace [err]
   (->> (frames err)

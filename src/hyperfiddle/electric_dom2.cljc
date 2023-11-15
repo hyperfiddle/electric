@@ -178,20 +178,20 @@
                     (register-class! node class)
                     #(unregister-class! node class))))))
 
-(e/def ClassList
-  (e/fn* [node classes]
+(e/defn* ClassList [node classes]
+  (e/client
     (e/for [class (parse-class classes)]
       (new (manage-class node class)))
     nil))
 
-(e/def Style
-  (e/fn* [node k v]
+(e/defn* Style [node k v]
+  (e/client
     (set-style! node k v)
     (e/on-unmount (partial set-style! node k nil))
     nil))
 
-(e/def Styles
-  (e/fn* [node kvs]
+(e/defn* Styles [node kvs]
+  (e/client
     (e/for-by first [[k v] kvs]
       (Style. node k v))
     nil))
@@ -201,8 +201,8 @@
     `(do ~@(map (fn [[k v]] `(new Style node ~k ~v)) m)) ; static keyset
     `(new Styles node ~m)))
 
-(e/def Attribute
-  (e/fn* [node k v]
+(e/defn* Attribute [node k v]
+  (e/client
     (set-property! node k v)
     (e/on-unmount (partial set-property! node k nil))
     nil))
@@ -210,15 +210,15 @@
 (def ^:private style? #{:style ::style})       ; TODO disambiguate
 (def ^:private class? #{:class ::class})
 
-(e/def Property
-  (e/fn* [node k v]
+(e/defn* Property [node k v]
+  (e/client
     (cond
       (style? k) (Style. node k v)
       (class? k) (ClassList. node v)
       :else      (Attribute. node k v))))
 
-(e/def Properties
-  (e/fn* [node kvs]
+(e/defn* Properties [node kvs]
+  (e/client
     (e/for-by key [[k v] (ordered-props kvs)]
       (new Property node k v))))
 
@@ -269,8 +269,8 @@
   [pending-body & body]
   `(try (do ~@body) (catch Pending e# ~pending-body (throw e#))))
 
-(e/def Focused? "Returns whether this DOM `node` is focused."
-  (e/fn* []
+(e/defn* Focused? "Returns whether this DOM `node` is focused." []
+  (e/client
     (->> (mx/mix
            (e/listen> node "focus" (constantly true))
            (e/listen> node "blur" (constantly false)))
@@ -285,8 +285,8 @@
   ([v setter] `(when-some [v# (when-not (new Focused?) ~v)]
                  (~setter node v#))))
 
-(e/def Hovered? "Returns whether this DOM `node` is hovered over."
-  (e/fn* []
+(e/defn* Hovered? "Returns whether this DOM `node` is hovered over." []
+  (e/client
     (->> (mx/mix
            (e/listen> node "mouseenter" (constantly true))
            (e/listen> node "mouseleave" (constantly false)))

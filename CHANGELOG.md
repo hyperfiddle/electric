@@ -12,6 +12,23 @@
 * wip: incremental Electric compliation (fast dev rebuilds)
 * wip: Missionary documentation
 
+# v2-alpha-xxx — 2023 xxx
+- **Incremental compilation (IC):**
+  - Electric compiled the whole program at once, meaining changing a single file in a large project caused long recompilaiton times. With this release electric compiles per definition (`e/def` and `e/defn`), reducing recompilation. Note: since clojurescript compiles on file granularity electric also recompiles the whole file(s). This is a clojurescript limitation.
+  - increased security. Before IC client sent server code as IR over websocket and server had to eval it. With IC eval is gone and server compiles its own code.
+  - improved error message when an electric function is called as a clojure function (without `new`).
+  - **breaking**: a production build requires cljs on the classpath or AOT compilaiton. We removed runtime server eval of electric IR (the client doesn’t send the program over the websocket), increasing security. The server now compiles electric code and it needs cljs to macroexpand client code.
+  - **breaking**: more coloring required. `(e/defn X [] (js/alert 1))` fails to compile (on server), one needs to add an `e/client`.
+  - **breaking**: stricter definition order. `(e/def Y (inc X)) (e/def X 1)` used to work, now one has to reorder → `(e/def X 1) (e/def Y (inc X))`. Before IC electric deferred all compilation and could toposort the definitions. With IC definitions have to come in correct dependency order. Note: this is now the same as in clojure.
+  - **breaking**: `#js` literals require one to install a clj data reader or usage of reader conditionals. The simplest is to add a `data_readers.clj` to one’s classpath with content `{js cljs.tagged-literals/read-js}`. Before only the client (cljs) compiled code, now the server compiles as well, therefore the server needs a reader installed. We don’t provide one OOTB because it’s a global tag and users can have their own installed already, causing unresolvable conflicts.
+  - **breaking**: cljs file cannot contain electric definitions anymore. With IC the server compiles its own portion of the definition, i.e. it needs to see the code, so it must be cljc.
+  - **breaking**: 2 entrypoints, `e/boot-client` and `e/boot-server`, that need to match. Take `Main & args` instead of arbitrary electric code to minimize user errors.
+  - **breaking**: shadow-cljs build hook required for dev setup. See starter app change.
+  - **breaking**: http adapters' `electric-ws-message-handler` take an additional argument `entrypoint` which is a function of 1 argument expecting the ring request. See starter app changes for how to update entrypoints.
+  - **breaking**: `e/*http-request*` removed, ring request passed as positional argument to entrypoint. Provided electric dynamic `e/http-request` which examples-app binds in entrypoint. Users can pass additional clojure arguments through the electric entrypoint.
+  - **breaking**: program starts on the server due to above.
+  - **breaking**: reactive stacktrace prints on server due to above. Client warns about server print in console.
+
 # v2-alpha-469-gb6d9865c — 2023 Nov 22
 
 - **Electric:**

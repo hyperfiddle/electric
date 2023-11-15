@@ -336,11 +336,11 @@
      (binding [!history history#
                path     path#]
        (binding [history (if (or rebound?# (= ::unset history)) (e/watch !history) history)]
-         (binding [route (let [route (if (or rebound?# (= ::unset route)) history route)]
-                           (check-route! route)
+         (binding [route (let [route# (if (or rebound?# (= ::unset route)) history route)]
+                           (check-route! route#)
                            (if (some? ident#)
-                             (get route ident#)
-                             route))]
+                             (get route# ident#)
+                             route#))]
            (binding [swap-route! (partial (fn [!history# path# & args#]
                                             (swap! !history# (fn [r#] (apply update-in* r# path# args#))))
                                    !history path)]
@@ -422,16 +422,17 @@
        nil)))
 
 (e/defn Link [route Body]
-  (let [next-route (build-route history route)]
-    (dom/a
-      (dom/props {::dom/href (encode next-route)})
-      (new Body)
-      (new (m/relieve {}
-             (m/reductions {} nil
-               (e/listen> dom/node "click"
-                 (fn [e] ; todo e/for-event-pending-switch? Or missionary itself
-                   ;; TODO why !history doesn't work and we have to lexically bind it?
-                   (on-link-click next-route dom/node e)))))))))
+  (e/client
+    (let [next-route (build-route history route)]
+      (dom/a
+        (dom/props {::dom/href (encode next-route)})
+        (new Body)
+        (new (m/relieve {}
+               (m/reductions {} nil
+                 (e/listen> dom/node "click"
+                   (fn [e] ; todo e/for-event-pending-switch? Or missionary itself
+                     ;; TODO why !history doesn't work and we have to lexically bind it?
+                     (on-link-click next-route dom/node e))))))))))
 
 (defmacro link [route & body]
   ; all links are Sexpr-like and head is qualified name. like [::secrets 1 2]
@@ -597,70 +598,73 @@
 
      (defn -html5-history-get-state [^HTML5History this] (.-!state this))
 
-     (e/defn OnBeforeNavigate! "Run for effect on history navigation" [])
-     (e/def confirm-navigation?
-       "A predicate called on user navigation intent. If false, the current navigation intent is prevented.
-        Called during DOM event bubbling phase, it must be synchronous and therefore must be bound to a clojure function."
-       (fn [_dom-event] true))
+     (defn nav-delta [stack prev-position curr-position]
+       (- (index-of stack curr-position) (index-of stack prev-position)))
 
-     (e/defn OnNavigate "Will call `Callback` on internal `history/Link` click. `Callback` takes 2 arguments:
-       - the route to navigate to
-       - the dom click js event."
-       [Callback]
-       (dom/on (.-document js/window) "click" ; navigation by link click (also supports keyboard nav)
-         ;; only intercepts internal links. See `Link`.
-         (e/fn [^js e]
-           (when (and (some? (.-hyperfiddle_history_route e))
-                   (not (.-hyperfiddle_history_route_external_nav e)))
-             (.preventDefault e)
-             (when (confirm-navigation? e)
-               (case (OnBeforeNavigate!.) ; sequence effects
-                 (Callback. (.-hyperfiddle_history_route e) e)))))))
-
-     #?(:cljs
-        (defn nav-delta [stack prev-position curr-position]
-          (- (index-of stack curr-position) (index-of stack prev-position))))
-
-     (e/defn HTML5-Navigation-Intents [^HTML5History history]
-       (let [!idle (atom false)]
-         (try
-           (dom/on js/window "beforeunload" ; refresh or close tabe
-             (e/fn [^js e]
-               (when-not (confirm-navigation? e)
-                 (.preventDefault e))))
-
-           (OnNavigate. (e/fn [route event] (binding [!history history] (Navigate!. route event))))
-
-           (dom/on js/window "popstate" ; previous and next button
-             (e/fn [^js e]
-               ;; "popstate" event can't be cancelled. We are forced to detect
-               ;; navigation direction (back/forward) and to invert it. History
-               ;; must be idle during this back and forth operation to prevent a
-               ;; page flicker.
-               (when-let [curr-position (some-> e .-state .-position)]
-                 (let [stack         @(.-!stack history)
-                       prev-position @(.-!position history)]
-                   (reset! (.-!position history) curr-position)
-                   (let [delta (nav-delta stack prev-position curr-position)]
-                     (cond
-                       @!idle (reset! !idle false)
-                       (confirm-navigation? e) (OnBeforeNavigate!.)
-                       :else (do (reset! !idle true)
-                                 (.. js/window -history (go (- delta))))))))))
-
-           (catch hyperfiddle.electric.Pending _)) ; temporary hack, fixes page reload on click, needs sync on dom/on, hf/branch, and Pending interaction
-         (e/watch !idle)))
-
-     (e/defn HTML5-History [] ; TODO make this flow a singleton (leverage m/signal in next reactor iteration)
-       (let [history (html5-history encode decode)
-             decode' decode]
-         (when-not (HTML5-Navigation-Intents. history) ; idles history while user confirms navigation
-           (new (m/observe (fn [!]
-                             (! nil)
-                             (let [f (fn [_e] (reset! (-html5-history-get-state history) (decode' (html5-path))))]
-                               (f nil)
-                               (.addEventListener js/window "popstate" f)
-                               #(.removeEventListener js/window "popstate" f))))))
-         history))
 
      ))
+
+(e/defn OnBeforeNavigate! "Run for effect on history navigation" [])
+(e/def confirm-navigation?
+  "A predicate called on user navigation intent. If false, the current navigation intent is prevented.
+        Called during DOM event bubbling phase, it must be synchronous and therefore must be bound to a clojure function."
+  (fn [_dom-event] true))
+
+(e/defn OnNavigate "Will call `Callback` on internal `history/Link` click. `Callback` takes 2 arguments:
+       - the route to navigate to
+       - the dom click js event."
+  [Callback]
+  (e/client
+    (dom/on (.-document js/window) "click" ; navigation by link click (also supports keyboard nav)
+      ;; only intercepts internal links. See `Link`.
+      (e/fn [^js e]
+        (when (and (some? (.-hyperfiddle_history_route e))
+                (not (.-hyperfiddle_history_route_external_nav e)))
+          (.preventDefault e)
+          (when (confirm-navigation? e)
+            (case (OnBeforeNavigate!.)  ; sequence effects
+              (Callback. (.-hyperfiddle_history_route e) e))))))))
+
+(e/defn HTML5-Navigation-Intents [^HTML5History history]
+  (e/client
+    (let [!idle (atom false)]
+      (try
+        (dom/on js/window "beforeunload" ; refresh or close tabe
+          (e/fn [^js e]
+            (when-not (confirm-navigation? e)
+              (.preventDefault e))))
+
+        (OnNavigate. (e/fn [route event] (binding [!history history] (Navigate!. route event))))
+
+        (dom/on js/window "popstate"    ; previous and next button
+          (e/fn [^js e]
+            ;; "popstate" event can't be cancelled. We are forced to detect
+            ;; navigation direction (back/forward) and to invert it. History
+            ;; must be idle during this back and forth operation to prevent a
+            ;; page flicker.
+            (when-let [curr-position (some-> e .-state .-position)]
+              (let [stack         @(.-!stack history)
+                    prev-position @(.-!position history)]
+                (reset! (.-!position history) curr-position)
+                (let [delta (nav-delta stack prev-position curr-position)]
+                  (cond
+                    @!idle (reset! !idle false)
+                    (confirm-navigation? e) (OnBeforeNavigate!.)
+                    :else (do (reset! !idle true)
+                              (.. js/window -history (go (- delta))))))))))
+
+        (catch hyperfiddle.electric.Pending _)) ; temporary hack, fixes page reload on click, needs sync on dom/on, hf/branch, and Pending interaction
+      (e/watch !idle))))
+
+(e/defn HTML5-History [] ; TODO make this flow a singleton (leverage m/signal in next reactor iteration)
+  (e/client
+    (let [history (html5-history encode decode)
+          decode' decode]
+      (when-not (HTML5-Navigation-Intents. history) ; idles history while user confirms navigation
+        (new (m/observe (fn [!]
+                          (! nil)
+                          (let [f (fn [_e] (reset! (-html5-history-get-state history) (decode' (html5-path))))]
+                            (f nil)
+                            (.addEventListener js/window "popstate" f)
+                            #(.removeEventListener js/window "popstate" f))))))
+      history)))

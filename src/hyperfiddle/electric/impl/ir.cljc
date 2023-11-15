@@ -23,9 +23,8 @@
    ::deps deps})
 
 (defn apply [f & args]
-  {::op ::apply
-   ::fn f
-   ::args args})
+  (cond-> {::op ::apply ::fn f ::args args}
+    (::tag f) (assoc ::tag (::tag f))))
 
 (defn global [k]
   {::op   ::global

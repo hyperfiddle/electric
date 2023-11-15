@@ -15,10 +15,10 @@
    (do-browser
      (tests "dom/focused?, dom/hovered?"
        (def !in (atom nil))
-       (with (e/run (binding [dom/node (.-body js/document)]
-                      (dom/input
-                        (reset! !in dom/node)
-                        (tap [(dom/Focused?.) (dom/Hovered?.)]))))
+       (with ((e/local (binding [dom/node (.-body js/document)]
+                          (dom/input
+                            (reset! !in dom/node)
+                            (tap [(dom/Focused?.) (dom/Hovered?.)])))) {} {})
          #_init                     % := [false false]
          (uit/focus @!in)           % := [true  false]
          (uit/hover @!in)           % := [true  true]))))

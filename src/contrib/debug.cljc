@@ -8,7 +8,9 @@
   ([form] `(dbg '~form ~form))
   ([label form]
    (let [[label form] (if (keyword? form) [form label] [label form])]
-     `(let [v# ~form] (prn ~label '~'==> v#) v#))))
+     `(let [[st# v#] (try [:ok ~form] (catch ~(if (:js-globals &env) :default 'Throwable) ex# [:ex ex#]))]
+        (prn ~label st# '~'==> v#)
+        (if (= st# :ok) v# (throw v#))))))
 
 (defmacro dbgv [form]
   `(let [args# [~@form], v# ~form] (prn '~form '~'==> (cons '~(first form) (rest args#))  '~'==> v#) v#))

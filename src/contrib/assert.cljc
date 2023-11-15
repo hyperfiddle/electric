@@ -4,9 +4,10 @@
 
 (defmacro check
   ([v] `(check some? ~v))
-  ([pred v]
+  ([pred v] `(check ~pred ~v {}))
+  ([pred v ex-data]
    `(let [pred# ~pred, v# ~v]
-      (when-not (pred# v#) (throw (ex-info (str "check failed: (" (pr-str '~pred) " " (pr-str '~v) ") for " (pr-str v#)) {})))
+      (when-not (pred# v#) (throw (ex-info (str "check failed: (" (pr-str '~pred) " " (pr-str '~v) ") for " (pr-str v#)) ~ex-data)))
       v#)))
 
 (tests

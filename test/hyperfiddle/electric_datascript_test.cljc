@@ -2,6 +2,7 @@
   (:require [clojure.test :as t]
             [datascript.core :as d]
             [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-local-def :as l]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             [missionary.core :as m])
   (:import [hyperfiddle.electric Pending Failure]
@@ -14,8 +15,8 @@
 (defn query-todos [db] (d/q '[:find [?e ...] :where [?e :task/status]] db))
 
 (tests
-  (p/def db (p/watch !conn))
-  (with (p/run (p/for [id (query-todos db)]
+  (l/def db (p/watch !conn))
+  (with (l/run (p/for [id (query-todos db)]
                  (let [{:keys [:task/status :task/description]} (d/entity @!conn id)]
                    (tap status)
                    (tap description))))

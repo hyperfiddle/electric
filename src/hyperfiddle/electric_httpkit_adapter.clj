@@ -82,13 +82,8 @@
   "Given a ring request, a writer task function and a subject emitting messages, run an Electric
   program named by the client. Original HTTP upgrade ring request map is
   accessible using `(ring.adapter.jetty9/req-of ws)`."
-  [ring-req write-msg read-msg]
-  (binding [e/*http-request* ring-req]
-    ;; Electric can resolve any dynamic var bound at this point
-    (let [resolvef (bound-fn [not-found x] (r/dynamic-resolve not-found x))]
-      (m/sp
-        (m/? ((e/eval resolvef (io/decode (m/? (m/reduce (comp reduced {}) nil (m/observe read-msg)))))   ; read and eval Electric program sent by client
-              (comp write-msg io/encode) (fn [cb] (read-msg (comp cb io/decode)))))))))
+  [ring-req entrypoint write-msg read-msg]
+  ((entrypoint ring-req) (comp write-msg io/encode) (fn [cb] (read-msg (comp cb io/decode)))))
 
 (defn reject-websocket-handler
   "Will accept socket connection upgrade and immediately close the socket on

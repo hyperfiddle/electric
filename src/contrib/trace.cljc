@@ -1,6 +1,7 @@
 (ns contrib.trace
   (:require
    [hyperfiddle.electric :as e]
+   [hyperfiddle.electric-local-def :as l]
    [hyperfiddle.rcf :as rcf :refer [% tap tests with]])
   (:import
    [hyperfiddle.electric Pending]
@@ -41,7 +42,7 @@
     ([id trace] (tap [:trace id trace]))))
 
 (tests "basic behavior"
-  (with (e/run (try (binding [->point-id #(do (tap [:point-id % %2]) %)
+  (with (l/run (try (binding [->point-id #(do (tap [:point-id % %2]) %)
                               stamp (let [!t (atom 0)] (fn [_] (let [t (swap! !t inc)] (tap [:stamp]) t)))
                               ->trace-id (fn [id v] (tap [:trace-id id v]) (str (name id) "-1"))]
                       (with-listener (test-listener tap)
@@ -65,7 +66,7 @@
 (defn monotonic [] (let [!t (atom 0)] (fn [_] (swap! !t inc))))
 
 (tests "exceptions"
-  (with (e/run (try (binding [->point-id (fn [nm _parent] nm), stamp (monotonic), ->trace-id (fn [id _v] (str (name id) "-1"))]
+  (with (l/run (try (binding [->point-id (fn [nm _parent] nm), stamp (monotonic), ->trace-id (fn [id _v] (str (name id) "-1"))]
                       (with-listener (test-listener tap)
                         (tap (trace :x (throw (ex-info "boom" {}))))))
                     (catch #?(:clj Throwable :cljs :default) e
@@ -74,7 +75,7 @@
     % := [:trace :x {::trace-id "x-1" , ::stamp 1, ::v _, ::type ::err}]))
 
 (tests "works across e/fn boundaries"
-  (with (e/run (try (binding [->point-id (fn [nm _parent] nm), stamp (monotonic), ->trace-id (fn [id _v] (str (name id) "-1"))]
+  (with (l/run (try (binding [->point-id (fn [nm _parent] nm), stamp (monotonic), ->trace-id (fn [id _v] (str (name id) "-1"))]
                       (with-listener (test-listener tap)
                         (trace :outer
                           (new (e/fn [] (trace :inner 1))))))
