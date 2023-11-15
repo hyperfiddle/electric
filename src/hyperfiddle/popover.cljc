@@ -28,18 +28,20 @@
           (new (e/task->cp return)))))))
 
 (e/defn PopoverBody [Body]
-  (dom/div (dom/props {:class    "hyperfiddle popover-body"
-                       :tabIndex "1"})
-    (dom/on! "click" (fn [e]
-                       (when (= (.-target e) (.-currentTarget e)) ; click on self
-                         (.focus (.-currentTarget e)))))
-    (BranchWrap. (e/fn [] (Body.)))))
+  (e/client
+    (dom/div (dom/props {:class    "hyperfiddle popover-body"
+                         :tabIndex "1"})
+      (dom/on! "click" (fn [e]
+                         (when (= (.-target e) (.-currentTarget e)) ; click on self
+                           (.focus (.-currentTarget e)))))
+      (BranchWrap. (e/fn [] (Body.))))))
 
 (e/defn Popover [label Body]
-  (let [!open? (atom false), open? (e/watch !open?)]
-    (dom/div (dom/props {:class "hyperfiddle popover-wrapper"})
-      (ui/button (e/fn [] (swap! !open? not)) (dom/text label)) ; popover anchor
-      (when open? (case (PopoverBody. Body) (swap! !open? not))))))
+  (e/client
+    (let [!open? (atom false), open? (e/watch !open?)]
+      (dom/div (dom/props {:class "hyperfiddle popover-wrapper"})
+        (ui/button (e/fn [] (swap! !open? not)) (dom/text label)) ; popover anchor
+        (when open? (case (PopoverBody. Body) (swap! !open? not)))))))
 
 (defmacro staged [& body] `(new BranchWrap (e/fn [] ~@body)))
 (defmacro popover [label & body] `(new Popover ~label (e/fn [] ~@body)))

@@ -7,6 +7,7 @@
    #?(:cljs [contrib.dom-test-helpers :as uit])
    [hyperfiddle.electric :as p]
    [hyperfiddle.electric :as e]
+   [hyperfiddle.electric-local-def :as l]
    [hyperfiddle.electric-dom2 :as dom]
    [hyperfiddle.electric-ui4 :as ui]
    [hyperfiddle.rcf :as rcf :refer [% tests with tap]]))
@@ -31,7 +32,7 @@
    (do-browser
      (tests "basic behavior"
        (def !tgpk (atom :missing))
-       (def discard (p/run (try
+       (def discard (l/run (try
                              (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom #{:alice :bob})]
@@ -85,13 +86,13 @@
        (discard)
        )))
 
-(p/defn No1 [_])
+(l/defn No1 [_])
 
 #?(:cljs
    (do-browser
      (tests "nil V! disables input"
        (def !tgpk (atom :missing))
-       (with (p/run (try
+       (with (l/run (try
                       (binding [dom/node js/document.body]
                         (p/server
                           (ui/tag-picker [] nil No1 No1 No1

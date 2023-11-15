@@ -6,6 +6,7 @@
    [hyperfiddle.rcf :as rcf :refer [% tests with tap]]
    [hyperfiddle.electric :as p]
    [hyperfiddle.electric :as e]
+   [hyperfiddle.electric-local-def :as l]
    [clojure.string :as str]
    [missionary.core :as m]
    [hyperfiddle.electric-dom2 :as dom])
@@ -51,7 +52,7 @@
    (do-browser
      (tests "basic behavior"
        (def !tphd (atom :missing))
-       (def discard (p/run (try
+       (def discard (l/run (try
                              (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom :alice)]
@@ -95,7 +96,7 @@
      (tests "controlled value"
        (def !tphd (atom :missing))
        (def !v (atom :alice))
-       (def discard (p/run (try
+       (def discard (l/run (try
                              (binding [dom/node js/document.body]
                                (let [v (p/watch !v)]
                                  (tap [:controlled-value v])
@@ -140,7 +141,7 @@
    (do-browser
      (tests "close when clicked outside"
        (def !tphd (atom :missing))
-       (def discard (p/run (try
+       (def discard (l/run (try
                              (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom :alice)]
@@ -176,7 +177,7 @@
    (do-browser
      (tests "keyboard"
        (def !tphd (atom :missing))
-       (def discard (p/run (try
+       (def discard (l/run (try
                              (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom :alice)]
@@ -234,7 +235,7 @@
    (do-browser
      (tests "truncated result"
        (def !tphd (atom :missing))
-       (def discard (p/run (try
+       (def discard (l/run (try
                              (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom :alice)]

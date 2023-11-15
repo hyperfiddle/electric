@@ -1,5 +1,6 @@
 (ns user.electric.electric-pending
   (:require [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-local-def :as l]
             [hyperfiddle.rcf :refer [tests tap % with]])
   (:import (hyperfiddle.electric Pending)))
 
@@ -8,7 +9,7 @@
 
 (tests
   "Pending network transfer is trapped locally with reactive try/catch"
-  (with (p/run (tap (try [(tap 1)
+  (with (l/run (tap (try [(tap 1)
                           (tap (p/server 2))]
                          (catch Pending _
                            ::pending))))

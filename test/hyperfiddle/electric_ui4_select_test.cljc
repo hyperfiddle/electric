@@ -5,6 +5,7 @@
    [contrib.cljs-target :refer [do-browser]]
    [hyperfiddle.electric :as p]
    [hyperfiddle.electric :as e]
+   [hyperfiddle.electric-local-def :as l]
    [hyperfiddle.electric-ui4 :as ui]
    [hyperfiddle.electric-dom2 :as dom]
    [hyperfiddle.rcf :as rcf :refer [% tests with tap]]))
@@ -23,7 +24,7 @@
    (do-browser
      (tests "basic behavior"
        (def !select (atom :missing))
-       (def discard (p/run (try
+       (def discard (l/run (try
                              (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom :alice)]
@@ -71,7 +72,7 @@
      (tests "controlled value"
        (def !select (atom :missing))
        (def !v (atom :alice))
-       (def discard (p/run (try
+       (def discard (l/run (try
                              (binding [dom/node js/document.body]
                                (let [v (p/watch !v)]
                                  (tap [:controlled-value v])
@@ -119,7 +120,7 @@
    (do-browser
      (tests "close when clicked outside"
        (def !select (atom :missing))
-       (def discard (p/run (try
+       (def discard (l/run (try
                              (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom :alice)]
@@ -153,7 +154,7 @@
    (do-browser
      (tests "keyboard"
        (def !select (atom :missing))
-       (def discard (p/run (try
+       (def discard (l/run (try
                              (binding [dom/node js/document.body]
                                (p/server
                                  (let [!v (atom :alice)]

@@ -1,5 +1,6 @@
 (ns hyperfiddle.goog-calls-test
   (:require [hyperfiddle.electric :as e]
+            [hyperfiddle.electric-local-def :as l]
             [goog.color]
             [goog.math :as gm]
             [goog.string.format]
@@ -7,7 +8,7 @@
   (:import [goog Uri]
            [goog.events EventType]))
 
-(e/defn Main []
+(l/defn Main []
   (list
     (goog.color/hslToHex 0.5 0.5 0.5)
     (Uri. "http://example.com")
