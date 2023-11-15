@@ -39,6 +39,7 @@
                                                                       :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
                   :exec-fn     cognitect.test-runner.api/test}
 
+           :browser-test {:jvm-opts ["-Dhyperfiddle.electric.web-config-peers=client,cljs,server,cljs"]}
 
            :build        {:extra-paths ["src-build"]
                           :ns-default  build

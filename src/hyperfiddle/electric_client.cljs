@@ -79,19 +79,17 @@
 server : the server part of the program
 cb : the callback for incoming messages.
 msgs : the discrete flow of messages to send, spawned when websocket is connected, cancelled on websocket close.
-Returns a task producing nil or failing if the websocket was closed before end of reduction.
-" [server]
-  (fn [cb msgs]
-    (m/sp
-      (if-some [ws (m/? (connect *ws-server-url*))]
-        (try
-          (send! ws (io/encode server))
-          (set! (.-onmessage ws) (comp (handle-hf-heartbeat ws cb) payload))
-          (m/? (m/race (send-all ws msgs) (wait-for-close ws)))
-          (finally
-            (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
-              (.close ws) (m/? (m/compel wait-for-close)))))
-        {}))))
+Returns a task producing nil or failing if the websocket was closed before end of reduction. "
+  [cb msgs]
+  (m/sp
+    (if-some [ws (m/? (connect *ws-server-url*))]
+      (try
+        (set! (.-onmessage ws) (comp (handle-hf-heartbeat ws cb) payload))
+        (m/? (m/race (send-all ws msgs) (wait-for-close ws)))
+        (finally
+          (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
+            (.close ws) (m/? (m/compel wait-for-close)))))
+      {})))
 
 (defn fib-iter [[a b]]
   (case b

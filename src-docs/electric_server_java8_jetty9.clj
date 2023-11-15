@@ -110,11 +110,11 @@
       (.setMinGzipSize 1024)
       (.setHandler (.getHandler server)))))
 
-(defn start-server! [{:keys [port resources-path manifest-path]
-                                   :or   {port            8080
-                                          resources-path "public"
-                                          manifest-path  "public/js/manifest.edn"}
-                                   :as   config}]
+(defn start-server! [entrypoint {:keys [port resources-path manifest-path]
+                                       :or {port 8080
+                                            resources-path "public"
+                                            manifest-path "public/js/manifest.edn"}
+                                       :as config}]
   (try
     (let [server (ring/run-jetty (http-middleware resources-path manifest-path)
                    (merge {:port port
@@ -126,7 +126,8 @@
                                               (fn [ring-req]
                                                 (adapter/electric-ws-adapter
                                                   (partial adapter/electric-ws-message-handler
-                                                    (auth/basic-authentication-request ring-req authenticate)))))}}
+                                                    (auth/basic-authentication-request ring-req authenticate)
+                                                    entrypoint))))}}
                      config))
           final-port (-> server (.getConnectors) first (.getPort))]
       (println "\n👉 App server available at" (str "http://" (:host config) ":" final-port "\n"))
@@ -135,6 +136,6 @@
     (catch IOException err
       (if (instance? BindException (ex-cause err))  ; port is already taken, retry with another one
         (do (log/warn "Port" port "was not available, retrying with" (inc port))
-            (start-server! (update config :port inc)))
+            (start-server! entrypoint (update config :port inc)))
         (throw err)))))
 

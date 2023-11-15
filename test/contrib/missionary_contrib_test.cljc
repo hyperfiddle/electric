@@ -2,6 +2,7 @@
   (:require [clojure.core.async :as a]
             [contrib.missionary-core-async :as mc]
             [hyperfiddle.electric :as p]
+            [hyperfiddle.electric-local-def :as l]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]] 
             [missionary.core :as m])
   (:import missionary.Cancelled))
@@ -115,7 +116,7 @@
    (tests
      "Using a core.async channel from Electric"
      (def c (a/to-chan [1 2 3]))
-     (with (p/run (tap (mc/use-channel c)))
+     (with (l/run (tap (mc/use-channel c)))
            % := nil
            % := 1
            % := 2
@@ -128,7 +129,7 @@
       "Putting values on a channel from Electric"
       (def !a (atom 0))
       (def c (a/chan))
-      (with (p/run (tap (new (onto-chan (p/fn [] (p/watch !a)) c))))
+      (with (l/run (tap (new (onto-chan (p/fn [] (p/watch !a)) c))))
             (a/go-loop [x (a/<! c)]
               (when x
                 (tap x)

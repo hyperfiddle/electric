@@ -1,5 +1,5 @@
 (ns hyperfiddle.js-calls-test
-  (:require [hyperfiddle.electric :as e]
+  (:require [hyperfiddle.electric-local-def :as l]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
             ["./js_calls_test" :as call-test]))
 
@@ -24,7 +24,7 @@
 ;; Electric
 (tests
   "js scoped call in electric"
-  (with (e/run
+  (with (l/run
           (tap call-test/scope.fn)
           (tap (call-test/scope.fn))    ; direct access
           (tap (.fn call-test/scope))   ; two-step access

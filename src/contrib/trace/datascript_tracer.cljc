@@ -2,6 +2,7 @@
   (:require [clojure.math :as math]
             [contrib.trace :as ct]
             [hyperfiddle.electric :as e]
+            [hyperfiddle.electric-local-def :as l]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
             [hyperfiddle.rcf :as rcf :refer [% tap tests with]]
@@ -60,7 +61,7 @@
 
   (def !conn (atom nil))
   (def !x (atom 3))
-  (with (e/run (try (with-defaults (reset! !conn conn) (tap (ct/trace :+ (+ 2 (e/watch !x)))))
+  (with (l/run (try (with-defaults (reset! !conn conn) (tap (ct/trace :+ (+ 2 (e/watch !x)))))
                     (catch #?(:clj Throwable :cljs :default) e (prn [(type e) (ex-message e)]))))
     % := 5
     (def -db (d/db @!conn))
@@ -87,7 +88,7 @@
 
 (tests
   (def -conn (atom nil))
-  (with (e/run (with-defaults (reset! -conn conn) (tap (ct/trace :x (+ 1 2)))))
+  (with (l/run (with-defaults (reset! -conn conn) (tap (ct/trace :x (+ 1 2)))))
     % := 3
     (def -db (d/db @-conn))
     (children ::ct/root -db) := [1]
@@ -111,14 +112,15 @@
 (e/def RenderPoint)
 
 (e/defn DSRenderPoint [point db depth]
-  (dom/div (dom/style {:display "contents"})
-    (dom/span (dom/style {:margin-left (str (* 8 depth) "px"), :border "1px solid gray", :height "30px"})
-      (dom/text (ds-get point ::ct/name db)))
-    (dom/span (dom/style {:border "1px solid gray", :height "30px"})
-      (dom/text (-> point (->traces db) (->latest db) (ds-get ::ct/v db) de-nil textify)))
+  (e/client
     (dom/div (dom/style {:display "contents"})
-      (e/for-by #(ds-get % ::ct/point-id db) [child-point (children (ds-get point ::ct/point-id db) db)]
-        (RenderPoint. child-point db (inc depth))))))
+             (dom/span (dom/style {:margin-left (str (* 8 depth) "px"), :border "1px solid gray", :height "30px"})
+                       (dom/text (ds-get point ::ct/name db)))
+             (dom/span (dom/style {:border "1px solid gray", :height "30px"})
+                       (dom/text (-> point (->traces db) (->latest db) (ds-get ::ct/v db) de-nil textify)))
+             (dom/div (dom/style {:display "contents"})
+                      (e/for-by #(ds-get % ::ct/point-id db) [child-point (children (ds-get point ::ct/point-id db) db)]
+                        (RenderPoint. child-point db (inc depth)))))))
 
 (defn next-measure-state [{:keys [status start]} id]
   (case status
@@ -127,33 +129,35 @@
 
 ;; TODO cleanup, 6 args.. Same with later fns
 (e/defn DSRenderHistory [traces origin db pixel-secs !measure container-offset]
-  (dom/div (dom/style {:height "30px", :position "relative", :border "1px solid gray"
-                       :padding-right (str (+ container-offset 100) "px")})
-    (e/for [trace traces]
-      (let [stamp (ds-get trace ::ct/stamp db)
-            ;; 200ms difference
-            ;; 10px = 1sec = 1000ms
-            ;; 10px/1000ms = offset/200ms
-            ;; offset = 200ms*10px/1000ms = 2px
-            offset (-> stamp (- origin) (* pixel-secs) (quot 1000))
-            typ   (ds-get trace ::ct/type db)
-            v     (de-nil (ds-get trace ::ct/v db))]
-        (dom/span (dom/style {:position "absolute"
-                              :left (str offset "px")
-                              :background-color (case typ
-                                                  ::ct/ok "#c5e8c5"
-                                                  ::ct/err (if (instance? Pending v) "inherit" "#ffcaca"))})
-          (dom/text (textify v))
-          (dom/on! "click" (fn [_] (swap! !measure next-measure-state trace))))))))
+  (e/client
+    (dom/div (dom/style {:height "30px", :position "relative", :border "1px solid gray"
+                         :padding-right (str (+ container-offset 100) "px")})
+      (e/for [trace traces]
+        (let [stamp (ds-get trace ::ct/stamp db)
+              ;; 200ms difference
+              ;; 10px = 1sec = 1000ms
+              ;; 10px/1000ms = offset/200ms
+              ;; offset = 200ms*10px/1000ms = 2px
+              offset (-> stamp (- origin) (* pixel-secs) (quot 1000))
+              typ   (ds-get trace ::ct/type db)
+              v     (de-nil (ds-get trace ::ct/v db))]
+          (dom/span (dom/style {:position "absolute"
+                                :left (str offset "px")
+                                :background-color (case typ
+                                                    ::ct/ok "#c5e8c5"
+                                                    ::ct/err (if (instance? Pending v) "inherit" "#ffcaca"))})
+            (dom/text (textify v))
+            (dom/on! "click" (fn [_] (swap! !measure next-measure-state trace)))))))))
 
 (defn ->origin [db] (reduce min (ms nil) (d/q '[:find [?stamp ...] :where [_ ::ct/stamp ?stamp]] db)))
 
 (e/def RenderTraces)
 
 (e/defn DSRenderTraces [point db origin pixel-secs !measure offset]
-  (DSRenderHistory. (->traces point db) origin db pixel-secs !measure offset)
-  (e/for-by #(ds-get % ::ct/point-id db) [child-point (children (ds-get point ::ct/point-id db) db)]
-    (RenderTraces. child-point db origin pixel-secs !measure offset)))
+  (e/client
+    (DSRenderHistory. (->traces point db) origin db pixel-secs !measure offset)
+    (e/for-by #(ds-get % ::ct/point-id db) [child-point (children (ds-get point ::ct/point-id db) db)]
+      (RenderTraces. child-point db origin pixel-secs !measure offset))))
 
 #?(:cljs (defn scroll-to-end [node _db] (set! (.-scrollLeft node) (.-scrollWidth node))))
 
@@ -165,28 +169,29 @@
     (- origin) (* pixel-secs) (quot 1000)))
 
 (e/defn DatascriptTraceView []
-  (binding [RenderPoint DSRenderPoint, RenderTraces DSRenderTraces]
-    (let [!pixel-secs (atom 1000), pixel-secs (e/watch !pixel-secs)
-          !measure (atom {:status :idle}), measure (e/watch !measure)
-          !offset (atom 0), offset (e/watch !offset)
-          origin (->origin db)]
-      (dom/div (dom/props {:class "dstrace"})
-        (dom/span (dom/text "time granularity: "))
-        (ui/range pixel-secs (e/fn [v] (reset! !pixel-secs v))
-          (dom/style {:display "inline-block", :width "200px"})
-          (dom/props {:min 1, :max 10000}))
-        (dom/div
-          (dom/text "distance: "
-            (when (= :measured (:status measure))
-              (time-str (measure-distance (:start measure) (:end measure) db)))))
-        (dom/div (dom/style {:display "flex"})
-          (dom/div (dom/style {:display "inline-grid", :grid-template-columns "1fr 1fr", :min-width "400px"})
-            (dom/strong (dom/text "Name")) (dom/strong (dom/text "Value"))
-            (e/for [root-point (children ::ct/root db)]
-              (RenderPoint. root-point db 0)))
-          (dom/div (dom/style {:display "inline-grid", :overflow "scroll", :white-space "nowrap", :flex-grow 1})
-            (dom/strong (dom/style {:height "22px"}) (dom/text "History"))
-            (case (e/for [root-point (children ::ct/root db)]
-                    (RenderTraces. root-point db origin pixel-secs !measure offset))
-              (case (reset! !offset (calculate-history-container-offset origin pixel-secs db))
-                (scroll-to-end dom/node [db pixel-secs])))))))))
+  (e/client
+    (binding [RenderPoint DSRenderPoint, RenderTraces DSRenderTraces]
+      (let [!pixel-secs (atom 1000), pixel-secs (e/watch !pixel-secs)
+            !measure (atom {:status :idle}), measure (e/watch !measure)
+            !offset (atom 0), offset (e/watch !offset)
+            origin (->origin db)]
+        (dom/div (dom/props {:class "dstrace"})
+          (dom/span (dom/text "time granularity: "))
+          (ui/range pixel-secs (e/fn [v] (reset! !pixel-secs v))
+            (dom/style {:display "inline-block", :width "200px"})
+            (dom/props {:min 1, :max 10000}))
+          (dom/div
+            (dom/text "distance: "
+              (when (= :measured (:status measure))
+                (time-str (measure-distance (:start measure) (:end measure) db)))))
+          (dom/div (dom/style {:display "flex"})
+            (dom/div (dom/style {:display "inline-grid", :grid-template-columns "1fr 1fr", :min-width "400px"})
+              (dom/strong (dom/text "Name")) (dom/strong (dom/text "Value"))
+              (e/for [root-point (children ::ct/root db)]
+                (RenderPoint. root-point db 0)))
+            (dom/div (dom/style {:display "inline-grid", :overflow "scroll", :white-space "nowrap", :flex-grow 1})
+              (dom/strong (dom/style {:height "22px"}) (dom/text "History"))
+              (case (e/for [root-point (children ::ct/root db)]
+                      (RenderTraces. root-point db origin pixel-secs !measure offset))
+                (case (reset! !offset (calculate-history-container-offset origin pixel-secs db))
+                  (scroll-to-end dom/node [db pixel-secs]))))))))))
