@@ -199,7 +199,7 @@
 (defmacro style [m]
   (if (map? m)
     `(do ~@(map (fn [[k v]] `(new Style node ~k ~v)) m)) ; static keyset
-    `(new Styles ~m)))
+    `(new Styles node ~m)))
 
 (e/def Attribute
   (e/fn* [node k v]
