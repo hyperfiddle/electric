@@ -75,23 +75,37 @@
       (send! ws "HEARTBEAT")
       (cb (io/decode msg)))))
 
+(defn await-promise
+  "Returns a task completing with the result of given promise"
+  [p]
+  (let [v (m/dfv)]
+    (.then p #(v (fn [] %)) #(v (fn [] (throw %))))
+    (m/absolve v)))
+
 (defn connector "
 server : the server part of the program
 cb : the callback for incoming messages.
 msgs : the discrete flow of messages to send, spawned when websocket is connected, cancelled on websocket close.
 Returns a task producing nil or failing if the websocket was closed before end of reduction.
-" [server]
+" [query-params server]
   (fn [cb msgs]
-    (m/sp
-      (if-some [ws (m/? (connect *ws-server-url*))]
-        (try
-          (send! ws (io/encode server))
-          (set! (.-onmessage ws) (comp (handle-hf-heartbeat ws cb) payload))
-          (m/? (m/race (send-all ws msgs) (wait-for-close ws)))
-          (finally
-            (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
-              (.close ws) (m/? (m/compel wait-for-close)))))
-        {}))))
+    (let [url (new js/URL *ws-server-url*)]
+      (m/sp
+        (doseq [[param v] query-params]
+          (let [res (if (fn? v) (v) v)]
+            (.set (.-searchParams url) param
+              (str (if (some? (.-then res))
+                     (m/? (await-promise res))
+                     res)))))
+        (if-some [ws (m/? (connect url))]
+          (try
+            (send! ws (io/encode server))
+            (set! (.-onmessage ws) (comp (handle-hf-heartbeat ws cb) payload))
+            (m/? (m/race (send-all ws msgs) (wait-for-close ws)))
+            (finally
+              (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
+                (.close ws) (m/? (m/compel wait-for-close)))))
+          {})))))
 
 (defn fib-iter [[a b]]
   (case b

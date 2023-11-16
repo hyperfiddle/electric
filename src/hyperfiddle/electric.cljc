@@ -467,20 +467,31 @@ Quoting it directly is idiomatic as well."
            (js/console.error reactive-stacktrace)))
        (new ?PrintServerException (dbg/ex-id hyperfiddle.electric/trace)))))
 
+(defmacro boot-with-options
+  "Like `boot`, but takes a map of options as first parameter.
+
+   Supported options:
+   - `:query-params`: A map of string to string, function, or promise. Functions should resolve
+                      to strings or promises. Promises should resolve to strings. Each map entry
+                      is added as a query parameter to the connection URL."
+  {:style/indent 0}
+  [{:keys [query-params]} & body]
+  (assert (:js-globals &env))
+  (let [[client server] (c/analyze
+                          (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj})
+                          `(with-zero-config-entrypoint ~@body))]
+    `(hyperfiddle.electric-client/reload-when-stale
+       (hyperfiddle.electric-client/boot-with-retry
+         ~(r/emit (gensym) client)
+         (hyperfiddle.electric-client/connector ~query-params (quote ~server))))))
+
 (defmacro boot "
 Takes an Electric program and returns a task setting up the full system with client part running locally and server part
 running on a remote host.
 "
   {:style/indent 0}
   [& body]
-  (assert (:js-globals &env))
-  (let [[client server] (c/analyze
-                          (assoc &env ::c/peers-config {::c/local :cljs ::c/remote :clj})
-                          `(with-zero-config-entrypoint ~@body))]
-    `(hyperfiddle.electric-client/reload-when-stale
-      (hyperfiddle.electric-client/boot-with-retry
-       ~(r/emit (gensym) client)
-       (hyperfiddle.electric-client/connector (quote ~server))))))
+  `(boot-with-options {} ~@body))
 
 ;; WIP: user space socket reconnection
 
