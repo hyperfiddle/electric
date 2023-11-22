@@ -12,11 +12,12 @@
        el)))
 
 (defmacro svg-element [t & body] ; todo unify with dom/element
-  `(dom/with (new-svg-node dom/node ~(name t))
+  `(e/client
+     (dom/with (new-svg-node dom/node ~(name t))
                                         ; hack: speed up streamy unmount by removing from layout first
                                         ; it also feels faster visually
-     (e/on-unmount (partial dom/hide dom/node)) ; hack
-     ~@body))
+       (e/on-unmount (partial dom/hide dom/node)) ; hack
+       ~@body)))
 
 (defmacro a                   [& body] `(svg-element :a ~@body))
 (defmacro altGlyph            [& body] `(svg-element :altGlyph ~@body))
