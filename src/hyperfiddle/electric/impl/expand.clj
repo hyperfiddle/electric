@@ -16,7 +16,7 @@
                      (fn [env prefix suffix]
                        (cljs-ana/confirm-var-exists env prefix suffix
                          (fn [_ _ _] (vreset! !found? false)))) nil))]
-    (when (and @!found? (not= '. (:name resolved)))
+    (when (and @!found? (not= '. (:name resolved)) (not (:macro resolved)))
       resolved)))
 
 (defn expand-macro [env o]
