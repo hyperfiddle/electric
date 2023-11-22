@@ -12,6 +12,23 @@
 * wip: incremental Electric compliation (fast dev rebuilds)
 * wip: Missionary documentation
 
+# v2-alpha-469-gb6d9865c — 2023 Nov 22
+
+- **Electric:**
+  - fix: too much recursion error
+  - fix: support `e/fn` map varargs. `(e/fn X [& {:keys x}])`
+  - fix: remove more false positive cljs inference warnings
+  - fix: websocket disconnects. Chromium-based browsers throttle timers, causing heartbeat misses. We now send heartbeats from the server
+  - reduce generated code size
+- **hyperfiddle.history:**
+  - fix: intercept link clicks when `<a>` is not the direct target (e.g. `<a><button></button></a>'`)
+  - fix: bind `!history` on link click
+  - add `Navigate!` to inject navigation logic
+- **hyperfiddle.electric_dom2:**
+  - add `col` and `colgroup`
+  - support setting CSS vars
+  - fix: add missing parameter in `styles` (thanks @eneroth)
+
 # v2-alpha-428-g22937f75 — 2023 August 24
 
 - **Electric Clojure/Script compatibility improvements:**
