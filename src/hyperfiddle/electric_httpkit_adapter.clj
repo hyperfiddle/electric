@@ -1,7 +1,6 @@
 (ns hyperfiddle.electric-httpkit-adapter
   (:require
    [clojure.tools.logging :as log]
-   [hyperfiddle.electric :as e]
    [hyperfiddle.electric.impl.io :as io]
    [hyperfiddle.electric.impl.runtime :as r]
    [missionary.core :as m]
@@ -52,13 +51,14 @@
         on-message-slot   (int 0)
         on-close-slot     (int 1)
         keepalive-mailbox (m/mbx)]
-    {:init (fn on-connect [^AsyncChannel ch]
-             (aset state on-close-slot
-               ((m/join (fn [& _])
-                  (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
-                  (handler-f (partial write-msg ch) (r/subject-at state on-message-slot))
-                  (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(http-kit/send! ch %)))
-                 {} (partial failure ch))))  ; Start Electric process
+    {:init       (fn on-connect [^AsyncChannel ch])
+     :on-open    (fn on-open [^AsyncChannel ch]
+                   (aset state on-close-slot
+                     ((m/join (fn [& _]) ; Start Electric process
+                        (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
+                        (handler-f (partial write-msg ch) (r/subject-at state on-message-slot))
+                        (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(http-kit/send! ch %)))
+                      {} (partial failure ch))))
      :on-close   (fn on-close [^AsyncChannel ch status]
                    (case status ; https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
                      :server-close       nil
@@ -71,6 +71,10 @@
      :on-ping    (fn on-ping [ch data] ; Pong automatically sent by HttpKit. Browsers don't ping.
                    (keepalive-mailbox nil))
      :on-receive (fn on-receive [^AsyncChannel ch text-or-buff]
+                   ;; TODO Wait for electric server program to be ready to accept messages. HTTPKit
+                   ;; finishes the WS handshake before calling `on-open`. The client could send a
+                   ;; message immediately after the WS channel opens and race with the server
+                   ;; process boot. So far we haven’t seen this happen. But watch out.
                    (when-not (= "HEARTBEAT" text-or-buff)
                      ((aget state on-message-slot)
                       (if (string? text-or-buff)
