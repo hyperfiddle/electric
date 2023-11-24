@@ -7,6 +7,9 @@
 (defn has-meta? [o] #?(:clj  (instance? clojure.lang.IMeta o)
                        :cljs (satisfies? IMeta o)))
 
+(defn supports-with-meta? [o] #?(:clj (instance? clojure.lang.IObj o)
+                                 :cljs (satisfies? IWithMeta o)))
+
 (defn walk [inner outer form]
   (cond
     (list? form)      (outer form (apply list (map inner form)))
@@ -17,7 +20,7 @@
     :else             (outer form form)))
 
 (defn forward-metas [form form']
-  (if (has-meta? form')
+  (if (and (has-meta? form') (supports-with-meta? form'))
     (with-meta form' (merge (meta form) (meta form')))
     form'))
 
