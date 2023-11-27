@@ -453,14 +453,14 @@ Quoting it directly is idiomatic as well."
        (println (dbg/stack-trace lang/trace))
        (new ?PrintClientException (ex-message err#) (dbg/ex-id lang/trace)))))
 
-(defmacro boot-server [Main & args]
-  (let [ir (lang/analyze (merge (normalize-env &env) web-config {::lang/me :server})
+(defmacro boot-server [opts Main & args]
+  (let [ir (lang/analyze (merge (normalize-env &env) web-config {::lang/me :server} opts)
              `(with-zero-config-entrypoint (new ~Main ~@args)))
         info (r/compile (gensym) ir)]
     `(r/main ~info)))
 
-(defmacro boot-client [Main & args]
-  (let [ir (lang/analyze (merge (normalize-env &env) web-config {::lang/me :client})
+(defmacro boot-client [opts Main & args]
+  (let [ir (lang/analyze (merge (normalize-env &env) web-config {::lang/me :client} opts)
              `(with-zero-config-entrypoint (new ~Main ~@args)))
         info (r/compile (gensym) ir)]
     `(hyperfiddle.electric-client/reload-when-stale
