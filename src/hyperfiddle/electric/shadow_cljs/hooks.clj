@@ -3,6 +3,8 @@
             [hyperfiddle.electric.impl.lang :as lang]
             [clojure.string :as str]))
 
+(let [! (volatile! #{})] (defn needs-reload? [nssym] (or (@! nssym) (do (vswap! ! conj nssym) false))))
+
 (defn reload-clj "If a cljc file with electric defs changed and doesn't require-macros itself, reload it.
 
   The reload is necessary to keep the server and client portion of an e/def in sync."
@@ -11,7 +13,7 @@
         cljc-infos (eduction (filter (fn [[_ f]] (str/ends-with? f ".cljc")))
                      (map #(get (:sources build-state) %)) compiled-keys)]
     (doseq [{ns-sym :ns, macro-requires :macro-requires} cljc-infos]
-      (when (and (not (get macro-requires ns-sym)) (-> ns-sym find-ns meta ::lang/has-edef?))
+      (when (and (not (get macro-requires ns-sym)) (-> ns-sym find-ns meta ::lang/has-edef?) (needs-reload? ns-sym))
         (prn ::reloading ns-sym)
         (require ns-sym :reload))))
   build-state)
