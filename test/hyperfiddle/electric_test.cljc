@@ -2138,3 +2138,15 @@
 (tests "lexical first arg to . or .. works"
   (with ((l/local (let [fa (FieldAccess. 1)] (tap (.. fa -x)))) tap tap)
     % := 1))
+
+(tests "()"
+  (with ((l/local+ {} (tap ())) tap tap)
+    % := ()))
+
+(tests "(#())"
+  (with ((l/local+ {} (tap (#()))) tap tap)
+    % := ()))
+
+(tests "((fn []))"
+  (with ((l/local+ {} (tap ((fn [])))) tap tap)
+    % := nil))

@@ -68,6 +68,20 @@
        `(pair
           (r/main ~client-info)
           (r/main ~server-info)))))
+
+#?(:clj
+   (defmacro local+
+     "Single peer loopback system without whitelist. Returns boot task."
+     {:style/indent 0}
+     [conf & body]
+     (let [env (e/normalize-env &env)
+           client (lang/analyze (merge env (->local-config env) {::lang/me :client} conf) `(do ~@body))
+           client-info (r/compile "clocal" client)
+           server (lang/analyze (merge env (->local-config env) {::lang/me :server} conf) `(do ~@body))
+           server-info (r/compile "slocal" server)]
+       `(pair
+          (r/main ~client-info)
+          (r/main ~server-info)))))
 #?(:clj
    (defmacro run "test entrypoint without whitelist."
      {:style/indent 0}

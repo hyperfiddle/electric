@@ -53,7 +53,7 @@
 
 (defn -all [o env]
   (cond
-    (seq? o)
+    (and (seq? o) (seq o))
     (if (find-local env (first o))
       (list* (first o) (mapv (fn-> -all env) (rest o)))
       (case (first o)
