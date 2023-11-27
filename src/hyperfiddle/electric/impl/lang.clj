@@ -148,7 +148,8 @@
                            (merge {:form (-> env ::last pop peek) :in (::def env) :for ((juxt ::me ::current) env)} data)))))
 
 (defn cannot-resolve! [env form]
-  (fail! env (str "I cannot resolve " form ", maybe it's defined only on the " (name (get-them env)) "?")))
+  (fail! env (str "I cannot resolve " form ", maybe it's defined only on the " (name (get-them env)) "?")
+    {:locals (keys (:locals env))}))
 
 (defn analyze-binding [env bs f & args]
   ((fn rec [env bs ns]
@@ -681,7 +682,7 @@
     (let [expanded (expand/all env form)]
       (when (::pprint-expansion env)
         (println "---" (::sym env) "EXPANSION ---")
-        (binding [*print-meta* true] (pp/pprint expanded)))
+        (pp/pprint expanded))
       (if (= (::me env) (::current env))
         (analyze-me env expanded)
         (->them {::ir/op ::ir/do, ::ir/inst ir/nop} (analyze-them env expanded))))))
