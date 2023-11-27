@@ -89,6 +89,8 @@
      ;; (let [with-open inc] (all '(with-open 1)))
      ;; := '(with-open 1)
 
+     (all '()) := '()
+
      (all '(hyperfiddle.impl.expand-test/X.)) := '(new hyperfiddle.impl.expand-test/X)
 
      (expand/-all '(#{:ok} 1) {:js-globals {}})
