@@ -10,14 +10,23 @@
 (declare -all-in-try)
 
 (defn resolve-cljs [env sym]
-  (let [!found? (volatile! true)
-        resolved (binding [cljs-ana/*cljs-warnings* (assoc cljs-ana/*cljs-warnings* :undeclared-ns false)]
-                   (cljs-ana/resolve-var env sym
-                     (fn [env prefix suffix]
-                       (cljs-ana/confirm-var-exists env prefix suffix
-                         (fn [_ _ _] (vreset! !found? false)))) nil))]
-    (when (and @!found? (not= '. (:name resolved)) (not (:macro resolved)))
-      resolved)))
+  (when (not= '. sym)
+    (let [!found? (volatile! true)
+          resolved (binding [cljs-ana/*cljs-warnings* (assoc cljs-ana/*cljs-warnings* :undeclared-ns false)]
+                     (cljs-ana/resolve-var env sym
+                       (fn [env prefix suffix]
+                         (cljs-ana/confirm-var-exists env prefix suffix
+                           (fn [_ _ _] (vreset! !found? false)))) nil))]
+      (when (and @!found? (not (:macro resolved))) resolved))))
+
+(defn macroexpand-clj [o]
+  ;; we might be expanding clj code before the ns got loaded (during cljs compilation)
+  ;; to correctly lookup vars the ns needs to be loaded
+  ;; since shadow-cljs compiles in parallel we need to serialize the requires
+  (when-not (get (loaded-libs) (ns-name *ns*))
+    (try (#'clojure.core/serialized-require (ns-name *ns*)) ; try bc it can be cljs file
+         (catch java.io.FileNotFoundException _)))
+  (macroexpand-1 o))
 
 (defn expand-macro [env o]
   (let [[f & args] o, n (name f), e (dec (count n))]
@@ -34,8 +43,8 @@
                 (let [cljs-macro-env (cond-> cljs-env (::ns cljs-env) (assoc :ns (::ns cljs-env)))]
                   (if-some [expander (cljs-ana/get-expander f cljs-macro-env)]
                     (apply expander o cljs-macro-env args)
-                    (macroexpand-1 o)))))
-            (macroexpand-1 o)))))))
+                    (macroexpand-clj o)))))
+            (macroexpand-clj o)))))))
 
 (defn find-local [env sym] (find (:locals env) sym))
 (defn add-local [env sym] (update env :locals assoc sym ::unknown))

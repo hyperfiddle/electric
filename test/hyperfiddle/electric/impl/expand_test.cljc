@@ -124,3 +124,13 @@
      := '[1 1]
 
      (println " ok")))
+
+;; doesn't work in `tests`
+#?(:clj
+   (when-not (= '(let* [x 1])
+               (binding [*ns* (create-ns 'hyperfiddle.electric.impl.expand-unloaded)]
+                 (expand/all {::lang/peers {:client :cljs, :server :clj}
+                              ::lang/current :server, ::lang/me :client
+                              :ns 'hyperfiddle.electric.impl.expand-unloaded}
+                   '(let [x 1]))))
+     (throw (ex-info "clj macroexpansion for unloaded ns fails" {}))))
