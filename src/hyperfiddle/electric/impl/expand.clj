@@ -133,10 +133,12 @@
                                           {:load-macros true, :restore false}))))))
 
 (defn ->common-env [env]
-  (assoc env ::cljs-env
-    (if (contains? env :js-globals)
-      env
-      (-> (cljs.analyzer/empty-env) (?enrich-for-require-macros-lookup (:ns env))))))
+  (if (::cljs-env env)
+    env
+    (assoc env ::cljs-env
+      (if (contains? env :js-globals)
+        env
+        (-> (cljs.analyzer/empty-env) (?enrich-for-require-macros-lookup (:ns env)))))))
 
 ;; takes an electric environment, which can be clj or cljs
 ;; if it's clj we need to prep the cljs environment (cljs.env/ensure + cljs.analyzer/empty-env with patched ns)
