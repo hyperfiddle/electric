@@ -683,9 +683,13 @@
       (when (::pprint-expansion env)
         (println "---" (::sym env) "EXPANSION ---")
         (pp/pprint expanded))
-      (if (= (::me env) (::current env))
-        (analyze-me env expanded)
-        (->them {::ir/op ::ir/do, ::ir/inst ir/nop} (analyze-them env expanded))))))
+      (let [ret (if (= (::me env) (::current env))
+                  (analyze-me env expanded)
+                  (->them {::ir/op ::ir/do, ::ir/inst ir/nop} (analyze-them env expanded)))]
+        (when (::pprint-ir env)
+          (println "---" (::sym env) "IR ---")
+          (pp/pprint (ir-utils/unwrite ret)))
+        ret))))
 
 
 (defn electric-only [& args]
@@ -705,9 +709,6 @@
                     fullsym (symbol (str *ns*) (str sym))
                     _ (when (::print-defs (meta name-sym)) (prn 'defining fullsym))
                     ir (analyze (assoc env ::sym sym) init)
-                    _ (when (::pprint-ir (meta name-sym))
-                        (println "---" sym "IR ---")
-                        (pp/pprint (ir-utils/unwrite ir)))
                     info (r/compile name-sym ir)
                     _ (when (::pprint-source (meta name-sym))
                         (println "---" sym "SOURCE ---")
