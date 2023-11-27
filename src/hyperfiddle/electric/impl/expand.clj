@@ -2,8 +2,8 @@
   (:require [cljs.analyzer :as cljs-ana]
             [cljs.core]
             [cljs.env]
-            [contrib.assert :as ca]
-            [hyperfiddle.electric.impl.lang :as-alias lang]))
+            [hyperfiddle.electric.impl.lang :as-alias lang]
+            [hyperfiddle.rcf :as rcf :refer [tests]]))
 
 (defn- fn-> [f a] (fn [o] (f o a)))
 
@@ -136,10 +136,14 @@
 ;; if ::lang/current = :clj expand with clj environment
 ;; if ::lang/current = :cljs expand with cljs environment
 
-(defn ?enrich-for-require-macros-lookup [cljs-env nssym]
-  (cond-> cljs-env nssym (assoc ::ns (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
-                                        (cljs-ana/parse-ns (ca/check some? (cljs-ana/locate-src nssym) {:ns nssym})
-                                          {:load-macros true, :restore false}))))))
+(defn enrich-for-require-macros-lookup [cljs-env nssym]
+  (if-some [src (cljs-ana/locate-src nssym)]
+    (assoc cljs-env ::ns (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
+                                 (cljs-ana/parse-ns src {:load-macros true, :restore false}))))
+    cljs-env))
+
+(tests "enrich of clj source file is noop"
+  (cljs.env/ensure (enrich-for-require-macros-lookup {:a 1} 'clojure.core)) := {:a 1})
 
 (defn ->common-env [env]
   (if (::cljs-env env)
@@ -147,7 +151,7 @@
     (assoc env ::cljs-env
       (if (contains? env :js-globals)
         env
-        (-> (cljs.analyzer/empty-env) (?enrich-for-require-macros-lookup (:ns env)))))))
+        (cond-> (cljs.analyzer/empty-env) (:ns env) (enrich-for-require-macros-lookup (:ns env)))))))
 
 ;; takes an electric environment, which can be clj or cljs
 ;; if it's clj we need to prep the cljs environment (cljs.env/ensure + cljs.analyzer/empty-env with patched ns)
