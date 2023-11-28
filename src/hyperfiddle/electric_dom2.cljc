@@ -38,6 +38,7 @@
 
 #?(:cljs
    (defn new-node [parent type]
+     (when (nil? parent) (throw (ex-info "dom/node is nil" {})))
      (let [el (case type
                 :comment (.createComment js/document "")
                 :text (goog.dom/createTextNode "")
