@@ -220,7 +220,7 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                (m/reductions {} (.-visibilityState js/document))
                (m/latest (cc/fn [_] (.-visibilityState js/document)))))))
 
-(hyperfiddle.electric/def dom-visibility-state (client (new (identity <dom-visibility-state)))) ; starts Pending on server
+(hyperfiddle.electric/def dom-visibility-state (client (new (identity <dom-visibility-state))))
 
 (hyperfiddle.electric/def dom-mousemove "mousemove events, Pending if unknown"
   (client (new (m/reductions {} r/pending (listen> js/document "mousemove")))))
