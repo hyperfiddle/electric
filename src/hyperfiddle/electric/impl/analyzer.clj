@@ -102,7 +102,7 @@
     (map emit-cljs (cons (:fn ast) (:args ast)))
 
     :fn
-    (cons 'fn (concat (when-some [l (:local ast)] [(:name l)])
+    (cons 'cljs.core/fn (concat (when-some [l (:local ast)] [(:name l)])
                 (map emit-cljs-method (:methods ast))))
 
     :letfn
