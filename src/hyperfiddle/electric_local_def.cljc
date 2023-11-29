@@ -19,6 +19,11 @@
 (cc/defn ->local-config [env]
   (let [p (if (:js-globals env) :cljs :clj)] {::lang/peers {:client p, :server p}, ::lang/current :client}))
 
+(cc/defn ->single-peer-config [env]
+  (if (:js-globals env)
+    {::lang/peers {:client :cljs}, ::lang/current :client, ::lang/me :client}
+    {::lang/peers {:server :clj}, ::lang/current :server, ::lang/me :server}))
+
 (cc/defn pair [c s]
   (m/sp
     (let [s->c (m/dfv)
@@ -31,40 +36,18 @@
             (cc/fn [!] (s->c !) #())
             #(throw %)))))))
 
-(cc/defn pairt [c s]
-  (m/sp
-    (let [s->c (m/dfv)
-          c->s (m/dfv)]
-      (m/?
-        (m/join {}
-          (s (cc/fn write [x]
-               (println "----")
-               (prn :server-write (:acks x))
-               (run! prn (:tree x))
-               (let [ch (:change x)] (when (seq ch) (prn :change ch)))
-               (let [fr (:freeze x)] (when (seq fr) (prn :freeze fr)))
-               (m/sp ((m/? s->c) x)))
-            (cc/fn ?read [!] (c->s !) #()))
-          (c (cc/fn write [x]
-               (println "----")
-               (prn :client-write (:acks x))
-               (run! prn (:tree x))
-               (let [ch (:change x)] (when (seq ch) (prn :change ch)))
-               (let [fr (:freeze x)] (when (seq fr) (prn :freeze fr)))
-               (m/sp ((m/? c->s) x)))
-            (cc/fn ?read [!] (s->c !) #())
-            #(throw %)))))))
-
 #?(:clj
    (defmacro local
      "Single peer loopback system without whitelist. Returns boot task."
      {:style/indent 0}
      [& body]
      (let [env (e/normalize-env &env)
-           client (lang/analyze (merge env (->local-config env) {::lang/me :client}) `(do ~@body))
-           client-info (r/compile "clocal" client)
-           server (lang/analyze (merge env (->local-config env) {::lang/me :server}) `(do ~@body))
-           server-info (r/compile "slocal" server)]
+           cenv (merge env (->local-config env) {::lang/me :client})
+           client (lang/analyze cenv `(do ~@body))
+           client-info (r/compile "clocal" client cenv)
+           senv (merge env (->local-config env) {::lang/me :server})
+           server (lang/analyze senv `(do ~@body))
+           server-info (r/compile "slocal" server senv)]
        `(pair
           (r/main ~client-info)
           (r/main ~server-info)))))
@@ -75,48 +58,31 @@
      {:style/indent 0}
      [conf & body]
      (let [env (e/normalize-env &env)
-           client (lang/analyze (merge env (->local-config env) {::lang/me :client} conf) `(do ~@body))
-           client-info (r/compile "clocal" client)
-           server (lang/analyze (merge env (->local-config env) {::lang/me :server} conf) `(do ~@body))
-           server-info (r/compile "slocal" server)]
+           cenv (merge env (->local-config env) {::lang/me :client} conf)
+           client (lang/analyze cenv `(do ~@body))
+           client-info (r/compile "clocal" client cenv)
+           senv (merge env (->local-config env) {::lang/me :server} conf)
+           server (lang/analyze senv `(do ~@body))
+           server-info (r/compile "slocal" server senv)]
        `(pair
           (r/main ~client-info)
           (r/main ~server-info)))))
+
+#?(:clj
+   (defmacro single+
+     "Single peer system without whitelist. Returns boot task."
+     {:style/indent 0}
+     [conf & body]
+     (let [env (merge (e/normalize-env &env) (->single-peer-config &env) conf)
+           ir (lang/analyze env `(do ~@body))
+           info (r/compile "single" ir env)]
+       `((r/main ~info) (m/rdv) (cc/fn [_#] #())))))
+
 #?(:clj
    (defmacro run "test entrypoint without whitelist."
      {:style/indent 0}
      [& body]
      `((local ~@body) (cc/fn [_#]) (cc/fn [_#]))))
-#?(:clj
-   (defmacro locald
-     "Single peer loopback system without whitelist. Returns boot task."
-     {:style/indent 0}
-     [& body]
-     (let [env (e/normalize-env &env)
-           client (lang/analyze (merge env (->local-config env) {::lang/me :client}) `(do ~@body))
-           _ (do (println "--- CLIENT IR ---") (pp/pprint (ir-utils/unwrite client)))
-           client-info (r/compile "clocal" client)
-           _ (do (println "--- CLIENT SOURCE ---") (pp/pprint (pp/pprint client-info)))
-           server (lang/analyze (merge env (->local-config env) {::lang/me :server}) `(do ~@body))
-           _ (do (println "--- SERVER IR ---") (pp/pprint (ir-utils/unwrite server)))
-           server-info (r/compile "slocal" server)
-           _ (do (println "--- SERVER SOURCE ---") (pp/pprint (pp/pprint server-info)))]
-       `(pair
-          (r/main ~client-info)
-          (r/main ~server-info)))))
-#?(:clj
-   (defmacro localt
-     "Single peer loopback system without whitelist. Returns boot task."
-     {:style/indent 0}
-     [& body]
-     (let [env (e/normalize-env &env)
-           client (lang/analyze (merge env (->local-config env) {::lang/me :client}) `(do ~@body))
-           client-info (r/compile "clocal" client)
-           server (lang/analyze (merge env (->local-config env) {::lang/me :server}) `(do ~@body))
-           server-info (r/compile "slocal" server)]
-       `(pairt
-          (r/main ~client-info)
-          (r/main ~server-info)))))
 
 (defmacro def
   ([symbol] `(hyperfiddle.electric-local-def/def ~symbol [::lang/unbound '~(cc/symbol (str *ns*) (str symbol))]))

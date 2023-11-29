@@ -148,7 +148,8 @@
                            (merge {:form (-> env ::last pop peek) :in (::def env) :for ((juxt ::me ::current) env)} data)))))
 
 (defn cannot-resolve! [env form]
-  (fail! env (str "I cannot resolve " form ", maybe it's defined only on the " (name (get-them env)) "?")
+  (fail! env (str "I cannot resolve " form (when (get-them env)
+                                            (str ", maybe it's defined only on the " (name (get-them env)) "?")))
     {:locals (keys (:locals env))}))
 
 (defn analyze-binding [env bs f & args]
@@ -709,8 +710,5 @@
                     fullsym (symbol (str *ns*) (str sym))
                     _ (when (::print-defs (meta name-sym)) (prn 'defining fullsym))
                     ir (analyze (assoc env ::sym sym) init)
-                    info (r/compile name-sym ir)
-                    _ (when (::pprint-source (meta name-sym))
-                        (println "---" sym "SOURCE ---")
-                        (pp/pprint info))]
+                    info (r/compile name-sym ir env)]
                 (list `def (as-node sym) (assoc info :var-name (list 'quote fullsym)))))))))

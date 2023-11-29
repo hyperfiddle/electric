@@ -91,9 +91,9 @@
   [& body]
   (let [env (normalize-env &env)
         client (lang/analyze (merge env web-config {::lang/me :client}) `(do ~@body))
-        client-info (r/compile "clocal" client)
+        client-info (r/compile "clocal" client env)
         server (lang/analyze (merge env web-config {::lang/me :server}) `(do ~@body))
-        server-info (r/compile "slocal" server)]
+        server-info (r/compile "slocal" server env)]
     `(pair
        (r/main ~client-info)
        (r/main ~server-info))))
@@ -455,15 +455,15 @@ Quoting it directly is idiomatic as well."
        (new ?PrintClientException (ex-message err#) (dbg/ex-id lang/trace)))))
 
 (defmacro boot-server [opts Main & args]
-  (let [ir (lang/analyze (merge (normalize-env &env) web-config {::lang/me :server} opts)
-             `(with-zero-config-entrypoint (new ~Main ~@args)))
-        info (r/compile (gensym) ir)]
+  (let [env (merge (normalize-env &env) web-config {::lang/me :server} opts)
+        ir (lang/analyze env `(with-zero-config-entrypoint (new ~Main ~@args)))
+        info (r/compile (gensym) ir env)]
     `(r/main ~info)))
 
 (defmacro boot-client [opts Main & args]
-  (let [ir (lang/analyze (merge (normalize-env &env) web-config {::lang/me :client} opts)
-             `(with-zero-config-entrypoint (new ~Main ~@args)))
-        info (r/compile (gensym) ir)]
+  (let [env (merge (normalize-env &env) web-config {::lang/me :client} opts)
+        ir (lang/analyze env `(with-zero-config-entrypoint (new ~Main ~@args)))
+        info (r/compile (gensym) ir env)]
     `(hyperfiddle.electric-client/reload-when-stale
        (hyperfiddle.electric-client/boot-with-retry
          (r/main ~info)
