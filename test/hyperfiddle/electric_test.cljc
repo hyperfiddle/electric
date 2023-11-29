@@ -1924,19 +1924,19 @@
     % := [1 [2 3]]))
 
 (tests "e/apply"
-  (with ((l/local (tap (e/apply VarArgs [1 2 3]))) tap tap)
+  (with ((l/single+ {} (tap (e/apply VarArgs [1 2 3]))) tap tap)
     % := [1 [2 3]]))
 (tests "e/apply"
-  (with ((l/local (tap (e/apply Two 1 [2]))) tap tap)
+  (with ((l/single+ {} (tap (e/apply Two 1 [2]))) tap tap)
     % := [1 2]))
 (tests "e/apply"
-  (with ((l/local (tap (e/apply Two [1 2]))) tap tap)
+  (with ((l/single+ {} (tap (e/apply Two [1 2]))) tap tap)
     % := [1 2]))
 (tests "e/apply"
-  (with ((l/local (tap (e/apply Two [1 (inc 1)]))) tap tap)
+  (with ((l/single+ {} (tap (e/apply Two [1 (inc 1)]))) tap tap)
     % := [1 2]))
 (tests "e/apply"
-  (with ((l/local (tap (try (e/apply Two [1 2 3]) (throw (ex-info "boo" {}))
+  (with ((l/single+ {} (tap (try (e/apply Two [1 2 3]) (throw (ex-info "boo" {}))
                             (catch ExceptionInfo e e)))) tap tap)
     (ex-message %) := "You called Two with 3 arguments but it only supports 2"))
 
@@ -1950,10 +1950,10 @@
   (with ((l/local (tap (new (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 3 4))) tap tap)
     % := [3 4 5]))
 (tests "multi-arity e/fn"
-  (with ((l/local (tap (e/apply (e/fn ([_] :one) ([_ _] :two)) 1 [2]))) tap tap)
+  (with ((l/single+ {} (tap (e/apply (e/fn ([_] :one) ([_ _] :two)) 1 [2]))) tap tap)
     % := :two))
 (tests "multi-arity e/fn"
-  (with ((l/local (tap (e/apply (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 [3 4]))) tap tap)
+  (with ((l/single+ {} (tap (e/apply (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 [3 4]))) tap tap)
     % := [3 4 5]))
 
 (tests "self-recur by name, e/fn"
