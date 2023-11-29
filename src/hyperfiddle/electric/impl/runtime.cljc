@@ -2,11 +2,13 @@
   (:refer-clojure :exclude [compile])
   (:require [hyperfiddle.electric.impl.yield2 :refer [yield]]
             [hyperfiddle.electric.impl.failer :as failer]
+            [hyperfiddle.electric.impl.lang :as-alias lang]
             [hyperfiddle.electric.impl.local :as l]
             [hyperfiddle.electric.impl.ir :as ir]
             [hyperfiddle.electric.debug :as dbg]
             [missionary.core :as m]
             [hyperfiddle.rcf :refer [tests]]
+            [clojure.pprint :as pp]
             [clojure.string :as str]
             [contrib.data :as data]
             [contrib.assert :as ca]
@@ -908,7 +910,7 @@
 (tests
   (remove-dep-nodes (ir/input [(ir/node 'x) (ir/output ir/nop)])) := (ir/input [(ir/output ir/nop)]))
 
-(defn compile [prefix inst]
+(defn compile [prefix inst e]
   (let [nodes (find-nodes inst)
         inst (remove-dep-nodes inst)
         frame (sym prefix 'frame)
@@ -1146,12 +1148,14 @@
       (:stack)
       (collapse 8
         (fn [form dynamic nvariable nsource nconstant ntarget noutput ninput]
-          {:fn (let [ctors (form [[]] {})]
-                 (list `let (into [] (comp (map-indexed (fn [i ctor] [(ctor-at i) ctor])) cat) (pop ctors))
-                   (emit-exprs (peek ctors)))) #_`(fn [~frame ~vars] ~form)
-           :dynamic `'~dynamic, :nvariable nvariable :nsource nsource,
-           :get-used-nodes `(fn [] ~nodes)
-           :nconstant nconstant, :ntarget ntarget, :noutput noutput, :ninput ninput}))
+          (let [code (let [ctors (form [[]] {})]
+                       (list `let (into [] (comp (map-indexed (fn [i ctor] [(ctor-at i) ctor])) cat) (pop ctors))
+                         (emit-exprs (peek ctors))))]
+            (when (::lang/pprint-source e)
+              (println "---" prefix "SOURCE ---")
+              (pp/pprint code))
+            {:fn code, :dynamic `'~dynamic, :nvariable nvariable :nsource nsource, :get-used-nodes `(fn [] ~nodes)
+             :nconstant nconstant, :ntarget ntarget, :noutput noutput, :ninput ninput})))
       (peek))))
 
 (defn- get-used-nodes-recursively [info]
