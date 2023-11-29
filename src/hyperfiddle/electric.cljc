@@ -478,30 +478,33 @@ Quoting it directly is idiomatic as well."
 inhibiting all further reactive updates."
   [x] `(check-electric snapshot (new (-snapshot (hyperfiddle.electric/fn* [] ~x)))))
 
-(defmacro apply [F & args]
-  `(let [F# ~F, as# [~@args], args# (object-array (concat (pop as#) (peek as#)))]
-     (case (alength args#)
-       0 (new F#)
-       1 (new F# (aget args# 0))
-       2 (new F# (aget args# 0) (aget args# 1))
-       3 (new F# (aget args# 0) (aget args# 1) (aget args# 2))
-       4 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3))
-       5 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4))
-       6 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5))
-       7 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6))
-       8 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7))
-       9 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8))
-       10 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9))
-       11 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10))
-       12 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11))
-       13 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12))
-       14 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13))
-       15 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14))
-       16 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14) (aget args# 15))
-       17 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14) (aget args# 15) (aget args# 16))
-       18 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14) (aget args# 15) (aget args# 16) (aget args# 17))
-       19 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14) (aget args# 15) (aget args# 16) (aget args# 17) (aget args# 18))
-       20 (new F# (aget args# 0) (aget args# 1) (aget args# 2) (aget args# 3) (aget args# 4) (aget args# 5) (aget args# 6) (aget args# 7) (aget args# 8) (aget args# 9) (aget args# 10) (aget args# 11) (aget args# 12) (aget args# 13) (aget args# 14) (aget args# 15) (aget args# 16) (aget args# 17) (aget args# 18) (aget args# 19)))))
+(cc/defn- -splicev [args] (into [] cat [(pop args) (peek args)]))
+(hyperfiddle.electric/defn* Apply* [F args]
+  (let [spliced (-splicev args)]
+    (case (count spliced)
+       0 (new F)
+       1 (new F (nth spliced 0))
+       2 (new F (nth spliced 0) (nth spliced 1))
+       3 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2))
+       4 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3))
+       5 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4))
+       6 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5))
+       7 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6))
+       8 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7))
+       9 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8))
+      10 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9))
+      11 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10))
+      12 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11))
+      13 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12))
+      14 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13))
+      15 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14))
+      16 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15))
+      17 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16))
+      18 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17))
+      19 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18))
+      20 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18) (nth spliced 19)))))
+
+(defmacro apply [F & args] `(new Apply* ~F [~@args]))
 
 (cc/defn ->Object [] #?(:clj (Object.) :cljs (js/Object.))) ; private
 
