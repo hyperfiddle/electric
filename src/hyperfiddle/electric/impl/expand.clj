@@ -43,7 +43,7 @@
                 (let [cljs-macro-env (cond-> cljs-env (::ns cljs-env) (assoc :ns (::ns cljs-env)))]
                   (if-some [expander (cljs-ana/get-expander f cljs-macro-env)]
                     (apply expander o cljs-macro-env args)
-                    (macroexpand-clj o)))))
+                    o))))
             (macroexpand-clj o)))))))
 
 (defn find-local [env sym] (find (:locals env) sym))
