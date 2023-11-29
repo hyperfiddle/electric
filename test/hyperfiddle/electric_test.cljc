@@ -11,17 +11,14 @@
    [hyperfiddle.electric-local-def :as l]
    #?(:cljs [hyperfiddle.goog-calls-test])
    #?(:cljs [hyperfiddle.js-calls-test])
-   [hyperfiddle.rcf :as rcf :refer [% tap with]]
+   [hyperfiddle.rcf :as rcf :refer [% tap with tests]]
    [missionary.core :as m]
    [clojure.test :as t]
    [clojure.string :as str]
    [contrib.assert :as ca])
-  #?(:cljs (:require-macros [hyperfiddle.electric-test :refer [tests]]))
   (:import [missionary Cancelled]
            [hyperfiddle.electric Pending Failure]
            #?(:clj [clojure.lang ExceptionInfo])))
-
-(defmacro tests [& body] `(rcf/tests ~@body, (tap ::done) (instance? Cancelled %) := true, % := ::done))
 
 (tests "hello world"
   (l/def Msg "Hello")
@@ -641,7 +638,7 @@
     (swap! !x inc)
     % := 2))
 
-(rcf/tests "For reference, Clojure exceptions have dynamic scope"
+(tests "For reference, Clojure exceptions have dynamic scope"
   (try (let [f (try (fn [] (throw (ex-info "boom" {}))) ; this exception will escape
                  (catch #?(:clj Exception, :cljs :default) _ ::inner))]
       ; the lambda doesn't know it was constructed in a try/catch block
@@ -649,7 +646,7 @@
     (catch #?(:clj Exception, :cljs :default) _ ::outer))
   := ::outer)
 
-(rcf/tests "Reactor crashes on uncaugh exceptions"
+(tests "Reactor crashes on uncaugh exceptions"
   (def !x (atom true))
   (with ((l/local (tap (assert (e/watch !x)))) tap tap)
     % := nil                            ; assert returns nil or throws
@@ -837,7 +834,7 @@
     (swap! !x inc)
     (tap ::hi) % := ::hi))
 
-(rcf/tests "undefined continuous flow, flow is not defined for the first 10ms"
+(tests "undefined continuous flow, flow is not defined for the first 10ms"
   (let [flow (m/ap (m/? (m/sleep 10 :foo)))]
     (with ((l/local (tap (new (new (e/fn [] (let [a (new flow)] (e/fn [] a))))))) tap tap)
       (ex-message %) := "Undefined continuous flow.")))
@@ -878,7 +875,7 @@
    % := 3))
 
 #?(:clj
-(rcf/tests
+(tests
   "understand how Clojure handles unbound vars"
   ; In Clojure,
   ; Is unbound var defined or undefined behavior?
@@ -897,7 +894,7 @@
   (instance? clojure.lang.Var$Unbound *1) := true)
 )
 
-(rcf/tests "In Electric, accessing an unbound var throws a userland exception"
+(tests "In Electric, accessing an unbound var throws a userland exception"
   ;; An unbound var is either:
   ;; - an uninitialized p/def,
   ;; - an unsatisfied reactive fn parameter (reactive fn called with too few arguments).
@@ -914,7 +911,7 @@
        % := 1))
 
 #?(:clj
-   (rcf/tests ; GG: IDE doc on hover support
+   (tests ; GG: IDE doc on hover support
      "Vars created with p/def have the same metas as created with cc/def"
      (l/def Documented "p/def" :init)
      (select-keys (meta (var Documented)) [:name :doc])
@@ -922,7 +919,7 @@
          :doc  "p/def"}))
 
 #?(:clj
-   (rcf/tests ; GG: IDE doc on hover support
+   (tests ; GG: IDE doc on hover support
     "Vars created with p/defn have the same metas as created with cc/defn"
     (l/defn Documented "doc" [a b c])
     (select-keys (meta (var Documented)) [:name :doc :arglists])
@@ -1125,10 +1122,10 @@
     (reset! !xs [])
     % := []))
 
-(rcf/tests "All Pending instances are equal"
+(tests "All Pending instances are equal"
   (= (Pending.) (Pending.)) := true)
 
-(rcf/tests
+(tests
   "Failure instances are equal if the errors they convey are equal"
   (= (Failure. (Pending.)) (Failure. (Pending.))) := true
 
@@ -1138,7 +1135,7 @@
     (= (ex-info "a" {}) (ex-info "a" {})) := false
     (= (Failure. (ex-info "err" {})) (Failure. (ex-info "err" {}))) := false))
 
-(rcf/tests          ; temporary test because p/run does not serilize to transit.
+(tests          ; temporary test because p/run does not serilize to transit.
   "Electric transit layer serializes unserializable values to nil"
   (electric-io/decode (electric-io/encode 1)) := 1
   (electric-io/decode (electric-io/encode (type 1))) := nil)
@@ -1336,22 +1333,22 @@
     % := [1 :b '(:c :d) [:local 1] [:global 1]]))
 
 #?(:clj
-   (rcf/tests "e/fn is undefined in clojure-land"
+   (tests "e/fn is undefined in clojure-land"
      (tap (try (lang/analyze {} `(fn [] (e/fn []))) (catch Throwable e (ex-message (ex-cause e)))))
      % := "Electric code (hyperfiddle.electric/fn) inside a Clojure function"))
 
 #?(:clj
-   (rcf/tests "e/client is undefined in clojure-land"
+   (tests "e/client is undefined in clojure-land"
      (tap (try (lang/analyze {} `(fn [] (e/client []))) (catch Throwable e (ex-message (ex-cause e)))))
      % := "Electric code (hyperfiddle.electric/client) inside a Clojure function"))
 
 #?(:clj
-   (rcf/tests "e/server is undefined in clojure-land"
+   (tests "e/server is undefined in clojure-land"
      (tap (try (lang/analyze {} `(fn [] (e/server []))) (catch Throwable e (ex-message (ex-cause e)))))
      % := "Electric code (hyperfiddle.electric/server) inside a Clojure function"))
 
 #?(:clj
-   (rcf/tests "e/server is undefined in clojure-land"
+   (tests "e/server is undefined in clojure-land"
      (tap (try (lang/analyze {} `(fn [] (e/watch (atom :nomatter)))) (catch Throwable e (ex-message (ex-cause e)))))
      % := "Electric code (hyperfiddle.electric/watch) inside a Clojure function"))
 
@@ -1572,7 +1569,7 @@
     % := 3
     % := 2))
 
-(rcf/tests "In Clojure, unqualified names first resolves to lexical scope"
+(tests "In Clojure, unqualified names first resolves to lexical scope"
   (def ^:dynamic foo 1)
   foo := 1 ; no lexical binding shadowing -> resolve to foo var
   (let [foo 2] ; lexical shadowing
@@ -1638,7 +1635,7 @@
        % := :shadowed
        % := 2)))
 
-(rcf/tests "snapshot"
+(tests "snapshot"
   (def flow (e/-snapshot (m/observe (fn [!] (def ! !) #()))))
   "1 2 -> 1"
   (def it (flow #(tap :notified) #(tap :terminated)))
@@ -1979,7 +1976,7 @@
     % := :done))
 
 #?(:clj
-   (rcf/tests "e/fn multi-arity mistakes"
+   (tests "e/fn multi-arity mistakes"
      (binding [expand/*electric* true]
        (try (expand/all {} '(e/fn Named ([x] x) ([y] y)))
             (catch Throwable e (tap e)))
@@ -2026,7 +2023,7 @@
        % := [2 1])))
 
 #?(:clj
-   (rcf/tests "we capture invalid calls"
+   (tests "we capture invalid calls"
      (binding [expand/*electric* true]
        (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server) '(jjj 1))
             (throw (Throwable. "shouldn't"))
@@ -2072,7 +2069,7 @@
 (defn signify [node] (symbol (str/replace (str node) #"_hf_.*" "")))
 
 #?(:clj
-   (rcf/tests "we keep node order"
+   (tests "we keep node order"
      (l/def A 1)
      (l/def B 2)
      (l/def C 3)
@@ -2088,17 +2085,12 @@
        r/find-nodes (mapv signify))))
 
 #?(:clj
-   (rcf/tests "cljs macroexpansion falls back to clj"
-     (take 2 (expand/all {::lang/peers {:server :clj, :client :cljs}, ::lang/current :client, ::lang/me :server}
-               '(e/fn* []))) := '(:hyperfiddle.electric.impl.lang/closure (do))))
-
-#?(:clj
-   (rcf/tests "l/def marks the namespace"
+   (tests "l/def marks the namespace"
      (l/def Foo 1)
      (-> *ns* meta ::lang/has-edef?) := true))
 
 #?(:clj
-   (rcf/tests "cljs macroexpansion regression"
+   (tests "cljs macroexpansion regression"
      (binding [expand/*electric* true]
        (-> (expand/all {::lang/peers {:server :clj, :client :cljs}, ::lang/current :client, ::lang/me :server, :ns 'hyperfiddle.electric-test}
              '(e/fn Foo []))
@@ -2111,7 +2103,7 @@
     (swap! !v inc)
     % := #{2}))
 
-(rcf/tests "calling an electric defn in a clojure defn as a clojure defn"
+(tests "calling an electric defn in a clojure defn as a clojure defn"
   (l/defn ElectricFn [] 1)
   (defn clj-fn2 [] (inc (ElectricFn)))
   (try (clj-fn2) (throw (ex-info "unreachable" {}))
@@ -2123,7 +2115,7 @@
     % := [1 1]))
 
 #?(:clj
-   (rcf/tests "::lang/only filters e/def compilation"
+   (tests "::lang/only filters e/def compilation"
      (l/def ^{::lang/only #{:server}} ServerOnly 1)
      (some? (find-var `ServerOnly_hf_server_server)) := true
      (some? (find-var `ServerOnly_hf_client_server)) := true

@@ -15,7 +15,7 @@ require from clj and cljs due to careful consideration below."
 #?(:clj (defn- cljs-target []
           ; don't force app to :require clojurescript at runtime on the server
           ; (It's okay if you do, it just means clojurescript must be on server classpath)
-          (let [compiler @(requiring-resolve 'cljs.env/*compiler*)]
+          (when-some [compiler @(requiring-resolve 'cljs.env/*compiler*)]
             (get-in @compiler [:options :closure-defines 'cljs.core/*target*]))))
 
 (defmacro do-nodejs  [& body] (if     (= "nodejs" (cljs-target)) `(do ~@body)))
