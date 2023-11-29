@@ -3,9 +3,8 @@
   #?(:cljs (:require-macros hyperfiddle.electric-local-def))
   (:require
    [clojure.core :as cc]
-   [clojure.pprint :as pp]
+   [contrib.cljs-target]
    [hyperfiddle.electric :as e]
-   [hyperfiddle.electric.impl.ir-utils :as ir-utils]
    [hyperfiddle.electric.impl.lang :as lang]
    [hyperfiddle.electric.impl.runtime :as r]
    #?(:clj [hyperfiddle.rcf.analyzer :as ana]) ; todo remove
@@ -20,9 +19,8 @@
   (let [p (if (:js-globals env) :cljs :clj)] {::lang/peers {:client p, :server p}, ::lang/current :client}))
 
 (cc/defn ->single-peer-config [env]
-  (if (:js-globals env)
-    {::lang/peers {:client :cljs}, ::lang/current :client, ::lang/me :client}
-    {::lang/peers {:server :clj}, ::lang/current :server, ::lang/me :server}))
+  (let [p (if (and (:js-globals env) (contrib.cljs-target/do-nodejs true)) :client :server)]
+    (doto {::lang/peers {p (if (:js-globals env) :cljs :clj)}, ::lang/current p, ::lang/me p} prn)))
 
 (cc/defn pair [c s]
   (m/sp
