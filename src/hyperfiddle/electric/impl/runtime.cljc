@@ -12,7 +12,6 @@
             [clojure.string :as str]
             [contrib.data :as data]
             [contrib.assert :as ca]
-            [contrib.walk :as walk]
             [hyperfiddle.electric.impl.ir-utils :as ir-utils])
   (:import missionary.Cancelled
            (hyperfiddle.electric Failure Pending Remote)
@@ -904,8 +903,8 @@
     [] (ir-utils/->reducible ir)))
 
 (defn remove-dep-nodes [ir]
-  (walk/postwalk (fn [v] (cond-> v (::ir/deps v) (update ::ir/deps #(filterv (comp not #{::ir/node} ::ir/op) %))))
-    ir))
+  (ir-utils/postwalk ir
+    (fn [v] (cond-> v (::ir/deps v) (update ::ir/deps #(filterv (comp not #{::ir/node} ::ir/op) %))))))
 
 (tests
   (remove-dep-nodes (ir/input [(ir/node 'x) (ir/output ir/nop)])) := (ir/input [(ir/output ir/nop)]))
@@ -1019,7 +1018,6 @@
                                                                 (case (::ir/op f)
                                                                   ::ir/global (assoc f ::dbg/type :apply, ::dbg/name (symbol (::ir/name f)))
                                                                   ::ir/node (assoc f ::dbg/type :apply)
-                                                                  ::ir/literal {::dbg/type :apply ::dbg/name (::ir/value f)}
                                                                   ::ir/eval (assoc f ::dbg/type :eval)
                                                                   ::ir/sub (assoc f ::dbg/type :apply)
                                                                   ::ir/input (assoc f ::dbg/type :apply)
@@ -1046,9 +1044,6 @@
                                    (form env)
                                    (update-current from-last-expr
                                      (fn [x] `(make-output ~slot (check-failure '~(select-debug-info inst) ~x)))))))))
-             ;; ::ir/global (update env :stack conj `(pure ~(symbol (::ir/name inst))))
-             ::ir/literal (update env :stack conj (fn [ctors _env]
-                                                    (update-current ctors conj `(pure (quote ~(::ir/value inst))))))
              ::ir/variable (-> env
                              (walk off idx dyn (::ir/init inst))
                              (update :variable inc)

@@ -102,7 +102,7 @@
 (defn find-electric-local [sym env] (let [local (find-local sym env)] (when (::pub local) local)))
 
 (defn causal [stmt expr]
-  (ir/apply (ir/literal {}) stmt expr))
+  (ir/apply (ir/eval '{}) stmt expr))
 
 (defn causal-publish
   ([init inst] (causal-publish init inst nil))
@@ -178,7 +178,7 @@
     (analyze-binding env [`%case-test expr]
       (fn [env]
         (ir/variable
-          (apply ir/apply (ir/eval `r/pick-case-branch) (ir/literal picker-map)
+          (apply ir/apply (ir/eval `r/pick-case-branch) (ir/eval (list 'quote picker-map))
             (analyze-me env `%case-test)
             (analyze-me env (list ::closure default-clause {::dbg/type :case-default}))
             (mapv (fn [[test form]]
@@ -405,12 +405,12 @@
                       (if-some [[y & ys] xs]
                         (causal r (rec y ys))
                         r)))  x xs)
-                 (ir/literal nil))
+                 (ir/eval nil))
 
           (case) (analyze-case env (first args) (rest args))
           (if) (let [[test then else] args] (analyze-case env test (list '(nil false) else then)))
 
-          (quote) (ir/literal (first args))
+          (quote) (ir/eval (list 'quote (first args)))
 
           (js*) (if-some [[f & args] args]
                   (apply ir/apply (assoc (ir/eval (let [args (repeatedly (count args) gensym)]
@@ -577,7 +577,7 @@
                                (cons `hash-map (eduction cat form))))
       (set? form) (recur env (cons `hash-set form))
 
-      :else (ir/literal form))))
+      :else (ir/eval form))))
 
 (defn analyze-them [env form]
   (let [env (store env form)]

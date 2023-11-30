@@ -1,10 +1,6 @@
 (ns hyperfiddle.electric.impl.ir
   (:refer-clojure :exclude [apply eval]))
 
-(defn literal [x]
-  {::op ::literal
-   ::value x})
-
 (defn sub [idx]
   {::op ::sub
    ::index idx})
@@ -25,10 +21,6 @@
 (defn apply [f & args]
   (cond-> {::op ::apply ::fn f ::args args}
     (::tag f) (assoc ::tag (::tag f))))
-
-(defn global [k]
-  {::op   ::global
-   ::name k})
 
 (defn variable [init]
   {::op ::variable
