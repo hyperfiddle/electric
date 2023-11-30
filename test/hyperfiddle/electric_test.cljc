@@ -2142,3 +2142,18 @@
 (tests "((fn []))"
   (with ((l/local+ {} (tap ((fn [])))) tap tap)
     % := nil))
+
+(tests "::lang/non-causal removes causality in `let`"
+  (l/defn ^::lang/non-causal NonCausalLet [tap]
+    (let [_ (tap 1)] (tap 2)))
+  (with ((l/local (NonCausalLet. tap)) tap tap)
+    ;; % := 1
+    % := 2))
+
+(tests "::lang/non-causal removes causality in `binding`"
+  (l/def NonCausalEDef)
+  (l/defn ^::lang/non-causal NonCausalBinding [tap]
+    (binding [NonCausalEDef (tap 1)] (tap 2)))
+  (with ((l/local (NonCausalBinding. tap)) tap tap)
+    ;; % := 1
+    % := 2))
