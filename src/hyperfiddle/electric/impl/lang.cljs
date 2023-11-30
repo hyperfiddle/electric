@@ -4,6 +4,7 @@
 
 (def ^{::type ::node, :doc "for loop/recur impl"} rec)
 (def ^{::type ::node, :doc "for runtime arity check"} %arity)
+(def ^{::type ::node, :doc "for runtime varargs"} %args)
 (def ^{::type ::node, :doc "for self-recur"} %closure)
 (def ^{::type ::node, :doc "for try/catch"} exception)
 (def ^{::type ::node, :doc "for case"} %case-test)
