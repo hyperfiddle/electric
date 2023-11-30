@@ -8,7 +8,7 @@
       (unreduced ac)
       (let [[ir & todos] (seq todos)]
         (case (::ir/op ir)
-          (::ir/literal ::ir/sub ::ir/global ::ir/source ::ir/def ::ir/eval ::ir/node ::ir/nop)
+          (::ir/sub ::ir/global ::ir/source ::ir/def ::ir/eval ::ir/node ::ir/nop)
           (recur (f ac ir) todos)
 
           (::ir/target ::ir/input)
@@ -38,7 +38,6 @@
 
 (defn unwrite [i]
   (let [ret (case (::ir/op i)
-              ::ir/literal  (list 'ir/literal (::ir/value i))
               ::ir/sub      (list 'ir/sub (::ir/index i))
               ::ir/pub      (list 'ir/pub
                               (unwrite (::ir/init i)) (unwrite (::ir/inst i)))
@@ -51,7 +50,7 @@
               ::ir/input    (list 'ir/input (mapv unwrite (::ir/deps i)))
               ::ir/output   (list 'ir/output (unwrite (::ir/init i)))
               ::ir/def      (list 'ir/inject (::ir/slot i))
-              ::ir/eval     (list 'ir/eval `'~(::ir/form i))
+              ::ir/eval     (list 'ir/eval (::ir/form i))
               ::ir/node     (list 'ir/node (::ir/slot i))
               ::ir/bind     (list 'ir/bind (::ir/slot i) (::ir/index i) (unwrite (::ir/inst i)))
               ::ir/lift     (list 'ir/lift (unwrite (::ir/init i)))
@@ -62,5 +61,13 @@
       (list* (first ret) :form form (next ret))
       ret)))
 
-(comment
-  (run! (comp prn unwrite) (reduce conj (->reducible (ir/apply (ir/node 'x) (ir/literal 1) (ir/pub (ir/literal 2) (ir/sub 1)))))))
+(defn postwalk [ir f]
+  (f (case (::ir/op ir)
+       (::ir/sub ::ir/source ::ir/def ::ir/eval ::ir/node ::ir/nop) ir
+       (::ir/pub) (-> ir (update ::ir/inst postwalk f) (update ::ir/init postwalk f))
+       (::ir/constant ::ir/variable ::ir/output ::ir/lift) (update ir ::ir/init postwalk f)
+       (::ir/target ::ir/input) (update ir ::ir/deps (partial mapv #(postwalk % f)))
+       (::ir/apply) (-> ir (update ::ir/args (partial mapv #(postwalk % f))) (update ::ir/fn postwalk f))
+       (::ir/bind) (update ir ::ir/inst postwalk f)
+       (::ir/do) (-> ir (update ::ir/deps (partial mapv #(postwalk % f))) (update ::ir/inst postwalk f))
+       #_else (throw (ex-info (str "what IR op is " ir) {:inst ir})))))
