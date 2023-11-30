@@ -20,7 +20,7 @@
 
 (cc/defn ->single-peer-config [env]
   (let [p (if (and (:js-globals env) (contrib.cljs-target/do-nodejs true)) :client :server)]
-    (doto {::lang/peers {p (if (:js-globals env) :cljs :clj)}, ::lang/current p, ::lang/me p} prn)))
+    {::lang/peers {p (if (:js-globals env) :cljs :clj)}, ::lang/current p, ::lang/me p}))
 
 (cc/defn pair [c s]
   (m/sp

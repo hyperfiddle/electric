@@ -1875,34 +1875,34 @@
     % := ["foo" "foo"]))
 
 (tests "e/fn varargs"
-  (with ((l/local (new (e/fn [x & xs] (tap [x xs])) 1 2 3 4)) tap tap)
+  (with ((l/single+ {} (new (e/fn [x & xs] (tap [x xs])) 1 2 3 4)) tap tap)
     % := [1 [2 3 4]]))
 (tests "e/fn varargs recursion with recur"
-  (with ((l/local (new (e/fn [x & xs] (tap [x xs])) 1 2 3 4)) tap tap)
+  (with ((l/single+ {} (new (e/fn [x & xs] (tap [x xs])) 1 2 3 4)) tap tap)
     % := [1 [2 3 4]]))
 (tests "e/fn varargs recur is arity-checked"
-  (with ((l/local (tap (try (new (e/fn [x & xs] (recur)) 1 2 3)
+  (with ((l/single+ {} (tap (try (new (e/fn [x & xs] (recur)) 1 2 3)
                             (catch ExceptionInfo e e)))) tap tap)
     (ex-message %) := "You `recur`d in <unnamed-efn> with 0 arguments but it has 2 positional arguments"))
 
 (l/defn MapVararg [& {:keys [x] :or {x 1} :as mp}] [x mp])
 (tests "map vararg with no args is nil"
-  (with ((l/local (tap (MapVararg.))) tap tap)
+  (with ((l/single+ {} (tap (MapVararg.))) tap tap)
     % := [1 nil]))
 (tests "map vararg with kw args"
-  (with ((l/local (tap (MapVararg. :x 2))) tap tap)
+  (with ((l/single+ {} (tap (MapVararg. :x 2))) tap tap)
     % := [2 {:x 2}]))
 (tests "map vararg with map arg"
-  (with ((l/local (tap (MapVararg. {:x 2}))) tap tap)
+  (with ((l/single+ {} (tap (MapVararg. {:x 2}))) tap tap)
     % := [2 {:x 2}]))
 (tests "map vararg with mixture"
-  (with ((l/local (tap (MapVararg. :y 3 {:x 2}))) tap tap)
+  (with ((l/single+ {} (tap (MapVararg. :y 3 {:x 2}))) tap tap)
     % := [2 {:x 2, :y 3}]))
 (tests "map vararg trailing map takes precedence"
-  (with ((l/local (tap (MapVararg. :x 3 {:x 2}))) tap tap)
+  (with ((l/single+ {} (tap (MapVararg. :x 3 {:x 2}))) tap tap)
     % := [2 {:x 2}]))
 (tests "map vararg with positional arguments"
-  (with ((l/local (tap (new (e/fn [a & {:keys [x]}] [a x]) 1 :x 2))) tap tap)
+  (with ((l/single+ {} (tap (new (e/fn [a & {:keys [x]}] [a x]) 1 :x 2))) tap tap)
     % := [1 2]))
 
 (tests "e/fn recur is arity checked"
@@ -1919,6 +1919,10 @@
 (tests "(new VarArgs 1 2 3)"
   (with ((l/local (tap (new VarArgs 1 2 3))) tap tap)
     % := [1 [2 3]]))
+(tests "varargs arity is checked"
+  (with ((l/local (tap (try (new VarArgs)
+                            (catch ExceptionInfo e e)))) tap tap)
+    (ex-message %) := "You called VarArgs with 0 arguments but it only supports 1"))
 
 (tests "e/apply"
   (with ((l/single+ {} (tap (e/apply VarArgs [1 2 3]))) tap tap)

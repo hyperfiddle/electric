@@ -15,6 +15,7 @@
 
 (def ^{::type ::node, :doc "for loop/recur impl"} rec)
 (def ^{::type ::node, :doc "for runtime arity check"} %arity)
+(def ^{::type ::node, :doc "for runtime varargs"} %args)
 (def ^{::type ::node, :doc "for self-recur"} %closure)
 (def ^{::type ::node, :doc "for try/catch"} exception)
 (def ^{::type ::node, :doc "for case"} %case-test)
@@ -451,7 +452,10 @@
                       (= "js" (namespace f)) (assoc ::ir/tag 'js))
                     (analyze-binding env ; electric join
                       (list* `%closure f `%arity (count args) (interleave arg-sym args))
-                      (fn [_] (ir/variable (ir/sub (+ 2 (count args)))))))
+                      (fn [env]
+                        #_(ir/variable (ir/sub (+ 2 (count args))))
+                        (analyze-binding env [`%args `[~@(take (count args) arg-sym)]]
+                          (fn [_] (ir/variable (ir/sub (+ 3 (count args)))))))))
                   (fail! env "Wrong number of arguments - new" {}))
 
           ;; (. java.time.Instant now)
