@@ -234,6 +234,47 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 
 (hyperfiddle.electric/def system-time-secs "seconds since 1970 Jan 1" (/ system-time-ms 1000.0))
 
+(defmacro fn*
+  "Low-level construct. Use `hyperfiddle.electric/fn` instead.
+   Bare-bone reactive anonymous function. Single arity, no arity check, no variadic args support, no self-recur."
+  ;; G: `e/fn*` produces a smaller program than `e/fn`. Experts can use `e/fn*` in internals and libraries.
+  ;;    Users should default to `e/fn`.
+  [args & body]
+  (let [debug-info {::dbg/type :reactive-fn
+                    ::dbg/meta (select-keys (meta &form) [:file :line])}]
+    (if (seq args)
+      `(::lang/closure (let [~@(interleave args lang/arg-sym)] ~@body) ~debug-info)
+      `(::lang/closure (do ~@body) ~debug-info))))
+
+(cc/defn- -splicev [args] (into [] cat [(pop args) (peek args)]))
+(hyperfiddle.electric/def Apply*
+  (hyperfiddle.electric/fn* [F args]
+    (let [spliced (-splicev args)]
+      (case (count spliced)
+        0 (new F)
+        1 (new F (nth spliced 0))
+        2 (new F (nth spliced 0) (nth spliced 1))
+        3 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2))
+        4 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3))
+        5 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4))
+        6 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5))
+        7 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6))
+        8 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7))
+        9 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8))
+        10 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9))
+        11 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10))
+        12 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11))
+        13 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12))
+        14 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13))
+        15 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14))
+        16 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15))
+        17 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16))
+        18 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17))
+        19 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18))
+        20 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18) (nth spliced 19))))))
+
+(defmacro apply [F & args] `(new Apply* ~F [~@args]))
+
 (cc/defn -check-recur-arity [provided actual fname]
   (when (not= provided actual)
     (throw (ex-info (str "You `recur`d in " (or fname "<unnamed-efn>") " with " provided
@@ -252,22 +293,23 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                                (let [~@(interleave args lang/arg-sym)] ~@body)))]
               (new lang/rec ~@(take (count args) lang/arg-sym)))]))
 
-#?(:clj (cc/defn- -build-vararg-arities [?name args body]
-          (let [npos (-> args count (- 2)), unvarargd (-> args pop pop (conj (peek args)))]
-            (into [] (map (cc/fn [n]
-                            [n `(binding [lang/rec (::lang/closure (case (-check-recur-arity lang/%arity ~(inc npos) '~?name)
-                                                               (let [~@(interleave unvarargd lang/arg-sym)] ~@body)))]
-                                  (new lang/rec ~@(take npos lang/arg-sym)
-                                    ~(let [rst (into [] (comp (drop npos) (take (- n npos))) lang/arg-sym)]
-                                       (when (seq rst) ; varargs value is `nil` when no args provided
-                                         (if (map? (peek args))
-                                           (if (even? (count rst))
-                                             (list* `hash-map rst) ; (MapVararg. :x 1)
-                                             `(merge (hash-map ~@(pop rst)) ~(peek rst))) ; (MapVararg. :x 1 {:y 2})
-                                           (list* `vector rst))))))]))
-              (range npos 21)))))
+#?(:clj (cc/defn- -build-vararg-arity [?name args body]
+          (let [npos (-> args count (- 2)), unvarargd (-> args pop pop (conj (peek args))), v (gensym "varargs")]
+            `(binding [lang/rec (::lang/closure (case (-check-recur-arity lang/%arity ~(inc npos) '~?name)
+                                                  (let [~@(interleave unvarargd lang/arg-sym)] ~@body)))]
+               (new lang/rec ~@(take npos lang/arg-sym)
+                 (let [~v (into [] (drop ~npos) lang/%args)]
+                   (when (seq ~v) ; varargs value is `nil` when no args provided
+                     ~(if (map? (peek args))
+                        `(if (even? (count ~v))
+                           (cc/apply hash-map ~v) ; (MapVararg. :x 1)
+                           (merge (cc/apply hash-map (pop ~v)) (peek ~v))) ; (MapVararg. :x 1 {:y 2})
+                        v))))))))
 
-#?(:clj (cc/defn ->narity-vec [arities] (into (sorted-set) (comp (map (cc/partial remove #{'&})) (map count)) arities)))
+#?(:clj (cc/defn ->narity-set [arities]
+          (into (sorted-set) (comp (map #(take-while (complement #{'&}) %)) (map count)) arities)))
+#?(:clj (cc/defn arity-holes [arity-set]
+          (remove arity-set (range (reduce max arity-set)))))
 
 (cc/defn -throw-arity [?name nargs arities]
   (throw (ex-info (str "You called " (or ?name "<unnamed-efn>") " with " nargs
@@ -294,41 +336,33 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 (defmacro fn [& args]
   (let [[?name args2] (if (symbol? (first args)) [(first args) (rest args)] [nil args])
         arities (cond-> args2 (vector? (first args2)) list)
+        arity-set (->narity-set (map first arities))
         {positionals false, varargs true} (group-by (comp varargs? first) arities)
         _ (check-only-one-vararg! ?name (mapv first varargs))
         _ (check-arity-conflicts! ?name (mapv first positionals) (ffirst varargs))
-        positional-branches (into [] (map (cc/fn [[args & body]] (-build-fn-arity ?name args body))) positionals)
-        vararg-branches (when (seq varargs) (-build-vararg-arities ?name (ffirst varargs) (nfirst varargs)))]
+        positional-branches (into [] (map (cc/fn [[args & body]] (-build-fn-arity ?name args body))) positionals)]
     (list `check-electric `fn
       (list ::lang/closure
         (-> `(case lang/%arity
-               ~@(into [] (comp cat cat) [positional-branches vararg-branches])
-               (-throw-arity '~?name lang/%arity ~(->> arities (eduction (map first)) ->narity-vec (str/join ", "))))
+               ~@(into [] (comp cat cat) [positional-branches])
+               ~@(if (seq varargs)
+                   (conj [(arity-holes arity-set) `(-throw-arity '~?name lang/%arity ~(str/join ", " arity-set))]
+                     (-build-vararg-arity ?name (ffirst varargs) (nfirst varargs)))
+                   [`(-throw-arity '~?name lang/%arity ~(str/join ", " arity-set))])
+               #_(-throw-arity '~?name lang/%arity ~(->> arities (eduction (map first)) ->narity-set (str/join ", "))))
           (?bind-self ?name))
         {::dbg/name ?name, ::dbg/type (or (::dbg/type (meta ?name)) :reactive-fn)
          ::dbg/meta (merge (select-keys (meta &form) [:file :line])
                       (select-keys (meta ?name) [:file :line]))}))))
 
-(defmacro fn*
-  "Low-level construct. Use `hyperfiddle.electric/fn` instead.
-   Bare-bone reactive anonymous function. Single arity, no arity check, no variadic args support, no self-recur."
-  ;; G: `e/fn*` produces a smaller program than `e/fn`. Experts can use `e/fn*` in internals and libraries.
-  ;;    Users should default to `e/fn`.
-  [args & body]
-  (let [debug-info {::dbg/type :reactive-fn
-                    ::dbg/meta (select-keys (meta &form) [:file :line])}]
-    (if (seq args)
-      `(::lang/closure (let [~@(interleave args lang/arg-sym)] ~@body) ~debug-info)
-      `(::lang/closure (do ~@body) ~debug-info))))
-
 (defmacro defn [sym & fdecl]
   (let [[_defn sym' & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: docstring support
     `(hyperfiddle.electric/def ~sym' (hyperfiddle.electric/fn ~(vary-meta sym' merge {::dbg/type :reactive-defn}
-                                                                       (meta &form)
-                                                                       (meta sym'))
-                                                              ~@(if (string? (first fdecl)) ; GG: skip docstring
-                                         (rest fdecl)
-                                         fdecl)))))
+                                                                 (meta &form)
+                                                                 (meta sym'))
+                                       ~@(if (string? (first fdecl)) ; GG: skip docstring
+                                           (rest fdecl)
+                                           fdecl)))))
 
 (defmacro ^:no-doc defn* [sym & fdecl]
   (let [[_defn sym' & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: docstring support
@@ -477,34 +511,6 @@ Quoting it directly is idiomatic as well."
   "Snapshots the first non-Pending value of reactive value `x` and freezes it,
 inhibiting all further reactive updates."
   [x] `(check-electric snapshot (new (-snapshot (hyperfiddle.electric/fn* [] ~x)))))
-
-(cc/defn- -splicev [args] (into [] cat [(pop args) (peek args)]))
-(hyperfiddle.electric/defn* Apply* [F args]
-  (let [spliced (-splicev args)]
-    (case (count spliced)
-       0 (new F)
-       1 (new F (nth spliced 0))
-       2 (new F (nth spliced 0) (nth spliced 1))
-       3 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2))
-       4 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3))
-       5 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4))
-       6 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5))
-       7 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6))
-       8 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7))
-       9 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8))
-      10 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9))
-      11 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10))
-      12 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11))
-      13 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12))
-      14 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13))
-      15 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14))
-      16 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15))
-      17 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16))
-      18 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17))
-      19 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18))
-      20 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18) (nth spliced 19)))))
-
-(defmacro apply [F & args] `(new Apply* ~F [~@args]))
 
 (cc/defn ->Object [] #?(:clj (Object.) :cljs (js/Object.))) ; private
 
