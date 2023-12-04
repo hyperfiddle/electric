@@ -100,7 +100,7 @@
 
 (defn frames [err]
   (some->> (::trace (ex-data err))
-           (remove (fn [frame] (= {} (::name frame)))) ; (do a b) => ({} a b)
+           (remove (fn [frame] (= {} (::fn frame)))) ; (do a b) => ({} a b)
            (filter ::type)
            (map normalize-frame)
            (mapcat expand-frame)))
@@ -140,9 +140,8 @@
                            :fn-call      (if (some? name)
                                            `["(" (clojure.core/fn ~name [~@params] ~'...) ~@(map render-arg args) ")"]
                                            `["(" (clojure.core/fn [~@params] ~'...) ~@(map render-arg args) ")"])
-                           #_else (if-some [f (::fn frame)]
-                                    `["(" ~f ~@(map render-arg args) ")"]
-                                    ["<unknown interop>" frame]))))
+                           #_else (let [f (or (::fn frame) (::ir/form frame) "<unknown>")]
+                                    `["(" ~f ~@(map render-arg args) ")"]))))
               :reactive-fn   ["reactive" (if (some? name)
                                            `(~'fn ~name ~args ~'...)
                                            `(~'fn ~args ~'...))]
