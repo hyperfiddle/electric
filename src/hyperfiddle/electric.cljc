@@ -6,12 +6,10 @@
             [contrib.cljs-target :refer [do-browser]]
             [contrib.missionary-contrib :as mx]
             [contrib.assert :as ca]
-            [clojure.pprint :as pp]
             #?(:clj [hyperfiddle.electric.impl.expand :as expand])
             [hyperfiddle.electric.impl.lang :as lang]
             [hyperfiddle.electric.impl.runtime :as r]
             [hyperfiddle.electric.impl.for :as for]
-            [hyperfiddle.electric.impl.ir-utils :as ir-utils]
             #?(:clj [hyperfiddle.rcf.analyzer :as ana]) ; todo remove
             [missionary.core :as m]
             #?(:cljs [hyperfiddle.electric-client])
