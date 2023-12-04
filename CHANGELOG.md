@@ -16,7 +16,6 @@
 - **Incremental compilation (IC):**
   - Electric compiled the whole program at once, meaining changing a single file in a large project caused long recompilaiton times. With this release electric compiles per definition (`e/def` and `e/defn`), reducing recompilation. Note: since clojurescript compiles on file granularity electric also recompiles the whole file(s). This is a clojurescript limitation.
   - increased security. Before IC client sent server code as IR over websocket and server had to eval it. With IC eval is gone and server compiles its own code.
-  - improved error message when an electric function is called as a clojure function (without `new`).
   - **breaking**: a production build requires cljs on the classpath or AOT compilaiton. We removed runtime server eval of electric IR (the client doesn’t send the program over the websocket), increasing security. The server now compiles electric code and it needs cljs to macroexpand client code.
   - **breaking**: more coloring required. `(e/defn X [] (js/alert 1))` fails to compile (on server), one needs to add an `e/client`.
   - **breaking**: stricter definition order. `(e/def Y (inc X)) (e/def X 1)` used to work, now one has to reorder → `(e/def X 1) (e/def Y (inc X))`. Before IC electric deferred all compilation and could toposort the definitions. With IC definitions have to come in correct dependency order. Note: this is now the same as in clojure.
@@ -28,6 +27,12 @@
   - **breaking**: `e/*http-request*` removed, ring request passed as positional argument to entrypoint. Provided electric dynamic `e/http-request` which examples-app binds in entrypoint. Users can pass additional clojure arguments through the electric entrypoint.
   - **breaking**: program starts on the server due to above.
   - **breaking**: reactive stacktrace prints on server due to above. Client warns about server print in console.
+- **Electric:**
+  - improved error message when an electric function is called as a clojure function (without `new`).
+  - improved error message when `dom/node` is `nil`
+  - fix: `e/dom-mousemove` now works
+  - fix: `e/apply` branching code is pre-compiled, reducing callsite expansion and compilation time
+  - fix: varargs code expansion is much smaller, reducing compilation time
 
 # v2-alpha-469-gb6d9865c — 2023 Nov 22
 
