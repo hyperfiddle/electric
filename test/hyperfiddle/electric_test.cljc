@@ -2161,3 +2161,7 @@
   (with ((l/local (NonCausalBinding. tap)) tap tap)
     ;; % := 1
     % := 2))
+
+(tests "binding in interop fn"
+  (with ((l/local (tap ((fn [] (binding [*out* nil] 1))))) tap tap)
+    % := 1))
