@@ -528,7 +528,9 @@
                                       qualified-sym
                                       (fail! env (str "Not a node: " sym) {:sym sym})))))
 
-          (binding) (when-not (::in-interop-fn? env) (analyze-binding env (first args) analyze-me (cons `do (next args))))
+          (binding) (if (::in-interop-fn? env)
+                      (run! #(analyze-me env %) (eduction cat [(eduction (take-nth 2) (nfirst args)) (next args)]))
+                      (analyze-binding env (first args) analyze-me (cons `do (next args))))
 
           (clojure.core/unquote-splicing) (->them {::ir/op ::ir/input , ::dbg/meta (meta form), ::dbg/type :toggle}
                                             (analyze-them (toggle env) (next form)))
