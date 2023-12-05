@@ -19,14 +19,25 @@
                            (fn [_ _ _] (vreset! !found? false)))) nil))]
       (when (and @!found? (not (:macro resolved))) resolved))))
 
-(defn macroexpand-clj [o]
+(defn serialized-require [sym]
   ;; we might be expanding clj code before the ns got loaded (during cljs compilation)
   ;; to correctly lookup vars the ns needs to be loaded
   ;; since shadow-cljs compiles in parallel we need to serialize the requires
-  (when-not (get (loaded-libs) (ns-name *ns*))
-    (try (#'clojure.core/serialized-require (ns-name *ns*)) ; try bc it can be cljs file
-         (catch java.io.FileNotFoundException _)))
-  (macroexpand-1 o))
+  (when-not (get (loaded-libs) sym)
+    (try (#'clojure.core/serialized-require sym) ; try bc it can be cljs file
+         (catch java.io.FileNotFoundException _))))
+
+(defn macroexpand-clj [o] (serialized-require (ns-name *ns*)) (macroexpand-1 o))
+
+(defn expand-referred-or-local-macros [o cljs-macro-env]
+  ;; (:require [some.ns :refer [some-macro]])
+  ;; `some-macro` might be a macro and cljs expander lookup fails to find it
+  ;; another case is when a cljc file :require-macros itself without refering the macros
+  (if-some [vr (when (simple-symbol? (first o)) (resolve (first o)))]
+    (if (and (not (class? vr)) (.isMacro ^clojure.lang.Var vr))
+      (apply vr o cljs-macro-env (rest o))
+      o)
+    o))
 
 (defn expand-macro [env o]
   (let [[f & args] o, n (name f), e (dec (count n))]
@@ -43,7 +54,7 @@
                 (let [cljs-macro-env (cond-> cljs-env (::ns cljs-env) (assoc :ns (::ns cljs-env)))]
                   (if-some [expander (cljs-ana/get-expander f cljs-macro-env)]
                     (apply expander o cljs-macro-env args)
-                    o))))
+                    (expand-referred-or-local-macros o cljs-macro-env)))))
             (macroexpand-clj o)))))))
 
 (defn find-local [env sym] (find (:locals env) sym))
@@ -138,9 +149,13 @@
 
 (defn enrich-for-require-macros-lookup [cljs-env nssym]
   (if-some [src (cljs-ana/locate-src nssym)]
-    (assoc cljs-env ::ns (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
-                                 (binding [cljs-ana/*passes* []]
-                                   (cljs-ana/parse-ns src {:load-macros true, :restore false})))))
+    (let [ast (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
+                      (binding [cljs-ana/*passes* []]
+                        (cljs-ana/parse-ns src {:load-macros true, :restore false}))))]
+      ;; we parsed the ns form without `ns-side-effects` because it triggers weird bugs
+      ;; this means the macro nss from `:require-macros` might not be loaded
+      (run! serialized-require (-> ast :require-macros vals set))
+      (assoc cljs-env ::ns ast))
     cljs-env))
 
 (tests "enrich of clj source file is noop"

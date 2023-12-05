@@ -1,10 +1,10 @@
 (ns hyperfiddle.electric.impl.expand-test
-  #?(:clj
-     (:require [cljs.env]
-               [cljs.analyzer]
-               [hyperfiddle.electric.impl.expand :as expand]
-               [hyperfiddle.electric.impl.lang :as lang]
-               [hyperfiddle.rcf :as rcf :refer [tests]]))
+  (:require #?(:clj [cljs.env])
+            #?(:clj [cljs.analyzer])
+            #?(:clj [hyperfiddle.electric.impl.expand :as expand])
+            #?(:clj [hyperfiddle.electric.impl.lang :as lang])
+            [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred]]
+            #?(:clj [hyperfiddle.rcf :as rcf :refer [tests]]))
   #?(:cljs (:require-macros [hyperfiddle.electric.impl.expand-macro :as mac :refer [twice]])))
 
 #?(:clj
@@ -124,6 +124,21 @@
      (expand/all {::lang/peers {:client :cljs, :server :clj}, ::lang/current :client, :ns 'hyperfiddle.electric.impl.expand-test}
        '(twice 1))
      := '[1 1]
+
+     "require referred macros work in cljs"
+     (expand/all {::lang/peers {:client :cljs, :server :clj}, ::lang/current :client, :ns 'hyperfiddle.electric.impl.expand-test}
+       '(referred))
+     := :referred
+
+     "required macros work in cljs when fully qualified"
+     (expand/all {::lang/peers {:client :cljs, :server :clj}, ::lang/current :client, :ns 'hyperfiddle.electric.impl.expand-test}
+       '(hyperfiddle.electric.impl.expand-require-referred/referred))
+     := :referred
+
+     "required macros work in cljs when alias qualified"
+     (expand/all {::lang/peers {:client :cljs, :server :clj}, ::lang/current :client, :ns 'hyperfiddle.electric.impl.expand-test}
+       '(ref/referred))
+     := :referred
 
      (println " ok")))
 
