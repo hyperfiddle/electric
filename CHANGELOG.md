@@ -28,6 +28,7 @@
   - **breaking**: program starts on the server due to above.
   - **breaking**: reactive stacktrace prints on server due to above. Client warns about server print in console.
 - **Electric:**
+  - **breaking**: rename `HYPERFIDDLE_ELECTRIC_CLIENT_VERSION` to `ELECTRIC_USER_VERSION`
   - improved error message when an electric function is called as a clojure function (without `new`).
   - improved error message when `dom/node` is `nil`
   - fix: `e/dom-mousemove` now works
