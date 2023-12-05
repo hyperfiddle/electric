@@ -384,6 +384,7 @@
     (assoc env ::last (conj (clojure.lang.PersistentQueue/EMPTY) nil form))))
 
 (defn analyze-me [env form]
+  (when (::trace env) (prn :analyze (if (and (seq? form) (seq form)) (first form) form)))
   (let [env (store env form)]
     (cond
       (and (seq? form) (seq form))
@@ -527,7 +528,7 @@
                                       qualified-sym
                                       (fail! env (str "Not a node: " sym) {:sym sym})))))
 
-          (binding) (analyze-binding env (first args) analyze-me (cons `do (next args)))
+          (binding) (when-not (::in-interop-fn? env) (analyze-binding env (first args) analyze-me (cons `do (next args))))
 
           (clojure.core/unquote-splicing) (->them {::ir/op ::ir/input , ::dbg/meta (meta form), ::dbg/type :toggle}
                                             (analyze-them (toggle env) (next form)))

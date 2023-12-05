@@ -139,7 +139,8 @@
 (defn enrich-for-require-macros-lookup [cljs-env nssym]
   (if-some [src (cljs-ana/locate-src nssym)]
     (assoc cljs-env ::ns (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
-                                 (cljs-ana/parse-ns src {:load-macros true, :restore false}))))
+                                 (binding [cljs-ana/*passes* []]
+                                   (cljs-ana/parse-ns src {:load-macros true, :restore false})))))
     cljs-env))
 
 (tests "enrich of clj source file is noop"

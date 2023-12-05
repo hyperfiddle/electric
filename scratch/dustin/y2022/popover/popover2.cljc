@@ -11,24 +11,26 @@
 (p/def db)
 
 (p/defn Button [label busy]
-  (dom/with (dom/dom-element node "button")
-            (dom/set-text-content! node label)
-            (Event. "click" busy)))
+  (p/client
+    (dom/with (dom/dom-element node "button")
+      (dom/set-text-content! node label)
+      (Event. "click" busy))))
 
 (p/defn Popover [BtnLabel Body busy]
-  (:request
-    (p/with-cycle [{:keys [status]} {:status :closed}]
-      (let [; popover anchor
-            toggle (Button. (BtnLabel. (not= :closed status)) (= :pending status))
-            ; popover body
-            request (case status
-                      :closed nil
-                      (dom/div {:style {:position "fixed"}}
-                        (dom/div {:style {:border "1px pink solid" :padding "5px"
-                                          :position "relative" :left "3em" :top "2em" :z-index "1"
-                                          :width "50em" :height "40em"
-                                          :background-color "rgb(248 250 252)"}}
-                          (:command
+  (p/client
+    (:request
+     (p/with-cycle [{:keys [status]} {:status :closed}]
+       (let [                           ; popover anchor
+             toggle (Button. (BtnLabel. (not= :closed status)) (= :pending status))
+                                        ; popover body
+             request (case status
+                       :closed nil
+                       (dom/div {:style {:position "fixed"}}
+                         (dom/div {:style {:border "1px pink solid" :padding "5px"
+                                           :position "relative" :left "3em" :top "2em" :z-index "1"
+                                           :width "50em" :height "40em"
+                                           :background-color "rgb(248 250 252)"}}
+                           (:command
                             (p/with-cycle [{:keys [status] :as state} {:status :idle}]
                               (let [stage
                                     (p/server
@@ -45,10 +47,8 @@
                                           state)
                                   :request (assoc state :status :pending)
                                   :pending (if busy state {:status :idle}))))))))]
-        {:status (case status
-                   :closed (if toggle :open :closed)
-                   :open (case request nil (if toggle :closed :open) :pending)
-                   :pending (if busy :pending :closed))
-         :request request}))))
-
-
+         {:status (case status
+                    :closed (if toggle :open :closed)
+                    :open (case request nil (if toggle :closed :open) :pending)
+                    :pending (if busy :pending :closed))
+          :request request})))))
