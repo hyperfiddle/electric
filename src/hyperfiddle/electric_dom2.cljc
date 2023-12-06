@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric-dom2
   (:refer-clojure :exclude [time class?])
-  (:require [contrib.missionary-contrib :as mx]
+  (:require [contrib.assert :as ca]
+            [contrib.missionary-contrib :as mx]
             #?(:cljs goog.dom)
             #?(:cljs goog.object)
             #?(:cljs goog.style)
@@ -61,9 +62,10 @@
            ; Electric says :infer-warning Cannot infer target type in expression, fixme
            (goog.dom/setTextContent node str)))
 
+#?(:cljs (defn not-text-node-in-text-node? [nd] (not= (.-nodeType nd) (.-TEXT_NODE nd))))
+
 (defmacro text [& strs]
-  `(do (assert (not= (.-nodeType node) (.-TEXT_NODE node))
-               "userland directed dom/text inside dom/text, which is illegal")
+  `(do (ca/check not-text-node-in-text-node? node)
        ~@(map (fn [str]
                 `(with (new-node node :text)
                    (-googDomSetTextContentNoWarn node ~str)))
