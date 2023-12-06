@@ -2,6 +2,7 @@
   (:require [cljs.analyzer :as cljs-ana]
             [cljs.core]
             [cljs.env]
+            [contrib.assert :as ca]
             [hyperfiddle.electric.impl.lang :as-alias lang]
             [hyperfiddle.rcf :as rcf :refer [tests]]))
 
@@ -17,7 +18,15 @@
                        (fn [env prefix suffix]
                          (cljs-ana/confirm-var-exists env prefix suffix
                            (fn [_ _ _] (vreset! !found? false)))) nil))]
-      (when (and @!found? (not (:macro resolved))) resolved))))
+      (when (and resolved @!found? (not (:macro resolved)))
+        ;; If the symbol is unqualified and is from a different ns (through e.g. :refer)
+        ;; cljs returns only :name and :ns. We cannot tell if it resolved to a macro.
+        ;; We recurse with the fully qualified symbol to get all the information.
+        ;; The symbol can also resolve to a local in which case we're done.
+        ;; TODO how to trigger these in tests?
+        (if (and (simple-symbol? sym) (not= (:ns env) (:ns resolved)) (not= :local (:op resolved)))
+          (recur env (ca/check qualified-symbol? (:name resolved) {:sym sym, :resolved resolved}))
+          resolved)))))
 
 (defn serialized-require [sym]
   ;; we might be expanding clj code before the ns got loaded (during cljs compilation)
