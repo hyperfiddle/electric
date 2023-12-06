@@ -149,8 +149,11 @@
                            (merge {:form (-> env ::last pop peek) :in (::def env) :for ((juxt ::me ::current) env)} data)))))
 
 (defn cannot-resolve! [env form]
-  (fail! env (str "I cannot resolve " form (when (get-them env)
-                                            (str ", maybe it's defined only on the " (name (get-them env)) "?")))
+  (fail! env (str "I cannot resolve " "`"form"`"
+               (when-let [them (get-them env)]
+                 (let [site (name them)]
+                   (str ", maybe it's defined only on the " site "?"
+                     \newline "If `" form "` is supposed to be a macro, you might need to :refer it in the :require-macros clause."))))
     {:locals (keys (:locals env))}))
 
 (defn analyze-binding [env bs f & args]
