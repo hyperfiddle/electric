@@ -2032,35 +2032,35 @@
        (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server) '(jjj 1))
             (throw (Throwable. "shouldn't"))
             (catch ExceptionInfo e
-              (ex-message e) := "in: (jjj 1)\nI cannot resolve jjj, maybe it's defined only on the client?"
+              (ex-message e) := "in: (jjj 1)\nI cannot resolve `jjj`, maybe it's defined only on the client?\nIf `jjj` is supposed to be a macro, you might need to :refer it in the :require-macros clause."
               (:form (ex-data e)) := 'jjj))
 
        "in cc/fn"
        (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server) '(fn [] (jjj 1)))
             (throw (Throwable. "shouldn't"))
             (catch ExceptionInfo e
-              (ex-message e) := "in: (jjj 1)\nI cannot resolve jjj, maybe it's defined only on the client?"
+              (ex-message e) := "in: (jjj 1)\nI cannot resolve `jjj`, maybe it's defined only on the client?\nIf `jjj` is supposed to be a macro, you might need to :refer it in the :require-macros clause."
               (:form (ex-data e)) := 'jjj))
 
        "named cc/fn"
        (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server) '(fn foo [] (jjj 1)))
             (throw (Throwable. "shouldn't"))
             (catch ExceptionInfo e
-              (ex-message e) := "in: (jjj 1)\nI cannot resolve jjj, maybe it's defined only on the client?"
+              (ex-message e) := "in: (jjj 1)\nI cannot resolve `jjj`, maybe it's defined only on the client?\nIf `jjj` is supposed to be a macro, you might need to :refer it in the :require-macros clause."
               (:form (ex-data e)) := 'jjj))
 
        "in letfn"
        (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server) '(letfn [(foo [] (jjj 1))]))
             (throw (Throwable. "shouldn't"))
             (catch ExceptionInfo e
-              (ex-message e) := "in: (jjj 1)\nI cannot resolve jjj, maybe it's defined only on the client?"
+              (ex-message e) := "in: (jjj 1)\nI cannot resolve `jjj`, maybe it's defined only on the client?\nIf `jjj` is supposed to be a macro, you might need to :refer it in the :require-macros clause."
               (:form (ex-data e)) := 'jjj))
 
        "arbitrary symbols"
        (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server)
               '(let [x js/document.body]))
             (catch ExceptionInfo e
-              (ex-message e) := "in: (let* [x js/document.body])\nI cannot resolve js/document.body, maybe it's defined only on the client?"
+              (ex-message e) := "in: (let* [x js/document.body])\nI cannot resolve `js/document.body`, maybe it's defined only on the client?\nIf `js/document.body` is supposed to be a macro, you might need to :refer it in the :require-macros clause."
               (:form (ex-data e)) := 'js/document.body))
 
        "clj static field works"
