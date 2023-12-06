@@ -107,7 +107,7 @@
                                     current-default-setting) ; another compilation is in progress, don’t race with it.
                                 (let [current-defaults                                          (com.fasterxml.jackson.core.StreamReadConstraints/defaults)
                                       {:keys [maxNestingDepth maxNumberLength maxStringLength]} (bean current-defaults)]
-                                  (println "Snapshoting default jackson limits" (dissoc (bean current-defaults) :class))
+                                  #_(println "Snapshoting default jackson limits" (dissoc (bean current-defaults) :class))
                                   (com.fasterxml.jackson.core.StreamReadConstraints/overrideDefaultStreamReadConstraints
                                     (.build (doto (com.fasterxml.jackson.core.StreamReadConstraints/builder)
                                               (.maxStringLength (* factor maxStringLength))
@@ -117,7 +117,7 @@
        :flush           (swap! !jackson-string-size-limit-setting
                 (fn [current-default-setting]
                   (when current-default-setting
-                    (println "restoring default jackson settings " (dissoc (bean current-default-setting) :class))
+                    #_(println "restoring default jackson settings " (dissoc (bean current-default-setting) :class))
                     (com.fasterxml.jackson.core.StreamReadConstraints/overrideDefaultStreamReadConstraints current-default-setting)
                     nil)))
        nil)
