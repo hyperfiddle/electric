@@ -285,7 +285,9 @@
 (defn make-frame [^objects context parent id position
                   foreign static dynamic variable-count source-count
                   constant-count target-count output-count input-count
-                  ^objects buffer ^objects vars boot get-used-nodes nm env]
+                  ^objects buffer ^objects vars boot get-used-nodes nm env] ; nm is short for "name" and it should contain the name of the e/def
+  ;; this is a runtime print and it should print on both client and server, with
+  ;; frame ids. Helpfull to diagnose missaligend client/sever DAGs
   (let [tier-count (+ variable-count source-count)
         frame (doto (object-array frame-slots)
                 (aset frame-slot-context context)
