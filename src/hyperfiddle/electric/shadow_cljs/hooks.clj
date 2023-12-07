@@ -1,7 +1,8 @@
 (ns hyperfiddle.electric.shadow-cljs.hooks
   (:require [hyperfiddle.electric :as-alias e]
             [hyperfiddle.electric.impl.lang :as lang]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [hyperfiddle.electric.impl.expand :as expand]))
 
 (let [!first-run? (volatile! true)]     ; first run is noop
   (defn reload-clj
@@ -18,6 +19,7 @@ double reloads (i.e. from :require-macros)."
           (doseq [{ns-sym :ns, macro-requires :macro-requires} cljc-infos]
             (when (and (not (get macro-requires ns-sym)) (-> ns-sym find-ns meta ::lang/has-edef?))
               (prn ::reloading ns-sym)
+              (swap! expand/!cljs-ns-cache dissoc ns-sym)
               (require ns-sym :reload))))))
     build-state))
 
