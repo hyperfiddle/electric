@@ -156,16 +156,22 @@
 ;; if ::lang/current = :clj expand with clj environment
 ;; if ::lang/current = :cljs expand with cljs environment
 
+;; the ns cache relies on external eviction in shadow-cljs reload hook
+(def !cljs-ns-cache (atom {}))
+
 (defn enrich-for-require-macros-lookup [cljs-env nssym]
-  (if-some [src (cljs-ana/locate-src nssym)]
-    (let [ast (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
-                      (binding [cljs-ana/*passes* []]
-                        (cljs-ana/parse-ns src {:load-macros true, :restore false}))))]
-      ;; we parsed the ns form without `ns-side-effects` because it triggers weird bugs
-      ;; this means the macro nss from `:require-macros` might not be loaded
-      (run! serialized-require (-> ast :require-macros vals set))
-      (assoc cljs-env ::ns ast))
-    cljs-env))
+  (if-some [ast (get @!cljs-ns-cache nssym)]
+    (assoc cljs-env ::ns ast)
+    (if-some [src (cljs-ana/locate-src nssym)]
+      (let [ast (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
+                        (binding [cljs-ana/*passes* []]
+                          (cljs-ana/parse-ns src {:load-macros true, :restore false}))))]
+        ;; we parsed the ns form without `ns-side-effects` because it triggers weird bugs
+        ;; this means the macro nss from `:require-macros` might not be loaded
+        (run! serialized-require (-> ast :require-macros vals set))
+        (swap! !cljs-ns-cache assoc nssym ast)
+        (assoc cljs-env ::ns ast))
+      cljs-env)))
 
 (tests "enrich of clj source file is noop"
   (cljs.env/ensure (enrich-for-require-macros-lookup {:a 1} 'clojure.core)) := {:a 1})
