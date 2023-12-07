@@ -27,6 +27,7 @@
   - **breaking**: `e/*http-request*` removed, ring request passed as positional argument to entrypoint. Provided electric dynamic `e/http-request` which examples-app binds in entrypoint. Users can pass additional clojure arguments through the electric entrypoint.
   - **breaking**: program starts on the server due to above.
   - **breaking**: reactive stacktrace prints on server due to above. Client warns about server print in console.
+  - reader conditionals work if there's no transfer inside. E.g. `#?(:cljs #js {:x 1})` will compile, `#?(:cljs #js {:x server-value})` will compile but fail at runtime, `#?(:cljs (let [x server-value] #js {:x x}))` will work.
 - **Electric:**
   - **breaking**: rename `HYPERFIDDLE_ELECTRIC_CLIENT_VERSION` to `ELECTRIC_USER_VERSION`
   - improved error message when an electric function is called as a clojure function (without `new`).
