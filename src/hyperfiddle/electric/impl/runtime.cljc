@@ -911,6 +911,10 @@
 (tests
   (remove-dep-nodes (ir/input [(ir/node 'x) (ir/output ir/nop)])) := (ir/input [(ir/output ir/nop)]))
 
+(defn tag-sym [sym jvm-hint js-hint]
+  #?(:clj (when jvm-hint (vary-meta sym assoc :tag jvm-hint))
+     :cljs (when js-hint (vary-meta sym assoc :tag js-hint))))
+
 (defn compile [prefix inst e]
   (let [nodes (find-nodes inst)
         inst (remove-dep-nodes inst)
@@ -924,7 +928,7 @@
                        `(doto (object-array ~(count free))
                           ~@(eduction (map-indexed (fn [i f] (list `aset i (env f)))) free)))
         emit-exprs (fn [exprs]
-                     (list `fn [frame vars (sym prefix 'env)]
+                     (list `fn [frame vars (tag-sym (sym prefix 'env) "[Ljava.lang.Object;" nil)]
                        (list `let
                          (into [] (comp (map-indexed (fn [i expr] [(expr-at i) expr])) cat) (pop exprs))
                          (peek exprs))))
