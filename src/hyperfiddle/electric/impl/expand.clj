@@ -14,10 +14,11 @@
   (when (not= '. sym)
     (let [!found? (volatile! true)
           resolved (binding [cljs-ana/*cljs-warnings* (assoc cljs-ana/*cljs-warnings* :undeclared-ns false)]
-                     (cljs-ana/resolve-var env sym
-                       (fn [env prefix suffix]
-                         (cljs-ana/confirm-var-exists env prefix suffix
-                           (fn [_ _ _] (vreset! !found? false)))) nil))]
+                     (let [res (cljs-ana/resolve-var env sym nil nil)]
+                       (when (and (not= :js-var (:op res)) (:name res) (namespace (:name res)))
+                         (cljs-ana/confirm-var-exists env (-> res :name namespace symbol) (-> res :name name symbol)
+                           (fn [_ _ _] (vreset! !found? false))))
+                       res))]
       (when (and resolved @!found? (not (:macro resolved)))
         ;; If the symbol is unqualified and is from a different ns (through e.g. :refer)
         ;; cljs returns only :name and :ns. We cannot tell if it resolved to a macro.
@@ -176,16 +177,41 @@
 (tests "enrich of clj source file is noop"
   (cljs.env/ensure (enrich-for-require-macros-lookup {:a 1} 'clojure.core)) := {:a 1})
 
+(let [-base-cljs-env {:context :statement
+                      :locals {}
+                      :fn-scope []
+                      :js-globals (into {}
+                                    (map #(vector % {:op :js-var :name % :ns 'js})
+                                      '(alert window document console escape unescape
+                                         screen location navigator history location
+                                         global process require module exports)))}]
+  (defn cljs-env [env] (cond-> -base-cljs-env (:ns env) (assoc :ns {:name (:ns env)}))))
+
+(def !default-cljs-compiler-env (delay (cljs.env/default-compiler-env)))
+
+;; adapted from cljs.env
+(defmacro ensure-cljs-compiler
+  [& body]
+  `(let [val# cljs.env/*compiler*]
+     (if (nil? val#)
+       (push-thread-bindings
+         (hash-map (var cljs.env/*compiler*) @!default-cljs-compiler-env)))
+     (try
+       ~@body
+       (finally
+         (if (nil? val#)
+           (pop-thread-bindings))))))
+
 (defn ->common-env [env]
   (if (::cljs-env env)
     env
     (assoc env ::cljs-env
       (if (contains? env :js-globals)
         env
-        (cond-> (cljs.analyzer/empty-env) (:ns env) (enrich-for-require-macros-lookup (:ns env)))))))
+        (cond-> (cljs-env env) (:ns env) (enrich-for-require-macros-lookup (:ns env)))))))
 
 ;; takes an electric environment, which can be clj or cljs
 ;; if it's clj we need to prep the cljs environment (cljs.env/ensure + cljs.analyzer/empty-env with patched ns)
 ;; we need to be able to swap the environments infinite number of times
 
-(defn all [env o] (cljs.env/ensure (-all o (->common-env env))))
+(defn all [env o] (ensure-cljs-compiler (-all o (->common-env env))))
