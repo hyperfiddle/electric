@@ -4,9 +4,10 @@
             [clojure.string :as str]))
 
 (let [!first-run? (volatile! true)]     ; first run is noop
-  (defn reload-clj "If a cljc file with electric defs changed and doesn't require-macros itself, reload it.
-
-  The reload is necessary to keep the server and client portion of an e/def in sync."
+  (defn reload-clj
+    "When any Electric def is changed, recompile it in both Clojure and ClojureScript
+(because the expression may contain e/client and/or e/server). Takes care to prevent
+double reloads (i.e. from :require-macros)."
     {:shadow.build/stage :compile-finish} [build-state]
     (if @!first-run?
       (vreset! !first-run? false)
