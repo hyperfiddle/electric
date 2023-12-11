@@ -97,7 +97,7 @@ double reloads (i.e. from :require-macros)."
      (allow-large-shadow-cache build-state 1))
     ([build-state factor]
      (assert (nat-int? factor) "Cache size factor should be a positive integer.")
-     (when-class-available com.fasterxml.jackson.core.json.PackageVersion
+     (when-class-available com.fasterxml.jackson.core.StreamReadConstraints
          (case (:shadow.build/stage build-state)
            :compile-prepare (case (is-jackson-limiting-string-size?)
                               ::unavailable nil
