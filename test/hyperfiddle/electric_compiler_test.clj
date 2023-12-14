@@ -134,5 +134,17 @@
   (lang/compile-client {} `(e/client (var x))) :=
   `(r/defs (r/var (quote x)))
 
+  (lang/compile-client {}
+    `(let [a :foo, b :bar, c :baz]
+       [(e/ctor [a b]) (e/ctor [b c])])) :=
+  `(r/defs
+     (r/ap (r/static vector)
+       (r/ctor 4 (r/local 1) (r/local 2))
+       (r/ctor 5 (r/local 2) (r/local 3)))
+     (r/static :foo)
+     (r/static :bar)
+     (r/static :baz)
+     (r/ap (r/static vector) (r/free 0) (r/free 1))
+     (r/ap (r/static vector) (r/free 0) (r/free 1)))
 
   )
