@@ -1020,45 +1020,31 @@
                                    (update-current conj `(swap! ~vars assoc '~symb ~(expr-at (count (peek ctors)))))
                                    (update-current (fn [exprs] (conj exprs (expr-at (- (count exprs) 2))))))))
                              v (- idx (::ir/index inst)))))
-             ::ir/apply (let [f (::ir/fn inst)
-                              args (::ir/args inst)]
+             ::ir/apply (let [f          (::ir/fn inst)
+                              args       (::ir/args inst)
+                              debug-info (select-debug-info (loop [f f]
+                                                              (case (::ir/op f)
+                                                                ::ir/global (assoc f ::dbg/type :apply, ::dbg/name (symbol (::ir/name f)))
+                                                                ::ir/node   (assoc f ::dbg/type :apply)
+                                                                ::ir/eval   (cond-> (assoc f ::dbg/type :eval)
+                                                                              (not (::dbg/fn f)) (assoc ::dbg/fn (::ir/form f)))
+                                                                ::ir/sub    (assoc f ::dbg/type :apply)
+                                                                ::ir/input  (assoc f ::dbg/type :apply)
+                                                                ::ir/apply  (recur (::ir/fn f))
+                                                                {::dbg/type :unknown-apply, :op f})))]
                           (if (and (= (ir/eval '{}) f) (= 2 (count args)))
                             (-> (reduce (fn [env inst] (walk env off idx dyn inst)) env args)
                               (update :stack collapse 2
                                 (fn [a b]
                                   (fn [ctors env]
                                     (let [[ctors [a b]] (add-many ctors env [a b])]
-                                      (update-current ctors conj
-                                        `(causal
-                                           '~(select-debug-info (loop [f f]
-                                                                  (case (::ir/op f)
-                                                                    ::ir/global (assoc f ::dbg/type :apply, ::dbg/name (symbol (::ir/name f)))
-                                                                    ::ir/node (assoc f ::dbg/type :apply)
-                                                                    ::ir/eval (cond-> (assoc f ::dbg/type :eval)
-                                                                                (not (::dbg/fn f)) (assoc ::dbg/fn (::ir/form f)))
-                                                                    ::ir/sub (assoc f ::dbg/type :apply)
-                                                                    ::ir/input (assoc f ::dbg/type :apply)
-                                                                    ::ir/apply (recur (::ir/fn f))
-                                                                    {::dbg/type :unknown-apply, :op f})))
-                                           ~a ~b)))))))
+                                      (update-current ctors conj `(causal '~debug-info ~a ~b)))))))
                             (-> (reduce (fn [env inst] (walk env off idx dyn inst)) env (cons f args))
                               (update :stack collapse (inc (count args))
                                 (fn [& forms]
                                   (fn [ctors env]
                                     (let [[ctors forms] (add-many ctors env forms)]
-                                      (update-current ctors conj
-                                        `(latest-apply
-                                           '~(select-debug-info (loop [f f]
-                                                                  (case (::ir/op f)
-                                                                    ::ir/global (assoc f ::dbg/type :apply, ::dbg/name (symbol (::ir/name f)))
-                                                                    ::ir/node (assoc f ::dbg/type :apply)
-                                                                    ::ir/eval (cond-> (assoc f ::dbg/type :eval)
-                                                                                (not (::dbg/fn f)) (assoc ::dbg/fn (::ir/form f)))
-                                                                    ::ir/sub (assoc f ::dbg/type :apply)
-                                                                    ::ir/input (assoc f ::dbg/type :apply)
-                                                                    ::ir/apply (recur (::ir/fn f))
-                                                                    {::dbg/type :unknown-apply, :op f})))
-                                           ~@forms)))))))))
+                                      (update-current ctors conj `(latest-apply '~debug-info ~@forms)))))))))
              ::ir/input (let [deps (::ir/deps inst)]
                           (-> (reduce (fn [env arg] (walk env off idx dyn arg)) env deps)
                             (update :stack collapse (count deps) vector)
