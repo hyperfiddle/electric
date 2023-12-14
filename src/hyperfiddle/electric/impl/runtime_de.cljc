@@ -7,7 +7,6 @@
 (def peer-slot-step 0)
 (def peer-slot-done 1)
 (def peer-slot-defs 2)
-(def peer-slot-tier 3)
 (def peer-slot-input 4)
 (def peer-slot-store 5)
 (def peer-slots 6)
@@ -37,27 +36,29 @@
   (#?(:clj invoke :cljs -invoke) [_ step done]
     (step) (->Failer done (error (str "Unbound electric var lookup - " k)))))
 
-(def current (l/local))
+(def this (l/local))
 
-(deftype Tier [parent env])
+(deftype Tier [parent ctor static dynamic])
+(deftype Ctor [peer id free vars])
+
+(defn ctor [id & free]
+  (let [^Tier tier (l/get-local this)
+        ^Ctor ctor (.-ctor tier)
+        ^objects peer (.-peer ctor)]
+    (pure (->Ctor peer id (object-array free) {}))))
+
+(defn bind [^Ctor ctor peer k v]
+  (when-not (identical? peer (.-peer ctor))
+    (throw (error "Can't bind foreign constructor.")))
+  (->Ctor peer (.-id ctor) (.-free ctor)
+    (assoc (.-vars ctor) k v)))
 
 (defn lookup [k]
-  (let [^objects peer (l/get-local current)]
-    (loop [^Tier tier (aget peer peer-slot-tier)]
-      (case tier
-        nil (->Unbound k)
-        (if-some [s (get (.-env tier) k)]
-          s (recur (.-parent tier)))))))
-
-(defn resolve-node [^objects context tier id]
-  (let [prev (l/get-local current)
-        prev-tier (aget prev peer-slot-tier)]
-    (l/set-local current context)
-    (aset context peer-slot-tier tier)
-    (try ((aget context peer-slot-defs) id)
-         (finally
-           (aset context peer-slot-tier prev-tier)
-           (l/set-local current prev)))))
+  (loop [^Tier tier (l/get-local this)]
+    (let [^Ctor ctor (.-ctor tier)]
+      (if-some [s (get (.-vars ctor) k)]
+        s (if-some [p (.-parent tier)]
+            (recur p) (->Unbound k))))))
 
 (deftype NodePs [^objects peer k ps]
   IFn
@@ -68,40 +69,47 @@
   IDeref
   (#?(:clj deref :cljs -deref) [_] @ps))
 
-(deftype Node [^objects peer tier id]
+(defn resolve-node [^objects peer tier id]
+  (let [k [tier id]
+        store (aget peer peer-slot-store)]
+    (if-some [s (get store k)]
+      s (let [n (let [that (l/get-local this)]
+                  (l/set-local this tier)
+                  (try ((aget peer peer-slot-defs) id)
+                       (finally
+                         (l/set-local this that))))
+              s (m/signal i/combine (fn [step done] (->NodePs peer k (n step done))))]
+          (aset peer peer-slot-store (assoc store k s)) s))))
+
+(deftype Node [peer tier id]
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
-    ((let [k [tier id]
-           store (aget peer peer-slot-store)]
-       (if-some [s (get store k)]
-         s (let [n (resolve-node peer tier id)
-                 s (m/signal i/combine (fn [step done] (->NodePs peer k (n step done))))]
-             (aset peer peer-slot-store (assoc store k s)) s))) step done)))
+    ((resolve-node peer tier id) step done)))
 
 (defn local [id]
-  (let [peer (l/get-local current)
-        tier (aget peer peer-slot-tier)]
+  (let [^Tier tier (l/get-local this)
+        ^Ctor ctor (.-ctor tier)
+        ^objects peer (.-peer ctor)]
     (->Node peer tier id)))
 
 (defn remote [id])
 
-(deftype Ctor [node env])
-
-(defn ctor [id & args]
-  (let [peer (l/get-local current)
-        tier (aget peer peer-slot-tier)]
-    (pure (->Ctor (->Node peer tier id) {}))))
-
-(deftype Var [context k]
+(deftype Var [peer k]
   IFn
-  (#?(:clj invoke :cljs -invoke) [_ ^Ctor ctor incseq]
-    (->Ctor (.-node ctor) (assoc (.-env ctor) k incseq))))
+  (#?(:clj invoke :cljs -invoke) [_ ctor v]
+    (bind ctor peer k v)))
 
 (defn var [k]
-  (pure (->Var (l/get-local current) k)))
+  (let [^Tier tier (l/get-local this)
+        ^Ctor ctor (.-ctor tier)
+        ^objects peer (.-peer ctor)]
+    (pure (->Var peer k))))
 
 (defn free [id]
-  )
+  (let [^Tier tier (l/get-local this)
+        ^Ctor ctor (.-ctor tier)
+        ^objects free (.-free ctor)]
+    (aget free id)))
 
 (defn call [expr]
 
@@ -118,3 +126,35 @@
       ([f a b c d & e] (apply f a b c d e)))))
 
 (def join i/latest-concat)
+
+(defn context-input-notify [^objects state done?]
+
+  )
+
+(deftype PeerPs [^objects state]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_]
+
+
+    )
+  IDeref
+  (#?(:clj deref :cljs -deref) [_]
+
+
+    ))
+
+(defn peer [msgs defs]
+  (fn [step done]
+    (let [peer (object-array peer-slots)]
+      (aset peer peer-slot-step step)
+      (aset peer peer-slot-done done)
+      (aset peer peer-slot-defs defs)
+      (aset peer peer-slot-store {})
+      (aset peer peer-slot-input
+        ((m/stream (m/observe msgs))
+         #(context-input-notify peer false)
+         #(context-input-notify peer true)))
+
+      (->Ctor peer 0 (object-array 0) {})
+
+      (->PeerPs peer))))
