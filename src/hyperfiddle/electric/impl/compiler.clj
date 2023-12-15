@@ -106,9 +106,9 @@
                                      [(conj bs sym (-expand-all v env)) (add-local env sym)])
                                    [[] env]
                                    (partition-all 2 bs))]
-                  (recur (?meta o `(binding [rec (::closure (let [~@(interleave (take-nth 2 bs2) r/arg-sym)]
+                  (recur (?meta o `(binding [r/rec (::closure (let [~@(interleave (take-nth 2 bs2) r/arg-sym)]
                                                                         ~@body))]
-                                     (new rec ~@(take-nth 2 (next bs2)))))  env2))
+                                     (new r/rec ~@(take-nth 2 (next bs2)))))  env2))
 
         (case clojure.core/case)
         (let [[_ v & clauses] o
