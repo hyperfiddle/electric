@@ -5,6 +5,7 @@
          com.cognitect/transit-cljs     {:mvn/version "0.8.269"}
          com.hyperfiddle/rcf            {:mvn/version "20220926-202227"}
          missionary/missionary          {:mvn/version "b.33"}
+         dom-top/dom-top                {:mvn/version "1.0.9"}
          org.clojure/clojure            {:mvn/version "1.12.0-alpha4"}
          org.clojure/clojurescript      {:mvn/version "1.11.60"}
          org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"} ;; used by Electric
@@ -16,6 +17,7 @@
                                 thheller/shadow-cljs                                {:mvn/version "2.22.10"}
                                 reagent/reagent                                     {:mvn/version "1.1.1"} ; for reagent interop demo
                                 ch.qos.logback/logback-classic                      {:mvn/version "1.2.11"} ; logging implementation
+                                lambdaisland/deep-diff2                             {:mvn/version "2.10.211"}
                                 info.sunng/ring-jetty9-adapter                      {:mvn/version "0.14.3"
                                                                                      ;; "0.14.3" (Jetty 9) is Java 8 compatible;
                                                                                      ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible

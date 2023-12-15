@@ -4,6 +4,36 @@
             [missionary.core :as m])
   #?(:clj (:import (clojure.lang IFn IDeref))))
 
+#?(:clj
+   (def arg-sym
+     (map (comp symbol
+            (partial intern *ns*)
+            (fn [i]
+              (with-meta (symbol (str "%" i))
+                {::type ::node})))
+       (range))))
+;; pre-define the first 20 for e/fn varargs expansion
+(def ^{::type ::node} %0)
+(def ^{::type ::node} %1)
+(def ^{::type ::node} %2)
+(def ^{::type ::node} %3)
+(def ^{::type ::node} %4)
+(def ^{::type ::node} %5)
+(def ^{::type ::node} %6)
+(def ^{::type ::node} %7)
+(def ^{::type ::node} %8)
+(def ^{::type ::node} %9)
+(def ^{::type ::node} %10)
+(def ^{::type ::node} %11)
+(def ^{::type ::node} %12)
+(def ^{::type ::node} %13)
+(def ^{::type ::node} %14)
+(def ^{::type ::node} %15)
+(def ^{::type ::node} %16)
+(def ^{::type ::node} %17)
+(def ^{::type ::node} %18)
+(def ^{::type ::node} %19)
+
 (def peer-slot-step 0)
 (def peer-slot-done 1)
 (def peer-slot-defs 2)
