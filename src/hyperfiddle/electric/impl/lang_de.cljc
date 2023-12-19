@@ -28,8 +28,10 @@
 (defmacro remote [id]
   `(r/tier-local *tier* ~id))
 
-(defmacro ctor [& args]
-  `(r/pure (r/peer-ctor (r/tier-peer *tier*) ~@args)))
+(defmacro ctor [slots output & free]
+  `(r/pure (r/peer-ctor (r/tier-peer *tier*) ~slots ~output
+             (doto (object-array ~(count free))
+               ~@(map-indexed (partial list `aset) free)))))
 
 (defmacro call [id]
   `(i/latest-concat (r/tier-slot *tier* ~id)))

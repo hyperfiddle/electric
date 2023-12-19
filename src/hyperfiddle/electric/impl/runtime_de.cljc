@@ -194,9 +194,9 @@
 
 (defn peer-ctor "
 Returns a constructor for given peer, with slots defined by given vector of ids, output defined by given id, and
-given free variables.
-" [peer slots output & free]
-  (->Ctor peer slots output (object-array free) {}))
+given array of free variables.
+" [peer slots output free]
+  (->Ctor peer slots output free {}))
 
 (defn tier-local
   "Returns the incremental sequence signal defined by given id in given tier."

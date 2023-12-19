@@ -1,5 +1,6 @@
 (ns hyperfiddle.electric-compiler-test
   (:require [hyperfiddle.electic :as-alias e]
+            [hyperfiddle.incseq :as i]
             [hyperfiddle.rcf :as rcf :refer [tests]]
             [hyperfiddle.electric.impl.lang-de :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]))
@@ -190,5 +191,40 @@
          (lang/ctor 3 (lang/local 0) (lang/local 1))
          (lang/ctor 4 (lang/local 1) (lang/local 2))))
      [] 5)
+
+  (lang/compile-client {}
+    `(new (e/fn Foo [] (Foo.)))) :=
+  `(r/peer
+     (fn [tier id]
+       (case id
+         0 (r/ctor-free (r/tier-ctor tier) 0)
+         1 (let [free (object-array 1)
+                 ctor (r/peer-ctor (r/tier-peer tier) [] 0 free)]
+             (aset free 0 (r/pure ctor))
+             (r/pure ctor))
+         2 (i/latest-concat (r/tier-slot tier 0))))
+     [1] 2)
+
+  (lang/compile-client {}
+    `(e/letfn [(Foo [] (Bar.))
+               (Bar [] (Foo.))]
+       (Foo.))) :=
+  `(r/peer
+     (fn [tier id]
+       (case id
+         0 (r/ctor-free (r/tier-ctor tier) 1)
+         1 (r/ctor-free (r/tier-ctor tier) 0)
+         2 (let [Foo-free (object-array 2)
+                 Foo-ctor (r/peer-ctor (r/tier-peer tier) [] 0 Foo-free)
+                 Bar-free (object-array 2)
+                 Bar-ctor (r/peer-ctor (r/tier-peer tier) [] 1 Bar-free)]
+             (aset Foo-free 0 (r/pure Foo-ctor))
+             (aset Foo-free 1 (r/pure Bar-ctor))
+             (aset Bar-free 0 (r/pure Foo-ctor))
+             (aset Bar-free 1 (r/pure Bar-ctor))
+             (r/pure {:Foo Foo-ctor :Bar Bar-ctor}))
+         3 (i/latest-product :Foo (r/tier-local tier 0))
+         4 (i/latest-concat (r/tier-slot tier 0))))
+     [3] 4)
 
   )
