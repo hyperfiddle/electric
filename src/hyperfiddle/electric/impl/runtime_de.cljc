@@ -1,6 +1,5 @@
 (ns hyperfiddle.electric.impl.runtime-de
-  (:require [hyperfiddle.electric.impl.local :as l]
-            [hyperfiddle.incseq :as i]
+  (:require [hyperfiddle.incseq :as i]
             [missionary.core :as m])
   #?(:clj (:import (clojure.lang IFn IDeref))))
 
@@ -36,21 +35,12 @@
 (def ^{::type ::node} %18)
 (def ^{::type ::node} %19)
 
-(def peer-slot-step 0)
-(def peer-slot-done 1)
-(def peer-slot-defs 2)
-(def peer-slot-input 4)
-(def peer-slot-store 5)
-(def peer-slots 6)
-
-(defmacro defs [& forms]
-  `(fn [i#] (case i# ~@(interleave (range) forms))))
+(def peer-slot-input 0)
+(def peer-slot-store 1)
+(def peer-slots 2)
 
 (defn pure [form]
   (i/fixed (m/cp form)))
-
-(defn static [form]
-  (pure form))
 
 (defn error [^String msg]
   #?(:clj (Error. msg)
@@ -68,125 +58,187 @@
   (#?(:clj invoke :cljs -invoke) [_ step done]
     (step) (->Failer done (error (str "Unbound electric var lookup - " k)))))
 
-(def this (l/local))
+(deftype Ctor [peer slots output free vars])
 
-(deftype Tier [parent ctor static dynamic])
-(deftype Ctor [peer id free vars])
-
-(defn ctor [id & free]
-  (let [^Tier tier (l/get-local this)
-        ^Ctor ctor (.-ctor tier)
-        ^objects peer (.-peer ctor)]
-    (pure (->Ctor peer id (object-array free) {}))))
-
-(defn bind [^Ctor ctor peer k v]
-  (when-not (identical? peer (.-peer ctor))
-    (throw (error "Can't bind foreign constructor.")))
-  (->Ctor peer (.-id ctor) (.-free ctor)
-    (assoc (.-vars ctor) k v)))
-
-(defn lookup [k]
-  (loop [^Tier tier (l/get-local this)]
-    (let [^Ctor ctor (.-ctor tier)]
-      (if-some [s (get (.-vars ctor) k)]
-        s (if-some [p (.-parent tier)]
-            (recur p) (->Unbound k))))))
-
-(deftype NodePs [^objects peer k ps]
+(deftype Peer [step done defs state]
   IFn
   (#?(:clj invoke :cljs -invoke) [_]
-    (aset peer peer-slot-store
-      (dissoc (aget peer peer-slot-store) k))
-    (ps))
-  IDeref
-  (#?(:clj deref :cljs -deref) [_] @ps))
-
-(defn resolve-node [^objects peer tier id]
-  (let [k [tier id]
-        store (aget peer peer-slot-store)]
-    (if-some [s (get store k)]
-      s (let [n (let [that (l/get-local this)]
-                  (l/set-local this tier)
-                  (try ((aget peer peer-slot-defs) id)
-                       (finally
-                         (l/set-local this that))))
-              s (m/signal i/combine (fn [step done] (->NodePs peer k (n step done))))]
-          (aset peer peer-slot-store (assoc store k s)) s))))
-
-(deftype Node [peer tier id]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_ step done]
-    ((resolve-node peer tier id) step done)))
-
-(defn local [id]
-  (let [^Tier tier (l/get-local this)
-        ^Ctor ctor (.-ctor tier)
-        ^objects peer (.-peer ctor)]
-    (->Node peer tier id)))
-
-(defn remote [id])
-
-(deftype Var [peer k]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_ ctor v]
-    (bind ctor peer k v)))
-
-(defn var [k]
-  (let [^Tier tier (l/get-local this)
-        ^Ctor ctor (.-ctor tier)
-        ^objects peer (.-peer ctor)]
-    (pure (->Var peer k))))
-
-(defn free [id]
-  (let [^Tier tier (l/get-local this)
-        ^Ctor ctor (.-ctor tier)
-        ^objects free (.-free ctor)]
-    (aget free id)))
-
-(defn call [expr]
-
-  )
-
-(def ap
-  (partial i/latest-product
-    (fn
-      ([f] (f))
-      ([f a] (f a))
-      ([f a b] (f a b))
-      ([f a b c] (f a b c))
-      ([f a b c d] (f a b c d))
-      ([f a b c d & e] (apply f a b c d e)))))
-
-(def join i/latest-concat)
-
-(defn context-input-notify [^objects state done?]
-
-  )
-
-(deftype PeerPs [^objects state]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_]
-
+    (prn :cancel-peer)
 
     )
   IDeref
   (#?(:clj deref :cljs -deref) [_]
-
+    (prn :transfer-peer)
 
     ))
 
-(defn peer [msgs defs]
-  (fn [step done]
-    (let [peer (object-array peer-slots)]
-      (aset peer peer-slot-step step)
-      (aset peer peer-slot-done done)
-      (aset peer peer-slot-defs defs)
-      (aset peer peer-slot-store {})
-      (aset peer peer-slot-input
-        ((m/stream (m/observe msgs))
-         #(context-input-notify peer false)
-         #(context-input-notify peer true)))
+(defn bind [^Ctor ctor peer k v]
+  (when-not (identical? peer (.-peer ctor))
+    (throw (error "Can't bind foreign constructor.")))
+  (->Ctor peer (.-slots ctor) (.-output ctor) (.-free ctor)
+    (assoc (.-vars ctor) k v)))
 
-      (->Ctor peer 0 (object-array 0) {})
+(defrecord Var [peer k]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ ctor v]
+    (bind ctor peer k v)))
 
-      (->PeerPs peer))))
+(declare tier-ctor)
+(declare ctor-peer)
+
+(deftype StoredPs [k ps]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_]
+    (let [peer (.-state (ctor-peer (tier-ctor (:tier k))))]
+      (aset peer peer-slot-store
+        (dissoc (aget peer peer-slot-store) k)))
+    (ps))
+  IDeref
+  (#?(:clj deref :cljs -deref) [_] @ps))
+
+(defn get-flow [^Tier tier id]
+  ((.-defs (ctor-peer (tier-ctor tier))) tier id))
+
+(defrecord Node [tier id]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [node step done]
+    ((let [^objects peer (.-state (ctor-peer (tier-ctor tier)))
+           store (aget peer peer-slot-store)]
+       (if-some [s (get store node)]
+         s (let [n (get-flow tier id)
+                 s (m/signal i/combine (fn [step done] (->StoredPs node (n step done))))]
+             (aset peer peer-slot-store (assoc store node s)) s)))
+     step done)))
+
+(deftype Tier [parent slot-id ^Ctor ctor]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [tier step done]
+    ((->Node tier (.-output ctor)) step done)))
+
+(defrecord Slot [tier id]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [slot step done]
+    ((let [^Ctor ctor (tier-ctor tier)
+           ^objects peer (.-state (ctor-peer ctor))
+           store (aget peer peer-slot-store)]
+       (if-some [s (get store slot)]
+         s (let [n (i/latest-product
+                     (fn [ctor]
+                       (when-not (instance? Ctor ctor)
+                         (throw (error (str "Not a constructor - " ctor))))
+                       (when-not (identical? peer (.-peer ^Ctor ctor))
+                         (throw (error "Can't call foreign constructor.")))
+                       (->Tier tier id ctor))
+                     (get-flow tier (nth (.-slots ctor) id)))
+                 s (m/signal i/combine (fn [step done] (->StoredPs slot (n step done))))]
+             (aset peer peer-slot-store (assoc store slot s)) s)))
+     step done)))
+
+(defn context-input-notify [^Peer peer done?]
+  ;; TODO
+  )
+
+(defn ctor-peer
+  "Returns the peer of given constructor."
+  {:tag Peer}
+  [^Ctor ctor]
+  (.-peer ctor))
+
+(defn tier-parent
+  "Returns the parent tier of given tier if not root, nil otherwise."
+  {:tag Tier}
+  [^Tier tier]
+  (.-parent tier))
+
+(defn tier-slot-id
+  "Returns the index of the slot of given tier within its parent."
+  [^Tier tier]
+  (.-slot-id tier))
+
+(defn tier-slot
+  "Returns the slot for given tier and id."
+  {:tag Slot}
+  [^Tier tier id]
+  (->Slot tier id))
+
+(defn tier-slot-count
+  "Returns the count of children of given tier."
+  [^Tier tier]
+  (count (.-slots (tier-ctor tier))))
+
+(defn tier-output
+  "Returns the output of given tier."
+  {:tag Node}
+  [^Tier tier]
+  (->Node tier (.-output (tier-ctor tier))))
+
+(defn tier-ctor
+  "Returns the constructor of given tier."
+  {:tag Ctor}
+  [^Tier tier]
+  (.-ctor tier))
+
+(defn tier-peer
+  "Returns the peer of given tier."
+  {:tag Peer}
+  [tier]
+  (ctor-peer (tier-ctor tier)))
+
+(defn tier-lookup
+  "Returns the value associated with given key in the dynamic environment of given tier."
+  [tier k]
+  (loop [tier tier]
+    (if-some [s (get (.-vars (tier-ctor tier)) k)]
+      s (if-some [p (tier-parent tier)]
+          (recur p) (->Unbound k)))))
+
+(defn peer-ctor "
+Returns a constructor for given peer, with slots defined by given vector of ids, output defined by given id, and
+given free variables.
+" [peer slots output & free]
+  (->Ctor peer slots output (object-array free) {}))
+
+(defn tier-local
+  "Returns the incremental sequence signal defined by given id in given tier."
+  [tier id]
+  (->Node tier id))
+
+(defn tier-remote [tier id]
+  ;; TODO
+  )
+
+(defn peer-var
+  "Returns the var associated with given key in given peer."
+  [^Peer peer k]
+  (->Var peer k))
+
+(defn ctor-free
+  "Returns the i-th free variable of given constructor."
+  [^Ctor ctor i]
+  (aget ^objects (.-free ctor) i))
+
+(defn tier-slot
+  "Returns the i-th slot of given tier."
+  [^Tier tier i]
+  (->Slot tier i))
+
+(defn peer "
+Returns a peer definition from given node definitions and root constructor.
+" [defs slots output]
+  (fn [msgs]
+    (fn [step done]
+      (let [state (object-array peer-slots)
+            peer (->Peer step done defs state)]
+        (aset state peer-slot-store {})
+        (aset state peer-slot-input
+          ((m/stream (m/observe msgs))
+           #(context-input-notify peer false)
+           #(context-input-notify peer true)))
+
+        ((m/reduce (fn [_ x] (prn :output x)) nil
+           (->Tier nil 0
+             (->Ctor peer slots output
+               (object-array 0) {})))
+         #(prn :success %) #(prn :failure %))
+
+        peer))))
