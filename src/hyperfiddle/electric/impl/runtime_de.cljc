@@ -56,7 +56,7 @@
 (deftype Unbound [k]
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
-    (step) (->Failer done (error (str "Unbound electric var lookup - " k)))))
+    (step) (->Failer done (error (str "Unbound electric var lookup - " (pr-str k))))))
 
 (deftype Ctor [peer slots output free vars])
 
@@ -119,19 +119,20 @@
   IFn
   (#?(:clj invoke :cljs -invoke) [slot step done]
     ((let [^Ctor ctor (tier-ctor tier)
-           ^objects peer (.-state (ctor-peer ctor))
-           store (aget peer peer-slot-store)]
+           ^Peer peer (ctor-peer ctor)
+           ^objects state (.-state peer)
+           store (aget state peer-slot-store)]
        (if-some [s (get store slot)]
          s (let [n (i/latest-product
                      (fn [ctor]
                        (when-not (instance? Ctor ctor)
-                         (throw (error (str "Not a constructor - " ctor))))
-                       (when-not (identical? peer (.-peer ^Ctor ctor))
+                         (throw (error (str "Not a constructor - " (pr-str ctor)))))
+                       (when-not (identical? peer (ctor-peer ctor))
                          (throw (error "Can't call foreign constructor.")))
                        (->Tier tier id ctor))
                      (get-flow tier (nth (.-slots ctor) id)))
                  s (m/signal i/combine (fn [step done] (->StoredPs slot (n step done))))]
-             (aset peer peer-slot-store (assoc store slot s)) s)))
+             (aset state peer-slot-store (assoc store slot s)) s)))
      step done)))
 
 (defn context-input-notify [^Peer peer done?]
