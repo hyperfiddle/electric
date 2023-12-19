@@ -96,7 +96,7 @@
   IDeref
   (#?(:clj deref :cljs -deref) [_] @ps))
 
-(defn get-flow [^Tier tier id]
+(defn get-flow [tier id]
   ((.-defs (ctor-peer (tier-ctor tier))) tier id))
 
 (defrecord Node [tier id]
