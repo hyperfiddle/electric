@@ -44,7 +44,7 @@
      (lang/defs
        (lang/static "Hello world")
        (lang/static "Hello world")
-       (lang/ap (lang/static vector) (lang/local 1) (lang/local 2)))
+       (lang/ap (lang/static vector) (lang/local 0) (lang/local 1)))
      [] 2)
 
   (lang/compile-server {}
