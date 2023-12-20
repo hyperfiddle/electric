@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric.impl.expand-de-test
   (:require #?(:clj [cljs.env])
             #?(:clj [cljs.analyzer])
-            #?(:clj [hyperfiddle.electric.impl.compiler :as c])
+            #?(:clj [hyperfiddle.electric.impl.lang-de :as c])
             #?(:clj [hyperfiddle.electric.impl.runtime-de :as r])
             #?(:clj [hyperfiddle.electric :as-alias e])
             [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred]]
@@ -75,10 +75,10 @@
                            (->> [x] x)]
                      (-> (->> x) inc)))]
        x := '(let* [[foo bar baz ->>]
-                    (:hyperfiddle.electric.impl.compiler/letfn [foo (fn* foo ([with-open] (with-open 1)))
-                                                                bar (fn* bar ([x] (inc x)))
-                                                                baz (fn* baz ([x] (->> x)))
-                                                                ->> (fn* ->> ([x] x))])]
+                    (::c/letfn [foo (fn* foo ([with-open] (with-open 1)))
+                                bar (fn* bar ([x] (inc x)))
+                                baz (fn* baz ([x] (->> x)))
+                                ->> (fn* ->> ([x] x))])]
                (inc (->> x)))
        (has-line-meta? x) := true)
 
