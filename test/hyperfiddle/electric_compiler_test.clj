@@ -31,7 +31,7 @@
   := `(r/peer (lang/r-defs
                 (lang/r-static "Hello world")
                 (lang/r-static "Hello world")
-                (lang/r-ap (lang/r-static vector) (lang/r-local 0) (lang/r-local 1))) [] 0)
+                (lang/r-ap (lang/r-static vector) (lang/r-local 0) (lang/r-local 1))) [] 2)
 
   (l/compile-client (concat (let [x 1] [x x]) (let [y 2] [y y])))
   := `(r/peer (lang/r-defs
@@ -39,7 +39,7 @@
                 (lang/r-static 2)
                 (lang/r-ap (lang/r-static ~'concat)
                   (lang/r-ap (lang/r-static vector) (lang/r-local 0) (lang/r-local 0))
-                  (lang/r-ap (lang/r-static vector) (lang/r-local 1) (lang/r-local 1)))) [] 0)
+                  (lang/r-ap (lang/r-static vector) (lang/r-local 1) (lang/r-local 1)))) [] 2)
 
   (l/compile-client (i/fixed (m/watch (atom 0))))
   := `(r/peer (lang/r-defs
