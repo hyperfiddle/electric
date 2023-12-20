@@ -252,4 +252,13 @@
         (r/ap (r/static vector) (r/free 0) (r/free 1))
         (r/ap (r/static vector) (r/free 0) (r/free 1)))
 
+  #_(e/defn Foo [])
+  (l/compile-client `(e/ctor (e/call Foo))) :=
+  `(r/peer
+     (l/defs
+       (l/lookup Foo)
+       (l/call 0)
+       (l/ctor [0] 1))
+     [] 2)
+
   )

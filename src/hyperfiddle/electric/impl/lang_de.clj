@@ -56,6 +56,9 @@
 (defmacro r-var [id]
   `(r/pure (r/peer-var (r/tier-peer r/*tier*) (quote ~id))))
 
+(defmacro r-lookup [id]
+  `(r/tier-lookup r/*tier* (quote ~id)))
+
 ;;;;;;;;;;;;;;;;
 ;;; EXPANDER ;;;
 ;;;;;;;;;;;;;;;;
