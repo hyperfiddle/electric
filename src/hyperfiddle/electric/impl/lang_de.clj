@@ -549,7 +549,7 @@
                       ::let-ref (list `r-local (->> nd ::ref (get (:eav ts)) ::order)))))
         defs (mapv #(gen-let ts %) (->> ts :ave ::order vals (reduce into) (sort-by #(->> % (get (:eav ts)) ::order))))]
     ;; (run! prn (->> ts :eav vals (sort-by :db/id)))
-    `(r/peer (r-defs ~@(conj defs (gen-ret ts (find-return-node ts (get-root-e ts))))) [] 0)
+    `(r/peer (r-defs ~@(conj defs (gen-ret ts (find-return-node ts (get-root-e ts))))) [] ~(count defs))
     ;; (cons `r/defs (conj defs (gen-ret ts (find-return-node ts (get-root-e ts)))))
     #_(list `r/defs (->runtime-call ts (get-root ts)))))
 
