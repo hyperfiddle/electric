@@ -41,6 +41,14 @@
      (all '(do (-> 1 inc))) := '(inc 1)
      (has-line-meta? (all '(do (-> 1 inc)))) := true
 
+     "implicit `do`s expand. Electric is pure"
+     (all '(let [] 1 2)) := (all '(let [] (do 1 2)))
+     (all '(loop [] 1 2)) := (all '(loop [] (do 1 2)))
+     (all '(fn [] 1 2)) := (all '(fn [] (do 1 2)))
+     (all '(letfn [] 1 2)) := (all '(letfn [] (do 1 2)))
+     (all '(binding [] 1 2)) := (all '(binding [] (do 1 2)))
+
+
      (all '(inc (let [x 1] x))) := '(inc (let* [x 1] x))
 
      (all '(let [with-open inc] (with-open 1))) := '(let* [with-open inc] (with-open 1))
@@ -68,9 +76,9 @@
                      (-> (->> x) inc)))]
        x := '(let* [[foo bar baz ->>]
                     (:hyperfiddle.electric.impl.compiler/letfn [foo (fn* foo ([with-open] (with-open 1)))
-                                                            bar (fn* bar ([x] (inc x)))
-                                                            baz (fn* baz ([x] (->> x)))
-                                                            ->> (fn* ->> ([x] x))])]
+                                                                bar (fn* bar ([x] (inc x)))
+                                                                baz (fn* baz ([x] (->> x)))
+                                                                ->> (fn* ->> ([x] x))])]
                (inc (->> x)))
        (has-line-meta? x) := true)
 
@@ -170,10 +178,10 @@
 
 ;; doesn't work in `tests`
 #?(:clj
-   (when-not (= '(let* [x 1])
-               (binding [*ns* (create-ns 'hyperfiddle.electric.impl.expand-unloaded)]
-                 (c/expand-all {::c/peers {:client :cljs, :server :clj}
-                              ::c/current :server, ::c/me :client
-                              :ns 'hyperfiddle.electric.impl.expand-unloaded}
-                   '(let [x 1]))))
+   (when-not (= 'let* (first
+                        (binding [*ns* (create-ns 'hyperfiddle.electric.impl.expand-unloaded)]
+                          (c/expand-all {::c/peers {:client :cljs, :server :clj}
+                                         ::c/current :server, ::c/me :client
+                                         :ns 'hyperfiddle.electric.impl.expand-unloaded}
+                            '(let [x 1])))))
      (throw (ex-info "clj macroexpansion for unloaded ns fails" {}))))

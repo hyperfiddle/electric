@@ -3,6 +3,8 @@
             [missionary.core :as m])
   #?(:clj (:import (clojure.lang IFn IDeref))))
 
+(def ^:dynamic *tier*)
+
 (def ^{::type ::node, :doc "for loop/recur impl"} rec)
 
 #?(:clj
