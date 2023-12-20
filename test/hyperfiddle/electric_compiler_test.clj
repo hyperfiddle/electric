@@ -242,23 +242,23 @@
 
   (l/compile-client (let [a :foo, b :bar, c :baz]
                       [(e/ctor [a b]) (e/ctor [b c])]))
-  := `(r/defs
-        (r/ap (r/static vector)
-          (r/ctor 4 (r/local 1) (r/local 2))
-          (r/ctor 5 (r/local 2) (r/local 3)))
-        (r/static :foo)
-        (r/static :bar)
-        (r/static :baz)
-        (r/ap (r/static vector) (r/free 0) (r/free 1))
-        (r/ap (r/static vector) (r/free 0) (r/free 1)))
+  := `(lang/r-defs
+        (lang/r-ap (lang/r-static vector)
+          (lang/r-ctor 4 (lang/r-local 1) (lang/r-local 2))
+          (lang/r-ctor 5 (lang/r-local 2) (lang/r-local 3)))
+        (lang/r-static :foo)
+        (lang/r-static :bar)
+        (lang/r-static :baz)
+        (lang/r-ap (lang/r-static vector) (lang/r-free 0) (lang/r-free 1))
+        (lang/r-ap (lang/r-static vector) (lang/r-free 0) (lang/r-free 1)))
 
   #_(e/defn Foo [])
   (l/compile-client `(e/ctor (e/call Foo))) :=
   `(r/peer
-     (l/defs
-       (l/lookup Foo)
-       (l/call 0)
-       (l/ctor [0] 1))
+     (lang/r-defs
+       (lang/r-lookup Foo)
+       (lang/r-call 0)
+       (lang/r-ctor [0] 1))
      [] 2)
 
   )
