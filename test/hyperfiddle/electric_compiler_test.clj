@@ -261,4 +261,11 @@
        (lang/r-ctor [0] 1))
      [] 2)
 
+  (l/compile-client `e/tier) :=
+  `(r/peer
+     (fn [tier id]
+       (case id
+         0 (r/pure tier)))
+     [] 0)
+
   )
