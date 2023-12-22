@@ -33,10 +33,10 @@
 (defmacro r-ap [& args]
   `(i/latest-product r-invoke ~@args))
 
-(defmacro r-free [id]
+(defmacro r-free [id]                   ; looks up a free (closed over) expr in ctor
   `(r/ctor-free (r/tier-ctor r/*tier*) ~id))
 
-(defmacro r-local [id]
+(defmacro r-local [id]                  ; looks up a local (from defs block) expr
   `(r/tier-local r/*tier* ~id))
 
 (defmacro r-remote [id]
@@ -476,15 +476,16 @@
 (defn analyze [form pe {{::keys [env ->id]} :o :as ts}]
   (cond
     (and (seq? form) (seq form))
-    (let [[op & args] form]
-      (case op
-        (let*) (loopr [ts ts, pe pe]
-                 [[s v] (eduction (partition-all 2) (first args))]
+    (case (first form)
+      (let*) (let [[_ bs bform] form]
+               (loopr [ts ts, pe pe]
+                 [[s v] (eduction (partition-all 2) bs)]
                  (let [e (->id)]
                    (recur (analyze v e (ts/add ts {:db/id e, ::parent pe, ::type ::let, ::sym s})) e))
-                 (analyze (second args) pe ts))
-        #_else (let [e (->id)]
-                 (reduce (fn [ts nx] (analyze nx e ts)) (ts/add ts {:db/id e, ::parent pe, ::type ::ap}) form))))
+                 (analyze bform pe ts)))
+      (::ctor) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::ctor})))
+      #_else (let [e (->id)]
+               (reduce (fn [ts nx] (analyze nx e ts)) (ts/add ts {:db/id e, ::parent pe, ::type ::ap}) form)))
 
     (vector? form) (recur (?meta form (cons `vector form)) pe ts)
 
@@ -497,61 +498,84 @@
     :else
     (ts/add ts {:db/id (->id), ::parent pe, ::type ::static, ::v form})))
 
-(comment
-  (let [x 1] x)
-  (r-defs
-    (r-local 1)
-    (r-static 1))
-
-  (concat (let [x 1] [x x]) (let [y 2] [y y]))
-  (r-defs
-    (r-ap (r-static concat)
-      (r-ap (r-static vector) (r-local 1) (r-local 1))
-      (r-ap (r-static vector)) (r-local 2) (r-local 2))
-    (r-static 1)
-    (r-static 2))
-
-  )
-
 (defn ->->id [] (let [!i (long-array [-1])] (fn [] (aset !i 0 (unchecked-inc (aget !i 0))))))
+(defn trim [ss bound]
+  (if (empty? ss) ss (let [f (first ss)] (if (> f bound) ss (recur (disj ss f) bound)))))
+
+(tests (trim (sorted-set 1 2 3 4) 2) := (sorted-set 3 4))
 
 (defn compile-me [pe {{::keys [env ->id]} :o :as ts}]
   (let [find-return-node (fn [ts e]
                            (let [nd (get (:eav ts) e)]
                              (case (::type nd)  ::let (recur ts (second (get-children-e ts e)))  #_else e)))
-        order (fn order [ts ->id e]
+        order (fn order [ts ->order e] ; gives each toplevel flow an order index
                 (let [nd (get (:eav ts) e)]
                   (if (::order nd)
                     ts
                     (case (::type nd)
                       ::static ts
-                      ::ap (reduce (fn [ts e] (order ts ->id e)) ts (get-children-e ts e))
-                      ::let (reduce (fn [ts e] (order ts ->id e))
-                              (ts/upd ts e ::order (fn [_] (->id)))
+                      ::ap (reduce (fn [ts e] (order ts ->order e)) ts (get-children-e ts e))
+                      ::let (reduce (fn [ts e] (order ts ->order e))
+                              (ts/upd ts e ::order (fn [_] (->order)))
                               (get-children-e ts e))
-                      ::let-ref (order ts ->id (::ref nd))
+                      ::let-ref (order ts ->order (::ref nd))
+                      ::ctor (let [ce (first (get-children-e ts e))
+                                   ts (order ts ->order ce)]
+                               (cond-> ts
+                                 (not (::order (get (:eav ts) ce))) (ts/upd ce ::order (fn [_] (->order)))))
                       #_else (throw (ex-info (str "cannot order: " (::type nd)) {:nd nd}))))))
-        ts (order ts (->->id) (find-return-node ts (get-root-e ts)))
-        gen-let (fn gen-let [ts e]
-                  (let [nd (get (:eav ts) e)]
-                    (case (::type nd)
-                      ::static (list `r-static (::v nd))
-                      ::ap (cons `r-ap (mapv #(gen-let ts %) (get-children-e ts e)))
-                      ::let (gen-let ts (first (get-children-e ts e)))
-                      ::let-ref (list `r-local (->> nd ::ref (get (:eav ts)) ::order))
-                      #_else (throw (ex-info (str "cannot gen: " (::type nd)) {:nd nd})))))
-        gen-ret (fn gen-ret [ts e]
-                  (let [nd (get (:eav ts) e)]
-                    (case (::type nd)
-                      ::static (list `r-static (::v nd))
-                      ::ap (cons `r-ap (mapv #(gen-ret ts %) (get-children-e ts e)))
-                      ::let (gen-ret ts (second (get-children-e ts e)))
-                      ::let-ref (list `r-local (->> nd ::ref (get (:eav ts)) ::order)))))
-        defs (mapv #(gen-let ts %) (->> ts :ave ::order vals (reduce into) (sort-by #(->> % (get (:eav ts)) ::order))))]
+        ;; free-of-ctor - pointer to ctor
+        ;; free-idx - index of this free var in ctor free array
+        ;; parent-free - present if there's a parent ctor closing over this free var, index in parent free array
+        capture-frees (fn capture-frees [ts]
+                        (loopr [ts ts, prev-e 0, letrefs-e (or (->> ts :ave ::type ::let-ref) [])]
+                          [ctor-e (or (->> ts :ave ::type ::ctor) [])]
+                          (let [letrefs2-e (trim letrefs-e ctor-e)
+                                refs-e (into (sorted-set) (map #(::ref (get (:eav ts) %))) letrefs2-e)
+                                frees-e (into (sorted-set) (take-while #(< % ctor-e)) refs-e)
+                                ->free-idx (->->id)]
+                            (recur (reduce (fn [ts free-e]
+                                             (ts/add ts (merge {:db/id (->id), ::free-of-ctor ctor-e
+                                                                ::ref free-e, ::free-idx (->free-idx)}
+                                                          (when (< free-e prev-e)
+                                                            {::parent-free
+                                                             (let [parent-frees-e (-> ts :ave ::free-of-ctor (get prev-e))]
+                                                               (reduce (fn [_ pfe]
+                                                                         (let [pf (get (:eav ts) pfe)]
+                                                                           (when (= free-e (::ref pf))
+                                                                             (reduced (::free-idx pf)))))
+                                                                 nil parent-frees-e))}))))
+                                     ts frees-e)
+                              ctor-e letrefs2-e))
+                          ts))
+        ;; _ (run! prn (->> ts :eav vals (sort-by :db/id)))
+        ts (-> ts (order (->->id) (find-return-node ts (get-root-e ts))) capture-frees)
+        gen (fn gen [ts e ctor-e top?]  ; `top?` - let at top compiles to the value, otherwise to reference of it
+              (let [nd (get (:eav ts) e)
+                    frees-e (-> ts :ave ::free-of-ctor (get ctor-e))
+                    ref->idx (reduce (fn [ac free-e]
+                                       (let [nd (get (:eav ts) free-e)]
+                                         (assoc ac (::ref nd) (::free-idx nd))))  {} frees-e)]
+                (case (::type nd)
+                  ::static (list `r-static (::v nd))
+                  ::ap (cons `r-ap (mapv #(gen ts % ctor-e false) (get-children-e ts e)))
+                  ::let (gen ts ((if top? first second) (get-children-e ts e)) ctor-e false)
+                  ::let-ref (if-some [idx (ref->idx (::ref nd))]
+                              (list `r-free idx)
+                              (list `r-local (->> nd ::ref (get (:eav ts)) ::order)))
+                  ::ctor (list* `r-ctor '[] (->> e (get-children-e ts) first (get (:eav ts)) ::order)
+                           (mapv #(let [nd (get (:eav ts) %)]
+                                    (if-some [pfe (::parent-free nd)]
+                                      (list `r-free pfe)
+                                      (list `r-local (->> nd ::ref (get (:eav ts)) ::order))))
+                             (-> ts :ave ::free-of-ctor (get e))))
+                  #_else (throw (ex-info (str "cannot gen-top: " (::type nd)) {:nd nd})))))
+        defs (mapv #(gen ts % (::parent (get (:eav ts) %)) true)
+               (->> ts :ave ::order vals (reduce into) (sort-by #(->> % (get (:eav ts)) ::order))))]
     ;; (run! prn (->> ts :eav vals (sort-by :db/id)))
-    `(r/peer (r-defs ~@(conj defs (gen-ret ts (find-return-node ts (get-root-e ts))))) [] ~(count defs))
-    ;; (cons `r/defs (conj defs (gen-ret ts (find-return-node ts (get-root-e ts)))))
-    #_(list `r/defs (->runtime-call ts (get-root ts)))))
+    `(r/peer (r-defs ~@(conj defs (let [ret-e (find-return-node ts (get-root-e ts))]
+                                    (gen ts ret-e (::parent (get (:eav ts) ret-e)) true))))
+       [] ~(count defs))))
 
 (defn compile [form env]
   (let [ts (ts/->ts {::->id (->->id), ::env env})]
