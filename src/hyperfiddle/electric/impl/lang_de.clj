@@ -514,7 +514,7 @@
                       ::static ts
                       ::ap (reduce (fn [ts e] (order ts ->order e)) ts (get-children-e ts e))
                       ::let (reduce (fn [ts e] (order ts ->order e))
-                              (ts/upd ts e ::order (fn [_] (->order)))
+                              (ts/asc ts e ::order (->order))
                               (get-children-e ts e))
                       ::let-ref (order ts ->order (::ref nd))
                       ::ctor (let [ce (first (get-children-e ts e))]
