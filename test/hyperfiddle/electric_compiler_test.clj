@@ -127,14 +127,85 @@
         []
         4)
 
-  ;; (l/compile-client (::lang/call (::lang/ctor :foo)))
-  ;; := `(r/peer
-  ;;       (lang/r-defs
-  ;;         (lang/r-static :foo)
-  ;;         (lang/r-ctor [] 0)
-  ;;         (lang/r-call 0))
-  ;;       [1] 2)
+  (l/compile-client (let [x (::lang/ctor :foo)] x))
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-ctor [] 1)
+          (lang/r-static :foo)
+          (lang/r-local 0))
+        [] 2)
+
+  (l/compile-client (let [x (::lang/ctor :foo), y x] (::lang/call y)))
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-local 1)
+          (lang/r-ctor [] 2)
+          (lang/r-static :foo)
+          (lang/r-call 0))
+        [0] 3)
+
+  (l/compile-client (::lang/call (::lang/ctor :foo)))
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-static :foo)
+          (lang/r-ctor [] 0)
+          (lang/r-call 0))
+        [1] 2)
+
+  (l/compile-client (vector 1 (::lang/call (::lang/ctor :foo))))
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-static :foo)
+          (lang/r-ctor [] 0)
+          (lang/r-ap (lang/r-static ~'vector)
+            (lang/r-static 1)
+            (lang/r-call 0)))
+        [1] 2)
+
+  (l/compile-client (let [x (::lang/ctor :foo)] [(::lang/call x) (::lang/call x)]))
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-ctor [] 1)
+          (lang/r-static :foo)
+          (lang/r-ap (lang/r-static clojure.core/vector)
+            (lang/r-call 0)
+            (lang/r-call 1)))
+        [0 0]
+        2)
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-ctor [] 1)
+          (lang/r-static :foo)
+          (lang/r-local 0)
+          (lang/r-local 0)
+          (lang/r-ap (lang/r-static clojure.core/vector)
+            (lang/r-call 0)
+            (lang/r-call 1)))
+        [2 3] 4)
+
+  (l/compile-client [(::lang/call (::lang/ctor :foo)) (::lang/call (::lang/ctor :bar))])
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-static :foo)
+          (lang/r-ctor [] 0)
+          (lang/r-static :bar)
+          (lang/r-ctor [] 2)
+          (lang/r-ap (lang/r-static clojure.core/vector)
+            (lang/r-call 0)
+            (lang/r-call 1)))
+        [1 3] 4)
+
+  (l/compile-client (let [a :foo] (::lang/call (::lang/ctor (::lang/ctor a)))))
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-static :foo)
+          (lang/r-free 0)
+          (lang/r-ctor [] 1 (lang/r-free 0))
+          (lang/r-ctor [] 2 (lang/r-local 0))
+          (lang/r-call 0))
+        [3] 4)
   )
+
 (comment
   ;; (defn lang/compile [env form]
   (l/compile-client 1)
@@ -264,8 +335,8 @@
           (lang/r-static :y)
           (lang/r-static :z)
           (lang/r-ap (lang/r-ap (lang/r-static hash-map)
-                     (lang/r-static nil) (lanr-ctoror [] 0))
-            (lang/r-static :x) (lanr-ctoror [] 1))
+                     (lang/r-static nil) (lang/r-ctor [] 0))
+            (lang/r-static :x) (lang/r-ctor [] 1))
           (lang/r-call 0))
         [2] 3)
 
