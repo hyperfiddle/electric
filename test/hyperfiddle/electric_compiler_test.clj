@@ -204,6 +204,34 @@
           (lang/r-ctor [] 2 (lang/r-local 0))
           (lang/r-call 0))
         [3] 4)
+
+  ;; ({nil (ctor :y)} :x (ctor :z))
+  (l/compile-client (case :x nil :y :z))
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-ctor [] 1)
+          (lang/r-static :y)
+          (lang/r-static :z)
+          (lang/r-ap (lang/r-ap (lang/r-static clojure.core/hash-map)
+                       (lang/r-static 'nil) (lang/r-local 0))
+            (lang/r-static :x)
+            (lang/r-ctor [] 2))
+          (lang/r-call 0))
+        [3] 4)
+
+  (l/compile-client (case 'foo (foo bar) :share-this :else))
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-ctor [] 1)
+          (lang/r-static :share-this)
+          (lang/r-static :else)
+          (lang/r-ap (lang/r-ap (lang/r-static clojure.core/hash-map)
+                       (lang/r-static '~'foo) (lang/r-local 0)
+                       (lang/r-static '~'bar) (lang/r-local 0))
+            (lang/r-static '~'foo)
+            (lang/r-ctor [] 2))
+          (lang/r-call 0))
+        [3] 4)
   )
 
 (comment
