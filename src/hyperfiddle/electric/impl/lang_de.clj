@@ -483,12 +483,22 @@
                  (let [e (->id)]
                    (recur (analyze v e (ts/add ts {:db/id e, ::parent pe, ::type ::let, ::sym s})) e))
                  (analyze bform pe ts)))
+      (case) (let [[_ test & brs] form
+                   [default brs2] (if (odd? (count brs)) [(last brs) (butlast brs)] [:TODO brs])]
+               (loopr [bs [], mp {}]
+                 [[v br] (partition 2 brs2)]
+                 (let [b (gensym "case-val")]
+                   (recur (conj bs b `(::ctor ~br))
+                     (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq v) v [v]))))
+                 (recur `(let* ~bs (::call (~mp ~test (::ctor ~default)))) pe ts)))
+      (quote) (ts/add ts {:db/id (->id), ::parent pe, ::type ::static, ::v (list 'quote (second form))})
       (::ctor) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::ctor})))
       (::call) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::call})))
       #_else (let [e (->id)]
                (reduce (fn [ts nx] (analyze nx e ts)) (ts/add ts {:db/id e, ::parent pe, ::type ::ap}) form)))
 
     (vector? form) (recur (?meta form (cons `vector form)) pe ts)
+    (map? form) (recur (?meta form (cons `hash-map (eduction cat form))) pe ts)
 
     (symbol? form)
     (if-some [lx-e (find-let-ref form pe ts)]
@@ -521,7 +531,7 @@
                                (ensure-ordered (order ts ->order ce) ->order ce))
                       ::call (let [ce (first (get-children-e ts e))
                                    ts (order ts ->order ce)]
-                               (cond-> ts (= ::ctor (::type (get (:eav ts) ce))) (ensure-ordered ->order ce)))
+                               (cond-> ts (not (= ::let-ref (::type (get (:eav ts) ce)))) (ensure-ordered ->order ce)))
                       #_else (throw (ex-info (str "cannot order: " (::type nd)) {:nd nd}))))))
         index-calls (fn index-calls [ts]
                       (let [->idx (->->id)]
