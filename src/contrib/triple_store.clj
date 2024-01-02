@@ -38,6 +38,8 @@
         vea (cond-> vea (contains? (get vea v0) e) (update v0 update e disj a))]
     (->TripleStore (:o ts) eav ave vea)))
 
+(defn asc [ts e a v] (upd ts e a (fn [_] v)))
+
 (defn get-entity [ts e] (get (:eav ts) e))
 
 (defn ->datoms [ts]
