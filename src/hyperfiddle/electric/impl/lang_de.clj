@@ -491,7 +491,7 @@
                    (recur (conj bs b `(::ctor ~br))
                      (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq v) v [v]))))
                  (recur `(let* ~bs (::call (~mp ~test (::ctor ~default)))) pe ts)))
-      (quote) (ts/add ts {:db/id (->id), ::parent pe, ::type ::static, ::v (list 'quote (second form))})
+      (quote) (ts/add ts {:db/id (->id), ::parent pe, ::type ::static, ::v form})
       (::ctor) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::ctor})))
       (::call) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::call})))
       #_else (let [e (->id)]
