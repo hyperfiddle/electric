@@ -232,6 +232,18 @@
             (lang/r-ctor [] 2))
           (lang/r-call 0))
         [3] 4)
+
+  (l/compile-client (::lang/pure :foo))
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-pure (lang/r-static :foo)))
+        [] 0)
+
+  (l/compile-client (::lang/join (::lang/pure :foo)))
+  := `(r/peer
+        (lang/r-defs
+          (lang/r-join (lang/r-pure (lang/r-static :foo))))
+        [] 0)
   )
 
 (comment

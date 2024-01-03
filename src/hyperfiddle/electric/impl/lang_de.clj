@@ -51,6 +51,9 @@
   `(i/latest-concat (r/tier-slot r/*tier* ~id)))
 
 (defmacro r-join [expr]
+  `(r/pure ~expr))
+
+(defmacro r-join [expr]
   `(i/latest-concat ~expr))
 
 (defmacro r-var [id]
@@ -494,6 +497,8 @@
       (quote) (ts/add ts {:db/id (->id), ::parent pe, ::type ::static, ::v form})
       (::ctor) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::ctor})))
       (::call) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::call})))
+      (::pure) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::pure})))
+      (::join) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::join})))
       #_else (let [e (->id)]
                (reduce (fn [ts nx] (analyze nx e ts)) (ts/add ts {:db/id e, ::parent pe, ::type ::ap}) form)))
 
@@ -532,6 +537,8 @@
                       ::call (let [ce (first (get-children-e ts e))
                                    ts (order ts ->order ce)]
                                (cond-> ts (not (= ::let-ref (::type (get (:eav ts) ce)))) (ensure-ordered ->order ce)))
+                      ::pure (recur ts ->order (first (get-children-e ts e)))
+                      ::join (recur ts ->order (first (get-children-e ts e)))
                       #_else (throw (ex-info (str "cannot order: " (::type nd)) {:nd nd}))))))
         index-calls (fn index-calls [ts]
                       (let [->idx (->->id)]
@@ -595,6 +602,8 @@
                                       (list `r-local (->> nd ::ref (get (:eav ts)) ::order))))
                              (-> ts :ave ::free-of-ctor (get e))))
                   ::call (list `r-call (::call-idx nd))
+                  ::pure (list `r-pure (gen ts (first (get-children-e ts e)) ctor-e top?))
+                  ::join (list `r-join (gen ts (first (get-children-e ts e)) ctor-e top?))
                   #_else (throw (ex-info (str "cannot gen: " (::type nd)) {:nd nd})))))
         gen-call-ctors-vec (fn gen-call-ctors-vec [ts]
                              (into [] (map #(-> ts :eav (get %) ::ctor-order)) (-> ts :ave ::type ::call)))
