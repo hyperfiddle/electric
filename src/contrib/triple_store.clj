@@ -13,7 +13,8 @@
 ;;  {:db/id 2, :foo 1, :bar 2}]
 ;; eav 1 :foo -> 1
 ;; ave :foo 1 -> (sorted-set 1 2) <- sorted so e.g. :parent e is well ordered
-;; vea 1 1 -> #{:foo :bar}
+;; vea 1 1 -> #{:foo :bar}    CURRENTLY NOT USED/FILLED
+
 (defrecord TripleStore [o eav ave vea])
 
 (defn ->ts ([] (->ts {})) ([o] (->TripleStore o {} {} {})))
@@ -25,7 +26,8 @@
           [[a v] nd]
           (recur (update eav e assoc a v)
             (update ave a update v (fnil conj (sorted-set)) e)
-            (update vea v update e (fnil conj #{}) a)))]
+            vea
+            #_(update vea v update e (fnil conj #{}) a)))]
     (->TripleStore (:o ts) eav ave vea)))
 
 (defn upd [ts e a f]
@@ -34,8 +36,10 @@
         v1 (-> eav (get e) (get a))
         ave (update (:ave ts) a update v1 (fnil conj (sorted-set)) e)
         ave (cond-> ave (contains? (get ave a) v0) (update a update v0 disj e))
-        vea (update (:vea ts) v1 update e (fnil conj #{}) a)
-        vea (cond-> vea (contains? (get vea v0) e) (update v0 update e disj a))]
+        vea (:vea ts)
+        ;; vea (update (:vea ts) v1 update e (fnil conj #{}) a)
+        ;; vea (cond-> vea (contains? (get vea v0) e) (update v0 update e disj a))
+        ]
     (->TripleStore (:o ts) eav ave vea)))
 
 (defn asc [ts e a v] (upd ts e a (fn [_] v)))
