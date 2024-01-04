@@ -476,6 +476,10 @@
           pe
           (recur (::parent p)))))))
 
+(defn ?add-source-map [{{::keys [->id]} :o :as ts} pe form]
+  (let [mt (meta form)]
+    (cond-> ts (:line mt) (ts/add {:db/id (->id), ::source-map-of pe, ::line (:line mt), ::column (:column mt)}))))
+
 (defn analyze [form pe {{::keys [env ->id]} :o :as ts}]
   (cond
     (and (seq? form) (seq form))
@@ -484,7 +488,8 @@
                (loopr [ts ts, pe pe]
                  [[s v] (eduction (partition-all 2) bs)]
                  (let [e (->id)]
-                   (recur (analyze v e (ts/add ts {:db/id e, ::parent pe, ::type ::let, ::sym s})) e))
+                   (recur (analyze v e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::let, ::sym s})
+                                         (?add-source-map e form))) e))
                  (analyze bform pe ts)))
       (case) (let [[_ test & brs] form
                    [default brs2] (if (odd? (count brs)) [(last brs) (butlast brs)] [:TODO brs])]
@@ -493,26 +498,35 @@
                  (let [b (gensym "case-val")]
                    (recur (conj bs b `(::ctor ~br))
                      (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq v) v [v]))))
-                 (recur `(let* ~bs (::call (~mp ~test (::ctor ~default)))) pe ts)))
+                 (recur (?meta form `(let* ~bs (::call (~mp ~test (::ctor ~default))))) pe ts)))
       (quote) (ts/add ts {:db/id (->id), ::parent pe, ::type ::static, ::v form})
-      (::ctor) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::ctor})))
-      (::call) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::call})))
-      (::pure) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::pure})))
-      (::join) (let [e (->id)] (recur (second form) e (ts/add ts {:db/id e, ::parent pe, ::type ::join})))
+      (::ctor) (let [e (->id)] (recur (second form) e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ctor})
+                                                        (?add-source-map e form))))
+      (::call) (let [e (->id)] (recur (second form) e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call})
+                                                        (?add-source-map e form))))
+      (::pure) (let [e (->id)] (recur (second form) e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::pure})
+                                                        (?add-source-map e form))))
+      (::join) (let [e (->id)] (recur (second form) e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::join})
+                                                        (?add-source-map e form))))
       #_else (let [e (->id)]
-               (reduce (fn [ts nx] (analyze nx e ts)) (ts/add ts {:db/id e, ::parent pe, ::type ::ap}) form)))
+               (reduce (fn [ts nx] (analyze nx e ts)) (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
+                                                        (?add-source-map e form)) form)))
 
     (vector? form) (recur (?meta form (cons `vector form)) pe ts)
     (map? form) (recur (?meta form (cons `hash-map (eduction cat form))) pe ts)
 
     (symbol? form)
-    (if-some [lx-e (find-let-ref form pe ts)]
-      (ts/add ts {:db/id (->id), ::parent pe, ::type ::let-ref, ::ref lx-e, ::sym form})
-      (ts/add ts {:db/id (->id), ::parent pe, ::type ::static, ::v form})
-      )
+    (let [e (->id)]
+      (if-some [lr-e (find-let-ref form pe ts)]
+        (-> (ts/add ts {:db/id e, ::parent pe, ::type ::let-ref, ::ref lr-e, ::sym form})
+          (?add-source-map e form))
+        (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
+          (?add-source-map e form))))
 
     :else
-    (ts/add ts {:db/id (->id), ::parent pe, ::type ::static, ::v form})))
+    (let [e (->id)]
+      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
+        (?add-source-map e form)))))
 
 (defn ->->id [] (let [!i (long-array [-1])] (fn [] (aset !i 0 (unchecked-inc (aget !i 0))))))
 
@@ -605,14 +619,35 @@
                   ::pure (list `r-pure (gen ts (first (get-children-e ts e)) ctor-e top?))
                   ::join (list `r-join (gen ts (first (get-children-e ts e)) ctor-e top?))
                   #_else (throw (ex-info (str "cannot gen: " (::type nd)) {:nd nd})))))
+        get-source-map (fn get-source-map [ts e]
+                         (let [eav (:eav ts)]
+                           (loop [e e]
+                             (or (get eav (-> ts :ave ::source-map-of (get e) first))
+                               (some-> (-> eav (get e) ::parent) recur)))))
+        gen-sm (fn gen-sm [ts e top?]  ; `top?` - let at top compiles to the value, otherwise to reference of it
+              (let [nd (get (:eav ts) e)]
+                (case (::type nd)
+                  ::static (get-source-map ts e)
+                  ::ap (cons (get-source-map ts e) (mapv #(gen-sm ts % false) (get-children-e ts e)))
+                  ::let (gen-sm ts ((if top? first second) (get-children-e ts e)) false)
+                  ::let-ref nil
+                  ::ctor (get-source-map ts e)
+                  ::call (get-source-map ts e)
+                  ::pure (list (get-source-map ts e) (gen-sm ts (first (get-children-e ts e)) top?))
+                  ::join (list (get-source-map ts e) (gen-sm ts (first (get-children-e ts e)) top?))
+                  #_else (throw (ex-info (str "cannot gen-sm: " (::type nd)) {:nd nd})))))
         gen-call-ctors-vec (fn gen-call-ctors-vec [ts]
                              (into [] (map #(-> ts :eav (get %) ::ctor-order)) (-> ts :ave ::type ::call)))
-        defs (mapv #(gen ts % (::parent (get (:eav ts) %)) true)
-               (->> ts :ave ::order vals (reduce into) (sort-by #(->> % (get (:eav ts)) ::order))))]
+        roots (->> ts :ave ::order vals (reduce into) (sort-by #(->> % (get (:eav ts)) ::order)))]
     ;; (run! prn (->> ts :eav vals (sort-by :db/id)))
-    `(r/peer (r-defs ~@(conj defs (let [ret-e (find-return-node ts (get-root-e ts))]
+    (cond-> {:source
+             `(r/peer (r-defs ~@(conj (mapv #(gen ts % (::parent (get (:eav ts) %)) true) roots)
+                                  (let [ret-e (find-return-node ts (get-root-e ts))]
                                     (gen ts ret-e (::parent (get (:eav ts) ret-e)) true))))
-       ~(gen-call-ctors-vec ts) ~(count defs))))
+                ~(gen-call-ctors-vec ts) ~(count roots))}
+      (::include-source-map env) (assoc :source-map
+                                   (conj (mapv #(gen-sm ts % true) roots)
+                                     (gen-sm ts (find-return-node ts (get-root-e ts)) true))))))
 
 (defn compile [form env]
   (let [ts (ts/->ts {::->id (->->id), ::env env})]

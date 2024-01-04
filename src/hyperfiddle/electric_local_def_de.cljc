@@ -14,7 +14,13 @@
 
 (defmacro compile-client [form]
   (let [env (merge &env (->local-config &env) {::lang/me :client})]
-    `(lang/compile '~form ~env )))
+    `(:source (lang/compile '~form ~env))))
+(defmacro compile-client-source-map [form]
+  (let [env (merge &env (->local-config &env) {::lang/me :client})]
+    `(:source-map (lang/compile '~form (assoc ~env ::lang/include-source-map true)))))
+(defmacro compile-client-with-source-map [form]
+  (let [env (merge &env (->local-config &env) {::lang/me :client})]
+    `(lang/compile '~form (assoc ~env ::lang/include-source-map true))))
 (defmacro compile-server [form]
   (let [env (merge &env (->local-config &env) {::lang/me :server})]
-    `(lang/compile '~form ~env )))
+    `(:source (lang/compile '~form ~env))))

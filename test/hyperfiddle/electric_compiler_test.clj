@@ -246,6 +246,51 @@
         [] 0)
   )
 
+(tests
+  ;; (<source-map-of-ap> <nil-for-prn> <nil-for-hello-world>)
+  ;; source-map => ::line ::column
+  (number? (-> (l/compile-client-source-map (prn "hello world")) first ::lang/line)) := true
+  (let [sm (l/compile-client-source-map (let [x "Hello world", y "Hello world"] [x y]))
+        line (-> sm first ::lang/line)]
+    (number? line) := true                      ; x
+    (-> sm second ::lang/line) := line          ; y
+    (-> sm (nth 2) first ::lang/line) := line   ; ap
+    (-> sm (nth 2) second ::lang/line) := line) ; []
+
+  (let [sm (l/compile-client-source-map (::lang/ctor :foo))
+        line (-> sm first ::lang/line)]
+    (number? line) := true              ; static :foo
+    (-> sm second ::lang/line) := line) ; ctor
+
+  (let [sm (l/compile-client-source-map (::lang/call (::lang/ctor :foo)))
+        line (-> sm first ::lang/line)]
+    (number? line) := true               ; static :foo
+    (-> sm (nth 1) ::lang/line) := line  ; ctor
+    (-> sm (nth 2) ::lang/line) := line) ; call
+
+  (let [sm (l/compile-client-source-map (::lang/pure :foo))]
+    (number? (-> sm ffirst ::lang/line)) := true) ; pure
+
+  (let [sm (l/compile-client-source-map (::lang/join (::lang/pure :foo)))]
+    (number? (-> sm ffirst ::lang/line)) := true) ; join
+
+  (let [sm (l/compile-client-source-map (case :x nil :y :z))
+        line (-> sm first ::lang/line)]
+    (every? #(= line (::lang/line (cond-> % (seq? %) first))) sm) := true) ; every toplevel case flow
+
+  (let [sm (l/compile-client-source-map (-> 1 inc))]
+    (number? (-> sm ffirst ::lang/line)) := true) ; ap
+
+  (let [sm (l/compile-client-source-map (do 1 2))]
+    (every? number? (eduction (map #(cond-> % (seq? %) first)) (map ::lang/line) (first sm)))) ; every toplevel do flow
+
+  ;; TODO `loop` needs binding and electric defs
+  ;; (let [sm (l/compile-client-with-source-map (loop [x 1] (recur (inc x))))])
+
+  ;; TODO `set!` needs cc/fn
+  ;; (let [sm (l/compile-client-with-source-map (set! (.-x (Object.)) 1))])
+  )
+
 (comment
   ;; (defn lang/compile [env form]
   (l/compile-client 1)
@@ -316,8 +361,8 @@
   := `(r/peer
         (lang/r-defs
           (lang/r-join (lang/r-ap (lang/r-static i/fixed)
-                       (lang/r-ap (lang/r-static m/watch)
-                         (lang/r-static !x)))))
+                         (lang/r-ap (lang/r-static m/watch)
+                           (lang/r-static !x)))))
         [] 0)
 
   ;; pure (get the incseq of an expression) (e/pure (e/join x)) is (e/join (e/pure x)) is x
@@ -375,7 +420,7 @@
           (lang/r-static :y)
           (lang/r-static :z)
           (lang/r-ap (lang/r-ap (lang/r-static hash-map)
-                     (lang/r-static nil) (lang/r-ctor [] 0))
+                       (lang/r-static nil) (lang/r-ctor [] 0))
             (lang/r-static :x) (lang/r-ctor [] 1))
           (lang/r-call 0))
         [2] 3)
