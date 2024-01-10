@@ -11,7 +11,7 @@
 * wip: Differential Electric (major Electric upgrades, needed for seamless reconnect/resync, optimistic CRUD UI controls with rollback, network planner improvements)
 * wip: Missionary documentation
 
-# v2-alpha-xxx — 2024 Jan 11
+# v2-alpha-540-ga4699532 — 2024 Jan 10
 
 - Simpler websocket integration
   - Electric Jetty and HTTPKit adapters are now based on latest Ring (1.11+), supporting websockets out of the box. It is now simpler to integrate electric into existing ring apps, and extend     the electric adapter over new HTTP servers.
