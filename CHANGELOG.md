@@ -12,7 +12,7 @@
 * wip: incremental Electric compliation (fast dev rebuilds)
 * wip: Missionary documentation
 
-# v2-alpha-xxx — 2024 Jan 10
+# v2-alpha-536-g0c582f78 — 2024 Jan 10
 - **Incremental compilation (IC):**
   - Electric compiled the whole program at once, meaining changing a single file in a large project caused long recompilaiton times. With this release electric compiles per definition (`e/def` and `e/defn`), reducing recompilation. Note: since clojurescript compiles on file granularity electric also recompiles the whole file(s). This is a clojurescript limitation.
   - **breaking**: shadow-cljs build hook required for dev setup. [See starter app shadow-cljs.edn.](https://github.com/hyperfiddle/electric-starter-app/blob/3936c17097ac5f794ea9b7ac8afb883423ef1083/shadow-cljs.edn#L13)
