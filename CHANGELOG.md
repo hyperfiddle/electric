@@ -11,6 +11,25 @@
 * wip: Differential Electric (major Electric upgrades, needed for seamless reconnect/resync, optimistic CRUD UI controls with rollback, network planner improvements)
 * wip: Missionary documentation
 
+# v2-alpha-xxx — 2024 Jan 11
+
+- Simpler websocket integration
+  - Electric Jetty and HTTPKit adapters are now based on latest Ring (1.11+), supporting websockets out of the box. It is now simpler to integrate electric into existing ring apps, and extend     the electric adapter over new HTTP servers.
+  - **breaking**: `hyperfiddle.electric-jetty-adapter` has been replaced by the simpler, generic `hyperfiddle.electric-ring-adapter`.
+    The API is simpler, smaller, but is not retrocompatible.
+    Code depending on `electric-jetty-adapter` must be updated.
+  - **breaking**: `hyperfiddle.electric-httpkit-adapter` is now based on `electric-ring-adapter`
+    and exposes the same API. The two namespaces are equivalent, they only differ on
+    the underlying HTTP server.
+  - Note latest ring-jetty depends on Jetty 11, which requires Java 11+. If you need Java 8 compat, see
+      [electric-server-java-8-jetty-9](https://github.com/hyperfiddle/electric/blob/cc55772f18bc46373f131e092fc20055c8062b59/src-docs/electric_server_java8_jetty9.clj)
+      and [electric-jetty-adapter](https://github.com/hyperfiddle/electric/blob/cc55772f18bc46373f131e092fc20055c8062b59/src/hyperfiddle/electric_jetty_adapter.clj)
+  - How to migrate:
+    - Look at the integration for:
+      - Jetty: [Electric jetty integration](https://github.com/hyperfiddle/electric-fiddle/blob/01b49391e38d2684a7cbf7f82fa58da503af5be8/src/electric_fiddle/server_jetty.clj)
+      - HTTPKit [Electric httpkit integration](https://github.com/hyperfiddle/electric-fiddle/blob/01b49391e38d2684a7cbf7f82fa58da503af5be8/src/electric_fiddle/server_httpkit.clj)
+    - update your ring middlewares accordingly
+
 # v2-alpha-536-g0c582f78 — 2024 Jan 10
 - **Incremental compilation (IC):**
   - Electric compiled the whole program at once, meaining changing a single file in a large project caused long recompilaiton times. With this release electric compiles per definition (`e/def` and `e/defn`), reducing recompilation. Note: since clojurescript compiles on file granularity electric also recompiles the whole file(s). This is a clojurescript limitation.
