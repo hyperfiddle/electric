@@ -489,6 +489,7 @@
                  [[s v] (eduction (partition-all 2) bs)]
                  (let [e (->id)]
                    (recur (analyze v e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::let, ::sym s})
+                                         (update-in [:o ::env :locals s] assoc ::electric-let true, :db/id e)
                                          (?add-source-map e form))) e))
                  (analyze bform pe ts)))
       (case) (let [[_ test & brs] form
@@ -500,6 +501,12 @@
                      (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq v) v [v]))))
                  (recur (?meta form `(let* ~bs (::call (~mp ~test (::ctor ~default))))) pe ts)))
       (quote) (ts/add ts {:db/id (->id), ::parent pe, ::type ::static, ::v form})
+      (fn*) (let [e (->id), ce (->id)
+                  [form refs] (closure env form)
+                  ts2 (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
+                        (?add-source-map e form)
+                        (ts/add {:db/id ce, ::parent e, ::type ::static, ::v form}))]
+              (reduce (fn [ts nx] (analyze nx e ts)) ts2 refs))
       (::ctor) (let [e (->id)] (recur (second form) e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ctor})
                                                         (?add-source-map e form))))
       (::call) (let [e (->id)] (recur (second form) e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call})
