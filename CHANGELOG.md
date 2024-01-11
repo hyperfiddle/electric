@@ -8,8 +8,7 @@
 
 # Roadmap
 
-* wip: Differential Electric (major Electric upgrades, needed for seamless reconnect/resync, optimistic CRUD UI controls with rollback, network planner improvements)
-* wip: Missionary documentation
+* wip: Electric v3 (major Electric upgrades to e/for-by and e/fn in complex client/server topologies)
 
 # v2-alpha-540-ga4699532 — 2024 Jan 10
 
