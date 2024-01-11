@@ -21,10 +21,9 @@
   - **breaking**: `hyperfiddle.electric-httpkit-adapter` is now based on `electric-ring-adapter`
     and exposes the same API. The two namespaces are equivalent, they only differ on
     the underlying HTTP server.
-  - How to migrate:
-    - Look at the integration for:
-      - Jetty: [Electric jetty integration](https://github.com/hyperfiddle/electric-fiddle/blob/01b49391e38d2684a7cbf7f82fa58da503af5be8/src/electric_fiddle/server_jetty.clj)
-      - HTTPKit [Electric httpkit integration](https://github.com/hyperfiddle/electric-fiddle/blob/01b49391e38d2684a7cbf7f82fa58da503af5be8/src/electric_fiddle/server_httpkit.clj)
+  - To migrate, look at the integration for:
+    - [Jetty](https://github.com/hyperfiddle/electric-fiddle/blob/cf6134adb6aa0a4ae2f678961e54036f867cd4d4/src/electric_fiddle/server_jetty.clj#L15-L33)
+    - [HTTPKit](https://github.com/hyperfiddle/electric-fiddle/blob/cf6134adb6aa0a4ae2f678961e54036f867cd4d4/src/electric_fiddle/server_httpkit.clj#L14-L39)
     - update your ring middlewares accordingly
   - Note latest ring-jetty depends on Jetty 11, which requires Java 11+. If you need Java 8 compat, see
       [electric-server-java-8-jetty-9](https://github.com/hyperfiddle/electric/blob/cc55772f18bc46373f131e092fc20055c8062b59/src-docs/electric_server_java8_jetty9.clj)
@@ -42,6 +41,7 @@
   - **breaking**: server compiler requires presence of the `#js` reader tag. Only the client (cljs compiler) used to compile electric code. Now the server compiles its own code, and therefore must be able to parse (read) code in `(e/client ...)` blocks. One must now either: install a reader extension for `#js`, or use reader conditionals to guard usage of `#js`. The simplest is to add a `data_readers.clj` to one's classpath with content `{js cljs.tagged-literals/read-js}`. We don’t provide one OOTB because it’s a global tag and users might have their own installed already, causing unresolvable conflicts.
   - **breaking**: cljs file cannot contain electric definitions anymore. With IC the server compiles its own portion of the definition, i.e. it needs to see the code, so it must be cljc.
   - **breaking**: 2 entrypoints, `e/boot-client` and `e/boot-server`, that need to match. Take `opts Main & args` instead of arbitrary electric code to minimize user errors.
+    - Examples of [server entrypoint](https://github.com/hyperfiddle/electric-fiddle/blob/cf6134adb6aa0a4ae2f678961e54036f867cd4d4/src-dev/dev.cljc#L42), [client entrypoint](https://github.com/hyperfiddle/electric-fiddle/blob/cf6134adb6aa0a4ae2f678961e54036f867cd4d4/src-dev/dev.cljc#L54-L57).
   - **breaking**: http adapters' `electric-ws-message-handler` take an additional argument `entrypoint` which is a function of 1 argument expecting the ring request. See starter app changes for how to update entrypoints.
   - **breaking**: `e/*http-request*` removed, ring request passed as positional argument to entrypoint. Provided electric dynamic `e/http-request` which [examples](https://github.com/hyperfiddle/electric-fiddle/blob/795c5edc29d57c9b037199cfe66996947d894d8d/src-fiddles/hello_fiddle/fiddles.cljc#L15-L17) binds in entrypoint. Users can pass additional clojure arguments through the electric entrypoint.
   - **breaking**: program starts on the server due to above.
