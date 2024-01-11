@@ -13,7 +13,7 @@
     {::lang/peers {p (if (:js-globals env) :cljs :clj)}, ::lang/current p, ::lang/me p}))
 
 (defmacro compile-client [form]
-  (let [env (merge &env (->local-config &env) {::lang/me :client})]
+  (let [env (merge &env (->local-config &env) {::lang/me :client, :ns (list 'quote (ns-name *ns*))})]
     `(:source (lang/compile '~form ~env))))
 (defmacro compile-client-source-map [form]
   (let [env (merge &env (->local-config &env) {::lang/me :client})]

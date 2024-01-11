@@ -244,6 +244,31 @@
         (lang/r-defs
           (lang/r-join (lang/r-pure (lang/r-static :foo))))
         [] 0)
+
+  (l/compile-client ((fn [] 1)))
+  ;; ;; rest-args gensym breaks testability
+  ;; ;; also, testing this deep is counter-productive, we're testing the implementation (internals)
+  ;; := `(r/peer
+  ;;       (lang/r-defs
+  ;;         (lang/r-ap
+  ;;           (lang/r-ap
+  ;;             (lang/r-static
+  ;;               (clojure.core/fn []
+  ;;                 (clojure.core/fn [& rest-args32938]
+  ;;                   (clojure.core/apply (fn* ([] 1)) rest-args32938)))))))
+  ;;       [] 0)
+
+  (l/compile-client (let [x 1] (fn [] x)))
+  ;; := `(r/peer
+  ;;       (lang/r-defs
+  ;;         (lang/r-static 1)
+  ;;         (lang/r-ap (lang/r-static
+  ;;                      (clojure.core/fn [x32133]
+  ;;                        (clojure.core/fn [& rest-args32134]
+  ;;                          (clojure.core/let [x x32133]
+  ;;                            (clojure.core/apply (fn* ([] x)) rest-args32134)))))
+  ;;           (lang/r-local 0)))
+  ;;       [] 1)
   )
 
 (tests
