@@ -21,19 +21,19 @@
   - **breaking**: `hyperfiddle.electric-httpkit-adapter` is now based on `electric-ring-adapter`
     and exposes the same API. The two namespaces are equivalent, they only differ on
     the underlying HTTP server.
-  - Note latest ring-jetty depends on Jetty 11, which requires Java 11+. If you need Java 8 compat, see
-      [electric-server-java-8-jetty-9](https://github.com/hyperfiddle/electric/blob/cc55772f18bc46373f131e092fc20055c8062b59/src-docs/electric_server_java8_jetty9.clj)
-      and [electric-jetty-adapter](https://github.com/hyperfiddle/electric/blob/cc55772f18bc46373f131e092fc20055c8062b59/src/hyperfiddle/electric_jetty_adapter.clj)
   - How to migrate:
     - Look at the integration for:
       - Jetty: [Electric jetty integration](https://github.com/hyperfiddle/electric-fiddle/blob/01b49391e38d2684a7cbf7f82fa58da503af5be8/src/electric_fiddle/server_jetty.clj)
       - HTTPKit [Electric httpkit integration](https://github.com/hyperfiddle/electric-fiddle/blob/01b49391e38d2684a7cbf7f82fa58da503af5be8/src/electric_fiddle/server_httpkit.clj)
     - update your ring middlewares accordingly
+  - Note latest ring-jetty depends on Jetty 11, which requires Java 11+. If you need Java 8 compat, see
+      [electric-server-java-8-jetty-9](https://github.com/hyperfiddle/electric/blob/cc55772f18bc46373f131e092fc20055c8062b59/src-docs/electric_server_java8_jetty9.clj)
+      and [electric-jetty-adapter](https://github.com/hyperfiddle/electric/blob/cc55772f18bc46373f131e092fc20055c8062b59/src/hyperfiddle/electric_jetty_adapter.clj)
 
 # v2-alpha-536-g0c582f78 — 2024 Jan 10
 - **Incremental compilation (IC):**
   - Electric compiled the whole program at once, meaining changing a single file in a large project caused long recompilaiton times. With this release electric compiles per definition (`e/def` and `e/defn`), reducing recompilation. Note: since clojurescript compiles on file granularity electric also recompiles the whole file(s). This is a clojurescript limitation.
-  - **breaking**: shadow-cljs build hook required for dev setup. [See starter app shadow-cljs.edn.](https://github.com/hyperfiddle/electric-starter-app/blob/3936c17097ac5f794ea9b7ac8afb883423ef1083/shadow-cljs.edn#L13)
+  - **breaking**: shadow-cljs build hook required for dev setup. [See example shadow-cljs.edn.](https://github.com/hyperfiddle/electric-fiddle/blob/795c5edc29d57c9b037199cfe66996947d894d8d/shadow-cljs.edn#L12)
   - increased security. Before IC client sent server code as Intermediate Representation (IR) over websocket and server had to eval it. With IC eval is gone and server compiles its own code.
   - **breaking**: a production build requires cljs on the classpath or AOT compilation. We removed runtime server eval of electric IR (the client doesn’t send the program over the websocket), increasing security. The server now compiles electric code and it needs cljs to macroexpand client code.
   - **breaking**: client and server programs are now compiled separately and their compiled output shapes must match. Some macros expand conditionally and generate a different program on client vs server. Example: `clojure.core/*assert*`, `clojure.spec.alpha/*compile-asserts*` and cljs compile option `:elide-asserts`. Check for conditional macros or compiler options if your program works in dev mode but crashes under advanced compilation or with a different setup.
@@ -43,7 +43,7 @@
   - **breaking**: cljs file cannot contain electric definitions anymore. With IC the server compiles its own portion of the definition, i.e. it needs to see the code, so it must be cljc.
   - **breaking**: 2 entrypoints, `e/boot-client` and `e/boot-server`, that need to match. Take `opts Main & args` instead of arbitrary electric code to minimize user errors.
   - **breaking**: http adapters' `electric-ws-message-handler` take an additional argument `entrypoint` which is a function of 1 argument expecting the ring request. See starter app changes for how to update entrypoints.
-  - **breaking**: `e/*http-request*` removed, ring request passed as positional argument to entrypoint. Provided electric dynamic `e/http-request` which [examples-app](https://github.com/hyperfiddle/electric-examples-app/blob/1250334a4e662cd8f4af111219371fda52381c40/src/user_main.cljc#L277-L278) binds in entrypoint. Users can pass additional clojure arguments through the electric entrypoint.
+  - **breaking**: `e/*http-request*` removed, ring request passed as positional argument to entrypoint. Provided electric dynamic `e/http-request` which [examples](https://github.com/hyperfiddle/electric-fiddle/blob/795c5edc29d57c9b037199cfe66996947d894d8d/src-fiddles/hello_fiddle/fiddles.cljc#L15-L17) binds in entrypoint. Users can pass additional clojure arguments through the electric entrypoint.
   - **breaking**: program starts on the server due to above.
   - **breaking**: reactive stacktrace now prints on server, because the program starts on the server. Client warns about server print in console.
   - reader conditionals work if there's no transfer inside. E.g. `#?(:cljs #js {:x 1})` will compile, `#?(:cljs #js {:x server-value})` will compile but fail at runtime, `(let [x server-value] #?(:cljs #js {:x x}))` will work.
