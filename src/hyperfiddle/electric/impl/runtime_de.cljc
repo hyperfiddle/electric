@@ -3,46 +3,24 @@
             [missionary.core :as m])
   #?(:clj (:import (clojure.lang IFn IDeref))))
 
-(def ^:dynamic *tier*)
+(deftype Peer [step done defs ^objects state]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_]
+    (prn :cancel-peer)
 
-(def ^{::type ::node, :doc "for loop/recur impl"} rec)
+    )
+  IDeref
+  (#?(:clj deref :cljs -deref) [_]
+    (prn :transfer-peer)
 
-#?(:clj
-   (def arg-sym
-     (map (comp symbol
-            (partial intern *ns*)
-            (fn [i]
-              (with-meta (symbol (str "%" i))
-                {::type ::node})))
-       (range))))
-;; pre-define the first 20 for e/fn varargs expansion
-(def ^{::type ::node} %0)
-(def ^{::type ::node} %1)
-(def ^{::type ::node} %2)
-(def ^{::type ::node} %3)
-(def ^{::type ::node} %4)
-(def ^{::type ::node} %5)
-(def ^{::type ::node} %6)
-(def ^{::type ::node} %7)
-(def ^{::type ::node} %8)
-(def ^{::type ::node} %9)
-(def ^{::type ::node} %10)
-(def ^{::type ::node} %11)
-(def ^{::type ::node} %12)
-(def ^{::type ::node} %13)
-(def ^{::type ::node} %14)
-(def ^{::type ::node} %15)
-(def ^{::type ::node} %16)
-(def ^{::type ::node} %17)
-(def ^{::type ::node} %18)
-(def ^{::type ::node} %19)
+    ))
 
-(def peer-slot-input 0)
-(def peer-slot-store 1)
-(def peer-slots 2)
+(deftype Pure [values]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((apply i/fixed (map #(m/cp %) values)) step done)))
 
-(defn pure [form]
-  (i/fixed (m/cp form)))
+(defn pure [& xs] (->Pure xs))
 
 (defn error [^String msg]
   #?(:clj (Error. msg)
@@ -60,86 +38,15 @@
   (#?(:clj invoke :cljs -invoke) [_ step done]
     (step) (->Failer done (error (str "Unbound electric var lookup - " (pr-str k))))))
 
-(deftype Ctor [peer slots output free vars])
+(deftype Cdef [frees nodes calls result build])
 
-(deftype Peer [step done defs state]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_]
-    (prn :cancel-peer)
+(def cdef ->Cdef)
 
-    )
-  IDeref
-  (#?(:clj deref :cljs -deref) [_]
-    (prn :transfer-peer)
+(deftype Ctor [^Peer peer key idx ^objects free env])
 
-    ))
-
-(defn bind [^Ctor ctor peer k v]
-  (when-not (identical? peer (.-peer ctor))
-    (throw (error "Can't bind foreign constructor.")))
-  (->Ctor peer (.-slots ctor) (.-output ctor) (.-free ctor)
-    (assoc (.-vars ctor) k v)))
-
-(defrecord Var [peer k]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_ ctor v]
-    (bind ctor peer k v)))
-
-(declare tier-ctor)
-(declare ctor-peer)
-
-(deftype StoredPs [k ps]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_]
-    (let [peer (.-state (ctor-peer (tier-ctor (:tier k))))]
-      (aset peer peer-slot-store
-        (dissoc (aget peer peer-slot-store) k)))
-    (ps))
-  IDeref
-  (#?(:clj deref :cljs -deref) [_] @ps))
-
-(defn get-flow [tier id]
-  ((.-defs (ctor-peer (tier-ctor tier))) tier id))
-
-(defrecord Node [tier id]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [node step done]
-    ((let [^objects peer (.-state (ctor-peer (tier-ctor tier)))
-           store (aget peer peer-slot-store)]
-       (if-some [s (get store node)]
-         s (let [n (get-flow tier id)
-                 s (m/signal i/combine (fn [step done] (->StoredPs node (n step done))))]
-             (aset peer peer-slot-store (assoc store node s)) s)))
-     step done)))
-
-(deftype Tier [parent slot-id ^Ctor ctor]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [tier step done]
-    ((->Node tier (.-output ctor)) step done)))
-
-(defrecord Slot [tier id]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [slot step done]
-    ((let [^Ctor ctor (tier-ctor tier)
-           ^Peer peer (ctor-peer ctor)
-           ^objects state (.-state peer)
-           store (aget state peer-slot-store)]
-       (if-some [s (get store slot)]
-         s (let [n (i/latest-product
-                     (fn [ctor]
-                       (when-not (instance? Ctor ctor)
-                         (throw (error (str "Not a constructor - " (pr-str ctor)))))
-                       (when-not (identical? peer (ctor-peer ctor))
-                         (throw (error "Can't call foreign constructor.")))
-                       (->Tier tier id ctor))
-                     (get-flow tier (nth (.-slots ctor) id)))
-                 s (m/signal i/combine (fn [step done] (->StoredPs slot (n step done))))]
-             (aset state peer-slot-store (assoc store slot s)) s)))
-     step done)))
-
-(defn context-input-notify [^Peer peer done?]
-  ;; TODO
-  )
+(defn bind [^Ctor ctor k v]
+  (->Ctor (.-peer ctor) (.-key ctor) (.-idx ctor) (.-free ctor)
+    (assoc (.-env ctor) k v)))
 
 (defn ctor-peer
   "Returns the peer of given constructor."
@@ -147,87 +54,147 @@
   [^Ctor ctor]
   (.-peer ctor))
 
-(defn tier-parent
-  "Returns the parent tier of given tier if not root, nil otherwise."
-  {:tag Tier}
-  [^Tier tier]
-  (.-parent tier))
+(defn ctor-cdef
+  "Returns the cdef of given constructor."
+  {:tag Cdef}
+  [^Ctor ctor]
+  (((.-defs (ctor-peer ctor)) (.-key ctor)) (.-idx ctor)))
 
-(defn tier-slot-id
-  "Returns the index of the slot of given tier within its parent."
-  [^Tier tier]
-  (.-slot-id tier))
+;; TODO local?
+(deftype Frame [parent call-id ^Ctor ctor ^objects signals]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    (let [cdef (ctor-cdef ctor)]
+      ((aget signals
+         (+ (count (.-nodes cdef))
+           (count (.-calls cdef))))
+       step done))))
 
-(defn tier-slot
-  "Returns the slot for given tier and id."
-  {:tag Slot}
-  [^Tier tier id]
-  (->Slot tier id))
-
-(defn tier-slot-count
-  "Returns the count of children of given tier."
-  [^Tier tier]
-  (count (.-slots (tier-ctor tier))))
-
-(defn tier-output
-  "Returns the output of given tier."
-  {:tag Node}
-  [^Tier tier]
-  (->Node tier (.-output (tier-ctor tier))))
-
-(defn tier-ctor
-  "Returns the constructor of given tier."
+(defn frame-ctor
+  "Returns the constructor of given frame."
   {:tag Ctor}
-  [^Tier tier]
-  (.-ctor tier))
+  [^Frame frame]
+  (.-ctor frame))
 
-(defn tier-peer
-  "Returns the peer of given tier."
-  {:tag Peer}
-  [tier]
-  (ctor-peer (tier-ctor tier)))
+(deftype Node [frame id]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((aget (.-signals frame)
+       (bit-shift-left id 1))
+     step done)))
 
-(defn tier-lookup
-  "Returns the value associated with given key in the dynamic environment of given tier."
-  [tier k]
-  (loop [tier tier]
-    (if-some [s (get (.-vars (tier-ctor tier)) k)]
-      s (if-some [p (tier-parent tier)]
-          (recur p) (->Unbound k)))))
+(deftype Call [frame id]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    (let [cdef (ctor-cdef (frame-ctor frame))]
+      ((aget (.-signals frame)
+         (+ (count (.-nodes cdef)) id))
+       step done))))
 
-(defn peer-ctor "
-Returns a constructor for given peer, with slots defined by given vector of ids, output defined by given id, and
-given array of free variables.
-" [peer slots output free]
-  (->Ctor peer slots output free {}))
+(defn make-frame [^Frame frame call-id ctor]
+  (let [cdef (ctor-cdef ctor)
+        length (+ (count (.-nodes cdef))
+                 (count (.-calls cdef)))
+        signals (object-array (inc length))
+        frame (->Frame frame call-id ctor signals)]
+    (aset signals length ((.-build cdef) frame)) frame))
 
-(defn tier-local
-  "Returns the incremental sequence signal defined by given id in given tier."
-  [tier id]
-  (->Node tier id))
+(defn define-node
+  "Defines signals node id for given frame."
+  [^Frame frame id incseq]
+  (let [signals (.-signals frame)]
+    (when-not (nil? (aget signals id))
+      (throw (error "Can't redefine signal node.")))
+    (aset signals id (m/signal i/combine incseq)) nil))
 
-(defn tier-remote [tier id]
+(defn define-call
+  "Defines call site id for given frame."
+  [^Frame frame id incseq]
+  (let [signals (.-signals frame)
+        slot (-> (.-nodes (ctor-cdef (frame-ctor frame)))
+               (count) (+ id))]
+    (when-not (nil? (aget signals slot))
+      (throw (error "Can't redefine call site.")))
+    (aset signals slot
+      (m/signal i/combine
+        (i/latest-product
+          (fn [ctor]
+            (when-not (instance? Ctor ctor)
+              (throw (error (str "Not a constructor - " (pr-str ctor)))))
+            (when-not (identical? (ctor-peer (frame-ctor frame)) (ctor-peer ctor))
+              (throw (error "Can't call foreign constructor.")))
+            (make-frame frame id ctor)) incseq))) nil))
+
+(defn define-free
+  "Defines free variable id for given constructor."
+  [^Ctor ctor id incseq]
+  (let [free (.-free ctor)]
+    (when-not (nil? (aget free id))
+      (throw (error "Can't redefine free variable.")))
+    (aset free id incseq) nil))
+
+(defn frame-parent
+  "Returns the parent frame of given frame if not root, nil otherwise."
+  {:tag Frame}
+  [^Frame frame]
+  (.-parent frame))
+
+(defn frame-call-id
+  "Returns the call id of given frame."
+  [^Frame frame]
+  (.-call-id frame))
+
+(defn frame-call-count
+  "Returns the call count of given frame."
+  [^Frame frame]
+  (.-calls (ctor-cdef (frame-ctor frame))))
+
+(defn lookup
+  "Returns the value associated with given key in the dynamic environment of given frame."
+  ([^Frame frame key]
+   (lookup frame key (->Unbound key)))
+  ([^Frame frame key nf]
+   (loop [frame frame]
+     (if-some [s ((.-env (frame-ctor frame)) key)]
+       s (if-some [p (frame-parent frame)]
+           (recur p) nf)))))
+
+(defn make-ctor
+  "Returns a fresh constructor for cdef coordinates key and idx."
+  [^Frame frame key idx]
+  (let [^Peer peer (ctor-peer (frame-ctor frame))
+        ^Cdef cdef (((.-defs peer) key) idx)]
+    (->Ctor peer key idx (object-array (.-frees cdef)) {})))
+
+(defn node
+  "Returns the signal node id for given frame."
+  [^Frame frame id]
+  (->Node frame id))
+
+(defn free
+  "Returns the free variable id for given frame."
+  [^Frame frame id]
+  (aget (.-free (frame-ctor frame)) id))
+
+(defn call
+  "Returns the call site id for given frame."
+  [^Frame frame id]
+  (->Call frame id))
+
+(def join i/latest-concat)
+(def ap (partial i/latest-product (fn [f & args] (apply f args))))
+
+(def peer-slot-input 0)
+(def peer-slot-store 1)
+(def peer-slots 2)
+
+(defn context-input-notify [^Peer peer done?]
   ;; TODO
   )
 
-(defn peer-var
-  "Returns the var associated with given key in given peer."
-  [^Peer peer k]
-  (->Var peer k))
-
-(defn ctor-free
-  "Returns the i-th free variable of given constructor."
-  [^Ctor ctor i]
-  (aget ^objects (.-free ctor) i))
-
-(defn tier-slot
-  "Returns the i-th slot of given tier."
-  [^Tier tier i]
-  (->Slot tier i))
-
 (defn peer "
-Returns a peer definition from given node definitions and root constructor.
-" [defs slots output]
+Returns a peer definition from given definitions and main key.
+" [defs main & args]
   (fn [msgs]
     (fn [step done]
       (let [state (object-array peer-slots)
@@ -238,10 +205,67 @@ Returns a peer definition from given node definitions and root constructor.
            #(context-input-notify peer false)
            #(context-input-notify peer true)))
 
-        ((m/reduce (fn [_ x] (prn :output x)) nil
-           (->Tier nil 0
-             (->Ctor peer slots output
-               (object-array 0) {})))
+        ((->> args
+           (into {} (map-indexed (fn [i arg] [i (pure arg)])))
+           (->Ctor peer main 0 (object-array 0))
+           (make-frame nil 0)
+           (m/reduce (fn [_ x] (prn :output x)) nil))
          #(prn :success %) #(prn :failure %))
 
         peer))))
+
+(comment
+  (defn r! [defs main & args]
+    (((apply peer defs main args)
+      (fn [!] (prn :boot) #()))
+     #(prn :s %)
+     #(prn :f %)))
+
+  ;; pure
+  (r! {::Main [(cdef 0 [] [] nil (fn [frame] (pure "hello world")))]} ::Main)
+
+  ;; variable
+  (def !x (atom 0))
+  (r! {::Main [(cdef 0 [] [] nil (fn [frame] (join (pure (i/fixed (m/watch !x))))))]} ::Main)
+  (swap! !x inc)
+
+  ;; conditional
+  (def !x (atom false))
+  (r! {::Main [(cdef 0 [] [nil] nil
+                 (fn [frame]
+                   (define-call frame 0
+                     (ap (pure {false (make-ctor frame ::Main 1)
+                                true  (make-ctor frame ::Main 2)})
+                       (i/fixed (m/watch !x))))
+                   (join (call frame 0))))
+               (cdef 0 [] [] nil
+                 (fn [frame]
+                   (pure "foo")))
+               (cdef 0 [] [] nil
+                 (fn [frame]
+                   (pure "bar")))]}
+    ::Main)
+  (swap! !x not)
+
+  ;; amb
+  (def !x (atom "bar"))
+  (r! {::Main [(cdef 0 [] [nil] nil
+                 (fn [frame]
+                   (define-call frame 0
+                     (pure
+                       (make-ctor frame ::Main 1)
+                       (make-ctor frame ::Main 2)
+                       (make-ctor frame ::Main 3)))
+                   (join (call frame 0))))
+               (cdef 0 [] [] nil
+                 (fn [frame]
+                   (pure "foo")))
+               (cdef 0 [] [] nil
+                 (fn [frame]
+                   (i/fixed (m/watch !x))))
+               (cdef 0 [] [] nil
+                 (fn [frame]
+                   (pure "baz")))]} ::Main)
+  (reset! !x "bar")
+
+  )
