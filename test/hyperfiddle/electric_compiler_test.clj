@@ -2,10 +2,11 @@
   (:require [hyperfiddle.electic :as-alias e]
             [hyperfiddle.incseq :as i]
             [hyperfiddle.rcf :as rcf :refer [tests]]
-            [hyperfiddle.electric.impl.lang-de :as lang]
+            [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.electric-local-def-de :as l]
-            [hyperfiddle.incseq :as i]
+            [contrib.test-match :refer [test-match]]
+            [fipp.edn]
             [missionary.core :as m]))
 
 ;; tests that turn electric code into clojure code
@@ -22,8 +23,63 @@
     (try (apply f args)
          (catch Throwable e (find-source-map-info path))))
 
-;; TODO rewrite or remove
+(defmacro match [code matcher]
+  `(let [ret# ~code, match# (test-match ret# ~matcher)]
+     ret# := match#
+     (when (not= ret# match#) (fipp.edn/pprint match#))))
+
 (tests
+  (match (l/compile ::Main 1)
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure 1)))])
+
+  (match (l/compile ::Main (::lang/site :client "Hello world"))
+    `[(r/cdef 0 [] [] :client
+        (fn [~'frame]
+          (r/pure "Hello world")))])
+
+  (match (l/compile ::Main (::lang/site :client (prn "Hello world")))
+    `[(r/cdef 0 [] [] :client
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn)) (r/pure "Hello world"))))])
+
+  (match (l/compile ::Main (::lang/site :client (let [a :foo] [a a])))
+    `[(r/cdef 0 [:client] [] :client
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure :foo))
+          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
+            (r/node ~'frame 0) (r/node ~'frame 0))))])
+
+  (match (l/compile ::Main (let [a :foo] [a a]))
+    `[(r/cdef 0 [nil] [] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure :foo))
+          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
+            (r/node ~'frame 0) (r/node ~'frame 0))))])
+
+  (match (l/compile ::Main (let [a (let [b :foo] [b b])] [a a]))
+    `[(r/cdef 0 [nil nil] [] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
+                                     (r/node ~'frame 1) (r/node ~'frame 1)))
+          (r/define-node ~'frame 1 (r/pure :foo))
+          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
+            (r/node ~'frame 0) (r/node ~'frame 0))))])
+
+  (match (l/compile ::Main (let [a 1] a))
+    `[(r/cdef 0 [] [] nil (fn [~'frame] (r/pure 1)))])
+
+  (match (l/compile ::Main (::lang/site :client (let [a 1] (::lang/site :server (prn a)))))
+    `[(r/cdef 0 [:client] [] :server
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure 1))
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
+            (r/node ~'frame 0))))])
+  )
+
+;; TODO rewrite or remove
+(comment
   (l/compile-client 1) :=  `(r/peer (lang/r-defs (lang/r-static 1)) [] 0)
   (l/compile-server 1) :=  `(r/peer (lang/r-defs (lang/r-static 1)) [] 0)
 
@@ -272,7 +328,7 @@
   ;;       [] 1)
   )
 
-(tests
+(comment             ; TODO rewrite for new iteration
   ;; (<source-map-of-ap> <nil-for-prn> <nil-for-hello-world>)
   ;; source-map => ::line ::column
   (number? (-> (l/compile-client-source-map (prn "hello world")) first ::lang/line)) := true
