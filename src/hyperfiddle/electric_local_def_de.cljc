@@ -1,9 +1,9 @@
 (ns hyperfiddle.electric-local-def-de
-  (:refer-clojure :exclude [def defn])
+  (:refer-clojure :exclude [def defn compile])
   #?(:cljs (:require-macros hyperfiddle.electric-local-def-de))
   (:require [clojure.core :as cc]
             [contrib.cljs-target]
-            [hyperfiddle.electric.impl.lang-de :as lang]))
+            #?(:clj [hyperfiddle.electric.impl.lang-de2 :as lang])))
 
 (cc/defn ->local-config [env]
   (let [p (if (:js-globals env) :cljs :clj)] {::lang/peers {:client p, :server p}, ::lang/current :server}))
@@ -24,3 +24,8 @@
 (defmacro compile-server [form]
   (let [env (merge &env (->local-config &env) {::lang/me :server})]
     `(:source (lang/compile '~form ~env))))
+
+(cc/defn ->electric-env [env]
+  (if (:js-globals env) env {:locals env :ns (ns-name *ns*)}))
+
+(defmacro compile [nm form] `(lang/compile ~nm '~form '~(merge (->local-config &env) (->electric-env &env))))

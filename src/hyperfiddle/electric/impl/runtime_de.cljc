@@ -269,3 +269,14 @@ Returns a peer definition from given definitions and main key.
   (reset! !x "bar")
 
   )
+
+(def ^{::type ::node, :doc "for loop/recur impl"} rec)
+
+#?(:clj
+   (def arg-sym
+     (map (comp symbol
+            (partial intern *ns*)
+            (fn [i]
+              (with-meta (symbol (str "%" i))
+                {::type ::node})))
+       (range))))
