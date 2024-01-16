@@ -191,7 +191,8 @@
 (def frame-slot-last-source (int 15))
 (def frame-slot-last-target (int 16))
 (def frame-slot-last-input (int 17))
-(def frame-slots          (int 18))
+(def frame-slot-last-output (int 18))
+(def frame-slots          (int 19))
 
 (def input-slot-frame      (int 0))                         ;; parent frame
 (def input-slot-notifier   (int 1))                         ;; consumer notifier
@@ -316,7 +317,8 @@
                 (aset frame-slot-last-constant -1)
                 (aset frame-slot-last-source -1)
                 (aset frame-slot-last-target -1)
-                (aset frame-slot-last-input -1))]
+                (aset frame-slot-last-input -1)
+                (aset frame-slot-last-output -1))]
     (dotimes [i tier-count] (make-tier frame i))
     (aset buffer (int position) frame)
     (aswap context context-slot-frame-store assoc! id frame)
@@ -362,8 +364,9 @@
          (output-dirty output)))))
   input)
 
-(defn make-output [id <x]
-  (let [output (object-array output-slots)]
+(defn make-output [frame <x]
+  (let [output (object-array output-slots)
+        id (aswap frame frame-slot-last-output inc)]
     (aset output output-slot-id id)
     (aset output output-slot-done false)
     (aset output output-slot-prev output)
@@ -1056,15 +1059,14 @@
                                     (update-current ctors conj `(input-spawn ~frame ~deps))))))))
              ::ir/output (-> env
                            (walk off idx dyn (::ir/init inst))
-                           (snapshot :output)
                            (update :output inc)
-                           (update :stack collapse 2
-                             (fn [form slot]
+                           (update :stack collapse 1
+                             (fn [form]
                                (fn [ctors env]
                                  (-> ctors
                                    (form env)
                                    (update-current from-last-expr
-                                     (fn [x] `(make-output ~slot (check-failure '~(select-debug-info inst) ~x)))))))))
+                                     (fn [x] `(make-output ~frame (check-failure '~(select-debug-info inst) ~x)))))))))
              ::ir/variable (-> env
                              (walk off idx dyn (::ir/init inst))
                              (update :variable inc)
