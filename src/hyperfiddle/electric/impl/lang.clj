@@ -723,6 +723,7 @@
                     sym (signifier->node name-sym env)
                     fullsym (symbol (str *ns*) (str sym))
                     _ (when (::print-defs (meta name-sym)) (prn 'defining fullsym))
-                    ir (analyze (assoc env ::sym sym) init)
+                    env (assoc env ::sym sym)
+                    ir (analyze env init)
                     info (r/compile name-sym ir env)]
                 (list `def (as-node sym) (assoc info :var-name (list 'quote fullsym)))))))))
