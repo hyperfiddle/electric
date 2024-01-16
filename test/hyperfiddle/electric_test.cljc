@@ -2165,3 +2165,10 @@
 (tests "binding in interop fn"
   (with ((l/local (tap ((fn [] (binding [*out* nil] 1))))) tap tap)
     % := 1))
+
+(tests "output slot regression"
+  (l/def xxx (e/server :x))
+  (l/def yyy (e/server :y))
+  (with ((l/local (e/client (try (tap xxx) (tap yyy) (catch Pending _)))) tap tap)
+    % := :x
+    % := :y))
