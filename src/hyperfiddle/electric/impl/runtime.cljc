@@ -1168,7 +1168,7 @@
                        (list `let (into [] (comp (map-indexed (fn [i ctor] [(ctor-at i) ctor])) cat) (pop ctors))
                          (emit-exprs (peek ctors))))]
             (when (::lang/pprint-source e)
-              (println "---" prefix "SOURCE ---")
+              (println "---" (::lang/sym e) "SOURCE ---")
               (pp/pprint code))
             {:fn code, :dynamic `'~dynamic, :nvariable nvariable :nsource nsource, :get-used-nodes `(fn [] ~nodes)
              :nconstant nconstant, :ntarget ntarget, :noutput noutput, :ninput ninput})))
