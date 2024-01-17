@@ -746,7 +746,7 @@ combined with given function.
                        (if (== arity item)
                          (do (aset state slot-push nil)
                              (if (zero? (aget state slot-live))
-                               (do (prn :a) (aget state slot-terminator)) nop))
+                               (aget state slot-terminator) nop))
                          (do (aset ready i arity)
                              (recur item (rem (unchecked-inc-int i) arity))))))))
                 (let [x (aget state slot-value)]
