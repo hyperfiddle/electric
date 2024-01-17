@@ -746,7 +746,7 @@ combined with given function.
                        (if (== arity item)
                          (do (aset state slot-push nil)
                              (if (zero? (aget state slot-live))
-                               (aget state slot-terminator) nop))
+                               (do (prn :a) (aget state slot-terminator)) nop))
                          (do (aset ready i arity)
                              (recur item (rem (unchecked-inc-int i) arity))))))))
                 (let [x (aget state slot-value)]
@@ -755,7 +755,7 @@ combined with given function.
             (terminated [^objects state]
               ((locking state
                  (if (zero? (aset state slot-live (dec (aget state slot-live))))
-                   (if (zero? (aget state slot-push)) (aget state slot-terminator) nop) nop))))
+                   (if (nil? (aget state slot-push)) (aget state slot-terminator) nop) nop))))
             (input-ready [^objects state item]
               ((locking state
                  (let [^objects processes (aget state slot-processes)
@@ -1547,6 +1547,18 @@ optional `compare` function, `clojure.core/compare` by default.
       (q {:grow 1 :degree 1 :shrink 0 :permutation {} :change {0 :a} :freeze #{}})
       (q {:grow 1 :degree 1 :shrink 0 :permutation {} :change {0 :b} :freeze #{}})
       @ps := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 [:a :b]}, :freeze #{}})
+
+    (let [q (queue)
+          ps ((latest-product vector
+                (fn [n t] (n) (->Ps q #(% :cancel) #(do (t) (%))))
+                (fn [n t] (n) (->Ps q #(% :cancel) #(do (t) (%)))))
+              #(q :step) #(q :done))]
+      (q) := :step
+      (q {:grow 1 :degree 1 :shrink 0 :permutation {} :change {0 :a} :freeze #{}})
+      (q {:grow 1 :degree 1 :shrink 0 :permutation {} :change {0 :b} :freeze #{}})
+      @ps := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 [:a :b]}, :freeze #{}}
+      (q) := :done
+      (q) :throws #?(:clj java.util.NoSuchElementException :cljs js/Error))
 
     (let [q (queue)
           ps ((latest-product vector
