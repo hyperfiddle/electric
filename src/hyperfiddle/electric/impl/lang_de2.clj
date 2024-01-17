@@ -481,7 +481,8 @@
                            ::var ts
                            ::let-ref (recur (if-some [used (::used (get (:eav ts) (::ref nd)))]
                                               (if (or (> (count used) 1)
-                                                    (not= (get-site ts e) (get-site ts (::ref nd))))
+                                                    (not= (get-site ts e)
+                                                      (get-site ts (find-return-node-e ts (first (get-children-e ts (::ref nd)))))))
                                                 (ts/upd ts (::ref nd) ::refidx #(or % (->ref-id)))
                                                 ts)
                                               ts)
@@ -505,7 +506,6 @@
                            nodes))
          ]
      ;; (run! prn (->> ts :eav vals (sort-by :db/id)))
-     (let [e (find-return-node-e ts (get-root-e ts))]
-       `[(r/cdef 0 ~(mapv #(get-site ts (second %)) nodes) [] ~(get-site ts e)
-           (fn [~'frame] ~@(gen-node-init ts) ~(gen ts e)))])
+     `[(r/cdef 0 ~(mapv #(get-site ts (find-return-node-e ts (first (get-children-e ts (second %))))) nodes) [] ~(get-site ts ret-e)
+         (fn [~'frame] ~@(gen-node-init ts) ~(gen ts ret-e)))]
      )))

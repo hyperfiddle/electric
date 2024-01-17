@@ -76,6 +76,19 @@
           (r/define-node ~'frame 0 (r/pure 1))
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/node ~'frame 0))))])
+
+  (match (l/compile ::Main (::lang/site :client (let [x "Hello", y "world"] [x y])))
+    `[(r/cdef 0 [] [] :client
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+            (r/pure "Hello") (r/pure "world"))))])
+
+  (match (l/compile ::Main (::lang/site :client (let [a (::lang/site :server :foo)] (::lang/site :server (prn a)))))
+    `[(r/cdef 0 [] [] :server
+        (clojure.core/fn [~'frame]
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
+            (r/pure :foo))))])
+
   )
 
 ;; TODO rewrite or remove
@@ -380,50 +393,6 @@
 ;; * a vector of call sites
 ;; * the result site
 (comment
-  (l/compile ::Main 1)
-  := `[(r/cdef 0 [] [] nil
-         (fn [frame]
-           (r/pure 1)))]
-
-  (l/compile ::Main `(e/client "Hello world")) :=
-  `[(r/cdef 0 [] [] :client
-      (fn [frame]
-        (r/pure "Hello world")))]
-
-  ;; function application
-  (l/compile ::Main (e/client (prn "Hello world")))
-  := `[(r/cdef 0 [] [] :client
-         (fn [frame]
-           (r/ap (r/lookup frame :clojure.core/prn (r/pure prn)) (r/pure "hello world"))))]
-
-  ;; lexical scope
-  (l/compile ::Main (e/client (let [a :foo] [a a])))
-  := `[(r/cdef 0 [:client] [] :client
-         (fn [frame]
-           (r/define-node frame 0 (r/pure :foo))
-           (r/ap (r/lookup frame :clojure.core/vector (r/pure vector))
-             (r/node frame 0) (r/node frame 0))))]
-
-  ;; lexical scope
-  (l/compile ::Main `(e/client
-                       (let [x "Hello"
-                             y "world"]
-                         [x y])))
-  := `[(r/cdef 0 [:client :client] [] :client
-         (fn [frame]
-           (r/define-node frame 0 (r/pure "Hello"))
-           (r/define-node frame 1 (r/pure "world"))
-           (r/ap (r/lookup frame :clojure.core/vector (r/pure vector))
-             (r/node frame 0) (r/node frame 1))))]
-
-  (l/compile ::Main `(e/client
-                       (let [a (e/server :foo)]
-                         (e/server (prn a)))))
-  := `[(r/cdef 0 [:server] [] :server
-         (fn [frame]
-           (r/define-node frame 0 (r/pure :foo))
-           (r/ap (r/lookup frame :clojure.core/prn (r/pure prn))
-             (r/node frame 0))))]
 
   ;; (def !x (atom 0))
   ;; join (e/watch !x)
