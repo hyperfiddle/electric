@@ -1,16 +1,19 @@
 (ns hyperfiddle.electric-local-def-de
-  (:refer-clojure :exclude [def defn compile])
+  (:refer-clojure :exclude [compile])
   #?(:cljs (:require-macros hyperfiddle.electric-local-def-de))
   (:require [clojure.core :as cc]
             [contrib.cljs-target]
-            #?(:clj [hyperfiddle.electric.impl.lang-de2 :as lang])))
+            #?(:clj [hyperfiddle.electric.impl.lang-de2 :as lang]
+               :cljs [hyperfiddle.electric.impl.lang-de2 :as-alias lang])))
 
-(cc/defn ->local-config [env]
+(defn ->local-config [env]
   (let [p (if (:js-globals env) :cljs :clj)] {::lang/peers {:client p, :server p}, ::lang/current :server}))
 
-(cc/defn ->single-peer-config [env]
+(defn ->single-peer-config [env]
   (let [p (if (and (:js-globals env) (contrib.cljs-target/do-nodejs true)) :client :server)]
     {::lang/peers {p (if (:js-globals env) :cljs :clj)}, ::lang/current p, ::lang/me p}))
+
+(def web-config {::lang/peers {:client :cljs, :server :clj}, ::lang/current :server})
 
 (defmacro compile-client [form]
   (let [env (merge &env (->local-config &env) {::lang/me :client, :ns (list 'quote (ns-name *ns*))})]
@@ -25,7 +28,4 @@
   (let [env (merge &env (->local-config &env) {::lang/me :server})]
     `(:source (lang/compile '~form ~env))))
 
-(cc/defn ->electric-env [env]
-  (if (:js-globals env) env {:locals env :ns (ns-name *ns*)}))
-
-(defmacro compile [nm form] `(lang/compile ~nm '~form '~(merge (->local-config &env) (->electric-env &env))))
+(defmacro compile [nm form] `(lang/compile ~nm '~form '~(merge web-config (lang/normalize-env &env))))

@@ -10,7 +10,6 @@
             [dom-top.core :refer [loopr]]
             [hyperfiddle.electric :as-alias e]
             [hyperfiddle.electric.impl.analyzer :as ana]
-            [hyperfiddle.electric.impl.expand :as expand]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.rcf :as rcf :refer [tests]]))
 
@@ -23,6 +22,74 @@
 (defn cljs-env? [env] (and (contains? env :locals) (not (electric-env? env))))
 (defn normalize-env [env] (if (clj-env? env) {:locals env, :ns {:name (ns-name *ns*)}} env))
 (defn get-ns [env] (-> env :ns :name))
+
+(defn serialized-require [sym]
+  ;; we might be expanding clj code before the ns got loaded (during cljs compilation)
+  ;; to correctly lookup vars the ns needs to be loaded
+  ;; since shadow-cljs compiles in parallel we need to serialize the requires
+  (when-not (get (loaded-libs) sym)
+    (try (#'clojure.core/serialized-require sym) ; try bc it can be cljs file
+         (catch java.io.FileNotFoundException _))))
+
+;; the ns cache relies on external eviction in shadow-cljs reload hook
+(def !cljs-ns-cache (atom {}))
+
+(defn enrich-for-require-macros-lookup [cljs-env nssym]
+  (if-some [ast (get @!cljs-ns-cache nssym)]
+    (assoc cljs-env :ns ast)
+    (if-some [src (contrib.debug/dbg (cljs-ana/locate-src nssym))]
+      (let [ast (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
+                        (binding [cljs-ana/*passes* []]
+                          (cljs-ana/parse-ns src {:load-macros true, :restore false}))))]
+        ;; we parsed the ns form without `ns-side-effects` because it triggers weird bugs
+        ;; this means the macro nss from `:require-macros` might not be loaded
+        (run! serialized-require (-> ast :require-macros vals set))
+        (swap! !cljs-ns-cache assoc nssym ast)
+        (assoc cljs-env :ns ast))
+      cljs-env)))
+
+(tests "enrich of clj source file is noop"
+  (cljs.env/ensure (enrich-for-require-macros-lookup {:a 1} 'clojure.core)) := {:a 1})
+
+(let [-base-cljs-env {:context :statement
+                      :locals {}
+                      :fn-scope []
+                      :js-globals (into {}
+                                    (map #(vector % {:op :js-var :name % :ns 'js})
+                                      '(alert window document console escape unescape
+                                         screen location navigator history location
+                                         global process require module exports)))}]
+  (defn ->cljs-env
+    ([] (->cljs-env (ns-name *ns*)))
+    ([nssym] (cond-> -base-cljs-env nssym (assoc :ns {:name nssym})))))
+
+(def !default-cljs-compiler-env
+  (delay
+    (cljs.env/ensure
+      (cljs-ana/analyze-file "cljs/core.cljs") ; needed in general, to resolve cljs.core vars
+      cljs.env/*compiler*)))
+
+;; adapted from cljs.env
+(defmacro ensure-cljs-compiler
+  [& body]
+  `(let [val# cljs.env/*compiler*]
+     (if (nil? val#)
+       (push-thread-bindings
+         (hash-map (var cljs.env/*compiler*) @!default-cljs-compiler-env)))
+     (try
+       ~@body
+       (finally
+         (if (nil? val#)
+           (pop-thread-bindings))))))
+
+(defn ensure-cljs-env [env]
+  (if (::cljs-env env)
+    env
+    (assoc env ::cljs-env
+      (if (contains? env :js-globals)
+        env
+        (let [nssym (get-ns env)]
+          (cond-> (->cljs-env nssym) nssym (enrich-for-require-macros-lookup nssym)))))))
 
 ;;;;;;;;;;;;;;;;
 ;;; EXPANDER ;;;
@@ -51,13 +118,13 @@
           (recur env (ca/check qualified-symbol? (:name resolved) {:sym sym, :resolved resolved}))
           resolved)))))
 
-(defn serialized-require [sym]
-  ;; we might be expanding clj code before the ns got loaded (during cljs compilation)
-  ;; to correctly lookup vars the ns needs to be loaded
-  ;; since shadow-cljs compiles in parallel we need to serialize the requires
-  (when-not (get (loaded-libs) sym)
-    (try (#'clojure.core/serialized-require sym) ; try bc it can be cljs file
-         (catch java.io.FileNotFoundException _))))
+(comment
+  (cljs.env/ensure (cljs-ana/resolve-var (cljs-ana/empty-env) 'prn nil nil))
+  (->cljs-env)
+  (cljs-ana/empty-env)
+  (require '[hyperfiddle.electric.impl.expand :as expand])
+  (cljs.env/ensure (resolve-cljs (cljs-ana/empty-env) 'prn))
+  )
 
 (defn macroexpand-clj [o] (serialized-require (ns-name *ns*)) (macroexpand-1 o))
 
@@ -203,61 +270,6 @@
 ;; if ::current = :clj expand with clj environment
 ;; if ::current = :cljs expand with cljs environment
 
-;; the ns cache relies on external eviction in shadow-cljs reload hook
-(def !cljs-ns-cache (atom {}))
-
-(defn enrich-for-require-macros-lookup [cljs-env nssym]
-  (if-some [ast (get @!cljs-ns-cache nssym)]
-    (assoc cljs-env ::ns ast)
-    (if-some [src (cljs-ana/locate-src nssym)]
-      (let [ast (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
-                        (binding [cljs-ana/*passes* []]
-                          (cljs-ana/parse-ns src {:load-macros true, :restore false}))))]
-        ;; we parsed the ns form without `ns-side-effects` because it triggers weird bugs
-        ;; this means the macro nss from `:require-macros` might not be loaded
-        (run! serialized-require (-> ast :require-macros vals set))
-        (swap! !cljs-ns-cache assoc nssym ast)
-        (assoc cljs-env ::ns ast))
-      cljs-env)))
-
-(tests "enrich of clj source file is noop"
-  (cljs.env/ensure (enrich-for-require-macros-lookup {:a 1} 'clojure.core)) := {:a 1})
-
-(let [-base-cljs-env {:context :statement
-                      :locals {}
-                      :fn-scope []
-                      :js-globals (into {}
-                                    (map #(vector % {:op :js-var :name % :ns 'js})
-                                      '(alert window document console escape unescape
-                                         screen location navigator history location
-                                         global process require module exports)))}]
-  (defn ->cljs-env
-    ([] (->cljs-env (ns-name *ns*)))
-    ([nssym] (cond-> -base-cljs-env nssym (assoc :ns {:name nssym})))))
-
-(def !default-cljs-compiler-env (delay (cljs.env/default-compiler-env)))
-
-;; adapted from cljs.env
-(defmacro ensure-cljs-compiler
-  [& body]
-  `(let [val# cljs.env/*compiler*]
-     (if (nil? val#)
-       (push-thread-bindings
-         (hash-map (var cljs.env/*compiler*) @!default-cljs-compiler-env)))
-     (try
-       ~@body
-       (finally
-         (if (nil? val#)
-           (pop-thread-bindings))))))
-
-(defn ensure-cljs-env [env]
-  (if (::cljs-env env)
-    env
-    (assoc env ::cljs-env
-      (if (contains? env :js-globals)
-        env
-        (let [nssym (get-ns env)]
-          (cond-> (->cljs-env nssym) nssym (enrich-for-require-macros-lookup nssym)))))))
 
 (defn expand-all [env o] (ensure-cljs-compiler (-expand-all o (ensure-cljs-env env))))
 
@@ -478,7 +490,7 @@
                      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
                        (?add-source-map e form)))
                    (cannot-resolve! env form)))
-          :cljs (expand/resolve-cljs env form)
+          :cljs (resolve-cljs (::cljs-env env) form)
           #_else (throw (ex-info (str "unknown site: " (get (::peers env) (::current env))) {:env env})))))
 
     :else
@@ -498,65 +510,66 @@
 
 (defn compile
   ([nm form env]
-   (let [{{::keys [env ->id]} :o :as ts} (analyze (expand-all env form) '_ (ts/->ts {::->id (->->id), ::env env}))
-         get-ret-e (fn [ts e]
-                              (let [nd (get (:eav ts) e)]
-                                (case (::type nd)
-                                  ::let (recur ts (->let-body-e ts e))
-                                  ::site (recur ts (get-child-e ts e))
-                                  #_else e)))
-         ret-e (get-ret-e ts (get-root-e ts))
-         ->ref-id (->->id)
-         count-nodes (fn count-nodes [ts e]
+   (ensure-cljs-compiler
+     (let [{{::keys [env ->id]} :o :as ts} (analyze (expand-all env form) '_ (ts/->ts {::->id (->->id), ::env (ensure-cljs-env env)}))
+           get-ret-e (fn [ts e]
                        (let [nd (get (:eav ts) e)]
                          (case (::type nd)
-                           ::static ts
-                           ::ap (reduce count-nodes ts (get-children-e ts e))
+                           ::let (recur ts (->let-body-e ts e))
                            ::site (recur ts (get-child-e ts e))
-                           ::var ts
-                           ::join ts
-                           ::let-ref
-                           (let [used (::used (get (:eav ts) (::ref nd)))]
-                             (cond-> (ts/upd ts (::ref nd) ::used #(conj (or % #{}) e))
-                               (nil? used) (recur (get-ret-e ts (->let-val-e ts (::ref nd))))))
-                           #_else (throw (ex-info (str "cannot count-nodes on " (::type nd)) (or nd {}))))))
-         index-nodes (fn index-nodes [ts e]
-                       (let [nd (get (:eav ts) e)]
-                         (case (::type nd)
-                           ::static ts
-                           ::ap (reduce index-nodes ts (get-children-e ts e))
-                           ::site (recur ts (get-child-e ts e))
-                           ::var ts
-                           ::join ts
-                           ::let-ref (recur (if-some [used (::used (get (:eav ts) (::ref nd)))]
-                                              (if (or (> (count used) 1)
-                                                    (not= (get-site ts e)
-                                                      (get-site ts (get-ret-e ts (->let-val-e ts (::ref nd))))))
-                                                (ts/upd ts (::ref nd) ::refidx #(or % (->ref-id)))
+                           #_else e)))
+           ret-e (get-ret-e ts (get-root-e ts))
+           ->ref-id (->->id)
+           count-nodes (fn count-nodes [ts e]
+                         (let [nd (get (:eav ts) e)]
+                           (case (::type nd)
+                             ::static ts
+                             ::ap (reduce count-nodes ts (get-children-e ts e))
+                             ::site (recur ts (get-child-e ts e))
+                             ::var ts
+                             ::join ts
+                             ::let-ref
+                             (let [used (::used (get (:eav ts) (::ref nd)))]
+                               (cond-> (ts/upd ts (::ref nd) ::used #(conj (or % #{}) e))
+                                 (nil? used) (recur (get-ret-e ts (->let-val-e ts (::ref nd))))))
+                             #_else (throw (ex-info (str "cannot count-nodes on " (::type nd)) (or nd {}))))))
+           index-nodes (fn index-nodes [ts e]
+                         (let [nd (get (:eav ts) e)]
+                           (case (::type nd)
+                             ::static ts
+                             ::ap (reduce index-nodes ts (get-children-e ts e))
+                             ::site (recur ts (get-child-e ts e))
+                             ::var ts
+                             ::join ts
+                             ::let-ref (recur (if-some [used (::used (get (:eav ts) (::ref nd)))]
+                                                (if (or (> (count used) 1)
+                                                      (not= (get-site ts e)
+                                                        (get-site ts (get-ret-e ts (->let-val-e ts (::ref nd))))))
+                                                  (ts/upd ts (::ref nd) ::refidx #(or % (->ref-id)))
+                                                  ts)
                                                 ts)
-                                              ts)
-                                       (get-ret-e ts (->let-val-e ts (::ref nd))))
-                           #_else (throw (ex-info (str "cannot index-nodes on " (::type nd)) (or nd {}))))))
-         ts (-> ts (count-nodes ret-e) (index-nodes ret-e))
-         gen (fn gen [ts e]
-               (let [nd (get (:eav ts) e)]
-                 (case (::type nd)
-                   ::static (list `r/pure (::v nd))
-                   ::ap (list* `r/ap (mapv #(gen ts %) (get-children-e ts e)))
-                   ::var (list `r/lookup 'frame (keyword (::var nd)) (list `r/pure (::var nd)))
-                   ::join (list `r/join (gen ts (get-child-e ts e)))
-                   ::let (recur ts (get-ret-e ts (->let-body-e ts e)))
-                   ::let-ref (if-some [idx (::refidx (get (:eav ts) (::ref nd)))]
-                               (list `r/node 'frame idx)
-                               (gen ts (get-ret-e ts (->let-val-e ts (::ref nd)))))
-                   #_else (throw (ex-info (str "cannot gen on " (::type nd)) (or nd {}))))))
-         nodes (mapv (fn [[idx es]] [idx (first es)]) (sort-by first (::refidx (:ave ts))))
-         gen-node-init (fn gen-node-init [ts]
-                         (mapv (fn [[idx e]] (list `r/define-node 'frame idx
-                                               (gen ts (get-ret-e ts (->let-val-e ts e)))))
-                           nodes))
-         ]
-     ;; (run! prn (->> ts :eav vals (sort-by :db/id)))
-     `[(r/cdef 0 ~(mapv #(get-site ts (get-ret-e ts (->let-val-e ts (second %)))) nodes) [] ~(get-site ts ret-e)
-         (fn [~'frame] ~@(gen-node-init ts) ~(gen ts ret-e)))]
-     )))
+                                         (get-ret-e ts (->let-val-e ts (::ref nd))))
+                             #_else (throw (ex-info (str "cannot index-nodes on " (::type nd)) (or nd {}))))))
+           ts (-> ts (count-nodes ret-e) (index-nodes ret-e))
+           gen (fn gen [ts e]
+                 (let [nd (get (:eav ts) e)]
+                   (case (::type nd)
+                     ::static (list `r/pure (::v nd))
+                     ::ap (list* `r/ap (mapv #(gen ts %) (get-children-e ts e)))
+                     ::var (list `r/lookup 'frame (keyword (::var nd)) (list `r/pure (::var nd)))
+                     ::join (list `r/join (gen ts (get-child-e ts e)))
+                     ::let (recur ts (get-ret-e ts (->let-body-e ts e)))
+                     ::let-ref (if-some [idx (::refidx (get (:eav ts) (::ref nd)))]
+                                 (list `r/node 'frame idx)
+                                 (gen ts (get-ret-e ts (->let-val-e ts (::ref nd)))))
+                     #_else (throw (ex-info (str "cannot gen on " (::type nd)) (or nd {}))))))
+           nodes (mapv (fn [[idx es]] [idx (first es)]) (sort-by first (::refidx (:ave ts))))
+           gen-node-init (fn gen-node-init [ts]
+                           (mapv (fn [[idx e]] (list `r/define-node 'frame idx
+                                                 (gen ts (get-ret-e ts (->let-val-e ts e)))))
+                             nodes))
+           ]
+       ;; (run! prn (->> ts :eav vals (sort-by :db/id)))
+       `[(r/cdef 0 ~(mapv #(get-site ts (get-ret-e ts (->let-val-e ts (second %)))) nodes) [] ~(get-site ts ret-e)
+           (fn [~'frame] ~@(gen-node-init ts) ~(gen ts ret-e)))]
+       ))))
