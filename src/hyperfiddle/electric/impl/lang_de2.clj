@@ -37,7 +37,7 @@
 (defn enrich-for-require-macros-lookup [cljs-env nssym]
   (if-some [ast (get @!cljs-ns-cache nssym)]
     (assoc cljs-env :ns ast)
-    (if-some [src (contrib.debug/dbg (cljs-ana/locate-src nssym))]
+    (if-some [src (cljs-ana/locate-src nssym)]
       (let [ast (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
                         (binding [cljs-ana/*passes* []]
                           (cljs-ana/parse-ns src {:load-macros true, :restore false}))))]
@@ -428,6 +428,18 @@
   (let [mt (meta form)]
     (cond-> ts (:line mt) (ts/add {:db/id (->id), ::source-map-of pe, ::line (:line mt), ::column (:column mt)}))))
 
+(defn untwin [s]
+  (if (= "cljs.core" (namespace s))
+    (let [clj (symbol "clojure.core" (name s))]
+      (if (resolve clj) clj s))
+    s))
+
+(tests
+  (untwin 'cljs.core/prn) := 'clojure.core/prn
+  (untwin 'a/b) := 'a/b
+  (untwin 'a) := 'a
+  (untwin 'cljs.core/not-in-clj) := 'cljs.core/not-in-clj)
+
 (defn analyze [form pe {{::keys [env ->id]} :o :as ts}]
   (cond
     (and (seq? form) (seq form))
@@ -479,19 +491,28 @@
       (if-some [lr-e (find-let-ref form pe ts)]
         (-> (ts/add ts {:db/id e, ::parent pe, ::type ::let-ref, ::ref lr-e, ::sym form})
           (?add-source-map e form))
-        (case (get (::peers env) (::current env))
-          :clj (if (resolve-static-field form)
-                 (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
-                   (?add-source-map e form))
-                 (if-some [v (resolve form)]
-                   (if (var? v)
-                     (-> (ts/add ts {:db/id e, ::parent pe, ::type ::var, ::var (symbol v)})
-                       (?add-source-map e form))
-                     (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
-                       (?add-source-map e form)))
-                   (cannot-resolve! env form)))
-          :cljs (resolve-cljs (::cljs-env env) form)
-          #_else (throw (ex-info (str "unknown site: " (get (::peers env) (::current env))) {:env env})))))
+        (if (contains? (:locals env) form)
+          (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
+            (?add-source-map e form))
+          (case (get (::peers env) (::current env))
+            :clj (if (resolve-static-field form)
+                   (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
+                     (?add-source-map e form))
+                   (if-some [v (resolve form)]
+                     (if (var? v)
+                       (-> (ts/add ts {:db/id e, ::parent pe, ::type ::var, ::var (symbol v)})
+                         (?add-source-map e form))
+                       (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
+                         (?add-source-map e form)))
+                     (cannot-resolve! env form)))
+            :cljs (if-some [v (resolve-cljs (::cljs-env env) form)]
+                    (if (= :var (:op v))
+                      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::var, ::var (untwin (:name v))})
+                        (?add-source-map e form))
+                      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
+                        (?add-source-map e form)))
+                    (cannot-resolve! env form))
+            #_else (throw (ex-info (str "unknown site: " (get (::peers env) (::current env))) {:env env}))))))
 
     :else
     (let [e (->id)]
