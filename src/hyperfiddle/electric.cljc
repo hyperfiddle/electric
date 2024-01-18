@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric
-  (:refer-clojure :exclude [eval def defn fn for empty? partial apply])
+  (:refer-clojure :exclude [eval def defn fn for partial apply])
   (:require [clojure.core :as cc]
             #?(:clj [clojure.tools.logging :as log])
             [clojure.spec.alpha :as s]
@@ -247,7 +247,8 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
       `(::lang/closure (let [~@(interleave args lang/arg-sym)] ~@body) ~debug-info)
       `(::lang/closure (do ~@body) ~debug-info))))
 
-(cc/defn- -splicev [args] (into [] cat [(pop args) (peek args)]))
+(cc/defn- -splicev [args] (if (empty? args) args (into [] cat [(pop args) (peek args)])))
+
 (hyperfiddle.electric/def Apply*
   (hyperfiddle.electric/fn* [F args]
     (let [spliced (-splicev args)]
@@ -274,7 +275,9 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
         19 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18))
         20 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18) (nth spliced 19))))))
 
-(defmacro apply [F & args] `(new Apply* ~F [~@args]))
+(defmacro apply [F & args]
+  (assert (not (empty? args)) (str `apply " takes and Electric function and at least one argument. Given 0.")) ; matches clojure behavior
+  `(new Apply* ~F [~@args]))
 
 (cc/defn -check-recur-arity [provided actual fname]
   (when (not= provided actual)
