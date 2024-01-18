@@ -89,6 +89,14 @@
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/pure :foo))))])
 
+  (def !x (atom 0))
+  (l/compile ::Main (::lang/site :client (::lang/join (i/fixed (m/watch !x)))))
+  := `[(r/cdef 0 [] [] :client
+         (fn [~'frame]
+           (r/join
+             (r/ap (r/lookup ~'frame ::i/fixed (r/pure i/fixed))
+               (r/ap (r/lookup ~'frame ::m/watch (r/pure m/watch))
+                 (r/lookup ~'frame ::!x (r/pure !x)))))))]
   )
 
 ;; TODO rewrite or remove
