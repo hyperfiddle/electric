@@ -360,7 +360,8 @@
         (clojure.lang.Reflector/getField cls (name sym) true)))))
 
 (defn get-children-e [ts e] (-> ts :ave ::parent (get e)))
-(defn get-root-e [ts] (first (get-children-e ts '_)))
+(defn get-child-e [ts e] (first (get-children-e ts e)))
+(defn get-root-e [ts] (get-child-e ts '_))
 
 (defn find-let-ref [sym pe ts]
   (loop [pe pe]
@@ -450,46 +451,49 @@
     (and pe
       (let [nd (get (:eav ts) pe)] (if (= ::site (::type nd)) (::site nd) (recur (::parent nd)))))))
 
+(defn ->let-val-e [ts e] (first (get-children-e ts e)))
+(defn ->let-body-e [ts e] (second (get-children-e ts e)))
+
 (defn compile
   ([nm form env]
    (let [{{::keys [env ->id]} :o :as ts} (analyze (expand-all env form) '_ (ts/->ts {::->id (->->id), ::env env}))
-         find-return-node-e (fn [ts e]
+         get-ret-e (fn [ts e]
                               (let [nd (get (:eav ts) e)]
                                 (case (::type nd)
-                                  ::let (recur ts (second (get-children-e ts e)))
-                                  ::site (recur ts (first (get-children-e ts e)))
+                                  ::let (recur ts (->let-body-e ts e))
+                                  ::site (recur ts (get-child-e ts e))
                                   #_else e)))
-         ret-e (find-return-node-e ts (get-root-e ts))
+         ret-e (get-ret-e ts (get-root-e ts))
          ->ref-id (->->id)
          count-nodes (fn count-nodes [ts e]
                        (let [nd (get (:eav ts) e)]
                          (case (::type nd)
                            ::static ts
                            ::ap (reduce count-nodes ts (get-children-e ts e))
-                           ::site (recur ts (first (get-children-e ts e)))
+                           ::site (recur ts (get-child-e ts e))
                            ::var ts
                            ::join ts
                            ::let-ref
                            (let [used (::used (get (:eav ts) (::ref nd)))]
                              (cond-> (ts/upd ts (::ref nd) ::used #(conj (or % #{}) e))
-                               (nil? used) (recur (find-return-node-e ts (first (get-children-e ts (::ref nd)))))))
+                               (nil? used) (recur (get-ret-e ts (->let-val-e ts (::ref nd))))))
                            #_else (throw (ex-info (str "cannot count-nodes on " (::type nd)) (or nd {}))))))
          index-nodes (fn index-nodes [ts e]
                        (let [nd (get (:eav ts) e)]
                          (case (::type nd)
                            ::static ts
                            ::ap (reduce index-nodes ts (get-children-e ts e))
-                           ::site (recur ts (first (get-children-e ts e)))
+                           ::site (recur ts (get-child-e ts e))
                            ::var ts
                            ::join ts
                            ::let-ref (recur (if-some [used (::used (get (:eav ts) (::ref nd)))]
                                               (if (or (> (count used) 1)
                                                     (not= (get-site ts e)
-                                                      (get-site ts (find-return-node-e ts (first (get-children-e ts (::ref nd)))))))
+                                                      (get-site ts (get-ret-e ts (->let-val-e ts (::ref nd))))))
                                                 (ts/upd ts (::ref nd) ::refidx #(or % (->ref-id)))
                                                 ts)
                                               ts)
-                                       (find-return-node-e ts (first (get-children-e ts (::ref nd)))))
+                                       (get-ret-e ts (->let-val-e ts (::ref nd))))
                            #_else (throw (ex-info (str "cannot index-nodes on " (::type nd)) (or nd {}))))))
          ts (-> ts (count-nodes ret-e) (index-nodes ret-e))
          gen (fn gen [ts e]
@@ -498,19 +502,19 @@
                    ::static (list `r/pure (::v nd))
                    ::ap (list* `r/ap (mapv #(gen ts %) (get-children-e ts e)))
                    ::var (list `r/lookup 'frame (keyword (::var nd)) (list `r/pure (::var nd)))
-                   ::join (list `r/join (gen ts (first (get-children-e ts e))))
-                   ::let (recur ts (find-return-node-e ts (second (get-children-e ts e))))
+                   ::join (list `r/join (gen ts (get-child-e ts e)))
+                   ::let (recur ts (get-ret-e ts (->let-body-e ts e)))
                    ::let-ref (if-some [idx (::refidx (get (:eav ts) (::ref nd)))]
                                (list `r/node 'frame idx)
-                               (gen ts (find-return-node-e ts (first (get-children-e ts (::ref nd))))))
+                               (gen ts (get-ret-e ts (->let-val-e ts (::ref nd)))))
                    #_else (throw (ex-info (str "cannot gen on " (::type nd)) (or nd {}))))))
          nodes (mapv (fn [[idx es]] [idx (first es)]) (sort-by first (::refidx (:ave ts))))
          gen-node-init (fn gen-node-init [ts]
                          (mapv (fn [[idx e]] (list `r/define-node 'frame idx
-                                               (gen ts (find-return-node-e ts (first (get-children-e ts e))))))
+                                               (gen ts (get-ret-e ts (->let-val-e ts e)))))
                            nodes))
          ]
      ;; (run! prn (->> ts :eav vals (sort-by :db/id)))
-     `[(r/cdef 0 ~(mapv #(get-site ts (find-return-node-e ts (first (get-children-e ts (second %))))) nodes) [] ~(get-site ts ret-e)
+     `[(r/cdef 0 ~(mapv #(get-site ts (get-ret-e ts (->let-val-e ts (second %)))) nodes) [] ~(get-site ts ret-e)
          (fn [~'frame] ~@(gen-node-init ts) ~(gen ts ret-e)))]
      )))
