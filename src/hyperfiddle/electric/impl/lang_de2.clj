@@ -14,6 +14,16 @@
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.rcf :as rcf :refer [tests]]))
 
+;;;;;;;;;;;
+;;; ENV ;;;
+;;;;;;;;;;;
+
+(defn clj-env? [env] (not (contains? env :locals)))
+(defn electric-env? [env] (contains? env ::peers))
+(defn cljs-env? [env] (and (contains? env :locals) (not (electric-env? env))))
+(defn normalize-env [env] (if (clj-env? env) {:locals env, :ns {:name (ns-name *ns*)}} env))
+(defn get-ns [env] (-> env :ns :name))
+
 ;;;;;;;;;;;;;;;;
 ;;; EXPANDER ;;;
 ;;;;;;;;;;;;;;;;
@@ -26,17 +36,18 @@
   (when (not= '. sym)
     (let [!found? (volatile! true)
           resolved (binding [cljs-ana/*cljs-warnings* (assoc cljs-ana/*cljs-warnings* :undeclared-ns false)]
-                     (cljs-ana/resolve-var env sym
-                       (fn [env prefix suffix]
-                         (cljs-ana/confirm-var-exists env prefix suffix
-                           (fn [_ _ _] (vreset! !found? false)))) nil))]
+                     (let [res (cljs-ana/resolve-var env sym nil nil)]
+                       (when (and (not= :js-var (:op res)) (:name res) (namespace (:name res)))
+                         (cljs-ana/confirm-var-exists env (-> res :name namespace symbol) (-> res :name name symbol)
+                           (fn [_ _ _] (vreset! !found? false))))
+                       res))]
       (when (and resolved @!found? (not (:macro resolved)))
         ;; If the symbol is unqualified and is from a different ns (through e.g. :refer)
         ;; cljs returns only :name and :ns. We cannot tell if it resolved to a macro.
         ;; We recurse with the fully qualified symbol to get all the information.
         ;; The symbol can also resolve to a local in which case we're done.
         ;; TODO how to trigger these in tests?
-        (if (and (simple-symbol? sym) (not= (:ns env) (:ns resolved)) (not= :local (:op resolved)))
+        (if (and (simple-symbol? sym) (not= (get-ns env) (:ns resolved)) (not= :local (:op resolved)))
           (recur env (ca/check qualified-symbol? (:name resolved) {:sym sym, :resolved resolved}))
           resolved)))))
 
@@ -192,33 +203,63 @@
 ;; if ::current = :clj expand with clj environment
 ;; if ::current = :cljs expand with cljs environment
 
+;; the ns cache relies on external eviction in shadow-cljs reload hook
+(def !cljs-ns-cache (atom {}))
+
 (defn enrich-for-require-macros-lookup [cljs-env nssym]
-  (if-some [src (cljs-ana/locate-src nssym)]
-    (let [ast (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
-                      (binding [cljs-ana/*passes* []]
-                        (cljs-ana/parse-ns src {:load-macros true, :restore false}))))]
-      ;; we parsed the ns form without `ns-side-effects` because it triggers weird bugs
-      ;; this means the macro nss from `:require-macros` might not be loaded
-      (run! serialized-require (-> ast :require-macros vals set))
-      (assoc cljs-env ::ns ast))
-    cljs-env))
+  (if-some [ast (get @!cljs-ns-cache nssym)]
+    (assoc cljs-env ::ns ast)
+    (if-some [src (cljs-ana/locate-src nssym)]
+      (let [ast (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
+                        (binding [cljs-ana/*passes* []]
+                          (cljs-ana/parse-ns src {:load-macros true, :restore false}))))]
+        ;; we parsed the ns form without `ns-side-effects` because it triggers weird bugs
+        ;; this means the macro nss from `:require-macros` might not be loaded
+        (run! serialized-require (-> ast :require-macros vals set))
+        (swap! !cljs-ns-cache assoc nssym ast)
+        (assoc cljs-env ::ns ast))
+      cljs-env)))
 
 (tests "enrich of clj source file is noop"
   (cljs.env/ensure (enrich-for-require-macros-lookup {:a 1} 'clojure.core)) := {:a 1})
 
-;; takes an electric environment, which can be clj or cljs
-;; if it's clj we need to prep the cljs environment (cljs.env/ensure + cljs.analyzer/empty-env with patched ns)
-;; we need to be able to swap the environments infinite number of times
+(let [-base-cljs-env {:context :statement
+                      :locals {}
+                      :fn-scope []
+                      :js-globals (into {}
+                                    (map #(vector % {:op :js-var :name % :ns 'js})
+                                      '(alert window document console escape unescape
+                                         screen location navigator history location
+                                         global process require module exports)))}]
+  (defn ->cljs-env
+    ([] (->cljs-env (ns-name *ns*)))
+    ([nssym] (cond-> -base-cljs-env nssym (assoc :ns {:name nssym})))))
 
-(defn ->common-env [env]
+(def !default-cljs-compiler-env (delay (cljs.env/default-compiler-env)))
+
+;; adapted from cljs.env
+(defmacro ensure-cljs-compiler
+  [& body]
+  `(let [val# cljs.env/*compiler*]
+     (if (nil? val#)
+       (push-thread-bindings
+         (hash-map (var cljs.env/*compiler*) @!default-cljs-compiler-env)))
+     (try
+       ~@body
+       (finally
+         (if (nil? val#)
+           (pop-thread-bindings))))))
+
+(defn ensure-cljs-env [env]
   (if (::cljs-env env)
     env
     (assoc env ::cljs-env
       (if (contains? env :js-globals)
         env
-        (cond-> (cljs.analyzer/empty-env) (:ns env) (enrich-for-require-macros-lookup (:ns env)))))))
+        (let [nssym (get-ns env)]
+          (cond-> (->cljs-env nssym) nssym (enrich-for-require-macros-lookup nssym)))))))
 
-(defn expand-all [env o] (cljs.env/ensure (-expand-all o (->common-env env))))
+(defn expand-all [env o] (ensure-cljs-compiler (-expand-all o (ensure-cljs-env env))))
 
 ;;;;;;;;;;;;;;;;
 ;;; COMPILER ;;;
