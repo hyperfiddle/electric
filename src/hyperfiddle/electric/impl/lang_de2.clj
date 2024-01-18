@@ -412,7 +412,8 @@
                                                         (?add-source-map e form))))
       (::site) (let [[_ site bform] form, e (->id)]
                  (recur bform e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::site, ::site site})
-                                  (?add-source-map e form))))
+                                  (?add-source-map e form)
+                                  (update :o update ::env assoc ::current site))))
       #_else (let [e (->id)]
                (reduce (fn [ts nx] (analyze nx e ts)) (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
                                                         (?add-source-map e form)) form)))
