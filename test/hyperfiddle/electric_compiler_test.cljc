@@ -33,52 +33,52 @@
      match#))
 
 (tests
-  (match (l/compile ::Main 1)
+  (match (l/test-compile ::Main 1)
     `[(r/cdef 0 [] [] nil
         (fn [~'frame]
           (r/pure 1)))])
 
-  (match (l/compile ::Main (::lang/site :client "Hello world"))
+  (match (l/test-compile ::Main (::lang/site :client "Hello world"))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
           (r/pure "Hello world")))])
 
-  (match (l/compile ::Main (::lang/site :client (prn "Hello world")))
+  (match (l/test-compile ::Main (::lang/site :client (prn "Hello world")))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/prn) (r/pure "Hello world"))))])
 
-  (match (l/compile ::Main (::lang/site :client (undefined?)))
+  (match (l/test-compile ::Main (::lang/site :client (undefined?)))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
           (r/ap (r/lookup ~'frame :cljs.core/undefined?))))])
 
-  (match (l/compile-as-if-client ::Main (::lang/site :client (undefined?)))
+  (match (l/test-compile ::Main (lang/->cljs-env) (::lang/site :client (undefined?)))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
           (r/ap (r/lookup ~'frame :cljs.core/undefined? (r/pure cljs.core/undefined?)))))])
 
   ;; TODO return site is :server
-  (l/compile ::Main (::lang/site :server (let [x 1] (::lang/site :client x))))
+  (l/test-compile ::Main (::lang/site :server (let [x 1] (::lang/site :client x))))
 
-  (let [ex (try (l/compile ::Main cannot-be-unsited) (catch ExceptionInfo e e))]
+  (let [ex (try (l/test-compile ::Main cannot-be-unsited) (catch ExceptionInfo e e))]
     (ex-message ex) := "Unsited symbol `cannot-be-unsited` resolves to different vars on different peers. Please resolve ambiguity by siting the expression using it.")
 
-  (match (l/compile ::Main (::lang/site :client (let [a :foo] [a a])))
+  (match (l/test-compile ::Main (::lang/site :client (let [a :foo] [a a])))
     `[(r/cdef 0 [:client] [] :client
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure :foo))
           (r/ap (r/lookup ~'frame :clojure.core/vector)
             (r/node ~'frame 0) (r/node ~'frame 0))))])
 
-  (match (l/compile ::Main (let [a :foo] [a a]))
+  (match (l/test-compile ::Main (let [a :foo] [a a]))
     `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure :foo))
           (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
             (r/node ~'frame 0) (r/node ~'frame 0))))])
 
-  (match (l/compile ::Main (let [a (let [b :foo] [b b])] [a a]))
+  (match (l/test-compile ::Main (let [a (let [b :foo] [b b])] [a a]))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
@@ -87,30 +87,29 @@
           (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
             (r/node ~'frame 0) (r/node ~'frame 0))))])
 
-  (match (l/compile ::Main (let [a 1] a))
+  (match (l/test-compile ::Main (let [a 1] a))
     `[(r/cdef 0 [] [] nil (fn [~'frame] (r/pure 1)))])
 
-  (match (l/compile ::Main (::lang/site :client (let [a 1] (::lang/site :server (prn a)))))
+  (match (l/test-compile ::Main (::lang/site :client (let [a 1] (::lang/site :server (prn a)))))
     `[(r/cdef 0 [:client] [] :server
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 1))
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/node ~'frame 0))))])
 
-  (match (l/compile ::Main (::lang/site :client (let [x "Hello", y "world"] [x y])))
+  (match (l/test-compile ::Main (::lang/site :client (let [x "Hello", y "world"] [x y])))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/vector)
             (r/pure "Hello") (r/pure "world"))))])
 
-  (match (l/compile ::Main (::lang/site :client (let [a (::lang/site :server :foo)] (::lang/site :server (prn a)))))
+  (match (l/test-compile ::Main (::lang/site :client (let [a (::lang/site :server :foo)] (::lang/site :server (prn a)))))
     `[(r/cdef 0 [] [] :server
         (clojure.core/fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/pure :foo))))])
 
-  (match (l/compile ::Main #(update % :locals assoc '!x (atom 0))
-           (::lang/site :client (::lang/join (i/fixed (m/watch !x)))))
+  (match (l/test-compile ::Main {'!x (atom 0)} (::lang/site :client (::lang/join (i/fixed (m/watch !x)))))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
           (r/join
@@ -118,20 +117,11 @@
               (r/ap (r/lookup ~'frame ::m/watch)
                 (r/pure ~'!x))))))])
 
-  (match (l/compile ::Main (prn (::lang/site :client 1)))
+  (match (l/test-compile ::Main (prn (::lang/site :client 1)))
     `[(r/cdef 0 [] [] nil
         (fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/pure 1))))])
-
-  #_(let [!x (atom 0)]
-      (match (l/compile ::Main (::lang/site :server (::lang/join (i/fixed (m/watch !x)))))
-        `[(r/cdef 0 [] [] :server
-            (fn [~'frame]
-              (r/join
-                (r/ap (r/lookup ~'frame ::i/fixed)
-                  (r/ap (r/lookup ~'frame ::m/watch)
-                    (r/pure ~'!x))))))]))
   )
 
 ;; TODO rewrite or remove
