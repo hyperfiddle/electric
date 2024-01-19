@@ -595,6 +595,7 @@
                                (list `r/lookup 'frame (keyword (::qualified-var nd)) (list `r/pure (::qualified-var nd)))
                                (list `r/lookup 'frame (keyword (::qualified-var nd)))))
                      ::join (list `r/join (gen ts (get-child-e ts e)))
+                     ::site (recur ts (get-child-e ts e))
                      ::let (recur ts (get-ret-e ts (->let-body-e ts e)))
                      ::let-ref (if-some [idx (::refidx (get (:eav ts) (::ref nd)))]
                                  (list `r/node 'frame idx)
