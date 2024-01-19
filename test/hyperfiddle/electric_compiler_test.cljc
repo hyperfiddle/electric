@@ -58,8 +58,9 @@
         (fn [~'frame]
           (r/ap (r/lookup ~'frame :cljs.core/undefined? (r/pure cljs.core/undefined?)))))])
 
-  ;; TODO return site is :server
-  (l/test-compile ::Main (::lang/site :server (let [x 1] (::lang/site :client x))))
+  (match (l/test-compile ::Main (::lang/site :server (let [x 1] (::lang/site :client x))))
+    `[(r/cdef 0 [] [] :server
+        (fn [~'frame] (r/pure 1)))])
 
   (let [ex (try (l/test-compile ::Main cannot-be-unsited) (catch ExceptionInfo e e))]
     (ex-message ex) := "Unsited symbol `cannot-be-unsited` resolves to different vars on different peers. Please resolve ambiguity by siting the expression using it.")

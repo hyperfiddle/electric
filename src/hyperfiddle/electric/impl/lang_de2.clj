@@ -458,10 +458,29 @@
       {:db/id e, ::parent pe, ::type ::var, ::var form, ::qualified-var (untwin (:name v))}
       {:db/id e, ::parent pe, ::type ::static, ::v form})))
 
+(defn ->let-val-e [ts e] (first (get-children-e ts e)))
+(defn ->let-body-e [ts e] (second (get-children-e ts e)))
+
+(defn get-ret-e [ts e]
+  (let [nd (get (:eav ts) e)]
+    (case (::type nd)
+      ::let (recur ts (->let-body-e ts e))
+      ::site (recur ts (get-child-e ts e))
+      #_else e)))
+
+(defn find-sitable-parent [ts e]
+  (when-some [pe (::parent (get (:eav ts) e))]
+    (case (::type (get (:eav ts) pe))
+      ::site (recur ts pe)
+      #_else pe)))
+
 (defn get-site [ts e]
   (loop [e e]
-    (and e
-      (let [nd (get (:eav ts) e)] (if (= ::site (::type nd)) (::site nd) (recur (::parent nd)))))))
+    (when-some [nd (get (:eav ts) e)]
+      (case (::type nd)
+        ::let-ref (recur (->> nd ::ref (->let-val-e ts) (get-ret-e ts)))
+        ::site (::site nd)
+        #_else (recur (::parent nd))))))
 
 (defn analyze [form pe {{::keys [env ->id]} :o :as ts}]
   (cond
@@ -539,9 +558,6 @@
 
 (defn ->->id [] (let [!i (long-array [-1])] (fn [] (aset !i 0 (unchecked-inc (aget !i 0))))))
 
-(defn ->let-val-e [ts e] (first (get-children-e ts e)))
-(defn ->let-body-e [ts e] (second (get-children-e ts e)))
-
 (defn compile
   ([nm form env]
    (ensure-cljs-compiler
@@ -577,8 +593,8 @@
                              ::join ts
                              ::let-ref (recur (if-some [used (::used (get (:eav ts) (::ref nd)))]
                                                 (if (or (> (count used) 1)
-                                                      (not= (get-site ts e)
-                                                        (get-site ts (get-ret-e ts (->let-val-e ts (::ref nd))))))
+                                                      (not= (get-site ts (find-sitable-parent ts e))
+                                                        (get-site ts (->> nd ::ref (->let-val-e ts) (get-ret-e ts)))))
                                                   (ts/upd ts (::ref nd) ::refidx #(or % (->ref-id)))
                                                   ts)
                                                 ts)
