@@ -577,7 +577,8 @@
                              ::ap (reduce count-nodes ts (get-children-e ts e))
                              ::site (recur ts (get-child-e ts e))
                              ::var ts
-                             ::join ts
+                             ::join (recur ts (get-child-e ts e))
+                             ::pure (recur ts (get-child-e ts e))
                              ::let-ref
                              (let [used (::used (get (:eav ts) (::ref nd)))]
                                (cond-> (ts/upd ts (::ref nd) ::used #(conj (or % #{}) e))
@@ -590,7 +591,8 @@
                              ::ap (reduce index-nodes ts (get-children-e ts e))
                              ::site (recur ts (get-child-e ts e))
                              ::var ts
-                             ::join ts
+                             ::join (recur ts (get-child-e ts e))
+                             ::pure (recur ts (get-child-e ts e))
                              ::let-ref (recur (if-some [used (::used (get (:eav ts) (::ref nd)))]
                                                 (if (or (> (count used) 1)
                                                       (not= (get-site ts (find-sitable-parent ts e))
@@ -611,6 +613,7 @@
                                (list `r/lookup 'frame (keyword (::qualified-var nd)) (list `r/pure (::qualified-var nd)))
                                (list `r/lookup 'frame (keyword (::qualified-var nd)))))
                      ::join (list `r/join (gen ts (get-child-e ts e)))
+                     ::pure (list `r/pure (gen ts (get-child-e ts e)))
                      ::site (recur ts (get-child-e ts e))
                      ::let (recur ts (get-ret-e ts (->let-body-e ts e)))
                      ::let-ref (if-some [idx (::refidx (get (:eav ts) (::ref nd)))]
