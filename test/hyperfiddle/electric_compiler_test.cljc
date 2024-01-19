@@ -123,6 +123,11 @@
         (fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/pure 1))))])
+
+  (match (l/test-compile ::Main (::lang/site :client (::lang/pure :foo)))
+    `[(r/cdef 0 [] [] :client
+        (fn [~'frame]
+          (r/pure (r/pure :foo))))])
   )
 
 ;; TODO rewrite or remove
@@ -427,23 +432,6 @@
 ;; * a vector of call sites
 ;; * the result site
 (comment
-
-  ;; (def !x (atom 0))
-  ;; join (e/watch !x)
-  ;; (i/fixed continuous-flow) -> incremental sequence of 1 element
-  (l/compile ::Main `(e/client (e/join (i/fixed (m/watch !x)))))
-  := `[(r/cdef 0 [] [] :client
-         (fn [frame]
-           (r/join
-             (r/ap (r/lookup frame ::i/fixed (r/pure i/fixed))
-               (r/ap (r/lookup frame ::m/watch (r/pure m/watch))
-                 (r/lookup frame ::!x (r/pure !x)))))))]
-
-  ;; pure (get the incseq of an expression) (e/pure (e/join x)) is (e/join (e/pure x)) is x
-  (l/compile ::Main `(e/client (e/pure :foo)))
-  := `[(r/cdef 0 [] [] :client
-         (fn [frame]
-           (r/pure (r/pure :foo))))]
 
   ;; ctor (e/fn [] foo) -> (e/ctor foo) (previously ::c/closure)
   (l/compile ::Main `(e/client (e/ctor :foo)))
