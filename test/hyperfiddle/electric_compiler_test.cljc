@@ -117,6 +117,21 @@
             (r/ap (r/lookup ~'frame ::i/fixed)
               (r/ap (r/lookup ~'frame ::m/watch)
                 (r/pure ~'!x))))))])
+
+  (match (l/compile ::Main (prn (::lang/site :client 1)))
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
+            (r/pure 1))))])
+
+  #_(let [!x (atom 0)]
+      (match (l/compile ::Main (::lang/site :server (::lang/join (i/fixed (m/watch !x)))))
+        `[(r/cdef 0 [] [] :server
+            (fn [~'frame]
+              (r/join
+                (r/ap (r/lookup ~'frame ::i/fixed)
+                  (r/ap (r/lookup ~'frame ::m/watch)
+                    (r/pure ~'!x))))))]))
   )
 
 ;; TODO rewrite or remove
