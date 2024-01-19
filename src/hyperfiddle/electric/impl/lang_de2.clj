@@ -20,6 +20,7 @@
 (defn clj-env? [env] (not (contains? env :locals)))
 (defn electric-env? [env] (contains? env ::peers))
 (defn cljs-env? [env] (and (contains? env :locals) (not (electric-env? env))))
+(defn ->env-type [env] (if (:js-globals env) :cljs :clj))
 (defn normalize-env [env] (if (clj-env? env) {:locals env, :ns {:name (ns-name *ns*)}} env))
 (defn get-ns [env] (-> env :ns :name))
 
@@ -284,7 +285,7 @@
 
 (defn fail!
   ([env msg] (fail! env msg {}))
-  ([env msg data] (throw (ex-info (str "in" (some->> (::def env) (str " ")) ": " (-> env ::last peek pr-str) "\n" msg)
+  ([env msg data] (throw (ex-info (str (when-some [d (::def env)] (str "in " d ":\n")) msg)
                            (merge {:form (-> env ::last pop peek) :in (::def env) :for ((juxt ::me ::current) env)} data)))))
 
 (defn get-them [env] (-> env ::peers keys set (disj (::current env)) first))
@@ -296,6 +297,9 @@
                    (str ", maybe it's defined only on the " site "?"
                      \newline "If `" form "` is supposed to be a macro, you might need to :refer it in the :require-macros clause."))))
     {:locals (keys (:locals env))}))
+
+(defn ambiguous-resolve! [env sym]
+  (fail! env (str "Unsited symbol `" sym "` resolves to different vars on different peers. Please resolve ambiguity by siting the expression using it.")))
 
 (defn ns-qualify [node] (if (namespace node) node (symbol (str *ns*) (str node))))
 
@@ -440,6 +444,25 @@
   (untwin 'a) := 'a
   (untwin 'cljs.core/not-in-clj) := 'cljs.core/not-in-clj)
 
+(defn analyze-clj-symbol [form e pe]
+  (if (resolve-static-field form)
+    {:db/id e, ::parent pe, ::type ::static, ::v form}
+    (when-some [v (resolve form)]
+      (if (var? v)
+        {:db/id e, ::parent pe, ::type ::var, ::var form, ::qualified-var (symbol v)}
+        {:db/id e, ::parent pe, ::type ::static, ::v form}))))
+
+(defn analyze-cljs-symbol [form e pe env]
+  (when-some [v (resolve-cljs (::cljs-env env) form)]
+    (if (= :var (:op v))
+      {:db/id e, ::parent pe, ::type ::var, ::var form, ::qualified-var (untwin (:name v))}
+      {:db/id e, ::parent pe, ::type ::static, ::v form})))
+
+(defn get-site [ts e]
+  (loop [e e]
+    (and e
+      (let [nd (get (:eav ts) e)] (if (= ::site (::type nd)) (::site nd) (recur (::parent nd)))))))
+
 (defn analyze [form pe {{::keys [env ->id]} :o :as ts}]
   (cond
     (and (seq? form) (seq form))
@@ -495,24 +518,19 @@
           (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
             (?add-source-map e form))
           (case (get (::peers env) (::current env))
-            :clj (if (resolve-static-field form)
-                   (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
-                     (?add-source-map e form))
-                   (if-some [v (resolve form)]
-                     (if (var? v)
-                       (-> (ts/add ts {:db/id e, ::parent pe, ::type ::var, ::var (symbol v)})
-                         (?add-source-map e form))
-                       (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
-                         (?add-source-map e form)))
-                     (cannot-resolve! env form)))
-            :cljs (if-some [v (resolve-cljs (::cljs-env env) form)]
-                    (if (= :var (:op v))
-                      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::var, ::var (untwin (:name v))})
-                        (?add-source-map e form))
-                      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::static, ::v form})
-                        (?add-source-map e form)))
+            :clj (if-some [v (analyze-clj-symbol form e pe)]
+                   (-> (ts/add ts (assoc v ::resolved-in :clj)) (?add-source-map e form))
+                   (cannot-resolve! env form))
+            :cljs (if-some [v (analyze-cljs-symbol form e pe env)]
+                    (-> (ts/add ts (assoc v ::resolved-in :cljs)) (?add-source-map e form))
                     (cannot-resolve! env form))
-            #_else (throw (ex-info (str "unknown site: " (get (::peers env) (::current env))) {:env env}))))))
+            #_unsited (let [langs (set (vals (::peers env)))
+                            vs (->> langs (into #{} (map #(case %
+                                                            :clj (analyze-clj-symbol form e pe)
+                                                            :cljs (analyze-cljs-symbol form e pe env)))))]
+                        (cond (contains? vs nil) (cannot-resolve! env form)
+                              (> (count vs) 1) (ambiguous-resolve! env form)
+                              :else (-> (ts/add ts (first vs)) (?add-source-map e form))))))))
 
     :else
     (let [e (->id)]
@@ -520,11 +538,6 @@
         (?add-source-map e form)))))
 
 (defn ->->id [] (let [!i (long-array [-1])] (fn [] (aset !i 0 (unchecked-inc (aget !i 0))))))
-
-(defn get-site [ts e]
-  (loop [pe (::parent (get (:eav ts) e))]
-    (and pe
-      (let [nd (get (:eav ts) pe)] (if (= ::site (::type nd)) (::site nd) (recur (::parent nd)))))))
 
 (defn ->let-val-e [ts e] (first (get-children-e ts e)))
 (defn ->let-body-e [ts e] (second (get-children-e ts e)))
@@ -577,7 +590,10 @@
                    (case (::type nd)
                      ::static (list `r/pure (::v nd))
                      ::ap (list* `r/ap (mapv #(gen ts %) (get-children-e ts e)))
-                     ::var (list `r/lookup 'frame (keyword (::var nd)) (list `r/pure (::var nd)))
+                     ::var (let [in (::resolved-in nd)]
+                             (if (or (nil? in) (= in (->env-type env)))
+                               (list `r/lookup 'frame (keyword (::qualified-var nd)) (list `r/pure (::qualified-var nd)))
+                               (list `r/lookup 'frame (keyword (::qualified-var nd)))))
                      ::join (list `r/join (gen ts (get-child-e ts e)))
                      ::let (recur ts (get-ret-e ts (->let-body-e ts e)))
                      ::let-ref (if-some [idx (::refidx (get (:eav ts) (::ref nd)))]

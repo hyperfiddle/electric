@@ -7,13 +7,13 @@
                :cljs [hyperfiddle.electric.impl.lang-de2 :as-alias lang])))
 
 (defn ->local-config [env]
-  (let [p (if (:js-globals env) :cljs :clj)] {::lang/peers {:client p, :server p}, ::lang/current :server}))
+  (let [p (if (:js-globals env) :cljs :clj)] {::lang/peers {:client p, :server p}}))
 
 (defn ->single-peer-config [env]
   (let [p (if (and (:js-globals env) (contrib.cljs-target/do-nodejs true)) :client :server)]
-    {::lang/peers {p (if (:js-globals env) :cljs :clj)}, ::lang/current p, ::lang/me p}))
+    {::lang/peers {p (if (:js-globals env) :cljs :clj)}, ::lang/me p}))
 
-(def web-config {::lang/peers {:client :cljs, :server :clj}, ::lang/current :server})
+(def web-config {::lang/peers {:client :cljs, :server :clj}})
 
 (defmacro compile-client [form]
   (let [env (merge &env (->local-config &env) {::lang/me :client, :ns (list 'quote (ns-name *ns*))})]
@@ -31,3 +31,7 @@
 (defmacro compile
   ([nm form] `(compile ~nm identity ~form))
   ([nm env-fn form] `(lang/compile ~nm '~form (~env-fn '~(merge web-config (lang/normalize-env &env))))))
+
+(defmacro compile-as-if-client
+  ([nm form] `(compile-as-if-client ~nm identity ~form))
+  ([nm env-fn form] `(lang/compile ~nm '~form (~env-fn '~(merge web-config (lang/->cljs-env))))))

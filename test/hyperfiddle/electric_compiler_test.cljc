@@ -5,9 +5,12 @@
             [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.electric-local-def-de :as l]
-            [contrib.test-match :refer [test-match]]
+            #?(:clj [hyperfiddle.electric-compiler-test-clj :refer [cannot-be-unsited]]
+               :cljs [hyperfiddle.electric-compiler-test-cljs :refer [cannot-be-unsited]])
+            [contrib.test-match :as tm]
             [fipp.edn]
-            [missionary.core :as m]))
+            [missionary.core :as m])
+  #?(:clj (:import [clojure.lang ExceptionInfo])))
 
 ;; tests that turn electric code into clojure code
 ;; basically no IR, we emit clojure code directly
@@ -24,9 +27,10 @@
          (catch Throwable e (find-source-map-info path))))
 
 (defmacro match [code matcher]
-  `(let [ret# ~code, match# (test-match ret# ~matcher)]
+  `(let [ret# ~code, match# (tm/test-match ret# ~matcher)]
      ret# := match#
-     (when (not= ret# match#) (fipp.edn/pprint match#))))
+     (when (not= ret# match#) (fipp.edn/pprint match#))
+     match#))
 
 (tests
   (match (l/compile ::Main 1)
@@ -42,13 +46,29 @@
   (match (l/compile ::Main (::lang/site :client (prn "Hello world")))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
-          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn)) (r/pure "Hello world"))))])
+          (r/ap (r/lookup ~'frame :clojure.core/prn) (r/pure "Hello world"))))])
+
+  (match (l/compile ::Main (::lang/site :client (undefined?)))
+    `[(r/cdef 0 [] [] :client
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :cljs.core/undefined?))))])
+
+  (match (l/compile-as-if-client ::Main (::lang/site :client (undefined?)))
+    `[(r/cdef 0 [] [] :client
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :cljs.core/undefined? (r/pure cljs.core/undefined?)))))])
+
+  ;; TODO return site is :server
+  (l/compile ::Main (::lang/site :server (let [x 1] (::lang/site :client x))))
+
+  (let [ex (try (l/compile ::Main cannot-be-unsited) (catch ExceptionInfo e e))]
+    (ex-message ex) := "Unsited symbol `cannot-be-unsited` resolves to different vars on different peers. Please resolve ambiguity by siting the expression using it.")
 
   (match (l/compile ::Main (::lang/site :client (let [a :foo] [a a])))
     `[(r/cdef 0 [:client] [] :client
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure :foo))
-          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
+          (r/ap (r/lookup ~'frame :clojure.core/vector)
             (r/node ~'frame 0) (r/node ~'frame 0))))])
 
   (match (l/compile ::Main (let [a :foo] [a a]))
@@ -80,7 +100,7 @@
   (match (l/compile ::Main (::lang/site :client (let [x "Hello", y "world"] [x y])))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
-          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+          (r/ap (r/lookup ~'frame :clojure.core/vector)
             (r/pure "Hello") (r/pure "world"))))])
 
   (match (l/compile ::Main (::lang/site :client (let [a (::lang/site :server :foo)] (::lang/site :server (prn a)))))
@@ -94,8 +114,8 @@
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
           (r/join
-            (r/ap (r/lookup ~'frame ::i/fixed (r/pure i/fixed))
-              (r/ap (r/lookup ~'frame ::m/watch (r/pure m/watch))
+            (r/ap (r/lookup ~'frame ::i/fixed)
+              (r/ap (r/lookup ~'frame ::m/watch)
                 (r/pure ~'!x))))))])
   )
 
