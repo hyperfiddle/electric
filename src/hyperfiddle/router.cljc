@@ -446,10 +446,10 @@
      (let [[path' value] (split-link-path path)
            value (normalize-route-value value)]
        (dom/a
+         (new (link-click-handler dom/node (into hyperfiddle.router/path path)))
          (dom/props {::dom/href (encode (Route-for. path' value))})
          (binding [current-route? (Current-route?. path')]
-           (new Body))
-         (new (link-click-handler dom/node (into hyperfiddle.router/path path))))))))
+           (new Body)))))))
 
 (defmacro link [path & body]
   `(new Link ~path (e/fn* [] ~@body)))
@@ -462,22 +462,30 @@
    Called during DOM event bubbling phase, it must be synchronous and therefore must be bound to a clojure function."
   (fn [_dom-event] true))
 
+#?(:cljs
+   (defn- internal-nav-intent? [^js e]
+     (and (some? (.-hyperfiddle_router_route e))
+       (not (.-hyperfiddle_router_external_nav e)))))
+
 (e/defn OnNavigate
-  "Will call `Callback` on internal `history/Link` click. `Callback` takes 2 arguments:
+  "Will call `Callback` on internal `router/Link` click. `Callback` takes 2 arguments:
    - the route to navigate to
    - the dom click js event."
   ([Callback] (e/client (OnNavigate. (.-document js/window) Callback)))
   ([node Callback]
    (e/client
-     (dom/on node "click" ; navigation by link click (also supports keyboard nav)
-       ;; only intercepts internal links. See `hyperfiddle.router/Link`.
+     ;; navigation by link click (also supports keyboard nav)
+     ;; only intercepts internal links. See `hyperfiddle.router/Link`.
+     ;; 1. We want to cancel native navigation ASAP if needed. We want a synchronous event handler.
+     ;;    dom/on! – guarantees the event will be canceled before it bubbles up to the parent
+     ;;    dom/on  – callback is async and might cancel the event too late, especially if the reactor is busy
+     (dom/on! node "click"  (fn* [^js e] (when (internal-nav-intent? e) (.preventDefault e))))
+     ;; 2. Then we can handle the event asynchronously to perform the navigation (or not)
+     (dom/on node "click"
        (e/fn* [^js e]
-         (when (and (some? (.-hyperfiddle_router_route e))
-                 (not (.-hyperfiddle_router_external_nav e)))
-           (.preventDefault e)
-           (when (confirm-navigation? e)
-             (case (OnBeforeNavigate!.)  ; sequence effects
-               (Callback. (.-hyperfiddle_router_route e) e)))))))))
+         (when (and (internal-nav-intent? e) (confirm-navigation? e))
+           (case (OnBeforeNavigate!.)  ; sequence effects
+             (Callback. (.-hyperfiddle_router_route e) e))))))))
 
 (e/defn Navigate! [path]
   (h/navigate! h/history (encode (Route-for. path))))
@@ -539,10 +547,7 @@
   (binding [h/history  history
             root-route (decode (e/watch history))
             paths      []]
-    (OnNavigate. dom/node
-      (e/fn* [route e]
-        (.stopPropagation e)
-        (Navigate!. route)))
+    (OnNavigate. dom/node (e/fn* [route e] (Navigate!. route)))
     (focus '/
       (BodyFn.))))
 
