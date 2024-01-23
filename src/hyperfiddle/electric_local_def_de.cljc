@@ -28,4 +28,6 @@
   (let [env (merge &env (->local-config &env) {::lang/me :server})]
     `(:source (lang/compile '~form ~env))))
 
-#?(:clj (defmacro test-compile [nm env form] `(lang/compile ~nm '~form (merge web-config (lang/normalize-env ~env)))))
+#?(:clj (defmacro test-compile
+          ([nm form] `(test-compile ~nm {} ~form))
+          ([nm env form] `(lang/compile ~nm '~form (merge web-config (lang/normalize-env ~env))))))
