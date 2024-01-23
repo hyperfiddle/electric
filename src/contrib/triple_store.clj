@@ -1,5 +1,7 @@
 (ns contrib.triple-store
-  (:require [dom-top.core :refer [loopr]]))
+  (:refer-clojure :exclude [find])
+  (:require [dom-top.core :refer [loopr]]
+            [clojure.set :as set]))
 
 ;; ts - triple store
 ;; e  - entity    (id of entity)
@@ -54,3 +56,11 @@
      [a v] av]
     (recur (conj! datoms [e a v]))
     (persistent! datoms)))
+
+;;;;;;;;;;;;;;;
+;;; HELPERS ;;;
+;;;;;;;;;;;;;;;
+
+(defn ->node [ts e] (get (:eav ts) e))
+(defn find [ts & kvs]
+  (reduce set/intersection (into [] (comp (partition-all 2) (map (fn [[k v]] (-> ts :ave (get k) (get v))))) kvs)))
