@@ -6,6 +6,7 @@
          com.hyperfiddle/rcf            {:mvn/version "20220926-202227"}
          missionary/missionary          {:mvn/version "b.33"}
          dom-top/dom-top                {:mvn/version "1.0.9"}
+         fipp/fipp                      {:mvn/version "0.6.26"}
          org.clojure/clojure            {:mvn/version "1.12.0-alpha4"}
          org.clojure/clojurescript      {:mvn/version "1.11.60"}
          org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"} ;; used by Electric
