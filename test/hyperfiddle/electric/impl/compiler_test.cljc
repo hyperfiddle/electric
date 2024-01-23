@@ -1,12 +1,12 @@
-(ns hyperfiddle.electric-compiler-test
+(ns hyperfiddle.electric.impl.compiler-test
   (:require [hyperfiddle.electic :as-alias e]
             [hyperfiddle.incseq :as i]
-            [hyperfiddle.rcf :as rcf :refer [tests]]
             [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.electric-local-def-de :as l]
-            #?(:clj [hyperfiddle.electric-compiler-test-clj :refer [cannot-be-unsited]]
-               :cljs [hyperfiddle.electric-compiler-test-cljs :refer [cannot-be-unsited]])
+            #?(:clj [hyperfiddle.electric.impl.compiler-test-clj :refer [cannot-be-unsited]]
+               :cljs [hyperfiddle.electric.impl.compiler-test-cljs :refer [cannot-be-unsited]])
+            [hyperfiddle.rcf :as rcf :refer [tests]]
             [contrib.test-match :as tm]
             [fipp.edn]
             [missionary.core :as m])
@@ -28,16 +28,36 @@
 
 (defmacro match [code matcher]
   `(let [ret# ~code, match# (tm/test-match ret# ~matcher)]
+     ;; (t/is (= ret# match#))
      ret# := match#
      (when (not= ret# match#) (fipp.edn/pprint match#))
      match#))
 
-(tests
+(tests "test-simplest"
   (match (l/test-compile ::Main 1)
     `[(r/cdef 0 [] [] nil
         (fn [~'frame]
           (r/pure 1)))])
+  (match (l/test-compile ::Main (prn "Hello world"))
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn)) (r/pure "Hello world"))))])
+  (match (l/test-compile ::Main (prn (::lang/site :client 1)))
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
+            (r/pure 1))))]))
 
+(tests "test-join"
+  (match (l/test-compile ::Main {'!x (atom 0)} (::lang/join (i/fixed (m/watch !x))))
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/join
+            (r/ap (r/lookup ~'frame ::i/fixed (r/pure i/fixed))
+              (r/ap (r/lookup ~'frame ::m/watch (r/pure m/watch))
+                (r/pure ~'!x))))))]))
+
+(tests "test-siting"
   (match (l/test-compile ::Main (::lang/site :client "Hello world"))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
@@ -63,8 +83,9 @@
         (fn [~'frame] (r/pure 1)))])
 
   (let [ex (try (l/test-compile ::Main cannot-be-unsited) (catch ExceptionInfo e e))]
-    (ex-message ex) := "Unsited symbol `cannot-be-unsited` resolves to different vars on different peers. Please resolve ambiguity by siting the expression using it.")
+    (ex-message ex) := "Unsited symbol `cannot-be-unsited` resolves to different vars on different peers. Please resolve ambiguity by siting the expression using it."))
 
+(tests "test-let"
   (match (l/test-compile ::Main (::lang/site :client (let [a :foo] [a a])))
     `[(r/cdef 0 [:client] [] :client
         (fn [~'frame]
@@ -109,26 +130,6 @@
         (clojure.core/fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/pure :foo))))])
-
-  (match (l/test-compile ::Main {'!x (atom 0)} (::lang/site :client (::lang/join (i/fixed (m/watch !x)))))
-    `[(r/cdef 0 [] [] :client
-        (fn [~'frame]
-          (r/join
-            (r/ap (r/lookup ~'frame ::i/fixed)
-              (r/ap (r/lookup ~'frame ::m/watch)
-                (r/pure ~'!x))))))])
-
-  (match (l/test-compile ::Main (prn (::lang/site :client 1)))
-    `[(r/cdef 0 [] [] nil
-        (fn [~'frame]
-          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
-            (r/pure 1))))])
-
-  (match (l/test-compile ::Main (::lang/site :client (::lang/pure :foo)))
-    `[(r/cdef 0 [] [] :client
-        (fn [~'frame]
-          (r/pure (r/pure :foo))))])
-
   (match (l/test-compile ::Main (concat (let [x 1] [x x]) (let [y 2] [y y])))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
@@ -140,9 +141,15 @@
               (r/node ~'frame 0))
             (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
               (r/node ~'frame 1)
-              (r/node ~'frame 1)))))]
-    )
+              (r/node ~'frame 1)))))]))
 
+(tests "test-pure"
+  (match (l/test-compile ::Main (::lang/site :client (::lang/pure :foo)))
+    `[(r/cdef 0 [] [] :client
+        (fn [~'frame]
+          (r/pure (r/pure :foo))))]))
+
+(tests "test-ctor"
   (match (l/test-compile ::Main (::lang/ctor :foo))
     `[(r/cdef 0 [] [] nil
         (fn [~'frame]
@@ -260,121 +267,120 @@
           (r/pure (r/make-ctor ~'frame ::Main 1))))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
+          (r/pure :foo)))]))
+
+(tests "test-call"
+  (match (l/test-compile ::Main (::lang/call (::lang/ctor :foo)))
+    `[(r/cdef 0 [] [nil] nil
+        (fn [~'frame]
+          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/join (r/call ~'frame 0))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
           (r/pure :foo)))])
+
+  (match (l/test-compile ::Main (let [x (::lang/ctor :foo), y x] (::lang/call y)))
+    `[(r/cdef 0 [] [nil] nil
+        (fn [~'frame]
+          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/join (r/call ~'frame 0))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure :foo)))])
+
+  (match (l/test-compile ::Main (vector 1 (::lang/call (::lang/ctor :foo))))
+    `[(r/cdef 0 [] [nil] nil
+        (fn [~'frame]
+          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+            (r/pure 1)
+            (r/join (r/call ~'frame 0)))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame] (r/pure :foo)))])
+
+  (match (l/test-compile ::Main (let [x (::lang/ctor :foo)] [(::lang/call x) (::lang/call x)]))
+    `[(r/cdef 0 [nil] [nil nil] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/define-call ~'frame 0 (r/node ~'frame 0))
+          (r/define-call ~'frame 1 (r/node ~'frame 0))
+          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+            (r/join (r/call ~'frame 0))
+            (r/join (r/call ~'frame 1)))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame] (r/pure :foo)))])
+
+  (match (l/test-compile ::Main [(::lang/call (::lang/ctor :foo)) (::lang/call (::lang/ctor :bar))])
+    `[(r/cdef 0 [] [nil nil] nil
+        (fn [~'frame]
+          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/define-call ~'frame 1 (r/pure (r/make-ctor ~'frame ::Main 2)))
+          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+            (r/join (r/call ~'frame 0))
+            (r/join (r/call ~'frame 1)))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure :foo)))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure :bar)))])
+
+  (match (l/test-compile ::Main (let [a :foo] (::lang/call (::lang/ctor (::lang/ctor a)))))
+    `[(r/cdef 0 [nil] [nil] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure :foo))
+          (r/define-call ~'frame 0 (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
+                                             (r/define-free 0 (r/node ~'frame 0)))))
+          (r/join (r/call ~'frame 0))))
+      (r/cdef 1 [] [] nil
+        (fn [~'frame]
+          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 2)
+                    (r/define-free 0 (r/free ~'frame 0))))))
+      (r/cdef 1 [] [] nil
+        (fn [~'frame]
+          (r/free ~'frame 0)))]))
+
+(tests "test-conditionals"
+  ;; ({nil (ctor :y)} :x (ctor :z))
+  (match (l/test-compile ::Main (case :x nil :y :z))
+    `[(r/cdef 0 [] [nil] nil
+        (fn [~'frame]
+          (r/define-call ~'frame 0 (r/ap (r/ap (r/lookup ~'frame :clojure.core/hash-map (r/pure clojure.core/hash-map))
+                                           (r/pure 'nil) (r/pure (r/make-ctor ~'frame ::Main 1)))
+                                     (r/pure :x)
+                                     (r/pure (r/make-ctor ~'frame ::Main 2))))
+          (r/join (r/call ~'frame 0))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure :y)))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure :z)))])
+
+  (match (l/test-compile ::Main (case 'foo (foo bar) :share-this :else))
+    `[(r/cdef 0 [nil] [nil] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/define-call ~'frame 0 (r/ap (r/ap (r/lookup ~'frame :clojure.core/hash-map (r/pure clojure.core/hash-map))
+                                           (r/pure '~'foo) (r/node ~'frame 0)
+                                           (r/pure '~'bar) (r/node ~'frame 0))
+                                     (r/pure '~'foo)
+                                     (r/pure (r/make-ctor ~'frame ::Main 2))))
+          (r/join (r/call ~'frame 0))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure :share-this)))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure :else)))])
+
+  ;; (match (l/test-compile ::Main (if 1 2 3)))
   )
+
+;; TODO test site is cleared on ctor boundary
 
 ;; TODO rewrite or remove
 (comment
-  (l/compile-client (let [x (::lang/ctor :foo), y x] (::lang/call y)))
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-local 1)
-          (lang/r-ctor [] 2)
-          (lang/r-static :foo)
-          (lang/r-call 0))
-        [0] 3)
-
-  (l/compile-client (::lang/call (::lang/ctor :foo)))
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-static :foo)
-          (lang/r-ctor [] 0)
-          (lang/r-call 0))
-        [1] 2)
-
-  (l/compile-client (vector 1 (::lang/call (::lang/ctor :foo))))
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-static :foo)
-          (lang/r-ctor [] 0)
-          (lang/r-ap (lang/r-static ~'vector)
-            (lang/r-static 1)
-            (lang/r-call 0)))
-        [1] 2)
-
-  (l/compile-client (let [x (::lang/ctor :foo)] [(::lang/call x) (::lang/call x)]))
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-ctor [] 1)
-          (lang/r-static :foo)
-          (lang/r-ap (lang/r-static clojure.core/vector)
-            (lang/r-call 0)
-            (lang/r-call 1)))
-        [0 0]
-        2)
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-ctor [] 1)
-          (lang/r-static :foo)
-          (lang/r-local 0)
-          (lang/r-local 0)
-          (lang/r-ap (lang/r-static clojure.core/vector)
-            (lang/r-call 0)
-            (lang/r-call 1)))
-        [2 3] 4)
-
-  (l/compile-client [(::lang/call (::lang/ctor :foo)) (::lang/call (::lang/ctor :bar))])
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-static :foo)
-          (lang/r-ctor [] 0)
-          (lang/r-static :bar)
-          (lang/r-ctor [] 2)
-          (lang/r-ap (lang/r-static clojure.core/vector)
-            (lang/r-call 0)
-            (lang/r-call 1)))
-        [1 3] 4)
-
-  (l/compile-client (let [a :foo] (::lang/call (::lang/ctor (::lang/ctor a)))))
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-static :foo)
-          (lang/r-free 0)
-          (lang/r-ctor [] 1 (lang/r-free 0))
-          (lang/r-ctor [] 2 (lang/r-local 0))
-          (lang/r-call 0))
-        [3] 4)
-
-  ;; ({nil (ctor :y)} :x (ctor :z))
-  (l/compile-client (case :x nil :y :z))
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-ctor [] 1)
-          (lang/r-static :y)
-          (lang/r-static :z)
-          (lang/r-ap (lang/r-ap (lang/r-static clojure.core/hash-map)
-                       (lang/r-static 'nil) (lang/r-local 0))
-            (lang/r-static :x)
-            (lang/r-ctor [] 2))
-          (lang/r-call 0))
-        [3] 4)
-
-  (l/compile-client (case 'foo (foo bar) :share-this :else))
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-ctor [] 1)
-          (lang/r-static :share-this)
-          (lang/r-static :else)
-          (lang/r-ap (lang/r-ap (lang/r-static clojure.core/hash-map)
-                       (lang/r-static '~'foo) (lang/r-local 0)
-                       (lang/r-static '~'bar) (lang/r-local 0))
-            (lang/r-static '~'foo)
-            (lang/r-ctor [] 2))
-          (lang/r-call 0))
-        [3] 4)
-
-  (l/compile-client (::lang/pure :foo))
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-pure (lang/r-static :foo)))
-        [] 0)
-
-  (l/compile-client (::lang/join (::lang/pure :foo)))
-  := `(r/peer
-        (lang/r-defs
-          (lang/r-join (lang/r-pure (lang/r-static :foo))))
-        [] 0)
-
   (l/compile-client ((fn [] 1)))
   ;; ;; rest-args gensym breaks testability
   ;; ;; also, testing this deep is counter-productive, we're testing the implementation (internals)
@@ -453,47 +459,6 @@
 ;; * a vector of call sites
 ;; * the result site
 (comment
-
-  ;; call (aka new, but with no argument and only for ctors)
-  (l/compile ::Main `(e/client (e/call (e/ctor :foo))))
-  := `[(r/cdef 0 [] [:client] :client
-         (fn [frame]
-           (r/define-call frame 0 (r/pure (r/make-ctor frame ::Main 1)))
-           (r/join (r/call frame 0))))
-       (r/cdef 0 [] [] nil
-         (fn [frame]
-           (r/pure :foo)))]
-
-  ;; lexical closure
-  (l/compile ::Main `(e/client
-                       (let [a :foo]
-                         (e/call (e/ctor a)))))
-  := `[(r/cdef 0 [:client] [:client] :client
-         (fn [frame]
-           (r/define-node frame 0 (r/pure :foo))
-           (r/define-call frame 0 (r/pure (doto (r/make-ctor frame ::Main 1)
-                                            (r/define-free 0 (r/node frame 0)))))
-           (r/join (r/call frame 0))))
-       (r/cdef 1 [] [] nil
-         (fn [frame]
-           (r/free frame 0)))]
-
-  (l/compile ::Main `(e/client
-                       (let [a :foo]
-                         (e/call (e/ctor (e/ctor a))))))
-  := `[(r/cdef 0 [:client] [:client] :client
-         (fn [frame]
-           (r/define-node frame 0 (r/pure :foo))
-           (r/define-call frame 0 (r/pure (doto (r/make-ctor frame ::Main 1)
-                                            (r/define-free 0 (r/node frame 0)))))
-           (r/join (r/call frame 0))))
-       (r/cdef 1 [] [] nil
-         (fn [frame]
-           (r/pure (doto (r/make-ctor frame ::Main 2)
-                     (r/define-free 0 (r/free frame 0))))))
-       (r/cdef 1 [] [] nil
-         (fn [frame]
-           (r/free frame 0)))]
 
   ;; conditionals
   (l/compile ::Main `(case :x nil :y :z))

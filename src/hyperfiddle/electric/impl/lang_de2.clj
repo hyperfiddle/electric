@@ -574,8 +574,10 @@
                                (case (::type nd)
                                  (::static ::var) ts
                                  (::ap) (reduce mark-used-ctors ts (get-children-e ts e))
-                                 (::site ::join ::pure) (recur ts (get-child-e ts e))
-                                 (::ctor) (recur (ts/asc ts e ::ctor-idx (->ctor-idx)) (get-child-e ts e))
+                                 (::site ::join ::pure ::call) (recur ts (get-child-e ts e))
+                                 (::ctor) (if (::ctor-idx nd)
+                                            ts
+                                            (recur (ts/asc ts e ::ctor-idx (->ctor-idx)) (get-child-e ts e)))
                                  (::let) (recur ts (->let-body-e ts e))
                                  (::let-ref) (recur ts (get-ret-e ts (->let-val-e ts (::ref nd))))
                                  #_else (throw (ex-info (str "cannot mark-used-ctors on " (pr-str (::type nd))) (or nd {}))))))
@@ -608,32 +610,49 @@
                                (reduce (fn [ts ctor-e] (ensure-free-free ts ref-e ctor-e)) ts ctors-e))
            handle-let-refs (fn handle-let-refs [ts e] ; nodes and frees (closed over)
                              (let [nd (get (:eav ts) e)]
-                              (case (::type nd)
-                                (::static ::var) ts
-                                (::ap) (reduce handle-let-refs ts (get-children-e ts e))
-                                (::site ::join ::pure ::ctor) (recur ts (get-child-e ts e))
-                                (::let) (recur ts (->let-body-e ts e))
-                                (::let-ref)
-                                (let [ref-nd (get (:eav ts) (::ref nd))
-                                      ctors-e (loop [ac '(), e (::parent (get (:eav ts) e))]
-                                                (if (= (::ref nd) e)
-                                                  ac
-                                                  (recur (cond-> ac (= ::ctor (::type (get (:eav ts) e))) (conj e))
-                                                    (::parent (get (:eav ts) e)))))
-                                      ts (ts/asc ts (::ref nd) ::walked-val true) ; only walk binding once
-                                      ts (if (seq ctors-e) ; closed over
-                                           (-> ts (ensure-node (::ref nd))
-                                             (ensure-free-node (::ref nd) (first ctors-e))
-                                             (ensure-free-frees (::ref nd) (rest ctors-e)))
-                                           (cond-> (ts/upd ts (::ref nd) ::refcnt (fnil inc 0))
-                                             (or (= 1 (::refcnt ref-nd))
-                                               (not= (get-site ts (find-sitable-parent ts e))
-                                                 (get-site ts (->let-val-e ts (::ref nd)))))
-                                             (ensure-node (::ref nd))))]
-                                  (cond-> ts
-                                    (not (::walked-val ref-nd)) (recur (get-ret-e ts (->let-val-e ts (::ref nd))))))
-                                #_else (throw (ex-info (str "cannot handle-let-refs on " (::type nd)) (or nd {}))))))
-           ts (-> ts (handle-let-refs 0))
+                               (case (::type nd)
+                                 (::static ::var) ts
+                                 (::ap) (reduce handle-let-refs ts (get-children-e ts e))
+                                 (::site ::join ::pure ::ctor ::call) (recur ts (get-child-e ts e))
+                                 (::let) (recur ts (->let-body-e ts e))
+                                 (::let-ref)
+                                 (let [ref-nd (get (:eav ts) (::ref nd))
+                                       ctors-e (loop [ac '(), e (::parent (get (:eav ts) e))]
+                                                 (if (= (::ref nd) e)
+                                                   ac
+                                                   (recur (cond-> ac (= ::ctor (::type (get (:eav ts) e))) (conj e))
+                                                     (::parent (get (:eav ts) e)))))
+                                       ts (ts/asc ts (::ref nd) ::walked-val true) ; only walk binding once
+                                       ts (if (seq ctors-e) ; closed over
+                                            (-> ts (ensure-node (::ref nd))
+                                              (ensure-free-node (::ref nd) (first ctors-e))
+                                              (ensure-free-frees (::ref nd) (rest ctors-e)))
+                                            (cond-> (ts/upd ts (::ref nd) ::refcnt (fnil inc 0))
+                                              (or (= 1 (::refcnt ref-nd))
+                                                (not= (get-site ts (find-sitable-parent ts e))
+                                                  (get-site ts (->let-val-e ts (::ref nd)))))
+                                              (ensure-node (::ref nd))))]
+                                   (cond-> ts
+                                     (not (::walked-val ref-nd)) (recur (get-ret-e ts (->let-val-e ts (::ref nd))))))
+                                 #_else (throw (ex-info (str "cannot handle-let-refs on " (::type nd)) (or nd {}))))))
+           ->call-idx (let [mp (zipmap ctors-e (repeatedly ->->id))]
+                        (fn ->call-idx [ctor-e] ((get mp ctor-e))))
+           mark-used-calls (fn mark-used-calls [ts ctor-e e]
+                             (let [nd (ts/->node ts e)]
+                               (case (::type nd)
+                                 (::static ::var) ts
+                                 (::ap) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
+                                 (::site ::join ::pure) (recur ts ctor-e (get-child-e ts e))
+                                 (::ctor) (recur ts e (get-child-e ts e))
+                                 (::call) (if (::call-idx nd)
+                                            ts
+                                            (recur (-> ts (ts/asc e ::call-idx (->call-idx ctor-e))
+                                                     (ts/asc e ::ctor-call ctor-e))
+                                              ctor-e (get-child-e ts e)))
+                                 (::let) (recur ts ctor-e (->let-body-e ts e))
+                                 (::let-ref) (let [nx-e (get-ret-e ts (->let-val-e ts (::ref nd)))]
+                                               (recur ts (find-ctor-e ts nx-e) nx-e)))))
+           ts (-> ts (handle-let-refs 0) (mark-used-calls 0 (get-ret-e ts (get-child-e ts 0))))
            gen (fn gen [ts ctor-e e]
                  (let [nd (get (:eav ts) e)]
                    (case (::type nd)
@@ -661,6 +680,7 @@
                                                                                 first (ts/->node ts) ::free-idx))))))
                                       frees-e))
                                   ctor)))
+                     ::call (list `r/join (list `r/call 'frame (::call-idx (ts/->node ts e))))
                      ::let (recur ts ctor-e (get-ret-e ts (->let-body-e ts e)))
                      ::let-ref
                      (if-some [node-e (first (ts/find ts ::ctor-node ctor-e, ::ctor-ref (::ref nd)))]
@@ -669,19 +689,25 @@
                          (list `r/free 'frame (::free-idx (ts/->node ts free-e)))
                          (recur ts ctor-e (get-ret-e ts (->let-val-e ts (::ref nd))))))
                      #_else (throw (ex-info (str "cannot gen on " (pr-str (::type nd))) (or nd {}))))))
-           get-ctor-nodes-e (fn get-ctor-nodes-e [ts ctor-e]
-                              (->> (-> ts :ave ::ctor-node (get ctor-e))
-                                (filterv #(::node-idx (get (:eav ts) %)))))
            gen-node-init (fn gen-node-init [ts ctor-e node-e]
                            (let [nd (get (:eav ts) node-e)]
                              (list `r/define-node 'frame (::node-idx nd)
-                               (gen ts ctor-e (get-ret-e ts (->let-val-e ts (::ctor-ref nd)))))))]
+                               (gen ts ctor-e (get-ret-e ts (->let-val-e ts (::ctor-ref nd)))))))
+           gen-call-init (fn gen-call-init [ts ctor-e e]
+                           (list `r/define-call 'frame (::call-idx (ts/->node ts e))
+                             (gen ts ctor-e (get-ret-e ts (get-child-e ts e)))))]
        ;; (run! prn (->> ts :eav vals (sort-by :db/id)))
        (->> ctors-e
          (mapv (fn [ctor-e]
-                 (let [ret-e (get-ret-e ts (get-child-e ts ctor-e)), nodes-e (get-ctor-nodes-e ts ctor-e)]
+                 (let [ret-e (get-ret-e ts (get-child-e ts ctor-e))
+                       nodes-e (ts/find ts ::ctor-node ctor-e)
+                       calls-e (ts/find ts ::ctor-call ctor-e)]
                    `(r/cdef ~(count (ts/find ts ::ctor-free ctor-e))
-                      ~(mapv #(get-site ts (->> (get (:eav ts) %) ::ctor-ref (->let-val-e ts) (get-ret-e ts)))
+                      ~(mapv #(get-site ts (->> (ts/->node ts %) ::ctor-ref (->let-val-e ts) (get-ret-e ts)))
                          nodes-e)
-                      [] ~(get-site ts ret-e)
-                      (fn [~'frame] ~@(mapv #(gen-node-init ts ctor-e %) nodes-e) ~(gen ts ctor-e ret-e)))))))))))
+                      ~(mapv #(get-site ts %) calls-e)
+                      ~(get-site ts ret-e)
+                      (fn [~'frame]
+                        ~@(mapv #(gen-node-init ts ctor-e %) nodes-e)
+                        ~@(mapv #(gen-call-init ts ctor-e %) calls-e)
+                        ~(gen ts ctor-e ret-e)))))))))))
