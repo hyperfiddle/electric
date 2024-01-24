@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric.impl.expand-de-test
   (:require #?(:clj [cljs.env])
             #?(:clj [cljs.analyzer])
-            #?(:clj [hyperfiddle.electric.impl.lang-de :as c])
+            #?(:clj [hyperfiddle.electric.impl.lang-de2 :as l])
             #?(:clj [hyperfiddle.electric.impl.runtime-de :as r])
             #?(:clj [hyperfiddle.electric :as-alias e])
             [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred]]
@@ -9,9 +9,9 @@
   #?(:cljs (:require-macros [hyperfiddle.electric.impl.expand-macro :as mac :refer [twice]])))
 
 #?(:clj
-   (defmacro all [o] `(c/expand-all ~(if (:js-globals &env)
-                                       (assoc &env ::c/peers {:client :cljs, :server :cljs}, ::c/current :client)
-                                       {:locals &env, ::c/peers {:client :clj, :server :clj}, ::c/current :client})
+   (defmacro all [o] `(l/expand-all ~(if (:js-globals &env)
+                                       (assoc &env ::l/peers {:client :cljs, :server :cljs}, ::l/current :client)
+                                       {:locals &env, ::l/peers {:client :clj, :server :clj}, ::l/current :client})
                         ~o)))
 
 #?(:clj (defmacro test-peer-expansion [] (if (:js-globals &env) :cljs :clj)))
@@ -57,6 +57,9 @@
      (all '(case (-> 1 inc) (2) (-> 2 inc) (with-open) 3 4)) := '(case (inc 1) (2) (inc 2) (with-open) 3 4)
      (has-line-meta? (all '(case (-> 1 inc) (2) (-> 2 inc) (with-open) 3 4))) := true
 
+     (all '(if 1 2 3)) := '(case 1 (nil false) 3 2)
+     (has-line-meta? (all '(if 1 2 3))) := true
+
      (all ''(-> 1 inc)) := ''(-> 1 inc)
 
      (all '(fn [x] 1)) := '(fn* ([x] 1))
@@ -75,7 +78,7 @@
                            (->> [x] x)]
                      (-> (->> x) inc)))]
        x := '(let* [[foo bar baz ->>]
-                    (::c/letfn [foo (fn* foo ([with-open] (with-open 1)))
+                    (::l/letfn [foo (fn* foo ([with-open] (with-open 1)))
                                 bar (fn* bar ([x] (inc x)))
                                 baz (fn* baz ([x] (->> x)))
                                 ->> (fn* ->> ([x] x))])]
@@ -109,7 +112,7 @@
 
      (let [x (all '(loop [with-open inc, x 2] (-> x with-open)))]
        x := `(~'binding [r/rec
-                         (::c/closure
+                         (::l/closure
                           (let* [~'with-open r/%0, ~'x r/%1]
                             (~'with-open ~'x)))]
               (new r/rec ~'inc 2))
@@ -127,7 +130,7 @@
 
      (all '(hyperfiddle.impl.expand-test/X.)) := '(new hyperfiddle.impl.expand-test/X)
 
-     (c/-expand-all '(#{:ok} 1) {:js-globals {}})
+     (l/-expand-all '(#{:ok} 1) {:js-globals {}})
 
      "cljs var lookup doesn't produce undeclared-ns warnings"
      (let [!warns (atom [])]
@@ -136,41 +139,41 @@
                                                  (when (typ cljs.analyzer/*cljs-warnings*)
                                                    (swap! !warns conj [typ env extra])))]
            (binding [*err* *out*]
-             (with-out-str (c/-expand-all '(r/reflect 1) {::c/peers {:client :cljs, :server :clj} ::c/current :client})))))
+             (with-out-str (l/-expand-all '(r/reflect 1) {::l/peers {:client :cljs, :server :clj} ::l/current :client})))))
        @!warns := [])
 
      "expansion is peer-aware"
-     (c/expand-all {::c/peers {:client :cljs, :server :clj}, ::c/current :server}
-       `[(test-peer-expansion) (::c/toggle :client {} (test-peer-expansion))])
-     := `[:clj (::c/toggle :client {} :cljs)]
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :server}
+       `[(test-peer-expansion) (::l/site :client (test-peer-expansion))])
+     := `[:clj (::l/site :client :cljs)]
 
-     (c/expand-all {::c/peers {:client :cljs, :server :clj}, ::c/current :client}
-       `[(test-peer-expansion) (::c/toggle :server {} (test-peer-expansion))])
-     := `[:cljs (::c/toggle :server {} :clj)]
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client}
+       `[(test-peer-expansion) (::l/site :server (test-peer-expansion))])
+     := `[:cljs (::l/site :server :clj)]
 
      "cljs require-macros work in clj expansion"
-     (c/expand-all {::c/peers {:client :cljs, :server :clj}, ::c/current :client, :ns 'hyperfiddle.electric.impl.expand-test}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
        '(hyperfiddle.electric.impl.expand-macro/twice 1))
      := '[1 1]
-     (c/expand-all {::c/peers {:client :cljs, :server :clj}, ::c/current :client, :ns 'hyperfiddle.electric.impl.expand-test}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
        '(mac/twice 1))
      := '[1 1]
-     (c/expand-all {::c/peers {:client :cljs, :server :clj}, ::c/current :client, :ns 'hyperfiddle.electric.impl.expand-test}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
        '(twice 1))
      := '[1 1]
 
      "require referred macros work in cljs"
-     (c/expand-all {::c/peers {:client :cljs, :server :clj}, ::c/current :client, :ns 'hyperfiddle.electric.impl.expand-test}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
        '(referred))
      := :referred
 
      "required macros work in cljs when fully qualified"
-     (c/expand-all {::c/peers {:client :cljs, :server :clj}, ::c/current :client, :ns 'hyperfiddle.electric.impl.expand-test}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
        '(hyperfiddle.electric.impl.expand-require-referred/referred))
      := :referred
 
      "required macros work in cljs when alias qualified"
-     (c/expand-all {::c/peers {:client :cljs, :server :clj}, ::c/current :client, :ns 'hyperfiddle.electric.impl.expand-test}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
        '(ref/referred))
      := :referred
 
@@ -180,8 +183,8 @@
 #?(:clj
    (when-not (= 'let* (first
                         (binding [*ns* (create-ns 'hyperfiddle.electric.impl.expand-unloaded)]
-                          (c/expand-all {::c/peers {:client :cljs, :server :clj}
-                                         ::c/current :server, ::c/me :client
+                          (l/expand-all {::l/peers {:client :cljs, :server :clj}
+                                         ::l/current :server, ::l/me :client
                                          :ns 'hyperfiddle.electric.impl.expand-unloaded}
                             '(let [x 1])))))
      (throw (ex-info "clj macroexpansion for unloaded ns fails" {}))))
