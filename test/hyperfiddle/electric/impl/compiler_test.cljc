@@ -1,13 +1,13 @@
 (ns hyperfiddle.electric.impl.compiler-test
   (:require [hyperfiddle.electic :as-alias e]
             [hyperfiddle.incseq :as i]
-            [hyperfiddle.electric.impl.lang-de2 :as lang]
+            #?(:clj [hyperfiddle.electric.impl.lang-de2 :as lang])
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.electric-local-def-de :as l]
             #?(:clj [hyperfiddle.electric.impl.compiler-test-clj :refer [cannot-be-unsited]]
                :cljs [hyperfiddle.electric.impl.compiler-test-cljs :refer [cannot-be-unsited]])
             [hyperfiddle.rcf :as rcf :refer [tests]]
-            [contrib.test-match :as tm]
+            #?(:clj [contrib.test-match :as tm])
             [fipp.edn]
             [missionary.core :as m])
   #?(:clj (:import [clojure.lang ExceptionInfo])))
@@ -374,7 +374,22 @@
         (fn [~'frame]
           (r/pure :else)))])
 
-  ;; (match (l/test-compile ::Main (if 1 2 3)))
+  (match (l/test-compile ::Main (if 1 2 3))
+    `[(r/cdef 0 [nil] [nil] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/define-call ~'frame 0 (r/ap (r/ap (r/lookup ~'frame :clojure.core/hash-map (r/pure clojure.core/hash-map))
+                                           (r/pure 'nil) (r/node ~'frame 0)
+                                           (r/pure 'false) (r/node ~'frame 0))
+                                     (r/pure 1)
+                                     (r/pure (r/make-ctor ~'frame ::Main 2))))
+          (r/join (r/call ~'frame 0))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure 3)))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure 2)))])
   )
 
 ;; TODO test site is cleared on ctor boundary

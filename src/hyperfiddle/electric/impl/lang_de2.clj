@@ -41,8 +41,8 @@
     (assoc cljs-env :ns ast)
     (if-some [src (cljs-ana/locate-src nssym)]
       (let [ast (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
-                        (binding [cljs-ana/*passes* []]
-                          (cljs-ana/parse-ns src {:load-macros true, :restore false}))))]
+                        (binding [cljs-ana/*passes* [cljs-ana/ns-side-effects]]
+                          (cljs-ana/parse-ns src {:load-macros true, :analyze-deps true, :restore false}))))]
         ;; we parsed the ns form without `ns-side-effects` because it triggers weird bugs
         ;; this means the macro nss from `:require-macros` might not be loaded
         (run! serialized-require (-> ast :require-macros vals set))
@@ -210,6 +210,8 @@
                                clauses2)
                        has-default-clause? (conj (xpand (last clauses)))))))
 
+        (if) (let [[_ test then else] o] (?meta o (list 'case test '(nil false) else then)))
+
         (quote) o
 
         (fn*) (let [[?name more] (if (symbol? (second o)) [(second o) (nnext o)] [nil (next o)])
@@ -242,7 +244,7 @@
                  (?meta o (list 'set! (-expand-all (nth o 1) env) (-expand-all (nth o 2) env))))
 
         (::site) (?meta o (seq (conj (into [] (take 2) o)
-                                   (-expand-all (cons 'do (drop 2 o)) (assoc env ::current (second o))))))
+                                 (-expand-all (cons 'do (drop 2 o)) (assoc env ::current (second o))))))
 
         #_else
         (if (symbol? (first o))
