@@ -805,16 +805,21 @@ combined with given function.
               (aset state slot-processes (object-array arity))
               (aset state slot-ready ready)
               (aset state slot-counts
-                (loop [i 1]
-                  (let [n (bit-shift-left i 1)]
-                    (if (< i arity)
-                      (recur n)
-                      (let [arr (int-array n)]
-                        (loop [i (unchecked-add-int i arity)]
-                          (when (< i n)
-                            (aset arr i 1)
-                            (recur (unchecked-inc-int i))))
-                        arr)))))
+                (let [o (loop [o 1]
+                          (if (< o arity)
+                            (recur (bit-shift-left o 1)) o))
+                      n (bit-shift-left o 1)
+                      arr (int-array n)]
+                  (loop [f (unchecked-subtract o arity)
+                         o o
+                         n n]
+                    (when (< 1 o)
+                      (loop [i (unchecked-subtract n f)]
+                        (when (< i n)
+                          (aset arr i 1)
+                          (recur (unchecked-inc i))))
+                      (recur (bit-shift-right f 1)
+                        (bit-shift-right o 1) o))) arr))
               (aset state slot-live (identity arity))
               (aset state slot-value (empty-diff 0))
               (reduce-kv input-spawn state diffs)
