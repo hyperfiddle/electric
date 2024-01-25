@@ -1,6 +1,6 @@
 (ns hyperfiddle.electric-de
   (:refer-clojure :exclude [fn])
-  (:require #?(:clj [hyperfiddle.electric.impl.lang-de2 :as lang])
+  (:require [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.incseq :as i]
             [missionary.core :as m]
