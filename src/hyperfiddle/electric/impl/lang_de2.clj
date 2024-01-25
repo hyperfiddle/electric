@@ -9,7 +9,7 @@
             [clojure.set :as set]
             [contrib.triple-store :as ts]
             [dom-top.core :refer [loopr]]
-            [hyperfiddle.electric :as-alias e]
+            [hyperfiddle.electric-de :as-alias e]
             [hyperfiddle.electric.impl.analyzer :as ana]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.rcf :as rcf :refer [tests]]))
@@ -210,7 +210,8 @@
                                clauses2)
                        has-default-clause? (conj (xpand (last clauses)))))))
 
-        (if) (let [[_ test then else] o] (?meta o (list 'case test '(nil false) else then)))
+        (if) (let [[_ test then else] o, xpand (fn-> -expand-all env)]
+               (?meta o (list 'case (xpand test) '(nil false) (xpand else) (xpand then))))
 
         (quote) o
 
@@ -524,6 +525,7 @@
                  (recur bform e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::site, ::site site})
                                   (?add-source-map e form)
                                   (update :o update ::env assoc ::current site))))
+      (::lookup) (let [[_ sym] form] (ts/add ts {:db/id (->id), ::parent pe, ::type ::lookup, ::sym sym}))
       #_else (let [e (->id)]
                (reduce (fn [ts nx] (analyze nx e ts)) (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
                                                         (?add-source-map e form)) form)))
@@ -574,7 +576,7 @@
            mark-used-ctors (fn mark-used-ctors [ts e]
                              (let [nd (get (:eav ts) e)]
                                (case (::type nd)
-                                 (::static ::var) ts
+                                 (::static ::var ::lookup) ts
                                  (::ap) (reduce mark-used-ctors ts (get-children-e ts e))
                                  (::site ::join ::pure ::call) (recur ts (get-child-e ts e))
                                  (::ctor) (if (::ctor-idx nd)
@@ -613,7 +615,7 @@
            handle-let-refs (fn handle-let-refs [ts e] ; nodes and frees (closed over)
                              (let [nd (get (:eav ts) e)]
                                (case (::type nd)
-                                 (::static ::var) ts
+                                 (::static ::var ::lookup) ts
                                  (::ap) (reduce handle-let-refs ts (get-children-e ts e))
                                  (::site ::join ::pure ::ctor ::call) (recur ts (get-child-e ts e))
                                  (::let) (recur ts (->let-body-e ts e))
@@ -642,7 +644,7 @@
            mark-used-calls (fn mark-used-calls [ts ctor-e e]
                              (let [nd (ts/->node ts e)]
                                (case (::type nd)
-                                 (::static ::var) ts
+                                 (::static ::var ::lookup) ts
                                  (::ap) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
                                  (::site ::join ::pure) (recur ts ctor-e (get-child-e ts e))
                                  (::ctor) (recur ts e (get-child-e ts e))
@@ -683,6 +685,7 @@
                                       frees-e))
                                   ctor)))
                      ::call (list `r/join (list `r/call 'frame (::call-idx (ts/->node ts e))))
+                     ::lookup (list `r/lookup 'frame (::sym nd))
                      ::let (recur ts ctor-e (get-ret-e ts (->let-body-e ts e)))
                      ::let-ref
                      (if-some [node-e (first (ts/find ts ::ctor-node ctor-e, ::ctor-ref (::ref nd)))]
