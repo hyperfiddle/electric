@@ -39,6 +39,7 @@ successive sequence diffs. Incremental sequences are applicative functors with `
   (:refer-clojure :exclude [cycle int-array])
   (:require [hyperfiddle.rcf :refer [tests]])
   (:import #?(:clj (clojure.lang IFn IDeref))
+           #?(:clj (java.util.concurrent.locks ReentrantLock))
            missionary.Cancelled))
 
 
@@ -1351,6 +1352,212 @@ optional `compare` function, `clojure.core/compare` by default.
                              :change      {0 curr}
                              :freeze      #{}})))))))))))))))
 
+(def ^{:arglists '([incseq])
+       :doc "
+"} items
+  (let [slot-lock 0
+        slot-busy 1
+        slot-buffer 2
+        slot-output 3
+        slot-input 4
+        slots 5
+        item-slot-parent 0
+        item-slot-frozen 1
+        item-slot-state 2
+        item-slot-fail 3
+        item-slot-next 4
+        item-slot-step 5
+        item-slot-done 6
+        item-slots 7]
+    (letfn [(acquire [^objects state]
+              #?(:clj (let [^ReentrantLock lock (aget state slot-lock)
+                            held (.isHeldByCurrentThread lock)]
+                        (.lock lock) held)
+                 :cljs (let [held (aget state slot-lock)]
+                         (aset state slot-lock true) held)))
+            (release [^objects state held]
+              (if held
+                #?(:clj  (.unlock ^ReentrantLock (aget state slot-lock))
+                   :cljs (aset state slot-lock held))
+                (let [^objects output (aget state slot-output)
+                      ^objects head (aget output item-slot-parent)]
+                  (aset output item-slot-parent nil)
+                  #?(:clj  (.unlock ^ReentrantLock (aget state slot-lock))
+                     :cljs (aset state slot-lock held))
+                  (loop [^objects head head]
+                    (when-not (nil? head)
+                      (let [item (aget head item-slot-next)]
+                        (aset head item-slot-next nil)
+                        (if-some [step (aget head item-slot-step)]
+                          (step) (let [done (aget head item-slot-done)]
+                                   (aset head item-slot-done nil) (done)))
+                        (recur item)))))))
+            (ensure-capacity [^objects state n]
+              (let [^objects b (aget state slot-buffer)
+                    l (alength b)]
+                (if (< l n)
+                  (let [a (object-array
+                            (loop [l l]
+                              (let [l (bit-shift-left l 1)]
+                                (if (< l n) (recur l) l))))]
+                    #?(:cljs (dotimes [i l] (aset a i (aget b i)))
+                       :clj (System/arraycopy b 0 a 0 l))
+                    (aset state slot-buffer a)) b)))
+            (apply-cycle [^objects buffer cycle]
+              (let [i (nth cycle 0)
+                    x (aget buffer i)
+                    j (loop [i i
+                             k 1]
+                        (let [j (nth cycle k)
+                              y (aget buffer j)
+                              k (unchecked-inc-int k)]
+                          (aset buffer i y)
+                          (if (< k (count cycle))
+                            (recur j k) j)))]
+                (aset buffer j x) buffer))
+            (detach [^objects buffer i]
+              (propagate-freeze buffer i) (aset buffer i nil) buffer)
+            (propagate-change [^objects buffer i x]
+              (aset ^objects (aget buffer i) item-slot-state x) buffer)
+            (propagate-freeze [^objects buffer i]
+              (aset ^objects (aget buffer i) item-slot-frozen true) buffer)
+            (item-failure [done]
+              (done) (throw (#?(:clj Error. :cljs js/Error.) "Illegal concurrent cursor.")))
+            (item-cancel [^objects item]
+              (let [parent (aget item item-slot-parent)
+                    held (acquire parent)]
+                (when-not (aget item item-slot-fail)
+                  (aset item item-slot-fail true)
+                  (when (identical? item (aget item item-slot-next))
+                    (notify parent item)))
+                (release parent held)))
+            (item-transfer [^objects item]
+              (let [parent (aget item item-slot-parent)
+                    held (acquire parent)]
+                (input-transfer parent)
+                (if (aget item item-slot-fail)
+                  (do (aset item item-slot-step nil)
+                      (notify parent item)
+                      (release parent held)
+                      (throw (Cancelled. "Cursor cancelled.")))
+                  (let [state (aget item item-slot-state)]
+                    (if (aget item item-slot-frozen)
+                      (do (aset item item-slot-step nil)
+                          (notify parent item))
+                      (aset item item-slot-next item))
+                    (release parent held) state))))
+            (create-item [^objects parent i]
+              (let [item (object-array item-slots)]
+                (aset ^objects (aget parent slot-buffer) i item)
+                (aset item item-slot-parent parent)
+                (aset item item-slot-frozen false)
+                (aset item item-slot-state item) parent))
+            (get-cursor [^objects item]
+              (fn [step done]
+                (let [parent (aget item item-slot-parent)
+                      held (acquire parent)]
+                  (if (nil? (aget item item-slot-done))
+                    (do (aset item item-slot-fail false)
+                        (aset item item-slot-step step)
+                        (aset item item-slot-done done)
+                        (notify parent item)
+                        (release parent held)
+                        (->Ps item item-cancel item-transfer))
+                    (do (release parent held) (step)
+                        (->Ps done {} item-failure))))))
+            (input-transfer [^objects state]
+              (when (aget state slot-busy)
+                (let [^objects output (aget state slot-output)]
+                  (loop []
+                    (if (aget output item-slot-frozen)
+                      (when-some [^objects buffer (aget state slot-buffer)]
+                        (let [n (loop [i 0]
+                                  (if (< i (alength buffer))
+                                    (if-some [^objects item (aget buffer i)]
+                                      (do (aset item item-slot-frozen true)
+                                          (recur (inc i))) i) i))]
+                          (when (nil? (aget output item-slot-state))
+                            (aset output item-slot-state (empty-diff n)))))
+                      (try
+                        (let [{:keys [grow degree shrink permutation change freeze]} @(aget state slot-input)
+                              ^objects buffer (ensure-capacity state degree)
+                              created (range (- degree grow) degree)
+                              iperm (inverse permutation)
+                              indices (into #{} (map (fn [i] (iperm i i))) created)]
+                          (reduce create-item state created)
+                          (reduce apply-cycle buffer (decompose permutation))
+                          (reduce detach buffer (range (- degree shrink) degree))
+                          (reduce-kv propagate-change buffer change)
+                          (reduce propagate-freeze buffer freeze)
+                          (let [diff {:grow        grow
+                                      :degree      degree
+                                      :shrink      shrink
+                                      :permutation permutation
+                                      :change      (reduce
+                                                     (fn [m i]
+                                                       (assoc m i (get-cursor (aget buffer i))))
+                                                     {} indices)
+                                      :freeze      indices}]
+                            (aset output item-slot-state
+                              (if-some [d (aget output item-slot-state)]
+                                (combine d diff) diff))))
+                        (catch #?(:clj Throwable :cljs :default) e
+                          (aset output item-slot-fail true)
+                          (aset output item-slot-state e))))
+                    (when (aset state slot-busy (not (aget state slot-busy))) (recur))))))
+            (input-ready [^objects state]
+              (let [held (acquire state)
+                    ^objects buffer (aget state slot-buffer)
+                    ^objects output (aget state slot-output)
+                    ^objects head (aget output item-slot-parent)]
+                (aset state slot-busy (not (aget state slot-busy)))
+                (aset output item-slot-parent
+                  (loop [i 0
+                         h (when (identical? output (aget output item-slot-next))
+                             (aset output item-slot-next head) output)]
+                    (if (< i (alength buffer))
+                      (if-some [^objects item (aget buffer i)]
+                        (recur (inc i)
+                          (if (identical? item (aget item item-slot-next))
+                            (do (aset item item-slot-next h) item) h)) h) h)))
+                (release state held)))
+            (notify [^objects state ^objects item]
+              (let [^objects output (aget state slot-output)]
+                (aset item item-slot-next (aget output item-slot-parent))
+                (aset output item-slot-parent item)))
+            (cancel [^objects state]
+              ((aget state slot-input)))
+            (transfer [^objects state]
+              (let [^objects output (aget state slot-output)
+                    held (acquire state)]
+                (input-transfer state)
+                (let [diff (aget output item-slot-state)]
+                  (aset output item-slot-state nil)
+                  (if (aget output item-slot-frozen)
+                    (do (aset output item-slot-step nil)
+                        (notify state output))
+                    (aset output item-slot-next output))
+                  (if (aget output item-slot-fail)
+                    (do (release state held) (throw diff))
+                    (do (release state held) diff)))))]
+      (fn [incseq]
+        (fn [step done]
+          (let [state (object-array slots)
+                output (object-array item-slots)]
+            (aset output item-slot-next output)
+            (aset output item-slot-frozen false)
+            (aset output item-slot-fail false)
+            (aset output item-slot-step step)
+            (aset output item-slot-done done)
+            (aset state slot-lock #?(:clj (ReentrantLock.) :cljs false))
+            (aset state slot-busy false)
+            (aset state slot-buffer (object-array 1))
+            (aset state slot-output output)
+            (aset state slot-input
+              (incseq #(input-ready state)
+                #(do (aset output item-slot-frozen true)
+                     (input-ready state))))
+            (->Ps state cancel transfer)))))))
 
 ;; unit tests
 
