@@ -397,6 +397,11 @@
         (fn [~'frame]
           (r/lookup ~'frame 0)))]))
 
+(defn should-work-in-cljs [])
+
+(tests "test-unsited-cljs-fn"
+  (match (l/test-compile ::Main (should-work-in-cljs))))
+
 ;; TODO test site is cleared on ctor boundary
 
 ;; TODO rewrite or remove
