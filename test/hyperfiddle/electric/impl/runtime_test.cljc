@@ -1,6 +1,5 @@
 (ns hyperfiddle.electric.impl.runtime-test
   (:require [missionary.core :as m]
-            [hyperfiddle.incseq :as i]
             [hyperfiddle.electric-de :as e]
             #?(:clj [hyperfiddle.electric.impl.lang-de2 :as l])
             [hyperfiddle.electric.impl.runtime-de :as r]
@@ -24,10 +23,26 @@
 
 (tests
   (def !x (atom :foo))
-  (on-diff! rcf/tap (root-frame (::l/join (i/fixed (m/watch !x)))))
+  (on-diff! rcf/tap (root-frame (e/watch !x)))
   % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 :foo}, :freeze #{}}
   (reset! !x :bar)
   % := {:degree 1, :permutation {}, :grow 0, :shrink 0, :change {0 :bar}, :freeze #{}})
+
+(tests
+  (def !x (atom false))
+  (on-diff! rcf/tap
+    (root-frame (if (e/watch !x) "foo" "bar")))
+  % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 "bar"}, :freeze #{0}}
+  (swap! !x not)
+  % := {:degree 2, :permutation {0 1, 1 0}, :grow 1, :shrink 1, :change {0 "foo"}, :freeze #{0}})
+
+(tests
+  (def !bar (atom :bar))
+  (on-diff! rcf/tap
+    (root-frame (e/amb :foo (e/watch !bar) :baz)))
+  % := {:degree 3, :permutation {}, :grow 3, :shrink 0, :change {0 :foo, 1 :bar, 2 :baz}, :freeze #{0 2}}
+  (reset! !bar :BAR)
+  % := {:degree 3, :permutation {}, :grow 0, :shrink 0, :change {1 :BAR}, :freeze #{}})
 
 (tests
   (def !n (atom 10))
