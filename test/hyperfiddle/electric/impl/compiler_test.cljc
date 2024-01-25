@@ -389,8 +389,13 @@
           (r/pure 3)))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/pure 2)))])
-  )
+          (r/pure 2)))]))
+
+(tests "test-lookup"
+  (match (l/test-compile ::Main (::lang/lookup 0))
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/lookup ~'frame 0)))]))
 
 ;; TODO test site is cleared on ctor boundary
 
