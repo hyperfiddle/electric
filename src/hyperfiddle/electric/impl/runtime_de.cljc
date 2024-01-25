@@ -15,12 +15,14 @@
 
     ))
 
+(defn invariant [x] (m/cp x))
+
 (deftype Pure [values]
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
-    ((apply i/fixed (map #(m/cp %) values)) step done)))
+    ((apply i/fixed (map invariant values)) step done)))
 
-(defn pure [& xs] (->Pure xs))
+(def pure (comp ->Pure vector))
 
 (defn error [^String msg]
   #?(:clj (Error. msg)
@@ -47,6 +49,9 @@
 (defn bind [^Ctor ctor k v]
   (->Ctor (.-peer ctor) (.-key ctor) (.-idx ctor) (.-free ctor)
     (assoc (.-env ctor) k v)))
+
+(defn bind-args [^Ctor ctor & args]
+  (reduce (partial apply bind) ctor (eduction (map-indexed vector) args)))
 
 (defn ctor-peer
   "Returns the peer of given constructor."
@@ -79,9 +84,7 @@
 (deftype Node [frame id]
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
-    ((aget (.-signals frame)
-       (bit-shift-left id 1))
-     step done)))
+    ((aget (.-signals frame) id) step done)))
 
 (deftype Call [frame id]
   IFn
@@ -182,7 +185,10 @@
   (->Call frame id))
 
 (def join i/latest-concat)
+
 (def ap (partial i/latest-product (fn [f & args] (apply f args))))
+
+(def singletons (comp (partial i/latest-product (comp (partial m/signal i/combine) i/fixed)) i/items))
 
 (def peer-slot-input 0)
 (def peer-slot-store 1)
@@ -209,66 +215,18 @@ Returns a peer definition from given definitions and main key.
            (into {} (map-indexed (fn [i arg] [i (pure arg)])))
            (->Ctor peer main 0 (object-array 0))
            (make-frame nil 0)
+           (m/signal i/combine)
            (m/reduce (fn [_ x] (prn :output x)) nil))
          #(prn :success %) #(prn :failure %))
 
         peer))))
 
-(comment
-  (defn r! [defs main & args]
-    (((apply peer defs main args)
-      (fn [!] (prn :boot) #()))
-     #(prn :s %)
-     #(prn :f %)))
-
-  ;; pure
-  (r! {::Main [(cdef 0 [] [] nil (fn [frame] (pure "hello world")))]} ::Main)
-
-  ;; variable
-  (def !x (atom 0))
-  (r! {::Main [(cdef 0 [] [] nil (fn [frame] (join (pure (i/fixed (m/watch !x))))))]} ::Main)
-  (swap! !x inc)
-
-  ;; conditional
-  (def !x (atom false))
-  (r! {::Main [(cdef 0 [] [nil] nil
-                 (fn [frame]
-                   (define-call frame 0
-                     (ap (pure {false (make-ctor frame ::Main 1)
-                                true  (make-ctor frame ::Main 2)})
-                       (i/fixed (m/watch !x))))
-                   (join (call frame 0))))
-               (cdef 0 [] [] nil
-                 (fn [frame]
-                   (pure "foo")))
-               (cdef 0 [] [] nil
-                 (fn [frame]
-                   (pure "bar")))]}
-    ::Main)
-  (swap! !x not)
-
-  ;; amb
-  (def !x (atom "bar"))
-  (r! {::Main [(cdef 0 [] [nil] nil
-                 (fn [frame]
-                   (define-call frame 0
-                     (pure
-                       (make-ctor frame ::Main 1)
-                       (make-ctor frame ::Main 2)
-                       (make-ctor frame ::Main 3)))
-                   (join (call frame 0))))
-               (cdef 0 [] [] nil
-                 (fn [frame]
-                   (pure "foo")))
-               (cdef 0 [] [] nil
-                 (fn [frame]
-                   (i/fixed (m/watch !x))))
-               (cdef 0 [] [] nil
-                 (fn [frame]
-                   (pure "baz")))]} ::Main)
-  (reset! !x "bar")
-
-  )
+;; local only
+(defn root-frame [defs main]
+  (->> (->Ctor (->Peer nil nil defs nil)
+         main 0 (object-array 0) {})
+    (make-frame nil 0)
+    (m/signal i/combine)))
 
 (def ^{::type ::node, :doc "for loop/recur impl"} rec)
 
