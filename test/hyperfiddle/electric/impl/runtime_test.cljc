@@ -2,7 +2,7 @@
   (:require [missionary.core :as m]
             [hyperfiddle.incseq :as i]
             [hyperfiddle.electric :as-alias e]
-            [hyperfiddle.electric.impl.lang-de2 :as l]
+            #?(:clj [hyperfiddle.electric.impl.lang-de2 :as l])
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.rcf :as rcf :refer [tests %]]))
 
@@ -12,7 +12,10 @@
                  :cljs (.error js/console e)))))
 
 (defmacro root-frame [form]
-  `(r/root-frame {::Main ~(l/compile ::Main form &env)} ::Main))
+  `(r/root-frame {::Main ~(l/compile ::Main form
+                            (assoc (l/normalize-env &env)
+                              ::l/peers {:client :clj, :server :clj}))}
+     ::Main))
 
 (tests
   (on-diff! rcf/tap (root-frame "hello electric"))
@@ -21,6 +24,7 @@
 
 (tests
   (def !x (atom :foo))
-  (on-diff! rcf/tap (root-frame (e/join (i/fixed (m/watch !x)))))
+  (on-diff! rcf/tap (root-frame (::l/join (i/fixed (m/watch !x)))))
+  % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 :foo}, :freeze #{}}
   (reset! !x :bar)
-  )
+  % := {:degree 1, :permutation {}, :grow 0, :shrink 0, :change {0 :bar}, :freeze #{}})
