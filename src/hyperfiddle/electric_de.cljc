@@ -8,16 +8,38 @@
   #?(:cljs (:require-macros hyperfiddle.electric-de)))
 
 (defmacro join [flow] `(::lang/join ~flow))
-(defmacro input [& flows] `(join (r/fixed-signals ~@flows)))
-(defmacro watch [ref] `(input (m/watch ~ref)))
 (defmacro ctor [expr] `(::lang/ctor ~expr))
 (defmacro call [ctor] `(::lang/call ~ctor))
 (defmacro pure [v] `(::lang/pure ~v))
-(defmacro amb [& exprs] `(call (join (r/pure ~@(mapv #(list `ctor %) exprs)))))
+
 (defmacro fn [bs & body]
   `(ctor
     (let [~@(interleave bs (eduction (map #(list ::lang/lookup %)) (range)))]
       ~@body)))
+
+(defmacro amb "
+Syntax :
+```clojure
+(amb table1 table2 ,,, tableN)
+```
+Returns the concatenation of `table1 table2 ,,, tableN`.
+" [& exprs] `(call (join (r/pure ~@(mapv #(list `ctor %) exprs)))))
+
+(defmacro input "
+Syntax :
+```clojure
+(input cf)
+```
+Returns the current state of current continuous flow `cf`.
+" [& flows] `(join (r/fixed-signals ~@flows)))
+
+(defmacro watch "
+Syntax :
+```clojure
+(watch !ref)
+```
+Returns the current state of current reference `!ref`.
+" [ref] `(input (m/watch ~ref)))
 
 (defmacro diff-by "
 Syntax :
