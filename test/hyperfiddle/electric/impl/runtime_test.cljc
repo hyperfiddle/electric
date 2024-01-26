@@ -121,3 +121,12 @@
   % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 [[1 0] [2 0] [2 1]]}, :freeze #{}}
   (swap! !n inc)
   % := {:degree 1, :permutation {}, :grow 0, :shrink 0, :change {0 [[1 0] [2 0] [2 1] [3 0] [3 1] [3 2]]}, :freeze #{}})
+
+(tests
+  (def !x (atom 0))
+  (on-diff! rcf/tap
+    (root-frame (e/drain (rcf/tap (e/watch !x)))))
+  % := 0
+  % := {:degree 0, :permutation {}, :grow 0, :shrink 0, :change {}, :freeze #{}}
+  (swap! !x inc)
+  % := 1)

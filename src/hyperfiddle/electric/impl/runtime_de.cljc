@@ -190,6 +190,11 @@
 
 (def fixed-signals (comp (partial m/signal i/combine) i/fixed))
 
+(defn drain [incseq]
+  (m/ap
+    (m/amb (i/empty-diff 0)
+      (do (m/?> incseq) (m/amb)))))
+
 (def peer-slot-input 0)
 (def peer-slot-store 1)
 (def peer-slots 2)

@@ -63,7 +63,14 @@ Syntax :
 Stabilizes successive states of collection `xs` with function `kf`. Returns each item as a table.
 " [f xs] `(join (i/diff-by ~f (join (i/items (pure ~xs))))))
 
-;; (defmacro drain [expr] `(join (i/drain (pure ~expr))))
+(defmacro drain "
+Syntax :
+```clojure
+(drain expr)
+```
+Samples and discards `expr` synchronously with changes. Returns nothing.
+" [expr] `(join (r/drain (pure ~expr))))
+
 (defmacro client [& body] `(::lang/site :client ~@body))
 (defmacro server [& body] `(::lang/site :server ~@body))
 
