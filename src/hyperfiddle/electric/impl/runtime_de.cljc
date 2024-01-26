@@ -188,7 +188,7 @@
 
 (def ap (partial i/latest-product (fn [f & args] (apply f args))))
 
-(def singletons (comp (partial i/latest-product (comp (partial m/signal i/combine) i/fixed)) i/items))
+(def fixed-signals (comp (partial m/signal i/combine) i/fixed))
 
 (def peer-slot-input 0)
 (def peer-slot-store 1)
