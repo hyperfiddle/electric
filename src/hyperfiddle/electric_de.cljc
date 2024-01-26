@@ -19,7 +19,14 @@
     (let [~@(interleave bs (eduction (map #(list ::lang/lookup %)) (range)))]
       ~@body)))
 
-(defmacro diff-by [f xs] `(join (i/diff-by ~f (join (i/items (pure ~xs))))))
+(defmacro diff-by "
+Syntax :
+```clojure
+(diff-by kf xs)
+```
+Stabilizes successive states of collection `xs` with function `kf`. Returns each item as a table.
+" [f xs] `(join (i/diff-by ~f (join (i/items (pure ~xs))))))
+
 ;; (defmacro drain [expr] `(join (i/drain (pure ~expr))))
 (defmacro client [& body] `(::lang/site :client ~@body))
 (defmacro server [& body] `(::lang/site :server ~@body))
