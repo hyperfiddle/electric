@@ -81,12 +81,12 @@
   [^Frame frame]
   (.-ctor frame))
 
-(deftype Node [frame id]
+(deftype Node [^Frame frame id]
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
     ((aget (.-signals frame) id) step done)))
 
-(deftype Call [frame id]
+(deftype Call [^Frame frame id]
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
     (let [cdef (ctor-cdef (frame-ctor frame))]

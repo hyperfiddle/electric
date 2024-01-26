@@ -1357,9 +1357,7 @@ optional `compare` function, `clojure.core/compare` by default.
                              :change      {0 curr}
                              :freeze      #{}})))))))))))))))
 
-(def ^{:arglists '([incseq])
-       :doc "
-"} items
+(def ^{:arglists '([incseq])} items
   (let [slot-lock 0
         slot-busy 1
         slot-buffer 2
