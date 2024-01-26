@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric.impl.compiler-test
-  (:require [hyperfiddle.electic :as-alias e]
+  (:require [hyperfiddle.electric-de :as e]
             [hyperfiddle.incseq :as i]
             #?(:clj [hyperfiddle.electric.impl.lang-de2 :as lang])
             [hyperfiddle.electric.impl.runtime-de :as r]
