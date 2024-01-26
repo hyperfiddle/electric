@@ -18,8 +18,17 @@
   `(ctor
     (let [~@(interleave bs (eduction (map #(list ::lang/lookup %)) (range)))]
       ~@body)))
-(defmacro cursor [[sym v] & body] `(call (r/bind-args (fn [~sym] ~@body) (r/fixed-signals (join (i/items (pure ~v)))))))
+
 (defmacro diff-by [f xs] `(join (i/diff-by ~f (join (i/items (pure ~xs))))))
 ;; (defmacro drain [expr] `(join (i/drain (pure ~expr))))
 (defmacro client [& body] `(::lang/site :client ~@body))
 (defmacro server [& body] `(::lang/site :server ~@body))
+
+(defmacro cursor [bindings & body]
+  (case bindings
+    [] `(do ~@body)
+    (let [[args exprs] (apply map vector (partition-all 2 bindings))]
+      `(call (r/bind-args (fn ~args ~@body)
+               ~@(map (clojure.core/fn [expr]
+                        `(r/fixed-signals (join (i/items (pure ~expr)))))
+                   exprs))))))

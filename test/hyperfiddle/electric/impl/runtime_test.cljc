@@ -77,3 +77,28 @@
   % := {:degree 21, :permutation {}, :grow 1, :shrink 0, :change {20 [21 "Fizz"]}, :freeze #{}}
   (reset! !fizz "Fuzz")
   % := {:degree 21, :permutation {}, :grow 0, :shrink 0, :change {20 [21 "Fuzz"], 2 [3 "Fuzz"], 5 [6 "Fuzz"], 8 [9 "Fuzz"], 11 [12 "Fuzz"], 14 [15 "FuzzBuzz"], 17 [18 "Fuzz"]}, :freeze #{}})
+
+(tests
+  (def !animals
+    (atom [{:name "betsy" :owner "brian" :kind "cow"}
+           {:name "jake" :owner "brian" :kind "horse"}
+           {:name "josie" :owner "dawn" :kind "cow"}]))
+  (def !personalities
+    (atom [{:kind "cow" :personality "stoic"}
+           {:kind "horse" :personality "skittish"}]))
+  (on-diff! rcf/tap
+    (root-frame
+      (let [ks #{:kind}]
+        (e/cursor [animal (e/diff-by identity (e/watch !animals))
+                   personality (e/diff-by identity (e/watch !personalities))]
+          (if (= (select-keys animal ks) (select-keys personality ks))
+            (merge animal personality) (e/amb))))))
+  % := {:degree 3, :permutation {}, :grow 3, :shrink 0, :freeze #{},
+        :change {0 {:name "betsy", :owner "brian", :kind "cow", :personality "stoic"},
+                 1 {:name "jake", :owner "brian", :kind "horse", :personality "skittish"},
+                 2 {:name "josie", :owner "dawn", :kind "cow", :personality "stoic"}}}
+  (swap! !animals conj {:name "bob" :owner "jack" :kind "horse"})
+  % := {:degree 4, :permutation {}, :grow 1, :shrink 0, :freeze #{},
+        :change {3 {:name "bob", :owner "jack", :kind "horse", :personality "skittish"}}}
+  (swap! !animals pop)
+  % := {:degree 4, :permutation {}, :grow 0, :shrink 1, :change {}, :freeze #{}})
