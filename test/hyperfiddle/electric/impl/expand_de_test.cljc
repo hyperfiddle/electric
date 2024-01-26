@@ -3,7 +3,7 @@
             #?(:clj [cljs.analyzer])
             #?(:clj [hyperfiddle.electric.impl.lang-de2 :as l])
             #?(:clj [hyperfiddle.electric.impl.runtime-de :as r])
-            #?(:clj [hyperfiddle.electric :as-alias e])
+            #?(:clj [hyperfiddle.electric-de :as e])
             [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred]]
             #?(:clj [hyperfiddle.rcf :as rcf :refer [tests]]))
   #?(:cljs (:require-macros [hyperfiddle.electric.impl.expand-macro :as mac :refer [twice]])))
@@ -185,6 +185,6 @@
                         (binding [*ns* (create-ns 'hyperfiddle.electric.impl.expand-unloaded)]
                           (l/expand-all {::l/peers {:client :cljs, :server :clj}
                                          ::l/current :server, ::l/me :client
-                                         :ns 'hyperfiddle.electric.impl.expand-unloaded}
+                                         :ns {:name 'hyperfiddle.electric.impl.expand-unloaded}}
                             '(let [x 1])))))
      (throw (ex-info "clj macroexpansion for unloaded ns fails" {}))))

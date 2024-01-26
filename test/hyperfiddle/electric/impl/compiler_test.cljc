@@ -7,6 +7,7 @@
             #?(:clj [hyperfiddle.electric.impl.compiler-test-clj :refer [cannot-be-unsited]]
                :cljs [hyperfiddle.electric.impl.compiler-test-cljs :refer [cannot-be-unsited]])
             [hyperfiddle.rcf :as rcf :refer [tests]]
+            [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred referred-fn]]
             #?(:clj [contrib.test-match :as tm])
             [fipp.edn]
             [missionary.core :as m])
@@ -32,6 +33,11 @@
      ret# := match#
      (when (not= ret# match#) (fipp.edn/pprint match#))
      match#))
+
+;; no `:=`, these just need to compile
+(tests (l/test-compile ::Main (lang/->cljs-env) referred-fn))
+(tests (l/test-compile ::Main (lang/->cljs-env) ref/referred-fn))
+(tests (l/test-compile ::Main (lang/->cljs-env) hyperfiddle.electric.impl.expand-require-referred/referred-fn))
 
 (tests "test-simplest"
   (match (l/test-compile ::Main 1)
@@ -412,10 +418,14 @@
         (fn [~'frame]
           (r/lookup ~'frame 0)))]))
 
-;; (defn should-work-in-cljs [])
+(defn should-work-in-cljs [])
 
-;; (tests "test-unsited-cljs-fn"
-;;   (match (l/test-compile ::Main (should-work-in-cljs))))
+(tests "test-unsited-cljs-fn"
+  (match (l/test-compile ::Main (should-work-in-cljs))
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame ::should-work-in-cljs
+                  (r/pure should-work-in-cljs)))))]))
 
 (comment
   (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
