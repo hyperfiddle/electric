@@ -102,3 +102,22 @@
         :change {3 {:name "bob", :owner "jack", :kind "horse", :personality "skittish"}}}
   (swap! !animals pop)
   % := {:degree 4, :permutation {}, :grow 0, :shrink 1, :change {}, :freeze #{}})
+
+(tests
+  (def !x (atom "hello"))
+  (def !y (atom "electric"))
+  (on-diff! rcf/tap
+    (root-frame (e/as-vec (e/amb (e/watch !x) (e/watch !y)))))
+  % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 ["hello" "electric"]}, :freeze #{}}
+  (reset! !y "world")
+  % := {:degree 1, :permutation {}, :grow 0, :shrink 0, :change {0 ["hello" "world"]}, :freeze #{}})
+
+(tests
+  (def !n (atom 3))
+  (on-diff! rcf/tap
+    (root-frame (e/for-by identity [x (range (e/watch !n))
+                                    y (range x)]
+                  [x y])))
+  % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 [[1 0] [2 0] [2 1]]}, :freeze #{}}
+  (swap! !n inc)
+  % := {:degree 1, :permutation {}, :grow 0, :shrink 0, :change {0 [[1 0] [2 0] [2 1] [3 0] [3 1] [3 2]]}, :freeze #{}})

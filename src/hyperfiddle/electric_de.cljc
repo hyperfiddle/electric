@@ -86,3 +86,31 @@ For each tuple in the cartesian product of `table1 table2 ,,, tableN`, calls bod
                ~@(map (clojure.core/fn [expr]
                         `(r/fixed-signals (join (i/items (pure ~expr)))))
                    exprs))))))
+
+(defmacro as-vec "
+Syntax :
+```clojure
+(as-vec table)
+```
+Returns a single vector containing elements of `table`.
+" [expr] `(input (m/reductions i/patch-vec (pure ~expr))))
+
+(defmacro for-by "
+Syntax :
+```clojure
+(for-by kf [sym1 coll1
+            sym2 coll2
+            ,,,  ,,,
+            symN collN]
+  & body)
+```
+Stabilizes successives states of `coll1 coll2 ,,, collN` with function `kf`. For each tuple in the cartesian product of
+resulting tables, calls body in an implicit `do` with symbols `sym1 sym2 ,,, symN` bound to the singleton tables for
+this tuple. Returns the concatenation of all body results as a single vector.
+" [kf bindings & body]
+  `(as-vec
+     ~((clojure.core/fn rec [bindings]
+         (if-some [[sym expr & bindings] bindings]
+           `(cursor [~sym (diff-by ~kf ~expr)]
+              ~(rec bindings)) `(do ~@body)))
+       (seq bindings))))
