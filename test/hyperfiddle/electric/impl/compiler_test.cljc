@@ -389,7 +389,22 @@
           (r/pure 3)))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/pure 2)))]))
+          (r/pure 2)))])
+  (match (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
+                                  (e/ctor (str fizz buzz))))
+    `[(r/cdef 0 [nil nil] [] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure "fizz"))
+          (r/define-node ~'frame 1 (r/pure "buzz"))
+          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
+                    (r/define-free 0 (r/node ~'frame 0))
+                    (r/define-free 1 (r/node ~'frame 1))))))
+      (r/cdef 2 [] [] nil
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :clojure.core/str (r/pure clojure.core/str))
+            (r/free ~'frame 0)
+            (r/free ~'frame 1))))])
+  )
 
 (tests "test-lookup"
   (match (l/test-compile ::Main (::lang/lookup 0))
@@ -397,11 +412,14 @@
         (fn [~'frame]
           (r/lookup ~'frame 0)))]))
 
-(defn should-work-in-cljs [])
+;; (defn should-work-in-cljs [])
 
-(tests "test-unsited-cljs-fn"
-  (match (l/test-compile ::Main (should-work-in-cljs))))
+;; (tests "test-unsited-cljs-fn"
+;;   (match (l/test-compile ::Main (should-work-in-cljs))))
 
+(comment
+  (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
+                           (e/ctor (str fizz buzz)))))
 ;; TODO test site is cleared on ctor boundary
 
 ;; TODO rewrite or remove

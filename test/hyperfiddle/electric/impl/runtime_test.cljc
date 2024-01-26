@@ -45,17 +45,19 @@
   % := {:degree 3, :permutation {}, :grow 0, :shrink 0, :change {1 :BAR}, :freeze #{}})
 
 (tests
-  (def !n (atom 10))
+  (def !n (atom 20))
   (def !fizz (atom "Fizz"))
   (def !buzz (atom "Buzz"))
   (on-diff! rcf/tap (root-frame (e/server (let [fizz (e/watch !fizz) ; i/fixed + m/watch + e/join
                                                 buzz (e/watch !buzz)
                                                 is (e/diff-by identity (range 1 (inc (e/watch !n)))) ; variable in time and space
                                                 results (e/cursor [i is]
-                                                          (cond
-                                                            (zero? (mod i (* 3 5))) (str fizz buzz)
-                                                            (zero? (mod i 3)) fizz
-                                                            (zero? (mod i 5)) buzz
-                                                            :else i))]
-                                            (println results)))))
+                                                          [i (cond
+                                                               (zero? (mod i (* 3 5))) (str fizz buzz)
+                                                               (zero? (mod i 3)) fizz
+                                                               (zero? (mod i 5)) buzz
+                                                               :else i)])]
+                                            (prn results)))))
+  % := {}
+  (swap! !n inc)
   % := {})

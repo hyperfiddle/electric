@@ -690,7 +690,7 @@
                      ::let-ref
                      (if-some [node-e (first (ts/find ts ::ctor-node ctor-e, ::ctor-ref (::ref nd)))]
                        (list `r/node 'frame (::node-idx (get (:eav ts) node-e)))
-                       (if-some [free-e (first (ts/find ts ::ctor-free ctor-e))]
+                       (if-some [free-e (first (ts/find ts ::ctor-free ctor-e, ::closed-ref (::ref nd)))]
                          (list `r/free 'frame (::free-idx (ts/->node ts free-e)))
                          (recur ts ctor-e (get-ret-e ts (->let-val-e ts (::ref nd))))))
                      #_else (throw (ex-info (str "cannot gen on " (pr-str (::type nd))) (or nd {}))))))
