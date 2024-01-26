@@ -88,7 +88,7 @@
   (if (::cljs-env env)
     env
     (assoc env ::cljs-env
-      (if (contains? env :js-globals)
+      (if (contains? (:ns env) :requires)
         env
         (let [nssym (get-ns env)]
           (cond-> (->cljs-env nssym) nssym (enrich-for-require-macros-lookup nssym)))))))
@@ -126,6 +126,7 @@
   (cljs-ana/empty-env)
   (require '[hyperfiddle.electric.impl.expand :as expand])
   (cljs.env/ensure (resolve-cljs (cljs-ana/empty-env) 'prn))
+  (ensure-cljs-compiler (cljs-ana/parse 'ns (->cljs-env) '(ns foo (:require [hyperfiddle.electric :as e])) 'ns {}))
   )
 
 (defn macroexpand-clj [o] (serialized-require (ns-name *ns*)) (macroexpand-1 o))
@@ -462,6 +463,11 @@
       {:db/id e, ::parent pe, ::type ::var, ::var form, ::qualified-var (untwin (:name v))}
       {:db/id e, ::parent pe, ::type ::static, ::v form})))
 
+(defn resolve-cljs-alias [env sym]
+  (if (simple-symbol? sym)
+    (symbol (-> env :ns :name str) (name sym))
+    (or (cljs-ana/resolve-ns-alias env sym) (cljs-ana/resolve-macro-ns-alias env sym))))
+
 (defn ->let-val-e [ts e] (first (get-children-e ts e)))
 (defn ->let-body-e [ts e] (second (get-children-e ts e)))
 
@@ -547,13 +553,20 @@
                    (cannot-resolve! env form))
             :cljs (if-some [v (analyze-cljs-symbol form e pe env)]
                     (-> (ts/add ts (assoc v ::resolved-in :cljs)) (?add-source-map e form))
-                    (cannot-resolve! env form))
+                    ;; optimistically resolve on cljs
+                    ;; we don't load the whole ns file so we cannot resolve all vars
+                    ;; loading the whole ns would undermine previous work
+                    (let [sym (resolve-cljs-alias env form)]
+                      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::var, ::var form, ::qualified-var (untwin sym), ::resolved-in :cljs})
+                        (?add-source-map e form))))
             #_unsited (let [langs (set (vals (::peers env)))
                             vs (->> langs (into #{} (map #(case %
                                                             :clj (analyze-clj-symbol form e pe)
-                                                            :cljs (analyze-cljs-symbol form e pe env)))))]
+                                                            :cljs (or (analyze-cljs-symbol form e pe env)
+                                                                    (let [sym (resolve-cljs-alias env form)]
+                                                                      {:db/id e, ::parent pe, ::type ::var, ::var form, ::qualified-var (untwin sym), :cljs true}))))))]
                         (cond (contains? vs nil) (cannot-resolve! env form)
-                              (> (count vs) 1) (ambiguous-resolve! env form)
+                              (> (count (into #{} (map ::qualified-var) vs)) 1) (ambiguous-resolve! env form)
                               :else (-> (ts/add ts (first vs)) (?add-source-map e form))))))))
 
     :else
