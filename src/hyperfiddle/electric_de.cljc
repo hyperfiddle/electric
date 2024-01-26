@@ -19,7 +19,7 @@
     (let [~@(interleave bs (eduction (map #(list ::lang/lookup %)) (range)))]
       ~@body)))
 (defmacro cursor [[sym v] & body] `(call (r/bind-args (fn [~sym] ~@body) (join (r/singletons (pure ~v))))))
-(defmacro diff-by [f xs] `(join (i/diff-by ~f (join (r/singletons (pure ~xs))))))
+(defmacro diff-by [f xs] `(join (i/diff-by ~f (join (i/items (pure ~xs))))))
 ;; (defmacro drain [expr] `(join (i/drain (pure ~expr))))
 (defmacro client [& body] `(::lang/site :client ~@body))
 (defmacro server [& body] `(::lang/site :server ~@body))
