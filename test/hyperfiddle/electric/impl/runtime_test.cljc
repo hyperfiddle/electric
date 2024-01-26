@@ -1,5 +1,6 @@
 (ns hyperfiddle.electric.impl.runtime-test
-  (:require [missionary.core :as m]
+  (:require [hyperfiddle.incseq :as i]
+            [missionary.core :as m]
             [hyperfiddle.electric-de :as e]
             #?(:clj [hyperfiddle.electric.impl.lang-de2 :as l])
             [hyperfiddle.electric.impl.runtime-de :as r]
@@ -45,19 +46,34 @@
   % := {:degree 3, :permutation {}, :grow 0, :shrink 0, :change {1 :BAR}, :freeze #{}})
 
 (tests
+  (def !xs (atom [0 1 2]))
+  (on-diff! rcf/tap (root-frame (e/diff-by identity (e/watch !xs))))
+  % := {:degree 3, :permutation {}, :grow 3, :shrink 0, :change {0 0, 1 1, 2 2}, :freeze #{}}
+  (swap! !xs conj 3)
+  % := {:degree 4, :permutation {}, :grow 1, :shrink 0, :change {3 3}, :freeze #{}})
+
+(tests
+  (def !xs (atom [0 1 2]))
+  (on-diff! rcf/tap (root-frame (e/cursor [x (e/diff-by identity (e/watch !xs))] (+ x x))))
+  % := {:degree 3, :permutation {}, :grow 3, :shrink 0, :change {0 0, 1 2, 2 4}, :freeze #{}}
+  (swap! !xs conj 3)
+  % := {:degree 4, :permutation {}, :grow 1, :shrink 0, :change {3 6}, :freeze #{}})
+
+(tests
   (def !n (atom 20))
   (def !fizz (atom "Fizz"))
   (def !buzz (atom "Buzz"))
   (on-diff! rcf/tap (root-frame (e/server (let [fizz (e/watch !fizz) ; i/fixed + m/watch + e/join
                                                 buzz (e/watch !buzz)
-                                                is (e/diff-by identity (range 1 (inc (e/watch !n)))) ; variable in time and space
-                                                results (e/cursor [i is]
-                                                          [i (cond
-                                                               (zero? (mod i (* 3 5))) (str fizz buzz)
-                                                               (zero? (mod i 3)) fizz
-                                                               (zero? (mod i 5)) buzz
-                                                               :else i)])]
-                                            (prn results)))))
-  % := {}
+                                                is (e/diff-by identity (range 1 (inc (e/watch !n))))] ; variable in time and space
+                                            (e/cursor [i is]
+                                              [i (cond
+                                                   (zero? (mod i (* 3 5))) (str fizz buzz)
+                                                   (zero? (mod i 3)) fizz
+                                                   (zero? (mod i 5)) buzz
+                                                   :else i)])))))
+  % := {:degree 20, :permutation {}, :grow 20, :shrink 0, :change {0 [1 1], 7 [8 8], 1 [2 2], 4 [5 "Buzz"], 15 [16 16], 13 [14 14], 6 [7 7], 17 [18 "Fizz"], 3 [4 4], 12 [13 13], 2 [3 "Fizz"], 19 [20 "Buzz"], 11 [12 "Fizz"], 9 [10 "Buzz"], 5 [6 "Fizz"], 14 [15 "FizzBuzz"], 16 [17 17], 10 [11 11], 18 [19 19], 8 [9 "Fizz"]}, :freeze #{}}
   (swap! !n inc)
-  % := {})
+  % := {:degree 21, :permutation {}, :grow 1, :shrink 0, :change {20 [21 "Fizz"]}, :freeze #{}}
+  (reset! !fizz "Fuzz")
+  % := {:degree 21, :permutation {}, :grow 0, :shrink 0, :change {20 [21 "Fuzz"], 2 [3 "Fuzz"], 5 [6 "Fuzz"], 8 [9 "Fuzz"], 11 [12 "Fuzz"], 14 [15 "FuzzBuzz"], 17 [18 "Fuzz"]}, :freeze #{}})
