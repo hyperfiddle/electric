@@ -7,10 +7,24 @@
             [hyperfiddle.electric-local-def-de :as l])
   #?(:cljs (:require-macros hyperfiddle.electric-de)))
 
-(defmacro join [flow] `(::lang/join ~flow))
 (defmacro ctor [expr] `(::lang/ctor ~expr))
 (defmacro call [ctor] `(::lang/call ~ctor))
-(defmacro pure [v] `(::lang/pure ~v))
+
+(defmacro pure "
+Syntax :
+```clojure
+(pure table)
+```
+Returns the incremental sequence describing `table`.
+" [expr] `(::lang/pure ~expr))
+
+(defmacro join "
+Syntax :
+```clojure
+(join incseq)
+```
+Returns the successive states of items described by `incseq`.
+" [flow] `(::lang/join ~flow))
 
 (defmacro fn [bs & body]
   `(ctor
