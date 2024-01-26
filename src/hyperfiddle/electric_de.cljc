@@ -24,7 +24,18 @@
 (defmacro client [& body] `(::lang/site :client ~@body))
 (defmacro server [& body] `(::lang/site :server ~@body))
 
-(defmacro cursor [bindings & body]
+(defmacro cursor "
+Syntax :
+```clojure
+(cursor [sym1 table1
+         sym2 table2
+         ,,,  ,,,
+         symN tableN]
+  & body)
+```
+For each tuple in the cartesian product of `table1 table2 ,,, tableN`, calls body in an implicit `do` with symbols
+`sym1 sym2 ,,, symN` bound to the singleton tables for this tuple. Returns the concatenation of all body results.
+" [bindings & body]
   (case bindings
     [] `(do ~@body)
     (let [[args exprs] (apply map vector (partition-all 2 bindings))]
