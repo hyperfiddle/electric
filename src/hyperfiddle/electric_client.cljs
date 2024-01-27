@@ -112,7 +112,7 @@ Returns a task producing nil or failing if the websocket was closed before end o
   (let [visible! (m/dfv)
         visible? #(= "visible" (.-visibilityState js/document))]
     (letfn [(on-visibility-change [_]
-              ;; don't use a one-off event-listener because the visiblitichange
+              ;; don't use a one-off event-listener because the visibilitychange
               ;; event's spec doesn't say "visible" means the page was "hidden"
               ;; before. "hidden" or "visible" could therefore fire more than
               ;; once. Spec: https://html.spec.whatwg.org/multipage/interaction.html#page-visibility
