@@ -25,11 +25,11 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 # Tutorial and live examples
 
 - Live Tutorial: https://electric.hyperfiddle.net/
-- [electric starter app](https://github.com/hyperfiddle/electric-starter-app)
-- [XTDB starter app](https://github.com/hyperfiddle/electric-xtdb-starter)
+- [electric starter app](https://github.com/hyperfiddle/electric-starter-app) – minimalist entrypoint
+- Demos repo: [electric-fiddle](https://github.com/hyperfiddle/electric-fiddle)
 
 # Documentation
-- [Docs site (wip)](https://hyperfiddle.github.io/)
+- [Talk: Electric Clojure — London Clojurians (2023)](https://www.youtube.com/watch?v=v-GE_P1JSOQ)
 - [UIs are streaming DAGs (2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
 - [You don't need a web framework, you need a web language (2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
 - https://clojureverse.org/t/electric-clojure-a-signals-dsl-for-fullstack-web-ui/9788
