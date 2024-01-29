@@ -519,8 +519,8 @@
                         (?add-source-map e form)
                         (ts/add {:db/id ce, ::parent e, ::type ::static, ::v form}))]
               (reduce (fn [ts nx] (analyze nx e ts)) ts2 refs))
-      (::ctor) (let [e (->id)] (recur (second form) e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ctor})
-                                                        (?add-source-map e form))))
+      (::ctor) (let [e (->id)] (recur (list ::site nil (second form)) e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ctor})
+                                                          (?add-source-map e form))))
       (::call) (let [e (->id)] (recur (second form) e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call})
                                                         (?add-source-map e form))))
       (::pure) (let [e (->id)] (recur (second form) e (-> (ts/add ts {:db/id e, ::parent pe, ::type ::pure})
