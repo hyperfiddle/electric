@@ -46,9 +46,14 @@
 
 (deftype Ctor [^Peer peer key idx ^objects free env])
 
-(defn bind [^Ctor ctor k v]
-  (->Ctor (.-peer ctor) (.-key ctor) (.-idx ctor) (.-free ctor)
-    (assoc (.-env ctor) k v)))
+(defn bind
+  ([^Ctor ctor] ctor)
+  ([^Ctor ctor k v]
+   (->Ctor (.-peer ctor) (.-key ctor) (.-idx ctor) (.-free ctor)
+     (assoc (.-env ctor) k v)))
+  ([^Ctor ctor k v & kvs]
+   (->Ctor (.-peer ctor) (.-key ctor) (.-idx ctor) (.-free ctor)
+     (apply assoc (.-env ctor) k v kvs))))
 
 (defn bind-args [^Ctor ctor & args]
   (reduce (partial apply bind) ctor (eduction (map-indexed vector) args)))
