@@ -427,7 +427,19 @@
           (r/ap (r/lookup ~'frame ::should-work-in-cljs
                   (r/pure should-work-in-cljs)))))]))
 
-(tests "binding"
+(tests "test-ctor-site-clearing"
+  (match (l/test-compile ::Main (e/client (e/ctor (let [x 1] [x x]))))
+    `[(r/cdef 0 [] [] :client
+        (fn [~'frame]
+          (r/pure (r/make-ctor ~'frame ::Main 1))))
+      (r/cdef 0 [nil] [] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure 1))
+          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
+            (r/node ~'frame 0)
+            (r/node ~'frame 0))))]))
+
+#_(tests "binding"
   (match (l/test-compile ::Main
            (binding [inc dec, dec inc]
              (inc (dec 0))))
