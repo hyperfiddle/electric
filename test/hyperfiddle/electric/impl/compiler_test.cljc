@@ -427,6 +427,24 @@
           (r/ap (r/lookup ~'frame ::should-work-in-cljs
                   (r/pure should-work-in-cljs)))))]))
 
+(tests "binding"
+  (match (l/test-compile ::Main
+           (binding [inc dec, dec inc]
+             (inc (dec 0))))
+    `[(r/cdef 0 [nil nil] [nil] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/lookup ~'frame :clojure.core/dec (r/pure dec)))
+          (r/define-node ~'frame 1 (r/lookup ~'frame :clojure.core/inc (r/pure inc)))
+          (r/define-call ~'frame 0 (r/ap (r/pure r/bind)
+                                     (r/pure (r/make-ctor ~'frame ::Main 1))
+                                     (r/pure :clojure.core/inc) (r/node ~'frame 0)
+                                     (r/pure :clojure.core/dec) (r/node ~'frame 1)))
+          (r/join (r/call ~'frame 0))))
+      (r/cdef 0 [] [] nil
+        (r/ap (r/lookup ~'frame :clojure.core/inc (r/pure inc))
+          (r/ap (r/lookup ~'frame :clojure.core/dec (r/pure dec))
+            (r/pure 0))))]))
+
 (comment
   (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
                            (e/ctor (str fizz buzz)))))
