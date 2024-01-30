@@ -22,7 +22,50 @@
   (#?(:clj invoke :cljs -invoke) [_ step done]
     ((apply i/fixed (map invariant values)) step done)))
 
-(def pure (comp ->Pure vector))
+(def pure "
+(FN (IS VOID))
+(FN (IS T) T)
+(FN (IS T) T T)
+(FN (IS T) T T T)
+" (comp ->Pure vector))
+
+(defn invoke
+  ([f] (f))
+  ([f a] (f a))
+  ([f a b] (f a b))
+  ([f a b c] (f a b c))
+  ([f a b c d] (f a b c d))
+  ([f a b c d & es] (apply f a b c d es)))
+
+(deftype Ap [inputs]
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((apply i/latest-product invoke inputs) step done)))
+
+(def ap "
+(FN (IS T) (IS (FN T)))
+(FN (IS T) (IS (FN T A)) (IS A))
+(FN (IS T) (IS (FN T A B)) (IS A) (IS B))
+(FN (IS T) (IS (FN T A B C)) (IS A) (IS B) (IS C))
+" (comp ->Ap vector))
+
+(def join "
+(FN (IS T) (IS (IS T)))
+" i/latest-concat)
+
+(def fixed-signals "
+(FN (IS VOID))
+(FN (IS T) (CF T))
+(FN (IS T) (CF T) (CF T))
+(FN (IS T) (CF T) (CF T) (CF T))
+" (comp (partial m/signal i/combine) i/fixed))
+
+(defn drain "
+(FN (IS VOID) (IS T))
+" [incseq]
+  (m/ap
+    (m/amb (i/empty-diff 0)
+      (do (m/?> incseq) (m/amb)))))
 
 (defn error [^String msg]
   #?(:clj (Error. msg)
@@ -46,8 +89,12 @@
 
 (deftype Ctor [^Peer peer key idx ^objects free env])
 
-(defn bind
-  ([^Ctor ctor] ctor)
+(defn bind "
+(FN (CTOR T) (CTOR T))
+(FN (CTOR T) (CTOR T) (VAR A) (IS A))
+(FN (CTOR T) (CTOR T) (VAR A) (IS A) (VAR B) (IS B))
+(FN (CTOR T) (CTOR T) (VAR A) (IS A) (VAR B) (IS B) (VAR C) (IS C))
+" ([^Ctor ctor] ctor)
   ([^Ctor ctor k v]
    (->Ctor (.-peer ctor) (.-key ctor) (.-idx ctor) (.-free ctor)
      (assoc (.-env ctor) k v)))
@@ -188,17 +235,6 @@
   "Returns the call site id for given frame."
   [^Frame frame id]
   (->Call frame id))
-
-(def join i/latest-concat)
-
-(def ap (partial i/latest-product (fn [f & args] (apply f args))))
-
-(def fixed-signals (comp (partial m/signal i/combine) i/fixed))
-
-(defn drain [incseq]
-  (m/ap
-    (m/amb (i/empty-diff 0)
-      (do (m/?> incseq) (m/amb)))))
 
 (def peer-slot-input 0)
 (def peer-slot-store 1)
