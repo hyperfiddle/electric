@@ -565,8 +565,8 @@
                (reduce (fn [ts nx] (analyze nx e env ts)) (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
                                                         (?add-source-map e form)) form)))
 
-    (vector? form) (recur (?meta form (cons `vector form)) pe env ts)
-    (map? form) (recur (?meta form (cons `hash-map (eduction cat form))) pe env ts)
+    (vector? form) (recur (?meta form (cons `(::static-vars vector) form)) pe env ts)
+    (map? form) (recur (?meta form (cons `(::static-vars hash-map) (eduction cat form))) pe env ts)
 
     (symbol? form)
     (let [e (->id)]

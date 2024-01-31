@@ -96,23 +96,23 @@
     `[(r/cdef 0 [:client] [] :client
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure :foo))
-          (r/ap (r/lookup ~'frame :clojure.core/vector)
+          (r/ap (r/pure clojure.core/vector)
             (r/node ~'frame 0) (r/node ~'frame 0))))])
 
   (match (l/test-compile ::Main (let [a :foo] [a a]))
     `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure :foo))
-          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
+          (r/ap (r/pure clojure.core/vector)
             (r/node ~'frame 0) (r/node ~'frame 0))))])
 
   (match (l/test-compile ::Main (let [a (let [b :foo] [b b])] [a a]))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure :foo))
-          (r/define-node ~'frame 1 (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
+          (r/define-node ~'frame 1 (r/ap (r/pure clojure.core/vector)
                                      (r/node ~'frame 0) (r/node ~'frame 0)))
-          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
+          (r/ap (r/pure clojure.core/vector)
             (r/node ~'frame 1) (r/node ~'frame 1))))])
 
   (match (l/test-compile ::Main (let [a 1] a))
@@ -128,7 +128,7 @@
   (match (l/test-compile ::Main (::lang/site :client (let [x "Hello", y "world"] [x y])))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
-          (r/ap (r/lookup ~'frame :clojure.core/vector)
+          (r/ap (r/pure clojure.core/vector)
             (r/pure "Hello") (r/pure "world"))))])
 
   (match (l/test-compile ::Main (::lang/site :client (let [a (::lang/site :server :foo)] (::lang/site :server (prn a)))))
@@ -136,16 +136,17 @@
         (clojure.core/fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/pure :foo))))])
+
   (match (l/test-compile ::Main (concat (let [x 1] [x x]) (let [y 2] [y y])))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 1))
           (r/define-node ~'frame 1 (r/pure 2))
           (r/ap (r/lookup ~'frame :clojure.core/concat (r/pure clojure.core/concat))
-            (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+            (r/ap (r/pure clojure.core/vector)
               (r/node ~'frame 0)
               (r/node ~'frame 0))
-            (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+            (r/ap (r/pure clojure.core/vector)
               (r/node ~'frame 1)
               (r/node ~'frame 1)))))]))
 
@@ -205,7 +206,7 @@
       (r/cdef 1 [nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 2))
-          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+          (r/ap (r/pure clojure.core/vector)
             (r/free ~'frame 0)
             (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 2)
                       (r/define-free 0 (r/node ~'frame 0)))))))
@@ -241,7 +242,7 @@
                     (r/define-free 1 (r/node ~'frame 1))))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
-          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+          (r/ap (r/pure clojure.core/vector)
             (r/free ~'frame 0)
             (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 2)
                       (r/define-free 0 (r/free ~'frame 1)))))))
@@ -259,7 +260,7 @@
                     (r/define-free 1 (r/node ~'frame 1))))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
-          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+          (r/ap (r/pure clojure.core/vector)
             (r/free ~'frame 0)
             (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 2)
                       (r/define-free 0 (r/free ~'frame 1)))))))
@@ -273,7 +274,22 @@
           (r/pure (r/make-ctor ~'frame ::Main 1))))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/pure :foo)))]))
+          (r/pure :foo)))])
+
+  (match (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
+                                  (e/ctor (str fizz buzz))))
+    `[(r/cdef 0 [nil nil] [] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure "fizz"))
+          (r/define-node ~'frame 1 (r/pure "buzz"))
+          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
+                    (r/define-free 0 (r/node ~'frame 0))
+                    (r/define-free 1 (r/node ~'frame 1))))))
+      (r/cdef 2 [] [] nil
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :clojure.core/str (r/pure clojure.core/str))
+            (r/free ~'frame 0)
+            (r/free ~'frame 1))))]))
 
 (tests "test-call"
   (match (l/test-compile ::Main (::lang/call (::lang/ctor :foo)))
@@ -311,7 +327,7 @@
           (r/define-node ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
           (r/define-call ~'frame 0 (r/node ~'frame 0))
           (r/define-call ~'frame 1 (r/node ~'frame 0))
-          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+          (r/ap (r/pure clojure.core/vector)
             (r/join (r/call ~'frame 0))
             (r/join (r/call ~'frame 1)))))
       (r/cdef 0 [] [] nil
@@ -322,7 +338,7 @@
         (fn [~'frame]
           (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
           (r/define-call ~'frame 1 (r/pure (r/make-ctor ~'frame ::Main 2)))
-          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
+          (r/ap (r/pure clojure.core/vector)
             (r/join (r/call ~'frame 0))
             (r/join (r/call ~'frame 1)))))
       (r/cdef 0 [] [] nil
@@ -353,7 +369,7 @@
     `[(r/cdef 0 [nil] [nil] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
-          (r/define-call ~'frame 0 (r/ap (r/ap (r/lookup ~'frame :clojure.core/hash-map (r/pure clojure.core/hash-map))
+          (r/define-call ~'frame 0 (r/ap (r/ap (r/pure clojure.core/hash-map)
                                            (r/pure 'nil) (r/node ~'frame 0))
                                      (r/pure :x)
                                      (r/pure (r/make-ctor ~'frame ::Main 2))))
@@ -369,7 +385,7 @@
     `[(r/cdef 0 [nil] [nil] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
-          (r/define-call ~'frame 0 (r/ap (r/ap (r/lookup ~'frame :clojure.core/hash-map (r/pure clojure.core/hash-map))
+          (r/define-call ~'frame 0 (r/ap (r/ap (r/pure clojure.core/hash-map)
                                            (r/pure '~'foo) (r/node ~'frame 0)
                                            (r/pure '~'bar) (r/node ~'frame 0))
                                      (r/pure '~'foo)
@@ -386,7 +402,7 @@
     `[(r/cdef 0 [nil] [nil] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
-          (r/define-call ~'frame 0 (r/ap (r/ap (r/lookup ~'frame :clojure.core/hash-map (r/pure clojure.core/hash-map))
+          (r/define-call ~'frame 0 (r/ap (r/ap (r/pure clojure.core/hash-map)
                                            (r/pure 'nil) (r/node ~'frame 0)
                                            (r/pure 'false) (r/node ~'frame 0))
                                      (r/pure 1)
@@ -397,21 +413,7 @@
           (r/pure 3)))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/pure 2)))])
-  (match (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
-                                  (e/ctor (str fizz buzz))))
-    `[(r/cdef 0 [nil nil] [] nil
-        (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure "fizz"))
-          (r/define-node ~'frame 1 (r/pure "buzz"))
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
-                    (r/define-free 0 (r/node ~'frame 0))
-                    (r/define-free 1 (r/node ~'frame 1))))))
-      (r/cdef 2 [] [] nil
-        (fn [~'frame]
-          (r/ap (r/lookup ~'frame :clojure.core/str (r/pure clojure.core/str))
-            (r/free ~'frame 0)
-            (r/free ~'frame 1))))]))
+          (r/pure 2)))]))
 
 (tests "test-lookup"
   (match (l/test-compile ::Main (::lang/lookup 0))
@@ -436,7 +438,7 @@
       (r/cdef 0 [nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 1))
-          (r/ap (r/lookup ~'frame :clojure.core/vector (r/pure vector))
+          (r/ap (r/pure clojure.core/vector)
             (r/node ~'frame 0)
             (r/node ~'frame 0))))]))
 
