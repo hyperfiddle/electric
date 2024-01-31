@@ -2,32 +2,30 @@
   (:refer-clojure :exclude [compile])
   #?(:cljs (:require-macros hyperfiddle.electric-local-def-de))
   (:require [clojure.core :as cc]
+            [contrib.assert :as ca]
             [contrib.cljs-target]
-            #?(:clj [hyperfiddle.electric.impl.lang-de2 :as lang]
-               :cljs [hyperfiddle.electric.impl.lang-de2 :as-alias lang])))
+            [hyperfiddle.electric.impl.lang-de2 :as lang]
+            [hyperfiddle.electric.impl.runtime-de :as r]
+            #?(:clj [hyperfiddle.rcf.analyzer :as ana]) ; todo remove
+            [missionary.core :as m]))
+
+#?(:clj
+   (do
+     ;; Optionally, tell RCF not to rewrite Electric programs.
+     (defmethod ana/macroexpand-hook `single [the-var form env args]
+       (reduced form))))
 
 (defn ->local-config [env]
   (let [p (if (:js-globals env) :cljs :clj)] {::lang/peers {:client p, :server p}}))
 
-(defn ->single-peer-config [env]
-  (let [p (if (and (:js-globals env) (contrib.cljs-target/do-nodejs true)) :client :server)]
-    {::lang/peers {p (if (:js-globals env) :cljs :clj)}, ::lang/me p}))
-
 (def web-config {::lang/peers {:client :cljs, :server :clj}})
-
-(defmacro compile-client [form]
-  (let [env (merge &env (->local-config &env) {::lang/me :client, :ns (list 'quote (ns-name *ns*))})]
-    `(:source (lang/compile '~form ~env))))
-(defmacro compile-client-source-map [form]
-  (let [env (merge &env (->local-config &env) {::lang/me :client})]
-    `(:source-map (lang/compile '~form (assoc ~env ::lang/include-source-map true)))))
-(defmacro compile-client-with-source-map [form]
-  (let [env (merge &env (->local-config &env) {::lang/me :client})]
-    `(lang/compile '~form (assoc ~env ::lang/include-source-map true))))
-(defmacro compile-server [form]
-  (let [env (merge &env (->local-config &env) {::lang/me :server})]
-    `(:source (lang/compile '~form ~env))))
 
 #?(:clj (defmacro test-compile
           ([nm form] `(test-compile ~nm {} ~form))
           ([nm env form] `(lang/compile ~nm '~form (merge web-config (lang/normalize-env ~env))))))
+
+#?(:clj (defn run-single [frame] (m/reduce #(do %2) nil frame)))
+#?(:clj (defmacro single {:style/indent 0} [conf & body]
+          (ca/check map? conf)
+          (let [env (merge (->local-config (lang/normalize-env &env)) conf)]
+            `(run-single (r/root-frame {::Main ~(lang/compile ::Main `(do ~@body) env)} ::Main)))))
