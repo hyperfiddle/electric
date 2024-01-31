@@ -27,5 +27,5 @@
 #?(:clj (defn run-single [frame] (m/reduce #(do %2) nil frame)))
 #?(:clj (defmacro single {:style/indent 0} [conf & body]
           (ca/check map? conf)
-          (let [env (merge (->local-config (lang/normalize-env &env)) conf)]
+          (let [env (merge (->local-config &env) (lang/normalize-env &env) conf)]
             `(run-single (r/root-frame {::Main ~(lang/compile ::Main `(do ~@body) env)} ::Main)))))
