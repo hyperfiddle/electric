@@ -442,7 +442,7 @@
             (r/node ~'frame 0)
             (r/node ~'frame 0))))]))
 
-(tests "binding"
+(tests "test-binding"
   (match (l/test-compile ::Main
            (binding [inc dec, dec inc]
              (inc (dec 0))))
@@ -459,6 +459,12 @@
           (r/ap (r/lookup ~'frame :clojure.core/inc (r/pure inc))
             (r/ap (r/lookup ~'frame :clojure.core/dec (r/pure dec))
               (r/pure 0)))))]))
+
+(tests "test-ap-collapse"
+  (match (l/test-compile ::Main [1 2])
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure (clojure.core/vector 1 2))))]))
 
 (comment
   (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
