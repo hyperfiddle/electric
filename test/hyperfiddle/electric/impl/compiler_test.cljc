@@ -552,25 +552,6 @@
 ;; * the result site
 (comment
 
-  ;; conditionals
-  (l/compile ::Main `(case :x nil :y :z))
-  := `[(r/cdef 0 [] [nil] nil
-         (fn [frame]
-           (r/define-call frame 0
-             (r/ap
-               (r/ap
-                 (r/lookup frame :clojure.core/hash-map (r/pure hash-map))
-                 (r/pure nil) (r/make-ctor frame ::Main 1))
-               (r/pure :x)
-               (r/pure (r/make-ctor frame ::Main 2))))
-           (r/join (r/call frame 0))))
-       (r/cdef 0 [] [] nil
-         (fn [frame]
-           (r/pure :y)))
-       (r/cdef 0 [] [] nil
-         (fn [frame]
-           (r/pure :z)))]
-
   (l/compile ::Main (new (e/fn Foo [] (Foo.))))
   := `[(r/cdef 0 [] [nil] nil
          (fn [frame]
