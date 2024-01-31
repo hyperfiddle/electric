@@ -24,7 +24,7 @@
           ([nm form] `(test-compile ~nm {} ~form))
           ([nm env form] `(lang/compile ~nm '~form (merge web-config (lang/normalize-env ~env))))))
 
-#?(:clj (defn run-single [frame] (m/reduce #(do %2) nil frame)))
+(defn run-single [frame] (m/reduce #(do %2) nil frame))
 #?(:clj (defmacro single {:style/indent 0} [conf & body]
           (ca/check map? conf)
           (let [env (merge (->local-config &env) (lang/normalize-env &env) conf)]
