@@ -9,6 +9,7 @@
             [clojure.set :as set]
             [contrib.triple-store :as ts]
             [dom-top.core :refer [loopr]]
+            [fipp.edn]
             [hyperfiddle.electric-de :as-alias e]
             [hyperfiddle.electric.impl.analyzer :as ana]
             [hyperfiddle.electric.impl.runtime-de :as r]
@@ -309,7 +310,7 @@
 
 (defn qualify-sym-in-var-node "If ast node is `:var`, update :form to be a fully qualified symbol" [env ast]
   (if (and (= :var (:op ast)) (not (-> ast :env :def-var)))
-    (assoc ast :form (case (get (::peers env) (::current env))
+    (assoc ast :form (case (or (get (::peers env) (::current env)) (->env-type env))
                        :clj  (symbol (str (:ns (:meta ast))) (str (:name (:meta ast))))
                        :cljs (:name (:info ast))))
     ast))
@@ -368,8 +369,8 @@
                                                      :else             ast))
                             (lexical? ast) (do (record-lexical! ast) ast)
                             :else          (qualify-sym-in-var-node env ast)))
-        form            (case (get (::peers env) (::current env))
-                          :clj  (-> (ana/analyze-clj env form)
+        form            (case (or (get (::peers env) (::current env)) (->env-type env))
+                          :clj  (-> (ana/analyze-clj (update env :ns :name) form)
                                   (ana/walk-clj rewrite-ast)
                                   (ana/emit-clj))
                           :cljs (-> (binding [cljs.analyzer/*cljs-warning-handlers*
@@ -502,10 +503,12 @@
         #_else (recur (::parent nd))))))
 
 (defn get-lookup-key [sym env]
-  (let [[_ sym] (resolve-symbol sym env)]
-    (case sym
-      ::static (throw (ex-info (str "`" sym "` did not resolve as a var") {::form sym}))
-      #_else (keyword sym))))
+  (if (symbol? sym)
+    (let [[_ sym] (resolve-symbol sym env)]
+      (case sym
+        ::static (throw (ex-info (str "`" sym "` did not resolve as a var") {::form sym}))
+        #_else (keyword sym)))
+    sym))
 
 (defn analyze [form pe env {{::keys [->id]} :o :as ts}]
   (cond
@@ -525,7 +528,7 @@
                  [[v br] (partition 2 brs2)]
                  (let [b (gensym "case-val")]
                    (recur (conj bs b `(::ctor ~br))
-                     (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq v) v [v]))))
+                     (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq? v) v [v]))))
                  (recur (?meta form `(let* ~bs (::call (~mp ~test (::ctor ~default))))) pe env ts)))
       (quote) (let [e (->id)]
                 (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
@@ -537,24 +540,27 @@
                         (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v form})
                         (?add-source-map e form))]
               (reduce (fn [ts nx] (analyze nx e env ts)) ts2 refs))
-      (binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
-                  (recur `(let* [~@(interleave gs (take-nth 2 (next bs)))]
-                            (::call ((::static-vars r/bind) (::ctor ~bform)
-                                     ~@(interleave
-                                         (mapv #(get-lookup-key % env) (take-nth 2 bs))
-                                         (mapv #(list ::pure %) gs)))))
-                    pe env ts))
+      (new) (let [[_ F & args] form] (recur `(binding [~@(interleave (range) args)] (::call ~F)) pe env ts))
+      (binding clojure.core/binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
+                                       (recur (if (seq bs)
+                                                `(let* [~@(interleave gs (take-nth 2 (next bs)))]
+                                                   (::call ((::static-vars r/bind) (::ctor ~bform)
+                                                            ~@(interleave
+                                                                (mapv #(get-lookup-key % env) (take-nth 2 bs))
+                                                                (mapv #(list ::pure %) gs)))))
+                                                bform)
+                                         pe env ts))
       (::ctor) (let [e (->id), ce (->id)]
                  (recur (list ::site nil (second form))
                    ce env (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                             (ts/add {:db/id ce, ::parent e, ::type ::ctor})
                             (?add-source-map e form))))
       (::call) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call})
-                                                        (?add-source-map e form))))
+                                                            (?add-source-map e form))))
       (::pure) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::pure})
-                                                        (?add-source-map e form))))
+                                                            (?add-source-map e form))))
       (::join) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::join})
-                                                        (?add-source-map e form))))
+                                                            (?add-source-map e form))))
       (::site) (let [[_ site bform] form, e (->id)]
                  (recur bform e (assoc env ::current site)
                    (-> (ts/add ts {:db/id e, ::parent pe, ::type ::site, ::site site})
@@ -563,7 +569,7 @@
       (::static-vars) (recur (second form) pe (assoc env ::static-vars true) ts)
       #_else (let [e (->id)]
                (reduce (fn [ts nx] (analyze nx e env ts)) (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
-                                                        (?add-source-map e form)) form)))
+                                                            (?add-source-map e form)) form)))
 
     (vector? form) (recur (?meta form (cons `(::static-vars vector) form)) pe env ts)
     (map? form) (recur (?meta form (cons `(::static-vars hash-map) (eduction cat form))) pe env ts)
@@ -598,7 +604,9 @@
 (defn compile [nm form env]
   (ensure-cljs-compiler
     (let [->id (->->id), ->ctor-idx (->->id)
-          ts (analyze (expand-all env form) 0 (ensure-cljs-env env)
+          expanded (expand-all env form)
+          _ (when (::print-expansion env) (fipp.edn/pprint expanded))
+          ts (analyze expanded 0 (ensure-cljs-env env)
                (ts/add (ts/->ts {::->id ->id}) {:db/id (->id), ::type ::ctor, ::parent '_}))
           mark-used-ctors (fn mark-used-ctors [ts e]
                             (let [nd (get (:eav ts) e)]
@@ -613,7 +621,7 @@
                                 (::let-ref) (recur ts (get-ret-e ts (->let-val-e ts (::ref nd))))
                                 #_else (throw (ex-info (str "cannot mark-used-ctors on " (pr-str (::type nd))) (or nd {}))))))
           ts (mark-used-ctors ts 0)
-          ctors-e (reduce into (-> ts :ave ::ctor-idx vals))
+          ctors-e (into [] (map (comp first second)) (->> ts :ave ::ctor-idx (sort-by first)))
           ->node-idx (let [mp (zipmap ctors-e (repeatedly ->->id))]
                        (fn ->node-idx [ctor-e] ((get mp ctor-e))))
           ->free-idx (let [mp (zipmap ctors-e (repeatedly ->->id))]
@@ -760,18 +768,20 @@
           gen-call-init (fn gen-call-init [ts ctor-e e]
                           (list `r/define-call 'frame (::call-idx (ts/->node ts e))
                             (gen ts ctor-e (get-ret-e ts (get-child-e ts e)))))]
-      ;; (run! prn (->> ts :eav vals (sort-by :db/id)))
-      (->> ctors-e
-        (mapv (fn [ctor-e]
-                (let [ret-e (get-ret-e ts (get-child-e ts ctor-e))
-                      nodes-e (ts/find ts ::ctor-node ctor-e)
-                      calls-e (ts/find ts ::ctor-call ctor-e)]
-                  `(r/cdef ~(count (ts/find ts ::ctor-free ctor-e))
-                     ~(mapv #(get-site ts (->> (ts/->node ts %) ::ctor-ref (->let-val-e ts) (get-ret-e ts)))
-                        nodes-e)
-                     ~(mapv #(get-site ts %) calls-e)
-                     ~(get-site ts ret-e)
-                     (fn [~'frame]
-                       ~@(mapv #(gen-node-init ts ctor-e %) nodes-e)
-                       ~@(mapv #(gen-call-init ts ctor-e %) calls-e)
-                       ~(gen ts ctor-e ret-e))))))))))
+      (when (::print-db env) (run! prn (->> ts :eav vals (sort-by :db/id))))
+      (let [ret (->> ctors-e
+                  (mapv (fn [ctor-e]
+                          (let [ret-e (get-ret-e ts (get-child-e ts ctor-e))
+                                nodes-e (ts/find ts ::ctor-node ctor-e)
+                                calls-e (ts/find ts ::ctor-call ctor-e)]
+                            `(r/cdef ~(count (ts/find ts ::ctor-free ctor-e))
+                               ~(mapv #(get-site ts (->> (ts/->node ts %) ::ctor-ref (->let-val-e ts) (get-ret-e ts)))
+                                  nodes-e)
+                               ~(mapv #(get-site ts %) calls-e)
+                               ~(get-site ts ret-e)
+                               (fn [~'frame]
+                                 ~@(mapv #(gen-node-init ts ctor-e %) nodes-e)
+                                 ~@(mapv #(gen-call-init ts ctor-e %) calls-e)
+                                 ~(gen ts ctor-e ret-e)))))))]
+        (when (::print-source env) (fipp.edn/pprint ret))
+        ret))))
