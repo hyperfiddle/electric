@@ -21,8 +21,14 @@
       (success-cb)
       (failure-cb (ex-info "Can't send message to client, remote channel is closed" {}))))
 
-  ;; ping and pong are not exposed by HTTPKit
-  ;; HTTPKit will automatically answer pings with an immediate echo pong.
+  ;; ping and pong are not exposed by HTTPKit. Instead ping is replaced by a
+  ;; special "HEARTBEAT" message that the client will echo. HTTPKit will
+  ;; automatically answer client pings with an immediate echo pong.
+  ering/Pingable
+  (ping [this] (ering/ping this "HEARTBEAT"))
+  (ping [this value] (assert (= "HEARTBEAT" value)) (ering/send this value))
+  (pong [this] (throw (ex-info "Pong is not supported" {})))
+  (pong [this value] (throw (ex-info "Pong with arbitrary data is not supported" {})))
   )
 
 (defn reject-websocket-handler
