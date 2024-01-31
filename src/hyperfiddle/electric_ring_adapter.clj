@@ -27,13 +27,22 @@
   (close [this code] [this code reason])
   (send [this value] [this value success-cb failure-cb]))
 
+(defprotocol Pingable
+  (ping [this] [this value])
+  (pong [this] [this value]))
+
 (defrecord RingSocket [socket]
   Socket
   (open? [_] (ws/open? socket))
   (close [_this code] (ws/close socket code ""))
   (close [_this code reason] (ws/close socket code reason))
   (send [_this value] (ws/send socket value))
-  (send [_this value success-cb failure-cb] (ws/send socket value success-cb failure-cb)))
+  (send [_this value success-cb failure-cb] (ws/send socket value success-cb failure-cb))
+  Pingable
+  (ping [_this] (ws/ping socket))
+  (ping [_this value] (ws/ping socket value))
+  (pong [_this] (ws/pong socket))
+  (pong [_this value] (ws/pong socket value)))
 
 (defn reject-websocket-handler
   "Will accept socket connection upgrade and immediately close the socket on
@@ -127,6 +136,11 @@
   [_ring-req _socket status-code & [reason]]
   (log/debug (GENERIC-WS-CLOSE-MESSAGES status-code "Client disconnected for an unexpected reason") {:status status-code :reason reason}))
 
+(def _socket)
+
+(comment
+  (close _socket 1005 ""))
+
 (defn electric-ws-handler
   "Return a map of generic ring-compliant handlers, describing how to start and manage an Electric server process hooked onto a websocket.
   Extensions (e.g. `hyperfiddle.electric-httpkit-adapter`) can extend the handler map as needed."
@@ -137,6 +151,7 @@
         keepalive-mailbox (m/mbx)]
     {:on-open    (fn on-open [socket]
                    (log/debug "WS connect" ring-req)
+                   (def _socket socket)
                    (aset state on-close-slot
                      ((m/join (fn [& _])
                         (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
@@ -147,10 +162,10 @@
                    ((aget state on-close-slot)))
      :on-error   (fn on-error [_socket err]
                    (log/error err "Websocket error"))
-     :on-ping    (fn on-ping [_socket _bytebuffer] ; keep connection alive, pong sent automatically
+     :on-ping    (fn on-ping [socket data] ; keep connection alive
                    (keepalive-mailbox nil))
-     :on-pong    (fn on-pong [_socket _bytebuffer] ; ignore pong, no use case
-                   (log/trace "pong"))
+     :on-pong    (fn on-pong [_socket _bytebuffer] ; keep connection alive
+                   (keepalive-mailbox nil))
      :on-message (fn on-message [_socket text-or-buff]
                    (keepalive-mailbox nil)
                    (if (instance? CharSequence text-or-buff)
@@ -169,10 +184,12 @@
     {::ws/listener
      (-> {:on-open    on-open
           :on-close   (fn [socket status-code reason]
-                      (handle-close-status-code ring-req socket (long status-code) reason)
-                      (on-close socket status-code reason))
+                        (handle-close-status-code ring-req socket (long status-code) reason)
+                        (on-close socket status-code reason))
           :on-error   on-error
-          :on-ping    on-ping
+          :on-ping    (fn [socket data]
+                        (on-ping socket data)
+                        (pong socket data))
           :on-pong    on-pong
           :on-message on-message}
        (update-vals

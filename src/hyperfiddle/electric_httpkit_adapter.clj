@@ -19,7 +19,11 @@
   (send [_this value success-cb failure-cb]
     (if (httpkit/send! channel {:body value})
       (success-cb)
-      (failure-cb (ex-info "Can't send message to client, remote channel is closed" {})))))
+      (failure-cb (ex-info "Can't send message to client, remote channel is closed" {}))))
+
+  ;; ping and pong are not exposed by HTTPKit
+  ;; HTTPKit will automatically answer pings with an immediate echo pong.
+  )
 
 (defn reject-websocket-handler
   "Will accept socket connection upgrade and immediately close the socket on
