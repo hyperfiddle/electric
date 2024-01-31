@@ -40,9 +40,9 @@
   (send [_this value success-cb failure-cb] (ws/send socket value success-cb failure-cb))
   Pingable
   (ping [_this] (ws/ping socket))
-  (ping [_this value] (ws/ping socket value))
+  (ping [_this value] (ws/ping socket (if (string? value) (java.nio.ByteBuffer/wrap (.getBytes value)) value)))
   (pong [_this] (ws/pong socket))
-  (pong [_this value] (ws/pong socket value)))
+  (pong [_this value] (ws/pong socket (if (string? value) (java.nio.ByteBuffer/wrap (.getBytes value)) value))))
 
 (defn reject-websocket-handler
   "Will accept socket connection upgrade and immediately close the socket on
@@ -90,8 +90,8 @@
         (throw (ex-info "No message received after specified time" {::type ::timeout, ::time-seconds (int (/ time 1000))})))
       (recur))))
 
-(defn send-hf-heartbeat [delay send!]
-  (m/sp (loop [] (m/? (m/sleep delay)) (send! "HEARTBEAT") (recur))))
+(defn send-hf-heartbeat [delay ping!]
+  (m/sp (loop [] (m/? (m/sleep delay)) (ping!) (recur))))
 
 (defn- boot! [entrypoint ring-req write-msg read-msg]
   ((entrypoint ring-req) (comp write-msg io/encode) (fn [cb] (read-msg (comp cb io/decode)))))
@@ -156,7 +156,7 @@
                      ((m/join (fn [& _])
                         (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
                         (boot! boot-fn ring-req (partial write-msg socket) (r/subject-at state on-message-slot))
-                        (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(send socket %)))
+                        (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(ping socket "HEARTBEAT")))
                       {} (partial failure socket)))) ; Start Electric process
      :on-close   (fn on-close [_socket _status-code & [_reason]]
                    ((aget state on-close-slot)))
