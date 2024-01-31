@@ -286,9 +286,10 @@
           (r/pure :foo)))])
 
   (match (l/test-compile ::Main (let [x (::lang/ctor :foo), y x] (::lang/call y)))
-    `[(r/cdef 0 [] [nil] nil
+    `[(r/cdef 0 [nil] [nil] nil
         (fn [~'frame]
-          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/define-node ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/define-call ~'frame 0 (r/node ~'frame 0))
           (r/join (r/call ~'frame 0))))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
@@ -349,10 +350,11 @@
 (tests "test-conditionals"
   ;; ({nil (ctor :y)} :x (ctor :z))
   (match (l/test-compile ::Main (case :x nil :y :z))
-    `[(r/cdef 0 [] [nil] nil
+    `[(r/cdef 0 [nil] [nil] nil
         (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
           (r/define-call ~'frame 0 (r/ap (r/ap (r/lookup ~'frame :clojure.core/hash-map (r/pure clojure.core/hash-map))
-                                           (r/pure 'nil) (r/pure (r/make-ctor ~'frame ::Main 1)))
+                                           (r/pure 'nil) (r/node ~'frame 0))
                                      (r/pure :x)
                                      (r/pure (r/make-ctor ~'frame ::Main 2))))
           (r/join (r/call ~'frame 0))))
@@ -409,8 +411,7 @@
         (fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/str (r/pure clojure.core/str))
             (r/free ~'frame 0)
-            (r/free ~'frame 1))))])
-  )
+            (r/free ~'frame 1))))]))
 
 (tests "test-lookup"
   (match (l/test-compile ::Main (::lang/lookup 0))
@@ -439,7 +440,7 @@
             (r/node ~'frame 0)
             (r/node ~'frame 0))))]))
 
-#_(tests "binding"
+(tests "binding"
   (match (l/test-compile ::Main
            (binding [inc dec, dec inc]
              (inc (dec 0))))
@@ -452,9 +453,10 @@
                                              :clojure.core/dec (r/node ~'frame 1))))
           (r/join (r/call ~'frame 0))))
       (r/cdef 0 [] [] nil
-        (r/ap (r/lookup ~'frame :clojure.core/inc (r/pure inc))
-          (r/ap (r/lookup ~'frame :clojure.core/dec (r/pure dec))
-            (r/pure 0))))]))
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :clojure.core/inc (r/pure inc))
+            (r/ap (r/lookup ~'frame :clojure.core/dec (r/pure dec))
+              (r/pure 0)))))]))
 
 (comment
   (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]

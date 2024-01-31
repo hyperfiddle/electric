@@ -71,6 +71,14 @@
   (pair [1] [:a :b]) := [[1 :a] [missing :b]]
   )
 
+(defn diffs-over-50%? [v] (> (/ (count ((group-by #(instance? Diff %) v) true)) (count v)) 0.5))
+
+(tests
+  (diffs-over-50%? [1 2 3]) := false
+  (diffs-over-50%? [(->Diff 1 2) (->Diff 2 3) 3])
+  (diffs-over-50%? [(->Diff 1 2) 2]) := false
+  (diffs-over-50%? [(->Diff 1 2) (->Diff 2 3)]) := true)
+
 (defn test-match [v pat]
   (cond
     (coll? pat) (if (and (or (list? pat) (seq? pat)) (= `view (first pat)))
@@ -105,9 +113,9 @@
                                                    [(conj ac v) false]))
                                          [(empty v) true] (pair v pat)))
                             listy-v? (or (list? v) (seq? v)), listy-pat? (or (list? pat) (seq? pat))]
-                        (if (and (seq v) (every? #(instance? Diff %) ret))
-                          (->Diff (into (empty v) (map #(.-a ^Diff %)) ret)
-                            (into (empty pat) (map #(.-b ^Diff %)) (cond-> ret (not= listy-v? listy-pat?) reverse)))
+                        (if (and (seq v) (diffs-over-50%? ret))
+                          (->Diff (into (empty v) (map #(if (instance? Diff %) (.-a ^Diff %) %)) ret)
+                            (into (empty pat) (map #(if (instance? Diff %) (.-b ^Diff %) %)) (cond-> ret (not= listy-v? listy-pat?) reverse)))
                           (cond-> ret (or (list? v) (seq? v)) reverse))))
                     (->Diff v pat)))
     (= `_& pat) ::dont-care
