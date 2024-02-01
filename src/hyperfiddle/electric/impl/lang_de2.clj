@@ -444,39 +444,48 @@
   (untwin 'a) := 'a
   (untwin 'cljs.core/not-in-clj) := 'cljs.core/not-in-clj)
 
-(defn analyze-clj-symbol [form]
-  (if (resolve-static-field form)
-    ::static
-    (when-some [v (resolve form)]
-      (if (var? v) (symbol v) ::static))))
+(defn resolve-node [sym])
 
-(defn analyze-cljs-symbol [form env]
-  (when-some [v (resolve-cljs (::cljs-env env) form)]
-    (if (= :var (:op v)) (untwin (:name v)) ::static)))
+(defn analyze-clj-symbol [sym]
+  (if (resolve-static-field sym)
+    {::type ::static, ::sym sym}
+    (when-some [v (resolve sym)]
+      (if (var? v) {::type ::var, ::sym (symbol v)} {::type ::class, ::sym sym, ::class v}))))
+
+(defn analyze-cljs-symbol [sym env]
+  (when-some [v (resolve-cljs (::cljs-env env) sym)]
+    (if (= :var (:op v)) {::type ::var, ::sym (untwin (:name v))} {::type ::static, ::sym sym})))
 
 (defn resolve-cljs-alias [env sym]
   (if (simple-symbol? sym)
     (symbol (-> env :ns :name str) (name sym))
     (or (cljs-ana/resolve-ns-alias env sym) (cljs-ana/resolve-macro-ns-alias env sym))))
 
-(defn assume-cljs-var [sym env] (untwin (resolve-cljs-alias env sym)))
+(defn assume-cljs-var [sym env] {::type ::var, ::sym (untwin (resolve-cljs-alias env sym))})
 
 (defn resolve-symbol [sym env]
-  (case (get (::peers env) (::current env))
-    :clj (let [v (analyze-clj-symbol sym)] (case v nil (cannot-resolve! env sym) #_else [:clj v]))
-    :cljs [:cljs (or (analyze-cljs-symbol sym env)
-                   ;; optimistically resolve on cljs
-                   ;; we don't load the whole ns file so we cannot resolve all vars
-                   ;; loading the whole ns would undermine previous work
-                   (assume-cljs-var sym env))]
-    #_unsited (let [langs (set (vals (::peers env)))
-                    vs (->> langs (into #{} (map #(case %
-                                                    :clj (analyze-clj-symbol sym)
-                                                    :cljs (or (analyze-cljs-symbol sym env)
-                                                            (assume-cljs-var sym env))))))]
-                (cond (contains? vs nil) (cannot-resolve! env sym)
-                      (> (count vs) 1) (ambiguous-resolve! env sym)
-                      :else [nil (first vs)]))))
+  (if-some [local (-> env :locals (get sym))]
+    (if-some [ref (::electric-let local)]
+      {::lang nil, ::type ::let-ref, ::sym sym, ::ref ref}
+      {::lang nil, ::type ::local, ::sym sym})
+    (if-some [nd (resolve-node sym)]
+      {::lang nil, ::type ::node, ::node nd}
+      (case (get (::peers env) (::current env))
+        :clj (let [v (analyze-clj-symbol sym)] (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
+        :cljs (assoc (or (analyze-cljs-symbol sym env)
+                       ;; optimistically resolve on cljs
+                       ;; we don't load the whole ns file so we cannot resolve all vars
+                       ;; loading the whole ns would undermine previous work
+                       (assume-cljs-var sym env))
+                ::lang :cljs)
+        #_unsited (let [langs (set (vals (::peers env)))
+                        vs (->> langs (into #{} (map #(case %
+                                                        :clj (analyze-clj-symbol sym)
+                                                        :cljs (or (analyze-cljs-symbol sym env)
+                                                                (assume-cljs-var sym env))))))]
+                    (cond (contains? vs nil) (cannot-resolve! env sym)
+                          (> (count vs) 1) (ambiguous-resolve! env sym)
+                          :else (assoc (first vs) ::lang nil)))))))
 
 (defn ->let-val-e [ts e] (first (get-children-e ts e)))
 (defn ->let-body-e [ts e] (second (get-children-e ts e)))
@@ -504,9 +513,9 @@
 
 (defn get-lookup-key [sym env]
   (if (symbol? sym)
-    (let [[_ sym] (resolve-symbol sym env)]
-      (case sym
-        ::static (throw (ex-info (str "`" sym "` did not resolve as a var") {::form sym}))
+    (let [{::keys [type sym]} (resolve-symbol sym env)]
+      (case type
+        (::static ::class) (throw (ex-info (str "`" sym "` did not resolve as a var") {::form sym}))
         #_else (keyword sym)))
     sym))
 
@@ -515,12 +524,12 @@
     (and (seq? form) (seq form))
     (case (first form)
       (let*) (let [[_ bs bform] form]
-               (loopr [ts ts, pe pe]
+               (loopr [ts ts, pe pe, env env]
                  [[s v] (eduction (partition-all 2) bs)]
-                 (let [e (->id)]
-                   (recur (analyze v e (update-in env [:locals s] assoc ::electric-let true, :db/id e)
+                 (let [e (->id), env (update-in env [:locals s] assoc ::electric-let e)]
+                   (recur (analyze v e env
                             (-> (ts/add ts {:db/id e, ::parent pe, ::type ::let, ::sym s})
-                              (?add-source-map e form))) e))
+                              (?add-source-map e form))) e env))
                  (analyze bform pe env ts)))
       (case) (let [[_ test & brs] form
                    [default brs2] (if (odd? (count brs)) [(last brs) (butlast brs)] [:TODO brs])]
@@ -540,7 +549,19 @@
                         (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v form})
                         (?add-source-map e form))]
               (reduce (fn [ts nx] (analyze nx e env ts)) ts2 refs))
-      (new) (let [[_ F & args] form] (recur `(binding [~@(interleave (range) args)] (::call ~F)) pe env ts))
+      (new) (let [[_ f & args] form
+                  {::keys [lang sym type]} (if (symbol? f) (resolve-symbol f env) {::type ::var, ::sym f})]
+              (case type
+                ::class (let [e (->id), ce (->id), cce (->id)]
+                          (reduce (fn [ts arg] (analyze arg e env ts))
+                            (-> ts (ts/add {:db/id e, ::parent pe, ::type ::ap})
+                              (ts/add {:db/id ce, ::parent e, ::type ::pure})
+                              (ts/add {:db/i cce, ::parent ce, ::type ::literal,
+                                       ::v (let [gs (repeatedly (count args) gensym)]
+                                             `(fn [~@gs] (new ~f ~@gs)))}))
+                            args))
+                #_else (recur (if (seq args) `(binding [~@(interleave (range) args)] (::call ~f)) `(::call ~f))
+                        pe env ts)))
       (binding clojure.core/binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
                                        (recur (if (seq bs)
                                                 `(let* [~@(interleave gs (take-nth 2 (next bs)))]
@@ -575,18 +596,19 @@
     (map? form) (recur (?meta form (cons `(::static-vars hash-map) (eduction cat form))) pe env ts)
 
     (symbol? form)
-    (let [e (->id)]
-      (-> (if-some [lr-e (find-let-ref form pe ts)]
-            (ts/add ts {:db/id e, ::parent pe, ::type ::let-ref, ::ref lr-e, ::sym form})
-            (if (contains? (:locals env) form)
-              (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
-                (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
-              (let [[resolved-in sym] (resolve-symbol form env)]
-                (if (or (= ::static sym) (::static-vars env))
-                  (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
-                    (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
-                  (ts/add ts (cond-> {:db/id e, ::parent pe, ::type ::var, ::var form, ::qualified-var sym}
-                               resolved-in (assoc ::resolved-in resolved-in)))))))
+    (let [e (->id), ret (resolve-symbol form env)]
+      (-> (case (::type ret)
+            (::let-ref) (ts/add ts {:db/id e, ::parent pe, ::type ::let-ref, ::ref (::ref ret), ::sym form})
+            (::local) (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
+                        (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
+            (::static ::var) (if (::static-vars env)
+                               (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
+                                 (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
+                               (ts/add ts (cond-> {:db/id e, ::parent pe, ::type ::var
+                                                   ::var form, ::qualified-var (::sym ret)}
+                                            (::lang ret) (assoc ::resolved-in (::lang ret)))))
+            (::node) (throw (ex-info "node todo" {}))
+            (::class) (ts/add ts {:db/id e, ::parent pe, ::type ::class, ::sym form, ::class (::class ret)}))
         (?add-source-map e form)))
 
     :else

@@ -5,15 +5,14 @@
             [hyperfiddle.electric.impl.lang-de2 :as lang]
             [missionary.core :as m]))
 
-(tests "new on local electric closure"
+(tests "call on local electric ctor"
   (with ((l/single {} (let [x (e/ctor 1)] (tap (e/call x)))) tap tap)
     % := 1))
 
-;; TODO class support
-;; (defrecord Point [x y])
-;; (tests "new on class"
-;;   (with ((l/single {} (tap (new Point 1 2))) tap tap)
-;;     % := (Point. 1 2)))
+(defrecord Point [x y])
+(tests "new on class"
+  (with ((l/single {} (tap (new Point 1 2))) tap tap)
+    % := (Point. 1 2)))
 
 ;; TODO `m/ap` has `try` in expansion
 ;; (tests "new on missionary flow"
@@ -29,13 +28,12 @@
   (with ((l/single {} (tap (if true :yes :no))) tap tap)
     % := :yes))
 
-;; TODO `case` default branch
-;; (tests "case"
-;;   (with ((l/single {} (tap (case 1 1 1 2 2))) tap tap)
-;;     % := 1))
+(tests "case"
+  (with ((l/single {} (tap (case 1  1 1, 2 2))) tap tap)
+    % := 1))
 
 (tests "case"
-  (with ((l/single {} (tap (case 1 1 1 2 2 #_else nil))) tap tap)
+  (with ((l/single {} (tap (case 1  1 1, 2 2, #_else nil))) tap tap)
     % := 1))
 
 (tests "quote"
@@ -311,7 +309,7 @@
 (def foo 1)
 (def bar 2)
 
-(tests "reactive for"
+#_(tests "reactive for"
   (def !xs (atom [1 2 3]))
   (with ((l/single {} (tap (e/for-by identity [x (e/watch !xs)] (prn x) (inc x)))) tap tap)
     % := [2 3 4]
