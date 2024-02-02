@@ -8,7 +8,7 @@
   #?(:cljs (:require-macros hyperfiddle.electric-de)))
 
 (defmacro ctor [expr] `(::lang/ctor ~expr))
-(defmacro call [ctor] `(::lang/call ~ctor))
+(defmacro $ [F & args] `(binding [~@(interleave (range) args)] (::lang/call ~F)))
 
 (defmacro pure "
 Syntax :
@@ -37,7 +37,7 @@ Syntax :
 (amb table1 table2 ,,, tableN)
 ```
 Returns the concatenation of `table1 table2 ,,, tableN`.
-" [& exprs] `(call (join (r/pure ~@(mapv #(list `ctor %) exprs)))))
+" [& exprs] `($ (join (r/pure ~@(mapv #(list `ctor %) exprs)))))
 
 (defmacro input "
 Syntax :
@@ -89,7 +89,7 @@ For each tuple in the cartesian product of `table1 table2 ,,, tableN`, calls bod
   (case bindings
     [] `(do ~@body)
     (let [[args exprs] (apply map vector (partition-all 2 bindings))]
-      `(call (r/bind-args (fn ~args ~@body)
+      `($ (r/bind-args (fn ~args ~@body)
                ~@(map (clojure.core/fn [expr]
                         `(r/fixed-signals (join (i/items (pure ~expr)))))
                    exprs))))))

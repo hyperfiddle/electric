@@ -450,7 +450,7 @@
   (if (resolve-static-field sym)
     {::type ::static, ::sym sym}
     (when-some [v (resolve sym)]
-      (if (var? v) {::type ::var, ::sym (symbol v)} {::type ::class, ::sym sym, ::class v}))))
+      (if (var? v) {::type ::var, ::sym (symbol v)} {::type ::static, ::sym sym}))))
 
 (defn analyze-cljs-symbol [sym env]
   (when-some [v (resolve-cljs (::cljs-env env) sym)]
@@ -515,7 +515,7 @@
   (if (symbol? sym)
     (let [{::keys [type sym]} (resolve-symbol sym env)]
       (case type
-        (::static ::class) (throw (ex-info (str "`" sym "` did not resolve as a var") {::form sym}))
+        (::static) (throw (ex-info (str "`" sym "` did not resolve as a var") {::form sym}))
         #_else (keyword sym)))
     sym))
 
@@ -549,19 +549,15 @@
                         (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v form})
                         (?add-source-map e form))]
               (reduce (fn [ts nx] (analyze nx e env ts)) ts2 refs))
-      (new) (let [[_ f & args] form
-                  {::keys [lang sym type]} (if (symbol? f) (resolve-symbol f env) {::type ::var, ::sym f})]
-              (case type
-                ::class (let [e (->id), ce (->id), cce (->id)]
-                          (reduce (fn [ts arg] (analyze arg e env ts))
-                            (-> ts (ts/add {:db/id e, ::parent pe, ::type ::ap})
-                              (ts/add {:db/id ce, ::parent e, ::type ::pure})
-                              (ts/add {:db/i cce, ::parent ce, ::type ::literal,
-                                       ::v (let [gs (repeatedly (count args) gensym)]
-                                             `(fn [~@gs] (new ~f ~@gs)))}))
-                            args))
-                #_else (recur (if (seq args) `(binding [~@(interleave (range) args)] (::call ~f)) `(::call ~f))
-                        pe env ts)))
+      (new) (let [[_ f & args] form, e (->id), ce (->id), cce (->id)]
+              (reduce (fn [ts arg] (analyze arg e env ts))
+                (-> ts
+                  (ts/add {:db/id e,   ::parent pe, ::type ::ap})
+                  (ts/add {:db/id ce,  ::parent e,  ::type ::pure})
+                  (ts/add {:db/id cce, ::parent ce, ::type ::literal,
+                           ::v (let [gs (repeatedly (count args) gensym)]
+                                 `(fn [~@gs] (new ~f ~@gs)))}))
+                args))
       (binding clojure.core/binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
                                        (recur (if (seq bs)
                                                 `(let* [~@(interleave gs (take-nth 2 (next bs)))]
@@ -607,8 +603,7 @@
                                (ts/add ts (cond-> {:db/id e, ::parent pe, ::type ::var
                                                    ::var form, ::qualified-var (::sym ret)}
                                             (::lang ret) (assoc ::resolved-in (::lang ret)))))
-            (::node) (throw (ex-info "node todo" {}))
-            (::class) (ts/add ts {:db/id e, ::parent pe, ::type ::class, ::sym form, ::class (::class ret)}))
+            (::node) (throw (ex-info "node todo" {})))
         (?add-source-map e form)))
 
     :else
@@ -630,6 +625,7 @@
           _ (when (::print-expansion env) (fipp.edn/pprint expanded))
           ts (analyze expanded 0 (ensure-cljs-env env)
                (ts/add (ts/->ts {::->id ->id}) {:db/id (->id), ::type ::ctor, ::parent '_}))
+          _ (when (::print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
           mark-used-ctors (fn mark-used-ctors [ts e]
                             (let [nd (get (:eav ts) e)]
                               (case (::type nd)
@@ -691,21 +687,17 @@
                                                   (recur (cond-> ac (= ::ctor (::type (ts/->node ts e))) (conj e))
                                                     (::parent (ts/->node ts e)))))
                                       ts (ts/asc ts (::ref nd) ::walked-val true) ; only walk binding once
-                                      ts (cond
-                                           (in-a-call? ts e)
-                                           (-> (ts/upd ts (::ref nd) ::in-call #(conj (or % #{}) e))
-                                             (ensure-node (::ref nd)))
-
-                                           (seq ctors-e) ; closed over
+                                      ts (cond-> ts (in-a-call? ts e)
+                                                 (ts/upd (::ref nd) ::in-call #(conj (or % #{}) e)))
+                                      ts (if (seq ctors-e) ; closed over
                                            (-> ts (ensure-node (::ref nd))
                                              (ensure-free-node (::ref nd) (first ctors-e))
                                              (ensure-free-frees (::ref nd) (rest ctors-e)))
-
-                                           :else (cond-> (ts/upd ts (::ref nd) ::refcnt (fnil inc 0))
-                                                   (or (= 1 (::refcnt ref-nd))
-                                                     (not= (get-site ts (find-sitable-parent ts e))
-                                                       (get-site ts (->let-val-e ts (::ref nd)))))
-                                                   (ensure-node (::ref nd))))]
+                                           (cond-> (ts/upd ts (::ref nd) ::refcnt (fnil inc 0))
+                                             (or (= 1 (::refcnt ref-nd))
+                                               (not= (get-site ts (find-sitable-parent ts e))
+                                                 (get-site ts (->let-val-e ts (::ref nd)))))
+                                             (ensure-node (::ref nd))))]
                                   (cond-> ts
                                     (not (::walked-val ref-nd)) (recur (get-ret-e ts (->let-val-e ts (::ref nd))))))
                                 #_else (throw (ex-info (str "cannot handle-let-refs on " (::type nd)) (or nd {}))))))
