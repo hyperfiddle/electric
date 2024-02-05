@@ -49,13 +49,12 @@
        % := 2)))
 
 (tests "clj fn"
-  (with ((l/single {::lang/print-source true} (let [x 1] (tap (#(inc x))))) tap tap)
+  (with ((l/single {} (let [x 1] (tap (#(inc x))))) tap tap)
     % := 2))
 
-;; TODO `.`
 #?(:clj
-   (skip "."
-     (with ((l/single {} (tap (. java.time.Instant EPOCH))) tap tap)
+   (tests "."
+     (with ((l/single {} (e/server (tap (. java.time.Instant EPOCH)))) tap tap)
        % := java.time.Instant/EPOCH)))
 
 ;; TODO loop recur

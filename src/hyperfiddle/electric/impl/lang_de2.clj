@@ -519,6 +519,28 @@
         #_else (keyword sym)))
     sym))
 
+(declare analyze)
+
+(defn ->class-method-call [clazz method method-args pe env {{::keys [->id]} :o :as ts}]
+  (let [e (->id), ce (->id)]
+    (reduce (fn [ts form] (analyze form e env ts))
+      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
+        (ts/add {:db/id ce, ::parent e, ::type ::pure})
+        (ts/add {:db/id (->id), ::parent ce, ::type ::literal,
+                 ::v (let [margs (repeatedly (count method-args) gensym)]
+                       `(fn [~@margs] (. ~clazz ~method ~@margs)))}))
+      method-args)))
+
+(defn ->obj-method-call [o method method-args pe env {{::keys [->id]} :o :as ts}]
+  (let [e (->id), ce (->id)]
+    (reduce (fn [ts form] (analyze form e env ts))
+      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
+        (ts/add {:db/id ce, ::parent e, ::type ::pure})
+        (ts/add {:db/id (->id), ::parent ce, ::type ::literal,
+                 ::v (let [oo (gensym "o"), margs (repeatedly (count method-args) gensym)]
+                       `(fn [~@margs] (. ~oo ~method ~@margs)))}))
+      (cons o method-args))))
+
 (defn analyze [form pe env {{::keys [->id]} :o :as ts}]
   (cond
     (and (seq? form) (seq form))
@@ -558,6 +580,38 @@
                            ::v (let [gs (repeatedly (count args) gensym)]
                                  `(fn [~@gs] (new ~f ~@gs)))}))
                 args))
+      ;; (. java.time.Instant now)
+      ;; (. java.time.Instant ofEpochMilli 1)
+      ;; (. java.time.Instant (ofEpochMilli 1))
+      ;; (. java.time.Instant EPOCH)
+      ;; (. java.time.Instant -EPOCH)
+      ;; (. i1 isAfter i2)
+      ;; (. i1 (isAfter i2))
+      ;; (. pt x)
+      ;; (. pt -x)
+      (.) (if (and (= :clj (get (::peers env) (::current env)))
+                (symbol? (second form)) (class? (resolve env (second form))))
+            (if (seq? (nth form 2))     ; (. java.time.Instant (ofEpochMilli 1))
+              (let [[_ clazz [method & method-args]] form]
+                (->class-method-call clazz method method-args pe env ts))
+              (let [[_ clazz x & xs] form]
+                (if (seq xs)            ; (. java.time.Instant ofEpochMilli 1)
+                  (->class-method-call clazz x xs pe env ts)
+                  (let [e (->id)]       ; (. java.time.Instant now)
+                    (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
+                      (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))))))
+            (if (seq? (nth form 2))     ; (. i1 (isAfter i2))
+              (let [[_ o [method & method-args]] form]
+                (->obj-method-call o method method-args pe env ts))
+              (let [[_ o x & xs] form]
+                (if (seq xs)            ; (. i1 isAfter i2)
+                  (->obj-method-call o x xs pe env ts)
+                  (let [e (->id), ce (->id)] ; (. pt x)
+                    (recur o e env
+                      (-> ts
+                        (ts/add {:db/id e, ::parent pe, ::type ::ap})
+                        (ts/add {:db/id ce, ::parent e, ::type ::pure})
+                        (ts/add {:db/id (->id) , ::parent ce, ::type ::literal, ::v `(fn [oo#] (. oo# ~x))}))))))))
       (binding clojure.core/binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
                                        (recur (if (seq bs)
                                                 `(let* [~@(interleave gs (take-nth 2 (next bs)))]
