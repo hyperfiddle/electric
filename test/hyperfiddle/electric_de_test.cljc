@@ -48,8 +48,7 @@
      (with ((l/single {} (tap (js* "~{}+1" 1))) tap tap)
        % := 2)))
 
-;; TODO cc/fn
-(skip "clj fn"
+(tests "clj fn"
   (with ((l/single {::lang/print-source true} (let [x 1] (tap (#(inc x))))) tap tap)
     % := 2))
 
@@ -493,67 +492,17 @@
 
 (comment
   (def !x (atom 1))
-  (def !y (atom 10))
-  (def it ((l/single {}
-             (let [x (e/watch !x), y (e/watch !y)]
-               (tap ($ (if (odd? x)
-                         (e/fn [x] (prn :x1 x) (* y x))
-                         (e/fn [x] (prn :x2 x) (* y x)))
-                      x)))) prn prn))
+  (def it ((l/single {::lang/print-source true}
+             (let [x (e/watch !x)]
+               (tap (if (odd? x)
+                      (prn :x1 x)
+                      (prn :x2 x)))))
+           prn prn))
   ;; :x1 1
-  ;; 10
   (swap! !x inc)
   ;; :x1 2
-  ;; 20
   ;; :x2 2
-  ;; 20
   )
-
-#_[(r/cdef 0 [nil nil] [nil] nil
-   (fn [frame]
-     (r/define-node frame 0 (r/join (r/ap (r/lookup frame :r/fixed-signals (r/pure r/fixed-signals))
-                                      (r/ap (r/lookup frame ::m/watch (r/pure m/watch))
-                                        (r/lookup frame ::!y (r/pure !y))))))
-     (r/define-node frame 1 (r/join (r/ap (r/lookup frame :r/fixed-signals (r/pure r/fixed-signals))
-                                      (r/ap (r/lookup frame ::m/watch (r/pure m/watch))
-                                        (r/lookup frame ::!x (r/pure !x))))))
-     (r/define-call frame 0 (r/pure (r/bind (doto (r/make-ctor frame ::l/Main 1)
-                                              (r/define-free 0 (r/node frame 0))
-                                              (r/define-free 1 (r/node frame 1)))
-                                      0 (r/node frame 1))))
-     (r/ap (r/pure RCF__tap)
-       (r/join (r/call frame 0)))))
- (r/cdef 2 [nil] [nil nil] nil
-   (fn [frame]
-     (r/define-node frame 0 (r/pure (doto (r/make-ctor frame ::l/Main 2)
-                                      (r/define-free 0 (r/free frame 0)))))
-     (r/define-call frame 0 (r/join (r/call frame 1)))
-     (r/define-call frame 1 (r/ap (r/ap (r/pure hash-map)
-                                    (r/pure (quote nil)) (r/node frame 0)
-                                    (r/pure (quote false)) (r/node frame 0))
-                              (r/ap (r/lookup frame :odd? (r/pure odd?))
-                                (r/free frame 1))
-                              (r/pure (doto (r/make-ctor frame ::l/Main 4)
-                                        (r/define-free 0 (r/free frame 0))))))
-     (r/join (r/call frame 0))))
- (r/cdef 1 [] [] nil
-   (fn [frame]
-     (r/pure (doto (r/make-ctor frame ::l/Main 3)
-               (r/define-free 0 (r/free frame 0))))))
- (r/cdef 1 [] [] nil
-   (fn [frame]
-     (r/ap (r/lookup frame :* (r/pure *))
-       (r/free frame 0)
-       (r/lookup frame 0))))
- (r/cdef 1 [] [] nil
-   (fn [frame]
-     (r/pure (doto (r/make-ctor frame ::l/Main 5)
-               (r/define-free 0 (r/free frame 0))))))
- (r/cdef 1 [] [] nil
-   (fn [frame]
-     (r/ap (r/lookup frame :* (r/pure *))
-       (r/free frame 0)
-       (r/lookup frame 0))))]
 
 (skip "reactive closures 2"
       (def !x (atom 0))
