@@ -90,16 +90,16 @@
 
 (defn handle-apply-error [debug-info args error]
   (if (= `fail (::dbg/name debug-info))
-    (let [[thrown context] args]
-      (dbg/error (assoc (select-debug-info debug-info) ::dbg/args [thrown]) (Failure. error) context))
-    (dbg/error (assoc (select-debug-info debug-info) ::dbg/args args) (Failure. error))))
+    (let [[_thrown context] args]
+      (dbg/error (select-debug-info debug-info) (Failure. error) context))
+    (dbg/error (select-debug-info debug-info) (Failure. error))))
 
 (defn latest-apply [debug-info & args]
   (ca/check (partial every? some?) args debug-info)
   (apply m/latest
     (fn [f & args]
       (if-let [err (apply failure f args)]
-        (dbg/error (assoc (select-debug-info debug-info) ::dbg/args args) err)
+        (dbg/error (select-debug-info debug-info) err)
         (try (apply f args)
              (catch #?(:clj Throwable :cljs :default) e
                (handle-apply-error debug-info args e)))))
@@ -110,7 +110,7 @@
     (fn [x y]
       (let [args [x y]]
         (if-let [err (failure x y)]
-          (dbg/error (assoc debug-info ::dbg/args args) err)
+          (dbg/error debug-info err)
           ({} x y))))
     x y))
 
@@ -1030,7 +1030,7 @@
                                                                 ::ir/global (assoc f ::dbg/type :apply, ::dbg/name (symbol (::ir/name f)))
                                                                 ::ir/node   (assoc f ::dbg/type :apply)
                                                                 ::ir/eval   (cond-> (assoc f ::dbg/type :eval)
-                                                                              (not (::dbg/fn f)) (assoc ::dbg/fn (::ir/form f)))
+                                                                              (not (::dbg/name f)) (assoc ::dbg/form (::ir/form f)))
                                                                 ::ir/sub    (assoc f ::dbg/type :apply)
                                                                 ::ir/input  (assoc f ::dbg/type :apply)
                                                                 ::ir/apply  (recur (::ir/fn f))
