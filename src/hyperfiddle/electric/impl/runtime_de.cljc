@@ -274,8 +274,6 @@ Returns a peer definition from given definitions and main key.
     (make-frame nil 0)
     (m/signal i/combine)))
 
-(def ^{::type ::node, :doc "for loop/recur impl"} rec)
-
 #?(:clj
    (def arg-sym
      (map (comp symbol

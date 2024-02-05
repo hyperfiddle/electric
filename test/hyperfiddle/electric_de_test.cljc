@@ -57,8 +57,7 @@
      (with ((l/single {} (e/server (tap (. java.time.Instant EPOCH)))) tap tap)
        % := java.time.Instant/EPOCH)))
 
-;; TODO loop recur
-(skip "loop/recur"
+(tests "loop/recur"
   (with ((l/single {} (tap (loop [x 1] (if (odd? x) (recur (dec x)) x)))) tap tap)
     % := 0))
 
