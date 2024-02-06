@@ -635,6 +635,7 @@
                 :clj (recur `((fn* ([x#] (def ~sym x#))) ~v) pe env ts)
                 :cljs (do (def-sym-in-cljs-compiler! sym (get-ns env))
                           (recur `(set! ~sym ~v) pe env ts))))
+      (set!) (let [[_ target v] form] (recur `((fn* ([v#] (set! ~target v#))) ~v) pe env ts))
       (::ctor) (let [e (->id), ce (->id)]
                  (recur (list ::site nil (second form))
                    ce env (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})

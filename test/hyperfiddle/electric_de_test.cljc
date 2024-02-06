@@ -1308,7 +1308,7 @@
       )))
 
 #?(:clj
-   (skip "set!"
+   (tests "set!"
      (def !y (atom 8))
      (with ((l/single {} (let [pt (java.awt.Point. 1 2)
                            y (e/watch !y)]
@@ -1321,7 +1321,7 @@
 
 #?(:cljs
    (do-browser
-     (skip "set!"
+     (tests "set!"
        ;; https://www.notion.so/hyperfiddle/RCF-implicit-do-rewrite-rule-does-not-account-for-let-bindings-61b1ad82771c407198c1f678683bf443
        (defn bypass-rcf-bug [[href a]] [href (str/replace (.-href a) #".*/" "")])
        (def !href (atom "href1"))
@@ -1333,12 +1333,12 @@
          (reset! !href "href2")
          (bypass-rcf-bug %) := ["href2" "href2"]))))
 
-#?(:clj (skip "set! with electric value"
+#?(:clj (tests "set! with electric value"
           (with ((l/single {} (tap (let [pt (java.awt.Point. 1 2)]
-                                 (set! (.-y pt) (new (e/fn [] 0)))))) tap tap)
+                                 (set! (.-y pt) ($ (e/fn [] 0)))))) tap tap)
             % := 0)))
 
-#?(:cljs (skip "set! with electric value"
+#?(:cljs (tests "set! with electric value"
            (with ((l/single {} (tap (let [o (js/Object.)]
                                   (set! (.-x o) (new (e/fn [] 0)))))) tap tap)
              % := 0)))
