@@ -546,6 +546,10 @@
                        `(fn [~@margs] (. ~oo ~method ~@margs)))}))
       (cons o method-args))))
 
+(defn def-sym-in-cljs-compiler! [sym ns]
+  (swap! @(requiring-resolve 'cljs.env/*compiler*)
+    assoc-in [:cljs.analyzer/namespaces ns :defs sym] {:name sym}))
+
 (defn analyze [form pe env {{::keys [->id]} :o :as ts}]
   (cond
     (and (seq? form) (seq form))
@@ -626,6 +630,11 @@
                                                                 (mapv #(list ::pure %) gs)))))
                                                 bform)
                                          pe env ts))
+      (def) (let [[_ sym v] form]
+              (case (->env-type env)
+                :clj (recur `((fn* ([x#] (def ~sym x#))) ~v) pe env ts)
+                :cljs (do (def-sym-in-cljs-compiler! sym (get-ns env))
+                          (recur `(set! ~sym ~v) pe env ts))))
       (::ctor) (let [e (->id), ce (->id)]
                  (recur (list ::site nil (second form))
                    ce env (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
@@ -780,19 +789,16 @@
                                 #_else (throw (ex-info (str "cannot mark-used-calls on " (::type nd)) (or nd {}))))))
           change-parent (fn change-parent [ts e pe] (ts/asc ts e ::parent pe))
           orphan (fn orphan [ts e] (change-parent ts e nil))
-          collapse-ap-with-only-pures (fn collapse-ap-with-only-pures [ts] ; (r/ap (r/pure .)+ ) => (r/pure (. . .))
+          collapse-ap-with-only-pures (fn collapse-ap-with-only-pures [ts] ; (r/ap (r/pure .)+ ) => (r/pure (::comp . . .))
                                         (reduce (fn [ts ap-e]
-                                                  (let [ap-nd (ts/->node ts ap-e)
-                                                        children-e (get-children-e ts ap-e)]
+                                                  (let [[f-e & args-e :as children-e] (get-children-e ts ap-e)]
                                                     (if (every? #(= ::pure (::type (ts/->node ts %))) children-e)
-                                                      (let [e (->id), ce (->id)]
-                                                        (reduce (fn [ts e]
-                                                                  (-> ts (change-parent (get-child-e ts e) ce)
-                                                                    (orphan e)))
-                                                          (-> ts (ts/add {:db/id e, ::parent (::parent ap-nd), ::type ::pure})
-                                                            (ts/add {:db/id ce, ::parent e, ::type ::comp})
-                                                            (orphan ap-e))
-                                                          children-e))
+                                                      (reduce (fn [ts e]
+                                                                (-> ts (change-parent (get-child-e ts e) f-e)
+                                                                  (orphan e)))
+                                                        ;; reuse nodes, otherwise node ordering messes up
+                                                        (-> ts (ts/asc ap-e ::type ::pure) (ts/asc f-e ::type ::comp))
+                                                        args-e)
                                                       ts)))
                                           ts (reverse (ts/find ts ::type ::ap))))
           ts (-> ts (handle-let-refs 0)
