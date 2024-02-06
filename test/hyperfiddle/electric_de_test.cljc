@@ -61,8 +61,7 @@
   (with ((l/single {} (tap (loop [x 1] (if (odd? x) (recur (dec x)) x)))) tap tap)
     % := 0))
 
-;; TODO def
-(skip "def"
+(tests "def"
   (with ((l/single {} (def DEFD 1)) tap tap))
   DEFD := 1)
 
