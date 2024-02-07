@@ -222,18 +222,46 @@
       :else                        ex)))
 
 #?(:clj
-   (defn clean-jvm-stack-trace! [ex]
-     (->> (seq (.getStackTrace ex))
-       (take-while (fn [^StackTraceElement elem]
-                     (not (clojure.string/starts-with? (.getClassName elem) "hyperfiddle.electric.impl.runtime" #_"hyperfiddle.electric.debug"))))
+   (defn stack-element-matches? [regex ^StackTraceElement elem]
+     (re-matches regex (.getClassName elem))))
+
+#?(:clj
+   (defn keep-stack-elements-upto
+     [upto-regex stack-trace-elements]
+     (->> stack-trace-elements
        (reverse)
-       (drop-while (fn [^StackTraceElement elem]
-                     (and (#{"clojure.lang.AFn" "clojure.core$apply"} (.getClassName elem))
-                       (#{"invoke" "applyTo" "invokeStatic" "applyToHelper"} (.getMethodName elem)))))
-       (reverse)
+       (drop-while #(not (stack-element-matches? upto-regex %)))
+       (reverse))))
+
+#?(:clj
+   (defn keep-relevent-stack-trace-elements
+     ([stack-trace-elements] (keep-relevent-stack-trace-elements #"hyperfiddle.electric.impl.runtime.*" stack-trace-elements))
+     ([upto-regex stack-trace-elements]
+      (->> stack-trace-elements
+        (keep-stack-elements-upto upto-regex)
+        (reverse)
+        (drop-while (fn [^StackTraceElement elem]
+                      (and (#{"clojure.lang.AFn" "clojure.core$apply"} (.getClassName elem))
+                        (#{"invoke" "applyTo" "invokeStatic" "applyToHelper"} (.getMethodName elem)))))
+        (reverse)))))
+
+#?(:clj
+   (defn update-stack-trace!
+     "Like `clojure.core/update` but updates an exception's stacktrace. Mutating the exception in place.
+`f` receives a sequence of `java.lang.StackTraceElement` and any provided `args`.
+`f` must return a sequence of `java.lang.StackTraceElement`s.
+  Use case: tidy up (denoise) a stack trace by removing meaningless elements."
+     [ex f & args]
+     (->> (apply f (seq (.getStackTrace ex)) args)
        (into-array StackTraceElement)
        (.setStackTrace ex))
      ex))
+
+#?(:clj
+   (defn clean-jvm-stack-trace!
+     ([ex] (clean-jvm-stack-trace! #"hyperfiddle.electric.impl.runtime.*" ex))
+     ([upto-regex ex]
+      (update-stack-trace! ex (partial keep-relevent-stack-trace-elements upto-regex)))))
 
 ;; (comment
 ;;   (clean-stack-trace! (try (apply inc nil) (catch Throwable t t))))
@@ -291,9 +319,6 @@
      (->> (str/split string #"\n")
        (map (fn [line] (str pad line)))
        (str/join "\n")))))
-
-
-;; (left-pad-stack-trace "a \n b")
 
 (defn empty-client-exception [exception]
   #?(:clj

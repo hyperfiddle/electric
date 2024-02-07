@@ -5,8 +5,10 @@
   `hyperfiddle.electric-httpkit-adapter` for an example of an extension."
   (:refer-clojure :exclude [send])
   (:require [clojure.tools.logging :as log]
+            [hyperfiddle.electric :as-alias e]
             [hyperfiddle.electric.impl.io :as io]
             [hyperfiddle.electric.impl.runtime :as r]
+            [hyperfiddle.electric.debug :as dbg]
             [missionary.core :as m]
             [ring.websocket :as ws])
   (:import missionary.Cancelled))
@@ -64,12 +66,18 @@
     ;; during cancellation phase, so the reactor can fail while shutting down.
     ;; In which case socket will already be closed.
     (when (open? socket)
-      (let [{::keys [type time-seconds] :as data} (ex-data e)]
-        (case type
-          ::timeout (do (log/info (format "Connection to client lost after %ss. Closing socket." time-seconds))
-                        (close socket 1013 "Try again later"))
-          (do (log/error e "Websocket handler failure." data)
-              (close socket 1011 "Server process crash")))))))
+      (let [{::keys [type time-seconds] :as ex-data} (ex-data e)]
+        (case (or type (::e/type ex-data))
+          ::timeout
+          (do (log/info (format "Connection to client lost after %ss. Closing socket." time-seconds))
+              (close socket 1013 "Try again later"))
+          ::e/misaligned-dag
+          (do (log/error (ex-message e))
+              (close socket 1012 "Misaligned client"))
+          (do
+            (log/error (dbg/update-stack-trace! e #(filter (partial dbg/stack-element-matches? #"hyperfiddle.*") %))
+              "Websocket handler failure." ex-data)
+            (close socket 1011 "Server process crash")))))))
 
 (defn write-msg
   "Return a task, writing a message on a websocket when run."
@@ -161,7 +169,9 @@
      :on-close   (fn on-close [_socket _status-code & [_reason]]
                    ((aget state on-close-slot)))
      :on-error   (fn on-error [_socket err]
-                   (log/error err "Websocket error"))
+                   (if (and (instance? java.nio.channels.ClosedChannelException err) (nil? (ex-message err)))
+                     (log/debug "Websocket was closed unexpectedly") ; common in dev
+                     (log/error err "Websocket error")))
      :on-ping    (fn on-ping [socket data] ; keep connection alive
                    (keepalive-mailbox nil))
      :on-pong    (fn on-pong [_socket _bytebuffer] ; keep connection alive
