@@ -847,6 +847,12 @@
          (update-event context :acks inc)
          (reduce-kv eval-change-inst context change))
        (reduce eval-freeze-inst context freeze)
+       #?(:clj (catch ArrayIndexOutOfBoundsException _ ; Misaligned client/server DAG
+                 ;; Heavy message on purpose, to help users diagnose the issue.
+                 ;; When this happens, both users and us are *highly* confused
+                 ;; and it usually triggers a meeting.
+                 (throw (ex-info (str "A mismatch between client and server's programs was detected. The connection was closed and the client was instructed to not attempt to reconnect. Commonly, in local dev envs, this is a stale browser tab auto-reconnecting, or the clj and cljs REPLs are out of sync due to evaluating an Electric def in one process but not the other. This should not happen in prod. See `https://github.com/hyperfiddle/electric-starter-app/` for a reference configuration.")
+                          {:hyperfiddle.electric/type :hyperfiddle.electric/misaligned-dag}))))
        (catch #?(:clj Throwable :cljs :default) e (#?(:clj prn :cljs js/console.error) e) (throw e))))
 
 (defn process-incoming-events [^objects context >incoming]
