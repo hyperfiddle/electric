@@ -3,9 +3,11 @@
   #?(:cljs (:require-macros hyperfiddle.electric-local-def-de))
   (:require [clojure.core :as cc]
             [contrib.assert :as ca]
+            #?(:clj [fipp.edn])
             [contrib.cljs-target]
             [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
+            #?(:clj [contrib.triple-store :as ts])
             #?(:clj [hyperfiddle.rcf.analyzer :as ana]) ; todo remove
             [missionary.core :as m]))
 
@@ -27,5 +29,15 @@
 (defn run-single [frame] (m/reduce #(do %2) nil frame))
 #?(:clj (defmacro single {:style/indent 1} [conf & body]
           (ca/check map? conf)
-          (let [env (merge (->local-config &env) (lang/normalize-env &env) conf)]
-            `(run-single (r/root-frame {::Main ~(lang/compile ::Main `(do ~@body) env)} ::Main)))))
+          (lang/ensure-cljs-compiler
+            (let [env (merge (->local-config &env) (lang/normalize-env &env) conf)
+                  expanded (lang/expand-all env `(::lang/ctor (do ~@body)))
+                  ts (lang/analyze expanded '_ env (ts/->ts {::lang/->id (lang/->->id)}))
+                  ts (lang/analyze-electric env ts)
+                  ctors (mapv #(lang/emit-ctor ts % env ::Main) (lang/get-ordered-ctors-e ts))
+                  ret-e (lang/get-ret-e ts (lang/get-child-e ts 0))
+                  deps (lang/emit-deps ts ret-e)
+                  defs (into {} (map (fn [dep] [(keyword dep) dep])) deps)
+                  defs (assoc defs ::Main ctors)]
+              (when (::lang/print-defs env) (fipp.edn/pprint defs))
+              `(run-single (r/root-frame ~defs ::Main))))))

@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric.impl.runtime-de
   (:require [hyperfiddle.incseq :as i]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [contrib.assert :as ca])
   #?(:clj (:import (clojure.lang IFn IDeref))))
 
 (deftype Peer [step done defs ^objects state]
@@ -218,7 +219,7 @@
   "Returns a fresh constructor for cdef coordinates key and idx."
   [^Frame frame key idx]
   (let [^Peer peer (ctor-peer (frame-ctor frame))
-        ^Cdef cdef (((.-defs peer) key) idx)]
+        ^Cdef cdef ((ca/check some? ((.-defs peer) key) {:key key}) idx)]
     (->Ctor peer key idx (object-array (.-frees cdef)) {})))
 
 (defn node
