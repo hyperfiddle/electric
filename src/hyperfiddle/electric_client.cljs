@@ -147,6 +147,11 @@ Returns a task producing nil or failing if the websocket was closed before end o
                           (case code ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
                             (1005 1006) (do (.log js/console "Connection lost.") (m/? (wait-for-window-to-be-visible)) (seq retry-delays))
                             (1008) (throw (ex-info "Stale client" {:hyperfiddle.electric/type ::stale-client}))
+                            (1012) ; Incompatible client. Do not attempt to reconnect (it would fail again)
+                            (js/console.error (str "A mismatch between client and server's programs was detected."
+                                                "\nThe connection was closed. Refresh the page to attempt a reconnect."
+                                                "\nCommonly, in local dev envs, this is a stale browser tab auto-reconnecting, or the clj and cljs REPLs are out of sync due to evaluating an Electric def in one process but not the other."
+                                                "\nThis should not happen in prod. See `https://github.com/hyperfiddle/electric-starter-app/` for a reference configuration."))
                             (1013) ; server timeout - The WS spec defines 1011 - arbitrary server error,
                                    ; and 1015 - TLS exception. 1012, 1013, and 1014 are undefined. We
                                    ; pick 1013 for "Server closed the connection because it didn't hear of
