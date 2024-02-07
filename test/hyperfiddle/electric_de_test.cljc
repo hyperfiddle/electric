@@ -308,10 +308,9 @@
 (def foo 1)
 (def bar 2)
 
-;; TODO waiting for Leo's fix
-(skip "reactive for"
+(tests "reactive for"
   (def !xs (atom [1 2 3]))
-  (with ((l/single {} (tap (e/for-by identity [x (e/watch !xs)] (prn x) (inc x)))) tap tap)
+  (with ((l/single {} (tap (e/for-by identity [x (e/watch !xs)] (inc x)))) tap tap)
     % := [2 3 4]
     (swap! !xs conj 4)
     % := [2 3 4 5]))
