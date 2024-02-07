@@ -449,7 +449,15 @@
   (untwin 'a) := 'a
   (untwin 'cljs.core/not-in-clj) := 'cljs.core/not-in-clj)
 
-(defn resolve-node [sym])
+(defn node? [mt] (::deps mt))
+(defn resolve-node [sym env]
+  (case (->env-type env)
+    :clj (when-some [^clojure.lang.Var vr (resolve env sym)]
+           (when (-> vr meta node?)
+             (symbol (-> vr .ns str) (-> vr .sym str))))
+    :cljs (when-some [vr (resolve-cljs env sym)]
+            (when (-> vr :meta node?)
+              (symbol (-> vr :name str))))))
 
 (defn analyze-clj-symbol [sym]
   (if (resolve-static-field sym)
@@ -473,7 +481,7 @@
     (if-some [ref (::electric-let local)]
       {::lang nil, ::type ::let-ref, ::sym sym, ::ref ref}
       {::lang nil, ::type ::local, ::sym sym})
-    (if-some [nd (resolve-node sym)]
+    (if-some [nd (resolve-node sym env)]
       {::lang nil, ::type ::node, ::node nd}
       (case (get (::peers env) (::current env))
         :clj (let [v (analyze-clj-symbol sym)] (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
@@ -556,20 +564,20 @@
     (case (first form)
       (let*) (let [[_ bs bform] form]
                (loopr [ts ts, pe pe, env env]
-                 [[s v] (eduction (partition-all 2) bs)]
-                 (let [e (->id), env (update-in env [:locals s] assoc ::electric-let e)]
-                   (recur (analyze v e env
-                            (-> (ts/add ts {:db/id e, ::parent pe, ::type ::let, ::sym s})
-                              (?add-source-map e form))) e env))
-                 (analyze bform pe env ts)))
+                   [[s v] (eduction (partition-all 2) bs)]
+                   (let [e (->id), env (update-in env [:locals s] assoc ::electric-let e)]
+                     (recur (analyze v e env
+                              (-> (ts/add ts {:db/id e, ::parent pe, ::type ::let, ::sym s})
+                                (?add-source-map e form))) e env))
+                   (analyze bform pe env ts)))
       (case) (let [[_ test & brs] form
                    [default brs2] (if (odd? (count brs)) [(last brs) (butlast brs)] [:TODO brs])]
                (loopr [bs [], mp {}]
-                 [[v br] (partition 2 brs2)]
-                 (let [b (gensym "case-val")]
-                   (recur (conj bs b `(::ctor ~br))
-                     (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq? v) v [v]))))
-                 (recur (?meta form `(let* ~bs (::call (~mp ~test (::ctor ~default))))) pe env ts)))
+                   [[v br] (partition 2 brs2)]
+                   (let [b (gensym "case-val")]
+                     (recur (conj bs b `(::ctor ~br))
+                       (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq? v) v [v]))))
+                   (recur (?meta form `(let* ~bs (::call (~mp ~test (::ctor ~default))))) pe env ts)))
       (quote) (let [e (->id)]
                 (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                   (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})))
@@ -672,7 +680,8 @@
                                (ts/add ts (cond-> {:db/id e, ::parent pe, ::type ::var
                                                    ::var form, ::qualified-var (::sym ret)}
                                             (::lang ret) (assoc ::resolved-in (::lang ret)))))
-            (::node) (throw (ex-info "node todo" {})))
+            (::node) (ts/add ts {:db/id e, ::parent pe, ::type ::node, ::node (::node ret)})
+            #_else (throw (ex-info (str "unknown symbol type " (::type ret)) (or ret {}))))
         (?add-source-map e form)))
 
     :else
@@ -687,18 +696,96 @@
   (let [pe (::parent (get (:eav ts) e))]
     (if (or (nil? pe) (= ::ctor (::type (get (:eav ts) pe)))) pe (recur ts pe))))
 
-(defn compile [nm form env]
+(defn get-node-idx [ts ctor-e ref-e]
+  (->> (ts/find ts ::ctor-node ctor-e, ::ctor-ref ref-e) first (ts/->node ts) ::node-idx))
+
+(defn emit [ts e ctor-e env nm]
+  ((fn rec [e]
+     (let [nd (get (:eav ts) e)]
+       (case (::type nd)
+         ::literal (::v nd)
+         ::ap (list* `r/ap (mapv rec (get-children-e ts e)))
+         ::var (let [in (::resolved-in nd)]
+                 (list* `r/lookup 'frame (keyword (::qualified-var nd))
+                   (when (or (nil? in) (= in (->env-type env))) [(list `r/pure (::qualified-var nd))])))
+         ::node (list `r/lookup 'frame (keyword (::node nd)) (list `r/pure (list `r/make-ctor 'frame (keyword (::node nd)) 0)))
+         ::join (list `r/join (rec (get-child-e ts e)))
+         ::pure (list `r/pure (rec (get-child-e ts e)))
+         ::comp (doall (map rec (get-children-e ts e)))
+         ::site (recur (get-child-e ts e))
+         ::ctor (let [ctor (list `r/make-ctor 'frame nm (::ctor-idx nd))
+                      frees-e (-> ts :ave ::ctor-free (get e))]
+                  (if (seq frees-e)
+                    (list* `doto ctor
+                      (mapv (fn [e]
+                              (let [nd (ts/->node ts e)]
+                                (list `r/define-free (::free-idx nd)
+                                  (case (::closed-over nd)
+                                    ::node (list `r/node 'frame (get-node-idx ts (find-ctor-e ts (::ctor-free nd)) (::closed-ref nd)))
+                                    ::free (list `r/free 'frame (->> (ts/find ts ::ctor-free (find-ctor-e ts (::ctor-free nd))
+                                                                       ::closed-ref (::closed-ref nd))
+                                                                  first (ts/->node ts) ::free-idx))))))
+                        frees-e))
+                    ctor))
+         ::call (list `r/join (list `r/call 'frame (::call-idx (ts/->node ts e))))
+         ::lookup (list `r/lookup 'frame (::sym nd))
+         ::let (recur (get-ret-e ts (->let-body-e ts e)))
+         ::let-ref
+         (if-some [node-e (first (ts/find ts ::ctor-node ctor-e, ::ctor-ref (::ref nd)))]
+           (list `r/node 'frame (::node-idx (get (:eav ts) node-e)))
+           (if-some [free-e (first (ts/find ts ::ctor-free ctor-e, ::closed-ref (::ref nd)))]
+             (list `r/free 'frame (::free-idx (ts/->node ts free-e)))
+             (recur (get-ret-e ts (->let-val-e ts (::ref nd))))))
+         #_else (throw (ex-info (str "cannot emit on " (pr-str (::type nd))) (or nd {}))))))
+   e))
+
+(defn emit-node-init [ts ctor-e node-e env nm]
+  (let [nd (get (:eav ts) node-e)]
+    (list `r/define-node 'frame (::node-idx nd)
+      (emit ts (get-ret-e ts (->let-val-e ts (::ctor-ref nd))) ctor-e env nm))))
+
+(defn emit-call-init [ts ctor-e e env nm]
+  (list `r/define-call 'frame (::call-idx (ts/->node ts e))
+    (emit ts (get-ret-e ts (get-child-e ts e)) ctor-e env nm)))
+
+(defn get-ordered-ctors-e [ts]
+  (into [] (map (comp first second)) (->> ts :ave ::ctor-idx (sort-by first))))
+
+(defn emit-ctor [ts ctor-e env nm]
+  (let [ret-e (get-ret-e ts (get-child-e ts ctor-e))
+        nodes-e (ts/find ts ::ctor-node ctor-e)
+        calls-e (ts/find ts ::ctor-call ctor-e)]
+    `(r/cdef ~(count (ts/find ts ::ctor-free ctor-e))
+       ~(mapv #(get-site ts (->> (ts/->node ts %) ::ctor-ref (->let-val-e ts) (get-ret-e ts)))
+          nodes-e)
+       ~(mapv #(get-site ts %) calls-e)
+       ~(get-site ts ret-e)
+       (fn [~'frame]
+         ~@(mapv #(emit-node-init ts ctor-e % env nm) nodes-e)
+         ~@(mapv #(emit-call-init ts ctor-e % env nm) calls-e)
+         ~(emit ts ret-e ctor-e env nm)))))
+
+(defn emit-deps [ts e]
+  (let [mark (fn mark [ts e]
+               (let [nd (ts/->node ts e)]
+                 (case (::type nd)
+                   (::literal ::var ::lookup) ts
+                   (::ap ::comp) (reduce mark ts (get-children-e ts e))
+                   (::site ::join ::pure ::call ::ctor) (recur ts (get-child-e ts e))
+                   (::let) (recur ts (->let-body-e ts e))
+                   (::let-ref) (recur ts (get-ret-e ts (->let-val-e ts (::ref nd))))
+                   (::node) (ts/asc ts e ::node-used true)
+                   #_else (throw (ex-info (str "cannot emit-deps/mark on " (pr-str (::type nd))) (or nd {}))))))
+        es (ts/find (mark ts e) ::node-used true)]
+    (into #{} (map #(::node (ts/->node ts %))) es)))
+
+(defn analyze-electric [env {{::keys [->id]} :o :as ts}]
   (ensure-cljs-compiler
-    (let [->id (->->id), ->ctor-idx (->->id)
-          expanded (expand-all env form)
-          _ (when (::print-expansion env) (fipp.edn/pprint expanded))
-          ts (analyze expanded 0 (ensure-cljs-env env)
-               (ts/add (ts/->ts {::->id ->id}) {:db/id (->id), ::type ::ctor, ::parent '_}))
-          _ (when (::print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
+    (let [->ctor-idx (->->id)
           mark-used-ctors (fn mark-used-ctors [ts e]
                             (let [nd (get (:eav ts) e)]
                               (case (::type nd)
-                                (::literal ::var ::lookup) ts
+                                (::literal ::var ::lookup ::node) ts
                                 (::ap) (reduce mark-used-ctors ts (get-children-e ts e))
                                 (::site ::join ::pure ::call) (recur ts (get-child-e ts e))
                                 (::ctor) (if (::ctor-idx nd)
@@ -708,7 +795,7 @@
                                 (::let-ref) (recur ts (get-ret-e ts (->let-val-e ts (::ref nd))))
                                 #_else (throw (ex-info (str "cannot mark-used-ctors on " (pr-str (::type nd))) (or nd {}))))))
           ts (mark-used-ctors ts 0)
-          ctors-e (into [] (map (comp first second)) (->> ts :ave ::ctor-idx (sort-by first)))
+          ctors-e (get-ordered-ctors-e ts)
           ->node-idx (let [mp (zipmap ctors-e (repeatedly ->->id))]
                        (fn ->node-idx [ctor-e] ((get mp ctor-e))))
           ->free-idx (let [mp (zipmap ctors-e (repeatedly ->->id))]
@@ -718,10 +805,6 @@
                           (cond-> ts (-> ts :ave ::ctor-ref (get ref-e) empty?)
                                   (ts/add {:db/id (->id), ::node-idx (->node-idx ctor-e)
                                            ::ctor-node ctor-e, ::ctor-ref ref-e}))))
-          ->node-idx (fn ->node-idx [ts ctor-e ref-e]
-                       (::node-idx (get (:eav ts)
-                                     (first (set/intersection (-> ts :ave ::ctor-node (get ctor-e))
-                                              (-> ts :ave ::ctor-ref (get ref-e)))))))
           ensure-free-node (fn ensure-free-node [ts ref-e ctor-e]
                              (cond-> ts (empty? (set/intersection (-> ts :ave ::ctor-free (get ctor-e))
                                                   (-> ts :ave ::closed-ref (get ref-e))))
@@ -744,7 +827,7 @@
           handle-let-refs (fn handle-let-refs [ts e] ; nodes and frees (closed over)
                             (let [nd (ts/->node ts e)]
                               (case (::type nd)
-                                (::literal ::var ::lookup) ts
+                                (::literal ::var ::lookup ::node) ts
                                 (::ap) (reduce handle-let-refs ts (get-children-e ts e))
                                 (::site ::join ::pure ::ctor ::call) (recur ts (get-child-e ts e))
                                 (::let) (recur ts (->let-body-e ts e))
@@ -775,7 +858,7 @@
           mark-used-calls (fn mark-used-calls [ts ctor-e e]
                             (let [nd (ts/->node ts e)]
                               (case (::type nd)
-                                (::literal ::var ::lookup) ts
+                                (::literal ::var ::lookup ::node) ts
                                 (::ap) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
                                 (::site ::join ::pure) (recur ts ctor-e (get-child-e ts e))
                                 (::ctor) (recur ts e (get-child-e ts e))
@@ -804,64 +887,19 @@
                                           ts (reverse (ts/find ts ::type ::ap))))
           ts (-> ts (handle-let-refs 0)
                (mark-used-calls 0 (get-ret-e ts (get-child-e ts 0)))
-               collapse-ap-with-only-pures)
-          gen (fn gen [ts ctor-e e]
-                (let [nd (get (:eav ts) e)]
-                  (case (::type nd)
-                    ::literal (::v nd)
-                    ::ap (list* `r/ap (mapv #(gen ts ctor-e %) (get-children-e ts e)))
-                    ::var (let [in (::resolved-in nd)]
-                            (list* `r/lookup 'frame (keyword (::qualified-var nd))
-                              (when (or (nil? in) (= in (->env-type env))) [(list `r/pure (::qualified-var nd))])))
-                    ::join (list `r/join (gen ts ctor-e (get-child-e ts e)))
-                    ::pure (list `r/pure (gen ts ctor-e (get-child-e ts e)))
-                    ::comp (doall (map #(gen ts ctor-e %) (get-children-e ts e)))
-                    ::site (recur ts ctor-e (get-child-e ts e))
-                    ::ctor (let [ctor (list `r/make-ctor 'frame nm (::ctor-idx nd))
-                                 frees-e (-> ts :ave ::ctor-free (get e))]
-                             (if (seq frees-e)
-                               (list* `doto ctor
-                                 (mapv (fn [e]
-                                         (let [nd (ts/->node ts e)]
-                                           (list `r/define-free (::free-idx nd)
-                                             (case (::closed-over nd)
-                                               ::node (list `r/node 'frame (->node-idx ts (find-ctor-e ts (::ctor-free nd)) (::closed-ref nd)))
-                                               ::free (list `r/free 'frame (->> (ts/find ts ::ctor-free (find-ctor-e ts (::ctor-free nd))
-                                                                                  ::closed-ref (::closed-ref nd))
-                                                                             first (ts/->node ts) ::free-idx))))))
-                                   frees-e))
-                               ctor))
-                    ::call (list `r/join (list `r/call 'frame (::call-idx (ts/->node ts e))))
-                    ::lookup (list `r/lookup 'frame (::sym nd))
-                    ::let (recur ts ctor-e (get-ret-e ts (->let-body-e ts e)))
-                    ::let-ref
-                    (if-some [node-e (first (ts/find ts ::ctor-node ctor-e, ::ctor-ref (::ref nd)))]
-                      (list `r/node 'frame (::node-idx (get (:eav ts) node-e)))
-                      (if-some [free-e (first (ts/find ts ::ctor-free ctor-e, ::closed-ref (::ref nd)))]
-                        (list `r/free 'frame (::free-idx (ts/->node ts free-e)))
-                        (recur ts ctor-e (get-ret-e ts (->let-val-e ts (::ref nd))))))
-                    #_else (throw (ex-info (str "cannot gen on " (pr-str (::type nd))) (or nd {}))))))
-          gen-node-init (fn gen-node-init [ts ctor-e node-e]
-                          (let [nd (get (:eav ts) node-e)]
-                            (list `r/define-node 'frame (::node-idx nd)
-                              (gen ts ctor-e (get-ret-e ts (->let-val-e ts (::ctor-ref nd)))))))
-          gen-call-init (fn gen-call-init [ts ctor-e e]
-                          (list `r/define-call 'frame (::call-idx (ts/->node ts e))
-                            (gen ts ctor-e (get-ret-e ts (get-child-e ts e)))))]
+               collapse-ap-with-only-pures)]
       (when (::print-db env) (run! prn (->> ts :eav vals (sort-by :db/id))))
-      (let [ret (->> ctors-e
-                  (mapv (fn [ctor-e]
-                          (let [ret-e (get-ret-e ts (get-child-e ts ctor-e))
-                                nodes-e (ts/find ts ::ctor-node ctor-e)
-                                calls-e (ts/find ts ::ctor-call ctor-e)]
-                            `(r/cdef ~(count (ts/find ts ::ctor-free ctor-e))
-                               ~(mapv #(get-site ts (->> (ts/->node ts %) ::ctor-ref (->let-val-e ts) (get-ret-e ts)))
-                                  nodes-e)
-                               ~(mapv #(get-site ts %) calls-e)
-                               ~(get-site ts ret-e)
-                               (fn [~'frame]
-                                 ~@(mapv #(gen-node-init ts ctor-e %) nodes-e)
-                                 ~@(mapv #(gen-call-init ts ctor-e %) calls-e)
-                                 ~(gen ts ctor-e ret-e)))))))]
-        (when (::print-source env) (fipp.edn/pprint ret))
-        ret))))
+      ts)))
+
+(defn compile* [nm env ts]
+  (ensure-cljs-compiler
+    (let [ts (analyze-electric env ts)
+          ret (->> (get-ordered-ctors-e ts) (mapv #(emit-ctor ts % env nm)))]
+      (when (::print-source env) (fipp.edn/pprint ret))
+      ret)))
+
+(defn compile [nm form env]
+  (ensure-cljs-compiler
+    (compile* nm env
+      (analyze (expand-all env `(::ctor ~form))
+        '_ (ensure-cljs-env env) (ts/->ts {::->id (->->id)})))))

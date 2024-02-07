@@ -1,8 +1,12 @@
 (ns hyperfiddle.electric-de
-  (:refer-clojure :exclude [fn])
+  (:refer-clojure :exclude [fn defn])
   (:require [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.incseq :as i]
+            [clojure.core :as cc]
+            [hyperfiddle.rcf :as rcf :refer [tests]]
+            #?(:clj [contrib.triple-store :as ts])
+            #?(:clj [fipp.edn])
             [missionary.core :as m]
             [hyperfiddle.electric-local-def-de :as l])
   #?(:cljs (:require-macros hyperfiddle.electric-de)))
@@ -30,6 +34,30 @@ Returns the successive states of items described by `incseq`.
   `(ctor
     (let [~@(interleave bs (eduction (map #(list ::lang/lookup %)) (range)))]
       ~@body)))
+
+(cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
+
+(tests
+  (ns-qualify 'foo) := `foo
+  (ns-qualify 'a/b) := 'a/b)
+
+(defmacro defn [nm bs & body]
+  (lang/ensure-cljs-compiler
+    (let [env (merge (meta nm) (lang/ensure-cljs-env (lang/normalize-env &env)) l/web-config)
+          expanded (lang/expand-all env `(fn ~bs ~@body))
+          ts (lang/analyze expanded '_ env (ts/->ts {::lang/->id (lang/->->id)}))
+          ts (lang/analyze-electric env ts)
+          ctors (mapv #(lang/emit-ctor ts % env (-> nm ns-qualify keyword)) (lang/get-ordered-ctors-e ts))
+          nm (with-meta nm {::lang/deps []})]
+      (when (::lang/print-source env) (fipp.edn/pprint ctors))
+      `(def ~nm ~ctors))))
+
+#_(defmacro defn [nm bs & body]
+  ;; TODO cleanup env setup
+  (let [env (merge (lang/normalize-env &env) l/web-config)
+        ts (lang/analyze* env `(hyperfiddle.electric-de/fn ~bs ~@body))
+        nm2 (vary-meta nm assoc ::lang/deps (lang/->deps ts))]
+    `(def ~nm2 ~(lang/compile* ts))))
 
 (defmacro amb "
 Syntax :

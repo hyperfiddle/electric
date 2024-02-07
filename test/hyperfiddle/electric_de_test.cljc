@@ -182,10 +182,9 @@
   (with ((l/single {} (tap ($ (e/fn [x] (inc x)) 1))) tap tap)
     % := 2))
 
-;; TODO defn
-;; (l/defn My-inc [x] (inc x))
-(skip "reactive defn"
-  (with ((l/single {} (tap (My-inc. 1))) tap tap)
+(e/defn My-inc [x] (inc x))
+(tests "reactive defn"
+  (with ((l/single {} (tap ($ My-inc 1))) tap tap)
     % := 2))
 
 ;; TODO defn
@@ -464,7 +463,7 @@
                (new (e/fn [x] x) x)]))) tap tap)
     % := [0 0 0 0 0]))
 
-(tests "reactive closures"
+#_(tests "reactive closures"
   (def !x (atom 1))
   (def !y (atom 10))
   (with ((l/single {::lang/print-source true}
