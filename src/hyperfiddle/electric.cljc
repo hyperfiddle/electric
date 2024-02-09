@@ -497,6 +497,10 @@ Quoting it directly is idiomatic as well."
                         (contrib.str/align-regexp #" at ")
                         (dbg/left-pad-stack-trace 4)))))
 
+(cc/defn- log-on-server-that-error-happened-on-client []
+  ;; FIXME should be inlinable, but Electric fails to resolve log/info var in a `server` block.
+  #?(:clj (log/info "This is a client-side exception. The full exception was printed on the client.")))
+
 (hyperfiddle.electric/defn ?PrintClientException [msg id]
   (server
     (let [async-trace (::dbg/trace (ex-data lang/trace))]
@@ -505,7 +509,7 @@ Quoting it directly is idiomatic as well."
           (if-some [ex (io/get-original-ex id)]
             (do
               (client-log-client-error ex async-trace)
-              (try (server (log/info "This is a client-side exception. The full exception was printed on the client."))
+              (try (server (log-on-server-that-error-happened-on-client))
                    (catch Pending _)))
             (client-log-server-error msg async-trace)))
         (catch Pending _)))))
