@@ -100,7 +100,11 @@ Returns a task producing nil or failing if the websocket was closed before end o
 
 (comment (take 5 fib2) := [1 1 2 3 5])
 
-(def retry-delays (map (partial * 100) fib))
+(def retry-delays (map (partial * 100) (next fib)))
+;; Browsers throttle websocket connects after too many attempts in a short time.
+;; To prevent using browsers as port scanners.
+;; Symptom: WS takes a long time to establish a connection for no apparent reason.
+;; Sometimes happens in dev after multiple page refreshes in a short time.
 
 (comment (take 5 retry-delays))
 
