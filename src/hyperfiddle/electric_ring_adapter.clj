@@ -144,11 +144,6 @@
   [_ring-req _socket status-code & [reason]]
   (log/debug (GENERIC-WS-CLOSE-MESSAGES status-code "Client disconnected for an unexpected reason") {:status status-code :reason reason}))
 
-(def _socket)
-
-(comment
-  (close _socket 1005 ""))
-
 (defn electric-ws-handler
   "Return a map of generic ring-compliant handlers, describing how to start and manage an Electric server process hooked onto a websocket.
   Extensions (e.g. `hyperfiddle.electric-httpkit-adapter`) can extend the handler map as needed."
@@ -159,7 +154,6 @@
         keepalive-mailbox (m/mbx)]
     {:on-open    (fn on-open [socket]
                    (log/debug "WS connect" ring-req)
-                   (def _socket socket)
                    (aset state on-close-slot
                      ((m/join (fn [& _])
                         (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
