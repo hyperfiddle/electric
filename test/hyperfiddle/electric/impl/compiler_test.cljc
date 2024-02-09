@@ -466,6 +466,20 @@
         (fn [~'frame]
           (r/pure (clojure.core/vector 1 2))))]))
 
+(tests "successive calls"
+  (match (l/test-compile ::Main (::lang/call (::lang/call (::lang/ctor (::lang/ctor :foo)))))
+    `[(r/cdef 0 [] [nil nil] nil
+        (fn [~'frame]
+          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/define-call ~'frame 1 (r/join (r/call ~'frame 0)))
+          (r/join (r/call ~'frame 1))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure (r/make-ctor ~'frame ::Main 2))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure :foo)))]))
+
 (comment
   (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
                            (e/ctor (str fizz buzz)))))
