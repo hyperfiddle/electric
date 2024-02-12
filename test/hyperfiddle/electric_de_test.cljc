@@ -5,7 +5,7 @@
             [hyperfiddle.electric.impl.lang-de2 :as lang]
             [missionary.core :as m]))
 
-(defmacro skip [& _body]
+(defmacro skip {:style/indent 0} [& _body]
   `(pr '~'-))
 
 (tests "call on local electric ctor"
@@ -425,7 +425,7 @@
 (e/defn Div [child] (trace! child) [:div child])
 (e/defn Widget [x] ($ Div [($ Div x) ($ Div :a)]))
 
-(skip "reactive defn"
+(tests "reactive defn"
                                         ; best example of this is hiccup incremental maintenance
     (def !x (atom 0))
     (with ((l/single {} (tap (binding [trace! tap] ($ Widget (e/watch !x))))) tap tap)
@@ -439,17 +439,15 @@
       % := [[:div 1] [:div :a]]
       % := [:div [[:div 1] [:div :a]]]))
 
-;; (l/def G (e/fn [x] x))                                      ; reactive fn (DAG). Compiler marks dag with meta
-;; TODO defn
-(skip "node call vs fn call"
+(e/defn G [x] x)                                      ; reactive fn (DAG). Compiler marks dag with meta
+(tests "node call vs fn call"
   (defn f [x] x)                                            ; This var is not marked with meta
   (def !x (atom 0))
-  (with ((l/single {} (tap (let [x (e/watch !x)] [(f x) (G. x)]))) tap tap)
+  (with ((l/single {} (tap (let [x (e/watch !x)] [(f x) ($ G x)]))) tap tap)
     % := [0 0]))
 
-;; (l/def G (e/fn [x] x))
-;; TODO defn
-(skip "higher order dags"
+(e/defn G [x] x)
+(tests "higher order dags"
   (def !x (atom 0))
   (defn f [x] x)
   (with
@@ -458,20 +456,20 @@
                   Gg (e/fn [x] x) ; but you almost always want reactive lambda, not cc/fn
                   x (e/watch !x)]
               [(f x)       ; var marked
-               (G. x)      ; var says node
+               ($ G x)      ; var says node
                (ff x)      ; Must assume interop, for compat with clojure macros
-               (Gg. x)     ; Must mark reactive-call
-               (new (e/fn [x] x) x)]))) tap tap)
+               ($ Gg x)     ; Must mark reactive-call
+               ($ (e/fn [x] x) x)]))) tap tap)
     % := [0 0 0 0 0]))
 
-#_(tests "reactive closures"
+(tests "reactive closures"
   (def !x (atom 1))
   (def !y (atom 10))
   (with ((l/single {::lang/print-source true}
            (let [x (e/watch !x), y (e/watch !y)]
              (tap ($ (if (odd? x)
-                       (e/fn [x] (prn :x1 x) (* y x))
-                       (e/fn [x] (prn :x2 x) (* y x)))
+                       (e/fn [x] (* y x))
+                       (e/fn [x] (* y x)))
                     x)))) tap tap)
     % := 10
     (swap! !x inc)
@@ -481,26 +479,9 @@
     (swap! !y inc)
     % := 33
     (swap! !y inc)
-    % := 36
-    % := :foo
-    % := :bar
-    ))
+    % := 36))
 
-(comment
-  (def !x (atom 1))
-  (def it ((l/single {::lang/print-source true}
-             (let [x (e/watch !x)]
-               (tap (if (odd? x)
-                      (prn :x1 x)
-                      (prn :x2 x)))))
-           prn prn))
-  ;; :x1 1
-  (swap! !x inc)
-  ;; :x1 2
-  ;; :x2 2
-  )
-
-(skip "reactive closures 2"
+(tests "reactive closures 2"
       (def !x (atom 0))
       (def !y (atom 0))
       (with
@@ -509,13 +490,13 @@
                                    F (e/fn [x] (+ y x)) ; constant signal
                                    G (if (odd? x) (e/fn [x] (+ y x))
                                          (e/fn [x] (+ y x)))
-                                   H (new (m/seed [(e/fn [x] (+ y x))]))]
-                               [(F. x)
-                                (G. x)
-                                (H. x)]))) tap tap)
+                                   H (e/input (m/seed [(e/fn [x] (+ y x))]))]
+                               [($ F x)
+                                ($ G x)
+                                ($ H x)]))) tap tap)
           % := [0 0 0]))
 
-(skip "reactive clojure.core/fn"
+(tests "reactive clojure.core/fn"
   (def !x (atom 0))
   (def !y (atom 0))
   (with
@@ -535,7 +516,7 @@
     (swap! !x inc)
     % := 2))
 
-(skip "For reference, Clojure exceptions have dynamic scope"
+(tests "For reference, Clojure exceptions have dynamic scope"
   (try (let [f (try (fn [] (throw (ex-info "boom" {}))) ; this exception will escape
                  (catch #?(:clj Exception, :cljs :default) _ ::inner))]
       ; the lambda doesn't know it was constructed in a try/catch block
@@ -543,6 +524,7 @@
     (catch #?(:clj Exception, :cljs :default) _ ::outer))
   := ::outer)
 
+;; TODO throw
 (skip "Reactor crashes on uncaugh exceptions"
   (def !x (atom true))
   (with ((l/single {} (tap (assert (e/watch !x)))) tap tap)
@@ -553,6 +535,7 @@
     (swap! !x not)                      ; reactor will not come back.
     (tap ::nope), % := ::nope))
 
+;; TODO try/catch/throw
 ;; (l/defn Boom [] (assert false))
 (skip "reactive exceptions"
   (with ((l/single {} (tap (try
@@ -562,6 +545,7 @@
     #?(:clj  (instance? AssertionError %)
        :cljs (instance? js/Error %)) := true))
 
+;; TODO try/catch/throw
 (skip
   (with ((l/single {} (tap (try (let [Nf (try (e/fn [] (Boom.)) ; reactive exception uncaught
                                           (catch #?(:clj AssertionError, :cljs :default) _ ::inner))]
@@ -569,46 +553,50 @@
                             (catch #?(:clj AssertionError, :cljs :default) _ ::outer)))) tap tap)
     % := ::outer))
 
-;; (l/def inner)
-;; (l/def Outer (e/fn [] inner))
+(def inner)
+(e/defn Outer [] inner)
 
-(skip "dynamic scope (note that try/catch has the same structure)"
-  (with ((l/single {} (tap (binding [inner ::inner] (Outer.)))) tap tap)
+(tests "dynamic scope (note that try/catch has the same structure)"
+  (with ((l/single {} (tap (binding [inner ::inner] ($ Outer)))) tap tap)
     % := ::inner))
 
-(skip "dynamic scope (note that try/catch has the same structure)"
+(tests "dynamic scope (note that try/catch has the same structure)"
   (with ((l/single {} (tap (binding [inner ::outer]
                          (let [Nf (binding [inner ::inner]
-                                    (e/fn [] (Outer.)))] ; binding out of scope
-                           (Nf.))))) tap tap)
+                                    (e/fn [] ($ Outer)))] ; binding out of scope
+                           ($ Nf))))) tap tap)
     % := ::outer))
 
-(skip "lazy parameters. Flows are not run unless sampled"
-  (with ((l/single {} (new (e/fn [_]) (tap :boom))) tap tap)
+(tests "lazy parameters. Flows are not run unless sampled"
+  (with ((l/single {} ($ (e/fn [_]) (tap :boom))) tap tap)
     % := :boom))
 
-(skip "lazy parameters. Flows are not run unless sampled"
-  (with ((l/single {} (let [_ (tap :bang)])) tap tap)                 ; todo, cc/let should sequence effects for cc compat
+(tests "lazy parameters. Flows are not run unless sampled"
+       (with ((l/single {} (let [_ (tap :not)] (tap :bang))) tap tap)
     % := :bang))
 
+;; TODO network
 (skip "client/server transfer"
                                         ; Pending state is an error state.
                                         ; Pending errors will crash the reactor if not caugh
   (with ((l/single {} (try (tap (e/server (e/client 1))) (catch Pending _))) tap tap)
     % := 1))
 
+;; TODO network
 ;; (l/def foo nil)
 (skip
   (with ((l/single {} (try (tap (binding [foo 1] (e/server (e/client foo))))
                        (catch Pending _))) tap tap)
     % := 1))
 
+;; TODO network
 ;; (l/def foo nil)
 (skip
   (with ((l/single {} (try (tap (binding [foo 1] (e/server (new (e/fn [] (e/client foo))))))
                        (catch Pending _))) tap tap)
     % := 1))
 
+;; TODO try/catch
 ;; (l/def foo1 nil)
 ;; (l/def Bar1 (e/fn [] (e/client foo1)))
 (skip
@@ -616,16 +604,19 @@
                        (catch Pending _))) tap tap)
     % := 1))
 
+;; TODO try/catch
 (skip "reactive pending states"
   ;~(m/reductions {} hyperfiddle.electric.impl.runtime/pending m/none)
   (with ((l/single {} (tap (try true (catch Pending _ ::pending)))) tap tap)
     % := true))
 
+;; TODO try/catch
 (skip
   (with ((l/single {} (tap (try (e/server 1) (catch Pending _ ::pending)))) tap tap)
     % := ::pending    ; Use try/catch to intercept special pending state
     % := 1))
 
+;; TODO try/catch
 (skip
   (with ((l/single {} (tap (try [(tap 1) (tap (e/server 2))] (catch Pending _ ::pending)))) tap tap)
     % := 1
@@ -634,6 +625,7 @@
     % := 2
     % := [1 2]))
 
+;; TODO try/catch
 (skip "the same exception is thrown from two places!"
   (l/defn InputController1 [tap controlled-value]
     (try controlled-value (catch Pending _ (tap :pending-inner))))
@@ -644,7 +636,7 @@
   % := :pending-inner
   % := :pending-outer)
 
-(skip "object lifecycle"
+(tests "object lifecycle"
   (def !x (atom 0))
   (let [hook (fn [mount! unmount!]
                (m/observe (fn [!]
@@ -655,8 +647,8 @@
         ((l/single {} (tap
                     (let [x (e/watch !x)]
                       (when (even? x)
-                        (new (e/fn [x]
-                               (new (hook (partial tap 'mount) (partial tap 'unmount)))
+                        ($ (e/fn [x]
+                               (e/input (hook (partial tap 'mount) (partial tap 'unmount)))
                                x)
                           x))))) tap tap)]
 
@@ -670,14 +662,14 @@
     (dispose!)
     % := 'unmount))
 
-(skip "object lifecycle 3"
+(tests "object lifecycle 3"
   (defn observer [x]
     (fn mount [f]
       (f (tap [:up x]))
       (fn unmount [] (tap [:down x]))))
 
   (def !state (atom [1]))
-  (with ((l/single {} (e/for [x (e/watch !state)] (new (m/observe (observer x))))) tap tap)
+  (with ((l/single {} (e/for-by identity [x (e/watch !state)] (e/input (m/observe (observer x))))) tap tap)
     % := [:up 1]
     (swap! !state conj 2)
     % := [:up 2]
@@ -685,6 +677,7 @@
     (hash-set % % %) := #{[:up 3] [:down 1] [:down 2]})
   % := [:down 3])
 
+;; TODO try/catch
 (skip "object lifecycle 3 with pending state"
   (def !state (atom [1]))
 
@@ -695,7 +688,7 @@
       (fn unmount [] (tap [::unmount x]))))
 
   (let [dispose ((l/single {} (try
-                            (e/for [x (e/watch !state)] ; pending state should not trash e/for branches
+                            (e/for-by identity [x (e/watch !state)] ; pending state should not trash e/for branches
                               (new (m/observe (observer tap x)))) ; depends on x, which is pending
                             (catch Pending _))) tap tap)]
     % := [::mount 1]
@@ -708,20 +701,20 @@
     (dispose)
     % := [::unmount 2]))
 
-;; (l/def x2 1)
-(skip "object lifecycle 4"
+(def x2 1)
+(tests "object lifecycle 4"
   (def !input (atom [1 2]))
   (defn up-down [x trace!] (m/observe (fn [!] (trace! :up) (! x) #(trace! :down))))
 
   (with ((l/single {}
-           (tap (e/for [id (new (m/watch !input))]
+           (tap (e/for-by identity [id (e/watch !input)]
                   (binding [x2 (do id x2)]
-                    (new (up-down x2 tap)))))) tap tap)
+                    (e/input (up-down x2 tap)))))) tap tap)
     [% %] := [:up :up]
     % := [1 1]
     (swap! !input pop)
-    % := :down
-    % := [1])
+    % := [1]
+    % := :down)
   % := :down)
 
 (skip "reactive metadata"
