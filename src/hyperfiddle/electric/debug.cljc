@@ -3,7 +3,7 @@
             [contrib.data :as data]
             [hyperfiddle.electric.impl.ir :as-alias ir]
             [hyperfiddle.rcf :as rcf :refer [tests]]
-            #?(:cljs [goog.testing.stacktrace :as st])
+            #?(:cljs [contrib.stacktrace :as st])
             [contrib.str])
   (:import #?(:clj (clojure.lang ExceptionInfo))
            (hyperfiddle.electric Failure Pending)
