@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric-de
-  (:refer-clojure :exclude [fn defn])
+  (:refer-clojure :exclude [fn defn apply])
   (:require [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.incseq :as i]
@@ -30,10 +30,16 @@ Syntax :
 Returns the successive states of items described by `incseq`.
 " [flow] `(::lang/join ~flow))
 
+(defmacro check-electric [fn form]
+  (if lang/*electric*
+    form
+    (throw (ex-info (str "Electric code (" fn ") inside a Clojure function") (into {:electric-fn fn} (meta &form))))))
+
 (defmacro fn [bs & body]
-  `(ctor
-    (let [~@(interleave bs (eduction (map #(list ::lang/lookup %)) (range)))]
-      ~@body)))
+  `(check-electric fn
+     (ctor
+       (let [~@(interleave bs (eduction (map #(list ::lang/lookup %)) (range)))]
+         ~@body))))
 
 (cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
 
@@ -45,6 +51,7 @@ Returns the successive states of items described by `incseq`.
   (lang/ensure-cljs-compiler
     (let [env (merge (meta nm) (lang/ensure-cljs-env (lang/normalize-env &env)) l/web-config)
           expanded (lang/expand-all env `(fn ~bs ~@body))
+          _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
           ts (lang/analyze expanded '_ env (ts/->ts {::lang/->id (lang/->->id)}))
           ts (lang/analyze-electric env ts)
           ctors (mapv #(lang/emit-ctor ts % env (-> nm ns-qualify keyword)) (lang/get-ordered-ctors-e ts))
@@ -82,7 +89,7 @@ Syntax :
 (watch !ref)
 ```
 Returns the current state of current reference `!ref`.
-" [ref] `(input (m/watch ~ref)))
+" [ref] `(check-electric watch (input (m/watch ~ref))))
 
 (defmacro diff-by "
 Syntax :
@@ -100,8 +107,8 @@ Syntax :
 Samples and discards `expr` synchronously with changes. Returns nothing.
 " [expr] `(join (r/drain (pure ~expr))))
 
-(defmacro client [& body] `(::lang/site :client ~@body))
-(defmacro server [& body] `(::lang/site :server ~@body))
+(defmacro client [& body] `(check-electric client (::lang/site :client ~@body)))
+(defmacro server [& body] `(check-electric server (::lang/site :server ~@body)))
 
 (defmacro cursor "
 Syntax :
@@ -117,7 +124,7 @@ For each tuple in the cartesian product of `table1 table2 ,,, tableN`, calls bod
 " [bindings & body]
   (case bindings
     [] `(do ~@body)
-    (let [[args exprs] (apply map vector (partition-all 2 bindings))]
+    (let [[args exprs] (cc/apply map vector (partition-all 2 bindings))]
       `($ (r/bind-args (fn ~args ~@body)
                ~@(map (clojure.core/fn [expr]
                         `(r/fixed-signals (join (i/items (pure ~expr)))))
@@ -150,3 +157,30 @@ this tuple. Returns the concatenation of all body results as a single vector.
            `(cursor [~sym (diff-by ~kf ~expr)]
               ~(rec bindings)) `(do ~@body)))
        (seq bindings))))
+
+(cc/defn- -splicev [args] (into [] cat [(pop args) (peek args)]))
+(hyperfiddle.electric-de/defn ^::lang/static-vars Apply* [F args]
+  (let [spliced (-splicev args)]
+    (case (count spliced)
+      0 ($ F)
+      1 ($ F (nth spliced 0))
+      2 ($ F (nth spliced 0) (nth spliced 1))
+      3 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2))
+      4 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3))
+      5 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4))
+      6 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5))
+      7 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6))
+      8 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7))
+      9 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8))
+      10 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9))
+      11 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10))
+      12 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11))
+      13 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12))
+      14 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13))
+      15 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14))
+      16 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15))
+      17 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16))
+      18 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17))
+      19 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18))
+      20 ($ F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18) (nth spliced 19)))))
+(defmacro apply [F & args] `($ Apply* ~F [~@args]))

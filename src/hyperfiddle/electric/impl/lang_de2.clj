@@ -163,7 +163,7 @@
 (defn find-local-entry [env sym] (find (:locals env) sym))
 (defn add-local [env sym] (update env :locals assoc sym ::unknown))
 
-(def ^:dynamic *electric* true)
+(def ^:dynamic *electric* false)
 
 (defn ?meta [metao o]
   (if (instance? clojure.lang.IObj o)
@@ -198,7 +198,7 @@
                                      [(conj bs sym (-expand-all v env)) (add-local env sym)])
                                    [[] env]
                                    (partition-all 2 bs))]
-                  (recur (?meta o `(binding [::rec (::ctor (let* [~@(interleave (take-nth 2 bs2) (range))] ~@body))]
+                  (recur (?meta o `(binding [::rec (::ctor (let* [~@(interleave (take-nth 2 bs2) (map #(list ::lookup %) (range)))] ~@body))]
                                      (binding [~@(interleave (range) (take-nth 2 (next bs2)))]
                                        (::call (::lookup ::rec)))))
                     env2))
@@ -283,7 +283,7 @@
 ;; if ::current = :cljs expand with cljs environment
 
 
-(defn expand-all [env o] (ensure-cljs-compiler (-expand-all o (ensure-cljs-env env))))
+(defn expand-all [env o] (ensure-cljs-compiler (binding [*electric* true] (-expand-all o (ensure-cljs-env env)))))
 
 ;;;;;;;;;;;;;;;;
 ;;; COMPILER ;;;
@@ -565,10 +565,10 @@
       (let*) (let [[_ bs bform] form]
                (loopr [ts ts, pe pe, env env]
                    [[s v] (eduction (partition-all 2) bs)]
-                   (let [e (->id), env (update-in env [:locals s] assoc ::electric-let e)]
+                   (let [e (->id)]
                      (recur (analyze v e env
                               (-> (ts/add ts {:db/id e, ::parent pe, ::type ::let, ::sym s})
-                                (?add-source-map e form))) e env))
+                                (?add-source-map e form))) e (update-in env [:locals s] assoc ::electric-let e)))
                    (analyze bform pe env ts)))
       (case) (let [[_ test & brs] form
                    [default brs2] (if (odd? (count brs)) [(last brs) (butlast brs)] [:TODO brs])]
@@ -606,8 +606,7 @@
       ;; (. i1 (isAfter i2))
       ;; (. pt x)
       ;; (. pt -x)
-      (.) (if (and (= :clj (get (::peers env) (::current env)))
-                (symbol? (second form)) (class? (resolve env (second form))))
+      (.) (if (and (symbol? (second form)) (class? (resolve env (second form))))
             (if (seq? (nth form 2))     ; (. java.time.Instant (ofEpochMilli 1))
               (let [[_ clazz [method & method-args]] form]
                 (->class-method-call clazz method method-args pe env ts))
@@ -667,6 +666,7 @@
 
     (vector? form) (recur (?meta form (cons `(::static-vars vector) form)) pe env ts)
     (map? form) (recur (?meta form (cons `(::static-vars hash-map) (eduction cat form))) pe env ts)
+    (set? form) (recur (?meta form (cons `(::static-vars hash-set) form)) pe env ts)
 
     (symbol? form)
     (let [e (->id), ret (resolve-symbol form env)]
@@ -758,19 +758,20 @@
   (->> (ts/find ts ::ctor-node ctor-e) (sort-by #(::node-idx (ts/->node ts %)))))
 
 (defn compute-effect-order [ts e]
-  (let [->order (->->id), ord (fn [ts e] (ts/upd ts e ::fx-order #(or % (->order))))]
+  (let [->order (->->id), ord (fn [ts e] (ts/upd ts e ::fx-order #(or % (->order)))), seen (volatile! #{})]
     ((fn rec [ts e]
        (let [nd (ts/->node ts e)]
-         (if (::fx-order nd)
+         (if (@seen e)
            ts
-           (case (::type nd)
-             (::literal ::var ::lookup ::node) (ord ts e)
-             (::ap ::comp) (ord (reduce rec ts (get-children-e ts e)) e)
-             (::site ::join ::pure ::call ::ctor) (ord (rec ts (get-child-e ts e)) e)
-             (::let) (recur ts (->let-body-e ts e))
-             (::let-ref) (ord (rec ts (->let-val-e ts (::ref nd))) (::ref nd))
-             #_else (throw (ex-info (str "cannot compure-effect-order on " (pr-str (::type nd))) (or nd {})))
-             ))))
+           (do (vswap! seen conj e)
+               (case (::type nd)
+                 (::literal ::var ::lookup ::node) (ord ts e)
+                 (::ap ::comp) (ord (reduce rec ts (get-children-e ts e)) e)
+                 (::site ::join ::pure ::call ::ctor) (ord (rec ts (get-child-e ts e)) e)
+                 (::let) (recur ts (->let-body-e ts e))
+                 (::let-ref) (ord (rec ts (->let-val-e ts (::ref nd))) (::ref nd))
+                 #_else (throw (ex-info (str "cannot compure-effect-order on " (pr-str (::type nd))) (or nd {})))
+                 )))))
      ts e)))
 
 (defn emit-ctor [ts ctor-e env nm]
@@ -793,16 +794,20 @@
          ~(emit ts ret-e ctor-e env nm)))))
 
 (defn emit-deps [ts e]
-  (let [mark (fn mark [ts e]
-               (let [nd (ts/->node ts e)]
-                 (case (::type nd)
-                   (::literal ::var ::lookup) ts
-                   (::ap ::comp) (reduce mark ts (get-children-e ts e))
-                   (::site ::join ::pure ::call ::ctor) (recur ts (get-child-e ts e))
-                   (::let) (recur ts (->let-body-e ts e))
-                   (::let-ref) (recur ts (get-ret-e ts (->let-val-e ts (::ref nd))))
-                   (::node) (ts/asc ts e ::node-used true)
-                   #_else (throw (ex-info (str "cannot emit-deps/mark on " (pr-str (::type nd))) (or nd {}))))))
+  (let [seen (volatile! #{})
+        mark (fn mark [ts e]
+               (if (@seen e)
+                 ts
+                 (let [nd (ts/->node ts e)]
+                   (vswap! seen conj e)
+                   (case (::type nd)
+                     (::literal ::var ::lookup) ts
+                     (::ap ::comp) (reduce mark ts (get-children-e ts e))
+                     (::site ::join ::pure ::call ::ctor) (recur ts (get-child-e ts e))
+                     (::let) (recur ts (->let-body-e ts e))
+                     (::let-ref) (recur ts (get-ret-e ts (->let-val-e ts (::ref nd))))
+                     (::node) (ts/asc ts e ::node-used true)
+                     #_else (throw (ex-info (str "cannot emit-deps/mark on " (pr-str (::type nd))) (or nd {})))))))
         es (ts/find (mark ts e) ::node-used true)]
     (into (sorted-set) (map #(::node (ts/->node ts %))) es)))
 
@@ -825,18 +830,22 @@
                                                       ts)))
                                           ts (reverse (ts/find ts ::type ::ap))))
           ->ctor-idx (->->id)
+          seen (volatile! #{})
           mark-used-ctors (fn mark-used-ctors [ts e]
-                            (let [nd (get (:eav ts) e)]
-                              (case (::type nd)
-                                (::literal ::var ::lookup ::node) ts
-                                (::ap ::comp) (reduce mark-used-ctors ts (get-children-e ts e))
-                                (::site ::join ::pure ::call) (recur ts (get-child-e ts e))
-                                (::ctor) (if (::ctor-idx nd)
-                                           ts
-                                           (recur (ts/asc ts e ::ctor-idx (->ctor-idx)) (get-child-e ts e)))
-                                (::let) (recur ts (->let-body-e ts e))
-                                (::let-ref) (recur ts (get-ret-e ts (->let-val-e ts (::ref nd))))
-                                #_else (throw (ex-info (str "cannot mark-used-ctors on " (pr-str (::type nd))) (or nd {}))))))
+                            (if (@seen e)
+                              ts
+                              (let [nd (get (:eav ts) e)]
+                                (vswap! seen conj e)
+                                (case (::type nd)
+                                  (::literal ::var ::lookup ::node) ts
+                                  (::ap ::comp) (reduce mark-used-ctors ts (get-children-e ts e))
+                                  (::site ::join ::pure ::call) (recur ts (get-child-e ts e))
+                                  (::ctor) (if (::ctor-idx nd)
+                                             ts
+                                             (recur (ts/asc ts e ::ctor-idx (->ctor-idx)) (get-child-e ts e)))
+                                  (::let) (recur ts (->let-body-e ts e))
+                                  (::let-ref) (recur ts (get-ret-e ts (->let-val-e ts (::ref nd))))
+                                  #_else (throw (ex-info (str "cannot mark-used-ctors on " (pr-str (::type nd))) (or nd {})))))))
           ts (-> ts collapse-ap-with-only-pures
                (compute-effect-order 0)
                (mark-used-ctors 0))
@@ -906,22 +915,26 @@
                                 #_else (throw (ex-info (str "cannot handle-let-refs on " (::type nd)) (or nd {}))))))
           ->call-idx (let [mp (zipmap ctors-e (repeatedly ->->id))]
                        (fn ->call-idx [ctor-e] ((get mp ctor-e))))
+          seen (volatile! #{})
           mark-used-calls (fn mark-used-calls [ts ctor-e e]
-                            (let [nd (ts/->node ts e)]
-                              (case (::type nd)
-                                (::literal ::var ::lookup ::node) ts
-                                (::ap ::comp) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
-                                (::site ::join ::pure) (recur ts ctor-e (get-child-e ts e))
-                                (::ctor) (recur ts e (get-child-e ts e))
-                                (::call) (if (::call-idx nd)
-                                           ts
-                                           (-> (mark-used-calls ts ctor-e (get-child-e ts e))
-                                             (ts/asc e ::call-idx (->call-idx ctor-e))
-                                             (ts/asc e ::ctor-call ctor-e)))
-                                (::let) (recur ts ctor-e (->let-body-e ts e))
-                                (::let-ref) (let [nx-e (get-ret-e ts (->let-val-e ts (::ref nd)))]
-                                              (recur ts (find-ctor-e ts nx-e) nx-e))
-                                #_else (throw (ex-info (str "cannot mark-used-calls on " (::type nd)) (or nd {}))))))
+                            (if (@seen e)
+                              ts
+                              (let [nd (ts/->node ts e)]
+                                (vswap! seen conj e)
+                                (case (::type nd)
+                                  (::literal ::var ::lookup ::node) ts
+                                  (::ap ::comp) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
+                                  (::site ::join ::pure) (recur ts ctor-e (get-child-e ts e))
+                                  (::ctor) (recur ts e (get-child-e ts e))
+                                  (::call) (if (::call-idx nd)
+                                             ts
+                                             (-> (mark-used-calls ts ctor-e (get-child-e ts e))
+                                               (ts/asc e ::call-idx (->call-idx ctor-e))
+                                               (ts/asc e ::ctor-call ctor-e)))
+                                  (::let) (recur ts ctor-e (->let-body-e ts e))
+                                  (::let-ref) (let [nx-e (get-ret-e ts (->let-val-e ts (::ref nd)))]
+                                                (recur ts (find-ctor-e ts nx-e) nx-e))
+                                  #_else (throw (ex-info (str "cannot mark-used-calls on " (::type nd)) (or nd {})))))))
           ts (-> ts (handle-let-refs 0) order-nodes order-frees
                (mark-used-calls 0 (get-ret-e ts (get-child-e ts 0))))]
       (when (::print-db env) (run! prn (->> ts :eav vals (sort-by :db/id))))
