@@ -187,26 +187,28 @@
   (with ((l/single {} (tap ($ My-inc 1))) tap tap)
     % := 2))
 
-;; TODO defn
-(skip "control flow implemented with lazy signals"
-  (l/defn If2 [x a b]                                       ; Key question - how lazy are the parameters?
+(tests "control flow implemented with lazy signals"
+  (e/defn If2 [x a b]                                       ; Key question - how lazy are the parameters?
     (->> (boolean x)
          (get {true (e/fn [] a)
                false (e/fn [] b)})
-         (new)))
+         ($)))
 
   (def !x (atom false))
   (def !a (atom :a))
   (def !b (atom :b))
   (with ((l/single {} (let [x (e/watch !x)
-                        a (tap (e/watch !a)) ; lazy
-                        b (tap (e/watch !b))] ; lazy
-                    (tap (If2. x a b)))) tap tap)
-    % := :a
+                            a (tap (e/watch !a)) ; lazy
+                            b (tap (e/watch !b))] ; lazy
+                        (tap ($ If2 x a b)))) tap tap)
     % := :b
     % := :b
     (swap! !x not)
-    % := :a))
+    % := :a
+    % := :a
+    (swap! !x not)
+    % := :b
+    % := :b))
 
 (tests "lazy let"
   (def !x (atom false))
@@ -314,7 +316,7 @@
     (swap! !xs conj 4)
     % := [2 3 4 5]))
 
-(skip "reactive for is differential (diff/patch)"
+(tests "reactive for is differential (diff/patch)"
        (def !xs (atom [1 2 3]))
        (with ((l/single {} (tap (e/for-by identity [x (e/watch !xs)] (tap x)))) tap tap)
          (hash-set % % %) := #{1 2 3}   ; concurrent, order undefined
@@ -328,11 +330,11 @@
          % := :b
          % := [1 :b 3]))
 
-;; (l/def foo 0)
-(skip "Reactive for with bindings"
+(def foo 0)
+(tests "Reactive for with bindings"
   (def !items (atom ["a"]))
   (with ((l/single {} (binding [foo 1]
-                    (e/for [item (e/watch !items)]
+                    (e/for-by identity [item (e/watch !items)]
                       (tap foo)
                       item))) tap tap)
 
@@ -340,7 +342,7 @@
     (swap! !items conj "b")
     % := 1)) ; If 0 -> foo’s binding vanished
 
-(skip "reactive for with keyfn"
+(tests "reactive for with keyfn"
   (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
   (with ((l/single {} (tap (e/for-by :id [x (e/watch !xs)] (tap x)))) tap tap)
     (hash-set % %) := #{{:id 1 :name "alice"} {:id 2 :name "bob"}}
@@ -420,14 +422,13 @@
        % := 1))) ; mutable map is clojure.core/=, therefore skipped
 
 (def trace!)
-;; (l/defn Div [child] (trace! child) [:div child])
-;; (l/defn Widget [x] (Div. [(Div. x) (Div. :a)]))
+(e/defn Div [child] (trace! child) [:div child])
+(e/defn Widget [x] ($ Div [($ Div x) ($ Div :a)]))
 
-;; TODO defn
 (skip "reactive defn"
                                         ; best example of this is hiccup incremental maintenance
     (def !x (atom 0))
-    (with ((l/single {} (tap (binding [trace! tap] (Widget. (e/watch !x))))) tap tap)
+    (with ((l/single {} (tap (binding [trace! tap] ($ Widget (e/watch !x))))) tap tap)
       % := 0
       % := :a
       % := [[:div 0] [:div :a]]

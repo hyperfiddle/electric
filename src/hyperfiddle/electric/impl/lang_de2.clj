@@ -754,18 +754,42 @@
 (defn get-ordered-calls-e [ts ctor-e]
   (->> (ts/find ts ::ctor-call ctor-e) (sort-by #(::call-idx (ts/->node ts %)))))
 
+(defn get-ordered-nodes-e [ts ctor-e]
+  (->> (ts/find ts ::ctor-node ctor-e) (sort-by #(::node-idx (ts/->node ts %)))))
+
+(defn compute-effect-order [ts e]
+  (let [->order (->->id), ord (fn [ts e] (ts/upd ts e ::fx-order #(or % (->order))))]
+    ((fn rec [ts e]
+       (let [nd (ts/->node ts e)]
+         (if (::fx-order nd)
+           ts
+           (case (::type nd)
+             (::literal ::var ::lookup ::node) (ord ts e)
+             (::ap ::comp) (ord (reduce rec ts (get-children-e ts e)) e)
+             (::site ::join ::pure ::call ::ctor) (ord (rec ts (get-child-e ts e)) e)
+             (::let) (recur ts (->let-body-e ts e))
+             (::let-ref) (ord (rec ts (->let-val-e ts (::ref nd))) (::ref nd))
+             #_else (throw (ex-info (str "cannot compure-effect-order on " (pr-str (::type nd))) (or nd {})))
+             ))))
+     ts e)))
+
 (defn emit-ctor [ts ctor-e env nm]
   (let [ret-e (get-ret-e ts (get-child-e ts ctor-e))
-        nodes-e (ts/find ts ::ctor-node ctor-e)
-        calls-e (get-ordered-calls-e ts ctor-e) #_ (ts/find ts ::ctor-call ctor-e)]
+        nodes-e (get-ordered-nodes-e ts ctor-e)
+        calls-e (get-ordered-calls-e ts ctor-e)]
     `(r/cdef ~(count (ts/find ts ::ctor-free ctor-e))
        ~(mapv #(get-site ts (->> (ts/->node ts %) ::ctor-ref (->let-val-e ts) (get-ret-e ts)))
           nodes-e)
        ~(mapv #(get-site ts %) calls-e)
        ~(get-site ts ret-e)
        (fn [~'frame]
-         ~@(mapv #(emit-node-init ts ctor-e % env nm) nodes-e)
-         ~@(mapv #(emit-call-init ts ctor-e % env nm) calls-e)
+         ~@(let [node-inits (->> nodes-e (mapv (fn [e] [(->> e (ts/->node ts) ::ctor-ref (ts/->node ts) ::fx-order)
+                                                        (emit-node-init ts ctor-e e env nm)])))
+                 call-inits (->> calls-e (mapv (fn [e] [(->> e (ts/->node ts) ::fx-order)
+                                                        (emit-call-init ts ctor-e e env nm)])))]
+             ;; with xforms would be
+             ;; (into [] (comp cat (x/sort-by first) (map second)) [node-inits call-inits])
+             (->> (concat node-inits call-inits) (sort-by first) (eduction (map second))))
          ~(emit ts ret-e ctor-e env nm)))))
 
 (defn emit-deps [ts e]
@@ -784,12 +808,26 @@
 
 (defn analyze-electric [env {{::keys [->id]} :o :as ts}]
   (ensure-cljs-compiler
-    (let [->ctor-idx (->->id)
+    (let [change-parent (fn change-parent [ts e pe] (ts/asc ts e ::parent pe))
+          orphan (fn orphan [ts e] (change-parent ts e nil))
+          collapse-ap-with-only-pures (fn collapse-ap-with-only-pures [ts] ; (r/ap (r/pure .)+ ) => (r/pure (::comp . . .))
+                                        (reduce (fn [ts ap-e]
+                                                  (let [[f-e & args-e :as children-e] (get-children-e ts ap-e)]
+                                                    (if (every? #(= ::pure (::type (ts/->node ts %))) children-e)
+                                                      (reduce (fn [ts e]
+                                                                (-> ts (change-parent (get-child-e ts e) f-e)
+                                                                  (orphan e)))
+                                                        ;; reuse nodes, otherwise node ordering messes up
+                                                        (-> ts (ts/asc ap-e ::type ::pure) (ts/asc f-e ::type ::comp))
+                                                        args-e)
+                                                      ts)))
+                                          ts (reverse (ts/find ts ::type ::ap))))
+          ->ctor-idx (->->id)
           mark-used-ctors (fn mark-used-ctors [ts e]
                             (let [nd (get (:eav ts) e)]
                               (case (::type nd)
                                 (::literal ::var ::lookup ::node) ts
-                                (::ap) (reduce mark-used-ctors ts (get-children-e ts e))
+                                (::ap ::comp) (reduce mark-used-ctors ts (get-children-e ts e))
                                 (::site ::join ::pure ::call) (recur ts (get-child-e ts e))
                                 (::ctor) (if (::ctor-idx nd)
                                            ts
@@ -797,29 +835,35 @@
                                 (::let) (recur ts (->let-body-e ts e))
                                 (::let-ref) (recur ts (get-ret-e ts (->let-val-e ts (::ref nd))))
                                 #_else (throw (ex-info (str "cannot mark-used-ctors on " (pr-str (::type nd))) (or nd {}))))))
-          ts (mark-used-ctors ts 0)
+          ts (-> ts collapse-ap-with-only-pures
+               (compute-effect-order 0)
+               (mark-used-ctors 0))
           ctors-e (get-ordered-ctors-e ts)
-          ->node-idx (let [mp (zipmap ctors-e (repeatedly ->->id))]
-                       (fn ->node-idx [ctor-e] ((get mp ctor-e))))
-          ->free-idx (let [mp (zipmap ctors-e (repeatedly ->->id))]
-                       (fn ->free-idx [ctor-e] ((get mp ctor-e))))
           ensure-node (fn ensure-node [ts ref-e]
                         (let [ctor-e (find-ctor-e ts ref-e)]
-                          (cond-> ts (-> ts :ave ::ctor-ref (get ref-e) empty?)
-                                  (ts/add {:db/id (->id), ::node-idx (->node-idx ctor-e)
-                                           ::ctor-node ctor-e, ::ctor-ref ref-e}))))
+                          (cond-> ts (empty? (ts/find ts ::ctor-ref ref-e))
+                                  (ts/add {:db/id (->id) ::ctor-node ctor-e, ::ctor-ref ref-e}))))
           ensure-free-node (fn ensure-free-node [ts ref-e ctor-e]
-                             (cond-> ts (empty? (set/intersection (-> ts :ave ::ctor-free (get ctor-e))
-                                                  (-> ts :ave ::closed-ref (get ref-e))))
-                                     (ts/add {:db/id (->id), ::free-idx (->free-idx ctor-e) ::ctor-free ctor-e
-                                              ::closed-ref ref-e, ::closed-over ::node})))
+                             (cond-> ts (empty? (ts/find ts ::ctor-free ctor-e, ::closed-ref ref-e))
+                                     (ts/add {:db/id (->id) ::ctor-free ctor-e, ::closed-ref ref-e, ::closed-over ::node})))
           ensure-free-free (fn ensure-free-free [ts ref-e ctor-e]
-                             (cond-> ts (empty? (set/intersection (-> ts :ave ::ctor-free (get ctor-e))
-                                                  (-> ts :ave ::closed-ref (get ref-e))))
-                                     (ts/add {:db/id (->id), ::free-idx (->free-idx ctor-e) ::ctor-free ctor-e
-                                              ::closed-ref ref-e, ::closed-over ::free})))
+                             (cond-> ts (empty? (ts/find ts ::ctor-free ctor-e, ::closed-ref ref-e))
+                                     (ts/add {:db/id (->id) ::ctor-free ctor-e, ::closed-ref ref-e, ::closed-over ::free})))
           ensure-free-frees (fn ensure-free-frees [ts ref-e ctors-e]
                               (reduce (fn [ts ctor-e] (ensure-free-free ts ref-e ctor-e)) ts ctors-e))
+          order-nodes (fn order-nodes [ts]
+                        (reduce (fn [ts nodes-e]
+                                  (let [->idx (->->id)]
+                                    (reduce (fn [ts e] (ts/asc ts e ::node-idx (->idx)))
+                                      ts (sort-by #(->> % (ts/->node ts) ::ctor-ref (ts/->node ts) ::fx-order)
+                                           nodes-e))))
+                          ts (-> ts :ave ::ctor-node vals)))
+          order-frees (fn order-frees [ts]
+                        (reduce (fn [ts frees-e]
+                                  (let [->idx (->->id)]
+                                    (reduce (fn [ts e] (ts/asc ts e ::free-idx (->idx)))
+                                      ts (sort-by #(::fx-order (ts/->node ts %)) frees-e) #_(sort-by-fx-order ts frees-e))))
+                          ts (-> ts :ave ::ctor-free vals)))
           in-a-call? (fn in-a-call? [ts e]
                        (loop [e (::parent (ts/->node ts e))]
                          (when-let [nd (ts/->node ts e)]
@@ -831,7 +875,7 @@
                             (let [nd (ts/->node ts e)]
                               (case (::type nd)
                                 (::literal ::var ::lookup ::node) ts
-                                (::ap) (reduce handle-let-refs ts (get-children-e ts e))
+                                (::ap ::comp) (reduce handle-let-refs ts (get-children-e ts e))
                                 (::site ::join ::pure ::ctor ::call) (recur ts (get-child-e ts e))
                                 (::let) (recur ts (->let-body-e ts e))
                                 (::let-ref)
@@ -842,6 +886,7 @@
                                                   (recur (cond-> ac (= ::ctor (::type (ts/->node ts e))) (conj e))
                                                     (::parent (ts/->node ts e)))))
                                       ts (ts/asc ts (::ref nd) ::walked-val true) ; only walk binding once
+                                      ;; TODO is this necessary? If not we could inline more
                                       ts (cond-> ts (in-a-call? ts e)
                                                  (-> (ts/upd (::ref nd) ::in-call #(conj (or % #{}) e))
                                                    (ensure-node (::ref nd))))
@@ -863,7 +908,7 @@
                             (let [nd (ts/->node ts e)]
                               (case (::type nd)
                                 (::literal ::var ::lookup ::node) ts
-                                (::ap) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
+                                (::ap ::comp) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
                                 (::site ::join ::pure) (recur ts ctor-e (get-child-e ts e))
                                 (::ctor) (recur ts e (get-child-e ts e))
                                 (::call) (if (::call-idx nd)
@@ -875,23 +920,8 @@
                                 (::let-ref) (let [nx-e (get-ret-e ts (->let-val-e ts (::ref nd)))]
                                               (recur ts (find-ctor-e ts nx-e) nx-e))
                                 #_else (throw (ex-info (str "cannot mark-used-calls on " (::type nd)) (or nd {}))))))
-          change-parent (fn change-parent [ts e pe] (ts/asc ts e ::parent pe))
-          orphan (fn orphan [ts e] (change-parent ts e nil))
-          collapse-ap-with-only-pures (fn collapse-ap-with-only-pures [ts] ; (r/ap (r/pure .)+ ) => (r/pure (::comp . . .))
-                                        (reduce (fn [ts ap-e]
-                                                  (let [[f-e & args-e :as children-e] (get-children-e ts ap-e)]
-                                                    (if (every? #(= ::pure (::type (ts/->node ts %))) children-e)
-                                                      (reduce (fn [ts e]
-                                                                (-> ts (change-parent (get-child-e ts e) f-e)
-                                                                  (orphan e)))
-                                                        ;; reuse nodes, otherwise node ordering messes up
-                                                        (-> ts (ts/asc ap-e ::type ::pure) (ts/asc f-e ::type ::comp))
-                                                        args-e)
-                                                      ts)))
-                                          ts (reverse (ts/find ts ::type ::ap))))
-          ts (-> ts (handle-let-refs 0)
-               (mark-used-calls 0 (get-ret-e ts (get-child-e ts 0)))
-               collapse-ap-with-only-pures)]
+          ts (-> ts (handle-let-refs 0) order-nodes order-frees
+               (mark-used-calls 0 (get-ret-e ts (get-child-e ts 0))))]
       (when (::print-db env) (run! prn (->> ts :eav vals (sort-by :db/id))))
       ts)))
 

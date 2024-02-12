@@ -466,11 +466,11 @@
         (fn [~'frame]
           (r/pure (clojure.core/vector 1 2))))]))
 
-(tests "successive calls"
+(tests "ordering"
   (match (l/test-compile ::Main (::lang/call (::lang/call (::lang/ctor (::lang/ctor :foo)))))
     `[(r/cdef 0 [] [nil nil] nil
         (fn [~'frame]
-          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1))) ; must come first
           (r/define-call ~'frame 1 (r/join (r/call ~'frame 0)))
           (r/join (r/call ~'frame 1))))
       (r/cdef 0 [] [] nil
@@ -478,7 +478,28 @@
           (r/pure (r/make-ctor ~'frame ::Main 2))))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/pure :foo)))]))
+          (r/pure :foo)))])
+  (match (l/test-compile ::Main (let [x 1, y 2] [y x x y]))
+    `[(r/cdef 0 [nil nil] [] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure 2))
+          (r/define-node ~'frame 1 (r/pure 1))
+          (r/ap (r/pure clojure.core/vector)
+            (r/node ~'frame 0) (r/node ~'frame 1) (r/node ~'frame 1) (r/node ~'frame 0))))])
+  (match (l/test-compile ::Main (let [x 1] [(::lang/call (::lang/ctor 1)) x x (::lang/call (::lang/ctor 2))]))
+    `[(r/cdef 0 [nil] [nil nil] nil
+        (fn [~'frame]
+          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame :hyperfiddle.electric.impl.compiler-test/Main 1)))
+          (r/define-node ~'frame 0 (r/pure 1))
+          (r/define-call ~'frame 1 (r/pure (r/make-ctor ~'frame :hyperfiddle.electric.impl.compiler-test/Main 2)))
+          (r/ap (r/pure clojure.core/vector)
+            (r/join (r/call ~'frame 0))
+            (r/node ~'frame 0)
+            (r/node ~'frame 0)
+            (r/join (r/call ~'frame 1)))))
+      (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 1)))
+      (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 2)))])
+  )
 
 (comment
   (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
