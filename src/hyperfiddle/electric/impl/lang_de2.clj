@@ -751,10 +751,13 @@
 (defn get-ordered-ctors-e [ts]
   (into [] (map (comp first second)) (->> ts :ave ::ctor-idx (sort-by first))))
 
+(defn get-ordered-calls-e [ts ctor-e]
+  (->> (ts/find ts ::ctor-call ctor-e) (sort-by #(::call-idx (ts/->node ts %)))))
+
 (defn emit-ctor [ts ctor-e env nm]
   (let [ret-e (get-ret-e ts (get-child-e ts ctor-e))
         nodes-e (ts/find ts ::ctor-node ctor-e)
-        calls-e (ts/find ts ::ctor-call ctor-e)]
+        calls-e (get-ordered-calls-e ts ctor-e) #_ (ts/find ts ::ctor-call ctor-e)]
     `(r/cdef ~(count (ts/find ts ::ctor-free ctor-e))
        ~(mapv #(get-site ts (->> (ts/->node ts %) ::ctor-ref (->let-val-e ts) (get-ret-e ts)))
           nodes-e)
@@ -865,9 +868,9 @@
                                 (::ctor) (recur ts e (get-child-e ts e))
                                 (::call) (if (::call-idx nd)
                                            ts
-                                           (recur (-> ts (ts/asc e ::call-idx (->call-idx ctor-e))
-                                                    (ts/asc e ::ctor-call ctor-e))
-                                             ctor-e (get-child-e ts e)))
+                                           (-> (mark-used-calls ts ctor-e (get-child-e ts e))
+                                             (ts/asc e ::call-idx (->call-idx ctor-e))
+                                             (ts/asc e ::ctor-call ctor-e)))
                                 (::let) (recur ts ctor-e (->let-body-e ts e))
                                 (::let-ref) (let [nx-e (get-ret-e ts (->let-val-e ts (::ref nd)))]
                                               (recur ts (find-ctor-e ts nx-e) nx-e))
