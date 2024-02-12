@@ -33,6 +33,13 @@
 
 (defmacro do-traced [& body] `(do ~@(for [form body] `(dbg ~form))))
 
+(defn ->nprn [n]
+  (let [prns (long-array [0])]
+    (fn [& args]
+      (when (< (aget prns (int 0)) n)
+        (aset prns 0 (unchecked-inc (aget prns (int 0))))
+        (apply prn args)))))
+
 (def !id (atom 0))
 
 (defn instrument* [nm flow]
