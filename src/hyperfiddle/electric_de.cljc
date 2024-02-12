@@ -48,7 +48,8 @@ Returns the successive states of items described by `incseq`.
           ts (lang/analyze expanded '_ env (ts/->ts {::lang/->id (lang/->->id)}))
           ts (lang/analyze-electric env ts)
           ctors (mapv #(lang/emit-ctor ts % env (-> nm ns-qualify keyword)) (lang/get-ordered-ctors-e ts))
-          nm (with-meta nm {::lang/deps []})]
+          deps (lang/emit-deps ts 0)
+          nm (with-meta nm `{::lang/deps '~deps})]
       (when (::lang/print-source env) (fipp.edn/pprint ctors))
       `(def ~nm ~ctors))))
 

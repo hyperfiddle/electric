@@ -804,7 +804,9 @@
                    (::node) (ts/asc ts e ::node-used true)
                    #_else (throw (ex-info (str "cannot emit-deps/mark on " (pr-str (::type nd))) (or nd {}))))))
         es (ts/find (mark ts e) ::node-used true)]
-    (into #{} (map #(::node (ts/->node ts %))) es)))
+    (into (sorted-set) (map #(::node (ts/->node ts %))) es)))
+
+(defn get-deps [sym] (-> sym resolve meta ::deps))
 
 (defn analyze-electric [env {{::keys [->id]} :o :as ts}]
   (ensure-cljs-compiler
