@@ -9,13 +9,10 @@
            [missionary Cancelled]
            #?(:clj [clojure.lang ExceptionInfo])))
 
-(def stats (atom {:skipped 0, :tbd 0, :tested 0}))
+(def stats (atom {:skipped 0, :tested 0}))
 
 (defmacro skip {:style/indent 0} [& _body]
   `(do (swap! stats update :skipped inc) (pr '~'-)))
-
-(defmacro tbd {:style/indent 0} [& _body]
-  `(do (swap! stats update :tbd inc) (pr '~'?)))
 
 (defmacro tests {:style/indent 0} [& body]
   `(do (swap! stats update :tested inc) (rcf/tests ~@body)))
@@ -2056,8 +2053,7 @@
   (with ((l/single {} (tap ((fn [] (binding [*out* nil] 1))))) tap tap)
     % := 1))
 
-(let [{:keys [tested skipped tbd]} @stats, all (+ tested skipped tbd)]
+(let [{:keys [tested skipped]} @stats, all (+ tested skipped)]
   (prn '===)
-  (println 'tested_ tested (format "%.0f%%" (double (* (/ tested all) 100))))
-  (println 'skipped skipped (format "%.0f%%" (double (* (/ skipped all) 100))))
-  (println 'missing tbd (format "%.0f%%" (double (* (/ tbd all) 100)))))
+  (println 'tested tested (format "%.0f%%" (double (* (/ tested all) 100))))
+  (println 'skipped skipped (format "%.0f%%" (double (* (/ skipped all) 100)))))
