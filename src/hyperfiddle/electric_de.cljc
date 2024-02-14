@@ -31,7 +31,7 @@ Returns the successive states of items described by `incseq`.
 " [flow] `(::lang/join ~flow))
 
 (defmacro check-electric [fn form]
-  (if lang/*electric*
+  (if (::lang/electric &env)
     form
     (throw (ex-info (str "Electric code (" fn ") inside a Clojure function") (into {:electric-fn fn} (meta &form))))))
 
