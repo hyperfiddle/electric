@@ -1178,6 +1178,17 @@
     % := 2))
 
 (tests "inline m/observe support"
+  (with ((l/single {}
+           (tap (e/input (m/observe (fn [!]
+                                      (tap :up)
+                                      (! :observe)
+                                      #(tap :down)))))) tap tap)
+    % := :up
+    % := :observe)
+  % := :down
+  (instance? Cancelled %) := true)
+
+(tests "inline m/observe support"
   (let [!state (atom 0)]
     (with ((l/single {} (let [state     (e/watch !state)
                               lifecycle (m/observe (fn [push]
@@ -1191,21 +1202,23 @@
       (swap! !state inc)
       % := :up
       % := 1)
-    (instance? Cancelled %) := true
-    (tap ::done), % := ::done))
+    % := :down
+    % := :down
+    (instance? Cancelled %) := true))
+
 
 ;; TODO cc/letfn
 (skip "Inline letfn support"
-  (with ((l/single {} (tap (letfn [(descent  [x] (cond (pos? x) (dec x)
-                                                   (neg? x) (inc x)
-                                                   :else    x))
-                               (is-even? [x] (if (zero? x) true  (is-odd?  (descent x))))
-                               (is-odd?  [x] (if (zero? x) false (is-even? (descent x))))]
-                         (tap [(is-even? 0) (is-even? 1) (is-even? 2) (is-even? -2)])
-                         (tap [(is-odd?  0) (is-odd?  2) (is-odd?  3) (is-odd? -3)])))) tap tap)
-    % := [true false true true]
-    % := [false false true true]
-    % := [false false true true]))
+      (with ((l/single {} (tap (letfn [(descent  [x] (cond (pos? x) (dec x)
+                                                           (neg? x) (inc x)
+                                                           :else    x))
+                                       (is-even? [x] (if (zero? x) true  (is-odd?  (descent x))))
+                                       (is-odd?  [x] (if (zero? x) false (is-even? (descent x))))]
+                                 (tap [(is-even? 0) (is-even? 1) (is-even? 2) (is-even? -2)])
+                                 (tap [(is-odd?  0) (is-odd?  2) (is-odd?  3) (is-odd? -3)])))) tap tap)
+        % := [true false true true]
+        % := [false false true true]
+        % := [false false true true]))
 
 ;; TODO cc/letfn
 (skip
@@ -1237,22 +1250,22 @@
 
 #?(:clj
    (tests "e/fn is undefined in clojure-land"
-     (tap (try (lang/expand-all {} `(fn [] (e/fn []))) (catch Throwable e (ex-message (ex-cause e)))))
+          (tap (try (lang/expand-all {} `(fn [] (e/fn []))) (catch Throwable e (ex-message e))))
      % := "Electric code (hyperfiddle.electric-de/fn) inside a Clojure function"))
 
 #?(:clj
    (tests "e/client is undefined in clojure-land"
-     (tap (try (lang/expand-all {} `(fn [] (e/client []))) (catch Throwable e (ex-message (ex-cause e)))))
+     (tap (try (lang/expand-all {} `(fn [] (e/client []))) (catch Throwable e (ex-message e))))
      % := "Electric code (hyperfiddle.electric-de/client) inside a Clojure function"))
 
 #?(:clj
    (tests "e/server is undefined in clojure-land"
-     (tap (try (lang/expand-all {} `(fn [] (e/server []))) (catch Throwable e (ex-message (ex-cause e)))))
+     (tap (try (lang/expand-all {} `(fn [] (e/server []))) (catch Throwable e (ex-message e))))
      % := "Electric code (hyperfiddle.electric-de/server) inside a Clojure function"))
 
 #?(:clj
    (tests "e/watch is undefined in clojure-land"
-     (tap (try (lang/expand-all {} `(fn [] (e/watch (atom :nomatter)))) (catch Throwable e (ex-message (ex-cause e)))))
+     (tap (try (lang/expand-all {} `(fn [] (e/watch (atom :nomatter)))) (catch Throwable e (ex-message e))))
      % := "Electric code (hyperfiddle.electric-de/watch) inside a Clojure function"))
 
 (tests "cycle"

@@ -130,7 +130,11 @@
   (ensure-cljs-compiler (cljs-ana/parse 'ns (->cljs-env) '(ns foo (:require [hyperfiddle.electric :as e])) 'ns {}))
   )
 
-(defn macroexpand-clj [o] (serialized-require (ns-name *ns*)) (macroexpand-1 o))
+(defn macroexpand-clj [o env]
+  (serialized-require (ns-name *ns*))
+  (if-some [mac (when-some [mac (resolve env (first o))] (when (.isMacro ^clojure.lang.Var mac) mac))]
+    (apply mac o env (next o))
+    (macroexpand-1 o)))                 ; e.g. (Math/abs 1) will expand to (. Math abs 1)
 
 (defn expand-referred-or-local-macros [o cljs-macro-env]
   ;; (:require [some.ns :refer [some-macro]])
@@ -158,23 +162,38 @@
                   (if-some [expander (cljs-ana/get-expander f cljs-macro-env)]
                     (apply expander o cljs-macro-env args)
                     (expand-referred-or-local-macros o cljs-macro-env)))))
-            (macroexpand-clj o)))))))
+            (macroexpand-clj o env)))))))
 
 (defn find-local-entry [env sym] (find (:locals env) sym))
 (defn add-local [env sym] (update env :locals assoc sym ::unknown))
-
-(def ^:dynamic *electric* false)
 
 (defn ?meta [metao o]
   (if (instance? clojure.lang.IObj o)
     (cond-> o (meta metao) (vary-meta #(merge (meta metao) %)))
     o))
 
+(declare -expand-all)
+
+(defn ?expand-macro [o env caller]
+  (if (symbol? (first o))
+    (let [o2 (expand-macro env o)]
+      (if (identical? o o2)
+        (?meta o (list* (first o) (mapv (fn-> caller env) (rest o))))
+        (caller o2 env)))
+    (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
+
+(defn -expand-all-non-electric [o env]
+  (if (and (seq? o) (seq o))
+    (if (find-local-entry env (first o))
+      (?meta o (list* (first o) (mapv (fn-> -expand-all env) (rest o))))
+      (?expand-macro o (assoc env ::electric false) -expand-all-non-electric))
+    o))
+
 (defn -expand-all [o env]
   (cond
     (and (seq? o) (seq o))
     (if (find-local-entry env (first o))
-      (list* (first o) (mapv (fn-> -expand-all env) (rest o)))
+      (?meta o (list* (first o) (mapv (fn-> -expand-all env) (rest o))))
       (case (first o)
         ;; (ns ns* deftype* defrecord* var)
 
@@ -227,15 +246,13 @@
                 (?meta o (apply list
                            (into (if ?name ['fn* ?name] ['fn*])
                              (map (fn [[syms & body]]
-                                    (binding [*electric* false]
-                                      (list syms (-expand-all (cons 'do body) (reduce add-local env syms))))))
+                                    (list syms (-expand-all-non-electric (cons 'do body) (reduce add-local env syms)))))
                              arities))))
 
         (letfn*) (let [[_ bs & body] o
                        env2 (reduce add-local env (take-nth 2 bs))
-                       xpand (fn-> -expand-all env2)
                        bs2 (into [] (comp (partition-all 2)
-                                      (mapcat (fn [[sym v]] [sym (binding [*electric* false] (xpand v))])))
+                                      (mapcat (fn [[sym v]] [sym (-expand-all-non-electric v env2)])))
                              bs)]
                    (?meta o `(let* [~(vec (take-nth 2 bs2)) (::letfn ~bs2)] ~(-expand-all (cons 'do body) env2))))
 
@@ -247,20 +264,12 @@
           (?meta o (list 'binding (into [] (comp (partition-all 2) (mapcat (fn [[sym v]] [sym (-expand-all v env)]))) bs)
                      (-expand-all (cons 'do body) env))))
 
-        (set!) (if *electric*
-                 (recur (?meta o `((fn* [v#] (set! ~(nth o 1) v#)) ~(nth o 2))) env)
-                 (?meta o (list 'set! (-expand-all (nth o 1) env) (-expand-all (nth o 2) env))))
+        (set!) (recur (?meta o `((fn* [v#] (set! ~(nth o 1) v#)) ~(nth o 2))) env)
 
         (::site) (?meta o (seq (conj (into [] (take 2) o)
                                  (-expand-all (cons 'do (drop 2 o)) (assoc env ::current (second o))))))
 
-        #_else
-        (if (symbol? (first o))
-          (let [o2 (expand-macro env o)]
-            (if (identical? o o2)
-              (?meta o (list* (first o) (mapv (fn-> -expand-all env) (rest o))))
-              (recur (?meta o o2) env)))
-          (?meta o (list* (-expand-all (first o) env) (mapv (fn-> -expand-all env) (next o)))))))
+        #_else (?expand-macro o env -expand-all)))
 
     (map-entry? o) (clojure.lang.MapEntry. (-expand-all (key o) env) (-expand-all (val o) env))
     (coll? o) (?meta (meta o) (into (empty o) (map (fn-> -expand-all env)) o))
@@ -283,7 +292,7 @@
 ;; if ::current = :cljs expand with cljs environment
 
 
-(defn expand-all [env o] (ensure-cljs-compiler (binding [*electric* true] (-expand-all o (ensure-cljs-env env)))))
+(defn expand-all [env o] (ensure-cljs-compiler (-expand-all o (ensure-cljs-env (assoc env ::electric true)))))
 
 ;;;;;;;;;;;;;;;;
 ;;; COMPILER ;;;
