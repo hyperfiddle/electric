@@ -1201,8 +1201,8 @@
       % := 0
       (swap! !state inc)
       % := :up
-      % := 1)
-    % := :down
+      % := 1
+      % := :down)
     % := :down
     (instance? Cancelled %) := true))
 
