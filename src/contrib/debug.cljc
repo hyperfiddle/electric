@@ -4,21 +4,19 @@
   (:import #?(:clj [clojure.lang IFn IDeref])
            [hyperfiddle.electric Failure]))
 
+(def ^:dynamic *dbg* true)
+
 (defmacro dbg
   ([form] `(dbg '~form ~form))
   ([label form]
    (let [[label form] (if (keyword? form) [form label] [label form])]
-     `(let [[st# v#] (try [:ok ~form] (catch ~(if (:js-globals &env) :default 'Throwable) ex# [:ex ex#]))]
-        (prn ~label st# '~'==> v#)
-        (if (= st# :ok) v# (throw v#))))))
+     `(if *dbg*
+        (let [[st# v#] (try [:ok ~form] (catch ~(if (:js-globals &env) :default 'Throwable) ex# [:ex ex#]))]
+          (prn ~label st# '~'==> v#)
+          (if (= st# :ok) v# (throw v#)))
+        ~form))))
 
-(defmacro dbg-when
-  ([pred form] `(dbg-when '~form ~pred ~form))
-  ([label pred form]
-   (let [[label form] (if (keyword? form) [form label] [label form])]
-     `(let [[st# v#] (try [:ok ~form] (catch ~(if (:js-globals &env) :default 'Throwable) ex# [:ex ex#]))]
-        (when (~pred v#) (prn ~label st# '~'==> v#))
-        (if (= st# :ok) v# (throw v#))))))
+(defmacro dbg-when [form & body] `(binding [*dbg* ~form] ~@body))
 
 (defmacro dbgv [form]
   `(let [args# [~@form], v# ~form] (prn '~form '~'==> (cons '~(first form) (rest args#))  '~'==> v#) v#))
