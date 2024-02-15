@@ -135,13 +135,22 @@
 
 (defn add-require-macros [a ns$ rs] (-add-requires a ns$ rs ::require-macros ::refer-macros))
 (defn add-requires [a ns$ rs] (-add-requires a ns$ rs ::requires ::refers))
+(defn reverse-map [m] (persistent! (reduce-kv (fn [m k v] (assoc! m v k)) (transient {}) m)))
+(defn add-refer-clojure [a ns$ ov]
+  (let [o (apply hash-map ov)]
+    (cond-> a
+      (:exclude o) (assoc-in [::nses ns$ ::excludes] (set (:exclude o)))
+      (:rename o) (assoc-in [::nses ns$ ::renames] (reverse-map (:rename o))))))
+(defn use->require [args]
+  (let [o (apply hash-map (next args))]
+    (into [(first args)] cat (cond-> (select-keys o [:rename]) (:only o) (assoc :refer (:only o))))))
 
 (comment
-  (ns foo
-    "docstring?"                                    ; TODO
-    '{attr map?}                                    ; TODO
-    (:refer-clojure :exclude [str])                 ; TODO
-    (:refer-clojure :rename {str sstr})             ; TODO
+  (a-ns foo
+    "docstring?"                                    ; DONE
+    '{attr map?}                                    ; DONE
+    (:refer-clojure :exclude [str])                 ; DONE
+    (:refer-clojure :rename {str sstr})             ; DONE
     (:require x                                     ; DONE
               [x]                                   ; DONE
               [x :as xy]                            ; DONE
@@ -154,24 +163,28 @@
                      [x :as xy]                     ; DONE
                      [x :refer [y]]                 ; DONE
                      [x :refer [y] :rename {y yy}]) ; DONE
-    (:use x                                         ; TODO
-          [x]                                       ; TODO
-          [x :only [y]]                             ; TODO
-          [x :exclude [z]]                          ; TODO
-          [x :rename {y z}])                        ; TODO
-    (:use-macros x                                  ; TODO
-                 [x]                                ; TODO
-                 [x :only [y]]                      ; TODO
-                 [x :exclude [z]]                   ; TODO
-                 [x :rename {y z}])                 ; TODO
+    (:use x                                         ;
+          [x]                                       ;
+          [x :only [y]]                             ; DONE
+          [x :only [y] :rename {y z}])              ; DONE
+    (:use-macros x                                  ;
+                 [x]                                ;
+                 [x :only [y]]                      ; DONE
+                 [x :only [y] :rename {y z}])       ; DONE
     )
   )
+(defn skip-docstring [args] (cond-> args (string? (first args)) next))
+(defn skip-attr-map [args] (cond-> args (map? (first args)) next))
 (defn add-ns-info [a [_ns ns$ & args]]
-  (reduce (fn [a [typ & args]]
-            (case typ
-              (:require) (add-requires a ns$ args)
-              (:require-macros) (add-require-macros a ns$ args)
-              #_else a)) a args ))
+  (let [args (-> args skip-docstring skip-attr-map)]
+    (reduce (fn [a [typ & args]]
+              (case typ
+                (:require) (add-requires a ns$ args)
+                (:require-macros) (add-require-macros a ns$ args)
+                (:use) (add-requires a ns$ (mapv use->require args))
+                (:use-macros) (add-require-macros a ns$ (mapv use->require args))
+                (:refer-clojure) (add-refer-clojure a ns$ args)
+                #_else a)) a args )))
 
 (defn collect-defs [a o]
   (if (and (seq? o) (seq o))
@@ -197,8 +210,10 @@
   ([a ns$] (->> (ns-forms> ns$) (m/reduce collect-defs (assoc a ::current-ns ns$)) m/?)))
 
 (defn find-var [sym a]
-  (or (-> a ::nses (get (::current-ns a)) ::defs (get sym))
-    (-> a ::nses (get 'cljs.core) ::defs (get sym))))
+  (let [nsa (-> a ::nses (get (::current-ns a))), cljs-defs (-> a ::nses (get 'cljs.core) ::defs)]
+    (or (-> nsa ::defs (get sym))
+      (when-not (get (-> nsa ::excludes) sym) (get cljs-defs sym))
+      (when-some [renamed (get (-> nsa ::renames) sym)] (get cljs-defs renamed)))))
 
 
 

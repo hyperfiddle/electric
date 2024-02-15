@@ -5,6 +5,7 @@
 (t/deftest all
   (let [a (ana/analyze-ns 'hyperfiddle.electric.impl.cljs-file-to-analyze)]
     (t/is (nil? (ana/find-var 'non a)))
+    (t/is (nil? (ana/find-var 'first a)))
     (t/are [x] (some? (ana/find-var x a))
       'foo
       'bar
@@ -21,5 +22,10 @@
       'behind-require-macro-rename
       'behind-include-macros
       'behind-refer-macros
+      'behind-use
+      'behind-use-renamed
+      'behind-use-macro
+      'behind-use-macro-renamed
+      'nxt
       ;; 'refnonmacro                        ; TODO
       )))
