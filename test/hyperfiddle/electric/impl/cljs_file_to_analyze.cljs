@@ -3,7 +3,9 @@
   (:require
    [hyperfiddle.electric.impl.cljs-file-to-analyze.require :as req :refer [refdef renameme] :rename {renameme renamed}]
    [hyperfiddle.electric.impl.cljs-file-to-analyze.include :as inc :include-macros true]
-   [hyperfiddle.electric.impl.cljs-file-to-analyze.refer-macros :refer-macros [refmac]])
+   [hyperfiddle.electric.impl.cljs-file-to-analyze.refer-macros :refer-macros [refmac]]
+   [hyperfiddle.electric.impl.cljs-file-to-analyze.runtime :as run :refer [only-macro only-runtime macro-and-runtime]]
+   [clojure.analyzer-testing-auto-alias :as auto-alias :refer [auto-aliased]])
   (:require-macros [hyperfiddle.electric.impl.cljs-file-to-analyze.macro-ns :as reqmac :refer [reqmacrefer reqmacrename] :rename {reqmacrename reqmacrenamed}])
   (:use [hyperfiddle.electric.impl.cljs-file-to-analyze.use :only [useme renameme] :rename {renameme use-renamed}])
   (:use-macros [hyperfiddle.electric.impl.cljs-file-to-analyze.use-macros :only [useme-mac renameme-mac] :rename {renameme-mac use-renamed-mac}])
@@ -29,3 +31,6 @@
 (use-renamed behind-use-renamed)
 (useme-mac behind-use-macro)
 (use-renamed-mac behind-use-macro-renamed)
+(clojure.analyzer-testing-auto-alias/auto-aliased behind-auto-alias)
+(auto-alias/auto-aliased behind-auto-alias-alias)
+(auto-aliased behind-auto-alias-refer)
