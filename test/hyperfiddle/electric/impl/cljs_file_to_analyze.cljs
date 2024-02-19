@@ -34,3 +34,11 @@
 (clojure.analyzer-testing-auto-alias/auto-aliased behind-auto-alias)
 (auto-alias/auto-aliased behind-auto-alias-alias)
 (auto-aliased behind-auto-alias-refer)
+
+(let [useme inc] (useme shadowed-by-let))
+(let [{:keys [useme]} {:useme inc}] (useme shadowed-by-let-destructure))
+(fn [useme] (useme shadowed-by-fn))
+(fn [{:keys [useme]}] (useme shadowed-by-fn-destructure))
+(letfn [(useme [] (useme shadowed-by-letfn-fn-name))
+        (foooo [] (useme shadowed-by-letfn-other-fn-name))])
+(letfn [(foo [useme] (useme shadowed-by-letfn-local))])
