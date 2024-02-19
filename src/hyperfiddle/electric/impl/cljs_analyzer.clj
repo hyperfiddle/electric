@@ -78,10 +78,9 @@
                 #'cljs.core/declare #'clojure.core/declare
                 #'cljs.core/defprotocol #'clojure.core/defprotocol
                 #'cljs.core/deftype #'my-deftype}]
-  (defn expand [a ns$ [f & args :as o]]
-    ;; TODO locals
+  (defn expand [a ns$ ls [f & args :as o]]
     (if (symbol? f)
-      (if (special? f)
+      (if (or (special? f) (ls f))
         o
         (if-some [mac (find-macro-var a f ns$)]
           (if (blacklisted mac)
@@ -90,7 +89,7 @@
           o))
       o)))
 
-(defn ->def-info [ns$ [_def sym _v :as o]] {::name (symbol (str ns$) (str sym)), ::meta (merge (meta sym) (meta o))})
+(defn ->def-info [ns$ sym] {::name (with-meta (symbol (str ns$) (str sym)) (meta sym)), ::meta (meta sym)})
 
 (defn add-require [a ns$ reqk from$ to$] (assoc-in a [::nses ns$ reqk from$] to$))
 
@@ -177,21 +176,36 @@
                 (:refer-clojure) (add-refer-clojure a ns$ args)
                 #_else a)) a args )))
 
+(defn add-def [a ns$ sym] (assoc-in a [::nses ns$ ::defs sym] (->def-info ns$ sym)))
+
 (defn collect-defs [a ns$ o]
-  ((fn rec [a o]
+  ((fn rec [ls a o]
      (if (and (seq? o) (seq o))
        (case (first o)
-         (def) (assoc-in a [::nses ns$ ::defs (second o)] (->def-info ns$ o))
+         (defmacro clojure.core/defmacro cljs.core/defmacro) a
+
+         (defprotocol clojure.core/defprotocl cljs.core/defprotocol)
+         (let [[_ nm & args] o, fns (cond-> args (string? (first args)) next)]
+           (reduce (fn [a sym] (add-def a ns$ sym)) a (cons nm (eduction (map first fns)))))
+
+         (def) (add-def a ns$ (second o))
+
          (ns) (add-ns-info a o)
          ;; (fn* foo [x] x) (fn* foo ([x] x) ([x y] x)) (fn* [x] x) (fn* ([x] x) ([x y] x))
          (fn*) (let [body (if (symbol? (second o)) (nnext o) (next o))
                      arities (if (vector? (first body)) (list body) body)]
-                 (transduce (map #(expand a ns$ (next %))) (completing rec) a arities))
-         #_else (let [o2 (expand a ns$ o)]
+                 (reduce (fn [a [bs & body]] (rec (into ls bs) a (cons 'do body))) a arities))
+
+         (let*) (let [[_ bs & body] o
+                      [a ls] (transduce (partition-all 2) (completing (fn [[a ls] [k v]] [(rec ls a v) (conj ls k)]))
+                               [a ls] bs)]
+                  (recur ls a (cons 'do body)))
+
+         #_else (let [o2 (expand a ns$ ls o)]
                   (if (identical? o o2)
-                    (reduce rec a (expand a ns$ o))
-                    (rec a o2))))
-       a)) a o))
+                    (reduce (partial rec ls) a (expand a ns$ ls o))
+                    (rec ls a o2))))
+       a)) #{} a o))
 
 (defn keep-if [v pred] (when (pred v) v))
 (defn macro-var? [vr] (and (instance? clojure.lang.Var vr) (.isMacro ^clojure.lang.Var vr)))
@@ -223,11 +237,17 @@
 ;; TODO clojure.core -> cljs.core, clojure.repl -> cljs.repl
 (defn find-macro-var [a sym ns$]
   (when-not (find-var a sym ns$)
-    (-> (if (simple-symbol? sym)
+    (-> (cond
+          (simple-symbol? sym)
           (or (do (safe-require ns$)  (some-> (find-ns ns$) (find-ns-var sym)))
             (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]  (requiring-resolve ref))
             (when-some [ref (-> a ::nses (get ns$) ::refer-macros (get sym))]  (requiring-resolve ref))
             (when-not (get (-> a ::nses (get ns$) ::excludes) sym)  (find-ns-var (find-ns 'clojure.core) sym)))
+
+          (#{"cljs.core" "clojure.core"} (namespace sym))
+          (requiring-resolve sym)
+
+          :else
           (let [sym-ns$ (-> sym namespace symbol), sym-base$ (-> sym name symbol)]
             (or (when-some [sym-ns$ (-> a ::nses (get ns$) ::requires (get sym-ns$))]
                   (some-> (find-ns sym-ns$) (find-ns-var sym-base$)))
