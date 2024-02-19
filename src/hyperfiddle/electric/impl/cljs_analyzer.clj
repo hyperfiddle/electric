@@ -60,59 +60,35 @@
          (catch java.io.FileNotFoundException _))))
 
 (defn find-ns-var [^clojure.lang.Namespace nso sym] (.findInternedVar nso sym))
-(declare find-var)
-
-(defn runtime-var? [a f ns$] (or (find-var a f ns$) (find-var a f 'cljs.core)))
+(declare find-var find-macro-var)
 
 (defn mksym [& xs] (symbol (apply str (mapv #((if (or (keyword? %) (symbol? %)) name str) %) xs))))
 
 (defmacro my-deftype [nm & _] `(do (def ~nm) (def ~(mksym '-> nm))))
-(let [blacklisted (into #{} (map cc/find-var) '[cljs.core/exists? cljs.core/str cljs.core/aget cljs.core/* cljs.core/+ cljs.core// cljs.core/let cljs.core/nil? cljs.core/aset clojure.core/gen-interface cljs.core/extend-type])
+
+(def special? '#{if def fn* do let* loop* letfn* throw try catch finally
+                 recur new set! ns deftype* defrecord* . js* & quote case* var ns*})
+
+(let [blacklisted (into #{} (map cc/find-var)
+                    '[cljs.core/exists? cljs.core/str cljs.core/aget cljs.core/* cljs.core/+ cljs.core//
+                      cljs.core/let cljs.core/nil? cljs.core/aset clojure.core/gen-interface cljs.core/extend-type
+                      cljs.core/implements? cljs.core/satisfies?])
       from-clj {#'cljs.core/defn #'clojure.core/defn
                 #'cljs.core/defn- #'clojure.core/defn-
                 #'cljs.core/declare #'clojure.core/declare
                 #'cljs.core/defprotocol #'clojure.core/defprotocol
                 #'cljs.core/deftype #'my-deftype}]
-  (defn ?expand [ns$ name$ o]
-    (safe-require ns$)
-    (let [vr (some-> (find-ns ns$) (find-ns-var name$))]
-      (if (and vr (.isMacro ^clojure.lang.Var vr))
-        (if-some [clj (from-clj vr)]
-          (apply clj o {} (next o))
-          (if (blacklisted vr)
+  (defn expand [a ns$ [f & args :as o]]
+    ;; TODO locals
+    (if (symbol? f)
+      (if (special? f)
+        o
+        (if-some [mac (find-macro-var a f ns$)]
+          (if (blacklisted mac)
             o
-            (apply vr o {} (next o))))
-        o))))
-
-(def special? '#{if def fn* do let* loop* letfn* throw try catch finally
-                 recur new set! ns deftype* defrecord* . js* & quote case* var ns*})
-
-(defn qualified->parts [a ns$ qs]
-  (let [qs-ns$ (-> qs namespace symbol)]
-    [(or (-> a ::nses (get ns$) ::requires (get qs-ns$))
-       (-> a ::nses (get ns$) ::require-macros (get qs-ns$))
-       qs-ns$) (-> qs name symbol)]))
-
-(defn simple->parts [a ns$ s$]
-  (let [s$ (or (-> a ::nses (get ns$) ::refers (get s$))
-             (-> a ::nses (get ns$) ::refer-macros (get s$))
-             (mksym ns$ '/ s$))]
-    [(-> s$ namespace symbol) (-> s$ name symbol)]))
-
-(defn expand [a ns$ [f :as o]]
-  ;; TODO locals
-  (if (symbol? f)
-    (cond
-      (special? f) o
-      (qualified-symbol? f) (let [[f-ns$ name$] (qualified->parts a ns$ f)]
-                              (?expand f-ns$ name$ o))
-      (runtime-var? a f ns$) o
-      :else (let [[f-ns$ name$] (simple->parts a ns$ f)
-                  o2 (?expand f-ns$ name$ o)]
-              (if (identical? o o2)
-                (?expand 'cljs.core f o)
-                o2)))
-    o))
+            (apply (or (from-clj mac) mac) o {} args))
+          o))
+      o)))
 
 (defn ->def-info [ns$ [_def sym _v :as o]] {::name (symbol (str ns$) (str sym)), ::meta (merge (meta sym) (meta o))})
 
@@ -217,6 +193,9 @@
                     (rec a o2))))
        a)) a o))
 
+(defn keep-if [v pred] (when (pred v) v))
+(defn macro-var? [vr] (and (instance? clojure.lang.Var vr) (.isMacro ^clojure.lang.Var vr)))
+
 ;;;;;;;;;;;;;;;;;;
 ;;; PUBLIC API ;;;
 ;;;;;;;;;;;;;;;;;;
@@ -241,57 +220,18 @@
       (when-some [sym-ns$ (-> nsa ::requires (get (symbol (namespace sym))))]
         (find-var a (symbol (name sym)) sym-ns$)))))
 
-(defn keep-if [v pred] (when (pred v) v))
-(defn macro-var? [vr] (and (instance? clojure.lang.Var vr) (.isMacro ^clojure.lang.Var vr)))
-
-;; TODO try to use this in expand
 ;; TODO clojure.core -> cljs.core, clojure.repl -> cljs.repl
 (defn find-macro-var [a sym ns$]
   (when-not (find-var a sym ns$)
     (-> (if (simple-symbol? sym)
           (or (do (safe-require ns$)  (some-> (find-ns ns$) (find-ns-var sym)))
-            (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]  (resolve ref))
-            (when-some [ref (-> a ::nses (get ns$) ::refer-macros (get sym))]  (resolve ref))
+            (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]  (requiring-resolve ref))
+            (when-some [ref (-> a ::nses (get ns$) ::refer-macros (get sym))]  (requiring-resolve ref))
             (when-not (get (-> a ::nses (get ns$) ::excludes) sym)  (find-ns-var (find-ns 'clojure.core) sym)))
           (let [sym-ns$ (-> sym namespace symbol), sym-base$ (-> sym name symbol)]
             (or (when-some [sym-ns$ (-> a ::nses (get ns$) ::requires (get sym-ns$))]
                   (some-> (find-ns sym-ns$) (find-ns-var sym-base$)))
               (when-some [sym-ns$ (-> a ::nses (get ns$) ::require-macros (get sym-ns$))]
+                (safe-require sym-ns$)
                 (some-> (find-ns sym-ns$) (find-ns-var sym-base$))))))
       (keep-if macro-var?))))
-
-
-
-
-
-
-;; probably trash
-
-
-#_(defn ?expand [ns$ name$ o]
-    (safe-require ns$)
-    (let [vr (some-> (find-ns ns$) (find-ns-var name$))]
-      (if (and vr (.isMacro ^clojure.lang.Var vr))
-        (apply vr o {} (next o))
-        o)))
-
-#_(defn ?expand [ns$ name$ o]
-    (safe-require ns$)
-    (let [vr (some-> (find-ns ns$) (find-ns-var name$))]
-      (if (and vr (.isMacro ^clojure.lang.Var vr))
-        (apply vr o {} (next o))
-        o)))
-
-#_(defn expand [[f :as o] a]
-    ;; TODO locals, refers
-    (cond
-      (qualified-symbol? f) (if (and (= 'cljs.core (::current-ns a)) (= "cljs.core" (namespace f)))
-                              o
-                              (let [sym (unalias f a), ns$ (-> sym namespace symbol), name$ (-> sym name symbol)]
-                                (?expand ns$ name$ o)))
-      (runtime-var? f a) o
-      (= 'cljs.core (::current-ns a)) o
-      :else (let [o2 (?expand (::current-ns a) f o)]
-              (if (identical? o o2)
-                (?expand 'cljs.core f o)
-                o))))
