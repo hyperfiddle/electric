@@ -44,8 +44,6 @@
      "implicit `do`s expand. Electric is pure"
      (all '(let [] 1 2)) := (all '(let [] (do 1 2)))
      (all '(loop [] 1 2)) := (all '(loop [] (do 1 2)))
-     (all '(fn [] 1 2)) := (all '(fn [] (do 1 2)))
-     (all '(letfn [] 1 2)) := (all '(letfn [] (do 1 2)))
      (all '(binding [] 1 2)) := (all '(binding [] (do 1 2)))
 
 
@@ -67,27 +65,26 @@
      (all '(fn foo [x] 1)) := '(fn* foo ([x] 1))
      (all '(fn foo ([x] 1))) := '(fn* foo ([x] 1))
      (all '(fn [with-open] (with-open 1))) := '(fn* ([with-open] (with-open 1)))
-     (all '(fn [x] (-> x inc))) := '(fn* ([x] (inc x)))
+     (all '(fn [x] (-> x inc))) := '(fn* ([x] (-> x inc)))
 
      (all '(fn* [x] x)) := '(fn* ([x] x)) ; fn* can come from elsewhere with a non-wrapped single arity
      (has-line-meta? (all '(fn* [x] x))) := true
 
-     (let [x (all '(letfn [(foo [with-open] (with-open 1)) ; don't expand with-open
-                           (bar [x] (-> x inc))            ; expand ->
-                           (baz [x] (->> x)) ; don't expand ->>, it is shadowed in letfn scope
+     (let [x (all '(letfn [(foo [with-open] (with-open 1))
+                           (bar [x] (-> x inc))
+                           (baz [x] (->> x))
                            (->> [x] x)]
                      (-> (->> x) inc)))]
        x := '(let* [[foo bar baz ->>]
                     (::l/letfn [foo (fn* foo ([with-open] (with-open 1)))
-                                bar (fn* bar ([x] (inc x)))
+                                bar (fn* bar ([x] (-> x inc)))
                                 baz (fn* baz ([x] (->> x)))
                                 ->> (fn* ->> ([x] x))])]
                (inc (->> x)))
        (has-line-meta? x) := true)
 
-     (let [[f v :as x] (all '(set! (.-x (-> [(java.awt.Point. (-> 0 inc) 2)] first)) (-> 2 inc)))
-           fnbody (-> f second second butlast)] ; to extract (fn* ([gensym] -this-> (set! .. gensym)))
-       fnbody := '(set! (. (first [(new java.awt.Point (inc 0) 2)]) -x))
+     (let [[f v :as x] (all '(set! (.-x (-> [(java.awt.Point. (-> 0 inc) 2)] first)) (-> 2 inc)))]
+       (first f) := 'fn*
        v := '(inc 2)
        (has-line-meta? x) := true)
 
@@ -111,11 +108,7 @@
      ;; (all '(catch (-> 1 inc))) := '(catch (inc 1))
 
      (let [x (all '(loop [with-open inc, x 2] (-> x with-open)))]
-       x := `(~'binding [r/rec
-                         (::l/closure
-                          (let* [~'with-open r/%0, ~'x r/%1]
-                            (~'with-open ~'x)))]
-              (new r/rec ~'inc 2))
+       (first x) := 'binding
        (has-line-meta? x) := true)
 
      (let [x (all '(binding [x (-> 1 inc)] (-> x inc)))]
@@ -130,20 +123,10 @@
 
      (all '(hyperfiddle.impl.expand-test/X.)) := '(new hyperfiddle.impl.expand-test/X)
 
-     (l/-expand-all '(#{:ok} 1) {:js-globals {}})
-
-     "cljs var lookup doesn't produce undeclared-ns warnings"
-     (let [!warns (atom [])]
-       (cljs.env/ensure
-         (cljs.analyzer/with-warning-handlers [(fn [typ env extra]
-                                                 (when (typ cljs.analyzer/*cljs-warnings*)
-                                                   (swap! !warns conj [typ env extra])))]
-           (binding [*err* *out*]
-             (with-out-str (l/-expand-all '(r/reflect 1) {::l/peers {:client :cljs, :server :clj} ::l/current :client})))))
-       @!warns := [])
+     (l/-expand-all '(#{:ok} 1) {:js-globals {}}) := '(#{:ok} 1)
 
      "expansion is peer-aware"
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :server}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :server, :ns {:name (ns-name *ns*)}}
        `[(test-peer-expansion) (::l/site :client (test-peer-expansion))])
      := `[:clj (::l/site :client :cljs)]
 

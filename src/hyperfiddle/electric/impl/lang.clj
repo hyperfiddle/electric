@@ -386,8 +386,13 @@
     (update env ::last #(conj (pop %) form))
     (assoc env ::last (conj (clojure.lang.PersistentQueue/EMPTY) nil form))))
 
+(defn pr-str-short [o]
+  (if (and (seq? o) (seq o))
+    (apply str `("(" ~@(interpose " " (take 2 o)) " .. )"))
+    (str o)))
+
 (defn analyze-me [env form]
-  (when (::trace env) (prn :analyze (if (and (seq? form) (seq form)) (first form) form)))
+  (when (::trace env) (prn :analyze (if (and (seq? form) (seq form)) (pr-str-short form) form)))
   (let [env (store env form)]
     (cond
       (and (seq? form) (seq form))
