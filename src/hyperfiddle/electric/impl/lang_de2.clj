@@ -813,9 +813,9 @@
                                                   (::parent (ts/->node ts e)))))
                                     ts (ts/asc ts (::ref nd) ::walked-val true) ; only walk binding once
                                     ;; TODO is this necessary? If not we could inline more
-                                    ts (cond-> ts (in-a-call? ts e)
-                                               (-> (ts/upd (::ref nd) ::in-call #(conj (or % #{}) e))
-                                                 (ensure-node (::ref nd))))
+                                    ;; ts (cond-> ts (in-a-call? ts e)
+                                    ;;            (-> (ts/upd (::ref nd) ::in-call #(conj (or % #{}) e))
+                                    ;;              (ensure-node (::ref nd))))
                                     ts (if (seq ctors-e) ; closed over
                                          (-> ts (ensure-node (::ref nd))
                                            (ensure-free-node (::ref nd) (first ctors-e))
