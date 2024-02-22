@@ -12,7 +12,7 @@
             [missionary.core :as m]
             [hyperfiddle.electric-de :as-alias e]
             [hyperfiddle.electric.impl.analyzer :as ana]
-            [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]
+            [hyperfiddle.electric.impl.cljs-analyzer :as cljs-ana]
             [hyperfiddle.electric.impl.destructure :as dst]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.rcf :as rcf :refer [tests]]))
@@ -36,26 +36,6 @@
     (try (#'clojure.core/serialized-require sym) ; try bc it can be cljs file
          (catch java.io.FileNotFoundException _))))
 
-;; the ns cache relies on external eviction in shadow-cljs reload hook
-(def !cljs-ns-cache (atom {}))
-
-#_(defn enrich-for-require-macros-lookup [cljs-env nssym]
-  (if-some [ast (get @!cljs-ns-cache nssym)]
-    (assoc cljs-env :ns ast)
-    (if-some [src (cljs-ana/locate-src nssym)]
-      (let [ast (:ast (with-redefs [cljs-ana/missing-use-macro? (constantly nil)]
-                        (binding [cljs-ana/*passes* [cljs-ana/ns-side-effects]]
-                          (cljs-ana/parse-ns src {:load-macros true, :analyze-deps true, :restore false}))))]
-        ;; we parsed the ns form without `ns-side-effects` because it triggers weird bugs
-        ;; this means the macro nss from `:require-macros` might not be loaded
-        (run! serialized-require (-> ast :require-macros vals set))
-        (swap! !cljs-ns-cache assoc nssym ast)
-        (assoc cljs-env :ns ast))
-      cljs-env)))
-
-#_(tests "enrich of clj source file is noop"
-  (cljs.env/ensure (enrich-for-require-macros-lookup {:a 1} 'clojure.core)) := {:a 1})
-
 (let [-base-cljs-env {:context :statement
                       :locals {}
                       :fn-scope []
@@ -68,34 +48,6 @@
     ([] (->cljs-env (ns-name *ns*)))
     ([nssym] (cond-> -base-cljs-env nssym (assoc :ns {:name nssym})))))
 
-(def !default-cljs-compiler-env
-  (delay
-    (cljs.env/ensure
-      (cljs.analyzer/analyze-file "cljs/core.cljs") ; needed in general, to resolve cljs.core vars
-      cljs.env/*compiler*)))
-
-;; adapted from cljs.env
-(defmacro ensure-cljs-compiler
-  [& body]
-  `(let [val# cljs.env/*compiler*]
-     (if (nil? val#)
-       (push-thread-bindings
-         (hash-map (var cljs.env/*compiler*) @!default-cljs-compiler-env)))
-     (try
-       ~@body
-       (finally
-         (if (nil? val#)
-           (pop-thread-bindings))))))
-
-#_(defn ensure-cljs-env [env]
-  (if (::cljs-env env)
-    env
-    (assoc env ::cljs-env
-      (if (contains? (:ns env) :requires)
-        env
-        (let [nssym (get-ns env)]
-          (cond-> (->cljs-env nssym) nssym (enrich-for-require-macros-lookup nssym)))))))
-
 ;;;;;;;;;;;;;;;;
 ;;; EXPANDER ;;;
 ;;;;;;;;;;;;;;;;
@@ -104,48 +56,11 @@
 
 (declare -expand-all-in-try)
 
-#_(defn resolve-cljs [env sym]
-  (when (not= '. sym)
-    (let [!found? (volatile! true)
-          resolved (binding [cljs-ana/*cljs-warnings* (assoc cljs-ana/*cljs-warnings* :undeclared-ns false)]
-                     (let [res (cljs-ana/resolve-var env sym nil nil)]
-                       (when (and (not= :js-var (:op res)) (:name res) (namespace (:name res)))
-                         (cljs-ana/confirm-var-exists env (-> res :name namespace symbol) (-> res :name name symbol)
-                           (fn [_ _ _] (vreset! !found? false))))
-                       res))]
-      (when (and resolved @!found? (not (:macro resolved)))
-        ;; If the symbol is unqualified and is from a different ns (through e.g. :refer)
-        ;; cljs returns only :name and :ns. We cannot tell if it resolved to a macro.
-        ;; We recurse with the fully qualified symbol to get all the information.
-        ;; The symbol can also resolve to a local in which case we're done.
-        ;; TODO how to trigger these in tests?
-        (if (and (simple-symbol? sym) (not= (get-ns env) (:ns resolved)) (not= :local (:op resolved)))
-          (recur env (ca/check qualified-symbol? (:name resolved) {:sym sym, :resolved resolved}))
-          resolved)))))
-
-#_(comment
-  (cljs.env/ensure (cljs-ana/resolve-var (cljs-ana/empty-env) 'prn nil nil))
-  (->cljs-env)
-  (cljs-ana/empty-env)
-  (require '[hyperfiddle.electric.impl.expand :as expand])
-  (cljs.env/ensure (resolve-cljs (cljs-ana/empty-env) 'prn))
-  )
-
 (defn macroexpand-clj [o env]
   (serialized-require (ns-name *ns*))
   (if-some [mac (when-some [mac (resolve env (first o))] (when (.isMacro ^clojure.lang.Var mac) mac))]
     (apply mac o env (next o))
     (macroexpand-1 o)))                 ; e.g. (Math/abs 1) will expand to (. Math abs 1)
-
-#_(defn expand-referred-or-local-macros [o cljs-macro-env]
-  ;; (:require [some.ns :refer [some-macro]])
-  ;; `some-macro` might be a macro and cljs expander lookup fails to find it
-  ;; another case is when a cljc file :require-macros itself without refering the macros
-  (if-some [vr (when (simple-symbol? (first o)) (resolve (first o)))]
-    (if (and (not (class? vr)) (.isMacro ^clojure.lang.Var vr))
-      (apply vr o cljs-macro-env (rest o))
-      o)
-    o))
 
 (def !a (cljs-ana/->!a))
 
@@ -165,13 +80,6 @@
             (if-some [mac (cljs-ana/find-macro-var @!a f (get-ns env))]
               (apply mac o (merge (->cljs-env (get-ns env)) env) args)
               o)
-            #_(let [cljs-env (::cljs-env env)]
-                (if (resolve-cljs cljs-env f)
-                  o
-                  (let [cljs-macro-env (cond-> cljs-env (::ns cljs-env) (assoc :ns (::ns cljs-env)))]
-                    (if-some [expander (cljs-ana/get-expander f cljs-macro-env)]
-                      (apply expander o cljs-macro-env args)
-                      (expand-referred-or-local-macros o cljs-macro-env)))))
             (macroexpand-clj o env)))))))
 
 (defn find-local-entry [env sym] (contains? (:locals env) sym))
@@ -191,13 +99,6 @@
         (?meta o (list* (first o) (mapv (fn-> caller env) (rest o))))
         (caller o2 env)))
     (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
-
-#_(defn -expand-all-non-electric [o env]
-  (if (and (seq? o) (seq o))
-    (if (find-local-entry env (first o))
-      (?meta o (list* (first o) (mapv (fn-> -expand-all env) (rest o))))
-      (?expand-macro o (assoc env ::electric false) -expand-all-non-electric))
-    o))
 
 (defn -expand-all [o env]
   (cond
@@ -260,13 +161,10 @@
 
         (letfn*) (let [[_ bs & body] o
                        env2 (reduce add-local env (take-nth 2 bs))
-                       bs2 (into [] (comp (partition-all 2)
-                                      (mapcat (fn [[sym v]] [sym (-expand-all v env2)])))
-                             bs)
-                       ]
+                       bs2 (->> bs (into [] (comp (partition-all 2)
+                                              (mapcat (fn [[sym v]] [sym (-expand-all v env2)])))))]
                    (?meta o `(let* [~(vec (take-nth 2 bs2)) (::letfn ~bs2)] ~(-expand-all (cons 'do body) env2))))
 
-        ;; TODO expand `do`
         (try) (throw (ex-info "try is TODO" {:o o})) #_(list* 'try (mapv (fn-> -all-in-try env) (rest o)))
 
         (js*) (let [[_ s & args] o, gs (repeatedly (count args) gensym)]
@@ -300,12 +198,6 @@
                     (list* 'catch typ sym (mapv (fn-> -expand-all env2) body)))
           #_else (-expand-all o env)))
       (-expand-all o env)))
-
-;; :js-globals -> cljs env
-;; :locals -> cljs or electric env
-;; ::lang/peers -> electric env
-;; if ::current = :clj expand with clj environment
-;; if ::current = :cljs expand with cljs environment
 
 (defn expand-all [env o]
   (m/? (cljs-ana/analyze-nsT !a env (get-ns env)))
@@ -348,11 +240,6 @@
                        :cljs (:name (:info ast))))
     ast))
 
-(defn find-local [f env] "TODO" nil)
-(defn find-electric-local [o env] "TODO" nil)
-
-(defn ->meta [o env] (merge (::meta (find-electric-local o env)) (meta o)))
-
 (defn closure
   "Analyze a cc/fn form, looking for electric defs and electric lexical bindings references.
   Rewrites the cc/fn form into a closure over electric dynamic and lexical scopes.
@@ -387,7 +274,7 @@
                                     (symbol (str/replace (str (munge sym)) #"\." "_"))
                                     sym))
         record-lexical! (fn [{:keys [form]}]
-                          (swap! refered-lexical assoc (with-meta form (->meta form env))
+                          (swap! refered-lexical assoc form
                             (gensym (name form))))
         record-edef!    (fn [{:keys [form] :as ast}]
                           (if (dynamic? ast)
@@ -441,29 +328,14 @@
                       (str/join (interpose '. (butlast fields)))
                       "globalThis")))))
 
-(defn class-constructor-call? [env f] (and (symbol? f) (not (find-local f env))))
-(defn with-interop-locals [env syms] (update env :locals merge (zipmap syms (repeat {}))))
-
 (defn resolve-static-field [sym]
   (when-some [ns (some-> (namespace sym) symbol)]
     (when-some [cls (resolve ns)]
       (when (class? cls)
         (clojure.lang.Reflector/getField cls (name sym) true)))))
 
-(defn resolve-static-method [sym]
-  (when (and (qualified-symbol? sym) (class? (resolve (-> sym namespace symbol))))
-    sym))
-
 (defn get-children-e [ts e] (-> ts :ave ::parent (get e)))
 (defn get-child-e [ts e] (first (get-children-e ts e)))
-
-(defn find-let-ref [sym pe ts]
-  (loop [pe pe]
-    (when pe
-      (let [p (ts/get-entity ts pe)]
-        (if (and (= ::let (::type p)) (= sym (::sym p)))
-          pe
-          (recur (::parent p)))))))
 
 (defn ?add-source-map [{{::keys [->id]} :o :as ts} pe form]
   (let [mt (meta form)]
@@ -503,13 +375,6 @@
   (if-some [v (cljs-ana/find-var @!a sym (get-ns env))]
     {::type ::var, ::sym (untwin (::cljs-ana/name v))}
     {::type ::static, ::sym sym}))
-
-#_(defn resolve-cljs-alias [env sym]
-    (if (simple-symbol? sym)
-      (symbol (-> env :ns :name str) (name sym))
-      (or (cljs-ana/resolve-ns-alias env sym) (cljs-ana/resolve-macro-ns-alias env sym))))
-
-#_(defn assume-cljs-var [sym env] {::type ::var, ::sym (untwin (resolve-cljs-alias env sym))})
 
 (defn resolve-symbol [sym env]
   (if-some [local (-> env :locals (get sym))]

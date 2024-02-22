@@ -2072,5 +2072,5 @@
 
 (let [{:keys [tested skipped]} @stats, all (+ tested skipped)]
   (prn '===)
-  (println 'tested tested (str (* (/ tested all) 100) "%"))
+  (println 'tested tested (str (long (* (/ tested all) 100)) "%"))
   (println 'skipped skipped (str (long (* (/ skipped all) 100)) "%")))
