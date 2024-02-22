@@ -163,7 +163,8 @@
                        env2 (reduce add-local env (take-nth 2 bs))
                        bs2 (->> bs (into [] (comp (partition-all 2)
                                               (mapcat (fn [[sym v]] [sym (-expand-all v env2)])))))]
-                   (?meta o `(let* [~(vec (take-nth 2 bs2)) (::letfn ~bs2)] ~(-expand-all (cons 'do body) env2))))
+                   (recur (?meta o `(let [~(vec (take-nth 2 bs2)) (::letfn ~bs2)] ~(-expand-all (cons 'do body) env2)))
+                     env))
 
         (try) (throw (ex-info "try is TODO" {:o o})) #_(list* 'try (mapv (fn-> -all-in-try env) (rest o)))
 
@@ -493,6 +494,13 @@
                           (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v form})
                           (?add-source-map e form))]
                 (reduce (fn [ts nx] (analyze nx e env ts)) ts2 refs))
+        (::letfn) (let [[_ bs] form, [form refs] (closure env `(letfn* ~bs ~(vec (take-nth 2 bs))))
+                        e (->id), ce (->id)
+                        ts2 (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
+                              (ts/add {:db/id ce, ::parent e, ::type ::pure})
+                              (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v form})
+                              (?add-source-map e form))]
+                    (reduce (fn [ts nx] (analyze nx e env ts)) ts2 refs))
         (new) (let [[_ f & args] form, e (->id), ce (->id), cce (->id)]
                 (reduce (fn [ts arg] (analyze arg e env ts))
                   (-> ts

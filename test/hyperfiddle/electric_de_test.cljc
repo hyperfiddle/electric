@@ -1211,7 +1211,7 @@
 
 
 ;; TODO cc/letfn
-(skip "Inline letfn support"
+(tests "Inline letfn support"
       (with ((l/single {} (tap (letfn [(descent  [x] (cond (pos? x) (dec x)
                                                            (neg? x) (inc x)
                                                            :else    x))
