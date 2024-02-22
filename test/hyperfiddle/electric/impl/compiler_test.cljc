@@ -35,9 +35,9 @@
      match#))
 
 ;; no `:=`, these just need to compile
-(tests (l/test-compile ::Main (lang/->cljs-env) referred-fn))
-(tests (l/test-compile ::Main (lang/->cljs-env) ref/referred-fn))
-(tests (l/test-compile ::Main (lang/->cljs-env) hyperfiddle.electric.impl.expand-require-referred/referred-fn))
+(l/test-compile ::Main (lang/->cljs-env) referred-fn)
+(l/test-compile ::Main (lang/->cljs-env) ref/referred-fn)
+(l/test-compile ::Main (lang/->cljs-env) hyperfiddle.electric.impl.expand-require-referred/referred-fn)
 
 (tests "test-simplest"
   (match (l/test-compile ::Main 1)
@@ -665,3 +665,5 @@
         (r/pure frame)))]
 
   )
+
+(prn :ok)

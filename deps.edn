@@ -12,6 +12,7 @@
          org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"} ;; used by Electric
          org.clojure/tools.logging      {:mvn/version "1.2.4"}
          borkdude/edamame               {:mvn/version "1.4.25"}
+         net.cgrand/xforms              {:mvn/version "0.19.6"}
          }
 
  :aliases {:dev  {:extra-paths ["src-dev" "src-docs" "test" "scratch" "resources-demo"] ; for clj command

@@ -43,22 +43,21 @@ Returns the successive states of items described by `incseq`.
 
 (cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
 
-(tests
-  (ns-qualify 'foo) := `foo
-  (ns-qualify 'a/b) := 'a/b)
+#?(:clj (tests
+          (ns-qualify 'foo) := `foo
+          (ns-qualify 'a/b) := 'a/b))
 
 (defmacro defn [nm bs & body]
-  (lang/ensure-cljs-compiler
-    (let [env (merge (meta nm) (lang/ensure-cljs-env (lang/normalize-env &env)) l/web-config)
-          expanded (lang/expand-all env `(fn ~bs ~@body))
-          _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
-          ts (lang/analyze expanded '_ env (ts/->ts {::lang/->id (lang/->->id)}))
-          ts (lang/analyze-electric env ts)
-          ctors (mapv #(lang/emit-ctor ts % env (-> nm ns-qualify keyword)) (lang/get-ordered-ctors-e ts))
-          deps (lang/emit-deps ts 0)
-          nm (with-meta nm `{::lang/deps '~deps})]
-      (when (::lang/print-source env) (fipp.edn/pprint ctors))
-      `(def ~nm ~ctors))))
+  (let [env (merge (meta nm) (lang/normalize-env &env) l/web-config)
+        expanded (lang/expand-all env `(fn ~bs ~@body))
+        _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
+        ts (lang/analyze expanded '_ env (ts/->ts {::lang/->id (lang/->->id)}))
+        ts (lang/analyze-electric env ts)
+        ctors (mapv #(lang/emit-ctor ts % env (-> nm ns-qualify keyword)) (lang/get-ordered-ctors-e ts))
+        deps (lang/emit-deps ts 0)
+        nm (with-meta nm `{::lang/deps '~deps})]
+    (when (::lang/print-source env) (fipp.edn/pprint ctors))
+    `(def ~nm ~ctors)))
 
 #_(defmacro defn [nm bs & body]
   ;; TODO cleanup env setup

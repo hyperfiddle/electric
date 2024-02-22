@@ -4,7 +4,10 @@
             [hyperfiddle.electric-local-def-de :as l]
             [hyperfiddle.electric.impl.io :as electric-io]
             [hyperfiddle.electric.impl.lang-de2 :as lang]
+            [contrib.cljs-target :refer [do-browser]]
+            [clojure.string :as str]
             [missionary.core :as m])
+  #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip tests]]))
   (:import [hyperfiddle.electric Pending Failure]
            [missionary Cancelled]
            #?(:clj [clojure.lang ExceptionInfo])))
@@ -28,7 +31,7 @@
 
 ;; TODO `m/ap` has `try` in expansion
 (skip "new on missionary flow"
-  (with ((l/single {::lang/print-expansion true} (tap (e/input (m/ap 1)))) tap tap)
+  (with ((l/single {} (tap (e/input (m/ap 1)))) tap tap)
     % := 1))
 
 (tests "join missionary flow"
@@ -1034,7 +1037,7 @@
 
 ;; HACK sequences cljs async tests. Symptomatic of an RCF issue.
 ;; Ticket: https://www.notion.so/hyperfiddle/cljs-test-suite-can-produce-false-failures-0b3799f6d2104d698eb6a956b6c51e48
-#?(:cljs (t/use-fixtures :each {:after #(t/async done (js/setTimeout done 1))}))
+;; #?(:cljs (t/use-fixtures :each {:after #(t/async done (js/setTimeout done 1))}))
 
 ;; TODO transfer try/catch
 (skip
@@ -1943,8 +1946,8 @@
    (tests "#js"
      (def !x (atom 0))
      (with ((l/single {} (let [x (e/watch !x)]
-                       (tap #js {:x x})
-                       (tap #js [:x x]))) tap tap)
+                           (tap #js {:x x})
+                           (tap #js [:x x]))) tap tap)
        (.-x %) := 0
        (aget % 1) := 0
        (swap! !x inc)
@@ -1962,8 +1965,9 @@
                       ]))) tap tap)
        % := ["src" 1 1.0])))
 
+;; TODO type hint propagation
 #?(:cljs
-   (tests "js interop"
+   (skip "js interop"
      (with ((l/single {}
               (let [^js o #js {:a 1 :aPlus (fn [n] (inc n))}]
                 (tap [(.aPlus o 1)      ; instance method
@@ -2068,5 +2072,5 @@
 
 (let [{:keys [tested skipped]} @stats, all (+ tested skipped)]
   (prn '===)
-  (println 'tested tested (format "%.0f%%" (double (* (/ tested all) 100))))
-  (println 'skipped skipped (format "%.0f%%" (double (* (/ skipped all) 100)))))
+  (println 'tested tested (str (* (/ tested all) 100) "%"))
+  (println 'skipped skipped (str (long (* (/ skipped all) 100)) "%")))

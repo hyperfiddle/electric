@@ -283,3 +283,10 @@ Returns a peer definition from given definitions and main key.
               (with-meta (symbol (str "%" i))
                 {::type ::node})))
        (range))))
+
+(defn get-destructure-map [gmap]
+  (if (seq? gmap)
+    (if (next gmap)
+      (apply array-map gmap)
+      (if (seq gmap) (first gmap) {}))
+    gmap))
