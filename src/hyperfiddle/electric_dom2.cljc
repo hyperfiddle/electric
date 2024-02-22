@@ -100,10 +100,16 @@
      ([^js node ns attr v]
       (.setAttributeNS node ns attr v))))
 
+(defn to-str [x]
+  (cond (string? x)  x
+        (keyword? x) (name x)
+        (symbol? x)  (str x)
+        :else        (str x)))
+
 #?(:cljs
    (defn set-style! [node k v]
-     (let [k (clj->js k)
-           v (clj->js v)]
+     (let [k (to-str k)
+           v (to-str v)]
        (if (str/starts-with? k "--") ; CSS variable
          (.setProperty (.-style node) k v)
          (goog.style/setStyle_ node v k)))))
