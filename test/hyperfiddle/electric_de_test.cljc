@@ -1253,22 +1253,23 @@
 
 #?(:clj
    (tests "e/fn is undefined in clojure-land"
-          (tap (try (lang/expand-all {} `(fn [] (e/fn []))) (catch Throwable e (ex-message e))))
+     (tap (try (eval '(l/single {} (fn [] (e/fn []))))
+               (catch Throwable e (ex-message (ex-cause e)))))
      % := "Electric code (hyperfiddle.electric-de/fn) inside a Clojure function"))
 
 #?(:clj
    (tests "e/client is undefined in clojure-land"
-     (tap (try (lang/expand-all {} `(fn [] (e/client []))) (catch Throwable e (ex-message e))))
+     (tap (try (eval '(l/single {} (fn [] (e/client [])))) (catch Throwable e (ex-message (ex-cause e)))))
      % := "Electric code (hyperfiddle.electric-de/client) inside a Clojure function"))
 
 #?(:clj
    (tests "e/server is undefined in clojure-land"
-     (tap (try (lang/expand-all {} `(fn [] (e/server []))) (catch Throwable e (ex-message e))))
+     (tap (try (eval '(l/single {} (fn [] (e/server [])))) (catch Throwable e (ex-message (ex-cause e)))))
      % := "Electric code (hyperfiddle.electric-de/server) inside a Clojure function"))
 
 #?(:clj
    (tests "e/watch is undefined in clojure-land"
-     (tap (try (lang/expand-all {} `(fn [] (e/watch (atom :nomatter)))) (catch Throwable e (ex-message e))))
+     (tap (try (eval '(l/single {} (fn [] (e/watch (atom :nomatter))))) (catch Throwable e (ex-message (ex-cause e)))))
      % := "Electric code (hyperfiddle.electric-de/watch) inside a Clojure function"))
 
 (tests "cycle"
