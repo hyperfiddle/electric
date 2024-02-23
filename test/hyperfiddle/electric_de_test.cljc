@@ -1814,37 +1814,37 @@
                             (catch ExceptionInfo e e)))) tap tap)
     (str/includes? (ex-message %) ":foo") := true))
 
-;; TODO e/fn varargs
-(skip "e/fn varargs"
-  (with ((l/single {} (new (e/fn [x & xs] (tap [x xs])) 1 2 3 4)) tap tap)
+(tests "e/fn varargs"
+  (with ((l/single {} ($ (e/fn [x & xs] (tap [x xs])) 1 2 3 4)) tap tap)
     % := [1 [2 3 4]]))
+;; TODO use recur
 (skip "e/fn varargs recursion with recur"
-  (with ((l/single {} (new (e/fn [x & xs] (tap [x xs])) 1 2 3 4)) tap tap)
+  (with ((l/single {} ($ (e/fn [x & xs] (tap [x xs])) 1 2 3 4)) tap tap)
     % := [1 [2 3 4]]))
+;; TODO try/catch
 (skip "e/fn varargs recur is arity-checked"
   (with ((l/single {} (tap (try (new (e/fn [x & xs] (recur)) 1 2 3)
                             (catch ExceptionInfo e e)))) tap tap)
     (ex-message %) := "You `recur`d in <unnamed-efn> with 0 arguments but it has 2 positional arguments"))
 
-;; TODO e/fn map vararg
-;; (l/defn MapVararg [& {:keys [x] :or {x 1} :as mp}] [x mp])
-(skip "map vararg with no args is nil"
-  (with ((l/single {} (tap (MapVararg.))) tap tap)
+(e/defn MapVararg [& {:keys [x] :or {x 1} :as mp}] [x mp])
+(tests "map vararg with no args is nil"
+  (with ((l/single {} (tap ($ MapVararg))) tap tap)
     % := [1 nil]))
-(skip "map vararg with kw args"
-  (with ((l/single {} (tap (MapVararg. :x 2))) tap tap)
+(tests "map vararg with kw args"
+  (with ((l/single {} (tap ($ MapVararg :x 2))) tap tap)
     % := [2 {:x 2}]))
-(skip "map vararg with map arg"
-  (with ((l/single {} (tap (MapVararg. {:x 2}))) tap tap)
+(tests "map vararg with map arg"
+  (with ((l/single {} (tap ($ MapVararg {:x 2}))) tap tap)
     % := [2 {:x 2}]))
-(skip "map vararg with mixture"
-  (with ((l/single {} (tap (MapVararg. :y 3 {:x 2}))) tap tap)
+(tests "map vararg with mixture"
+  (with ((l/single {} (tap ($ MapVararg :y 3 {:x 2}))) tap tap)
     % := [2 {:x 2, :y 3}]))
-(skip "map vararg trailing map takes precedence"
-  (with ((l/single {} (tap (MapVararg. :x 3 {:x 2}))) tap tap)
+(tests "map vararg trailing map takes precedence"
+  (with ((l/single {} (tap ($ MapVararg :x 3 {:x 2}))) tap tap)
     % := [2 {:x 2}]))
-(skip "map vararg with positional arguments"
-  (with ((l/single {} (tap (new (e/fn [a & {:keys [x]}] [a x]) 1 :x 2))) tap tap)
+(tests "map vararg with positional arguments"
+  (with ((l/single {} (tap ($ (e/fn [a & {:keys [x]}] [a x]) 1 :x 2))) tap tap)
     % := [1 2]))
 
 ;; TODO try/catch
@@ -1855,12 +1855,11 @@
 
 (e/defn One [x] x)
 (e/defn Two [x y] [x y])
-;; (l/defn VarArgs [x & xs] [x xs])
+(e/defn VarArgs [x & xs] [x xs])
 (tests "($ One 1)"
   (with ((l/single {} (tap ($ One 1))) tap tap)
     % := 1))
-;; TODO e/fn varargs
-(skip "($ VarArgs 1 2 3)"
+(tests "($ VarArgs 1 2 3)"
   (with ((l/single {} (tap ($ VarArgs 1 2 3))) tap tap)
     % := [1 [2 3]]))
 (skip "varargs arity is checked"
@@ -1888,19 +1887,19 @@
     (ex-message %) := "You called Two with 3 arguments but it only supports 2"))
 
 ;; TODO e/fn multi-arity
-(skip "multi-arity e/fn"
-  (with ((l/single {} (tap (new (e/fn ([_] :one) ([_ _] :two)) 1))) tap tap)
+(tests "multi-arity e/fn"
+  (with ((l/single {} (tap ($ (e/fn ([_] :one) ([_ _] :two)) 1))) tap tap)
     % := :one))
-(skip "multi-arity e/fn"
-  (with ((l/single {} (tap (new (e/fn ([_] :one) ([_ _] :two)) 1 2))) tap tap)
+(tests "multi-arity e/fn"
+  (with ((l/single {} (tap ($ (e/fn ([_] :one) ([_ _] :two)) 1 2))) tap tap)
     % := :two))
-(skip "multi-arity e/fn"
-  (with ((l/single {} (tap (new (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 3 4))) tap tap)
+(tests "multi-arity e/fn"
+  (with ((l/single {} (tap ($ (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 3 4))) tap tap)
     % := [3 4 5]))
-(skip "multi-arity e/fn"
+(tests "multi-arity e/fn"
   (with ((l/single {} (tap (e/apply (e/fn ([_] :one) ([_ _] :two)) 1 [2]))) tap tap)
     % := :two))
-(skip "multi-arity e/fn"
+(tests "multi-arity e/fn"
   (with ((l/single {} (tap (e/apply (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 [3 4]))) tap tap)
     % := [3 4 5]))
 

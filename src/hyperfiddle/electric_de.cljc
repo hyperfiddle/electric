@@ -11,8 +11,14 @@
             [hyperfiddle.electric-local-def-de :as l])
   #?(:cljs (:require-macros hyperfiddle.electric-de)))
 
+#?(:clj (cc/defn dget [v] `(::lang/lookup ~v)))
+#?(:clj (cc/defn ->pos-args [n] (eduction (take n) (map dget) (range))))
+
 (defmacro ctor [expr] `(::lang/ctor ~expr))
-(defmacro $ [F & args] `(binding [~@(interleave (range) args)] (::lang/call ~F)))
+(defmacro $ [F & args]
+  `(binding [~@(interleave (range) args), r/%arity ~(count args)]
+     (binding [r/%argv [~@(->pos-args (count args))]]
+       (::lang/call ~F))))
 
 (defmacro pure "
 Syntax :
@@ -35,11 +41,50 @@ Returns the successive states of items described by `incseq`.
     form
     (throw (ex-info (str "Electric code (" fn ") inside a Clojure function") (into {:electric-fn fn} (meta &form))))))
 
-(defmacro fn [bs & body]
+(defmacro fn* [bs & body]
   `(check-electric fn
      (ctor
-       (let [~@(interleave bs (eduction (map #(list ::lang/lookup %)) (range)))]
+       (let [~@(interleave bs (->pos-args (count bs)))]
          ~@body))))
+
+#?(:clj (cc/defn- varargs? [args] (boolean (and (seq args) (= '& (-> args pop peek))))))
+
+#?(:clj (cc/defn- -build-fn-arity [_?name args body]
+          [(count args)
+           `(binding [::lang/rec (ctor (let [~@(interleave args (->pos-args (count args)))] ~@body))]
+              ($ ~(dget ::lang/rec) ~@(->pos-args (count args))))]))
+
+#?(:clj (cc/defn- -build-vararg-arity [_?name args body]
+          (let [npos (-> args count (- 2)), unvarargd (-> args pop pop (conj (peek args))), v (gensym "varargs")]
+            `(binding [::lang/rec (ctor (let [~@(interleave unvarargd (->pos-args (count unvarargd)))] ~@body))]
+               ($ ~(dget ::lang/rec) ~@(->pos-args npos)
+                  (let [~v (into [] (drop ~npos) r/%argv)]
+                   (when (seq ~v) ; varargs value is `nil` when no args provided
+                     ~(if (map? (peek args))
+                        `(if (even? (count ~v))
+                           (cc/apply hash-map ~v) ; (MapVararg. :x 1)
+                           (merge (cc/apply hash-map (pop ~v)) (peek ~v))) ; (MapVararg. :x 1 {:y 2})
+                        v))))))))
+
+#?(:clj (cc/defn ->narity-set [arities]
+          (into (sorted-set) (comp (map #(take-while (complement #{'&}) %)) (map count)) arities)))
+#?(:clj (cc/defn arity-holes [arity-set]
+          (remove arity-set (range (reduce max arity-set)))))
+
+(defmacro fn [& args]
+  (let [[?name args2] (if (symbol? (first args)) [(first args) (rest args)] [nil args])
+        arities (cond-> args2 (vector? (first args2)) list)
+        arity-set (->narity-set (map first arities))
+        {positionals false, varargs true} (group-by (comp varargs? first) arities)
+        positional-branches (into [] (map (cc/fn [[args & body]] (-build-fn-arity ?name args body))) positionals)]
+    (list `check-electric `fn
+      (list ::lang/ctor
+        `(case r/%arity
+           ~@(into [] (comp cat cat) [positional-branches])
+           ~@(if (seq varargs)
+               (conj [(arity-holes arity-set) [:arity-mismatch r/%arity]]
+                 (-build-vararg-arity ?name (ffirst varargs) (nfirst varargs)))
+               [[:arity-mismatch r/%arity]]))))))
 
 (cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
 
@@ -124,7 +169,9 @@ For each tuple in the cartesian product of `table1 table2 ,,, tableN`, calls bod
   (case bindings
     [] `(do ~@body)
     (let [[args exprs] (cc/apply map vector (partition-all 2 bindings))]
-      `($ (r/bind-args (fn ~args ~@body)
+      #_`($ (hyperfiddle.electric-de/fn* ~args (do ~@body))
+         ~@(mapv (cc/fn [expr] `(join (r/fixed-signals (join (i/items (pure ~expr)))))) exprs))
+      `($ (r/bind-args (hyperfiddle.electric-de/fn* ~args ~@body)
                ~@(map (clojure.core/fn [expr]
                         `(r/fixed-signals (join (i/items (pure ~expr)))))
                    exprs))))))
@@ -158,7 +205,7 @@ this tuple. Returns the concatenation of all body results as a single vector.
        (seq bindings))))
 
 (cc/defn- -splicev [args] (into [] cat [(pop args) (peek args)]))
-(hyperfiddle.electric-de/defn ^::lang/static-vars Apply* [F args]
+(hyperfiddle.electric-de/defn Apply* [F args]
   (let [spliced (-splicev args)]
     (case (count spliced)
       0 ($ F)
