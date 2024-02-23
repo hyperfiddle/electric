@@ -390,11 +390,12 @@
                 ::lang :cljs)
         #_unsited (let [langs (set (vals (::peers env)))
                         vs (->> langs (into #{} (map #(case %
-                                                        :clj (analyze-clj-symbol sym (get-ns env))
-                                                        :cljs (analyze-cljs-symbol sym env)))))]
+                                                        :clj (assoc (analyze-clj-symbol sym (get-ns env)) ::lang :clj)
+                                                        :cljs (assoc (analyze-cljs-symbol sym env) ::lang :cljs)))))]
                     (cond (contains? vs nil) (cannot-resolve! env sym)
-                          (> (count vs) 1) (ambiguous-resolve! env sym vs)
+                          (> (count (sequence (comp (map #(select-keys % [::type ::sym])) (distinct)) vs)) 1) (ambiguous-resolve! env sym vs)
                           :else (assoc (first vs) ::lang nil)))))))
+
 
 (defn ->let-val-e [ts e] (first (get-children-e ts e)))
 (defn ->let-body-e [ts e] (second (get-children-e ts e)))
