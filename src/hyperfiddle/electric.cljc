@@ -468,6 +468,13 @@ Quoting it directly is idiomatic as well."
   Standard electric code runs on mount, therefore there is no `on-mount`."
   [f] `(new (on-unmount* ~f))) ; experimental
 
+(defmacro singleton
+  "Experimental. Could be unstable. Thunk body into a singleton e/fn.
+  Result of `body` will be shared by all callers. `body` will mount on first
+  call and will stay up until the last caller unmounts." [& body]
+  `(let [<x# (m/signal (hyperfiddle.electric/fn* [] ~@body))]
+     (hyperfiddle.electric/fn* [] (new (identity <x#)))))
+
 (cc/defn log-root-error [exception async-stack-trace]
   #?(:clj (let [ex (dbg/empty-client-exception exception)
                 ex (dbg/clean-jvm-stack-trace! (dbg/remove-async-stack-trace ex))
