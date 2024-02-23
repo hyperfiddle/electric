@@ -1,12 +1,10 @@
 (ns hyperfiddle.electric-css
-  "Experimental. Use it at your own risk."
+  "- Experimental — Use it at your own risk.
+   - No support for at-rules yet."
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.electric-css])))
-
-;; (defn get-rule "get a css rule in the node's stylesheet by index" [node index]
-;;   (aget (.-cssRules (.-sheet node)) index))
 
 (defn find-rule-index "Find the rule index in the node sheet's CSSRuleList" [node target-rule]
    (let [rules (.-cssRules (.-sheet node))
@@ -58,6 +56,21 @@
   ([selector declarations] (rule* selector declarations))
   ([node selector declarations] (rule* node selector declarations)))
 
+(def stylesheet<  "Mount a singleton stylesheet in the documents's <head> to gather all CSS rules"
+  #?(:cljs
+     (m/signal ; We only need one top-level stylesheet into which we inject rules and manage their lifecycle.
+       ;; We could use `document.adoptedStyleSheets`, but:
+       ;; - Safari support is still young.
+       ;; - no clear advantage over the current approach.
+       ;;   - only advantage seem to be saving on a `<style>` element in head
+       ;;   - perf should be equivalent since we mutates the `<style>`'s stylesheet CSSOM directly.
+       (m/observe (fn [!]
+                    (let [style (.createElement js/document "style")]
+                      (.add (.-classList style) (str "hyperfiddle_electric-css-"))
+                      (.appendChild (.-head js/document) style)
+                      (! style)
+                      #(.removeChild (.-parentElement style) style)))))))
+
 (defmacro style
   "Usage:
   (dom/div
@@ -67,10 +80,11 @@
       (css/rule \".my-div:hover\" {:color :blue})))
   "
   [& body]
-  `(dom/element "style" ~@body))
+  `(binding [dom/node (new (identity stylesheet<))]
+     ~@body))
 
 (defmacro scoped-style [& body]
-  `(style
-     (binding [scope ~(str (munge (gensym "class_")))]
-       ~@body
-       scope)))
+  `(binding [dom/node (new (identity stylesheet<))
+             scope ~(str (munge (gensym "class_")))]
+     ~@body
+     scope))
