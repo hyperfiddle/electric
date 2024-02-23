@@ -5,23 +5,37 @@
             [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.electric-css])))
 
-(defn get-rule "get a css rule in the node's stylesheet by index" [node index]
-  (aget (.-cssRules (.-sheet node)) index))
+;; (defn get-rule "get a css rule in the node's stylesheet by index" [node index]
+;;   (aget (.-cssRules (.-sheet node)) index))
+
+(defn find-rule-index "Find the rule index in the node sheet's CSSRuleList" [node target-rule]
+   (let [rules (.-cssRules (.-sheet node))
+         len (.-length rules)]
+     (loop [i 0]
+       (if (< i len)
+         (if (= target-rule (aget rules i))
+           i
+           (recur (inc i)))
+         -1))))
 
 #?(:cljs
-   (defn make-rule "return the created rule index" [node selector]
-     (let [sheet (.-sheet node)]
-       (.insertRule sheet (str selector " {}")))))
+   (defn make-rule "Create a rule in node's stylesheet, return the created rule." [node selector]
+     (let [sheet (.-sheet node)
+           index (.-length (.-cssRules sheet))]
+       (.insertRule sheet (str selector " {}") index)
+       (aget (.-cssRules sheet) index))))
 
-(defn delete-rule "Delete a rule by index in a node's stylesheet" [node index]
-  (.deleteRule (.-sheet node) index))
+(defn delete-rule "Remove a given rule from node's stylesheet" [node rule]
+  (let [idx (find-rule-index node rule)]
+    (when (> idx -1)
+      (.deleteRule (.-sheet node) idx))))
 
 #?(:cljs
-   (defn make-rule< [node selector]
+   (defn make-rule< "Create and emit a rule for `selector` on mount, remove the rule on unmount." [node selector]
      (m/relieve (m/observe (fn [!]
-                             (let [idx (make-rule node selector)]
-                               (! (get-rule node idx))
-                               #(delete-rule node idx)))))))
+                             (let [rule (make-rule node selector)]
+                               (! rule)
+                               #(delete-rule node rule)))))))
 
 (defn set-property [rule key value] (.setProperty rule (dom/to-str key) (dom/to-str value)))
 
