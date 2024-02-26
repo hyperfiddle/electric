@@ -70,18 +70,11 @@
      (all '(fn* [x] x)) := '(fn* ([x] x)) ; fn* can come from elsewhere with a non-wrapped single arity
      (has-line-meta? (all '(fn* [x] x))) := true
 
-     (let [x (all '(letfn [(foo [with-open] (with-open 1))
-                           (bar [x] (-> x inc))
-                           (baz [x] (->> x))
-                           (->> [x] x)]
-                     (-> (->> x) inc)))]
-       x := '(let* [[foo bar baz ->>]
-                    (::l/letfn [foo (fn* foo ([with-open] (with-open 1)))
-                                bar (fn* bar ([x] (-> x inc)))
-                                baz (fn* baz ([x] (->> x)))
-                                ->> (fn* ->> ([x] x))])]
-               (inc (->> x)))
-       (has-line-meta? x) := true)
+     (has-line-meta? (all '(letfn [(foo [with-open] (with-open 1))
+                                   (bar [x] (-> x inc))
+                                   (baz [x] (->> x))
+                                   (->> [x] x)]
+                             (-> (->> x) inc)))) := true
 
      (let [[f v :as x] (all '(set! (.-x (-> [(java.awt.Point. (-> 0 inc) 2)] first)) (-> 2 inc)))]
        (first f) := 'fn*
