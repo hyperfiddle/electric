@@ -1362,8 +1362,8 @@
             % := 0)))
 
 #?(:cljs (tests "set! with electric value"
-           (with ((l/single {} (tap (let [o (js/Object.)]
-                                  (set! (.-x o) (new (e/fn [] 0)))))) tap tap)
+           (with ((l/single {::lang/print-source true} (tap (let [o (js/Object.)]
+                                  (set! (.-x o) ($ (e/fn [] 0)))))) tap tap)
              % := 0)))
 
 ;; TODO e/fn arity check, try/catch
