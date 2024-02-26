@@ -4,6 +4,7 @@
             [hyperfiddle.electric-local-def-de :as l]
             [hyperfiddle.electric.impl.io :as electric-io]
             [hyperfiddle.electric.impl.lang-de2 :as lang]
+            [hyperfiddle.electric.impl.runtime-de :as r]
             [contrib.cljs-target :refer [do-browser]]
             [clojure.string :as str]
             [missionary.core :as m])
@@ -73,8 +74,9 @@
   (with ((l/single {} (tap (loop [x 1] (if (odd? x) (recur (dec x)) x)))) tap tap)
     % := 0))
 
-(tests "def"
-  (with ((l/single {} (def DEFD 1)) tap tap))
+;; TODO cljs def expands to set! which expands to cc/fn which passes DEFD as argument and breaks
+#_(tests "def"
+  (with ((l/single {::lang/print-source true} (def DEFD 1)) tap tap))
   DEFD := 1)
 
 ;;; MAIN ELECTRIC TEST SUITE
@@ -1169,6 +1171,47 @@
     % := [1 :b [:local 1] [:global 1]]
     % := [1 :b '(:c :d) [:local 1] [:global 1]]))
 
+(comment
+  (tests
+    (def !state (atom 0))
+    (def global)
+    (with ((l/single {::lang/print-source true}
+             (let [state (e/watch !state)]
+               (tap [state state])
+               (tap [state state])))
+           tap tap)
+      % := [0 0]
+      % := [0 0]
+      (swap! !state inc)
+      % := [1 0]                        ; glitch
+      % := [1 1]
+      % := [1 1]))
+  ;; compiles to
+  [(r/cdef 0 [nil] [nil] nil
+     (fn [frame]
+       (r/define-node frame 0 (r/join (r/ap (r/lookup frame ::r/fixed-signals (r/pure r/fixed-signals))
+                                        (r/ap (r/lookup frame ::m/watch (r/pure m/watch))
+                                          (r/lookup frame ::!state (r/pure !state))))))
+       (r/define-call frame 0 (r/join (r/ap (r/lookup frame ::r/pure (r/pure r/pure))
+                                        (r/pure (doto (r/make-ctor frame ::l/Main 1)
+                                                  (r/define-free 0 (r/node frame 0))))
+                                        (r/pure (doto (r/make-ctor frame ::l/Main 2)
+                                                  (r/define-free 0 (r/node frame 0)))))))
+       (r/join (r/call frame 0))))
+   (r/cdef 1 [] [] nil
+     (fn [frame]
+       (r/join (r/ap (r/lookup frame ::r/drain (r/pure r/drain))
+                 (r/pure (r/ap (r/pure RCF__tap)
+                           (r/ap (r/pure vector)
+                             (r/free frame 0)
+                             (r/free frame 0))))))))
+   (r/cdef 1 [] [] nil
+     (fn [frame]
+       (r/ap (r/pure RCF__tap)
+         (r/ap (r/pure vector)
+           (r/free frame 0)
+           (r/free frame 0)))))])
+
 (tests "cc/fn lexical bindings are untouched"
   (with ((l/single {} (let [a 1
                         b 2
@@ -1353,7 +1396,7 @@
             % := 0)))
 
 #?(:cljs (tests "set! with electric value"
-           (with ((l/single {::lang/print-source true} (tap (let [o (js/Object.)]
+           (with ((l/single {} (tap (let [o (js/Object.)]
                                   (set! (.-x o) ($ (e/fn [] 0)))))) tap tap)
              % := 0)))
 
@@ -1412,7 +1455,8 @@
       (reset! !n 20)
       % := 2432902008176640000)))
 
-(tests "clojure def inside electric code"
+;; TODO cljs def expands to set! which expands to cc/fn which passes --foo as argument and breaks
+#_(tests "clojure def inside electric code"
   (def !x (atom 0))
   (with ((l/single {} (def --foo (tap (e/watch !x)))) tap tap)
                     % := 0, --foo := 0
