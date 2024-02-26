@@ -262,8 +262,7 @@
   [env form]
   (let [refered-evars   (atom {})
         refered-lexical (atom {})
-        edef?           (fn [ast] (or (#{::node ::node-signifier} (-> ast :meta ::type))
-                                    (#{::node ::node-signifier} (-> ast :info :meta ::type))))
+        edef?           (fn [ast] (and (= :var (:op ast)) (not (-> ast :env :def-var))))
         dynamic?        (fn [ast] (or (:assignable? ast) ; clj
                                     (:dynamic (:meta (:info ast))) ; cljs
                                     ))
