@@ -799,7 +799,7 @@
   (instance? clojure.lang.Var$Unbound *1) := true)
 )
 
-;; TODO
+;; TODO try/catch
 (skip "In Electric, accessing an unbound var throws a userland exception"
   ;; An unbound var is either:
   ;; - an uninitialized p/def,
@@ -810,7 +810,7 @@
 
 ;; TODO e/defn docstring
 #?(:clj
-   (skip ; GG: IDE doc on hover support
+   (tests ; GG: IDE doc on hover support
     "Vars created with e/defn have the same metas as created with cc/defn"
     (e/defn Documented "doc" [a b c])
     (select-keys (meta (var Documented)) [:name :doc :arglists])
