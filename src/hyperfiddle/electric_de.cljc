@@ -92,24 +92,19 @@ Returns the successive states of items described by `incseq`.
           (ns-qualify 'foo) := `foo
           (ns-qualify 'a/b) := 'a/b))
 
-(defmacro defn [nm bs & body]
-  (let [env (merge (meta nm) (lang/normalize-env &env) l/web-config)
-        expanded (lang/expand-all env `(fn ~bs ~@body))
+(defmacro defn [nm & fdecl]
+  (let [[_defn sym] (macroexpand `(cc/defn ~nm ~@fdecl))
+        env (merge (meta nm) (lang/normalize-env &env) l/web-config)
+        nm2 (vary-meta nm merge (meta sym))
+        expanded (lang/expand-all env `(fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))
         _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
         ts (lang/analyze expanded '_ env (ts/->ts {::lang/->id (lang/->->id)}))
         ts (lang/analyze-electric env ts)
         ctors (mapv #(lang/emit-ctor ts % env (-> nm ns-qualify keyword)) (lang/get-ordered-ctors-e ts))
         deps (lang/emit-deps ts 0)
-        nm (with-meta nm `{::lang/deps '~deps})]
+        nm3 (vary-meta nm2 assoc ::lang/deps `'~deps)]
     (when (::lang/print-source env) (fipp.edn/pprint ctors))
-    `(def ~nm ~ctors)))
-
-#_(defmacro defn [nm bs & body]
-  ;; TODO cleanup env setup
-  (let [env (merge (lang/normalize-env &env) l/web-config)
-        ts (lang/analyze* env `(hyperfiddle.electric-de/fn ~bs ~@body))
-        nm2 (vary-meta nm assoc ::lang/deps (lang/->deps ts))]
-    `(def ~nm2 ~(lang/compile* ts))))
+    `(def ~nm3 ~ctors)))
 
 (defmacro amb "
 Syntax :
