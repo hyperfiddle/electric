@@ -1210,7 +1210,6 @@
     (instance? Cancelled %) := true))
 
 
-;; TODO cc/letfn
 (tests "Inline letfn support"
       (with ((l/single {} (tap (letfn [(descent  [x] (cond (pos? x) (dec x)
                                                            (neg? x) (inc x)
@@ -1223,14 +1222,7 @@
         % := [false false true true]
         % := [false false true true]))
 
-;; TODO cc/letfn
-(skip
-  (with ((l/single {} (try (letfn [(foo [])]
-                         (tap (e/watch (atom 1))))
-                       (catch Throwable t (prn t)))) tap tap)
-    % := 1))
-
-;; TODO cc/letfn, electric binding conveyance
+;; TODO electric binding conveyance
 (skip "Inline letfn support"
   (def !state (atom 0))
   (l/def global)
@@ -1308,9 +1300,8 @@
       % := 2
       % := 2)))
 
-;; TODO cc/letfn
-(skip "letfn body is electric"
-  (l/def z 3)
+(tests "letfn body is electric"
+  (def z 3)
   (def !x (atom 4))
   (with ((l/single {} (let [y 2] (letfn [(f [x] (g x)) (g [x] [x y z])] (tap (f (e/watch !x)))))) tap tap)
     % := [4 2 3]
@@ -1867,8 +1858,7 @@
                             (catch ExceptionInfo e e)))) tap tap)
     (ex-message %) := "You called VarArgs with 0 arguments but it only supports 1"))
 
-;; TODO e/fn varargs
-(skip "e/apply"
+(tests "e/apply"
   (with ((l/single {} (tap (e/apply VarArgs [1 2 3]))) tap tap)
     % := [1 [2 3]]))
 (tests "e/apply"
