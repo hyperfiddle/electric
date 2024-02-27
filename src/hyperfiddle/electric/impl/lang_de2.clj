@@ -60,7 +60,8 @@
   (serialized-require (ns-name *ns*))
   (if-some [mac (when-some [mac (resolve env (first o))] (when (.isMacro ^clojure.lang.Var mac) mac))]
     (apply mac o env (next o))
-    (macroexpand-1 o)))                 ; e.g. (Math/abs 1) will expand to (. Math abs 1)
+    (try (macroexpand-1 o)   ; e.g. (Math/abs 1) will expand to (. Math abs 1)
+         (catch ClassNotFoundException _ o)))) ; e.g. (goog.color/hslToHex ..) won't expand on clj
 
 (def !a (cljs-ana/->!a))
 
@@ -388,9 +389,11 @@
         :cljs (assoc (analyze-cljs-symbol sym env)
                 ::lang :cljs)
         #_unsited (let [langs (set (vals (::peers env)))
-                        vs (->> langs (into #{} (map #(case %
-                                                        :clj (assoc (analyze-clj-symbol sym (get-ns env)) ::lang :clj)
-                                                        :cljs (assoc (analyze-cljs-symbol sym env) ::lang :cljs)))))]
+                        vs (->> langs
+                             (into #{}
+                               (map #(case %
+                                       :clj (some-> (analyze-clj-symbol sym (get-ns env)) (assoc ::lang :clj))
+                                       :cljs (some-> (analyze-cljs-symbol sym env) (assoc ::lang :cljs))))))]
                     (cond (contains? vs nil) (cannot-resolve! env sym)
                           (> (count (sequence (comp (map #(select-keys % [::type ::sym])) (distinct)) vs)) 1) (ambiguous-resolve! env sym vs)
                           :else (assoc (first vs) ::lang nil)))))))
@@ -501,15 +504,18 @@
                               (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v form})
                               (?add-source-map e form))]
                     (reduce (fn [ts nx] (analyze nx e env ts)) ts2 refs))
-        (new) (let [[_ f & args] form, e (->id), ce (->id), cce (->id)]
-                (reduce (fn [ts arg] (analyze arg e env ts))
-                  (-> ts
-                    (ts/add {:db/id e,   ::parent pe, ::type ::ap})
-                    (ts/add {:db/id ce,  ::parent e,  ::type ::pure})
-                    (ts/add {:db/id cce, ::parent ce, ::type ::literal,
-                             ::v (let [gs (repeatedly (count args) gensym)]
-                                   `(fn [~@gs] (new ~f ~@gs)))}))
-                  args))
+        (new) (let [[_ f & args] form, current (get (::peers env) (::current env))]
+                (if (or (nil? current) (= (->env-type env) current))
+                  (let [e (->id), ce (->id), cce (->id),]
+                    (reduce (fn [ts arg] (analyze arg e env ts))
+                      (-> ts
+                        (ts/add {:db/id e,   ::parent pe, ::type ::ap})
+                        (ts/add {:db/id ce,  ::parent e,  ::type ::pure})
+                        (ts/add {:db/id cce, ::parent ce, ::type ::literal,
+                                 ::v (let [gs (repeatedly (count args) gensym)]
+                                       `(fn [~@gs] (new ~f ~@gs)))}))
+                      args))
+                  (recur `[~@args] pe env ts)))
         ;; (. java.time.Instant now)
         ;; (. java.time.Instant ofEpochMilli 1)
         ;; (. java.time.Instant (ofEpochMilli 1))
