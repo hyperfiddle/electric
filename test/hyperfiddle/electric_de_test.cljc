@@ -6,6 +6,7 @@
             [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [contrib.cljs-target :refer [do-browser]]
+            #?(:cljs [hyperfiddle.goog-calls-test-de])
             [clojure.string :as str]
             [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip tests]]))
@@ -1838,11 +1839,10 @@
 ;; TODO cljs
 #?(:cljs
    (do-browser
-     (skip "goog module calls don't trigger warnings"
+     (tests "goog module calls don't trigger warnings"
        ;; this includes a goog test namespace, so if there are warnings the CI will blow up.
        ;; The blow up is configured as a shadow build hook in `hyperfiddle.browser-test-setup`
-       (with ((l/single {} (tap (try (hyperfiddle.goog-calls-test/Main.) :ok
-                                 (catch :default ex (ex-message ex))))) tap tap)
+       (with ((l/single {} (tap (case ($ hyperfiddle.goog-calls-test-de/Main) :ok))) tap tap)
          % := :ok))))
 
 ;; TODO try/catch

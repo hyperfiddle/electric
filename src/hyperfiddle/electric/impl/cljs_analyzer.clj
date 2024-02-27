@@ -181,6 +181,8 @@
 (defn keep-if [v pred] (when (pred v) v))
 (defn macro-var? [vr] (and (instance? clojure.lang.Var vr) (.isMacro ^clojure.lang.Var vr)))
 
+(defn safe-requiring-resolve [sym] (try (requiring-resolve sym) (catch java.io.FileNotFoundException _)))
+
 ;;;;;;;;;;;;;;;;;;
 ;;; PUBLIC API ;;;
 ;;;;;;;;;;;;;;;;;;
@@ -218,12 +220,12 @@
     (-> (cond
           (simple-symbol? sym)
           (or (do (safe-require ns$)  (some-> (find-ns ns$) (find-ns-var sym)))
-            (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]  (requiring-resolve ref))
-            (when-some [ref (-> a ::nses (get ns$) ::refer-macros (get sym))]  (requiring-resolve ref))
+            (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]  (safe-requiring-resolve ref))
+            (when-some [ref (-> a ::nses (get ns$) ::refer-macros (get sym))]  (safe-requiring-resolve ref))
             (when-not (get (-> a ::nses (get ns$) ::excludes) sym)  (find-ns-var (find-ns 'clojure.core) sym)))
 
           (#{"cljs.core" "clojure.core"} (namespace sym))
-          (requiring-resolve sym)
+          (safe-requiring-resolve sym)
 
           :else
           (let [sym-ns$ (-> sym namespace symbol), sym-base$ (-> sym name symbol)]
