@@ -74,9 +74,8 @@
   (with ((l/single {} (tap (loop [x 1] (if (odd? x) (recur (dec x)) x)))) tap tap)
     % := 0))
 
-;; TODO cljs def expands to set! which expands to cc/fn which passes DEFD as argument and breaks
-#_(tests "def"
-  (with ((l/single {::lang/print-source true} (def DEFD 1)) tap tap))
+(tests "def"
+  (with ((l/single {} (def DEFD 1)) tap tap))
   DEFD := 1)
 
 ;;; MAIN ELECTRIC TEST SUITE
@@ -1400,6 +1399,15 @@
                                   (set! (.-x o) ($ (e/fn [] 0)))))) tap tap)
              % := 0)))
 
+;; TODO `set!` expands to cc/fn which tries to convey `a-root`
+;; note: transitively the same applies to `(cc/fn [] (set! a-root 2))`
+#?(:cljs
+   (skip "set! to alter root binding"
+     (def a-root 1)
+     (with ((l/single {} (set! a-root 2)) tap tap))
+     (instance? Cancelled %) := true
+     a-root := 2))
+
 ;; TODO e/fn arity check, try/catch
 (skip "e/fn arity check"
   (with ((l/single {} (try (new (e/fn [x y z] (throw (ex-info "nope" {}))) 100 200 300 400)
@@ -1455,8 +1463,7 @@
       (reset! !n 20)
       % := 2432902008176640000)))
 
-;; TODO cljs def expands to set! which expands to cc/fn which passes --foo as argument and breaks
-#_(tests "clojure def inside electric code"
+(tests "clojure def inside electric code"
   (def !x (atom 0))
   (with ((l/single {} (def --foo (tap (e/watch !x)))) tap tap)
                     % := 0, --foo := 0
