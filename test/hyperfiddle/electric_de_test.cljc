@@ -1171,46 +1171,19 @@
     % := [1 :b [:local 1] [:global 1]]
     % := [1 :b '(:c :d) [:local 1] [:global 1]]))
 
-(comment
-  (tests
-    (def !state (atom 0))
-    (def global)
-    (with ((l/single {::lang/print-source true}
-             (let [state (e/watch !state)]
-               (tap [state state])
-               (tap [state state])))
-           tap tap)
-      % := [0 0]
-      % := [0 0]
-      (swap! !state inc)
-      % := [1 0]                        ; glitch
-      % := [1 1]
-      % := [1 1]))
-  ;; compiles to
-  [(r/cdef 0 [nil] [nil] nil
-     (fn [frame]
-       (r/define-node frame 0 (r/join (r/ap (r/lookup frame ::r/fixed-signals (r/pure r/fixed-signals))
-                                        (r/ap (r/lookup frame ::m/watch (r/pure m/watch))
-                                          (r/lookup frame ::!state (r/pure !state))))))
-       (r/define-call frame 0 (r/join (r/ap (r/lookup frame ::r/pure (r/pure r/pure))
-                                        (r/pure (doto (r/make-ctor frame ::l/Main 1)
-                                                  (r/define-free 0 (r/node frame 0))))
-                                        (r/pure (doto (r/make-ctor frame ::l/Main 2)
-                                                  (r/define-free 0 (r/node frame 0)))))))
-       (r/join (r/call frame 0))))
-   (r/cdef 1 [] [] nil
-     (fn [frame]
-       (r/join (r/ap (r/lookup frame ::r/drain (r/pure r/drain))
-                 (r/pure (r/ap (r/pure RCF__tap)
-                           (r/ap (r/pure vector)
-                             (r/free frame 0)
-                             (r/free frame 0))))))))
-   (r/cdef 1 [] [] nil
-     (fn [frame]
-       (r/ap (r/pure RCF__tap)
-         (r/ap (r/pure vector)
-           (r/free frame 0)
-           (r/free frame 0)))))])
+(tests
+  (def !state (atom 0))
+  (def global)
+  (with ((l/single {}
+           (let [state (e/watch !state)]
+             (tap [state state])
+             (tap [state state])))
+         tap tap)
+    % := [0 0]
+    % := [0 0]
+    (swap! !state inc)
+    % := [1 1]
+    % := [1 1]))
 
 (tests "cc/fn lexical bindings are untouched"
   (with ((l/single {} (let [a 1
