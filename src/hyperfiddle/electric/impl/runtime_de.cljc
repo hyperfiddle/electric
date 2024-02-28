@@ -28,12 +28,16 @@
   (#?(:clj deref :cljs -deref) [this]
     (peer-transfer this)))
 
-;; Pure | Ap | Effect | Join | Port
+;; Pure | Ap | Join | Port
 (defprotocol Expr
   (deps [_])                                                ;; returns #{Port}
   (flow [_]))                                               ;; returns incseq
 
 (defn invariant [x] (m/cp x))
+
+(defn incseq "
+(EXPR T) -> (IS T)
+" [expr] (flow expr))
 
 (deftype Pure [values
                ^:unsynchronized-mutable ^:mutable hash-memo]
@@ -56,10 +60,10 @@
     ((flow this) step done)))
 
 (defn pure "
-(FN (IS VOID))
-(FN (IS T) T)
-(FN (IS T) T T)
-(FN (IS T) T T T)
+-> (EXPR VOID)
+T -> (EXPR T)
+T T -> (EXPR T)
+T T T -> (EXPR T)
 " [& values]
   (->Pure values nil))
 
@@ -92,10 +96,10 @@
     ((flow this) step done)))
 
 (defn ap "
-(FN (IS T) (IS (FN T)))
-(FN (IS T) (IS (FN T A)) (IS A))
-(FN (IS T) (IS (FN T A B)) (IS A) (IS B))
-(FN (IS T) (IS (FN T A B C)) (IS A) (IS B) (IS C))
+(EXPR (-> T)) -> (EXPR T)
+(EXPR (A -> T)) (EXPR A) -> (EXPR T)
+(EXPR (A B -> T)) (EXPR A) (EXPR B) -> (EXPR T)
+(EXPR (A B C -> T)) (EXPR A) (EXPR B) (EXPR C) -> (EXPR T)
 " [& inputs]
   (->Ap inputs nil))
 
@@ -119,21 +123,25 @@
     ((flow this) step done)))
 
 (defn join "
-(FN (IS T) (IS (IS T)))
+(EXPR (IS T)) -> (EXPR T)
 " [input] (->Join input nil))
 
-(defn effect [incseq]
-  (join (pure incseq)))
+(def effect "
+-> (EXPR VOID)
+(IS T) -> (EXPR T)
+(IS T) (IS T) -> (EXPR T)
+(IS T) (IS T) (IS T) -> (EXPR T)
+" (comp join pure))
 
 (def fixed-signals "
-(FN (IS VOID))
-(FN (IS T) (CF T))
-(FN (IS T) (CF T) (CF T))
-(FN (IS T) (CF T) (CF T) (CF T))
+-> (IS VOID)
+(CF T) -> (IS T)
+(CF T) (CF T) -> (IS T)
+(CF T) (CF T) (CF T) -> (IS T)
 " (comp (partial m/signal i/combine) i/fixed))
 
 (defn drain "
-(FN (IS VOID) (IS T))
+(IS T) -> (IS VOID)
 " [incseq]
   (let [signal (m/signal i/combine incseq)]
     (m/ap
@@ -191,10 +199,10 @@
                      (recur (inc i)) false))) false)))))
 
 (defn bind "
-(FN (CTOR T) (CTOR T))
-(FN (CTOR T) (CTOR T) (VAR A) (IS A))
-(FN (CTOR T) (CTOR T) (VAR A) (IS A) (VAR B) (IS B))
-(FN (CTOR T) (CTOR T) (VAR A) (IS A) (VAR B) (IS B) (VAR C) (IS C))
+(CTOR T) -> (CTOR T)
+(CTOR T) (VAR A) (EXPR A) -> (CTOR T)
+(CTOR T) (VAR A) (EXPR A) (VAR B) (EXPR B) -> (CTOR T)
+(CTOR T) (VAR A) (EXPR A) (VAR B) (EXPR B) (VAR C) (EXPR C) -> (CTOR T)
 " ([^Ctor ctor] ctor)
   ([^Ctor ctor k v]
    (->Ctor (.-peer ctor) (.-key ctor) (.-idx ctor) (.-free ctor)
