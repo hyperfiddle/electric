@@ -1376,7 +1376,7 @@
 ;; TODO `set!` expands to cc/fn which tries to convey `a-root`
 ;; note: transitively the same applies to `(cc/fn [] (set! a-root 2))`
 #?(:cljs
-   (skip "set! to alter root binding"
+   (tests "set! to alter root binding"
      (def a-root 1)
      (with ((l/single {} (set! a-root 2)) tap tap))
      (instance? Cancelled %) := true

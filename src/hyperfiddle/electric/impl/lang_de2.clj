@@ -290,6 +290,21 @@
                                                      :else             ast))
                             (lexical? ast) (do (record-lexical! ast) ast)
                             :else          (qualify-sym-in-var-node env ast)))
+        var-set?        (fn [ast] (and (= :set! (:op ast)) (= :var (:op (:target ast)))))
+        rewrite-cljs-ast (fn walk [ast]
+                           (cond
+                             (var-set? ast) (update ast :val walk)
+                             (edef? ast)    (do (record-edef! ast)
+                                                (cond (dynamic? ast)    (qualify-sym-in-var-node env ast)
+                                                      (namespaced? ast) (update ast :form safe-let-name)
+                                                      :else             ast))
+                             (lexical? ast) (do (record-lexical! ast) ast)
+                             :else          (let [quald-ast (qualify-sym-in-var-node env ast)]
+                                              (if-some [cs (:children quald-ast)]
+                                                (reduce (fn [ast k]
+                                                          (update ast k #(if (vector? %) (mapv walk %) (walk %))))
+                                                  quald-ast cs)
+                                                quald-ast))))
         form            (case (or (get (::peers env) (::current env)) (->env-type env))
                           :clj  (-> (ana/analyze-clj (update env :ns :name) form)
                                   (ana/walk-clj rewrite-ast)
@@ -297,7 +312,7 @@
                           :cljs (-> (binding [cljs.analyzer/*cljs-warning-handlers*
                                               [(fn [_warning-type _env _extra])]]
                                       (ana/analyze-cljs env form))
-                                  (ana/walk-cljs rewrite-ast)
+                                  (rewrite-cljs-ast)
                                   (ana/emit-cljs)))
         rest-args-sym   (gensym "rest-args")
         all-syms        (merge @refered-evars @refered-lexical)
