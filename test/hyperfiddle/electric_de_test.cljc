@@ -2006,14 +2006,11 @@
                       ]))) tap tap)
        % := ["src" 1 1.0])))
 
-;; TODO type hint propagation
 #?(:cljs
-   (skip "js interop"
+   (tests "js interop"
      (with ((l/single {}
               (let [^js o #js {:a 1 :aPlus (fn [n] (inc n))}]
-                (tap [(.aPlus o 1)      ; instance method
-                      (.-a o)           ; field access
-                      ]))) tap tap)
+                (tap [(.aPlus o 1) (.-a o)])))  tap tap)
        % := [2 1])))
 
 ;; TODO cljs

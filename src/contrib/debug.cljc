@@ -19,7 +19,9 @@
 (defmacro dbg-when [form & body] `(binding [*dbg* ~form] ~@body))
 
 (defmacro dbgv [form]
-  `(let [args# [~@form], v# ~form] (prn '~form '~'==> (cons '~(first form) (rest args#))  '~'==> v#) v#))
+  `(if *dbg*
+     (let [args# [~@form], v# ~form] (prn '~form '~'==> (cons '~(first form) (rest args#))  '~'==> v#) v#)
+     ~form))
 
 (defmacro dbgc [[op & args :as form]]
   `(let [op# ~op, args# ~args, ret# (apply op# args#)]
