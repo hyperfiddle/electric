@@ -135,9 +135,10 @@
 (defn drain "
 (FN (IS VOID) (IS T))
 " [incseq]
-  (m/ap
-    (m/amb (i/empty-diff 0)
-      (do (m/?> incseq) (m/amb)))))
+  (let [signal (m/signal i/combine incseq)]
+    (m/ap
+      (m/amb (i/empty-diff 0)
+        (do (m/?> signal) (m/amb))))))
 
 (defn error [^String msg]
   #?(:clj (Error. msg)
