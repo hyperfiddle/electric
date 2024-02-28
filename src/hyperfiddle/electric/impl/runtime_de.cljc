@@ -5,7 +5,7 @@
   (:import #?(:clj (clojure.lang IFn IDeref))
            missionary.Cancelled))
 
-(set! *warn-on-reflection* true)
+#?(:clj (set! *warn-on-reflection* true))
 
 (defn pst [e]
   #?(:clj (.printStackTrace ^Throwable e)
@@ -523,7 +523,7 @@ T T T -> (EXPR T)
                            (loop [^Frame frame (.-frame port)
                                   path ()]
                              (if-some [parent (.-parent frame)]
-                               (recur parent (conj path [(.-call-id frame) (.-rank frame)]))
+                               (recur parent (conj path [(.-call-id ^Frame frame) (.-rank ^Frame frame)]))
                                [path (.-id port) @(aget ^objects (.-state port) port-slot-process)])))
                     tap-pull untap-pull
                     (rem (unchecked-inc-int ready-pull)
