@@ -447,13 +447,18 @@
       (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
         (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})))))
 
+(defn meta-of-key [mp k] (-> mp keys set (get k) meta))
+(defn gensym-with-local-meta [env k]
+  (let [g (gensym (if (instance? clojure.lang.Named k) (name k) "o")), mt (meta-of-key (:locals env) k)]
+    (with-meta g (merge mt (meta k)))))
+
 (defn ->obj-method-call [o method method-args pe env {{::keys [->id]} :o :as ts}]
   (let [e (->id), ce (->id)]
     (reduce (fn [ts form] (analyze form e env ts))
       (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
         (ts/add {:db/id ce, ::parent e, ::type ::pure})
         (ts/add {:db/id (->id), ::parent ce, ::type ::literal,
-                 ::v (let [oo (gensym "o"), margs (repeatedly (count method-args) gensym)]
+                 ::v (let [[oo & margs] (mapv #(gensym-with-local-meta env %) (cons o method-args))]
                        `(fn [~oo ~@margs] (. ~oo ~method ~@margs)))}))
       (cons o method-args))))
 
