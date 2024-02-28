@@ -1,8 +1,7 @@
 (ns hyperfiddle.electric.impl.runtime-test
-  (:require [hyperfiddle.incseq :as i]
-            [missionary.core :as m]
+  (:require [missionary.core :as m]
             [hyperfiddle.electric-de :as e]
-            #?(:clj [hyperfiddle.electric.impl.lang-de2 :as l])
+            [hyperfiddle.electric.impl.lang-de2 :as l]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.rcf :as rcf :refer [tests %]]))
 
@@ -63,7 +62,7 @@
   (def !n (atom 20))
   (def !fizz (atom "Fizz"))
   (def !buzz (atom "Buzz"))
-  (on-diff! rcf/tap (root-frame (e/server (let [fizz (e/watch !fizz) ; i/fixed + m/watch + e/join
+  (on-diff! rcf/tap (root-frame (e/client (let [fizz (e/watch !fizz) ; i/fixed + m/watch + e/join
                                                 buzz (e/watch !buzz)
                                                 is (e/diff-by identity (range 1 (inc (e/watch !n))))] ; variable in time and space
                                             (e/cursor [i is]
@@ -130,3 +129,14 @@
   % := {:degree 0, :permutation {}, :grow 0, :shrink 0, :change {}, :freeze #{}}
   (swap! !x inc)
   % := 1)
+
+(tests
+  (def !x (atom 0))
+  (on-diff! rcf/tap
+    (root-frame
+      (let [Foo (e/fn [x] (e/fn [] x))
+            x (e/watch !x)]
+        (= (e/$ Foo x) (e/$ Foo x)))))
+  % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 true}, :freeze #{0}}
+  % := nil
+  )

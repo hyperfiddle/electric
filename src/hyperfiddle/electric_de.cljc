@@ -168,7 +168,7 @@ For each tuple in the cartesian product of `table1 table2 ,,, tableN`, calls bod
          ~@(mapv (cc/fn [expr] `(join (r/fixed-signals (join (i/items (pure ~expr)))))) exprs))
       `($ (r/bind-args (hyperfiddle.electric-de/fn* ~args ~@body)
                ~@(map (clojure.core/fn [expr]
-                        `(r/fixed-signals (join (i/items (pure ~expr)))))
+                        `(r/effect (r/fixed-signals (join (i/items (pure ~expr))))))
                    exprs))))))
 
 (defmacro as-vec "
