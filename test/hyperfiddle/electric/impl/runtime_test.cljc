@@ -16,6 +16,13 @@
                               ::l/peers {:client :clj, :server :clj}))}
      ::Main))
 
+(defmacro peers [form]
+  (let [main (l/compile ::Main form
+               (assoc (l/normalize-env &env)
+                 ::l/peers {:client :clj, :server :clj}))]
+    `{:client #(r/peer % :client {::Main ~main} ::Main)
+      :server #(r/peer % :server {::Main ~main} ::Main)}))
+
 (tests
   (on-diff! rcf/tap (root-frame "hello electric"))
   % := {:grow 1, :degree 1, :shrink 0, :permutation {}, :change {0 "hello electric"}, :freeze #{0}}
@@ -138,5 +145,19 @@
             x (e/watch !x)]
         (= (e/$ Foo x) (e/$ Foo x)))))
   % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 true}, :freeze #{0}}
-  % := nil
-  )
+  % := nil)
+
+(tests
+  (def c-ps
+    ((r/peer
+       (fn [!]
+         (def s->c !)
+         #(prn :dispose))
+       :client
+       {::Main [(r/cdef 0 [:server] [] nil
+                  (fn [frame]
+                    (r/define-node frame 0 (r/pure :foo))
+                    (r/ap (r/pure rcf/tap) (r/node frame 0))))]} ::Main)
+     #(prn :step) #(prn :done)))
+  (s->c [[() 0 {:degree 1, :grow 1, :shrink 0, :permutation {}, :change {0 :foo}, :freeze #{}}]])
+  % := :foo)
