@@ -448,16 +448,19 @@
 
 (declare analyze)
 
+(defn ap-literal [f args pe e env {{::keys [->id]} :o :as ts}]
+  (let [ce (->id)]
+    (reduce (fn [ts form] (analyze form e env ts))
+      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
+        (ts/add {:db/id ce, ::parent e, ::type ::pure})
+        (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v f}))
+      args)))
+
 (defn ->class-method-call [clazz method method-args pe env form {{::keys [->id]} :o :as ts}]
   (if (seq method-args)
-    (let [e (->id), ce (->id)]
-      (reduce (fn [ts form] (analyze form e env ts))
-        (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
-          (ts/add {:db/id ce, ::parent e, ::type ::pure})
-          (ts/add {:db/id (->id), ::parent ce, ::type ::literal,
-                   ::v (let [margs (repeatedly (count method-args) gensym), meth (symbol (str clazz) (str method))]
-                         `(fn [~@margs] (~meth ~@margs)))}))
-        method-args))
+    (let [f (let [margs (repeatedly (count method-args) gensym), meth (symbol (str clazz) (str method))]
+              `(fn [~@margs] (~meth ~@margs)))]
+      (ap-literal f method-args pe (->id) env ts))
     (let [e (->id)]                     ; (. java.time.Instant now)
       (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
         (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})))))
@@ -468,14 +471,9 @@
     (with-meta g (merge mt (meta k)))))
 
 (defn ->obj-method-call [o method method-args pe env {{::keys [->id]} :o :as ts}]
-  (let [e (->id), ce (->id)]
-    (reduce (fn [ts form] (analyze form e env ts))
-      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
-        (ts/add {:db/id ce, ::parent e, ::type ::pure})
-        (ts/add {:db/id (->id), ::parent ce, ::type ::literal,
-                 ::v (let [[oo & margs] (mapv #(gensym-with-local-meta env %) (cons o method-args))]
-                       `(fn [~oo ~@margs] (. ~oo ~method ~@margs)))}))
-      (cons o method-args))))
+  (let [f (let [[oo & margs] (mapv #(gensym-with-local-meta env %) (cons o method-args))]
+            `(fn [~oo ~@margs] (. ~oo ~method ~@margs)))]
+    (ap-literal f (cons o method-args) pe (->id) env ts)))
 
 (defn def-sym-in-cljs-compiler! [sym ns]
   (swap! @(requiring-resolve 'cljs.env/*compiler*)
@@ -510,31 +508,14 @@
         (quote) (let [e (->id)]
                   (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                     (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})))
-        (fn*) (let [e (->id), ce (->id)
-                    [form refs] (closure env form)
-                    ts2 (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
-                          (ts/add {:db/id ce, ::parent e, ::type ::pure})
-                          (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v form})
-                          (?add-source-map e form))]
-                (reduce (fn [ts nx] (analyze nx e env ts)) ts2 refs))
-        (::letfn) (let [[_ bs] form, [form refs] (closure env `(letfn* ~bs ~(vec (take-nth 2 bs))))
-                        e (->id), ce (->id)
-                        ts2 (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
-                              (ts/add {:db/id ce, ::parent e, ::type ::pure})
-                              (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v form})
-                              (?add-source-map e form))]
-                    (reduce (fn [ts nx] (analyze nx e env ts)) ts2 refs))
+        (fn*) (let [e (->id), [form refs] (closure env form)]
+                (ap-literal form refs pe e env (?add-source-map ts e form)))
+        (::letfn) (let [[_ bs] form, [form refs] (closure env `(letfn* ~bs ~(vec (take-nth 2 bs)))), e (->id)]
+                    (ap-literal form refs pe e env (?add-source-map ts e form)))
         (new) (let [[_ f & args] form, current (get (::peers env) (::current env))]
                 (if (or (nil? current) (= (->env-type env) current))
-                  (let [e (->id), ce (->id), cce (->id),]
-                    (reduce (fn [ts arg] (analyze arg e env ts))
-                      (-> ts
-                        (ts/add {:db/id e,   ::parent pe, ::type ::ap})
-                        (ts/add {:db/id ce,  ::parent e,  ::type ::pure})
-                        (ts/add {:db/id cce, ::parent ce, ::type ::literal,
-                                 ::v (let [gs (repeatedly (count args) gensym)]
-                                       `(fn [~@gs] (new ~f ~@gs)))}))
-                      args))
+                  (let [f (let [gs (repeatedly (count args) gensym)] `(fn [~@gs] (new ~f ~@gs)))]
+                    (ap-literal f args pe (->id) env ts))
                   (recur `[~@args] pe env ts)))
         ;; (. java.time.Instant now)
         ;; (. java.time.Instant ofEpochMilli 1)
@@ -565,12 +546,7 @@
               (let [[_ o x & xs] form]
                 (if (seq xs)            ; (. i1 isAfter i2)
                   (->obj-method-call o x xs pe env ts)
-                  (let [e (->id), ce (->id)] ; (. pt x)
-                    (recur o e env
-                      (-> ts
-                        (ts/add {:db/id e, ::parent pe, ::type ::ap})
-                        (ts/add {:db/id ce, ::parent e, ::type ::pure})
-                        (ts/add {:db/id (->id) , ::parent ce, ::type ::literal, ::v `(fn [oo#] (. oo# ~x))})))))))
+                  (ap-literal `(fn [oo#] (. oo# ~x)) [o] pe (->id) env ts)))) ; (. pt x)
         (binding clojure.core/binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
                                          (recur (if (seq bs)
                                                   `(let* [~@(interleave gs (take-nth 2 (next bs)))]
@@ -583,12 +559,8 @@
         (def) (let [[_ sym v] form]
                 (case (->env-type env)
                   :clj (recur `((fn* ([x#] (def ~sym x#))) ~v) pe env ts)
-                  :cljs (let [e (->id), ce (->id)]
-                          (def-sym-in-cljs-compiler! sym (get-ns env))
-                          (recur v e env
-                            (-> ts (ts/add {:db/id e, ::parent pe, ::type ::ap})
-                              (ts/add {:db/id ce, ::parent e, ::type ::pure})
-                              (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v `(fn [v#] (set! ~sym v#))}))))))
+                  :cljs (do (def-sym-in-cljs-compiler! sym (get-ns env))
+                            (ap-literal `(fn [v#] (set! ~sym v#)) [v] pe (->id) env ts))))
         (set!) (let [[_ target v] form] (recur `((fn* ([v#] (set! ~target v#))) ~v) pe env ts))
         (::ctor) (let [e (->id), ce (->id)]
                    (recur (list ::site nil (second form))
