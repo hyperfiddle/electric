@@ -345,18 +345,16 @@ T T T -> (EXPR T)
     (if (nil? value)
       (do (port-detach port)
           (when (nil? diff) (done)))
-      (set! diff
-        (if-some [prev diff]
-          (i/combine prev value)
-          (do (step) value)))))
+      (if-some [prev diff]
+        (set! diff (i/combine prev value))
+        (do (set! diff value) (step)))))
   IDeref
   (#?(:clj deref :cljs -deref) [this]
     (if-some [value diff]
       (do (set! diff nil)
-          (when (identical? this
-                  (aget ^objects (.-state port) port-slot-process))
+          (when-not (identical? this (aget ^objects (.-state port) port-slot-process))
             (done)) value)
-      (do (done) (throw (Cancelled. "Input cancelled."))))))
+      (do (done) (throw (Cancelled. "Remote port cancelled."))))))
 
 (defn deregister-from-parent [^Frame frame]
   (when-some [^Frame parent (.-parent frame)]
@@ -539,10 +537,9 @@ T T T -> (EXPR T)
     (get (aget children call-id) rank)))
 
 (defn peer-apply-change [^Peer peer [path id diff]]
-  (let [^objects state (.-state peer)
-        ^Frame frame (reduce child-at (aget state peer-slot-root) path)
-        ^objects ports (.-ports frame)]
-    ((aget ports id) diff) peer))
+  (let [^Frame frame (reduce child-at (aget ^objects (.-state peer) peer-slot-root) path)
+        ^Port port (aget ^objects (.-ports frame) id)]
+    ((aget ^objects (.-state port) port-slot-process) diff) peer))
 
 (defn peer-input-ready [^Peer peer]
   (let [^objects state (.-state peer)]
@@ -655,32 +652,31 @@ T T T -> (EXPR T)
 
 (defn peer "
 Returns a peer definition from given definitions and main key.
-" [site defs main & args]
-  (fn [events]
-    (fn [step done]
-      (let [state (object-array peer-slots)
-            peer (->Peer site defs step done
-                   (doto (object-array 3)
-                     (aset 0 (object-array 1))
-                     (aset 1 (object-array 1))
-                     (aset 2 (object-array 1)))
-                   (int-array 3) state)
-            input (m/stream (m/observe events))
-            root (->> args
-                   (apply bind-args (->Ctor peer main 0 (object-array 0) {} nil))
-                   (make-frame nil 0 0 :client))]
-        (aset state peer-slot-output-pending true)
-        (aset state peer-slot-input-busy true)
-        (aset state peer-slot-input-process
-          (input #(peer-input-ready peer) done))
-        (aset state peer-slot-root root)
-        (case site
-          :client (aset state peer-slot-result
-                    ((m/reduce peer-result-diff peer
-                       (m/signal i/combine (flow (result root))))
-                     peer-result-success pst))
-          :server (reduce peer-tap peer (deps (result root))))
-        (peer-input-ready peer) peer))))
+" [events site defs main & args]
+  (fn [step done]
+    (let [state (object-array peer-slots)
+          peer (->Peer site defs step done
+                 (doto (object-array 3)
+                   (aset 0 (object-array 1))
+                   (aset 1 (object-array 1))
+                   (aset 2 (object-array 1)))
+                 (int-array 3) state)
+          input (m/stream (m/observe events))
+          root (->> args
+                 (apply bind-args (->Ctor peer main 0 (object-array 0) {} nil))
+                 (make-frame nil 0 0 :client))]
+      (aset state peer-slot-output-pending true)
+      (aset state peer-slot-input-busy true)
+      (aset state peer-slot-input-process
+        (input #(peer-input-ready peer) done))
+      (aset state peer-slot-root root)
+      (case site
+        :client (aset state peer-slot-result
+                  ((m/reduce peer-result-diff peer
+                     (m/signal i/combine (flow (result root))))
+                   peer-result-success pst))
+        :server (reduce peer-tap peer (deps (result root))))
+      (peer-input-ready peer) peer)))
 
 ;; local only
 (defn root-frame [defs main]
