@@ -14,9 +14,9 @@
 (def peer-slot-root 0)
 (def peer-slot-input-process 1)
 (def peer-slot-input-busy 2)
-(def peer-slot-output-pending 9)
-(def peer-slot-result 10)
-(def peer-slots 11)
+(def peer-slot-output-pending 3)
+(def peer-slot-result 4)
+(def peer-slots 5)
 
 (declare peer-cancel peer-transfer)
 
@@ -310,8 +310,7 @@ T T T -> (EXPR T)
 (def port-slot-flow 1)
 (def port-slot-refcount 2)
 (def port-slot-process 3)
-(def port-slot-frozen 4)
-(def port-slots 5)
+(def port-slots 4)
 
 (deftype Port [frame id ^objects state
                ^:unsynchronized-mutable ^:mutable hash-memo]
@@ -446,7 +445,7 @@ T T T -> (EXPR T)
       (aset state port-slot-process
         ((flow port)
          #(port-ready port)
-         #(do (aset state port-slot-frozen true)
+         #(do (aset state port-slot-process nil)
               (port-ready port)))))))
 
 (defn port-untap [^Port port]
@@ -516,16 +515,17 @@ T T T -> (EXPR T)
                   (rem (unchecked-inc-int untap-pull)
                     (alength untap-queue)) ready-pull))
             (if-some [^Port port (aget ready-queue ready-pull)]
-              (do (aset ready-queue ready-pull nil)
-                  (recur (conj insts
-                           (loop [^Frame frame (.-frame port)
-                                  path ()]
-                             (if-some [parent (.-parent frame)]
-                               (recur parent (conj path [(.-call-id ^Frame frame) (.-rank ^Frame frame)]))
-                               [path (.-id port) @(aget ^objects (.-state port) port-slot-process)])))
-                    tap-pull untap-pull
-                    (rem (unchecked-inc-int ready-pull)
-                      (alength ready-queue))))
+              (let [^objects state (.-state port)]
+                (aset ready-queue ready-pull nil)
+                (recur (conj insts
+                         (loop [^Frame frame (.-frame port)
+                                path ()]
+                           (if-some [parent (.-parent frame)]
+                             (recur parent (conj path [(.-call-id ^Frame frame) (.-rank ^Frame frame)]))
+                             [path (.-id port) (when-some [ps (aget state port-slot-process)] @ps)])))
+                  tap-pull untap-pull
+                  (rem (unchecked-inc-int ready-pull)
+                    (alength ready-queue))))
               (do (aset peer-state peer-slot-output-pending true)
                   (aset pushes 0 0)
                   (aset pushes 1 0)
