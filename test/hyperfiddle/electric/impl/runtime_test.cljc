@@ -148,33 +148,52 @@
   % := nil)
 
 (tests
+  (def cdefs
+    [(r/cdef 0 [:server] [] nil
+       (fn [frame]
+         (r/define-node frame 0 (r/pure :foo))
+         (r/ap (r/pure rcf/tap) (r/node frame 0))))])
   (def c-ps
     ((r/peer
        (fn [!]
          (def s->c !)
          #(prn :dispose))
-       :client
-       {::Main [(r/cdef 0 [:server] [] nil
-                  (fn [frame]
-                    (r/define-node frame 0 (r/pure :foo))
-                    (r/ap (r/pure rcf/tap) (r/node frame 0))))]} ::Main)
-     #(prn :step) #(prn :done)))
-  (s->c [[() 0 {:degree 1, :grow 1, :shrink 0, :permutation {}, :change {0 :foo}, :freeze #{}}]])
-  % := :foo)
-
-(tests
+       :client {::Main cdefs} ::Main)
+     #(prn :step-c) #(prn :done-c)))
   (def s-ps
     ((r/peer
        (fn [!]
          (def c->s !)
          #(prn :dispose))
-       :server
-       {::Main [(r/cdef 0 [:server] [] nil
-                  (fn [frame]
-                    (r/define-node frame 0 (r/pure :foo))
-                    (r/ap (r/pure rcf/tap) (r/node frame 0))))]}
-       ::Main)
-     #(rcf/tap :step) #(prn :done)))
-  % := :step
-  @s-ps := [[() 0 {:grow 1, :degree 1, :shrink 0, :permutation {}, :change {0 :foo}, :freeze #{0}}]
-            [() 0 nil]])
+       :server {::Main cdefs} ::Main)
+     #(rcf/tap :step-s) #(prn :done-s)))
+  % := :step-s
+  (s->c @s-ps)
+  % := :foo)
+
+(tests
+  (def cdefs
+    [(r/cdef 0 [:server] [:client] nil
+       (fn [frame]
+         (r/define-node frame 0 (r/pure (r/make-ctor frame ::Main 1)))
+         (r/define-call frame 0 (r/node frame 0))
+         (r/ap (r/pure rcf/tap) (r/join (r/call frame 0)))))
+     (r/cdef 0 [] [] nil
+       (fn [frame] (r/pure :foo)))])
+  (def c-ps
+    ((r/peer
+       (fn [!]
+         (def s->c !)
+         #(prn :dispose))
+       :client {::Main cdefs} ::Main)
+     #(prn :step-c) #(prn :done-c)))
+  (def s-ps
+    ((r/peer
+       (fn [!]
+         (def c->s !)
+         #(prn :dispose))
+       :server {::Main cdefs} ::Main)
+     #(rcf/tap :step-s) #(prn :done-s)))
+  % := :step-s
+  (s->c @s-ps)
+  % := :foo)

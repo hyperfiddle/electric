@@ -1,9 +1,11 @@
 (ns hyperfiddle.electric.impl.runtime-de
   (:require [hyperfiddle.incseq :as i]
             [missionary.core :as m]
+            [cognitect.transit :as t]
             [contrib.assert :as ca])
-  (:import #?(:clj (clojure.lang IFn IDeref))
-           missionary.Cancelled))
+  (:import missionary.Cancelled
+           #?(:clj (clojure.lang IFn IDeref))
+           #?(:clj (java.io ByteArrayInputStream ByteArrayOutputStream))))
 
 #?(:clj (set! *warn-on-reflection* true))
 
@@ -12,11 +14,13 @@
      :cljs (.error js/console e)))
 
 (def peer-slot-root 0)
-(def peer-slot-input-process 1)
-(def peer-slot-input-busy 2)
-(def peer-slot-output-pending 3)
-(def peer-slot-result 4)
-(def peer-slots 5)
+(def peer-slot-reader-opts 1)
+(def peer-slot-writer-opts 2)
+(def peer-slot-input-process 3)
+(def peer-slot-input-busy 4)
+(def peer-slot-output-pending 5)
+(def peer-slot-result 6)
+(def peer-slots 7)
 
 (declare peer-cancel peer-transfer)
 
@@ -491,8 +495,21 @@ T T T -> (EXPR T)
 (defn peer-cancel [^Peer peer]
   (prn :TODO-cancel))
 
+(defn decode [^String s opts]
+  #?(:clj (t/read (t/reader (ByteArrayInputStream. (.getBytes s)) :json opts))
+     :cljs (t/read (t/reader :json opts) s)))
+
+(defn encode [value opts]
+  #?(:clj
+     (let [out (ByteArrayOutputStream.)
+           writer (t/writer out :json opts)]
+       (t/write writer value)
+       (.toString out))
+     :cljs
+     (t/write (t/writer :json opts) value)))
+
 (defn peer-transfer [^Peer peer]
-  (let [^objects peer-state (.-state peer)
+  (let [^objects state (.-state peer)
         ^objects queues (.-queues peer)
         ^ints pushes (.-pushes peer)]
     (loop [insts []
@@ -526,11 +543,11 @@ T T T -> (EXPR T)
                   tap-pull untap-pull
                   (rem (unchecked-inc-int ready-pull)
                     (alength ready-queue))))
-              (do (aset peer-state peer-slot-output-pending true)
+              (do (aset state peer-slot-output-pending true)
                   (aset pushes 0 0)
                   (aset pushes 1 0)
                   (aset pushes 2 0)
-                  insts))))))))
+                  (encode insts (aget state peer-slot-writer-opts))))))))))
 
 (defn child-at [^Frame frame [call-id rank]]
   (let [^objects children (.-children frame)]
@@ -547,7 +564,8 @@ T T T -> (EXPR T)
       (when (aset state peer-slot-input-busy
               (not (aget state peer-slot-input-busy)))
         (try (reduce peer-apply-change peer
-               @(aget state peer-slot-input-process))
+               (decode @(aget state peer-slot-input-process)
+                 (aget state peer-slot-reader-opts)))
              (catch #?(:clj Throwable :cljs :default) e
                (pst e)
                ;; TODO
@@ -619,10 +637,13 @@ T T T -> (EXPR T)
 
 (defn make-ctor
   "Returns a fresh constructor for cdef coordinates key and idx."
-  [^Frame frame key idx]
+  [^Frame frame key idx & frees]
   (let [^Peer peer (frame-peer frame)
-        ^Cdef cdef ((ca/check some? ((.-defs peer) key) {:key key}) idx)]
-    (->Ctor peer key idx (object-array (.-frees cdef)) {} nil)))
+        ^Cdef cdef ((ca/check some? ((.-defs peer) key) {:key key}) idx)
+        ctor (->Ctor peer key idx (object-array (.-frees cdef)) {} nil)]
+    (run! (partial apply define-free ctor)
+      (eduction (map-indexed vector) frees))
+    ctor))
 
 (defn node
   "Returns the signal node id for given frame."
@@ -665,6 +686,14 @@ Returns a peer definition from given definitions and main key.
           root (->> args
                  (apply bind-args (->Ctor peer main 0 (object-array 0) {} nil))
                  (make-frame nil 0 0 :client))]
+      (aset state peer-slot-writer-opts
+        {:handlers {Ctor (t/write-handler
+                           (fn [_] "ctor")
+                           (fn [^Ctor ctor]
+                             (assert (identical? peer (.-peer ctor)))
+                             (list* (.-key ctor) (.-idx ctor) (.-free ctor) (.-env ctor))))}})
+      (aset state peer-slot-reader-opts
+        {:handlers {"ctor" (t/read-handler (fn [[k i f e]] (->Ctor peer k i (object-array f) e nil)))}})
       (aset state peer-slot-output-pending true)
       (aset state peer-slot-input-busy true)
       (aset state peer-slot-input-process
