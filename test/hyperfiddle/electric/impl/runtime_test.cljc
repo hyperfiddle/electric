@@ -161,3 +161,20 @@
      #(prn :step) #(prn :done)))
   (s->c [[() 0 {:degree 1, :grow 1, :shrink 0, :permutation {}, :change {0 :foo}, :freeze #{}}]])
   % := :foo)
+
+(tests
+  (def s-ps
+    ((r/peer
+       (fn [!]
+         (def c->s !)
+         #(prn :dispose))
+       :server
+       {::Main [(r/cdef 0 [:server] [] nil
+                  (fn [frame]
+                    (r/define-node frame 0 (r/pure :foo))
+                    (r/ap (r/pure rcf/tap) (r/node frame 0))))]}
+       ::Main)
+     #(rcf/tap :step) #(prn :done)))
+  % := :step
+  @s-ps := [[() 0 {:grow 1, :degree 1, :shrink 0, :permutation {}, :change {0 :foo}, :freeze #{0}}]
+            [() 0 nil]])
