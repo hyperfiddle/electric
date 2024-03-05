@@ -468,10 +468,13 @@ Quoting it directly is idiomatic as well."
   Standard electric code runs on mount, therefore there is no `on-mount`."
   [f] `(new (on-unmount* ~f))) ; experimental
 
-(defmacro singleton
-  "Experimental. Could be unstable. Thunk body into a singleton e/fn.
-  Result of `body` will be shared by all callers. `body` will mount on first
-  call and will stay up until the last caller unmounts." [& body]
+(defmacro share
+  "Experimental. Could be unstable.
+  Thunk `body`. Return an e/fn.
+  Share the value of `body` to multiple reactive callers. One publisher, many subscribers, in continuous time.
+  Run `body` on first reactive call. Then return the same reactive value to all further reactive callers.
+  `body` unmounts when the last caller terminates."
+  [& body]
   `(let [<x# (m/signal (hyperfiddle.electric/fn* [] ~@body))]
      (hyperfiddle.electric/fn* [] (new (identity <x#)))))
 
