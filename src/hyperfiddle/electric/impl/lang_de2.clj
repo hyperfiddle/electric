@@ -837,29 +837,29 @@
                                     ts (sort-by #(::fx-order (ts/->node ts %)) frees-e))))
                         ts (-> ts :ave ::ctor-free vals)))
         inline-nodes (fn inline-nodes [ts]
-                       (let [lets-e (->> ts :ave ::used-refs vals (reduce into)
-                                      (remove #(has-node? ts (::uid (ts/->node ts %)))))]
-                         (if-some [let-e (first lets-e)]
-                           (let [let-nd (ts/->node ts let-e)
-                                 let-val-e (->let-val-e ts let-e), let-val-nd (ts/->node ts let-val-e)
-                                 let-body-e (->let-body-e ts let-e)
-                                 letrefs-e (mapv #(uid->e ts %) (::used-refs let-nd))
-                                 letref-e (first (ca/check #(= 1 (count %)) letrefs-e
-                                                   {:letrefs letrefs-e}))
-                                 letref-nd (ts/->node ts letref-e)
-                                 ts     ; (inc (let [x (dec 1)] x))
-                                 (-> ts (ts/del let-val-e) ; (inc (let [x _] x))
-                                   (ts/del letref-e)       ; (inc (let [x _] _))
-                                   (ts/add (assoc let-val-nd :db/id letref-e, ::parent (::parent letref-nd))) ; (inc (let [x _] (_)))
-                                   (reparent-children let-val-e letref-e) ; (inc (let [x _] (dec 1))
-                                   (ts/del let-e)) ; (inc _), (dec 1) floating
-                                 let-body-nd (ts/->node ts let-body-e)]
-                             (-> ts
-                               (ts/del let-body-e) ; (inc _)
-                               (ts/add (assoc let-body-nd :db/id let-e, ::parent (::parent let-nd))) ; (inc (_))
-                               (reparent-children let-body-e let-e) ; (inc (dec 1))
-                               (recur)))
-                           ts)))
+                       (reduce (fn [ts let-uid]
+                                 (let [let-e (uid->e ts let-uid)
+                                       let-nd (ts/->node ts let-e)
+                                       let-val-e (->let-val-e ts let-e), let-val-nd (ts/->node ts let-val-e)
+                                       let-body-e (->let-body-e ts let-e)
+                                       letrefs-e (mapv #(uid->e ts %) (::used-refs let-nd))
+                                       letref-e (first (ca/check #(= 1 (count %)) letrefs-e
+                                                         {:letrefs letrefs-e}))
+                                       letref-nd (ts/->node ts letref-e)
+                                       ts ; (inc (let [x (dec 1)] x))
+                                       (-> ts (ts/del let-val-e) ; (inc (let [x _] x))
+                                         (ts/del letref-e) ; (inc (let [x _] _))
+                                         (ts/add (assoc let-val-nd :db/id letref-e, ::parent (::parent letref-nd))) ; (inc (let [x _] (_)))
+                                         (reparent-children let-val-e letref-e) ; (inc (let [x _] (dec 1))
+                                         (ts/del let-e)) ; (inc _), (dec 1) floating
+                                       let-body-nd (ts/->node ts let-body-e)]
+                                   (-> ts
+                                     (ts/del let-body-e) ; (inc _)
+                                     (ts/add (assoc let-body-nd :db/id let-e, ::parent (::parent let-nd))) ; (inc (_))
+                                     (reparent-children let-body-e let-e)))) ; (inc (dec 1))
+                         ts (->> ts :ave ::used-refs vals (reduce into)
+                              (remove #(has-node? ts (::uid (ts/->node ts %))))
+                              (mapv #(e->uid ts %)))))
         in-a-call? (fn in-a-call? [ts e]
                      (loop [e (::parent (ts/->node ts e))]
                        (when-let [nd (ts/->node ts e)]
