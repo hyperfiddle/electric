@@ -224,7 +224,7 @@
 (e/defn* Property [node k v]
   (e/client
     (cond
-      (style? k) (Style. node k v)
+      (style? k) (Styles. node v)
       (class? k) (ClassList. node v)
       :else      (Attribute. node k v))))
 
@@ -242,9 +242,7 @@
                                (class? k) `(new ClassList ~node ~v)
                                :else      `(new Property ~node ~k ~v)))
               (ordered-props m)))
-     `(do (e/for-by key [[k# v#] (ordered-props ~m)]
-            (new Property ~node k# v#))
-          nil))))
+     `(new Properties node ~m))))
 
 (defmacro on!
   "Call the `callback` clojure function on event.
