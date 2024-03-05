@@ -68,7 +68,7 @@
 
 #?(:clj
    (tests "."
-     (with ((l/single {} (e/server (tap (. java.time.Instant EPOCH)))) tap tap)
+     (with ((l/single {} (tap (. java.time.Instant EPOCH))) tap tap)
        % := java.time.Instant/EPOCH)))
 
 (tests "loop/recur"
@@ -582,7 +582,7 @@
     % := ::outer))
 
 (tests "lazy parameters. Flows are not run unless sampled"
-  (with ((l/single {} ($ (e/fn [_]) (tap :boom))) tap tap)
+  (with ((l/single {} [($ (e/fn* [_]) (tap :not)) (tap :boom)]) tap tap)
     % := :boom))
 
 (tests "lazy parameters. Flows are not run unless sampled"
