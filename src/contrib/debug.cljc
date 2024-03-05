@@ -12,7 +12,7 @@
    (let [[label form] (if (keyword? form) [form label] [label form])]
      `(if *dbg*
         (let [[st# v#] (try [:ok ~form] (catch ~(if (:js-globals &env) :default 'Throwable) ex# [:ex ex#]))]
-          (prn ~label st# '~'==> v#)
+          (prn ~label '~'==> v#)
           (if (= st# :ok) v# (throw v#)))
         ~form))))
 

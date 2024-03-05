@@ -13,4 +13,10 @@
   (-> (ts/->ts) (ts/add {:db/id 1}) (ts/asc 1 :x 2) (ts/asc 1 :x 2) :ave :x (get 2)) := #{1}
 
   (-> (ts/->ts) (ts/add {:db/id 1, :foo 1, :bar 1}) (ts/add {:db/id 2, :foo 1, :bar 1}) (ts/find :foo 1 :bar 1)) := #{1 2}
-  )
+
+  (let [ts (-> (ts/->ts) (ts/add {:db/id 1, :foo 1}) (ts/add {:db/id 2, :foo 2}))]
+    (count (->> ts :ave :foo vals (reduce into))) := 2
+    (let [ts (ts/del ts 2)]
+      (ts/->node ts 2) := nil
+      (count (->> ts :ave :foo vals (reduce into))) := 1
+      )))

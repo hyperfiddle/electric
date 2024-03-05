@@ -42,7 +42,7 @@
           (let [env (merge (->local-config &env) (lang/normalize-env &env) conf)
                 expanded (lang/expand-all env `(::lang/ctor (do ~@body)))
                 _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
-                ts (lang/analyze expanded '_ env (ts/->ts {::lang/->id (lang/->->id)}))
+                ts (lang/analyze expanded '_ env (lang/->ts))
                 _  (when (::lang/print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
                 ts (lang/analyze-electric env ts)
                 ctors (mapv #(lang/emit-ctor ts % env ::Main) (lang/get-ordered-ctors-e ts))

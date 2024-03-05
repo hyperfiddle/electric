@@ -32,6 +32,13 @@
             #_(update vea v update e (fnil conj #{}) a)))]
     (->TripleStore (:o ts) eav ave vea)))
 
+(defn del [ts e]
+  (let [nd (-> ts :eav (get e))
+        {:keys [o eav ave vea]} ts
+        eav (dissoc eav e)
+        ave (reduce-kv (fn [ave a v] (update ave a update v disj e)) ave nd)]
+    (->TripleStore o eav ave vea)))
+
 (defn upd [ts e a f]
   (let [v0 (-> ts :eav (get e) (get a))
         eav (update (:eav ts) e update a f)
@@ -63,4 +70,5 @@
 
 (defn ->node [ts e] (get (:eav ts) e))
 (defn find [ts & kvs]
-  (reduce set/intersection (into [] (comp (partition-all 2) (map (fn [[k v]] (-> ts :ave (get k) (get v))))) kvs)))
+  (let [ret (reduce set/intersection (into [] (comp (partition-all 2) (map (fn [[k v]] (-> ts :ave (get k) (get v))))) kvs))]
+    (when (seq ret) ret)))

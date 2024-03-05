@@ -98,7 +98,7 @@ Returns the successive states of items described by `incseq`.
         nm2 (vary-meta nm merge (meta sym))
         expanded (lang/expand-all env `(fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))
         _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
-        ts (lang/analyze expanded '_ env (ts/->ts {::lang/->id (lang/->->id)}))
+        ts (lang/analyze expanded '_ env (lang/->ts))
         ts (lang/analyze-electric env ts)
         ctors (mapv #(lang/emit-ctor ts % env (-> nm ns-qualify keyword)) (lang/get-ordered-ctors-e ts))
         deps (lang/emit-deps ts 0)
