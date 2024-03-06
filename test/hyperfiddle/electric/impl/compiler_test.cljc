@@ -499,10 +499,32 @@
             (r/node ~'frame 0)
             (r/join (r/call ~'frame 1)))))
       (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 1)))
-      (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 2)))])
-  )
+      (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 2)))]))
 
 (comment
+  (tests "test-e-letfn"
+         (match (l/test-compile ::Main (assoc (lang/normalize-env {}) ::lang/print-analysis true, ::lang/print-db true, ::lang/print-source true)
+                  (e/letfn [(Foo [] Bar) (Bar [] Foo)] Foo))
+           `[]))
+
+  (mklet x                              ; let, ->let-body-e is just get-child-e
+    (mklet y                            ; let
+      (bindlet x y                      ; bindlet, ->let-val-e finds bindlet value
+        (bindlet y x
+          x))))
+  (l/test-compile ::Main (assoc (lang/normalize-env {}) ::lang/print-analysis true, ::lang/print-db true)
+    (::lang/mk-let x (::lang/mk-let y (::lang/bind-let x (e/ctor y) (::lang/bind-let y (e/ctor x) x)))))
+  `[(r/cdef 0 [nil nil] [] nil
+      (fn [frame]
+        (r/define-node frame 0 (r/pure (doto (r/make-ctor frame ::l/Main 1)
+                                         (r/define-free 0 (r/node frame 1)))))
+        (r/define-node frame 1 (r/pure (doto (r/make-ctor frame ::l/Main 2)
+                                         (r/define-free 0 (r/node frame 0)))))
+        (r/node frame 0)))
+    (r/cdef 1 [] [] nil
+      (fn [frame] (r/free frame 0)))
+    (r/cdef 1 [] [] nil
+      (fn [frame] (r/free frame 0)))]
   (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
                            (e/ctor (str fizz buzz)))))
 ;; TODO test site is cleared on ctor boundary

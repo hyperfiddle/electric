@@ -2081,6 +2081,12 @@
   (with ((l/single {} (tap ((fn [] (binding [*out* nil] 1))))) tap tap)
     % := 1))
 
+#_(tests "e/letfn"
+       (with ((l/single {} (tap (e/letfn [(Odd? [x] (if (zero? x) false ($ Even? (dec x))))
+                                          (Even? [x] (if (zero? x) true ($ Odd? (dec x))))]
+                                  (Even? 2)))) tap tap)
+         % := true))
+
 (let [{:keys [tested skipped]} @stats, all (+ tested skipped)]
   (prn '===)
   (println 'tested tested (str (long (* (/ tested all) 100)) "%"))

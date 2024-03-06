@@ -164,7 +164,7 @@
                        env2 (reduce add-local env (take-nth 2 bs))
                        bs2 (->> bs (into [] (comp (partition-all 2)
                                               (mapcat (fn [[sym v]] [sym (-expand-all v env2)])))))]
-                   (recur (?meta o `(let [~(vec (take-nth 2 bs2)) (::letfn ~bs2)] ~(-expand-all (cons 'do body) env2)))
+                   (recur (?meta o `(let [~(vec (take-nth 2 bs2)) (::cc-letfn ~bs2)] ~(-expand-all (cons 'do body) env2)))
                      env))
 
         (try) (throw (ex-info "try is TODO" {:o o})) #_(list* 'try (mapv (fn-> -all-in-try env) (rest o)))
@@ -487,6 +487,11 @@
     (update env ::last #(conj (pop %) form))
     (assoc env ::last (conj (clojure.lang.PersistentQueue/EMPTY) nil form))))
 
+(defn e->uid [ts e] (ca/check (::uid (ts/->node ts e))))
+(defn uid->e [ts uid] (first (ca/check #(= 1 (count %)) (ts/find ts ::uid uid))))
+(defn reparent-children [ts from-e to-e]
+  (reduce (fn [ts e] (ts/asc ts e ::parent to-e)) ts (ts/find ts ::parent from-e)))
+
 (defn analyze [form pe env {{::keys [->id ->uid]} :o :as ts}]
   (let [env (store env form)]
     (cond
@@ -513,8 +518,8 @@
                     (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})))
         (fn*) (let [e (->id), [form refs] (closure env form)]
                 (ap-literal form refs pe e env (?add-source-map ts e form)))
-        (::letfn) (let [[_ bs] form, [form refs] (closure env `(letfn* ~bs ~(vec (take-nth 2 bs)))), e (->id)]
-                    (ap-literal form refs pe e env (?add-source-map ts e form)))
+        (::cc-letfn) (let [[_ bs] form, [form refs] (closure env `(letfn* ~bs ~(vec (take-nth 2 bs)))), e (->id)]
+                       (ap-literal form refs pe e env (?add-source-map ts e form)))
         (new) (let [[_ f & args] form, current (get (::peers env) (::current env))]
                 (if (or (nil? current) (= (->env-type env) current))
                   (let [f (let [gs (repeatedly (count args) gensym)] `(fn [~@gs] (new ~f ~@gs)))]
@@ -644,9 +649,6 @@
 (defn get-node-idx [ts ctor-uid uid]
   (->> (ts/find ts ::ctor-node ctor-uid, ::ctor-ref uid) first (ts/->node ts) ::node-idx))
 
-(defn e->uid [ts e] (ca/check (::uid (ts/->node ts e))))
-(defn uid->e [ts uid] (first (ca/check #(= 1 (count %)) (ts/find ts ::uid uid))))
-
 (defn emit [ts e ctor-e env nm]
   ((fn rec [e]
      (let [nd (get (:eav ts) e)]
@@ -772,9 +774,7 @@
 
 (defn analyze-electric [env {{::keys [->id]} :o :as ts}]
   (when (::print-analysis env) (run! prn (ts->reducible ts)))
-  (let [reparent-children (fn reparent-children [ts from-e to-e]
-                            (reduce (fn [ts e] (ts/asc ts e ::parent to-e)) ts (ts/find ts ::parent from-e)))
-        collapse-ap-with-only-pures (fn collapse-ap-with-only-pures [ts]
+  (let [collapse-ap-with-only-pures (fn collapse-ap-with-only-pures [ts]
                                       ;; (ap (pure x) (pure y) (pure z)) -> (ap (pure (comp x y z)))
                                       (reduce (fn [ts ap-e]
                                                 (let [ce (get-children-e ts ap-e)]
