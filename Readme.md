@@ -45,7 +45,6 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 
 Electric Clojure implements a form of arrowized continuous time dataflow programming with extensions for network-transparent function composition.
 
-* [The Haskell School of Music: From Signals to Symphonies (2011)](https://www.amazon.com/Haskell-School-Music-Signals-Symphonies/dp/1108416756) – best starting point.
 * [The Essence of Dataflow Programming (2006)](http://cs.ioc.ee/~tarmo/papers/essence.pdf) – great category theory overview of dataflow programming
 * [Push-pull functional reactive programming, Elliot (2009)](http://conal.net/papers/push-pull-frp/)
 * [Breaking down FRP, Jane Street (2014)](https://blog.janestreet.com/breaking-down-frp/)
