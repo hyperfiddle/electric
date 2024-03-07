@@ -981,11 +981,11 @@
     % := [:a :b '(:c :d) [:a :b :c :d]]))
 
 (tests "Associative destructuring"
-  (with ((l/single {} (tap (let [{:keys [a ns/b d]
-                              :as m
-                              :or {d 4}}
-                             {:a 1, :ns/b 2 :c 3}] [a b d m]))) tap tap)
-    % := [1 2 4 {:a 1, :ns/b 2, :c 3}]))
+       (with ((l/single {} (tap (let [{:keys [a ns/b d]
+                                       :as m
+                                       :or {d 4}}
+                                      {:a 1, :ns/b 2 :c 3}] [a b d m]))) tap tap)
+         % := [1 2 4 {:a 1, :ns/b 2, :c 3}]))
 
 (tests "Associative destructuring with various keys"
   (with ((l/single {} (tap (let [{:keys    [a]
@@ -2081,10 +2081,17 @@
   (with ((l/single {} (tap ((fn [] (binding [*out* nil] 1))))) tap tap)
     % := 1))
 
-#_(tests "e/letfn"
-       (with ((l/single {} (tap (e/letfn [(Odd? [x] (if (zero? x) false ($ Even? (dec x))))
-                                          (Even? [x] (if (zero? x) true ($ Odd? (dec x))))]
-                                  (Even? 2)))) tap tap)
+(tests "e/letfn"
+       (with ((l/single {}
+                (tap (e/letfn [(Odd? [x] (or (zero? x) ($ Even? (dec x))))
+                               (Even? [x] (or (zero? x) ($ Odd? (dec x))))]
+                       ($ Even? 2)))) tap tap)
+         % := true))
+
+(tests "e/letfn"
+       (with ((l/single {}
+                (tap (e/letfn [(Even? [x] (if (zero? x) true ($ Even? (dec x))))]
+                       ($ Even? 2)))) tap tap)
          % := true))
 
 (let [{:keys [tested skipped]} @stats, all (+ tested skipped)]

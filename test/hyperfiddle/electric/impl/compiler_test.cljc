@@ -86,10 +86,8 @@
           (r/ap (r/lookup ~'frame :cljs.core/undefined? (r/pure cljs.core/undefined?)))))])
 
   (match (l/test-compile ::Main (e/server (let [x 1] (e/client x))))
-    `[(r/cdef 0 [:server] [] :client
-        (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
-          (r/node ~'frame 0)))])
+    `[(r/cdef 0 [] [] :server
+        (fn [~'frame] (r/pure 1)))])
 
   (match (l/test-compile ::Main (name (e/server :foo)))
     `[(r/cdef 0 [:server] [] nil
@@ -140,9 +138,9 @@
         (fn [~'frame]
           (r/ap (r/pure (fn* [] (clojure.core/vector "Hello" "world"))))))])
 
-  (match (l/test-compile ::Main (::lang/site :client (let [a (::lang/site :server :foo)] (::lang/site :server (prn a)))))
+  (match (l/test-compile ::Main (e/client (let [a (e/server :foo)] (e/server (prn a)))))
     `[(r/cdef 0 [] [] :server
-        (clojure.core/fn [~'frame]
+        (fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/pure :foo))))])
 

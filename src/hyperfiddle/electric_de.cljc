@@ -16,9 +16,10 @@
 
 (defmacro ctor [expr] `(::lang/ctor ~expr))
 (defmacro $ [F & args]
-  `(binding [~@(interleave (range) args), r/%arity ~(count args)]
-     (binding [r/%argv [~@(->pos-args (count args))]]
-       (::lang/call ~F))))
+  (let [cnt (count args), gs (repeatedly cnt gensym)]
+    `(let* [~@(interleave gs args)]
+       (binding [~@(interleave (range) gs), r/%arity ~cnt, r/%argv [~@gs]]
+         (::lang/call ~F)))))
 
 (defmacro pure "
 Syntax :
@@ -198,6 +199,12 @@ this tuple. Returns the concatenation of all body results as a single vector.
            `(cursor [~sym (diff-by ~kf ~expr)]
               ~(rec bindings)) `(do ~@body)))
        (seq bindings))))
+
+(defmacro letfn [bs & body]
+  (let [sb (reverse bs)]
+    (reduce (cc/fn [ac [nm]] `(::lang/mklocal ~nm ~ac))
+      (reduce (cc/fn [ac [nm & fargs]] `(::lang/bindlocal ~nm (hyperfiddle.electric-de/fn ~@fargs) ~ac)) (cons 'do body) sb)
+      sb)))
 
 (cc/defn- -splicev [args] (into [] cat [(pop args) (peek args)]))
 (hyperfiddle.electric-de/defn Apply* [F args]
