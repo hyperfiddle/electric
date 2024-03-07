@@ -66,6 +66,7 @@
                                         }}
            
            :profile {:extra-deps {criterium/criterium                      {:mvn/version "0.4.6"}
+                                  com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.4"}
                                   com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}}
                      :jvm-opts   ["-Djdk.attach.allowAttachSelf"
                                   "-XX:+UnlockDiagnosticVMOptions"
