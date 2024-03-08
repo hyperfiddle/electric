@@ -176,8 +176,7 @@
     `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 1))
-          (r/pure (doto (r/make-ctor ~'frame ::Main 1)
-                    (r/define-free 0 (r/node ~'frame 0))))))
+          (r/pure (r/make-ctor ~'frame ::Main 1 (r/node ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
           (r/free ~'frame 0)))])
@@ -194,12 +193,10 @@
     `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 1))
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
-                    (r/define-free 0 (r/node ~'frame 0))))))
+          (r/pure (r/make-ctor ~'frame ::Main 1 (r/node ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 2)
-                    (r/define-free 0 (r/free ~'frame 0))))))
+          (r/pure (r/make-ctor ~'frame ::Main 2 (r/free ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
           (r/free ~'frame 0)))])
@@ -208,15 +205,13 @@
     `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 1))
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
-                    (r/define-free 0 (r/node ~'frame 0))))))
+          (r/pure (r/make-ctor ~'frame ::Main 1 (r/node ~'frame 0)))))
       (r/cdef 1 [nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 2))
           (r/ap (r/pure clojure.core/vector)
             (r/free ~'frame 0)
-            (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 2)
-                      (r/define-free 0 (r/node ~'frame 0)))))))
+            (r/pure (r/make-ctor ~'frame ::Main 2 (r/node ~'frame 0))))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
           (r/free ~'frame 0)))])
@@ -225,16 +220,13 @@
     `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 1))
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
-                    (r/define-free 0 (r/node ~'frame 0))))))
+          (r/pure (r/make-ctor ~'frame ::Main 1 (r/node ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 2)
-                    (r/define-free 0 (r/free ~'frame 0))))))
+          (r/pure (r/make-ctor ~'frame ::Main 2 (r/free ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 3)
-                    (r/define-free 0 (r/free ~'frame 0))))))
+          (r/pure (r/make-ctor ~'frame ::Main 3 (r/free ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
           (r/free ~'frame 0)))])
@@ -244,15 +236,12 @@
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 1))
           (r/define-node ~'frame 1 (r/pure 2))
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
-                    (r/define-free 0 (r/node ~'frame 0))
-                    (r/define-free 1 (r/node ~'frame 1))))))
+          (r/pure (r/make-ctor ~'frame ::Main 1 (r/node ~'frame 0) (r/node ~'frame 1)))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
           (r/ap (r/pure clojure.core/vector)
             (r/free ~'frame 0)
-            (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 2)
-                      (r/define-free 0 (r/free ~'frame 1)))))))
+            (r/pure (r/make-ctor ~'frame ::Main 2 (r/free ~'frame 1))))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
           (r/free ~'frame 0)))])
@@ -262,15 +251,12 @@
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 2))
           (r/define-node ~'frame 1 (r/pure 1))
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
-                    (r/define-free 0 (r/node ~'frame 0))
-                    (r/define-free 1 (r/node ~'frame 1))))))
+          (r/pure (r/make-ctor ~'frame ::Main 1 (r/node ~'frame 0) (r/node ~'frame 1)))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
           (r/ap (r/pure clojure.core/vector)
             (r/free ~'frame 0)
-            (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 2)
-                      (r/define-free 0 (r/free ~'frame 1)))))))
+            (r/pure (r/make-ctor ~'frame ::Main 2 (r/free ~'frame 1))))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
           (r/free ~'frame 0)))])
@@ -289,9 +275,7 @@
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure "fizz"))
           (r/define-node ~'frame 1 (r/pure "buzz"))
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
-                    (r/define-free 0 (r/node ~'frame 0))
-                    (r/define-free 1 (r/node ~'frame 1))))))
+          (r/pure (r/make-ctor ~'frame ::Main 1 (r/node ~'frame 0) (r/node ~'frame 1)))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/str (r/pure clojure.core/str))
@@ -358,13 +342,11 @@
     `[(r/cdef 0 [nil] [nil] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure :foo))
-          (r/define-call ~'frame 0 (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 1)
-                                             (r/define-free 0 (r/node ~'frame 0)))))
+          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1 (r/node ~'frame 0))))
           (r/join (r/call ~'frame 0))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
-          (r/pure (clojure.core/doto (r/make-ctor ~'frame ::Main 2)
-                    (r/define-free 0 (r/free ~'frame 0))))))
+          (r/pure (r/make-ctor ~'frame ::Main 2 (r/free ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
           (r/free ~'frame 0)))]))
@@ -499,62 +481,6 @@
       (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 1)))
       (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 2)))]))
 
-(comment
-  (tests "test-e-letfn"
-         (match (l/test-compile ::Main (assoc (lang/normalize-env {}) ::lang/print-analysis true, ::lang/print-db true, ::lang/print-source true)
-                  (e/letfn [(Foo [] Bar) (Bar [] Foo)] Foo))
-           `[]))
-
-  (mklet x                              ; let, ->let-body-e is just get-child-e
-    (mklet y                            ; let
-      (bindlet x y                      ; bindlet, ->let-val-e finds bindlet value
-        (bindlet y x
-          x))))
-  (l/test-compile ::Main (assoc (lang/normalize-env {}) ::lang/print-analysis true, ::lang/print-db true)
-    (::lang/mk-let x (::lang/mk-let y (::lang/bind-let x (e/ctor y) (::lang/bind-let y (e/ctor x) x)))))
-  `[(r/cdef 0 [nil nil] [] nil
-      (fn [frame]
-        (r/define-node frame 0 (r/pure (doto (r/make-ctor frame ::l/Main 1)
-                                         (r/define-free 0 (r/node frame 1)))))
-        (r/define-node frame 1 (r/pure (doto (r/make-ctor frame ::l/Main 2)
-                                         (r/define-free 0 (r/node frame 0)))))
-        (r/node frame 0)))
-    (r/cdef 1 [] [] nil
-      (fn [frame] (r/free frame 0)))
-    (r/cdef 1 [] [] nil
-      (fn [frame] (r/free frame 0)))]
-  (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
-                           (e/ctor (str fizz buzz)))))
-;; TODO test site is cleared on ctor boundary
-
-;; TODO rewrite or remove
-(comment
-  (l/compile-client ((fn [] 1)))
-  ;; ;; rest-args gensym breaks testability
-  ;; ;; also, testing this deep is counter-productive, we're testing the implementation (internals)
-  ;; := `(r/peer
-  ;;       (lang/r-defs
-  ;;         (lang/r-ap
-  ;;           (lang/r-ap
-  ;;             (lang/r-static
-  ;;               (clojure.core/fn []
-  ;;                 (clojure.core/fn [& rest-args32938]
-  ;;                   (clojure.core/apply (fn* ([] 1)) rest-args32938)))))))
-  ;;       [] 0)
-
-  (l/compile-client (let [x 1] (fn [] x)))
-  ;; := `(r/peer
-  ;;       (lang/r-defs
-  ;;         (lang/r-static 1)
-  ;;         (lang/r-ap (lang/r-static
-  ;;                      (clojure.core/fn [x32133]
-  ;;                        (clojure.core/fn [& rest-args32134]
-  ;;                          (clojure.core/let [x x32133]
-  ;;                            (clojure.core/apply (fn* ([] x)) rest-args32134)))))
-  ;;           (lang/r-local 0)))
-  ;;       [] 1)
-  )
-
 (comment             ; TODO rewrite for new iteration
   ;; (<source-map-of-ap> <nil-for-prn> <nil-for-hello-world>)
   ;; source-map => ::line ::column
@@ -598,93 +524,6 @@
 
   ;; TODO `set!` needs cc/fn
   ;; (let [sm (l/compile-client-with-source-map (set! (.-x (Object.)) 1))])
-  )
-
-;; cdef = definition of the static structure of an e/ctor
-;; args :
-;; * free variable count
-;; * a vector of node sites
-;; * a vector of call sites
-;; * the result site
-(comment
-
-  (l/compile ::Main (new (e/fn Foo [] (Foo.))))
-  := `[(r/cdef 0 [] [nil] nil
-         (fn [frame]
-           (r/define-call frame 0
-             (let [ctor (r/make-ctor frame ::Main 1)]
-               (r/define-free ctor 0 (r/pure ctor))
-               (r/pure ctor)))
-           (r/join (r/call frame 0))))
-       (r/cdef 1 [] [nil] nil
-         (fn [frame]
-           (r/define-call frame 0 (r/free frame 0))
-           (r/join (r/call frame 0))))]
-
-  (l/compile ::Main (e/letfn [(Foo [] (Bar.))
-                              (Bar [] (Foo.))]
-                      (Foo.)))
-  := `[(r/cdef 0 [] [nil] nil
-         (fn [frame]
-           (let [ctor-foo (r/make-ctor frame ::Main 1)
-                 ctor-bar (r/make-ctor frame ::Main 2)]
-             (r/define-free ctor-foo 0 (r/pure ctor-foo))
-             (r/define-free ctor-foo 1 (r/pure ctor-bar))
-             (r/define-free ctor-bar 0 (r/pure ctor-bar))
-             (r/define-free ctor-bar 1 (r/pure ctor-foo))
-             (r/define-call frame 0 (r/pure ctor-foo))
-             (r/join (r/call frame 0)))))
-       (r/cdef 2 [] [nil] nil
-         (fn [frame]
-           (r/define-call frame 0 (r/free frame 1))
-           (r/join (r/call frame 0))))
-       (r/cdef 2 [] [nil] nil
-         (fn [frame]
-           (r/define-call frame 0 (r/free frame 1))
-           (r/join (r/call frame 0))))]
-
-  (l/compile ::Main (let [a :foo, b :bar, c :baz]
-                      [(e/ctor [a b]) (e/ctor [b c])]))
-  := `[(r/cdef 0 [nil nil nil] [] nil
-         (fn [frame]
-           (r/define-node frame 0 (r/pure :foo))
-           (r/define-node frame 1 (r/pure :bar))
-           (r/define-node frame 2 (r/pure :baz))
-           (r/ap (r/lookup frame :clojure.core/vector (r/pure clojure.core/vector))
-             (let [ctor (r/make-ctor frame ::Main 1)]
-               (r/define-free ctor 0 (r/node frame 0))
-               (r/define-free ctor 1 (r/node frame 1))
-               (r/pure ctor))
-             (let [ctor (r/make-ctor frame ::Main 2)]
-               (r/define-free ctor 0 (r/node frame 1))
-               (r/define-free ctor 1 (r/node frame 2))
-               (r/pure ctor)))))
-       (r/cdef 2 [] [] nil
-         (fn [frame]
-           (r/ap (r/lookup frame :clojure.core/vector (r/pure clojure.core/vector))
-             (r/free frame 0)
-             (r/free frame 1))))
-       (r/cdef 2 [] [] nil
-         (fn [frame]
-           (r/ap (r/lookup frame :clojure.core/vector (r/pure clojure.core/vector))
-             (r/free frame 0)
-             (r/free frame 1))))]
-
-  #_(e/defn Foo [])
-  (l/compile ::Main `(e/ctor (e/call Foo))) :=
-  `[(r/cdef 0 [] [] nil
-      (fn [frame]
-        (r/pure (r/make-ctor frame ::Main 1))))
-    (r/cdef 0 [] [nil] nil
-      (fn [frame]
-        (r/define-call frame 0 (r/lookup frame ::Foo (r/pure (r/make-ctor frame ::Foo 0))))
-        (r/join (r/call frame 0))))]
-
-  (l/compile ::Main `e/frame) :=
-  `[(r/cdef 0 [] [] nil
-      (fn [frame]
-        (r/pure frame)))]
-
   )
 
 (prn :ok)

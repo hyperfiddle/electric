@@ -682,26 +682,21 @@
          ::pure (list `r/pure (rec (get-child-e ts e)))
          ::comp (list 'fn* '[] (doall (map rec (get-children-e ts e))))
          ::site (recur (get-child-e ts e))
-         ::ctor (let [ctor (list `r/make-ctor 'frame nm (::ctor-idx nd))
-                      frees-e (ts/find ts ::ctor-free (e->uid ts e))]
-                  (if (seq frees-e)
-                    (list* `doto ctor
-                      (mapv (fn [e]
-                              (let [nd (ts/->node ts e)]
-                                (list `r/define-free (::free-idx nd)
-                                  (case (::closed-over nd)
-                                    ::node (list `r/node 'frame
-                                             (get-node-idx ts
-                                               (e->uid ts (find-ctor-e ts (uid->e ts (::ctor-free nd))))
-                                               (::closed-ref nd)))
-                                    ::free (list `r/free 'frame
-                                             (->> (ts/find ts
-                                                    ::ctor-free (e->uid ts
-                                                                  (find-ctor-e ts (uid->e ts (::ctor-free nd))))
-                                                    ::closed-ref (::closed-ref nd))
-                                               first (ts/->node ts) ::free-idx))))))
-                        frees-e))
-                    ctor))
+         ::ctor (list* `r/make-ctor 'frame nm (::ctor-idx nd)
+                  (mapv (fn [e]
+                          (let [nd (ts/->node ts e)]
+                            (case (::closed-over nd)
+                              ::node (list `r/node 'frame
+                                       (get-node-idx ts
+                                         (e->uid ts (find-ctor-e ts (uid->e ts (::ctor-free nd))))
+                                         (::closed-ref nd)))
+                              ::free (list `r/free 'frame
+                                       (->> (ts/find ts
+                                              ::ctor-free (e->uid ts
+                                                            (find-ctor-e ts (uid->e ts (::ctor-free nd))))
+                                              ::closed-ref (::closed-ref nd))
+                                         first (ts/->node ts) ::free-idx)))))
+                    (ts/find ts ::ctor-free (e->uid ts e))))
          ::call (list `r/join (list `r/call 'frame (::call-idx (ts/->node ts e))))
          ::lookup (list `r/lookup 'frame (::sym nd))
          ::mklocal (recur (get-ret-e ts (get-child-e ts e)))
