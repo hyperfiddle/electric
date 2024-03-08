@@ -559,6 +559,14 @@ inhibiting all further reactive updates."
   [Flow]
   (m/signal Flow))
 
+(hyperfiddle.electric/defn Identity [a] a) ; G: Identity as a reactive fn placeholder (in UI components) is common enough to add it here.
+
+(hyperfiddle.electric/defn Comp "`comp` for Electric functions."
+  ([] Identity)
+  ([F] F)
+  ([Fa Fb] (hyperfiddle.electric/fn [& args] (Fa. (hyperfiddle.electric/apply Fb args))))
+  ([Fa Fb & Fs] (hyperfiddle.electric/apply Comp (Comp. Fa Fb) Fs)))
+
 ;; low-level, most powerful, hardest to use
 (defmacro for-event
   ; Progress in UI is a continuous flow (succession of values) that eventually completes with a final result.
