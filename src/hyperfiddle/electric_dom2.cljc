@@ -8,7 +8,8 @@
             [hyperfiddle.electric :as e]
             [missionary.core :as m]
             [clojure.string :as str]
-            [hyperfiddle.rcf :as rcf :refer [tests]])
+            [hyperfiddle.rcf :as rcf :refer [tests]]
+            #?(:cljs [hyperfiddle.electric-dom2.batch :as batch]))
   (:import [hyperfiddle.electric Pending]
            #?(:clj [clojure.lang ExceptionInfo]))
   #?(:cljs (:require-macros [hyperfiddle.electric-dom2 :refer [with]])))
@@ -22,8 +23,8 @@
 
 (def hook "See `with`"
   #?(:clj  unsupported
-     :cljs (fn ([x] (some-> (.-parentNode x) (.removeChild x)))
-             ([x y] (.insertBefore (.-parentNode x) x y))))) ; rotate siblings
+     :cljs (fn ([x] (batch/schedule! "remove child" #(some-> (.-parentNode x) (.removeChild x))))
+             ([x y] (batch/schedule! "swap child" #(.insertBefore (.-parentNode x) x y)))))) ; rotate siblings
 
 (defmacro with
   "Attach `body` to a dom node, which will be moved in the DOM when body moves in the DAG.
@@ -42,12 +43,13 @@
      (when (nil? parent) (throw (ex-info "dom/node is nil" {})))
      (let [el (case type
                 :comment (.createComment js/document "")
-                :text (goog.dom/createTextNode "")
-                (goog.dom/createElement type))]
-       (.appendChild parent el)
+                :text (.createTextNode js/document "")
+                (.createElement js/document type))]
+       (batch/schedule! "append-child" #(.appendChild parent el))
        el)))
 
-(defn ^:no-doc hide [node] (set! (.. node -style -display) "none"))
+#?(:cljs
+   (defn ^:no-doc hide [node] (batch/schedule! "hide" #(set! (.. node -style -display) "none"))))
 
 (defmacro element
   {:style/indent 1}
@@ -58,9 +60,7 @@
      (e/on-unmount (partial hide node)) ; hack
      ~@body))
 
-#?(:cljs (defn -googDomSetTextContentNoWarn [node str]
-           ; Electric says :infer-warning Cannot infer target type in expression, fixme
-           (goog.dom/setTextContent node str)))
+#?(:cljs (defn -set-text-content [^js node str] (batch/schedule! "set-text-content" #(set! (.-textContent node) str))))
 
 #?(:cljs (defn not-text-node-in-text-node? [nd] (not= (.-nodeType nd) (.-TEXT_NODE nd))))
 
@@ -68,7 +68,7 @@
   `(do (ca/check not-text-node-in-text-node? node)
        ~@(map (fn [str]
                 `(with (new-node node :text)
-                   (-googDomSetTextContentNoWarn node ~str)))
+                   (-set-text-content node ~str)))
            strs)))
 
 (defmacro comment_ [& strs]
@@ -98,7 +98,7 @@
       (let [[ns attr] (resolve-attr-alias attr)]
         (set-attribute-ns node ns attr v)))
      ([^js node ns attr v]
-      (.setAttributeNS node ns attr v))))
+      (batch/schedule! "set-attribute-ns" #(.setAttributeNS node ns attr v)))))
 
 (defn to-str [x]
   (cond (string? x)  x
@@ -111,8 +111,8 @@
      (let [k (to-str k)
            v (to-str v)]
        (if (str/starts-with? k "--") ; CSS variable
-         (.setProperty (.-style node) k v)
-         (goog.style/setStyle_ node v k)))))
+         (batch/schedule! "set-property" #(.setProperty (.-style node) k v))
+         (batch/schedule! ["goog-set-style" k v] #(goog.style/setStyle_ node v k))))))
 
 #?(:cljs
    (defn set-property!
@@ -121,7 +121,7 @@
       (let [k (name k)
             v (clj->js v)]
         (if (and (nil? v) (.hasAttributeNS node nil k))
-          (.removeAttributeNS node nil k)
+          (batch/schedule! "remove-attr-ns" #(.removeAttributeNS node nil k))
           (case k
             "list"  (set-attribute-ns node nil k v) ; corner case, list (datalist) is setted by attribute and readonly as a prop.
             (if (or (= SVG-NS ns)
@@ -167,14 +167,14 @@
 #?(:cljs
    (defn register-class! [^js node class]
      (let [refs (or (.-hyperfiddle_electric_dom2_class_refs node) {})]
-       (.add (.-classList node) class)
+       (batch/schedule! "add-class" #(.add (.-classList node) class))
        (set! (.-hyperfiddle_electric_dom2_class_refs node) (update refs class (fn [cnt] (inc (or cnt 0))))))))
 
 #?(:cljs
    (defn unregister-class! [^js node class]
      (let [refs (or (.-hyperfiddle_electric_dom2_class_refs node) {})
            refs (if (= 1 (get refs class))
-                  (do (.remove (.-classList node) class)
+                  (do (batch/schedule! "remove-class" #(.remove (.-classList node) class))
                       (dissoc refs class))
                   (update refs class dec))]
        (set! (.-hyperfiddle_electric_dom2_class_refs node) refs))))
