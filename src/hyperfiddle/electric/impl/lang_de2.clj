@@ -352,6 +352,7 @@
 
 (defn get-children-e [ts e] (-> ts :ave ::parent (get e)))
 (defn get-child-e [ts e] (ca/check some? (first (get-children-e ts e)) {:e e}))
+(defn get-root-e [ts] (get-child-e ts '_))
 
 (defn ?add-source-map [{{::keys [->id]} :o :as ts} pe form]
   (let [mt (meta form)]
@@ -428,7 +429,7 @@
 
 (defn find-sitable-point-e [ts e]
   (loop [e e]
-    (let [nd (ts/->node ts e)]
+    (when-some [nd (ts/->node ts e)]
       (case (::type nd)
         (::literal ::ap ::join ::pure ::comp ::ctor) e
         (::site) (when (some? (::site nd)) (recur (::parent nd)))
@@ -651,7 +652,7 @@
     (if (or (nil? pe) (= ::ctor (::type (get (:eav ts) pe)))) pe (recur ts pe))))
 
 (defn- ts->reducible* [ts f init]
-  (loop [ac init, es (cons 0 (set/difference (-> ts :eav keys set) (->> ts :ave ::parent vals (reduce into)))), seen #{}]
+  (loop [ac init, es (cons (get-root-e ts) (set/difference (-> ts :eav keys set) (->> ts :ave ::parent vals (reduce into)))), seen #{}]
     (if (or (reduced? ac) (empty? es))
       (unreduced ac)
       (let [[e & es] es]
@@ -836,7 +837,7 @@
                                            (recur (ts/asc ts e ::ctor-idx (->ctor-idx)) (get-child-e ts e)))
                                 (::localref) (recur ts (->> (::ref nd) (->localv-e ts) (get-ret-e ts)))
                                 #_else (throw (ex-info (str "cannot mark-used-ctors on " (pr-str (::type nd))) (or nd {})))))))
-        ts (-> ts (compute-effect-order 0) (mark-used-ctors 0))
+        ts (-> ts (compute-effect-order (get-root-e ts)) (mark-used-ctors (get-root-e ts)))
         ctors-e (get-ordered-ctors-e ts)
         has-node? (fn has-node? [ts uid] (ts/find ts ::ctor-ref uid))
         ensure-node (fn ensure-node [ts uid]
@@ -958,8 +959,8 @@
                                 (::localref) (let [nx-e (->> (::ref nd) (->localv-e ts) (get-ret-e ts))]
                                                (recur ts (find-ctor-e ts nx-e) nx-e))
                                 #_else (throw (ex-info (str "cannot mark-used-calls on " (::type nd)) (or nd {})))))))
-        ts (-> ts (mark-used-calls 0 (get-ret-e ts (get-child-e ts 0)))
-             reroute-local-aliases (handle-let-refs 0) inline-nodes order-nodes order-frees
+        ts (-> ts (mark-used-calls (get-root-e ts) (get-ret-e ts (get-child-e ts (get-root-e ts))))
+             reroute-local-aliases (handle-let-refs (get-root-e ts)) inline-nodes order-nodes order-frees
              collapse-ap-with-only-pures)]
     (when (::print-db env) (run! prn (ts->reducible ts)))
     ts))
