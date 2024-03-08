@@ -468,16 +468,6 @@ Quoting it directly is idiomatic as well."
   Standard electric code runs on mount, therefore there is no `on-mount`."
   [f] `(new (on-unmount* ~f))) ; experimental
 
-(defmacro share
-  "Experimental. Could be unstable.
-  Thunk `body`. Return an e/fn.
-  Share the value of `body` to multiple reactive callers. One publisher, many subscribers, in continuous time.
-  Run `body` on first reactive call. Then return the same reactive value to all further reactive callers.
-  `body` unmounts when the last caller terminates."
-  [& body]
-  `(let [<x# (m/signal (hyperfiddle.electric/fn* [] ~@body))]
-     (hyperfiddle.electric/fn* [] (new (identity <x#)))))
-
 (cc/defn log-root-error [exception async-stack-trace]
   #?(:clj (let [ex (dbg/empty-client-exception exception)
                 ex (dbg/clean-jvm-stack-trace! (dbg/remove-async-stack-trace ex))
@@ -560,6 +550,14 @@ inhibiting all further reactive updates."
   [x] `(check-electric snapshot (new (-snapshot (hyperfiddle.electric/fn* [] ~x)))))
 
 (cc/defn ->Object [] #?(:clj (Object.) :cljs (js/Object.))) ; private
+
+(cc/defn share
+  "Experimental. Could be unstable.
+  Share the return value of `Flow` to multiple reactive callers. One publisher, many subscribers, in continuous time.
+  Run (aka mounts) `Flow` on first reactive call. Then return the same reactive value to all further reactive callers.
+  `Flow` unmounts when the last caller terminates."
+  [Flow]
+  (m/signal Flow))
 
 ;; low-level, most powerful, hardest to use
 (defmacro for-event
