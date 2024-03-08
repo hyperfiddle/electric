@@ -787,3 +787,4 @@ Returns a peer definition from given definitions and main key.
 
 (def %arity nil)
 (def %argv nil)
+(def %fn nil)

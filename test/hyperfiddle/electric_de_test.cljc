@@ -1917,25 +1917,24 @@
   (with ((l/single {} (tap (e/apply (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 [3 4]))) tap tap)
     % := [3 4 5]))
 
-;; TODO e/fn self-recur
-(skip "self-recur by name, e/fn"
-  (with ((l/single {} (tap (new (e/fn fib [n] (case n 0 0 1 1 (+ (fib. (- n 1)) (fib. (- n 2))))) 6))) tap tap)
+(tests "self-recur by name, e/fn"
+  (with ((l/single {} (tap ($ (e/fn fib [n] (case n 0 0 1 1 (+ ($ fib (- n 1)) ($ fib (- n 2))))) 6))) tap tap)
     % := 8))
-(skip "self-recur by name, e/defn"
-  (l/defn Fib [n] (case n 0 0 1 1 (+ (Fib. (- n 1)) (Fib. (- n 2)))))
-  (with ((l/single {} (tap (Fib. 7))) tap tap)
+(tests "self-recur by name, e/defn"
+  (e/defn Fib [n] (case n 0 0 1 1 (+ ($ Fib (- n 1)) ($ Fib (- n 2)))))
+  (with ((l/single {} (tap ($ Fib 7))) tap tap)
     % := 13))
-(skip "self-recur by name, e/fn thunk"
+(tests "self-recur by name, e/fn thunk"
   (def !x (atom 2))
-  (with ((l/single {} (new (e/fn X [] (if (pos-int? (tap (swap! !x dec))) (X.) (tap :done))))) tap tap)
+  (with ((l/single {} ($ (e/fn X [] (if (pos-int? (tap (swap! !x dec))) ($ X) (tap :done))))) tap tap)
     % := 1
     % := 0
     % := :done))
-(skip "self-recur by name, to different arity"
-  (with ((l/single {} (tap (new (e/fn X ([] (X. 0)) ([n] (inc n)))))) tap tap)
+(tests "self-recur by name, to different arity"
+  (with ((l/single {} (tap ($ (e/fn X ([] ($ X 0)) ([n] (inc n)))))) tap tap)
     % := 1))
-(skip "self-recur by name, varargs"
-  (with ((l/single {} (new (e/fn Chomp [& xs] (if (tap (seq xs)) (Chomp.) (tap :done))) 0 1 2)) tap tap)
+(tests "self-recur by name, varargs"
+  (with ((l/single {} ($ (e/fn Chomp [& xs] (if (tap (seq xs)) ($ Chomp) (tap :done))) 0 1 2)) tap tap)
     % := [0 1 2]
     % := nil
     % := :done))

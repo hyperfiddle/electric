@@ -18,7 +18,7 @@
 (defmacro $ [F & args]
   (let [cnt (count args), gs (repeatedly cnt gensym)]
     `(let* [~@(interleave gs args)]
-       (binding [~@(interleave (range) gs), r/%arity ~cnt, r/%argv [~@gs]]
+       (binding [~@(interleave (range) gs), r/%arity ~cnt, r/%argv [~@gs], r/%fn ~F]
          (::lang/call ~F)))))
 
 (defmacro pure "
@@ -71,6 +71,7 @@ Returns the successive states of items described by `incseq`.
           (into (sorted-set) (comp (map #(take-while (complement #{'&}) %)) (map count)) arities)))
 #?(:clj (cc/defn arity-holes [arity-set]
           (remove arity-set (range (reduce max arity-set)))))
+#?(:clj (cc/defn- ?bind-self [code ?name] (cond->> code ?name (list 'let* [?name `r/%fn]))))
 
 (defmacro fn [& args]
   (let [[?name args2] (if (symbol? (first args)) [(first args) (rest args)] [nil args])
@@ -78,14 +79,15 @@ Returns the successive states of items described by `incseq`.
         arity-set (->narity-set (map first arities))
         {positionals false, varargs true} (group-by (comp varargs? first) arities)
         positional-branches (into [] (map (cc/fn [[args & body]] (-build-fn-arity ?name args body))) positionals)]
-    (list `check-electric `fn
-      (list ::lang/ctor
-        `(case r/%arity
-           ~@(into [] (comp cat cat) [positional-branches])
-           ~@(if (seq varargs)
-               (conj [(arity-holes arity-set) [:arity-mismatch r/%arity]]
-                 (-build-vararg-arity ?name (ffirst varargs) (nfirst varargs)))
-               [[:arity-mismatch r/%arity]]))))))
+    `(check-electric fn
+       (ctor
+         ~(-> `(case r/%arity
+                 ~@(into [] (comp cat cat) [positional-branches])
+                 ~@(if (seq varargs)
+                     (conj [(arity-holes arity-set) [:arity-mismatch r/%arity]]
+                       (-build-vararg-arity ?name (ffirst varargs) (nfirst varargs)))
+                     [[:arity-mismatch r/%arity]]))
+            (?bind-self ?name))))))
 
 (cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
 
@@ -102,7 +104,7 @@ Returns the successive states of items described by `incseq`.
         ts (lang/analyze expanded '_ env (lang/->ts))
         ts (lang/analyze-electric env ts)
         ctors (mapv #(lang/emit-ctor ts % env (-> nm ns-qualify keyword)) (lang/get-ordered-ctors-e ts))
-        deps (lang/emit-deps ts 0)
+        deps (lang/emit-deps ts (lang/get-root-e ts))
         nm3 (vary-meta nm2 assoc ::lang/deps `'~deps)]
     (when (::lang/print-source env) (fipp.edn/pprint ctors))
     `(def ~nm3 ~ctors)))
