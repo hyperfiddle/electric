@@ -431,9 +431,9 @@
   (loop [e e]
     (when-some [nd (ts/->node ts e)]
       (case (::type nd)
-        (::literal ::ap ::join ::pure ::comp ::ctor) e
+        (::literal ::ap ::join ::pure ::comp ::ctor ::call) e
         (::site) (when (some? (::site nd)) (recur (::parent nd)))
-        (::var ::node ::call ::lookup ::mklocal ::bindlocal ::localref) (some-> (::parent nd) recur)
+        (::var ::node ::lookup ::mklocal ::bindlocal ::localref) (some-> (::parent nd) recur)
         #_else (throw (ex-info (str "can't find-sitable-point-e for " (pr-str (::type nd))) (or nd {})))))))
 
 (defn get-site [ts e]
