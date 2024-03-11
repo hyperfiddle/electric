@@ -96,6 +96,16 @@
           (r/ap (r/lookup ~'frame :clojure.core/name (r/pure clojure.core/name))
             (r/node ~'frame 0))))])
 
+  (match (l/test-compile ::Main (prn (e/client (::lang/call (e/server (::lang/ctor))))))
+    `[(r/cdef 0 [:client] [:client] nil
+        (fn [~'frame]
+          (r/define-call ~'frame 0 (r/pure (r/make-ctor ~'frame ::Main 1)))
+          (r/define-node ~'frame 0 (r/join (r/call ~'frame 0)))
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn))
+            (r/node ~'frame 0))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame] (r/pure nil)))])
+
   (let [ex (try (l/test-compile ::Main cannot-be-unsited) (catch ExceptionInfo e e))]
     (ex-message ex) := "Unsited symbol `cannot-be-unsited` resolves to different vars on different peers. Please resolve ambiguity by siting the expression using it."))
 
