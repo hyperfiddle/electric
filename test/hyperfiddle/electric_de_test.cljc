@@ -1920,6 +1920,9 @@
 (tests "self-recur by name, e/fn"
   (with ((l/single {} (tap ($ (e/fn fib [n] (case n 0 0 1 1 (+ ($ fib (- n 1)) ($ fib (- n 2))))) 6))) tap tap)
     % := 8))
+(tests "self-recur by recur, e/fn"
+  (with ((l/single {} (tap ($ (e/fn fib [n] (case n 0 0 1 1 (+ (recur (- n 1)) (recur (- n 2))))) 6))) tap tap)
+    % := 8))
 (tests "self-recur by name, e/defn"
   (e/defn Fib [n] (case n 0 0 1 1 (+ ($ Fib (- n 1)) ($ Fib (- n 2)))))
   (with ((l/single {} (tap ($ Fib 7))) tap tap)
@@ -1937,6 +1940,20 @@
   (with ((l/single {} ($ (e/fn Chomp [& xs] (if (tap (seq xs)) ($ Chomp) (tap :done))) 0 1 2)) tap tap)
     % := [0 1 2]
     % := nil
+    % := :done))
+(tests "self-recur by recur, varargs"
+  (with ((l/single {} ($ (e/fn [& xs] (if (tap (seq xs)) (recur) (tap :done))) 0 1 2)) tap tap)
+    % := [0 1 2]
+    % := nil
+    % := :done))
+
+(tests "self-recur by recur, varargs & multi-arity"
+  ;; Note this differs from clojure where varargs recur doesn't take variadic args anymore but a collection.
+  ;; In electric there's no tail recursion so `recur` is used as an anonymous self-call.
+  ;; This means a multi-arity fn can recur to other arities.
+  ;; As a side effect we have to keep varargs as varargs on recur.
+  (with ((l/single {} ($ (e/fn ([] (tap :done)) ([& xs] (if (tap (seq xs)) (recur) (tap :no)))) 0 1 2)) tap tap)
+    % := '(0 1 2)
     % := :done))
 
 ;; TODO e/fn multi-arity

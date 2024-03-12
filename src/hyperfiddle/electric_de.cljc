@@ -15,11 +15,7 @@
 #?(:clj (cc/defn ->pos-args [n] (eduction (take n) (map dget) (range))))
 
 (defmacro ctor [expr] `(::lang/ctor ~expr))
-(defmacro $ [F & args]
-  (let [cnt (count args), gs (repeatedly cnt gensym)]
-    `(let* [~@(interleave gs args)]
-       (binding [~@(interleave (range) gs), r/%arity ~cnt, r/%argv [~@gs], r/%fn ~F]
-         (::lang/call ~F)))))
+(defmacro $ [F & args] `(lang/$ ~F ~@args))
 
 (defmacro pure "
 Syntax :
@@ -43,50 +39,45 @@ Returns the successive states of items described by `incseq`.
     (throw (ex-info (str "Electric code (" fn ") inside a Clojure function") (into {:electric-fn fn} (meta &form))))))
 
 (defmacro fn* [bs & body]
-  `(check-electric fn
+  `(check-electric fn*
      (ctor
        (let [~@(interleave bs (->pos-args (count bs)))]
          ~@body))))
 
 #?(:clj (cc/defn- varargs? [args] (boolean (and (seq args) (= '& (-> args pop peek))))))
 
-#?(:clj (cc/defn- -build-fn-arity [_?name args body]
-          [(count args)
-           `(binding [::lang/rec (ctor (let [~@(interleave args (->pos-args (count args)))] ~@body))]
-              ($ ~(dget ::lang/rec) ~@(->pos-args (count args))))]))
-
-#?(:clj (cc/defn- -build-vararg-arity [_?name args body]
-          (let [npos (-> args count (- 2)), unvarargd (-> args pop pop (conj (peek args))), v (gensym "varargs")]
-            `(binding [::lang/rec (ctor (let [~@(interleave unvarargd (->pos-args (count unvarargd)))] ~@body))]
-               ($ ~(dget ::lang/rec) ~@(->pos-args npos)
-                  (let [~v (into [] (drop ~npos) r/%argv)]
-                   (when (seq ~v) ; varargs value is `nil` when no args provided
-                     ~(if (map? (peek args))
-                        `(if (even? (count ~v))
-                           (cc/apply hash-map ~v) ; (MapVararg. :x 1)
-                           (merge (cc/apply hash-map (pop ~v)) (peek ~v))) ; (MapVararg. :x 1 {:y 2})
-                        v))))))))
-
-#?(:clj (cc/defn ->narity-set [arities]
-          (into (sorted-set) (comp (map #(take-while (complement #{'&}) %)) (map count)) arities)))
-#?(:clj (cc/defn arity-holes [arity-set]
-          (remove arity-set (range (reduce max arity-set)))))
 #?(:clj (cc/defn- ?bind-self [code ?name] (cond->> code ?name (list 'let* [?name `r/%fn]))))
+
+(cc/defn -prep-varargs [n argv map-vararg?]
+  (let [v (into [] (drop n) argv)]
+    (when (seq v)                 ; varargs value is `nil` when no args provided
+      (if map-vararg?             ; [x y & {:keys [z]}] <- vararg map destructuring
+        (if (even? (count v))
+          (cc/apply array-map v)                          ; ($ MapVararg :x 1)
+          (merge (cc/apply array-map (pop v)) (peek v))) ; ($ MapVararg :x 1 {:y 2})
+        v))))
 
 (defmacro fn [& args]
   (let [[?name args2] (if (symbol? (first args)) [(first args) (rest args)] [nil args])
         arities (cond-> args2 (vector? (first args2)) list)
-        arity-set (->narity-set (map first arities))
         {positionals false, varargs true} (group-by (comp varargs? first) arities)
-        positional-branches (into [] (map (cc/fn [[args & body]] (-build-fn-arity ?name args body))) positionals)]
+        [?vararg npos map-vararg?] (when-some [va (first varargs)]
+                                     (let [[args & body] va
+                                           npos (-> args count (- 2))
+                                           unvarargd (-> args pop pop (conj (peek args)))]
+                                       `[(hyperfiddle.electric-de/fn* ~unvarargd ~@body) ~npos ~(map? (peek args))]))
+        dpch (gensym "dispatch")
+        dpchv (into {} (map (cc/fn [[args :as fargs]] [(count args) `(hyperfiddle.electric-de/fn* ~@fargs)]))
+                positionals)]
     `(check-electric fn
        (ctor
-         ~(-> `(case r/%arity
-                 ~@(into [] (comp cat cat) [positional-branches])
-                 ~@(if (seq varargs)
-                     (conj [(arity-holes arity-set) [:arity-mismatch r/%arity]]
-                       (-build-vararg-arity ?name (ffirst varargs) (nfirst varargs)))
-                     [[:arity-mismatch r/%arity]]))
+         ~(-> (if ?vararg
+                (let [code `(binding [~npos (-prep-varargs ~npos r/%argv ~map-vararg?)] (::lang/call ~?vararg))]
+                  (if (seq positionals)
+                    `(let [~dpch ~dpchv] (if-some [F# (get ~dpch r/%arity)] (::lang/call F#) ~code))
+                    code))
+                `(let [~dpch ~dpchv]
+                   (::lang/call (get ~dpch r/%arity))))
             (?bind-self ?name))))))
 
 (cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
@@ -115,7 +106,7 @@ Syntax :
 (amb table1 table2 ,,, tableN)
 ```
 Returns the concatenation of `table1 table2 ,,, tableN`.
-" [& exprs] `($ (join (r/pure ~@(mapv #(list `ctor %) exprs)))))
+" [& exprs] `(::lang/call (join (r/pure ~@(mapv #(list `ctor %) exprs)))))
 
 (defmacro input "
 Syntax :
@@ -167,12 +158,11 @@ For each tuple in the cartesian product of `table1 table2 ,,, tableN`, calls bod
   (case bindings
     [] `(do ~@body)
     (let [[args exprs] (cc/apply map vector (partition-all 2 bindings))]
-      #_`($ (hyperfiddle.electric-de/fn* ~args (do ~@body))
-         ~@(mapv (cc/fn [expr] `(join (r/fixed-signals (join (i/items (pure ~expr)))))) exprs))
-      `($ (r/bind-args (hyperfiddle.electric-de/fn* ~args ~@body)
-               ~@(map (clojure.core/fn [expr]
-                        `(r/effect (r/fixed-signals (join (i/items (pure ~expr))))))
-                   exprs))))))
+      `(::lang/call
+        (r/bind-args (hyperfiddle.electric-de/fn* ~args ~@body)
+          ~@(map (clojure.core/fn [expr]
+                   `(r/effect (r/fixed-signals (join (i/items (pure ~expr))))))
+              exprs))))))
 
 (defmacro as-vec "
 Syntax :
