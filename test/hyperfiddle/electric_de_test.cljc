@@ -810,7 +810,6 @@
   (with ((l/single {} x) prn tap)
     (ex-message %) := "Unbound electric var `hyperfiddle.electric-test/x`"))
 
-;; TODO e/defn docstring
 #?(:clj
    (tests ; GG: IDE doc on hover support
     "Vars created with e/defn have the same metas as created with cc/defn"
@@ -1150,10 +1149,9 @@
                        (catch Pending _))) tap tap)
     % := [1 2]))
 
-;; TODO cc/fn doesn't convey electric bindings because there are no more e/defs
-(skip "Inline cc/fn support"
-  (def !state (atom 0))
-  (def global)
+(def !state (atom 0))
+(def global)
+(tests "Inline cc/fn support"
   (with ((l/single {} (let [state (e/watch !state)
                             local [:local state]
                             f     (binding [global [:global state]]
@@ -1171,9 +1169,9 @@
     % := [1 :b [:local 1] [:global 1]]
     % := [1 :b '(:c :d) [:local 1] [:global 1]]))
 
+(def !state (atom 0))
+(def global)
 (tests
-  (def !state (atom 0))
-  (def global)
   (with ((l/single {}
            (let [state (e/watch !state)]
              (tap [state state])
@@ -1238,14 +1236,13 @@
         % := [false false true true]
         % := [false false true true]))
 
-;; TODO electric binding conveyance
-(skip "Inline letfn support"
+(tests "Inline letfn support"
   (def !state (atom 0))
-  (l/def global)
+  (def global)
   (with ((l/single {} (let [state (e/watch !state)
                         local [:local state]]
                     (binding [global [:global state]]
-                      (letfn [(f ([a] [a local hyperfiddle.electric-test/global])
+                      (letfn [(f ([a] [a local hyperfiddle.electric-de-test/global])
                                 ([a b] [a b local global])
                                 ([a b & cs] [a b cs local global]))]
                         (tap (f state))
@@ -1373,8 +1370,6 @@
                                   (set! (.-x o) ($ (e/fn [] 0)))))) tap tap)
              % := 0)))
 
-;; TODO `set!` expands to cc/fn which tries to convey `a-root`
-;; note: transitively the same applies to `(cc/fn [] (set! a-root 2))`
 #?(:cljs
    (tests "set! to alter root binding"
      (def a-root 1)
@@ -1809,7 +1804,6 @@
                           (catch Throwable ex (prn ex)))) tap tap)
        (count (hash-set % (get-thread))) := 2)))
 
-;; TODO cljs
 #?(:cljs
    (do-browser
      (tests "goog module calls don't trigger warnings"
@@ -1830,10 +1824,6 @@
     (str/includes? (ex-message %) ":foo") := true))
 
 (tests "e/fn varargs"
-  (with ((l/single {} ($ (e/fn [x & xs] (tap [x xs])) 1 2 3 4)) tap tap)
-    % := [1 [2 3 4]]))
-;; TODO use recur
-(skip "e/fn varargs recursion with recur"
   (with ((l/single {} ($ (e/fn [x & xs] (tap [x xs])) 1 2 3 4)) tap tap)
     % := [1 [2 3 4]]))
 ;; TODO try/catch
@@ -1900,7 +1890,6 @@
                             (catch ExceptionInfo e e)))) tap tap)
     (ex-message %) := "You called Two with 3 arguments but it only supports 2"))
 
-;; TODO e/fn multi-arity
 (tests "multi-arity e/fn"
   (with ((l/single {} (tap ($ (e/fn ([_] :one) ([_ _] :two)) 1))) tap tap)
     % := :one))
