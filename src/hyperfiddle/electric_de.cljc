@@ -4,6 +4,7 @@
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.incseq :as i]
             [clojure.core :as cc]
+            [clojure.string :as str]
             [hyperfiddle.rcf :as rcf :refer [tests]]
             #?(:clj [contrib.triple-store :as ts])
             #?(:clj [fipp.edn])
@@ -57,10 +58,29 @@ Returns the successive states of items described by `incseq`.
           (merge (cc/apply array-map (pop v)) (peek v))) ; ($ MapVararg :x 1 {:y 2})
         v))))
 
+#?(:clj (cc/defn- throw-arity-conflict! [?name group]
+          (throw (ex-info (str "Conflicting arity definitions" (when ?name (str " in " ?name)) ": "
+                            (str/join " and " group))
+                   {:name ?name}))))
+
+#?(:clj (cc/defn- check-only-one-vararg! [?name varargs]
+          (when (> (count varargs) 1)
+            (throw-arity-conflict! ?name varargs))))
+
+#?(:clj (cc/defn- check-arity-conflicts! [?name positionals vararg]
+          (let [grouped (group-by count positionals)]
+            (doseq [[_ group] grouped]
+              (when (> (count group) 1)
+                (throw-arity-conflict! ?name group)))
+            (when-some [same (get grouped (-> vararg count dec))]
+              (throw-arity-conflict! ?name (conj same vararg))))))
+
 (defmacro fn [& args]
   (let [[?name args2] (if (symbol? (first args)) [(first args) (rest args)] [nil args])
         arities (cond-> args2 (vector? (first args2)) list)
         {positionals false, varargs true} (group-by (comp varargs? first) arities)
+        _ (check-only-one-vararg! ?name (mapv first varargs))
+        _ (check-arity-conflicts! ?name (mapv first positionals) (ffirst varargs))
         [?vararg npos map-vararg?] (when-some [va (first varargs)]
                                      (let [[args & body] va
                                            npos (-> args count (- 2))
