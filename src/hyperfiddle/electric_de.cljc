@@ -46,7 +46,7 @@ Returns the successive states of items described by `incseq`.
 
 #?(:clj (cc/defn- varargs? [args] (boolean (and (seq args) (= '& (-> args pop peek))))))
 
-#?(:clj (cc/defn- ?bind-self [code ?name] (cond->> code ?name (list 'let* [?name `r/%fn]))))
+#?(:clj (cc/defn- ?bind-self [code ?name] (cond->> code ?name (list 'let* [?name `(::lang/lookup ::r/fn)]))))
 
 (cc/defn -prep-varargs [n argv map-vararg?]
   (let [v (into [] (drop n) argv)]
@@ -71,11 +71,11 @@ Returns the successive states of items described by `incseq`.
     `(check-electric fn
        (ctor
          ~(-> (if ?vararg
-                (let [code `(binding [~npos (-prep-varargs ~npos r/%argv ~map-vararg?)] (::lang/call ~?vararg))]
+                (let [code `(binding [~npos (-prep-varargs ~npos (::lang/lookup ::r/argv) ~map-vararg?)] (::lang/call ~?vararg))]
                   (if (seq positionals)
-                    `(if-some [F# (~dispatch-map r/%arity)] (::lang/call F#) ~code)
+                    `(if-some [F# (~dispatch-map (::lang/lookup ::r/arity))] (::lang/call F#) ~code)
                     code))
-                `(::lang/call (~dispatch-map r/%arity)))
+                `(::lang/call (~dispatch-map (::lang/lookup ::r/arity))))
             (?bind-self ?name))))))
 
 (cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))

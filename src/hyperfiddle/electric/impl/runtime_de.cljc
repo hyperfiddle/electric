@@ -784,7 +784,3 @@ Returns a peer definition from given definitions and main key.
       (apply array-map gmap)
       (if (seq gmap) (first gmap) {}))
     gmap))
-
-(def %arity nil)
-(def %argv nil)
-(def %fn nil)
