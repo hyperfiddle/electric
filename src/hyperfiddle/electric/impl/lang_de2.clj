@@ -101,6 +101,12 @@
         (caller o2 env)))
     (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
 
+(defmacro $ [F & args]
+  (let [cnt (count args), gs (repeatedly cnt gensym)]
+    `(let* [~@(interleave gs args), F# ~F]
+       (binding [~@(interleave (range) gs), r/%arity ~cnt, r/%argv [~@gs], r/%fn F#]
+         (::call F#)))))
+
 (defn -expand-all [o env]
   (cond
     (and (seq? o) (seq o))
@@ -132,14 +138,12 @@
                                      [(conj bs sym (-expand-all v env)) (add-local env sym)])
                                    [[] env]
                                    (partition-all 2 bs))]
-                  (recur (?meta o `(binding [::rec (::ctor (let* [~@(interleave (take-nth 2 bs2) (map #(list ::lookup %) (range)))] ~@body))]
+                  (recur (?meta o `(binding [r/%fn (::ctor (let* [~@(interleave (take-nth 2 bs2) (map #(list ::lookup %) (range)))] ~@body))]
                                      (binding [~@(interleave (range) (take-nth 2 (next bs2)))]
-                                       (::call (::lookup ::rec)))))
+                                       (::call r/%fn))))
                     env2))
 
-        (recur) (recur (?meta o `(binding [~@(interleave (range) (next o))]
-                                   (::call (::lookup ::rec))))
-                  env)
+        (recur) (recur (?meta o `($ r/%fn ~@(next o))) env)
 
         (case clojure.core/case)
         (let [[_ v & clauses] o
