@@ -66,18 +66,16 @@ Returns the successive states of items described by `incseq`.
                                            npos (-> args count (- 2))
                                            unvarargd (-> args pop pop (conj (peek args)))]
                                        `[(hyperfiddle.electric-de/fn* ~unvarargd ~@body) ~npos ~(map? (peek args))]))
-        dpch (gensym "dispatch")
-        dpchv (into {} (map (cc/fn [[args :as fargs]] [(count args) `(hyperfiddle.electric-de/fn* ~@fargs)]))
-                positionals)]
+        dispatch-map (into {} (map (cc/fn [[args :as fargs]] [(count args) `(hyperfiddle.electric-de/fn* ~@fargs)]))
+                       positionals)]
     `(check-electric fn
        (ctor
          ~(-> (if ?vararg
                 (let [code `(binding [~npos (-prep-varargs ~npos r/%argv ~map-vararg?)] (::lang/call ~?vararg))]
                   (if (seq positionals)
-                    `(let [~dpch ~dpchv] (if-some [F# (get ~dpch r/%arity)] (::lang/call F#) ~code))
+                    `(if-some [F# (~dispatch-map r/%arity)] (::lang/call F#) ~code)
                     code))
-                `(let [~dpch ~dpchv]
-                   (::lang/call (get ~dpch r/%arity))))
+                `(::lang/call (~dispatch-map r/%arity)))
             (?bind-self ?name))))))
 
 (cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
