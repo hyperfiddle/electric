@@ -1945,21 +1945,19 @@
     % := '(0 1 2)
     % := :done))
 
-;; TODO e/fn multi-arity
 #?(:clj
-   (skip "e/fn multi-arity mistakes"
-     (binding [expand/*electric* true]
-       (try (expand/all {} '(e/fn Named ([x] x) ([y] y)))
-            (catch Throwable e (tap e)))
-       (ex-message (ex-cause %)) := "Conflicting arity definitions in Named: [x] and [y]"
+   (tests "e/fn multi-arity mistakes"
+     (try (lang/expand-all {} '(e/fn Named ([x] x) ([y] y)))
+          (catch Throwable e (tap e)))
+     (ex-message %) := "Conflicting arity definitions in Named: [x] and [y]"
 
-       (try (expand/all {} '(e/fn Named ([x] x) ([& ys] ys)))
-            (catch Throwable e (tap e)))
-       (ex-message (ex-cause %)) := "Conflicting arity definitions in Named: [x] and [& ys]"
+     (try (lang/expand-all {} '(e/fn Named ([x] x) ([& ys] ys)))
+          (catch Throwable e (tap e)))
+     (ex-message %) := "Conflicting arity definitions in Named: [x] and [& ys]"
 
-       (try (expand/all {} '(e/fn ([x & ys] x) ([x y & zs] ys)))
-            (catch Throwable e (tap e)))
-       (ex-message (ex-cause %)) := "Conflicting arity definitions: [x & ys] and [x y & zs]")))
+     (try (lang/expand-all {} '(e/fn ([x & ys] x) ([x y & zs] ys)))
+          (catch Throwable e (tap e)))
+     (ex-message %) := "Conflicting arity definitions: [x & ys] and [x y & zs]"))
 
 #?(:cljs
    (tests "#js"
