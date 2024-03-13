@@ -9,7 +9,7 @@
             [hyperfiddle.rcf :refer [tests tap %]]
             [contrib.test.datomic-peer-mbrainz :as test]))
 
-(defn tempid? [x] (or (string? x) (neg? x)))
+(defn tempid? [x] (or (string? x) (and (number? x) (neg? x))))
 
 (tests
   (tempid? -1) := true
