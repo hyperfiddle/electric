@@ -1,7 +1,8 @@
 (ns contrib.triple-store
   (:refer-clojure :exclude [find])
   (:require [dom-top.core :refer [loopr]]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [contrib.assert :as ca]))
 
 ;; ts - triple store
 ;; e  - entity    (id of entity)
@@ -72,3 +73,7 @@
 (defn find [ts & kvs]
   (let [ret (reduce set/intersection (into [] (comp (partition-all 2) (map (fn [[k v]] (-> ts :ave (get k) (get v))))) kvs))]
     (when (seq ret) ret)))
+(defn find1 [ts & kvs]
+  (let [vs (apply find ts kvs)]
+    (ca/check #(= 1 (count %)) vs)
+    (first vs)))
