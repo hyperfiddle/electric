@@ -596,18 +596,30 @@
   (with ((l/single {} (try (tap (e/server (e/client 1))) (catch Pending _))) tap tap)
     % := 1))
 
+(tests "client/server transfer"
+       (with ((l/local {} (tap (e/server 1))) tap tap)
+         % := 1))
+
 ;; TODO network
-;; (l/def foo nil)
+(def foo nil)
 (skip
   (with ((l/single {} (try (tap (binding [foo 1] (e/server (e/client foo))))
-                       (catch Pending _))) tap tap)
+                           (catch Pending _))) tap tap)
+    % := 1))
+
+(tests
+  (with ((l/single {} (tap (binding [foo 1] (e/server (e/client foo))))) tap tap)
     % := 1))
 
 ;; TODO network
-;; (l/def foo nil)
+(def foo nil)
 (skip
   (with ((l/single {} (try (tap (binding [foo 1] (e/server (new (e/fn [] (e/client foo))))))
                        (catch Pending _))) tap tap)
+    % := 1))
+
+(skip
+  (with ((l/single {} (tap (binding [foo 1] (e/server ($ (e/fn [] (e/client foo))))))) tap tap)
     % := 1))
 
 ;; TODO try/catch
