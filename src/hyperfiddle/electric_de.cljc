@@ -242,3 +242,10 @@ this tuple. Returns the concatenation of all body results as a single vector.
       19 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11) (nth s 12) (nth s 13) (nth s 14) (nth s 15) (nth s 16) (nth s 17) (nth s 18))
       20 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11) (nth s 12) (nth s 13) (nth s 14) (nth s 15) (nth s 16) (nth s 17) (nth s 18) (nth s 19)))))
 (defmacro apply [F & args] `($ Apply* ~F [~@args]))
+
+(cc/defn on-unmount* [f] (m/observe (cc/fn [!] (! nil) f)))
+
+(defmacro on-unmount "Run clojure(script) thunk `f` during unmount.
+
+  Standard electric code runs on mount, therefore there is no `on-mount`."
+  [f] `(input (on-unmount* ~f))) ; experimental

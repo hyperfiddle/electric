@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric.impl.compiler-test
   (:require [hyperfiddle.electric-de :as e]
             [hyperfiddle.incseq :as i]
+            #?(:clj [contrib.triple-store :as ts])
             #?(:clj [hyperfiddle.electric.impl.lang-de2 :as lang])
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.electric-local-def-de :as l]
@@ -491,9 +492,14 @@
       (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 1)))
       (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 2)))]))
 
-(comment             ; TODO rewrite for new iteration
-  ;; (<source-map-of-ap> <nil-for-prn> <nil-for-hello-world>)
-  ;; source-map => ::line ::column
+(comment
+
+  (let [ts (l/code->ts {} (prn :hello))
+        ap-uid (lang/e->uid ts (ts/find1 ts ::lang/type ::lang/ap))]
+    (match (ts/->node ts (ts/find1 ts ::lang/source-map-of ap-uid))
+      {::lang/line `tm/_, ::lang/column `tm/_}))
+
+
   (number? (-> (l/compile-client-source-map (prn "hello world")) first ::lang/line)) := true
   (let [sm (l/compile-client-source-map (let [x "Hello world", y "Hello world"] [x y]))
         line (-> sm first ::lang/line)]

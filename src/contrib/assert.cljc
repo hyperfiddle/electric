@@ -20,6 +20,18 @@
   ([pred v] `(check ~pred ~v {}))
   ([pred v ex-data] `(-check '~pred ~pred '~v ~v ~ex-data)))
 
+(defn -is [v pred vq predq msg ex-data]
+  (when-not (pred v)
+    (throw (ex-info (str "assertion failed: (" (pr-str predq) " " (pr-str vq) ") for " (pr-str vq) " = " (pr-str v)
+                      (when msg (str "\n\n    " msg)))
+             (assoc ex-data ::v v ::pred pred)))))
+
+(defmacro is
+  ([v] `(is ~v some?))
+  ([v pred] `(is ~v ~pred nil))
+  ([v pred msg] `(is ~v ~pred ~msg {}))
+  ([v pred msg ex-data] `(-is ~v ~pred '~v '~pred ~msg ~ex-data)))
+
 (tests
   (check nil) :throws #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
   (check odd? 2) :throws #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)

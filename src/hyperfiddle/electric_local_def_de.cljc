@@ -26,6 +26,18 @@
           ([nm form] `(test-compile ~nm {} ~form))
           ([nm env form] `(lang/compile ~nm '~form (merge web-config (lang/normalize-env ~env))))))
 
+#?(:clj (defn code->ts* [env conf form]
+          (ca/check map? conf)
+          (let [env (merge (->local-config env) (lang/normalize-env env) conf)
+                expanded (lang/expand-all env `(::lang/ctor ~form))
+                _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
+                ts (lang/analyze expanded '_ env (lang/->ts))
+                _  (when (::lang/print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))]
+            (lang/analyze-electric env ts))))
+
+#?(:clj (defmacro code->ts {:style/indent 1} [conf & body]
+          `(code->ts* ~&env ~conf '(do ~@body))))
+
 #?(:clj
    (defn collect-deps [deps]
      (loop [ret (sorted-set) deps deps]

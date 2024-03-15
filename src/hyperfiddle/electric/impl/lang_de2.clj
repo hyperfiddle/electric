@@ -610,10 +610,10 @@
                        (?add-source-map e form))))
         (::lookup) (let [[_ sym] form] (ts/add ts {:db/id (->id), ::parent pe, ::type ::lookup, ::sym sym}))
         (::static-vars) (recur (second form) pe (assoc env ::static-vars true) ts)
-        #_else (let [e (->id)]
+        #_else (let [e (->id), uid (->uid)]
                  (reduce (fn [ts nx] (analyze (wrap-ap-arg nx) e env ts))
-                   (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
-                     (?add-source-map e form)) form)))
+                   (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap, ::uid uid})
+                     (?add-source-map uid form)) form)))
 
       (instance? cljs.tagged_literals.JSValue form)
       (let [o (.-val ^cljs.tagged_literals.JSValue form)]
