@@ -19,11 +19,12 @@
   `(r/root-frame {::Main (cdefs ~form)} ::Main))
 
 (defmacro peers [form]
-  (let [main (l/compile ::Main form
-               (assoc (l/normalize-env &env)
-                 ::l/peers {:client :clj, :server :clj}))]
-    `{:client #(r/peer % :client {::Main ~main} ::Main)
-      :server #(r/peer % :server {::Main ~main} ::Main)}))
+  `(fn [site# input#]
+     (r/peer input# site#
+       {::Main ~(l/compile ::Main form
+                  (assoc (l/normalize-env &env)
+                    ::l/peers {:client :clj, :server :clj}))}
+       ::Main)))
 
 (tests
   (on-diff! rcf/tap (root-frame "hello electric"))
@@ -150,25 +151,19 @@
   % := nil)
 
 (tests
-  (def cp
-    {::Main [(r/cdef 0 [:server] [] nil
-               (fn [frame]
-                 (r/define-node frame 0 (r/pure :foo))
-                 (r/ap (r/pure rcf/tap) (r/node frame 0))))]})
+  (def peer (peers (rcf/tap (e/server :foo))))
   (def c-ps
-    ((r/peer
+    ((peer :client
        (fn [!]
          (def s->c !)
-         #(prn :dispose))
-       :client cp ::Main)
+         #(prn :dispose)))
      #(rcf/tap :step-c) #(prn :done-c)))
   % := :step-c
   (def s-ps
-    ((r/peer
+    ((peer :server
        (fn [!]
          (def c->s !)
-         #(prn :dispose))
-       :server cp ::Main)
+         #(prn :dispose)))
      #(rcf/tap :step-s) #(prn :done-s)))
   (c->s @c-ps)
   % := :step-s
@@ -180,29 +175,19 @@
   (s->c @s-ps))
 
 (tests
-  #_(rcf/tap (e/client (e/$ (e/server (e/fn [])))))
-  (def cp
-    {::Main [(r/cdef 0 [:server] [:client] nil
-               (fn [frame]
-                 (r/define-node frame 0 (r/pure (r/make-ctor frame ::Main 1)))
-                 (r/define-call frame 0 (r/node frame 0))
-                 (r/ap (r/pure rcf/tap) (r/join (r/call frame 0)))))
-             (r/cdef 0 [] [] nil
-               (fn [frame] (r/pure :foo)))]})
+  (def peer (peers (rcf/tap (e/client (e/$ (e/server (e/fn [] :foo)))))))
   (def c-ps
-    ((r/peer
+    ((peer :client
        (fn [!]
          (def s->c !)
-         #(prn :dispose))
-       :client cp ::Main)
+         #(prn :dispose)))
      #(rcf/tap :step-c) #(prn :done-c)))
   % := :step-c
   (def s-ps
-    ((r/peer
+    ((peer :server
        (fn [!]
          (def c->s !)
-         #(prn :dispose))
-       :server cp ::Main)
+         #(prn :dispose)))
      #(rcf/tap :step-s) #(prn :done-s)))
   (c->s @c-ps)
   % := :step-s
@@ -214,30 +199,19 @@
   (s->c @s-ps))
 
 (tests
-  #_(rcf/tap (e/client (e/$ (e/server (let [foo :foo] (e/fn [] foo))))))
-  (def cp
-    {::Main [(r/cdef 0 [:server :server] [:client] nil
-               (fn [frame]
-                 (r/define-node frame 0 (r/pure :foo))
-                 (r/define-node frame 1 (r/pure (r/make-ctor frame ::Main 1 (r/node frame 0))))
-                 (r/define-call frame 0 (r/node frame 1))
-                 (r/ap (r/pure rcf/tap) (r/join (r/call frame 0)))))
-             (r/cdef 1 [] [] nil
-               (fn [frame] (r/free frame 0)))]})
+  (def peer (peers (rcf/tap (e/client (e/$ (e/server (let [foo :foo] (e/fn [] foo))))))))
   (def c-ps
-    ((r/peer
+    ((peer :client
        (fn [!]
          (def s->c !)
-         #(prn :dispose))
-       :client cp ::Main)
+         #(prn :dispose)))
      #(rcf/tap :step-c) #(prn :done-c)))
   % := :step-c
   (def s-ps
-    ((r/peer
+    ((peer :server
        (fn [!]
          (def c->s !)
-         #(prn :dispose))
-       :server cp ::Main)
+         #(prn :dispose)))
      #(rcf/tap :step-s) #(prn :done-s)))
   (c->s @c-ps)
   % := :step-s
