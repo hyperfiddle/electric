@@ -493,7 +493,7 @@ T T T -> (EXPR T)
     (define-slot frame id ((.-build cdef) frame)) frame))
 
 (defn peer-cancel [^Peer peer]
-  (prn :TODO-cancel))
+  #_(prn :TODO-cancel))
 
 (defn decode [^String s opts]
   #?(:clj (t/read (t/reader (ByteArrayInputStream. (.getBytes s)) :json opts))
@@ -690,11 +690,11 @@ T T T -> (EXPR T)
           (recur))))))
 
 (defn peer-result-diff [^Peer peer diff]
-  (prn :TODO-result-diff diff)
+  #_(prn :TODO-result-diff diff)
   peer)
 
 (defn peer-result-success [^Peer peer]
-  (prn :TODO-result-success))
+  #_(prn :TODO-result-success))
 
 (defn define-node
   "Defines signals node id for given frame."
