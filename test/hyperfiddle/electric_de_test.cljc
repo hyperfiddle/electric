@@ -622,8 +622,8 @@
                        (catch Pending _))) tap tap)
     % := 1))
 
-(failing
-  (with ((l/single {} (tap (binding [foo 1] (e/server ($ (e/fn [] (e/client foo))))))) tap tap)
+(tests
+  (with ((l/local {} (tap (binding [foo 1] (e/server ($ (e/fn [] (e/client foo))))))) tap tap)
     % := 1))
 
 ;; TODO try/catch

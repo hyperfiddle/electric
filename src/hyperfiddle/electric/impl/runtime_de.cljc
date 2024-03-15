@@ -268,34 +268,29 @@ T T T -> (EXPR T)
   [^Ctor ctor]
   (((.-defs (ctor-peer ctor)) (.-key ctor)) (.-idx ctor)))
 
-(declare result)
-
 (defn port-flow [^objects port]
   (aget port port-slot-flow))
 
 (defn port-deps [^objects port]
   (aget port port-slot-deps))
 
-(deftype Frame [parent call-id rank site ctor
-                ^ints ranks ^objects children ^objects ports
+(deftype Frame [slot rank site ctor
+                ^ints ranks ^objects children
+                ^objects calls ^objects nodes
                 ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
   #?(:cljs IHash)
   (#?(:clj hashCode :cljs -hash) [_]
     (if-some [h hash-memo]
-      h (set! hash-memo
-          (-> (hash parent)
-            (hash-combine (hash call-id))
-            (hash-combine (hash rank))))))
+      h (set! hash-memo (hash-combine (hash slot) (hash rank)))))
   #?(:cljs IEquiv)
   (#?(:clj equals :cljs -equiv) [_ other]
     (and (instance? Frame other)
-      (= parent (.-parent ^Frame other))
-      (= call-id (.-call-id ^Frame other))
+      (= slot (.-slot ^Frame other))
       (= rank (.-rank ^Frame other))))
   IFn
   (#?(:clj invoke :cljs -invoke) [this step done]
-    ((port-flow (result this)) step done)))
+    ((port-flow (aget nodes (dec (alength nodes)))) step done)))
 
 (defn frame-ctor
   "Returns the constructor of given frame."
@@ -314,17 +309,6 @@ T T T -> (EXPR T)
   {:tag Cdef}
   [^Frame frame]
   (ctor-cdef (frame-ctor frame)))
-
-(defn frame-parent
-  "Returns the parent frame of given frame if not root, nil otherwise."
-  {:tag Frame}
-  [^Frame frame]
-  (.-parent frame))
-
-(defn frame-call-id
-  "Returns the call id of given frame."
-  [^Frame frame]
-  (.-call-id frame))
 
 (defn frame-call-count
   "Returns the call count of given frame."
@@ -436,61 +420,67 @@ T T T -> (EXPR T)
   (aset port port-slot-process nil)
   (peer-push (frame-peer (.-frame (port-slot port))) peer-queue-untap port))
 
-(defn frame-port
-  {:tag 'objects}
-  [^Frame frame id]
-  (let [^objects ports (.-ports frame)]
-    (aget ports id)))
-
 (defn slot-port
   {:tag 'objects}
   [^Slot slot]
-  (frame-port (.-frame slot) (.-id slot)))
+  (let [id (.-id slot)
+        ^Frame frame (.-frame slot)]
+    (if (neg? id)
+      (aget ^objects (.-nodes frame) (- -1 id))
+      (aget ^objects (.-calls frame) id))))
 
 (defn port-ready [^objects port]
   (peer-push (frame-peer (.-frame (port-slot port))) peer-queue-ready port))
 
-(defn define-slot [^Frame frame id expr]
-  (let [^objects ports (.-ports frame)]
-    (when-not (nil? (aget ports id))
-      (throw (error "Can't redefine slot.")))
-    (aset ports id
-      (if (instance? Slot expr)
-        (slot-port expr)
-        (let [cdef (ctor-cdef (frame-ctor frame))
-              nodes (.-nodes cdef)
-              nodec (count nodes)
-              site (if-some [site (if (< id nodec)
-                                    (nodes id)
-                                    (let [id (+ id nodec)
-                                          calls (.-calls cdef)
-                                          callc (count calls)]
-                                      (if (< id callc)
-                                        (calls id)
-                                        (.-result cdef))))]
-                     site (frame-site frame))
-              port (object-array port-slots)]
-          (aset port port-slot-slot (->Slot frame id))
-          (aset port port-slot-site site)
-          (aset port port-slot-deps (deps expr site))
-          (aset port port-slot-flow
-            (m/signal i/combine
-              (if (= site (.-site (frame-peer frame)))
-                (flow expr)
-                (fn [step done]
-                  (let [ps (->Remote port step done (i/empty-diff 0))]
-                    (port-attach port ps) (step) ps)))))
-          (aset port port-slot-refcount (identity 0))
-          (aset port port-slot-requested (identity 0))
-          port))) nil))
+(defn frame-path [^Frame frame]
+  (loop [^Frame frame frame
+         path ()]
+    (if-some [^Slot slot (.-slot frame)]
+      (recur (.-frame slot)
+        (conj path [(.-id slot) (.-rank frame)]))
+      (vec path))))
 
-(defn make-frame [^Frame parent call-id rank ctor]
+(defn define-slot [^Slot slot expr]
+  (let [^Frame frame (.-frame slot)
+        id (.-id slot)
+        site (if-some [site (let [cdef (ctor-cdef (frame-ctor frame))
+                                  nodes (.-nodes cdef)
+                                  calls (.-calls cdef)]
+                              (if (neg? id)
+                                (let [id (- -1 id)]
+                                  (if (= id (count nodes))
+                                    (.-result cdef) (nodes id)))
+                                (calls id)))]
+               site (frame-site frame))
+        port (if (instance? Slot expr)
+               (slot-port expr)
+               (let [port (object-array port-slots)]
+                 (aset port port-slot-slot slot)
+                 (aset port port-slot-site site)
+                 (aset port port-slot-deps (deps expr site))
+                 (aset port port-slot-flow
+                   (m/signal i/combine
+                     (if (= site (.-site (frame-peer frame)))
+                       (flow expr)
+                       (fn [step done]
+                         (let [ps (->Remote port step done (i/empty-diff 0))]
+                           (port-attach port ps) (step) ps)))))
+                 (aset port port-slot-refcount (identity 0))
+                 (aset port port-slot-requested (identity 0))
+                 port))]
+    (if (neg? id)
+      (aset ^objects (.-nodes frame) (- -1 id) port)
+      (aset ^objects (.-calls frame) id port)) nil))
+
+(defn make-frame [^Slot slot rank ctor]
   (let [cdef (ctor-cdef ctor)
         callc (count (.-calls cdef))
-        id (+ (count (.-nodes cdef)) callc)
-        frame (->Frame parent call-id rank (if (nil? parent) :client (frame-site parent)) ctor
-                (int-array (inc callc)) (object-array callc) (object-array (inc id)) nil)]
-    (define-slot frame id ((.-build cdef) frame)) frame))
+        nodec (count (.-nodes cdef))
+        frame (->Frame slot rank
+                (if (nil? slot) :client (port-site (slot-port slot))) ctor
+                (int-array (inc callc)) (object-array callc) (object-array callc)
+                (object-array (inc nodec)) nil)]
+    (define-slot (->Slot frame (- -1 nodec)) ((.-build cdef) frame)) frame))
 
 (defn peer-cancel [^Peer peer]
   #_(prn :TODO-cancel))
@@ -507,16 +497,6 @@ T T T -> (EXPR T)
        (.toString out))
      :cljs
      (t/write (t/writer :json opts) value)))
-
-(defn frame-path [^Frame frame]
-  (loop [^Frame frame frame
-         path ()]
-    (if-some [parent (.-parent frame)]
-      (recur parent
-        (conj path
-          [(.-call-id ^Frame frame)
-           (.-rank ^Frame frame)]))
-      path)))
 
 (defn enable [^objects port]
   (aset port port-slot-process
@@ -551,6 +531,10 @@ T T T -> (EXPR T)
 (defn remote-port-untap [_ ^objects port n]
   (aset port port-slot-refcount
     (- (aget port port-slot-refcount) n)))
+
+(defn port-coordinates [^objects port]
+  (let [slot (port-slot port)]
+    [(frame-path (.-frame slot)) (.-id slot)]))
 
 (defn peer-transfer [^Peer peer]
   (let [^objects state (.-state peer)
@@ -626,29 +610,24 @@ T T T -> (EXPR T)
                     (aget state peer-slot-writer-opts)))))))))))
 
 (defn frame-shared? [^Frame frame]
-  (if-some [^Frame parent (.-parent frame)]
-    (let [rank (.-rank frame)
-          call-id (.-call-id frame)
+  (if-some [^Slot slot (.-slot frame)]
+    (let [^Frame parent (.-frame slot)
           ^objects children (.-children parent)]
-      (contains? (aget children call-id) rank)) true))
+      (contains? (aget children (.-id slot)) (.-rank frame))) true))
 
 (defn frame-share [^Frame frame]
-  (let [rank (.-rank frame)
-        call-id (.-call-id frame)
-        ^Frame parent (.-parent frame)
-        ^objects children (.-children parent)]
-    (aset children call-id
-      (assoc (aget children call-id)
-        rank frame))))
+  (let [^Slot slot (.-slot frame)
+        ^Frame parent (.-frame slot)
+        ^objects children (.-children parent)
+        id (.-id slot)]
+    (aset children id (assoc (aget children id) (.-rank frame) frame))))
 
 (defn frame-unshare [^Frame frame]
-  (let [rank (.-rank frame)
-        call-id (.-call-id frame)
-        ^Frame parent (.-parent frame)
-        ^objects children (.-children parent)]
-    (aset children call-id
-      (dissoc (aget children call-id)
-        rank frame))))
+  (let [^Slot slot (.-slot frame)
+        ^Frame parent (.-frame slot)
+        ^objects children (.-children parent)
+        id (.-id slot)]
+    (aset children id (dissoc (aget children id) (.-rank frame) frame))))
 
 (defn peer-ack [^Peer peer]
   ;; TODO
@@ -658,7 +637,9 @@ T T T -> (EXPR T)
   (peer-push peer peer-queue-toggle (slot-port slot)) peer)
 
 (defn peer-change [^Peer peer ^Slot slot diff]
-  ((port-process (slot-port slot)) diff) peer)
+  (let [port (slot-port slot)
+        ps (port-process port)]
+    (ps diff)) peer)
 
 (defn peer-freeze [^Peer peer ^Slot slot]
   ((port-process (slot-port slot)) nil) peer)
@@ -696,29 +677,42 @@ T T T -> (EXPR T)
 (defn peer-result-success [^Peer peer]
   #_(prn :TODO-result-success))
 
+(defn node
+  "Returns the signal node id for given frame."
+  {:tag Slot}
+  [^Frame frame id]
+  (->Slot frame (- -1 id)))
+
+(defn call
+  "Returns the call site id for given frame."
+  {:tag Slot}
+  [^Frame frame id]
+  (->Slot frame id))
+
 (defn define-node
   "Defines signals node id for given frame."
   [^Frame frame id expr]
-  (define-slot frame id expr))
+  (define-slot (node frame id) expr))
 
 (defn define-call
   "Defines call site id for given frame."
   [^Frame frame id expr]
-  (define-slot frame (+ id (count (.-nodes (frame-cdef frame))))
-    (reify Expr
-      (deps [_ site] (deps expr site))
-      (flow [_]
-        (i/latest-product
-          (fn [ctor]
-            (when-not (instance? Ctor ctor)
-              (throw (error (str "Not a constructor - " (pr-str ctor)))))
-            (when-not (identical? (frame-peer frame) (ctor-peer ctor))
-              (throw (error "Can't call foreign constructor.")))
-            (let [^ints ranks (.-ranks frame)
-                  rank (aget ranks id)]
-              (aset ranks id (inc rank))
-              (make-frame frame id rank ctor)))
-          (flow expr))))))
+  (let [slot (call frame id)]
+    (define-slot slot
+      (reify Expr
+        (deps [_ site] (deps expr site))
+        (flow [_]
+          (i/latest-product
+            (fn [ctor]
+              (when-not (instance? Ctor ctor)
+                (throw (error (str "Not a constructor - " (pr-str ctor)))))
+              (when-not (identical? (frame-peer frame) (ctor-peer ctor))
+                (throw (error "Can't call foreign constructor.")))
+              (let [^ints ranks (.-ranks frame)
+                    rank (aget ranks id)]
+                (aset ranks id (inc rank))
+                (make-frame slot rank ctor)))
+            (flow expr)))))))
 
 (defn define-free
   "Defines free variable id for given constructor."
@@ -736,8 +730,8 @@ T T T -> (EXPR T)
   ([^Frame frame key nf]
    (loop [frame frame]
      (if-some [s ((.-env (frame-ctor frame)) key)]
-       s (if-some [p (frame-parent frame)]
-           (recur p) nf)))))
+       s (if-some [^Slot slot (.-slot frame)]
+           (recur (.-frame slot)) nf)))))
 
 (defn make-ctor
   "Returns a fresh constructor for cdef coordinates key and idx."
@@ -750,32 +744,12 @@ T T T -> (EXPR T)
       (eduction (map-indexed vector) frees))
     ctor))
 
-(defn node
-  "Returns the signal node id for given frame."
-  {:tag Slot}
-  [^Frame frame id]
-  (->Slot frame id))
-
-(defn call
-  "Returns the call site id for given frame."
-  {:tag Slot}
-  [^Frame frame id]
-  (->Slot frame (+ (count (.-nodes (frame-cdef frame))) id)))
-
 (defn free
   "Returns the free variable id for given frame."
   {:tag Slot}
   [^Frame frame id]
   (let [^objects free (.-free (frame-ctor frame))]
     (aget free id)))
-
-(defn result
-  "Returns the result of given frame."
-  {:tag 'objects}
-  [^Frame frame]
-  (let [^objects ports (.-ports frame)
-        ^Cdef cdef (frame-cdef frame)]
-    (aget ports (+ (count (.-nodes cdef)) (count (.-calls cdef))))))
 
 (defn peer "
 Returns a peer definition from given definitions and main key.
@@ -792,7 +766,7 @@ Returns a peer definition from given definitions and main key.
           input (m/stream (m/observe events))
           root (->> args
                  (apply bind-args (->Ctor peer main 0 (object-array 0) {} nil))
-                 (make-frame nil 0 0))]
+                 (make-frame nil 0))]
       (aset state peer-slot-writer-opts
         {:default-handler (t/write-handler
                             (fn [_] "unserializable")
@@ -836,9 +810,9 @@ Returns a peer definition from given definitions and main key.
                                        (fn [[path ctor]]
                                          (if (nil? ctor)
                                            (peer-frame peer path)
-                                           (let [[call rank] (peek path)
+                                           (let [[id rank] (peek path)
                                                  parent (peer-frame peer (pop path))
-                                                 frame (make-frame parent call rank ctor)]
+                                                 frame (make-frame (call parent id) rank ctor)]
                                              (frame-share frame) frame))))
                     "join"           (t/read-handler
                                        (fn [input]
@@ -861,7 +835,7 @@ Returns a peer definition from given definitions and main key.
       (when (= site :client)
         (aset state peer-slot-result
           ((m/reduce peer-result-diff peer
-             (m/signal i/combine (port-flow (result root))))
+             (m/signal i/combine root))
            peer-result-success pst)))
       (peer-input-ready peer) peer)))
 
@@ -869,7 +843,7 @@ Returns a peer definition from given definitions and main key.
 (defn root-frame [defs main]
   (->> (bind-args (->Ctor (->Peer :client defs nil nil nil nil nil)
                     main 0 (object-array 0) {} nil))
-    (make-frame nil 0 0)
+    (make-frame nil 0)
     (m/signal i/combine)))
 
 #?(:clj
