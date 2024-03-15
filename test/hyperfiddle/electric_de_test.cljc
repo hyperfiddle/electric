@@ -9,7 +9,7 @@
             #?(:cljs [hyperfiddle.goog-calls-test-de])
             [clojure.string :as str]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip tests]]))
+  #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip tests failing]]))
   (:import [hyperfiddle.electric Pending Failure]
            [missionary Cancelled]
            #?(:clj [clojure.lang ExceptionInfo])))
@@ -21,6 +21,10 @@
 
 (defmacro tests {:style/indent 0} [& body]
   `(do (swap! stats update :tested inc) (rcf/tests ~@body)))
+
+(defmacro failing {:style/indent 0} [& body]
+  nil
+  #_`(try (do ~@body) (catch ~(if (:js-globals &env) :default 'Throwable) e# (prn e#))))
 
 (tests "call on local electric ctor"
        (with ((l/single {} (let [x (e/ctor 1)] (tap ($ x)))) tap tap)
@@ -618,16 +622,20 @@
                        (catch Pending _))) tap tap)
     % := 1))
 
-(skip
+(failing
   (with ((l/single {} (tap (binding [foo 1] (e/server ($ (e/fn [] (e/client foo))))))) tap tap)
     % := 1))
 
 ;; TODO try/catch
-;; (l/def foo1 nil)
-;; (l/def Bar1 (e/fn [] (e/client foo1)))
+(def foo1 nil)
+(def Bar1)
 (skip
   (with ((l/single {} (try (tap (binding [foo1 1] (e/server (Bar1.))))
                        (catch Pending _))) tap tap)
+    % := 1))
+
+(failing
+  (with ((l/single {} (tap (binding [Bar1 (e/fn [] (e/client foo1)), foo1 1] (e/server ($ Bar1))))) tap tap)
     % := 1))
 
 ;; TODO try/catch
@@ -936,6 +944,13 @@
     (swap! !t not)
     % := nil))
 
+(def !t (atom true))
+(tests
+  (with ((l/single {} (tap (let [t (e/watch !t)] (when t t (e/server t))))) tap tap)
+    % := true
+    (swap! !t not)
+    % := nil))
+
 (tests
   (def !state (atom true))
   (with ((l/single {} (when (e/watch !state) (tap :touch))) tap tap)
@@ -973,6 +988,19 @@
                            (tap [x y])))
                        (catch Cancelled _)
                        (catch Pending _))) tap tap)
+    % := [1 1]
+    (reset! !state [3])
+    % := [3 3]))
+
+(def !state (atom [1]))
+(def state)
+(failing
+  (reset! !state [1])
+  "Nested e/for with transfer"
+  (with ((l/single {} (binding [state (e/watch !state)]
+                        (e/for-by identity [x (e/server state)]
+                          (e/for-by identity [y (e/server state)]
+                            (tap [x y]))))) tap tap)
     % := [1 1]
     (reset! !state [3])
     % := [3 3]))
@@ -1015,6 +1043,13 @@
              (tap (e/client ((fn [{:keys [a] ::keys [b]}] [::client a b]) {:a 1 ::b 2})))
              (tap (e/server ((fn [{:keys [a] ::keys [b]}] [::server a b]) {:a 1 ::b 2})))
              (catch Pending _))) tap tap))
+    % := [::client 1 2]
+    % := [::server 1 2])
+
+(failing "fn destructuring"
+  (with ((l/single {}
+           (tap (e/client ((fn [{:keys [a] ::keys [b]}] [::client a b]) {:a 1 ::b 2})))
+           (tap (e/server ((fn [{:keys [a] ::keys [b]}] [::server a b]) {:a 1 ::b 2})))) tap tap))
     % := [::client 1 2]
     % := [::server 1 2])
 
@@ -1066,6 +1101,16 @@
                                         ; the remote tap on the switch has been removed
     % := [:client false]))
 
+(def !x (atom true))
+(failing
+  (reset! !x true)
+  (with ((l/single {} (let [x (e/watch !x)]
+                        (tap (if x (e/server [:server x]) [:client x])))) tap tap)
+    % := [:server true]
+    (swap! !x not)
+                                        ; the remote tap on the switch has been removed
+    % := [:client false]))
+
 ;; TODO transfer try/catch
 (skip
   (def !x (atom true))
@@ -1076,6 +1121,21 @@
                (e/server (tap x)) ; but test shows that the server sees x change before client
                (e/server x))
              (catch Pending _))) tap tap)
+   % := true
+   (swap! !x not)
+   % := false #_ ::rcf/timeout)
+  ; we have to choose: consistency or less latency?
+  ; current behavior - Dustin likes, Leo does not like
+  )
+
+(def !x (atom true))
+(failing
+  (reset! !x true)
+  (with ((l/single {}
+           (let [x (e/watch !x)]
+             (if (e/server x) ; to be consistent, client should see x first and switch
+               (e/server (tap x)) ; but test shows that the server sees x change before client
+               (e/server x)))) tap tap)
    % := true
    (swap! !x not)
    % := false #_ ::rcf/timeout)
@@ -1127,6 +1187,14 @@
     % := 1
     % := 1))
 
+(failing
+  (with ((l/single {} (e/server
+                        (let [foo 1]
+                          (tap foo)
+                          (tap (e/client foo))))) tap tap)
+    % := 1
+    % := 1))
+
 ;; TODO transfer try/catch
 (skip "Today, bindings fail to transfer, resulting in unbound var exception. This will be fixed"
                                         ; https://www.notion.so/hyperfiddle/photon-binding-transfer-unification-of-client-server-binding-7e56d9329d224433a1ee3057e96541d1
@@ -1153,12 +1221,22 @@
                        (catch Pending _))) tap tap)
     % := 2))
 
+(failing "static method call in e/server"
+  (with ((l/single {} (tap (e/server (Math/max 2 1)))) tap tap)
+    % := 2))
+
 ;; TODO transfer try/catch
 (skip "static method call in e/client"
   (with ((l/single {} (try (tap (e/server (subvec (vec (range 10))
                                         (Math/min 1 1)
                                         (Math/min 3 3))))
                        (catch Pending _))) tap tap)
+    % := [1 2]))
+
+(failing "static method call in e/client"
+  (with ((l/single {} (tap (e/server (subvec (vec (range 10))
+                                       (Math/min 1 1)
+                                       (Math/min 3 3))))) tap tap)
     % := [1 2]))
 
 (def !state (atom 0))
