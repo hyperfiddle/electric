@@ -634,8 +634,8 @@
                        (catch Pending _))) tap tap)
     % := 1))
 
-(failing
-  (with ((l/single {} (tap (binding [Bar1 (e/fn [] (e/client foo1)), foo1 1] (e/server ($ Bar1))))) tap tap)
+(tests
+  (with ((l/local {} (tap (binding [Bar1 (e/fn [] (e/client foo1)), foo1 1] (e/server ($ Bar1))))) tap tap)
     % := 1))
 
 ;; TODO try/catch
@@ -997,7 +997,7 @@
 (failing
   (reset! !state [1])
   "Nested e/for with transfer"
-  (with ((l/single {} (binding [state (e/watch !state)]
+  (with ((l/local {} (binding [state (e/watch !state)]
                         (e/for-by identity [x (e/server state)]
                           (e/for-by identity [y (e/server state)]
                             (tap [x y]))))) tap tap)
@@ -1046,8 +1046,8 @@
     % := [::client 1 2]
     % := [::server 1 2])
 
-(failing "fn destructuring"
-  (with ((l/single {}
+(tests "fn destructuring"
+  (with ((l/local {}
            (tap (e/client ((fn [{:keys [a] ::keys [b]}] [::client a b]) {:a 1 ::b 2})))
            (tap (e/server ((fn [{:keys [a] ::keys [b]}] [::server a b]) {:a 1 ::b 2})))) tap tap))
     % := [::client 1 2]
@@ -1102,9 +1102,9 @@
     % := [:client false]))
 
 (def !x (atom true))
-(failing
+(tests
   (reset! !x true)
-  (with ((l/single {} (let [x (e/watch !x)]
+  (with ((l/local {} (let [x (e/watch !x)]
                         (tap (if x (e/server [:server x]) [:client x])))) tap tap)
     % := [:server true]
     (swap! !x not)
@@ -1131,7 +1131,7 @@
 (def !x (atom true))
 (failing
   (reset! !x true)
-  (with ((l/single {}
+  (with ((l/local {}
            (let [x (e/watch !x)]
              (if (e/server x) ; to be consistent, client should see x first and switch
                (e/server (tap x)) ; but test shows that the server sees x change before client
@@ -1187,8 +1187,8 @@
     % := 1
     % := 1))
 
-(failing
-  (with ((l/single {} (e/server
+(tests
+  (with ((l/local {} (e/server
                         (let [foo 1]
                           (tap foo)
                           (tap (e/client foo))))) tap tap)
@@ -1221,8 +1221,8 @@
                        (catch Pending _))) tap tap)
     % := 2))
 
-(failing "static method call in e/server"
-  (with ((l/single {} (tap (e/server (Math/max 2 1)))) tap tap)
+(tests "static method call in e/server"
+  (with ((l/local {} (tap (e/server (Math/max 2 1)))) tap tap)
     % := 2))
 
 ;; TODO transfer try/catch
@@ -1233,8 +1233,8 @@
                        (catch Pending _))) tap tap)
     % := [1 2]))
 
-(failing "static method call in e/client"
-  (with ((l/single {} (tap (e/server (subvec (vec (range 10))
+(tests "static method call in e/client"
+  (with ((l/local {} (tap (e/server (subvec (vec (range 10))
                                        (Math/min 1 1)
                                        (Math/min 3 3))))) tap tap)
     % := [1 2]))
