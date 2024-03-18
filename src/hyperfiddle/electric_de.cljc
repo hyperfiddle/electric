@@ -15,8 +15,13 @@
 #?(:clj (cc/defn dget [v] `(::lang/lookup ~v)))
 #?(:clj (cc/defn ->pos-args [n] (eduction (take n) (map dget) (range))))
 
+(defmacro check-electric [fn form]
+  (if (::lang/electric &env)
+    form
+    (throw (ex-info (str "Electric code (" fn ") inside a Clojure function") (into {:electric-fn fn} (meta &form))))))
+
 (defmacro ctor [expr] `(::lang/ctor ~expr))
-(defmacro $ [F & args] `(lang/$ ~F ~@args))
+(defmacro $ [F & args] `(check-electric $ (lang/$ ~F ~@args)))
 
 (defmacro pure "
 Syntax :
@@ -33,11 +38,6 @@ Syntax :
 ```
 Returns the successive states of items described by `incseq`.
 " [flow] `(::lang/join ~flow))
-
-(defmacro check-electric [fn form]
-  (if (::lang/electric &env)
-    form
-    (throw (ex-info (str "Electric code (" fn ") inside a Clojure function") (into {:electric-fn fn} (meta &form))))))
 
 (defmacro fn* [bs & body]
   `(check-electric fn*
