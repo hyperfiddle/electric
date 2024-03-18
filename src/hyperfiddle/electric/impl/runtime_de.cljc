@@ -437,7 +437,7 @@ T T T -> (EXPR T)
          path ()]
     (if-some [^Slot slot (.-slot frame)]
       (recur (.-frame slot)
-        (conj path [(.-id slot) (.-rank frame)]))
+        (conj path [(.-id slot) (.-rank ^Frame frame)]))
       (vec path))))
 
 (defn define-slot [^Slot slot expr]
