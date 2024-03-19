@@ -1,45 +1,42 @@
-{:paths ["src"
-         "src-legacy" ; compat, deprecated
-         ]
- :deps  {com.cognitect/transit-clj      {:mvn/version "1.0.329"}
-         com.cognitect/transit-cljs     {:mvn/version "0.8.269"}
+{:paths ["src"]
+ :deps  {com.cognitect/transit-clj      {:mvn/version "1.0.333"}
+         com.cognitect/transit-cljs     {:mvn/version "0.8.280"}
          com.hyperfiddle/rcf            {:mvn/version "20220926-202227"}
          missionary/missionary          {:mvn/version "b.34"}
          dom-top/dom-top                {:mvn/version "1.0.9"}
          fipp/fipp                      {:mvn/version "0.6.26"}
-         org.clojure/clojure            {:mvn/version "1.12.0-alpha4"}
-         org.clojure/clojurescript      {:mvn/version "1.11.60"}
-         org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"} ;; used by Electric
+         org.clojure/clojure            {:mvn/version "1.12.0-alpha5"}
+         org.clojure/clojurescript      {:mvn/version "1.11.121"}
+         org.clojure/tools.analyzer.jvm {:mvn/version "1.2.3"} ;; used by Electric
          org.clojure/tools.logging      {:mvn/version "1.2.4"}
          borkdude/edamame               {:mvn/version "1.4.25"}
          net.cgrand/xforms              {:mvn/version "0.19.6"}
          }
 
  :aliases {:dev  {:extra-paths ["src-dev" "src-docs" "test" "scratch" "resources-demo"] ; for clj command
-                  :extra-deps  {binaryage/devtools                                  {:mvn/version "1.0.6"} ; for chrome devtools pretty printing
-                                thheller/shadow-cljs                                {:mvn/version "2.22.10"}
-                                reagent/reagent                                     {:mvn/version "1.1.1"} ; for reagent interop demo
-                                ch.qos.logback/logback-classic                      {:mvn/version "1.2.11"} ; logging implementation
+                  :extra-deps  {binaryage/devtools                                  {:mvn/version "1.0.7"} ; for chrome devtools pretty printing
+                                thheller/shadow-cljs                                {:mvn/version "2.26.2"}
+                                ;; reagent/reagent                                     {:mvn/version "1.1.1"} ; for reagent interop demo
+                                ch.qos.logback/logback-classic                      {:mvn/version "1.4.14"} ; logging implementation
                                 lambdaisland/deep-diff2                             {:mvn/version "2.10.211"}
                                 info.sunng/ring-jetty9-adapter                      {:mvn/version "0.14.3"
                                                                                      ;; "0.14.3" (Jetty 9) is Java 8 compatible;
                                                                                      ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
                                                                                      :exclusions  [org.slf4j/slf4j-api
                                                                                                    info.sunng/ring-jetty9-adapter-http3]} ; no need
-                                ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
-                                com.datomic/peer {:mvn/version "1.0.6735" :exclusions [org.slf4j/slf4j-nop]} ; for demos
-                                datascript/datascript {:mvn/version "1.3.14"} ; for demos
+                                ;; ring-basic-authentication/ring-basic-authentication {:mvn/version "1.2.0"}
+                                com.datomic/peer {:mvn/version "1.0.7075" :exclusions [org.slf4j/slf4j-nop]} ; for demos TODO can this be removed?
+                                datascript/datascript {:mvn/version "1.4.1"} ; for demos TODO can this be updated/removed?
                                 }
-                  :jvm-opts    ["-Xss2m"                 ; https://github.com/hyperfiddle/electric/issues/11
-                                "-XX:-OmitStackTraceInFastThrow" ;; RCF
+                  :jvm-opts    ["-XX:-OmitStackTraceInFastThrow" ;; RCF
                                 ]}
            :test {:extra-paths [#_"src-dev" "test"]
                   :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true"
                                 "-XX:-OmitStackTraceInFastThrow" ;; https://archive.md/NNt9r
                                 ]
-                  :extra-deps  {org.clojure/core.async               {:mvn/version "1.5.648"} ; for interop helpers only
-                                datascript/datascript                {:mvn/version "1.3.14"}
-                                ch.qos.logback/logback-classic       {:mvn/version "1.2.11"}
+                  :extra-deps  {org.clojure/core.async               {:mvn/version "1.6.681"} ; for interop helpers only
+                                datascript/datascript                {:mvn/version "1.4.1"}
+                                ch.qos.logback/logback-classic       {:mvn/version "1.4.14"}
                                 io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                       :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
                   :exec-fn     cognitect.test-runner.api/test}
@@ -48,26 +45,25 @@
 
            :build        {:extra-paths ["src-build"]
                           :ns-default  build
-                          :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.9.5"}
-                                        slipset/deps-deploy           {:mvn/version "0.2.0"}}}
-           :shadow-cljs  {:extra-deps {thheller/shadow-cljs {:mvn/version "2.22.10"}}
-                          :main-opts  ["-m" "shadow.cljs.devtools.cli"]
-                          :jvm-opts   ["-Xss2m"]}
+                          :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.9.6"}
+                                        slipset/deps-deploy           {:mvn/version "0.2.2"}}}
+           :shadow-cljs  {:extra-deps {thheller/shadow-cljs {:mvn/version "2.26.2"}}
+                          :main-opts  ["-m" "shadow.cljs.devtools.cli"]}
            :prod         {:extra-paths ["src-prod" "src-docs" "resources-demo"]
-                          :extra-deps  {ch.qos.logback/logback-classic                      {:mvn/version "1.2.11"} ; logging implementation
+                          :extra-deps  {ch.qos.logback/logback-classic                      {:mvn/version "1.4.14"} ; logging implementation
                                         info.sunng/ring-jetty9-adapter                      {:mvn/version "0.14.3"
                                                                                              ;; "0.14.3" (Jetty 9) is Java 8 compatible;
                                                                                              ;; "0.17.7" (Jetty 10) is NOT Java 8 compatible
                                                                                              :exclusions  [org.slf4j/slf4j-api
                                                                                                            info.sunng/ring-jetty9-adapter-http3]} ; no need
-                                        ring-basic-authentication/ring-basic-authentication {:mvn/version "1.1.1"}
-                                        datascript/datascript {:mvn/version "1.3.14"} ; for demos
-                                        com.datomic/peer {:mvn/version "1.0.6733" :exclusions [org.slf4j/slf4j-nop]} ; for demos
+                                        ring-basic-authentication/ring-basic-authentication {:mvn/version "1.2.0"}
+                                        datascript/datascript {:mvn/version "1.4.1"} ; for demos TODO can this be updated/removed?
+                                        com.datomic/peer {:mvn/version "1.0.7075" :exclusions [org.slf4j/slf4j-nop]} ; for demos TODO can this be removed?
                                         }}
            
            :profile {:extra-deps {criterium/criterium                      {:mvn/version "0.4.6"}
                                   com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.4"}
-                                  com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.0.2"}}
+                                  com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.1.1"}}
                      :jvm-opts   ["-Djdk.attach.allowAttachSelf"
                                   "-XX:+UnlockDiagnosticVMOptions"
                                   "-XX:+DebugNonSafepoints"]}}}

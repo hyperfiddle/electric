@@ -199,10 +199,12 @@
       (Style. node k v))
     nil))
 
-(defmacro style [m]
-  (if (map? m)
-    `(do ~@(map (fn [[k v]] `(new Style node ~k ~v)) m)) ; static keyset
-    `(new Styles node ~m)))
+(defmacro style
+  ([m] `(style node ~m))
+  ([node m]
+   (if (map? m)
+     `(do ~@(map (fn [[k v]] `(new Style ~node ~k ~v)) m)) ; static keyset
+     `(new Styles ~node ~m))))
 
 (e/defn* Attribute [node k v]
   (e/client
@@ -225,16 +227,18 @@
     (e/for-by key [[k v] (ordered-props kvs)]
       (new Property node k v))))
 
-(defmacro props [m]
-  (if (map? m)
-    `(do ~@(map (fn [[k v]] (cond  ; static keyset
-                              (style? k) `(style ~v)
-                              (class? k) `(new ClassList node ~v)
-                              :else      `(new Property node ~k ~v)))
-             (ordered-props m)))
-    `(do (e/for-by key [[k# v#] (ordered-props ~m)]
-           (new Property node k# v#))
-         nil)))
+(defmacro props
+  ([m] `(props node ~m))
+  ([node m]
+   (if (map? m)
+     `(do ~@(map (fn [[k v]] (cond  ; static keyset
+                               (style? k) `(style ~node ~v)
+                               (class? k) `(new ClassList ~node ~v)
+                               :else      `(new Property ~node ~k ~v)))
+              (ordered-props m)))
+     `(do (e/for-by key [[k# v#] (ordered-props ~m)]
+            (new Property ~node k# v#))
+          nil))))
 
 (defmacro on!
   "Call the `callback` clojure function on event.

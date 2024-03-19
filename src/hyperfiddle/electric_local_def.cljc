@@ -4,6 +4,7 @@
   (:require
    [clojure.core :as cc]
    [contrib.cljs-target]
+   [clojure.pprint]
    [hyperfiddle.electric :as e]
    [hyperfiddle.electric.impl.lang :as lang]
    [hyperfiddle.electric.impl.runtime :as r]
@@ -34,6 +35,24 @@
             (cc/fn [!] (s->c !) #())
             #(throw %)))))))
 
+(cc/defn pairt [c s]
+  (m/sp
+    (let [s->c (m/dfv)
+          c->s (m/dfv)]
+      (m/?
+        (m/join {}
+          (s (cc/fn write [x]
+               (println "---- server-write")
+               (clojure.pprint/pprint x)
+               (m/sp ((m/? s->c) x)))
+            (cc/fn ?read [!] (c->s !) #()))
+          (c (cc/fn write [x]
+               (println "---- client-write")
+               (clojure.pprint/pprint x)
+               (m/sp ((m/? c->s) x)))
+            (cc/fn ?read [!] (s->c !) #())
+            #(throw %)))))))
+
 #?(:clj
    (defmacro local
      "Single peer loopback system without whitelist. Returns boot task."
@@ -47,6 +66,22 @@
            server (lang/analyze senv `(do ~@body))
            server-info (r/compile "slocal" server senv)]
        `(pair
+          (r/main ~client-info)
+          (r/main ~server-info)))))
+
+#?(:clj
+   (defmacro localt
+     "Single peer loopback system without whitelist. Returns boot task."
+     {:style/indent 0}
+     [& body]
+     (let [env (e/normalize-env &env)
+           cenv (merge env (->local-config env) {::lang/me :client})
+           client (lang/analyze cenv `(do ~@body))
+           client-info (r/compile "clocal" client cenv)
+           senv (merge env (->local-config env) {::lang/me :server})
+           server (lang/analyze senv `(do ~@body))
+           server-info (r/compile "slocal" server senv)]
+       `(pairt
           (r/main ~client-info)
           (r/main ~server-info)))))
 

@@ -12,7 +12,7 @@
 
 (defn var-name [ast]
   (if-let [var (:var ast)]
-    (.toSymbol var)
+    (.toSymbol ^clojure.lang.Var var)
     (or (:name ast)
         (:form ast))))
 

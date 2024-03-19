@@ -1,4 +1,5 @@
-(ns hyperfiddle.history
+(ns^:deprecated hyperfiddle.history
+  "Deprecated, use `hyperfiddle.router` instead."
   (:require [contrib.cljs-target :refer [do-browser]]
             [hyperfiddle.rcf :as rcf :refer [tests % tap with]]
             [hyperfiddle.electric :as e]

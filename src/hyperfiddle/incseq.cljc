@@ -1859,3 +1859,75 @@ optional `compare` function, `clojure.core/compare` by default.
       (q {:grow 1 :degree 1 :shrink 0 :permutation {} :change {0 "hello"} :freeze #{}})
       @ps := {:degree 2 :permutation {0 1, 1 0} :grow 1 :shrink 0 :change {0 "hello"} :freeze #{}}
       (q) := :cancel)))
+
+(comment
+
+  (require '[missionary.core :as m])
+  (require '[hyperfiddle.incseq :as i])
+
+  (def !n (atom 10))
+  (def !fizz (atom "Fizz"))
+  (def !buzz (atom "Buzz"))
+
+  (def app
+    (let [<i (m/signal i/then (i/diff-by identity (m/latest #(range 1 (inc %)) (m/watch !n))))
+          <fizz (m/signal i/then (i/fixed (m/watch !fizz)))
+          <buzz (m/signal i/then (i/fixed (m/watch !buzz)))]
+      (->> <i
+        (i/latest-product
+          (fn [i]
+            (cond
+              (zero? (mod i (* 3 5))) (i/latest-product str <fizz <buzz)
+              (zero? (mod i 3)) <fizz
+              (zero? (mod i 5)) <buzz
+              :else (i/fixed (m/cp i)))))
+        (i/latest-concat)
+        (m/signal i/then)
+        #_(m/reductions i/patch-vec)
+        (m/reduce (fn [_ x] (#_apply println ">" x)) nil))))
+  (def cancel (app prn prn))
+  (swap! !n + 10)
+  (reset! !fizz "Fuzz")
+  (reset! !buzz "Bizz")
+  (swap! !n - 3)
+  > {:degree 10, :create 10, :remove 0, :cycles #{[0 1 2 6 4 3 5 8 9 7]}, :change {0 1, 7 8, 1 2, 4 Buzz, 6 7, 3 4, 2 Fizz, 9 Buzz, 5 Fizz, 8 Fizz}, :freeze #{0 7 1 6 3}}
+  > {:degree 20, :create 10, :remove 0, :cycles #{[15 10 18 19 14 16 17 12 13 11]}, :change {15 16, 13 14, 17 Fizz, 12 13, 19 Buzz, 11 Fizz, 14 FizzBuzz, 16 17, 10 11, 18 19}, :freeze #{15 13 12 16 10 18}}
+  > {:degree 20, :create 0, :remove 0, :cycles #{}, :change {14 FuzzBuzz, 2 Fuzz, 5 Fuzz, 8 Fuzz, 17 Fuzz, 11 Fuzz}, :freeze #{}}
+  > {:degree 20, :create 0, :remove 0, :cycles #{}, :change {14 FuzzBizz, 4 Bizz, 9 Bizz, 19 Bizz}, :freeze #{}}
+  > {:degree 20, :create 0, :remove 3, :cycles #{}, :change {}, :freeze #{}}
+
+  )
+
+(comment
+
+  (defn mount-items [element {:keys [grow shrink degree permutation change]}]
+    (let [children (.-childNodes element)
+          move (i/inverse permutation)
+          size-before (- degree grow)
+          size-after (- degree shrink)]
+      (loop [i size-before
+             c change]
+        (if (== i degree)
+          (reduce-kv
+            (fn [_ i e]
+              (.replaceChild element e
+                (.item children (move i i))))
+            nil c)
+          (let [j (move i i)]
+            (.appendChild element (c j))
+            (recur (inc i) (dissoc c j)))))
+      (loop [p permutation
+             i degree]
+        (if (== i size-after)
+          (loop [p p]
+            (when-not (= p {})
+              (let [[i j] (first p)]
+                (.insertBefore element (.item children j)
+                  (.item children (if (< j i) (inc i) i)))
+                (recur (i/compose p (i/rotation i j))))))
+          (let [i (dec i)
+                j (p i i)]
+            (.removeChild element (.item children j))
+            (recur (i/compose p (i/rotation i j)) i))))
+      element))
+  )

@@ -156,3 +156,76 @@ This function is a wrapper for goog.i18n.MessageFormat, supporting a subset of t
    (defn date
      ([pattern] (partial date (new DateTimeFormat (or (DATE-FORMATS pattern) pattern))))
      ([formatter date] (.format formatter date))))
+
+(defn match-position "Return the position of the first `regex` match in `string`."
+  [regex string]
+  #?(:clj (let [matcher (re-matcher regex string)]
+            (if (re-find matcher)
+              (.start matcher)
+              0))
+     :cljs (if-let [match (.exec ^js regex string)]
+             (.-index match)
+             0)))
+
+(tests
+  (match-position #" at " "")               := 0
+  (match-position #" at " "foo at bar")     := 3
+  (match-position #" at " "foo.bar at baz") := 7
+  )
+
+(defn pad-string "left-pad the first `regex` match in `string` to shift it to the given `position`.
+  e.g.: (pad-string #\"@\" 5 \"left@right\") =>  \"left @right\" -- because 'left' is 4 chars "
+  [regex position string]
+  (let [match-position (match-position regex string)]
+    (if (zero? match-position)
+      string
+      (str (subs string 0 match-position)
+        (apply str (repeat (- position match-position) " "))
+        (subs string match-position)))))
+
+(tests
+  (pad-string #"@" 5 "left@right") := "left @right"
+  (pad-string #" = " 0 "var x = 1;")            := "var x = 1;"
+  (pad-string #" = " 5 "var x = 1;")            := "var x = 1;"
+  (pad-string #" = " 6 "var x = 1;")            := "var x  = 1;"
+  (pad-string #" = " 10 "var x = 1;")           := "var x      = 1;"
+  (pad-string #" = " 6 "var x = 1; var y = 2;") := "var x  = 1; var y = 2;"
+  )
+
+(defn align-regexp* "Will align all `lines` to the first match of `regex`" [regex lines]
+  (let [max-match-position (apply max (map (partial match-position regex) lines))]
+    (map (partial pad-string regex max-match-position) lines)))
+
+(tests
+  (align-regexp* #" = " ["var foo = 1;"
+                         "var bar = 11;"
+                         "var asdf = 111;"])
+  := ["var foo  = 1;"
+      "var bar  = 11;"
+      "var asdf = 111;"]
+  )
+
+(defn align-regexp "
+e.g. (align-regexp #\" = \" 
+\"
+var x = 1;
+var y = 2;
+var asdf = 3;
+\")
+=>
+\"
+var x    = 1;
+var y    = 2;
+var asdf = 3;
+\"
+ " [regex string]
+  (clojure.string/join "\n" (align-regexp* regex (clojure.string/split-lines string))))
+
+(tests
+  (align-regexp #" = "
+    "var x = 1;
+var y = 11;
+var asdf = 111;")
+   := "var x    = 1;\nvar y    = 11;\nvar asdf = 111;"
+  )
+

@@ -85,8 +85,8 @@
                         (let [err (.-error ^Failure x)]
                           (cond (instance? Cancelled err) [:cancelled]
                                 (instance? Pending err)   [:pending]
-                                (instance? Remote err)    [:remote (dbg/serializable (ex-data err))]
-                                :else                     [:exception (ex-message err) (dbg/serializable (ex-data err))
+                                (instance? Remote err)    [:remote (ex-data err)]
+                                :else                     [:exception (ex-message err) (ex-data err)
                                                            (save-original-ex! err)])))))
 
 (defn write-opts []

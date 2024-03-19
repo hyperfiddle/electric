@@ -7,7 +7,7 @@
             [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
             [hyperfiddle.electric-ui4 :as ui]
-            [hyperfiddle.history :as router] ; todo remove
+            [hyperfiddle.router :as r] ; todo remove
             #?(:cljs goog.object)))
 
 (e/defn GridSheet [xs props]
@@ -84,8 +84,10 @@
 
 (e/defn Explorer [query-fn props]
   (e/client
-    (let [{:keys [::search] :as s} router/route]
-      (ui/input search (e/fn V! [v] (router/swap-route! assoc ::search v)) ; todo (swap! router/!route assoc ::search v)
+    (let [search (ffirst (::search r/route))]
+      (ui/input search (e/fn V! [v] (r/ReplaceState!. [(if (seq v)
+                                                         (assoc r/route ::search v)
+                                                         (dissoc r/route ::search))]))
         (dom/props {:placeholder "Search" :type "search"}))
       (dom/hr)
       (e/server

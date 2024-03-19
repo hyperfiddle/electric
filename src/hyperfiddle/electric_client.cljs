@@ -100,9 +100,33 @@ Returns a task producing nil or failing if the websocket was closed before end o
 
 (comment (take 5 fib2) := [1 1 2 3 5])
 
-(def retry-delays (map (partial * 100) fib))
+(def retry-delays (map (partial * 100) (next fib)))
+;; Browsers throttle websocket connects after too many attempts in a short time.
+;; To prevent using browsers as port scanners.
+;; Symptom: WS takes a long time to establish a connection for no apparent reason.
+;; Sometimes happens in dev after multiple page refreshes in a short time.
 
 (comment (take 5 retry-delays))
+
+(defn wait-for-window-to-be-visible
+  "Return a task completing when the current browser tab or window becomes visible
+  to the user, or immediately if it is already visible. Use case: detect when a
+  background tab becomes active again."
+  []
+  (let [visible! (m/dfv)
+        visible? #(= "visible" (.-visibilityState js/document))]
+    (letfn [(on-visibility-change [_]
+              ;; don't use a one-off event-listener because the visiblitichange
+              ;; event's spec doesn't say "visible" means the page was "hidden"
+              ;; before. "hidden" or "visible" could therefore fire more than
+              ;; once. Spec: https://html.spec.whatwg.org/multipage/interaction.html#page-visibility
+              (when (visible?)
+                (.removeEventListener js/document "visibilitychange" on-visibility-change)
+                (visible! true)))]
+      (if (visible?)
+        (visible! true)
+        (.addEventListener js/document "visibilitychange" on-visibility-change)))
+    visible!))
 
 (defn boot-with-retry [client conn]
   (m/sp
@@ -124,14 +148,28 @@ Returns a task producing nil or failing if the websocket was closed before end o
                                                           (m/amb x (recur))
                                                           (m/amb)))))))))]
                         (if-some [code (:code info)]
-                          ;; TODO wait for tab to be visible before reconnecting. No need to connect a sleeping/throttled tab.
-                          (case code ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
-                            (1005 1006) (do (.log js/console "Connection lost.") (seq retry-delays))
-                            (1008) (throw (ex-info "Stale client" {:hyperfiddle.electric/type ::stale-client}))
-                            (1013) (do (.log js/console "Server timed out, considering this client inactive.")
-                                       (seq retry-delays))
-                            (throw (ex-info (str "Remote error - " code " " (:reason info)) {})))
-                          (do (.log js/console "Failed to connect.") delays)))]
+                          (let [retry? (case code ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
+                                         (1000 1001) (do (js/console.debug (str "Electric websocket disconnected - " code)) true)
+                                         (1005 1006) (do (js/console.log "Electric Websocket connection lost.") true)
+                                         (1008)      (throw (ex-info "Stale Electric client" {:hyperfiddle.electric/type ::stale-client}))
+                                         (1012) ; Incompatible client. Do not attempt to reconnect (it would fail again)
+                                         (js/console.error (str "A mismatch between Electric client and server's programs was detected."
+                                                             "\nThe connection was closed. Refresh the page to attempt a reconnect."
+                                                             "\nCommonly, in local dev envs, this is a stale browser tab auto-reconnecting, or the clj and cljs REPLs are out of sync due to evaluating an Electric def in one process but not the other."
+                                                             "\nThis should not happen in prod. See `https://github.com/hyperfiddle/electric-starter-app/` for a reference configuration."))
+                                         (1013) ; server timeout - The WS spec defines 1011 - arbitrary server error,
+                                        ; and 1015 - TLS exception. 1012, 1013, and 1014 are undefined. We
+                                        ; pick 1013 for "Server closed the connection because it didn't hear of
+                                        ; this client for too long".
+                                         (do (js/console.log "Electric server timed out, considering this Electric client inactive.")
+                                             true)
+                                        ; else
+                                         (do (js/console.log (str "Electric Websocket disconnected for an unexpected reason - " (pr-str info)))
+                                           true))]
+                            (when retry?
+                              (m/? (wait-for-window-to-be-visible))
+                              (seq retry-delays)))
+                          (do (.log js/console "Electric client failed to connect to Electric server.") delays)))]
             (.log js/console (str "Next attempt in " (/ delay 1000) " seconds."))
             (recur (m/? (m/sleep delay delays)))))))))
 
@@ -139,6 +177,6 @@ Returns a task producing nil or failing if the websocket was closed before end o
   (fn [s f]
     (task s (fn [error]
               (when (= ::stale-client (:hyperfiddle.electric/type (ex-data error)))
-                (do (js/console.log "Server and client version mismatch. Refreshing page.")
+                (do (js/console.log "Electric server and Electric client version mismatches. Refreshing page to load new assets.")
                   (.reload (.-location js/window))))
               (f error)))))
