@@ -27,13 +27,15 @@
            ;; Electric says :infer-warning Cannot infer target type in expression, fixme
            (goog.dom/setTextContent node str)))
 
+#?(:cljs (defn ->text-node [] (goog.dom/createTextNode "")))
+
 #?(:cljs (defn text-node? [nd] (= (.-nodeType nd) (.-TEXT_NODE nd))))
 #?(:cljs (defn ensure-not-in-text-node! [nd] (ca/is nd text-node? "Cannot nest dom/text or text nodes in other text nodes")))
 
 (defmacro text [& strs]
   `(do (ensure-not-in-text-node! node)
        ~@(eduction (map (fn [str]
-                          `(with (goog.dom/createTextNode "")
+                          `(with (->text-node)
                              (-googDomSetTextContentNoWarn node ~str))))
            strs)))
 
@@ -182,7 +184,8 @@
            ($ Property node k# v#))
          nil)))
 
-(defmacro element {:style/indent 1} [t & body] `(with (goog.dom/createElement ~(name t)) ~@body))
+#?(:cljs (defn ->elem [t] (goog.dom/createElement t)))
+(defmacro element {:style/indent 1} [t & body] `(with (->elem ~(name t)) ~@body))
 
 (defmacro a {:style/indent 0} [& body] `(element :a ~@body))
 (defmacro abbr {:style/indent 0} [& body] `(element :abbr ~@body))

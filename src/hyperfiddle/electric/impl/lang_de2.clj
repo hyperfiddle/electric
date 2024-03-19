@@ -378,11 +378,15 @@
 (defn resolve-node [sym env]
   (case (->env-type env)
     :clj (when-some [^clojure.lang.Var vr (resolve env sym)]
-           (when (-> vr meta node?)
-             (symbol (-> vr .ns str) (-> vr .sym str))))
-    :cljs (when-some [vr (cljs-ana/find-var @!a sym (get-ns env)) #_(resolve-cljs env sym)]
-            (when (-> vr ::cljs-ana/meta node?)
-              (symbol (-> vr :name str))))))
+           (when (-> vr meta node?) (symbol vr)))
+    :cljs (when-some [vr (cljs-ana/find-var @!a sym (get-ns env))]
+            ;; temporary hack
+            ;; the commented out expression should work, seems the new cljs analyzer loses the metadata
+            ;; so we check it on clj side, which is safe for a clj-server/cljs-client setup
+            (when-some [vr (cljs-ana/safe-requiring-resolve (-> vr ::cljs-ana/name))]
+              (when (-> vr meta node?) (symbol vr)))
+            #_(when (-> vr ::cljs-ana/meta node?)
+                (symbol (-> vr :name str))))))
 
 (defn analyze-clj-symbol [sym ns$]
   (if (resolve-static-field sym)

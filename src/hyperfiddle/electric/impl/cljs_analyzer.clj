@@ -91,8 +91,6 @@
           o))
       o)))
 
-(defn ->def-info [ns$ sym] {::name (with-meta (symbol (str ns$) (str sym)) (meta sym)), ::meta (meta sym)})
-
 (defn add-require [!a ns$ reqk from$ to$] (swap! !a assoc-in [::nses ns$ reqk from$] to$))
 
 (defn add-refers [!a ns$ refk o req$]
@@ -160,6 +158,8 @@
                          #_else noneT)))
         args))))
 
+(defn ->def-info [ns$ sym] {::name (with-meta (symbol (str ns$) (str sym)) (meta sym)), ::meta (meta sym)})
+
 (defn add-def [!a ns$ sym] (swap! !a assoc-in [::nses ns$ ::defs sym] (->def-info ns$ sym)))
 
 (defn collect-defs [!a ns$ env o]
@@ -198,7 +198,7 @@
             (recur @!a)))))
     noneT))
 
-(defn purge-ns [!a ns$] (swap! !a (fn [a] (-> a (update ::ns-tasks dissoc ns$) (update ::nses dissoc ns$)))) nil)
+(defn purge-ns [a ns$] (-> a (update ::ns-tasks dissoc ns$) (update ::nses dissoc ns$)))
 
 (defn find-var [a sym ns$]
   (let [nsa (-> a ::nses (get ns$))]
