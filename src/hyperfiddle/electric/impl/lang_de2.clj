@@ -215,8 +215,8 @@
 
 (defn fail!
   ([env msg] (fail! env msg {}))
-  ([env msg data] (throw (ex-info (str (when-some [d (::def env)] (str "in " d ":\n")) msg)
-                           (merge {:form (-> env ::last pop peek) :in (::def env) :for ((juxt ::me ::current) env)} data)))))
+  ([env msg data] (throw (ex-info (str "\n" (get-ns env) (when-some [d (::def env)] (str "/" d)) ":" (-> env ::meta :line) ":" (-> env ::meta :column) "\n" msg)
+                           (merge {:in (::def env) :for (or (::current env) ::unsited)} data)))))
 
 (defn get-them [env] (-> env ::peers keys set (disj (::current env)) first))
 
@@ -406,17 +406,10 @@
       {::lang nil, ::type ::node, ::node nd}
       (case (get (::peers env) (::current env))
         :clj (let [v (analyze-clj-symbol sym (get-ns env))] (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
-        :cljs (assoc (analyze-cljs-symbol sym env)
-                ::lang :cljs)
-        #_unsited (let [langs (set (vals (::peers env)))
-                        vs (->> langs
-                             (into #{}
-                               (map #(case %
-                                       :clj (some-> (analyze-clj-symbol sym (get-ns env)) (assoc ::lang :clj))
-                                       :cljs (some-> (analyze-cljs-symbol sym env) (assoc ::lang :cljs))))))]
-                    (cond (contains? vs nil) (cannot-resolve! env sym)
-                          (> (count (sequence (comp (map #(select-keys % [::type ::sym])) (distinct)) vs)) 1) (ambiguous-resolve! env sym vs)
-                          :else (assoc (first vs) ::lang nil)))))))
+        :cljs (assoc (analyze-cljs-symbol sym env) ::lang :cljs)
+        #_unsited (case (->env-type env)
+                    :clj (assoc (or (analyze-clj-symbol sym (get-ns env)) {::type ::var, ::sym `r/cannot-resolve}) :lang :clj)
+                    :cljs (assoc (analyze-cljs-symbol sym env) :lang :cljs))))))
 
 
 (defn ->bindlocal-body-e [ts e] (second (get-children-e ts e)))
@@ -498,18 +491,15 @@
   (swap! @(requiring-resolve 'cljs.env/*compiler*)
     assoc-in [:cljs.analyzer/namespaces ns :defs sym] {:name sym}))
 
-(defn store [env form]
-  (if (::last env)
-    (update env ::last #(conj (pop %) form))
-    (assoc env ::last (conj (clojure.lang.PersistentQueue/EMPTY) nil form))))
-
 (defn e->uid [ts e] (ca/check (::uid (ts/->node ts e))))
 (defn uid->e [ts uid] (first (ca/check #(= 1 (count %)) (ts/find ts ::uid uid))))
 (defn reparent-children [ts from-e to-e]
   (reduce (fn [ts e] (ts/asc ts e ::parent to-e)) ts (ts/find ts ::parent from-e)))
 
+(defn ?update-meta [env form] (cond-> env (meta form) (assoc ::meta (meta form))))
+
 (defn analyze [form pe env {{::keys [->id ->uid]} :o :as ts}]
-  (let [env (store env form)]
+  (let [env (?update-meta env form)]
     (cond
       (and (seq? form) (seq form))
       (case (first form)

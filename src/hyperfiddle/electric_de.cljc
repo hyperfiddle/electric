@@ -106,7 +106,7 @@ Returns the successive states of items described by `incseq`.
 
 (defmacro defn [nm & fdecl]
   (let [[_defn sym] (macroexpand `(cc/defn ~nm ~@fdecl))
-        env (merge (meta nm) (lang/normalize-env &env) l/web-config)
+        env (merge (meta nm) (lang/normalize-env &env) l/web-config {::lang/def nm})
         nm2 (vary-meta nm merge (meta sym))
         expanded (lang/expand-all env `(fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))
         _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
