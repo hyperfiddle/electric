@@ -3,4 +3,6 @@
            hyperfiddle.electric/for        clojure.core/for
            hyperfiddle.electric/with-cycle clojure.core/let
            hyperfiddle.electric/fn         clojure.core/fn}
+ :hooks   {:macroexpand
+           {hyperfiddle.electric/for-by hyperfiddle.electric/for-by}}
  :linters {:redundant-expression {:level :off}}}
