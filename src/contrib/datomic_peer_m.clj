@@ -38,7 +38,17 @@
 
 (extend-protocol ccp/Datafiable
   Datum
-  (datafy [^Datum [e a v tx op]] [e a v tx op]))
+  (datafy [^Datum [e a v tx op]] 
+    (with-meta [e a v tx op]
+      {`ccp/nav
+       (fn [this k default]
+         (case k
+           :e e
+           :a a
+           :v v
+           :tx tx
+           :op op
+           default))})))
 
 ; Fix Datomic handling of string tempids - https://github.com/hyperfiddle/hyperfiddle-2020/issues/584
 
