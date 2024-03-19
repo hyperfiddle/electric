@@ -115,6 +115,8 @@ Returns the successive states of items described by `incseq`.
         ctors (mapv #(lang/emit-ctor ts % env (-> nm ns-qualify keyword)) (lang/get-ordered-ctors-e ts))
         deps (lang/emit-deps ts (lang/get-root-e ts))
         nm3 (vary-meta nm2 assoc ::lang/deps `'~deps)]
+    (when-not (::lang/has-edef? (meta *ns*))
+      (alter-meta! *ns* assoc ::lang/has-edef? true))
     (when (::lang/print-source env) (fipp.edn/pprint ctors))
     `(def ~nm3 ~ctors)))
 
