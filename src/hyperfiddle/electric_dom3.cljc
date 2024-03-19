@@ -19,7 +19,7 @@
 
 #?(:cljs (defn appending> [elem parent]
            (ca/is parent some? "DOM node parent cannot be nil. Maybe dom/node is unbound?")
-           (m/observe (fn [!] (.appendChild parent elem) (! elem) #(hide elem)))))
+           (m/observe (fn [!] (.appendChild parent elem) (! elem) #(.remove elem)))))
 
 (defmacro with [elem & body] `(binding [node (e/input (appending> ~elem node))] ~@body))
 
