@@ -861,3 +861,5 @@ Returns a peer definition from given definitions and main key.
       (apply array-map gmap)
       (if (seq gmap) (first gmap) {}))
     gmap))
+
+(defn cannot-resolve [& args] (throw (ex-info "definition called on a peer that doesn't support it" {:args args})))

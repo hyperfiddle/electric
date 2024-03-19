@@ -105,10 +105,7 @@
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn))
             (r/node ~'frame 0))))
       (r/cdef 0 [] [] nil
-        (fn [~'frame] (r/pure nil)))])
-
-  (let [ex (try (l/test-compile ::Main cannot-be-unsited) (catch ExceptionInfo e e))]
-    (ex-message ex) := "Unsited symbol `cannot-be-unsited` resolves to different vars on different peers. Please resolve ambiguity by siting the expression using it."))
+        (fn [~'frame] (r/pure nil)))]))
 
 (tests "test-let"
   (match (l/test-compile ::Main (::lang/site :client (let [a :foo] [a a])))
