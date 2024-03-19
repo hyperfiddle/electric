@@ -18,7 +18,7 @@
    [contrib.assert :as ca])
   (:import [missionary Cancelled]
            [hyperfiddle.electric Pending Failure]
-           #?(:clj [clojure.lang ExceptionInfo])))
+           #?(:clj [clojure.lang ExceptionInfo Compiler$CompilerException])))
 
 (tests "hello world"
   (l/def Msg "Hello")
@@ -1910,20 +1910,27 @@
                             (catch ExceptionInfo e e)))) tap tap)
     (ex-message %) := "You `recur`d in X with 2 arguments but it has 1 positional argument"))
 
+(l/defn Zero [])
 (l/defn One [x] x)
 (l/defn Two [x y] [x y])
 (l/defn VarArgs [x & xs] [x xs])
 (tests "(new One 1)"
-  (with ((l/local (tap (new One 1))) tap tap)
-    % := 1))
+       (with ((l/local (tap (new One 1))) tap tap)
+         % := 1))
 (tests "(new VarArgs 1 2 3)"
-  (with ((l/local (tap (new VarArgs 1 2 3))) tap tap)
-    % := [1 [2 3]]))
+       (with ((l/local (tap (new VarArgs 1 2 3))) tap tap)
+         % := [1 [2 3]]))
 (tests "varargs arity is checked"
-  (with ((l/local (tap (try (new VarArgs)
-                            (catch ExceptionInfo e e)))) tap tap)
-    (ex-message %) := "You called VarArgs with 0 arguments but it only supports 1"))
+       (with ((l/local (tap (try (new VarArgs)
+                                 (catch ExceptionInfo e e)))) tap tap)
+         (ex-message %) := "You called VarArgs with 0 arguments but it only supports 1"))
 
+#?(:clj
+   (tests "e/apply"
+     (try (macroexpand '(e/apply Zero))
+          (catch Compiler$CompilerException e
+            (ex-message (ex-cause e))
+            := "Assert failed: hyperfiddle.electric/apply takes and Electric function and at least one argument. Given 0.\n(not (empty? args))"))))
 (tests "e/apply"
   (with ((l/single+ {} (tap (e/apply VarArgs [1 2 3]))) tap tap)
     % := [1 [2 3]]))
@@ -2165,3 +2172,10 @@
 (tests "binding in interop fn"
   (with ((l/local (tap ((fn [] (binding [*out* nil] 1))))) tap tap)
     % := 1))
+
+(tests "output slot regression"
+  (l/def xxx (e/server :x))
+  (l/def yyy (e/server :y))
+  (with ((l/local (e/client (try (tap xxx) (tap yyy) (catch Pending _)))) tap tap)
+    % := :x
+    % := :y))

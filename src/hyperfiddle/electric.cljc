@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric
-  (:refer-clojure :exclude [eval def defn fn for empty? partial apply])
+  (:refer-clojure :exclude [eval def defn fn for partial apply])
   (:require [clojure.core :as cc]
             #?(:clj [clojure.tools.logging :as log])
             [clojure.spec.alpha :as s]
@@ -16,7 +16,8 @@
             #?(:cljs [hyperfiddle.electric-client])
             [hyperfiddle.electric.impl.io :as io]
             [hyperfiddle.electric.debug :as dbg]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [contrib.str])
   #?(:cljs (:require-macros
             [hyperfiddle.electric :refer [offload-task offload def check-electric
                                              client server fn fn* defn for-by for watch discard with-cycle
@@ -247,35 +248,6 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
       `(::lang/closure (let [~@(interleave args lang/arg-sym)] ~@body) ~debug-info)
       `(::lang/closure (do ~@body) ~debug-info))))
 
-(cc/defn- -splicev [args] (into [] cat [(pop args) (peek args)]))
-(hyperfiddle.electric/def Apply*
-  (hyperfiddle.electric/fn* [F args]
-    (let [spliced (-splicev args)]
-      (case (count spliced)
-        0 (new F)
-        1 (new F (nth spliced 0))
-        2 (new F (nth spliced 0) (nth spliced 1))
-        3 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2))
-        4 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3))
-        5 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4))
-        6 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5))
-        7 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6))
-        8 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7))
-        9 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8))
-        10 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9))
-        11 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10))
-        12 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11))
-        13 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12))
-        14 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13))
-        15 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14))
-        16 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15))
-        17 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16))
-        18 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17))
-        19 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18))
-        20 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18) (nth spliced 19))))))
-
-(defmacro apply [F & args] `(new Apply* ~F [~@args]))
-
 (cc/defn -check-recur-arity [provided actual fname]
   (when (not= provided actual)
     (throw (ex-info (str "You `recur`d in " (or fname "<unnamed-efn>") " with " provided
@@ -354,7 +326,8 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
           (?bind-self ?name))
         {::dbg/name ?name, ::dbg/type (or (::dbg/type (meta ?name)) :reactive-fn)
          ::dbg/meta (merge (select-keys (meta &form) [:file :line])
-                      (select-keys (meta ?name) [:file :line]))}))))
+                      (select-keys (meta ?name) [:file :line])
+                      {::dbg/ns (name (.getName *ns*))})}))))
 
 (defmacro defn [sym & fdecl]
   (let [[_defn sym' & _] (macroexpand `(cc/defn ~sym ~@fdecl))] ; GG: docstring support
@@ -371,6 +344,38 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                                        ~@(if (string? (first fdecl)) ; GG: skip docstring
                                            (rest fdecl)
                                            fdecl)))))
+
+(cc/defn- -splicev [args] (if (empty? args) args (into [] cat [(pop args) (peek args)])))
+
+(hyperfiddle.electric/defn* Apply* [F args] ; we use `defn*` instead of e/def e/fn* for better stacktraces
+  (let [spliced (-splicev args)]
+    (case (count spliced)
+      0 (new F)
+      1 (new F (nth spliced 0))
+      2 (new F (nth spliced 0) (nth spliced 1))
+      3 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2))
+      4 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3))
+      5 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4))
+      6 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5))
+      7 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6))
+      8 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7))
+      9 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8))
+      10 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9))
+      11 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10))
+      12 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11))
+      13 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12))
+      14 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13))
+      15 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14))
+      16 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15))
+      17 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16))
+      18 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17))
+      19 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18))
+      20 (new F (nth spliced 0) (nth spliced 1) (nth spliced 2) (nth spliced 3) (nth spliced 4) (nth spliced 5) (nth spliced 6) (nth spliced 7) (nth spliced 8) (nth spliced 9) (nth spliced 10) (nth spliced 11) (nth spliced 12) (nth spliced 13) (nth spliced 14) (nth spliced 15) (nth spliced 16) (nth spliced 17) (nth spliced 18) (nth spliced 19)))))
+
+(defmacro apply [F & args]
+  (assert (not (empty? args)) (str `apply " takes and Electric function and at least one argument. Given 0.")) ; matches clojure behavior
+  `(new Apply* ~F [~@args]))
+
 
 (defmacro for-by
   {:style/indent 2}
@@ -463,19 +468,51 @@ Quoting it directly is idiomatic as well."
   Standard electric code runs on mount, therefore there is no `on-mount`."
   [f] `(new (on-unmount* ~f))) ; experimental
 
-(cc/defn log-root-error [exception]
-  #?(:clj (log/error exception)
-     :cljs (println exception)))
+(cc/defn log-root-error [exception async-stack-trace]
+  #?(:clj (let [ex (dbg/empty-client-exception exception)
+                ex (dbg/clean-jvm-stack-trace! (dbg/remove-async-stack-trace ex))
+                ex (dbg/add-async-frames! ex async-stack-trace)]
+            (if-some [data (not-empty (dissoc (ex-data ex) ::type))]
+              (log/error ex "Uncaugh exception:" (ex-message ex) "\n" data)
+              (log/error ex "Uncaugh exception")))
+     :cljs (js/console.error exception)))
+
+#?(:cljs
+   (cc/defn- client-log-server-error [message async-trace]
+     (let [err (js/Error. message)]
+       (set! (.-stack err) (first (str/split-lines (.-stack err))))
+       (js/console.error err) ; We'd like to bundle these two messages into one, but chrome refuses to render "\n" after an exception.
+                              ; We would need browser-custom formatting. Not worth it today.
+       (js/console.log (->> (dbg/render-async-stack-trace async-trace)
+                            (contrib.str/align-regexp #" at ")
+                            (dbg/left-pad-stack-trace 4))
+         "\n" "This is a server-side exception. The full exception was printed on the server."))))
+
+#?(:cljs
+   (cc/defn- client-log-client-error [ex async-trace]
+     (set! (.-stack ex) (dbg/cleanup-js-stack-trace (.-stack ex)))
+     (js/console.error ex) ; We'd like to bundle these two messages into one, but chrome refuses to render "\n" after an exception.
+                           ; We would need browser-custom formatting. Not worth it today.
+     (js/console.log (->> (dbg/render-async-stack-trace async-trace)
+                        (contrib.str/align-regexp #" at ")
+                        (dbg/left-pad-stack-trace 4)))))
+
+(cc/defn- log-on-server-that-error-happened-on-client []
+  ;; FIXME should be inlinable, but Electric fails to resolve log/info var in a `server` block.
+  #?(:clj (log/info "This is a client-side exception. The full exception was printed on the client.")))
 
 (hyperfiddle.electric/defn ?PrintClientException [msg id]
-  (try (client
-         (if-some [ex (io/get-original-ex id)]
-           (do
-             (log-root-error ex)
-             (try (server (println "client logged an exception, too"))
-                  (catch Pending _)))
-           (js/console.warn "exception printed on server: " msg)))
-       (catch Pending _)))
+  (server
+    (let [async-trace (::dbg/trace (ex-data lang/trace))]
+      (try
+        (client
+          (if-some [ex (io/get-original-ex id)]
+            (do
+              (client-log-client-error ex async-trace)
+              (try (server (log-on-server-that-error-happened-on-client))
+                   (catch Pending _)))
+            (client-log-server-error msg async-trace)))
+        (catch Pending _)))))
 
 (defmacro with-zero-config-entrypoint
   {:style/indent 0}
@@ -485,8 +522,7 @@ Quoting it directly is idiomatic as well."
      (catch Pending _#)                 ; silently ignore
      (catch Cancelled e# (throw e#))    ; bypass catchall, app is shutting down
      (catch Throwable err#
-       (log-root-error (or (io/get-original-ex (dbg/ex-id lang/trace)) err#))
-       (println (dbg/stack-trace lang/trace))
+       (log-root-error (or (io/get-original-ex (dbg/ex-id lang/trace)) err#) (dbg/get-async-trace lang/trace))
        (new ?PrintClientException (ex-message err#) (dbg/ex-id lang/trace)))))
 
 (defmacro boot-server [opts Main & args]

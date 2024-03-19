@@ -186,7 +186,6 @@
             (analyze-me env (list ::closure default-clause {::dbg/type :case-default}))
             (mapv (fn [[test form]]
                     (analyze-me env `(::closure ~form {::dbg/type :case-clause
-                                                       ::dbg/args [~test]
                                                        ::dbg/meta ~(meta form)})))
               (partition 2 clauses))))))))
 
@@ -205,7 +204,6 @@
         (analyze-them env (list ::closure default-clause {::dbg/type :case-default}))
         (eduction (partition-all 2) (map (fn [[test form]]
                                            (analyze-them env `(::closure ~form {::dbg/type :case-clause
-                                                                                ::dbg/args [~test]
                                                                                 ::dbg/meta ~(meta form)}))))
           clauses)))))
 
@@ -329,7 +327,7 @@
                                           (::closure (let [~s (dbg/unwrap exception)]
                                                        (binding [trace exception]
                                                          ~@body))
-                                                     {::dbg/type :catch, ::dbg/args [~c ~s]}))]
+                                                     {::dbg/type :catch}))]
                                  (case c
                                    (:default Throwable)
                                    `(r/clause ~f)
@@ -339,14 +337,14 @@
 (defn ->class-method-call [clazz method method-args env]
   (apply ir/apply (assoc (ir/eval (let [margs (repeatedly (count method-args) gensym)]
                                     `(fn [~@margs] (. ~clazz ~method ~@margs))))
-                    ::dbg/action :static-call, ::dbg/target clazz, ::dbg/method method, ::dbg/args method-args)
+                    ::dbg/action :static-call, ::dbg/target clazz, ::dbg/method method)
     (mapv #(analyze-me env %) method-args)))
 
 (defn ->obj-method-call [o method method-args env]
   (apply ir/apply (assoc (ir/eval (let [margs (repeatedly (count method-args) gensym)
                                         oo (with-meta (gensym "o") (->meta o env))]
                                     `(fn [~oo ~@margs] (. ~oo ~method ~@margs))))
-                    ::dbg/action :call, ::dbg/target o, ::dbg/method method, ::dbg/args method-args)
+                    ::dbg/action :call, ::dbg/target o, ::dbg/method method)
     (analyze-me env o)
     (mapv #(analyze-me env %) method-args)))
 
@@ -547,7 +545,7 @@
                    (if-let [resolved (and (symbol? op) (= :cljs (get (::peers env) (::current env)))
                                        (->> (expand/resolve-cljs env op) (keep-if (comp '#{js} :ns)) :name))]
                      (assoc (ir/eval (bound-js-fn resolved)) ::ir/tag 'js)
-                     (assoc (analyze-me env op) ::dbg/fn op))
+                     (assoc (analyze-me env op) ::dbg/name op ::dbg/file (:file (meta op)) ::dbg/line (:line (meta op))))
                    (mapv #(analyze-me env %) args))))
 
       (node-signifier? (meta form))
@@ -728,6 +726,7 @@
                     sym (signifier->node name-sym env)
                     fullsym (symbol (str *ns*) (str sym))
                     _ (when (::print-defs (meta name-sym)) (prn 'defining fullsym))
-                    ir (analyze (assoc env ::sym sym) init)
+                    env (assoc env ::sym sym)
+                    ir (analyze env init)
                     info (r/compile name-sym ir env)]
                 (list `def (as-node sym) (assoc info :var-name (list 'quote fullsym)))))))))

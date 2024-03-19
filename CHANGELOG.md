@@ -8,26 +8,44 @@
 
 # Roadmap
 
-* wip: Differential Electric (major Electric upgrades, needed for seamless reconnect/resync, optimistic CRUD UI controls with rollback, network planner improvements)
-* wip: incremental Electric compliation (fast dev rebuilds)
-* wip: Missionary documentation
+* wip: Electric v3 (major Electric upgrades to e/for-by and e/fn in complex client/server topologies)
 
-# v2-alpha-xxx — 2023 xxx
+# v2-alpha-540-ga4699532 — 2024 Jan 10
+
+- Simpler websocket integration
+  - Electric Jetty and HTTPKit adapters are now based on latest Ring (1.11+), supporting websockets out of the box. It is now simpler to integrate electric into existing ring apps, and extend     the electric adapter over new HTTP servers.
+  - **breaking**: `hyperfiddle.electric-jetty-adapter` has been replaced by the simpler, generic `hyperfiddle.electric-ring-adapter`.
+    The API is simpler, smaller, but is not retrocompatible.
+    Code depending on `electric-jetty-adapter` must be updated.
+  - **breaking**: `hyperfiddle.electric-httpkit-adapter` is now based on `electric-ring-adapter`
+    and exposes the same API. The two namespaces are equivalent, they only differ on
+    the underlying HTTP server.
+  - To migrate, look at the integration for:
+    - [Jetty](https://github.com/hyperfiddle/electric-fiddle/blob/cf6134adb6aa0a4ae2f678961e54036f867cd4d4/src/electric_fiddle/server_jetty.clj#L15-L33)
+    - [HTTPKit](https://github.com/hyperfiddle/electric-fiddle/blob/cf6134adb6aa0a4ae2f678961e54036f867cd4d4/src/electric_fiddle/server_httpkit.clj#L14-L39)
+    - update your ring middlewares accordingly
+  - Note latest ring-jetty depends on Jetty 11, which requires Java 11+. If you need Java 8 compat, see
+      [electric-server-java-8-jetty-9](https://github.com/hyperfiddle/electric/blob/cc55772f18bc46373f131e092fc20055c8062b59/src-docs/electric_server_java8_jetty9.clj)
+      and [electric-jetty-adapter](https://github.com/hyperfiddle/electric/blob/cc55772f18bc46373f131e092fc20055c8062b59/src/hyperfiddle/electric_jetty_adapter.clj)
+
+# v2-alpha-536-g0c582f78 — 2024 Jan 10
 - **Incremental compilation (IC):**
   - Electric compiled the whole program at once, meaining changing a single file in a large project caused long recompilaiton times. With this release electric compiles per definition (`e/def` and `e/defn`), reducing recompilation. Note: since clojurescript compiles on file granularity electric also recompiles the whole file(s). This is a clojurescript limitation.
-  - **breaking**: shadow-cljs build hook required for dev setup. [See starter app shadow-cljs.edn.](https://github.com/hyperfiddle/electric-starter-app/blob/3936c17097ac5f794ea9b7ac8afb883423ef1083/shadow-cljs.edn#L13)
-  - increased security. Before IC client sent server code as IR over websocket and server had to eval it. With IC eval is gone and server compiles its own code.
+  - **breaking**: shadow-cljs build hook required for dev setup. [See example shadow-cljs.edn.](https://github.com/hyperfiddle/electric-fiddle/blob/795c5edc29d57c9b037199cfe66996947d894d8d/shadow-cljs.edn#L12)
+  - increased security. Before IC client sent server code as Intermediate Representation (IR) over websocket and server had to eval it. With IC eval is gone and server compiles its own code.
   - **breaking**: a production build requires cljs on the classpath or AOT compilation. We removed runtime server eval of electric IR (the client doesn’t send the program over the websocket), increasing security. The server now compiles electric code and it needs cljs to macroexpand client code.
-  - **breaking**: more coloring required. `(e/defn X [] (js/alert 1))` fails to compile (on server), one needs to add an `e/client`.
-  - **breaking**: stricter definition order. `(e/def Y (inc X)) (e/def X 1)` used to work, now one has to reorder → `(e/def X 1) (e/def Y (inc X))`. Before IC electric deferred all compilation and could toposort the definitions. With IC definitions have to come in correct dependency order. Note: this is now the same as in clojure.
-  - **breaking**: `#js` literals require one to install a clj data reader or usage of reader conditionals. The simplest is to add a `data_readers.clj` to one’s classpath with content `{js cljs.tagged-literals/read-js}`. Before only the client (cljs) compiled code, now the server compiles as well, therefore the server needs a reader installed. We don’t provide one OOTB because it’s a global tag and users can have their own installed already, causing unresolvable conflicts.
+  - **breaking**: client and server programs are now compiled separately and their compiled output shapes must match. Some macros expand conditionally and generate a different program on client vs server. Example: `clojure.core/*assert*`, `clojure.spec.alpha/*compile-asserts*` and cljs compile option `:elide-asserts`. Check for conditional macros or compiler options if your program works in dev mode but crashes under advanced compilation or with a different setup.
+  - **breaking**: more coloring required. `(e/defn X [] (js/alert 1))` fails to compile on server, one needs to add an `e/client` for the server to understand `js/...` is client only. E.g. `(e/defn X [] (e/client (js/alert 1)))`.
+  - **breaking**: stricter definition order. `(e/def Y (inc X)) (e/def X 1)` used to work, now one has to reorder → `(e/def X 1) (e/def Y (inc X))`. Before IC, electric deferred all compilation and could toposort the definitions. With IC definitions have to come in correct dependency order. Note: this is now the same as in clojure.
+  - **breaking**: server compiler requires presence of the `#js` reader tag. Only the client (cljs compiler) used to compile electric code. Now the server compiles its own code, and therefore must be able to parse (read) code in `(e/client ...)` blocks. One must now either: install a reader extension for `#js`, or use reader conditionals to guard usage of `#js`. The simplest is to add a `data_readers.clj` to one's classpath with content `{js cljs.tagged-literals/read-js}`. We don’t provide one OOTB because it’s a global tag and users might have their own installed already, causing unresolvable conflicts.
   - **breaking**: cljs file cannot contain electric definitions anymore. With IC the server compiles its own portion of the definition, i.e. it needs to see the code, so it must be cljc.
   - **breaking**: 2 entrypoints, `e/boot-client` and `e/boot-server`, that need to match. Take `opts Main & args` instead of arbitrary electric code to minimize user errors.
+    - Examples of [server entrypoint](https://github.com/hyperfiddle/electric-fiddle/blob/cf6134adb6aa0a4ae2f678961e54036f867cd4d4/src-dev/dev.cljc#L42), [client entrypoint](https://github.com/hyperfiddle/electric-fiddle/blob/cf6134adb6aa0a4ae2f678961e54036f867cd4d4/src-dev/dev.cljc#L54-L57).
   - **breaking**: http adapters' `electric-ws-message-handler` take an additional argument `entrypoint` which is a function of 1 argument expecting the ring request. See starter app changes for how to update entrypoints.
-  - **breaking**: `e/*http-request*` removed, ring request passed as positional argument to entrypoint. Provided electric dynamic `e/http-request` which examples-app binds in entrypoint. Users can pass additional clojure arguments through the electric entrypoint.
+  - **breaking**: `e/*http-request*` removed, ring request passed as positional argument to entrypoint. Provided electric dynamic `e/http-request` which [examples](https://github.com/hyperfiddle/electric-fiddle/blob/795c5edc29d57c9b037199cfe66996947d894d8d/src-fiddles/hello_fiddle/fiddles.cljc#L15-L17) binds in entrypoint. Users can pass additional clojure arguments through the electric entrypoint.
   - **breaking**: program starts on the server due to above.
-  - **breaking**: reactive stacktrace prints on server due to above. Client warns about server print in console.
-  - reader conditionals work if there's no transfer inside. E.g. `#?(:cljs #js {:x 1})` will compile, `#?(:cljs #js {:x server-value})` will compile but fail at runtime, `#?(:cljs (let [x server-value] #js {:x x}))` will work.
+  - **breaking**: reactive stacktrace now prints on server, because the program starts on the server. Client warns about server print in console.
+  - reader conditionals work if there's no transfer inside. E.g. `#?(:cljs #js {:x 1})` will compile, `#?(:cljs #js {:x server-value})` will compile but fail at runtime, `(let [x server-value] #?(:cljs #js {:x x}))` will work.
 - **Electric:**
   - **breaking**: rename `HYPERFIDDLE_ELECTRIC_CLIENT_VERSION` to `ELECTRIC_USER_VERSION`
   - improved error message when an electric function is called as a clojure function (without `new`).
