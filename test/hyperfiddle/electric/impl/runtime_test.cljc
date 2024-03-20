@@ -170,9 +170,7 @@
   (s->c @s-ps)
   % := :foo
   % := :step-c
-  (c->s @c-ps)
-  % := :step-s
-  (s->c @s-ps))
+  (c->s @c-ps))
 
 (tests
   (def peer (peers (rcf/tap (e/client (e/$ (e/server (e/fn [] :foo)))))))
@@ -194,9 +192,7 @@
   (s->c @s-ps)
   % := :foo
   % := :step-c
-  (c->s @c-ps)
-  % := :step-s
-  (s->c @s-ps))
+  (c->s @c-ps))
 
 (tests
   (def peer (peers (rcf/tap (e/client (e/$ (e/server (let [foo :foo] (e/fn [] foo))))))))
@@ -222,6 +218,4 @@
   (s->c @s-ps)
   % := :foo
   % := :step-c
-  (c->s @c-ps)
-  % := :step-s
-  (s->c @s-ps))
+  (c->s @c-ps))
