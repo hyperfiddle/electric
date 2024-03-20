@@ -1049,9 +1049,9 @@
 (tests "fn destructuring"
   (with ((l/local {}
            (tap (e/client ((fn [{:keys [a] ::keys [b]}] [::client a b]) {:a 1 ::b 2})))
-           (tap (e/server ((fn [{:keys [a] ::keys [b]}] [::server a b]) {:a 1 ::b 2})))) tap tap))
+           (tap (e/server ((fn [{:keys [a] ::keys [b]}] [::server a b]) {:a 1 ::b 2})))) tap tap)
     % := [::client 1 2]
-    % := [::server 1 2])
+    % := [::server 1 2]))
 
 ;; TODO try/catch
 (skip
@@ -1129,19 +1129,16 @@
   )
 
 (def !x (atom true))
-(failing
+(tests
   (reset! !x true)
   (with ((l/local {}
            (let [x (e/watch !x)]
-             (if (e/server x) ; to be consistent, client should see x first and switch
-               (e/server (tap x)) ; but test shows that the server sees x change before client
+             (if (e/server x)
+               (e/server (tap x))
                (e/server x)))) tap tap)
    % := true
    (swap! !x not)
-   % := false #_ ::rcf/timeout)
-  ; we have to choose: consistency or less latency?
-  ; current behavior - Dustin likes, Leo does not like
-  )
+   % := ::rcf/timeout))
 
 ;; TODO transfer try/catch
 ;; https://www.notion.so/hyperfiddle/distribution-glitch-stale-local-cache-of-remote-value-should-be-invalidated-pending-47f5e425d6cf43fd9a37981c9d80d2af

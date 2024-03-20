@@ -70,8 +70,8 @@
 (defn run-local [defs main]
   (m/reduce #(do %2) nil
     (let [s->c (m/dfv), c->s (m/dfv)
-          c (r/peer (fn [!] (s->c !) #()) :client defs main)
-          s (r/peer (fn [!] (c->s !) #()) :server defs main)]
+          c (m/stream (r/peer (fn [!] (s->c !) #()) :client defs main))
+          s (m/stream (r/peer (fn [!] (c->s !) #()) :server defs main))]
       (m/ap (m/amb=
               (let [v (m/?> c)] ((m/? c->s) v))
               (let [v (m/?> s)] ((m/? s->c) v)))))))
