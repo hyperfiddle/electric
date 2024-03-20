@@ -4,7 +4,7 @@
             [cognitect.transit :as t])
   (:import missionary.Cancelled
            #?(:clj (clojure.lang IFn IDeref))
-           #?(:clj (java.io ByteArrayInputStream ByteArrayOutputStream))))
+           #?(:clj (java.io ByteArrayInputStream ByteArrayOutputStream Writer))))
 
 #?(:clj (set! *warn-on-reflection* true))
 
@@ -42,7 +42,8 @@
 (def port-slot-requested 4)
 (def port-slot-refcount 5)
 (def port-slot-process 6)
-(def port-slots 7)
+(def port-slot-state 7)
+(def port-slots 8)
 
 (declare peer-cancel peer-transfer)
 
@@ -363,28 +364,34 @@ T T T -> (EXPR T)
 (defn port-site [^objects port]
   (aget port port-slot-site))
 
-(declare port-slot port-attach port-detach)
+(declare port-slot)
 
-(deftype Remote [port step done ^:unsynchronized-mutable ^:mutable diff]
+(deftype Remote [port step done]
   IFn
   (#?(:clj invoke :cljs -invoke) [_]
-    (port-detach port)
-    (if (nil? diff)
-      (step) (set! diff nil)))
-  (#?(:clj invoke :cljs -invoke) [_ value]
-    (if (nil? value)
-      (do (port-detach port)
-          (when (nil? diff) (done)))
-      (if-some [prev diff]
-        (set! diff (i/combine prev value))
-        (do (set! diff value) (step)))))
+    (aset ^objects port port-slot-process nil)
+    (if (nil? (aget ^objects port port-slot-state))
+      (step) (aset ^objects port port-slot-state nil)))
   IDeref
   (#?(:clj deref :cljs -deref) [this]
-    (if-some [value diff]
-      (do (set! diff nil)
+    (if-some [value (aget ^objects port port-slot-state)]
+      (do (aset ^objects port port-slot-state nil)
           (when-not (identical? this (port-process port))
             (done)) value)
       (do (done) (throw (Cancelled. "Remote port cancelled."))))))
+
+(defn port-freeze [^objects port]
+  (aset port port-slot-process nil)
+  (when (nil? (aget port port-slot-state))
+    (when-some [^Remote ps (aget port port-slot-process)]
+      ((.-done ps)))))
+
+(defn port-change [^objects port value]
+  (if-some [prev (aget port port-slot-state)]
+    (aset port port-slot-state (i/combine prev value))
+    (do (aset port port-slot-state value)
+        (when-some [^Remote ps (aget port port-slot-process)]
+          ((.-step ps))))))
 
 (deftype Slot [^Frame frame id]
   #?(:clj Object)
@@ -411,14 +418,6 @@ T T T -> (EXPR T)
   {:tag Slot}
   [^objects port]
   (aget port port-slot-slot))
-
-(defn port-attach [^objects port ps]
-  (aset port port-slot-process ps)
-  (peer-push (frame-peer (.-frame (port-slot port))) peer-queue-tap port))
-
-(defn port-detach [^objects port]
-  (aset port port-slot-process nil)
-  (peer-push (frame-peer (.-frame (port-slot port))) peer-queue-untap port))
 
 (defn slot-port
   {:tag 'objects}
@@ -452,6 +451,7 @@ T T T -> (EXPR T)
                                     (.-result cdef) (nodes id)))
                                 (calls id)))]
                site (frame-site frame))
+        local? (= site (.-site (frame-peer frame)))
         port (if (instance? Slot expr)
                (slot-port expr)
                (let [port (object-array port-slots)]
@@ -460,24 +460,25 @@ T T T -> (EXPR T)
                  (aset port port-slot-deps (deps expr site))
                  (aset port port-slot-flow
                    (m/signal i/combine
-                     (if (= site (.-site (frame-peer frame)))
+                     (if local?
                        (flow expr)
                        (fn [step done]
-                         (let [ps (->Remote port step done (i/empty-diff 0))]
-                           (port-attach port ps) (step) ps)))))
+                         (let [ps (->Remote port step done)]
+                           (aset port port-slot-process ps)
+                           (step) ps)))))
                  (aset port port-slot-refcount (identity 0))
                  (aset port port-slot-requested (identity 0))
+                 (aset port port-slot-state (if local? false (i/empty-diff 0)))
                  port))]
     (if (neg? id)
       (aset ^objects (.-nodes frame) (- -1 id) port)
       (aset ^objects (.-calls frame) id port)) nil))
 
-(defn make-frame [^Slot slot rank ctor]
+(defn make-frame [^Slot slot rank site ctor]
   (let [cdef (ctor-cdef ctor)
         callc (count (.-calls cdef))
         nodec (count (.-nodes cdef))
-        frame (->Frame slot rank
-                (if (nil? slot) :client (port-site (slot-port slot))) ctor
+        frame (->Frame slot rank site ctor
                 (int-array (inc callc)) (object-array callc) (object-array callc)
                 (object-array (inc nodec)) nil)]
     (define-slot (->Slot frame (- -1 nodec)) ((.-build cdef) frame)) frame))
@@ -502,11 +503,11 @@ T T T -> (EXPR T)
   (aset port port-slot-process
     ((port-flow port)
      #(port-ready port)
-     #(do (aset port port-slot-process nil)
+     #(do (aset port port-slot-state true)
           (port-ready port)))))
 
 (defn disable [^objects port]
-  (when-some [ps (port-process port)]
+  (let [ps (port-process port)]
     (aset port port-slot-process nil)
     (ps)))
 
@@ -552,53 +553,54 @@ T T T -> (EXPR T)
             ^objects toggle-queue (aget queues peer-queue-toggle)
             ^objects ready-queue (aget queues peer-queue-ready)]
         (if-some [^objects remote-port (aget tap-queue tap-pull)]
-          (let [prev (aget remote-port port-slot-requested)]
-            (aset tap-queue tap-pull nil)
-            (aset remote-port port-slot-requested (inc prev))
-            (reduce-kv local-port-tap nil (port-deps remote-port))
-            (recur (if (zero? (+ prev (aget remote-port port-slot-refcount)))
-                     (conj toggle (port-slot remote-port)) toggle) change freeze
-              (rem (unchecked-inc-int tap-pull)
-                (alength tap-queue)) untap-pull toggle-pull change-pull))
+          (do (aset tap-queue tap-pull nil)
+              (let [prev (aget remote-port port-slot-requested)]
+                (aset remote-port port-slot-requested (inc prev))
+                (reduce-kv local-port-tap nil (port-deps remote-port))
+                (recur (if (zero? (+ prev (aget remote-port port-slot-refcount)))
+                         (conj toggle (port-slot remote-port)) toggle) change freeze
+                  (rem (unchecked-inc-int tap-pull)
+                    (alength tap-queue)) untap-pull toggle-pull change-pull)))
           (if-some [^objects remote-port (aget untap-queue untap-pull)]
-            (let [curr (dec (aget remote-port port-slot-requested))]
-              (aset untap-queue untap-pull nil)
-              (aset remote-port port-slot-requested curr)
-              (run! local-port-untap (port-deps remote-port))
-              (recur (if (zero? (+ curr (aget remote-port port-slot-requested)))
-                       (conj toggle (port-slot remote-port)) toggle) change freeze
-                tap-pull (rem (unchecked-inc-int untap-pull)
-                           (alength untap-queue)) toggle-pull change-pull))
+            (do (aset untap-queue untap-pull nil)
+                (let [curr (dec (aget remote-port port-slot-requested))]
+                  (aset remote-port port-slot-requested curr)
+                  (reduce-kv local-port-untap nil (port-deps remote-port))
+                  (recur (if (zero? (+ curr (aget remote-port port-slot-refcount)))
+                           (conj toggle (port-slot remote-port)) toggle) change freeze
+                    tap-pull (rem (unchecked-inc-int untap-pull)
+                               (alength untap-queue)) toggle-pull change-pull)))
             (if-some [^objects local-port (aget toggle-queue toggle-pull)]
-              (let [deps (port-deps local-port)]
-                (aset toggle-queue toggle-pull nil)
-                (if (zero? (aget local-port port-slot-requested))
-                  (do (aset local-port port-slot-requested (identity 1))
-                      (run! remote-port-tap deps)
-                      (when (zero? (aget local-port port-slot-refcount))
-                        (enable local-port)))
-                  (do (aset local-port port-slot-requested (identity 0))
-                      (run! remote-port-untap deps)
-                      (when (zero? (aget local-port port-slot-refcount))
-                        (disable local-port))))
+              (do (aset toggle-queue toggle-pull nil)
+                  (if (zero? (aget local-port port-slot-requested))
+                    (do (aset local-port port-slot-requested (identity 1))
+                        (reduce-kv remote-port-tap nil (port-deps local-port))
+                        (when (zero? (aget local-port port-slot-refcount))
+                          (enable local-port)))
+                    (do (aset local-port port-slot-requested (identity 0))
+                        (reduce-kv remote-port-untap nil (port-deps local-port))
+                        (when (zero? (aget local-port port-slot-refcount))
+                          (disable local-port))))
                 (recur toggle change freeze tap-pull untap-pull
                   (rem (unchecked-inc-int toggle-pull)
                     (alength toggle-queue)) change-pull))
               (if-some [^objects local-port (aget ready-queue change-pull)]
-                (let [slot (port-slot local-port)]
-                  (aset ready-queue change-pull nil)
-                  (if-some [ps (port-process local-port)]
-                    (let [diff @ps]
-                      (recur toggle (assoc change
-                                      slot (if-some [p (change slot)]
-                                             (i/combine p diff) diff))
-                        freeze tap-pull untap-pull toggle-pull
-                        (rem (unchecked-inc-int change-pull)
-                          (alength ready-queue))))
-                    (recur toggle change (conj freeze slot)
-                      tap-pull untap-pull toggle-pull
-                      (rem (unchecked-inc-int change-pull)
-                        (alength ready-queue)))))
+                (do (aset ready-queue change-pull nil)
+                    (if-some [ps (port-process local-port)]
+                      (if (aget local-port port-slot-state)
+                        (recur toggle change (conj freeze (port-slot local-port))
+                          tap-pull untap-pull toggle-pull
+                          (rem (unchecked-inc-int change-pull)
+                            (alength ready-queue)))
+                        (let [diff @ps
+                              slot (port-slot local-port)]
+                          (recur toggle (assoc change
+                                          slot (if-some [p (change slot)]
+                                                 (i/combine p diff) diff))
+                            freeze tap-pull untap-pull toggle-pull
+                            (rem (unchecked-inc-int change-pull)
+                              (alength ready-queue)))))
+                      (recur toggle change freeze tap-pull untap-pull toggle-pull change-pull)))
                 (let [acks (aget state peer-slot-output-acks)]
                   (aset state peer-slot-output-acks (identity 0))
                   (aset state peer-slot-output-pending true)
@@ -637,12 +639,10 @@ T T T -> (EXPR T)
   (peer-push peer peer-queue-toggle (slot-port slot)) peer)
 
 (defn peer-change [^Peer peer ^Slot slot diff]
-  (let [port (slot-port slot)
-        ps (port-process port)]
-    (ps diff)) peer)
+  (port-change (slot-port slot) diff) peer)
 
 (defn peer-freeze [^Peer peer ^Slot slot]
-  ((port-process (slot-port slot)) nil) peer)
+  (port-freeze (slot-port slot)) peer)
 
 (defn peer-input-ready [^Peer peer]
   (let [^objects state (.-state peer)
@@ -694,25 +694,104 @@ T T T -> (EXPR T)
   [^Frame frame id expr]
   (define-slot (node frame id) expr))
 
+(defn port-attach [^Peer peer ^objects port n]
+  (dotimes [_ n] (peer-push peer peer-queue-tap port)) peer)
+
+(defn port-detach [^Peer peer ^objects port n]
+  (dotimes [_ n] (peer-push peer peer-queue-untap port)) peer)
+
+(defn frame-up [^Frame frame]
+  (let [^objects nodes (.-nodes frame)
+        result (aget nodes (dec (alength nodes)))
+        site (port-site (slot-port (.-slot frame)))]
+    (reduce-kv port-attach (frame-peer frame)
+      (deps (port-slot result) site))
+    (port-flow result)))
+
+(defn frame-down [^Frame frame]
+  (let [^objects nodes (.-nodes frame)
+        result (aget nodes (dec (alength nodes)))
+        site (port-site (slot-port (.-slot frame)))]
+    (reduce-kv port-detach (frame-peer frame)
+      (deps (port-slot result) site))))
+
+(defn apply-cycle [^objects buffer cycle]
+  (let [i (nth cycle 0)
+        x (aget buffer i)
+        j (loop [i i
+                 k 1]
+            (let [j (nth cycle k)
+                  y (aget buffer j)
+                  k (unchecked-inc-int k)]
+              (aset buffer i y)
+              (if (< k (count cycle))
+                (recur j k) j)))]
+    (aset buffer j x) buffer))
+
+(def call-slot-slot 0)
+(def call-slot-buffer 1)
+(def call-slots 2)
+
+(defn call-transfer [^objects state {:keys [grow degree shrink permutation change freeze]}]
+  (let [^Slot slot (aget state call-slot-slot)
+        ^Frame parent (.-frame slot)
+        id (.-id slot)
+        ^ints ranks (.-ranks parent)
+        site (port-site (slot-port slot))
+        size-after (- degree shrink)
+        ^objects buffer (let [^objects buffer (aget state call-slot-buffer)
+                              cap (alength buffer)]
+                          (if (< degree cap)
+                            buffer (let [b (object-array (loop [cap cap]
+                                                           (let [cap (bit-shift-left cap 1)]
+                                                             (if (< degree cap)
+                                                               cap (recur cap)))))]
+                                     #?(:clj  (System/arraycopy buffer 0 b 0 cap)
+                                        :cljs (dotimes [i cap] (aset b i (aget buffer i))))
+                                     (aset state call-slot-buffer b))))]
+    (reduce apply-cycle buffer (i/decompose permutation))
+    (dotimes [i shrink]
+      (let [j (+ size-after i)]
+        (frame-down (aget buffer j))
+        (aset buffer j nil)))
+    {:grow        grow
+     :degree      degree
+     :shrink      shrink
+     :permutation permutation
+     :freeze      freeze
+     :change      (reduce-kv (fn [change i ctor]
+                               (when-not (instance? Ctor ctor)
+                                 (throw (error (str "Not a constructor - " (pr-str ctor)))))
+                               (when-not (identical? (frame-peer parent) (ctor-peer ctor))
+                                 (throw (error "Can't call foreign constructor.")))
+                               (when-some [frame (aget buffer i)] (frame-down frame))
+                               (let [rank (aget ranks id)
+                                     frame (make-frame slot rank site ctor)]
+                                 (aset buffer i frame)
+                                 (aset ranks id (inc rank))
+                                 (assoc change i (frame-up frame))))
+                    {} change)}))
+
+(deftype Call [expr slot]
+  Expr
+  (deps [_ site] (deps expr site))
+  (flow [_]
+    (fn [step done]
+      (let [state (doto (object-array call-slots)
+                    (aset call-slot-slot slot)
+                    (aset call-slot-buffer (object-array 1)))
+            ps ((flow expr) step done)]
+        (reify
+          IFn
+          (invoke [_] (ps))
+          IDeref
+          (deref [_] (call-transfer state @ps)))))))
+
 (defn define-call
   "Defines call site id for given frame."
   [^Frame frame id expr]
   (let [slot (call frame id)]
-    (define-slot slot
-      (reify Expr
-        (deps [_ site] (deps expr site))
-        (flow [_]
-          (i/latest-product
-            (fn [ctor]
-              (when-not (instance? Ctor ctor)
-                (throw (error (str "Not a constructor - " (pr-str ctor)))))
-              (when-not (identical? (frame-peer frame) (ctor-peer ctor))
-                (throw (error "Can't call foreign constructor.")))
-              (let [^ints ranks (.-ranks frame)
-                    rank (aget ranks id)]
-                (aset ranks id (inc rank))
-                (make-frame slot rank ctor)))
-            (flow expr)))))))
+    (define-slot slot (->Call expr slot))))
 
 (defn define-free
   "Defines free variable id for given constructor."
@@ -764,41 +843,41 @@ Returns a peer definition from given definitions and main key.
                    (aset peer-queue-ready (object-array 1)))
                  (int-array peer-queues) state)
           input (m/stream (m/observe events))
-          root (->> args
-                 (apply bind-args (->Ctor peer main 0 (object-array 0) {} nil))
-                 (make-frame nil 0))]
+          ^Frame root (->> args
+                        (apply bind-args (->Ctor peer main 0 (object-array 0) {} nil))
+                        (make-frame nil 0 :client))]
       (aset state peer-slot-writer-opts
         {:default-handler (t/write-handler
                             (fn [_] "unserializable")
                             (fn [_] (comment TODO fetch port info)))
-         :handlers {Ctor  (t/write-handler
-                            (fn [_] "ctor")
-                            (fn [^Ctor ctor]
-                              (assert (identical? peer (.-peer ctor)))
-                              (list* (.-key ctor) (.-idx ctor) (.-env ctor) (.-free ctor))))
-                    Slot  (t/write-handler
-                            (fn [_] "slot")
-                            (fn [^Slot slot]
-                              [(.-frame slot) (.-id slot)]))
-                    Frame (t/write-handler
-                            (fn [_] "frame")
-                            (fn [^Frame frame]
-                              [(frame-path frame)
-                               (when-not (frame-shared? frame)
-                                 (frame-share frame)
-                                 (.-ctor frame))]))
-                    Join (t/write-handler
-                           (fn [_] "join")
-                           (fn [^Join join]
-                             (.-input join)))
-                    Ap (t/write-handler
-                         (fn [_] "ap")
-                         (fn [^Ap ap]
-                           (.-inputs ap)))
-                    Pure (t/write-handler
-                           (fn [_] "pure")
-                           (fn [^Pure pure]
-                             (.-values pure)))}})
+         :handlers        {Ctor  (t/write-handler
+                                   (fn [_] "ctor")
+                                   (fn [^Ctor ctor]
+                                     (assert (identical? peer (.-peer ctor)))
+                                     (list* (.-key ctor) (.-idx ctor) (.-env ctor) (.-free ctor))))
+                           Slot  (t/write-handler
+                                   (fn [_] "slot")
+                                   (fn [^Slot slot]
+                                     [(.-frame slot) (.-id slot)]))
+                           Frame (t/write-handler
+                                   (fn [_] "frame")
+                                   (fn [^Frame frame]
+                                     [(frame-path frame)
+                                      (when-not (frame-shared? frame)
+                                        (frame-share frame)
+                                        (.-ctor frame))]))
+                           Join  (t/write-handler
+                                   (fn [_] "join")
+                                   (fn [^Join join]
+                                     (.-input join)))
+                           Ap    (t/write-handler
+                                   (fn [_] "ap")
+                                   (fn [^Ap ap]
+                                     (.-inputs ap)))
+                           Pure  (t/write-handler
+                                   (fn [_] "pure")
+                                   (fn [^Pure pure]
+                                     (.-values pure)))}})
       (aset state peer-slot-reader-opts
         {:handlers {"ctor"           (t/read-handler
                                        (fn [[key idx env & free]]
@@ -812,7 +891,9 @@ Returns a peer definition from given definitions and main key.
                                            (peer-frame peer path)
                                            (let [[id rank] (peek path)
                                                  parent (peer-frame peer (pop path))
-                                                 frame (make-frame (call parent id) rank ctor)]
+                                                 slot (call parent id)
+                                                 site (port-site (slot-port slot))
+                                                 frame (make-frame slot rank site ctor)]
                                              (frame-share frame) frame))))
                     "join"           (t/read-handler
                                        (fn [input]
@@ -833,17 +914,39 @@ Returns a peer definition from given definitions and main key.
         (input #(peer-input-ready peer) done))
       (aset state peer-slot-root root)
       (when (= site :client)
-        (aset state peer-slot-result
-          ((m/reduce peer-result-diff peer
-             (m/signal i/combine root))
-           peer-result-success pst)))
+        (let [^objects nodes (.-nodes root)
+              result (aget nodes (dec (alength nodes)))]
+          (reduce-kv port-attach peer (deps (port-slot result) site))
+          (aset state peer-slot-result
+            ((m/reduce peer-result-diff peer (port-flow result))
+             peer-result-success pst))))
       (peer-input-ready peer) peer)))
+
+#?(:clj
+   (defmethod print-method Slot [^Slot slot ^Writer w]
+     (.write w "#Slot[")
+     (print-method (.-frame slot) w)
+     (.write w " ")
+     (print-method (.-id slot) w)
+     (.write w "]")))
+
+#?(:clj
+   (defmethod print-method Frame [^Frame frame ^Writer w]
+     (.write w "#Frame[")
+     (when-some [[x & xs] (seq (frame-path frame))]
+       (print-method x w)
+       (loop [xs xs]
+         (when-some [[x & xs] xs]
+           (.write w " ")
+           (print-method x w)
+           (recur xs))))
+     (.write w "]")))
 
 ;; local only
 (defn root-frame [defs main]
   (->> (bind-args (->Ctor (->Peer :client defs nil nil nil nil nil)
                     main 0 (object-array 0) {} nil))
-    (make-frame nil 0)
+    (make-frame nil 0 :client)
     (m/signal i/combine)))
 
 #?(:clj
