@@ -994,7 +994,7 @@
 
 (def !state (atom [1]))
 (def state)
-(failing
+(tests
   (reset! !state [1])
   "Nested e/for with transfer"
   (with ((l/local {} (binding [state (e/watch !state)]
