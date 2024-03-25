@@ -93,11 +93,14 @@
 
 (declare -expand-all)
 
+(defn traceable [f] (case (namespace f) ("hyperfiddle.electric.impl.runtime-de" "missionary.core" "hyperfiddle.incseq") false #_else true))
+
 (defn ?expand-macro [o env caller]
   (if (symbol? (first o))
     (let [o2 (?meta o (expand-macro env o))]
       (if (identical? o o2)
-        (?meta o (list* (first o) (mapv (fn-> caller env) (rest o))))
+        (?meta o (cond->> (?meta o (list* (first o) (mapv (fn-> caller env) (rest o))))
+                   (and (::trace env) (traceable (first o))) (list `r/tracing (list 'quote o))))
         (caller o2 env)))
     (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
 
