@@ -945,11 +945,10 @@
                             (let [nd (ts/->node ts e)]
                               (vswap! seen conj e)
                               (case (::type nd)
-                                (::literal ::var ::lookup ::node) ts
+                                (::literal ::var ::lookup ::node ::ctor) ts
                                 (::ap ::comp) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
                                 (::site ::join ::pure ::mklocal) (recur ts ctor-e (get-child-e ts e))
                                 (::bindlocal) (recur ts ctor-e (->bindlocal-body-e ts e))
-                                (::ctor) (recur ts e (get-child-e ts e))
                                 (::call) (if (::call-idx nd)
                                            ts
                                            (-> (mark-used-calls ts ctor-e (get-child-e ts e))
@@ -959,9 +958,11 @@
                                 (::localref) (let [nx-e (->> (::ref nd) (->localv-e ts) (get-ret-e ts))]
                                                (recur ts (find-ctor-e ts nx-e) nx-e))
                                 #_else (throw (ex-info (str "cannot mark-used-calls on " (::type nd)) (or nd {})))))))
-        ts (-> ts (mark-used-calls (get-root-e ts) (get-ret-e ts (get-child-e ts (get-root-e ts))))
-             reroute-local-aliases (handle-let-refs (get-root-e ts)) inline-nodes order-nodes order-frees
-             collapse-ap-with-only-pures)]
+        mark-used-calls2 (fn [ts]
+                           (reduce (fn [ts ctor-e] (mark-used-calls ts ctor-e (get-ret-e ts (get-child-e ts ctor-e))))
+                             ts (->> ts :ave ::ctor-idx vals (reduce into))))
+        ts (-> ts mark-used-calls2 reroute-local-aliases (handle-let-refs (get-root-e ts))
+             inline-nodes order-nodes order-frees collapse-ap-with-only-pures)]
     (when (::print-db env) (run! prn (ts->reducible ts)))
     ts))
 
