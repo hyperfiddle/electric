@@ -58,12 +58,14 @@
                 _  (when (::lang/print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
                 ts (lang/analyze-electric env ts)
                 ctors (mapv #(lang/emit-ctor ts % env ::Main) (lang/get-ordered-ctors-e ts))
+                source `(cc/fn ([] {0 ~(lang/emit-fn ts (lang/get-root-e ts) ::Main)})
+                          ([idx#] (case idx# ~@(interleave (range) ctors))))
                 ret-e (lang/get-ret-e ts (lang/get-child-e ts 0))
                 deps (lang/emit-deps ts ret-e)
                 deps (collect-deps deps)
                 defs (into {} (map (fn [dep] [(keyword dep) dep])) deps)
-                defs (assoc defs ::Main ctors)]
-            (when (::lang/print-source env) (fipp.edn/pprint ctors))
+                defs (assoc defs ::Main source)]
+            (when (::lang/print-source env) (fipp.edn/pprint source))
             (when (::lang/print-defs env) (fipp.edn/pprint defs))
             `(run-single (r/root-frame ~defs ::Main)))))
 
@@ -85,11 +87,13 @@
         _  (when (::lang/print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
         ts (lang/analyze-electric env ts)
         ctors (mapv #(lang/emit-ctor ts % env ::Main) (lang/get-ordered-ctors-e ts))
+        source `(cc/fn ([] {0 ~(lang/emit-fn ts (lang/get-root-e ts) ::Main)})
+                  ([idx#] (case idx# ~@(interleave (range) ctors))))
         ret-e (lang/get-ret-e ts (lang/get-child-e ts 0))
         deps (lang/emit-deps ts ret-e)
         deps (collect-deps deps)
         defs (into {} (map (fn [dep] [(keyword dep) dep])) deps)
-        defs (assoc defs ::Main ctors)]
-    (when (::lang/print-source env) (fipp.edn/pprint ctors))
+        defs (assoc defs ::Main source)]
+    (when (::lang/print-source env) (fipp.edn/pprint source))
     (when (::lang/print-defs env) (fipp.edn/pprint defs))
     `(run-local ~defs ::Main)))

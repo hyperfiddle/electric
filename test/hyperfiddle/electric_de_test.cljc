@@ -27,8 +27,8 @@
   #_`(try (do ~@body) (catch ~(if (:js-globals &env) :default 'Throwable) e# (prn e#))))
 
 (tests "call on local electric ctor"
-       (with ((l/single {} (let [x (e/ctor 1)] (tap ($ x)))) tap tap)
-         % := 1))
+  (with ((l/single {} (let [x (e/fn [] 1)] (tap ($ x)))) tap tap)
+    % := 1))
 
 (defrecord Point [x y])
 (tests "new on class"
