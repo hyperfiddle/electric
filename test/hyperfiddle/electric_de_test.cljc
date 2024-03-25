@@ -2159,15 +2159,15 @@
     % := 1))
 
 (tests "()"
-  (with ((l/single {}+ {} (tap ())) tap tap)
+  (with ((l/single {} (tap ())) tap tap)
     % := ()))
 
 (tests "(#())"
-  (with ((l/single {}+ {} (tap (#()))) tap tap)
+  (with ((l/single {} (tap (#()))) tap tap)
     % := ()))
 
 (tests "((fn []))"
-  (with ((l/single {}+ {} (tap ((fn [])))) tap tap)
+  (with ((l/single {} (tap ((fn [])))) tap tap)
     % := nil))
 
 (tests "binding in interop fn"
