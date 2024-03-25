@@ -39,12 +39,6 @@ Syntax :
 Returns the successive states of items described by `incseq`.
 " [flow] `(::lang/join ~flow))
 
-(defmacro fn* [bs & body]
-  `(check-electric fn*
-     (ctor
-       (let [~@(interleave bs (->pos-args (count bs)))]
-         ~@body))))
-
 #?(:clj (cc/defn- varargs? [args] (boolean (and (seq args) (= '& (-> args pop peek))))))
 
 #?(:clj (cc/defn- ?bind-self [code ?name] (cond->> code ?name (list 'let* [?name `(::lang/lookup ::r/fn)]))))
@@ -80,23 +74,19 @@ Returns the successive states of items described by `incseq`.
         arities (cond-> args2 (vector? (first args2)) list)
         {positionals false, varargs true} (group-by (comp varargs? first) arities)
         _ (check-only-one-vararg! ?name (mapv first varargs))
-        _ (check-arity-conflicts! ?name (mapv first positionals) (ffirst varargs))
-        [?vararg npos map-vararg?] (when-some [va (first varargs)]
-                                     (let [[args & body] va
-                                           npos (-> args count (- 2))
-                                           unvarargd (-> args pop pop (conj (peek args)))]
-                                       `[(hyperfiddle.electric-de/fn* ~unvarargd ~@body) ~npos ~(map? (peek args))]))
-        dispatch-map (into {} (map (cc/fn [[args :as fargs]] [(count args) `(hyperfiddle.electric-de/fn* ~@fargs)]))
-                       positionals)]
+        _ (check-arity-conflicts! ?name (mapv first positionals) (ffirst varargs))]
+    ;; TODO map varargs
     `(check-electric fn
-       (ctor
-         ~(-> (if ?vararg
-                (let [code `(binding [~npos (-prep-varargs ~npos (::lang/lookup ::r/argv) ~map-vararg?)] (::lang/call ~?vararg))]
-                  (if (seq positionals)
-                    `(if-some [F# (~dispatch-map (::lang/lookup ::r/arity))] (::lang/call F#) ~code)
-                    code))
-                `(::lang/call (~dispatch-map (::lang/lookup ::r/arity))))
-            (?bind-self ?name))))))
+       ~(into (if-some [[args & body] (first varargs)]
+                {-1 [(-> args count (- 2))
+                     `(::lang/ctor
+                        (let [~@(interleave (-> args pop pop) (map dget (range)))
+                              ~(peek args) (dget -1)] ~@body))]} {})
+          (map (cc/fn [[args & body]]
+                 [(count args)
+                  `(::lang/ctor
+                     (let [~@(interleave args (map dget (range)))]
+                       ~@body))])) positionals))))
 
 (cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
 
@@ -112,13 +102,16 @@ Returns the successive states of items described by `incseq`.
         _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
         ts (lang/analyze expanded '_ env (lang/->ts))
         ts (lang/analyze-electric env ts)
-        ctors (mapv #(lang/emit-ctor ts % env (-> nm ns-qualify keyword)) (lang/get-ordered-ctors-e ts))
+        k (-> nm ns-qualify keyword)
+        ctors (mapv #(lang/emit-ctor ts % env k) (lang/get-ordered-ctors-e ts))
+        source `(cc/fn ([] ~(lang/emit-fn ts (lang/get-root-e ts) k))
+                  ([idx#] (case idx# ~@(interleave (range) ctors))))
         deps (lang/emit-deps ts (lang/get-root-e ts))
         nm3 (vary-meta nm2 assoc ::lang/deps `'~deps)]
     (when-not (::lang/has-edef? (meta *ns*))
       (alter-meta! *ns* assoc ::lang/has-edef? true))
-    (when (::lang/print-source env) (fipp.edn/pprint ctors))
-    `(def ~nm3 ~ctors)))
+    (when (::lang/print-source env) (fipp.edn/pprint source))
+    `(def ~nm3 ~source)))
 
 (defmacro amb "
 Syntax :
@@ -218,32 +211,45 @@ this tuple. Returns the concatenation of all body results as a single vector.
       (reduce (cc/fn [ac [nm & fargs]] `(::lang/bindlocal ~nm (hyperfiddle.electric-de/fn ~@fargs) ~ac)) (cons 'do body) sb)
       sb)))
 
-(cc/defn- -splicev [args] (into [] cat [(pop args) (peek args)]))
-(hyperfiddle.electric-de/defn Apply* [F args]
-  (let [s (-splicev args)]
-    (case (count s)
-      0 ($ F)
-      1 ($ F (nth s 0))
-      2 ($ F (nth s 0) (nth s 1))
-      3 ($ F (nth s 0) (nth s 1) (nth s 2))
-      4 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3))
-      5 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4))
-      6 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5))
-      7 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6))
-      8 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7))
-      9 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8))
-      10 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9))
-      11 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10))
-      12 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11))
-      13 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11) (nth s 12))
-      14 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11) (nth s 12) (nth s 13))
-      15 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11) (nth s 12) (nth s 13) (nth s 14))
-      16 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11) (nth s 12) (nth s 13) (nth s 14) (nth s 15))
-      17 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11) (nth s 12) (nth s 13) (nth s 14) (nth s 15) (nth s 16))
-      18 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11) (nth s 12) (nth s 13) (nth s 14) (nth s 15) (nth s 16) (nth s 17))
-      19 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11) (nth s 12) (nth s 13) (nth s 14) (nth s 15) (nth s 16) (nth s 17) (nth s 18))
-      20 ($ F (nth s 0) (nth s 1) (nth s 2) (nth s 3) (nth s 4) (nth s 5) (nth s 6) (nth s 7) (nth s 8) (nth s 9) (nth s 10) (nth s 11) (nth s 12) (nth s 13) (nth s 14) (nth s 15) (nth s 16) (nth s 17) (nth s 18) (nth s 19)))))
-(defmacro apply [F & args] `($ Apply* ~F [~@args]))
+(hyperfiddle.electric-de/defn Dispatch [F offset args]
+  (let [arity (+ offset (count args))]
+    (if-some [ctor (F arity)]
+      (loop [offset offset
+             args args
+             ctor ctor]
+        (if (< offset arity)
+          (recur (inc offset) (next args)
+            (r/bind ctor offset (::lang/pure (first args))))
+          ctor))
+      (let [[fixed ctor] (r/get-variadic F arity)]
+        (loop [offset offset
+               args args
+               ctor ctor]
+          (if (< offset fixed)
+            (recur (inc offset) (next args)
+              (r/bind ctor offset (::lang/pure (first args))))
+            (r/bind ctor -1 (::lang/pure args))))))))
+
+(hyperfiddle.electric-de/defn Apply
+  ([F a]
+   (::lang/call
+     (r/bind-args ($ Dispatch F 0 a))))
+  ([F a b]
+   (::lang/call
+     (r/bind-args ($ Dispatch F 1 b)
+       (::lang/pure a))))
+  ([F a b c]
+   (::lang/call
+     (r/bind-args ($ Dispatch F 2 c)
+       (::lang/pure a) (::lang/pure b))))
+  ([F a b c d]
+   (::lang/call
+     (r/bind-args ($ Dispatch F 3 d)
+       (::lang/pure a) (::lang/pure b) (::lang/pure c))))
+  ([F a b c d & es]
+   (::lang/call
+     (r/bind-args ($ Dispatch F (+ 4 (count es)) (concat (butlast es) (last es)))
+       (::lang/pure a) (::lang/pure b) (::lang/pure c) (::lang/pure d)))))
 
 (cc/defn on-unmount* [f] (m/observe (cc/fn [!] (! nil) f)))
 

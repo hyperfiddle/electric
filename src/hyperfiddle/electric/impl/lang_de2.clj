@@ -102,10 +102,7 @@
     (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
 
 (defmacro $ [F & args]
-  (let [cnt (count args), gs (repeatedly cnt gensym)]
-    `(let* [~@(interleave gs args), F# ~F]
-       (binding [~@(interleave (range) gs), ::r/arity ~cnt, ::r/argv [~@gs], ::r/fn F#]
-         (::call F#)))))
+  `(::call (r/dispatch ~F ~@(map (fn [arg] `(::pure ~arg)) args))))
 
 (defn -expand-all [o env]
   (cond
@@ -138,9 +135,8 @@
                                      [(conj bs sym (-expand-all v env)) (add-local env sym)])
                                    [[] env]
                                    (partition-all 2 bs))]
-                  (recur (?meta o `(binding [::r/fn (::ctor (let* [~@(interleave (take-nth 2 bs2) (map #(list ::lookup %) (range)))] ~@body))]
-                                     (binding [~@(interleave (range) (take-nth 2 (next bs2)))]
-                                       (::call (::lookup ::r/fn)))))
+                  (recur (?meta o `(binding [::r/fn (hyperfiddle.electric-de/fn [~@(take-nth 2 bs2)] ~@body)]
+                                     ($ (::lookup ::r/fn) ~@(take-nth 2 (next bs2)))))
                     env2))
 
         (recur) (recur (?meta o `($ (::lookup ::r/fn) ~@(next o))) env)
@@ -675,12 +671,12 @@
          ::var (let [in (::resolved-in nd)]
                  (list* `r/lookup 'frame (keyword (::qualified-var nd))
                    (when (or (nil? in) (= in (->env-type env))) [(list `r/pure (::qualified-var nd))])))
-         ::node (list `r/lookup 'frame (keyword (::node nd)) (list `r/pure (list `r/make-ctor 'frame (keyword (::node nd)) 0)))
+         ::node (list `r/lookup 'frame (keyword (::node nd)) (list `r/pure (list `r/resolve 'frame (keyword (::node nd)))))
          ::join (list `r/join (rec (get-child-e ts e)))
          ::pure (list `r/pure (rec (get-child-e ts e)))
          ::comp (list 'fn* '[] (doall (map rec (get-children-e ts e))))
          ::site (recur (get-child-e ts e))
-         ::ctor (list* `r/make-ctor 'frame nm (::ctor-idx nd)
+         ::ctor (list* `r/ctor nm (::ctor-idx nd)
                   (mapv (fn [e]
                           (let [nd (ts/->node ts e)]
                             (case (::closed-over nd)
@@ -782,6 +778,17 @@
                      #_else (throw (ex-info (str "cannot emit-deps/mark on " (pr-str (::type nd))) (or nd {})))))))
         es (ts/find (mark ts e) ::node-used true)]
     (into (sorted-set) (map #(::node (ts/->node ts %))) es)))
+
+(defn emit-fn [ts e nm]
+  ((fn rec [e]
+     (let [nd (get (:eav ts) e)]
+       (case (::type nd)
+         ::ap (map rec (get-children-e ts e))
+         ::pure (rec (get-child-e ts e))
+         ::comp `(fn [] ~(map rec (get-children-e ts e)))
+         ::literal (::v nd)
+         ::ctor `(r/ctor ~nm ~(::ctor-idx nd))
+         ::mklocal (recur (get-ret-e ts (get-child-e ts e)))))) e))
 
 (defn get-deps [sym] (-> sym resolve meta ::deps))
 
@@ -960,7 +967,13 @@
 
 (defn compile* [nm env ts]
   (let [ts (analyze-electric env ts)
-        ret (->> (get-ordered-ctors-e ts) (mapv #(emit-ctor ts % env nm)))]
+        ret `(fn
+               ([] {0 (r/ctor ~nm 0)})
+               ([idx#]
+                (case idx#
+                  ~@(->> (get-ordered-ctors-e ts)
+                      (map #(emit-ctor ts % env nm))
+                      (interleave (range))))))]
     (when (::print-source env) (fipp.edn/pprint ret))
     ret))
 
