@@ -172,7 +172,7 @@ For each tuple in the cartesian product of `table1 table2 ,,, tableN`, calls bod
     [] `(do ~@body)
     (let [[args exprs] (cc/apply map vector (partition-all 2 bindings))]
       `(::lang/call
-        (r/bind-args (hyperfiddle.electric-de/fn* ~args ~@body)
+        (r/bind-args (hyperfiddle.electric-de/fn ~args ~@body)
           ~@(map (clojure.core/fn [expr]
                    `(r/effect (r/fixed-signals (join (i/items (pure ~expr))))))
               exprs))))))

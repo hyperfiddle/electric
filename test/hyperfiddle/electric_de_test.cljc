@@ -586,7 +586,7 @@
     % := ::outer))
 
 (tests "lazy parameters. Flows are not run unless sampled"
-  (with ((l/single {} [($ (e/fn* [_]) (tap :not)) (tap :boom)]) tap tap)
+  (with ((l/single {} [($ (e/fn [_]) (tap :not)) (tap :boom)]) tap tap)
     % := :boom))
 
 (tests "lazy parameters. Flows are not run unless sampled"
