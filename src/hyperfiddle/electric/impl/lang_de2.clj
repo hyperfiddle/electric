@@ -918,10 +918,9 @@
                                                   (recur (cond-> ac (= ::ctor (::type nd)) (conj e)) (::parent nd)))))
                                     ctors-uid (mapv #(e->uid ts %) ctors-e)
                                     localv-e (->localv-e ts mklocal-uid)
-                                    ;; TODO maybe necessary, no proof yet
-                                    ;; ts (cond-> ts (in-a-call? ts e)
-                                    ;;            (-> (ts/upd (::ref nd) ::in-call #(conj (or % #{}) e))
-                                    ;;              (ensure-node (::ref nd))))
+                                    ts (cond-> ts (in-a-call? ts e)
+                                               (-> (ts/upd (::ref nd) ::in-call #(conj (or % #{}) e))
+                                                 (ensure-node (::ref nd))))
                                     ts (if (seq ctors-e) ; closed over
                                          (-> ts (ensure-node mklocal-uid)
                                            (ensure-free-node mklocal-uid (first ctors-uid))
