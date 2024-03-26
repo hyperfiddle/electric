@@ -1,4 +1,4 @@
-(ns contrib.char$
+(ns ^:deprecated contrib.char$
   (:require [clojure.set :refer [map-invert]]
             [clojure.string :as string]
             [hyperfiddle.rcf :refer [tests]]))
