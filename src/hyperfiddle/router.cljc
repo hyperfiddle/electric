@@ -426,12 +426,12 @@
        nil)))
 
 #?(:cljs
-   (defn link-click-handler [node next-route]
+   (defn link-click-handler [node next-route-f]
      (m/relieve {}
        (m/reductions {} nil
          (e/listen> node "click"
            (fn [e] ; todo e/for-event-pending-switch? Or missionary itself
-             (on-link-click next-route node e)))))))
+             (on-link-click (next-route-f) node e)))))))
 
 (e/def current-route? false)
 
@@ -446,7 +446,9 @@
      (let [[path' value] (split-link-path path)
            value (normalize-route-value value)]
        (dom/a
-         (new (link-click-handler dom/node (into hyperfiddle.router/path path)))
+         (let [!path (atom nil)]
+           (reset! !path (into hyperfiddle.router/path path)) ; prevents event handler to remount on path change
+           (new (link-click-handler dom/node #(deref !path))))
          (dom/props {::dom/href (encode (Route-for. path' value))})
          (binding [current-route? (Current-route?. path')]
            (new Body)))))))
