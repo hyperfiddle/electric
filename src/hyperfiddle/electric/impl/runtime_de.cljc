@@ -939,6 +939,8 @@ Returns a peer definition from given definitions and main key.
       (if (seq gmap) (first gmap) {}))
     gmap))
 
-(defn cannot-resolve [& args] (throw (ex-info "definition called on a peer that doesn't support it" {:args args})))
+(defn cannot-resolve [& args]
+  (apply println "[!_!] definition called on a peer that doesn't support it" args)
+  #_(throw (ex-info "definition called on a peer that doesn't support it" {:args args})))
 
 (defn tracing [o dot] (prn '[o_o] o '=>> dot) dot)
