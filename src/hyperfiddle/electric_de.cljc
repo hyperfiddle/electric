@@ -41,17 +41,6 @@ Returns the successive states of items described by `incseq`.
 
 #?(:clj (cc/defn- varargs? [args] (boolean (and (seq args) (= '& (-> args pop peek))))))
 
-#?(:clj (cc/defn- ?bind-self [code ?name] (cond->> code ?name (list 'let* [?name `(::lang/lookup ::r/fn)]))))
-
-(cc/defn -prep-varargs [n argv map-vararg?]
-  (let [v (into [] (drop n) argv)]
-    (when (seq v)                 ; varargs value is `nil` when no args provided
-      (if map-vararg?             ; [x y & {:keys [z]}] <- vararg map destructuring
-        (if (even? (count v))
-          (cc/apply array-map v)                          ; ($ MapVararg :x 1)
-          (merge (cc/apply array-map (pop v)) (peek v))) ; ($ MapVararg :x 1 {:y 2})
-        v))))
-
 #?(:clj (cc/defn- throw-arity-conflict! [?name group]
           (throw (ex-info (str "Conflicting arity definitions" (when ?name (str " in " ?name)) ": "
                             (str/join " and " group))
@@ -74,19 +63,23 @@ Returns the successive states of items described by `incseq`.
         arities (cond-> args2 (vector? (first args2)) list)
         {positionals false, varargs true} (group-by (comp varargs? first) arities)
         _ (check-only-one-vararg! ?name (mapv first varargs))
-        _ (check-arity-conflicts! ?name (mapv first positionals) (ffirst varargs))]
-    ;; TODO map varargs
+        _ (check-arity-conflicts! ?name (mapv first positionals) (ffirst varargs))
+        code (into (if-some [[args & body] (first varargs)]
+                     {-1 [(-> args count (- 2))
+                          (map? (peek args))
+                          `(::lang/ctor
+                             (let [~@(interleave (-> args pop pop) (map dget (range)))
+                                   ~(peek args) ~(dget -1)] ~@body))]} {})
+               (map (cc/fn [[args & body]]
+                      [(count args)
+                       `(::lang/ctor
+                          (let [~@(interleave args (map dget (range)))]
+                            ~@body))])) positionals)]
     `(check-electric fn
-       ~(into (if-some [[args & body] (first varargs)]
-                {-1 [(-> args count (- 2))
-                     `(::lang/ctor
-                        (let [~@(interleave (-> args pop pop) (map dget (range)))
-                              ~(peek args) (dget -1)] ~@body))]} {})
-          (map (cc/fn [[args & body]]
-                 [(count args)
-                  `(::lang/ctor
-                     (let [~@(interleave args (map dget (range)))]
-                       ~@body))])) positionals))))
+       ~(if #_?name false                                   ;; TODO
+          `(::lang/mklocal ~?name
+             (::lang/bindlocal ~?name
+               ~code ~?name)) code))))
 
 (cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
 
@@ -211,45 +204,41 @@ this tuple. Returns the concatenation of all body results as a single vector.
       (reduce (cc/fn [ac [nm & fargs]] `(::lang/bindlocal ~nm (hyperfiddle.electric-de/fn ~@fargs) ~ac)) (cons 'do body) sb)
       sb)))
 
-(hyperfiddle.electric-de/defn Dispatch [F offset args]
-  (let [arity (+ offset (count args))]
+(hyperfiddle.electric-de/defn Dispatch [F static args]
+  (let [offset (count static)
+        arity (+ offset (count args))]
     (if-some [ctor (F arity)]
-      (loop [offset offset
-             args args
-             ctor ctor]
-        (if (< offset arity)
-          (recur (inc offset) (next args)
-            (r/bind ctor offset (::lang/pure (first args))))
-          ctor))
-      (let [[fixed ctor] (r/get-variadic F arity)]
-        (loop [offset offset
-               args args
-               ctor ctor]
-          (if (< offset fixed)
-            (recur (inc offset) (next args)
-              (r/bind ctor offset (::lang/pure (first args))))
-            (r/bind ctor -1 (::lang/pure args))))))))
+      (loop [args args
+             static static]
+        (if (< (count static) arity)
+          (recur (next args) (conj static (::lang/pure (first args))))
+          (cc/apply r/bind-args (r/bind-self ctor) static)))
+      (let [[fixed map? ctor] (r/get-variadic F arity)]
+        (if (< fixed offset)
+          (loop [args args
+                 static static]
+            (let [args (cons (::lang/join (peek static)) args)
+                  static (pop static)]
+              (if (< fixed (count static))
+                (recur args static)
+                (cc/apply r/bind-args (r/bind (r/bind-self ctor) -1 (::lang/pure (cc/apply (r/varargs map?) args))) static))))
+          (loop [args args
+                 static static]
+            (if (< (count static) fixed)
+              (recur (next args) (conj static (::lang/pure (first args))))
+              (cc/apply r/bind-args (r/bind (r/bind-self ctor) -1 (::lang/pure (cc/apply (r/varargs map?) args))) static))))))))
 
 (hyperfiddle.electric-de/defn Apply
   ([F a]
-   (::lang/call
-     (r/bind-args ($ Dispatch F 0 a))))
+   (::lang/call ($ Dispatch F [] a)))
   ([F a b]
-   (::lang/call
-     (r/bind-args ($ Dispatch F 1 b)
-       (::lang/pure a))))
+   (::lang/call ($ Dispatch F [(::lang/pure a)] b)))
   ([F a b c]
-   (::lang/call
-     (r/bind-args ($ Dispatch F 2 c)
-       (::lang/pure a) (::lang/pure b))))
+   (::lang/call ($ Dispatch F [(::lang/pure a) (::lang/pure b)] c)))
   ([F a b c d]
-   (::lang/call
-     (r/bind-args ($ Dispatch F 3 d)
-       (::lang/pure a) (::lang/pure b) (::lang/pure c))))
+   (::lang/call ($ Dispatch F [(::lang/pure a) (::lang/pure b) (::lang/pure c)] d)))
   ([F a b c d & es]
-   (::lang/call
-     (r/bind-args ($ Dispatch F (+ 4 (count es)) (concat (butlast es) (last es)))
-       (::lang/pure a) (::lang/pure b) (::lang/pure c) (::lang/pure d)))))
+   (::lang/call ($ Dispatch F [(::lang/pure a) (::lang/pure b) (::lang/pure c) (::lang/pure d)] (concat (butlast es) (last es))))))
 
 (cc/defn on-unmount* [f] (m/observe (cc/fn [!] (! nil) f)))
 
