@@ -226,23 +226,37 @@ T T T -> (EXPR T)
 (defn bind-args [ctor & args]
   (reduce (partial apply bind) ctor (eduction (map-indexed vector) args)))
 
+(defn bind-self [ctor]
+  (bind ctor :recur (pure ctor)))
+
 (defn arity-mismatch [arity]
   (throw (Error. (str "Wrong number of args (" arity ")"))))
 
 (defn get-variadic [F arity]
-  (if-some [[fixed ctor] (F -1)]
+  (if-some [[fixed map? ctor] (F -1)]
     (if (< arity fixed)
       (arity-mismatch arity)
-      [fixed ctor])
+      [fixed map? ctor])
     (arity-mismatch arity)))
+
+(defn varargs [map?]
+  (if map?
+    (fn [& args]
+      (loop [args args
+             m nil]
+        (if-some [[k & args] args]
+          (if-some [[v & args] args]
+            (recur args (assoc m k v))
+            (merge m k)) m)))
+    (fn [& args] args)))
 
 (defn dispatch [F & args]
   (let [arity (count args)]
     (if-some [ctor (F arity)]
-      (reduce (partial apply bind) ctor (eduction (map-indexed vector) args))
-      (let [[fixed ctor] (get-variadic F arity)]
-        (bind (reduce (partial apply bind) ctor (eduction (take fixed) (map-indexed vector) args))
-          -1 (effect (apply i/latest-product (comp seq list) (drop fixed args))))))))
+      (apply bind-args (bind-self ctor) args)
+      (let [[fixed map? ctor] (get-variadic F arity)]
+        (bind (apply bind-args (bind-self ctor) (take fixed args))
+          -1 (apply ap (pure (varargs map?)) (drop fixed args)))))))
 
 (defn peer-root [^Peer peer key]
   ((.-defs peer) key))

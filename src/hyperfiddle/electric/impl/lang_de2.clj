@@ -135,11 +135,14 @@
                                      [(conj bs sym (-expand-all v env)) (add-local env sym)])
                                    [[] env]
                                    (partition-all 2 bs))]
-                  (recur (?meta o `(binding [::r/fn (hyperfiddle.electric-de/fn [~@(take-nth 2 bs2)] ~@body)]
-                                     ($ (::lookup ::r/fn) ~@(take-nth 2 (next bs2)))))
+                  (recur (?meta o `(::call (r/bind-args (r/bind-self (::ctor (let [~@(interleave (take-nth 2 bs2)
+                                                                                       (map (fn [i] `(::lookup ~i))
+                                                                                         (range)))] ~@body)))
+                                             ~@(map (fn [arg] `(::pure ~arg))
+                                                 (take-nth 2 (next bs2))))))
                     env2))
 
-        (recur) (recur (?meta o `($ (::lookup ::r/fn) ~@(next o))) env)
+        (recur) (recur (?meta o `(::call (r/bind-args (::lookup :recur) ~@(map (fn [arg] `(::pure ~arg)) (next o))))) env)
 
         (case clojure.core/case)
         (let [[_ v & clauses] o
