@@ -3,7 +3,7 @@
   (:refer-clojure :exclude [set])
   (:require
    [contrib.data]
-   [contrib.sexpr-router :as sexpr]
+   [contrib.sexpr-router2 :as sexpr]
    [hyperfiddle.electric :as e]
    [hyperfiddle.electric-dom2 :as dom]
    [hyperfiddle.rcf :refer [tests]]
