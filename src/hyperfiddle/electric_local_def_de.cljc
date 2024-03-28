@@ -30,7 +30,6 @@
           (ca/check map? conf)
           (let [env (merge (->local-config env) (lang/normalize-env env) conf)
                 expanded (lang/expand-all env `(::lang/ctor ~form))
-                _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
                 ts (lang/analyze expanded '_ env (lang/->ts))
                 _  (when (::lang/print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))]
             (lang/analyze-electric env ts))))
@@ -53,7 +52,6 @@
           (ca/check map? conf)
           (let [env (merge (->local-config &env) (lang/normalize-env &env) conf)
                 expanded (lang/expand-all env `(::lang/ctor (do ~@body)))
-                _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
                 ts (lang/analyze expanded '_ env (lang/->ts))
                 _  (when (::lang/print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
                 ts (lang/analyze-electric env ts)
@@ -82,7 +80,6 @@
   (ca/is conf map? "provide config map as first argument")
   (let [env (merge (->local-config &env) (lang/normalize-env &env) conf)
         expanded (lang/expand-all env `(::lang/ctor (do ~@body)))
-        _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
         ts (lang/analyze expanded '_ env (lang/->ts))
         _  (when (::lang/print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
         ts (lang/analyze-electric env ts)
