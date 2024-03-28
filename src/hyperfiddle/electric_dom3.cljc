@@ -185,6 +185,19 @@
            ($ Property node k# v#))
          nil)))
 
+#?(:cljs
+   (defn listen> [nd typ f opts]
+     (m/observe (fn [!]
+                  (! nil)
+                  (let [! (comp ! f), opts (clj->js opts)]
+                    (.addEventListener nd typ ! opts)) #(.removeEventListener nd typ ! opts)))))
+
+(defmacro listen
+  ([typ] `(listen ~typ identity))
+  ([typ f] `(listen ~typ ~f node))
+  ([nd typ f] `(listen ~nd ~typ ~f nil))
+  ([nd typ f opts] `(listen> ~nd ~typ ~f ~opts)))
+
 #?(:cljs (defn ->elem [t] (goog.dom/createElement t)))
 (defmacro element {:style/indent 1} [t & body] `(with (->elem ~(name t)) ~@body))
 
