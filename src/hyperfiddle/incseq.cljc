@@ -726,10 +726,9 @@ combined with given function.
                                                                         (let [j (unchecked-dec-int j)
                                                                               c (aget counts (unchecked-add-int offset j))]
                                                                           (if (frozen? (aget freezers j) (rem n c))
-                                                                            (conj! s i)
                                                                             (if (pos? j)
                                                                               (recur (quot n c) j)
-                                                                              s)))))
+                                                                              (conj! s i)) s))))
                                                               s (combine-indices lr-size-after size-after r k)))
                                                           (transient #{}) freeze)))))
                                       (let [j (bit-shift-right i 1)]
