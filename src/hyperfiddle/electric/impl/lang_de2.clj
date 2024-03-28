@@ -203,7 +203,9 @@
 
 (defn expand-all [env o]
   (m/? (cljs-ana/analyze-nsT !a env (get-ns env)))
-  (-expand-all o (assoc env ::electric true)))
+  (let [expanded (-expand-all o (assoc env ::electric true))]
+    (when (::print-expansion env) (fipp.edn/pprint expanded))
+    expanded))
 
 ;;;;;;;;;;;;;;;;
 ;;; COMPILER ;;;
@@ -491,7 +493,7 @@
   (swap! @(requiring-resolve 'cljs.env/*compiler*)
     assoc-in [:cljs.analyzer/namespaces ns :defs sym] {:name sym}))
 
-(defn e->uid [ts e] (ca/check (::uid (ts/->node ts e))))
+(defn e->uid [ts e] (ca/is (::uid (ts/->node ts e))))
 (defn uid->e [ts uid] (first (ca/check #(= 1 (count %)) (ts/find ts ::uid uid))))
 (defn reparent-children [ts from-e to-e]
   (reduce (fn [ts e] (ts/asc ts e ::parent to-e)) ts (ts/find ts ::parent from-e)))
@@ -588,8 +590,9 @@
                      ce env (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                               (ts/add {:db/id ce, ::parent e, ::type ::ctor, ::uid (->uid)})
                               (?add-source-map e form))))
-        (::call) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call})
-                                                              (?add-source-map e form))))
+        (::call) (let [e (->id)] (recur (second form) e env
+                                   (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid)})
+                                     (?add-source-map e form))))
         (::pure) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::pure})
                                                               (?add-source-map e form))))
         (::join) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::join})
@@ -883,13 +886,13 @@
                          ts (->> ts :ave ::used-refs vals (reduce into)
                               (mapv #(e->uid ts %))
                               (remove #(has-node? ts %)))))
-        in-a-call? (fn in-a-call? [ts e]
-                     (loop [e (::parent (ts/->node ts e))]
+        in-a-call? (fn in-a-call? [ts ref-e mklocal-e]
+                     (loop [e (::parent (ts/->node ts ref-e))]
                        (when-let [nd (ts/->node ts e)]
                          (case (::type nd)
-                           ::call true
-                           ::ctor false
-                           #_else (recur (::parent nd))))))
+                           ::call e
+                           ::ctor nil
+                           #_else (when (not= e mklocal-e) (recur (::parent nd)))))))
         seen (volatile! #{})
         reroute-local-aliases (fn reroute-local-aliases [ts]
                                 (reduce (fn [ts bl-e]
@@ -918,9 +921,10 @@
                                                   (recur (cond-> ac (= ::ctor (::type nd)) (conj e)) (::parent nd)))))
                                     ctors-uid (mapv #(e->uid ts %) ctors-e)
                                     localv-e (->localv-e ts mklocal-uid)
-                                    ts (cond-> ts (in-a-call? ts e)
-                                               (-> (ts/upd (::ref nd) ::in-call #(conj (or % #{}) e))
-                                                 (ensure-node (::ref nd))))
+                                    ts (if-some [call-e (in-a-call? ts e mklocal-e)]
+                                         (-> ts (ts/upd mklocal-e ::in-call #(conj (or % #{}) (e->uid ts call-e)))
+                                           (ensure-node mklocal-uid))
+                                         ts)
                                     ts (if (seq ctors-e) ; closed over
                                          (-> ts (ensure-node mklocal-uid)
                                            (ensure-free-node mklocal-uid (first ctors-uid))
