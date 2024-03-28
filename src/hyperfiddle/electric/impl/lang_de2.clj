@@ -872,9 +872,9 @@
                  (-> ts (reparent-children e (::parent (ts/->node ts e))) (ts/del e)))
         inline-nodes (fn inline-nodes [ts]
                        (reduce (fn [ts mklocal-uid]
-                                 (let [mklocal-nd (ts/->node ts (uid->e ts mklocal-uid))
+                                 (let [mklocal-nd (ca/is (ts/->node ts (uid->e ts mklocal-uid)) (comp #{::mklocal} ::type))
                                        localrefs-e (mapv #(uid->e ts %) (::used-refs mklocal-nd))
-                                       localref-e (first (ca/check #(= 1 (count %)) localrefs-e {:refs localrefs-e}))
+                                       localref-e (first (ca/check #(= 1 (count %)) localrefs-e {:refs localrefs-e, :mklocal-nd mklocal-nd}))
                                        localv-e (->localv-e ts mklocal-uid), localv-nd (ts/->node ts localv-e)
                                        site (get-site ts (get-ret-e ts localv-e))]
                                    (-> ts
