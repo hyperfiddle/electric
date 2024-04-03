@@ -58,28 +58,28 @@ Returns the successive states of items described by `incseq`.
             (when-some [same (get grouped (-> vararg count dec))]
               (throw-arity-conflict! ?name (conj same vararg))))))
 
-(defmacro fn [& args]
+(defmacro -fn [& args]
   (let [[?name args2] (if (symbol? (first args)) [(first args) (rest args)] [nil args])
         arities (cond-> args2 (vector? (first args2)) list)
         {positionals false, varargs true} (group-by (comp varargs? first) arities)
         _ (check-only-one-vararg! ?name (mapv first varargs))
-        _ (check-arity-conflicts! ?name (mapv first positionals) (ffirst varargs))
-        code (into (if-some [[args & body] (first varargs)]
-                     {-1 [(-> args count (- 2))
-                          (map? (peek args))
-                          `(::lang/ctor
-                             (let [~@(interleave (-> args pop pop) (map dget (range)))
-                                   ~(peek args) ~(dget -1)] ~@body))]} {})
-               (map (cc/fn [[args & body]]
-                      [(count args)
-                       `(::lang/ctor
-                          (let [~@(interleave args (map dget (range)))]
-                            ~@body))])) positionals)]
+        _ (check-arity-conflicts! ?name (mapv first positionals) (ffirst varargs))]
+    (into (if-some [[args & body] (first varargs)]
+            {-1 [(-> args count (- 2))
+                 (map? (peek args))
+                 `(::lang/ctor
+                   (let [~@(interleave (-> args pop pop) (map dget (range)))
+                         ~(peek args) ~(dget -1)] ~@body))]} {})
+      (map (cc/fn [[args & body]]
+             [(count args)
+              `(::lang/ctor
+                (let [~@(interleave args (map dget (range)))]
+                  ~@body))])) positionals)))
+
+(defmacro fn [& args]
+  (let [?nm (first args)]
     `(check-electric fn
-       ~(if #_?name false                                   ;; TODO
-          `(::lang/mklocal ~?name
-             (::lang/bindlocal ~?name
-               ~code ~?name)) code))))
+       ~(if (symbol? ?nm) `(::lang/mklocal ~?nm (::lang/bindlocal ~?nm (-fn ~@args) ~?nm)) `(-fn ~@args)))))
 
 (cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
 
@@ -91,13 +91,13 @@ Returns the successive states of items described by `incseq`.
   (let [[_defn sym] (macroexpand `(cc/defn ~nm ~@fdecl))
         env (merge (meta nm) (lang/normalize-env &env) l/web-config {::lang/def nm})
         nm2 (vary-meta nm merge (meta sym))
-        expanded (lang/expand-all env `(fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))
+        expanded (lang/expand-all env `(-fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))
         _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
         ts (lang/analyze expanded '_ env (lang/->ts))
         ts (lang/analyze-electric env ts)
         k (-> nm ns-qualify keyword)
         ctors (mapv #(lang/emit-ctor ts % env k) (lang/get-ordered-ctors-e ts))
-        source `(cc/fn ([] ~(lang/emit-fn ts (lang/get-root-e ts) k))
+        source `(cc/fn ~nm ([] ~(lang/emit-fn ts (lang/get-root-e ts) k))
                   ([idx#] (case idx# ~@(interleave (range) ctors))))
         deps (lang/emit-deps ts (lang/get-root-e ts))
         nm3 (vary-meta nm2 assoc ::lang/deps `'~deps)]

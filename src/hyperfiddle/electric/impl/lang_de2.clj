@@ -102,7 +102,7 @@
     (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
 
 (defmacro $ [F & args]
-  `(::call (r/dispatch ~F ~@(map (fn [arg] `(::pure ~arg)) args))))
+  `(::call ((::static-vars r/dispatch) ~F ~@(map (fn [arg] `(::pure ~arg)) args))))
 
 (defn -expand-all [o env]
   (cond
@@ -407,14 +407,16 @@
     (if-some [uid (::electric-let local)]
       {::lang nil, ::type ::localref, ::sym sym, ::ref uid}
       {::lang nil, ::type ::local, ::sym sym})
-    (if-some [nd (resolve-node sym env)]
-      {::lang nil, ::type ::node, ::node nd}
-      (case (get (::peers env) (::current env))
-        :clj (let [v (analyze-clj-symbol sym (get-ns env))] (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
-        :cljs (assoc (analyze-cljs-symbol sym env) ::lang :cljs)
-        #_unsited (case (->env-type env)
-                    :clj (assoc (or (analyze-clj-symbol sym (get-ns env)) {::type ::var, ::sym `r/cannot-resolve}) :lang :clj)
-                    :cljs (assoc (analyze-cljs-symbol sym env) :lang :cljs))))))
+    (if (= sym (::def env))
+      {::lang nil, ::type ::self, ::sym sym}
+      (if-some [nd (resolve-node sym env)]
+        {::lang nil, ::type ::node, ::node nd}
+        (case (get (::peers env) (::current env))
+          :clj (let [v (analyze-clj-symbol sym (get-ns env))] (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
+          :cljs (assoc (analyze-cljs-symbol sym env) ::lang :cljs)
+          #_unsited (case (->env-type env)
+                      :clj (assoc (or (analyze-clj-symbol sym (get-ns env)) {::type ::var, ::sym `r/cannot-resolve}) :lang :clj)
+                      :cljs (assoc (analyze-cljs-symbol sym env) :lang :cljs)))))))
 
 
 (defn ->bindlocal-body-e [ts e] (second (get-children-e ts e)))
@@ -629,6 +631,8 @@
                                        ::sym form, ::uid (->uid)})
               (::local) (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                           (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
+              (::self) (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
+                         (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v (list form)}))
               (::static ::var) (if (::static-vars env)
                                  (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                                    (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
@@ -790,11 +794,13 @@
      (let [nd (get (:eav ts) e)]
        (case (::type nd)
          ::ap (map rec (get-children-e ts e))
-         ::pure (rec (get-child-e ts e))
+         (::pure ::site) (rec (get-child-e ts e))
          ::comp `(fn [] ~(map rec (get-children-e ts e)))
          ::literal (::v nd)
          ::ctor `(r/ctor ~nm ~(::ctor-idx nd))
-         ::mklocal (recur (get-ret-e ts (get-child-e ts e)))))) e))
+         ::mklocal (recur (get-ret-e ts (get-child-e ts e)))
+         ::localref (recur (->> (::ref nd) (->localv-e ts) (get-ret-e ts))))))
+   e))
 
 (defn get-deps [sym] (-> sym resolve meta ::deps))
 
