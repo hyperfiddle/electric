@@ -537,6 +537,11 @@
 
   ;; TODO `set!` needs cc/fn
   ;; (let [sm (l/compile-client-with-source-map (set! (.-x (Object.)) 1))])
+
+  (l/test-compile ::Main (e/letfn [(Foo [] Foo)] Foo))
+
+  (l/test-compile ::Main (e/$ (e/fn Foo ([] (e/$ Foo 10)) ([x] (inc x))) 100))
+  (l/test-compile ::Main (e/$ (::lang/mklocal Foo (::lang/bindlocal Foo (e/fn [x] Foo) Foo))))
   )
 
 (prn :ok)
