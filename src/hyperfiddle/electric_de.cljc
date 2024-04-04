@@ -65,11 +65,12 @@ Returns the successive states of items described by `incseq`.
         _ (check-only-one-vararg! ?name (mapv first varargs))
         _ (check-arity-conflicts! ?name (mapv first positionals) (ffirst varargs))]
     (into (if-some [[args & body] (first varargs)]
-            {-1 [(-> args count (- 2))
-                 (map? (peek args))
-                 `(::lang/ctor
-                   (let [~@(interleave (-> args pop pop) (map dget (range)))
-                         ~(peek args) ~(dget -1)] ~@body))]} {})
+            (let [fixed (-> args pop pop)]
+              {-1 [(count fixed)
+                   (map? (peek args))
+                   `(::lang/ctor
+                      (let [~@(interleave fixed (map dget (range)))
+                            ~(peek args) ~(dget (count fixed))] ~@body))]}) {})
       (map (cc/fn [[args & body]]
              [(count args)
               `(::lang/ctor
@@ -221,12 +222,12 @@ this tuple. Returns the concatenation of all body results as a single vector.
                   static (pop static)]
               (if (< fixed (count static))
                 (recur args static)
-                (cc/apply r/bind-args (r/bind (r/bind-self ctor) -1 (::lang/pure (cc/apply (r/varargs map?) args))) static))))
+                (cc/apply r/bind-args (r/bind (r/bind-self ctor) fixed (::lang/pure (cc/apply (r/varargs map?) args))) static))))
           (loop [args args
                  static static]
             (if (< (count static) fixed)
               (recur (next args) (conj static (::lang/pure (first args))))
-              (cc/apply r/bind-args (r/bind (r/bind-self ctor) -1 (::lang/pure (cc/apply (r/varargs map?) args))) static))))))))
+              (cc/apply r/bind-args (r/bind (r/bind-self ctor) fixed (::lang/pure (cc/apply (r/varargs map?) args))) static))))))))
 
 (hyperfiddle.electric-de/defn Apply
   ([F a]

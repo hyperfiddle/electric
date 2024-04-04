@@ -256,7 +256,7 @@ T T T -> (EXPR T)
       (apply bind-args (bind-self ctor) args)
       (let [[fixed map? ctor] (get-variadic F arity)]
         (bind (apply bind-args (bind-self ctor) (take fixed args))
-          -1 (apply ap (pure (varargs map?)) (drop fixed args)))))))
+          fixed (apply ap (pure (varargs map?)) (drop fixed args)))))))
 
 (defn peer-root [^Peer peer key]
   ((.-defs peer) key))
