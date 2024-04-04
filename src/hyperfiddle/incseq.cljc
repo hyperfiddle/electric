@@ -37,9 +37,11 @@ successive sequence diffs. Incremental sequences are applicative functors with `
 `latest-concat`.
 "} hyperfiddle.incseq
   (:refer-clojure :exclude [cycle int-array])
-  (:require [hyperfiddle.rcf :refer [tests]])
+  (:require [hyperfiddle.incseq.perm-impl :as p]
+            [hyperfiddle.incseq.diff-impl :as d]
+            [hyperfiddle.incseq.items-impl :as i]
+            [hyperfiddle.rcf :refer [tests]])
   (:import #?(:clj (clojure.lang IFn IDeref))
-           #?(:clj (java.util.concurrent.locks ReentrantLock))
            missionary.Cancelled))
 
 
@@ -72,129 +74,76 @@ successive sequence diffs. Incremental sequences are applicative functors with `
 
 ;; public API
 
-(defn inverse "
+(def inverse "
 Returns the inverse of permutation `p`.
-" [p] (into {} (map (juxt val key)) p))
+" p/inverse)
 
 
-(defn cycle "
+(def cycle "
 Returns the cyclic permutation denoted by given sequence of indices.
-" ([_] {})
-  ([i & js] (zipmap `(~i ~@js) `(~@js ~i))))
+" p/cycle)
 
 
-(defn rotation "
+(def rotation "
 Returns the permutation moving an item from index `i` to index `j` and shifting items in-between.
 
 ```clojure
 (= (rotation i j) (inverse (rotation j i)))
 ```
-" [i j]
-  (case (compare i j)
-    -1 (apply cycle (range i (inc j) +1))
-    0 {}
-    +1 (apply cycle (range i (dec j) -1))))
+" p/rotation)
 
 
-(defn split-swap "
+(def split-swap "
 Returns the permutation swapping two contiguous blocks of respective sizes `l` and `r` at index `i`.
 
 ```clojure
 (= (split-swap i l r) (inverse (split-swap i r l)))
 ```
-" [i l r]
-  (let [l (int l)
-        r (int r)]
-    (case l
-      0 {}
-      (case r
-        0 {}
-        (let [j (unchecked-add-int i l)
-              k (unchecked-add-int j r)]
-          (zipmap (range i k)
-            (concat (range j k)
-              (range i j))))))))
+" p/split-swap)
 
 
-(defn arrange "
+(def arrange "
 Arranges elements of `v` according to permutation `p`.
-" [v p]
-  (persistent!
-    (reduce-kv
-      (fn [r i j]
-        (assoc! r i (nth v j)))
-      (transient v) p)))
+" p/arrange)
 
 
-(defn decompose "
+(def decompose "
 Decompose permutation `p` as a product of disjoint cycles, represented as a set of vectors. 1-cycles matching fixed
 points are omitted, the size of each cycle is therefore at least 2.
-" [p]
-  (loop [p p
-         cs #{}]
-    (case p
-      {} cs
-      (let [[i j] (first p)]
-        (let [c (loop [c [i]
-                       j j]
-                  (let [c (conj c j)
-                        j (p j)]
-                    (if (== i j)
-                      c (recur c j))))]
-          (recur (apply dissoc p c)
-            (conj cs c)))))))
+" p/decompose)
 
 
-(defn compose "
+(def compose "
 Returns the composition of given permutations.
-" ([] {})
-  ([x] x)
-  ([x y]
-   (reduce-kv
-     (fn [r i j]
-       (let [k (y j j)]
-         (if (== i k)
-           (dissoc r i)
-           (assoc r i k))))
-     y x))
-  ([x y & zs]
-   (reduce compose (compose x y) zs)))
+" p/compose)
 
 
-(defn order "
+(def order "
 Returns the [order](https://en.wikipedia.org/wiki/Order_(group_theory)) of permutation `p`, i.e. the smallest positive
 integer `n` such that `(= {} (apply compose (repeat n p)))`.
-" [p]
-  (loop [o 1, q p]
-    (case q
-      {} o
-      (recur (unchecked-inc o)
-        (compose p q)))))
+" p/order)
 
 
-(defn involution? "
+(def involution? "
 Returns `true` if permutation `p` is an
 [involution](https://en.wikipedia.org/wiki/Involution_(mathematics)#Group_theory), i.e. its order is 2.
-" [p] (and (not= {} p) (= {} (compose p p))))
+" p/involution?)
 
 
-(defn transposition? "
+(def transposition? "
 Returns `true` if permutation `p` is a
 [transposition](https://en.wikipedia.org/wiki/Cyclic_permutation#Transpositions), i.e. it is a 2-cycle.
-" [p] (= 2 (count p)))
+" p/transposition?)
 
 
-(defn recompose "
+(def recompose "
 Reconstructs the permutation defined by given set of disjoint cycles.
-" [cycles]
-  (->> cycles
-    (eduction (map (partial apply cycle)))
-    (reduce compose (compose))))
+" p/recompose)
 
 
-(defn empty-diff "
+(def empty-diff "
 Return the empty diff for `n`-item collection.
-" [n] {:degree n :grow 0 :shrink 0 :permutation {} :change {} :freeze #{}})
+" d/empty-diff)
 
 
 (def ^{:doc "
@@ -303,95 +252,11 @@ Returns a flow producing the successive diffs of given continuous flow of collec
 
 (def ^{:doc "
 Returns the application of diff `d` to vector `v`.
-"} patch-vec
-  (let [grow! (fn [v n]
-                (reduce conj! v (repeat n nil)))
-        shrink! (fn [v n]
-                  (loop [i 0, v v]
-                    (if (< i n)
-                      (recur (inc i)
-                        (pop! v)) v)))
-        change! (fn [r c]
-                  (reduce-kv assoc! r c))
-        cycles! (partial reduce
-                  (fn [v c]
-                    (let [i (nth c 0)
-                          x (nth v i)]
-                      (loop [v v
-                             i i
-                             k 1]
-                        (let [j (nth c k)
-                              v (assoc! v i (nth v j))
-                              k (unchecked-inc-int k)]
-                          (if (< k (count c))
-                            (recur v j k)
-                            (assoc! v j x)))))))]
-    (fn
-      ([] [])
-      ([v d]
-       (-> v
-         (transient)
-         (grow! (:grow d))
-         (cycles! (decompose (:permutation d)))
-         (shrink! (:shrink d))
-         (change! (:change d))
-         (persistent!))))))
+"} patch-vec d/patch-vec)
 
-(defn patch-count [v d] (- (:degree d) (:shrink d)))
-
-(defn ^{:doc "
+(def ^{:doc "
 Returns the diff applying given diffs successively.
-"} combine
-  ([x] x)
-  ([x y]
-   (let [px (:permutation x)
-         py (:permutation y)
-         dx (:degree x)
-         dy (:degree y)
-         cx (:change x)
-         cy (:change y)
-         fx (:freeze x)
-         fy (:freeze y)
-         degree (unchecked-add dy (:shrink x))
-         size-before (unchecked-subtract dx (:grow x))
-         size-between (unchecked-subtract dy (:grow y))
-         size-after (unchecked-subtract dy (:shrink y))]
-     (loop [i size-after
-            d degree
-            p (compose py
-                (split-swap size-between
-                  (unchecked-subtract degree dy)
-                  (unchecked-subtract degree dx)) px)
-            c (reduce-kv assoc!
-                (reduce-kv
-                  (fn [r i j]
-                    (if (contains? cx j)
-                      (assoc! r i (cx j)) r))
-                  (reduce dissoc! (transient cx)
-                    (vals py)) py) cy)
-            f (reduce conj!
-                (reduce-kv
-                  (fn [r i j]
-                    (if (contains? fx j)
-                      (conj! r i) r))
-                  (reduce disj! (transient fx)
-                    (vals py)) py) fy)]
-       (if (< i d)
-         (let [j (p i i)
-               c (dissoc! c i)
-               f (disj! f i)]
-           (if (< j size-before)
-             (recur (unchecked-inc i) d p c f)
-             (recur i (unchecked-dec d)
-               (compose (rotation i d)
-                 p (rotation d j)) c f)))
-         {:degree      d
-          :permutation p
-          :grow        (unchecked-subtract d size-before)
-          :shrink      (unchecked-subtract d size-after)
-          :change      (persistent! c)
-          :freeze      (persistent! f)}))))
-  ([x y & zs] (reduce combine (combine x y) zs)))
+"} combine d/combine)
 
 
 (def ^{:doc "
@@ -605,7 +470,7 @@ combined with given function.
                   (reduce compose {}
                     (eduction
                       (map (fn [k]
-                             (split-swap
+                             (p/split-swap
                                (+ r-size-after (* k r-degree)) r-remove
                                (- remove-offset (* k r-size-after)))))
                       (range l)))
@@ -613,7 +478,7 @@ combined with given function.
                   (reduce compose {}
                     (eduction
                       (map (fn [k]
-                             (split-swap
+                             (p/split-swap
                                (- create-offset (* k r-degree))
                                (* k r-size-before) r-create)))
                       (range l))))))
@@ -920,9 +785,9 @@ sequence.
                 (reduce compose {})
                 (compose
                   (case (compare l r)
-                    -1 (split-swap (+ o l) (+ l c) (- r l))
+                    -1 (p/split-swap (+ o l) (+ l c) (- r l))
                     0 {}
-                    +1 (split-swap (+ o r) (- l r) (+ c r))))))
+                    +1 (p/split-swap (+ o r) (- l r) (+ c r))))))
             (ensure-capacity [^objects state grow degree shrink]
               (loop []
                 (let [counts ^ints (aget state slot-counts)
@@ -1035,9 +900,9 @@ sequence.
                                         :shrink      shrink
                                         :degree      global-degree
                                         :permutation (compose
-                                                       (split-swap (unchecked-add-int offset size-after) shift shrink)
+                                                       (p/split-swap (unchecked-add-int offset size-after) shift shrink)
                                                        (into {} (map (juxt (comp +offset key) (comp +offset val))) permutation)
-                                                       (split-swap (unchecked-add-int offset size-before) shift grow))
+                                                       (p/split-swap (unchecked-add-int offset size-before) shift grow))
                                         :change      (into {} (map (juxt (comp +offset key) val)) change)
                                         :freeze      (into #{} (map +offset) freeze)})))
                                  (try @(aget input inner-slot-process)
@@ -1364,283 +1229,9 @@ optional `compare` function, `clojure.core/compare` by default.
                              :change      {0 curr}
                              :freeze      #{}})))))))))))))))
 
-(def ^{:arglists '([incseq])} items
-  (let [slot-lock 0
-        slot-busy 1
-        slot-buffer 2
-        slot-output 3
-        slot-input 4
-        slots 5
-        item-slot-parent 0
-        item-slot-frozen 1
-        item-slot-state 2
-        item-slot-fail 3
-        item-slot-next 4
-        item-slot-step 5
-        item-slot-done 6
-        item-slots 7]
-    (letfn [(acquire [^objects state]
-              #?(:clj (let [^ReentrantLock lock (aget state slot-lock)
-                            held (.isHeldByCurrentThread lock)]
-                        (.lock lock) held)
-                 :cljs (let [held (aget state slot-lock)]
-                         (aset state slot-lock true) held)))
-            (release [^objects state held]
-              (if held
-                #?(:clj  (.unlock ^ReentrantLock (aget state slot-lock))
-                   :cljs (aset state slot-lock held))
-                (let [^objects output (aget state slot-output)
-                      ^objects head (aget output item-slot-parent)]
-                  (aset output item-slot-parent nil)
-                  #?(:clj  (.unlock ^ReentrantLock (aget state slot-lock))
-                     :cljs (aset state slot-lock held))
-                  (loop [^objects head head]
-                    (when-not (nil? head)
-                      (let [item (aget head item-slot-next)]
-                        (aset head item-slot-next nil)
-                        (if-some [step (aget head item-slot-step)]
-                          (step) (let [done (aget head item-slot-done)]
-                                   (aset head item-slot-done nil) (done)))
-                        (recur item)))))))
-            (ensure-capacity [^objects state n]
-              (let [^objects b (aget state slot-buffer)
-                    l (alength b)]
-                (if (< l n)
-                  (let [a (object-array
-                            (loop [l l]
-                              (let [l (bit-shift-left l 1)]
-                                (if (< l n) (recur l) l))))]
-                    #?(:cljs (dotimes [i l] (aset a i (aget b i)))
-                       :clj (System/arraycopy b 0 a 0 l))
-                    (aset state slot-buffer a)) b)))
-            (apply-cycle [^objects buffer cycle]
-              (let [i (nth cycle 0)
-                    x (aget buffer i)
-                    j (loop [i i
-                             k 1]
-                        (let [j (nth cycle k)
-                              y (aget buffer j)
-                              k (unchecked-inc-int k)]
-                          (aset buffer i y)
-                          (if (< k (count cycle))
-                            (recur j k) j)))]
-                (aset buffer j x) buffer))
-            (detach [^objects buffer i]
-              (propagate-freeze buffer i) (aset buffer i nil) buffer)
-            (propagate-change [^objects buffer i x]
-              (aset ^objects (aget buffer i) item-slot-state x) buffer)
-            (propagate-freeze [^objects buffer i]
-              (aset ^objects (aget buffer i) item-slot-frozen true) buffer)
-            (item-failure [done]
-              (done) (throw (#?(:clj Error. :cljs js/Error.) "Illegal concurrent cursor.")))
-            (item-cancel [^objects item]
-              (let [parent (aget item item-slot-parent)
-                    held (acquire parent)]
-                (when-not (aget item item-slot-fail)
-                  (aset item item-slot-fail true)
-                  (when (identical? item (aget item item-slot-next))
-                    (notify parent item)))
-                (release parent held)))
-            (item-transfer [^objects item]
-              (let [parent (aget item item-slot-parent)
-                    held (acquire parent)]
-                (input-transfer parent)
-                (if (aget item item-slot-fail)
-                  (do (aset item item-slot-step nil)
-                      (notify parent item)
-                      (release parent held)
-                      (throw (Cancelled. "Cursor cancelled.")))
-                  (let [state (aget item item-slot-state)]
-                    (if (aget item item-slot-frozen)
-                      (do (aset item item-slot-step nil)
-                          (notify parent item))
-                      (aset item item-slot-next item))
-                    (release parent held) state))))
-            (create-item [^objects parent i]
-              (let [item (object-array item-slots)]
-                (aset ^objects (aget parent slot-buffer) i item)
-                (aset item item-slot-parent parent)
-                (aset item item-slot-frozen false)
-                (aset item item-slot-state item) parent))
-            (get-cursor [^objects item]
-              (fn [step done]
-                (let [parent (aget item item-slot-parent)
-                      held (acquire parent)]
-                  (if (nil? (aget item item-slot-done))
-                    (do (aset item item-slot-fail false)
-                        (aset item item-slot-step step)
-                        (aset item item-slot-done done)
-                        (notify parent item)
-                        (release parent held)
-                        (->Ps item item-cancel item-transfer))
-                    (do (release parent held) (step)
-                        (->Ps done {} item-failure))))))
-            (input-transfer [^objects state]
-              (when (aget state slot-busy)
-                (let [^objects output (aget state slot-output)]
-                  (loop []
-                    (if (aget output item-slot-frozen)
-                      (when-some [^objects buffer (aget state slot-buffer)]
-                        (let [n (loop [i 0]
-                                  (if (< i (alength buffer))
-                                    (if-some [^objects item (aget buffer i)]
-                                      (do (aset item item-slot-frozen true)
-                                          (recur (inc i))) i) i))]
-                          (when (nil? (aget output item-slot-state))
-                            (aset output item-slot-state (empty-diff n)))))
-                      (try
-                        (let [{:keys [grow degree shrink permutation change freeze]} @(aget state slot-input)
-                              ^objects buffer (ensure-capacity state degree)
-                              created (range (- degree grow) degree)
-                              iperm (inverse permutation)
-                              indices (into #{} (map (fn [i] (iperm i i))) created)]
-                          (reduce create-item state created)
-                          (reduce apply-cycle buffer (decompose permutation))
-                          (reduce detach buffer (range (- degree shrink) degree))
-                          (reduce-kv propagate-change buffer change)
-                          (reduce propagate-freeze buffer freeze)
-                          (let [diff {:grow        grow
-                                      :degree      degree
-                                      :shrink      shrink
-                                      :permutation permutation
-                                      :change      (reduce
-                                                     (fn [m i]
-                                                       (assoc m i (get-cursor (aget buffer i))))
-                                                     {} indices)
-                                      :freeze      indices}]
-                            (aset output item-slot-state
-                              (if-some [d (aget output item-slot-state)]
-                                (combine d diff) diff))))
-                        (catch #?(:clj Throwable :cljs :default) e
-                          (aset output item-slot-fail true)
-                          (aset output item-slot-state e))))
-                    (when (aset state slot-busy (not (aget state slot-busy))) (recur))))))
-            (input-ready [^objects state]
-              (let [held (acquire state)
-                    ^objects buffer (aget state slot-buffer)
-                    ^objects output (aget state slot-output)
-                    ^objects head (aget output item-slot-parent)]
-                (aset state slot-busy (not (aget state slot-busy)))
-                (aset output item-slot-parent
-                  (loop [i 0
-                         h (when (identical? output (aget output item-slot-next))
-                             (aset output item-slot-next head) output)]
-                    (if (< i (alength buffer))
-                      (if-some [^objects item (aget buffer i)]
-                        (recur (inc i)
-                          (if (identical? item (aget item item-slot-next))
-                            (do (aset item item-slot-next h) item) h)) h) h)))
-                (release state held)))
-            (notify [^objects state ^objects item]
-              (let [^objects output (aget state slot-output)]
-                (aset item item-slot-next (aget output item-slot-parent))
-                (aset output item-slot-parent item)))
-            (cancel [^objects state]
-              ((aget state slot-input)))
-            (transfer [^objects state]
-              (let [^objects output (aget state slot-output)
-                    held (acquire state)]
-                (input-transfer state)
-                (let [diff (aget output item-slot-state)]
-                  (aset output item-slot-state nil)
-                  (if (aget output item-slot-frozen)
-                    (do (aset output item-slot-step nil)
-                        (notify state output))
-                    (aset output item-slot-next output))
-                  (if (aget output item-slot-fail)
-                    (do (release state held) (throw diff))
-                    (do (release state held) diff)))))]
-      (fn [incseq]
-        (fn [step done]
-          (let [state (object-array slots)
-                output (object-array item-slots)]
-            (aset output item-slot-next output)
-            (aset output item-slot-frozen false)
-            (aset output item-slot-fail false)
-            (aset output item-slot-step step)
-            (aset output item-slot-done done)
-            (aset state slot-lock #?(:clj (ReentrantLock.) :cljs false))
-            (aset state slot-busy false)
-            (aset state slot-buffer (object-array 1))
-            (aset state slot-output output)
-            (aset state slot-input
-              (incseq #(input-ready state)
-                #(do (aset output item-slot-frozen true)
-                     (input-ready state))))
-            (->Ps state cancel transfer)))))))
+(def ^{:arglists '([incseq])} items i/flow)
 
 ;; unit tests
-
-(tests "permutations"
-  (decompose {0 1, 1 4, 2 3, 3 2, 4 0}) :=
-  #{[0 1 4] [2 3]}
-
-  (recompose #{[0 1 4] [2 3]}) :=
-  {0 1, 1 4, 2 3, 3 2, 4 0}
-
-  (decompose (inverse {0 1, 1 4, 2 3, 3 2, 4 0})) :=
-  #{[1 0 4] [3 2]}
-
-  (recompose #{[1 0 4] [3 2]}) :=
-  {0 4, 1 0, 2 3, 3 2, 4 1}
-
-  (arrange [0 1 2 3 4] {0 1, 1 4, 2 3, 3 2, 4 0}) :=
-  [1 4 3 2 0]
-
-  (arrange [:a :b :c :d :e] {0 1, 1 4, 2 3, 3 2, 4 0}) :=
-  [:b :e :d :c :a]
-
-  (compose
-    (cycle 1 3 2 4)
-    (cycle 1 4 2 3)) := {}
-
-  (inverse (split-swap 4 2 3)) := (split-swap 4 3 2)
-
-  (order (cycle 2)) := 1
-  (order (cycle 2 3)) := 2
-  (order (cycle 2 3 4)) := 3
-  (order (compose (cycle 0 1) (cycle 2 3 4))) := 6
-
-  (involution? (cycle 2)) := false
-  (involution? (cycle 2 3)) := true
-  (involution? (cycle 2 3 4)) := false
-
-  (transposition? (cycle 2 3)) := true
-  (transposition? (cycle 2 3 4)) := false)
-
-(tests "sequence diffs"
-  (patch-vec [:a :b :c]
-    {:grow 1
-     :degree 4
-     :permutation (rotation 3 1)
-     :shrink 2
-     :change {1 :e}}) :=
-  [:a :e]
-  (patch-vec [:a :e]
-    {:grow 2
-     :degree 4
-     :permutation (rotation 1 3)
-     :shrink 1
-     :change {0 :f 1 :g 2 :h}}) :=
-  [:f :g :h]
-
-  (patch-vec [:a :b :c]
-    {:grow 1
-     :degree 4
-     :permutation {}
-     :shrink 1
-     :change {0 :f, 1 :g, 2 :h}}) :=
-  [:f :g :h]
-
-  (combine
-    {:degree 1 :grow 1 :permutation {} :shrink 0 :change {0 :a} :freeze #{}}
-    {:degree 1 :grow 0 :permutation {} :shrink 1 :change {} :freeze #{}}) :=
-  {:degree 0 :grow 0 :permutation {} :shrink 0 :change {} :freeze #{}}
-
-  (combine
-    {:grow 1 :degree 4 :permutation (rotation 3 1) :shrink 2 :change {1 :e} :freeze #{}}
-    {:grow 2 :degree 4 :permutation (rotation 1 3) :shrink 1 :change {0 :f 1 :g 2 :h} :freeze #{}}) :=
-  {:degree 5 :grow 2 :shrink 2 :permutation (compose (cycle 2 4) (cycle 1 3)) :change {0 :f, 1 :g, 2 :h} :freeze #{}})
 
 (tests "incremental sequences"
   (letfn [(queue []
