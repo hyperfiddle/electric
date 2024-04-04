@@ -2018,18 +2018,9 @@
     % := nil
     % := :done))
 (tests "self-recur by recur, varargs"
-  (with ((l/single {} ($ (e/fn [& xs] (if (tap (seq xs)) (recur) (tap :done))) 0 1 2)) tap tap)
+  (with ((l/single {} ($ (e/fn [& xs] (if (tap (seq xs)) (recur nil) (tap :done))) 0 1 2)) tap tap)
     % := [0 1 2]
     % := nil
-    % := :done))
-
-(tests "self-recur by recur, varargs & multi-arity"
-  ;; Note this differs from clojure where varargs recur doesn't take variadic args anymore but a collection.
-  ;; In electric there's no tail recursion so `recur` is used as an anonymous self-call.
-  ;; This means a multi-arity fn can recur to other arities.
-  ;; As a side effect we have to keep varargs as varargs on recur.
-  (with ((l/single {} ($ (e/fn ([] (tap :done)) ([& xs] (if (tap (seq xs)) (recur) (tap :no)))) 0 1 2)) tap tap)
-    % := '(0 1 2)
     % := :done))
 
 #?(:clj
