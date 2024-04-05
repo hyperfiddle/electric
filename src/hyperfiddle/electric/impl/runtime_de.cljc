@@ -783,9 +783,9 @@ T T T -> (EXPR T)
             ps ((flow expr) step done)]
         (reify
           IFn
-          (invoke [_] (ps))
+          (#?(:clj invoke :cljs -invoke) [_] (ps))
           IDeref
-          (deref [_] (call-transfer state @ps)))))))
+          (#?(:clj deref :cljs -deref) [_] (call-transfer state @ps)))))))
 
 (defn define-call
   "Defines call site id for given frame."
