@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric-de-test
-  (:require [hyperfiddle.rcf :as rcf :refer [tap with %]]
+  (:require [hyperfiddle.rcf :as rcf :refer [tap with % tests]]
             [hyperfiddle.electric-de :as e :refer [$]]
             [hyperfiddle.electric-local-def-de :as l]
             [hyperfiddle.electric.impl.io :as electric-io]
@@ -9,22 +9,14 @@
             #?(:cljs [hyperfiddle.goog-calls-test-de])
             [clojure.string :as str]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip tests failing]]))
+  #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip failing]]))
   (:import [hyperfiddle.electric Pending Failure]
            [missionary Cancelled]
            #?(:clj [clojure.lang ExceptionInfo])))
 
-(def stats (atom {:skipped 0, :tested 0}))
+(defmacro skip {:style/indent 0} [& _body] `(print "-"))
 
-(defmacro skip {:style/indent 0} [& _body]
-  `(do (swap! stats update :skipped inc) (pr '~'-)))
-
-(defmacro tests {:style/indent 0} [& body]
-  `(do (swap! stats update :tested inc) (rcf/tests ~@body)))
-
-(defmacro failing {:style/indent 0} [& body]
-  nil
-  #_`(try (do ~@body) (catch ~(if (:js-globals &env) :default 'Throwable) e# (prn e#))))
+(defmacro failing {:style/indent 0} [& body] nil)
 
 (tests "call on local electric ctor"
   (with ((l/single {} (let [x (e/fn [] 1)] (tap ($ x)))) tap tap)
@@ -1239,6 +1231,7 @@
 (def !state (atom 0))
 (def global)
 (tests "Inline cc/fn support"
+  (reset! !state 0)
   (with ((l/single {} (let [state (e/watch !state)
                             local [:local state]
                             f     (binding [global [:global state]]
@@ -1257,8 +1250,8 @@
     % := [1 :b '(:c :d) [:local 1] [:global 1]]))
 
 (def !state (atom 0))
-(def global)
 (tests
+  (reset! !state 0)
   (with ((l/single {}
            (let [state (e/watch !state)]
              (tap [state state])
@@ -1272,9 +1265,9 @@
 
 (tests "cc/fn lexical bindings are untouched"
   (with ((l/single {} (let [a 1
-                        b 2
-                        f (fn [a] (let [b 3] [a b]))]
-                    (tap (f 2)))) tap tap)
+                            b 2
+                            f (fn [a] (let [b 3] [a b]))]
+                        (tap (f 2)))) tap tap)
     % := [2 3]))
 
 (tests "Inline cc/fn shorthand support"
@@ -1323,9 +1316,10 @@
         % := [false false true true]
         % := [false false true true]))
 
+(def !state (atom 0))
+(def global)
 (tests "Inline letfn support"
-  (def !state (atom 0))
-  (def global)
+  (reset! !state 0)
   (with ((l/single {} (let [state (e/watch !state)
                         local [:local state]]
                     (binding [global [:global state]]
@@ -2182,8 +2176,3 @@
              (binding [Self (e/fn [] 111)]
                (tap (= Bar (e/$ Bar)))))) tap tap)
     % := false))
-
-(let [{:keys [tested skipped]} @stats, all (+ tested skipped)]
-  (prn '===)
-  (println 'tested tested (str (long (* (/ tested all) 100)) "%"))
-  (println 'skipped skipped (str (long (* (/ skipped all) 100)) "%")))

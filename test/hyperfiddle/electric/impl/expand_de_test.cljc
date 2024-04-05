@@ -101,7 +101,7 @@
      ;; (all '(catch (-> 1 inc))) := '(catch (inc 1))
 
      (let [x (all '(loop [with-open inc, x 2] (-> x with-open)))]
-       (first x) := 'binding
+       (first x) := ::l/call
        (has-line-meta? x) := true)
 
      (let [x (all '(binding [x (-> 1 inc)] (-> x inc)))]

@@ -230,7 +230,7 @@ T T T -> (EXPR T)
   (bind ctor :recur (pure ctor)))
 
 (defn arity-mismatch [arity]
-  (throw (Error. (str "Wrong number of args (" arity ")"))))
+  (throw (error (str "Wrong number of args (" arity ")"))))
 
 (defn get-variadic [F arity]
   (if-some [[fixed map? ctor] (F -1)]
