@@ -11,6 +11,7 @@
   (-> (ts/->ts) (ts/add {:db/id '_}) (ts/upd '_ :x (fnil inc 0)) (ts/upd '_ :x (fnil inc 0)) (ts/get-entity '_) :x) := 2
 
   (-> (ts/->ts) (ts/add {:db/id 1}) (ts/asc 1 :x 2) (ts/asc 1 :x 2) :ave :x (get 2)) := #{1}
+  (-> (ts/->ts) (ts/add {:db/id 1}) (ts/asc 1 :x 2 :y 3) :eav (get 1)) := {:db/id 1, :x 2, :y 3}
 
   (-> (ts/->ts) (ts/add {:db/id 1, :foo 1, :bar 1}) (ts/add {:db/id 2, :foo 1, :bar 1}) (ts/find :foo 1 :bar 1)) := #{1 2}
 

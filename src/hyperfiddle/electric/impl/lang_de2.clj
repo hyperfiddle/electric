@@ -357,7 +357,7 @@
 
 (defn get-children-e [ts e] (-> ts :ave ::parent (get e)))
 (defn ?get-child-e [ts e] (first (get-children-e ts e)))
-(defn get-child-e [ts e] (ca/is (first (get-children-e ts e)) some? "no child" {:e e, :nd (ts/->node ts e)}))
+(defn get-child-e [ts e] (ca/is (first (get-children-e ts e)) some? (str "no child for " e) {:e e, :nd (ts/->node ts e)}))
 (defn get-root-e [ts] (get-child-e ts '_))
 
 (defn ?add-source-map [{{::keys [->id]} :o :as ts} pe form]
@@ -470,10 +470,10 @@
     form
     (let [ap-arg (gensym "ap-arg")] `(let* [~ap-arg ~form] ~ap-arg))) #_form)
 
-(defn ap-literal [f args pe e env {{::keys [->id]} :o :as ts}]
+(defn ap-literal [f args pe e env {{::keys [->id ->uid]} :o :as ts}]
   (let [ce (->id)]
     (reduce (fn [ts form] (analyze form e env ts))
-      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap})
+      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap, ::uid (->uid)})
         (ts/add {:db/id ce, ::parent e, ::type ::pure})
         (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v f}))
       (mapv wrap-ap-arg args))))
@@ -501,7 +501,7 @@
   (swap! @(requiring-resolve 'cljs.env/*compiler*)
     assoc-in [:cljs.analyzer/namespaces ns :defs sym] {:name sym}))
 
-(defn e->uid [ts e] (ca/is (::uid (ts/->node ts e))))
+(defn e->uid [ts e] (ca/is (::uid (ts/->node ts e)) some? "node without uid" {:e e, :nd (ts/->node ts e)}))
 (defn uid->e [ts uid] (first (ca/check #(= 1 (count %)) (ts/find ts ::uid uid))))
 (defn reparent-children [ts from-e to-e]
   (reduce (fn [ts e] (ts/asc ts e ::parent to-e)) ts (ts/find ts ::parent from-e)))
@@ -678,6 +678,8 @@
 (defn get-node-idx [ts ctor-uid uid]
   (->> (ts/find ts ::ctor-node ctor-uid, ::ctor-ref uid) first (ts/->node ts) ::node-idx))
 
+(defn ->thunk [xs] `(fn* [] (~@xs)))
+
 (defn emit [ts e ctor-e env nm]
   ((fn rec [e]
      (let [nd (get (:eav ts) e)]
@@ -690,7 +692,7 @@
          ::node (list `r/lookup 'frame (keyword (::node nd)) (list `r/pure (list `r/resolve 'frame (keyword (::node nd)))))
          ::join (list `r/join (rec (get-child-e ts e)))
          ::pure (list `r/pure (rec (get-child-e ts e)))
-         ::comp (list 'fn* '[] (doall (map rec (get-children-e ts e))))
+         ::comp ((or (::comp-fn nd) ->thunk) (eduction (map rec) (get-children-e ts e))) #_(list 'fn* '[] (doall (map rec (get-children-e ts e))))
          ::site (recur (get-child-e ts e))
          ::ctor (list* `r/ctor nm (::ctor-idx nd)
                   (mapv (fn [e]
@@ -729,8 +731,7 @@
   (list `r/define-call 'frame (::call-idx (ts/->node ts e))
     (emit ts (get-ret-e ts (get-child-e ts e)) ctor-e env nm)))
 
-(defn get-ordered-ctors-e [ts]
-  (into [] (map (comp first second)) (->> ts :ave ::ctor-idx (sort-by first))))
+(defn get-ordered-ctors-e [ts] (into [] (map (comp first second)) (->> ts :ave ::ctor-idx (sort-by first))))
 
 (defn get-ordered-calls-e [ts ctor-uid]
   (->> (ts/find ts ::ctor-call ctor-uid) (sort-by #(::call-idx (ts/->node ts %)))))
@@ -801,7 +802,7 @@
        (case (::type nd)
          ::ap (map rec (get-children-e ts e))
          (::pure ::site) (rec (get-child-e ts e))
-         ::comp `(fn [] ~(map rec (get-children-e ts e)))
+         ::comp ((or (::comp-fn nd) ->thunk) (eduction (map rec) (get-children-e ts e)))
          ::literal (::v nd)
          ::ctor `(r/ctor ~nm ~(::ctor-idx nd))
          ::mklocal (recur (get-ret-e ts (get-child-e ts e)))
@@ -816,28 +817,50 @@
       (reduce delete-point-recursively ts ce)
       ts)))
 
+(def pure-fns '#{clojure.core/vector clojure.core/hash-map})
+
+(defn implode-point [ts e]              ; remove e, reparent child, keep e as id
+  (let [nd (ts/->node ts e), ce (get-child-e ts e), cnd (ts/->node ts ce)]
+    (-> ts (ts/del e) (ts/del ce) (ts/add (assoc cnd :db/id e, ::parent (::parent nd))) (reparent-children ce e))))
+
+(defn wrap-point [{{::keys [->id]} :o :as ts} e wrap-nd] ; wrap e in another point `nd`, keeping order
+  (let [nd (ts/->node ts e), new-e (->id)]
+    (-> ts (ts/del e)
+      (ts/add (merge wrap-nd (select-keys nd [:db/id ::parent])))
+      (reparent-children e new-e)
+      (ts/add (assoc nd :db/id new-e, ::parent e)))))
+
 (defn analyze-electric [env {{::keys [->id]} :o :as ts}]
-  (when (::print-analysis env) (run! prn (ts->reducible ts)))
-  (let [collapse-ap-with-only-pures
+  (when (::print-analysis env) (prn :analysis) (run! prn (ts->reducible ts)))
+  (let [pure-fn? (fn pure-fn? [nd] (and (= ::literal (::type nd)) (pure-fns (::v nd))))
+        collapse-ap-with-only-pures
         (fn collapse-ap-with-only-pures [ts]
-          ;; (ap (pure x) (pure y) (pure z)) -> (ap (pure (comp x y z)))
-          (reduce (fn [ts ap-e]
-                    (let [ce (get-children-e ts ap-e)]
+          (reduce (fn [ts ap-uid]
+                    (let [ap-e (uid->e ts ap-uid), ce (get-children-e ts ap-e)]
+                      (when (::print-ap-collapse env) (prn :ap-collapse) (run! prn (ts->reducible ts)))
                       (if (every? #(= ::pure (::type (ts/->node ts (get-ret-e ts %)))) ce)
-                        (let [pure-e (->id), comp-e (->id)]
-                          (reduce (fn [ts e]
-                                    (let [ce (->> e (get-ret-e ts) (get-child-e ts))
-                                          cnd (ts/->node ts ce), newe (->id)]
-                                      (-> ts
-                                        (ts/add (assoc cnd :db/id newe, ::parent comp-e))
-                                        (reparent-children ce newe)
-                                        (delete-point-recursively e))))
-                            (-> ts
-                              (ts/add {:db/id pure-e, ::parent ap-e, ::type ::pure})
-                              (ts/add {:db/id comp-e, ::parent pure-e, ::type ::comp}))
-                            ce))
+                        (if (pure-fn? (->> ce first (get-ret-e ts) (get-child-e ts) (ts/->node ts)))
+                          ;; (ap (pure vector) (pure 1) (pure 2)) -> (pure (comp-with list vector 1 2))
+                          (-> (reduce (fn [ts ce]
+                                        (let [pure-e (get-ret-e ts ce)]
+                                          (implode-point ts pure-e)))
+                                (ts/asc ts ap-e ::type ::comp, ::comp-fn list*) ce)
+                            (wrap-point ap-e {::type ::pure}))
+                          ;; (ap (pure x) (pure y) (pure z)) -> (ap (pure (comp-with ->call x y z)))
+                          (let [pure-e (->id), comp-e (->id)]
+                            (reduce (fn [ts e]
+                                      (let [ce (->> e (get-ret-e ts) (get-child-e ts))
+                                            cnd (ts/->node ts ce), newe (->id)]
+                                        (-> ts
+                                          (ts/add (assoc cnd :db/id newe, ::parent comp-e))
+                                          (reparent-children ce newe)
+                                          (delete-point-recursively e))))
+                              (-> ts
+                                (ts/add {:db/id pure-e, ::parent ap-e, ::type ::pure})
+                                (ts/add {:db/id comp-e, ::parent pure-e, ::type ::comp}))
+                              ce)))
                         ts)))
-            ts (ts/find ts ::type ::ap)))
+            ts (eduction (map #(e->uid ts %)) (ts/find ts ::type ::ap))))
         ->ctor-idx (->->id)
         seen (volatile! #{})
         mark-used-ctors (fn mark-used-ctors [ts e]
@@ -856,7 +879,7 @@
                                 (::localref) (recur ts (->> (::ref nd) (->localv-e ts) (get-ret-e ts)))
                                 #_else (throw (ex-info (str "cannot mark-used-ctors on " (pr-str (::type nd))) (or nd {})))))))
         ts (-> ts (compute-effect-order (get-root-e ts)) (mark-used-ctors (get-root-e ts)))
-        ctors-e (get-ordered-ctors-e ts)
+        ctors-uid (mapv #(e->uid ts %) (get-ordered-ctors-e ts))
         has-node? (fn has-node? [ts uid] (ts/find ts ::ctor-ref uid))
         ensure-node (fn ensure-node [ts uid]
                       (let [ctor-uid (e->uid ts (find-ctor-e ts (uid->e ts uid)))]
@@ -954,8 +977,8 @@
                                   (do (vswap! seen conj mklocal-uid)
                                       (recur ts (get-ret-e ts localv-e)))))
                               #_else (throw (ex-info (str "cannot handle-let-refs on " (::type nd)) (or nd {}))))))
-        ->call-idx (let [mp (zipmap ctors-e (repeatedly ->->id))]
-                     (fn ->call-idx [ctor-e] ((get mp ctor-e))))
+        ->call-idx (let [mp (zipmap ctors-uid (repeatedly ->->id))]
+                     (fn ->call-idx [ctor-uid] ((get mp ctor-uid))))
         seen (volatile! #{})
         mark-used-calls (fn mark-used-calls [ts ctor-e e]
                           (if (@seen e)
@@ -970,7 +993,7 @@
                                 (::call) (if (::call-idx nd)
                                            ts
                                            (-> (mark-used-calls ts ctor-e (get-child-e ts e))
-                                             (ts/asc e ::call-idx (->call-idx ctor-e))
+                                             (ts/asc e ::call-idx (->call-idx (e->uid ts ctor-e)))
                                              (ts/asc e ::ctor-call (::uid (ts/->node ts ctor-e)))))
                                 (::let) (recur ts ctor-e (->bindlocal-body-e ts e))
                                 (::localref) (let [nx-e (->> (::ref nd) (->localv-e ts) (get-ret-e ts))]
@@ -981,7 +1004,7 @@
                              ts (->> ts :ave ::ctor-idx vals (reduce into))))
         ts (-> ts mark-used-calls2 reroute-local-aliases (handle-let-refs (get-root-e ts))
              inline-nodes order-nodes order-frees collapse-ap-with-only-pures)]
-    (when (::print-db env) (run! prn (ts->reducible ts)))
+    (when (::print-db env) (prn :db) (run! prn (ts->reducible ts)))
     ts))
 
 (defn compile* [nm env ts]
