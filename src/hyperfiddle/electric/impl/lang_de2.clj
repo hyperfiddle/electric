@@ -356,7 +356,8 @@
         (clojure.lang.Reflector/getField cls (name sym) true)))))
 
 (defn get-children-e [ts e] (-> ts :ave ::parent (get e)))
-(defn get-child-e [ts e] (ca/check some? (first (get-children-e ts e)) {:e e}))
+(defn ?get-child-e [ts e] (first (get-children-e ts e)))
+(defn get-child-e [ts e] (ca/is (first (get-children-e ts e)) some? "no child" {:e e, :nd (ts/->node ts e)}))
 (defn get-root-e [ts] (get-child-e ts '_))
 
 (defn ?add-source-map [{{::keys [->id]} :o :as ts} pe form]
@@ -449,8 +450,10 @@
 
 (defn get-lookup-key [sym env]
   (if (symbol? sym)
-    (let [{::keys [type sym]} (resolve-symbol sym env)]
-      (case type
+    (let [it (resolve-symbol sym env)]
+      (case (::type it)
+        (::var) (keyword (::sym it))
+        (::node) (keyword (::node it))
         (::static) (throw (ex-info (str "`" sym "` did not resolve as a var") {::form sym}))
         #_else (keyword sym)))
     sym))
@@ -631,8 +634,11 @@
                                        ::sym form, ::uid (->uid)})
               (::local) (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                           (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
-              (::self) (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
-                         (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v (list form)}))
+              (::self) (let [ce (->id)]
+                         (-> ts
+                           (ts/add {:db/id e, ::parent pe, ::type ::lookup, ::sym (keyword (ns-qualify form))})
+                           (ts/add {:db/id ce, ::parent e, ::type ::pure})
+                           (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v (list form)})))
               (::static ::var) (if (::static-vars env)
                                  (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                                    (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
@@ -702,7 +708,7 @@
                                          first (ts/->node ts) ::free-idx)))))
                     (ts/find ts ::ctor-free (e->uid ts e))))
          ::call (list `r/join (list `r/call 'frame (::call-idx (ts/->node ts e))))
-         ::lookup (list `r/lookup 'frame (::sym nd))
+         ::lookup (list* `r/lookup 'frame (::sym nd) (when-some [c (?get-child-e ts e)] (list (rec c))))
          ::mklocal (recur (get-ret-e ts (get-child-e ts e)))
          ::bindlocal (recur (get-ret-e ts (->bindlocal-body-e ts e)))
          ::localref

@@ -2175,6 +2175,14 @@
                        ($ Even? 2)))) tap tap)
          % := true))
 
+(e/defn Self [] Self)
+(tests
+  (with ((l/single {}
+           (let [Bar Self]
+             (binding [Self (e/fn [] 111)]
+               (tap (= Bar (e/$ Bar)))))) tap tap)
+    % := false))
+
 (let [{:keys [tested skipped]} @stats, all (+ tested skipped)]
   (prn '===)
   (println 'tested tested (str (long (* (/ tested all) 100)) "%"))
