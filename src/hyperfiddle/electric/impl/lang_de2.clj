@@ -229,11 +229,6 @@
                      \newline "If `" form "` is supposed to be a macro, you might need to :refer it in the :require-macros clause."))))
     {:locals (keys (:locals env))}))
 
-(defn ambiguous-resolve! [env sym vs]
-  (fail! env
-    (str "Unsited symbol `" sym "` resolves to different vars on different peers. Please resolve ambiguity by siting the expression using it.")
-    {:resolves vs}))
-
 (defn ns-qualify [node] (if (namespace node) node (symbol (str *ns*) (str node))))
 
 (tests
@@ -904,7 +899,7 @@
                         ts (-> ts :ave ::ctor-free vals)))
         unlink (fn [ts e]
                  (-> ts (reparent-children e (::parent (ts/->node ts e))) (ts/del e)))
-        inline-nodes (fn inline-nodes [ts]
+        inline-locals (fn inline-locals [ts]
                        (reduce (fn [ts mklocal-uid]
                                  (let [mklocal-nd (ca/is (ts/->node ts (uid->e ts mklocal-uid)) (comp #{::mklocal} ::type))
                                        localrefs-e (mapv #(uid->e ts %) (::used-refs mklocal-nd))
@@ -938,11 +933,11 @@
                                                   (ts/find ts ::type ::localref, ::ref (::ref bl-nd))))
                                               ts)))
                                   ts (ts/find ts ::type ::bindlocal)))
-        handle-let-refs (fn handle-let-refs [ts e] ; nodes and frees (closed over)
+        optimize-locals (fn optimize-locals [ts e] ; nodes and frees (closed over)
                           (let [nd (ts/->node ts e)]
                             (case (::type nd)
                               (::literal ::var ::lookup ::node) ts
-                              (::ap ::comp) (reduce handle-let-refs ts (get-children-e ts e))
+                              (::ap ::comp) (reduce optimize-locals ts (get-children-e ts e))
                               (::site ::join ::pure ::ctor ::call ::mklocal) (recur ts (get-child-e ts e))
                               (::bindlocal) (recur ts (->bindlocal-body-e ts e))
                               (::localref)
@@ -972,7 +967,7 @@
                                 (or (and (@seen mklocal-uid) ts)
                                   (do (vswap! seen conj mklocal-uid)
                                       (recur ts (get-ret-e ts localv-e)))))
-                              #_else (throw (ex-info (str "cannot handle-let-refs on " (::type nd)) (or nd {}))))))
+                              #_else (throw (ex-info (str "cannot optimize-locals on " (::type nd)) (or nd {}))))))
         ->call-idx (let [mp (zipmap ctors-uid (repeatedly ->->id))]
                      (fn ->call-idx [ctor-uid] ((get mp ctor-uid))))
         seen (volatile! #{})
@@ -998,8 +993,8 @@
         mark-used-calls2 (fn [ts]
                            (reduce (fn [ts ctor-e] (mark-used-calls ts ctor-e (get-ret-e ts (get-child-e ts ctor-e))))
                              ts (->> ts :ave ::ctor-idx vals (reduce into))))
-        ts (-> ts mark-used-calls2 reroute-local-aliases (handle-let-refs (get-root-e ts))
-             inline-nodes order-nodes order-frees collapse-ap-with-only-pures)]
+        ts (-> ts mark-used-calls2 reroute-local-aliases (optimize-locals (get-root-e ts))
+             inline-locals order-nodes order-frees collapse-ap-with-only-pures)]
     (when (::print-db env) (prn :db) (run! prn (ts->reducible ts)))
     ts))
 
