@@ -460,23 +460,13 @@
 
 (declare analyze)
 
-;; Due to an early bad assumption only `let` bound values are considered
-;; for nodes (`r/define-node`). But in `(e/client (name (e/server :x)))`
-;; `:x` needs to be a node too. For this reason we wrap function arguments
-;; in an implicit `let`. This doesn't increase the generated code size
-;; because `handle-let-refs` is smart enough to inline wherever possible.
-(defn wrap-ap-arg [form]
-  (if (or (symbol? form) (keyword? form) (number? form))
-    form
-    (let [ap-arg (gensym "ap-arg")] `(let* [~ap-arg ~form] ~ap-arg))) #_form)
-
 (defn ap-literal [f args pe e env {{::keys [->id ->uid]} :o :as ts}]
   (let [ce (->id)]
     (reduce (fn [ts form] (analyze form e env ts))
       (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap, ::uid (->uid)})
         (ts/add {:db/id ce, ::parent e, ::type ::pure})
         (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v f}))
-      (mapv wrap-ap-arg args))))
+      args)))
 
 (defn ->class-method-call [clazz method method-args pe env form {{::keys [->id]} :o :as ts}]
   (if (seq method-args)
@@ -605,14 +595,20 @@
                                                               (?add-source-map e form))))
         (::join) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::join})
                                                               (?add-source-map e form))))
-        (::site) (let [[_ site bform] form, e (->id)]
-                   (recur bform e (assoc env ::current site)
-                     (-> (ts/add ts {:db/id e, ::parent pe, ::type ::site, ::site site})
-                       (?add-source-map e form))))
+        (::site) (let [[_ site bform] form, current (::current env), env2 (assoc env ::current site)]
+                   (if (or (nil? site) (= site current))
+                     (let [e (->id)]
+                       (recur bform e env2
+                         (-> (ts/add ts {:db/id e, ::parent pe, ::type ::site, ::site site})
+                           (?add-source-map e form))))
+                     ;; Due to an early bad assumption only locals are considered for runtime nodes.
+                     ;; Since any site change can result in a new node we wrap these sites in an implicit local.
+                     ;; Electric aggressively inlines locals, so the generated code size will stay the same.
+                     (recur `(::mklocal k# (::bindlocal k# ~form k#)) pe env2 ts)))
         (::lookup) (let [[_ sym] form] (ts/add ts {:db/id (->id), ::parent pe, ::type ::lookup, ::sym sym}))
         (::static-vars) (recur (second form) pe (assoc env ::static-vars true) ts)
         #_else (let [e (->id), uid (->uid)]
-                 (reduce (fn [ts nx] (analyze (wrap-ap-arg nx) e env ts))
+                 (reduce (fn [ts nx] (analyze nx e env ts))
                    (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap, ::uid uid})
                      (?add-source-map uid form)) form)))
 
