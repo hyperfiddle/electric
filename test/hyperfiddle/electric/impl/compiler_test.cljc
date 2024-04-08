@@ -98,15 +98,22 @@
           (r/ap (r/lookup ~'frame :clojure.core/name (r/pure clojure.core/name))
             (r/node ~'frame 0))))])
 
-  (match (l/test-compile ::Main (prn (e/client (::lang/call (e/server (::lang/ctor))))))
-    `[(r/cdef 0 [:client] [:client] nil
+  (match (l/test-compile ::Main (prn (e/client (::lang/call (e/server (e/ctor nil))))))
+    `[(r/cdef 0 [:server :client] [:client] nil
         (fn [~'frame]
-          (r/define-call ~'frame 0 (r/pure (r/ctor ::Main 1)))
-          (r/define-node ~'frame 0 (r/join (r/call ~'frame 0)))
-          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn))
-            (r/node ~'frame 0))))
+          (r/define-node ~'frame 0 (r/pure (r/ctor ::Main 1)))
+          (r/define-call ~'frame 0 (r/node ~'frame 0))
+          (r/define-node ~'frame 1 (r/join (r/call ~'frame 0)))
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn)) (r/node ~'frame 1))))
       (r/cdef 0 [] [] nil
-        (fn [~'frame] (r/pure nil)))]))
+        (fn [~'frame] (r/pure nil)))])
+
+  (match (l/test-compile ::Main (e/pure (e/server 2)))
+    `[(r/cdef 0 [:server] [] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure 2))
+          (r/pure (r/node ~'frame 0))))])
+  )
 
 (tests "test-let"
   (match (l/test-compile ::Main (::lang/site :client (let [a :foo] [a a])))
@@ -145,13 +152,13 @@
   (match (l/test-compile ::Main (e/client (let [x "Hello", y "world"] [x y])))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
-          (r/ap (r/pure (fn* [] (clojure.core/vector "Hello" "world"))))))])
+          (r/pure (clojure.core/vector "Hello" "world"))))])
 
   (match (l/test-compile ::Main (e/client (let [a (e/server :foo)] (e/server (prn a)))))
-    `[(r/cdef 0 [] [] :server
+    `[(r/cdef 0 [:server] [] :server
         (fn [~'frame]
-          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
-            (r/pure :foo))))])
+          (r/define-node ~'frame 0 (r/pure :foo))
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn)) (r/node ~'frame 0))))])
 
   (match (l/test-compile ::Main (concat (let [x 1] [x x]) (let [y 2] [y y])))
     `[(r/cdef 0 [nil nil] [] nil
@@ -457,7 +464,11 @@
   (match (l/test-compile ::Main [1 2])
     `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/ap (r/pure (fn* [] (clojure.core/vector 1 2))))))]))
+          (r/pure (clojure.core/vector 1 2))))])
+  (match (l/test-compile ::Main ((::lang/static-vars prn) 1))
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/ap (r/pure (fn* [] (~'prn 1))))))]))
 
 (tests "ordering"
   (match (l/test-compile ::Main (::lang/call (::lang/call (::lang/ctor (::lang/ctor :foo)))))
