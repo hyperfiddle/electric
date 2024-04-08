@@ -967,4 +967,4 @@ Returns a peer definition from given definitions and main key.
 
 (defn cannot-resolve [& args] (throw (ex-info "definition called on a peer that doesn't support it" {:args args})))
 
-(defn tracing [o dot] (prn '[o_o] o '=>> dot) dot)
+(defn tracing [info v] (print "[o_o]" info "=>> ") (prn v) v)
