@@ -70,30 +70,24 @@
 
 (defn invariant [x] (m/cp x))
 
-(defn incseq "
-(EXPR T) -> (IS T)
-" [expr] (flow expr))
-
-(deftype Pure [values
+(deftype Pure [value
                ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
   #?(:cljs IHash)
   (#?(:clj hashCode :cljs -hash) [_]
     (if-some [h hash-memo]
-      h (set! hash-memo
-          (hash-combine (hash Pure)
-            (hash-ordered-coll values)))))
+      h (set! hash-memo (hash-combine (hash Pure) (hash value)))))
   #?(:cljs IEquiv)
   (#?(:clj equals :cljs -equiv) [_ other]
     (and (instance? Pure other)
-      (= values (.-values ^Pure other))))
+      (= value (.-value ^Pure other))))
   Expr
   (deps [_ _] {})
   (flow [_]
-    (if-some [error (reduce (comp reduced {})
-                      nil (eduction (filter failure?) values))]
-      (m/latest #(throw (ex-info "Illegal access." {:info (failure-info error)})))
-      (apply i/fixed (map invariant values))))
+    (if (failure? value)
+      (m/latest #(throw (ex-info "Illegal access." {:info (failure-info value)})))
+      (i/fixed (invariant value))))
+  #_#_
   IFn
   (#?(:clj invoke :cljs -invoke) [this step done]
     ((flow this) step done)))
@@ -103,8 +97,8 @@
 T -> (EXPR T)
 T T -> (EXPR T)
 T T T -> (EXPR T)
-" [& values]
-  (->Pure values nil))
+" [value]
+  (->Pure value nil))
 
 (defn invoke
   ([f] (f))
@@ -132,6 +126,7 @@ T T T -> (EXPR T)
     (reduce (fn [r x] (merge-with + r (deps x site))) {} inputs))
   (flow [_]
     (apply i/latest-product invoke (map flow inputs)))
+  #_#_
   IFn
   (#?(:clj invoke :cljs -invoke) [this step done]
     ((flow this) step done)))
@@ -159,6 +154,7 @@ T T T -> (EXPR T)
   Expr
   (deps [_ site] (deps input site))
   (flow [_] (i/latest-concat (flow input)))
+  #_#_
   IFn
   (#?(:clj invoke :cljs -invoke) [this step done]
     ((flow this) step done)))
@@ -410,6 +406,7 @@ T T T -> (EXPR T)
         {port 1})))
   (flow [this]
     (port-flow (slot-port this)))
+  #_#_
   IFn
   (#?(:clj invoke :cljs -invoke) [this step done]
     ((flow this) step done)))
@@ -694,26 +691,39 @@ T T T -> (EXPR T)
   [^Frame frame id expr]
   (define-slot (node frame id) expr))
 
-(defn port-attach [^Peer peer ^objects port n]
-  (dotimes [_ n] (peer-push peer peer-queue-tap port)) peer)
+(defn slot-frame [^Slot slot]
+  (.-frame slot))
 
-(defn port-detach [^Peer peer ^objects port n]
-  (dotimes [_ n] (peer-push peer peer-queue-untap port)) peer)
+(defn port-attach [_ ^objects port n]
+  (let [peer (frame-peer (slot-frame (port-slot port)))]
+    (dotimes [_ n] (peer-push peer peer-queue-tap port))))
+
+(defn port-detach [_ ^objects port n]
+  (let [peer (frame-peer (slot-frame (port-slot port)))]
+    (dotimes [_ n] (peer-push peer peer-queue-untap port))))
+
+(defn incseq [^Frame frame expr]
+  (let [deps (deps expr (.-site (frame-peer frame)))
+        flow (flow expr)]
+    (fn [step done]
+      (reduce-kv port-attach nil deps)
+      (flow step #(do (reduce-kv port-detach nil deps) (done))))))
+
+(defn frame-result [^Frame frame]
+  (let [^objects nodes (.-nodes frame)]
+    (aget nodes (dec (alength nodes)))))
 
 (defn frame-up [^Frame frame]
-  (let [^objects nodes (.-nodes frame)
-        result (aget nodes (dec (alength nodes)))
-        site (port-site (slot-port (.-slot frame)))]
-    (reduce-kv port-attach (frame-peer frame)
-      (deps (port-slot result) site))
+  (let [result (frame-result frame)]
+    (reduce-kv port-attach nil
+      (deps (port-slot result)
+        (port-site (slot-port (.-slot frame)))))
     (port-flow result)))
 
 (defn frame-down [^Frame frame]
-  (let [^objects nodes (.-nodes frame)
-        result (aget nodes (dec (alength nodes)))
-        site (port-site (slot-port (.-slot frame)))]
-    (reduce-kv port-detach (frame-peer frame)
-      (deps (port-slot result) site))))
+  (reduce-kv port-detach nil
+    (deps (port-slot (frame-result frame))
+      (port-site (slot-port (.-slot frame))))))
 
 (defn apply-cycle [^objects buffer cycle]
   (let [i (nth cycle 0)
@@ -877,7 +887,7 @@ Returns a peer definition from given definitions and main key.
                            Pure  (t/write-handler
                                    (fn [_] "pure")
                                    (fn [^Pure pure]
-                                     (.-values pure)))}})
+                                     (.-value pure)))}})
       (aset state peer-slot-reader-opts
         {:handlers {"ctor"           (t/read-handler
                                        (fn [[key idx env & free]]
@@ -902,8 +912,8 @@ Returns a peer definition from given definitions and main key.
                                        (fn [inputs]
                                          (->Ap inputs nil)))
                     "pure"           (t/read-handler
-                                       (fn [values]
-                                         (->Pure values nil)))
+                                       (fn [value]
+                                         (->Pure value nil)))
                     "unserializable" (t/read-handler
                                        (fn [_]
                                          (->Failure :unserializable)))}})

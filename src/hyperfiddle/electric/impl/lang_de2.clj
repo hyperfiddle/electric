@@ -439,7 +439,7 @@
   (loop [e e]
     (when-some [nd (ts/->node ts e)]
       (case (::type nd)
-        (::literal ::ap ::join ::pure ::comp ::ctor ::call) e
+        (::literal ::ap ::join ::pure ::comp ::ctor ::call ::frame) e
         (::site) (when (some? (::site nd)) (recur (::parent nd)))
         (::var ::node ::lookup ::mklocal ::bindlocal ::localref) (some-> (::parent nd) recur)
         #_else (throw (ex-info (str "can't find-sitable-point-e for " (pr-str (::type nd))) (or nd {})))))))
@@ -609,6 +609,7 @@
                    (recur bform e (assoc env ::current site)
                      (-> (ts/add ts {:db/id e, ::parent pe, ::type ::site, ::site site})
                        (?add-source-map e form))))
+        (::frame) (ts/add ts {:db/id (->id), ::parent pe, ::type ::frame})
         (::lookup) (let [[_ sym] form] (ts/add ts {:db/id (->id), ::parent pe, ::type ::lookup, ::sym sym}))
         (::static-vars) (recur (second form) pe (assoc env ::static-vars true) ts)
         #_else (let [e (->id), uid (->uid)]
@@ -703,6 +704,7 @@
                                          first (ts/->node ts) ::free-idx)))))
                     (ts/find ts ::ctor-free (e->uid ts e))))
          ::call (list `r/join (list `r/call 'frame (::call-idx (ts/->node ts e))))
+         ::frame 'frame
          ::lookup (list `r/lookup 'frame (::sym nd))
          ::mklocal (recur (get-ret-e ts (get-child-e ts e)))
          ::bindlocal (recur (get-ret-e ts (->bindlocal-body-e ts e)))
@@ -741,12 +743,12 @@
            ts
            (do (vswap! seen conj e)
                (case (::type nd)
-                 (::literal ::var ::lookup ::node) (ord ts e)
+                 (::literal ::var ::lookup ::node ::frame) (ord ts e)
                  (::ap ::comp) (ord (reduce rec ts (get-children-e ts e)) e)
                  (::site ::join ::pure ::call ::ctor ::mklocal) (ord (rec ts (get-child-e ts e)) e)
                  (::bindlocal) (recur ts (->bindlocal-body-e ts e))
                  (::localref) (ord (rec ts (->localv-e ts (::ref nd))) (uid->e ts (::ref nd)))
-                 #_else (throw (ex-info (str "cannot compure-effect-order on " (pr-str (::type nd))) (or nd {})))
+                 #_else (throw (ex-info (str "cannot compute-effect-order on " (pr-str (::type nd))) (or nd {})))
                  )))))
      ts e)))
 
@@ -780,7 +782,7 @@
                  (let [nd (ts/->node ts e)]
                    (vswap! seen conj e)
                    (case (::type nd)
-                     (::literal ::var ::lookup) ts
+                     (::literal ::var ::lookup ::frame) ts
                      (::ap ::comp) (reduce mark ts (get-children-e ts e))
                      (::site ::join ::pure ::call ::ctor ::mklocal) (recur ts (get-child-e ts e))
                      (::bindlocal) (recur ts (->bindlocal-body-e ts e))
@@ -828,7 +830,7 @@
                             (let [nd (get (:eav ts) e)]
                               (vswap! seen conj e)
                               (case (::type nd)
-                                (::literal ::var ::lookup ::node) ts
+                                (::literal ::var ::lookup ::node ::frame) ts
                                 (::ap ::comp) (reduce mark-used-ctors ts (get-children-e ts e))
                                 (::site ::join ::pure ::call ::mklocal) (recur ts (get-child-e ts e))
                                 (::bindlocal) (recur ts (->bindlocal-body-e ts e))
@@ -904,7 +906,7 @@
         handle-let-refs (fn handle-let-refs [ts e] ; nodes and frees (closed over)
                           (let [nd (ts/->node ts e)]
                             (case (::type nd)
-                              (::literal ::var ::lookup ::node) ts
+                              (::literal ::var ::lookup ::node ::frame) ts
                               (::ap ::comp) (reduce handle-let-refs ts (get-children-e ts e))
                               (::site ::join ::pure ::ctor ::call ::mklocal) (recur ts (get-child-e ts e))
                               (::bindlocal) (recur ts (->bindlocal-body-e ts e))
@@ -945,7 +947,7 @@
                             (let [nd (ts/->node ts e)]
                               (vswap! seen conj e)
                               (case (::type nd)
-                                (::literal ::var ::lookup ::node) ts
+                                (::literal ::var ::lookup ::node ::frame) ts
                                 (::ap ::comp) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
                                 (::site ::join ::pure ::mklocal) (recur ts ctor-e (get-child-e ts e))
                                 (::bindlocal) (recur ts ctor-e (->bindlocal-body-e ts e))
