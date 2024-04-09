@@ -63,7 +63,8 @@
                 deps (collect-deps deps)
                 defs (into {} (map (fn [dep] [(keyword dep) dep])) deps)
                 defs (assoc defs ::Main source)]
-            (when (::lang/print-source env) (fipp.edn/pprint source))
+            (when (and (::lang/print-clj-source env) (= :clj (lang/->env-type env))) (fipp.edn/pprint source))
+            (when (and (::lang/print-cljs-source env) (= :cljs (lang/->env-type env))) (fipp.edn/pprint source))
             (when (::lang/print-defs env) (fipp.edn/pprint defs))
             `(run-single (r/root-frame ~defs ::Main)))))
 
@@ -91,6 +92,7 @@
         deps (collect-deps deps)
         defs (into {} (map (fn [dep] [(keyword dep) dep])) deps)
         defs (assoc defs ::Main source)]
-    (when (::lang/print-source env) (fipp.edn/pprint source))
+    (when (and (::lang/print-clj-source env) (= :clj (lang/->env-type env))) (fipp.edn/pprint source))
+    (when (and (::lang/print-cljs-source env) (= :cljs (lang/->env-type env))) (fipp.edn/pprint source))
     (when (::lang/print-defs env) (fipp.edn/pprint defs))
     `(run-local ~defs ::Main)))

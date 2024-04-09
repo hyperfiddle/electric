@@ -197,27 +197,24 @@
   (with ((l/single {} (tap ($ My-inc 1))) tap tap)
     % := 2))
 
-(tests "control flow implemented with lazy signals"
-  (e/defn If2 [x a b]                                       ; Key question - how lazy are the parameters?
-    (->> (boolean x)
-         (get {true (e/fn [] a)
-               false (e/fn [] b)})
-         ($)))
+(e/defn If2 [x a b]                                       ; Key question - how lazy are the parameters?
+  (->> (boolean x)
+    (get {true (e/fn [] a)
+          false (e/fn [] b)})
+    ($)))
 
-  (def !x (atom false))
-  (def !a (atom :a))
-  (def !b (atom :b))
-  (with ((l/single {} (let [x (e/watch !x)
-                            a (tap (e/watch !a)) ; lazy
-                            b (tap (e/watch !b))] ; lazy
+(def !branch (atom false))
+(tests "control flow implemented with lazy signals"
+  (with ((l/single {} (let [x (e/watch !branch)
+                            a (tap :a) ; lazy
+                            b (tap :b)] ; lazy
                         (tap ($ If2 x a b)))) tap tap)
     % := :b
     % := :b
-    (swap! !x not)
+    (swap! !branch not)
     % := :a
     % := :a
-    (swap! !x not)
-    % := :b
+    (swap! !branch not)
     % := :b))
 
 (tests "lazy let"
@@ -1451,9 +1448,9 @@
                                   (set! (.-x o) ($ (e/fn [] 0)))))) tap tap)
              % := 0)))
 
+(def a-root 1)
 #?(:cljs
    (tests "set! to alter root binding"
-     (def a-root 1)
      (with ((l/single {} (set! a-root 2)) tap tap))
      (instance? Cancelled %) := true
      a-root := 2))
@@ -1993,8 +1990,8 @@
 (tests "self-recur by recur, e/fn"
   (with ((l/single {} (tap ($ (e/fn fib [n] (case n 0 0 1 1 (+ (recur (- n 1)) (recur (- n 2))))) 6))) tap tap)
     % := 8))
+(e/defn Fib [n] (case n 0 0 1 1 (+ ($ Fib (- n 1)) ($ Fib (- n 2)))))
 (tests "self-recur by name, e/defn"
-  (e/defn Fib [n] (case n 0 0 1 1 (+ ($ Fib (- n 1)) ($ Fib (- n 2)))))
   (with ((l/single {} (tap ($ Fib 7))) tap tap)
     % := 13))
 (tests "self-recur by name, e/fn thunk"
@@ -2126,8 +2123,8 @@
     (swap! !v inc)
     % := #{2}))
 
-(tests "let over e/def"
-  (let [x 1] (e/defn XX [] [x x]))
+(let [x 1] (e/defn XX [] [x x]))
+(tests "let over e/defn"
   (with ((l/single {} (tap ($ XX))) tap tap)
     % := [1 1]))
 

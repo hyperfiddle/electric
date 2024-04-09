@@ -12,7 +12,7 @@
             [missionary.core :as m]
             [hyperfiddle.electric-de :as-alias e]
             [hyperfiddle.electric.impl.analyzer :as ana]
-            [hyperfiddle.electric.impl.cljs-analyzer :as cljs-ana]
+            [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]
             [hyperfiddle.electric.impl.destructure :as dst]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.rcf :as rcf :refer [tests]]))
@@ -205,7 +205,7 @@
       (-expand-all o env)))
 
 (defn expand-all [env o]
-  (m/? (cljs-ana/analyze-nsT !a env (get-ns env)))
+  (cljs-ana/analyze-nsT !a env (get-ns env))
   (let [expanded (-expand-all o (assoc env ::electric true))]
     (when (::print-expansion env) (fipp.edn/pprint expanded))
     expanded))
@@ -808,7 +808,7 @@
       (reduce delete-point-recursively ts ce)
       ts)))
 
-(def pure-fns '#{clojure.core/vector clojure.core/hash-map})
+(def pure-fns '#{clojure.core/vector clojure.core/hash-map clojure.core/get clojure.core/boolean})
 
 (defn implode-point [ts e]              ; remove e, reparent child, keep e as id
   (let [nd (ts/->node ts e), ce (get-child-e ts e), cnd (ts/->node ts ce)]
@@ -1007,7 +1007,8 @@
                   ~@(->> (get-ordered-ctors-e ts)
                       (map #(emit-ctor ts % env nm))
                       (interleave (range))))))]
-    (when (::print-source env) (fipp.edn/pprint ret))
+    (when (and (::print-clj-source env) (= :clj (->env-type env))) (fipp.edn/pprint ret))
+    (when (and (::print-cljs-source env) (= :cljs (->env-type env))) (fipp.edn/pprint ret))
     ret))
 
 (defn ->ts [] (ts/->ts {::->id (->->id), ::->uid (->->id)}))
