@@ -23,13 +23,16 @@
 (defmacro ctor [expr] `(::lang/ctor ~expr))
 (defmacro $ [F & args] `(check-electric $ (lang/$ ~F ~@args)))
 
+(defmacro frame []
+  `(::lang/pure (::lang/frame)))
+
 (defmacro pure "
 Syntax :
 ```clojure
 (pure table)
 ```
 Returns the incremental sequence describing `table`.
-" [expr] `(::lang/pure ~expr))
+" [expr] `(r/incseq (frame) (::lang/pure ~expr)))
 
 (defmacro join "
 Syntax :
@@ -126,7 +129,7 @@ Syntax :
 (amb table1 table2 ,,, tableN)
 ```
 Returns the concatenation of `table1 table2 ,,, tableN`.
-" [& exprs] `(::lang/call (join (r/pure ~@(mapv #(list `ctor %) exprs)))))
+" [& exprs] `(::lang/call (join (i/fixed ~@(map #(list `r/invariant (list `ctor %)) exprs)))))
 
 (defmacro input "
 Syntax :
