@@ -104,7 +104,8 @@ Returns the successive states of items described by `incseq`.
         nm3 (vary-meta nm2 assoc ::lang/deps `'~deps)]
     (when-not (::lang/has-edef? (meta *ns*))
       (alter-meta! *ns* assoc ::lang/has-edef? true))
-    (when (::lang/print-source env) (fipp.edn/pprint source))
+    (when (and (::lang/print-clj-source env) (= :clj (lang/->env-type env))) (fipp.edn/pprint source))
+    (when (and (::lang/print-cljs-source env) (= :cljs (lang/->env-type env))) (fipp.edn/pprint source))
     `(def ~nm3 ~source)))
 
 (defmacro amb "
