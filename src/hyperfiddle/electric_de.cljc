@@ -222,7 +222,7 @@ this tuple. Returns the concatenation of all body results as a single vector.
         (if (< fixed offset)
           (loop [args args
                  static static]
-            (let [args (cons (::lang/join (peek static)) args)
+            (let [args (cons (::lang/join (r/incseq (frame) (peek static))) args)
                   static (pop static)]
               (if (< fixed (count static))
                 (recur args static)
