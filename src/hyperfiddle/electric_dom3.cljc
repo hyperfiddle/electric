@@ -22,7 +22,7 @@
            (m/observe (fn [!] (.appendChild parent elem) (! elem) #(.remove elem)))))
 
 ;; TODO this should be a simple `binding` but the observer doesn't unmount that way
-(defmacro with [elem & body] `(binding [node (e/input (appending> ~elem node))] ~@body node))
+(defmacro with [elem & body] `(binding [node (e/input (appending> ~elem node))] node ~@body))
 
 #?(:cljs (defn -googDomSetTextContentNoWarn [node str]
            ;; Electric says :infer-warning Cannot infer target type in expression, fixme
