@@ -487,7 +487,7 @@ T T T -> (EXPR T)
         callc (count (.-calls cdef))
         nodec (count (.-nodes cdef))
         frame (->Frame peer slot rank site ctor
-                (int-array (inc callc)) (object-array callc) (object-array callc)
+                (i/int-array (inc callc)) (object-array callc) (object-array callc)
                 (object-array (inc nodec)) nil)]
     (define-slot (->Slot frame (- -1 nodec)) ((.-build cdef) frame)) frame))
 
@@ -832,7 +832,7 @@ Returns a peer definition from given definitions and main key.
                    (aset peer-queue-untap (object-array 1))
                    (aset peer-queue-toggle (object-array 1))
                    (aset peer-queue-ready (object-array 1)))
-                 (int-array peer-queues) state)
+                 (i/int-array peer-queues) state)
           input (m/stream (m/observe events))
           ^Frame root (->> args
                         (eduction (map pure))
