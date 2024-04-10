@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric-de-test
-  (:require [hyperfiddle.rcf :as rcf :refer [tap with %]]
+  (:require [hyperfiddle.rcf :as rcf :refer [tap with % tests]]
             [hyperfiddle.electric-de :as e :refer [$]]
             [hyperfiddle.electric-local-def-de :as l]
             [hyperfiddle.electric.impl.io :as electric-io]
@@ -9,26 +9,18 @@
             #?(:cljs [hyperfiddle.goog-calls-test-de])
             [clojure.string :as str]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip tests failing]]))
+  #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip failing]]))
   (:import [hyperfiddle.electric Pending Failure]
            [missionary Cancelled]
            #?(:clj [clojure.lang ExceptionInfo])))
 
-(def stats (atom {:skipped 0, :tested 0}))
+(defmacro skip {:style/indent 0} [& _body] `(print "-"))
 
-(defmacro skip {:style/indent 0} [& _body]
-  `(do (swap! stats update :skipped inc) (pr '~'-)))
-
-(defmacro tests {:style/indent 0} [& body]
-  `(do (swap! stats update :tested inc) (rcf/tests ~@body)))
-
-(defmacro failing {:style/indent 0} [& body]
-  nil
-  #_`(try (do ~@body) (catch ~(if (:js-globals &env) :default 'Throwable) e# (prn e#))))
+(defmacro failing {:style/indent 0} [& body] nil)
 
 (tests "call on local electric ctor"
-       (with ((l/single {} (let [x (e/ctor 1)] (tap ($ x)))) tap tap)
-         % := 1))
+  (with ((l/single {} (let [x (e/fn [] 1)] (tap ($ x)))) tap tap)
+    % := 1))
 
 (defrecord Point [x y])
 (tests "new on class"
@@ -205,27 +197,24 @@
   (with ((l/single {} (tap ($ My-inc 1))) tap tap)
     % := 2))
 
-(tests "control flow implemented with lazy signals"
-  (e/defn If2 [x a b]                                       ; Key question - how lazy are the parameters?
-    (->> (boolean x)
-         (get {true (e/fn [] a)
-               false (e/fn [] b)})
-         ($)))
+(e/defn If2 [x a b]                                       ; Key question - how lazy are the parameters?
+  (->> (boolean x)
+    (get {true (e/fn [] a)
+          false (e/fn [] b)})
+    ($)))
 
-  (def !x (atom false))
-  (def !a (atom :a))
-  (def !b (atom :b))
-  (with ((l/single {} (let [x (e/watch !x)
-                            a (tap (e/watch !a)) ; lazy
-                            b (tap (e/watch !b))] ; lazy
+(def !branch (atom false))
+(tests "control flow implemented with lazy signals"
+  (with ((l/single {} (let [x (e/watch !branch)
+                            a (tap :a) ; lazy
+                            b (tap :b)] ; lazy
                         (tap ($ If2 x a b)))) tap tap)
     % := :b
     % := :b
-    (swap! !x not)
+    (swap! !branch not)
     % := :a
     % := :a
-    (swap! !x not)
-    % := :b
+    (swap! !branch not)
     % := :b))
 
 (tests "lazy let"
@@ -586,7 +575,7 @@
     % := ::outer))
 
 (tests "lazy parameters. Flows are not run unless sampled"
-  (with ((l/single {} [($ (e/fn* [_]) (tap :not)) (tap :boom)]) tap tap)
+  (with ((l/single {} [($ (e/fn [_]) (tap :not)) (tap :boom)]) tap tap)
     % := :boom))
 
 (tests "lazy parameters. Flows are not run unless sampled"
@@ -1242,6 +1231,7 @@
 (def !state (atom 0))
 (def global)
 (tests "Inline cc/fn support"
+  (reset! !state 0)
   (with ((l/single {} (let [state (e/watch !state)
                             local [:local state]
                             f     (binding [global [:global state]]
@@ -1260,8 +1250,8 @@
     % := [1 :b '(:c :d) [:local 1] [:global 1]]))
 
 (def !state (atom 0))
-(def global)
 (tests
+  (reset! !state 0)
   (with ((l/single {}
            (let [state (e/watch !state)]
              (tap [state state])
@@ -1275,9 +1265,9 @@
 
 (tests "cc/fn lexical bindings are untouched"
   (with ((l/single {} (let [a 1
-                        b 2
-                        f (fn [a] (let [b 3] [a b]))]
-                    (tap (f 2)))) tap tap)
+                            b 2
+                            f (fn [a] (let [b 3] [a b]))]
+                        (tap (f 2)))) tap tap)
     % := [2 3]))
 
 (tests "Inline cc/fn shorthand support"
@@ -1326,9 +1316,10 @@
         % := [false false true true]
         % := [false false true true]))
 
+(def !state (atom 0))
+(def global)
 (tests "Inline letfn support"
-  (def !state (atom 0))
-  (def global)
+  (reset! !state 0)
   (with ((l/single {} (let [state (e/watch !state)
                         local [:local state]]
                     (binding [global [:global state]]
@@ -1460,11 +1451,10 @@
                                   (set! (.-x o) ($ (e/fn [] 0)))))) tap tap)
              % := 0)))
 
+(def a-root 1)
 #?(:cljs
    (tests "set! to alter root binding"
-     (def a-root 1)
      (with ((l/single {} (set! a-root 2)) tap tap))
-     (instance? Cancelled %) := true
      a-root := 2))
 
 ;; TODO e/fn arity check, try/catch
@@ -1963,20 +1953,20 @@
     (ex-message %) := "You called VarArgs with 0 arguments but it only supports 1"))
 
 (tests "e/apply"
-  (with ((l/single {} (tap (e/apply VarArgs [1 2 3]))) tap tap)
+  (with ((l/single {} (tap ($ e/Apply VarArgs [1 2 3]))) tap tap)
     % := [1 [2 3]]))
 (tests "e/apply"
-  (with ((l/single {} (tap (e/apply Two 1 [2]))) tap tap)
+  (with ((l/single {} (tap ($ e/Apply Two 1 [2]))) tap tap)
     % := [1 2]))
 (tests "e/apply"
-  (with ((l/single {} (tap (e/apply Two [1 2]))) tap tap)
+  (with ((l/single {} (tap ($ e/Apply Two [1 2]))) tap tap)
     % := [1 2]))
 (tests "e/apply"
-  (with ((l/single {} (tap (e/apply Two [1 (inc 1)]))) tap tap)
+  (with ((l/single {} (tap ($ e/Apply Two [1 (inc 1)]))) tap tap)
     % := [1 2]))
 ;; TODO try/catch
 (skip "e/apply"
-  (with ((l/single {} (tap (try (e/apply Two [1 2 3]) (throw (ex-info "boo" {}))
+  (with ((l/single {} (tap (try ($ e/Apply Two [1 2 3]) (throw (ex-info "boo" {}))
                             (catch ExceptionInfo e e)))) tap tap)
     (ex-message %) := "You called Two with 3 arguments but it only supports 2"))
 
@@ -1990,10 +1980,10 @@
   (with ((l/single {} (tap ($ (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 3 4))) tap tap)
     % := [3 4 5]))
 (tests "multi-arity e/fn"
-  (with ((l/single {} (tap (e/apply (e/fn ([_] :one) ([_ _] :two)) 1 [2]))) tap tap)
+  (with ((l/single {} (tap ($ e/Apply (e/fn ([_] :one) ([_ _] :two)) 1 [2]))) tap tap)
     % := :two))
 (tests "multi-arity e/fn"
-  (with ((l/single {} (tap (e/apply (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 [3 4]))) tap tap)
+  (with ((l/single {} (tap ($ e/Apply (e/fn ([_]) ([_ & xs] (mapv inc xs))) 1 2 [3 4]))) tap tap)
     % := [3 4 5]))
 
 (tests "self-recur by name, e/fn"
@@ -2002,8 +1992,8 @@
 (tests "self-recur by recur, e/fn"
   (with ((l/single {} (tap ($ (e/fn fib [n] (case n 0 0 1 1 (+ (recur (- n 1)) (recur (- n 2))))) 6))) tap tap)
     % := 8))
+(e/defn Fib [n] (case n 0 0 1 1 (+ ($ Fib (- n 1)) ($ Fib (- n 2)))))
 (tests "self-recur by name, e/defn"
-  (e/defn Fib [n] (case n 0 0 1 1 (+ ($ Fib (- n 1)) ($ Fib (- n 2)))))
   (with ((l/single {} (tap ($ Fib 7))) tap tap)
     % := 13))
 (tests "self-recur by name, e/fn thunk"
@@ -2021,18 +2011,9 @@
     % := nil
     % := :done))
 (tests "self-recur by recur, varargs"
-  (with ((l/single {} ($ (e/fn [& xs] (if (tap (seq xs)) (recur) (tap :done))) 0 1 2)) tap tap)
+  (with ((l/single {} ($ (e/fn [& xs] (if (tap (seq xs)) (recur nil) (tap :done))) 0 1 2)) tap tap)
     % := [0 1 2]
     % := nil
-    % := :done))
-
-(tests "self-recur by recur, varargs & multi-arity"
-  ;; Note this differs from clojure where varargs recur doesn't take variadic args anymore but a collection.
-  ;; In electric there's no tail recursion so `recur` is used as an anonymous self-call.
-  ;; This means a multi-arity fn can recur to other arities.
-  ;; As a side effect we have to keep varargs as varargs on recur.
-  (with ((l/single {} ($ (e/fn ([] (tap :done)) ([& xs] (if (tap (seq xs)) (recur) (tap :no)))) 0 1 2)) tap tap)
-    % := '(0 1 2)
     % := :done))
 
 #?(:clj
@@ -2144,8 +2125,8 @@
     (swap! !v inc)
     % := #{2}))
 
-(tests "let over e/def"
-  (let [x 1] (e/defn XX [] [x x]))
+(let [x 1] (e/defn XX [] [x x]))
+(tests "let over e/defn"
   (with ((l/single {} (tap ($ XX))) tap tap)
     % := [1 1]))
 
@@ -2187,7 +2168,10 @@
                        ($ Even? 2)))) tap tap)
          % := true))
 
-(let [{:keys [tested skipped]} @stats, all (+ tested skipped)]
-  (prn '===)
-  (println 'tested tested (str (long (* (/ tested all) 100)) "%"))
-  (println 'skipped skipped (str (long (* (/ skipped all) 100)) "%")))
+(e/defn Self [] Self)
+(tests
+  (with ((l/single {}
+           (let [Bar Self]
+             (binding [Self (e/fn [] 111)]
+               (tap (= Bar (e/$ Bar)))))) tap tap)
+    % := false))

@@ -1,4 +1,4 @@
-(ns hyperfiddle.electric.impl.cljs-analyzer
+(ns hyperfiddle.electric.impl.cljs-analyzer2
   (:refer-clojure :exclude [find-var])
   (:require [edamame.core :as ed]
             [clojure.core :as cc]
@@ -6,7 +6,6 @@
             [clojure.tools.reader.reader-types :as rt]
             [clojure.java.io :as io]
             [cljs.tagged-literals]
-            [missionary.core :as m]
             [contrib.debug]
             [cljs.core]                 ; for cljs macroexpansion
             [cljs.env]
@@ -24,13 +23,11 @@
       (ed/normalize-opts {:all true, :row-key :line, :col-key :column, :end-location false
                           :readers cljs.tagged-literals/*cljs-data-readers* :auto-resolve name
                           :features #{:cljs}, :read-cond :allow, :eof ::done})]
-  (defn resource-forms> [rs]
-    (->> (m/ap
-           (let [rdr (m/?> (m/observe (fn [!]
-                                        (let [rdr (rt/source-logging-push-back-reader (io/reader rs))]
-                                          (! rdr) #(.close ^java.io.Reader rdr)))))]
-             (m/? (m/?> (m/seed (repeat (m/via m/blk (ed/parse-next rdr parse-opts))))))))
-      (m/eduction (take-while (complement #{::done}))))))
+  (defn resource-forms [rs]
+    (with-open [rdr (rt/source-logging-push-back-reader (io/reader rs))]
+      (loop [v []]
+        (let [nx (ed/parse-next rdr parse-opts)]
+          (if (= nx ::done) v (recur (conj v nx))))))))
 
 (defn safe-require [sym]
   ;; we might be expanding clj code before the ns got loaded (during cljs compilation)
@@ -99,35 +96,29 @@
 
 (declare add-requireT analyze-nsT)
 
-(defn noneT [s _f] (s nil) #())
-
 (defn ?auto-alias-clojureT [!a ns$ reqk refk req$]
-  (or (when-not (ns->resource req$)
-        (let [cljs (str/replace-first (str req$) #"^clojure\." "cljs."), cljs$ (symbol cljs)]
-          (when-not (= req$ cljs$)
-            (when (ns->resource cljs$)
-              (m/sp (m/? (add-requireT !a ns$ reqk refk [cljs$ :as req$]))  cljs$)))))
-    noneT))
+  (when-not (ns->resource req$)
+    (let [cljs (str/replace-first (str req$) #"^clojure\." "cljs."), cljs$ (symbol cljs)]
+      (when-not (= req$ cljs$)
+        (when (ns->resource cljs$)
+          (add-requireT !a ns$ reqk refk [cljs$ :as req$])
+          cljs$)))))
 
 (defn add-requireT [!a ns$ reqk refk r]
   (let [r (if (or (symbol? r) (string? r)) [r] r)
         [req$ & o] r, o (apply hash-map o)]
-    (if (= ns$ req$)
-      noneT
-      (m/sp
-        (let [req$ (or (m/? (?auto-alias-clojureT !a ns$ reqk refk req$)) req$)]
-          (add-require !a ns$ reqk req$ req$)
-          (when (:as o) (add-require !a ns$ reqk (:as o) req$))
-          (when (:refer o) (add-refers !a ns$ refk o req$))
-          (m/? (m/join (fn [& _])
-                 (analyze-nsT !a (->cljs-env ns$) req$)
-                 (if (:refer-macros o)
-                   (add-requireT !a ns$ reqk refk
-                     (into [req$] cat (-> (select-keys o [:as]) (assoc :refer (:refer-macros o)))))
-                   noneT))))))))
+    (when (not= ns$ req$)
+      (let [req$ (or (?auto-alias-clojureT !a ns$ reqk refk req$) req$)]
+        (add-require !a ns$ reqk req$ req$)
+        (when (:as o) (add-require !a ns$ reqk (:as o) req$))
+        (when (:refer o) (add-refers !a ns$ refk o req$))
+        (analyze-nsT !a (->cljs-env ns$) req$)
+        (when (:refer-macros o)
+          (add-requireT !a ns$ reqk refk
+            (into [req$] cat (-> (select-keys o [:as]) (assoc :refer (:refer-macros o))))))))))
 
 (defn -add-requiresT [!a ns$ rs reqk refk]
-  (apply m/join (fn [& _]) (eduction (map #(add-requireT !a ns$ reqk refk %)) rs)))
+  (run! #(add-requireT !a ns$ reqk refk %) rs))
 
 (defn add-require-macrosT [!a ns$ rs] (-add-requiresT !a ns$ rs ::require-macros ::refer-macros))
 (defn add-requiresT [!a ns$ rs] (-add-requiresT !a ns$ rs ::requires ::refers))
@@ -147,16 +138,15 @@
 
 (defn add-ns-infoT [!a [_ns ns$ & args]]
   (let [args (-> args skip-docstring skip-attr-map)]
-    (apply m/join (fn [& _])
-      (eduction (map (fn [[typ & args]]
-                       (case typ
-                         (:require) (add-requiresT !a ns$ args)
-                         (:require-macros) (add-require-macrosT !a ns$ args)
-                         (:use) (add-requiresT !a ns$ (mapv use->require args))
-                         (:use-macros) (add-require-macrosT !a ns$ (mapv use->require args))
-                         (:refer-clojure) (m/sp (add-refer-clojure !a ns$ args))
-                         #_else noneT)))
-        args))))
+    (run! (fn [[typ & args]]
+            (case typ
+              (:require) (add-requiresT !a ns$ args)
+              (:require-macros) (add-require-macrosT !a ns$ args)
+              (:use) (add-requiresT !a ns$ (mapv use->require args))
+              (:use-macros) (add-require-macrosT !a ns$ (mapv use->require args))
+              (:refer-clojure) (add-refer-clojure !a ns$ args)
+              #_else nil))
+      args)))
 
 (defn ->def-info [ns$ sym] {::name (with-meta (symbol (str ns$) (str sym)) (meta sym)), ::meta (meta sym)})
 
@@ -167,7 +157,7 @@
      (when (and (seq? o) (seq o))
        (case (first o)
          (def) (add-def !a ns$ (second o))
-         (ns) (m/? (add-ns-infoT !a o))
+         (ns) (add-ns-infoT !a o)
          (fn*) nil
          (let*) (let [[_ bs & body] o
                       ls (transduce (partition-all 2) (completing (fn [ls [k v]] (rec ls !a v) (conj ls k))) ls bs)]
@@ -187,16 +177,15 @@
 ;;; PUBLIC API ;;;
 ;;;;;;;;;;;;;;;;;;
 
+(def !nss (atom {}))
+
 (defn analyze-nsT [!a env ns$]
-  (if-some [rs (some-> ns$ ns->resource)]
+  (when-some [rs (some-> ns$ ns->resource)]
     (loop [a @!a]
       (or (-> a ::ns-tasks (get ns$))
-        (let [T (->> (resource-forms> rs) (m/reduce #(collect-defs !a ns$ env %2) nil))
-              T (m/memo T)]
-          (if (compare-and-set! !a a (assoc-in a [::ns-tasks ns$] T))
-            T
-            (recur @!a)))))
-    noneT))
+        (if (compare-and-set! !a a (assoc-in a [::ns-tasks ns$] true))
+          (->> (resource-forms rs) (reduce #(collect-defs !a ns$ env %2) nil))
+          (recur @!a))))))
 
 (defn purge-ns [a ns$] (-> a (update ::ns-tasks dissoc ns$) (update ::nses dissoc ns$)))
 
@@ -238,4 +227,4 @@
               (some-> (find-ns sym-ns$) (find-ns-var sym-base$)))))
       (keep-if macro-var?))))
 
-(defn ->!a [] (let [!a (atom {})] (m/? (analyze-nsT !a (->cljs-env 'cljs.core) 'cljs.core)) !a))
+(defn ->!a [] (let [!a (atom {})] (analyze-nsT !a (->cljs-env 'cljs.core) 'cljs.core) !a))

@@ -1,4 +1,5 @@
 (ns hyperfiddle.electric.impl.runtime-de
+  (:refer-clojure :exclude [resolve])
   (:require [hyperfiddle.incseq :as i]
             [missionary.core :as m]
             [cognitect.transit :as t])
@@ -207,63 +208,60 @@ T T T -> (EXPR T)
 
 (declare slot-port)
 
-(deftype Ctor [peer key idx ^objects free env
-               ^:unsynchronized-mutable ^:mutable hash-memo]
-  #?(:clj Object)
-  #?(:cljs IHash)
-  (#?(:clj hashCode :cljs -hash) [_]
-    (if-some [h hash-memo]
-      h (loop [h (-> (hash peer)
-                   (hash-combine (hash key))
-                   (hash-combine (hash idx))
-                   (hash-combine (hash env)))
-               i 0]
-          (if (== i (alength free))
-            (set! hash-memo h)
-            (recur (hash-combine h (hash (slot-port (aget free i))))
-              (inc i))))))
-  #?(:cljs IEquiv)
-  (#?(:clj equals :cljs -equiv) [_ other]
-    (and (instance? Ctor other)
-      (= peer (.-peer ^Ctor other))
-      (= key (.-key ^Ctor other))
-      (= idx (.-idx ^Ctor other))
-      (= env (.-env ^Ctor other))
-      (let [n (alength free)
-            ^objects f (.-free ^Ctor other)]
-        (if (== n (alength f))
-          (loop [i 0]
-            (if (== i n)
-              true (if (= (slot-port (aget free i)) (slot-port (aget f i)))
-                     (recur (inc i)) false))) false)))))
-
 (defn bind "
 (CTOR T) -> (CTOR T)
 (CTOR T) (VAR A) (EXPR A) -> (CTOR T)
 (CTOR T) (VAR A) (EXPR A) (VAR B) (EXPR B) -> (CTOR T)
 (CTOR T) (VAR A) (EXPR A) (VAR B) (EXPR B) (VAR C) (EXPR C) -> (CTOR T)
-" ([^Ctor ctor] ctor)
-  ([^Ctor ctor k v]
-   (->Ctor (.-peer ctor) (.-key ctor) (.-idx ctor) (.-free ctor)
-     (assoc (.-env ctor) k v) nil))
-  ([^Ctor ctor k v & kvs]
-   (->Ctor (.-peer ctor) (.-key ctor) (.-idx ctor) (.-free ctor)
-     (apply assoc (.-env ctor) k v kvs) nil)))
+" ([ctor] ctor)
+  ([[key idx free env] k v]
+   [key idx free (assoc env k v)])
+  ([[key idx free env] k v & kvs]
+   [key idx free (apply assoc env k v kvs)]))
 
-(defn bind-args [^Ctor ctor & args]
+(defn bind-args [ctor & args]
   (reduce (partial apply bind) ctor (eduction (map-indexed vector) args)))
 
-(defn ctor-peer
-  "Returns the peer of given constructor."
-  {:tag Peer}
-  [^Ctor ctor]
-  (.-peer ctor))
+(defn bind-self [ctor]
+  (bind ctor :recur (pure ctor)))
 
-(defn ctor-cdef
+(defn arity-mismatch [arity]
+  (throw (error (str "Wrong number of args (" arity ")"))))
+
+(defn get-variadic [F arity]
+  (if-some [[fixed map? ctor] (F -1)]
+    (if (< arity fixed)
+      (arity-mismatch arity)
+      [fixed map? ctor])
+    (arity-mismatch arity)))
+
+(defn varargs [map?]
+  (if map?
+    (fn [& args]
+      (loop [args args
+             m nil]
+        (if-some [[k & args] args]
+          (if-some [[v & args] args]
+            (recur args (assoc m k v))
+            (merge m k)) m)))
+    (fn [& args] args)))
+
+(defn dispatch [F & args]
+  (let [arity (count args)]
+    (if-some [ctor (F arity)]
+      (apply bind-args (bind-self ctor) args)
+      (let [[fixed map? ctor] (get-variadic F arity)]
+        (bind (apply bind-args (bind-self ctor) (take fixed args))
+          fixed (apply ap (pure (varargs map?)) (drop fixed args)))))))
+
+(defn peer-root [^Peer peer key]
+  ((.-defs peer) key))
+
+(defn peer-cdef
   "Returns the cdef of given constructor."
   {:tag Cdef}
-  [^Ctor ctor]
-  (((.-defs (ctor-peer ctor)) (.-key ctor)) (.-idx ctor)))
+  [^Peer peer key idx]
+  ((peer-root peer key) idx))
 
 (defn port-flow [^objects port]
   (aget port port-slot-flow))
@@ -271,7 +269,7 @@ T T T -> (EXPR T)
 (defn port-deps [^objects port]
   (aget port port-slot-deps))
 
-(deftype Frame [slot rank site ctor
+(deftype Frame [peer slot rank site ctor
                 ^ints ranks ^objects children
                 ^objects calls ^objects nodes
                 ^:unsynchronized-mutable ^:mutable hash-memo]
@@ -279,10 +277,14 @@ T T T -> (EXPR T)
   #?(:cljs IHash)
   (#?(:clj hashCode :cljs -hash) [_]
     (if-some [h hash-memo]
-      h (set! hash-memo (hash-combine (hash slot) (hash rank)))))
+      h (set! hash-memo (-> (hash Frame)
+                          (hash-combine (hash peer))
+                          (hash-combine (hash slot))
+                          (hash-combine (hash rank))))))
   #?(:cljs IEquiv)
   (#?(:clj equals :cljs -equiv) [_ other]
     (and (instance? Frame other)
+      (= peer (.-peer ^Frame other))
       (= slot (.-slot ^Frame other))
       (= rank (.-rank ^Frame other))))
   IFn
@@ -291,7 +293,6 @@ T T T -> (EXPR T)
 
 (defn frame-ctor
   "Returns the constructor of given frame."
-  {:tag Ctor}
   [^Frame frame]
   (.-ctor frame))
 
@@ -299,13 +300,19 @@ T T T -> (EXPR T)
   "Returns the peer of given frame."
   {:tag Peer}
   [^Frame frame]
-  (ctor-peer (frame-ctor frame)))
+  (.-peer frame))
 
 (defn frame-cdef
   "Returns the cdef of given frame."
   {:tag Cdef}
   [^Frame frame]
-  (ctor-cdef (frame-ctor frame)))
+  (let [[key idx _ _] (frame-ctor frame)]
+    (peer-cdef (.-peer frame) key idx)))
+
+(defn resolve
+  "Returns the root binding of electric var matching given keyword."
+  [^Frame frame key]
+  ((peer-root (.-peer frame) key)))
 
 (defn frame-call-count
   "Returns the call count of given frame."
@@ -439,7 +446,7 @@ T T T -> (EXPR T)
 (defn define-slot [^Slot slot expr]
   (let [^Frame frame (.-frame slot)
         id (.-id slot)
-        site (if-some [site (let [cdef (ctor-cdef (frame-ctor frame))
+        site (if-some [site (let [cdef (frame-cdef frame)
                                   nodes (.-nodes cdef)
                                   calls (.-calls cdef)]
                               (if (neg? id)
@@ -471,12 +478,13 @@ T T T -> (EXPR T)
       (aset ^objects (.-nodes frame) (- -1 id) port)
       (aset ^objects (.-calls frame) id port)) nil))
 
-(defn make-frame [^Slot slot rank site ctor]
-  (let [cdef (ctor-cdef ctor)
+(defn make-frame [^Peer peer ^Slot slot rank site ctor]
+  (let [[key idx _ _] ctor
+        cdef (peer-cdef peer key idx)
         callc (count (.-calls cdef))
         nodec (count (.-nodes cdef))
-        frame (->Frame slot rank site ctor
-                (int-array (inc callc)) (object-array callc) (object-array callc)
+        frame (->Frame peer slot rank site ctor
+                (i/int-array (inc callc)) (object-array callc) (object-array callc)
                 (object-array (inc nodec)) nil)]
     (define-slot (->Slot frame (- -1 nodec)) ((.-build cdef) frame)) frame))
 
@@ -745,6 +753,7 @@ T T T -> (EXPR T)
 (defn call-transfer [^objects state {:keys [grow degree shrink permutation change freeze]}]
   (let [^Slot slot (aget state call-slot-slot)
         ^Frame parent (.-frame slot)
+        ^Peer peer (.-peer parent)
         id (.-id slot)
         ^ints ranks (.-ranks parent)
         site (port-site (slot-port slot))
@@ -770,13 +779,9 @@ T T T -> (EXPR T)
      :permutation permutation
      :freeze      freeze
      :change      (reduce-kv (fn [change i ctor]
-                               (when-not (instance? Ctor ctor)
-                                 (throw (error (str "Not a constructor - " (pr-str ctor)))))
-                               (when-not (identical? (frame-peer parent) (ctor-peer ctor))
-                                 (throw (error "Can't call foreign constructor.")))
                                (when-some [frame (aget buffer i)] (frame-down frame))
                                (let [rank (aget ranks id)
-                                     frame (make-frame slot rank site ctor)]
+                                     frame (make-frame peer slot rank site ctor)]
                                  (aset buffer i frame)
                                  (aset ranks id (inc rank))
                                  (assoc change i (frame-up frame))))
@@ -803,14 +808,6 @@ T T T -> (EXPR T)
   (let [slot (call frame id)]
     (define-slot slot (->Call expr slot))))
 
-(defn define-free
-  "Defines free variable id for given constructor."
-  [^Ctor ctor id ^Slot slot]
-  (let [^objects free (.-free ctor)]
-    (when-not (nil? (aget free id))
-      (throw (error "Can't redefine free variable.")))
-    (aset free id slot) nil))
-
 (defn lookup
   "Returns the value associated with given key in the dynamic environment of given frame."
   {:tag Expr}
@@ -818,27 +815,21 @@ T T T -> (EXPR T)
    (lookup frame key (->Unbound key)))
   ([^Frame frame key nf]
    (loop [frame frame]
-     (if-some [s ((.-env (frame-ctor frame)) key)]
-       s (if-some [^Slot slot (.-slot frame)]
-           (recur (.-frame slot)) nf)))))
+     (let [[_ _ _ env] (frame-ctor frame)]
+       (if-some [s (env key)]
+         s (if-some [^Slot slot (.-slot frame)]
+             (recur (.-frame slot)) nf))))))
 
-(defn make-ctor
-  "Returns a fresh constructor for cdef coordinates key and idx."
-  {:tag Ctor}
-  [^Frame frame key idx & frees]
-  (let [^Peer peer (frame-peer frame)
-        ^Cdef cdef (((.-defs peer) key) idx)
-        ctor (->Ctor peer key idx (object-array (.-frees cdef)) {} nil)]
-    (run! (partial apply define-free ctor)
-      (eduction (map-indexed vector) frees))
-    ctor))
+(defn ctor
+  "Returns the constructor for cdef coordinates key and idx, with given free variables."
+  [key idx & frees] [key idx (vec frees) {}])
 
 (defn free
   "Returns the free variable id for given frame."
   {:tag Slot}
   [^Frame frame id]
-  (let [^objects free (.-free (frame-ctor frame))]
-    (aget free id)))
+  (let [[_ _ free _] (frame-ctor frame)]
+    (free id)))
 
 (defn peer "
 Returns a peer definition from given definitions and main key.
@@ -851,21 +842,17 @@ Returns a peer definition from given definitions and main key.
                    (aset peer-queue-untap (object-array 1))
                    (aset peer-queue-toggle (object-array 1))
                    (aset peer-queue-ready (object-array 1)))
-                 (int-array peer-queues) state)
+                 (i/int-array peer-queues) state)
           input (m/stream (m/observe events))
           ^Frame root (->> args
-                        (apply bind-args (->Ctor peer main 0 (object-array 0) {} nil))
-                        (make-frame nil 0 :client))]
+                        (eduction (map pure))
+                        (apply dispatch ((defs main)))
+                        (make-frame peer nil 0 :client))]
       (aset state peer-slot-writer-opts
         {:default-handler (t/write-handler
                             (fn [_] "unserializable")
                             (fn [_] (comment TODO fetch port info)))
-         :handlers        {Ctor  (t/write-handler
-                                   (fn [_] "ctor")
-                                   (fn [^Ctor ctor]
-                                     (assert (identical? peer (.-peer ctor)))
-                                     (list* (.-key ctor) (.-idx ctor) (.-env ctor) (.-free ctor))))
-                           Slot  (t/write-handler
+         :handlers        {Slot  (t/write-handler
                                    (fn [_] "slot")
                                    (fn [^Slot slot]
                                      [(.-frame slot) (.-id slot)]))
@@ -889,10 +876,7 @@ Returns a peer definition from given definitions and main key.
                                    (fn [^Pure pure]
                                      (.-value pure)))}})
       (aset state peer-slot-reader-opts
-        {:handlers {"ctor"           (t/read-handler
-                                       (fn [[key idx env & free]]
-                                         (->Ctor peer key idx (object-array free) env nil)))
-                    "slot"           (t/read-handler
+        {:handlers {"slot"           (t/read-handler
                                        (fn [[frame id]]
                                          (->Slot frame id)))
                     "frame"          (t/read-handler
@@ -903,7 +887,7 @@ Returns a peer definition from given definitions and main key.
                                                  parent (peer-frame peer (pop path))
                                                  slot (call parent id)
                                                  site (port-site (slot-port slot))
-                                                 frame (make-frame slot rank site ctor)]
+                                                 frame (make-frame peer slot rank site ctor)]
                                              (frame-share frame) frame))))
                     "join"           (t/read-handler
                                        (fn [input]
@@ -954,19 +938,9 @@ Returns a peer definition from given definitions and main key.
 
 ;; local only
 (defn root-frame [defs main]
-  (->> (bind-args (->Ctor (->Peer :client defs nil nil nil nil nil)
-                    main 0 (object-array 0) {} nil))
-    (make-frame nil 0 :client)
+  (->> (dispatch ((defs main)))
+    (make-frame (->Peer :client defs nil nil nil nil nil) nil 0 :client)
     (m/signal i/combine)))
-
-#?(:clj
-   (def arg-sym
-     (map (comp symbol
-            (partial intern *ns*)
-            (fn [i]
-              (with-meta (symbol (str "%" i))
-                {::type ::node})))
-       (range))))
 
 (defn get-destructure-map [gmap]
   (if (seq? gmap)

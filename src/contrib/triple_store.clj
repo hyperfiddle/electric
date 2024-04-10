@@ -54,7 +54,9 @@
         ]
     (->TripleStore (:o ts) eav ave vea)))
 
-(defn asc [ts e a v] (upd ts e a (fn [_] v)))
+(defn asc
+  ([ts e a v] (upd ts e a (fn [_] v)))
+  ([ts e a v & avs] (apply asc (asc ts e a v) e avs)))
 
 (defn get-entity [ts e] (get (:eav ts) e))
 
