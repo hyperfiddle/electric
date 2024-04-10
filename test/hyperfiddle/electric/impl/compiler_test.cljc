@@ -112,7 +112,7 @@
     `[(r/cdef 0 [:server] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 2))
-          (r/pure (r/node ~'frame 0))))])
+          (r/pure (r/incseq ~'frame (r/node ~'frame 0)))))])
   )
 
 (tests "test-let"
