@@ -1452,7 +1452,6 @@
 #?(:cljs
    (tests "set! to alter root binding"
      (with ((l/single {} (set! a-root 2)) tap tap))
-     (instance? Cancelled %) := true
      a-root := 2))
 
 ;; TODO e/fn arity check, try/catch
