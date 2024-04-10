@@ -900,7 +900,7 @@ sequence.
                                         :shrink      shrink
                                         :degree      global-degree
                                         :permutation (compose
-                                                       (p/split-swap (unchecked-add-int offset size-after) shift shrink)
+                                                       (p/split-swap (unchecked-add-int offset size-after) shrink shift)
                                                        (into {} (map (juxt (comp +offset key) (comp +offset val))) permutation)
                                                        (p/split-swap (unchecked-add-int offset size-before) shift grow))
                                         :change      (into {} (map (juxt (comp +offset key) val)) change)
