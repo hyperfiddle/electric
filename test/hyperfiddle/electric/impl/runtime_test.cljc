@@ -222,29 +222,21 @@
   (c->s @c-ps))
 
 (tests
-  #_(rcf/tap (e/join (e/pure (let [x (e/server 2)] x))))
-
-  (def Main
-    [(r/cdef 0 [:server] [] nil
-       (fn [frame]
-         (r/define-node frame 0 (r/pure 2))
-         (r/ap (r/pure rcf/tap)
-           (r/join (r/ap (r/pure r/incseq) (r/pure frame)
-                     (r/pure (r/node frame 0)))))))])
+  (def peer (peers (rcf/tap (e/join (e/pure (let [x (e/server 2)] x))))))
 
   (def c-ps
-    ((r/peer (fn [!]
-               (def s->c !)
-               #(prn :dispose))
-       :client {::Main Main} ::Main)
+    ((peer :client
+       (fn [!]
+         (def s->c !)
+         #(prn :dispose)))
      #(rcf/tap :step-c) #(rcf/tap :done-c)))
   % := :step-c
 
   (def s-ps
-    ((r/peer (fn [!]
-               (def c->s !)
-               #(prn :dispose))
-       :server {::Main Main} ::Main)
+    ((peer :server
+       (fn [!]
+         (def c->s !)
+         #(prn :dispose)))
      #(rcf/tap :step-s) #(rcf/tap :done-s)))
   (c->s @c-ps)
   % := :step-s
