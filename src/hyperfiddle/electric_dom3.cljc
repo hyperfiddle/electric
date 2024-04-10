@@ -21,7 +21,8 @@
            (ca/is parent some? "DOM node parent cannot be nil. Maybe dom/node is unbound?")
            (m/observe (fn [!] (.appendChild parent elem) (! elem) #(.remove elem)))))
 
-(defmacro with [elem & body] `(binding [node (e/input (appending> ~elem node))] ~@body))
+;; TODO this should be a simple `binding` but the observer doesn't unmount that way
+(defmacro with [elem & body] `(binding [node (e/input (appending> ~elem node))] ~@body node))
 
 #?(:cljs (defn -googDomSetTextContentNoWarn [node str]
            ;; Electric says :infer-warning Cannot infer target type in expression, fixme
@@ -30,10 +31,10 @@
 #?(:cljs (defn ->text-node [] (goog.dom/createTextNode "")))
 
 #?(:cljs (defn text-node? [nd] (= (.-nodeType nd) (.-TEXT_NODE nd))))
-#?(:cljs (defn ensure-not-in-text-node! [nd] (ca/is nd text-node? "Cannot nest dom/text or text nodes in other text nodes")))
+#?(:cljs (defn ensure-not-in-text-node! [nd] (ca/is nd (complement text-node?) "Cannot nest dom/text or text nodes in other text nodes")))
 
 (defmacro text [& strs]
-  `(do (ensure-not-in-text-node! node)
+  `(do #_(ensure-not-in-text-node! node) ; TODO adding this breaks unmounting
        ~@(eduction (map (fn [str]
                           `(with (->text-node)
                              (-googDomSetTextContentNoWarn node ~str))))
@@ -183,6 +184,19 @@
     `(do (let [[k# v#] (e/diff-by key (ordered-props ~m))]
            ($ Property node k# v#))
          nil)))
+
+#?(:cljs
+   (defn listen> [nd typ f opts]
+     (m/observe (fn [!]
+                  (! nil)
+                  (let [! (comp ! f), opts (clj->js opts)]
+                    (.addEventListener nd typ ! opts)) #(.removeEventListener nd typ ! opts)))))
+
+(defmacro listen
+  ([typ] `(listen ~typ identity))
+  ([typ f] `(listen ~typ ~f node))
+  ([nd typ f] `(listen ~nd ~typ ~f nil))
+  ([nd typ f opts] `(listen> ~nd ~typ ~f ~opts)))
 
 #?(:cljs (defn ->elem [t] (goog.dom/createElement t)))
 (defmacro element {:style/indent 1} [t & body] `(with (->elem ~(name t)) ~@body))

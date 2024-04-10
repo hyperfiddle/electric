@@ -24,7 +24,8 @@
   (when-not (pred v)
     (throw (ex-info (str "assertion failed: (" (pr-str predq) " " (pr-str vq) ") for " (pr-str vq) " = " (pr-str v)
                       (when msg (str "\n\n    " msg)))
-             (assoc ex-data ::v v ::pred pred)))))
+             (assoc ex-data ::v v ::pred pred))))
+  v)
 
 (defmacro is
   ([v] `(is ~v some?))
