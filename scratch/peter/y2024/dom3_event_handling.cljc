@@ -28,7 +28,7 @@
 
 (defmacro listen
   ([typ] `(listen ~typ identity))
-  ([typ f] `(listen node ~typ ~f))
+  ([typ f] `(listen dom/node ~typ ~f))
   ([nd typ f] `(listen ~nd ~typ ~f nil))
   ([nd typ f opts] `(e/input (listen1 ~nd ~typ ~f ~opts))))
 
@@ -47,7 +47,7 @@
 
 (defmacro event-log
   ([typ] `(event-log ~typ identity))
-  ([typ f] `(event-log node ~typ ~f))
+  ([typ f] `(event-log dom/node ~typ ~f))
   ([nd typ f] `(event-log ~nd ~typ ~f nil))
   ([nd typ f opts] `(e/input (event-log* ~nd ~typ ~f ~opts))))
 
