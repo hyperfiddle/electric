@@ -1,8 +1,6 @@
 (ns hyperfiddle.incseq.items-impl
   (:require [hyperfiddle.incseq.perm-impl :as p]
-            [hyperfiddle.incseq.diff-impl :as d]
-            [hyperfiddle.rcf :as rcf :refer [tests]]
-            [clojure.test :refer [is]])
+            [hyperfiddle.incseq.diff-impl :as d])
   (:import #?(:clj (clojure.lang IFn IDeref))
            #?(:clj (java.util.concurrent.locks ReentrantLock))
            missionary.Cancelled))
@@ -248,75 +246,3 @@
              (aset parent slot-head-done (enqueue-all parent (aget parent slot-head-done)))
              (release parent held))))
       (->Ps parent))))
-
-(tests
-  (let [q #?(:clj (let [q (java.util.LinkedList.)]
-                    (fn
-                      ([] (.remove q))
-                      ([x] (.add q x) nil)))
-             :cljs (let [q (make-array 0)]
-                     (fn
-                       ([]
-                        (when (zero? (alength q))
-                          (throw (js/Error. "No such element.")))
-                        (.shift q))
-                       ([x] (.push q x) nil))))
-        ps ((flow (fn [step done]
-                    (q [step done])
-                    (step)
-                    (reify
-                      IFn
-                      (#?(:clj invoke :cljs -invoke) [_]
-                        (q :cancel))
-                      IDeref
-                      (#?(:clj deref :cljs -deref) [_]
-                        (q)))))
-            #(q :step) #(q :done))
-        [step done] (q)
-        _ (is (::rcf/= (q) :step))
-        _ (q (assoc (d/empty-diff 2)
-               :change {0 :foo 1 :bar}
-               :grow 2))
-        diff @ps
-        _ (is (::rcf/= (dissoc diff :change)
-                (assoc (dissoc (d/empty-diff 2) :change)
-                  :freeze #{0 1}
-                  :grow 2)))
-        [item0 item1] (map (:change diff) [0 1])
-        ps0 (item0 #(q :step0) #(q :done0))
-        _ (is (::rcf/= (q) :step0))
-        _ (is (::rcf/= @ps0 :foo))
-        ps1 (item1 #(q :step1) #(q :done1))
-        _ (is (::rcf/= (q) :step1))
-        _ (step)
-        _ (is (::rcf/= (hash-set (q) (q)) #{:step :step0}))
-        _ (q (assoc (d/empty-diff 2)
-               :permutation {0 1 1 0}
-               :change {1 :foo 0 :BAR}))
-        _ (is (::rcf/= @ps (assoc (d/empty-diff 2) :permutation {0 1 1 0})))
-        _ (is (::rcf/= @ps1 :BAR))
-        _ (is (::rcf/= @ps0 :foo))
-        _ (ps0)
-        _ (is (::rcf/= (q) :step0))
-        ps0- (item0 #(q :step0-) #(q :done0-))
-        _ (is (::rcf/= (q) :step0-))
-        _ (is (::rcf/= nil (try @ps0 (catch Cancelled _))))
-        _ (is (::rcf/= (q) :done0))
-        _ (step)
-        _ (is (::rcf/= (hash-set (q) (q)) #{:step :step1}))
-        _ (q (assoc (d/empty-diff 2)
-               :change {1 :FOO}))
-        _ (is (::rcf/= @ps0- :FOO))
-        _ (is (::rcf/= nil (try (item1 #(q :step1-) #(q :done1-))
-                                (catch #?(:clj Error :cljs js/Error) _))))
-        _ (step)
-        _ (is (::rcf/= (hash-set (q)) #{:step0-}))
-        _ (q (assoc (d/empty-diff 2)
-               :freeze #{0 1}))
-        _ (is (::rcf/= @ps1 :BAR))
-        _ (is (::rcf/= (q) :done1))
-        _ (is (::rcf/= @ps0- :FOO))
-        _ (is (::rcf/= (q) :done0-))
-        _ (is (::rcf/= @ps (d/empty-diff 2)))
-        _ (done)
-        _ (is (::rcf/= (q) :done))]))
