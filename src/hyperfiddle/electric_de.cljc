@@ -32,7 +32,7 @@ Syntax :
 (pure table)
 ```
 Returns the incremental sequence describing `table`.
-" [expr] `(r/incseq (frame) (::lang/pure ~expr)))
+" [expr] `((::lang/static-vars r/incseq) (frame) (::lang/pure ~expr)))
 
 (defmacro join "
 Syntax :

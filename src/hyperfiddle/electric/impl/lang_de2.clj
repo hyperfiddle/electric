@@ -817,7 +817,8 @@
       (reduce delete-point-recursively ts ce)
       ts)))
 
-(def pure-fns '#{clojure.core/vector clojure.core/hash-map clojure.core/get clojure.core/boolean})
+(def pure-fns '#{clojure.core/vector clojure.core/hash-map clojure.core/get clojure.core/boolean
+                 hyperfiddle.electric.impl.runtime-de/incseq})
 
 (defn implode-point [ts e]              ; remove e, reparent child, keep e as id
   (let [nd (ts/->node ts e), ce (get-child-e ts e), cnd (ts/->node ts ce)]
