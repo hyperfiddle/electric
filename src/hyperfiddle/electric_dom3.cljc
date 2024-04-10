@@ -168,7 +168,7 @@
 
 (e/defn Property [node k v]
   (e/client
-    (cond (style? k) ($ Style node k v)
+    (cond (style? k) ($ Styles node v)
           (class? k) ($ ClassList node v)
           :else      ($ Attribute node k v))))
 
