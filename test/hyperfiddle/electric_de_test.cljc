@@ -941,22 +941,22 @@
     (swap! !t not)
     % := nil))
 
-(def !state (atom true))
+(def !state1 (atom true))
 (tests
-  (reset! !state true)
-  (with ((l/single {} (when (e/watch !state) (tap :touch))) tap tap)
+  (reset! !state1 true)
+  (with ((l/single {} (when (e/watch !state1) (tap :touch))) tap tap)
     % := :touch
-    (reset! !state true)
+    (reset! !state1 true)
     (tap ::nope) % := ::nope))
 
-(def !state (atom true))
+(def !state2 (atom true))
 (tests "e/for in a conditional"
-  (reset! !state true)
-  (with ((l/single {} (tap (if (e/watch !state) 1 (e/for-by identity [_ []])))) tap tap)
+  (reset! !state2 true)
+  (with ((l/single {} (tap (if (e/watch !state2) 1 (e/for-by identity [_ []])))) tap tap)
     % := 1
-    (swap! !state not)
+    (swap! !state2 not)
     % := []
-    (swap! !state not)
+    (swap! !state2 not)
     % := 1)
   )
 
