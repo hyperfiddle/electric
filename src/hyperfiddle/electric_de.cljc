@@ -243,3 +243,16 @@ this tuple. Returns the concatenation of all body results as a single vector.
 
   Standard electric code runs on mount, therefore there is no `on-mount`."
   [f] `(input (on-unmount* ~f))) ; experimental
+
+(defmacro boot-server [opts Main & args]
+  (let [env (merge (lang/normalize-env &env) web-config opts)
+        defs (lang/->defs env ::Main `(e/fn [] ($ ~Main ~@args)))]
+    `(cc/fn [events#] (m/stream (r/peer events# :server ~defs ::Main)))))
+
+(defmacro boot-client [opts Main & args]
+  (let [env (merge (lang/normalize-env &env) web-config opts)
+        defs (lang/->defs env ::Main `(e/fn [] ($ ~Main ~@args)))]
+    `(hyperfiddle.electric-client-de/reload-when-stale
+       (hyperfiddle.electric-client-de/boot-with-retry
+         (cc/fn [events#] (m/stream (r/peer events# :client ~defs ::Main)))
+         hyperfiddle.electric-client-de/connector))))
