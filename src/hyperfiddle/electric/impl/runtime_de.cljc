@@ -847,34 +847,37 @@ Returns a peer definition from given definitions and main key.
           ^Frame root (->> args
                         (eduction (map pure))
                         (apply dispatch ((defs main)))
-                        (make-frame peer nil 0 :client))]
+                        (make-frame peer nil 0 :client))
+          handlers {Slot  (t/write-handler
+                            (fn [_] "slot")
+                            (fn [^Slot slot]
+                              [(.-frame slot) (.-id slot)]))
+                    Frame (t/write-handler
+                            (fn [_] "frame")
+                            (fn [^Frame frame]
+                              [(frame-path frame)
+                               (when-not (frame-shared? frame)
+                                 (frame-share frame)
+                                 (.-ctor frame))]))
+                    Ap    (t/write-handler
+                            (fn [_] "ap")
+                            (fn [^Ap ap]
+                              (.-inputs ap)))
+                    ;; must wrap payload in vector, cf https://github.com/cognitect/transit-cljs/issues/23
+                    Pure  (t/write-handler
+                            (fn [_] "pure")
+                            (fn [^Pure pure]
+                              [(.-value pure)]))
+                    Join  (t/write-handler
+                            (fn [_] "join")
+                            (fn [^Join join]
+                              [(.-input join)]))}
+          default (t/write-handler
+                    (fn [_] "unserializable")
+                    (fn [_]))]
       (aset state peer-slot-writer-opts
-        {:default-handler (t/write-handler
-                            (fn [_] "unserializable")
-                            (fn [_] (comment TODO fetch port info)))
-         :handlers        {Slot  (t/write-handler
-                                   (fn [_] "slot")
-                                   (fn [^Slot slot]
-                                     [(.-frame slot) (.-id slot)]))
-                           Frame (t/write-handler
-                                   (fn [_] "frame")
-                                   (fn [^Frame frame]
-                                     [(frame-path frame)
-                                      (when-not (frame-shared? frame)
-                                        (frame-share frame)
-                                        (.-ctor frame))]))
-                           Join  (t/write-handler
-                                   (fn [_] "join")
-                                   (fn [^Join join]
-                                     (.-input join)))
-                           Ap    (t/write-handler
-                                   (fn [_] "ap")
-                                   (fn [^Ap ap]
-                                     (.-inputs ap)))
-                           Pure  (t/write-handler
-                                   (fn [_] "pure")
-                                   (fn [^Pure pure]
-                                     (.-value pure)))}})
+        #?(:clj {:handlers handlers :default-handler default}
+           :cljs {:handlers (assoc handlers :default default)}))
       (aset state peer-slot-reader-opts
         {:handlers {"slot"           (t/read-handler
                                        (fn [[frame id]]
@@ -890,13 +893,13 @@ Returns a peer definition from given definitions and main key.
                                                  frame (make-frame peer slot rank site ctor)]
                                              (frame-share frame) frame))))
                     "join"           (t/read-handler
-                                       (fn [input]
+                                       (fn [[input]]
                                          (->Join input nil)))
                     "ap"             (t/read-handler
                                        (fn [inputs]
                                          (->Ap inputs nil)))
                     "pure"           (t/read-handler
-                                       (fn [value]
+                                       (fn [[value]]
                                          (->Pure value nil)))
                     "unserializable" (t/read-handler
                                        (fn [_]
