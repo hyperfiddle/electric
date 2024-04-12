@@ -2175,3 +2175,15 @@
              (binding [Self (e/fn [] 111)]
                (tap (= Bar (e/$ Bar)))))) tap tap)
     % := false))
+
+(tests
+  (def !offset (atom 0))
+  (with ((l/local {}
+           (e/cursor [j (let [o (e/watch !offset)]
+                          (e/diff-by identity
+                            (range o (+ o 2))))]
+             (e/server (tap j))))
+         tap tap)
+    (hash-set % %) := #{0 1}
+    (swap! !offset inc)
+    % := 2))
