@@ -916,6 +916,9 @@ Returns a peer definition from given definitions and main key.
              peer-result-success pst))))
       (peer-input-ready peer) peer)))
 
+(defn subject-at [^objects arr slot]
+  (fn [!] (aset arr slot !) #(aset arr slot nil)))
+
 #?(:clj
    (defmethod print-method Slot [^Slot slot ^Writer w]
      (.write w "#Slot[")
