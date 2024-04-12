@@ -1027,3 +1027,37 @@
   (compile* nm env
     (analyze (expand-all env `(::ctor ~form))
       '_ env (->ts))))
+
+(defn collect-deps [deps]
+  (loop [ret (sorted-set) deps deps]
+    (if-some [d (first deps)]
+      (if (ret d)
+        (recur ret (disj deps d))
+        (let [dds (get-deps d)]
+          (recur (conj ret d) (into deps dds))))
+      ret)))
+
+(defn ->source [env root-key efn]
+  (let [expanded (expand-all env efn)
+        _ (when (::print-expansion env) (fipp.edn/pprint expanded))
+        ts (analyze expanded '_ env (->ts))
+        _  (when (::print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
+        ts (analyze-electric env ts)
+        ctors (mapv #(emit-ctor ts % env root-key) (get-ordered-ctors-e ts))
+        source `(fn ([] ~(emit-fn ts (get-root-e ts) root-key))
+                  ([idx#] (case idx# ~@(interleave (range) ctors))))]
+    (when (and (::print-clj-source env) (= :clj (->env-type env))) (fipp.edn/pprint source))
+    (when (and (::print-cljs-source env) (= :cljs (->env-type env))) (fipp.edn/pprint source))
+    [source ts]))
+
+(defn ->defs [env root-key efn]
+  (let [[source ts] (->source env root-key efn)
+        ret-e (get-ret-e ts (get-child-e ts 0))
+        deps (emit-deps ts ret-e)
+        deps (collect-deps deps)
+        defs (into {} (map (fn [dep] [(keyword dep) dep])) deps)
+        defs (assoc defs root-key source)]
+    (when (and (::print-clj-source env) (= :clj (->env-type env))) (fipp.edn/pprint source))
+    (when (and (::print-cljs-source env) (= :cljs (->env-type env))) (fipp.edn/pprint source))
+    (when (::print-defs env) (fipp.edn/pprint defs))
+    defs))
