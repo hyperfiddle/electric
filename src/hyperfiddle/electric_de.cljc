@@ -8,9 +8,10 @@
             [hyperfiddle.rcf :as rcf :refer [tests]]
             #?(:clj [contrib.triple-store :as ts])
             #?(:clj [fipp.edn])
-            [missionary.core :as m]
-            [hyperfiddle.electric-local-def-de :as l])
+            [missionary.core :as m])
   #?(:cljs (:require-macros hyperfiddle.electric-de)))
+
+(def web-config {::lang/peers {:client :cljs, :server :clj}})
 
 #?(:clj (cc/defn dget [v] `(::lang/lookup ~v)))
 #?(:clj (cc/defn ->pos-args [n] (eduction (take n) (map dget) (range))))
@@ -93,22 +94,13 @@ Returns the successive states of items described by `incseq`.
 
 (defmacro defn [nm & fdecl]
   (let [[_defn sym] (macroexpand `(cc/defn ~nm ~@fdecl))
-        env (merge (meta nm) (lang/normalize-env &env) l/web-config {::lang/def nm})
+        env (merge (meta nm) (lang/normalize-env &env) web-config {::lang/def nm})
         nm2 (vary-meta nm merge (meta sym))
-        expanded (lang/expand-all env `(-fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))
-        _ (when (::lang/print-expansion env) (fipp.edn/pprint expanded))
-        ts (lang/analyze expanded '_ env (lang/->ts))
-        ts (lang/analyze-electric env ts)
-        k (-> nm ns-qualify keyword)
-        ctors (mapv #(lang/emit-ctor ts % env k) (lang/get-ordered-ctors-e ts))
-        source `(cc/fn ~nm ([] ~(lang/emit-fn ts (lang/get-root-e ts) k))
-                  ([idx#] (case idx# ~@(interleave (range) ctors))))
+        [source ts] (lang/->source env (-> nm ns-qualify keyword)
+                      `(-fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))
         deps (lang/emit-deps ts (lang/get-root-e ts))
         nm3 (vary-meta nm2 assoc ::lang/deps `'~deps)]
-    (when-not (::lang/has-edef? (meta *ns*))
-      (alter-meta! *ns* assoc ::lang/has-edef? true))
-    (when (and (::lang/print-clj-source env) (= :clj (lang/->env-type env))) (fipp.edn/pprint source))
-    (when (and (::lang/print-cljs-source env) (= :cljs (lang/->env-type env))) (fipp.edn/pprint source))
+    (when-not (::lang/has-edef? (meta *ns*)) (alter-meta! *ns* assoc ::lang/has-edef? true))
     `(def ~nm3 ~source)))
 
 (defmacro amb "
