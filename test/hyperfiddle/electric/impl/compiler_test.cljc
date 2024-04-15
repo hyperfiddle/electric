@@ -10,6 +10,7 @@
             [hyperfiddle.rcf :as rcf :refer [tests]]
             [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred referred-fn]]
             #?(:clj [contrib.test-match :as tm])
+            #?(:cljs [goog.math :as gm])
             [fipp.edn]
             [missionary.core :as m])
   #?(:clj (:import [clojure.lang ExceptionInfo])))
@@ -513,6 +514,12 @@
     (fn [~'frame]
      (r/define-node ~'frame 0 (r/pure 1))
      (r/ap (r/pure vector) (r/node ~'frame 0))))])) ; shim, conveyed `x`
+
+(tests
+  "js-vars-have-qualified-lookup"
+  (match (l/test-compile ::Main (e/client (gm/clamp -1 0 5)))
+    `[(r/cdef 0 [] [] :client
+        (fn [~'frame] (r/ap (r/lookup ~'frame :goog.math/clamp) (r/pure -1) (r/pure 0) (r/pure 5))))]))
 
 (comment
 

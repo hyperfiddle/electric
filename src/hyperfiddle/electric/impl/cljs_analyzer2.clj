@@ -239,3 +239,8 @@
       (string? (-> a ::nses (get ns$) ::requires (get (-> sym namespace symbol)))))
     (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]
       (referred-from-js-require? a ns$ ref))))
+
+(defn ns-qualify [a sym ns$]
+  (if-some [qual-ns (keep-if (-> a ::nses (get ns$) ::requires (get (-> sym namespace symbol))) symbol?)]
+    (symbol (str qual-ns) (name sym))
+    sym))

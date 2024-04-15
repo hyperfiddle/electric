@@ -403,7 +403,7 @@
 (defn analyze-cljs-symbol [sym env]
   (if-some [v (cljs-ana/find-var @!a sym (get-ns env))]
     {::type ::var, ::sym (untwin (::cljs-ana/name v))}
-    {::type ::static, ::sym sym}))
+    {::type ::static, ::sym (if (qualified-symbol? sym) (cljs-ana/ns-qualify @!a sym (get-ns env)) sym)}))
 
 (defn resolve-symbol [sym env]
   (if-some [local (-> env :locals (get sym))]
