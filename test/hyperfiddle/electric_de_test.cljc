@@ -7,6 +7,7 @@
             [hyperfiddle.electric.impl.runtime-de :as r]
             [contrib.cljs-target :refer [do-browser]]
             #?(:cljs [hyperfiddle.goog-calls-test-de])
+            #?(:cljs [hyperfiddle.js-calls-test-de])
             [clojure.string :as str]
             [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip failing]]))
@@ -1228,11 +1229,11 @@
                                        (Math/min 3 3))))) tap tap)
     % := [1 2]))
 
-(def !state (atom 0))
+(def !state3 (atom 0))
 (def global)
 (tests "Inline cc/fn support"
-  (reset! !state 0)
-  (with ((l/single {} (let [state (e/watch !state)
+  (reset! !state3 0)
+  (with ((l/single {} (let [state (e/watch !state3)
                             local [:local state]
                             f     (binding [global [:global state]]
                                     (fn ([a] [a local hyperfiddle.electric-de-test/global])
@@ -1244,22 +1245,22 @@
     % := [0 [:local 0] [:global 0]]
     % := [0 :b [:local 0] [:global 0]]
     % := [0 :b '(:c :d) [:local 0] [:global 0]]
-    (swap! !state inc)
+    (swap! !state3 inc)
     % := [1 [:local 1] [:global 1]]
     % := [1 :b [:local 1] [:global 1]]
     % := [1 :b '(:c :d) [:local 1] [:global 1]]))
 
-(def !state (atom 0))
+(def !state4 (atom 0))
 (tests
-  (reset! !state 0)
+  (reset! !state4 0)
   (with ((l/single {}
-           (let [state (e/watch !state)]
+           (let [state (e/watch !state4)]
              (tap [state state])
              (tap [state state])))
          tap tap)
     % := [0 0]
     % := [0 0]
-    (swap! !state inc)
+    (swap! !state4 inc)
     % := [1 1]
     % := [1 1]))
 

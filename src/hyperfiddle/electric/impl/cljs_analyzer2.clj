@@ -219,12 +219,23 @@
           :else
           (let [sym-ns$ (-> sym namespace symbol), sym-base$ (-> sym name symbol)]
             (or (when-some [sym-ns$ (-> a ::nses (get ns$) ::requires (get sym-ns$))]
-                (safe-require sym-ns$)
-                (some-> (find-ns sym-ns$) (find-ns-var sym-base$)))
+                  (when (symbol? sym-ns$)
+                    (safe-require sym-ns$)
+                    (some-> (find-ns sym-ns$) (find-ns-var sym-base$))))
               (when-some [sym-ns$ (-> a ::nses (get ns$) ::require-macros (get sym-ns$))]
-                (safe-require sym-ns$)
-                (some-> (find-ns sym-ns$) (find-ns-var sym-base$)))
+                (when (symbol? sym-ns$)
+                  (safe-require sym-ns$)
+                  (some-> (find-ns sym-ns$) (find-ns-var sym-base$))))
               (some-> (find-ns sym-ns$) (find-ns-var sym-base$)))))
       (keep-if macro-var?))))
 
 (defn ->!a [] (let [!a (atom {})] (analyze-nsT !a (->cljs-env 'cljs.core) 'cljs.core) !a))
+
+(defn- referred-from-js-require? [a ns$ ref] (-> a ::nses (get ns$) ::requires (get (namespace ref))))
+
+(defn js-call? [a sym ns$]
+  (if (qualified-symbol? sym)
+    (or (= "js" (namespace sym))
+      (string? (-> a ::nses (get ns$) ::requires (get (-> sym namespace symbol)))))
+    (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]
+      (referred-from-js-require? a ns$ ref))))
