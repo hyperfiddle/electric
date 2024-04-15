@@ -531,8 +531,11 @@
         (quote) (let [e (->id)]
                   (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                     (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})))
-        (fn*) (let [e (->id), [form refs] (closure env form)]
-                (ap-literal form refs pe e env (?add-source-map ts e form)))
+        (fn*) (let [e (->id), [form refs] (closure env form)
+                    current (get (::peers env) (::current env))]
+                (if (or (nil? current) (= (->env-type env) current))
+                  (ap-literal form refs pe e env (?add-source-map ts e form))
+                  (recur `[~@refs] pe env ts)))
         (::cc-letfn) (let [[_ bs] form, [form refs] (closure env `(letfn* ~bs ~(vec (take-nth 2 bs)))), e (->id)]
                        (ap-literal form refs pe e env (?add-source-map ts e form)))
         (new) (let [[_ f & args] form, current (get (::peers env) (::current env))]

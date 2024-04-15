@@ -504,6 +504,16 @@
       (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 1)))
       (r/cdef 0 [] [] nil (fn [~'frame] (r/pure 2)))]))
 
+(tests "cc-fn-wrapping-js-constructor"
+  (match (l/test-compile ::Main (e/client (fn [] (js/Date.))))
+    `[(r/cdef 0 [] [] :client
+        (fn [~'frame] (r/pure (vector))))]) ; shim, no conveyed values
+  (match (l/test-compile ::Main (let [x 1] (e/client (fn [] (js/Date. x)))))
+    `[(r/cdef 0 [nil] [] :client
+    (fn [~'frame]
+     (r/define-node ~'frame 0 (r/pure 1))
+     (r/ap (r/pure vector) (r/node ~'frame 0))))])) ; shim, conveyed `x`
+
 (comment
 
   (let [ts (l/code->ts {} (prn :hello))
