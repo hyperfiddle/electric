@@ -928,7 +928,16 @@ Returns a peer definition from given definitions and main key.
      (print-method (.-frame slot) w)
      (.write w " ")
      (print-method (.-id slot) w)
-     (.write w "]")))
+     (.write w "]"))
+   :cljs
+   (extend-protocol IPrintWithWriter
+     Slot
+     (-pr-writer [slot w o]
+       (-write w "#Slot[")
+       (-pr-writer (.-frame slot) w o)
+       (-write w " ")
+       (-write w (.-id slot))
+       (-write w "]"))))
 
 #?(:clj
    (defmethod print-method Frame [^Frame frame ^Writer w]
@@ -940,7 +949,20 @@ Returns a peer definition from given definitions and main key.
            (.write w " ")
            (print-method x w)
            (recur xs))))
-     (.write w "]")))
+     (.write w "]"))
+   :cljs
+   (extend-protocol IPrintWithWriter
+     Frame
+     (-pr-writer [frame w o]
+       (-write w "#Frame[")
+       (when-some [[x & xs] (seq (frame-path frame))]
+         (-write w x)
+         (loop [xs xs]
+           (when-some [[x & xs] xs]
+             (-write w " ")
+             (-write w x)
+             (recur xs))))
+       (-write w "]"))))
 
 ;; local only
 (defn root-frame [defs main]
