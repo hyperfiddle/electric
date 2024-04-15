@@ -351,18 +351,6 @@ T T T -> (EXPR T)
       (aset state peer-slot-output-pending false)
       (step))))
 
-(defn frame-child
-  {:tag Frame}
-  [^Frame frame [call-id rank]]
-  (let [^objects children (.-children frame)]
-    (get (aget children call-id) rank)))
-
-(defn peer-frame
-  {:tag Frame}
-  [^Peer peer path]
-  (let [^objects state (.-state peer)]
-    (reduce frame-child (aget state peer-slot-root) path)))
-
 (defn port-process [^objects port]
   (aget port port-slot-process))
 
@@ -699,8 +687,16 @@ T T T -> (EXPR T)
   [^Frame frame id expr]
   (define-slot (node frame id) expr))
 
-(defn slot-frame [^Slot slot]
+(defn slot-frame
+  "Returns the frame of given slot."
+  {:tag Frame}
+  [^Slot slot]
   (.-frame slot))
+
+(defn slot-id
+  "Returns the id of given slot."
+  [^Slot slot]
+  (.-id slot))
 
 (defn port-attach [_ ^objects port n]
   (let [peer (frame-peer (slot-frame (port-slot port)))]
@@ -855,7 +851,7 @@ Returns a peer definition from given definitions and main key.
                     Frame (t/write-handler
                             (fn [_] "frame")
                             (fn [^Frame frame]
-                              [(frame-path frame)
+                              [(.-slot frame) (.-rank frame)
                                (when-not (frame-shared? frame)
                                  (frame-share frame)
                                  (.-ctor frame))]))
@@ -883,14 +879,11 @@ Returns a peer definition from given definitions and main key.
                                        (fn [[frame id]]
                                          (->Slot frame id)))
                     "frame"          (t/read-handler
-                                       (fn [[path ctor]]
+                                       (fn [[slot rank ctor]]
                                          (if (nil? ctor)
-                                           (peer-frame peer path)
-                                           (let [[id rank] (peek path)
-                                                 parent (peer-frame peer (pop path))
-                                                 slot (call parent id)
-                                                 site (port-site (slot-port slot))
-                                                 frame (make-frame peer slot rank site ctor)]
+                                           (if (nil? slot)
+                                             root (get (aget ^objects (.-children (slot-frame slot)) (slot-id slot)) rank))
+                                           (let [frame (make-frame peer slot rank (port-site (slot-port slot)) ctor)]
                                              (frame-share frame) frame))))
                     "join"           (t/read-handler
                                        (fn [[input]]
