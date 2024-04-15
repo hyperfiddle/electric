@@ -5,7 +5,8 @@
    [hyperfiddle.electric.impl.cljs-file-to-analyze.include :as inc :include-macros true]
    [hyperfiddle.electric.impl.cljs-file-to-analyze.refer-macros :refer-macros [refmac]]
    [hyperfiddle.electric.impl.cljs-file-to-analyze.runtime :as run :refer [only-macro only-runtime macro-and-runtime]]
-   [clojure.analyzer-testing-auto-alias :as auto-alias :refer [auto-aliased]])
+   [clojure.analyzer-testing-auto-alias :as auto-alias :refer [auto-aliased]]
+   ["some-js-lib" :as jslib :refer [js-referred js-to-rename] :rename {js-to-rename js-renamed}])
   (:require-macros [hyperfiddle.electric.impl.cljs-file-to-analyze.macro-ns :as reqmac :refer [reqmacrefer reqmacrename] :rename {reqmacrename reqmacrenamed}])
   (:use [hyperfiddle.electric.impl.cljs-file-to-analyze.use :only [useme renameme] :rename {renameme use-renamed}])
   (:use-macros [hyperfiddle.electric.impl.cljs-file-to-analyze.use-macros :only [useme-mac renameme-mac] :rename {renameme-mac use-renamed-mac}])
