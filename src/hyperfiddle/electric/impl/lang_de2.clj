@@ -500,6 +500,8 @@
 
 (defn ?update-meta [env form] (cond-> env (meta form) (assoc ::meta (meta form))))
 
+(defn my-turn? [env] (let [c (get (::peers env) (::current env))] (or (nil? c) (= c (->env-type env)))))
+
 (defn analyze [form pe env {{::keys [->id ->uid]} :o :as ts}]
   (let [env (?update-meta env form)]
     (cond
@@ -552,27 +554,38 @@
         ;; (. i1 (isAfter i2))
         ;; (. pt x)
         ;; (. pt -x)
-        (.) (cond
-              (implicit-cljs-nses (second form)) ; (Math/abs -1) expanded to (. Math abs -1)
-              (let [[_ clazz method & method-args] form] ; cljs fails on dot form, so we compile as class call
-                (->class-method-call clazz method method-args pe env form ts))
-
-              (and (symbol? (second form)) (class? (resolve env (second form))))
-              (if (seq? (nth form 2))   ; (. java.time.Instant (ofEpochMilli 1))
-                (let [[_ clazz [method & method-args]] form]
+        (.) (let [me? (my-turn? env)]
+              (cond
+                (implicit-cljs-nses (second form)) ; (Math/abs -1) expanded to (. Math abs -1)
+                (let [[_ clazz method & method-args] form] ; cljs fails on dot form, so we compile as class call
                   (->class-method-call clazz method method-args pe env form ts))
-                (let [[_ clazz x & xs] form]
-                  (->class-method-call clazz x xs pe env form ts)))
 
-              (seq? (nth form 2))       ; (. i1 (isAfter i2))
-              (let [[_ o [method & method-args]] form]
-                (->obj-method-call o method method-args pe env ts))
+                (and (symbol? (second form)) (class? (resolve env (second form))))
+                (if (seq? (nth form 2)) ; (. java.time.Instant (ofEpochMilli 1))
+                  (if me?
+                    (let [[_ clazz [method & method-args]] form]
+                      (->class-method-call clazz method method-args pe env form ts))
+                    (recur `[~@(next (nth form 2))] pe env ts))
+                  (let [[_ clazz x & xs] form] ; (. java.time.instant opEpochMilli 1)
+                    (if me?
+                      (->class-method-call clazz x xs pe env form ts)
+                      (recur `[~@xs] pe env ts))))
 
-              :else
-              (let [[_ o x & xs] form]
-                (if (seq xs)            ; (. i1 isAfter i2)
-                  (->obj-method-call o x xs pe env ts)
-                  (->ap-literal `(fn [oo#] (. oo# ~x)) [o] pe (->id) env ts)))) ; (. pt x)
+                (seq? (nth form 2))     ; (. i1 (isAfter i2))
+                (let [[_ o [method & method-args]] form]
+                  (if me?
+                    (->obj-method-call o method method-args pe env ts)
+                    (recur `[~(second form) ~@(next (nth form 2))] pe env ts)))
+
+                :else
+                (let [[_ o x & xs] form]
+                  (if (seq xs)          ; (. i1 isAfter i2)
+                    (if me?
+                      (->obj-method-call o x xs pe env ts)
+                      (recur `[~o ~@xs] pe env ts))
+                    (if me?             ; (. pt x)
+                      (->ap-literal `(fn [oo#] (. oo# ~x)) [o] pe (->id) env ts)
+                      (recur nil pe env ts))))))
         (binding clojure.core/binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
                                          (recur (if (seq bs)
                                                   `(let* [~@(interleave gs (take-nth 2 (next bs)))]
