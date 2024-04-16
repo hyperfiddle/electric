@@ -515,11 +515,16 @@
      (r/define-node ~'frame 0 (r/pure 1))
      (r/ap (r/pure vector) (r/node ~'frame 0))))])) ; shim, conveyed `x`
 
-(tests
-  "js-vars-have-qualified-lookup"
+(tests "js-vars-have-qualified-lookup"
   (match (l/test-compile ::Main (e/client (gm/clamp -1 0 5)))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame] (r/ap (r/lookup ~'frame :goog.math/clamp) (r/pure -1) (r/pure 0) (r/pure 5))))]))
+
+(tests "peers-dont-compile-foreign-code"
+  (match (l/test-compile ::Main (merge e/web-config (lang/normalize-env {}) {:js-globals {}})
+           (e/server (java.time.Instant/ofEpochMilli 11)))
+    `[(r/cdef 0 [] [] :server
+        (fn [~'frame] (r/pure (vector 11))))]))
 
 (comment
 
