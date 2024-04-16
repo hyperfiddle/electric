@@ -85,6 +85,6 @@
 
 (defmacro scoped-style [& body]
   `(binding [dom/node (new (identity stylesheet<))
-             scope ~(str (munge (gensym "class_")))]
+             scope (str (munge (gensym "class_")))]
      ~@body
      scope))
