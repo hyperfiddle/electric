@@ -197,10 +197,26 @@ T T T -> (EXPR T)
   (#?(:clj deref :cljs -deref) [_]
     (done) (throw e)))
 
-(deftype Unbound [k]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_ step done]
-    (step) (->Failer done (error (str "Unbound electric var lookup - " (pr-str k))))))
+(defn failer [e]
+  (fn [step done]
+    (step)
+    (->Failer done e)))
+
+(deftype Unbound [key ^:unsynchronized-mutable ^:mutable hash-memo]
+  #?(:clj Object)
+  #?(:cljs IHash)
+  (#?(:clj hashCode :cljs -hash) [_]
+    (if-some [h hash-memo]
+      h (set! hash-memo
+          (hash-combine (hash Unbound)
+            (hash key)))))
+  #?(:cljs IEquiv)
+  (#?(:clj equals :cljs -equiv) [_ other]
+    (and (instance? Unbound other)
+      (= key (.-key ^Unbound other))))
+  Expr
+  (deps [_ _] {})
+  (flow [_] (failer (error (str "Unbound electric var lookup - " (pr-str key))))))
 
 (deftype Cdef [frees nodes calls result build])
 
@@ -808,7 +824,7 @@ T T T -> (EXPR T)
   "Returns the value associated with given key in the dynamic environment of given frame."
   {:tag Expr}
   ([^Frame frame key]
-   (lookup frame key (->Unbound key)))
+   (lookup frame key (->Unbound key nil)))
   ([^Frame frame key nf]
    (loop [frame frame]
      (let [[_ _ _ env] (frame-ctor frame)]
@@ -844,30 +860,34 @@ Returns a peer definition from given definitions and main key.
                         (eduction (map pure))
                         (apply dispatch ((defs main)))
                         (make-frame peer nil 0 :client))
-          handlers {Slot  (t/write-handler
-                            (fn [_] "slot")
-                            (fn [^Slot slot]
-                              [(.-frame slot) (.-id slot)]))
-                    Frame (t/write-handler
-                            (fn [_] "frame")
-                            (fn [^Frame frame]
-                              [(.-slot frame) (.-rank frame)
-                               (when-not (frame-shared? frame)
-                                 (frame-share frame)
-                                 (.-ctor frame))]))
-                    Ap    (t/write-handler
-                            (fn [_] "ap")
-                            (fn [^Ap ap]
-                              (.-inputs ap)))
+          handlers {Slot    (t/write-handler
+                              (fn [_] "slot")
+                              (fn [^Slot slot]
+                                [(.-frame slot) (.-id slot)]))
+                    Frame   (t/write-handler
+                              (fn [_] "frame")
+                              (fn [^Frame frame]
+                                [(.-slot frame) (.-rank frame)
+                                 (when-not (frame-shared? frame)
+                                   (frame-share frame)
+                                   (.-ctor frame))]))
+                    Ap      (t/write-handler
+                              (fn [_] "ap")
+                              (fn [^Ap ap]
+                                (.-inputs ap)))
                     ;; must wrap payload in vector, cf https://github.com/cognitect/transit-cljs/issues/23
-                    Pure  (t/write-handler
-                            (fn [_] "pure")
-                            (fn [^Pure pure]
-                              [(.-value pure)]))
-                    Join  (t/write-handler
-                            (fn [_] "join")
-                            (fn [^Join join]
-                              [(.-input join)]))}
+                    Pure    (t/write-handler
+                              (fn [_] "pure")
+                              (fn [^Pure pure]
+                                [(.-value pure)]))
+                    Join    (t/write-handler
+                              (fn [_] "join")
+                              (fn [^Join join]
+                                [(.-input join)]))
+                    Unbound (t/write-handler
+                              (fn [_] "unbound")
+                              (fn [^Unbound unbound]
+                                [(.-key unbound)]))}
           default (t/write-handler
                     (fn [_] "unserializable")
                     (fn [_]))]
@@ -894,6 +914,9 @@ Returns a peer definition from given definitions and main key.
                     "pure"           (t/read-handler
                                        (fn [[value]]
                                          (->Pure value nil)))
+                    "unbound"        (t/read-handler
+                                       (fn [[key]]
+                                         (->Unbound key nil)))
                     "unserializable" (t/read-handler
                                        (fn [_]
                                          (->Failure :unserializable)))}})
