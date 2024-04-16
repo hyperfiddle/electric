@@ -3,7 +3,8 @@
    - No support for at-rules yet."
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2 :as dom]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.electric-css])))
 
 (defn find-rule-index "Find the rule index in the node sheet's CSSRuleList" [node target-rule]
@@ -88,3 +89,53 @@
              scope (str (munge (gensym "class_")))]
      ~@body
      scope))
+
+(defn grid-template
+  "Convenient way to build a string compatible with CSS grid-template rule.
+  Takes a collection of rows definition [dimention1 … dimentionN] or [[[area1 … areaN] dimention] …]
+  And an optional collection of columns dimentions [dimention1 … dimentionN].
+
+  E.g. (grid-template [[[:first-row]  :auto]
+                       [[:second-row] :auto]
+                       [[:third-row] \"1fr\"]]
+        [:auto :auto])
+   := \"\"first-row\" auto \"second-row\" auto \"third-row\" 1fr / auto auto\"
+  "
+  ([rows] (grid-template rows nil))
+  ([rows columns]
+   (let [row           (fn [row]
+                         (if (coll? row)
+                           (if (vector? (first row))
+                             (let [[area dimention] row
+                                   dim              (some-> dimention name)]
+                               (str (pr-str (str/join " " (map name area))) (some->> dim (str " "))))
+                             (name (or (first row) "")))
+                           (name row)))
+         rows          (remove nil? rows)
+         template+rows (str/join " " (map row rows))]
+     (if-not columns
+       template+rows
+       (str template+rows " / " (str/join " " (map name (remove nil? columns))))))))
+
+(comment
+  (grid-template []) := ""
+  (grid-template [:auto]) := "auto"
+  (grid-template [:auto :auto "1fr"]) := "auto auto 1fr"
+  (grid-template [:auto :auto "1fr"] [:auto :auto]) := "auto auto 1fr / auto auto"
+  (grid-template [[[:first-row]  :auto]
+                  [[:second-row] :auto]
+                  [[:third-row]  "1fr"]])
+   := "\"first-row\" auto \"second-row\" auto \"third-row\" 1fr"
+  (grid-template [[[:first-row]  :auto]
+                  [[:second-row] :auto]
+                  [[:third-row]  "1fr"]]
+    [:auto :auto])
+   := "\"first-row\" auto \"second-row\" auto \"third-row\" 1fr / auto auto"
+
+  (grid-template
+    [[[:search :search]   :min-content]
+     [[:refs    :log]     "1fr"]
+     [[:details :details] #_:auto]]
+    [:auto "1fr"])
+   := "\"search search\" min-content \"refs log\" 1fr \"details details\" / auto 1fr"
+  )
