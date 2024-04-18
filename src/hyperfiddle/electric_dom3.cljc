@@ -21,7 +21,6 @@
            (ca/is parent some? "DOM node parent cannot be nil. Maybe dom/node is unbound?")
            (m/observe (fn [!] (.appendChild parent elem) (! elem) #(.remove elem)))))
 
-;; TODO this should be a simple `binding` but the observer doesn't unmount that way
 (defmacro with [elem & body] `(binding [node (e/input (appending> ~elem node))] node ~@body))
 
 #?(:cljs (defn -googDomSetTextContentNoWarn [node str]

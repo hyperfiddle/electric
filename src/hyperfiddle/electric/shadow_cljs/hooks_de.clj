@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric.shadow-cljs.hooks-de
   (:require [clojure.string :as str]
             [hyperfiddle.electric.impl.lang-de2 :as lang]
-            [hyperfiddle.electric.impl.cljs-analyzer :as cljs-ana]))
+            [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]))
 
 (let [!first-run? (volatile! true)]     ; first run is noop
   (defn reload-clj
