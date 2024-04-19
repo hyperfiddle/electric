@@ -45,17 +45,32 @@
     (str "." scope " " selector)
     selector))
 
-(defn rule*
-  ([selector declarations] (rule* `dom/node selector declarations))
-  ([node selector declarations]
-   (when (seq declarations)
-     `(doto (.-style (new (make-rule< ~node (scoped scope ~selector))))
-        ~@(map (fn [[key value]] `(set-property ~key ~value)) declarations)))))
+(defn rule* [node selector declarations]
+  (when (seq declarations)
+    `(doto (.-style (new (make-rule< ~node (scoped scope ~selector))))
+       ~@(map (fn [[key value]] `(set-property ~key ~value)) declarations))))
 
-(defmacro rule
-  ([declarations] (rule* "" declarations))
-  ([selector declarations] (rule* selector declarations))
-  ([node selector declarations] (rule* node selector declarations)))
+(e/def selector "")
+
+(defn concat-selectors [selectorA selectorB]
+  (str selectorA
+    (let [selectorB (str/trim selectorB)]
+      (if (str/starts-with? selectorB "&")
+        (str/replace-first selectorB "&" "")
+        (str " " selectorB)))))
+
+(defmacro rule [selector & declarations]
+  (let [[selector declarations] (if (map? selector) ["&" (cons selector declarations)] [selector declarations])]
+    `(binding [selector (concat-selectors selector ~selector)]
+       ~@(map #(rule* `dom/node `selector %) (filter map? declarations))
+       ~@(remove map? declarations))))
+
+(comment
+  (rule {:color :red})
+  (rule "foo" {:color :red :height 2} {:width 1})
+  (rule "foo" {:color :red}
+        (rule "&.bar" {:color :blue})) 
+  )
 
 (def stylesheet<  "Mount a singleton stylesheet in the documents's <head> to gather all CSS rules"
   #?(:cljs
