@@ -41,7 +41,7 @@
 (defn run-single [frame] (m/reduce #(do %2) nil frame))
 (defmacro single {:style/indent 1} [conf & body]
   (ca/is conf map? "provide config map as first argument")
-  `(run-single (r/root-frame ~(lang/->defs (->env &env conf) ::Main `(e/fn [] (do ~@body))) ::Main)))
+  `(run-single (r/root-frame (r/->defs {::Main ~(lang/->source (->env &env conf) ::Main `(e/fn [] (do ~@body)))}) ::Main)))
 
 (defn run-local [defs main]
   (m/reduce #(do %2) nil
@@ -54,4 +54,4 @@
 
 (defmacro local {:style/indent 1} [conf & body]
   (ca/is conf map? "provide config map as first argument")
-  `(run-local ~(lang/->defs (->env &env conf) ::Main `(e/fn [] (do ~@body))) ::Main))
+  `(run-local (r/->defs {::Main ~(lang/->source (->env &env conf) ::Main `(e/fn [] (do ~@body)))}) ::Main))
