@@ -1234,7 +1234,7 @@ optional `compare` function, `clojure.core/compare` by default.
 
 (def ^{:arglists '([incseq])
        :doc "
-Returns the provided `incseq`'s size as a continuous flow
+Returns the size of `incseq` as a continuous flow.
 "} count*
   (fn [is] (m/reductions (fn [r x] (-> r (+ (:grow x)) (- (:shrink x)))) 0 is)))
 
