@@ -244,3 +244,6 @@
   % := 2
   % := :step-c
   (c->s @c-ps))
+
+(tests
+  (set (keys (r/->defs {:a (fn [_ _] {:b (fn [_ _] {:a (fn [_ _])})})}))) := #{:a :b})
