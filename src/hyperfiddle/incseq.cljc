@@ -40,7 +40,8 @@ successive sequence diffs. Incremental sequences are applicative functors with `
   (:require [hyperfiddle.incseq.perm-impl :as p]
             [hyperfiddle.incseq.diff-impl :as d]
             [hyperfiddle.incseq.items-impl :as i]
-            [hyperfiddle.rcf :refer [tests]])
+            [hyperfiddle.rcf :refer [tests]]
+            [missionary.core :as m])
   (:import #?(:clj (clojure.lang IFn IDeref))
            missionary.Cancelled))
 
@@ -1231,7 +1232,24 @@ optional `compare` function, `clojure.core/compare` by default.
 
 (def ^{:arglists '([incseq])} items i/flow)
 
+(def ^{:arglists '([incseq])
+       :doc "
+Returns the provided `incseq`'s size as a continuous flow
+"} count*
+  (fn [is] (m/reductions (fn [r x] (-> r (+ (:grow x)) (- (:shrink x)))) 0 is)))
+
 ;; unit tests
+
+(tests
+  (def !x (atom [:foo]))
+  (def ps ((count* (diff-by identity (m/watch !x))) #() #()))
+  @ps := 0
+  @ps := 1
+  (swap! !x conj :bar),  @!x := [:foo :bar]
+  @ps := 2
+  (swap! !x pop),        @!x := [:foo]
+  @ps := 1
+  (ps))
 
 (tests "incremental sequences"
   (letfn [(queue []
