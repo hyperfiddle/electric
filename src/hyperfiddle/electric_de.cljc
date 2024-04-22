@@ -95,13 +95,11 @@ Returns the successive states of items described by `incseq`.
 (defmacro defn [nm & fdecl]
   (let [[_defn sym] (macroexpand `(cc/defn ~nm ~@fdecl))
         env (merge (meta nm) (lang/normalize-env &env) web-config {::lang/def nm})
-        nm2 (vary-meta nm merge (meta sym))
-        [source ts] (lang/->source env (-> nm ns-qualify keyword)
-                      `(-fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))
-        deps (lang/emit-deps ts (lang/get-root-e ts))
-        nm3 (vary-meta nm2 assoc ::lang/deps `'~deps)]
+        nm2 (vary-meta nm merge (meta sym) {::lang/node true})
+        source (lang/->source env (-> nm ns-qualify keyword)
+                      `(-fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))]
     (when-not (::lang/has-edef? (meta *ns*)) (alter-meta! *ns* assoc ::lang/has-edef? true))
-    `(def ~nm3 ~source)))
+    `(def ~nm2 ~source)))
 
 (defmacro amb "
 Syntax :
@@ -210,7 +208,7 @@ this tuple. Returns the concatenation of all body results as a single vector.
         (if (< (count static) arity)
           (recur (next args) (conj static (::lang/pure (first args))))
           (cc/apply r/bind-args (r/bind-self ctor) static)))
-      (let [[fixed map? ctor] (r/get-variadic F arity)]
+      (let [[fixed map? ctor] (r/get-variadic "apply" F arity)]
         (if (< fixed offset)
           (loop [args args
                  static static]
@@ -246,13 +244,14 @@ this tuple. Returns the concatenation of all body results as a single vector.
 
 (defmacro boot-server [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
-        defs (lang/->defs env ::Main `(e/fn [] ($ ~Main ~@args)))]
-    `(cc/fn [events#] (m/stream (r/peer events# :server ~defs ::Main)))))
+        source (lang/->source env ::Main `(e/fn [] ($ ~Main ~@args)))]
+    `(cc/fn [events#]
+       (m/stream (r/peer events# :server (r/->defs {::Main ~source}) ::Main)))))
 
 (defmacro boot-client [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
-        defs (lang/->defs env ::Main `(e/fn [] ($ ~Main ~@args)))]
+        source (lang/->source env ::Main `(e/fn [] ($ ~Main ~@args)))]
     `(hyperfiddle.electric-client-de/reload-when-stale
        (hyperfiddle.electric-client-de/boot-with-retry
-         (cc/fn [events#] (m/stream (r/peer events# :client ~defs ::Main)))
+         (cc/fn [events#] (m/stream (r/peer events# :client (r/->defs {::Main ~source}) ::Main)))
          hyperfiddle.electric-client-de/connector))))

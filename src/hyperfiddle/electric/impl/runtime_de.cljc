@@ -1,6 +1,8 @@
 (ns hyperfiddle.electric.impl.runtime-de
   (:refer-clojure :exclude [resolve])
   (:require [hyperfiddle.incseq :as i]
+            [contrib.assert :as ca]
+            [contrib.debug]
             [missionary.core :as m]
             [cognitect.transit :as t])
   (:import missionary.Cancelled
@@ -109,6 +111,13 @@ T T T -> (EXPR T)
   ([f a b c d] (f a b c d))
   ([f a b c d & es] (apply f a b c d es)))
 
+;; TODO the runtime swallows exceptions somewhere
+;; maybe in latest-product, not sure.
+;; investigate and remove this afterwards
+(defn invoke-print-throws [& args]
+  (try (apply invoke args)
+       (catch #?(:clj Throwable :cljs :default) e (#?(:clj prn :cljs js/console.error) e))))
+
 (deftype Ap [inputs
              ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
@@ -126,7 +135,7 @@ T T T -> (EXPR T)
   (deps [_ site]
     (reduce (fn [r x] (merge-with + r (deps x site))) {} inputs))
   (flow [_]
-    (apply i/latest-product invoke (map flow inputs)))
+    (apply i/latest-product invoke-print-throws (map flow inputs)))
   #_#_
   IFn
   (#?(:clj invoke :cljs -invoke) [this step done]
@@ -241,15 +250,15 @@ T T T -> (EXPR T)
 (defn bind-self [ctor]
   (bind ctor :recur (pure ctor)))
 
-(defn arity-mismatch [arity]
-  (throw (error (str "Wrong number of args (" arity ")"))))
+(defn arity-mismatch [nm arity]
+  (throw (error (str nm ": wrong number of args (" arity ")"))))
 
-(defn get-variadic [F arity]
+(defn get-variadic [nm F arity]
   (if-some [[fixed map? ctor] (F -1)]
     (if (< arity fixed)
-      (arity-mismatch arity)
+      (arity-mismatch nm arity)
       [fixed map? ctor])
-    (arity-mismatch arity)))
+    (arity-mismatch nm arity)))
 
 (defn varargs [map?]
   (if map?
@@ -262,16 +271,18 @@ T T T -> (EXPR T)
             (merge m k)) m)))
     (fn [& args] args)))
 
-(defn dispatch [F & args]
+(defn dispatch [nm F & args]
   (let [arity (count args)]
     (if-some [ctor (F arity)]
       (apply bind-args (bind-self ctor) args)
-      (let [[fixed map? ctor] (get-variadic F arity)]
+      (let [[fixed map? ctor] (get-variadic nm F arity)]
         (bind (apply bind-args (bind-self ctor) (take fixed args))
           fixed (apply ap (pure (varargs map?)) (drop fixed args)))))))
 
 (defn peer-root [^Peer peer key]
-  ((.-defs peer) key))
+  (let [defs (.-defs peer)]
+    (when-not (contains? defs key) (throw (error (str (pr-str key) " not defined"))))
+    (defs key)))
 
 (defn peer-cdef
   "Returns the cdef of given constructor."
@@ -858,7 +869,7 @@ Returns a peer definition from given definitions and main key.
           input (m/stream (m/observe events))
           ^Frame root (->> args
                         (eduction (map pure))
-                        (apply dispatch ((defs main)))
+                        (apply dispatch "<root>" ((defs main)))
                         (make-frame peer nil 0 :client))
           handlers {Slot    (t/write-handler
                               (fn [_] "slot")
@@ -982,7 +993,7 @@ Returns a peer definition from given definitions and main key.
 
 ;; local only
 (defn root-frame [defs main]
-  (->> (dispatch ((defs main)))
+  (->> (dispatch "<root>" ((defs main)))
     (make-frame (->Peer :client defs nil nil nil nil nil) nil 0 :client)
     (m/signal i/combine)))
 
@@ -996,3 +1007,11 @@ Returns a peer definition from given definitions and main key.
 (defn cannot-resolve [& args] (throw (ex-info "definition called on a peer that doesn't support it" {:args args})))
 
 (defn tracing [info v] (print "[o_o]" info "=>> ") (prn v) v)
+
+(defn ->defs [mp]
+  (loop [ret {}, left mp]
+    (if-some [[k f] (first left)]
+      (if (ret k)
+        (recur ret (dissoc left k))
+        (recur (assoc ret k f) (merge (dissoc left k) (f :get :deps))))
+      ret)))

@@ -109,7 +109,7 @@
     (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
 
 (defmacro $ [F & args]
-  `(::call ((::static-vars r/dispatch) ~F ~@(map (fn [arg] `(::pure ~arg)) args))))
+  `(::call ((::static-vars r/dispatch) '~F ~F ~@(map (fn [arg] `(::pure ~arg)) args))))
 
 (defn -expand-all [o env]
   (cond
@@ -378,7 +378,7 @@
   (untwin 'a) := 'a
   (untwin 'cljs.core/not-in-clj) := 'cljs.core/not-in-clj)
 
-(defn node? [mt] (::deps mt))
+(defn node? [mt] (::node mt))
 (defn resolve-node [sym env]
   (case (->env-type env)
     :clj (when-some [^clojure.lang.Var vr (resolve env sym)]
@@ -803,6 +803,7 @@
 
 (defn emit-deps [ts e]
   (let [seen (volatile! #{})
+        ret (volatile! (sorted-set))
         mark (fn mark [ts e]
                (if (@seen e)
                  ts
@@ -814,10 +815,10 @@
                      (::site ::join ::pure ::call ::ctor ::mklocal) (recur ts (get-child-e ts e))
                      (::bindlocal) (recur ts (->bindlocal-body-e ts e))
                      (::localref) (recur ts (->> (::ref nd) (->localv-e ts) (get-ret-e ts)))
-                     (::node) (ts/asc ts e ::node-used true)
-                     #_else (throw (ex-info (str "cannot emit-deps/mark on " (pr-str (::type nd))) (or nd {})))))))
-        es (ts/find (mark ts e) ::node-used true)]
-    (into (sorted-set) (map #(::node (ts/->node ts %))) es)))
+                     (::node) (do (vswap! ret conj (::node nd)) ts)
+                     #_else (throw (ex-info (str "cannot emit-deps/mark on " (pr-str (::type nd))) (or nd {})))))))]
+    (mark ts e)
+    @ret))
 
 (defn emit-fn [ts e nm]
   ((fn rec [e]
@@ -831,8 +832,6 @@
          ::mklocal (recur (get-ret-e ts (get-child-e ts e)))
          ::localref (recur (->> (::ref nd) (->localv-e ts) (get-ret-e ts))))))
    e))
-
-(defn get-deps [sym] (-> sym resolve meta ::deps))
 
 (defn delete-point-recursively [ts e]
   (let [ts (ts/del ts e)]
@@ -1051,15 +1050,6 @@
     (analyze (expand-all env `(::ctor ~form))
       '_ env (->ts))))
 
-(defn collect-deps [deps]
-  (loop [ret (sorted-set) deps deps]
-    (if-some [d (first deps)]
-      (if (ret d)
-        (recur ret (disj deps d))
-        (let [dds (get-deps d)]
-          (recur (conj ret d) (into deps dds))))
-      ret)))
-
 (defn ->source [env root-key efn]
   (let [expanded (expand-all env efn)
         _ (when (::print-expansion env) (fipp.edn/pprint expanded))
@@ -1067,20 +1057,11 @@
         _  (when (::print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
         ts (analyze-electric env ts)
         ctors (mapv #(emit-ctor ts % env root-key) (get-ordered-ctors-e ts))
+        deps-set (emit-deps ts (get-root-e ts))
+        deps (into {} (map (fn [dep] [(keyword dep) dep])) deps-set)
         source `(fn ([] ~(emit-fn ts (get-root-e ts) root-key))
-                  ([idx#] (case idx# ~@(interleave (range) ctors))))]
+                  ([idx#] (case idx# ~@(interleave (range) ctors)))
+                  ([get# deps#] ~deps))]
     (when (and (::print-clj-source env) (= :clj (->env-type env))) (fipp.edn/pprint source))
     (when (and (::print-cljs-source env) (= :cljs (->env-type env))) (fipp.edn/pprint source))
-    [source ts]))
-
-(defn ->defs [env root-key efn]
-  (let [[source ts] (->source env root-key efn)
-        ret-e (get-ret-e ts (get-child-e ts 0))
-        deps (emit-deps ts ret-e)
-        deps (collect-deps deps)
-        defs (into {} (map (fn [dep] [(keyword dep) dep])) deps)
-        defs (assoc defs root-key source)]
-    (when (and (::print-clj-source env) (= :clj (->env-type env))) (fipp.edn/pprint source))
-    (when (and (::print-cljs-source env) (= :cljs (->env-type env))) (fipp.edn/pprint source))
-    (when (::print-defs env) (fipp.edn/pprint defs))
-    defs))
+    source))

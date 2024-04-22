@@ -23,10 +23,10 @@
 (defn -is [v pred vq predq msg ex-data]
   (when-not (pred v)
     ;; throws don't show up in electric yet
-    #_(throw (ex-info (str "assertion failed: (" (pr-str predq) " " (pr-str vq) ") for " (pr-str vq) " = " (pr-str v)
+    (throw (ex-info (str "assertion failed: (" (pr-str predq) " " (pr-str vq) ") for " (pr-str vq) " = " (pr-str v)
                       (when msg (str "\n\n    " msg)))
              (assoc ex-data ::v v ::pred pred)))
-    (#?(:clj println :cljs js/console.error)
+    #_(#?(:clj println :cljs js/console.error)
       (str "assertion failed: (" (pr-str predq) " " (pr-str vq) ") for " (pr-str vq) " = " (pr-str v)
         (when msg (str "\n\n    " msg)) (when (seq ex-data) (str "\n\n" ex-data)))))
   v)
