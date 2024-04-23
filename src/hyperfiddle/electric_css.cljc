@@ -7,36 +7,90 @@
             [clojure.string :as str])
   #?(:cljs (:require-macros [hyperfiddle.electric-css])))
 
-(defn find-rule-index "Find the rule index in the node sheet's CSSRuleList" [node target-rule]
-   (let [rules (.-cssRules (.-sheet node))
-         len (.-length rules)]
-     (loop [i 0]
-       (if (< i len)
-         (if (= target-rule (aget rules i))
-           i
-           (recur (inc i)))
-         -1))))
+(defprotocol StyledElement
+  "Define an object containing CSS rules"
+  (sheet [this])
+  (css-rules [this])
+  (find-rule [this rule])
+  (add-rule [this rule] [this rule index])
+  (delete-rule [this rule]))
+
+(defn rule-index "Find the rule index in the node sheet's CSSRuleList" [styled-element target-rule]
+  (let [rules (css-rules styled-element)
+        len (.-length rules)]
+    (loop [i 0]
+      (if (< i len)
+        (if (= target-rule (aget rules i))
+          i
+          (recur (inc i)))
+        -1))))
 
 #?(:cljs
-   (defn make-rule "Create a rule in node's stylesheet, return the created rule." [node selector]
-     (let [sheet (.-sheet node)
-           index (.-length (.-cssRules sheet))]
-       (.insertRule sheet (str selector " {}") index)
-       (aget (.-cssRules sheet) index))))
+   (extend-protocol StyledElement
+     js/HTMLStyleElement
+     (sheet [^js this] (.-sheet this))
+     (css-rules [^js this] (css-rules (sheet this)))
+     (find-rule [this rule] (rule-index this rule))
+     (add-rule
+       ([this rule] (add-rule (sheet this) rule))
+       ([this rule index] (add-rule (sheet this) rule index)))
+     js/CSSStyleSheet
+     (sheet [this] this)
+     (css-rules [^js this] (.-cssRules this))
+     (find-rule [this rule] (rule-index this rule))
+     (add-rule
+       ([this rule] (add-rule this rule (count (css-rules this)))) ; add at the end
+       ([^js this rule index] (.insertRule this rule index)))
+     (delete-rule [^js this rule]
+       (let [idx (find-rule this rule)]
+         (when (> idx -1)
+           (.deleteRule this idx))))
+     js/CSSGroupingRule
+     (sheet [this] this)
+     (css-rules [^js this] (.-cssRules this))
+     (find-rule [this rule] (rule-index this rule))
+     (add-rule
+       ([this rule] (add-rule this rule (count (css-rules this)))) ; add at the end
+       ([^js this rule index] (.insertRule this rule index)))
+     (delete-rule [^js this rule]
+       (let [idx (find-rule this rule)]
+         (when (> idx -1)
+           (.deleteRule this idx))))
+     js/CSSKeyframesRule ; not a subclass of CSSGroupingRule
+     (sheet [this] this)
+     (css-rules [^js this] (.-cssRules this))
+     (find-rule [^js this rule] (.findRule this (.-keyText rule))) ; identity?
+     (add-rule
+       ([this rule] (add-rule this rule nil)) ; no support for index-based insert
+       ([^js this rule _] (.appendRule this rule)))
+     (delete-rule [^js this rule] (.deleteRule this (.-keyText rule)))))
 
-(defn delete-rule "Remove a given rule from node's stylesheet" [node rule]
-  (let [idx (find-rule-index node rule)]
-    (when (> idx -1)
-      (.deleteRule (.-sheet node) idx))))
+(defprotocol StyleRule
+  "Interface over a CSS rule"
+  (set-property [this key value]))
 
 #?(:cljs
-   (defn make-rule< "Create and emit a rule for `selector` on mount, remove the rule on unmount." [node selector]
+   (extend-protocol StyleRule
+     js/CSSStyleRule
+     (set-property [^js this key value] (set-property (.-style this) key value))
+     js/CSSKeyframeRule ; not a subclass of CSSStyleRule
+     (set-property [^js this key value] (set-property (.-style this) key value))
+     js/CSSStyleDeclaration
+     (set-property [^js this key value] (.setProperty this (dom/to-str key) (dom/to-str value)))))
+
+#?(:cljs
+   (defn make-rule "Create a rule in node's stylesheet, return the created rule." [styled-element selector]
+     (let [sheet (sheet styled-element)
+           index (.-length (css-rules sheet))]
+       (add-rule sheet (str (dom/to-str selector) " {}") index)
+       (aget (css-rules sheet) index))))
+
+#?(:cljs
+   (defn make-rule< "Create and emit a rule for `selector` on mount, remove the rule on unmount." [styled-element selector]
      (m/relieve (m/observe (fn [!]
-                             (let [rule (make-rule node selector)]
+                             (let [rule (make-rule styled-element selector)]
                                (! rule)
-                               #(delete-rule node rule)))))))
-
-(defn set-property [rule key value] (.setProperty rule (dom/to-str key) (dom/to-str value)))
+                               #(delete-rule styled-element rule)))))))
 
 (e/def scope "")
 
@@ -45,9 +99,9 @@
     (str "." scope " " selector)
     selector))
 
-(defn rule* [node selector declarations]
+(defn rule* [styled-element selector declarations]
   (when (seq declarations)
-    `(doto (.-style (new (make-rule< ~node (scoped scope ~selector))))
+    `(doto (new (make-rule< ~styled-element ~selector))
        ~@(map (fn [[key value]] `(set-property ~key ~value)) declarations))))
 
 (e/def selector "")
@@ -61,7 +115,7 @@
 
 (defmacro rule [selector & declarations]
   (let [[selector declarations] (if (map? selector) ["&" (cons selector declarations)] [selector declarations])]
-    `(binding [selector (concat-selectors selector ~selector)]
+    `(binding [selector (scoped scope (concat-selectors selector ~selector))]
        ~@(map #(rule* `dom/node `selector %) (filter map? declarations))
        ~@(remove map? declarations))))
 
@@ -69,8 +123,21 @@
   (rule {:color :red})
   (rule "foo" {:color :red :height 2} {:width 1})
   (rule "foo" {:color :red}
-        (rule "&.bar" {:color :blue})) 
+        (rule "&.bar" {:color :blue}))
   )
+
+(defmacro keyframes "Create an @keyframes <animation-name> rule group. Note @keyframes are always
+  global, even if defined in a scoped style. Can only contain `keyframe` rules."
+  [animation-name & keyframes]
+  `(binding [dom/node (new (make-rule< dom/node ~(str "@keyframes " animation-name)))]
+     ~@keyframes))
+
+(defmacro keyframe
+  "Take a `stop` string (e.g. \"from\", \"to\", \"0%\", \"50%\", etc...) and a map of css declarations to apply at the given `stop`.
+   Will add the animation stop to the current `keyframes`. Can only be used in a `keyframes` block.
+  Note that adding or removing a `keyframe` at runtime resets running animations, but changing a keyframe's content doesn't. "
+  [stop declarations]
+  (rule* `dom/node stop declarations))
 
 (def stylesheet<  "Mount a singleton stylesheet in the documents's <head> to gather all CSS rules"
   #?(:cljs
@@ -82,7 +149,8 @@
        ;;   - perf should be equivalent since we mutates the `<style>`'s stylesheet CSSOM directly.
        (m/observe (fn [!]
                     (let [style (.createElement js/document "style")]
-                      (.add (.-classList style) (str "hyperfiddle_electric-css-"))
+                      (.add (.-classList style) (str "hyperfiddle_electric-css"))
+                      (.appendChild style (.createComment js/document "This node may contain dynamic styles. Inspect them with $(\"style.hyperfiddle_electric-css\").sheet.cssRules ."))
                       (.appendChild (.-head js/document) style)
                       (! style)
                       #(.removeChild (.-parentElement style) style)))))))
