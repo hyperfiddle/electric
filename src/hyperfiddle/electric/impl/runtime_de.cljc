@@ -561,75 +561,76 @@ T T T -> (EXPR T)
   (let [^objects state (.-state peer)
         ^objects queues (.-queues peer)
         ^ints pushes (.-pushes peer)]
-    (loop [toggle #{}
-           change {}
-           freeze #{}
-           tap-pull 0
-           untap-pull 0
-           toggle-pull 0
-           ready-pull 0]
-      (let [^objects tap-queue (aget queues peer-queue-tap)
-            ^objects untap-queue (aget queues peer-queue-untap)
-            ^objects toggle-queue (aget queues peer-queue-toggle)
-            ^objects ready-queue (aget queues peer-queue-ready)]
-        (if-some [^objects remote-port (aget tap-queue tap-pull)]
-          (do (aset tap-queue tap-pull nil)
-              (let [tap-pull (rem (unchecked-inc-int tap-pull)
-                               (alength tap-queue))
-                    prev (aget remote-port port-slot-requested)]
-                (aset remote-port port-slot-requested (inc prev))
-                (reduce-kv local-port-tap nil (port-deps remote-port))
-                (recur (if (zero? (+ prev (aget remote-port port-slot-refcount)))
-                         (conj toggle (port-slot remote-port)) toggle) change freeze
-                  tap-pull untap-pull toggle-pull ready-pull)))
-          (if-some [^objects remote-port (aget untap-queue untap-pull)]
-            (do (aset untap-queue untap-pull nil)
-                (let [untap-pull (rem (unchecked-inc-int untap-pull)
-                                   (alength untap-queue))
-                      curr (dec (aget remote-port port-slot-requested))]
-                  (aset remote-port port-slot-requested curr)
-                  (reduce-kv local-port-untap nil (port-deps remote-port))
-                  (recur (if (zero? (+ curr (aget remote-port port-slot-refcount)))
-                           (conj toggle (port-slot remote-port)) toggle) change freeze
-                    tap-pull untap-pull toggle-pull ready-pull)))
-            (if-some [^objects local-port (aget toggle-queue toggle-pull)]
-              (do (aset toggle-queue toggle-pull nil)
-                  (let [toggle-pull (rem (unchecked-inc-int toggle-pull)
-                                      (alength toggle-queue))]
-                    (if (zero? (aget local-port port-slot-requested))
-                      (do (aset local-port port-slot-requested (identity 1))
-                          (reduce-kv remote-port-tap nil (port-deps local-port))
-                          (when (zero? (aget local-port port-slot-refcount))
-                            (enable local-port)))
-                      (do (aset local-port port-slot-requested (identity 0))
-                          (reduce-kv remote-port-untap nil (port-deps local-port))
-                          (when (zero? (aget local-port port-slot-refcount))
-                            (disable local-port))))
-                    (recur toggle change freeze tap-pull untap-pull toggle-pull ready-pull)))
-              (if-some [^objects local-port (aget ready-queue ready-pull)]
-                (do (aset ready-queue ready-pull nil)
-                    (let [ready-pull (rem (unchecked-inc-int ready-pull)
-                                        (alength ready-queue))]
-                      (if-some [ps (port-process local-port)]
-                        (if (aget local-port port-slot-state)
-                          (recur toggle change (conj freeze (port-slot local-port))
-                            tap-pull untap-pull toggle-pull ready-pull)
-                          (let [diff @ps
-                                slot (port-slot local-port)]
-                            (recur toggle (assoc change
-                                            slot (if-some [p (change slot)]
-                                                   (i/combine p diff) diff))
-                              freeze tap-pull untap-pull toggle-pull ready-pull)))
-                        (recur toggle change freeze tap-pull untap-pull toggle-pull ready-pull))))
-                (let [acks (aget state peer-slot-output-acks)]
-                  (aset state peer-slot-output-acks (identity 0))
-                  (aset state peer-slot-output-pending true)
-                  (aset pushes peer-queue-tap 0)
-                  (aset pushes peer-queue-untap 0)
-                  (aset pushes peer-queue-toggle 0)
-                  (aset pushes peer-queue-ready 0)
-                  (encode [acks toggle change freeze]
-                    (aget state peer-slot-writer-opts)))))))))))
+    (try (loop [toggle #{}
+                change {}
+                freeze #{}
+                tap-pull 0
+                untap-pull 0
+                toggle-pull 0
+                ready-pull 0]
+           (let [^objects tap-queue (aget queues peer-queue-tap)
+                 ^objects untap-queue (aget queues peer-queue-untap)
+                 ^objects toggle-queue (aget queues peer-queue-toggle)
+                 ^objects ready-queue (aget queues peer-queue-ready)]
+             (if-some [^objects remote-port (aget tap-queue tap-pull)]
+               (do (aset tap-queue tap-pull nil)
+                   (let [tap-pull (rem (unchecked-inc-int tap-pull)
+                                    (alength tap-queue))
+                         prev (aget remote-port port-slot-requested)]
+                     (aset remote-port port-slot-requested (inc prev))
+                     (reduce-kv local-port-tap nil (port-deps remote-port))
+                     (recur (if (zero? (+ prev (aget remote-port port-slot-refcount)))
+                              (conj toggle (port-slot remote-port)) toggle) change freeze
+                       tap-pull untap-pull toggle-pull ready-pull)))
+               (if-some [^objects remote-port (aget untap-queue untap-pull)]
+                 (do (aset untap-queue untap-pull nil)
+                     (let [untap-pull (rem (unchecked-inc-int untap-pull)
+                                        (alength untap-queue))
+                           curr (dec (aget remote-port port-slot-requested))]
+                       (aset remote-port port-slot-requested curr)
+                       (reduce-kv local-port-untap nil (port-deps remote-port))
+                       (recur (if (zero? (+ curr (aget remote-port port-slot-refcount)))
+                                (conj toggle (port-slot remote-port)) toggle) change freeze
+                         tap-pull untap-pull toggle-pull ready-pull)))
+                 (if-some [^objects local-port (aget toggle-queue toggle-pull)]
+                   (do (aset toggle-queue toggle-pull nil)
+                       (let [toggle-pull (rem (unchecked-inc-int toggle-pull)
+                                           (alength toggle-queue))]
+                         (if (zero? (aget local-port port-slot-requested))
+                           (do (aset local-port port-slot-requested (identity 1))
+                               (reduce-kv remote-port-tap nil (port-deps local-port))
+                               (when (zero? (aget local-port port-slot-refcount))
+                                 (enable local-port)))
+                           (do (aset local-port port-slot-requested (identity 0))
+                               (reduce-kv remote-port-untap nil (port-deps local-port))
+                               (when (zero? (aget local-port port-slot-refcount))
+                                 (disable local-port))))
+                         (recur toggle change freeze tap-pull untap-pull toggle-pull ready-pull)))
+                   (if-some [^objects local-port (aget ready-queue ready-pull)]
+                     (do (aset ready-queue ready-pull nil)
+                         (let [ready-pull (rem (unchecked-inc-int ready-pull)
+                                            (alength ready-queue))]
+                           (if-some [ps (port-process local-port)]
+                             (if (aget local-port port-slot-state)
+                               (recur toggle change (conj freeze (port-slot local-port))
+                                 tap-pull untap-pull toggle-pull ready-pull)
+                               (let [diff @ps
+                                     slot (port-slot local-port)]
+                                 (recur toggle (assoc change
+                                                 slot (if-some [p (change slot)]
+                                                        (i/combine p diff) diff))
+                                   freeze tap-pull untap-pull toggle-pull ready-pull)))
+                             (recur toggle change freeze tap-pull untap-pull toggle-pull ready-pull))))
+                     (let [acks (aget state peer-slot-output-acks)]
+                       (aset state peer-slot-output-acks (identity 0))
+                       (aset state peer-slot-output-pending true)
+                       (aset pushes peer-queue-tap 0)
+                       (aset pushes peer-queue-untap 0)
+                       (aset pushes peer-queue-toggle 0)
+                       (aset pushes peer-queue-ready 0)
+                       (encode [acks toggle change freeze]
+                         (aget state peer-slot-writer-opts)))))))))
+         (catch #?(:clj Throwable :cljs :default) e (pst e) (throw e)))))
 
 (defn frame-shared? [^Frame frame]
   (if-some [^Slot slot (.-slot frame)]
@@ -774,41 +775,42 @@ T T T -> (EXPR T)
 (def call-slots 2)
 
 (defn call-transfer [^objects state {:keys [grow degree shrink permutation change freeze]}]
-  (let [^Slot slot (aget state call-slot-slot)
-        ^Frame parent (.-frame slot)
-        ^Peer peer (.-peer parent)
-        id (.-id slot)
-        ^ints ranks (.-ranks parent)
-        site (port-site (slot-port slot))
-        size-after (- degree shrink)
-        ^objects buffer (let [^objects buffer (aget state call-slot-buffer)
-                              cap (alength buffer)]
-                          (if (< degree cap)
-                            buffer (let [b (object-array (loop [cap cap]
-                                                           (let [cap (bit-shift-left cap 1)]
-                                                             (if (< degree cap)
-                                                               cap (recur cap)))))]
-                                     #?(:clj  (System/arraycopy buffer 0 b 0 cap)
-                                        :cljs (dotimes [i cap] (aset b i (aget buffer i))))
-                                     (aset state call-slot-buffer b))))]
-    (reduce apply-cycle buffer (i/decompose permutation))
-    (dotimes [i shrink]
-      (let [j (+ size-after i)]
-        (frame-down (aget buffer j))
-        (aset buffer j nil)))
-    {:grow        grow
-     :degree      degree
-     :shrink      shrink
-     :permutation permutation
-     :freeze      freeze
-     :change      (reduce-kv (fn [change i ctor]
-                               (when-some [frame (aget buffer i)] (frame-down frame))
-                               (let [rank (aget ranks id)
-                                     frame (make-frame peer slot rank site ctor)]
-                                 (aset buffer i frame)
-                                 (aset ranks id (inc rank))
-                                 (assoc change i (frame-up frame))))
-                    {} change)}))
+  (try (let [^Slot slot (aget state call-slot-slot)
+             ^Frame parent (.-frame slot)
+             ^Peer peer (.-peer parent)
+             id (.-id slot)
+             ^ints ranks (.-ranks parent)
+             site (port-site (slot-port slot))
+             size-after (- degree shrink)
+             ^objects buffer (let [^objects buffer (aget state call-slot-buffer)
+                                   cap (alength buffer)]
+                               (if (< degree cap)
+                                 buffer (let [b (object-array (loop [cap cap]
+                                                                (let [cap (bit-shift-left cap 1)]
+                                                                  (if (< degree cap)
+                                                                    cap (recur cap)))))]
+                                          #?(:clj  (System/arraycopy buffer 0 b 0 cap)
+                                             :cljs (dotimes [i cap] (aset b i (aget buffer i))))
+                                          (aset state call-slot-buffer b))))]
+         (reduce apply-cycle buffer (i/decompose permutation))
+         (dotimes [i shrink]
+           (let [j (+ size-after i)]
+             (frame-down (aget buffer j))
+             (aset buffer j nil)))
+         {:grow        grow
+          :degree      degree
+          :shrink      shrink
+          :permutation permutation
+          :freeze      freeze
+          :change      (reduce-kv (fn [change i ctor]
+                                    (when-some [frame (aget buffer i)] (frame-down frame))
+                                    (let [rank (aget ranks id)
+                                          frame (make-frame peer slot rank site ctor)]
+                                      (aset buffer i frame)
+                                      (aset ranks id (inc rank))
+                                      (assoc change i (frame-up frame))))
+                         {} change)})
+       (catch #?(:clj Throwable :cljs :default) e (pst e) (throw e))))
 
 (deftype Call [expr slot]
   Expr
@@ -900,7 +902,7 @@ Returns a peer definition from given definitions and main key.
                               (fn [^Unbound unbound]
                                 [(.-key unbound)]))}
           default (t/write-handler
-                    (fn [_] "unserializable")
+                    (fn [v] (prn :unserializable v) "unserializable")
                     (fn [_]))]
       (aset state peer-slot-writer-opts
         #?(:clj {:handlers handlers :default-handler default}
