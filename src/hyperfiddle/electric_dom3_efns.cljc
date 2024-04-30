@@ -355,8 +355,6 @@
   (@!! 5)
   )
 
-(defn nop [])
-
 (defn event->task [flow]
   (uf->is (m/ap
             (let [!busy? (atom false)
