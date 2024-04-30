@@ -327,3 +327,41 @@
   ([typ f] `(event-log node ~typ ~f))
   ([nd typ f] `(event-log ~nd ~typ ~f nil))
   ([nd typ f opts] `(e/join (event-log* ~nd ~typ ~f ~opts))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;
+;;; NEXT ITERATION ;;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+#?(:cljs (defn listen*
+           ([node typ] (listen* node typ identity))
+           ([node typ f] (listen* node typ f {}))
+           ([node typ f opts]
+            (m/observe (fn [!]
+                         (let [! #(! (f %)), opts (clj->js opts)]
+                           (.addEventListener node typ ! opts)
+                           #(.removeEventListener node typ ! opts)))))))
+
+(defn uf->is [uf]
+  (m/ap (m/amb (i/empty-diff 0)
+          (let [!first (atom true) v (m/?> uf)]
+            (assoc (i/empty-diff 1) :grow (if @!first (do (swap! !first not) 1) 0), :change {0 v})))))
+
+(comment
+  (def !! (atom nil))
+  (def ps ((uf->is (m/observe (fn [!] (reset! !! !) #()))) #(prn :step) #(prn :done)))
+  (def v [])
+  (alter-var-root #'v i/patch-vec @ps)
+  (@!! 5)
+  )
+
+(defn nop [])
+
+(defn event->task [flow]
+  (uf->is (m/ap
+            (let [!busy? (atom false)
+                  v (m/?> (m/eduction (remove (fn [_] @!busy?)) flow))
+                  dfv (m/dfv), done! #(dfv false)]
+              (m/amb
+                [v done! (reset! !busy? true)]
+                [v done! (reset! !busy? (m/? dfv))])))))
