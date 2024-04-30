@@ -5,6 +5,7 @@
             [hyperfiddle.electric.impl.io :as electric-io]
             [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
+            [hyperfiddle.incseq :as i]
             [contrib.cljs-target :refer [do-browser]]
             #?(:cljs [hyperfiddle.goog-calls-test-de])
             #?(:cljs [hyperfiddle.js-calls-test-de])
@@ -2188,3 +2189,32 @@
     (hash-set % %) := #{0 1}
     (swap! !offset inc)
     % := 2))
+
+(defn payT [_] (m/sp (m/? (m/sleep 10)) (rand-int 1000)))
+(defn task->incseq [T] (m/ap (m/amb (i/empty-diff 0) (assoc (i/empty-diff 1) :grow 1, :change {0 (m/? T)}))))
+
+(defn uf->is [uf]
+  (m/ap (m/amb (i/empty-diff 0)
+          (let [!first (atom true) v (m/?> uf)]
+            (assoc (i/empty-diff 1) :grow (if @!first (do (swap! !first not) 1) 0), :change {0 v})))))
+
+(defn event->task [flow]
+  (uf->is (m/ap
+            (let [!busy? (atom false)
+                  v (m/?> (m/eduction (remove (fn [_] @!busy?)) flow))
+                  dfv (m/dfv), done! #(dfv false)]
+              (m/amb
+                [v done! (reset! !busy? true)]
+                [v done! (reset! !busy? (m/? dfv))])))))
+
+
+(def !c (atom nil))
+(tests
+  (with ((l/local {}
+           (let [[v done!] (e/join (event->task (m/observe (fn [!] (reset! !c !) #()))))]
+             (case (e/server (e/join (task->incseq (payT v))))
+               (tap (done!))))) tap tap)
+    (@!c 1)
+    % := false
+    (@!c 2)
+    % := false))
