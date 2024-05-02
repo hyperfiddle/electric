@@ -37,7 +37,32 @@
     (try (#'clojure.core/serialized-require sym) ; try bc it can be cljs file
          (catch java.io.FileNotFoundException _))))
 
-(defn macroexpand-clj [o] (serialized-require (ns-name *ns*)) (macroexpand-1 o))
+(defn ?expand-clj-method-call [o]
+  (let [[s & args] o]
+    (if (clojure.lang.Compiler/namesStaticMember s)
+      (let [?class (-> s namespace symbol)]
+        (if (clojure.lang.Compiler$HostExpr/maybeClass ?class false)
+          (list* '. ?class (-> s name symbol) args)
+          o))
+      o)))
+
+(defn macroexpand-clj [o]
+  (serialized-require (ns-name *ns*))
+  (let [o2 (macroexpand-1 o)]
+    (if (identical? o o2)
+      (?expand-clj-method-call o)
+      o2)))
+
+;; -				else if(namesStaticMember(sym))
+;; -					{
+;; -					Symbol target = Symbol.intern(sym.ns);
+;; -					Class c = HostExpr.maybeClass(target, false);
+;; -					if(c != null)
+;; -						{
+;; -						Symbol meth = Symbol.intern(sym.name);
+;; -						return preserveTag(form, RT.listStar(DOT, target, meth, form.next()));
+;; -						}
+;; -					}
 
 (defn expand-referred-or-local-macros [o cljs-macro-env]
   ;; (:require [some.ns :refer [some-macro]])
