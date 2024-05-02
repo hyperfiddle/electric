@@ -56,11 +56,20 @@
 
 (declare -expand-all-in-try)
 
+(defn ?expand-clj-method-call [o]
+  (let [[s & args] o]
+    (if (clojure.lang.Compiler/namesStaticMember s)
+      (let [?class (-> s namespace symbol)]
+        (if (clojure.lang.Compiler$HostExpr/maybeClass ?class false)
+          (list* '. ?class (-> s name symbol) args)
+          o))
+      o)))
+
 (defn macroexpand-clj [o env]
   (serialized-require (ns-name *ns*))
   (if-some [mac (when-some [mac (resolve env (first o))] (when (.isMacro ^clojure.lang.Var mac) mac))]
     (apply mac o env (next o))
-    (try (macroexpand-1 o)   ; e.g. (Math/abs 1) will expand to (. Math abs 1)
+    (try (?expand-clj-method-call o)
          (catch ClassNotFoundException _ o)))) ; e.g. (goog.color/hslToHex ..) won't expand on clj
 
 (def !a (cljs-ana/->!a))

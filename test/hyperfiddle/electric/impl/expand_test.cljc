@@ -151,3 +151,11 @@
                               :ns 'hyperfiddle.electric.impl.expand-unloaded}
                    '(let [x 1]))))
      (throw (ex-info "clj macroexpansion for unloaded ns fails" {}))))
+
+#?(:clj
+   (tests
+     "clojure 1.12 macroexpansion regression on class/method calls"
+     (all '(clojure.lang.PersistentArrayMap/createAsIfByAssoc nil)) := '(. clojure.lang.PersistentArrayMap createAsIfByAssoc nil)
+
+
+))
