@@ -1,24 +1,26 @@
 (ns hyperfiddle.electric.shadow-cljs.hooks-de
-  (:require [clojure.string :as str]
+  (:require [shadow.build.compiler]
             [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]))
 
-(let [!first-run? (volatile! true)]     ; first run is noop
-  (defn reload-clj
-    "When any Electric def is changed, recompile it in both Clojure and ClojureScript
-(because the expression may contain e/client and/or e/server). Takes care to prevent
-double reloads (i.e. from :require-macros)."
-    {:shadow.build/stage :compile-finish} [build-state]
-    (prn ::reload-hook)
-    (if @!first-run?
-      (vreset! !first-run? false)
-      (when (= :dev (:shadow.build/mode build-state))
-        (let [compiled-keys (-> build-state :shadow.build/build-info :compiled)
-              cljc-infos (eduction (filter (fn [[_ f]] (str/ends-with? f ".cljc")))
-                           (map #(get (:sources build-state) %)) compiled-keys)]
-          (doseq [{ns-sym :ns, macro-requires :macro-requires} cljc-infos]
-            (when (and (not (get macro-requires ns-sym)) (-> ns-sym find-ns meta ::lang/has-edef?))
-              (prn ::reloading ns-sym)
-              (swap! lang/!a cljs-ana/purge-ns ns-sym)
-              (require ns-sym :reload))))))
-    build-state))
+;; Shadow-cljs doesn't expose a way to act before compiling a cljs file.
+;; It filters resources in a series of functions, calling `do-compile-cljs-resource` in the end.
+;; So we wrap this final step and alter the var.
+(defonce original-do-compile-cljs-resource shadow.build.compiler/do-compile-cljs-resource)
+(def !built-this-cycle (atom #{}))      ; build once per cycle
+(defonce first-compile? true)           ; on first compile we don't need to recompile
+(defn wrapped-do-compile-cljs-resource [state {ns$ :ns :as rc} source]
+  (swap! lang/!a cljs-ana/purge-ns ns$)
+  (when (and (not (@!built-this-cycle ns$)) (some-> (find-ns ns$) meta ::lang/has-edef?))
+    (prn ::recompile-clj ns$)
+    (require ns$ :reload))
+  (original-do-compile-cljs-resource state rc source))
+
+(defn reload-clj "On `e/defn` change, recompile Clojure namespace (because the expression
+  may contain e/client and/or e/server). Prevents double-reloads (e.g. from :require-macros)."
+  {:shadow.build/stage :compile-finish} [build-state]
+  (when first-compile?
+    (alter-var-root #'first-compile? not)
+    (alter-var-root #'shadow.build.compiler/do-compile-cljs-resource (constantly #'wrapped-do-compile-cljs-resource)))
+  (reset! !built-this-cycle #{})
+  build-state)
