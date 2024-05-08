@@ -172,7 +172,7 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                (set! (.-callback cancel)
                  (cc/fn [_] (set! (.-raf cancel) 0) (n)))
                (n) cancel))
-     
+
      ; 120 hz server, careful this impacts bandwidth in demo-two-clocks
      ; typical UI animation rate is 60 or 120hz, no point in going higher 
      :clj (m/ap (loop [] (m/amb nil (do (m/? (m/sleep (/ 1000 120))) (recur)))))
@@ -391,9 +391,18 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
     (cons `do body))) ; todo, buggy: (e/for [x []] (println 42)) should not print
 
 (defmacro for
-  {:style/indent 1}
+  "List comprehension. Follows the format of `clojure.core/for`, but uses an additional
+   \"key function\" in order to produce differential, reactive updates. Specify the
+   key function like `(e/for ^{:by :id} [v [{:id 0} {:id 1}] …)`."
+  {:clj-kondo/lint-as 'clojure.core/for
+   :style/indent      1}
   [bindings & body]
-  `(hyperfiddle.electric/for-by identity ~bindings ~@body))
+  (let [{:keys [by]} (meta bindings)]
+    (if by
+      `(hyperfiddle.electric/for-by ~by ~bindings ~@body)
+      `(do
+         (log/warn "Using `for` without a key function is unsupported. Please use `(for ^{:by identity} […] …)` explicitly if you're certain that all items are strictly unique.")
+         (hyperfiddle.electric/for-by identity ~bindings ~@body)))))
 
 (cc/defn ^:no-doc watchable? [x]
   #?(:clj (instance? clojure.lang.IRef x)
