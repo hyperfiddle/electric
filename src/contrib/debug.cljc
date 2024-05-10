@@ -49,11 +49,13 @@
       (reify
         IFn (#?(:clj invoke :cljs -invoke) [_] (prn nm id :cancelled) (it))
         IDeref (#?(:clj deref :cljs -deref) [_]
-                 (let [v @it]
+                 (let [v (try @it (catch #?(:clj Throwable :cljs :default) e [::ex e]))]
                    (prn nm id :transferred
                      (if (instance? Failure v)
                        (let [e (.-error v)]
                          [(type e) (ex-message e)])
                        v))
-                   v))))))
+                   (if (and (vector? v) (= ::ex (first v)))
+                     (throw (second v))
+                     v)))))))
 (defmacro instrument [nm & body] `(new (instrument* ~nm (hyperfiddle.electric/fn [] ~@body))))
