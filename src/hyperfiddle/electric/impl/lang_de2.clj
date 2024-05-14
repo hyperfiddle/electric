@@ -459,6 +459,15 @@
         ::site (::site nd)
         #_else (recur (::parent nd))))))
 
+(defn get-local-site [ts localv-e]
+  (let [ret-e (get-ret-e ts localv-e)]
+    (loop [e ret-e]
+      (let [nd (ts/->node ts e)]
+        (case (::type nd)
+          (::localref) (get-local-site ts (->localv-e ts (::ref nd)))
+          (::site) (::site nd)
+          #_else (recur (::parent nd)))))))
+
 (defn get-lookup-key [sym env]
   (if (symbol? sym)
     (let [it (resolve-symbol sym env)]
@@ -1004,8 +1013,7 @@
                                          (cond-> (ts/upd ts mklocal-e ::used-refs #(conj (or % #{}) (::uid nd)))
                                            (or (= 1 (count (::used-refs mklocal-nd))) ; before inc, now it's 2
                                              (when-some [pt-e (find-sitable-point-e ts e)]
-                                               (not= (get-site ts pt-e)
-                                                 (get-site ts (get-ret-e ts localv-e)))))
+                                               (not= (get-site ts pt-e) (get-local-site ts localv-e))))
                                            (ensure-node mklocal-uid)))]
                                 (or (and (@seen mklocal-uid) ts)
                                   (do (vswap! seen conj mklocal-uid)
