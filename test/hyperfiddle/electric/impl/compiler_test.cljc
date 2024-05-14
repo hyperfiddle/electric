@@ -114,7 +114,13 @@
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 2))
           (r/pure (r/incseq ~'frame (r/node ~'frame 0)))))])
-  )
+
+  (match (l/test-compile ::Main (let [x (e/server (identity 1))] (inc x)))
+    `[(r/cdef 0 [:server] [] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/ap (r/lookup ~'frame :clojure.core/identity (r/pure identity)) (r/pure 1)))
+          (r/ap (r/lookup ~'frame :clojure.core/inc (r/pure inc))
+            (r/node ~'frame 0))))]))
 
 (tests "test-let"
   (match (l/test-compile ::Main (::lang/site :client (let [a :foo] [a a])))
@@ -156,10 +162,10 @@
           (r/pure (clojure.core/vector "Hello" "world"))))])
 
   (match (l/test-compile ::Main (e/client (let [a (e/server :foo)] (e/server (prn a)))))
-    `[(r/cdef 0 [:server] [] :server
+    `[(r/cdef 0 [] [] :server
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure :foo))
-          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn)) (r/node ~'frame 0))))])
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn))
+            (r/pure :foo))))])
 
   (match (l/test-compile ::Main (concat (let [x 1] [x x]) (let [y 2] [y y])))
     `[(r/cdef 0 [nil nil] [] nil
