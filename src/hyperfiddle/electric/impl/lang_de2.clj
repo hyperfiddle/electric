@@ -519,7 +519,8 @@
         (let*) (let [[_ bs bform] form]
                  (recur (?meta form
                           (reduce (fn [ac [k v]]
-                                    `(::mklocal k# (::bindlocal k# ~v (::mklocal ~k (::bindlocal ~k k# ~ac)))))
+                                    (let [g (gensym k)]
+                                      `(::mklocal ~g (::bindlocal ~g ~v (::mklocal ~k (::bindlocal ~k ~g ~ac))))))
                             bform (->> bs (partition 2) reverse)))
                    pe env ts))
         (::mklocal) (let [[_ k bform] form, e (->id), uid (->uid)
@@ -631,7 +632,8 @@
                      ;; Due to an early bad assumption only locals are considered for runtime nodes.
                      ;; Since any site change can result in a new node we wrap these sites in an implicit local.
                      ;; Electric aggressively inlines locals, so the generated code size will stay the same.
-                     (recur `(::mklocal k# (::bindlocal k# ~form k#)) pe env2 ts)))
+                     (let [g (gensym "site-local")]
+                       (recur `(::mklocal ~g (::bindlocal ~g ~form ~g)) pe env2 ts))))
         (::frame) (ts/add ts {:db/id (->id), ::parent pe, ::type ::frame})
         (::lookup) (let [[_ sym] form] (ts/add ts {:db/id (->id), ::parent pe, ::type ::lookup, ::sym sym}))
         (::static-vars) (recur (second form) pe (assoc env ::static-vars true) ts)
