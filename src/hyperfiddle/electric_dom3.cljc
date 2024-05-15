@@ -1,12 +1,29 @@
+;; * DONE Replace dom3 by dom3_efn
+;;   G: diffed both files, LGTM
+;; * TODO move event handling to separate ns
+;;   So we can think clearly
+;;   We can always merge back later
+;; * TODO Implement dom/text
+;; * TODO Implement dom/comment
+;; * TODO Implement dom/div
+;; * TODO Implement dom/div nesting
+;; * TODO Implement setting attributes
+;; * TODO Implement setting class
+;; * TODO Implement setting inline style
+;; * TODO Implement event handling
+
 (ns hyperfiddle.electric-dom3
   (:refer-clojure :exclude [time class?])
   (:require
    [clojure.string :as str]
    [contrib.assert :as ca]
+   [contrib.debug]
    #?(:cljs goog.dom)
    #?(:cljs goog.object)
    #?(:cljs goog.style)
    [hyperfiddle.electric-de :as e :refer [$]]
+   [hyperfiddle.electric.impl.lang-de2 :as lang]
+   [hyperfiddle.incseq :as i]
    [hyperfiddle.rcf :as rcf :refer [tests]]
    [missionary.core :as m])
   #?(:clj (:import [clojure.lang ExceptionInfo]))
@@ -14,14 +31,13 @@
 
 (def node)
 
-;; used as a speed hack during unmount
-#?(:cljs (defn ^:no-doc hide [node] (set! (.. node -style -display) "none")))
+#?(:cljs (defn node? [v] (when v (= 1 (.-nodeType v)))))
 
 #?(:cljs (defn appending> [elem parent]
-           (ca/is parent some? "DOM node parent cannot be nil. Maybe dom/node is unbound?")
+           (ca/is parent node? "DOM node parent is not an HTML Node. Maybe dom/node is unbound?" {:parent parent})
            (m/observe (fn [!] (.appendChild parent elem) (! elem) #(.remove elem)))))
 
-(defmacro with [elem & body] `(binding [node (e/input (appending> ~elem node))] node ~@body))
+(e/defn With [elem Body] (binding [node (e/input (appending> elem node))] node ($ Body)))
 
 #?(:cljs (defn -googDomSetTextContentNoWarn [node str]
            ;; Electric says :infer-warning Cannot infer target type in expression, fixme
@@ -32,18 +48,12 @@
 #?(:cljs (defn text-node? [nd] (= (.-nodeType nd) (.-TEXT_NODE nd))))
 #?(:cljs (defn ensure-not-in-text-node! [nd] (ca/is nd (complement text-node?) "Cannot nest dom/text or text nodes in other text nodes")))
 
-(defmacro text [& strs]
-  `(do #_(ensure-not-in-text-node! node) ; TODO adding this breaks unmounting
-       ~@(eduction (map (fn [str]
-                          `(with (->text-node)
-                             (-googDomSetTextContentNoWarn node ~str))))
-           strs)))
+(e/defn Text [str] ($ With (->text-node) (e/fn [] (-googDomSetTextContentNoWarn node str))))
 
-(defmacro comment_ [& strs]
-  `(do ~@(eduction (map (fn [str]
-                          `(with (.createComment js/document "")
-                             (-googDomSetTextContentNoWarn node ~str))))
-           strs)))
+(defmacro text [& strs] `(do (ensure-not-in-text-node! node) ~@(for [s strs] `($ Text ~s))))
+
+(e/defn Comment [str]
+  ($ With (.createComment js/document "") (e/fn [] (-googDomSetTextContentNoWarn node str))))
 
 (def ^:const SVG-NS "http://www.w3.org/2000/svg")
 (def ^:const XLINK-NS "http://www.w3.org/1999/xlink")
@@ -152,7 +162,7 @@
 
 (e/defn Styles [node kvs]
   (e/client
-    (let [[k v] (e/diff-by first kvs)]
+    (e/cursor [[k v] (e/diff-by first kvs)]
       ($ Style node k v))))
 
 (defmacro style [m]
@@ -198,104 +208,191 @@
   ([nd typ f opts] `(listen> ~nd ~typ ~f ~opts)))
 
 #?(:cljs (defn ->elem [t] (goog.dom/createElement t)))
-(defmacro element {:style/indent 1} [t & body] `(with (->elem ~(name t)) ~@body))
 
-(defmacro a {:style/indent 0} [& body] `(element :a ~@body))
-(defmacro abbr {:style/indent 0} [& body] `(element :abbr ~@body))
-(defmacro address {:style/indent 0} [& body] `(element :address ~@body))
-(defmacro area {:style/indent 0} [& body] `(element :area ~@body))
-(defmacro article {:style/indent 0} [& body] `(element :article ~@body))
-(defmacro aside {:style/indent 0} [& body] `(element :aside ~@body))
-(defmacro audio {:style/indent 0} [& body] `(element :audio ~@body))
-(defmacro b {:style/indent 0} [& body] `(element :b ~@body))
-(defmacro bdi {:style/indent 0} [& body] `(element :bdi ~@body))
-(defmacro bdo {:style/indent 0} [& body] `(element :bdo ~@body))
-(defmacro blockquote {:style/indent 0} [& body] `(element :blockquote ~@body))
-(defmacro br {:style/indent 0} [& body] `(element :br ~@body))
-(defmacro button {:style/indent 0} [& body] `(element :button ~@body))
-(defmacro canvas {:style/indent 0} [& body] `(element :canvas ~@body))
-(defmacro cite {:style/indent 0} [& body] `(element :cite ~@body))
-(defmacro code {:style/indent 0} [& body] `(element :code ~@body))
-(defmacro colgroup {:style/indent 0} [& body] `(element :colgroup ~@body))
-(defmacro col {:style/indent 0} [& body] `(element :col ~@body))
-(defmacro data {:style/indent 0} [& body] `(element :data ~@body))
-(defmacro datalist {:style/indent 0} [& body] `(element :datalist ~@body))
-(defmacro del {:style/indent 0} [& body] `(element :del ~@body))
-(defmacro details {:style/indent 0} [& body] `(element :details ~@body))
-(defmacro dfn {:style/indent 0} [& body] `(element :dfn ~@body))
-(defmacro dialog {:style/indent 0} [& body] `(element :dialog ~@body))
-(defmacro div {:style/indent 0} [& body] `(element :div ~@body))
-(defmacro dl "The <dl> HTML element represents a description list. The element encloses a list of groups of terms (specified using the <dt> element) and descriptions (provided by <dd> elements). Common uses for this element are to implement a glossary or to display metadata (a list of key-value pairs)." {:style/indent 0} [& body] `(element :dl ~@body))
-(defmacro dt "The <dt> HTML element specifies a term in a description or definition list, and as such must be used inside a <dl> element. It is usually followed by a <dd> element; however, multiple <dt> elements in a row indicate several terms that are all defined by the immediate next <dd> element." {:style/indent 0} [& body] `(element :dt ~@body))
-(defmacro dd "The <dd> HTML element provides the description, definition, or value for the preceding term (<dt>) in a description list (<dl>)." {:style/indent 0} [& body] `(element :dd ~@body))
-(defmacro em {:style/indent 0} [& body] `(element :em ~@body))
-(defmacro embed {:style/indent 0} [& body] `(element :embed ~@body))
-(defmacro fieldset {:style/indent 0} [& body] `(element :fieldset ~@body))
-(defmacro figure {:style/indent 0} [& body] `(element :figure ~@body))
-(defmacro footer {:style/indent 0} [& body] `(element :footer ~@body))
-(defmacro form {:style/indent 0} [& body] `(element :form ~@body))
-(defmacro h1 {:style/indent 0} [& body] `(element :h1 ~@body))
-(defmacro h2 {:style/indent 0} [& body] `(element :h2 ~@body))
-(defmacro h3 {:style/indent 0} [& body] `(element :h3 ~@body))
-(defmacro h4 {:style/indent 0} [& body] `(element :h4 ~@body))
-(defmacro h5 {:style/indent 0} [& body] `(element :h5 ~@body))
-(defmacro h6 {:style/indent 0} [& body] `(element :h6 ~@body))
-(defmacro header {:style/indent 0} [& body] `(element :header ~@body))
-(defmacro hgroup {:style/indent 0} [& body] `(element :hgroup ~@body))
-(defmacro hr {:style/indent 0} [& body] `(element :hr ~@body))
-(defmacro i {:style/indent 0} [& body] `(element :i ~@body))
-(defmacro iframe {:style/indent 0} [& body] `(element :iframe ~@body))
-(defmacro img {:style/indent 0} [& body] `(element :img ~@body))
-(defmacro input {:style/indent 0} [& body] `(element :input ~@body))
-(defmacro ins {:style/indent 0} [& body] `(element :ins ~@body))
-(defmacro kbd {:style/indent 0} [& body] `(element :kbd ~@body))
-(defmacro label {:style/indent 0} [& body] `(element :label ~@body))
-(defmacro legend {:style/indent 0} [& body] `(element :legend ~@body))
-(defmacro li {:style/indent 0} [& body] `(element :li ~@body))
-(defmacro link {:style/indent 0} [& body] `(element :link ~@body))
-(defmacro main {:style/indent 0} [& body] `(element :main ~@body))
-#_(defmacro map {:style/indent 0} [& body] `(element :map ~@body))
-(defmacro mark {:style/indent 0} [& body] `(element :mark ~@body))
-(defmacro math {:style/indent 0} [& body] `(element :math ~@body))
-(defmacro menu {:style/indent 0} [& body] `(element :menu ~@body))
-(defmacro itemprop {:style/indent 0} [& body] `(element :itemprop ~@body))
-(defmacro meter {:style/indent 0} [& body] `(element :meter ~@body))
-(defmacro nav {:style/indent 0} [& body] `(element :nav ~@body))
-(defmacro noscript {:style/indent 0} [& body] `(element :noscript ~@body))
-(defmacro object {:style/indent 0} [& body] `(element :object ~@body))
-(defmacro ol {:style/indent 0} [& body] `(element :ol ~@body))
-(defmacro option {:style/indent 0} [& body] `(element :option ~@body))
-(defmacro optgroup {:style/indent 0} [& body] `(element :optgroup ~@body))
-(defmacro output {:style/indent 0} [& body] `(element :output ~@body))
-(defmacro p {:style/indent 0} [& body] `(element :p ~@body))
-(defmacro picture {:style/indent 0} [& body] `(element :picture ~@body))
-(defmacro pre {:style/indent 0} [& body] `(element :pre ~@body))
-(defmacro progress {:style/indent 0} [& body] `(element :progress ~@body))
-(defmacro q {:style/indent 0} [& body] `(element :q ~@body))
-(defmacro ruby {:style/indent 0} [& body] `(element :ruby ~@body))
-(defmacro s {:style/indent 0} [& body] `(element :s ~@body))
-(defmacro samp {:style/indent 0} [& body] `(element :samp ~@body))
-(defmacro script {:style/indent 0} [& body] `(element :script ~@body))
-(defmacro section {:style/indent 0} [& body] `(element :section ~@body))
-(defmacro select {:style/indent 0} [& body] `(element :select ~@body))
-(defmacro slot {:style/indent 0} [& body] `(element :slot ~@body))
-(defmacro small {:style/indent 0} [& body] `(element :small ~@body))
-(defmacro span {:style/indent 0} [& body] `(element :span ~@body))
-(defmacro strong {:style/indent 0} [& body] `(element :strong ~@body))
-(defmacro sub {:style/indent 0} [& body] `(element :sub ~@body))
-(defmacro summary {:style/indent 0} [& body] `(element :summary ~@body))
-(defmacro sup {:style/indent 0} [& body] `(element :sup ~@body))
-(defmacro table {:style/indent 0} [& body] `(element :table ~@body))
-(defmacro tbody {:style/indent 0} [& body] `(element :tbody ~@body))
-(defmacro td {:style/indent 0} [& body] `(element :td ~@body))
-(defmacro th {:style/indent 0} [& body] `(element :th ~@body))
-(defmacro thead {:style/indent 0} [& body] `(element :thead ~@body))
-(defmacro tr {:style/indent 0} [& body] `(element :tr ~@body))
-(defmacro template {:style/indent 0} [& body] `(element :template ~@body))
-(defmacro textarea {:style/indent 0} [& body] `(element :textarea ~@body))
-(defmacro time {:style/indent 0} [& body] `(element :time ~@body))
-(defmacro u {:style/indent 0} [& body] `(element :u ~@body))
-(defmacro ul {:style/indent 0} [& body] `(element :ul ~@body))
-(defmacro var {:style/indent 0} [& body] `(element :var ~@body))
-(defmacro video {:style/indent 0} [& body] `(element :video ~@body))
-(defmacro wbr {:style/indent 0} [& body] `(element :wbr ~@body))
+(defmacro a {:style/indent 0} [& body] `($ With (->elem "a") (e/fn [] ~@body)))
+(defmacro abbr {:style/indent 0} [& body] `($ With (->elem "abbr") (e/fn [] ~@body)))
+(defmacro address {:style/indent 0} [& body] `($ With (->elem "address") (e/fn [] ~@body)))
+(defmacro area {:style/indent 0} [& body] `($ With (->elem "area") (e/fn [] ~@body)))
+(defmacro article {:style/indent 0} [& body] `($ With (->elem "article") (e/fn [] ~@body)))
+(defmacro aside {:style/indent 0} [& body] `($ With (->elem "aside") (e/fn [] ~@body)))
+(defmacro audio {:style/indent 0} [& body] `($ With (->elem "audio") (e/fn [] ~@body)))
+(defmacro b {:style/indent 0} [& body] `($ With (->elem "b") (e/fn [] ~@body)))
+(defmacro bdi {:style/indent 0} [& body] `($ With (->elem "bdi") (e/fn [] ~@body)))
+(defmacro bdo {:style/indent 0} [& body] `($ With (->elem "bdo") (e/fn [] ~@body)))
+(defmacro blockquote {:style/indent 0} [& body] `($ With (->elem "blockquote") (e/fn [] ~@body)))
+(defmacro br {:style/indent 0} [& body] `($ With (->elem "br") (e/fn [] ~@body)))
+(defmacro button {:style/indent 0} [& body] `($ With (->elem "button") (e/fn [] ~@body)))
+(defmacro canvas {:style/indent 0} [& body] `($ With (->elem "canvas") (e/fn [] ~@body)))
+(defmacro cite {:style/indent 0} [& body] `($ With (->elem "cite") (e/fn [] ~@body)))
+(defmacro code {:style/indent 0} [& body] `($ With (->elem "code") (e/fn [] ~@body)))
+(defmacro colgroup {:style/indent 0} [& body] `($ With (->elem "colgroup") (e/fn [] ~@body)))
+(defmacro col {:style/indent 0} [& body] `($ With (->elem "col") (e/fn [] ~@body)))
+(defmacro data {:style/indent 0} [& body] `($ With (->elem "data") (e/fn [] ~@body)))
+(defmacro datalist {:style/indent 0} [& body] `($ With (->elem "datalist") (e/fn [] ~@body)))
+(defmacro del {:style/indent 0} [& body] `($ With (->elem "del") (e/fn [] ~@body)))
+(defmacro details {:style/indent 0} [& body] `($ With (->elem "details") (e/fn [] ~@body)))
+(defmacro dfn {:style/indent 0} [& body] `($ With (->elem "dfn") (e/fn [] ~@body)))
+(defmacro dialog {:style/indent 0} [& body] `($ With (->elem "dialog") (e/fn [] ~@body)))
+(defmacro div {:style/indent 0} [& body] `($ With (->elem "div") (e/fn [] ~@body)))
+(defmacro dl "The <dl> HTML element represents a description list. The element encloses a list of groups of terms (specified using the <dt> element) and descriptions (provided by <dd> elements). Common uses for this element are to implement a glossary or to display metadata (a list of key-value pairs)." {:style/indent 0} [& body] `($ With (->elem "dl") (e/fn [] ~@body)))
+(defmacro dt "The <dt> HTML element specifies a term in a description or definition list, and as such must be used inside a <dl> element. It is usually followed by a <dd> element; however, multiple <dt> elements in a row indicate several terms that are all defined by the immediate next <dd> element." {:style/indent 0} [& body] `($ With (->elem "dt") (e/fn [] ~@body)))
+(defmacro dd "The <dd> HTML element provides the description, definition, or value for the preceding term (<dt>) in a description list (<dl>)." {:style/indent 0} [& body] `($ With (->elem "dd") (e/fn [] ~@body)))
+(defmacro em {:style/indent 0} [& body] `($ With (->elem "em") (e/fn [] ~@body)))
+(defmacro embed {:style/indent 0} [& body] `($ With (->elem "embed") (e/fn [] ~@body)))
+(defmacro fieldset {:style/indent 0} [& body] `($ With (->elem "fieldset") (e/fn [] ~@body)))
+(defmacro figure {:style/indent 0} [& body] `($ With (->elem "figure") (e/fn [] ~@body)))
+(defmacro footer {:style/indent 0} [& body] `($ With (->elem "footer") (e/fn [] ~@body)))
+(defmacro form {:style/indent 0} [& body] `($ With (->elem "form") (e/fn [] ~@body)))
+(defmacro h1 {:style/indent 0} [& body] `($ With (->elem "h1") (e/fn [] ~@body)))
+(defmacro h2 {:style/indent 0} [& body] `($ With (->elem "h2") (e/fn [] ~@body)))
+(defmacro h3 {:style/indent 0} [& body] `($ With (->elem "h3") (e/fn [] ~@body)))
+(defmacro h4 {:style/indent 0} [& body] `($ With (->elem "h4") (e/fn [] ~@body)))
+(defmacro h5 {:style/indent 0} [& body] `($ With (->elem "h5") (e/fn [] ~@body)))
+(defmacro h6 {:style/indent 0} [& body] `($ With (->elem "h6") (e/fn [] ~@body)))
+(defmacro header {:style/indent 0} [& body] `($ With (->elem "header") (e/fn [] ~@body)))
+(defmacro hgroup {:style/indent 0} [& body] `($ With (->elem "hgroup") (e/fn [] ~@body)))
+(defmacro hr {:style/indent 0} [& body] `($ With (->elem "hr") (e/fn [] ~@body)))
+(defmacro i {:style/indent 0} [& body] `($ With (->elem "i") (e/fn [] ~@body)))
+(defmacro iframe {:style/indent 0} [& body] `($ With (->elem "iframe") (e/fn [] ~@body)))
+(defmacro img {:style/indent 0} [& body] `($ With (->elem "img") (e/fn [] ~@body)))
+(defmacro input {:style/indent 0} [& body] `($ With (->elem "input") (e/fn [] ~@body)))
+(defmacro ins {:style/indent 0} [& body] `($ With (->elem "ins") (e/fn [] ~@body)))
+(defmacro kbd {:style/indent 0} [& body] `($ With (->elem "kbd") (e/fn [] ~@body)))
+(defmacro label {:style/indent 0} [& body] `($ With (->elem "label") (e/fn [] ~@body)))
+(defmacro legend {:style/indent 0} [& body] `($ With (->elem "legend") (e/fn [] ~@body)))
+(defmacro li {:style/indent 0} [& body] `($ With (->elem "li") (e/fn [] ~@body)))
+(defmacro link {:style/indent 0} [& body] `($ With (->elem "link") (e/fn [] ~@body)))
+(defmacro main {:style/indent 0} [& body] `($ With (->elem "main") (e/fn [] ~@body)))
+#_(defmacro map {:style/indent 0} [& body] `($ With (->elem "map") (e/fn [] ~@body)))
+(defmacro mark {:style/indent 0} [& body] `($ With (->elem "mark") (e/fn [] ~@body)))
+(defmacro math {:style/indent 0} [& body] `($ With (->elem "math") (e/fn [] ~@body)))
+(defmacro menu {:style/indent 0} [& body] `($ With (->elem "menu") (e/fn [] ~@body)))
+(defmacro itemprop {:style/indent 0} [& body] `($ With (->elem "itemprop") (e/fn [] ~@body)))
+(defmacro meter {:style/indent 0} [& body] `($ With (->elem "meter") (e/fn [] ~@body)))
+(defmacro nav {:style/indent 0} [& body] `($ With (->elem "nav") (e/fn [] ~@body)))
+(defmacro noscript {:style/indent 0} [& body] `($ With (->elem "noscript") (e/fn [] ~@body)))
+(defmacro object {:style/indent 0} [& body] `($ With (->elem "object") (e/fn [] ~@body)))
+(defmacro ol {:style/indent 0} [& body] `($ With (->elem "ol") (e/fn [] ~@body)))
+(defmacro option {:style/indent 0} [& body] `($ With (->elem "option") (e/fn [] ~@body)))
+(defmacro optgroup {:style/indent 0} [& body] `($ With (->elem "optgroup") (e/fn [] ~@body)))
+(defmacro output {:style/indent 0} [& body] `($ With (->elem "output") (e/fn [] ~@body)))
+(defmacro p {:style/indent 0} [& body] `($ With (->elem "p") (e/fn [] ~@body)))
+(defmacro picture {:style/indent 0} [& body] `($ With (->elem "picture") (e/fn [] ~@body)))
+(defmacro pre {:style/indent 0} [& body] `($ With (->elem "pre") (e/fn [] ~@body)))
+(defmacro progress {:style/indent 0} [& body] `($ With (->elem "progress") (e/fn [] ~@body)))
+(defmacro q {:style/indent 0} [& body] `($ With (->elem "q") (e/fn [] ~@body)))
+(defmacro ruby {:style/indent 0} [& body] `($ With (->elem "ruby") (e/fn [] ~@body)))
+(defmacro s {:style/indent 0} [& body] `($ With (->elem "s") (e/fn [] ~@body)))
+(defmacro samp {:style/indent 0} [& body] `($ With (->elem "samp") (e/fn [] ~@body)))
+(defmacro script {:style/indent 0} [& body] `($ With (->elem "script") (e/fn [] ~@body)))
+(defmacro section {:style/indent 0} [& body] `($ With (->elem "section") (e/fn [] ~@body)))
+(defmacro select {:style/indent 0} [& body] `($ With (->elem "select") (e/fn [] ~@body)))
+(defmacro slot {:style/indent 0} [& body] `($ With (->elem "slot") (e/fn [] ~@body)))
+(defmacro small {:style/indent 0} [& body] `($ With (->elem "small") (e/fn [] ~@body)))
+(defmacro span {:style/indent 0} [& body] `($ With (->elem "span") (e/fn [] ~@body)))
+(defmacro strong {:style/indent 0} [& body] `($ With (->elem "strong") (e/fn [] ~@body)))
+(defmacro sub {:style/indent 0} [& body] `($ With (->elem "sub") (e/fn [] ~@body)))
+(defmacro summary {:style/indent 0} [& body] `($ With (->elem "summary") (e/fn [] ~@body)))
+(defmacro sup {:style/indent 0} [& body] `($ With (->elem "sup") (e/fn [] ~@body)))
+(defmacro table {:style/indent 0} [& body] `($ With (->elem "table") (e/fn [] ~@body)))
+(defmacro tbody {:style/indent 0} [& body] `($ With (->elem "tbody") (e/fn [] ~@body)))
+(defmacro td {:style/indent 0} [& body] `($ With (->elem "td") (e/fn [] ~@body)))
+(defmacro th {:style/indent 0} [& body] `($ With (->elem "th") (e/fn [] ~@body)))
+(defmacro thead {:style/indent 0} [& body] `($ With (->elem "thead") (e/fn [] ~@body)))
+(defmacro tr {:style/indent 0} [& body] `($ With (->elem "tr") (e/fn [] ~@body)))
+(defmacro template {:style/indent 0} [& body] `($ With (->elem "template") (e/fn [] ~@body)))
+(defmacro textarea {:style/indent 0} [& body] `($ With (->elem "textarea") (e/fn [] ~@body)))
+(defmacro time {:style/indent 0} [& body] `($ With (->elem "time") (e/fn [] ~@body)))
+(defmacro u {:style/indent 0} [& body] `($ With (->elem "u") (e/fn [] ~@body)))
+(defmacro ul {:style/indent 0} [& body] `($ With (->elem "ul") (e/fn [] ~@body)))
+(defmacro var {:style/indent 0} [& body] `($ With (->elem "var") (e/fn [] ~@body)))
+(defmacro video {:style/indent 0} [& body] `($ With (->elem "video") (e/fn [] ~@body)))
+(defmacro wbr {:style/indent 0} [& body] `($ With (->elem "wbr") (e/fn [] ~@body)))
+
+#?(:cljs
+   ;; TODO starts as empty incseq, later singleton changing value
+   (defn listen1 [nd typ f opts]
+     (m/observe (fn [!]
+                  (! nil)
+                  (let [! (comp ! f) , opts (clj->js opts)]
+                    (.addEventListener nd typ ! opts)) #(.removeEventListener nd typ ! opts)))))
+
+(defmacro listen2
+  ([typ] `(listen ~typ identity))
+  ([typ f] `(listen node ~typ ~f))
+  ([nd typ f] `(listen ~nd ~typ ~f nil))
+  ([nd typ f opts] `(e/input (listen1 ~nd ~typ ~f ~opts))))
+
+(defn append-only [<xs]
+  (->> <xs
+    (m/eduction (map-indexed (fn [i x] {:grow 1 :degree (inc i) :shrink 0 :permutation {} :change {i x} :freeze #{i}})))
+    (m/reductions {} (i/empty-diff 0))
+    (m/relieve i/combine)))
+
+#?(:cljs
+   (defn event-log* [nd typ f opts]
+     (append-only
+       (m/observe (fn [!]
+                    (let [! #(when-some [v (f %)] (! v)) , opts (clj->js opts)]
+                      (.addEventListener nd typ ! opts)) #(.removeEventListener nd typ ! opts))))))
+
+(defmacro event-log
+  ([typ] `(event-log ~typ identity))
+  ([typ f] `(event-log node ~typ ~f))
+  ([nd typ f] `(event-log ~nd ~typ ~f nil))
+  ([nd typ f opts] `(e/join (event-log* ~nd ~typ ~f ~opts))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;
+;;; NEXT ITERATION ;;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+#?(:cljs (defn listen*
+           ([node typ] (listen* node typ identity))
+           ([node typ f] (listen* node typ f {}))
+           ([node typ f opts]
+            (m/observe (fn [!]
+                         (let [! #(! (f %)), opts (clj->js opts)]
+                           (.addEventListener node typ ! opts)
+                           #(.removeEventListener node typ ! opts)))))))
+
+#?(:cljs (defn listen*-some
+           ([node typ] (listen*-some node typ identity))
+           ([node typ f] (listen*-some node typ f {}))
+           ([node typ f opts]
+            (m/observe (fn [!]
+                         (let [! #(some-> (f %) !), opts (clj->js opts)]
+                           (.addEventListener node typ ! opts)
+                           #(.removeEventListener node typ ! opts))))
+            #_(m/eduction (filter some?) (listen* node typ f opts)))))
+
+(defn uf->is [uf]
+  (m/ap (m/amb (i/empty-diff 0)
+          (let [!first (atom true) v (m/?> uf)]
+            (assoc (i/empty-diff 1) :grow (if @!first (do (swap! !first not) 1) 0), :change {0 v})))))
+
+(comment
+  (def !! (atom nil))
+  (def ps ((uf->is (m/observe (fn [!] (reset! !! !) #()))) #(prn :step) #(prn :done)))
+  (def v [])
+  (alter-var-root #'v i/patch-vec @ps)
+  (@!! 5)
+  )
+
+(defn event->task [flow]
+  (uf->is (m/ap
+            (let [!busy? (atom false)
+                  v (m/?> (m/eduction (remove (fn [_] @!busy?)) flow))
+                  dfv (m/dfv), done! #(dfv false)]
+              (m/amb
+                [v done! (reset! !busy? true)]
+                [v done! (reset! !busy? (m/? dfv))])))))
+
+(defn event->tasks [flow]
+  (uf->is
+    (m/ap
+      (let [S (i/spine)]
+        (m/amb S
+          (let [v (m/?> flow), id (random-uuid)]
+            (S id {} [v #(S id {} nil)])
+            (m/amb)))))))
