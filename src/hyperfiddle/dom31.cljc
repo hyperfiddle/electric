@@ -76,8 +76,66 @@
 (defmacro comment [& strs] `(do ~@(for [s strs] `($ Comment ~s))))
 
 
+;;;;;;;;;;;;;
+;; Element ;;
+;;;;;;;;;;;;;
 
+;; TODO this is a sketch, finish impl
+(defn mount-items [element {:keys [grow shrink degree permutation change]}]
+  (let [children    (.-childNodes element)
+        move        (i/inverse permutation)
+        size-before (- degree grow)
+        size-after  (- degree shrink)]
+    (loop [i size-before
+           c change]
+      (if (== i degree)
+        (reduce-kv
+          (fn [_ i e]
+            (.replaceChild element e
+              (.item children (move i i))))
+          nil c)
+        (let [j (move i i)]
+          (.appendChild element (c j))
+          (recur (inc i) (dissoc c j)))))
+    (loop [p permutation
+           i degree]
+      (if (== i size-after)
+        (loop [p p]
+          (when-not (= p {})
+            (let [[i j] (first p)]
+              (.insertBefore element (.item children j)
+                (.item children (if (< j i) (inc i) i)))
+              (recur (i/compose p (i/rotation i j))))))
+        (let [i (dec i)
+              j (p i i)]
+          (.removeChild element (.item children j))
+          (recur (i/compose p (i/rotation i j)) i))))
+    element))
 
+(e/defn Element [tag Body]
+  (let [e   (.createElement js/document (name tag))
+        mp  (e/mount-point)
+        tag (e/tag)]
+    (e/input (attach! node tag e)) ; mount and unmount element in parent
+    (e/join (e/mount-items e mp))  ; mount children in this node via mount point
+    (aset e "mount-point" mp)      ; expose mount point to children ; TODO namespace and hide prop using js/Symbol
+    (binding [node e]              ; run continuation
+      (Body.))))
+
+(defmacro element [tag & body]
+  `($ Element tag (e/fn [] (e/amb ~@body))))
+
+;; (defmacro element [tag & body]
+;;   `(let [e# (.createElement js/document ~(name tag))
+;;          mp# (e/mount-point)
+;;          tag# (e/tag)
+;;          parent# (aget node "mount-point")]
+;;      (e/insert! parent# tag# e#)                          ;; mount element in parent
+;;      (e/on-unmount #(e/remove! parent# tag# e#))          ;; unmount element from parent
+;;      (e/join (mount-items node mp#))                      ;; mount children via mount point
+;;      (aset e# "mount-point" mp#)                          ;; expose mount point to children
+;;      (binding [node e#]                                   ;; run continuation
+;;        (e/amb ~@body))))
 
 (clojure.core/comment "comment var is already taken")
 
