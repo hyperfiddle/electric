@@ -303,7 +303,7 @@
                   (let [! (comp ! f) , opts (clj->js opts)]
                     (.addEventListener nd typ ! opts)) #(.removeEventListener nd typ ! opts)))))
 
-(defmacro listen
+(defmacro listen2
   ([typ] `(listen ~typ identity))
   ([typ f] `(listen node ~typ ~f))
   ([nd typ f] `(listen ~nd ~typ ~f nil))
@@ -342,6 +342,16 @@
                            (.addEventListener node typ ! opts)
                            #(.removeEventListener node typ ! opts)))))))
 
+#?(:cljs (defn listen*-some
+           ([node typ] (listen*-some node typ identity))
+           ([node typ f] (listen*-some node typ f {}))
+           ([node typ f opts]
+            (m/observe (fn [!]
+                         (let [! #(some-> (f %) !), opts (clj->js opts)]
+                           (.addEventListener node typ ! opts)
+                           #(.removeEventListener node typ ! opts))))
+            #_(m/eduction (filter some?) (listen* node typ f opts)))))
+
 (defn uf->is [uf]
   (m/ap (m/amb (i/empty-diff 0)
           (let [!first (atom true) v (m/?> uf)]
@@ -363,3 +373,12 @@
               (m/amb
                 [v done! (reset! !busy? true)]
                 [v done! (reset! !busy? (m/? dfv))])))))
+
+(defn event->tasks [flow]
+  (uf->is
+    (m/ap
+      (let [S (i/spine)]
+        (m/amb S
+          (let [v (m/?> flow), id (random-uuid)]
+            (S id {} [v #(S id {} nil)])
+            (m/amb)))))))
