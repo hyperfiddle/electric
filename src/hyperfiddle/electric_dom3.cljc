@@ -1,17 +1,3 @@
-;; * DONE Replace dom3 by dom3_efn
-;;   G: diffed both files, LGTM
-;; * DONE move event handling to separate ns
-;;   So we can think clearly
-;;   We can always merge back later
-;; * TODO Implement dom/text
-;; * TODO Implement dom/comment
-;; * TODO Implement dom/div
-;; * TODO Implement dom/div nesting
-;; * TODO Implement setting attributes
-;; * TODO Implement setting class
-;; * TODO Implement setting inline style
-;; * TODO Implement event handling
-
 (ns hyperfiddle.electric-dom3
   (:refer-clojure :exclude [time class?])
   (:require
