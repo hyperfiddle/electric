@@ -4,7 +4,7 @@
 ;;   So we can think clearly
 ;;   We can always merge back later
 ;; * DONE Implement dom/text
-;; * TODO Implement dom/comment
+;; * DONE Implement dom/comment
 ;; * TODO Implement dom/div
 ;; * TODO Implement dom/div nesting
 ;; * TODO Implement setting attributes
@@ -13,12 +13,18 @@
 ;; * TODO Implement event handling
 
 (ns hyperfiddle.dom31
+  (:refer-clojure :exclude [comment])
   (:require
    [hyperfiddle.electric-de :as e :refer [$]]
    ;; [contrib.assert :as ca]
    [missionary.core :as m]
    ;; [hyperfiddle.electric.impl.lang-de2 :as lang]
-   #?(:cljs [goog.dom])))
+   ;; #?(:cljs [goog.dom])
+   ))
+
+;;;;;;;;;;;;;;;
+;; Reference ;;
+;;;;;;;;;;;;;;;
 
 ;; e/tag                                 ;; electric clojure only. resolves to an invariant+singleton unique identifier.
 ;; (e/mount-point)                       ;; clojure function returning a fresh container associating tags to stateful items which can be observed as an incseq with e/join. The ordering of items reflects the ordering of tags in the program order.
@@ -26,6 +32,11 @@
 ;; (e/insert! mount-point tag init)      ;; add a new item associated with `tag` in `mount-point`, with initial state `init`.
 ;; (e/update! mount-point tag f & args)  ;; change state of item associated with `tag` in `mount-point` by applying function `f` to current state, with optional following arguments `args`.
 ;; (e/remove! mount-point tag)           ;; remove item associated with `tag` in `mount-point`.
+
+
+;;;;;;;;;;;;;
+;; General ;;
+;;;;;;;;;;;;;
 
 (def node)
 
@@ -40,23 +51,38 @@
                     (e/insert! mount-point tag e)
                     #(e/remove! mount-point tag e))))))
 
+;;;;;;;;;;
+;; Text ;;
+;;;;;;;;;;
+
 (e/defn Text [str] ; ^::lang/print-clj-source
   (e/client
-    (let [e (goog.dom/createTextNode "")]
+    (let [e (.createTextNode js/document "")]
       (e/input (attach! node (e/tag) e))
-      (goog.dom/setTextContent e str))))
+      (set! (.-textContent e) str))))
 
 (defmacro text [& strs] `(do ~@(for [s strs] `($ Text ~s))))
 
-(comment
-  (div
-    (text "test"
-          (text (str "hello" "world"))))
-  )
+;;;;;;;;;;;;;
+;; Comment ;;
+;;;;;;;;;;;;;
 
+(e/defn Comment [str] ; ^::lang/print-clj-source
+  (e/client
+    (let [e (.createComment js/document "")]
+      (e/input (attach! node (e/tag) e))
+      (set! (.-textContent e) str))))
+
+(defmacro comment [& strs] `(do ~@(for [s strs] `($ Comment ~s))))
+
+
+
+
+
+(clojure.core/comment "comment var is already taken")
 
 ;; #?(:cljs (defn node? [v] (instance? js/Node v)))
-;; 
+;;
 ;; #?(:cljs (defn appending> [elem parent]
 ;;            (ca/is parent node? "DOM node parent is not an HTML Node. Maybe dom/node is unbound?" {:parent parent})
 ;;            (m/observe (fn [!] (.appendChild parent elem) (! elem) #(.remove elem)))))
@@ -68,3 +94,7 @@
                                         ; like (do) being used to force effects. We will revisit after
                                         ; e/mount-point.
     ($ Body)))
+
+
+;; * Questions for Leo
+;; ** …
