@@ -84,36 +84,59 @@
 ;; Element ;;
 ;;;;;;;;;;;;;
 
-;; TODO this is a sketch, finish impl
-(defn mount-items [element {:keys [grow shrink degree permutation change]}]
-  (let [children    (.-childNodes element)
-        move        (i/inverse permutation)
-        size-before (- degree grow)
-        size-after  (- degree shrink)]
-    (loop [i size-before
-           c change]
-      (if (== i degree)
-        (reduce-kv
-          (fn [_ i e]
-            (.replaceChild element e
-              (.item children (move i i))))
-          nil c)
-        (let [j (move i i)]
-          (.appendChild element (c j))
-          (recur (inc i) (dissoc c j)))))
-    (loop [p permutation
-           i degree]
-      (if (== i size-after)
-        (loop [p p]
-          (when-not (= p {})
-            (let [[i j] (first p)]
-              (.insertBefore element (.item children j)
-                (.item children (if (< j i) (inc i) i)))
-              (recur (i/compose p (i/rotation i j))))))
-        (let [i (dec i)
-              j (p i i)]
-          (.removeChild element (.item children j))
-          (recur (i/compose p (i/rotation i j)) i))))
+;; TODO Understand this with 100% precision.
+;; G: here is my understanding of it (as comments), to be verified.
+;; Leo says its done
+(defn mount-items
+  [element ; a dom element to mount children in
+
+                       ; an incseq's diff
+   {:keys [grow        ; number of added items
+           shrink      ; number of removed items
+           degree      ; max size of collection (after grow, before shrink)
+           permutation ; map of indexes movements e.g. "a replaced by b"
+           change      ; map of index -> value
+           ]}]
+  (let [children    (.-childNodes element)  ; current children of the element to mount in
+        move        (i/inverse permutation) ; permutation is "a replaced by b" move is "b replaces a"
+        size-before (- degree grow)         ; current expected child list size
+        size-after  (- degree shrink)       ; expected child list size after patch
+        ]
+    ;; Step 1 - Additions and replacements by new elements
+    (loop [i      size-before ; start with expected current size and scan left to right, one by one,
+                                        ; until diff's degree (before removals)
+           change change]
+      (if (not (== i degree)) ; If there are items to add
+        ;; Addition
+        (let [j (get move i i)]                 ; get the index where this item is or went
+          (.appendChild element (get change j)) ; add children to the list
+          (recur (inc i) (dissoc change j)))    ; continue with next change.
+        ;; If there are changes but no items to add, then its just in-place changes
+        (run! (fn [[i element']] ; for each change
+                (.replaceChild element element'   ; replace old child at index i by element' (new child)
+                  (.item children (get move i i)) ; get old child index
+                  ))
+          change)))
+    ;; Step 2 - Removals and reorders of existing elements
+    (loop [permutation permutation
+           i           degree]
+      (if (not (== i size-after)) ; if there are extra items
+        ;; Removals
+        (let [i (dec i) ; move to the penultimate item index
+              j (get permutation i i)] ; get the place where the item went (it might have been moved left)
+          (.removeChild element (.item children j)) ; remove child there (causing a shift to the left)
+          (recur (i/compose permutation (i/rotation i j)) i)) ; continue with next extra item, accounting for the left shift
+        ;; Nothing to remove, but children to reorder
+        (loop [permutation permutation]
+          (when-not (= permutation {}) ; if there are still some swaps to apply
+            (let [[i j] (first permutation)] ; we will apply the first swap in the list
+              (.insertBefore element (.item children j) ; insert at target position
+                (.item children                         ; the child from origin position
+                  (if (< j i) (inc i) i))) ; due to insertBefore, if j is left of i, insert to the right of the target position.
+              (recur (i/compose permutation (i/rotation i j))) ; continue with the rotation applied,
+                                                               ; which cancels out remaining swaps
+                                                               ; appropriately.
+              )))))
     element))
 
 (e/defn Element [tag Body]
@@ -121,26 +144,14 @@
     (let [e   (.createElement js/document (name tag))
           mp  (e/mount-point)
           tag (e/tag)]
-      (e/input (attach! node tag e))    ; mount and unmount element in parent
-      (e/join (e/mount-items e mp)) ; mount children in this node via mount point
-      (mount-point e mp)            ; expose mount point to children
-      (binding [node e]             ; run continuation
+      (e/input (attach! node tag e)) ; mount and unmount element in parent
+      (e/join (mount-items e mp))    ; interprets diffs to mount and maintain children in correct order
+      (mount-point e mp)             ; expose mount point to children
+      (binding [node e]              ; run continuation
         (Body.)))))
 
 (defmacro element [tag & body]
-  `($ Element tag (e/fn [] (e/amb ~@body))))
-
-;; (defmacro element [tag & body]
-;;   `(let [e# (.createElement js/document ~(name tag))
-;;          mp# (e/mount-point)
-;;          tag# (e/tag)
-;;          parent# (aget node "mount-point")]
-;;      (e/insert! parent# tag# e#)                          ;; mount element in parent
-;;      (e/on-unmount #(e/remove! parent# tag# e#))          ;; unmount element from parent
-;;      (e/join (mount-items node mp#))                      ;; mount children via mount point
-;;      (aset e# "mount-point" mp#)                          ;; expose mount point to children
-;;      (binding [node e#]                                   ;; run continuation
-;;        (e/amb ~@body))))
+  `($ Element ~tag (e/fn [] (e/amb ~@body))))
 
 (clojure.core/comment "comment var is already taken")
 
