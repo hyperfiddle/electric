@@ -40,14 +40,18 @@
 
 (def node)
 
-(defn get-mount-point [node] (aget node "mount-point"))
+#?(:cljs
+   (let [key (js/Symbol.for "hyperfiddle.mount-point")]
+     (defn mount-point
+       ([node] (aget node key))
+       ([node v] (aset node key v)))))
 
 #?(:cljs
    (defn attach! [parent-node tag e]
      (assert (instance? js/Node parent-node))
      (m/observe (fn [!]
                   (! nil)
-                  (let [mount-point (get-mount-point node)] ; TODO could this be inlined?
+                  (let [mount-point (mount-point node)] ; TODO could this be inlined?
                     (e/insert! mount-point tag e)
                     #(e/remove! mount-point tag e))))))
 
@@ -113,14 +117,15 @@
     element))
 
 (e/defn Element [tag Body]
-  (let [e   (.createElement js/document (name tag))
-        mp  (e/mount-point)
-        tag (e/tag)]
-    (e/input (attach! node tag e)) ; mount and unmount element in parent
-    (e/join (e/mount-items e mp))  ; mount children in this node via mount point
-    (aset e "mount-point" mp)      ; expose mount point to children ; TODO namespace and hide prop using js/Symbol
-    (binding [node e]              ; run continuation
-      (Body.))))
+  (e/client
+    (let [e   (.createElement js/document (name tag))
+          mp  (e/mount-point)
+          tag (e/tag)]
+      (e/input (attach! node tag e))    ; mount and unmount element in parent
+      (e/join (e/mount-items e mp)) ; mount children in this node via mount point
+      (mount-point e mp)            ; expose mount point to children
+      (binding [node e]             ; run continuation
+        (Body.)))))
 
 (defmacro element [tag & body]
   `($ Element tag (e/fn [] (e/amb ~@body))))
