@@ -5,8 +5,8 @@
 ;;   We can always merge back later
 ;; * DONE Implement dom/text
 ;; * DONE Implement dom/comment
-;; * TODO Implement dom/div
-;; * TODO Implement dom/div nesting
+;; * DONE Implement dom/div
+;; * DONE Implement dom/div nesting
 ;; * TODO Implement setting attributes
 ;; * TODO Implement setting class
 ;; * TODO Implement setting inline style
@@ -149,8 +149,10 @@
       (binding [node e]              ; run continuation
         (Body.)))))
 
-(defmacro element [tag & body]
-  `($ Element ~tag (e/fn [] (e/amb ~@body))))
+(defn element* [tag forms] `($ Element ~tag (e/fn [] (e/amb ~@forms))))
+(defmacro element [tag & body] (element* tag body))
+
+(defmacro div [& body] (element* "div" body))
 
 (clojure.core/comment "comment var is already taken")
 
