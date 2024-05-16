@@ -41,7 +41,7 @@
 (def node)
 
 #?(:cljs
-   (let [key (js/Symbol.for "hyperfiddle.mount-point")]
+   (let [key (js/Symbol.for "hyperfiddle.dom3.mount-point")]
      (defn mount-point
        ([node] (aget node key))
        ([node v] (aset node key v)))))
@@ -59,11 +59,14 @@
 ;; Text ;;
 ;;;;;;;;;;
 
+;; NOTE L:we could implement variadic Text with a conditional on first rest and self recursion
 (e/defn Text [str] ; ^::lang/print-clj-source
   (e/client
     (let [e (.createTextNode js/document "")]
       (e/input (attach! node (e/tag) e))
-      (set! (.-textContent e) str))))
+      (set! (.-textContent e) str)
+      ;; TODO return string? or e? or nil?
+      )))
 
 (defmacro text [& strs] `(do ~@(for [s strs] `($ Text ~s))))
 
@@ -79,7 +82,6 @@
 
 (defmacro comment [& strs] `(do ~@(for [s strs] `($ Comment ~s))))
 
-
 ;;;;;;;;;;;;;
 ;; Element ;;
 ;;;;;;;;;;;;;
@@ -87,35 +89,41 @@
 ;; TODO Understand this with 100% precision.
 ;; G: here is my understanding of it (as comments), to be verified.
 ;; Leo says its done
-(defn mount-items
+(defn mount-items ;; must not be called on the same element more than once.
   [element ; A dom element to mount children in
 
                        ; An incseq's diff
    {:keys [grow        ; Number of added items
            shrink      ; Number of removed items
            degree      ; Max size of collection (after grow, before shrink)
-           permutation ; Map of indexes movements e.g. "a replaced by b"
-           change      ; Map of index -> value
+           permutation ; Map of indexes movements e.g. "a replaced by b" "target -> source"
+           change      ; Map of index -> value (dom elements in this case)
            ]}]
   (let [children    (.-childNodes element)  ; Current children of the element to mount in
-        move        (i/inverse permutation) ; Permutation is "a replaced by b" move is "b replaces a"
-        size-before (- degree grow)         ; Current expected child list size
+        move        (i/inverse permutation) ; map of source -> target aka "b replaces a"
+        size-before (- degree grow)         ; Current expected child list size. Should be exactly (alength children)
         size-after  (- degree shrink)       ; Expected child list size after patch
         ]
     ;; Step 1 - Additions and replacements by new elements.
-    ;; Starts with the size before additions and iterates until degree, applying
+
+    ;; NOTE that Element's impl mounts nodes in a static order, so no elements
+    ;; get replaced. But one could replace elements by rebinding dom/node to an
+    ;; e/watch or conditional value instead.
+
+    ;; Starts with the size before additions and iterates up to degree, applying
     ;; changes (additions or replacements).
     (loop [i      size-before
            change change]
       (if (not (== i degree)) ; Checks if there are items to add or replace.
         ;; Addition
-        (let [j (get move i i)]                 ; Index of new child.
+        (let [j (get move i i)]                 ; Index of new child. If the added element has not moved, just use the current index (add it to current slot)
           (.appendChild element (get change j)) ; Appends the new child to the element.
           (recur (inc i) (dissoc change j)))    ; Continues with the next item, removing the processed item from the change map.
         ;; If there are changes but no items to add, then it's just in-place changes.
-        (run! (fn [[i element']] ; Iterates over the remaining changes and applies replacements.
-                (.replaceChild element element'   ; Replaces the old child at the specified index with the new child.
-                  (.item children (get move i i)) ; Get old child index
+        (run! (fn [[i new-element]] ; Iterates over the remaining changes and applies replacements.
+                (.replaceChild element new-element   ; Replaces the old child at the specified index with the new child.
+                  (.item children   ; Get old child object
+                    (get move i i)) ; Get old child index
                   ))
           change)))
     ;; Step 2 - Removals and reorders of existing elements
@@ -131,7 +139,9 @@
         (loop [permutation permutation]
           (when-not (= permutation {}) ; Checks if there are swaps to apply.
             (let [[i j] (first permutation)] ; Applies the first swap in the permutation.
-              (.insertBefore element (.item children j) ; Inserts the item at position j before the item at position i, adjusting if necessary.
+              ;; If `i` points to the last element, (inc i) would be OOB. but .item would return nil, so insertBefore will interpret nil as insert in last position.
+              ;; NOTE could we use replaceChild or replaceWith instead? not clear what are pros/cons.
+              (.insertBefore element (.item children j)  ; Inserts the item at position j before the item at position i, adjusting if necessary.
                 (.item children (if (< j i) (inc i) i))) ; Due to insertBefore, if j is left of i, insert to the right of the target position.
               ;; Remove applied permutation from permutation map and continue.
               ;; Image: a shrinking yarn loop
@@ -144,13 +154,22 @@
           mp  (e/mount-point)
           tag (e/tag)]
       (e/input (attach! node tag e)) ; mount and unmount element in parent
-      (e/join (mount-items e mp))    ; interprets diffs to mount and maintain children in correct order
+      (e/input (m/reductions mount-items e mp))    ; interprets diffs to mount and maintain children in correct order
       (mount-point e mp)             ; expose mount point to children
-      (binding [node e]              ; run continuation
-        (Body.)))))
+      (binding [node e]              ; run continuation, in context of current node.
+        ($ Body)))))
 
-(defn element* [tag forms] `($ Element ~tag (e/fn [] (e/amb ~@forms))))
+(defn element* [tag forms] `($ Element ~tag (e/fn [] (e/amb ~@forms) ; TODO should we use e/amb or do? return all children, concatenated or just the last as in v2?
+                                              )))
 (defmacro element [tag & body] (element* tag body))
+
+(clojure.core/comment
+  (element :div a b)
+  )
+
+;;;;;;;;;;;
+;; Sugar ;;
+;;;;;;;;;;;
 
 (defmacro div [& body] (element* "div" body))
 
