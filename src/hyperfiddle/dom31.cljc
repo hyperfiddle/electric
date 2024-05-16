@@ -88,55 +88,54 @@
 ;; G: here is my understanding of it (as comments), to be verified.
 ;; Leo says its done
 (defn mount-items
-  [element ; a dom element to mount children in
+  [element ; A dom element to mount children in
 
-                       ; an incseq's diff
-   {:keys [grow        ; number of added items
-           shrink      ; number of removed items
-           degree      ; max size of collection (after grow, before shrink)
-           permutation ; map of indexes movements e.g. "a replaced by b"
-           change      ; map of index -> value
+                       ; An incseq's diff
+   {:keys [grow        ; Number of added items
+           shrink      ; Number of removed items
+           degree      ; Max size of collection (after grow, before shrink)
+           permutation ; Map of indexes movements e.g. "a replaced by b"
+           change      ; Map of index -> value
            ]}]
-  (let [children    (.-childNodes element)  ; current children of the element to mount in
-        move        (i/inverse permutation) ; permutation is "a replaced by b" move is "b replaces a"
-        size-before (- degree grow)         ; current expected child list size
-        size-after  (- degree shrink)       ; expected child list size after patch
+  (let [children    (.-childNodes element)  ; Current children of the element to mount in
+        move        (i/inverse permutation) ; Permutation is "a replaced by b" move is "b replaces a"
+        size-before (- degree grow)         ; Current expected child list size
+        size-after  (- degree shrink)       ; Expected child list size after patch
         ]
-    ;; Step 1 - Additions and replacements by new elements
-    (loop [i      size-before ; start with expected current size and scan left to right, one by one,
-                                        ; until diff's degree (before removals)
+    ;; Step 1 - Additions and replacements by new elements.
+    ;; Starts with the size before additions and iterates until degree, applying
+    ;; changes (additions or replacements).
+    (loop [i      size-before
            change change]
-      (if (not (== i degree)) ; If there are items to add
+      (if (not (== i degree)) ; Checks if there are items to add or replace.
         ;; Addition
-        (let [j (get move i i)]                 ; get the index where this item is or went
-          (.appendChild element (get change j)) ; add children to the list
-          (recur (inc i) (dissoc change j)))    ; continue with next change.
-        ;; If there are changes but no items to add, then its just in-place changes
-        (run! (fn [[i element']] ; for each change
-                (.replaceChild element element'   ; replace old child at index i by element' (new child)
-                  (.item children (get move i i)) ; get old child index
+        (let [j (get move i i)]                 ; Index of new child.
+          (.appendChild element (get change j)) ; Appends the new child to the element.
+          (recur (inc i) (dissoc change j)))    ; Continues with the next item, removing the processed item from the change map.
+        ;; If there are changes but no items to add, then it's just in-place changes.
+        (run! (fn [[i element']] ; Iterates over the remaining changes and applies replacements.
+                (.replaceChild element element'   ; Replaces the old child at the specified index with the new child.
+                  (.item children (get move i i)) ; Get old child index
                   ))
           change)))
     ;; Step 2 - Removals and reorders of existing elements
     (loop [permutation permutation
            i           degree]
-      (if (not (== i size-after)) ; if there are extra items
+      (if (not (== i size-after)) ; If there are extra items
         ;; Removals
-        (let [i (dec i) ; move to the penultimate item index
-              j (get permutation i i)] ; get the place where the item went (it might have been moved left)
-          (.removeChild element (.item children j)) ; remove child there (causing a shift to the left)
-          (recur (i/compose permutation (i/rotation i j)) i)) ; continue with next extra item, accounting for the left shift
-        ;; Nothing to remove, but children to reorder
+        (let [i (dec i) ; Move to the penultimate item index - next last index after removal
+              j (get permutation i i)] ; Determines the index of the item to be removed.
+          (.removeChild element (.item children j)) ; Remove child - causing a left shift
+          (recur (i/compose permutation (i/rotation i j)) i)) ; Continues with the next item, updating the permutation to reflect the left shift.
+        ;; Reorders
         (loop [permutation permutation]
-          (when-not (= permutation {}) ; if there are still some swaps to apply
-            (let [[i j] (first permutation)] ; we will apply the first swap in the list
-              (.insertBefore element (.item children j) ; insert at target position
-                (.item children                         ; the child from origin position
-                  (if (< j i) (inc i) i))) ; due to insertBefore, if j is left of i, insert to the right of the target position.
-              (recur (i/compose permutation (i/rotation i j))) ; continue with the rotation applied,
-                                                               ; which cancels out remaining swaps
-                                                               ; appropriately.
-              )))))
+          (when-not (= permutation {}) ; Checks if there are swaps to apply.
+            (let [[i j] (first permutation)] ; Applies the first swap in the permutation.
+              (.insertBefore element (.item children j) ; Inserts the item at position j before the item at position i, adjusting if necessary.
+                (.item children (if (< j i) (inc i) i))) ; Due to insertBefore, if j is left of i, insert to the right of the target position.
+              ;; Remove applied permutation from permutation map and continue.
+              ;; Image: a shrinking yarn loop
+              (recur (i/compose permutation (i/rotation i j))))))))
     element))
 
 (e/defn Element [tag Body]
