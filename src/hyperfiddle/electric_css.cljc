@@ -92,13 +92,6 @@
                                (! rule)
                                #(delete-rule styled-element rule)))))))
 
-(e/def scope "")
-
-(defn scoped [scope selector]
-  (if-not (empty? scope)
-    (str "." scope " " selector)
-    selector))
-
 (defn rule* [styled-element selector declarations]
   (when (seq declarations)
     `(doto (new (make-rule< ~styled-element ~selector))
@@ -107,11 +100,20 @@
 (e/def selector "")
 
 (defn concat-selectors [selectorA selectorB]
-  (str selectorA
-    (let [selectorB (str/trim selectorB)]
-      (if (str/starts-with? selectorB "&")
-        (str/replace-first selectorB "&" "")
-        (str " " selectorB)))))
+  (if (empty? selectorA)
+    selectorB
+    (str selectorA
+      (let [selectorB (str/trim selectorB)]
+        (if (str/starts-with? selectorB "&")
+          (str/replace-first selectorB "&" "")
+          (str " " selectorB))))))
+
+(e/def scope "")
+
+(defn scoped [scope selector]
+  (if-not (empty? scope)
+    (concat-selectors (str "." scope)  selector)
+    selector))
 
 (defmacro rule [selector & declarations]
   (let [[selector declarations] (if (map? selector) ["&" (cons selector declarations)] [selector declarations])]
