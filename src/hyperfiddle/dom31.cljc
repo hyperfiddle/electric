@@ -7,9 +7,9 @@
 ;; * DONE Implement dom/comment
 ;; * DONE Implement dom/div
 ;; * DONE Implement dom/div nesting
-;; * WIP  Implement setting attributes
+;; * DONE Implement setting attributes
 ;; * DONE Implement setting class
-;; * TODO Implement setting inline style
+;; * DONE Implement setting inline style
 ;; * TODO Implement event handling
 
 (ns hyperfiddle.dom31
