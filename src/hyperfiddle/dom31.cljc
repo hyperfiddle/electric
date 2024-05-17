@@ -7,8 +7,8 @@
 ;; * DONE Implement dom/comment
 ;; * DONE Implement dom/div
 ;; * DONE Implement dom/div nesting
-;; * TODO Implement setting attributes
-;; * TODO Implement setting class
+;; * WIP  Implement setting attributes
+;; * DONE Implement setting class
 ;; * TODO Implement setting inline style
 ;; * TODO Implement event handling
 
@@ -88,7 +88,8 @@
 ;; Element ;;
 ;;;;;;;;;;;;;
 
-;; TODO Understand this with 100% precision.
+;; DONE Understand this with 100% precision.
+;; TODO split into simpler components
 ;; G: here is my understanding of it (as comments), to be verified.
 ;; Leo says its done
 (defn mount-items ;; must not be called on the same element more than once.
@@ -174,55 +175,6 @@
 ;;;;;;;;;;;
 
 (defmacro div [& body] (element* "div" body))
-
-;;;;;;;;;;;;;
-;; CLASSES ;;
-;;;;;;;;;;;;;
-
-(defn parse-class [xs]
-  (cond (or (string? xs) (keyword? xs) (symbol? xs)) (re-seq #"[^\s]+" (name xs))
-        (or (vector? xs) (seq? xs) (list? xs) (set? xs)) (into [] (comp (mapcat parse-class) (distinct)) xs)
-        (nil? xs) nil
-        :else (throw (ex-info "don't know how to parse into a classlist" {:data xs}))))
-
-(tests
-  (parse-class "a") := ["a"]
-  (parse-class :a) := ["a"]
-  (parse-class 'a/b) := ["b"]
-  (parse-class "a b") := ["a" "b"]
-  (parse-class ["a"]) := ["a"]
-  (parse-class ["a" "b" "a"]) := ["a" "b"]
-  (parse-class ["a" "b"]) := ["a" "b"]
-  (parse-class ["a b" "c"]) := ["a" "b" "c"]
-  (parse-class [["a b"] '("c d") #{#{"e"} "f"}]) := ["a" "b" "c" "d" "e" "f"]
-  (parse-class nil) := nil
-  (parse-class "") := nil
-  (parse-class " a") := ["a"]
-  (try (parse-class 42) (throw (ex-info "" {}))
-       (catch ExceptionInfo ex (ex-data ex) := {:data 42})))
-
-#?(:cljs
-   (defn build-class-signal [node clazz]
-     (m/signal (m/observe (fn [!]
-                            (! nil)
-                            (.add (.-classList node) clazz)
-                            #(.remove (.-classList node) clazz))))))
-#?(:cljs
-   (defn get-class-signal [node clazz]
-     (let [k (js/Symbol.for (str "hyperfiddle.dom3.class-signal-" clazz))]
-       (or (aget node k) (aset node k (build-class-signal node clazz))))))
-
-(e/defn Class [node clazz] (e/client (e/input (get-class-signal node clazz))))
-
-;; how to run an e/fn over a clojure sequence
-(e/defn MapCSeq [Fn cseq] (e/cursor [[_ v] (e/diff-by first (map-indexed vector cseq))] ($ Fn v)))
-(defmacro for-cseq [[b cseq] & body] `(e/cursor [[i# ~b] (e/diff-by first (map-indexed vector ~cseq))] ~@body))
-
-(e/defn ClassList [node classes]
-  (e/client
-    ($ MapCSeq (e/fn [clazz] ($ Class node clazz)) (parse-class classes))
-    #_(for-cseq [clazz (parse-class classes)] ($ Class node clazz))
-    ))
 
 
 
