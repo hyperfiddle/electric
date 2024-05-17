@@ -12,6 +12,17 @@
 ;; * DONE Implement setting inline style
 ;; * TODO Implement event handling
 
+;;; Breaking changes:
+;; - `dom/style` now creates a <style> element. It used to set inline CSS style onto a dom node.
+;;   Users had to resort to (dom/element "style" …) to create a <style> node.
+;;   How to set styles:
+;;     - Set inline styles with `(dom/props {:style {:color :red}})`, see `dom/props`
+;;     - Add an external stylesheet with: `<link rel="stylesheet" href="…"/>`
+;;     - If you need to manipulate complex CSS rules, don't concatenate strings in a <style> node.
+;;       Instead use `electric-css`:
+;;       e.g. (css/scoped-style (css/rule ".my-class::before:hover" {:--my-css-color-var :red}))
+;; - `dom/comment_` has been renamed to `dom/comment` (reactive HTML comment)
+
 (ns hyperfiddle.dom31
   (:refer-clojure :exclude [comment])
   (:require
