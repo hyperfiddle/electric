@@ -3,6 +3,7 @@
   (:require
    [clojure.string :as str]
    [hyperfiddle.electric-de :as e :refer [$]]
+   [hyperfiddle.electric-css31 :as css]
    [hyperfiddle.rcf :refer [tests]]
    [missionary.core :as m]
    #?(:cljs [goog.object])
@@ -216,28 +217,9 @@
 ;; Inline Styles ;;
 ;;;;;;;;;;;;;;;;;;;
 
-;; TODO move to electric-css
-#?(:cljs
-   (defn set-style! [node k v]
-     (let [k (clj->js k)
-           v (clj->js v)]
-       (if (str/starts-with? k "--") ; CSS variable
-         (.setProperty (.-style node) k v)
-         (goog.style/setStyle_ node v k)))))
-
-(e/defn Style
-  "Set a style `property` name to `value` on `node`."
-  ;; Multiple call to Style on the same node and same property will race.
-  ;; First to unmount will clear style.
-  [node property value]
+(e/defn Styles [node kvs] ; TODO move to electric-css, blocked on MapCSeq
   (e/client
-    (set-style! node property value)
-    (e/on-unmount (partial set-style! node property nil))
-    value))
-
-(e/defn Styles [node kvs]
-  (e/client
-    ($ MapCSeq (e/fn [[property value]] ($ Style node property value)) kvs)
+    ($ MapCSeq (e/fn [[property value]] ($ css/Style node property value)) kvs)
     kvs))
 
 ;;;;;;;;;;;;;;;;;;;
