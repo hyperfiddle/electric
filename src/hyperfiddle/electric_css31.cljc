@@ -98,7 +98,7 @@
    (defn make-rule "Create a rule in node's stylesheet, return the created rule." [styled-element selector]
      (let [sheet (sheet styled-element)
            index (.-length (css-rules sheet))]
-       (add-rule sheet (str (dom/to-str selector) " {}") index)
+       (add-rule sheet (str (to-str selector) " {}") index)
        (aget (css-rules sheet) index))))
 
 #?(:cljs
@@ -110,10 +110,10 @@
 
 (defn rule* [styled-element selector declarations]
   (when (seq declarations)
-    `(doto (new (make-rule< ~styled-element ~selector))
+    `(doto (e/input (make-rule< ~styled-element ~selector))
        ~@(map (fn [[key value]] `(set-property ~key ~value)) declarations))))
 
-(e/def selector "")
+(def selector "")
 
 (defn concat-selectors [selectorA selectorB]
   (if (empty? selectorA)
@@ -124,7 +124,7 @@
           (str/replace-first selectorB "&" "")
           (str " " selectorB))))))
 
-(e/def scope "")
+(def scope "")
 
 (defn scoped [scope selector]
   (if-not (empty? scope)
@@ -147,7 +147,7 @@
 (defmacro keyframes "Create an @keyframes <animation-name> rule group. Note @keyframes are always
   global, even if defined in a scoped style. Can only contain `keyframe` rules."
   [animation-name & keyframes]
-  `(binding [dom/node (new (make-rule< dom/node ~(str "@keyframes " animation-name)))]
+  `(binding [dom/node (e/input (make-rule< dom/node ~(str "@keyframes " animation-name)))]
      ~@keyframes))
 
 (defmacro keyframe
@@ -182,11 +182,11 @@
       (css/rule \".my-div:hover\" {:color :blue})))
   "
   [& body]
-  `(binding [dom/node (new (identity stylesheet<))]
+  `(binding [dom/node (e/input (identity stylesheet<))]
      ~@body))
 
 (defmacro scoped-style [& body]
-  `(binding [dom/node (new (identity stylesheet<))
+  `(binding [dom/node (e/input (identity stylesheet<))
              scope (str (munge (gensym "class_")))]
      ~@body
      scope))
@@ -196,11 +196,11 @@
   Takes a collection of rows definition [dimention1 … dimentionN] or [[[area1 … areaN] dimention] …]
   And an optional collection of columns dimentions [dimention1 … dimentionN].
 
-  E.g. (grid-template [[[:first-row]  :auto]
-                       [[:second-row] :auto]
-                       [[:third-row] \"1fr\"]]
-        [:auto :auto])
-   := \"\"first-row\" auto \"second-row\" auto \"third-row\" 1fr / auto auto\"
+  E.g. (grid-template [[[:logo   :title   :user-info] :auto]
+                       [[:menu   :content :content  ] :auto]
+                       [[:footer :footer  :footer   ] \"1fr\"]]
+        [\"20rem\" :auto])
+   := \"\"logo title user-info\" auto \"menu content content\" auto \"footer footer footer\" 1fr / 20rem auto\"
   "
   ([rows] (grid-template rows nil))
   ([rows columns]
