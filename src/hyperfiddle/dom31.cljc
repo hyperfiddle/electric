@@ -19,6 +19,7 @@
    ;; [contrib.assert :as ca]
    [hyperfiddle.rcf :as rcf :refer [tests]]
    [missionary.core :as m]
+   [hyperfiddle.dom31-attributes :as attrs]
    ;; [hyperfiddle.electric.impl.lang-de2 :as lang]
    ;; #?(:cljs [goog.dom])
    )
@@ -169,6 +170,39 @@
 (clojure.core/comment
   (element :div a b)
   )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Props, Attributes, Styles ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmacro props
+  "Take a map of HTML attributes or properties to values and reactively set each of them onto a DOM node.
+  Default DOM node is the one in scope.
+
+   e.g. (dom/div (dom/props {:id \"my-div\", :class [\"foo\"], :style {:background-color :red}}))
+
+  - attributes and properties names are case-sensitive.
+  - :class can be a string or collection of strings.
+  - :style supports setting CSS variables e.g. {:--my-color :red}
+    - for more complex styles (e.g. pseudo-classes, pseudo-elements, keyframes) use `electric-css`
+
+  ;; TODO explain that props doesn't support :on-click and link where to look at
+   "
+  ([m] `(attrs/props ~m))
+  ([node m] `(attrs/props ~node ~m)))
+
+(e/defn Attribute
+  "Watch an `attribute`'s value for a given DOM `node`. Only DOM attributes are watchable, not object properties.
+  Use `Attributes` to watch multiple attributes at once."
+  [node attribute-name]
+  ($ attrs/Attribute node attribute-name))
+
+(e/defn Attributes
+  "Take a collection of `attribute-names` and watch for attribute changes in
+  `node`. Return a map of attribute-name (a string) to latest corresponding
+  values. Only DOM attributes are watchable, not object properties."
+  [node attribute-names]
+  ($ attrs/Attribute node attribute-names))
 
 ;;;;;;;;;;;
 ;; Sugar ;;

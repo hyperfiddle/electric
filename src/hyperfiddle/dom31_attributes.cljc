@@ -3,6 +3,7 @@
   (:require
    [clojure.string :as str]
    [hyperfiddle.electric-de :as e :refer [$]]
+   [hyperfiddle.dom31 :as-alias dom]
    [hyperfiddle.electric-css31 :as css]
    [hyperfiddle.rcf :refer [tests]]
    [missionary.core :as m]
@@ -164,7 +165,7 @@
      (let [k (js/Symbol.for (str "hyperfiddle.dom3.class-signal-" clazz))]
        (or (aget node k) (aset node k (build-class-signal node clazz))))))
 
-(e/defn Class [node clazz] (e/client (e/input (get-class-signal node clazz))))
+(e/defn Clazz [node clazz] (e/client (e/input (get-class-signal node clazz))))
 
 ;; how to run an e/fn over a clojure sequence
 (e/defn MapCSeq [Fn cseq] ; FIXME find the right name
@@ -211,7 +212,7 @@
 
 (e/defn ClassList [node classes]
   (e/client
-    ($ MapCSeq ($ Partial Class node) (parse-class classes))))
+    ($ MapCSeq ($ Partial Clazz node) (parse-class classes))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Inline Styles ;;
@@ -256,7 +257,7 @@
     ($ MapCSeq (e/fn [[name value]] ($ Property node name value)) (ordered-props kvs))))
 
 (defmacro props
-  ([m] `(props node ~m))
+  ([m] `(props dom/node ~m))
   ([node m]
    (if (map? m)
      `(do ~@(map (fn [[k v]] (cond  ; static keyset + saves on a conditional
