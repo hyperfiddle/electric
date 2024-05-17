@@ -1,10 +1,13 @@
 (ns hyperfiddle.electric-css31
-  "- Experimental — Use it at your own risk.
-   - No support for at-rules yet."
-  (:require [hyperfiddle.electric :as e]
-            [hyperfiddle.dom31 :as dom]
+  "Dom3 compatible electric-css
+   - Experimental — Use it at your own risk.
+   - Partial at-rules support (only @keyframes ATM)
+  "
+  (:require [hyperfiddle.electric-de :as e :refer [$]]
+            [hyperfiddle.dom31 :as-alias dom]
             [missionary.core :as m]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            #?(:cljs [goog.style]))
   #?(:cljs (:require-macros [hyperfiddle.electric-css31])))
 
 (defprotocol StyledElement
@@ -69,14 +72,27 @@
   "Interface over a CSS rule"
   (set-property [this key value]))
 
+(defn to-str [x]
+  (cond (string? x)  x
+        (keyword? x) (name x)
+        (symbol? x)  (str x)
+        :else        (str x)))
+
 #?(:cljs
    (extend-protocol StyleRule
+     js/HTMLElement
+     (set-property [^js this key value] (set-property (.-style this) key value))
      js/CSSStyleRule
      (set-property [^js this key value] (set-property (.-style this) key value))
      js/CSSKeyframeRule ; not a subclass of CSSStyleRule
      (set-property [^js this key value] (set-property (.-style this) key value))
      js/CSSStyleDeclaration
-     (set-property [^js this key value] (.setProperty this (dom/to-str key) (dom/to-str value)))))
+     (set-property [^js this key value]
+       (let [key (to-str key)]
+         (if (str/starts-with? key "--") ; CSS variable
+           (.setProperty this key value)
+           (when-let [property (goog.style/getVendorJsStyleName_ this key)] ; normalize property names
+             (.setProperty this property value)))))))
 
 #?(:cljs
    (defn make-rule "Create a rule in node's stylesheet, return the created rule." [styled-element selector]
@@ -224,3 +240,13 @@
     [:auto "1fr"])
    := "\"search search\" min-content \"refs log\" 1fr \"details details\" / auto 1fr"
   )
+
+(e/defn Style
+  "Set a style `property` name to `value` on a `styled` object (e.g. DOM node, CSS Stylesheet, CSS Rule etc.)."
+  ;; Multiple calls to Style on the same node and same property will race.
+  ;; They won't stack or restore previous value.
+  [styled property value]
+  (e/client
+    (set-property styled property value)
+    (e/on-unmount (partial set-property styled property nil))
+    value))
