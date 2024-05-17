@@ -83,6 +83,9 @@ Returns the successive states of items described by `incseq`.
                 (let [~@(interleave args (map dget (range)))]
                   ~@body))])) positionals)))
 
+;; mklocal = declare lexical slot
+;; bindlocal = bind lexical slot to value by name
+;; See compiler walkthrough: electric/impl/lang_de_walkthrough.md
 (defmacro fn [& args]
   (let [?nm (first args)]
     `(check-electric fn
@@ -195,6 +198,9 @@ this tuple. Returns the concatenation of all body results as a single vector.
               ~(rec bindings)) `(do ~@body)))
        (seq bindings))))
 
+;; mklocal = declare lexical slot
+;; bindlocal = bind lexical slot to value by name
+;; See compiler walkthrough: electric/impl/lang_de_walkthrough.md
 (defmacro letfn [bs & body]
   (let [sb (reverse bs)]
     (reduce (cc/fn [ac [nm]] `(::lang/mklocal ~nm ~ac))
@@ -214,15 +220,16 @@ A mount point can be :
 
 (hyperfiddle.electric-de/defn Dispatch [F static args]
   (let [offset (count static)
-        arity (+ offset (count args))]
-    (if-some [ctor (F arity)]
-      (loop [args args
+        arity (+ offset (count args))] ; final count of all args
+    (if-some [ctor (F arity)] ; EFns implement IFn and return a constructor given a arg count
+      (loop [args args ; if we find the constructor for the current arity, just call it
              static static]
         (if (< (count static) arity)
           (recur (next args) (conj static (::lang/pure (first args))))
           (cc/apply r/bind-args (r/bind-self ctor) static)))
+      ;; search for variadic version
       (let [[fixed map? ctor] (r/get-variadic "apply" F arity)]
-        (if (< fixed offset)
+        (if (< fixed offset) ; if variadic arity has more positional args than provided: pop from rest args
           (loop [args args
                  static static]
             (let [args (cons (::lang/join (r/incseq (frame) (peek static))) args)
@@ -230,7 +237,7 @@ A mount point can be :
               (if (< fixed (count static))
                 (recur args static)
                 (cc/apply r/bind-args (r/bind (r/bind-self ctor) fixed (::lang/pure (cc/apply (r/varargs map?) args))) static))))
-          (loop [args args
+          (loop [args args ; if variadic arity has less positional args than provided: push to rest args
                  static static]
             (if (< (count static) fixed)
               (recur (next args) (conj static (::lang/pure (first args))))
