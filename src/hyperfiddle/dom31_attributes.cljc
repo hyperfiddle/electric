@@ -216,8 +216,29 @@
 ;; Inline Styles ;;
 ;;;;;;;;;;;;;;;;;;;
 
-;; TODO
-(e/defn Style [node style-map])
+;; TODO move to electric-css
+#?(:cljs
+   (defn set-style! [node k v]
+     (let [k (clj->js k)
+           v (clj->js v)]
+       (if (str/starts-with? k "--") ; CSS variable
+         (.setProperty (.-style node) k v)
+         (goog.style/setStyle_ node v k)))))
+
+(e/defn Style
+  "Set a style `property` name to `value` on `node`."
+  ;; Multiple call to Style on the same node and same property will race.
+  ;; First to unmount will clear style.
+  [node property value]
+  (e/client
+    (set-style! node property value)
+    (e/on-unmount (partial set-style! node property nil))
+    value))
+
+(e/defn Styles [node kvs]
+  (e/client
+    ($ MapCSeq (e/fn [[property value]] ($ Style node property value)) kvs)
+    kvs))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Generic Props ;;
@@ -242,7 +263,7 @@
   [node name value]
   (e/client
     (cond
-      (style? name) ($ Style node value)
+      (style? name) ($ Styles node value)
       (class? name) ($ ClassList node value)
       :else         ($ Attribute node name value))))
 
@@ -257,7 +278,7 @@
   ([node m]
    (if (map? m)
      `(do ~@(map (fn [[k v]] (cond  ; static keyset + saves on a conditional
-                               (style? k) `($ Style ~node ~v)
+                               (style? k) `($ Styles ~node ~v)
                                (class? k) `($ ClassList ~node ~v)
                                :else      `($ Property ~node ~k ~v)))
               (ordered-props m))
