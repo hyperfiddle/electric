@@ -27,12 +27,11 @@
   (:refer-clojure :exclude [comment])
   (:require
    [hyperfiddle.electric-de :as e :refer [$]]
-   ;; [contrib.assert :as ca]
    [hyperfiddle.rcf :as rcf :refer [tests]]
    [missionary.core :as m]
    [hyperfiddle.dom31-attributes :as attrs]
+   [hyperfiddle.incseq :as i]
    ;; [hyperfiddle.electric.impl.lang-de2 :as lang]
-   ;; #?(:cljs [goog.dom])
    )
   #?(:clj (:import [clojure.lang ExceptionInfo])))
 
@@ -100,68 +99,150 @@
 ;; Element ;;
 ;;;;;;;;;;;;;
 
+(defn perform-additions!
+  "Take a DOM `element` and an incseq's diff. Perform addition of new child elements into `element`."
+  [element {:keys [degree      ; Max size of collection (after grow, before shrink)
+                   grow        ; Number of added items
+                   permutation ; Map of indices movements – e.g. "a replaced by b" or "target index -> source index"
+                   change      ; Map of index -> value – i.e. child position -> child element object
+                   ]}]
+  ;; Starts with size before additions and iterates up to degree – scanning rightwards.
+  ;; Image:  [a b c d e] ... f g h i]
+  ;;                   ^            ^
+  ;;        current size            desired size after patch
+  ;;        = degree - grow         = degree
+  ;;                                must add `f`, `g`, `h`, and `i` from `e` up to `degree`
+  (let [move (i/inverse permutation)] ; considered O(1)
+    ;; i.e. If current size is 5 and desired size is 10, generate a range (6 7 8 9 10) of new indices
+    ;; and perform addition effect for each new index. If there is no size difference, generates an
+    ;; empty range, so no effect is performed.
+    (reduce (fn [change i] ; reduce over map of diff's changes (a map index -> value), for each new index.
+              (let [j (get move i i)] ; resolve index in the `move` map because child element might
+                                      ; have been added and moved in a single diff. If it was just
+                                      ; added but not moved, keep index as is.
+                (.appendChild element (get change j)) ; perform effect
+                (dissoc change j))) ; consume this change.
+      change
+      (range
+        (- degree grow)  ; size of the collection before we patch this diff
+        (inc degree)     ; desired size of the collection after we apply this patch
+        ))))
+
+(defn perform-replacements!
+  "Take a DOM `element`, an incseq's diff and a map of index -> value representing
+  the remaining changes after (new values) after additions have been
+  performed (return value of `perform-additions!`). For each change, will punch
+  new values in, at their respective indices, overwriting existing ones.
+  Replacements are not reorders, see `perform-reorders!`."
+  [element
+   {:keys [permutation]}
+   remaining-changes ; a map index -> value, return value of `perform-additions!`
+   ]
+  (let [move (i/inverse permutation)] ; considered O(1)
+    (run! (fn [[index new-child-element]] ; for each index -> new child element
+            (->> (get move index index)) ; resolve index in the `move` map because child element might
+                                         ; have been changed and moved in a single diff. If it was just
+                                         ; changed but not moved, keep index as is.
+            (.item (.-childNodes element)) ; Get old child element object in current list of element's children.
+            (.replaceChild element new-child-element)) ; Replace old child element by new child element. (signature is element.replaceChild(new, old).
+      remaining-changes)))
+
+(defn perform-adds-and-replacements!
+  "Take a DOM `element` and an incseq's diff. Perform additions of new child elements and replacement of existing ones.
+  Replacement is not moving, replacement means replace existing children by new
+  children at the same, respective locations."
+  ;; NOTE dom/Element's impl mounts nodes in a static order, so no elements get replaced. But one could
+  ;; replace elements by rebinding dom/node to an e/watch or conditional value instead.
+  [element diff]
+  (->> (perform-additions! element diff)    ; consumes diff's changes for additions, return remaining changes.
+       (perform-replacements! element diff) ; consumes remaining changes after additions.
+       ))
+
+(defn perform-removals!
+  "Take a DOM `element` and an incseq's diff. Must be called after `perform-additions!`.
+  Will remove all deleted child elements from the `element`'s childlist.
+  Return the remaining permutations map to perform (reorders) after removals."
+  ;; Starts with size after additions (degree) and iterates down to the final size (after deletions) – scanning leftwards.
+  ;; Image:  [a b c d e] f g h i]  ; we delete b d g h.
+  ;;            ×   ×  ↑   × ×  ↑
+  ;;                   │        │
+  ;;             final size     └ size before patch
+  ;;          = degree - shrink     = degree
+  ;;                                must remove `h`, `g`, `d`, and `b`.
+  ;;                                Note removing a DOM Element's child causes a left shift
+  ;;                                of all remaining children.
+  [element {:keys [permutation
+                   degree      ; Max size of collection (after grow, before shrink)
+                   shrink      ; Number of removed items
+                   ]}]
+
+  (->> (range degree (- degree shrink))
+    (reduce (fn [permutation index]
+              (let [j (get permutation index index)] ; Resolve index of element to remove. If element
+                                                     ; is not in the `permutation` map, then we are
+                                                     ; removing the last item if the collection (pop)
+                (->> (.item (.-childNodes element) j) ; Get child element object by index
+                  (.removeChild element))
+                ;; Consume this removal from `permutation` map. This is a Group Theory trick. The
+                ;; permutation map forms a Group (think "ring"), as in 0 -> 1 -> 2 -> 0 (notice the
+                ;; loop to 0). To remove an item from this ring, we need to shrink the ring by one
+                ;; slot, so there's no hole in the ring. By composing a permutation by its
+                ;; inverse (e.g. {a b} ∘ {b a}), we form an identity (e.g. {}), and therefore cancels
+                ;; it out of the current permutation map.
+                (i/compose permutation (i/rotation index j))
+                ))
+      permutation)))
+
+
+(defn perform-reorders!
+  "Take a DOM `element`, an incseq `diff` and a map of `permutations` describing
+  how to reorder child elements of `element`, and perform reordering of those
+  child elements. `permutations` must be the return value of `perform-removals!`."
+  [element {:keys []} permutations]
+  (let [children (.-childNodes element)]
+    (loop [permutations permutations] ; loop until
+      (when-not (= {} permutations)   ; there are no more permutations to perform
+        (let [[i j] (first permutations)     ; for each permutation
+              i'     (if (< j i) (inc i) i)] ; if j is left of i, shift i right so to insert to the right of the target position.
+          ;; If `i` points to the last element, (inc i) would be OOB. but `.item` would return nil and
+          ;; `insertBefore` will interpret nil as insert in last position. NOTE could we use
+          ;; replaceChild or replaceWith instead? not clear about pros/cons.
+          (.insertBefore element  ; Inserts the item at position j before the item at position i, adjusting if necessary.
+            (.item children j)    ; Get child element at position j
+            (.item children i'))  ; Get child element at position i (potentially shifted)
+          ; Consume this permutation. Detailed explanation in `perform-removals!`'s comments.
+          (recur (i/compose permutations (i/rotation i j))))))))
+
+(defn perform-removals-and-reorders!
+  "Take a DOM `element` and an incseq's diff. Perform removal of extra (deleted)
+  elements, and reordering of remaining elements. Must be called after
+  `perform-adds-and-replacements!`."
+  [element diff]
+  (->> (perform-removals! element diff)
+    (perform-reorders! element diff)))
+
 ;; DONE Understand this with 100% precision.
-;; TODO split into simpler components
-;; G: here is my understanding of it (as comments), to be verified.
-;; Leo says its done
-(defn mount-items ;; must not be called on the same element more than once.
-  [element ; A dom element to mount children in
-
-                       ; An incseq's diff
-   {:keys [grow        ; Number of added items
-           shrink      ; Number of removed items
-           degree      ; Max size of collection (after grow, before shrink)
-           permutation ; Map of indexes movements e.g. "a replaced by b" "target -> source"
-           change      ; Map of index -> value (dom elements in this case)
-           ]}]
-  (let [children    (.-childNodes element)  ; Current children of the element to mount in
-        move        (i/inverse permutation) ; map of source -> target aka "b replaces a"
-        size-before (- degree grow)         ; Current expected child list size. Should be exactly (alength children)
-        size-after  (- degree shrink)       ; Expected child list size after patch
-        ]
-    ;; Step 1 - Additions and replacements by new elements.
-
-    ;; NOTE that Element's impl mounts nodes in a static order, so no elements
-    ;; get replaced. But one could replace elements by rebinding dom/node to an
-    ;; e/watch or conditional value instead.
-
-    ;; Starts with the size before additions and iterates up to degree, applying
-    ;; changes (additions or replacements).
-    (loop [i      size-before
-           change change]
-      (if (not (== i degree)) ; Checks if there are items to add or replace.
-        ;; Addition
-        (let [j (get move i i)]                 ; Index of new child. If the added element has not moved, just use the current index (add it to current slot)
-          (.appendChild element (get change j)) ; Appends the new child to the element.
-          (recur (inc i) (dissoc change j)))    ; Continues with the next item, removing the processed item from the change map.
-        ;; If there are changes but no items to add, then it's just in-place changes.
-        (run! (fn [[i new-element]] ; Iterates over the remaining changes and applies replacements.
-                (.replaceChild element new-element   ; Replaces the old child at the specified index with the new child.
-                  (.item children   ; Get old child object
-                    (get move i i)) ; Get old child index
-                  ))
-          change)))
-    ;; Step 2 - Removals and reorders of existing elements
-    (loop [permutation permutation
-           i           degree]
-      (if (not (== i size-after)) ; If there are extra items
-        ;; Removals
-        (let [i (dec i) ; Move to the penultimate item index - next last index after removal
-              j (get permutation i i)] ; Determines the index of the item to be removed.
-          (.removeChild element (.item children j)) ; Remove child - causing a left shift
-          (recur (i/compose permutation (i/rotation i j)) i)) ; Continues with the next item, updating the permutation to reflect the left shift.
-        ;; Reorders
-        (loop [permutation permutation]
-          (when-not (= permutation {}) ; Checks if there are swaps to apply.
-            (let [[i j] (first permutation)] ; Applies the first swap in the permutation.
-              ;; If `i` points to the last element, (inc i) would be OOB. but .item would return nil, so insertBefore will interpret nil as insert in last position.
-              ;; NOTE could we use replaceChild or replaceWith instead? not clear what are pros/cons.
-              (.insertBefore element (.item children j)  ; Inserts the item at position j before the item at position i, adjusting if necessary.
-                (.item children (if (< j i) (inc i) i))) ; Due to insertBefore, if j is left of i, insert to the right of the target position.
-              ;; Remove applied permutation from permutation map and continue.
-              ;; Image: a shrinking yarn loop
-              (recur (i/compose permutation (i/rotation i j))))))))
-    element))
+;; DONE split into simpler components
+;; TODO generalize over any vector-like datatype.
+;;      This impl is overspecialized to DOM's NodeList type.
+;;      G argues this could be generalized over any vector.
+;;      Pro: having a vector impl would allow us to unit test sooner.
+;;      an extend protocol would port it to NodeList.
+;; Leo says original impl is done – original in `hyperfiddle.incseq`
+;; G rewrote it into smaller, annotated bits.
+(defn mount-items
+  "Take a DOM `element`, an incseq's `diff` and patch the diff over the element's
+  children list, applying additions, replacements, removals and reordering of
+  children. Must be called exactly once per element and exactly once per diff."
+  [element diff]
+  ;; Order matters:
+  ;; 1. Add new elements,
+  ;; 2. Replace existing element,
+  ;; 3. Remove retracted elements,
+  ;; 4. Reorder remaining elements.
+  (perform-adds-and-replacements! element diff)
+  (perform-removals-and-reorders! element diff)
+  element)
 
 (e/defn Element [tag Body]
   (e/client
