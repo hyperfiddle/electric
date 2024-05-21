@@ -125,7 +125,7 @@
       change
       (range
         (- degree grow)  ; size of the collection before we patch this diff
-        (inc degree)     ; desired size of the collection after we apply this patch
+        degree           ; desired size of the collection after we apply this patch
         ))))
 
 (defn perform-replacements!
@@ -223,16 +223,29 @@
 
 ;; DONE Understand this with 100% precision.
 ;; DONE split into simpler components
-;; TODO generalize over any vector-like datatype.
+;; CANCELED Generalize over any vector-like datatype.
 ;;      This impl is overspecialized to DOM's NodeList type.
 ;;      G argues this could be generalized over any vector.
 ;;      Pro: having a vector impl would allow us to unit test sooner.
 ;;      an extend protocol would port it to NodeList.
+;;  Cancelled because patching a vector is essentially different than patching a NodeList
+;;  Patching a vector is simpler:
+;;   - turn the vector into a transient
+;;   - grow the vector up to degree by padding it with nils
+;;   - perform all permutations, all values to be deleted ends at the end.
+;;   - pop! on the vector until it matches the final size
+;;   - apply remaining changes (replacements)
+;;  See i/patch-vec
+;;  This efficient strategy doesn't work for a NodeList, because the DOM is live.
+;;  We can't pad a NodeList with nils and we cannot reorder it before we shrink it.
+;;  Otherwise there's a risk users might see an inconsistent DOM state.
+;;  Also while we patch a NodeList, the manipulation API is on the Node class. So we must pass a Node,
+;;  which is not vector-like
 ;; Leo says original impl is done – original in `hyperfiddle.incseq`
 ;; G rewrote it into smaller, annotated bits.
-(defn mount-items
+(defn patch-nodelist
   "Take a DOM `element`, an incseq's `diff` and patch the diff over the element's
-  children list, applying additions, replacements, removals and reordering of
+  children list (a NodeList), applying additions, replacements, removals and reordering of
   children. Must be called exactly once per element and exactly once per diff."
   [element diff]
   ;; Order matters:
@@ -250,7 +263,7 @@
           mp  (e/mount-point)
           tag (e/tag)]
       (e/input (attach! node tag e)) ; mount and unmount element in parent
-      (e/input (m/reductions mount-items e mp))    ; interprets diffs to mount and maintain children in correct order
+      (e/input (m/reductions patch-nodelist e mp))    ; interprets diffs to mount and maintain children in correct order
       (mount-point e mp)             ; expose mount point to children
       (binding [node e]              ; run continuation, in context of current node.
         ($ Body)))))
