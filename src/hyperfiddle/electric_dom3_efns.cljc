@@ -374,11 +374,54 @@
                 [v done! (reset! !busy? true)]
                 [v done! (reset! !busy? (m/? dfv))])))))
 
-(defn event->tasks [flow]
-  (uf->is
-    (m/ap
-      (let [S (i/spine)]
-        (m/amb S
-          (let [v (m/?> flow), id (random-uuid)]
-            (S id {} [v #(S id {} nil)])
-            (m/amb)))))))
+(defn ->task
+  ([flow] (->task nil flow))
+  ([init flow]
+   (->> (m/ap (let [v (m/?< flow), dfv (m/dfv), done! #(dfv nil)]
+                (try (m/amb [v done!] [v (m/? dfv)])
+                     (catch missionary.Cancelled _ (m/amb)))))
+     (m/reductions {} [init nil]))))
+
+(comment
+  (def !! (atom nil))
+  (def ps ((->task (m/observe (fn [!] (reset! !! !) #()))) #(prn :step) #(prn :done)))
+  @ps
+  (@!! 2)
+  ((second *1))
+  (ps)
+  )
+
+(defn ->box
+  ([] (->box nil))
+  ([init] (let [o (object-array 1)]
+            (aset o (int 0) init)
+            (fn ([] (aget o (int 0))) ([v] (aset o (int 0) v))))))
+
+(defn ->backpressured-task
+  ([flow] (->backpressured-task nil flow))
+  ([init flow]
+   (->> (m/ap
+          (let [busy? (->box)
+                v (m/?> (m/eduction (remove (fn [_] (busy?))) flow))
+                dfv (m/dfv), done! #(dfv nil)]
+            (m/amb
+              [v (busy? done!)]
+              [v (busy? (m/? dfv))])))
+     (m/reductions {} [init nil]))))
+
+(defn event->latest-task [flow]
+  (uf->is (m/cp
+            (let [!busy? (atom false)
+                  v (m/?< flow)
+                  dfv (m/dfv), done! #(dfv false)]
+              (m/amb
+                [v done! (reset! !busy? true)]
+                [v done! (reset! !busy? (m/? dfv))])))))
+
+(defn ->tasks [flow]
+  (m/ap
+    (let [S (i/spine)]
+      (m/amb S
+        (let [v (m/?> flow), id (random-uuid)]
+          (S id {} [v #(S id {} nil)])
+          (m/amb))))))
