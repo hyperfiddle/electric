@@ -322,31 +322,48 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmacro props
-  "Take a map of HTML attributes or properties to values and reactively set each of them onto a DOM node.
-  Default DOM node is the one in scope.
+  "
+Take a map of HTML attributes to values and reactively sets each of them onto
+a given DOM `node`. Default `node` is the one in scope.
 
-   e.g. (dom/div (dom/props {:id \"my-div\", :class [\"foo\"], :style {:background-color :red}}))
+Example:
+```clojure
+  (dom/div (dom/props {:id \"my-div\", :class [\"foo\"], :style {:background-color :red}}))
+```
 
-  - attributes and properties names are case-sensitive.
-  - :class can be a string or collection of strings.
-  - :style supports setting CSS variables e.g. {:--my-color :red}
-    - for more complex styles (e.g. pseudo-classes, pseudo-elements, keyframes) use `electric-css`
+- A value of `nil` will remove the attribute.
+- Attribute names are case-insensitive, like in HTML.
+- Attribute inherits the `node`'s namespace (e.g. SVG vs HTML attributes)
+- `:class`, setting the CSS class, can be a string or a collection of strings.
+- `:style`, setting inline CSS styles, supports setting CSS variables (e.g. {:--my-color :red})
+  - for more complex styles (e.g. pseudo-classes, pseudo-elements, keyframes) use Electric-CSS.
 
-  ;; TODO explain that props doesn't support :on-click and link where to look at
-   "
-  ([m] `(attrs/props ~m))
-  ([node m] `(attrs/props ~node ~m)))
+Note `props` will decide if an attribute is set as an HTML attribute or as a DOM
+object property. For instance:
+- An input's `:value` is set through the `node.value` property.
+- `:list` (input's datalist) can only be set by attribute, as the corresponding property is readonly.
+- `:class` doesn't set the \"class\" HTML attribute, but efficiently manipulates the node's `.classList` property.
+- `:style` doesn't set the \"style\" HTML attribute, but efficiently manipulates the CSSStyleDeclaration object under the `.style` property.
+- etc.
+  "
+  ([attributes] `(attrs/props ~attributes))
+  ([node attributes] `(attrs/props ~node ~attributes)))
+
 
 (e/defn Attribute
-  "Watch an `attribute`'s value for a given DOM `node`. Only DOM attributes are watchable, not object properties.
-  Use `Attributes` to watch multiple attributes at once."
+  "
+Watch an `attribute`'s value for a given DOM `node`. Only DOM attributes are
+watchable, not object properties. For instance, to watch an input's value, use
+`EventListener`. Use `Attributes` to watch multiple attributes at once."
   [node attribute-name]
   ($ attrs/Attribute node attribute-name))
 
 (e/defn Attributes
-  "Take a collection of `attribute-names` and watch for attribute changes in
-  `node`. Return a map of attribute-name (a string) to latest corresponding
-  values. Only DOM attributes are watchable, not object properties."
+  "
+Take a collection of `attribute-names` and watch for attribute changes in
+`node`. Return a map of {\"attribute-name\" attribute-value, ...}. Only DOM
+attributes are watchable, not object properties. For instance, to watch an
+input's value, use `EventListener`."
   [node attribute-names]
   ($ attrs/Attribute node attribute-names))
 
