@@ -34,6 +34,7 @@
    ;; [hyperfiddle.rcf :as rcf :refer [tests]]
    [missionary.core :as m]
    [hyperfiddle.electric-dom3-props :as props]
+   [hyperfiddle.electric-dom3-events :as events]
    [hyperfiddle.incseq :as i]
    ;; [hyperfiddle.electric.impl.lang-de2 :as lang]
    )
@@ -323,7 +324,7 @@
 (defmacro element
   "Mount a new DOM Element of type `tag` in the current `node` and run `body` in
   the context of the new Element.
-```clojure
+```clj
   (dom/element :div (dom/text \"content\"))
 ```
 "
@@ -340,7 +341,7 @@ Take a map of HTML attributes to values and reactively sets each of them onto
 a given DOM `node`. Default `node` is the one in scope.
 
 Example:
-```clojure
+```clj
   (dom/div (dom/props {:id \"my-div\", :class [\"foo\"], :style {:background-color :red}}))
 ```
 
@@ -384,16 +385,98 @@ input's value, use `EventListener`."
 ;; Events ;;
 ;;;;;;;;;;;;
 
-;; TODO import event listening API
-;; PG thinks following names are to be improved.
+;; DONE import event listening API
+;; P and G thinks following names are to be improved.
 
-(e/defn EventListener)
-(defmacro ^{:deprecated "Deprecated since v3, use EventListener instead."} on! […] …)
-(e/defn Listen)
-(e/defn Hold)
-(e/defn Fork)
-(e/defn ^:deprecated On)
-(defmacro ^{:deprecated "Deprecated since v3, use Listen, Hold and Fork instead."} on […] …)
+(e/defn EventListener "Takes the same arguments as `addEventListener`. Returns
+the result of `(f event)`.
+
+```clj
+(dom/input
+  (when-some [v ($ EventListener \"input\" #(-> % .-target .-value))]
+    (prn v)))
+```"
+  ([event-type] ($ events/EventListener event-type))
+  ([event-type f] ($ events/EventListener event-type f))
+  ([node event-type f] ($ events/EventListener node event-type f))
+  ([node event-type f opts] ($ events/EventListener node event-type f opts))
+  ([node event-type f opts init-v] ($ events/EventListener node event-type f opts init-v)))
+
+(defmacro ^{:deprecated "Deprecated since v3, use EventListener instead."} on! [])
+
+(defmacro
+  ^{:deprecated "Deprecated since v3, use EventListener instead."}
+  on!
+  "Call the `callback` clojure function on event.
+   (on! \"click\" (fn [event] ...)) "
+  ([event-name callback] `(on! node ~event-name ~callback))
+  ([dom-node event-name callback] `(on! ~dom-node ~event-name ~callback nil))
+  ([dom-node event-name callback options]
+   `($ EventListener ~dom-node ~event-name ~callback ~options ~nil)))
+
+(e/defn Listen "Takes the same arguments as `addEventListener`. Returns a tuple
+of `[v release!]` for every DOM event where `v` is `(f event)`. Returns `[v
+nil]` after calling the `release!` thunk. Initially returns `[init-v nil]` where
+`init-v` defaults to `nil`.
+
+```clj
+(dom/input
+  (let [[v release!] ($ Listen \"input\" #(-> % .-target .-value))]
+    (when release!
+      (case (e/server (tx! v)) (release!)))))
+```"
+  ([event-type] ($ events/Listen event-type))
+  ([event-type f] ($ events/Listen event-type f))
+  ([node event-type f] ($ events/Listen node event-type f))
+  ([node event-type f opts] ($ events/Listen node event-type f opts))
+  ([node event-type f opts init-v] ($ events/Listen node event-type f opts init-v)))
+
+(e/defn Hold "Takes the same arguments as `addEventListener`. Holds a DOM event
+and returns `[v release!]` where `v` is `(f event)`. Returns `[v nil]` after
+calling the `release!` thunk. Drops events if one is currently held. Initially
+returns `[init-v nil]` where `init-v` defaults to `nil`.
+
+```clj
+(dom/button
+  (let [[v release!] ($ Hold \"click\" hash)
+        busy? (boolean release!)]
+    (dom/props {:disabled busy?, :aria-busy busy?})
+    (when release!
+      (case (e/server (tx! v)) (release!)))))
+```"
+  ([event-type] ($ events/Hold event-type))
+  ([event-type f] ($ events/Hold event-type f))
+  ([node event-type f] ($ events/Hold node event-type f))
+  ([node event-type f opts] ($ events/Hold node event-type f opts))
+  ([node event-type f opts init-v] ($ events/Hold node event-type f opts init-v)))
+
+(e/defn Fork "Takes the same arguments as `addEventListener`. For each DOM event
+where `(f event)` isn't `nil` forks a new branch, allowing concurrent processing
+of events. Each branch recieves `[v release!]` where `v` is `(f event)` and
+calling the `release!` thunk unmounts the current branch. Optional
+`concurrency-factor` limits the maximum number of active branches, defaults to
+`##Inf`.
+
+```clj
+(dom/button
+  (e/cursor [[v release!] ($ Fork \"click\" hash)]
+    (case (e/server (add-todo! v)) (release!))))
+```"
+  ([event-type] ($ events/Fork event-type))
+  ([event-type f] ($ events/Fork event-type f))
+  ([node event-type f] ($ events/Fork node event-type f))
+  ([node event-type f opts] ($ events/Fork node event-type f opts))
+  ([node event-type f opts concurrency-factor] ($ events/Fork node event-type f opts concurrency-factor)))
+
+(e/defn ^{:deprecated "Deprecated since v3, use Listen, Hold and Fork instead."}
+  On
+  ([event-type F] ($ events/On event-type F))
+  ([node event-type F] ($ events/On node event-type F)))
+
+(defmacro ^{:deprecated "Deprecated since v3, use Listen, Hold and Fork instead."}
+  on
+  ([typ F] `(events/on ~typ ~F))
+  ([node typ F] `(events/on ~node ~typ ~F)))
 
 ;;;;;;;;;;;
 ;; Sugar ;;
@@ -403,4 +486,4 @@ input's value, use `EventListener`."
 (defmacro div [& body] (element* "div" body))
 
 ;; TODO do a pass/diff over dom2 vs dom3 to see if we missed anything.
-;; TODO rename files
+;; DONE rename files
