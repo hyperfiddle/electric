@@ -10,7 +10,7 @@
 ;; * DONE Implement setting attributes
 ;; * DONE Implement setting class
 ;; * DONE Implement setting inline style
-;; * TODO Implement event handling
+;; * DONE Implement event handling
 
 ;;; Breaking changes:
 ;; - `dom/style` now creates a <style> element. It used to set inline CSS style onto a dom node.
@@ -22,18 +22,18 @@
 ;;       Instead use `electric-css`:
 ;;       e.g. (css/scoped-style (css/rule ".my-class::before:hover" {:--my-css-color-var :red}))
 ;; - `dom/comment_` has been renamed to `dom/comment` (reactive HTML comment)
+;; - `dom/on!` replaced by `EventListener`
 
 (ns hyperfiddle.dom31
   (:refer-clojure :exclude [comment])
   (:require
    [hyperfiddle.electric-de :as e :refer [$]]
-   [hyperfiddle.rcf :as rcf :refer [tests]]
+   ;; [hyperfiddle.rcf :as rcf :refer [tests]]
    [missionary.core :as m]
    [hyperfiddle.dom31-attributes :as attrs]
    [hyperfiddle.incseq :as i]
    ;; [hyperfiddle.electric.impl.lang-de2 :as lang]
-   )
-  #?(:clj (:import [clojure.lang ExceptionInfo])))
+   ))
 
 ;;;;;;;;;;;;;;;
 ;; Reference ;;
@@ -64,7 +64,7 @@
      (assert (instance? js/Node parent-node))
      (m/observe (fn [!]
                   (! nil)
-                  (let [mount-point (mount-point node)] ; TODO could this be inlined?
+                  (let [mount-point (mount-point node)]
                     (e/insert! mount-point tag e)
                     #(e/remove! mount-point tag e))))))
 
@@ -73,27 +73,44 @@
 ;;;;;;;;;;
 
 ;; NOTE L:we could implement variadic Text with a conditional on first rest and self recursion
-(e/defn Text [str] ; ^::lang/print-clj-source
+;; DONE decide what text should return
+;; After we decided what `element` should return
+;; - the arg passed in :: yes, the caller can discard freely
+;; - nil :: could be inconvenient if caller wants to render text and return it at the same time.
+;; - ∅   :: same inconvenience as `nil` and no added value over `nil` since caller can already discard
+;; - the dom node :: no because no other dom element does so
+(e/defn Text
+  "Mount a DOM TextNode in current `node`, containing stringified `arg`. Return `arg`."
+  [arg] ; ^::lang/print-clj-source
   (e/client
     (let [e (.createTextNode js/document "")]
       (e/input (attach! node (e/tag) e))
-      (set! (.-textContent e) str)
-      ;; TODO return string? or e? or nil?
-      )))
+      (set! (.-textContent e) arg))))
 
-(defmacro text [& strs] `(do ~@(for [s strs] `($ Text ~s))))
+(defmacro text
+  "Mount a DOM TextNode in current `node` for each argument in `args`.
+   Each TextNode will contain the stringified argument.
+   Return last argument as in `do`."
+  [& args] `(do ~@(for [arg args] `($ Text ~arg))))
 
 ;;;;;;;;;;;;;
 ;; Comment ;;
 ;;;;;;;;;;;;;
 
-(e/defn Comment [str] ; ^::lang/print-clj-source
+;; DONE what should comment return? See `Text`.
+(e/defn Comment
+  "Mount a DOM Comment in current `node`, containing stringified `arg`. Return `arg`."
+  [arg] ; ^::lang/print-clj-source
   (e/client
     (let [e (.createComment js/document "")]
       (e/input (attach! node (e/tag) e))
-      (set! (.-textContent e) str))))
+      (set! (.-textContent e) arg))))
 
-(defmacro comment [& strs] `(do ~@(for [s strs] `($ Comment ~s))))
+(defmacro comment
+  "Mount a DOM Comment in current `node` for each argument in `args`.
+   Each Comment node will contain the stringified argument.
+   Return last argument as in `do`."
+  [& args] `(do ~@(for [arg args] `($ Comment ~arg))))
 
 ;;;;;;;;;;;;;
 ;; Element ;;
@@ -193,7 +210,6 @@
                 ))
       permutation)))
 
-
 (defn perform-reorders!
   "Take a DOM `element`, an incseq `diff` and a map of `permutations` describing
   how to reorder child elements of `element`, and perform reordering of those
@@ -257,7 +273,10 @@
   (perform-removals-and-reorders! element diff)
   element)
 
-(e/defn Element [tag Body]
+(e/defn Element
+  "Mount a new DOM Element of type `tag` in the current `node` and run `Body` in
+  the context of the new Element."
+  [tag Body]
   (e/client
     (let [e   (.createElement js/document (name tag))
           mp  (e/mount-point)
@@ -268,13 +287,35 @@
       (binding [node e]              ; run continuation, in context of current node.
         ($ Body)))))
 
-(defn element* [tag forms] `($ Element ~tag (e/fn [] (e/amb ~@forms) ; TODO should we use e/amb or do? return all children, concatenated or just the last as in v2?
-                                              )))
-(defmacro element [tag & body] (element* tag body))
+;; DONE what should `element*` return?
+;; - nil :: no because we want UI to produce values
+;; - ∅ :: no because we want UI to produce values (see `drain`)
+;; - last element - do :: maybe, retrocompatible with dom2
+;; - e/amb of all children :: maybe, because why not?
 
-(clojure.core/comment
-  (element :div a b)
-  )
+;; As per UI5 TodoMVC use cases, we only want some values to concatenate and bubble up through the
+;; return channel (txs only), but not all. We want to avoid having to manually filter out dom/text,
+;; dom/comment, and other values returned by cosmetic-only bits of UI. We think we want `do`: `do` will
+;; return the last element by default. Userland can call `e/amb` to return more than one value.
+;; UI5 TooMVC concat use cases:
+;; A. concat two txs (e.g. (concat (Checkbox. ) (TextInput.)) to emit txs about a row.
+;; B. apply concat (for [entity query-result]) to concat all text for all rows.
+
+;; A. is (e/amb (do …) (do …))
+;; B. is (e/cursor [entity (query-result)] …) because e/cursor returns the concatenation of all body branches.
+;;    as if it was `apply e/amb`.
+;; Note `(do a b c)` expands to (e/amb (e/drain a) (e/drain b) c), e/drain returns ∅.
+(defn element* [tag forms] `($ Element ~tag (e/fn [] (do ~@forms))))
+
+(defmacro element
+  "Mount a new DOM Element of type `tag` in the current `node` and run `body` in
+  the context of the new Element.
+```clojure
+  (dom/element :div (dom/text \"content\"))
+```
+"
+  [tag & body]
+  (element* tag body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Props, Attributes, Styles ;;
