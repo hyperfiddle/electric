@@ -1,14 +1,14 @@
-(ns hyperfiddle.electric-css31
+(ns hyperfiddle.electric-css3
   "Dom3 compatible electric-css
    - Experimental — Use it at your own risk.
    - Partial at-rules support (only @keyframes ATM)
   "
   (:require [hyperfiddle.electric-de :as e :refer [$]]
-            [hyperfiddle.dom31 :as-alias dom]
+            [hyperfiddle.electric-dom3 :as-alias dom]
             [missionary.core :as m]
             [clojure.string :as str]
             #?(:cljs [goog.style]))
-  #?(:cljs (:require-macros [hyperfiddle.electric-css31])))
+  #?(:cljs (:require-macros [hyperfiddle.electric-css3])))
 
 (defprotocol StyledElement
   "Define an object containing CSS rules"

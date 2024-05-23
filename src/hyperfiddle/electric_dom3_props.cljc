@@ -1,14 +1,15 @@
-(ns hyperfiddle.dom31-attributes ; TODO rename to dom31-props
+(ns hyperfiddle.electric-dom3-props
   (:refer-clojure :exclude [class?])
   (:require
    [clojure.string :as str]
    [hyperfiddle.electric-de :as e :refer [$]]
-   [hyperfiddle.dom31 :as-alias dom]
-   [hyperfiddle.electric-css31 :as css]
+   [hyperfiddle.electric-dom3 :as-alias dom]
+   [hyperfiddle.electric-css3 :as css]
    [hyperfiddle.rcf :refer [tests]]
    [missionary.core :as m]
    #?(:cljs [goog.object])
-   ))
+   )
+  #?(:cljs (:require-macros [hyperfiddle.electric-dom3-props])))
 
 ;;;;;;;;;;;;;;;;
 ;; Attributes ;;

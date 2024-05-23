@@ -1,9 +1,10 @@
-(ns hyperfiddle.dom31-events2
+(ns hyperfiddle.electric-dom3-events
   (:require [hyperfiddle.electric-de :as e :refer [$]]
             [hyperfiddle.electric-dom3 :as dom]
             [hyperfiddle.incseq :as i]
             [missionary.core :as m])
-  (:import [missionary Cancelled]))
+  (:import [missionary Cancelled])
+  #?(:cljs (:require-macros [hyperfiddle.electric-dom3-events])))
 
 #?(:cljs
    (defn listen "Takes the same arguments as `addEventListener` and returns an uninitialized
@@ -171,9 +172,6 @@ calling the `release!` thunk unmounts the current branch. Optional
 ;; DONE come up with a good api for listen and ->default
 ;; DONE come up with a nice api for LatchingRelay + listen
 ;; DONE come up with a nice api for DLatchingRelay + listen
-;; TODO polish DOM3 API
-;; TODO test event handling in v2: port UI5 TodoMVC V2 to dom3 event api.
-;;      copy to another ns, rename $ to new and e/input to new
 
 ;; interpreter on top of `Fork` with concurrency of `1`, interpreting first
 ;; non-`Pending` as the release signal. Backwards compatible with `dom2/on`.
