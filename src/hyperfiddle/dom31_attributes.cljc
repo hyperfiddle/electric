@@ -109,18 +109,26 @@
                  #(.disconnect observer)))))))))
 
 (e/defn Attributes
-  "Watch for attribute changes in `node`. Return a map of latest attribute values.
-   Only DOM attributes are watchable, not object properties."
+  "
+Take a collection of `attribute-names` and watch for attribute changes in
+`node`. Return a map of {\"attribute-name\" attribute-value, ...}. Only DOM
+attributes are watchable, not object properties. For instance, to watch an
+input's value, use an event listener.
+"
   [node attribute-names]
   (e/client (e/input (watch-attributes node attribute-names))))
 
 (e/defn Attribute
-  "Watch an `attribute`'s value for a given DOM `node`. Only DOM attributes are watchable, not object properties.
-  Use `Attributes` to watch multiple attributes at once.
-  If `value` is provided, reactively sets the correponding `node`'s `attribute`or property to `value`.
-  On unmount:
+  "
+Watch an `attribute`'s value for a given DOM `node`. Only DOM attributes are
+watchable, not object properties. For instance, to watch an input's value, use
+an event listener. Use `Attributes` to watch multiple attributes at once.
+If `value` is provided, reactively sets the correponding `node`'s `attribute`or
+property to `value`.
+On unmount:
   - if `attribute` defines an actual DOM attribute, remove `attribute` from `node`.
-  - if `attribute` defines an object property, sets it to nil."
+  - if `attribute` defines an object property, sets it to nil.
+"
   ([node attribute] (get ($ Attributes node #{attribute}) (name attribute)))
   ([node attribute value]
    (e/client
@@ -257,6 +265,30 @@
     ($ MapCSeq (e/fn [[name value]] ($ Property node name value)) (ordered-props kvs))))
 
 (defmacro props
+  "
+Take a map of HTML attributes to values and reactively sets each of them onto
+a given DOM `node`. Default `node` is the one in scope.
+
+Example:
+```clojure
+  (dom/div (dom/props {:id \"my-div\", :class [\"foo\"], :style {:background-color :red}}))
+```
+
+- A value of `nil` will remove the attribute.
+- Attribute names are case-insensitive, like in HTML.
+- Attribute inherits the `node`'s namespace (e.g. SVG vs HTML attributes)
+- `:class`, setting the CSS class, can be a string or a collection of strings.
+- `:style`, setting inline CSS styles, supports setting CSS variables (e.g. {:--my-color :red})
+  - for more complex styles (e.g. pseudo-classes, pseudo-elements, keyframes) use Electric-CSS.
+
+Note `props` will decide if an attribute is set as an HTML attribute or as a DOM
+object property. For instance:
+- An input's `:value` is set through the `node.value` property.
+- `:list` (input's datalist) can only be set by attribute, as the corresponding property is readonly.
+- `:class` doesn't set the \"class\" HTML attribute, but efficiently manipulates the node's `.classList` property.
+- `:style` doesn't set the \"style\" HTML attribute, but efficiently manipulates the CSSStyleDeclaration object under the `.style` property.
+- etc.
+  "
   ([m] `(props dom/node ~m))
   ([node m]
    (if (map? m)
