@@ -277,19 +277,26 @@
   (perform-removals-and-reorders! element diff)
   element)
 
+#?(:cljs
+   (defn create-element [ns tag]
+     (if ns
+       (.createElementNS js/document ns (name tag))
+       (.createElement js/document (name tag)))))
+
 (e/defn Element
   "Mount a new DOM Element of type `tag` in the current `node` and run `Body` in
   the context of the new Element."
-  [tag Body]
-  (e/client
-    (let [e   (.createElement js/document (name tag))
-          mp  (e/mount-point)
-          tag (e/tag)]
-      (e/input (attach! node tag e)) ; mount and unmount element in parent
-      (e/input (m/reductions patch-nodelist e mp))    ; interprets diffs to mount and maintain children in correct order
-      (mount-point e mp)             ; expose mount point to children
-      (binding [node e]              ; run continuation, in context of current node.
-        ($ Body)))))
+  ([tag Body] ($ Element nil tag Body))
+  ([ns tag Body]
+   (e/client
+     (let [e   (create-element ns tag)
+           mp  (e/mount-point)
+           tag (e/tag)]
+       (e/input (attach! node tag e)) ; mount and unmount element in parent
+       (e/input (m/reductions patch-nodelist e mp))    ; interprets diffs to mount and maintain children in correct order
+       (mount-point e mp)             ; expose mount point to children
+       (binding [node e]              ; run continuation, in context of current node.
+         ($ Body))))))
 
 ;; DONE what should `element*` return?
 ;; - nil :: no because we want UI to produce values
@@ -309,7 +316,9 @@
 ;; B. is (e/cursor [entity (query-result)] …) because e/cursor returns the concatenation of all body branches.
 ;;    as if it was `apply e/amb`.
 ;; Note `(do a b c)` expands to (e/amb (e/drain a) (e/drain b) c), e/drain returns ∅.
-(defn element* [tag forms] `($ Element ~tag (e/fn [] (do ~@forms))))
+(defn element*
+  ([tag forms] (element* nil tag forms))
+  ([ns tag forms] `($ Element ~ns ~tag (e/fn [] (do ~@forms)))))
 
 (defmacro element
   "Mount a new DOM Element of type `tag` in the current `node` and run `body` in
