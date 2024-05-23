@@ -147,10 +147,10 @@
 
 (defn perform-replacements!
   "Take a DOM `element`, an incseq's diff and a map of index -> value representing
-  the remaining changes after (new values) after additions have been
-  performed (return value of `perform-additions!`). For each change, will punch
-  new values in, at their respective indices, overwriting existing ones.
-  Replacements are not reorders, see `perform-reorders!`."
+  the remaining changes after additions have been performed (return value of
+  `perform-additions!`). For each change, will punch new values in, at their
+  respective indices, overwriting existing ones. Replacements are not reorders,
+  see `perform-reorders!`."
   [element
    {:keys [permutation]}
    remaining-changes ; a map index -> value, return value of `perform-additions!`
@@ -197,7 +197,7 @@
     (reduce (fn [permutation index]
               (let [j (get permutation index index)] ; Resolve index of element to remove. If element
                                                      ; is not in the `permutation` map, then we are
-                                                     ; removing the last item if the collection (pop)
+                                                     ; removing the last item of the collection (pop)
                 (->> (.item (.-childNodes element) j) ; Get child element object by index
                   (.removeChild element))
                 ;; Consume this removal from `permutation` map. This is a Group Theory trick. The
