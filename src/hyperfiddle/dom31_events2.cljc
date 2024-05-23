@@ -79,7 +79,7 @@ defaults to `nil`.
   ([event-type] ($ Listen event-type identity))
   ([event-type f] ($ Listen dom/node event-type f))
   ([node event-type f] ($ Listen node event-type f {}))
-  ([node event-type f opts] ($ Listen node event-type f opts nil))
+  ([node event-type f opts] ($ Listen node event-type f opts))
   ([node event-type f opts init-v]
    (e/client
      (let [>v (listen node event-type f opts)
@@ -87,8 +87,26 @@ defaults to `nil`.
        [(e/input (m/reductions {} init-v >v))
         (e/input (m/reductions {} nil >lr))]))))
 
-(e/defn Grab [event-type cb-fn] ; like Listen, but user must call done! before seeing next event
-  (e/input (m/reductions {} [nil nil] (->d-latching-relay (listen node event-type cb-fn)))))
+(e/defn Grab "Takes the same arguments as `addEventListener`. Grabs a DOM event
+and returns `[v done!]` where `v` is `(f event)`. Returns `[v nil]` after
+calling the `done!` thunk. Drops events if one is currently grabbed. Initially
+returns `[init-v nil]` where `init-v` defaults to `nil`.
+
+```clj
+(dom/button
+  (let [[v done!] ($ Grab \"click\" hash)
+        busy? (boolean done!)]
+    (dom/props {:disabled busy?, :aria-busy busy?})
+    (when done!
+      (case (e/server (tx! v)) (done!)))))
+```"
+  ([event-type] ($ Grab event-type identity))
+  ([event-type f] ($ Grab dom/node event-type f))
+  ([node event-type f] ($ Grab node event-type f {}))
+  ([node event-type f opts] ($ Grab node event-type f opts nil))
+  ([node event-type f opts init-v]
+   (e/client
+     (e/input (m/reductions {} [init-v nil] (->d-latching-relay (listen node event-type f opts)))))))
 
 (defn fork [flow]
   (m/ap
@@ -98,8 +116,21 @@ defaults to `nil`.
           (S id {} [v #(S id {} nil)])
           (m/amb))))))
 
-(e/defn Fork [event-type cb-fn]
-  (e/join (e/input (fork (listen-some node event-type cb-fn)))))
+(e/defn Fork "Takes the same arguments as `addEventListener`. For each DOM event
+where `(f event)` isn't `nil` forks a new branch, allowing concurrent processing
+of events. Each branch recieves `[v done!]` where `v` is `(f event)` and calling
+the `done!` thunk unmounts the current branch.
+
+```clj
+(dom/button
+  (e/cursor [[v done!] ($ Fork \"click\" hash)]
+    (case (e/server (add-todo! v)) (done!))))
+```"
+  ([event-type] ($ Fork event-type identity))
+  ([event-type f] ($ Fork dom/node event-type f))
+  ([node event-type f] ($ Fork node event-type f {}))
+  ([node event-type f opts]
+   (e/client (e/join (e/input (fork (listen-some node event-type f opts)))))))
 
 ;; DONE does LatchingRelay / DLatchingRelay matches ->task and ->backpressured-task?
 ;;   YES
