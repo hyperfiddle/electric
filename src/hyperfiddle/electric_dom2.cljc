@@ -1,4 +1,4 @@
-(ns hyperfiddle.electric-dom2
+(ns ^:deprecated hyperfiddle.electric-dom2
   (:refer-clojure :exclude [time class?])
   (:require [contrib.assert :as ca]
             [contrib.missionary-contrib :as mx]

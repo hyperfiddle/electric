@@ -201,12 +201,14 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
 
 (cc/defn -get-system-time-ms [& [_]] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
 
-; DOM event utilities promoted due to visibility-state being critical
 
+;; DOM event utilities promoted due to visibility-state being critical
+;; TODO find a way to move out of electric core
 #?(:cljs (cc/defn dom-listener [node typ f opts]
            (.addEventListener node typ f (clj->js opts))
            #(.removeEventListener node typ f)))
 
+;; TODO find a way to move out of electric core
 #?(:cljs (cc/defn listen> ; we intend to replace this in UI5 workstream
            ([node event-type] (listen> node event-type identity {}))
            ([node event-type keep-fn!] (listen> node event-type keep-fn! {}))
@@ -216,18 +218,22 @@ executors are allowed (i.e. to control max concurrency, timeouts etc). Currently
                            (dom-listener node event-type #(when-some [v (keep-fn! %)]
                                                             (! v)) opts)))))))
 
+;; TODO find a way to move out of electric core
 #?(:cljs (def <dom-visibility-state
            (do-browser
              (->> (listen> js/document "visibilitychange")
                (m/reductions {} (.-visibilityState js/document))
                (m/latest (cc/fn [_] (.-visibilityState js/document)))))))
 
+;; TODO find a way to move out of electric core
 (hyperfiddle.electric/def dom-visibility-state (client (new (identity <dom-visibility-state))))
 
+;; TODO find a way to move out of electric core
 #?(:cljs (def <dom-mousemove (do-browser (m/reductions {} r/pending (listen> js/document "mousemove")))))
 (hyperfiddle.electric/def dom-mousemove "mousemove events, Pending if unknown"
   (client (new (identity <dom-mousemove))))
 
+;; TODO find a way to depend on dom stuff without having to promote them to electric core.
 (hyperfiddle.electric/def system-time-ms "ms since 1970 Jan 1"
   (client
     (if (= "visible" dom-visibility-state)

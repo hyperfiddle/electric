@@ -11,6 +11,11 @@
 ;; * DONE Implement setting class
 ;; * DONE Implement setting inline style
 ;; * DONE Implement event handling
+;; TODO port dom2/Focused?
+;; TODO port dom2/Hovered?
+;; TODO port dom2/visibility-state
+;; TODO port dom2/system-time
+;; TODO port dom2/system-time-ms
 ;; TODO polish DOM3 API
 ;; TODO test event handling in v2: port UI5 TodoMVC V2 to dom3 event api.
 ;;      copy to another ns, rename $ to new and e/input to new
@@ -478,12 +483,118 @@ calling the `release!` thunk unmounts the current branch. Optional
   ([typ F] `(events/on ~typ ~F))
   ([node typ F] `(events/on ~node ~typ ~F)))
 
+;;;;;;;;;;;;
+;; Extras ;;
+;;;;;;;;;;;;
+
+
+
 ;;;;;;;;;;;
 ;; Sugar ;;
 ;;;;;;;;;;;
 
-;; TODO add remaining sugar
-(defmacro div [& body] (element* "div" body))
+;; DONE add remaining sugar
 
-;; TODO do a pass/diff over dom2 vs dom3 to see if we missed anything.
+(defmacro a [& body] `(element :a ~@body))
+(defmacro abbr [& body] `(element :abbr ~@body))
+(defmacro address [& body] `(element :address ~@body))
+(defmacro area [& body] `(element :area ~@body))
+(defmacro article [& body] `(element :article ~@body))
+(defmacro aside [& body] `(element :aside ~@body))
+(defmacro audio [& body] `(element :audio ~@body))
+(defmacro b [& body] `(element :b ~@body))
+(defmacro bdi [& body] `(element :bdi ~@body))
+(defmacro bdo [& body] `(element :bdo ~@body))
+(defmacro blockquote [& body] `(element :blockquote ~@body))
+(defmacro br [& body] `(element :br ~@body))
+(defmacro button [& body] `(element :button ~@body))
+(defmacro canvas [& body] `(element :canvas ~@body))
+(defmacro cite [& body] `(element :cite ~@body))
+(defmacro code [& body] `(element :code ~@body))
+(defmacro col [& body] `(element :col ~@body))
+(defmacro colgroup [& body] `(element :colgroup ~@body))
+(defmacro data [& body] `(element :data ~@body))
+(defmacro datalist [& body] `(element :datalist ~@body))
+(defmacro dd "The <dd> HTML element provides the description, definition, or value for the preceding term (<dt>) in a description list (<dl>)." [& body] `(element :dd ~@body))
+(defmacro del [& body] `(element :del ~@body))
+(defmacro details [& body] `(element :details ~@body))
+(defmacro dfn [& body] `(element :dfn ~@body))
+(defmacro dialog [& body] `(element :dialog ~@body))
+(defmacro div [& body] `(element :div ~@body))
+(defmacro dl "The <dl> HTML element represents a description list. The element encloses a list of groups of terms (specified using the <dt> element) and descriptions (provided by <dd> elements). Common uses for this element are to implement a glossary or to display metadata (a list of key-value pairs)." [& body] `(element :dl ~@body))
+(defmacro dt "The <dt> HTML element specifies a term in a description or definition list, and as such must be used inside a <dl> element. It is usually followed by a <dd> element; however, multiple <dt> elements in a row indicate several terms that are all defined by the immediate next <dd> element." [& body] `(element :dt ~@body))
+(defmacro em [& body] `(element :em ~@body))
+(defmacro embed [& body] `(element :embed ~@body))
+(defmacro fieldset [& body] `(element :fieldset ~@body))
+(defmacro figure [& body] `(element :figure ~@body))
+(defmacro footer [& body] `(element :footer ~@body))
+(defmacro form [& body] `(element :form ~@body))
+(defmacro h1 [& body] `(element :h1 ~@body))
+(defmacro h2 [& body] `(element :h2 ~@body))
+(defmacro h3 [& body] `(element :h3 ~@body))
+(defmacro h4 [& body] `(element :h4 ~@body))
+(defmacro h5 [& body] `(element :h5 ~@body))
+(defmacro h6 [& body] `(element :h6 ~@body))
+(defmacro header [& body] `(element :header ~@body))
+(defmacro hgroup [& body] `(element :hgroup ~@body))
+(defmacro hr [& body] `(element :hr ~@body))
+(defmacro i [& body] `(element :i ~@body))
+(defmacro iframe [& body] `(element :iframe ~@body))
+(defmacro img [& body] `(element :img ~@body))
+(defmacro input [& body] `(element :input ~@body))
+(defmacro ins [& body] `(element :ins ~@body))
+(defmacro itemprop [& body] `(element :itemprop ~@body))
+(defmacro kbd [& body] `(element :kbd ~@body))
+(defmacro label [& body] `(element :label ~@body))
+(defmacro legend [& body] `(element :legend ~@body))
+(defmacro li [& body] `(element :li ~@body))
+(defmacro link [& body] `(element :link ~@body))
+(defmacro main [& body] `(element :main ~@body))
+#_ (defmacro map [& body] `(element :map ~@body))
+(defmacro mark [& body] `(element :mark ~@body))
+(defmacro math [& body] `(element :math ~@body))
+(defmacro menu [& body] `(element :menu ~@body))
+(defmacro meter [& body] `(element :meter ~@body))
+(defmacro nav [& body] `(element :nav ~@body))
+(defmacro noscript [& body] `(element :noscript ~@body))
+(defmacro object [& body] `(element :object ~@body))
+(defmacro ol [& body] `(element :ol ~@body))
+(defmacro optgroup [& body] `(element :optgroup ~@body))
+(defmacro option [& body] `(element :option ~@body))
+(defmacro output [& body] `(element :output ~@body))
+(defmacro p [& body] `(element :p ~@body))
+(defmacro picture [& body] `(element :picture ~@body))
+(defmacro pre [& body] `(element :pre ~@body))
+(defmacro progress [& body] `(element :progress ~@body))
+(defmacro q [& body] `(element :q ~@body))
+(defmacro ruby [& body] `(element :ruby ~@body))
+(defmacro s [& body] `(element :s ~@body))
+(defmacro samp [& body] `(element :samp ~@body))
+(defmacro script [& body] `(element :script ~@body))
+(defmacro section [& body] `(element :section ~@body))
+(defmacro select [& body] `(element :select ~@body))
+(defmacro slot [& body] `(element :slot ~@body))
+(defmacro small [& body] `(element :small ~@body))
+(defmacro span [& body] `(element :span ~@body))
+(defmacro strong [& body] `(element :strong ~@body))
+(defmacro style [& body] `(element :style ~@body))
+(defmacro sub [& body] `(element :sub ~@body))
+(defmacro summary [& body] `(element :summary ~@body))
+(defmacro sup [& body] `(element :sup ~@body))
+(defmacro table [& body] `(element :table ~@body))
+(defmacro tbody [& body] `(element :tbody ~@body))
+(defmacro td [& body] `(element :td ~@body))
+(defmacro template [& body] `(element :template ~@body))
+(defmacro textarea [& body] `(element :textarea ~@body))
+(defmacro th [& body] `(element :th ~@body))
+(defmacro thead [& body] `(element :thead ~@body))
+(defmacro time [& body] `(element :time ~@body))
+(defmacro tr [& body] `(element :tr ~@body))
+(defmacro u [& body] `(element :u ~@body))
+(defmacro ul [& body] `(element :ul ~@body))
+(defmacro var [& body] `(element :var ~@body))
+(defmacro video [& body] `(element :video ~@body))
+(defmacro wbr [& body] `(element :wbr ~@body))
+
+;; DONE do a pass/diff over dom2 vs dom3 to see if we missed anything.
 ;; DONE rename files
