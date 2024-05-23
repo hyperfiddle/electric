@@ -367,36 +367,27 @@ input's value, use `EventListener`."
   [node attribute-names]
   ($ attrs/Attribute node attribute-names))
 
+;;;;;;;;;;;;
+;; Events ;;
+;;;;;;;;;;;;
+
+;; TODO PG thinks following names are to be improved.
+;; TODO import event listening API
+
+(e/defn EventListener)
+(defmacro ^{:deprecated "Deprecated since v3, use EventListener instead."} on! […] …)
+(e/defn Listen)
+(e/defn Hold)
+(e/defn Fork)
+(e/defn ^:deprecated On)
+(defmacro ^{:deprecated "Deprecated since v3, use Listen, Hold and Fork instead."} on […] …)
+
 ;;;;;;;;;;;
 ;; Sugar ;;
 ;;;;;;;;;;;
 
+;; TODO add remaining sugar
 (defmacro div [& body] (element* "div" body))
 
-
-
-(clojure.core/comment
-  "comment var is already taken"
-
-
-  (defn seq->incseq [xs] (apply i/fixed (eduction (map r/invariant) xs)))
-
-  )
-
-;; #?(:cljs (defn node? [v] (instance? js/Node v)))
-;;
-;; #?(:cljs (defn appending> [elem parent]
-;;            (ca/is parent node? "DOM node parent is not an HTML Node. Maybe dom/node is unbound?" {:parent parent})
-;;            (m/observe (fn [!] (.appendChild parent elem) (! elem) #(.remove elem)))))
-#_
-(e/defn With [elem Body]
-  (binding [node (e/input (appending> elem node))]
-    node ; P: electric is lazy so if no one uses the node it might not mount.
-                                        ; This consumes `node` as per do semantics. G: Is this a hack? I don't
-                                        ; like (do) being used to force effects. We will revisit after
-                                        ; e/mount-point.
-    ($ Body)))
-
-
-;; * Questions for Leo
-;; ** …
+;; TODO do a pass/diff over dom2 vs dom3 to see if we missed anything.
+;; TODO rename files
