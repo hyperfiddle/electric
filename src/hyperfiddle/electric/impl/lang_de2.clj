@@ -628,6 +628,9 @@
         (::call) (let [e (->id)] (recur (second form) e env
                                    (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid)})
                                      (?add-source-map e form))))
+        (::tag) (let [e (->id)] (recur (second form) e env
+                                  (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid), ::call-type ::tag})
+                                    (?add-source-map e form))))
         (::pure) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::pure})
                                                               (?add-source-map e form))))
         (::join) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::join})
@@ -722,6 +725,8 @@
 
 (defn ->thunk [xs] `(fn* [] (~@xs)))
 
+(defn tag-call? [ts e] (= ::tag (::call-type (ts/->node ts e))))
+
 (defn emit [ts e ctor-e env nm]
   ((fn rec [e]
      (let [nd (get (:eav ts) e)]
@@ -751,7 +756,9 @@
                                               ::closed-ref (::closed-ref nd))
                                          first (ts/->node ts) ::free-idx)))))
                     (ts/find ts ::ctor-free (e->uid ts e))))
-         ::call (list `r/join (list `r/call 'frame (::call-idx (ts/->node ts e))))
+         ::call (if (tag-call? ts e)
+                  (list `r/pure (list `r/tag 'frame (::call-idx nd)))
+                  (list `r/join (list `r/call 'frame (::call-idx nd))))
          ::frame 'frame
          ::lookup (list* `r/lookup 'frame (::sym nd) (when-some [c (?get-child-e ts e)] (list (rec c))))
          ::mklocal (recur (get-ret-e ts (get-child-e ts e)))
@@ -803,7 +810,7 @@
   (let [ret-e (get-ret-e ts (get-child-e ts ctor-e))
         ctor-uid (::uid (ts/->node ts ctor-e))
         nodes-e (get-ordered-nodes-e ts ctor-uid)
-        calls-e (get-ordered-calls-e ts ctor-uid)]
+        calls-e (into [] (remove #(tag-call? ts %)) (get-ordered-calls-e ts ctor-uid))]
     `(r/cdef ~(count (ts/find ts ::ctor-free ctor-uid))
        ~(mapv #(get-site ts (->> (ts/->node ts %) ::ctor-ref (->localv-e ts) (get-ret-e ts)))
           nodes-e)
