@@ -811,7 +811,7 @@
   (let [ret-e (get-ret-e ts (get-child-e ts ctor-e))
         ctor-uid (::uid (ts/->node ts ctor-e))
         nodes-e (get-ordered-nodes-e ts ctor-uid)
-        calls-e (into [] (remove #(tag-call? ts %)) (get-ordered-calls-e ts ctor-uid))]
+        calls-e (get-ordered-calls-e ts ctor-uid)]
     `(r/cdef ~(count (ts/find ts ::ctor-free ctor-uid))
        ~(mapv #(get-site ts (->> (ts/->node ts %) ::ctor-ref (->localv-e ts) (get-ret-e ts)))
           nodes-e)
@@ -822,6 +822,7 @@
                               (mapv (fn [e] [(->> e (ts/->node ts) ::ctor-ref (uid->e ts) (ts/->node ts) ::pg-order)
                                              (emit-node-init ts ctor-e e env nm)])))
                  call-inits (->> calls-e
+                              (remove #(tag-call? ts %))
                               (mapv (fn [e] [(->> e (ts/->node ts) ::pg-order)
                                              (emit-call-init ts ctor-e e env nm)])))]
              ;; with xforms would be

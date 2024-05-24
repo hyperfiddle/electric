@@ -538,7 +538,7 @@
                                  (::lang/call (::lang/ctor 1))
                                  (::lang/tag)
                                  (::lang/call (::lang/ctor 2))])
-    `[(r/cdef 0 [] [nil nil] nil
+    `[(r/cdef 0 [] [nil nil nil nil nil] nil
         (fn [~'frame]
           (r/define-call ~'frame 2 (r/pure (r/ctor ::Main 1)))
           (r/define-call ~'frame 4 (r/pure (r/ctor ::Main 2)))

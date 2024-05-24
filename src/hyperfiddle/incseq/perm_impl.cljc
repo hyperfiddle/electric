@@ -81,6 +81,16 @@
     (eduction (map (partial apply cycle)))
     (reduce compose (compose))))
 
+(defn split-long-swap [o l c r]
+  (->> (range o (+ o (min l r)))
+    (eduction (map (fn [i] (cycle i (+ l c i)))))
+    (reduce compose {})
+    (compose
+      (case (compare l r)
+        -1 (split-swap (+ o l) (+ l c) (- r l))
+        0 {}
+        +1 (split-swap (+ o r) (- l r) (+ c r))))))
+
 (tests "permutations"
   (decompose {0 1, 1 4, 2 3, 3 2, 4 0}) :=
   #{[0 1 4] [2 3]}
