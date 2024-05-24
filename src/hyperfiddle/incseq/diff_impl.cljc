@@ -91,6 +91,20 @@
           :freeze      (persistent! f)}))))
   ([x y & zs] (reduce combine (combine x y) zs)))
 
+(defn subdiff [{:keys [grow shrink degree permutation change freeze]} size offset]
+  (let [global-degree (unchecked-add-int size grow)
+        shift (unchecked-subtract-int global-degree (unchecked-add-int degree offset))
+        +offset (partial + offset)]
+    {:grow        grow
+     :shrink      shrink
+     :degree      global-degree
+     :permutation (p/compose
+                    (p/split-swap (unchecked-add-int offset (unchecked-subtract-int degree shrink)) shrink shift)
+                    (into {} (map (juxt (comp +offset key) (comp +offset val))) permutation)
+                    (p/split-swap (unchecked-add-int offset (unchecked-subtract-int degree grow)) shift grow))
+     :change      (into {} (map (juxt (comp +offset key) val)) change)
+     :freeze      (into #{} (map +offset) freeze)}))
+
 (tests "sequence diffs"
   (patch-vec [:a :b :c]
     {:grow 1

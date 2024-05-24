@@ -3,6 +3,7 @@
   (:require [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.incseq :as i]
+            [hyperfiddle.electric.impl.mount-point :as mp]
             [clojure.core :as cc]
             [clojure.string :as str]
             [hyperfiddle.rcf :as rcf :refer [tests]]
@@ -199,6 +200,9 @@ this tuple. Returns the concatenation of all body results as a single vector.
     (reduce (cc/fn [ac [nm]] `(::lang/mklocal ~nm ~ac))
       (reduce (cc/fn [ac [nm & fargs]] `(::lang/bindlocal ~nm (hyperfiddle.electric-de/fn ~@fargs) ~ac)) (cons 'do body) sb)
       sb)))
+
+(defmacro tag [] `(::lang/tag))
+(def mount-point mp/create)
 
 (hyperfiddle.electric-de/defn Dispatch [F static args]
   (let [offset (count static)

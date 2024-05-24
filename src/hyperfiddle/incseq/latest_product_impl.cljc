@@ -1,5 +1,6 @@
 (ns hyperfiddle.incseq.latest-product-impl
-  (:require [hyperfiddle.incseq.perm-impl :as p]
+  (:require [hyperfiddle.incseq.arrays-impl :as a]
+            [hyperfiddle.incseq.perm-impl :as p]
             [hyperfiddle.incseq.diff-impl :as d])
   #?(:clj (:import (java.util.concurrent.locks Lock ReentrantLock)
                    (clojure.lang IFn IDeref))))
@@ -348,22 +349,7 @@
         (aset state slot-freezers (object-array arity))
         (aset state slot-processes (object-array arity))
         (aset state slot-ready ready)
-        (aset state slot-counts
-          (let [o (loop [o 1]
-                    (if (< o arity)
-                      (recur (bit-shift-left o 1)) o))
-                n (bit-shift-left o 1)
-                arr (int-array n)]
-            (loop [f (unchecked-subtract o arity)
-                   o o
-                   n n]
-              (when (< 1 o)
-                (loop [i (unchecked-subtract n f)]
-                  (when (< i n)
-                    (aset arr i 1)
-                    (recur (unchecked-inc i))))
-                (recur (bit-shift-right f 1)
-                  (bit-shift-right o 1) o))) arr))
+        (aset state slot-counts (a/weight-tree arity))
         (aset state slot-live (identity arity))
         (reduce-kv input-spawn state diffs)
         (->Ps state)))))
