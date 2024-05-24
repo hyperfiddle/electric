@@ -2,7 +2,7 @@
   (:require [hyperfiddle.electric-de :as e]
             [hyperfiddle.incseq :as i]
             #?(:clj [contrib.triple-store :as ts])
-            #?(:clj [hyperfiddle.electric.impl.lang-de2 :as lang])
+            [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.electric-local-def-de :as l]
             #?(:clj [hyperfiddle.electric.impl.compiler-test-clj :refer [cannot-be-unsited]]
@@ -531,6 +531,27 @@
            (e/server (java.time.Instant/ofEpochMilli 11)))
     `[(r/cdef 0 [] [] :server
         (fn [~'frame] (r/pure (vector 11))))]))
+
+(tests "::lang/tag"
+  (match (l/test-compile ::Main [(::lang/tag)
+                                 (::lang/tag)
+                                 (::lang/call (::lang/ctor 1))
+                                 (::lang/tag)
+                                 (::lang/call (::lang/ctor 2))])
+    `[(r/cdef 0 [] [nil nil] nil
+        (fn [~'frame]
+          (r/define-call ~'frame 2 (r/pure (r/ctor ::Main 1)))
+          (r/define-call ~'frame 4 (r/pure (r/ctor ::Main 2)))
+          (r/ap (r/pure vector)
+            (r/pure (r/tag ~'frame 0))
+            (r/pure (r/tag ~'frame 1))
+            (r/join (r/call ~'frame 2))
+            (r/pure (r/tag ~'frame 3))
+            (r/join (r/call ~'frame 4)))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame] (r/pure 1)))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame] (r/pure 2)))]))
 
 (comment
 

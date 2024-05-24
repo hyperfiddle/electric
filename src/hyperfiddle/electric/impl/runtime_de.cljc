@@ -1017,3 +1017,5 @@ Returns a peer definition from given definitions and main key.
         (recur ret (dissoc left k))
         (recur (assoc ret k f) (merge (dissoc left k) (f :get :deps))))
       ret)))
+
+(def tag)
