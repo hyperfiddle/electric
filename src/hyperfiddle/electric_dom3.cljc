@@ -289,20 +289,27 @@
        (.createElementNS js/document ns (name tag))
        (.createElement js/document (name tag)))))
 
+(e/defn With
+  "Run `Body` in provided DOM `element`, attaching and managing children inside it.
+  One would use `With` instead of `Element` to mount an Electric DOM UI inside
+  an existing DOM Element, typically libraries integration."
+  [element Body]
+  (e/client
+    (let [mp  (e/mount-point)
+          tag (e/tag)]
+      (e/input (attach! node tag element)) ; mount and unmount element in parent
+      (e/input (m/reductions patch-nodelist element mp))    ; interprets diffs to mount and maintain children in correct order
+      (mount-point element mp)             ; expose mount point to children
+      (binding [node element]              ; run continuation, in context of current node.
+        ($ Body)))))
+
 (e/defn Element
   "Mount a new DOM Element of type `tag` in the current `node` and run `Body` in
   the context of the new Element."
   ([tag Body] ($ Element nil tag Body))
   ([ns tag Body]
    (e/client
-     (let [e   (create-element ns tag)
-           mp  (e/mount-point)
-           tag (e/tag)]
-       (e/input (attach! node tag e)) ; mount and unmount element in parent
-       (e/input (m/reductions patch-nodelist e mp))    ; interprets diffs to mount and maintain children in correct order
-       (mount-point e mp)             ; expose mount point to children
-       (binding [node e]              ; run continuation, in context of current node.
-         ($ Body))))))
+     ($ With (create-element ns tag) Body))))
 
 ;; DONE what should `element*` return?
 ;; - nil :: no because we want UI to produce values
