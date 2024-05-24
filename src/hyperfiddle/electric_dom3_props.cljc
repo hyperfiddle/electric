@@ -176,6 +176,8 @@ On unmount:
 
 (e/defn Clazz [node clazz] (e/client (e/input (get-class-signal node clazz))))
 
+;; TODO find a better name for MapCSeq
+;; TODO move MapCSeq to another ns
 ;; how to run an e/fn over a clojure sequence
 (e/defn MapCSeq [Fn cseq] ; FIXME find the right name
   (e/cursor [[_ v] (e/diff-by first (map-indexed vector cseq))] ($ Fn v)))
