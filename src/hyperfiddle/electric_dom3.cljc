@@ -65,16 +65,34 @@
 
 #?(:cljs
    (let [key (js/Symbol.for "hyperfiddle.dom3.mount-point")]
-     (defn mount-point
-       ([node] (aget node key))
-       ([node v] (aset node key v)))))
+     (defn get-mount-point [node] (aget node key))
+
+     (defn mount-point> [node]
+       ;; should this be wrapped into m/signal, so two With calls can run onto the same node?
+       ;; What would happen to chilren order with two writers on a shared mount-point?
+       (m/observe (fn [!]
+                    (! (aset node key (e/mount-point)))
+                    #(js-delete node key))))))
+
+(e/defn Root
+  "
+Allow Electric DOM-managed nodes to attach to the given `dom-node`.
+
+```clj
+ (binding [dom/node ($ dom/Root js/document.body)]
+   (dom/p (dom/text \"Hello from Electric\")))
+```
+"
+  [dom-node]
+  (e/input (mount-point> dom-node))
+  dom-node)
 
 #?(:cljs
    (defn attach! [parent-node tag e]
      (assert (instance? js/Node parent-node))
      (m/observe (fn [!]
                   (! nil)
-                  (let [mount-point (mount-point node)]
+                  (let [mount-point (get-mount-point parent-node)]
                     (e/insert! mount-point tag e)
                     #(e/remove! mount-point tag e))))))
 
@@ -295,11 +313,10 @@
   an existing DOM Element, typically libraries integration."
   [element Body]
   (e/client
-    (let [mp  (e/mount-point)
+    (let [mp  (e/input (mount-point> element))
           tag (e/tag)]
       (e/input (attach! node tag element)) ; mount and unmount element in parent
       (e/input (m/reductions patch-nodelist element mp))    ; interprets diffs to mount and maintain children in correct order
-      (mount-point element mp)             ; expose mount point to children
       (binding [node element]              ; run continuation, in context of current node.
         ($ Body)))))
 
