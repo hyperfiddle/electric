@@ -17,6 +17,9 @@
 ;; TODO port dom2/system-time
 ;; TODO port dom2/system-time-ms
 ;; TODO polish DOM3 API
+;; TODO cleanup dom3-props
+;;   -  [ ] Move MapCSeq out
+;;   -  [ ] Move Partial out
 ;; TODO test event handling in v2: port UI5 TodoMVC V2 to dom3 event api.
 ;;      copy to another ns, rename $ to new and e/input to new
 
