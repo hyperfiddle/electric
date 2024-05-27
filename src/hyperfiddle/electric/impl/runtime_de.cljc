@@ -438,14 +438,18 @@ T T T -> (EXPR T)
   [^objects port]
   (aget port port-slot-slot))
 
+(defn get-node-or-call-port [^Frame frame id]
+  (if (neg? id)
+    (let [id (- -1 id)]
+      (-> (aget ^objects (.-nodes frame) id) (ca/is some? "no node port in slot " id)))
+    (-> (aget ^objects (.-calls frame) id) (ca/is some? "no call port in slot " id))))
+
 (defn slot-port
   {:tag 'objects}
   [^Slot slot]
   (let [id (.-id slot)
         ^Frame frame (.-frame slot)]
-    (if (neg? id)
-      (aget ^objects (.-nodes frame) (- -1 id))
-      (aget ^objects (.-calls frame) id))))
+    (get-node-or-call-port frame id)))
 
 (defn port-ready [^objects port]
   (peer-push (frame-peer (.-frame (port-slot port))) peer-queue-ready port))

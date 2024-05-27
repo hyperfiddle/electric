@@ -30,7 +30,7 @@
     % := (Point. 1 2)))
 
 ;; TODO `m/ap` has `try` in expansion
-(skip "new on missionary flow"
+(tests "new on missionary flow"
   (with ((l/single {} (tap (e/input (m/ap 1)))) tap tap)
     % := 1))
 
