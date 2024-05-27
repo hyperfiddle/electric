@@ -46,8 +46,9 @@
         v1 (-> eav (get e) (get a))
         ave (if (= v0 v1)
               (:ave ts)
-              (let [ave (update (:ave ts) a update v1 (fnil conj (sorted-set)) e)]
-                (cond-> ave (contains? (get ave a) v0) (update a update v0 disj e))))
+              (let [ave (update (:ave ts) a update v1 (fnil conj (sorted-set)) e)
+                    ave (cond-> ave (contains? (get ave a) v0) (update a update v0 disj e))]
+                (cond-> ave (not (seq (-> ave (get a) (get v0)))) (update a dissoc v0))))
         vea (:vea ts)
         ;; vea (update (:vea ts) v1 update e (fnil conj #{}) a)
         ;; vea (cond-> vea (contains? (get vea v0) e) (update v0 update e disj a))

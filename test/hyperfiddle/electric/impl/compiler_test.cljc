@@ -272,9 +272,9 @@
   (match (l/test-compile ::Main (let [a 1, b 2] (::lang/ctor [b (::lang/ctor a)])))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 2))
-          (r/define-node ~'frame 1 (r/pure 1))
-          (r/pure (r/ctor ::Main 1 (r/node ~'frame 0) (r/node ~'frame 1)))))
+          (r/define-node ~'frame 0 (r/pure 1))
+          (r/define-node ~'frame 1 (r/pure 2))
+          (r/pure (r/ctor ::Main 1 (r/node ~'frame 1) (r/node ~'frame 0)))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
           (r/ap (r/pure clojure.core/vector)
@@ -493,15 +493,15 @@
   (match (l/test-compile ::Main (let [x 1, y 2] [y x x y]))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 2))
-          (r/define-node ~'frame 1 (r/pure 1))
+          (r/define-node ~'frame 0 (r/pure 1))
+          (r/define-node ~'frame 1 (r/pure 2))
           (r/ap (r/pure clojure.core/vector)
-            (r/node ~'frame 0) (r/node ~'frame 1) (r/node ~'frame 1) (r/node ~'frame 0))))])
+            (r/node ~'frame 1) (r/node ~'frame 0) (r/node ~'frame 0) (r/node ~'frame 1))))])
   (match (l/test-compile ::Main (let [x 1] [(::lang/call (::lang/ctor 1)) x x (::lang/call (::lang/ctor 2))]))
     `[(r/cdef 0 [nil] [nil nil] nil
         (fn [~'frame]
-          (r/define-call ~'frame 0 (r/pure (r/ctor :hyperfiddle.electric.impl.compiler-test/Main 1)))
           (r/define-node ~'frame 0 (r/pure 1))
+          (r/define-call ~'frame 0 (r/pure (r/ctor :hyperfiddle.electric.impl.compiler-test/Main 1)))
           (r/define-call ~'frame 1 (r/pure (r/ctor :hyperfiddle.electric.impl.compiler-test/Main 2)))
           (r/ap (r/pure clojure.core/vector)
             (r/join (r/call ~'frame 0))
@@ -552,6 +552,42 @@
         (fn [~'frame] (r/pure 1)))
       (r/cdef 0 [] [] nil
         (fn [~'frame] (r/pure 2)))]))
+
+(tests
+  "call order"
+  (match (l/test-compile ::Main (let [x (binding [::foo 1] (::lang/lookup ::foo))]
+                                  (prn x)
+                                  (prn x)))
+    `[(r/cdef 0 [nil nil] [nil nil] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0 (r/pure 1))
+          (r/define-call ~'frame 0
+            (r/ap (r/pure (fn* []
+                            (r/bind (r/ctor ::Main 2)
+                              ::foo (r/node ~'frame 0))))))
+          (r/define-node ~'frame 1 (r/join (r/call ~'frame 0)))
+          (r/define-call ~'frame 1
+            (r/join
+              (r/ap (r/lookup ~'frame :hyperfiddle.incseq/fixed (r/pure hyperfiddle.incseq/fixed))
+                (r/ap (r/lookup ~'frame ::r/invariant (r/pure r/invariant))
+                  (r/pure (r/ctor ::Main 1 (r/node ~'frame 1))))
+                (r/ap (r/lookup ~'frame ::r/invariant (r/pure r/invariant))
+                  (r/pure (r/ctor ::Main 3 (r/node ~'frame 1)))))))
+          (r/join (r/call ~'frame 1))))
+      (r/cdef 1 [] [] nil
+        (fn [~'frame]
+          (r/join (r/ap (r/lookup ~'frame ::r/drain (r/pure r/drain))
+                    (r/pure
+                      (r/incseq ~'frame
+                        (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn))
+                          (r/free ~'frame 0))))))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/lookup ~'frame ::foo)))
+      (r/cdef 1 [] [] nil
+        (fn [~'frame]
+          (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure prn))
+            (r/free ~'frame 0))))]))
 
 (comment
 
