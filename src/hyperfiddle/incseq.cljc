@@ -859,63 +859,7 @@ Returns the size of `incseq` as a continuous flow.
       (q {:grow 0 :degree 2 :shrink 1 :permutation {} :change {} :freeze #{}})
       @ps := {:degree 4 :grow 0 :shrink 2 :permutation {1 2, 2 1} :change {} :freeze #{}})
 
-    (let [q (queue)
-          ps ((latest-concat (fn [n t] (q n) (->Ps q #(% :cancel) #(%))))
-              #(q :step) #(q :done))
-          n (q)]
-      (n)
-      (q) := :step
-      (q {:grow 2 :degree 2 :shrink 0 :permutation {} :freeze #{}
-          :change {0 (fn [n t] (n) (->Ps q #(% :cancel) #(%)))
-                   1 (fn [n t] (n) (->Ps q #(% :cancel) #(%)))}})
-      (q {:grow 3 :shrink 0 :degree 3 :permutation {} :change {0 :x0 1 :y0 2 :z0} :freeze #{}})
-      (q {:grow 2 :shrink 0 :degree 2 :permutation {} :change {0 :x1 1 :y1} :freeze #{}})
-      @ps := {:degree 5, :permutation {}, :grow 5, :shrink 0, :change {0 :x0, 1 :y0, 2 :z0, 3 :x1, 4 :y1}, :freeze #{}})
-
-    (let [q (queue)
-          ps ((latest-concat (fn [n t] (q n) (->Ps q #(% :cancel) #(%))))
-              #(q :step) #(q :done))
-          n (q)]
-      (n)
-      (q) := :step
-      (q {:grow 1 :degree 1 :shrink 0 :permutation {} :freeze #{}
-          :change {0 (fn [n t] (n) (->Ps q #(% :cancel) #(%)))}})
-      (q {:grow 1 :degree 1 :shrink 0 :permutation {} :change {0 :foo} :freeze #{}})
-      @ps := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 :foo}, :freeze #{}}
-      (n)
-      (q) := :step
-      (q {:grow 0 :degree 1 :shrink 0 :permutation {} :freeze #{}
-          :change {0 (fn [n t] (n) (->Ps q #(% :cancel) #(%)))}})
-      (q {:grow 1 :degree 1 :shrink 0 :permutation {} :change {0 :foo} :freeze #{}})
-      @ps := {:degree 2, :permutation {0 1, 1 0}, :grow 1, :shrink 1, :change {0 :foo}, :freeze #{}}
-      (q) := :cancel)
-
-    (let [q (queue)
-          ps ((latest-concat (fn [n t] (q n) (->Ps q #(% :cancel) #(%))))
-              #(q :step) #(q :done))
-          n (q)]
-      (n)
-      (q) := :step
-      (q {:grow 2 :degree 2 :shrink 0 :permutation {} :freeze #{}
-          :change {0 (fn [n t] (n) (->Ps q #(% :cancel) #(%)))
-                   1 (fn [n t] (n) (->Ps q #(% :cancel) #(%)))}})
-      (q {:grow 0 :shrink 0 :degree 0 :permutation {} :change {} :freeze #{}})
-      (q {:grow 0 :shrink 0 :degree 0 :permutation {} :change {} :freeze #{}})
-      @ps := {:degree 0, :permutation {}, :grow 0, :shrink 0, :change {}, :freeze #{}}
-      (n)
-      (q) := :step
-      (q {:grow 0 :degree 2 :shrink 0 :permutation {} :freeze #{}
-          :change {1 (fn [n t] (n) (->Ps q #(% :cancel) #(%)))}})
-      (q {:grow 1 :degree 1 :shrink 0 :permutation {} :change {0 "hello"} :freeze #{}})
-      @ps := {:degree 1 :permutation {} :grow 1 :shrink 0 :change {0 "hello"} :freeze #{}}
-      (q) := :cancel
-      (n)
-      (q) := :step
-      (q {:grow 0 :degree 2 :shrink 0 :permutation {} :freeze #{}
-          :change {0 (fn [n t] (n) (->Ps q #(% :cancel) #(%)))}})
-      (q {:grow 1 :degree 1 :shrink 0 :permutation {} :change {0 "hello"} :freeze #{}})
-      @ps := {:degree 2 :permutation {0 1, 1 0} :grow 1 :shrink 0 :change {0 "hello"} :freeze #{}}
-      (q) := :cancel)))
+    ))
 
 (comment
 

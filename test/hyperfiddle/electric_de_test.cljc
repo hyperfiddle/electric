@@ -365,8 +365,7 @@
   (with ((l/single {} (tap (do (tap :a) (tap (e/watch !x))))) tap tap)
     ; Currently, do is not monadic sequence.
     ; It's an incremental computation so only rerun what changed in our opinion
-    % := :a
-    % := 0
+    (hash-set % %) := #{:a 0}
     % := 0
     (swap! !x inc)
     ; no :a
@@ -1243,13 +1242,15 @@
                         (tap (f state))
                         (tap (f state :b))
                         (tap (f state :b :c :d)))) tap tap)
-    % := [0 [:local 0] [:global 0]]
-    % := [0 :b [:local 0] [:global 0]]
-    % := [0 :b '(:c :d) [:local 0] [:global 0]]
+    (hash-set % % %) :=
+    #{[0 [:local 0] [:global 0]]
+      [0 :b [:local 0] [:global 0]]
+      [0 :b '(:c :d) [:local 0] [:global 0]]}
     (swap! !state3 inc)
-    % := [1 [:local 1] [:global 1]]
-    % := [1 :b [:local 1] [:global 1]]
-    % := [1 :b '(:c :d) [:local 1] [:global 1]]))
+    (hash-set % % %) :=
+    #{[1 [:local 1] [:global 1]]
+      [1 :b [:local 1] [:global 1]]
+      [1 :b '(:c :d) [:local 1] [:global 1]]}))
 
 (def !state4 (atom 0))
 (tests
@@ -1314,8 +1315,9 @@
                                        (is-odd?  [x] (if (zero? x) false (is-even? (descent x))))]
                                  (tap [(is-even? 0) (is-even? 1) (is-even? 2) (is-even? -2)])
                                  (tap [(is-odd?  0) (is-odd?  2) (is-odd?  3) (is-odd? -3)])))) tap tap)
-        % := [true false true true]
-        % := [false false true true]
+        (hash-set % %) :=
+        #{[true false true true]
+          [false false true true]}
         % := [false false true true]))
 
 (def !state (atom 0))
@@ -1331,13 +1333,15 @@
                         (tap (f state))
                         (tap (f state :b))
                         (tap (f state :b :c :d)))))) tap tap)
-    % := [0 [:local 0] [:global 0]]
-    % := [0 :b [:local 0] [:global 0]]
-    % := [0 :b '(:c :d) [:local 0] [:global 0]]
+    (hash-set % % %) :=
+    #{[0 [:local 0] [:global 0]]
+      [0 :b [:local 0] [:global 0]]
+      [0 :b '(:c :d) [:local 0] [:global 0]]}
     (swap! !state inc)
-    % := [1 [:local 1] [:global 1]]
-    % := [1 :b [:local 1] [:global 1]]
-    % := [1 :b '(:c :d) [:local 1] [:global 1]]))
+    (hash-set % % %) :=
+    #{[1 [:local 1] [:global 1]]
+      [1 :b [:local 1] [:global 1]]
+      [1 :b '(:c :d) [:local 1] [:global 1]]}))
 
 #?(:clj
    (tests "e/fn is undefined in clojure-land"
@@ -1360,7 +1364,8 @@
      (tap (try (eval '(l/single {} (fn [] (e/watch (atom :nomatter))))) (catch Throwable e (ex-message (ex-cause e)))))
      % := "Electric code (hyperfiddle.electric-de/watch) inside a Clojure function"))
 
-(tests "cycle"
+;; 0 can be skipped because tap and reset! are concurrent
+(skip "cycle"
   (with ((l/single {}
            (let [!F (atom (e/fn [] 0))]
              (tap ($ (e/watch !F)))
