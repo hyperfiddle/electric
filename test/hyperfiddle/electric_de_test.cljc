@@ -2041,13 +2041,11 @@
    (tests "#js"
      (def !x (atom 0))
      (with ((l/single {} (let [x (e/watch !x)]
-                           (tap #js {:x x})
-                           (tap #js [:x x]))) tap tap)
-       (.-x %) := 0
-       (aget % 1) := 0
+                           (tap [(.-x #js {:x x})
+                                 (aget #js [:x x] 1)]))) tap tap)
+       % := [0 0]
        (swap! !x inc)
-       (.-x %) := 1
-       (aget % 1) := 1)))
+       % := [1 1])))
 
 #?(:clj
    (tests "jvm interop"

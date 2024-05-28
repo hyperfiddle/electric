@@ -26,18 +26,12 @@
 (tests
   "js scoped call in electric"
   (with ((l/single {}
-           (tap call-test/scope.fn)
-           (tap (call-test/scope.fn))  ; direct access
-           (tap (.fn call-test/scope)) ; two-step access
-           (tap (js/hyperfiddle.js_calls_test_de.scope.fn)) ; global access, requires `(call-test/install)`
            (let [fn (.-fn call-test/scope)]
-             (tap (undefined? (fn)))
-             (tap ((.bind fn call-test/scope))))) tap tap)
-    % := call-test/scope.fn
-    % := "value"
-    % := "value"
-    % := "value"
-    % := true
-    % := "value"
-    ))
+             (tap [call-test/scope.fn
+                   (call-test/scope.fn)                       ; direct access
+                   (.fn call-test/scope)                      ; two-step access
+                   (js/hyperfiddle.js_calls_test_de.scope.fn) ; global access, requires `(call-test/install)`
+                   (undefined? (fn))
+                   ((.bind fn call-test/scope))]))) tap tap)
+    % := [call-test/scope.fn "value" "value" "value" true "value"]))
 
