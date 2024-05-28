@@ -70,7 +70,7 @@
     (is (= @ps {:grow 0
                 :degree 2
                 :shrink 2
-                :permutation {0 1, 1 0}
+                :permutation {}
                 :change {}
                 :freeze #{}}))
     (ps)

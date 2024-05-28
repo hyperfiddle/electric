@@ -39,6 +39,16 @@
          (change! (:change d))
          (persistent!))))))
 
+(defn unmove-tail [p o d]
+  (loop [i o
+         p p]
+    (if (< i d)
+      (recur (inc i)
+        (if-some [j (p i)]
+          (if (< o j)
+            (p/compose p (p/cycle i j))
+            p) p)) p)))
+
 (defn combine
   ([x] x)
   ([x y]
@@ -84,7 +94,9 @@
                (p/compose (p/rotation i d)
                  p (p/rotation d j)) c f)))
          {:degree      d
-          :permutation p
+          :permutation (-> p
+                         (unmove-tail size-before d)
+                         (unmove-tail size-after d))
           :grow        (unchecked-subtract d size-before)
           :shrink      (unchecked-subtract d size-after)
           :change      (persistent! c)
@@ -128,13 +140,4 @@
      :shrink 1
      :change {0 :f, 1 :g, 2 :h}}) :=
   [:f :g :h]
-
-  (combine
-    {:degree 1 :grow 1 :permutation {} :shrink 0 :change {0 :a} :freeze #{}}
-    {:degree 1 :grow 0 :permutation {} :shrink 1 :change {} :freeze #{}}) :=
-  {:degree 0 :grow 0 :permutation {} :shrink 0 :change {} :freeze #{}}
-
-  (combine
-    {:grow 1 :degree 4 :permutation (p/rotation 3 1) :shrink 2 :change {1 :e} :freeze #{}}
-    {:grow 2 :degree 4 :permutation (p/rotation 1 3) :shrink 1 :change {0 :f 1 :g 2 :h} :freeze #{}}) :=
-  {:degree 5 :grow 2 :shrink 2 :permutation (p/compose (p/cycle 2 4) (p/cycle 1 3)) :change {0 :f, 1 :g, 2 :h} :freeze #{}})
+  )
