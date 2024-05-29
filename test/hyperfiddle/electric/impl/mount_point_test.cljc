@@ -78,6 +78,25 @@
     (is (thrown? Cancelled @ps))
     (is (= (q) :done))))
 
+(deftest sibling-tags-insert-after-read
+  (let [q (queue)
+        p (peer {})
+        f (frame p nil 0 nil nil)
+        mp (mp/create)
+        ps (mp #(q :step) #(q :done))]
+    (is (= (q) :step))
+    (is (= @ps (d/empty-diff 0)))
+    (kvs/insert! mp (r/tag f 0) :foo)
+    (kvs/insert! mp (r/tag f 1) :bar)
+    (is (= (q) :step))
+    (is (= @ps {:grow   2
+                :degree 2
+                :shrink 0
+                :permutation {}
+                :change {0 :foo
+                         1 :bar}
+                :freeze #{}}))))
+
 (deftest cousin-tags
   (let [q (queue)
         p (peer {:cdef [(r/cdef 0 [] [] nil (fn [frame] (r/pure nil)))]})

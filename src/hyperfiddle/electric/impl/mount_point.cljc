@@ -498,6 +498,8 @@
                 ^objects children (aget block block-slot-children)]
             (aset state slot-blocks (assoc blocks frame block))
             (aset children index init)
+            (when-some [reader (aget state slot-reader)]
+              (insert-block reader block))
             (enqueue-exit state block (- index (r/frame-call-count frame))))))))
   (update! [_ tag f]
     (let [frame (r/tag-frame tag)
