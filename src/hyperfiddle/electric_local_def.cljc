@@ -88,7 +88,7 @@
 #?(:clj
    (defmacro local+
      "Single peer loopback system without whitelist. Returns boot task."
-     {:style/indent 0}
+     {:style/indent 1}
      [conf & body]
      (let [env (e/normalize-env &env)
            cenv (merge env (->local-config env) {::lang/me :client} conf)
@@ -104,7 +104,7 @@
 #?(:clj
    (defmacro single+
      "Single peer system without whitelist. Returns boot task."
-     {:style/indent 0}
+     {:style/indent 1}
      [conf & body]
      (let [env (merge (e/normalize-env &env) (->single-peer-config &env) conf)
            ir (lang/analyze env `(do ~@body))
