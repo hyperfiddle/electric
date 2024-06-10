@@ -11,7 +11,7 @@
 ;; * DONE Implement setting class
 ;; * DONE Implement setting inline style
 ;; * DONE Implement event handling
-;; TODO port dom2/Focused?
+;; WIP port dom2/Focused?
 ;; TODO port dom2/Hovered?
 ;; TODO port dom2/visibility-state
 ;; TODO port dom2/system-time
@@ -514,6 +514,18 @@ calling the `release!` thunk unmounts the current branch. Optional
 ;; Extras ;;
 ;;;;;;;;;;;;
 
+;; G example impl, could we have e/mix ?
+(e/defn Focused
+  ([] ($ Focused node))
+  ([node]
+   (e/client
+     ($ EventListener node #{"focus" "blur"}
+       (fn [e]
+         (case (.-type e)
+           "focus" true
+           "blur" false))
+       {}
+       (= node (.-activeElement js/document))))))
 
 
 ;;;;;;;;;;;
