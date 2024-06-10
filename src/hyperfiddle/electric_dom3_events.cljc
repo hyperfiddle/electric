@@ -104,7 +104,11 @@ nil]` after calling the `release!` thunk. Initially returns `[init-v nil]` where
        [(e/input (m/reductions {} init-v >v))
         (e/input (m/reductions {} nil >lr))]))))
 
-;; v2 `e/do-event` is an interpreter on top of `Hold`
+;; v2 `e/do-event` is an interpreter on top of `Hold` 
+
+;; NOTE P and G thinks Hold does two things: latch and addEventListener. Maybe
+;; we could unbundle it? What would a DLatchingRelay e/defn look like? would it
+;; be discrete or continuous?
 (e/defn Hold "Takes the same arguments as `addEventListener`. Holds a DOM event
 and returns `[v release!]` where `v` is `(f event)`. Returns `[v nil]` after
 calling the `release!` thunk. Drops events if one is currently held. Initially
