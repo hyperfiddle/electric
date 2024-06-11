@@ -1,6 +1,6 @@
 (ns hyperfiddle.electric-dom3-events
   (:require [hyperfiddle.electric-de :as e :refer [$]]
-            [hyperfiddle.electric-dom3 :as dom]
+            [hyperfiddle.electric-dom3 :as-alias dom]
             [hyperfiddle.incseq :as i]
             [missionary.core :as m])
   (:import [missionary Cancelled])
