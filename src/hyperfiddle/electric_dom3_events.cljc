@@ -138,6 +138,11 @@ returns `[init-v nil]` where `init-v` defaults to `nil`.
           (S id {} [v #(S id {} nil)])
           (m/amb))))))
 
+;; Leo: I would have split fork in two:
+;;      - fork would have parallelism infinity only
+;;      - I would have made an IncSeq->IncSeq function (e.g. i/take) that truncates the Spine up to concurrency-factor
+;;        (i.e. equivalent of take but for incseqs)
+;;      - G: note ops on incseqs can be infralinear, so transducers could work but wouldn't be ideal.
 (defn fork
   ([flow] (fork ##Inf flow))
   ([n flow]
@@ -146,8 +151,24 @@ returns `[init-v nil]` where `init-v` defaults to `nil`.
        (m/amb S
          (let [v (m/?> flow), id @!id, running (swap! !running conj (swap! !id inc))]
            (S id {} [v #(do (swap! !running disj id) (S id {} nil))])
-           (run! #(S % {} nil) (take (- (count running) n) running))
+           (run! #(S % {} nil) (take (- (count running) n) ; NOTE Leo: always return 0 or 1 because we add one event at a time
+                                 running))
            (m/amb)))))))
+
+;; Let's suppose we have i/take
+
+(comment
+  (defn fork* [flow]
+    (m/ap
+      (let [next-id! (partial swap! (atom 0) inc), S (i/spine)]
+        (m/amb S
+          (let [v (m/?> flow), id (next-id!)]
+            (S id {} [v #(S id {} nil)])
+            (m/amb))))))
+
+  (defn fork [n flow] (i/take n (fork* flow)))
+  )
+
 
 (e/defn Fork "Takes the same arguments as `addEventListener`. For each DOM event
 where `(f event)` isn't `nil` forks a new branch, allowing concurrent processing
