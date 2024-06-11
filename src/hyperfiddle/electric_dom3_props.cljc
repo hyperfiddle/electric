@@ -261,7 +261,7 @@ On unmount:
       (class? name) ($ ClassList node value)
       :else         ($ Attribute node name value))))
 
-(e/defn Properties
+(e/defn Properties ; NOTE Leo: this is an anti pattern, we already have e/amb or e/diff-by, no need for an implicit diff.
   "Take a map of attribute or property name to value and sets each onto `node`. Return nil."
   [node kvs]
   (e/client

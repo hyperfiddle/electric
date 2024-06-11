@@ -392,11 +392,38 @@ object property. For instance:
 - `:style` doesn't set the \"style\" HTML attribute, but efficiently manipulates the CSSStyleDeclaration object under the `.style` property.
 - etc.
   "
+
+  ;; Leo: alternative to class taking a vector: use v3's e/amb or e/diff-by (or any incseq).
   ([attributes] `(props/props ~attributes))
   ([node attributes] `(props/props ~node ~attributes)))
 
+(cc/comment
+  ;; Leo: static props
+  (props {:class (e/amb "foo" "bar")}) ; instead of "foo bar" or ["foo" "bar"]
+  ;; Leo: dynamic props
 
-(e/defn Attribute
+  (Button.
+    (if running?
+      (props {:class "button-spinning"})
+      (props …)))
+
+  (e/defn Button [props]
+    (props (cond disabled? (assoc props :disabled true))))
+
+  ;; Leo: what if we used incseq for dynamic props
+  (e/amb [:prop1 "value1"], (if <cond> [:prop2 "value2"] (e/amb))) ; pattern: (if <cond> foo (e/amb)) => (e/where <cond> foo)
+  ;; or
+  (e/diff-by key {:prop1 "value1", :prop2 "value2"})
+  ;; Then we can have a function mounting each incseq's instance in the DOM
+  ;; e/cursor + m/observe
+  ;; NOTE G: we cannot sort an incseq and we need to account for `ordered-props` bug (see props ns)
+
+  )
+
+;; NOTE Leo: beware, watching a dom attribute instead of passing the value
+;; around in Electric could introduce glitches as the attribute being set value
+;; will trigger a new propagation on the next turn.
+(e/defn ^:no-doc Attribute
   "
 Watch an `attribute`'s value for a given DOM `node`. Only DOM attributes are
 watchable, not object properties. For instance, to watch an input's value, use
@@ -404,7 +431,7 @@ watchable, not object properties. For instance, to watch an input's value, use
   [node attribute-name]
   ($ props/Attribute node attribute-name))
 
-(e/defn Attributes
+(e/defn ^:no-doc Attributes
   "
 Take a collection of `attribute-names` and watch for attribute changes in
 `node`. Return a map of {\"attribute-name\" attribute-value, ...}. Only DOM
@@ -420,6 +447,8 @@ input's value, use `EventListener`."
 ;; DONE import event listening API
 ;; P and G thinks following names are to be improved.
 
+;; NOTE Leo: I think passing an initial value should be mandatory. E.g.
+;; EventListener returns nil but input contains "", but depends on use case.
 (e/defn EventListener "Takes the same arguments as `addEventListener`. Returns
 the result of `(f event)`.
 
