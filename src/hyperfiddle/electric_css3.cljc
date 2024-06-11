@@ -8,7 +8,8 @@
             [missionary.core :as m]
             [clojure.string :as str]
             #?(:cljs [goog.style]))
-  #?(:cljs (:require-macros [hyperfiddle.electric-css3])))
+  #?(:cljs (:require-macros [hyperfiddle.electric-css3]))
+  )
 
 (defprotocol StyledElement
   "Define an object containing CSS rules"

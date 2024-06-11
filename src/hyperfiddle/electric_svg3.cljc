@@ -1,8 +1,8 @@
 (ns hyperfiddle.electric-svg3
   "SVG support is experimental, API subject to change"
   (:refer-clojure :exclude [filter set symbol use])
-  (:require [hyperfiddle.electric-dom2 :as dom]
-            [hyperfiddle.electric-dom2-props :as props])
+  (:require [hyperfiddle.electric-dom3 :as dom]
+            [hyperfiddle.electric-dom3-props :as props])
   #?(:cljs (:require-macros [hyperfiddle.electric-svg3])))
 
 (defn element* [tag forms] (dom/element* props/SVG-NS tag forms))
