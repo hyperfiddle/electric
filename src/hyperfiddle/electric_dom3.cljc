@@ -400,6 +400,7 @@ object property. For instance:
 (cc/comment
   ;; Leo: static props
   (props {:class (e/amb "foo" "bar")}) ; instead of "foo bar" or ["foo" "bar"]
+  (props {:class (e/diff-by identity ["foo" "bar"])}) ; instead of "foo bar" or ["foo" "bar"]
   ;; Leo: dynamic props
 
   (Button.
