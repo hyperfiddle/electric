@@ -8,6 +8,56 @@
            [missionary Cancelled]
            #?(:clj [clojure.lang ExceptionInfo])))
 
+;; * Behavior of exceptions
+;; ** in v2
+;; *** Implicit Either monad
+;;     - An expression always return one value.
+;;     - Group expressions (do, try, catch, etc.) return the value of their last
+;;       (right-most) expression.
+;;     - Thrown exceptions are special values:
+;;       - thrown exceptions are wrapped in a Failure instance
+;;         (e.g. Either Exception Value = Failure Exception | Value)
+;;       - Failure instances propagate through the return channel
+;;       - Failure instances short-circuits function application:
+;;         #+begin_src clojure
+;;           (do a <failure> b)  ; returns <failure>, not b, a and b are still sampled (still run)
+;;           (prn a <failure> b) ; returns <failure>, `prn` call is bypassed
+;;         #+end_src
+;;       - The left-most Failure instance takes precedence:
+;;         #+begin_src clojure
+;;           (do a <failureA> <failureB> c) ; returns <failureA>
+;;           (prn a <failureA> <failureB> c) ; returns <failureA>, `prn` call is bypassed
+;;         #+end_src
+;; *** Try/catch behavior
+;;     #+begin_src clojure
+;;       (try <try-body> (catch DispatchType ex <catch-body>) (catch ...) ... (finally ...))
+;;     #+end_src
+;;     - a try block returns either:
+;;       - in absence of any Failure in try-body
+;;         - the right-most value of `try-body`
+;;       - in presence of a Failure in try-body
+;;         - if one `catch` DispatchType matches - as per `instanceOf`
+;;           - the left-most matching catch takes precedence, not the exception
+;;             type hierarchy.
+;;           - return the right-most value of corresponding catch-body
+;;         #+begin_src clojure
+;;           (try (throw (ex-info "message" {})) ; throws an ExceptionInfo
+;;                (catch ExceptionInfo ex        ; this block matches
+;;                  [:ex-info (ex-message ex)])  ; this value is returned
+;;                (catch Throwable ex            ; unreachable code
+;;                  [:throwable (ex-message ex)]))
+;;         #+end_src
+;;     - a finally block
+;;       - runs for effects only (return value is discarded)
+;;       - mounts at the same time as try's body
+;;       #+begin_src clojure
+;;         (try (prn :a) 1 (finally (prn :b) 2))
+;;         ;; prints :a then :b
+;;         ;; return 1
+;;       #+end_src
+;;
+
+
 (tests "try/finally"
   (with ((l/local (try (tap 1) (catch Pending _) (finally (tap 2)))) tap tap)
     [% %] := [1 2]))
