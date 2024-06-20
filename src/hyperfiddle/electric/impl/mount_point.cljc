@@ -1,5 +1,40 @@
-(ns hyperfiddle.electric.impl.mount-point
-  (:require [hyperfiddle.kvs :refer [KVS]]
+(ns hyperfiddle.electric.impl.mount-point "
+A mount-point instance maintains :
+* a hash map storing items indexed by tag. An item is a mutable object tracking the lifecycle of each entry in the
+  resulting incseq.
+* a set of active readers. Each mutation of the store sends an invalidation event for the item being touched to the
+  readers currently active.
+
+A reader process maintains :
+* a call tree isomorphic to the subset of the application's call tree restricted to the ancestors of active items.
+  Leaves are items, nodes are either blocks or calls, block children are items or calls, call children are blocks, the
+  root is a call.
+* a hash map storing blocks indexed by frame. A block is a mutable object tracking each known frame. A frame is known
+  when either it's an ancestor of an active item, or it's currently being mounted by a call that is in the common
+  ancestry of an active item.
+* a mailbox for step events on calls and another one for invalidation events on items. Both mailboxes are consumed
+  during reader process transfer, call events take priority over the item events but ordering of events within a single
+  mailbox is irrelevant. The processing of each event mutates the call tree and generates a diff, then the concatenation
+  of successive diffs is returned. When the reader is spawned, an invalidation event is posted for each active item.
+
+On item invalidation event :
+* If the item is inactive :
+  * If it was attached in the call tree, it is detached from the tree and a shrink is generated if the item was mounted.
+  * If it was detached from the call tree, nothing happens.
+* If the item is active :
+  * If it was attached in the call tree, a change is generated if the item was mounted.
+  * If it was detached from the call tree, it is attached to the tree and a grow is generated if the item was mounted.
+
+On call step event :
+1. Apply permutation. The call permutation must be expanded to take into account the offset and length of the call
+   segment in the current sequence state.
+2. Apply changes. For each item change that is not a grow, the block associated to previous frame is unmounted. The new
+   frame is then associated to its block and mounted.
+3. Apply shrinks. The blocks associated with removed frames are unmounted.
+
+Unmounting a block generates a shrink for each active item having this block's frame as an ancestor.
+Mounting a block generates a grow for each active item having this block's frame as an ancestor.
+" (:require [hyperfiddle.kvs :refer [KVS]]
             [hyperfiddle.incseq.arrays-impl :as a]
             [hyperfiddle.incseq.fixed-impl :as f]
             [hyperfiddle.incseq.diff-impl :as d]
