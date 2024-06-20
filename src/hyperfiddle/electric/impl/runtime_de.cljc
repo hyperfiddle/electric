@@ -284,6 +284,10 @@ T T T -> (EXPR T)
   [^Peer peer key idx]
   ((peer-root peer key) idx))
 
+(defn peer-root-frame [^Peer peer]
+  (let [^objects state (.-state peer)]
+    (aget state peer-slot-root)))
+
 (defn port-flow [^objects port]
   (aget port port-slot-flow))
 
@@ -874,19 +878,20 @@ T T T -> (EXPR T)
 Returns a peer definition from given definitions and main key.
 " [events site defs main & args]
   (fn [step done]
-    (let [state (object-array peer-slots)
-          peer (->Peer site defs step done
-                 (doto (object-array peer-queues)
-                   (aset peer-queue-tap (object-array 1))
-                   (aset peer-queue-untap (object-array 1))
-                   (aset peer-queue-toggle (object-array 1))
-                   (aset peer-queue-ready (object-array 1)))
-                 (a/int-array peer-queues) state)
-          input (m/stream (m/observe events))
+    (let [input (m/stream (m/observe events))
+          ^Peer peer (->Peer site defs step done
+                       (doto (object-array peer-queues)
+                         (aset peer-queue-tap (object-array 1))
+                         (aset peer-queue-untap (object-array 1))
+                         (aset peer-queue-toggle (object-array 1))
+                         (aset peer-queue-ready (object-array 1)))
+                       (a/int-array peer-queues)
+                       (object-array peer-slots))
           ^Frame root (->> args
                         (eduction (map pure))
                         (apply dispatch "<root>" ((defs main)))
                         (make-frame peer nil 0 :client))
+          ^objects state (.-state peer)
           handlers {Slot    (t/write-handler
                               (fn [_] "slot")
                               (fn [^Slot slot]
@@ -929,8 +934,9 @@ Returns a peer definition from given definitions and main key.
                                        (fn [[slot rank ctor]]
                                          (if (nil? ctor)
                                            (if (nil? slot)
-                                             root (let [^objects call (frame-call (slot-frame slot) (slot-id slot))]
-                                                    (get (aget call call-slot-children) rank)))
+                                             (aget state peer-slot-root)
+                                             (let [^objects call (frame-call (slot-frame slot) (slot-id slot))]
+                                               (get (aget call call-slot-children) rank)))
                                            (let [frame (make-frame peer slot rank (port-site (slot-port slot)) ctor)]
                                              (frame-share frame) frame))))
                     "join"           (t/read-handler

@@ -37,7 +37,7 @@ successive sequence diffs. Incremental sequences are applicative functors with `
 `latest-concat`.
 "} hyperfiddle.incseq
   (:refer-clojure :exclude [cycle])
-  (:require [hyperfiddle.incseq.arrays-impl :as a]
+  (:require [hyperfiddle.incseq.fixed-impl :as f]
             [hyperfiddle.incseq.perm-impl :as p]
             [hyperfiddle.incseq.diff-impl :as d]
             [hyperfiddle.incseq.items-impl :as i]
@@ -252,121 +252,7 @@ Returns the diff applying given diffs successively.
 (def ^{:doc "
 Returns the incremental sequence defined by the fixed collection of given continuous flows.
 A collection is fixed iff its size is invariant and its items are immobile.
-"} fixed
-  (let [slot-notifier 0
-        slot-terminator 1
-        slot-processes 2
-        slot-ready 3
-        slot-push 4
-        slot-live 5
-        slot-value 6
-        slots 7]
-    (letfn [(empty-cancel [_])
-            (empty-transfer [t]
-              (t) {:grow 0
-                   :shrink 0
-                   :degree 0
-                   :permutation {}
-                   :change {}
-                   :freeze #{}})
-            (empty-coll [n t]
-              (n) (->Ps t empty-cancel empty-transfer))
-            (input-ready [^objects state item]
-              ((locking state
-                 (let [^objects processes (aget state slot-processes)
-                       ^ints ready (aget state slot-ready)
-                       arity (alength processes)
-                       item (int item)]
-                   (if-some [i (aget state slot-push)]
-                     (do (aset state slot-push (identity (rem (unchecked-inc-int i) arity)))
-                         (aset ready i item) nop)
-                     (do (aset state slot-push (identity (rem 1 arity)))
-                         (if-some [cb (aget state slot-notifier)]
-                           (do (aset ready 0 item) cb)
-                           (loop [item item
-                                  i (rem 1 arity)]
-                             (if (neg? item)
-                               (aset state slot-live (dec (aget state slot-live)))
-                               (try @(aget processes item) (catch #?(:clj Throwable :cljs :default) _)))
-                             (let [item (aget ready i)]
-                               (if (== arity item)
-                                 (do (aset state slot-push nil)
-                                     (if (zero? (aget state slot-live))
-                                       (aget state slot-terminator) nop))
-                                 (do (aset ready i arity)
-                                     (recur item (rem (unchecked-inc-int i) arity)))))))))))))
-            (item-spawn [^objects state item flow]
-              (let [^objects processes (aget state slot-processes)
-                    arity (alength processes)]
-                (aset processes item
-                  (flow #(input-ready state item)
-                    #(input-ready state (unchecked-subtract-int item arity)))))
-              state)
-            (cancel [^objects state]
-              (let [^objects processes (aget state slot-processes)]
-                (dotimes [item (alength processes)] ((aget processes item)))))
-            (transfer [^objects state]
-              (let [^objects processes (aget state slot-processes)
-                    ^ints ready (aget state slot-ready)
-                    arity (alength processes)
-                    item (aget ready 0)]
-                (aset ready 0 arity)
-                ((locking state
-                   (loop [item item
-                          i (rem 1 arity)]
-                     (if (nil? (aget state slot-notifier))
-                       (if (neg? item)
-                         (aset state slot-live (dec (aget state slot-live)))
-                         (try @(aget processes item) (catch #?(:clj Throwable :cljs :default) _)))
-                       (let [diff (aget state slot-value)]
-                         (aset state slot-value
-                           (if (neg? item)
-                             (do (aset state slot-live (dec (aget state slot-live)))
-                                 (update diff :freeze conj (unchecked-add-int arity item)))
-                             (try (update diff :change assoc item @(aget processes item))
-                                  (catch #?(:clj Throwable :cljs :default) e
-                                    (aset state slot-notifier nil)
-                                    (cancel state) e))))))
-                     (let [item (aget ready i)]
-                       (if (== arity item)
-                         (do (aset state slot-push nil)
-                             (if (zero? (aget state slot-live))
-                               (aget state slot-terminator) nop))
-                         (do (aset ready i arity)
-                             (recur item (rem (unchecked-inc-int i) arity))))))))
-                (let [x (aget state slot-value)]
-                  (aset state slot-value
-                    {:grow 0
-                     :shrink 0
-                     :degree arity
-                     :permutation {}
-                     :change {}
-                     :freeze #{}})
-                  (if (nil? (aget state slot-notifier))
-                    (throw x) x))))]
-      (fn
-        ([] empty-coll)
-        ([item & items]
-         (let [items (into [item] items)]
-           (fn [n t]
-             (let [state (object-array slots)
-                   arity (count items)
-                   ready (a/int-array arity)]
-               (dotimes [i arity] (aset ready i arity))
-               (aset state slot-notifier n)
-               (aset state slot-terminator t)
-               (aset state slot-processes (object-array arity))
-               (aset state slot-ready ready)
-               (aset state slot-live (identity arity))
-               (aset state slot-value
-                 {:grow        arity
-                  :degree      arity
-                  :shrink      0
-                  :permutation {}
-                  :change      {}
-                  :freeze      #{}})
-               (reduce-kv item-spawn state items)
-               (->Ps state cancel transfer)))))))))
+"} fixed f/flow)
 
 
 (def ^{:arglists '([f & incseqs])
@@ -713,42 +599,6 @@ Returns the size of `incseq` as a continuous flow.
                             (throw (js/Error. "No such element.")))
                           (.shift q))
                          ([x] (.push q x) nil)))))]
-    (let [q (queue)
-          ps ((fixed) #(q :step) #(q :done))]
-      (q) := :step
-      @ps := {:degree 0, :grow 0, :shrink 0, :permutation {}, :change {}, :freeze #{}})
-
-    (let [q (queue)
-          ps ((fixed (fn [n t] (q n) (n) (->Ps q #(% :cancel) #(%))))
-              #(q :step) #(q :done))
-          n (q)]
-      (q) := :step
-      (q 0)
-      @ps := {:grow 1, :degree 1, :shrink 0, :permutation {}, :change {0 0}, :freeze #{}}
-      (n)
-      (q) := :step
-      (q 1)
-      @ps := {:grow 0, :shrink 0, :degree 1, :permutation {}, :change {0 1}, :freeze #{}})
-
-    (let [q (queue)
-          ps ((fixed
-                (fn [n t] (q n) (->Ps q #(% :cancel) #(%)))
-                (fn [n t] (q n) (->Ps q #(% :cancel) #(%))))
-              #(q :step) #(q :done))
-          n1 (q)
-          n2 (q)]
-      (n1)
-      (q) := :step
-      (n2)
-      (q 0)
-      (q :a)
-      @ps := {:grow 2, :degree 2, :shrink 0, :permutation {}, :change {0 0, 1 :a}, :freeze #{}}
-      (n1)
-      (q) := :step
-      (n2)
-      (q 1)
-      (q :b)
-      @ps := {:grow 0, :shrink 0, :degree 2, :permutation {}, :change {0 1, 1 :b}, :freeze #{}})
 
     (let [q (queue)
           ps ((diff-by identity (fn [n t] (q n) (q t) (->Ps q #(% :cancel) #(%))))

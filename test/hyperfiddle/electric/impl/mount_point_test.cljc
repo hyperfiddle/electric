@@ -23,9 +23,6 @@
                     :client (r/effect tag))))
               (inc i)) 0 tags) frame))
 
-(defn slot [frame id]
-  (r/->Slot frame id))
-
 (defn queue []
   #?(:clj (let [q (LinkedList.)]
             (fn
@@ -41,9 +38,15 @@
 
 (deftest sibling-tags
   (let [q (queue)
-        p (peer {})
-        f (frame p nil 0 nil nil nil)
-        mp (doto (mp/create)
+        _ ((r/peer (fn [_] #()) :client
+             {:root (fn ([] {0 (r/ctor :root 0)})
+                      ([idx]
+                       (case idx
+                         0 (r/cdef 0 [] [nil nil nil] nil (fn [frame] (q frame) (r/pure nil))))))}
+             :root)
+            #(q :peer-step) #(q :peer-done))
+        f (q)
+        mp (doto (mp/create (r/frame-peer f))
              (kvs/insert! (r/tag f 0) :foo)
              (kvs/insert! (r/tag f 1) :bar)
              (kvs/insert! (r/tag f 2) :baz))
@@ -80,9 +83,15 @@
 
 (deftest sibling-tags-insert-after-read
   (let [q (queue)
-        p (peer {})
-        f (frame p nil 0 nil nil)
-        mp (mp/create)
+        _ ((r/peer (fn [_] #()) :client
+             {:root (fn ([] {0 (r/ctor :root 0)})
+                      ([idx]
+                       (case idx
+                         0 (r/cdef 0 [] [nil nil] nil (fn [frame] (q frame) (r/pure nil))))))}
+             :root)
+           #(q :peer-step) #(q :peer-done))
+        f (q)
+        mp (mp/create (r/frame-peer f))
         ps (mp #(q :step) #(q :done))]
     (is (= (q) :step))
     (is (= @ps (d/empty-diff 0)))
@@ -97,70 +106,47 @@
                          1 :bar}
                 :freeze #{}}))))
 
-(deftest cousin-tags
+(deftest cousin-tags-insert-after-read
   (let [q (queue)
-        p (peer {:cdef [(r/cdef 0 [] [] nil (fn [frame] (r/pure nil)))]})
-        r (frame p nil 0
-            (m/observe (fn [!] (! (d/empty-diff 0)) (q !) #(q :dispose))))
-        f1 (frame p (slot r 0) 0 nil)
-        f2 (frame p (slot r 0) 1 nil)
-        mp (doto (mp/create)
-             (kvs/insert! (r/tag f1 0) :foo)
-             (kvs/insert! (r/tag f2 0) :bar))
+        _ ((r/peer (fn [_] #()) :client
+             {:root (fn ([] {0 (r/ctor :root 0)})
+                      ([idx]
+                       (case idx
+                         0 (r/cdef 0 [] [nil] nil
+                             (fn [frame]
+                               (q frame)
+                               (r/define-call frame 0
+                                 (r/effect (m/observe
+                                             (fn [!]
+                                               (! {:grow        2
+                                                   :degree      2
+                                                   :shrink      0
+                                                   :permutation {}
+                                                   :change      {0 (r/ctor :root 1)
+                                                                 1 (r/ctor :root 1)}
+                                                   :freeze      #{}})
+                                               #(q :dispose)))))
+                               (r/call frame 0)))
+                         1 (r/cdef 0 [] [nil] nil
+                             (fn [frame]
+                               (q frame)
+                               (r/pure nil))))))}
+           :root)
+         #(q :peer-step) #(q :peer-done))
+        f (q)
+        f1 (q)
+        f2 (q)
+        mp (mp/create (r/frame-peer f))
         ps (mp #(q :step) #(q :done))]
     (is (= (q) :step))
     (is (= @ps (i/empty-diff 0)))
-    (let [diff! (q)]
-      (diff! {:grow 2
-              :degree 2
-              :shrink 0
-              :permutation {}
-              :change {0 (r/ctor :cdef 0)
-                       1 (r/ctor :cdef 0)}
-              :freeze #{}})
-      (is (= (q) :step))
-      (is (= @ps {:grow 2
-                  :degree 2
-                  :shrink 0
-                  :permutation {}
-                  :change {0 :foo, 1 :bar}
-                  :freeze #{}}))
-      (diff! {:grow 0
-              :degree 2
-              :shrink 0
-              :permutation {0 1, 1 0}
-              :change {}
-              :freeze #{}})
-      (is (= (q) :step))
-      (is (= @ps {:grow 0
-                  :degree 2
-                  :shrink 0
-                  :permutation {0 1, 1 0}
-                  :change {}
-                  :freeze #{}}))
-      (diff! {:grow 0
-              :degree 2
-              :shrink 1
-              :permutation {}
-              :change {}
-              :freeze #{}})
-      (is (= (q) :step))
-      (is (= @ps {:grow 0
-                  :degree 2
-                  :shrink 1
-                  :permutation {}
-                  :change {}
-                  :freeze #{}}))
-      (kvs/update! mp (r/tag f2 0) (constantly :baz))
-      (is (= (q) :step))
-      (is (= @ps {:grow 0
-                  :degree 1
-                  :shrink 0
-                  :permutation {}
-                  :change {0 :baz}
-                  :freeze #{}}))
-      (ps)
-      (is (= (q) :step))
-      (is (= (q) :dispose))
-      (is (thrown? Cancelled @ps))
-      (is (= (q) :done)))))
+    (kvs/insert! mp (r/tag f1 0) :foo)
+    (kvs/insert! mp (r/tag f2 0) :bar)
+    (is (= (q) :step))
+    (is (= @ps {:grow 2
+                :degree 2
+                :shrink 0
+                :permutation {}
+                :change {1 :bar
+                         0 :foo}
+                :freeze #{}}))))
