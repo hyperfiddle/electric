@@ -1,85 +1,118 @@
 (ns hyperfiddle.electric.impl.mount-point
   (:require [hyperfiddle.kvs :refer [KVS]]
             [hyperfiddle.incseq.arrays-impl :as a]
+            [hyperfiddle.incseq.fixed-impl :as f]
             [hyperfiddle.incseq.diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p]
             [hyperfiddle.electric.impl.runtime-de :as r])
   #?(:clj (:import (clojure.lang IFn IDeref)
-                   (java.util.concurrent.locks Lock ReentrantLock))))
+                   (java.util.concurrent.locks ReentrantLock))))
+
+;; TODO
+;; do not spawn the call until it has two children at least.
+;; maintain a weight tree on each call to prevent buffer traversal when computing local block index
+;; use mutable hash maps to decrease GC pressure (item store + block store)
+;; support concurrent readers
 
 (def slot-lock 0)
-(def slot-blocks 1)
-(def slot-reader 2)
-(def slots 3)
+(def slot-peer 1)
+(def slot-items 2)
+(def slot-reader 3)
+(def slot-pending 4)
+(def slots 5)
 
 (def reader-slot-state 0)
 (def reader-slot-step 1)
 (def reader-slot-done 2)
-(def reader-slot-queue 3)
-(def reader-slot-push 4)
+(def reader-slot-call-queue 3)
+(def reader-slot-item-queue 4)
 (def reader-slot-root 5)
-(def reader-slots 6)
+(def reader-slot-alive 6)
+(def reader-slot-pending 7)
+(def reader-slot-blocks 8)  ;; a map associating frames to blocks
+(def reader-slots 9)
 
-(def call-slot-reader 0)
-(def call-slot-block 1)
-(def call-slot-index 2)
-(def call-slot-buffer 3)
-(def call-slot-weight 4)
-(def call-slot-process 5)
-(def call-slots 6)
+(def item-slot-parent 0)   ;; parent block, nil if not active
+(def item-slot-queue 1)    ;; next item, nil if last item
+(def item-slot-tag 2)      ;; static id
+(def item-slot-state 3)    ;; any value, this after remove
+(def item-slots 4)
 
-(def block-slot-parent 0)
-(def block-slot-index 1)
-(def block-slot-frame 2)
-(def block-slot-children 3)
-(def block-slot-weights 4)
-(def block-slots 5)
+(def call-slot-reader 0)    ;; the reader instance, immutable
+(def call-slot-parent 1)    ;; parent block
+(def call-slot-queue 2)     ;; next call, nil if last item
+(def call-slot-buffer 3)    ;; current state of incremental sequence
+(def call-slot-children 4)  ;; head of the doubly-linked list of child blocks
+(def call-slot-weight 5)    ;; total count of entries in all mounted child frames
+(def call-slot-process 6)   ;; the flow process instance
+(def call-slots 7)
+
+(def block-slot-parent 0)   ;; the parent call
+(def block-slot-index 1)    ;; position of frame in parent call, nil if unmounted
+(def block-slot-frame 2)    ;; static frame
+(def block-slot-children 3) ;; static array of child calls
+(def block-slot-weights 4)  ;; static int array representing a complete binary tree of child weights
+(def block-slot-prev 5)     ;; previous sibling
+(def block-slot-next 6)     ;; next sibling
+(def block-slots 7)
 
 (defn enter [^objects state]
-  (.lock ^Lock (aget state slot-lock)))
+  #?(:clj (let [^ReentrantLock lock (aget state slot-lock)
+                held (.isHeldByCurrentThread lock)]
+            (.lock lock) held)
+     :cljs (let [held (aget state slot-lock)]
+             (aset state slot-lock true) held)))
 
-(defn exit [^objects state]
-  (.unlock ^Lock (aget state slot-lock)))
+(defn unlock [^objects state held]
+  #?(:clj  (.unlock ^ReentrantLock (aget state slot-lock))
+     :cljs (aset state slot-lock held)))
 
-(defn frame->block [^objects state frame]
-  (get (aget state slot-blocks) frame))
-
-(defn make-block [frame]
-  (let [size (r/frame-call-count frame)
-        children (object-array size)]
-    (dotimes [index (alength children)]
-      (when-not (r/frame-call frame index)
-        (aset children index children)))
-    (doto (object-array block-slots)
-      (aset block-slot-frame frame)
-      (aset block-slot-children children)
-      (aset block-slot-weights (a/weight-tree size)))))
+(defn exit [^objects state held]
+  (if held
+    (unlock state held)
+    (let [pending (aget state slot-pending)]
+      (aset state slot-pending nil)
+      (unlock state held)
+      (loop [^objects reader pending]
+        (when-not (nil? reader)
+          (let [pending (aget reader reader-slot-pending)]
+            (aset reader reader-slot-pending nil)
+            ((if (zero? (aget reader reader-slot-alive))
+               (aget reader reader-slot-done)
+               (aget reader reader-slot-step)))
+            (recur pending)))))))
 
 (defn ensure-capacity [^objects buffer cap]
   (let [n (alength buffer)]
     (if (< n cap)
-      (let [b (object-array (bit-shift-left n 1))]
+      (let [b (object-array
+                (loop [n n]
+                  (let [n (bit-shift-left n 1)]
+                    (if (< n cap) (recur n) n))))]
         (a/acopy buffer 0 b 0 n) b) buffer)))
+
+(defn call-slot [^objects call]
+  (r/frame-slot (aget ^objects (aget call call-slot-children) block-slot-frame)))
 
 (defn call-weight [^objects call]
   (aget call call-slot-weight))
 
+(defn block-weight [^objects block]
+  (let [^ints weights (aget block block-slot-weights)]
+    (aget weights 1)))
+
 (defn local-block-offset [^objects call index]
-  (let [^objects buffer (aget call call-slot-buffer)
-        ^objects reader (aget call call-slot-reader)
-        ^objects state (aget reader reader-slot-state)]
+  (let [^objects buffer (aget call call-slot-buffer)]
     (loop [index index
            offset 0]
       (if (zero? index)
         offset
         (let [index (dec index)]
           (recur index
-            (if-some [^objects block (frame->block state (aget buffer index))]
-              (let [^ints weights (aget block block-slot-weights)]
-                (unchecked-add-int offset (aget weights 1)))
-              offset)))))))
+            (unchecked-add-int offset
+              (block-weight (aget buffer index)))))))))
 
-(defn local-tag-offset [^objects block index]
+(defn local-call-index [^objects block index]
   (let [^ints weights (aget block block-slot-weights)]
     (loop [o 0, i (unchecked-add (bit-shift-right (alength weights) 1) index)]
       (case i
@@ -89,393 +122,572 @@
                      (aget weights (unchecked-dec i))))
           (bit-shift-right i 1))))))
 
-(defn tag-offset [^objects block index]
+(defn call-index [^objects block id]
   (loop [^objects block block
-         index index
+         id id
          offset 0]
-    (let [offset (unchecked-add-int offset (local-tag-offset block index))]
-      (if-some [^objects call (aget block block-slot-parent)]
-        (recur (aget call call-slot-block) (aget call call-slot-index)
-          (unchecked-add-int offset (local-block-offset call (aget block block-slot-index))))
-        offset))))
-
-(defn update-local-weights [^ints weights index delta]
-  (loop [i (unchecked-add (bit-shift-right (alength weights) 1) index)]
-    (aset weights i (unchecked-add-int (aget weights i) delta))
-    (when (< 1 i) (recur (bit-shift-right i 1)))))
-
-(defn update-weights [^objects block index delta]
-  (loop [^objects block block]
-    (update-local-weights (aget block block-slot-weights) index delta)
-    (when-some [^objects call (aget block block-slot-parent)]
-      (aset call call-slot-weight (+ delta (aget call call-slot-weight)))
-      (recur (aget call call-slot-block)))))
+    (when-some [index (aget block block-slot-index)]
+      (let [^objects call (aget block block-slot-parent)
+            ^objects reader (aget call call-slot-reader)
+            offset (unchecked-add-int
+                     (unchecked-add-int offset
+                       (local-call-index block id))
+                     (local-block-offset call index))]
+        (if (identical? call (aget reader reader-slot-root))
+          offset (recur (aget call call-slot-parent)
+                   (r/slot-id (call-slot call)) offset))))))
 
 (defn swap-indices [^objects call i j]
   (let [^objects buffer (aget call call-slot-buffer)
-        ^objects reader (aget call call-slot-reader)
-        ^objects state (aget reader reader-slot-state)
-        fi (aget buffer i)
-        fj (aget buffer j)]
-    (aset buffer i fj)
-    (aset buffer j fi)
-    (when-some [^objects block (frame->block state fi)]
-      (aset block block-slot-index j))
-    (when-some [^objects block (frame->block state fj)]
-      (aset block block-slot-index i))))
+        ^objects bi (aget buffer i)
+        ^objects bj (aget buffer j)]
+    (aset buffer i bj)
+    (aset buffer j bi)
+    (aset bi block-slot-index j)
+    (aset bj block-slot-index i)))
 
-(defn offset-of [^objects call index]
-  (unchecked-add-int (local-block-offset call index)
-    (tag-offset (aget call call-slot-block)
-      (aget call call-slot-index))))
-
-(defn block-weight [^objects block]
-  (let [^ints weights (aget block block-slot-weights)]
-    (aget weights 1)))
+(defn block-index [^objects call id]
+  (let [^objects reader (aget call call-slot-reader)
+        offset (local-block-offset call id)]
+    (if (identical? call (aget reader reader-slot-root))
+      offset (when-some [to (call-index (aget call call-slot-parent)
+                              (r/slot-id (call-slot call)))]
+               (unchecked-add-int offset to)))))
 
 (defn current-size [^objects reader]
-  (if-some [root (aget reader reader-slot-root)]
-    (block-weight root) 0))
+  (if-some [^objects call (aget reader reader-slot-root)]
+    (aget call call-slot-weight) 0))
 
 (defn weight-between [^objects call i j]
-  (let [^objects buffer (aget call call-slot-buffer)
-        ^objects reader (aget call call-slot-reader)
-        ^objects state (aget reader reader-slot-state)]
+  (let [^objects buffer (aget call call-slot-buffer)]
     (loop [i i
            w 0]
       (let [i (unchecked-inc-int i)]
         (if (== i j)
           w (recur i
-              (if-some [^objects block (frame->block state (aget buffer i))]
+              (if-some [^objects block (aget buffer i)]
                 (unchecked-add-int w (block-weight block)) w)))))))
 
-(defn drain-exit [^objects reader]
-  (loop [pull 0]
-    (let [^objects queue (aget reader reader-slot-queue)]
-      (when-some [^objects block (aget queue pull)]
-        (let [pull+ (unchecked-inc-int pull)
-              index (aget queue pull+)
-              frame (aget block block-slot-frame)
-              ^objects children (aget block block-slot-children)]
-          (when (r/frame-call frame index)
-            (let [^objects call (aget children index)]
-              (try @(aget call call-slot-process)
-                   (catch #?(:clj Throwable :cljs :default) _))))
-          (recur (rem (unchecked-inc-int pull+) (alength queue)))))))
-  (aset reader reader-slot-push nil)
-  (exit (aget reader reader-slot-state)))
+(defn reader-pending [^objects reader]
+  (let [^objects state (aget reader reader-slot-state)]
+    (aset reader reader-slot-pending (aget state slot-pending))
+    (aset state slot-pending reader)))
 
-(defn enqueue [^objects reader ^objects block index]
-  (let [^objects queue (aget reader reader-slot-queue)
-        cap (alength queue)]
-    (if-some [i (aget reader reader-slot-push)]
-      (do (aset reader reader-slot-push
-            (identity
-              (if (nil? (aget queue i))
-                (let [i+ (unchecked-inc-int i)]
-                  (aset queue i block)
-                  (aset queue i+ index)
-                  (rem (unchecked-inc-int i+) cap))
-                (let [n (bit-shift-left cap 1)
-                      q (object-array n)]
-                  (aset reader reader-slot-queue q)
-                  (a/acopy queue i q i
-                    (unchecked-subtract-int cap i))
-                  (a/acopy queue 0 q cap i)
-                  (let [i (unchecked-add-int i cap)
-                        i+ (unchecked-inc-int i)]
-                    (aset q i block)
-                    (aset q i+ index)
-                    (rem (unchecked-inc-int i+) n))))))
-          false)
-      (do (aset reader reader-slot-push (identity (rem 2 cap)))
-          (aset queue 0 block)
-          (aset queue 1 index)
-          true))))
+(defn terminate [^objects reader]
+  (when (zero? (aset reader reader-slot-alive
+                 (dec (aget reader reader-slot-alive))))
+    (reader-pending reader)))
 
-(defn step-exit [^objects reader]
-  (let [step (aget reader reader-slot-step)]
-    (exit (aget reader reader-slot-state)) (step)))
+(defn reader-event [^objects reader]
+  (when (identical? reader (aget reader reader-slot-pending))
+    (reader-pending reader)))
 
-(defn done-exit [^objects reader]
-  (let [done (aget reader reader-slot-done)
-        live (aset reader reader-slot-root
-               (dec (aget reader reader-slot-root)))]
-    (exit (aget reader reader-slot-state))
-    (when (zero? live) (done))))
+(defn enqueue-call [^objects reader ^objects call]
+  (aset call call-slot-queue (aget reader reader-slot-call-queue))
+  (aset reader reader-slot-call-queue call)
+  (reader-event reader))
 
-(defn mount-block [^objects reader ^objects block]
+(defn enqueue-item [^objects reader ^objects item]
+  (aset item item-slot-queue (aget reader reader-slot-item-queue))
+  (aset reader reader-slot-item-queue item)
+  (reader-event reader))
+
+(defn update-local-weights [^ints weights id delta]
+  (loop [i (unchecked-add (bit-shift-right (alength weights) 1) id)]
+    (aset weights i (unchecked-add-int (aget weights i) delta))
+    (when (< 1 i) (recur (bit-shift-right i 1)))))
+
+(defn update-weights [^objects block id delta]
+  (loop [^objects block block
+         id id]
+    (when-not (nil? (aget block block-slot-index))
+      (update-local-weights (aget block block-slot-weights) id delta)
+      (let [^objects call (aget block block-slot-parent)
+            ^objects reader (aget call call-slot-reader)]
+        (aset call call-slot-weight (+ delta (aget call call-slot-weight)))
+        (when-not (identical? call (aget reader reader-slot-root))
+          (recur (aget call call-slot-parent) (r/slot-id (call-slot call))))))))
+
+(defn call-update-weights [^objects call delta]
+  (let [^objects reader (aget call call-slot-reader)]
+    (aset call call-slot-weight (+ (aget call call-slot-weight) delta))
+    (when-not (identical? call (aget reader reader-slot-root))
+      (update-weights (aget call call-slot-parent)
+        (r/slot-id (call-slot call)) delta))))
+
+(defn change [diff ^objects item]
+  (let [^objects block (aget item item-slot-parent)
+        ^objects call (aget block block-slot-parent)]
+    (if-some [index (call-index block (r/tag-index (aget item item-slot-tag)))]
+      (d/combine diff
+        {:grow        0
+         :degree      (current-size (aget call call-slot-reader))
+         :shrink      0
+         :permutation {}
+         :change      {index (aget item item-slot-state)}
+         :freeze      #{}}) diff)))
+
+(defn get-block [^objects reader frame]
+  (get (aget reader reader-slot-blocks) frame))
+
+(defn block-release [^objects block]
+  (let [^objects call (aget block block-slot-parent)
+        ^objects reader (aget call call-slot-reader)]
+    (aset reader reader-slot-blocks
+      (dissoc (aget reader reader-slot-blocks)
+        (aget block block-slot-frame)))))
+
+(defn block-mount [^objects block index]
+  (let [^objects call (aget block block-slot-parent)
+        ^objects buffer (aget call call-slot-buffer)]
+    (aset buffer index block)
+    (aset block block-slot-index index)
+    (when-not (nil? (aget block block-slot-prev))
+      (call-update-weights call (block-weight block)))))
+
+(defn block-unmount [^objects block]
+  (let [^objects call (aget block block-slot-parent)
+        ^objects buffer (aget call call-slot-buffer)
+        weight (block-weight block)]
+    (aset buffer (aget block block-slot-index) nil)
+    (aset block block-slot-index nil)
+    (if (nil? (aget block block-slot-prev))
+      (block-release block)
+      (call-update-weights call (- weight)))))
+
+(defn call-release [^objects call]
+  (let [^objects buffer (aget call call-slot-buffer)]
+    (loop [i 0]
+      (when (< i (alength buffer))
+        (when-some [^objects block (aget buffer i)]
+          (block-unmount block)
+          (recur (inc i)))))
+    (aset call call-slot-parent nil)
+    (aset call call-slot-children nil)
+    ((aget call call-slot-process))))
+
+(defn make-block [^objects reader frame]
+  (let [size (r/frame-call-count frame)
+        block (object-array block-slots)]
+    (aset reader reader-slot-blocks
+      (assoc (aget reader reader-slot-blocks) frame block))
+    (aset block block-slot-frame frame)
+    (aset block block-slot-children (object-array size))
+    (aset block block-slot-weights (a/weight-tree size))
+    block))
+
+(defn make-call [^objects reader ^objects child]
+  (let [call (object-array call-slots)]
+    (aset call call-slot-reader reader)
+    (aset call call-slot-buffer (object-array 1))
+    (aset call call-slot-weight (identity 0))
+    (aset call call-slot-children child)
+    (aset child block-slot-prev child)
+    (aset child block-slot-next child)
+    (aset child block-slot-parent call)
+    call))
+
+(defn call-discard [^objects call]
+  (try @(aget call call-slot-process)
+       (catch #?(:clj Throwable :cljs :default) _)))
+
+(defn call-spawn [^objects call]
+  (let [^objects reader (aget call call-slot-reader)]
+    (aset reader reader-slot-alive
+      (inc (aget reader reader-slot-alive)))
+    (aset call call-slot-process
+      ((if-some [slot (call-slot call)]
+         (r/flow slot)
+         (f/flow (r/invariant (aget ^objects (aget call call-slot-children) block-slot-frame))))
+       #(let [^objects reader (aget call call-slot-reader)
+              ^objects state (aget reader reader-slot-state)
+              held (enter state)]
+          (if (nil? (aget call call-slot-children))
+            (call-discard call)
+            (enqueue-call reader call))
+          (exit state held))
+       #(let [^objects reader (aget call call-slot-reader)
+              ^objects state (aget reader reader-slot-state)
+              held (enter state)]
+          (terminate reader)
+          (exit state held))))))
+
+(defn block-attach-to-call [^objects block]
+  (let [^objects call (aget block block-slot-parent)
+        ^objects prev (aget call call-slot-children)
+        ^objects next (aget prev block-slot-next)]
+    (assert (some? prev))
+    (assert (some? next))
+    (aset block block-slot-prev prev)
+    (aset block block-slot-next next)
+    (aset prev block-slot-next block)
+    (aset next block-slot-prev block)
+    call))
+
+(defn block-child [^objects block id]
+  (let [^objects children (aget block block-slot-children)]
+    (aget children id)))
+
+(defn block-set-child [^objects block id child]
+  (let [^objects children (aget block block-slot-children)]
+    (aset children id child)))
+
+(defn call-attach-to-block [^objects call ^objects block]
+  (aset call call-slot-parent block)
+  (block-set-child block (r/slot-id (call-slot call)) call))
+
+(defn block-single-child [^objects block]
   (let [frame (aget block block-slot-frame)
         ^objects children (aget block block-slot-children)]
-    (dotimes [index (alength children)]
-      (if (r/frame-call frame index)
-        (when-some [^objects call (aget children index)]
-          (aset call call-slot-process
-            ((r/flow (r/->Slot frame index))
-             #(let [^objects reader (aget call call-slot-reader)
-                    ^objects state (aget reader reader-slot-state)]
-                (enter state)
-                (if (enqueue reader block index)
-                  (if (identical? reader (aget state slot-reader))
-                    (step-exit reader)
-                    (drain-exit state))
-                  (exit state)))
-             #(let [^objects reader (aget call call-slot-reader)
-                    ^objects state (aget reader reader-slot-state)]
-                (enter state)
-                (if (identical? reader (aget state slot-reader))
-                  (do (comment TODO mark as done) (exit state))
-                  (done-exit reader))))))
-        (when-not (identical? children (aget children index))
-          (enqueue reader block (- index (r/frame-call-count frame))))))))
+    (loop [r nil
+           i 0]
+      (if (< i (alength children))
+        (if (nil? (r/frame-call frame i))
+          (recur r (unchecked-inc-int i))
+          (if-some [c (aget children i)]
+            (when (nil? r)
+              (recur c (unchecked-inc-int i)))
+            (recur r (unchecked-inc-int i)))) r))))
 
-(defn cancel-calls [^objects reader ^objects block]
-  (let [^objects state (aget reader reader-slot-state)
-        frame (aget block block-slot-frame)
-        ^objects children (aget block block-slot-children)
-        ^ints weights (aget block block-slot-weights)
-        offset (bit-shift-right (alength weights) 1)]
-    (dotimes [index (alength children)]
-      (update-local-weights weights index
-        (- (aget weights (unchecked-add-int offset index))))
-      (when (r/frame-call frame index)
-        (when-some [^objects call (aget children index)]
-          (let [^objects buffer (aget call call-slot-buffer)
-                process (aget call call-slot-process)]
-            (aset call call-slot-weight 0)
-            (aset reader reader-slot-root
-              (inc (aget reader reader-slot-root)))
-            (loop [i 0]
-              (when (< i (alength buffer))
-                (when-some [f (aget buffer i)]
-                  (when-some [b (frame->block state f)]
-                    (cancel-calls reader b)
-                    (recur (inc i))))))
-            (process)))))))
+(defn call-make-ancestors [call]
+  (let [^objects reader (aget call call-slot-reader)]
+    (loop [^objects call call]
+      (when-some [slot (call-slot call)]
+        (let [block (make-block reader (r/slot-frame slot))]
+          (call-attach-to-block call block)
+          (recur (make-call reader block)))))))
 
-(defn unmount-block [^objects reader ^objects block]
-  (when-some [^objects call (aget block block-slot-parent)]
-    (let [delta (unchecked-negate-int (block-weight block))]
-      (aset call call-slot-weight (unchecked-add-int (aget call call-slot-weight) delta))
-      (update-weights (aget call call-slot-block) (aget call call-slot-index) delta)))
-  (cancel-calls reader block))
+(defn root-up [^objects call]
+  (let [^objects reader (aget call call-slot-reader)]
+    (aset reader reader-slot-root
+      (loop [^objects root (aget reader reader-slot-root)]
+        (if (nil? (aget call call-slot-process))
+          (let [^objects block (aget root call-slot-parent)
+                ^objects parent (aget block block-slot-parent)]
+            (update-local-weights (aget block block-slot-weights)
+              (r/slot-id (call-slot root)) (aget root call-slot-weight))
+            (call-spawn parent) (recur parent)) root)))))
 
-(defn reader-cancel [^objects reader]
-  (let [^objects state (aget reader reader-slot-state)]
-    (enter state)
-    (if (identical? reader (aget state slot-reader))
-      (let [root (aget reader reader-slot-root)]
-        (aset reader reader-slot-root (identity 1))
-        (when-not (nil? root) (unmount-block reader root))
-        (aset state slot-reader nil)
-        (if (nil? (aget reader reader-slot-push))
-          (do (aset reader reader-slot-push (identity 0))
-              (step-exit reader))
-          (drain-exit reader)))
-      (exit state))))
+(defn root-down [^objects call]
+  (let [^objects reader (aget call call-slot-reader)]
+    (when (identical? call (aget reader reader-slot-root))
+      (aset reader reader-slot-root
+        (loop [^objects call call]
+          (let [^objects block (aget call call-slot-children)]
+            (if (identical? block (aget block block-slot-prev))
+              (if-some [^objects child (block-single-child block)]
+                (let [^objects parent (aget call call-slot-parent)]
+                  (call-attach-to-block (make-call reader block) parent)
+                  (call-release call)
+                  (recur child)) call) call)))))))
+
+(defn block-attach-to-tree [^objects block ^objects reader]
+  (loop [^objects block block]
+    (let [slot (r/frame-slot (aget block block-slot-frame))
+          frame (r/slot-frame slot)]
+      (if-some [^objects parent (get-block reader frame)]
+        (root-up
+          (if-some [call (block-child parent (r/slot-id slot))]
+            (do (aset block block-slot-parent call)
+                (block-attach-to-call block))
+            (let [call (make-call reader block)]
+              (call-attach-to-block call parent)
+              (call-spawn call)
+              (block-attach-to-call parent))))
+        (let [parent (make-block reader frame)
+              call (make-call reader block)]
+          (call-attach-to-block call parent)
+          (call-spawn call)
+          (recur parent))))))
+
+(defn attach [diff ^objects item ^objects reader]
+  (let [tag (aget item item-slot-tag)
+        frame (r/tag-frame tag)
+        id (r/tag-index tag)
+        size-before (current-size reader)
+        ^objects block (if (nil? (aget reader reader-slot-root))
+                         (let [block (make-block reader frame)
+                               call (make-call reader block)]
+                           (aset reader reader-slot-root call)
+                           (call-make-ancestors call)
+                           (call-spawn call)
+                           block)
+                         (if-some [block (get-block reader frame)]
+                           (doto block (block-attach-to-call))
+                           (doto (make-block reader frame)
+                             (block-attach-to-tree reader))))]
+    (block-set-child block (r/tag-index (aget item item-slot-tag)) item)
+    (aset item item-slot-parent block)
+    (update-weights block id 1)
+    (if-some [index (call-index block id)]
+      (d/combine diff
+        {:grow        1
+         :degree      (inc size-before)
+         :shrink      0
+         :permutation (p/rotation size-before index)
+         :change      {index (aget item item-slot-state)}
+         :freeze      #{}}) diff)))
+
+(defn block-empty? [^objects block]
+  (let [^objects children (aget block block-slot-children)]
+    (loop [i 0]
+      (if (< i (alength children))
+        (if (nil? (aget children i))
+          (recur (unchecked-inc-int i)) false) true))))
+
+(defn detach-root [^objects block]
+  (when-not (nil? block)
+    (let [^objects call (aget block block-slot-parent)
+          ^objects parent (aget call block-slot-parent)]
+      (block-set-child block (r/slot-id (r/frame-slot (aget block block-slot-frame))) nil)
+      (aset call call-slot-parent nil)
+      (aset call call-slot-children nil)
+      (aset block block-slot-prev nil)
+      (aset block block-slot-next nil)
+      (block-release block)
+      (recur parent))))
+
+(defn detach [diff ^objects item]
+  (let [^objects block (aget item item-slot-parent)
+        ^objects call (aget block block-slot-parent)
+        id (r/tag-index (aget item item-slot-tag))
+        size-before (current-size (aget call call-slot-reader))
+        diff (if-some [index (call-index block id)]
+               (d/combine diff
+                 {:grow        0
+                  :degree      size-before
+                  :shrink      1
+                  :permutation (p/rotation index (dec size-before))
+                  :change      {}
+                  :freeze      #{}}) diff)]
+    (update-weights block id -1)
+    (aset item item-slot-parent nil)
+    (aset ^objects (aget block block-slot-children) id nil)
+    (loop [^objects block block]
+      (when (block-empty? block)
+        (when (nil? (aget block block-slot-index))
+          (block-release block))
+        (let [^objects prev (aget block block-slot-prev)
+              ^objects next (aget block block-slot-next)
+              ^objects call (aget block block-slot-parent)]
+          (if (identical? block prev)
+            (let [^objects reader (aget call call-slot-reader)
+                  ^objects parent (aget call call-slot-parent)]
+              (aset block block-slot-prev nil)
+              (aset block block-slot-next nil)
+              (call-release call)
+              (if (identical? call (aget reader reader-slot-root))
+                (do (aset reader reader-slot-root nil)
+                    (detach-root parent))
+                (do (block-set-child parent (r/slot-id (r/frame-slot (aget block block-slot-frame))) nil)
+                    (recur parent))))
+            (do (aset call call-slot-children prev)
+                (aset prev block-slot-next next)
+                (aset next block-slot-prev prev)
+                (root-down call))))))
+    diff))
+
+(defn apply-permutation [^objects call permutation]
+  (let [^objects buffer (aget call call-slot-buffer)
+        ^objects reader (aget call call-slot-reader)
+        degree (current-size reader)
+        permutation (loop [p permutation
+                           q {}]
+                      (case p
+                        {} q
+                        (let [[i j] (first p)
+                              k1 (min i j)
+                              k2 (max i j)]
+                          (swap-indices call i j)
+                          (recur (p/compose p (p/cycle i j))
+                            (if-some [index (block-index call k1)]
+                              (p/compose
+                                (p/split-long-swap index
+                                  (block-weight (aget buffer k1))
+                                  (weight-between call k1 k2)
+                                  (block-weight (aget buffer k2)))
+                                q) q)))))]
+    {:grow        0
+     :degree      degree
+     :shrink      0
+     :permutation permutation
+     :change      {}
+     :freeze      #{}}))
+
+(defn apply-change [^objects call change]
+  (let [^objects buffer (aget call call-slot-buffer)
+        ^objects reader (aget call call-slot-reader)]
+    (reduce-kv
+      (fn [diff i f]
+        (let [diff (if-some [block (aget buffer i)]
+                     (do (block-unmount block)
+                         (if-some [index (block-index call i)]
+                           (let [size-after (current-size reader)
+                                 shrink (block-weight block)]
+                             (d/combine diff
+                               {:grow        0
+                                :degree      (unchecked-add-int size-after shrink)
+                                :shrink      shrink
+                                :permutation (p/split-swap index shrink
+                                               (unchecked-subtract-int size-after index))
+                                :change      {}
+                                :freeze      #{}}))
+                           diff)) diff)]
+          (if-some [block (get-block reader f)]
+            (do (block-mount block i)
+                (d/combine diff
+                  (loop [i 0
+                         p {}
+                         c {}]
+                    (let [degree (current-size reader)]
+                      (if (< i (r/frame-call-count f))
+                        (if (nil? (r/frame-call f i))
+                          (if-some [item (block-child block i)]
+                            (do (update-weights block i 1)
+                                (if-some [index (call-index block i)]
+                                  (recur (inc i)
+                                    (p/compose p (p/rotation degree index))
+                                    (assoc c index (aget item item-slot-state)))
+                                  (recur (inc i) p c)))
+                            (recur (inc i) p c))
+                          (recur (inc i) p c))
+                        {:grow        (count c)
+                         :degree      degree
+                         :shrink      0
+                         :permutation p
+                         :change      c
+                         :freeze      #{}})))))
+            (let [^objects block (make-block reader f)]
+              (aset block block-slot-parent call)
+              (block-mount block i) diff))))
+      (d/empty-diff (current-size reader))
+      change)))
+
+(defn apply-shrink [^objects call shrink]
+  (let [^objects buffer (aget call call-slot-buffer)
+        ^objects reader (aget call call-slot-reader)]
+    (loop [d (d/empty-diff (current-size reader))
+           i 0]
+      (if (< i shrink)
+        (recur
+          (let [degree (current-size reader)
+                block (aget buffer
+                        (unchecked-subtract-int degree
+                          (unchecked-inc-int i)))
+                shrink (block-weight block)]
+            (block-unmount block)
+            (d/combine d
+              {:grow        0
+               :degree      degree
+               :shrink      shrink
+               :permutation {}
+               :change      {}
+               :freeze      #{}}))
+          (inc i)) d))))
+
+(defn call-transfer [diff ^objects call]
+  (let [{:keys [degree shrink permutation change]} @(aget call call-slot-process)]
+    (aset call call-slot-buffer (ensure-capacity (aget call call-slot-buffer) degree))
+    (d/combine diff
+      (apply-permutation call permutation)
+      (apply-change call change)
+      (apply-shrink call shrink))))
 
 (defn reader-transfer [^objects reader]
-  (let [^objects state (aget reader reader-slot-state)]
-    (enter state)
+  (let [^objects state (aget reader reader-slot-state)
+        held (enter state)]
     (if (identical? reader (aget state slot-reader))
-      (loop [pull 0
-             diff (d/empty-diff (current-size reader))]
-        (let [^objects queue (aget reader reader-slot-queue)]
-          (if-some [^objects block (a/aget-aset queue pull nil)]
-            (let [pull+ (unchecked-inc-int pull)
-                  index (a/aget-aset queue pull+ nil)
-                  frame (aget block block-slot-frame)
-                  children (aget block block-slot-children)
-                  size-before (current-size reader)]
-              (recur (rem (unchecked-inc-int pull+) (alength queue))
-                (if (neg? index)
-                  (let [index (+ index (r/frame-call-count frame))]
-                    (if (r/frame-call frame index)
-                      (assert false)
-                      (let [state (aget children index)
-                            offset (tag-offset block index)]
-                        (update-weights block index 1)
-                        (d/combine diff
-                          {:grow        1
-                           :degree      (inc size-before)
-                           :shrink      0
-                           :permutation (p/rotation size-before offset)
-                           :change      {offset state}
-                           :freeze      #{}}))))
-                  (if (r/frame-call frame index)
-                    (let [^objects call (aget children index)
-                          {:keys [degree shrink permutation change]} @(aget call call-slot-process)
-                          ^objects buffer (aset call call-slot-buffer (ensure-capacity (aget call call-slot-buffer) degree))
-                          perm (loop [p permutation
-                                      q {}]
-                                 (case p
-                                   {} (reduce-kv
-                                        (fn [q i f]
-                                          (let [p (aget buffer i)
-                                                o (offset-of call i)
-                                                l (if-some [^objects block (frame->block state p)]
-                                                    (do (unmount-block reader block)
-                                                        (block-weight block)) 0)
-                                                r (-> (current-size reader)
-                                                    (unchecked-subtract-int l)
-                                                    (unchecked-subtract-int o))]
-                                            (aset buffer i f)
-                                            (when-some [^objects block (frame->block state f)]
-                                              (aset block block-slot-index i)
-                                              (mount-block reader block))
-                                            (p/compose (p/split-swap o l r) q)))
-                                        q change)
-                                   (let [[i j] (first p)
-                                         k1 (min i j)
-                                         k2 (max i j)
-                                         r (p/split-long-swap
-                                             (offset-of call k1)
-                                             (if-some [^objects block (frame->block state (aget buffer k1))]
-                                               (block-weight block) 0)
-                                             (weight-between call k1 k2)
-                                             (if-some [^objects block (frame->block state (aget buffer k2))]
-                                               (block-weight block) 0))]
-                                     (swap-indices call i j)
-                                     (recur (p/compose p (p/cycle i j))
-                                       (p/compose r q)))))]
-                      (dotimes [i shrink]
-                        (let [i (unchecked-subtract degree
-                                  (unchecked-inc-int i))
-                              f (aget buffer i)]
-                          (aset buffer i nil)
-                          (when-some [^objects block (frame->block state f)]
-                            (unmount-block reader block))))
-                      (d/combine diff
-                        {:grow        0
-                         :degree      size-before
-                         :shrink      (unchecked-subtract size-before
-                                        (current-size reader))
-                         :permutation perm
-                         :change      {}
-                         :freeze      #{}}))
-                    (let [state (aget children index)
-                          offset (tag-offset block index)]
-                      (d/combine diff
-                        (if (identical? state children)
-                          (do (update-weights block index -1)
-                              {:grow        0
-                               :degree      size-before
-                               :shrink      1
-                               :permutation (p/rotation offset (dec size-before))
-                               :change      {}
-                               :freeze      #{}})
-                          {:grow        0
-                           :degree      size-before
-                           :shrink      0
-                           :permutation {}
-                           :change      {offset state}
-                           :freeze      #{}})))))))
-            (do (aset reader reader-slot-push nil)
-                (exit state) diff))))
-      (do (done-exit reader)
+      (loop [diff (d/empty-diff (current-size reader))]
+        (if-some [^objects call (aget reader reader-slot-call-queue)]
+          (do (aset reader reader-slot-call-queue (aget call call-slot-queue))
+              (aset call call-slot-queue call)
+              (recur (if (nil? (aget call call-slot-children))
+                       (do (call-discard call) diff)
+                       (call-transfer diff call))))
+          (if-some [^objects item (aget reader reader-slot-item-queue)]
+            (do (aset reader reader-slot-item-queue (aget item item-slot-queue))
+                (aset item item-slot-queue item)
+                (recur (if (identical? item (aget item item-slot-state))
+                         (if (nil? (aget item item-slot-parent))
+                           diff (detach diff item))
+                         (if (nil? (aget item item-slot-parent))
+                           (attach diff item reader)
+                           (change diff item)))))
+            (do (aset reader reader-slot-pending reader)
+                (exit state held) diff))))
+      (do (aset reader reader-slot-pending reader)
+          (terminate reader) (exit state held)
           (throw (missionary.Cancelled.))))))
+
+(defn item-cancel [^objects item]
+  (aset item item-slot-parent nil))
+
+(defn call-cancel [^objects call]
+  (let [children (aget call call-slot-children)]
+    (aset call call-slot-children nil)
+    (aset call call-slot-parent nil)
+    (loop [^objects block children]
+      (let [f (aget block block-slot-frame)
+            n (aget block block-slot-next)]
+        (aset block block-slot-parent nil)
+        (aset block block-slot-prev nil)
+        (aset block block-slot-next nil)
+        (loop [i 0]
+          (when (< i (r/frame-call-count f))
+            ((if (nil? (r/frame-call f i))
+               item-cancel call-cancel)
+             (block-child block i))
+            (recur (inc i))))
+        (when-not (identical? n children)
+          (recur n))))
+    ((aget call call-slot-process))))
+
+(defn reader-cancel [^objects reader]
+  (let [^objects state (aget reader reader-slot-state)
+        held (enter state)]
+    (when (identical? reader (aget state slot-reader))
+      (aset state slot-reader nil)
+      (when-some [root (aget reader reader-slot-root)]
+        (aset reader reader-slot-root nil)
+        (call-cancel root))
+      (loop []
+        (when-some [^objects item (aget reader reader-slot-item-queue)]
+          (aset reader reader-slot-item-queue (aget item item-slot-queue))
+          (aset item item-slot-queue item)
+          (recur)))
+      (loop []
+        (when-some [^objects call (aget reader reader-slot-call-queue)]
+          (aset reader reader-slot-call-queue (aget call call-slot-queue))
+          (aset call call-slot-queue call)
+          (call-discard call)
+          (recur)))
+      (reader-event reader))
+    (exit state held)))
 
 (deftype Reader [state]
   IFn
-  (#?(:clj invoke :cljs -invoke) [this]
+  (#?(:clj invoke :cljs -invoke) [_]
     (reader-cancel state))
   IDeref
-  (#?(:clj deref :cljs -deref) [this]
+  (#?(:clj deref :cljs -deref) [_]
     (reader-transfer state)))
 
-(defn subtree [root frame]
-  (loop [frame frame
-         path (list)]
-    (if (identical? root frame)
-      path (when-some [slot (r/frame-slot frame)]
-             (recur (r/slot-frame slot) (conj path slot))))))
-
-(defn store-block [^objects state frame block]
-  (aset state slot-blocks (assoc (aget state slot-blocks) frame block)))
-
-(defn make-call [^objects reader ^objects block index]
-  (let [^objects children (aget block block-slot-children)]
-    (aset children index
-      (doto (object-array call-slots)
-        (aset call-slot-reader reader)
-        (aset call-slot-block block)
-        (aset call-slot-index index)
-        (aset call-slot-buffer (object-array 1))
-        (aset call-slot-weight (identity 0))))))
-
-(defn make-block-and-call [^objects reader ^objects call frame id]
-  (let [block (make-block frame)]
-    (store-block (aget reader reader-slot-state) frame block)
-    (aset block block-slot-parent call)
-    (make-call reader block id)))
-
-(defn make-blocks-and-calls [^objects reader ^objects call path]
-  (loop [call call
-         path path]
-    (case path
-      [] call
-      (let [slot (peek path)]
-        (recur (make-block-and-call reader call
-                 (r/slot-frame slot) (r/slot-id slot))
-          (pop path))))))
-
-(defn insert-block [^objects reader block]
-  (let [^objects state (aget reader reader-slot-state)]
-    (if-some [root (aget reader reader-slot-root)]
-      (loop [^objects root root]
-        (let [root-frame (aget root block-slot-frame)]
-          (if-some [path (subtree root-frame (aget block block-slot-frame))]
-            (aset block block-slot-parent
-              (loop [call nil
-                     path path]
-                (case path
-                  [] call
-                  (let [slot (peek path)
-                        path (pop path)
-                        frame (r/slot-frame slot)
-                        id (r/slot-id slot)]
-                    (if-some [^objects block (frame->block state frame)]
-                      (let [^objects children (aget block block-slot-children)]
-                        (if-some [^objects call (aget children id)]
-                          (recur call path)
-                          (make-blocks-and-calls reader (make-call reader block id) path)))
-                      (make-blocks-and-calls reader (make-block-and-call reader call frame id) path))))))
-            (let [slot (r/frame-slot root-frame)
-                  frame (r/slot-frame slot)
-                  block (make-block frame)]
-              (store-block state frame block)
-              (aset reader reader-slot-root block)
-              (aset root block-slot-parent
-                (make-call reader block (r/slot-id slot)))
-              (recur block)))))
-      (aset reader reader-slot-root block))
-    reader))
-
 (defn reader-spawn [^objects state step done]
-  (let [reader (object-array reader-slots)]
+  (let [held (enter state)
+        reader (object-array reader-slots)]
     (aset reader reader-slot-state state)
     (aset reader reader-slot-step step)
     (aset reader reader-slot-done done)
-    (aset reader reader-slot-queue (object-array 2))
-    (aset reader reader-slot-push (identity 0))
-    (enter state)
+    (aset reader reader-slot-alive (identity 1))
     (when (nil? (aget state slot-reader))
       (aset state slot-reader reader)
-      (reduce insert-block reader (vals (aget state slot-blocks)))
-      (when-some [root (aget reader reader-slot-root)]
-        (mount-block reader root)))
-    (exit state) (step)
+      (aset reader reader-slot-item-queue
+        (reduce (fn [queue ^objects item]
+                  (aset item item-slot-queue queue) item)
+          nil (vals (aget state slot-items)))))
+    (reader-pending reader)
+    (exit state held)
     (->Reader reader)))
-
-(defn enqueue-exit [^objects state ^objects block index]
-  (if-some [^objects reader (aget state slot-reader)]
-    (if (enqueue reader block index)
-      (step-exit reader)
-      (exit state))
-    (exit state)))
-
-(defn failure-exit [^objects state e]
-  (exit state) (throw e))
 
 (defn error [^String msg]
   (new #?(:clj Error :cljs js/Error) msg))
@@ -483,95 +695,53 @@
 (deftype MountPoint [^objects state]
   KVS
   (insert! [_ tag init]
-    (let [frame (r/tag-frame tag)
-          index (r/tag-index tag)]
-      (enter state)
-      (let [blocks (aget state slot-blocks)]
-        (if-some [^objects block (get blocks frame)]
-          (let [^objects children (aget block block-slot-children)]
-            (if (identical? children (aget children index))
-              (do (aset children index init)
-                  (enqueue-exit state block (- index (r/frame-call-count frame))))
-              (do (exit state)
-                  (throw (error "Can't insert - tag already present.")))))
-          (let [^objects block (make-block frame)
-                ^objects children (aget block block-slot-children)]
-            (aset state slot-blocks (assoc blocks frame block))
-            (aset children index init)
-            (when-some [reader (aget state slot-reader)]
-              (insert-block reader block))
-            (enqueue-exit state block (- index (r/frame-call-count frame))))))))
+    (assert (identical? (r/frame-peer (r/tag-frame tag)) (aget state slot-peer)))
+    (let [held (enter state)
+          items (aget state slot-items)]
+      (if (contains? items tag)
+        (do (exit state held)
+            (throw (error "Can't insert - tag already present.")))
+        (let [item (object-array item-slots)]
+          (aset state slot-items (assoc items tag item))
+          (aset item item-slot-tag tag)
+          (aset item item-slot-state init)
+          (if-some [reader (aget state slot-reader)]
+            (enqueue-item reader item)
+            (aset item item-slot-queue item))
+          (exit state held)))))
   (update! [_ tag f]
-    (let [frame (r/tag-frame tag)
-          index (r/tag-index tag)]
-      (enter state)
-      (let [blocks (aget state slot-blocks)]
-        (if-some [^objects block (get blocks frame)]
-          (let [^objects children (aget block block-slot-children)
-                x (aget children index)]
-            (if (identical? children x)
-              (failure-exit state (error "Can't update - tag is absent."))
-              (if (= x (aset children index (f x)))
-                (exit state)
-                (enqueue-exit state block index))))
-          (failure-exit state (error "Can't update - tag is absent."))))))
+    (assert (identical? (r/frame-peer (r/tag-frame tag)) (aget state slot-peer)))
+    (let [held (enter state)
+          items (aget state slot-items)]
+      (if-some [^objects item (get items tag)]
+        (let [prev (aget item item-slot-state)]
+          (when-not (= prev (aset item item-slot-state (f prev)))
+            (when-some [reader (aget state slot-reader)]
+              (when (identical? item (aget item item-slot-queue))
+                (enqueue-item reader item))))
+          (exit state held))
+        (do (exit state held)
+            (throw (error "Can't update - tag is absent."))))))
   (remove! [_ tag]
-    (let [frame (r/tag-frame tag)
-          index (r/tag-index tag)]
-      (enter state)
-      (let [blocks (aget state slot-blocks)]
-        (if-some [^objects block (get blocks frame)]
-          (let [^objects children (aget block block-slot-children)]
-            (if (identical? children (aget children index))
-              (failure-exit state (error "Can't remove - tag is absent."))
-              (do (aset children index children)
-                  ;; TODO if block becomes empty, remove from store
-                  (enqueue-exit state block index))))
-          (failure-exit state (error "Can't remove - tag is absent."))))))
+    (assert (identical? (r/frame-peer (r/tag-frame tag)) (aget state slot-peer)))
+    (let [held (enter state)
+          items (aget state slot-items)]
+      (if-some [^objects item (get items tag)]
+        (do (aset state slot-items (dissoc items tag))
+            (aset item item-slot-state item)
+            (when-some [reader (aget state slot-reader)]
+              (when (identical? item (aget item item-slot-queue))
+                (enqueue-item reader item)))
+            (exit state held))
+        (do (exit state held)
+            (throw (error "Can't remove - tag is absent."))))))
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
     (reader-spawn state step done)))
 
-(defn create []
+(defn create [peer]
   (->MountPoint
     (doto (object-array slots)
-      (aset slot-lock #?(:clj (ReentrantLock.) :cljs nil)))))
-
-#_
-(defn find-block [^objects state frame]
-  (when-some [root (aget state slot-root)]
-    (loop [^objects root root]
-      (when-some [path (subtree root frame)]
-        (loop [^objects block root
-               path path]
-          (case path
-            [] block
-            (let [slot (peek path)
-                  path (pop path)
-                  id (r/slot-id slot)
-                  frame (r/slot-frame slot)
-                  ^objects children (aget block block-slot-children)]
-              (when-some [^objects call (aget children id)]
-                (when-some [^objects block (get (aget call call-slot-children) frame)]
-                  (recur block path))))))))))
-
-#_
-(defn remove-block [^objects reader ^objects block index]
-  (loop [^objects block block
-         index index]
-    (let [^objects children (aget block block-slot-children)]
-      (aset children index children)
-      (when (loop [i 0]
-              (if (identical? children (aget children i))
-                (let [i (inc i)]
-                  (if (< i (alength children))
-                    (recur i) true)) false))
-        (if (identical? block (aget reader reader-slot-root))
-          (aset reader reader-slot-root nil)
-          (let [^objects call (aget block block-slot-parent)]
-            (when (zero? (count (aset call call-slot-children
-                                  (dissoc! (aget call call-slot-children)
-                                    (aget block block-slot-frame)))))
-              ;; TODO cancel process
-              (recur (aget call call-slot-block)
-                (aget call call-slot-index)))))))))
+      (aset slot-lock #?(:clj (ReentrantLock.) :cljs false))
+      (aset slot-peer peer)
+      (aset slot-items {}))))

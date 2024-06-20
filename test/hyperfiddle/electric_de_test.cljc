@@ -6,6 +6,7 @@
             [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.incseq :as i]
+            [hyperfiddle.kvs :as kvs]
             [contrib.cljs-target :refer [do-browser]]
             #?(:cljs [hyperfiddle.goog-calls-test-de])
             #?(:cljs [hyperfiddle.js-calls-test-de])
@@ -2223,3 +2224,32 @@
       (@!c 2)
       % := false))
   )
+
+(tests
+  (defn mount-at [kvs k v]
+    (m/observe
+      (fn [!]
+        (! (i/empty-diff 0))
+        (kvs/insert! kvs k v)
+        #(kvs/remove! kvs k))))
+
+  (def !x (atom true))
+  (def !y (atom true))
+
+  (with ((l/single {}
+           (let [mp (e/mount-point)]
+             (tap (e/as-vec (e/join mp)))
+             (if (e/watch !x)
+               (e/join (mount-at mp (e/tag) 0))
+               (if (e/input (m/watch !y))
+                 (e/join (mount-at mp (e/tag) 1))
+                 (e/join (mount-at mp (e/tag) 2))))
+             (e/join (mount-at mp (e/tag) 3))))
+         tap tap)
+    % := [0 3]
+    (swap! !x not)
+    % := [1 3]
+    (swap! !y not)
+    % := [2 3]
+    (swap! !x not)
+    % := [0 3]))
