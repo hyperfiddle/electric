@@ -11,7 +11,7 @@
 (def slot-value 6)
 (def slots 7)
 
-(deftype Empty [t]
+(deftype EmptySeq [t]
   IFn
   (#?(:clj invoke :cljs -invoke) [_])
   IDeref
@@ -23,8 +23,8 @@
          :change {}
          :freeze #{}}))
 
-(defn empty-coll [n t]
-  (n) (->Empty t))
+(defn empty-seq [n t]
+  (n) (->EmptySeq t))
 
 (defn nop [])
 
@@ -114,7 +114,7 @@
     (transfer state)))
 
 (defn flow
-  ([] empty-coll)
+  ([] empty-seq)
   ([item & items]
    (let [items (into [item] items)]
      (fn [n t]
