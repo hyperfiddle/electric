@@ -38,11 +38,13 @@
 (ns hyperfiddle.electric-dom3
   (:refer-clojure :exclude [comment])
   (:require
+   [clojure.core :as cc]
    [hyperfiddle.electric-de :as e :refer [$]]
    ;; [hyperfiddle.rcf :as rcf :refer [tests]]
    [missionary.core :as m]
    [hyperfiddle.electric-dom3-props :as props]
-   [hyperfiddle.electric-dom3-events :as events]
+   ;; [hyperfiddle.electric-dom3-events :as events]
+   [hyperfiddle.kvs :as kvs]
    [hyperfiddle.incseq :as i]
    ;; [hyperfiddle.electric.impl.lang-de2 :as lang]
    )
@@ -70,12 +72,14 @@
    (let [key (js/Symbol.for "hyperfiddle.dom3.mount-point")]
      (defn get-mount-point [node] (aget node key))
 
-     (defn mount-point> [node]
+     (defn mount-point> [node mpoint]
        ;; should this be wrapped into m/signal, so two With calls can run onto the same node?
        ;; What would happen to chilren order with two writers on a shared mount-point?
        (m/observe (fn [!]
-                    (! (aset node key (e/mount-point)))
+                    (! (aset node key mpoint))
                     #(js-delete node key))))))
+
+(declare patch-nodelist)
 
 (e/defn Root
   "
@@ -87,7 +91,8 @@ Allow Electric DOM-managed nodes to attach to the given `dom-node`.
 ```
 "
   [dom-node]
-  (e/input (mount-point> dom-node))
+  (e/input (m/reductions patch-nodelist dom-node (e/input (mount-point> dom-node (e/mount-point)))))
+
   dom-node)
 
 #?(:cljs
@@ -96,8 +101,8 @@ Allow Electric DOM-managed nodes to attach to the given `dom-node`.
      (m/observe (fn [!]
                   (! nil)
                   (let [mount-point (get-mount-point parent-node)]
-                    (e/insert! mount-point tag e)
-                    #(e/remove! mount-point tag e))))))
+                    (kvs/insert! mount-point tag e)
+                    #(kvs/remove! mount-point tag))))))
 
 ;;;;;;;;;;
 ;; Text ;;
@@ -316,12 +321,14 @@ Allow Electric DOM-managed nodes to attach to the given `dom-node`.
   an existing DOM Element, typically libraries integration."
   [element Body]
   (e/client
-    (let [mp  (e/input (mount-point> element))
+    (let [mp  (e/input (mount-point> element (e/mount-point)))
           tag (e/tag)]
-      (e/input (attach! node tag element)) ; mount and unmount element in parent
-      (e/input (m/reductions patch-nodelist element mp))    ; interprets diffs to mount and maintain children in correct order
-      (binding [node element]              ; run continuation, in context of current node.
-        ($ Body)))))
+      (case mp
+        (do
+          (e/input (attach! node tag element)) ; mount and unmount element in parent
+          (e/input (m/reductions patch-nodelist element mp)) ; interprets diffs to mount and maintain children in correct order
+          (binding [node element] ; run continuation, in context of current node.
+            ($ Body)))))))
 
 (e/defn Element
   "Mount a new DOM Element of type `tag` in the current `node` and run `Body` in
