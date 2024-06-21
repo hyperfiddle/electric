@@ -452,100 +452,61 @@ input's value, use `EventListener`."
 ;; Events ;;
 ;;;;;;;;;;;;
 
-;; DONE import event listening API
-;; P and G thinks following names are to be improved.
+#?(:cljs (defn with-listener
+           ([n e f] (with-listener n e f nil))
+           ([n e f o] (.addEventListener n e f o) #(.removeEventListener n e f o))))
 
-;; NOTE Leo: I think passing an initial value should be mandatory. E.g.
-;; EventListener returns nil but input contains "", but depends on use case.
-(e/defn EventListener "Takes the same arguments as `addEventListener`. Returns
-the result of `(f event)`.
+#?(:cljs
+   (defn listen "Takes the same arguments as `addEventListener` and returns an uninitialized
+  missionary flow that handles the listener's lifecycle producing `(f e)`.
+  Relieves backpressure. `opts` can be a clojure map."
+     ([node event-type] (listen node event-type identity))
+     ([node event-type f] (listen node event-type f {}))
+     ([node event-type f opts]
+      (->> (m/observe (fn [!] (with-listener node event-type #(! (f %)) (clj->js opts))))
+        (m/relieve {})))))
 
-```clj
-(dom/input
-  (when-some [v ($ EventListener \"input\" #(-> % .-target .-value))]
-    (prn v)))
-```"
-  ([event-type] ($ events/EventListener event-type))
-  ([event-type f] ($ events/EventListener event-type f))
-  ([node event-type f] ($ events/EventListener node event-type f))
-  ([node event-type f opts] ($ events/EventListener node event-type f opts))
-  ([node event-type f opts init-v] ($ events/EventListener node event-type f opts init-v)))
+#?(:cljs
+   (defn listen-some "Takes the same arguments as `addEventListener` and returns an uninitialized
+  missionary flow that handles the listener's lifecycle producing `(f e)` unless
+  the result is `nil`. Relieves backpressure. `opts` can be a clojure map."
+     ([node event-type] (listen-some node event-type identity))
+     ([node event-type f] (listen-some node event-type f {}))
+     ([node event-type f opts]
+      (->> (m/observe (fn [!]
+                        (let [! #(some-> (f %) !), opts (clj->js opts)]
+                          (.addEventListener node event-type ! opts)
+                          #(.removeEventListener node event-type ! opts))))
+        (m/relieve {}))
+      ;; alternative implementation
+      #_(m/eduction (filter some?) (listen node typ f opts)))))
 
-(defmacro ^{:deprecated "Deprecated since v3, use EventListener instead."} on! [])
+(e/defn On
+  ([event-type]                    ($ On      event-type identity))
+  ([event-type f]                  ($ On      event-type f        {}))
+  ([event-type f opts]             ($ On      event-type f        opts nil))
+  ([event-type f opts init-v]      ($ On node event-type f        opts init-v))
+  ([node event-type f opts init-v] (e/client (e/input (m/reductions {} init-v (listen node event-type ((e/capture-fn) f) opts))))))
 
-(defmacro
-  ^{:deprecated "Deprecated since v3, use EventListener instead."}
-  on!
-  "Call the `callback` clojure function on event.
-   (on! \"click\" (fn [event] ...)) "
-  ([event-name callback] `(on! node ~event-name ~callback))
-  ([dom-node event-name callback] `(on! ~dom-node ~event-name ~callback nil))
-  ([dom-node event-name callback options]
-   `($ EventListener ~dom-node ~event-name ~callback ~options ~nil)))
+(defn fork
+  ([flow] (fork ##Inf flow))
+  ([n flow]
+   (m/ap
+     (let [!id (atom 0), S (i/spine), !running (atom (sorted-set))]
+       (m/amb S
+         (let [v (m/?> flow), id @!id, running (swap! !running conj (swap! !id inc))]
+           (S id {} [v #(do (swap! !running disj id) (S id {} nil))])
+           (run! #(S % {} nil) (take (- (count running) n) ; NOTE Leo: always return 0 or 1 because we add one event at a time
+                                 running))
+           (m/amb)))))))
 
-(e/defn Listen "Takes the same arguments as `addEventListener`. Returns a tuple
-of `[v release!]` for every DOM event where `v` is `(f event)`. Returns `[v
-nil]` after calling the `release!` thunk. Initially returns `[init-v nil]` where
-`init-v` defaults to `nil`.
-
-```clj
-(dom/input
-  (let [[v release!] ($ Listen \"input\" #(-> % .-target .-value))]
-    (when release!
-      (case (e/server (tx! v)) (release!)))))
-```"
-  ([event-type] ($ events/Listen event-type))
-  ([event-type f] ($ events/Listen event-type f))
-  ([node event-type f] ($ events/Listen node event-type f))
-  ([node event-type f opts] ($ events/Listen node event-type f opts))
-  ([node event-type f opts init-v] ($ events/Listen node event-type f opts init-v)))
-
-(e/defn Hold "Takes the same arguments as `addEventListener`. Holds a DOM event
-and returns `[v release!]` where `v` is `(f event)`. Returns `[v nil]` after
-calling the `release!` thunk. Drops events if one is currently held. Initially
-returns `[init-v nil]` where `init-v` defaults to `nil`.
-
-```clj
-(dom/button
-  (let [[v release!] ($ Hold \"click\" hash)
-        busy? (boolean release!)]
-    (dom/props {:disabled busy?, :aria-busy busy?})
-    (when release!
-      (case (e/server (tx! v)) (release!)))))
-```"
-  ([event-type] ($ events/Hold event-type))
-  ([event-type f] ($ events/Hold event-type f))
-  ([node event-type f] ($ events/Hold node event-type f))
-  ([node event-type f opts] ($ events/Hold node event-type f opts))
-  ([node event-type f opts init-v] ($ events/Hold node event-type f opts init-v)))
-
-(e/defn Fork "Takes the same arguments as `addEventListener`. For each DOM event
-where `(f event)` isn't `nil` forks a new branch, allowing concurrent processing
-of events. Each branch recieves `[v release!]` where `v` is `(f event)` and
-calling the `release!` thunk unmounts the current branch. Optional
-`concurrency-factor` limits the maximum number of active branches, defaults to
-`##Inf`.
-
-```clj
-(dom/button
-  (e/cursor [[v release!] ($ Fork \"click\" hash)]
-    (case (e/server (add-todo! v)) (release!))))
-```"
-  ([event-type] ($ events/Fork event-type))
-  ([event-type f] ($ events/Fork event-type f))
-  ([node event-type f] ($ events/Fork node event-type f))
-  ([node event-type f opts] ($ events/Fork node event-type f opts))
-  ([node event-type f opts concurrency-factor] ($ events/Fork node event-type f opts concurrency-factor)))
-
-(e/defn ^{:deprecated "Deprecated since v3, use Listen, Hold and Fork instead."}
-  On
-  ([event-type F] ($ events/On event-type F))
-  ([node event-type F] ($ events/On node event-type F)))
-
-(defmacro ^{:deprecated "Deprecated since v3, use Listen, Hold and Fork instead."}
-  on
-  ([typ F] `(events/on ~typ ~F))
-  ([node typ F] `(events/on ~node ~typ ~F)))
+(e/defn OnAll
+  ([event-type]                           ($ OnAll      event-type identity))
+  ([event-type f]                         ($ OnAll      event-type f        {}))
+  ([event-type f opts]                    ($ OnAll      event-type f        opts ##Inf))
+  ([event-type f opts concurrency-factor] ($ OnAll node event-type f        opts concurrency-factor))
+  ([node event-type f opts concurrency-factor]
+   (e/client (e/join (e/input (fork concurrency-factor (listen-some node event-type ((e/capture-fn) f) opts)))))))
 
 ;;;;;;;;;;;;
 ;; Extras ;;

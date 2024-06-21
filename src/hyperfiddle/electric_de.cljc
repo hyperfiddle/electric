@@ -6,6 +6,7 @@
             [hyperfiddle.electric.impl.mount-point :as mp]
             [clojure.core :as cc]
             [clojure.string :as str]
+            [contrib.data]
             [hyperfiddle.rcf :as rcf :refer [tests]]
             #?(:clj [contrib.triple-store :as ts])
             #?(:clj [fipp.edn])
@@ -255,6 +256,8 @@ A mount point can be :
   ([F a b c d & es]
    (::lang/call ($ Dispatch F [(::lang/pure a) (::lang/pure b) (::lang/pure c) (::lang/pure d)] (concat (butlast es) (last es))))))
 
+(defmacro apply [& args] `($ Apply ~@args))
+
 (cc/defn on-unmount* [f] (m/observe (cc/fn [!] (! nil) f)))
 
 (defmacro on-unmount "Run clojure(script) thunk `f` during unmount.
@@ -275,3 +278,58 @@ A mount point can be :
        (hyperfiddle.electric-client-de/boot-with-retry
          (cc/fn [events#] (m/stream (r/peer events# :client (r/->defs {::Main ~source}) ::Main)))
          hyperfiddle.electric-client-de/connector))))
+
+;; (cc/defn -snapshot [flow] (->> flow (m/eduction (contrib.data/take-upto (complement #{r/pending})))))
+(cc/defn -snapshot [flow] (->> flow (m/eduction (contrib.data/take-upto (comp pos-int? :degree)))))
+
+(defmacro snapshot
+  "Snapshots the first non-Pending value of reactive value `x` and freezes it,
+inhibiting all further reactive updates."
+  [x] `(check-electric snapshot (join (-snapshot (pure ~x)))))
+
+(let [->off-fn  (cc/fn [!off!] (cc/fn f ([] (f nil)) ([ret] (reset! !off! nil) ret)))
+      step      (cc/fn [!off! v on?] (when (on? v) (compare-and-set! !off! nil (->off-fn !off!))))]
+  (hyperfiddle.electric-de/defn Switch
+    ([v]     ($ Switch v some?))
+    ([v on?] (let [!off! (atom nil)] (step !off! v on?) (watch !off!)))))
+
+(let [->off-fn  (cc/fn [!off!] (cc/fn f ([] (f nil)) ([ret] (reset! !off! nil) ret)))
+      step      (cc/fn [!off! _off! v on?] (when (on? v) (compare-and-set! !off! nil (->off-fn !off!))))]
+  (hyperfiddle.electric-de/defn HotSwitch
+    ([v]     ($ HotSwitch v some?))
+    ([v on?] (let [!off! (atom nil), off! (watch !off!)] (step !off! off! v on?) off!))))
+
+(let [->off-fn  (cc/fn [!held] (cc/fn f ([] (f nil)) ([ret] (swap! !held assoc 1 nil) ret)))
+      step      (cc/fn [!held v on?]
+                  (let [[_ off! :as held] @!held]
+                    (when (and (not off!) (on? v))
+                      (compare-and-set! !held held [v (->off-fn !held)]))))]
+  (hyperfiddle.electric-de/defn DataSwitch
+    ([v] ($ DataSwitch v some?))
+    ([v on?] (let [!held (atom [nil nil])] (step !held v on?) (watch !held)))))
+
+(let [->done-fn (cc/fn [!held] (cc/fn f ([] (f nil)) ([ret] (swap! !held assoc 1 nil) ret)))
+      step      (cc/fn [!held _held v on?]
+                  (let [[_ next! :as held] @!held]
+                    (when (and (not next!) (on? v))
+                      (compare-and-set! !held held [v (->done-fn !held)]))))]
+  (hyperfiddle.electric-de/defn DataHotSwitch
+    ([v] ($ DataHotSwitch v some?))
+    ([v on?] (let [!held (atom [nil nil]), held (watch !held)] (step !held held v on?) held))))
+
+(cc/letfn [(->off [!latched?]      (cc/fn f ([] (f nil)) ([v] (reset! !latched? false) v)))
+           (->latch-fn [!latched?] (cc/fn f ([] (f nil)) ([_] (reset! !latched? true) (->off !latched?))))]
+  (hyperfiddle.electric-de/defn DataLatch [v]
+    (let [!latched? (atom false)]
+      [(if (watch !latched?) (snapshot v) v)  (->latch-fn !latched?)])))
+
+(cc/defn capture-fn
+  "Captures variability of a function under a stable identity.
+  Return a proxy to the captured function.
+  Use case: prevent unmount and remount when a cc/fn argument updates due to an inner variable dependency."
+  []
+  (let [!state (object-array 1)
+        ret (cc/fn [& args] (cc/apply (aget !state 0) args))]
+    (cc/fn [x]
+      (aset !state 0 x)
+      ret)))
