@@ -200,18 +200,18 @@ calling the `release!` thunk unmounts the current branch. Optional
 
 ;; interpreter on top of `Fork` with concurrency of `1`, interpreting first
 ;; non-`Pending` as the release signal. Backwards compatible with `dom2/on`.
-(e/defn On
-  ([event-type F] ($ On dom/node event-type F))
-  ([node event-type F]
-   (let [!ret (atom [::init]), [state v] (e/watch !ret)]
-     (e/cursor [[e release!] ($ Fork node event-type identity {} 1)]
-       (try (case (reset! !ret [::ok ($ F e)]) (release!))
-            (catch Pending e (reset! !ret [::pending e]))
-            (catch Cancelled _ (release!))
-            (catch #?(:clj Throwable :cljs :default) e (reset! !ret [::failed e]) (release!))))
-     (case state (::init ::ok) v, (::pending ::failed) (throw v)))))
+;; (e/defn On
+;;   ([event-type F] ($ On hyperfiddle.electric-dom3/node event-type F))
+;;   ([node event-type F]
+;;    (let [!ret (atom [::init]), [state v] (e/watch !ret)]
+;;      (e/cursor [[e release!] ($ Fork node event-type identity {} 1)]
+;;        (try (case (reset! !ret [::ok ($ F e)]) (release!))
+;;             (catch Pending e (reset! !ret [::pending e]))
+;;             (catch Cancelled _ (release!))
+;;             (catch #?(:clj Throwable :cljs :default) e (reset! !ret [::failed e]) (release!))))
+;;      (case state (::init ::ok) v, (::pending ::failed) (throw v)))))
 
-;; full `dom2/on` backward compatibility
-(defmacro on
-  ([typ F] `($ On ~typ ~F))
-  ([node typ F] `($ On ~node ~typ ~F)))
+;; ;; full `dom2/on` backward compatibility
+;; (defmacro on
+;;   ([typ F] `($ On ~typ ~F))
+;;   ([node typ F] `($ On ~node ~typ ~F)))
