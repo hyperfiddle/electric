@@ -10,7 +10,8 @@
             [hyperfiddle.rcf :as rcf :refer [tests]]
             #?(:clj [contrib.triple-store :as ts])
             #?(:clj [fipp.edn])
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [clojure.math :as math])
   #?(:cljs (:require-macros hyperfiddle.electric-de)))
 
 (def web-config {::lang/peers {:client :cljs, :server :clj}})
@@ -333,3 +334,40 @@ inhibiting all further reactive updates."
     (cc/fn [x]
       (aset !state 0 x)
       ret)))
+
+#?(:cljs
+   (deftype Clock [^:mutable ^number raf
+                   ^:mutable callback
+                   terminator]
+     IFn                                                    ; cancel
+     (-invoke [_]
+       (if (zero? raf)
+         (set! callback nil)
+         (do (.cancelAnimationFrame js/window raf)
+             (terminator))))
+     IDeref                                                 ; sample
+     (-deref [_]
+       ; lazy clock, only resets once sampled
+       (if (nil? callback)
+         (terminator)
+         (set! raf (.requestAnimationFrame js/window callback))) ; RAF not called until first sampling
+       ::tick)))
+
+; cc def, must be above defmacro def
+(def ^:no-doc <clock "lazy & efficient logical clock that schedules no work unless sampled"
+  #?(:cljs (cc/fn [n t]
+             (let [cancel (->Clock 0 nil t)]
+               (set! (.-callback cancel)
+                 (cc/fn [_] (set! (.-raf cancel) 0) (n)))
+               (n) cancel))
+
+     ; 120 hz server, careful this impacts bandwidth in demo-two-clocks
+     ; typical UI animation rate is 60 or 120hz, no point in going higher
+     :clj (m/ap (loop [] (m/amb nil (do (m/? (m/sleep (/ 1000 120))) (recur)))))
+     #_(m/ap (m/? (m/sleep 1 (m/?> (m/seed (repeat nil))))))))
+
+;; TODO add back dom visibility check
+(cc/defn -get-system-time-ms [& [_]] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
+
+(def system-time-ms (m/signal (m/sample -get-system-time-ms <clock)))
+(def system-time-secs (m/signal (m/latest #(math/floor-div % 1000) system-time-ms)))
