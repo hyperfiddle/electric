@@ -115,19 +115,16 @@
           (range l))))))
 
 (defn freeze! [^ints freezer i]
-  (let [j (int (bit-shift-right i 5))
-        k (int (bit-and i (unchecked-dec (bit-shift-left 1 5))))]
-    (aset freezer j (int (bit-set (aget freezer j) k)))))
+  (let [j (bit-shift-right i 5)]
+    (aset freezer j (unchecked-int (bit-set (aget freezer j) (bit-and i 31))))))
 
 (defn unfreeze! [^ints freezer i]
-  (let [j (int (bit-shift-right i 5))
-        k (int (bit-and i (unchecked-dec (bit-shift-left 1 5))))]
-    (aset freezer j (int (bit-clear (aget freezer j) k)))))
+  (let [j (bit-shift-right i 5)]
+    (aset freezer j (unchecked-int (bit-clear (aget freezer j) (bit-and i 31))))))
 
 (defn frozen? [^ints freezer i]
-  (let [j (bit-shift-right i 5)
-        k (bit-and i (unchecked-dec (bit-shift-left 1 5)))]
-    (bit-test (aget freezer j) k)))
+  (let [j (bit-shift-right i 5)]
+    (bit-test (aget freezer j) (bit-and i 31))))
 
 (defn flush-ready [^objects state item pull]
   (let [^objects processes (aget state slot-processes)
