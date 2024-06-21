@@ -669,9 +669,9 @@ Mounting a block generates a grow for each active item having this block's frame
         (aset block block-slot-next nil)
         (loop [i 0]
           (when (< i (r/frame-call-count f))
-            ((if (nil? (r/frame-call f i))
-               item-cancel call-cancel)
-             (block-child block i))
+            (when-some [child (block-child block i)]
+              ((if (nil? (r/frame-call f i))
+                 item-cancel call-cancel) child))
             (recur (inc i))))
         (when-not (identical? n children)
           (recur n))))
