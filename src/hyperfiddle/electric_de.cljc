@@ -355,7 +355,6 @@ inhibiting all further reactive updates."
          (set! raf (.requestAnimationFrame js/window callback))) ; RAF not called until first sampling
        ::tick)))
 
-; cc def, must be above defmacro def
 (def ^:no-doc <clock "lazy & efficient logical clock that schedules no work unless sampled"
   #?(:cljs (cc/fn [n t]
              (let [cancel (->Clock 0 nil t)]
