@@ -3,7 +3,7 @@
   (:require
    [clojure.string :as str]
    [hyperfiddle.electric-de :as e :refer [$]]
-   [hyperfiddle.electric-dom3 :as-alias dom]
+   ;; [hyperfiddle.electric-dom3 :as-alias dom]
    [hyperfiddle.electric-css3 :as css]
    [hyperfiddle.rcf :refer [tests]]
    [missionary.core :as m]
@@ -292,7 +292,7 @@ object property. For instance:
 - `:style` doesn't set the \"style\" HTML attribute, but efficiently manipulates the CSSStyleDeclaration object under the `.style` property.
 - etc.
   "
-  ([m] `(props dom/node ~m))
+  ([m] `(props hyperfiddle.electric-dom3/node ~m))
   ([node m]
    (if (map? m)
      `(do ~@(map (fn [[k v]] (cond  ; static keyset + saves on a conditional
