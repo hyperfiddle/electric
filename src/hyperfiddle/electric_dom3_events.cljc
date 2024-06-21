@@ -1,6 +1,6 @@
 (ns hyperfiddle.electric-dom3-events
   (:require [hyperfiddle.electric-de :as e :refer [$]]
-            [hyperfiddle.electric-dom3 :as-alias dom]
+            ;; [hyperfiddle.electric-dom3 :as-alias dom]
             [hyperfiddle.incseq :as i]
             [missionary.core :as m])
   (:import [missionary Cancelled])
@@ -76,7 +76,7 @@ the result of `(f event)`.
     (prn v)))
 ```"
   ([event-type] ($ EventListener event-type identity))
-  ([event-type f] ($ EventListener dom/node event-type f))
+  ([event-type f] ($ EventListener hyperfiddle.electric-dom3/node event-type f))
   ([node event-type f] ($ EventListener node event-type f {}))
   ([node event-type f opts] ($ EventListener node event-type f opts nil))
   ([node event-type f opts init-v]
@@ -94,7 +94,7 @@ nil]` after calling the `release!` thunk. Initially returns `[init-v nil]` where
       (case (e/server (tx! v)) (release!)))))
 ```"
   ([event-type] ($ Listen event-type identity))
-  ([event-type f] ($ Listen dom/node event-type f))
+  ([event-type f] ($ Listen hyperfiddle.electric-dom3/node event-type f))
   ([node event-type f] ($ Listen node event-type f {}))
   ([node event-type f opts] ($ Listen node event-type f opts nil))
   ([node event-type f opts init-v]
@@ -123,7 +123,7 @@ returns `[init-v nil]` where `init-v` defaults to `nil`.
       (case (e/server (tx! v)) (release!)))))
 ```"
   ([event-type] ($ Hold event-type identity))
-  ([event-type f] ($ Hold dom/node event-type f))
+  ([event-type f] ($ Hold hyperfiddle.electric-dom3/node event-type f))
   ([node event-type f] ($ Hold node event-type f {}))
   ([node event-type f opts] ($ Hold node event-type f opts nil))
   ([node event-type f opts init-v]
@@ -183,7 +183,7 @@ calling the `release!` thunk unmounts the current branch. Optional
     (case (e/server (add-todo! v)) (release!))))
 ```"
   ([event-type] ($ Fork event-type identity))
-  ([event-type f] ($ Fork dom/node event-type f))
+  ([event-type f] ($ Fork hyperfiddle.electric-dom3/node event-type f))
   ([node event-type f] ($ Fork node event-type f {}))
   ([node event-type f opts] ($ Fork node event-type f opts ##Inf))
   ([node event-type f opts concurrency-factor]

@@ -4,7 +4,7 @@
    - Partial at-rules support (only @keyframes ATM)
   "
   (:require [hyperfiddle.electric-de :as e :refer [$]]
-            [hyperfiddle.electric-dom3 :as-alias dom]
+            ;; [hyperfiddle.electric-dom3 :as-alias dom]
             [missionary.core :as m]
             [clojure.string :as str]
             #?(:cljs [goog.style]))
@@ -135,7 +135,7 @@
 (defmacro rule [selector & declarations]
   (let [[selector declarations] (if (map? selector) ["&" (cons selector declarations)] [selector declarations])]
     `(binding [selector (scoped scope (concat-selectors selector ~selector))]
-       ~@(map #(rule* `dom/node `selector %) (filter map? declarations))
+       ~@(map #(rule* `hyperfiddle.electric-dom3/node `selector %) (filter map? declarations))
        ~@(remove map? declarations))))
 
 (comment
@@ -148,7 +148,7 @@
 (defmacro keyframes "Create an @keyframes <animation-name> rule group. Note @keyframes are always
   global, even if defined in a scoped style. Can only contain `keyframe` rules."
   [animation-name & keyframes]
-  `(binding [dom/node (e/input (make-rule< dom/node ~(str "@keyframes " animation-name)))]
+  `(binding [hyperfiddle.electric-dom3/node (e/input (make-rule< hyperfiddle.electric-dom3/node ~(str "@keyframes " animation-name)))]
      ~@keyframes))
 
 (defmacro keyframe
@@ -156,7 +156,7 @@
    Will add the animation stop to the current `keyframes`. Can only be used in a `keyframes` block.
   Note that adding or removing a `keyframe` at runtime resets running animations, but changing a keyframe's content doesn't. "
   [stop declarations]
-  (rule* `dom/node stop declarations))
+  (rule* `hyperfiddle.electric-dom3/node stop declarations))
 
 (def stylesheet<  "Mount a singleton stylesheet in the documents's <head> to gather all CSS rules"
   #?(:cljs
@@ -183,11 +183,11 @@
       (css/rule \".my-div:hover\" {:color :blue})))
   "
   [& body]
-  `(binding [dom/node (e/input (identity stylesheet<))]
+  `(binding [hyperfiddle.electric-dom3/node (e/input (identity stylesheet<))]
      ~@body))
 
 (defmacro scoped-style [& body]
-  `(binding [dom/node (e/input (identity stylesheet<))
+  `(binding [hyperfiddle.electric-dom3/node (e/input (identity stylesheet<))
              scope (str (munge (gensym "class_")))]
      ~@body
      scope))
