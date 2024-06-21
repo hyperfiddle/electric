@@ -73,11 +73,7 @@
   "Interface over a CSS rule"
   (set-property [this key value]))
 
-(defn to-str [x]
-  (cond (string? x)  x
-        (keyword? x) (name x)
-        (symbol? x)  (str x)
-        :else        (str x)))
+(defn to-str [x] ((if (keyword? x) name str) x))
 
 #?(:cljs
    (extend-protocol StyleRule
@@ -92,7 +88,7 @@
        (let [key (to-str key)]
          (if (str/starts-with? key "--") ; CSS variable
            (.setProperty this key value)
-           (when-let [property (goog.style/getVendorJsStyleName_ this key)] ; normalize property names
+           (when-some [property (goog.style/getVendorJsStyleName_ js/document.body key)] ; normalize property names
              (.setProperty this property value)))))))
 
 #?(:cljs
