@@ -323,12 +323,10 @@ Allow Electric DOM-managed nodes to attach to the given `dom-node`.
   (e/client
     (let [mp  (e/input (mount-point> element (e/mount-point)))
           tag (e/tag)]
-      (case mp
-        (do
-          (e/input (attach! node tag element)) ; mount and unmount element in parent
-          (e/input (m/reductions patch-nodelist element mp)) ; interprets diffs to mount and maintain children in correct order
-          (binding [node element] ; run continuation, in context of current node.
-            ($ Body)))))))
+      (e/input (attach! node tag element)) ; mount and unmount element in parent
+      (e/input (m/reductions patch-nodelist element mp)) ; interprets diffs to mount and maintain children in correct order
+      (binding [node ({} mp element)] ; run continuation, in context of current node.
+        ($ Body)))))
 
 (e/defn Element
   "Mount a new DOM Element of type `tag` in the current `node` and run `Body` in
