@@ -11,7 +11,9 @@
             #?(:clj [contrib.triple-store :as ts])
             #?(:clj [fipp.edn])
             [missionary.core :as m]
+            [contrib.missionary-contrib :as mx]
             [clojure.math :as math])
+  (:import [missionary Cancelled])
   #?(:cljs (:require-macros hyperfiddle.electric-de)))
 
 (def web-config {::lang/peers {:client :cljs, :server :clj}})
@@ -370,4 +372,25 @@ inhibiting all further reactive updates."
 (cc/defn -get-system-time-ms [& [_]] #?(:clj (System/currentTimeMillis) :cljs (js/Date.now)))
 
 (def system-time-ms (m/signal (m/sample -get-system-time-ms <clock)))
-(def system-time-secs (m/signal (m/latest #(math/floor-div % 1000) system-time-ms)))
+
+(hyperfiddle.electric-de/defn SystemTimeMs [] (input system-time-ms))
+(hyperfiddle.electric-de/defn SystemTimeSecs [] (math/floor-div (input system-time-ms) 1000))
+
+(cc/defn uf->is [uf]
+  (m/ap (m/amb (i/empty-diff 0)
+          (let [!first (atom true) v (m/?> uf)]
+            (assoc (i/empty-diff 1) :grow (if @!first (do (swap! !first not) 1) 0), :change {0 v})))))
+
+(cc/defn task->is [t] (uf->is (m/ap (m/? t))))
+
+(hyperfiddle.electric-de/defn Task [t]
+  (join (task->is t)))
+
+#?(:clj (cc/defn -offload [tsk executor]
+          (uf->is (m/ap (try (m/? (m/via-call executor (m/?< (mx/poll-task tsk))))
+                             (catch Cancelled _ (m/amb)))))))
+
+
+(hyperfiddle.electric-de/defn Offload
+  ([f!]          ($ Offload f! m/blk))
+  ([f! executor] (server (let [mbx (m/mbx)] (mbx f!) (join (-offload mbx executor))))))
