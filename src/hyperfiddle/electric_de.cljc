@@ -289,14 +289,14 @@ inhibiting all further reactive updates."
 
 (let [->off-fn  (cc/fn [!off!] (cc/fn f ([] (f nil)) ([ret] (reset! !off! nil) ret)))
       step      (cc/fn [!off! v on?] (when (on? v) (compare-and-set! !off! nil (->off-fn !off!))))]
-  (hyperfiddle.electric-de/defn Switch
-    ([v]     ($ Switch v some?))
+  (hyperfiddle.electric-de/defn Token
+    ([v]     ($ Token v some?))
     ([v on?] (let [!off! (atom nil)] (step !off! v on?) (watch !off!)))))
 
 (let [->off-fn  (cc/fn [!off!] (cc/fn f ([] (f nil)) ([ret] (reset! !off! nil) ret)))
       step      (cc/fn [!off! _off! v on?] (when (on? v) (compare-and-set! !off! nil (->off-fn !off!))))]
-  (hyperfiddle.electric-de/defn HotSwitch
-    ([v]     ($ HotSwitch v some?))
+  (hyperfiddle.electric-de/defn CyclicToken
+    ([v]     ($ CyclicToken v some?))
     ([v on?] (let [!off! (atom nil), off! (watch !off!)] (step !off! off! v on?) off!))))
 
 (let [->off-fn  (cc/fn [!held] (cc/fn f ([] (f nil)) ([ret] (swap! !held assoc 1 nil) ret)))
@@ -304,8 +304,8 @@ inhibiting all further reactive updates."
                   (let [[_ off! :as held] @!held]
                     (when (and (not off!) (on? v))
                       (compare-and-set! !held held [v (->off-fn !held)]))))]
-  (hyperfiddle.electric-de/defn DataSwitch
-    ([v] ($ DataSwitch v some?))
+  (hyperfiddle.electric-de/defn StampedToken
+    ([v] ($ StampedToken v some?))
     ([v on?] (let [!held (atom [nil nil])] (step !held v on?) (watch !held)))))
 
 (let [->done-fn (cc/fn [!held] (cc/fn f ([] (f nil)) ([ret] (swap! !held assoc 1 nil) ret)))
@@ -313,13 +313,13 @@ inhibiting all further reactive updates."
                   (let [[_ next! :as held] @!held]
                     (when (and (not next!) (on? v))
                       (compare-and-set! !held held [v (->done-fn !held)]))))]
-  (hyperfiddle.electric-de/defn DataHotSwitch
-    ([v] ($ DataHotSwitch v some?))
+  (hyperfiddle.electric-de/defn StampedCyclicToken
+    ([v] ($ StampedCyclicToken v some?))
     ([v on?] (let [!held (atom [nil nil]), held (watch !held)] (step !held held v on?) held))))
 
 (cc/letfn [(->off [!latched?]      (cc/fn f ([] (f nil)) ([v] (reset! !latched? false) v)))
            (->latch-fn [!latched?] (cc/fn f ([] (f nil)) ([_] (reset! !latched? true) (->off !latched?))))]
-  (hyperfiddle.electric-de/defn DataLatch [v]
+  (hyperfiddle.electric-de/defn ToggleToken [v]
     (let [!latched? (atom false)]
       [(if (watch !latched?) (snapshot v) v)  (->latch-fn !latched?)])))
 
