@@ -89,7 +89,7 @@
          (if (str/starts-with? key "--") ; CSS variable
            (.setProperty this key value)
            (when-some [property (goog.style/getVendorJsStyleName_ js/document.body key)] ; normalize property names
-             (.setProperty this property value)))))))
+             (aset this property value)))))))
 
 #?(:cljs
    (defn make-rule "Create a rule in node's stylesheet, return the created rule." [styled-element selector]
