@@ -39,6 +39,7 @@
   (:refer-clojure :exclude [comment])
   (:require
    [clojure.core :as cc]
+   [contrib.missionary-contrib :as mx]
    [hyperfiddle.electric-de :as e :refer [$]]
    ;; [hyperfiddle.rcf :as rcf :refer [tests]]
    [missionary.core :as m]
@@ -510,19 +511,14 @@ input's value, use `EventListener`."
 ;; Extras ;;
 ;;;;;;;;;;;;
 
-;; G example impl, could we have e/mix ?
-#_(e/defn Focused
-  ([] ($ Focused node))
-  ([node]
-   (e/client
-     ($ EventListener node #{"focus" "blur"}
-       (fn [e]
-         (case (.-type e)
-           "focus" true
-           "blur" false))
-       {}
-       (= node (.-activeElement js/document))))))
+#?(:cljs
+   (defn focused?> [node]
+     (->> (mx/mix (m/observe (fn [!] (with-listener node "focus" (fn [_] (! true)))))
+            (m/observe (fn [!] (with-listener node "blur" (fn [_] (! false))))))
+       (m/reductions {} (= node (.-activeElement js/document)))
+       (m/relieve {}))))
 
+(e/defn Focused? ([] ($ Focused? node)) ([node] (e/input (focused?> node))))
 
 ;;;;;;;;;;;
 ;; Sugar ;;
