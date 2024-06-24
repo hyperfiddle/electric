@@ -322,7 +322,7 @@ inhibiting all further reactive updates."
 
 (cc/letfn [(->off [!latched?]      (cc/fn f ([] (f nil)) ([v] (reset! !latched? false) v)))
            (->latch-fn [!latched?] (cc/fn f ([] (f nil)) ([_] (reset! !latched? true) (->off !latched?))))]
-  (hyperfiddle.electric-de/defn ToggleToken [v]
+  (hyperfiddle.electric-de/defn Latchable [v]
     (let [!latched? (atom false)]
       [(if (watch !latched?) (snapshot v) v)  (->latch-fn !latched?)])))
 
