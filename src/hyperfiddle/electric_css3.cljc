@@ -100,10 +100,10 @@
 
 #?(:cljs
    (defn make-rule< "Create and emit a rule for `selector` on mount, remove the rule on unmount." [styled-element selector]
-     (m/relieve (m/observe (fn [!]
-                             (let [rule (make-rule styled-element selector)]
-                               (! rule)
-                               #(delete-rule styled-element rule)))))))
+     (m/relieve {} (m/observe (fn [!]
+                                (let [rule (make-rule styled-element selector)]
+                                  (! rule)
+                                  #(delete-rule styled-element rule)))))))
 
 (defn rule* [styled-element selector declarations]
   (when (seq declarations)
