@@ -181,8 +181,10 @@ Mounting a block generates a grow for each active item having this block's frame
         ^objects bj (aget buffer j)]
     (aset buffer i bj)
     (aset buffer j bi)
-    (aset bi block-slot-index j)
-    (aset bj block-slot-index i)))
+    (when-not (nil? bi)
+      (aset bi block-slot-index j))
+    (when-not (nil? bj)
+      (aset bj block-slot-index i))))
 
 (defn block-index [^objects call id]
   (let [^objects reader (aget call call-slot-reader)
@@ -542,9 +544,11 @@ Mounting a block generates a grow for each active item having this block's frame
                             (if-some [index (block-index call k1)]
                               (p/compose
                                 (p/split-long-swap index
-                                  (block-weight (aget buffer k1))
+                                  (if-some [b (aget buffer k1)]
+                                    (block-weight b) 0)
                                   (weight-between call k1 k2)
-                                  (block-weight (aget buffer k2)))
+                                  (if-some [b (aget buffer k2)]
+                                    (block-weight b) 0))
                                 q) q)))))]
     (d/combine diff
       {:grow        0

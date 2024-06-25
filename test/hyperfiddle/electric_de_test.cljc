@@ -2273,6 +2273,12 @@
          tap tap)
     % := (range 20)
     (reset! !xs (range 10))
-    % := (range 10))
+    % := (range 10)
+    (reset! !xs (range 1))
+    % := (range 1)
+    (reset! !xs (reverse (range 2)))
+    % := (reverse (range 2))
+
+    )
 
   )
