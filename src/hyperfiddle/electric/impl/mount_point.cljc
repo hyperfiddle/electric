@@ -48,6 +48,7 @@ Mounting a block generates a grow for each active item having this block's frame
 ;; maintain a weight tree on each call to prevent buffer traversal when computing local block index
 ;; use mutable hash maps to decrease GC pressure (item store + block store)
 ;; support concurrent readers
+;; prevent state reset on root-up
 
 (def slot-lock 0)
 (def slot-peer 1)
@@ -144,8 +145,10 @@ Mounting a block generates a grow for each active item having this block's frame
         offset
         (let [index (dec index)]
           (recur index
-            (unchecked-add-int offset
-              (block-weight (aget buffer index)))))))))
+            (if-some [block (aget buffer index)]
+              (unchecked-add-int offset
+                (block-weight block))
+              offset)))))))
 
 (defn local-call-index [^objects block index]
   (let [^ints weights (aget block block-slot-weights)]
@@ -235,8 +238,8 @@ Mounting a block generates a grow for each active item having this block's frame
 (defn update-weights [^objects block id delta]
   (loop [^objects block block
          id id]
+    (update-local-weights (aget block block-slot-weights) id delta)
     (when-not (nil? (aget block block-slot-index))
-      (update-local-weights (aget block block-slot-weights) id delta)
       (let [^objects call (aget block block-slot-parent)
             ^objects reader (aget call call-slot-reader)]
         (aset call call-slot-weight (+ delta (aget call call-slot-weight)))
@@ -250,7 +253,7 @@ Mounting a block generates a grow for each active item having this block's frame
       (update-weights (aget call call-slot-parent)
         (r/slot-id (call-slot call)) delta))))
 
-(defn change [diff ^objects item]
+(defn change [^objects item diff]
   (let [^objects block (aget item item-slot-parent)
         ^objects call (aget block block-slot-parent)]
     (if-some [index (call-index block (r/tag-index (aget item item-slot-tag)))]
@@ -272,30 +275,14 @@ Mounting a block generates a grow for each active item having this block's frame
       (dissoc (aget reader reader-slot-blocks)
         (aget block block-slot-frame)))))
 
-(defn block-mount [^objects block index]
-  (let [^objects call (aget block block-slot-parent)
-        ^objects buffer (aget call call-slot-buffer)]
-    (aset buffer index block)
-    (aset block block-slot-index index)
-    (when-not (nil? (aget block block-slot-prev))
-      (call-update-weights call (block-weight block)))))
-
-(defn block-unmount [^objects block]
-  (let [^objects call (aget block block-slot-parent)
-        ^objects buffer (aget call call-slot-buffer)
-        weight (block-weight block)]
-    (aset buffer (aget block block-slot-index) nil)
-    (aset block block-slot-index nil)
-    (if (nil? (aget block block-slot-prev))
-      (block-release block)
-      (call-update-weights call (- weight)))))
-
 (defn call-release [^objects call]
   (let [^objects buffer (aget call call-slot-buffer)]
     (loop [i 0]
       (when (< i (alength buffer))
         (when-some [^objects block (aget buffer i)]
-          (block-unmount block)
+          (aset block block-slot-index nil)
+          (aset buffer i nil)
+          (block-release block)
           (recur (inc i)))))
     (aset call call-slot-parent nil)
     (aset call call-slot-children nil)
@@ -347,18 +334,6 @@ Mounting a block generates a grow for each active item having this block's frame
           (terminate reader)
           (exit state held))))))
 
-(defn block-attach-to-call [^objects block]
-  (let [^objects call (aget block block-slot-parent)
-        ^objects prev (aget call call-slot-children)
-        ^objects next (aget prev block-slot-next)]
-    (assert (some? prev))
-    (assert (some? next))
-    (aset block block-slot-prev prev)
-    (aset block block-slot-next next)
-    (aset prev block-slot-next block)
-    (aset next block-slot-prev block)
-    call))
-
 (defn block-child [^objects block id]
   (let [^objects children (aget block block-slot-children)]
     (aget children id)))
@@ -392,16 +367,27 @@ Mounting a block generates a grow for each active item having this block's frame
           (call-attach-to-block call block)
           (recur (make-call reader block)))))))
 
-(defn root-up [^objects call]
-  (let [^objects reader (aget call call-slot-reader)]
-    (aset reader reader-slot-root
-      (loop [^objects root (aget reader reader-slot-root)]
-        (if (nil? (aget call call-slot-process))
-          (let [^objects block (aget root call-slot-parent)
-                ^objects parent (aget block block-slot-parent)]
-            (update-local-weights (aget block block-slot-weights)
-              (r/slot-id (call-slot root)) (aget root call-slot-weight))
-            (call-spawn parent) (recur parent)) root)))))
+(defn root-up [^objects call diff]
+  (let [^objects reader (aget call call-slot-reader)
+        ^objects root (aget reader reader-slot-root)]
+    (if (nil? (aget call call-slot-process))
+      (let [^objects block (aget root call-slot-parent)]
+        (loop [^objects block block]
+          (let [^objects parent (aget block block-slot-parent)]
+            (call-spawn parent)
+            (if (nil? (aget parent call-slot-process))
+              (recur (aget parent call-slot-parent))
+              (aset reader reader-slot-root parent))))
+        (update-local-weights (aget block block-slot-weights)
+          (r/slot-id (call-slot root)) (call-weight root))
+        (d/combine diff
+          {:grow        0
+           :degree      (aget root call-slot-weight)
+           :shrink      (aget root call-slot-weight)
+           :permutation {}
+           :change      {}
+           :freeze      #{}}))
+      diff)))
 
 (defn root-down [^objects call]
   (let [^objects reader (aget call call-slot-reader)]
@@ -416,42 +402,40 @@ Mounting a block generates a grow for each active item having this block's frame
                   (call-release call)
                   (recur child)) call) call)))))))
 
-(defn block-attach-to-tree [^objects block ^objects reader]
+(defn block-attach-to-call [^objects block]
+  (let [^objects call (aget block block-slot-parent)
+        ^objects prev (aget call call-slot-children)
+        ^objects next (aget prev block-slot-next)]
+    (aset block block-slot-prev prev)
+    (aset block block-slot-next next)
+    (aset prev block-slot-next block)
+    (aset next block-slot-prev block)))
+
+(defn block-attach-to-tree [^objects block ^objects reader diff]
   (loop [^objects block block]
     (let [slot (r/frame-slot (aget block block-slot-frame))
           frame (r/slot-frame slot)]
       (if-some [^objects parent (get-block reader frame)]
-        (root-up
-          (if-some [call (block-child parent (r/slot-id slot))]
-            (do (aset block block-slot-parent call)
-                (block-attach-to-call block))
-            (let [call (make-call reader block)]
-              (call-attach-to-block call parent)
-              (call-spawn call)
-              (block-attach-to-call parent))))
+        (do (if-some [call (block-child parent (r/slot-id slot))]
+              (do (aset block block-slot-parent call)
+                  (block-attach-to-call block))
+              (let [call (make-call reader block)]
+                (call-attach-to-block call parent)
+                (call-spawn call)))
+            (when (nil? (aget parent block-slot-prev))
+              (block-attach-to-call parent))
+            (root-up (aget parent block-slot-parent) diff))
         (let [parent (make-block reader frame)
               call (make-call reader block)]
           (call-attach-to-block call parent)
           (call-spawn call)
           (recur parent))))))
 
-(defn attach [diff ^objects item ^objects reader]
-  (let [tag (aget item item-slot-tag)
-        frame (r/tag-frame tag)
-        id (r/tag-index tag)
-        size-before (current-size reader)
-        ^objects block (if (nil? (aget reader reader-slot-root))
-                         (let [block (make-block reader frame)
-                               call (make-call reader block)]
-                           (aset reader reader-slot-root call)
-                           (call-make-ancestors call)
-                           (call-spawn call)
-                           block)
-                         (if-some [block (get-block reader frame)]
-                           (doto block (block-attach-to-call))
-                           (doto (make-block reader frame)
-                             (block-attach-to-tree reader))))]
-    (block-set-child block (r/tag-index (aget item item-slot-tag)) item)
+(defn item-attach-to-block [^objects item ^objects block id diff]
+  (let [^objects call (aget block block-slot-parent)
+        ^objects reader (aget call call-slot-reader)
+        size-before (current-size reader)]
+    (block-set-child block id item)
     (aset item item-slot-parent block)
     (update-weights block id 1)
     (if-some [index (call-index block id)]
@@ -462,6 +446,26 @@ Mounting a block generates a grow for each active item having this block's frame
          :permutation (p/rotation size-before index)
          :change      {index (aget item item-slot-state)}
          :freeze      #{}}) diff)))
+
+(defn item-attach-to-tree [^objects item ^objects reader diff]
+  (let [tag (aget item item-slot-tag)
+        frame (r/tag-frame tag)
+        id (r/tag-index tag)]
+    (if (nil? (aget reader reader-slot-root))
+      (let [block (make-block reader frame)
+            call (make-call reader block)]
+        (aset reader reader-slot-root call)
+        (call-make-ancestors call)
+        (call-spawn call)
+        (item-attach-to-block item block id diff))
+      (if-some [block (get-block reader frame)]
+        (do (when (nil? (aget block block-slot-prev))
+              (block-attach-to-call block))
+            (item-attach-to-block item block id diff))
+        (let [block (make-block reader frame)]
+          (->> diff
+            (block-attach-to-tree block reader)
+            (item-attach-to-block item block id)))))))
 
 (defn block-empty? [^objects block]
   (let [^objects children (aget block block-slot-children)]
@@ -482,7 +486,7 @@ Mounting a block generates a grow for each active item having this block's frame
       (block-release block)
       (recur parent))))
 
-(defn detach [diff ^objects item]
+(defn item-detach-from-tree [^objects item diff]
   (let [^objects block (aget item item-slot-parent)
         ^objects call (aget block block-slot-parent)
         id (r/tag-index (aget item item-slot-tag))
@@ -522,7 +526,7 @@ Mounting a block generates a grow for each active item having this block's frame
                 (root-down call))))))
     diff))
 
-(defn apply-permutation [^objects call permutation]
+(defn apply-permutation [^objects call permutation diff]
   (let [^objects buffer (aget call call-slot-buffer)
         ^objects reader (aget call call-slot-reader)
         degree (current-size reader)
@@ -542,91 +546,106 @@ Mounting a block generates a grow for each active item having this block's frame
                                   (weight-between call k1 k2)
                                   (block-weight (aget buffer k2)))
                                 q) q)))))]
-    {:grow        0
-     :degree      degree
-     :shrink      0
-     :permutation permutation
-     :change      {}
-     :freeze      #{}}))
+    (d/combine diff
+      {:grow        0
+       :degree      degree
+       :shrink      0
+       :permutation permutation
+       :change      {}
+       :freeze      #{}})))
 
-(defn apply-change [^objects call change]
+(defn block-unmount [^objects block diff]
+  (let [^objects call (aget block block-slot-parent)
+        ^objects reader (aget call call-slot-reader)
+        ^objects buffer (aget call call-slot-buffer)
+        shrink (block-weight block)
+        i (aget block block-slot-index)]
+    (aset block block-slot-index nil)
+    (aset buffer i nil)
+    (if (nil? (aget block block-slot-prev))
+      (block-release block)
+      (call-update-weights call (- shrink)))
+    (if-some [index (block-index call i)]
+      (let [size-after (current-size reader)]
+        (d/combine diff
+          {:grow        0
+           :degree      (unchecked-add-int size-after shrink)
+           :shrink      shrink
+           :permutation (p/split-swap index shrink
+                          (unchecked-subtract-int size-after index))
+           :change      {}
+           :freeze      #{}}))
+      diff)))
+
+(defn block-mount [^objects block offset diff]
+  (let [frame (aget block block-slot-frame)]
+    (loop [i 0
+           o offset
+           d diff]
+      (if (< i (r/frame-call-count frame))
+        (if (nil? (r/frame-call frame i))
+          (if-some [^objects item (block-child block i)]
+            (let [size-before (- (:degree d) (:shrink d))]
+              (d/combine d
+                {:grow        1
+                 :degree      (inc size-before)
+                 :shrink      0
+                 :permutation (p/rotation size-before o)
+                 :change      {o (aget item item-slot-state)}
+                 :freeze      #{}}))
+            (recur (inc i) o d))
+          (if-some [^objects call (block-child block i)]
+            (let [^objects buffer (aget call call-slot-buffer)]
+              (recur (inc i) (+ o (aget call call-slot-weight))
+                (loop [i 0
+                       o o
+                       d d]
+                  (if (< i (alength buffer))
+                    (if-some [^objects block (aget buffer i)]
+                      (let [w (block-weight block)]
+                        (recur (inc i) (+ o w)
+                          (if (pos? w) (block-mount block o d) d)))
+                      d) d))))
+            (recur (inc i) o d))) d))))
+
+(defn apply-change [^objects call change diff]
   (let [^objects buffer (aget call call-slot-buffer)
         ^objects reader (aget call call-slot-reader)]
     (reduce-kv
       (fn [diff i f]
         (let [diff (if-some [block (aget buffer i)]
-                     (do (block-unmount block)
-                         (if-some [index (block-index call i)]
-                           (let [size-after (current-size reader)
-                                 shrink (block-weight block)]
-                             (d/combine diff
-                               {:grow        0
-                                :degree      (unchecked-add-int size-after shrink)
-                                :shrink      shrink
-                                :permutation (p/split-swap index shrink
-                                               (unchecked-subtract-int size-after index))
-                                :change      {}
-                                :freeze      #{}}))
-                           diff)) diff)]
+                     (block-unmount block diff) diff)]
           (if-some [block (get-block reader f)]
-            (do (block-mount block i)
-                (d/combine diff
-                  (loop [i 0
-                         p {}
-                         c {}]
-                    (let [degree (current-size reader)]
-                      (if (< i (r/frame-call-count f))
-                        (if (nil? (r/frame-call f i))
-                          (if-some [item (block-child block i)]
-                            (do (update-weights block i 1)
-                                (if-some [index (call-index block i)]
-                                  (recur (inc i)
-                                    (p/compose p (p/rotation degree index))
-                                    (assoc c index (aget item item-slot-state)))
-                                  (recur (inc i) p c)))
-                            (recur (inc i) p c))
-                          (recur (inc i) p c))
-                        {:grow        (count c)
-                         :degree      degree
-                         :shrink      0
-                         :permutation p
-                         :change      c
-                         :freeze      #{}})))))
+            (do (aset block block-slot-index i)
+                (aset buffer i block)
+                (call-update-weights call (block-weight block))
+                (if-some [index (block-index call i)]
+                  (block-mount block index diff) diff))
             (let [^objects block (make-block reader f)]
               (aset block block-slot-parent call)
-              (block-mount block i) diff))))
-      (d/empty-diff (current-size reader))
-      change)))
+              (aset block block-slot-index i)
+              (aset buffer i block) diff))))
+      diff change)))
 
-(defn apply-shrink [^objects call shrink]
-  (let [^objects buffer (aget call call-slot-buffer)
-        ^objects reader (aget call call-slot-reader)]
-    (loop [d (d/empty-diff (current-size reader))
+(defn apply-shrink [^objects call degree shrink diff]
+  (let [^objects buffer (aget call call-slot-buffer)]
+    (loop [d diff
            i 0]
       (if (< i shrink)
         (recur
-          (let [degree (current-size reader)
-                block (aget buffer
-                        (unchecked-subtract-int degree
-                          (unchecked-inc-int i)))
-                shrink (block-weight block)]
-            (block-unmount block)
-            (d/combine d
-              {:grow        0
-               :degree      degree
-               :shrink      shrink
-               :permutation {}
-               :change      {}
-               :freeze      #{}}))
+          (block-unmount
+            (aget buffer
+              (unchecked-subtract-int degree
+                (unchecked-inc-int i))) d)
           (inc i)) d))))
 
-(defn call-transfer [diff ^objects call]
+(defn call-transfer [^objects call diff]
   (let [{:keys [degree shrink permutation change]} @(aget call call-slot-process)]
     (aset call call-slot-buffer (ensure-capacity (aget call call-slot-buffer) degree))
-    (d/combine diff
+    (->> diff
       (apply-permutation call permutation)
       (apply-change call change)
-      (apply-shrink call shrink))))
+      (apply-shrink call degree shrink))))
 
 (defn reader-transfer [^objects reader]
   (let [^objects state (aget reader reader-slot-state)
@@ -638,16 +657,16 @@ Mounting a block generates a grow for each active item having this block's frame
               (aset call call-slot-queue call)
               (recur (if (nil? (aget call call-slot-children))
                        (do (call-discard call) diff)
-                       (call-transfer diff call))))
+                       (call-transfer call diff))))
           (if-some [^objects item (aget reader reader-slot-item-queue)]
             (do (aset reader reader-slot-item-queue (aget item item-slot-queue))
                 (aset item item-slot-queue item)
                 (recur (if (identical? item (aget item item-slot-state))
                          (if (nil? (aget item item-slot-parent))
-                           diff (detach diff item))
+                           diff (item-detach-from-tree item diff))
                          (if (nil? (aget item item-slot-parent))
-                           (attach diff item reader)
-                           (change diff item)))))
+                           (item-attach-to-tree item reader diff)
+                           (change item diff)))))
             (do (aset reader reader-slot-pending reader)
                 (exit state held) diff))))
       (do (aset reader reader-slot-pending reader)

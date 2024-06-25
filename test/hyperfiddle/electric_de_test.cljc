@@ -2253,3 +2253,26 @@
     % := [2 3]
     (swap! !x not)
     % := [0 3]))
+
+(tests
+
+  (defn mount-at [kvs k v]
+    (m/observe
+      (fn [!]
+        (! (i/empty-diff 0))
+        (kvs/insert! kvs k v)
+        #(kvs/remove! kvs k))))
+
+  (def !xs (atom (range 20)))
+
+  (with ((l/single {}
+           (let [mp (e/mount-point)]
+             (tap (e/as-vec (e/join mp)))
+             (e/cursor [x (e/diff-by identity (e/watch !xs))]
+               (e/join (mount-at mp (e/tag) x)))))
+         tap tap)
+    % := (range 20)
+    (reset! !xs (range 10))
+    % := (range 10))
+
+  )
