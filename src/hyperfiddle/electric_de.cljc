@@ -290,6 +290,8 @@ A mount point can be :
 inhibiting all further reactive updates."
   [x] `(check-electric snapshot (join (-snapshot (pure ~x)))))
 
+(hyperfiddle.electric-de/defn Snapshot [v] (join (-snapshot (pure v))))
+
 (let [->off-fn  (cc/fn [!off!] (cc/fn f ([] (f nil)) ([ret] (reset! !off! nil) ret)))
       step      (cc/fn [!off! v on?] (when (on? v) (compare-and-set! !off! nil (->off-fn !off!))))]
   (hyperfiddle.electric-de/defn Token
