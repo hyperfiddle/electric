@@ -79,6 +79,8 @@
    (extend-protocol StyleRule
      js/HTMLElement
      (set-property [^js this key value] (set-property (.-style this) key value))
+     js/SVGElement
+     (set-property [^js this key value] (set-property (.-style this) key value))
      js/CSSStyleRule
      (set-property [^js this key value] (set-property (.-style this) key value))
      js/CSSKeyframeRule ; not a subclass of CSSStyleRule
