@@ -292,41 +292,41 @@ inhibiting all further reactive updates."
 
 (hyperfiddle.electric-de/defn Snapshot [v] (join (-snapshot (pure v))))
 
-(let [->off-fn  (cc/fn [!off!] (cc/fn f ([] (f nil)) ([ret] (reset! !off! nil) ret)))
-      step      (cc/fn [!off! v on?] (when (on? v) (compare-and-set! !off! nil (->off-fn !off!))))]
+(let [->spend-fn  (cc/fn [!spend!] (cc/fn f ([] (f nil)) ([ret] (reset! !spend! nil) ret)))
+      step        (cc/fn [!spend! v on?] (when (on? v) (compare-and-set! !spend! nil (->spend-fn !spend!))))]
   (hyperfiddle.electric-de/defn Token
     ([v]     ($ Token v some?))
-    ([v on?] (let [!off! (atom nil)] (step !off! v on?) (watch !off!)))))
+    ([v on?] (let [!spend! (atom nil)] (step !spend! v on?) (watch !spend!)))))
 
-(let [->off-fn  (cc/fn [!off!] (cc/fn f ([] (f nil)) ([ret] (reset! !off! nil) ret)))
-      step      (cc/fn [!off! _off! v on?] (when (on? v) (compare-and-set! !off! nil (->off-fn !off!))))]
+(let [->spend-fn  (cc/fn [!spend!] (cc/fn f ([] (f nil)) ([ret] (reset! !spend! nil) ret)))
+      step        (cc/fn [!spend! _spend! v on?] (when (on? v) (compare-and-set! !spend! nil (->spend-fn !spend!))))]
   (hyperfiddle.electric-de/defn CyclicToken
     ([v]     ($ CyclicToken v some?))
-    ([v on?] (let [!off! (atom nil), off! (watch !off!)] (step !off! off! v on?) off!))))
+    ([v on?] (let [!spend! (atom nil), spend! (watch !spend!)] (step !spend! spend! v on?) spend!))))
 
-(let [->off-fn  (cc/fn [!held] (cc/fn f ([] (f nil)) ([ret] (swap! !held assoc 1 nil) ret)))
-      step      (cc/fn [!held v on?]
-                  (let [[_ off! :as held] @!held]
-                    (when (and (not off!) (on? v))
-                      (compare-and-set! !held held [v (->off-fn !held)]))))]
+(let [->spend-fn  (cc/fn [!held] (cc/fn f ([] (f nil)) ([ret] (swap! !held assoc 1 nil) ret)))
+      step        (cc/fn [!held v on?]
+                    (let [[_ spend! :as held] @!held]
+                      (when (and (not spend!) (on? v))
+                        (compare-and-set! !held held [v (->spend-fn !held)]))))]
   (hyperfiddle.electric-de/defn StampedToken
     ([v] ($ StampedToken v some?))
     ([v on?] (let [!held (atom [nil nil])] (step !held v on?) (watch !held)))))
 
-(let [->done-fn (cc/fn [!held] (cc/fn f ([] (f nil)) ([ret] (swap! !held assoc 1 nil) ret)))
-      step      (cc/fn [!held _held v on?]
-                  (let [[_ next! :as held] @!held]
-                    (when (and (not next!) (on? v))
-                      (compare-and-set! !held held [v (->done-fn !held)]))))]
+(let [->spend-fn (cc/fn [!held] (cc/fn f ([] (f nil)) ([ret] (swap! !held assoc 1 nil) ret)))
+      step       (cc/fn [!held _held v on?]
+                   (let [[_ next! :as held] @!held]
+                     (when (and (not next!) (on? v))
+                       (compare-and-set! !held held [v (->spend-fn !held)]))))]
   (hyperfiddle.electric-de/defn StampedCyclicToken
     ([v] ($ StampedCyclicToken v some?))
     ([v on?] (let [!held (atom [nil nil]), held (watch !held)] (step !held held v on?) held))))
 
-(cc/letfn [(->off [!latched?]      (cc/fn f ([] (f nil)) ([v] (reset! !latched? false) v)))
-           (->latch-fn [!latched?] (cc/fn f ([] (f nil)) ([_] (reset! !latched? true) (->off !latched?))))]
+(cc/letfn [(->unlatch-fn [!latched?] (cc/fn f ([] (f nil)) ([v] (reset! !latched? false) v)))
+           (->latch-fn   [!latched? unlatch!] (cc/fn f ([] (reset! !latched? unlatch!)) ([_] (f))))]
   (hyperfiddle.electric-de/defn Latchable [v]
-    (let [!latched? (atom false)]
-      [(if (watch !latched?) (snapshot v) v)  (->latch-fn !latched?)])))
+    (let [!latched? (atom false), unlatch! (->unlatch-fn !latched?)]
+      [(if (watch !latched?) ($ Snapshot v) v)  (->latch-fn !latched? unlatch!)])))
 
 (cc/defn capture-fn
   "Captures variability of a function under a stable identity.
