@@ -80,7 +80,36 @@
                     (! (aset node key mpoint))
                     #(js-delete node key))))))
 
-(declare patch-nodelist)
+(defn mount-items [element {:keys [grow shrink degree permutation change]}]
+    (let [children (.-childNodes element)
+          move (i/inverse permutation)
+          size-before (- degree grow)
+          size-after (- degree shrink)]
+      (loop [i size-before
+             c change]
+        (if (== i degree)
+          (reduce-kv
+            (fn [_ i e]
+              (.replaceChild element e
+                (.item children (move i i))))
+            nil c)
+          (let [j (move i i)]
+            (.appendChild element (c j))
+            (recur (inc i) (dissoc c j)))))
+      (loop [p permutation
+             i degree]
+        (if (== i size-after)
+          (loop [p p]
+            (when-not (= p {})
+              (let [[i j] (first p)]
+                (.insertBefore element (.item children j)
+                  (.item children (if (< j i) (inc i) i)))
+                (recur (i/compose p (i/rotation i j))))))
+          (let [i (dec i)
+                j (p i i)]
+            (.removeChild element (.item children j))
+            (recur (i/compose p (i/rotation i j)) i))))
+      element))
 
 (e/defn Root
   "
@@ -92,7 +121,7 @@ Allow Electric DOM-managed nodes to attach to the given `dom-node`.
 ```
 "
   [dom-node]
-  (e/input (m/reductions patch-nodelist dom-node (e/input (mount-point> dom-node (e/mount-point)))))
+  (e/input (m/reductions mount-items dom-node (e/input (mount-point> dom-node (e/mount-point)))))
 
   dom-node)
 
@@ -325,7 +354,7 @@ Allow Electric DOM-managed nodes to attach to the given `dom-node`.
     (let [mp  (e/input (mount-point> element (e/mount-point)))
           tag (e/tag)]
       (e/input (attach! node tag element)) ; mount and unmount element in parent
-      (e/input (m/reductions patch-nodelist element mp)) ; interprets diffs to mount and maintain children in correct order
+      (e/input (m/reductions mount-items element mp)) ; interprets diffs to mount and maintain children in correct order
       (binding [node ({} mp element)] ; run continuation, in context of current node.
         ($ Body)))))
 
