@@ -377,7 +377,7 @@ Mounting a block generates a grow for each active item having this block's frame
         (loop [^objects block block]
           (let [^objects parent (aget block block-slot-parent)]
             (call-spawn parent)
-            (if (nil? (aget parent call-slot-process))
+            (if (nil? (aget call call-slot-process))
               (recur (aget parent call-slot-parent))
               (aset reader reader-slot-root parent))))
         (update-local-weights (aget block block-slot-weights)
