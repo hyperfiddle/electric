@@ -2282,3 +2282,12 @@
     )
 
   )
+
+(tests
+  (with ((l/single {}
+           (let [mp (e/mount-point)]
+             (tap (e/as-vec (e/join mp)))
+             (e/$ (e/fn [] (kvs/insert! mp (e/tag) :foo) nil))
+             (e/$ (e/fn [] (kvs/insert! mp (e/tag) :bar) nil))))
+         prn prn)
+    % := [:foo :bar]))
