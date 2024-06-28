@@ -128,7 +128,7 @@
     (dotimes [i (count tbd)]
       ;;         nil bugs, skip for now
       (when (and (tbd i) (not (identical? (tbd i) (.item c i))))
-        (.insertBefore element (tbd i) (.item c (inc i)))))
+        (.insertBefore element (tbd i) (.item c (if (identical? (tbd i) (.item c (inc i))) i (inc i))))))
     (let [actual (- (.-length c) (count tbd)), expected (:shrink diff)]
       (when (not= actual expected)
         (println (str "got a diff expecting to remove " expected
