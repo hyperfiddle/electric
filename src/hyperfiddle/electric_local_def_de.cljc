@@ -38,20 +38,31 @@
 
 #?(:clj (defn ->env [env conf] (merge (->local-config env) (lang/normalize-env env) conf)))
 
-(defn run-single [frame] (m/reduce #(do %2) nil frame))
-(defmacro single {:style/indent 1} [conf & body]
+(defmacro main {:style/indent 1} [conf & body]
   (ca/is conf map? "provide config map as first argument")
-  `(run-single (r/root-frame (r/->defs {::Main ~(lang/->source (->env &env conf) ::Main `(e/fn [] (do ~@body)))}) ::Main)))
+  `(r/->defs {::Main ~(lang/->source (->env &env conf) ::Main `(e/fn [] (do ~@body)))}))
+
+(defn half-conn [in-cb out-cb handler]
+  (m/reduce (constantly nil)
+    (m/ap (let [v (m/?> (m/stream (handler (fn [!] (in-cb !) #()))))]
+            ((m/? out-cb) v)))))
+
+(defn full-conn [server-handler client-handler]
+  (let [s->c (m/dfv)
+        c->s (m/dfv)]
+    (m/join {}
+      (half-conn c->s s->c server-handler)
+      (half-conn s->c c->s client-handler))))
 
 (defn run-local [defs main]
-  (m/reduce #(do %2) nil
-    (let [s->c (m/dfv), c->s (m/dfv)
-          c (m/stream (r/peer (fn [!] (s->c !) #()) :client defs main))
-          s (m/stream (r/peer (fn [!] (c->s !) #()) :server defs main))]
-      (m/ap (m/amb=
-              (let [v (m/?> c)] ((m/? c->s) v))
-              (let [v (m/?> s)] ((m/? s->c) v)))))))
+  (r/client
+    (fn [handler]
+      (full-conn (r/server defs main) handler)) defs main))
+
+(def run-single (partial r/client (fn [_] m/never)))
 
 (defmacro local {:style/indent 1} [conf & body]
-  (ca/is conf map? "provide config map as first argument")
-  `(run-local (r/->defs {::Main ~(lang/->source (->env &env conf) ::Main `(e/fn [] (do ~@body)))}) ::Main))
+  `(run-local (main ~conf ~@body) ::Main))
+
+(defmacro single {:style/indent 1} [conf & body]
+  `(run-single (main ~conf ~@body) ::Main))
