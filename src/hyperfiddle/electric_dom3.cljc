@@ -121,7 +121,7 @@
         (str "got a diff expecting element to have " expected " children but it has " actual))
     (when (not= actual expected)
       (println (str "got a diff expecting element to have " expected
-                 (if (= expected 1) "child" "children") " but it has " actual))
+                 (if (= expected 1) " child" " children") " but it has " actual))
       (prn diff)
       (prn element (.-length c) (vec c))))
   (let [c (.-childNodes element), tbd (i/patch-vec (vec c) diff)]
