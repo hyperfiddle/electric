@@ -2271,11 +2271,7 @@
     (reset! !xs (range 1))
     % := (range 1)
     (reset! !xs (reverse (range 2)))
-    % := (reverse (range 2))
-
-    )
-
-  )
+    % := (reverse (range 2))))
 
 (tests
   (with ((l/single {}
@@ -2283,7 +2279,7 @@
              (tap (e/as-vec (e/join mp)))
              (e/$ (e/fn [] (kvs/insert! mp (e/tag) :foo) nil))
              (e/$ (e/fn [] (kvs/insert! mp (e/tag) :bar) nil))))
-         prn prn)
+         tap tap)
     % := [:foo :bar]))
 
 (tests
