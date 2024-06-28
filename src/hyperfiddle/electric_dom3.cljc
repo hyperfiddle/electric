@@ -39,6 +39,8 @@
   (:refer-clojure :exclude [comment])
   (:require
    [clojure.core :as cc]
+   [contrib.assert :as ca]
+   [contrib.debug]
    [contrib.missionary-contrib :as mx]
    [hyperfiddle.electric-de :as e :refer [$]]
    ;; [hyperfiddle.rcf :as rcf :refer [tests]]
@@ -80,41 +82,56 @@
                     (! (aset node key mpoint))
                     #(js-delete node key))))))
 
-(letfn [(find-link [p i] (reduce-kv (fn [_ k v] (when (= v i) (reduced k))) nil p))]
-  (defn unlink [p i j]
-    (let [k (find-link p i)]
-      (dissoc (if (= k j) (dissoc p k) (assoc p k j)) i))))
+;; possibly improved algorith for DOM node reordering
+;; untested, current v3 bugs prevent from trying
+(defn pop-kv ([m] (pop-kv m (key (first m))))  ([m k] [[k (get m k)] (dissoc m k)]))
 
-(defn mount-items [element {:keys [grow shrink degree permutation change]}]
-  (let [children (.-childNodes element)
-        move (i/inverse permutation)
-        size-before (- degree grow)
-        size-after (- degree shrink)]
-    (loop [i size-before
-           c change]
-      (if (== i degree)
-        (reduce-kv
-          (fn [_ i e]
-            (.replaceChild element e
-              (.item children (move i i))))
-          nil c)
-        (let [j (move i i)]
-          (.appendChild element (c j))
-          (recur (inc i) (dissoc c j)))))
-    (loop [p permutation
-           i degree]
-      (if (== i size-after)
-        (loop [p p]
-          (when-not (= p {})
-            (let [[i j] (first p)]
-              (.insertBefore element (.item children j)
-                (.item children (if (< j i) (inc i) i)))
-              (recur (unlink p i j)))))
-        (let [i (dec i)
-              j (p i i)]
-          (.removeChild element (.item children j))
-          (recur (unlink p i j) i))))
-    element))
+(defn consume-cycle [[k v] p ret]
+  (let [end k]
+    (loop [v v, p p, ret ret]
+      (let [[[k v :as kv] p] (pop-kv p v)]
+        (if (= end v)  [p (conj ret [k (inc v)])]  (recur v p (conj ret kv)))))))
+
+(defn plan-reorder-cycles [p]
+  (loop [p p ret []]
+    (case p {} ret #_else (let [[kv p] (pop-kv p), [p ret] (consume-cycle kv p (conj ret kv))] (recur p ret)))))
+
+(defn indexes->nodes [idxs children]
+  (mapv (fn [[i j]] [(.item children i) (.item children j)]) idxs))
+
+(defn reorder [element permutation]
+  (run! (fn [[from to]] (.insertBefore element from to))
+    (indexes->nodes (plan-reorder-cycles permutation) (.-childNodes element))))
+
+;; A resilient version of `mount-items`. Uses `i/patch-vec` to figure out the
+;; final state and through a simple algorithm arranges the DOM nodelist to match
+;; that. This is sub-optimal in several ways, but most likely fast enough and
+;; more importantly so simple there should obviously be no bugs[1]. Currently
+;; there's corruption in the calls, we call it with a diff that doesn't match
+;; the current state of the nodelist (too many/few elements). The implementation
+;; tries its best to notify of the misalignment and correct course, which means
+;; the DOM state most likely corrupts after that. Once the calls get fixed we
+;; can change the logs to assertions.
+;;
+;; [1] https://en.wikiquote.org/wiki/C._A._R._Hoare
+(defn mount-items [element diff]
+  (let [actual (.-length (.-childNodes element)), expected (- (:degree diff) (:grow diff))]
+    ;; many of these, just print for now
+    #_(ca/is actual (partial = expected)
+        (str "got a diff expecting element to have " expected " children but it has " actual))
+    (when (not= actual expected)
+      (println (str "got a diff expecting element to have " expected " children but it has " actual))))
+  (let [c (.-childNodes element), tbd (i/patch-vec (vec c) diff)]
+    (dotimes [i (count tbd)]
+      ;;         nil bugs, skip for now
+      (when (and (tbd i) (not (identical? (tbd i) (.item c i))))
+        (.insertBefore element (tbd i) (.item c (inc i)))))
+    (let [actual (- (.-length c) (count tbd)), expected (:shrink diff)]
+      (when (not= actual expected)
+        (println (str "got a diff expecting to remove " expected " children but when there are " actual " to remove"))))
+    (dotimes [_ (- (.-length c) (count tbd))]
+      (.removeChild element (.-lastChild element))))
+  element)
 
 (e/defn Root
   "
