@@ -115,12 +115,15 @@
 ;;
 ;; [1] https://en.wikiquote.org/wiki/C._A._R._Hoare
 (defn mount-items [element diff]
-  (let [actual (.-length (.-childNodes element)), expected (- (:degree diff) (:grow diff))]
+  (let [c (.-childNodes element), actual (.-length c), expected (- (:degree diff) (:grow diff))]
     ;; many of these, just print for now
     #_(ca/is actual (partial = expected)
         (str "got a diff expecting element to have " expected " children but it has " actual))
     (when (not= actual expected)
-      (println (str "got a diff expecting element to have " expected " children but it has " actual))))
+      (println (str "got a diff expecting element to have " expected
+                 (if (= expected 1) "child" "children") " but it has " actual))
+      (prn diff)
+      (prn element (.-length c) (vec c))))
   (let [c (.-childNodes element), tbd (i/patch-vec (vec c) diff)]
     (dotimes [i (count tbd)]
       ;;         nil bugs, skip for now
@@ -128,33 +131,23 @@
         (.insertBefore element (tbd i) (.item c (inc i)))))
     (let [actual (- (.-length c) (count tbd)), expected (:shrink diff)]
       (when (not= actual expected)
-        (println (str "got a diff expecting to remove " expected " children but when there are " actual " to remove"))))
+        (println (str "got a diff expecting to remove " expected
+                   (if (= expected 1) " child" " children") " when there "
+                   (if (= actual 1) "is " "are ") actual " to remove"))
+        (prn diff)
+        (prn element (.-length c) (vec c))))
     (dotimes [_ (- (.-length c) (count tbd))]
       (.removeChild element (.-lastChild element))))
   element)
-
-(e/defn Root
-  "
-Allow Electric DOM-managed nodes to attach to the given `dom-node`.
-
-```clj
- (binding [dom/node ($ dom/Root js/document.body)]
-   (dom/p (dom/text \"Hello from Electric\")))
-```
-"
-  [dom-node]
-  (e/input (m/reductions mount-items dom-node (e/input (mount-point> dom-node (e/mount-point)))))
-
-  dom-node)
 
 #?(:cljs
    (defn attach! [parent-node tag e]
      (assert (instance? js/Node parent-node))
      (m/observe (fn [!]
                   (! nil)
-                  (let [mount-point (get-mount-point parent-node)]
-                    (kvs/insert! mount-point tag e)
-                    #(kvs/remove! mount-point tag))))))
+                  (if-some [mount-point (get-mount-point parent-node)]
+                    (do (kvs/insert! mount-point tag e) #(kvs/remove! mount-point tag))
+                    (do (.appendChild parent-node e)    #(.remove e)))))))
 
 ;;;;;;;;;;
 ;; Text ;;
@@ -367,26 +360,28 @@ Allow Electric DOM-managed nodes to attach to the given `dom-node`.
        (.createElementNS js/document ns (name tag))
        (.createElement js/document (name tag)))))
 
+(e/defn CreateElement
+  ([node-type] ($ CreateElement nil node-type))
+  ([ns node-type]
+   (e/client
+     (let [elem (create-element ns node-type)
+           mp   (e/input (mount-point> elem (e/mount-point)))
+           tag  (e/tag)]
+       (e/input (attach! node tag elem))
+       (e/input (m/reductions mount-items elem mp))
+       ({} mp elem)))))
+
 (e/defn With
   "Run `Body` in provided DOM `element`, attaching and managing children inside it.
-  One would use `With` instead of `Element` to mount an Electric DOM UI inside
+  One would use `With` instead of `WithElement` to mount an Electric DOM UI inside
   an existing DOM Element, typically libraries integration."
-  [element Body]
-  (e/client
-    (let [mp  (e/input (mount-point> element (e/mount-point)))
-          tag (e/tag)]
-      (e/input (attach! node tag element)) ; mount and unmount element in parent
-      (e/input (m/reductions mount-items element mp)) ; interprets diffs to mount and maintain children in correct order
-      (binding [node ({} mp element)] ; run continuation, in context of current node.
-        ($ Body)))))
+  [element Body] (e/client (binding [node element] ($ Body))))
 
-(e/defn Element
+(e/defn WithElement
   "Mount a new DOM Element of type `tag` in the current `node` and run `Body` in
   the context of the new Element."
-  ([tag Body] ($ Element nil tag Body))
-  ([ns tag Body]
-   (e/client
-     ($ With (create-element ns tag) Body))))
+  ([tag Body] ($ WithElement nil tag Body))
+  ([ns tag Body] (e/client ($ With ($ CreateElement ns tag) Body))))
 
 ;; DONE what should `element*` return?
 ;; - nil :: no because we want UI to produce values
@@ -408,7 +403,7 @@ Allow Electric DOM-managed nodes to attach to the given `dom-node`.
 ;; Note `(do a b c)` expands to (e/amb (e/drain a) (e/drain b) c), e/drain returns ∅.
 (defn element*
   ([tag forms] (element* nil tag forms))
-  ([ns tag forms] `($ Element ~ns ~tag (e/fn [] (do ~@forms)))))
+  ([ns tag forms] `($ WithElement ~ns ~tag (e/fn [] (do ~@forms)))))
 
 (defmacro element
   "Mount a new DOM Element of type `tag` in the current `node` and run `body` in
