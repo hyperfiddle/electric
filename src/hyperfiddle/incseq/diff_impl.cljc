@@ -45,25 +45,21 @@
     (if (< i d)
       (recur (inc i)
         (if-some [j (p i)]
-          (if (< o j)
-            (p/compose p (p/cycle i j))
+          (if (<= o j)
+            (p/compose (p/cycle i j) p)
             p) p)) p)))
 
 (defn combine
   ([x] x)
   ([x y]
-   (let [px (:permutation x)
-         py (:permutation y)
-         dx (:degree x)
-         dy (:degree y)
-         cx (:change x)
-         cy (:change y)
-         fx (:freeze x)
-         fy (:freeze y)
-         degree (unchecked-add dy (:shrink x))
-         size-before (unchecked-subtract dx (:grow x))
+   (let [px (:permutation x), py (:permutation y)
+         dx (:degree x),      dy (:degree y)
+         cx (:change x),      cy (:change y)
+         fx (:freeze x),      fy (:freeze y)
+         degree       (unchecked-add      dy (:shrink x))
+         size-before  (unchecked-subtract dx (:grow x))
          size-between (unchecked-subtract dy (:grow y))
-         size-after (unchecked-subtract dy (:shrink y))]
+         size-after   (unchecked-subtract dy (:shrink y))]
      (loop [i size-after
             d degree
             p (p/compose py
@@ -95,8 +91,8 @@
                  p (p/rotation d j)) c f)))
          {:degree      d
           :permutation (-> p
-                         (unmove-tail size-before d)
-                         (unmove-tail size-after d))
+                         #_(unmove-tail size-before d)
+                         #_(unmove-tail size-after d))
           :grow        (unchecked-subtract d size-before)
           :shrink      (unchecked-subtract d size-after)
           :change      (persistent! c)
