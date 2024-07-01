@@ -40,15 +40,14 @@
          (change! (:change d))
          (persistent!))))))
 
-(defn unmove-tail [p o d]
-  (loop [i o
-         p p]
-    (if (< i d)
-      (recur (inc i)
-        (if-some [j (p i)]
-          (if (<= o j)
-            (p/compose (p/cycle i j) p)
-            p) p)) p)))
+(defn unlink [p i j] (let [k (get p j)] (cond-> (dissoc p i j) (not= i k) (assoc i k))))
+
+(defn remove-shrunk-reorders [p i j]
+  (reduce (fn [p k] (if-some [[_ v] (find p k)] (cond-> p (>= v i) (unlink k v)) p)) p (range i (inc j))))
+
+(defn remove-change-reorders [p changeset]
+  (-> (fn [p k] (if-some [[_ v] (find p k)] (if (changeset v) (recur (unlink p k v) k)  p)  p))
+    (reduce p changeset)))
 
 (defn combine
   ([x] x)
@@ -90,15 +89,13 @@
              (recur i (unchecked-dec d)
                (p/compose (p/rotation i d)
                  p (p/rotation d j)) c f)))
-         (let [p (-> p (unmove-tail size-before d) (unmove-tail size-after d))]
-           (contrib.debug/dbg-when (seq p)
-             (contrib.debug/dbg (list 'd/combine x y)
-               {:degree      d
-                :permutation p
-                :grow        (unchecked-subtract d size-before)
-                :shrink      (unchecked-subtract d size-after)
-                :change      (persistent! c)
-                :freeze      (persistent! f)})))))))
+         (let [c (persistent! c)]
+           {:degree      d
+            :permutation (-> p (remove-shrunk-reorders size-after d) (remove-change-reorders (set (keys c))))
+            :grow        (unchecked-subtract d size-before)
+            :shrink      (unchecked-subtract d size-after)
+            :change      c
+            :freeze      (persistent! f)})))))
   ([x y & zs] (reduce combine (combine x y) zs)))
 
 (defn subdiff [{:keys [grow shrink degree permutation change freeze]} size offset]
