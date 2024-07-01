@@ -1,5 +1,6 @@
 (ns hyperfiddle.incseq.diff-impl
   (:require [hyperfiddle.incseq.perm-impl :as p]
+            [contrib.debug]
             [hyperfiddle.rcf :refer [tests]]))
 
 (defn empty-diff [n]
@@ -90,9 +91,7 @@
                (p/compose (p/rotation i d)
                  p (p/rotation d j)) c f)))
          {:degree      d
-          :permutation (-> p
-                         #_(unmove-tail size-before d)
-                         #_(unmove-tail size-after d))
+          :permutation (-> p (unmove-tail size-before d) (unmove-tail size-after d))
           :grow        (unchecked-subtract d size-before)
           :shrink      (unchecked-subtract d size-after)
           :change      (persistent! c)

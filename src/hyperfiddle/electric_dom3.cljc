@@ -103,7 +103,18 @@
   (run! (fn [[from to]] (.insertBefore element from to))
     (indexes->nodes (plan-reorder-cycles permutation) (.-childNodes element))))
 
-(defn texts [coll] (mapv #(.-textContent %) coll))
+(defn texts [coll] (mapv #(when % (.-textContent %)) coll))
+
+(defn- mount-items-debug-print [element actual expected diff tbd c start]
+  (let [cv (vec c), elem (or (not-empty (.-id element)) element)]
+    (some->
+      (not-empty
+        (str
+          (when (not= actual expected)
+            [:SIZE-MISMATCH {:elem elem, :children start, :expected expected, :actual actual, :diff diff}])
+          (when (not= tbd cv)
+            [:VIOLATED {:elem elem, :start start, :tbd (texts tbd), :actual (texts cv), :diff diff}])))
+      println)))
 
 ;; A resilient version of `mount-items`. Uses `i/patch-vec` to figure out the
 ;; final state and through a simple algorithm arranges the DOM nodelist to match
@@ -117,27 +128,11 @@
 ;;
 ;; [1] https://en.wikiquote.org/wiki/C._A._R._Hoare
 (defn mount-items [element diff]
-  ;; (prn :============)
-  (let [c (.-childNodes element), actual (.-length c), expected (- (:degree diff) (:grow diff))]
-    ;; (prn (texts (vec c)))
-    ;; (prn diff)
-    ;; many of these, just print for now
-    #_(ca/is actual (partial = expected)
-        (str "got a diff expecting element to have " expected " children but it has " actual))
-    (when (not= actual expected)
-      (println (str "got a diff expecting element to have " expected
-                 (if (= expected 1) " child" " children") " but it has " actual))
-      (prn diff)
-      (prn element (.-length c) (vec c))))
-  (let [c (.-childNodes element), start (texts (vec c)), tbd (i/patch-vec (vec c) diff), in? (set tbd)]
-    (run! #(when-not (in? %) (.remove %)) (vec c))
+  (let [c (.-childNodes element), actual (.-length c), expected (- (:degree diff) (:grow diff))
+        cv (vec c), start (texts cv), tbd (i/patch-vec cv diff), in? (set tbd)]
+    (run! #(when-not (in? %) (.remove %)) cv)
     (run! #(when % (.appendChild element %)) tbd)
-    (when (not= tbd (vec c))
-      (prn :====VIOLATED====)
-      (prn :start start)
-      (prn :diff diff)
-      (prn :tbd (texts tbd))
-      (prn :act (texts (vec c)))))
+    (mount-items-debug-print element actual expected diff tbd c start))
   element)
 
 #?(:cljs
