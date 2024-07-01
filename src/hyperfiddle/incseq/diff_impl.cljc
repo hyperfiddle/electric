@@ -90,12 +90,15 @@
              (recur i (unchecked-dec d)
                (p/compose (p/rotation i d)
                  p (p/rotation d j)) c f)))
-         {:degree      d
-          :permutation (-> p (unmove-tail size-before d) (unmove-tail size-after d))
-          :grow        (unchecked-subtract d size-before)
-          :shrink      (unchecked-subtract d size-after)
-          :change      (persistent! c)
-          :freeze      (persistent! f)}))))
+         (let [p (-> p (unmove-tail size-before d) (unmove-tail size-after d))]
+           (contrib.debug/dbg-when (seq p)
+             (contrib.debug/dbg (list 'd/combine x y)
+               {:degree      d
+                :permutation p
+                :grow        (unchecked-subtract d size-before)
+                :shrink      (unchecked-subtract d size-after)
+                :change      (persistent! c)
+                :freeze      (persistent! f)})))))))
   ([x y & zs] (reduce combine (combine x y) zs)))
 
 (defn subdiff [{:keys [grow shrink degree permutation change freeze]} size offset]
