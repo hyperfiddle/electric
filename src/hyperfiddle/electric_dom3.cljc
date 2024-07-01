@@ -103,7 +103,8 @@
   (run! (fn [[from to]] (.insertBefore element from to))
     (indexes->nodes (plan-reorder-cycles permutation) (.-childNodes element))))
 
-(defn texts [coll] (mapv #(when % (.-textContent %)) coll))
+(defn ->text [elem] (when elem (.-textContent elem)))
+(defn texts [coll] (mapv ->text coll))
 
 (defn- mount-items-debug-print [element actual expected diff tbd c start]
   (let [cv (vec c), elem (or (not-empty (.-id element)) element)]
