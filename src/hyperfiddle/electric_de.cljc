@@ -382,10 +382,11 @@ inhibiting all further reactive updates."
           (let [!first (atom true) v (m/?> uf)]
             (assoc (i/empty-diff 1) :grow (if @!first (do (swap! !first not) 1) 0), :change {0 v})))))
 
-(cc/defn task->is [t] (uf->is (m/ap (m/? t))))
-
-(hyperfiddle.electric-de/defn Task [t]
-  (join (task->is t)))
+(cc/letfn [(task->is [t] (uf->is (m/ap (m/? t))))
+           (initialized [t init-v] (m/ap (m/amb= init-v (m/? t))))]
+  (hyperfiddle.electric-de/defn Task
+    ([t] (join (task->is t)))
+    ([t init-v] (input (initialized t init-v)))))
 
 #?(:clj (cc/defn -offload [tsk executor]
           (uf->is (m/ap (try (m/? (m/via-call executor (m/?< (mx/poll-task tsk))))
