@@ -103,6 +103,8 @@
   (run! (fn [[from to]] (.insertBefore element from to))
     (indexes->nodes (plan-reorder-cycles permutation) (.-childNodes element))))
 
+(defn texts [coll] (mapv #(.-textContent %) coll))
+
 ;; A resilient version of `mount-items`. Uses `i/patch-vec` to figure out the
 ;; final state and through a simple algorithm arranges the DOM nodelist to match
 ;; that. This is sub-optimal in several ways, but most likely fast enough and
@@ -115,7 +117,10 @@
 ;;
 ;; [1] https://en.wikiquote.org/wiki/C._A._R._Hoare
 (defn mount-items [element diff]
+  ;; (prn :============)
   (let [c (.-childNodes element), actual (.-length c), expected (- (:degree diff) (:grow diff))]
+    ;; (prn (texts (vec c)))
+    ;; (prn diff)
     ;; many of these, just print for now
     #_(ca/is actual (partial = expected)
         (str "got a diff expecting element to have " expected " children but it has " actual))
@@ -124,20 +129,15 @@
                  (if (= expected 1) " child" " children") " but it has " actual))
       (prn diff)
       (prn element (.-length c) (vec c))))
-  (let [c (.-childNodes element), tbd (i/patch-vec (vec c) diff)]
-    (dotimes [i (count tbd)]
-      ;;         nil bugs, skip for now
-      (when (and (tbd i) (not (identical? (tbd i) (.item c i))))
-        (.insertBefore element (tbd i) (.item c (if (identical? (tbd i) (.item c (inc i))) i (inc i))))))
-    (let [actual (- (.-length c) (count tbd)), expected (:shrink diff)]
-      (when (not= actual expected)
-        (println (str "got a diff expecting to remove " expected
-                   (if (= expected 1) " child" " children") " when there "
-                   (if (= actual 1) "is " "are ") actual " to remove"))
-        (prn diff)
-        (prn element (.-length c) (vec c))))
-    (dotimes [_ (- (.-length c) (count tbd))]
-      (.removeChild element (.-lastChild element))))
+  (let [c (.-childNodes element), start (texts (vec c)), tbd (i/patch-vec (vec c) diff), in? (set tbd)]
+    (run! #(when-not (in? %) (.remove %)) (vec c))
+    (run! #(.appendChild element %) tbd)
+    (when (not= tbd (vec c))
+      (prn :====VIOLATED====)
+      (prn :start start)
+      (prn :diff diff)
+      (prn :tbd (texts tbd))
+      (prn :act (texts (vec c)))))
   element)
 
 #?(:cljs
