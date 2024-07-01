@@ -131,7 +131,7 @@
       (prn element (.-length c) (vec c))))
   (let [c (.-childNodes element), start (texts (vec c)), tbd (i/patch-vec (vec c) diff), in? (set tbd)]
     (run! #(when-not (in? %) (.remove %)) (vec c))
-    (run! #(.appendChild element %) tbd)
+    (run! #(when % (.appendChild element %)) tbd)
     (when (not= tbd (vec c))
       (prn :====VIOLATED====)
       (prn :start start)
