@@ -140,7 +140,7 @@ Syntax :
 (diff-by kf xs)
 ```
 Stabilizes successive states of collection `xs` with function `kf`. Returns each item as a table.
-" [f xs] `(join (i/diff-by ~f (join (i/items (pure ~xs))))))
+" [f xs] `(->> (pure ~xs) (m/reductions i/patch-vec) (m/latest (partial eduction cat)) (i/diff-by ~f) (join)))
 
 (defmacro drain "
 Syntax :
