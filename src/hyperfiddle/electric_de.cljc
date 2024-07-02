@@ -383,7 +383,7 @@ inhibiting all further reactive updates."
             (assoc (i/empty-diff 1) :grow (if @!first (do (swap! !first not) 1) 0), :change {0 v})))))
 
 (cc/letfn [(task->is [t] (uf->is (m/ap (m/? t))))
-           (initialized [t init-v] (m/ap (m/amb= init-v (m/? t))))]
+           (initialized [t init-v] (m/relieve {} (m/ap (m/amb= init-v (m/? t)))))]
   (hyperfiddle.electric-de/defn Task
     ([t] (join (task->is t)))
     ([t init-v] (input (initialized t init-v)))))
