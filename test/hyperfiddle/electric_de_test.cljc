@@ -2225,13 +2225,14 @@
       % := false))
   )
 
+(defn mount-at [kvs k v]
+  (m/observe
+    (fn [!]
+      (! (i/empty-diff 0))
+      (kvs/insert! kvs k v)
+      #(kvs/remove! kvs k))))
+
 (tests
-  (defn mount-at [kvs k v]
-    (m/observe
-      (fn [!]
-        (! (i/empty-diff 0))
-        (kvs/insert! kvs k v)
-        #(kvs/remove! kvs k))))
 
   (def !x (atom true))
   (def !y (atom true))
@@ -2255,13 +2256,6 @@
     % := [0 3]))
 
 (tests
-
-  (defn mount-at [kvs k v]
-    (m/observe
-      (fn [!]
-        (! (i/empty-diff 0))
-        (kvs/insert! kvs k v)
-        #(kvs/remove! kvs k))))
 
   (def !xs (atom (range 20)))
 
@@ -2291,3 +2285,16 @@
              (e/$ (e/fn [] (kvs/insert! mp (e/tag) :bar) nil))))
          prn prn)
     % := [:foo :bar]))
+
+(tests
+  (def !xs (atom [:foo]))
+  (with ((l/single {}
+           (let [mp (e/mount-point)]
+             (e/cursor [k (e/diff-by identity (e/watch !xs))]
+               (e/join (mount-at mp (e/tag) k)))
+             (tap (e/as-vec (e/join mp)))))
+         tap tap)
+    % := []
+    % := [:foo]
+    (reset! !xs [])
+    % := []))

@@ -476,17 +476,17 @@ Mounting a block generates a grow for each active item having this block's frame
         (if (nil? (aget children i))
           (recur (unchecked-inc-int i)) false) true))))
 
-(defn detach-root [^objects block]
-  (when-not (nil? block)
-    (let [^objects call (aget block block-slot-parent)
-          ^objects parent (aget call block-slot-parent)]
-      (block-set-child block (r/slot-id (r/frame-slot (aget block block-slot-frame))) nil)
-      (aset call call-slot-parent nil)
-      (aset call call-slot-children nil)
-      (aset block block-slot-prev nil)
-      (aset block block-slot-next nil)
-      (block-release block)
-      (recur parent))))
+(defn detach-root [^objects block id]
+  (let [^objects call (aget block block-slot-parent)
+        ^objects parent (aget call call-slot-parent)]
+    (block-set-child block id nil)
+    (aset call call-slot-parent nil)
+    (aset call call-slot-children nil)
+    (aset block block-slot-prev nil)
+    (aset block block-slot-next nil)
+    (block-release block)
+    (when-not (nil? parent)
+      (recur parent (r/slot-id (r/frame-slot (aget block block-slot-frame)))))))
 
 (defn item-detach-from-tree [^objects item diff]
   (let [^objects block (aget item item-slot-parent)
@@ -513,14 +513,16 @@ Mounting a block generates a grow for each active item having this block's frame
               ^objects call (aget block block-slot-parent)]
           (if (identical? block prev)
             (let [^objects reader (aget call call-slot-reader)
-                  ^objects parent (aget call call-slot-parent)]
+                  ^objects parent (aget call call-slot-parent)
+                  slot (r/frame-slot (aget block block-slot-frame))]
               (aset block block-slot-prev nil)
               (aset block block-slot-next nil)
               (call-release call)
               (if (identical? call (aget reader reader-slot-root))
                 (do (aset reader reader-slot-root nil)
-                    (detach-root parent))
-                (do (block-set-child parent (r/slot-id (r/frame-slot (aget block block-slot-frame))) nil)
+                    (when-not (nil? parent)
+                      (detach-root parent (r/slot-id slot))))
+                (do (block-set-child parent (r/slot-id slot) nil)
                     (recur parent))))
             (do (aset call call-slot-children prev)
                 (aset prev block-slot-next next)
