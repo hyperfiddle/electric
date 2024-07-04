@@ -2298,3 +2298,18 @@
     % := [:foo]
     (reset! !xs [])
     % := []))
+
+(tests
+  (def !xs (atom ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"]))
+  (with ((l/single {}
+           (let [mp (e/mount-point)]
+             (e/cursor [k (e/diff-by identity (e/watch !xs))]
+               (e/join (mount-at mp (e/tag) k)))
+             (tap (e/as-vec (e/join mp)))))
+         tap tap)
+    % := []
+    % := ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"]
+    (reset! !xs ["clojure.basis" "file.encoding" "java.class.path"])
+    % := ["clojure.basis" "file.encoding" "java.class.path"]
+    (reset! !xs ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"])
+    % := ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"]))
