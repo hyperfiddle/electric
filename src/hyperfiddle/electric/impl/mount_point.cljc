@@ -198,16 +198,6 @@ Mounting a block generates a grow for each active item having this block's frame
   (if-some [^objects call (aget reader reader-slot-root)]
     (aget call call-slot-weight) 0))
 
-(defn weight-between [^objects call i j]
-  (let [^objects buffer (aget call call-slot-buffer)]
-    (loop [i i
-           w 0]
-      (let [i (unchecked-inc-int i)]
-        (if (== i j)
-          w (recur i
-              (if-some [^objects block (aget buffer i)]
-                (unchecked-add-int w (block-weight block)) w)))))))
-
 (defn reader-pending [^objects reader]
   (let [^objects state (aget reader reader-slot-state)]
     (aset reader reader-slot-pending (aget state slot-pending))
@@ -540,18 +530,19 @@ Mounting a block generates a grow for each active item having this block's frame
                         {} q
                         (let [[i j] (first p)
                               k1 (min i j)
-                              k2 (max i j)]
+                              k2 (max i j)
+                              i1 (block-index call k1)
+                              i2 (block-index call k2)
+                              w1 (if-some [b (aget buffer k1)]
+                                   (block-weight b) 0)
+                              w2 (if-some [b (aget buffer k2)]
+                                   (block-weight b) 0)]
                           (swap-indices call i j)
                           (recur (p/compose p (p/cycle i j))
-                            (if-some [index (block-index call k1)]
-                              (p/compose
-                                (p/split-long-swap index
-                                  (if-some [b (aget buffer k1)]
-                                    (block-weight b) 0)
-                                  (weight-between call k1 k2)
-                                  (if-some [b (aget buffer k2)]
-                                    (block-weight b) 0))
-                                q) q)))))]
+                            (if (nil? i1)
+                              q (if (nil? i2)
+                                  q (p/compose (p/split-long-swap i1 w1 (- i2 i1 w1) w2)
+                                      q)))))))]
     (d/combine diff
       {:grow        0
        :degree      degree
