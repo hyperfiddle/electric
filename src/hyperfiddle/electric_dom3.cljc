@@ -367,11 +367,13 @@
        (e/input (m/reductions mount-items elem mp))
        ({} mp elem)))))
 
+(defn keepalive [node] (m/observe (fn [!] (! node) #())))
+
 (e/defn With
   "Run `Body` in provided DOM `element`, attaching and managing children inside it.
   One would use `With` instead of `WithElement` to mount an Electric DOM UI inside
   an existing DOM Element, typically libraries integration."
-  [element Body] (e/client (binding [node element] ($ Body))))
+  [element Body] (e/client (binding [node element] (e/input (keepalive node)) ($ Body))))
 
 (e/defn WithElement
   "Mount a new DOM Element of type `tag` in the current `node` and run `Body` in
