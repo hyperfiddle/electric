@@ -1,7 +1,12 @@
 (ns hyperfiddle.incseq.diff-impl-test
   (:require [hyperfiddle.incseq.diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p]
-            [clojure.test :refer [deftest is]]))
+            [hyperfiddle.incseq :as i]
+            [clojure.test :refer [deftest is]]
+            [clojure.test.check :as tc]
+            [clojure.test.check.properties :as tc-prop]
+            [clojure.test.check.generators :as tc-gen]
+            [clojure.test.check.clojure-test :as tct]))
 
 (deftest combine-simple
   (is (= (d/combine
@@ -75,3 +80,33 @@
            {:degree 4, :grow 0, :shrink 0, :permutation {},                   :change {}, :freeze #{}}
            {:degree 4, :grow 0, :shrink 3, :permutation {1 0, 2 1, 3 2, 0 3}, :change {}, :freeze #{}})
         {:degree 4, :permutation {0 3, 3 0}, :grow 0, :shrink 3, :change {}, :freeze #{}})))
+
+(def patch-vecing-differ-result-returns-same-vector
+  (tc-prop/for-all [a (tc-gen/fmap vec (tc-gen/set tc-gen/small-integer))
+                    b (tc-gen/fmap vec (tc-gen/set tc-gen/small-integer))]
+    (let [a (into [] (distinct) a), b (into [] (distinct) b)
+          diff-seq (i/->seq-differ identity)]
+      (= b (d/patch-vec a (do (diff-seq a) (diff-seq b)))))))
+
+(tct/defspec patch-vecing-differ-result-returns-same-vector-spec 100 patch-vecing-differ-result-returns-same-vector)
+
+(def d-combine
+  (tc-prop/for-all [a (tc-gen/fmap vec (tc-gen/set tc-gen/small-integer))
+                    b (tc-gen/fmap vec (tc-gen/set tc-gen/small-integer))
+                    c (tc-gen/fmap vec (tc-gen/set tc-gen/small-integer))]
+    (let [a (into [] (distinct) a), b (into [] (distinct) b), c (into [] (distinct) c)
+          diff-seq (i/->seq-differ identity)
+          _ (diff-seq a), a->b (diff-seq b), b->c (diff-seq c)]
+      (= c (d/patch-vec a (d/combine a->b b->c))))))
+
+(comment
+  (let [a [], b [0 1], c []
+        diff-seq (i/->seq-differ identity)
+        _ (diff-seq a), a->b (diff-seq b), b->c (diff-seq c), a->c (d/combine a->b b->c)]
+    (prn :a->b a->b)
+    (prn :b->c b->c)
+    (prn :combined a->c)
+    (= c (d/patch-vec a a->c)))
+  )
+
+(tct/defspec d-combine-spec 100 d-combine)
