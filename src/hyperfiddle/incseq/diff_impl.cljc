@@ -81,21 +81,19 @@
                   (reduce disj! (transient fx)
                     (vals py)) py) fy)]
        (if (< i d)
-         (let [j (p i i)
-               c (dissoc! c i)
-               f (disj! f i)]
+         (let [j (p i i)]
            (if (< j size-before)
-             (recur (unchecked-inc i) d p c f)
+             (recur (unchecked-inc i) d p (dissoc! c i) (disj! f i))
              (recur i (unchecked-dec d)
                (p/compose (p/rotation i d)
-                 p (p/rotation d j)) c f)))
-         (let [c (persistent! c)]
+                 p (p/rotation d j)) (dissoc! c d) (disj! f d))))
+         (let [c (persistent! (dissoc! c d))]
            {:degree      d
             :permutation (-> p (remove-shrunk-reorders size-after d) (remove-change-reorders (set (keys c))))
             :grow        (unchecked-subtract d size-before)
             :shrink      (unchecked-subtract d size-after)
             :change      c
-            :freeze      (persistent! f)})))))
+            :freeze      (persistent! (disj! f d))})))))
   ([x y & zs] (reduce combine (combine x y) zs)))
 
 (defn subdiff [{:keys [grow shrink degree permutation change freeze]} size offset]

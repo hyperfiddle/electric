@@ -99,14 +99,4 @@
           _ (diff-seq a), a->b (diff-seq b), b->c (diff-seq c)]
       (= c (d/patch-vec a (d/combine a->b b->c))))))
 
-(comment
-  (let [a [], b [0 1], c []
-        diff-seq (i/->seq-differ identity)
-        _ (diff-seq a), a->b (diff-seq b), b->c (diff-seq c), a->c (d/combine a->b b->c)]
-    (prn :a->b a->b)
-    (prn :b->c b->c)
-    (prn :combined a->c)
-    (= c (d/patch-vec a a->c)))
-  )
-
 (tct/defspec d-combine-spec 100 d-combine)
