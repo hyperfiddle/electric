@@ -5,6 +5,7 @@ clojure -X:test \
     :dirs "[\"src\" \"src-docs\" \"test\"]"  \
     :patterns                                \
     "[\"hyperfiddle.electric.impl.*\"        \
+      \"hyperfiddle.incseq.*-test\"          \
       \"hyperfiddle.electric-test\"          \
       \"hyperfiddle.electric-de-test\"       \
       \"hyperfiddle.zero\"                   \

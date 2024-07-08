@@ -1,6 +1,7 @@
 (ns hyperfiddle.incseq.fixed-impl-test
   (:require [hyperfiddle.incseq.fixed-impl :refer [flow]]
-            [clojure.test :refer [deftest is]]))
+            [clojure.test :refer [deftest is]])
+  #?(:clj (:import [clojure.lang IFn IDeref])))
 
 (defn queue []
   #?(:clj (let [q (java.util.LinkedList.)]
