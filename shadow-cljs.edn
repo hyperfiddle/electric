@@ -12,7 +12,7 @@
                                        (user/rcf-shadow-hook)]}
           :test         {:target           :node-test
                          :output-to        "out/node-tests.js"
-                         :ns-regexp        "^(hyperfiddle.electric-(?!dom|fulcro)|contrib.(ednish|sexpr-router|missionary-contrib-test|stacktrace)).*$"
+                         :ns-regexp        "^(hyperfiddle.electric-(?!dom|fulcro|css|svg)|contrib.(ednish|sexpr-router|missionary-contrib-test|stacktrace)|hyperfiddle.incseq).*$"
                          :build-options    {:cache-level :off}
                          :modules          {:main {:entries [hyperfiddle.zero
                                                              hyperfiddle.electric
@@ -25,7 +25,7 @@
                          :compiler-options {:warnings {:redef-in-file false}}}
           :browser-test {:target           :karma
                          :output-to        "out/karma-tests.js"
-                         :ns-regexp        "^(hyperfiddle.electric-(?!fulcro)|contrib.(ednish|sexpr-router|missionary-contrib-test|stacktrace)).*$"
+                         :ns-regexp        "^(hyperfiddle.electric-(?!fulcro)|contrib.(ednish|sexpr-router|missionary-contrib-test|stacktrace)|hyperfiddle.incseq).*$"
                          :build-options    {:cache-level :off}
                          :build-hooks [(hyperfiddle.browser-test-setup/blow-up-tests-on-warnings)]
                          :modules          {:main {:entries [hyperfiddle.zero

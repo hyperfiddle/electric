@@ -65,6 +65,8 @@
        ([^js this rule _] (.appendRule this rule)))
      (delete-rule [^js this rule] (.deleteRule this (.-keyText rule)))))
 
+(defn to-str [x] ((if (keyword? x) name str) x))
+
 (defprotocol StyleRule
   "Interface over a CSS rule"
   (set-property [this key value]))
@@ -76,13 +78,13 @@
      js/CSSKeyframeRule ; not a subclass of CSSStyleRule
      (set-property [^js this key value] (set-property (.-style this) key value))
      js/CSSStyleDeclaration
-     (set-property [^js this key value] (.setProperty this (dom/to-str key) (dom/to-str value)))))
+     (set-property [^js this key value] (.setProperty this (to-str key) (to-str value)))))
 
 #?(:cljs
    (defn make-rule "Create a rule in node's stylesheet, return the created rule." [styled-element selector]
      (let [sheet (sheet styled-element)
            index (.-length (css-rules sheet))]
-       (add-rule sheet (str (dom/to-str selector) " {}") index)
+       (add-rule sheet (str (to-str selector) " {}") index)
        (aget (css-rules sheet) index))))
 
 #?(:cljs

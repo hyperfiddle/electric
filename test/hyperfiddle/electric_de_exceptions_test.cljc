@@ -1,8 +1,8 @@
 (ns hyperfiddle.electric-de-exceptions-test
-  (:require [hyperfiddle.electric-de :as e]
+  (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-local-def :as l]
             [hyperfiddle.electric.impl.runtime :as r]
-            [hyperfiddle.rcf :as rcf :refer [tests with %]]
+            [hyperfiddle.rcf :as rcf :refer [tests with % tap]]
             [missionary.core :as m])
   (:import [hyperfiddle.electric Pending Failure]
            [missionary Cancelled]
