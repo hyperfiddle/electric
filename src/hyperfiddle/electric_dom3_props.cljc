@@ -7,8 +7,8 @@
    [hyperfiddle.electric-css3 :as css]
    [hyperfiddle.rcf :refer [tests]]
    [missionary.core :as m]
-   #?(:cljs [goog.object])
-   )
+   #?(:cljs [goog.object]))
+  #?(:clj (:import [clojure.lang ExceptionInfo]))
   #?(:cljs (:require-macros [hyperfiddle.electric-dom3-props])))
 
 ;;;;;;;;;;;;;;;;
