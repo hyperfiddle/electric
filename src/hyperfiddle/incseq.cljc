@@ -135,6 +135,45 @@ Reconstructs the permutation defined by given set of disjoint cycles.
 Return the empty diff for `n`-item collection.
 " d/empty-diff)
 
+(defn ->seq-differ [kf]
+  (let [state (doto (object-array 2) (aset 0 []) (aset 1 {}))]
+    (fn
+      ([]
+       (let [degree (count (aget state 0))]
+         (aset state 0 nil)
+         (aset state 1 nil)
+         {:grow 0 :shrink 0 :permutation {} :change {} :degree degree :freeze (set (range degree))}))
+      ([xs]
+       (let [prev-vec (aget state 0)
+             prev-idx (aget state 1)
+             _ (aset state 0 [])
+             _ (aset state 1 {})
+             size-before (count prev-vec)
+             [degree permutation change]
+             (reduce
+               (fn [[degree permutation change] x]
+                 (let [curr-vec (aget state 0)
+                       curr-idx (aget state 1)
+                       i (count curr-vec)
+                       k (kf x)
+                       [d y j]
+                       (or (some
+                             (fn [n]
+                               (let [j (permutation n n)]
+                                 (when-not (< j i)
+                                   [degree (nth prev-vec n) j])))
+                             (prev-idx k)) [(inc degree) state degree])]
+                   (aset state 0 (conj curr-vec x))
+                   (aset state 1 (assoc curr-idx k (conj (curr-idx k []) i)))
+                   [d (compose permutation (rotation i j))
+                    (if (= x y) change (assoc change i x))]))
+               [size-before {} {}] xs)
+             size-after (count (aget state 0))]
+         (assoc (empty-diff degree)
+           :grow (unchecked-subtract-int degree size-before)
+           :shrink (unchecked-subtract-int degree size-after)
+           :permutation (inverse permutation)
+           :change change))))))
 
 (def ^{:doc "
 Returns a flow producing the successive diffs of given continuous flow of collections, stabilized by given key function.
@@ -195,49 +234,8 @@ Returns a flow producing the successive diffs of given continuous flow of collec
                     (flow #(ready state)
                       #(do (aset state slot-done true)
                            (ready state))))
-                  (->Ps state cancel transfer))))
-            (differ [kf]
-              #(let [state (doto (object-array 2)
-                             (aset 0 [])
-                             (aset 1 {}))]
-                 (fn
-                   ([]
-                    (let [degree (count (aget state 0))]
-                      (aset state 0 nil)
-                      (aset state 1 nil)
-                      {:grow 0 :shrink 0 :permutation {} :change {} :degree degree :freeze (set (range degree))}))
-                   ([xs]
-                    (let [prev-vec (aget state 0)
-                          prev-idx (aget state 1)
-                          _ (aset state 0 [])
-                          _ (aset state 1 {})
-                          size-before (count prev-vec)
-                          [degree permutation change]
-                          (reduce
-                            (fn [[degree permutation change] x]
-                              (let [curr-vec (aget state 0)
-                                    curr-idx (aget state 1)
-                                    i (count curr-vec)
-                                    k (kf x)
-                                    [d y j]
-                                    (or (some
-                                          (fn [n]
-                                            (let [j (permutation n n)]
-                                              (when-not (< j i)
-                                                [degree (nth prev-vec n) j])))
-                                          (prev-idx k)) [(inc degree) state degree])]
-                                (aset state 0 (conj curr-vec x))
-                                (aset state 1 (assoc curr-idx k (conj (curr-idx k []) i)))
-                                [d (compose permutation (rotation i j))
-                                 (if (= x y) change (assoc change i x))]))
-                            [size-before {} {}] xs)
-                          size-after (count (aget state 0))]
-                      (assoc (empty-diff degree)
-                        :grow (unchecked-subtract-int degree size-before)
-                        :shrink (unchecked-subtract-int degree size-after)
-                        :permutation (inverse permutation)
-                        :change change))))))]
-      (fn [kf flow] (scan (differ kf) flow)))))
+                  (->Ps state cancel transfer))))]
+      (fn [kf flow] (scan #(->seq-differ kf) flow)))))
 
 
 (def ^{:doc "
