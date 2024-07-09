@@ -152,7 +152,7 @@
               iperm (p/inverse permutation)
               indices (into #{} (map (fn [i] (iperm i i))) created)]
           (reduce create-item parent created)
-          (reduce apply-cycle buffer (p/decompose permutation))
+          (p/decompose apply-cycle buffer permutation)
           (reduce detach buffer (range (- degree shrink) degree))
           (reduce-kv propagate-change buffer change)
           (reduce propagate-freeze buffer freeze)

@@ -181,26 +181,26 @@
                      lr-size-after (aget counts 1)
                      foreign-degree (unchecked-multiply-int l r)
                      product-degree (unchecked-multiply-int item-degree foreign-degree)
-                     product-cycles (into #{}
-                                      (mapcat
-                                        (fn [cycle]
-                                          (let [k (nth cycle 0)
-                                                x (aget buffer k)
-                                                f (frozen? freezer k)
-                                                l (reduce
-                                                    (fn [k l]
-                                                      (aset buffer k (aget buffer l))
-                                                      ((if (frozen? freezer l)
-                                                         freeze! unfreeze!)
-                                                       freezer k) l)
-                                                    k (subvec cycle 1))]
-                                            (aset buffer l x)
-                                            ((if f freeze! unfreeze!)
-                                             freezer k))
-                                          (->> cycle
-                                            (map (partial combine-indices product-degree item-degree r))
-                                            (apply map vector))))
-                                      (p/decompose (:permutation item-diff)))]
+                     product-cycles (p/decompose
+                                      (fn [cycles cycle]
+                                        (let [k (nth cycle 0)
+                                              x (aget buffer k)
+                                              f (frozen? freezer k)
+                                              l (reduce
+                                                  (fn [k l]
+                                                    (aset buffer k (aget buffer l))
+                                                    ((if (frozen? freezer l)
+                                                       freeze! unfreeze!)
+                                                     freezer k) l)
+                                                  k (subvec cycle 1))]
+                                          (aset buffer l x)
+                                          ((if f freeze! unfreeze!)
+                                           freezer k))
+                                        (->> cycle
+                                          (map (partial combine-indices product-degree item-degree r))
+                                          (apply map vector)
+                                          (into cycles)))
+                                      #{} (:permutation item-diff))]
                  (loop [i size-after]
                    (when (< i item-degree)
                      (unfreeze! freezer i)

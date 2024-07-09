@@ -35,20 +35,21 @@
         (assoc! r i (nth v j)))
       (transient v) p)))
 
-(defn decompose [p]
+(defn decompose [rf r p]
   (loop [p p
-         cs #{}]
+         r r]
     (case p
-      {} cs
+      {} r
       (let [[i j] (first p)]
         (let [c (loop [c [i]
                        j j]
                   (let [c (conj c j)
                         j (p j)]
                     (if (== i j)
-                      c (recur c j))))]
-          (recur (apply dissoc p c)
-            (conj cs c)))))))
+                      c (recur c j))))
+              r (rf r c)]
+          (if (reduced? r)
+            @r (recur (apply dissoc p c) r)))))))
 
 (defn compose
   ([] {})
@@ -92,39 +93,33 @@
         0 {}
         +1 (split-swap (+ o r) (- l r) (+ c r))))))
 
-(tests "permutations"
-  (decompose {0 1, 1 4, 2 3, 3 2, 4 0}) :=
-  #{[0 1 4] [2 3]}
+(defn cycle-transpositions [rf r cycle]
+  (loop [r r
+         i (unchecked-dec-int (count cycle))]
+    (if (zero? i)
+      r (let [x (cycle 0)
+              y (cycle i)
+              r (if (< x y)
+                  (rf r x y)
+                  (rf r y x))]
+          (if (reduced? r)
+            @r (recur r (unchecked-dec-int i)))))))
 
-  (recompose #{[0 1 4] [2 3]}) :=
-  {0 1, 1 4, 2 3, 3 2, 4 0}
+(defn transpositions [rf r p]
+  (decompose (partial cycle-transpositions rf) r p))
 
-  (decompose (inverse {0 1, 1 4, 2 3, 3 2, 4 0})) :=
-  #{[1 0 4] [3 2]}
+(defn transposition-rotations [rf r i j]
+  (let [k (dec j)
+        r (rf r i j)]
+    (if (reduced? r)
+      @r (if (== k i)
+           r (unreduced
+               (rf r k i))))))
 
-  (recompose #{[1 0 4] [3 2]}) :=
-  {0 4, 1 0, 2 3, 3 2, 4 1}
-
-  (arrange [0 1 2 3 4] {0 1, 1 4, 2 3, 3 2, 4 0}) :=
-  [1 4 3 2 0]
-
-  (arrange [:a :b :c :d :e] {0 1, 1 4, 2 3, 3 2, 4 0}) :=
-  [:b :e :d :c :a]
-
-  (compose
-    (cycle 1 3 2 4)
-    (cycle 1 4 2 3)) := {}
-
-  (inverse (split-swap 4 2 3)) := (split-swap 4 3 2)
-
-  (order (cycle 2)) := 1
-  (order (cycle 2 3)) := 2
-  (order (cycle 2 3 4)) := 3
-  (order (compose (cycle 0 1) (cycle 2 3 4))) := 6
-
-  (involution? (cycle 2)) := false
-  (involution? (cycle 2 3)) := true
-  (involution? (cycle 2 3 4)) := false
-
-  (transposition? (cycle 2 3)) := true
-  (transposition? (cycle 2 3 4)) := false)
+;; TODO generate optimal sequence if possible
+(defn rotations [rf r p]
+  (decompose
+    (->> rf
+      (partial transposition-rotations)
+      (partial cycle-transpositions))
+    r p))

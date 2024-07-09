@@ -49,6 +49,8 @@
    ;; [hyperfiddle.electric-dom3-events :as events]
    [hyperfiddle.kvs :as kvs]
    [hyperfiddle.incseq :as i]
+   [hyperfiddle.incseq.mount-impl :refer [mount]]
+   [hyperfiddle.incseq.perm-impl :as p]
    ;; [hyperfiddle.electric.impl.lang-de2 :as lang]
    )
   #?(:cljs (:require-macros [hyperfiddle.electric-dom3])))
@@ -77,59 +79,16 @@
      (defn set-mount-point [node mp] (aset node key mp))
      (defn remove-mount-point [node] (js-delete node key))))
 
-;; possibly improved algorith for DOM node reordering
-;; untested, current v3 bugs prevent from trying
-(defn pop-kv ([m] (pop-kv m (key (first m))))  ([m k] [[k (get m k)] (dissoc m k)]))
-
-(defn consume-cycle [[k v] p ret]
-  (let [end k]
-    (loop [v v, p p, ret ret]
-      (let [[[k v :as kv] p] (pop-kv p v)]
-        (if (= end v)  [p (conj ret [k (inc v)])]  (recur v p (conj ret kv)))))))
-
-(defn plan-reorder-cycles [p]
-  (loop [p p ret []]
-    (case p {} ret #_else (let [[kv p] (pop-kv p), [p ret] (consume-cycle kv p (conj ret kv))] (recur p ret)))))
-
-(defn indexes->nodes [idxs children]
-  (mapv (fn [[i j]] [(.item children i) (.item children j)]) idxs))
-
-(defn reorder [element permutation]
-  (run! (fn [[from to]] (.insertBefore element from to))
-    (indexes->nodes (plan-reorder-cycles permutation) (.-childNodes element))))
-
 (defn ->text [elem] (when elem (.-textContent elem)))
 (defn texts [coll] (mapv ->text coll))
 
-(defn- mount-items-debug-print [element actual expected diff tbd c start]
-  (let [cv (vec c), elem (or (not-empty (.-id element)) element)]
-    (some->
-      (not-empty
-        (str
-          (when (not= actual expected)
-            [:SIZE-MISMATCH {:elem elem, :children start, :expected expected, :actual actual, :diff diff}])
-          (when (not= tbd cv)
-            [:VIOLATED {:elem elem, :start start, :tbd (texts tbd), :actual (texts cv), :diff diff}])))
-      println)))
-
-;; A resilient version of `mount-items`. Uses `i/patch-vec` to figure out the
-;; final state and through a simple algorithm arranges the DOM nodelist to match
-;; that. This is sub-optimal in several ways, but most likely fast enough and
-;; more importantly so simple there should obviously be no bugs[1]. Currently
-;; there's corruption in the calls, we call it with a diff that doesn't match
-;; the current state of the nodelist (too many/few elements). The implementation
-;; tries its best to notify of the misalignment and correct course, which means
-;; the DOM state most likely corrupts after that. Once the calls get fixed we
-;; can change the logs to assertions.
-;;
-;; [1] https://en.wikiquote.org/wiki/C._A._R._Hoare
-(defn mount-items [element diff]
-  (let [c (.-childNodes element), actual (.-length c), expected (- (:degree diff) (:grow diff))
-        cv (vec c), start (texts cv), tbd (i/patch-vec cv diff), in? (set tbd)]
-    (run! #(when-not (in? %) (.remove %)) cv)
-    (run! #(when % (.appendChild element %)) tbd)
-    (mount-items-debug-print element actual expected diff tbd c start))
-  element)
+(def mount-items
+  (mount
+    (fn [element child] (.appendChild element child))
+    (fn [element child previous] (.replaceChild element child previous))
+    (fn [element child sibling] (.insertBefore element child sibling))
+    (fn [element child] (.removeChild element child))
+    (fn [element i] (.item (.-childNodes element) i))))
 
 #?(:cljs
    (defn attach! [parent-node tag e]

@@ -98,10 +98,10 @@ Arranges elements of `v` according to permutation `p`.
 " p/arrange)
 
 
-(def decompose "
+(defn decompose "
 Decompose permutation `p` as a product of disjoint cycles, represented as a set of vectors. 1-cycles matching fixed
 points are omitted, the size of each cycle is therefore at least 2.
-" p/decompose)
+" [p] (p/decompose conj #{} p))
 
 
 (def compose "
