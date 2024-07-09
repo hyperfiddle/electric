@@ -16,7 +16,7 @@
                         (pop! v)) v)))
         change! (fn [r c]
                   (reduce-kv assoc! r c))
-        cycles! (partial reduce
+        cycles! (partial p/decompose
                   (fn [v c]
                     (let [i (nth c 0)
                           x (nth v i)]
@@ -35,7 +35,7 @@
        (-> v
          (transient)
          (grow! (:grow d))
-         (cycles! (p/decompose (:permutation d)))
+         (cycles! (:permutation d))
          (shrink! (:shrink d))
          (change! (:change d))
          (persistent!))))))
