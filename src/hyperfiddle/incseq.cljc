@@ -36,7 +36,7 @@ An incremental sequence describes a finite sequence of states varying over time.
 successive sequence diffs. Incremental sequences are applicative functors with `latest-product` and monads with
 `latest-concat`.
 "} hyperfiddle.incseq
-  (:refer-clojure :exclude [cycle])
+  (:refer-clojure :exclude [cycle count])
   (:require [hyperfiddle.incseq.fixed-impl :as f]
             [hyperfiddle.incseq.perm-impl :as p]
             [hyperfiddle.incseq.diff-impl :as d]
@@ -44,6 +44,7 @@ successive sequence diffs. Incremental sequences are applicative functors with `
             [hyperfiddle.incseq.latest-product-impl :as lp]
             [hyperfiddle.incseq.latest-concat-impl :as lc]
             [hyperfiddle.rcf :refer [tests]]
+            [clojure.core :as cc]
             [missionary.core :as m])
   (:import #?(:clj (clojure.lang IFn IDeref))
            missionary.Cancelled))
@@ -139,7 +140,7 @@ Return the empty diff for `n`-item collection.
   (let [state (doto (object-array 2) (aset 0 []) (aset 1 {}))]
     (fn
       ([]
-       (let [degree (count (aget state 0))]
+       (let [degree (cc/count (aget state 0))]
          (aset state 0 nil)
          (aset state 1 nil)
          {:grow 0 :shrink 0 :permutation {} :change {} :degree degree :freeze (set (range degree))}))
@@ -148,13 +149,13 @@ Return the empty diff for `n`-item collection.
              prev-idx (aget state 1)
              _ (aset state 0 [])
              _ (aset state 1 {})
-             size-before (count prev-vec)
+             size-before (cc/count prev-vec)
              [degree permutation change]
              (reduce
                (fn [[degree permutation change] x]
                  (let [curr-vec (aget state 0)
                        curr-idx (aget state 1)
-                       i (count curr-vec)
+                       i (cc/count curr-vec)
                        k (kf x)
                        [d y j]
                        (or (some
@@ -168,7 +169,7 @@ Return the empty diff for `n`-item collection.
                    [d (compose permutation (rotation i j))
                     (if (= x y) change (assoc change i x))]))
                [size-before {} {}] xs)
-             size-after (count (aget state 0))]
+             size-after (cc/count (aget state 0))]
          (assoc (empty-diff degree)
            :grow (unchecked-subtract-int degree size-before)
            :shrink (unchecked-subtract-int degree size-after)
@@ -444,7 +445,7 @@ optional `compare` function, `clojure.core/compare` by default.
                   (let [i (if (identical? y (aget p 0)) 0 1)]
                     (aset p i nil) (delete-fixup state p y i))
                   (aset state slot-root nil))))
-            (assoc-count [r x] (assoc r (count r) x))]
+            (assoc-count [r x] (assoc r (cc/count r) x))]
       (fn spine
         ([] (spine nil))
         ([sentinel] (spine sentinel compare))
@@ -468,8 +469,8 @@ optional `compare` function, `clojure.core/compare` by default.
                            (aset r reader-slot-notifier n)
                            (aset r reader-slot-terminator t)
                            (aset r reader-slot-diff
-                             {:grow        (count c)
-                              :degree      (count c)
+                             {:grow        (cc/count c)
+                              :degree      (cc/count c)
                               :shrink      0
                               :permutation {}
                               :freeze      #{}
@@ -568,14 +569,14 @@ optional `compare` function, `clojure.core/compare` by default.
 (def ^{:arglists '([incseq])
        :doc "
 Returns the size of `incseq` as a continuous flow.
-"} count*
-  (fn [is] (m/reductions (fn [r x] (-> r (+ (:grow x)) (- (:shrink x)))) 0 is)))
+"} count
+  (fn count [is] (m/reductions (fn [r x] (-> r (+ (:grow x)) (- (:shrink x)))) 0 is)))
 
 ;; unit tests
 
 (tests
   (def !x (atom [:foo]))
-  (def ps ((count* (diff-by identity (m/watch !x))) #() #()))
+  (def ps ((count (diff-by identity (m/watch !x))) #() #()))
   @ps := 0
   @ps := 1
   (swap! !x conj :bar),  @!x := [:foo :bar]
