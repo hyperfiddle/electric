@@ -268,6 +268,8 @@ A mount point can be :
   Standard electric code runs on mount, therefore there is no `on-mount`."
   [f] `(input (on-unmount* ~f))) ; experimental
 
+(hyperfiddle.electric-de/defn OnUnmount [f] (input (on-unmount* f)))
+
 (defmacro boot-server [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
         source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
