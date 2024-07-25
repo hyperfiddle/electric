@@ -582,7 +582,7 @@ T T T -> (EXPR T)
             (aset prv input-sub-slot-next sub)
             (aset nxt input-sub-slot-prev sub)
             (aset sub input-sub-slot-prev prv)
-            (aset sub input-sub-slot-prev nxt))
+            (aset sub input-sub-slot-next nxt))
           (do (aset input input-slot-subs sub)
               (aset sub input-sub-slot-prev sub)
               (aset sub input-sub-slot-next sub))))
@@ -757,7 +757,7 @@ T T T -> (EXPR T)
               (when (identical? s (aget s input-sub-slot-ready))
                 (aset s input-sub-slot-ready (aget peer peer-slot-sub-ready))
                 (aset peer peer-slot-sub-ready s))))
-        (let [n (aget sub input-sub-slot-next)]
+        (let [n (aget s input-sub-slot-next)]
           (when-not (identical? n sub) (recur n))))))
   remote)
 
