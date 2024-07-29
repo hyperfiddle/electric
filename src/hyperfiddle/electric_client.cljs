@@ -113,20 +113,23 @@ Returns a task producing nil or failing if the websocket was closed before end o
   to the user, or immediately if it is already visible. Use case: detect when a
   background tab becomes active again."
   []
-  (let [visible! (m/dfv)
-        visible? #(= "visible" (.-visibilityState js/document))]
-    (letfn [(on-visibility-change [_]
-              ;; don't use a one-off event-listener because the visiblitichange
-              ;; event's spec doesn't say "visible" means the page was "hidden"
-              ;; before. "hidden" or "visible" could therefore fire more than
-              ;; once. Spec: https://html.spec.whatwg.org/multipage/interaction.html#page-visibility
-              (when (visible?)
-                (.removeEventListener js/document "visibilitychange" on-visibility-change)
-                (visible! true)))]
-      (if (visible?)
-        (visible! true)
-        (.addEventListener js/document "visibilitychange" on-visibility-change)))
-    visible!))
+  (if (exists? js/window) ; NodeJS has no UI
+    (let [visible! (m/dfv)
+          visible? #(= "visible" (.-visibilityState js/document))]
+      (letfn [(on-visibility-change [_]
+                ;; don't use a one-off event-listener because the visiblitichange
+                ;; event's spec doesn't say "visible" means the page was "hidden"
+                ;; before. "hidden" or "visible" could therefore fire more than
+                ;; once. Spec: https://html.spec.whatwg.org/multipage/interaction.html#page-visibility
+                (when (visible?)
+                  (.removeEventListener js/document "visibilitychange" on-visibility-change)
+                  (visible! true)))]
+        (if (visible?)
+          (visible! true)
+          (.addEventListener js/document "visibilitychange" on-visibility-change)))
+      visible!)
+    (m/sp true) ; assume process is always running
+    ))
 
 (defn boot-with-retry [client conn]
   (m/sp
