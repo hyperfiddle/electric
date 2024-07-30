@@ -20,7 +20,23 @@ Electric is a **reactive and network-aware Clojure/Script DSL** that fully abstr
 
 - **Strong composition:** Network-transparent Electric functions are true functions. You have lambda, recursion, HOFs, closures, dynamic scope, macros, etc: the full undamaged composition power of Lisp. Goodbye "functional core imperative shell"; with Electric the *entire system is a function*.
 
-Our mission is to raise the abstraction ceiling in web development in the same way that garbage collection did for functional programming, paving the way for something new.
+Our mission is to raise the abstraction ceiling in web development in the same way that managed memory did in the 90s, paving the way for something new.
+
+# Hype quotes
+
+- "The amount of code I don't need to write is staggering"
+- "Actually insane, manually shuttling data between client/server is going to look antiquated real soon"
+- "My god this was easy to write! When you change something, it's just there. The progress I made was ... WOW. And how fast!"
+- "Electric is extraordinary... an entire class of problems have just GONE AWAY with Electric"
+- "Electric lets me do the actual thing I want to do; with everything else I have to do all this stuff that's not even the thing"
+- "I can't imagine building this UI without electric, it would have been so messy"
+- "Pretty new to Electric ... the low LOC for expressing ideas [in Electric] is mind-boggling"
+- "I'm on project three with Electric and have never had so much fun and productivity building web apps"
+- "I’ve gone from I can’t build that.. to building a large chunk of functionality in a day with Electric"
+- "This is a paradigm shift similar to garbage collection"
+- "The approach is a breath of fresh air in what appears like a stagnating swamp"
+- "Truly 10x, 100x piece of tech"
+- "I think you're the first to really break through the cruft and propose a real solution to millions of hours of wasted JavaScript programming"
 
 # Tutorial and live examples
 
