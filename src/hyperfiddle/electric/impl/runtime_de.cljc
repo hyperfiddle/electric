@@ -1,8 +1,6 @@
 (ns hyperfiddle.electric.impl.runtime-de
   (:refer-clojure :exclude [resolve])
   (:require [hyperfiddle.incseq :as i]
-            [hyperfiddle.incseq.arrays-impl :as a]
-            [contrib.assert :as ca]
             [contrib.debug]
             [missionary.core :as m]
             [cognitect.transit :as t])
@@ -43,8 +41,8 @@
 (def output-slot-remote 0)
 (def output-slot-port 1)
 (def output-slot-sub 2)
-(def output-slot-requested 3)
-(def output-slot-refcount 4)
+(def output-slot-requested 3)                               ;; true iff remote input has at least one incseq depending on it - updated by remote toggle events
+(def output-slot-refcount 4)                                ;; count of active inputs depending on this output - updated by local incseqs
 (def output-slots 5)
 
 (def output-sub-slot-output 0)
@@ -333,7 +331,7 @@ T T T -> (EXPR T)
       (reduce rf r (repeat n port)))
     r (aget port port-slot-deps)))
 
-(declare frame-result)
+(declare incseq frame-result-slot)
 
 (deftype Frame [peer slot rank site ctor ^objects nodes ^objects tags
                 ^:unsynchronized-mutable ^:mutable hash-memo]
@@ -353,7 +351,7 @@ T T T -> (EXPR T)
       (= rank (.-rank ^Frame other))))
   IFn
   (#?(:clj invoke :cljs -invoke) [this step done]
-    ((port-flow (frame-result this)) step done)))
+    ((incseq this (frame-result-slot this)) step done)))
 
 (deftype Tag [frame index
               ^:unsynchronized-mutable ^:mutable hash-memo]
@@ -954,11 +952,11 @@ T T T -> (EXPR T)
                                  (fn [_]
                                    (->Failure :unserializable)))}})
 
-(defn remote-handler [^objects remote]
+(defn remote-handler [^objects peer]
   (fn [events]
     (fn [step done]
-      (let [^objects peer (aget remote remote-slot-peer)
-            busy (enter peer)]
+      (let [busy (enter peer)
+            ^objects remote (aget peer peer-slot-remote)]
         (if (nil? (aget remote remote-slot-channel))
           (let [channel (object-array channel-slots)]
             (aset remote remote-slot-channel channel)
@@ -1052,23 +1050,26 @@ T T T -> (EXPR T)
          toggle slot)))
     (channel-output-event channel)))
 
-(defn port-attach [_ ^objects remote-port]
-  (let [slot (port-slot remote-port)
+(defn dep-attach [^objects port]
+  (let [slot (port-slot port)
         ^objects peer (frame-peer (slot-frame slot))
+        busy (enter peer)
         ^objects remote (aget peer peer-slot-remote)
-        ^objects input (input-check-create remote remote-port)
+        ^objects input (input-check-create remote port)
         requested (aget input input-slot-requested)]
     (aset input input-slot-requested (inc requested))
     (when (zero? requested)
       (when (zero? (aget input input-slot-refcount))
         (remote-toggle-event remote slot)))
-    (port-deps local-port-tap remote remote-port)))
+    (port-deps local-port-tap remote port)
+    (exit peer busy)))
 
-(defn port-detach [_ ^objects remote-port]
-  (let [slot (port-slot remote-port)
+(defn dep-detach [^objects port]
+  (let [slot (port-slot port)
         ^objects peer (frame-peer (slot-frame slot))
+        busy (enter peer)
         ^objects remote (aget peer peer-slot-remote)
-        ^objects input (get (aget remote remote-slot-inputs) slot)
+        ^objects input (input-check-create remote port)
         requested (dec (aget input input-slot-requested))]
     (aset input input-slot-requested requested)
     (when (zero? requested)
@@ -1076,31 +1077,31 @@ T T T -> (EXPR T)
         (aset remote remote-slot-inputs
           (dissoc (aget remote remote-slot-inputs) slot))
         (remote-toggle-event remote slot)))
-    (port-deps local-port-untap remote remote-port)))
+    (port-deps local-port-untap remote port)
+    (exit peer busy)))
 
-(deftype Incseq [site expr]
+(defn with-dep [flow ^objects port]
+  (fn [step done]
+    (dep-attach port)
+    (flow step
+      #(do (dep-detach port)
+           (done)))))
+
+;; is expr always a slot ? if true, we can specialize to ports
+(deftype Incseq [peer expr]
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
-    (deps expr port-attach nil site)
-    ((flow expr) step #(do (deps expr port-detach nil site) (done)))))
+    ((deps expr with-dep (flow expr) (peer-site peer)) step done)))
 
 (defn incseq-expr [^Incseq incseq]
   (.-expr incseq))
 
 (defn incseq [^Frame frame expr]
-  (->Incseq (peer-site (frame-peer frame)) expr))
+  (->Incseq (frame-peer frame) expr))
 
-(defn frame-result [^Frame frame]
+(defn frame-result-slot [^Frame frame]
   (let [^objects nodes (.-nodes frame)]
-    (aget nodes (dec (alength nodes)))))
-
-(defn frame-up [^Frame frame]
-  (deps (port-slot (frame-result frame)) port-attach nil
-    (port-site (slot-port (.-slot frame)))))
-
-(defn frame-down [^Frame frame]
-  (deps (port-slot (frame-result frame)) port-detach nil
-    (port-site (slot-port (.-slot frame)))))
+    (node frame (dec (alength nodes)))))
 
 (defn apply-cycle [^objects buffer cycle]
   (let [i (nth cycle 0)
@@ -1115,6 +1116,7 @@ T T T -> (EXPR T)
                 (recur j k) j)))]
     (aset buffer j x) buffer))
 
+;; TODO this is really just ctor instanciation, it could be a latest-product
 (deftype CallPs [^objects call ps ^:unsynchronized-mutable ^:mutable ^objects buffer]
   IFn
   (#?(:clj invoke :cljs -invoke) [_] (ps))
@@ -1139,7 +1141,6 @@ T T T -> (EXPR T)
       (reduce apply-cycle buffer (i/decompose permutation))
       (dotimes [i shrink]
         (let [j (+ size-after i)]
-          (frame-down (aget buffer j))
           (aset buffer j nil)))
       {:grow        grow
        :degree      degree
@@ -1147,12 +1148,10 @@ T T T -> (EXPR T)
        :permutation permutation
        :freeze      freeze
        :change      (reduce-kv (fn [change i ctor]
-                                 (when-some [frame (aget buffer i)] (frame-down frame))
                                  (let [rank (aget call call-slot-rank)
                                        frame (make-frame peer slot rank site ctor)]
                                    (aset buffer i frame)
                                    (aset call call-slot-rank (inc rank))
-                                   (frame-up frame)
                                    (assoc change i frame)))
                       {} change)})))
 
@@ -1230,23 +1229,8 @@ entrypoint.
         (apply dispatch "<root>" ((defs main)))
         (make-frame peer nil 0 :client))) peer))
 
-(defn peer-result [^objects peer]
-  (let [^Frame root (aget peer peer-slot-root)
-        ^objects nodes (.-nodes root)
-        ^objects result (aget nodes (dec (alength nodes)))]
-    (fn [step done]
-      (port-deps port-attach nil result)
-      ((port-flow result) step
-       #(do (port-deps port-detach nil result) (done))))))
-
-(defn peer-remote [^objects peer]
-  (aget peer peer-slot-remote))
-
-(defn peer-consume-result [^objects peer remote-connector]
-  (m/reduce (comp reduced {}) nil
-    (m/ap
-      (m/amb= (m/? (remote-connector (remote-handler (peer-remote peer))))
-        (m/amb (do (m/?> (peer-result peer)) (m/amb)) nil)))))
+(defn peer-root-frame [^objects peer]
+  (aget peer peer-slot-root))
 
 (defn subject-at [^objects arr slot]
   (fn [!] (aset arr slot !) #(aset arr slot nil)))
@@ -1337,9 +1321,13 @@ a task managing the lifecycle of the channel.
 The remote handler is a function taking a subject and returning a flow. The flow emits outgoing events and reads
 incoming events on the subject.
 " [connector defs main & args]
-  (peer-consume-result (make-peer :client defs main args) connector))
+  (let [peer (make-peer :client defs main args)]
+    (m/reduce (comp reduced {}) nil
+      (m/ap
+        (m/amb= (m/? (connector (remote-handler peer)))
+          (m/? (m/reduce (constantly nil) (peer-root-frame peer))))))))
 
 (defn server "
 Allocates a new server peer and returns its remote handler.
 " [defs main & args]
-  (remote-handler (peer-remote (make-peer :server defs main args))))
+  (remote-handler (make-peer :server defs main args)))

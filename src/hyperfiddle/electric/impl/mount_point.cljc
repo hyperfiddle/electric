@@ -306,12 +306,13 @@ Mounting a block generates a grow for each active item having this block's frame
        (catch #?(:clj Throwable :cljs :default) _)))
 
 (defn call-spawn [^objects call]
-  (let [^objects reader (aget call call-slot-reader)]
+  (let [^objects reader (aget call call-slot-reader)
+        ^objects state (aget reader reader-slot-state)]
     (aset reader reader-slot-alive
       (inc (aget reader reader-slot-alive)))
     (aset call call-slot-process
       ((if-some [slot (call-slot call)]
-         (r/flow slot)
+         (r/incseq (r/peer-root-frame (aget state slot-peer)) slot)
          (f/flow (r/invariant (aget ^objects (aget call call-slot-children) block-slot-frame))))
        #(let [^objects reader (aget call call-slot-reader)
               ^objects state (aget reader reader-slot-state)
@@ -582,14 +583,15 @@ Mounting a block generates a grow for each active item having this block's frame
       (if (< i (r/frame-call-count frame))
         (if (nil? (r/frame-call frame i))
           (if-some [^objects item (block-child block i)]
-            (let [size-before (- (:degree d) (:shrink d))]
-              (d/combine d
-                {:grow        1
-                 :degree      (inc size-before)
-                 :shrink      0
-                 :permutation (p/rotation size-before o)
-                 :change      {o (aget item item-slot-state)}
-                 :freeze      #{}}))
+            (recur (inc i) (inc o)
+              (let [size-before (- (:degree d) (:shrink d))]
+                (d/combine d
+                  {:grow        1
+                   :degree      (inc size-before)
+                   :shrink      0
+                   :permutation (p/rotation size-before o)
+                   :change      {o (aget item item-slot-state)}
+                   :freeze      #{}})))
             (recur (inc i) o d))
           (if-some [^objects call (block-child block i)]
             (let [^objects buffer (aget call call-slot-buffer)]

@@ -104,7 +104,7 @@
 (deftest cousin-tags-insert-after-read
   (let [q (queue)
         _ ((m/reduce (constantly nil)
-             (r/peer-result
+             (r/peer-root-frame
                (r/make-peer :client
                  {:root (fn ([] {0 (r/ctor :root 0)})
                           ([idx]
