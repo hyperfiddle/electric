@@ -2309,3 +2309,20 @@
     % := ["clojure.basis" "file.encoding" "java.class.path"]
     (reset! !xs ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"])
     % := ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"]))
+
+(tests
+
+  (with ((l/local {}
+           (let [mp (e/mount-point)]
+             (tap (e/as-vec (e/join mp)))
+             (e/server
+               (e/$
+                 (e/fn []
+                   (e/client
+                     [(e/join (mount-at mp (e/tag) :foo))
+                      (e/join (mount-at mp (e/tag) :bar))]))))))
+         tap tap)
+    % := []
+    % := [:foo :bar])
+
+  )

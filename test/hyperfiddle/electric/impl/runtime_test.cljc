@@ -19,13 +19,13 @@
      ::Main nil))
 
 (tests
-  (on-diff! rcf/tap (r/peer-result (peer :client "hello electric")))
+  (on-diff! rcf/tap (r/peer-root-frame (peer :client "hello electric")))
   % := {:grow 1, :degree 1, :shrink 0, :permutation {}, :change {0 "hello electric"}, :freeze #{0}}
   % := nil)
 
 (tests
   (def !x (atom :foo))
-  (on-diff! rcf/tap (r/peer-result (peer :client (e/watch !x))))
+  (on-diff! rcf/tap (r/peer-root-frame (peer :client (e/watch !x))))
   % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 :foo}, :freeze #{}}
   (reset! !x :bar)
   % := {:degree 1, :permutation {}, :grow 0, :shrink 0, :change {0 :bar}, :freeze #{}})
@@ -33,7 +33,7 @@
 (tests
   (def !x (atom false))
   (on-diff! rcf/tap
-    (r/peer-result
+    (r/peer-root-frame
       (peer :client
         (if (e/watch !x) "foo" "bar"))))
   % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 "bar"}, :freeze #{0}}
@@ -43,7 +43,7 @@
 (tests
   (def !bar (atom :bar))
   (on-diff! rcf/tap
-    (r/peer-result
+    (r/peer-root-frame
       (peer :client
         (e/amb :foo (e/watch !bar) :baz))))
   % := {:degree 3, :permutation {}, :grow 3, :shrink 0, :change {0 :foo, 1 :bar, 2 :baz}, :freeze #{0 2}}
@@ -53,7 +53,7 @@
 (tests
   (def !xs (atom [0 1 2]))
   (on-diff! rcf/tap
-    (r/peer-result
+    (r/peer-root-frame
       (peer :client
         (e/diff-by identity (e/watch !xs)))))
   % := {:degree 3, :permutation {}, :grow 3, :shrink 0, :change {0 0, 1 1, 2 2}, :freeze #{}}
@@ -63,7 +63,7 @@
 (tests
   (def !xs (atom [0 1 2]))
   (on-diff! rcf/tap
-    (r/peer-result
+    (r/peer-root-frame
       (peer :client
         (e/cursor [x (e/diff-by identity (e/watch !xs))] (+ x x)))))
   % := {:degree 3, :permutation {}, :grow 3, :shrink 0, :change {0 0, 1 2, 2 4}, :freeze #{}}
@@ -75,7 +75,7 @@
   (def !fizz (atom "Fizz"))
   (def !buzz (atom "Buzz"))
   (on-diff! rcf/tap
-    (r/peer-result
+    (r/peer-root-frame
       (peer :client
         (e/client
           (let [fizz (e/watch !fizz)                ; i/fixed + m/watch + e/join
@@ -102,7 +102,7 @@
     (atom [{:kind "cow" :personality "stoic"}
            {:kind "horse" :personality "skittish"}]))
   (on-diff! rcf/tap
-    (r/peer-result
+    (r/peer-root-frame
       (peer :client
         (let [ks #{:kind}]
           (e/cursor [animal (e/diff-by identity (e/watch !animals))
@@ -123,7 +123,7 @@
   (def !x (atom "hello"))
   (def !y (atom "electric"))
   (on-diff! rcf/tap
-    (r/peer-result
+    (r/peer-root-frame
       (peer :client
         (e/as-vec (e/amb (e/watch !x) (e/watch !y))))))
   % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 ["hello" "electric"]}, :freeze #{}}
@@ -133,7 +133,7 @@
 (tests
   (def !n (atom 3))
   (on-diff! rcf/tap
-    (r/peer-result
+    (r/peer-root-frame
       (peer :client
         (e/for-by identity [x (range (e/watch !n))
                             y (range x)]
@@ -145,7 +145,7 @@
 (tests
   (def !x (atom 0))
   (on-diff! rcf/tap
-    (r/peer-result
+    (r/peer-root-frame
       (peer :client
         (e/drain (rcf/tap (e/watch !x))))))
   % := 0
@@ -156,7 +156,7 @@
 (tests
   (def !x (atom 0))
   (on-diff! rcf/tap
-    (r/peer-result
+    (r/peer-root-frame
       (peer :client
         (let [Foo (e/fn [x] (e/fn [] x))
               x (e/watch !x)]
@@ -167,16 +167,16 @@
 (tests
   (def client (peer :client (rcf/tap (e/server :foo))))
   (def server (peer :server (rcf/tap (e/server :foo))))
-  (def r-ps ((m/reduce (constantly nil) (r/peer-result client)) {} {}))
+  (def r-ps ((m/reduce (constantly nil) (r/peer-root-frame client)) {} {}))
   (def c-ps
-    (((r/remote-handler (r/peer-remote client))
+    (((r/remote-handler client)
       (fn [!]
         (def s->c !)
         #(prn :dispose)))
      #(rcf/tap :step-c) #(prn :done-c)))
   % := :step-c
   (def s-ps
-    (((r/remote-handler (r/peer-remote server))
+    (((r/remote-handler server)
       (fn [!]
         (def c->s !)
         #(prn :dispose)))
@@ -192,16 +192,16 @@
 (tests
   (def client (peer :client (rcf/tap (e/client (e/$ (e/server (e/fn [] :foo)))))))
   (def server (peer :server (rcf/tap (e/client (e/$ (e/server (e/fn [] :foo)))))))
-  (def r-ps ((m/reduce (constantly nil) (r/peer-result client)) {} {}))
+  (def r-ps ((m/reduce (constantly nil) (r/peer-root-frame client)) {} {}))
   (def c-ps
-    (((r/remote-handler (r/peer-remote client))
+    (((r/remote-handler client)
        (fn [!]
          (def s->c !)
          #(prn :dispose)))
      #(rcf/tap :step-c) #(prn :done-c)))
   % := :step-c
   (def s-ps
-    (((r/remote-handler (r/peer-remote server))
+    (((r/remote-handler server)
        (fn [!]
          (def c->s !)
          #(prn :dispose)))
@@ -217,16 +217,16 @@
 (tests
   (def client (peer :client (rcf/tap (e/client (e/$ (e/server (let [foo :foo] (e/fn [] foo))))))))
   (def server (peer :server (rcf/tap (e/client (e/$ (e/server (let [foo :foo] (e/fn [] foo))))))))
-  (def r-ps ((m/reduce (constantly nil) (r/peer-result client)) {} {}))
+  (def r-ps ((m/reduce (constantly nil) (r/peer-root-frame client)) {} {}))
   (def c-ps
-    (((r/remote-handler (r/peer-remote client))
+    (((r/remote-handler client)
       (fn [!]
         (def s->c !)
         #(prn :dispose)))
      #(rcf/tap :step-c) #(prn :done-c)))
   % := :step-c
   (def s-ps
-    (((r/remote-handler (r/peer-remote server))
+    (((r/remote-handler server)
       (fn [!]
         (def c->s !)
         #(prn :dispose)))
@@ -246,16 +246,16 @@
 (tests
   (def client (peer :client (rcf/tap (e/join (e/pure (let [x (e/server 2)] x))))))
   (def server (peer :server (rcf/tap (e/join (e/pure (let [x (e/server 2)] x))))))
-  (def r-ps ((m/reduce (constantly nil) (r/peer-result client)) {} {}))
+  (def r-ps ((m/reduce (constantly nil) (r/peer-root-frame client)) {} {}))
   (def c-ps
-    (((r/remote-handler (r/peer-remote client))
+    (((r/remote-handler client)
        (fn [!]
          (def s->c !)
          #(prn :dispose)))
      #(rcf/tap :step-c) #(rcf/tap :done-c)))
   % := :step-c
   (def s-ps
-    (((r/remote-handler (r/peer-remote server))
+    (((r/remote-handler server)
        (fn [!]
          (def c->s !)
          #(prn :dispose)))
