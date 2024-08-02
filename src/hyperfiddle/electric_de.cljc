@@ -281,6 +281,12 @@ A mount point can be :
     `(r/client (hyperfiddle.electric-client-de/connector hyperfiddle.electric-client-de/*ws-server-url*)
        (r/->defs {::Main ~source}) ::Main)))
 
+(defmacro boot-single [opts Main & args]
+  (let [env (merge (lang/normalize-env &env) web-config opts)
+        source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
+    `(r/client (constantly m/never)
+       (r/->defs {::Main ~source}) ::Main)))
+
 ;; (cc/defn -snapshot [flow] (->> flow (m/eduction (contrib.data/take-upto (complement #{r/pending})))))
 (cc/defn -snapshot [flow] (->> flow (m/eduction (contrib.data/take-upto (comp pos-int? :degree)))))
 
