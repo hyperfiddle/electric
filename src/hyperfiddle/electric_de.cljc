@@ -436,3 +436,6 @@ inhibiting all further reactive updates."
 (hyperfiddle.electric-de/defn Offload
   ([f!]          ($ Offload f! m/blk))
   ([f! executor] (server (let [mbx (m/mbx)] (mbx f!) (join (-offload mbx executor))))))
+
+
+(def http-request "Bound to the HTTP request of the page in which the current Electric program is running." nil)
