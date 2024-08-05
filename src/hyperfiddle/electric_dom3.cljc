@@ -74,13 +74,8 @@
 #?(:cljs
    (let [key (js/Symbol.for "hyperfiddle.dom3.mount-point")]
      (defn get-mount-point [node] (aget node key))
-
-     (defn mount-point> [node mpoint]
-       ;; should this be wrapped into m/signal, so two With calls can run onto the same node?
-       ;; What would happen to chilren order with two writers on a shared mount-point?
-       (m/observe (fn [!]
-                    (! (aset node key mpoint))
-                    #(js-delete node key))))))
+     (defn set-mount-point [node mp] (aset node key mp))
+     (defn remove-mount-point [node] (js-delete node key))))
 
 ;; possibly improved algorith for DOM node reordering
 ;; untested, current v3 bugs prevent from trying
@@ -351,35 +346,29 @@
   element)
 
 #?(:cljs
-   (defn create-element [ns tag]
-     (if ns
-       (.createElementNS js/document ns (name tag))
-       (.createElement js/document (name tag)))))
-
-(e/defn CreateElement
-  ([node-type] ($ CreateElement nil node-type))
-  ([ns node-type]
-   (e/client
-     (let [elem (create-element ns node-type)
-           mp   (e/input (mount-point> elem (e/mount-point)))
-           tag  (e/tag)]
-       (e/input (attach! node tag elem))
-       (e/input (m/reductions mount-items elem mp))
-       ({} mp elem)))))
-
-(defn keepalive [node] (m/observe (fn [!] (! node) #())))
+   (defn create-element [ns tag mp]
+     (doto (if ns
+             (.createElementNS js/document ns (name tag))
+             (.createElement js/document (name tag)))
+       (set-mount-point mp))))
 
 (e/defn With
   "Run `Body` in provided DOM `element`, attaching and managing children inside it.
   One would use `With` instead of `WithElement` to mount an Electric DOM UI inside
   an existing DOM Element, typically libraries integration."
-  [element Body] (e/client (binding [node element] (e/input (keepalive node)) ($ Body))))
+  [element Body] (e/client (binding [node element] ($ Body))))
 
 (e/defn WithElement
   "Mount a new DOM Element of type `tag` in the current `node` and run `Body` in
   the context of the new Element."
   ([tag Body] ($ WithElement nil tag Body))
-  ([ns tag Body] (e/client ($ With ($ CreateElement ns tag) Body))))
+  ([ns tag Body]
+   (e/client
+     (let [mp   (e/mount-point)
+           elem (create-element ns tag mp)]
+       (e/input (attach! node (e/tag) elem))
+       (e/input (m/reductions mount-items elem mp))
+       (binding [node elem] ($ Body))))))
 
 ;; DONE what should `element*` return?
 ;; - nil :: no because we want UI to produce values
