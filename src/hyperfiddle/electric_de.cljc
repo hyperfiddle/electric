@@ -30,8 +30,7 @@
 (defmacro sited-ctor [expr] `(::lang/ctor (::lang/site ~(::lang/current &env) ~expr)))
 (defmacro $ [F & args] `(check-electric $ (lang/$ ~F ~@args)))
 
-(defmacro frame []
-  `(::lang/pure (::lang/frame)))
+(defmacro frame [] `(::lang/frame))
 
 (defmacro pure "
 Syntax :

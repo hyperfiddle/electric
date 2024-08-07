@@ -110,14 +110,11 @@
         (fn [~'frame] (r/pure nil)))])
 
   (match (l/test-compile ::Main (e/pure (e/server 2)))
-    `[(r/cdef 0 [nil :server nil] [] nil
+    `[(r/cdef 0 [:server nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure ~'frame))
-          (r/define-node ~'frame 1 (r/pure 2))
-          (r/define-node ~'frame 2 (r/pure (r/node ~'frame 1)))
-          (r/ap (r/pure r/incseq)
-            (r/node ~'frame 0)
-            (r/node ~'frame 2))))])
+          (r/define-node ~'frame 0 (r/pure 2))
+          (r/define-node ~'frame 1 (r/node ~'frame 0))
+          (r/pure (r/incseq ~'frame (r/node ~'frame 1)))))])
 
   (match (l/test-compile ::Main (let [x (e/server (identity 1))] (inc x)))
     `[(r/cdef 0 [:server] [] nil
@@ -188,8 +185,8 @@
   (match (l/test-compile ::Main (::lang/pure :foo))
     `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure (r/pure :foo)))
-          (r/node ~'frame 0)))]))
+          (r/define-node ~'frame 0 (r/pure :foo))
+          (r/pure (r/node ~'frame 0))))]))
 
 (tests "test-ctor"
   (match (l/test-compile ::Main (::lang/ctor :foo))
@@ -457,17 +454,15 @@
   (match (l/test-compile ::Main
            (binding [inc dec, dec inc]
              (inc (dec 0))))
-    `[(r/cdef 0 [nil nil nil nil] [nil] nil
+    `[(r/cdef 0 [nil nil] [nil] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/lookup ~'frame :clojure.core/dec (r/pure clojure.core/dec)))
           (r/define-node ~'frame 1 (r/lookup ~'frame :clojure.core/inc (r/pure clojure.core/inc)))
-          (r/define-node ~'frame 2 (r/pure (r/node ~'frame 0)))
-          (r/define-node ~'frame 3 (r/pure (r/node ~'frame 1)))
           (r/define-call ~'frame 0
-            (r/ap (r/pure r/bind)
-              (r/pure (r/ctor ::Main 1))
-              (r/pure :clojure.core/inc) (r/node ~'frame 2)
-              (r/pure :clojure.core/dec) (r/node ~'frame 3)))
+            (r/ap (r/pure (fn* []
+                            (r/bind (r/ctor ::Main 1)
+                              :clojure.core/inc (r/node ~'frame 0)
+                              :clojure.core/dec (r/node ~'frame 1))))))
           (r/join (r/call ~'frame 0))))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
@@ -566,35 +561,31 @@
   (match (l/test-compile ::Main (let [x (binding [::foo 1] (::lang/lookup ::foo))]
                                   (prn x)
                                   (prn x)))
-    `[(r/cdef 0 [nil nil nil] [nil nil] nil
+    `[(r/cdef 0 [nil nil] [nil nil] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 1))
-          (r/define-node ~'frame 1 (r/pure (r/node ~'frame 0)))
           (r/define-call ~'frame 0
-            (r/ap (r/pure r/bind)
-              (r/pure (r/ctor ::Main 2))
-              (r/pure ::foo) (r/node ~'frame 1)))
-          (r/define-node ~'frame 2 (r/join (r/call ~'frame 0)))
+            (r/ap
+              (r/pure (fn* []
+                        (r/bind (r/ctor ::Main 2)
+                          ::foo (r/node ~'frame 0))))))
+          (r/define-node ~'frame 1 (r/join (r/call ~'frame 0)))
           (r/define-call ~'frame 1
             (r/join
               (r/ap (r/lookup ~'frame ::i/fixed (r/pure i/fixed))
                 (r/ap (r/lookup ~'frame ::r/invariant (r/pure r/invariant))
-                  (r/pure (r/ctor ::Main 1 (r/node ~'frame 2))))
+                  (r/pure (r/ctor ::Main 1 (r/node ~'frame 1))))
                 (r/ap (r/lookup ~'frame ::r/invariant (r/pure r/invariant))
-                  (r/pure (r/ctor ::Main 3 (r/node ~'frame 2)))))))
+                  (r/pure (r/ctor ::Main 3 (r/node ~'frame 1)))))))
           (r/join (r/call ~'frame 1))))
-      (r/cdef 1 [nil nil] [] nil
+      (r/cdef 1 [nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure ~'frame))
-          (r/define-node ~'frame 1
-            (r/pure
-              (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
-                (r/free ~'frame 0))))
+          (r/define-node ~'frame 0
+            (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
+              (r/free ~'frame 0)))
           (r/join
             (r/ap (r/lookup ~'frame ::r/drain (r/pure r/drain))
-              (r/ap (r/pure r/incseq)
-                (r/node ~'frame 0)
-                (r/node ~'frame 1))))))
+              (r/pure (r/incseq ~'frame (r/node ~'frame 0)))))))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
           (r/lookup ~'frame ::foo)))
