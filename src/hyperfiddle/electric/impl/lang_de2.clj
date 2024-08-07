@@ -529,7 +529,7 @@
         (let*) (let [[_ bs bform] form]
                  (recur (?meta form
                           (reduce (fn [ac [k v]]
-                                    (let [g (gensym k)]
+                                    (let [g (with-meta (gensym k) (meta k))]
                                       `(::mklocal ~g (::bindlocal ~g ~v (::mklocal ~k (::bindlocal ~k ~g ~ac))))))
                             bform (->> bs (partition 2) reverse)))
                    pe env ts))
@@ -632,7 +632,7 @@
         (::tag) (let [e (->id)] (recur (second form) e env
                                   (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid), ::call-type ::tag})
                                     (?add-source-map e form))))
-        (::pure) (let [pure (gensym "HF_PURE__")]
+        (::pure) (let [pure (with-meta (gensym "pure") {::dont-inline true})]
                    (recur `(let* [~pure ~(second form)] (::pure-gen ~pure)) pe env ts))
         (::pure-gen) (let [e (->id)]
                        (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::pure})
@@ -1017,7 +1017,7 @@
                                                   (recur (cond-> ac (= ::ctor (::type nd)) (conj e)) (::parent nd)))))
                                     ctors-uid (mapv #(e->uid ts %) ctors-e)
                                     localv-e (->localv-e ts mklocal-uid)
-                                    ts (cond-> ts (str/starts-with? (name (::k mklocal-nd)) "HF_PURE__")
+                                    ts (cond-> ts (::dont-inline (meta (::k mklocal-nd)))
                                                (ensure-node mklocal-uid))
                                     ts (if-some [call-e (in-a-call? ts e mklocal-e)]
                                          (-> ts (ts/upd mklocal-e ::in-call #(conj (or % #{}) (e->uid ts call-e)))
