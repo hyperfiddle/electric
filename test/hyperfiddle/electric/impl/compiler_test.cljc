@@ -110,11 +110,10 @@
         (fn [~'frame] (r/pure nil)))])
 
   (match (l/test-compile ::Main (e/pure (e/server 2)))
-    `[(r/cdef 0 [:server nil] [] nil
+    `[(r/cdef 0 [:server] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 2))
-          (r/define-node ~'frame 1 (r/node ~'frame 0))
-          (r/pure (r/incseq ~'frame (r/node ~'frame 1)))))])
+          (r/pure (r/incseq ~'frame (r/node ~'frame 0)))))])
 
   (match (l/test-compile ::Main (let [x (e/server (identity 1))] (inc x)))
     `[(r/cdef 0 [:server] [] nil
