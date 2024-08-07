@@ -182,9 +182,10 @@
 
 (tests "test-pure"
   (match (l/test-compile ::Main (::lang/site :client (::lang/pure :foo)))
-    `[(r/cdef 0 [] [] :client
+    `[(r/cdef 0 [:client] [] :client
         (fn [~'frame]
-          (r/pure (r/pure :foo))))]))
+          (r/define-node ~'frame 0 (r/pure :foo))
+          (r/pure (r/node ~'frame 0))))]))
 
 (tests "test-ctor"
   (match (l/test-compile ::Main (::lang/ctor :foo))
