@@ -640,7 +640,7 @@
         (::join) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::join})
                                                               (?add-source-map e form))))
         (::site) (let [[_ site bform] form, current (::current env), env2 (assoc env ::current site)]
-                   (if (or (nil? site) (= site current))
+                   (if (or (nil? site) (= site current) (= ::bindlocal (::type (ts/->node ts pe))))
                      (let [e (->id)]
                        (recur bform e env2
                          (-> (ts/add ts {:db/id e, ::parent pe, ::type ::site, ::site site})
