@@ -632,8 +632,11 @@
         (::tag) (let [e (->id)] (recur (second form) e env
                                   (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid), ::call-type ::tag})
                                     (?add-source-map e form))))
-        (::pure) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::pure})
-                                                              (?add-source-map e form))))
+        (::pure) (let [pure (gensym "LANGPURE")]
+                   (recur `(let* [~pure ~(cons ::pure-gen (next form))] ~pure) pe env ts))
+        (::pure-gen) (let [e (->id)]
+                       (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::pure})
+                                                    (?add-source-map e form))))
         (::join) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::join})
                                                               (?add-source-map e form))))
         (::site) (let [[_ site bform] form, current (::current env), env2 (assoc env ::current site)]
@@ -1012,6 +1015,8 @@
                                                   (recur (cond-> ac (= ::ctor (::type nd)) (conj e)) (::parent nd)))))
                                     ctors-uid (mapv #(e->uid ts %) ctors-e)
                                     localv-e (->localv-e ts mklocal-uid)
+                                    ts (cond-> ts (str/starts-with? (name (::k mklocal-nd)) "LANGPURE")
+                                               (ensure-node mklocal-uid))
                                     ts (if-some [call-e (in-a-call? ts e mklocal-e)]
                                          (-> ts (ts/upd mklocal-e ::in-call #(conj (or % #{}) (e->uid ts call-e)))
                                            (ensure-node mklocal-uid))
