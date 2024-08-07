@@ -36,7 +36,10 @@
   ;; since shadow-cljs compiles in parallel we need to serialize the requires
   (when-not (get (loaded-libs) sym)
     (try (#'clojure.core/serialized-require sym) ; try bc it can be cljs file
-         (catch java.io.FileNotFoundException _))))
+         (catch java.io.FileNotFoundException _)
+         (catch Throwable t ; HACK temporary fix. Electric tries to load `.cljc` files assuming it contains clojure code, but fails for cljc files only targeting multip cljs targets (e.g. nextjournal.clojure-mode.util targets :squint + :cljs)
+                            ; Ignoring the failed require seems harmless. Log to keep an eye on it and detect more failing cases.
+           (print `safe-require "Electric failed to load ns for" sym ":" (ex-message t))))))
 
 (defn find-ns-var [^clojure.lang.Namespace nso sym] (.findInternedVar nso sym))
 (declare find-var find-macro-var)
