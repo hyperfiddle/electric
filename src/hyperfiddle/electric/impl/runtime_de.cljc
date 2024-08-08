@@ -658,7 +658,8 @@ T T T -> (EXPR T)
         refcount (dec (aget input input-slot-refcount))]
     (aset input input-slot-refcount refcount)
     (when (zero? refcount)
-      (aset remote remote-slot-inputs (dissoc inputs slot))))
+      (when (zero? (aget input input-slot-requested))
+        (aset remote remote-slot-inputs (dissoc inputs slot)))))
   remote)
 
 (defn channel-output-sub [^objects channel ^objects output]
@@ -1059,8 +1060,7 @@ T T T -> (EXPR T)
         requested (aget input input-slot-requested)]
     (aset input input-slot-requested (inc requested))
     (when (zero? requested)
-      (when (zero? (aget input input-slot-refcount))
-        (remote-toggle-event remote slot)))
+      (remote-toggle-event remote slot))
     (port-deps local-port-tap remote port)
     (exit peer busy)))
 
@@ -1073,10 +1073,10 @@ T T T -> (EXPR T)
         requested (dec (aget input input-slot-requested))]
     (aset input input-slot-requested requested)
     (when (zero? requested)
+      (remote-toggle-event remote slot)
       (when (zero? (aget input input-slot-refcount))
         (aset remote remote-slot-inputs
-          (dissoc (aget remote remote-slot-inputs) slot))
-        (remote-toggle-event remote slot)))
+          (dissoc (aget remote remote-slot-inputs) slot))))
     (port-deps local-port-untap remote port)
     (exit peer busy)))
 
