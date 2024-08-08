@@ -553,6 +553,15 @@ input's value, use `EventListener`."
 
 (e/defn Focused? ([] ($ Focused? node)) ([node] (e/input (focused?> node))))
 
+#?(:cljs
+   (defn mouse-down?> [node]
+     (->> (mx/mix (m/observe (fn [!] (with-listener node "mousedown" (fn [_] (! true)))))
+            (m/observe (fn [!] (with-listener node "mouseup" (fn [_] (! false))))))
+       (m/reductions {} false)
+       (m/relieve {}))))
+
+(e/defn MouseDown? ([] ($ MouseDown? node)) ([node] (e/input (mouse-down?> node))))
+
 ;;;;;;;;;;;
 ;; Sugar ;;
 ;;;;;;;;;;;
