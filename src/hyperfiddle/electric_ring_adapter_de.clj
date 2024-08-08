@@ -108,7 +108,7 @@
                         (ack)))))
               (ack [] (when (zero? (.decrementAndGet state)) (ready)))
               (crash [e]
-                (aset slots slot-done e)
+                (aset slots slot-error e)
                 (cancel) (ack))
               (cancel [] ((aget slots slot-ps)))]
         (aset slots slot-done false)
