@@ -2326,3 +2326,17 @@
     % := [:foo :bar])
 
   )
+
+(tests
+  (def !xs (atom [0 1]))
+  (with ((l/local {}
+           (let [mp (e/mount-point)
+                 F (e/fn []
+                     (e/client
+                       (e/join (mount-at mp (e/tag) nil))))]
+             (e/join mp)
+             (e/server
+               (e/cursor [_ (e/diff-by identity (e/watch !xs))]
+                 ($ F)))))
+         tap tap)
+    (reset! !xs [1 2])))
