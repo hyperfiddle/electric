@@ -172,7 +172,7 @@ T T T -> (EXPR T)
   (deps [_ rf r site]
     (reduce (fn [r x] (deps x rf r site)) r inputs))
   (flow [_]
-    (apply i/latest-product invoke-print-throws (map flow inputs))))
+    (apply i/latest-product invoke (map flow inputs))))
 
 (defn ap "
 (EXPR (-> T)) -> (EXPR T)
