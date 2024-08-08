@@ -260,6 +260,19 @@ A mount point can be :
 
 (defmacro apply [& args] `($ Apply ~@args))
 
+(defmacro partial
+  "Like `cc/partial` for reactive functions. Requires the target function
+  arity (`argc`) until reactive function supports variadic arguments.
+
+  e.g. (new (partial 2 (e/fn [a b] [a b]) :a) :b) ;; => [:a :b]"
+  [argc F & args]
+  (if (= 0 argc)
+    F
+    (let [rest-args (map #(symbol (str "arg_" %)) (range (- argc (count args))))]
+      `(let [F# ~F]
+         (hyperfiddle.electric-de/fn ~@(when (symbol? F) [F]) [~@rest-args]
+           ($ F# ~@args ~@rest-args))))))
+
 (cc/defn on-unmount* [f] (m/observe (cc/fn [!] (! nil) f)))
 
 (defmacro on-unmount "Run clojure(script) thunk `f` during unmount.
