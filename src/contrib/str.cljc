@@ -60,21 +60,31 @@
   (any-matches? ["abc"] "d") := nil)
 
 
-(defn empty? [s] (or (and (string? s) (zero? (count s)))
-                     (nil? s)))
+(defn ^{:deprecated "Use clojure.core/empty?"} empty? [s]
+  (or (and (string? s) (zero? (count s)))
+    (nil? s)))
 
 (tests
-  (empty? "") := true
-  (empty? nil) := true
-  (empty? " ") := false)
+  (empty? "")               := true
+  (clojure.core/empty? "")  := true
+  (empty? nil)              := true
+  (clojure.core/empty? nil) := true
+  (empty? " ")              := false
+  (clojure.core/empty? " ") := false
+  )
 
-(defn empty->nil [s] (if (empty? s) nil s))
+(defn ^{:deprecated "Use clojure.core/not-empty"} empty->nil [s] (if (empty? s) nil s))
 
 (tests
-  (empty->nil nil) := nil
-  (empty->nil "") := nil
-  (empty->nil " ") := " "
-  (empty->nil "a") := "a")
+  (empty->nil nil)             := nil
+  (clojure.core/not-empty nil) := nil
+  (empty->nil "")              := nil
+  (clojure.core/not-empty "")  := nil
+  (empty->nil " ")             := " "
+  (clojure.core/not-empty " ") := " "
+  (empty->nil "a")             := "a"
+  (clojure.core/not-empty "a") := "a"
+  )
 
 (defn blank->nil "Nullify empty strings, identity on all other values." [s]
   (if-not (string? s)
