@@ -60,7 +60,7 @@
   (any-matches? ["abc"] "d") := nil)
 
 
-(defn ^{:deprecated "Use clojure.core/empty?"} empty? [s]
+(defn ^:deprecated empty? "Deprecated. Use clojure.core/empty?" [s]
   (or (and (string? s) (zero? (count s)))
     (nil? s)))
 
@@ -73,7 +73,7 @@
   (clojure.core/empty? " ") := false
   )
 
-(defn ^{:deprecated "Use clojure.core/not-empty"} empty->nil [s] (if (empty? s) nil s))
+(defn ^:deprecated empty->nil "Deprecated. Use clojure.core/not-empty" [s] (if (clojure.core/empty? s) nil s))
 
 (tests
   (empty->nil nil)             := nil
