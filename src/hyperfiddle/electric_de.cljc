@@ -260,18 +260,41 @@ A mount point can be :
 
 (defmacro apply [& args] `($ Apply ~@args))
 
-(defmacro partial
-  "Like `cc/partial` for reactive functions. Requires the target function
-  arity (`argc`) until reactive function supports variadic arguments.
-
-  e.g. (new (partial 2 (e/fn [a b] [a b]) :a) :b) ;; => [:a :b]"
-  [argc F & args]
-  (if (= 0 argc)
-    F
-    (let [rest-args (map #(symbol (str "arg_" %)) (range (- argc (count args))))]
-      `(let [F# ~F]
-         (hyperfiddle.electric-de/fn ~@(when (symbol? F) [F]) [~@rest-args]
-           ($ F# ~@args ~@rest-args))))))
+(hyperfiddle.electric-de/defn ; ^:hyperfiddle.electric.impl.lang-de2/print-clj-source
+  Partial
+  "Takes an Electric function F and fewer than the normal arguments to F, and
+  returns a e/fn that takes a variable number of additional args. When
+  called, the returned function calls F with args + additional args."
+  ;; Impl is a mechanical 1 to 1 transaltion of clojure partial.
+  ;; generated code is quite large but redundant, so it gzip to 903 bytes.
+  ;; we could prune this impl to reduce code size (no clear benefit)
+  ;; We keep this impl as a proof that our lambda abstraction is correct
+  ;; We might optimise it later if there are perf issues.
+  ([F] F)
+  ([F arg1]
+   (hyperfiddle.electric-de/fn
+     ([] ($ F arg1))
+     ([x] ($ F arg1 x))
+     ([x y] ($ F arg1 x y))
+     ([x y z] ($ F arg1 x y z))
+     ([x y z & args] (hyperfiddle.electric-de/apply F arg1 x y z args))))
+  ([F arg1 arg2]
+   (hyperfiddle.electric-de/fn
+     ([] ($ F arg1 arg2))
+     ([x] ($ F arg1 arg2 x))
+     ([x y] ($ F arg1 arg2 x y))
+     ([x y z] ($ F arg1 arg2 x y z))
+     ([x y z & args] (hyperfiddle.electric-de/apply F arg1 arg2 x y z args))))
+  ([F arg1 arg2 arg3]
+   (hyperfiddle.electric-de/fn
+     ([] ($ F arg1 arg2 arg3))
+     ([x] ($ F arg1 arg2 arg3 x))
+     ([x y] ($ F arg1 arg2 arg3 x y))
+     ([x y z] ($ F arg1 arg2 arg3 x y z))
+     ([x y z & args] (hyperfiddle.electric-de/apply F arg1 arg2 arg3 x y z args))))
+  ([F arg1 arg2 arg3 & more]
+   (hyperfiddle.electric-de/fn [& args]
+     (hyperfiddle.electric-de/apply F arg1 arg2 arg3 (concat more args)))))
 
 (cc/defn on-unmount* [f] (m/observe (cc/fn [!] (! nil) f)))
 
