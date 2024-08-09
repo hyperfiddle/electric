@@ -740,7 +740,7 @@ T T T -> (EXPR T)
               (when (identical? s (aget s input-sub-slot-ready))
                 (aset s input-sub-slot-ready (aget peer peer-slot-sub-ready))
                 (aset peer peer-slot-sub-ready s))))
-        (let [n (aget sub input-sub-slot-next)]
+        (let [n (aget s input-sub-slot-next)]
           (when-not (identical? n sub) (recur n)))))))
 
 (defn remote-change [^objects remote ^Slot slot diff]
