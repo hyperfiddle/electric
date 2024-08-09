@@ -116,7 +116,7 @@ can be pending."
 
 #?(:cljs (defn ?read-line! [node e]
            (let [line (.-value node)]
-             (when (and (= "Enter" (.-key e)) (contrib.str/empty->nil line))
+             (when (and (= "Enter" (.-key e)) (not-empty line))
                (set! (.-value node) "") line))))
 
 (defmacro on-submit

@@ -104,7 +104,7 @@
       {:props {:placeholder "Type a message"}
        :on-keydown (e/fn [e]
                      (when (= "Enter" (.-key e))
-                       (when-some [v (contrib.str/empty->nil (-> e .-target .-value))]
+                       (when-some [v (not-empty (-> e .-target .-value))]
                          (dom/style {:background-color "yellow"})
                          (e/server (swap! !msgs #(cons {::username username ::msg v} (take 9 %))))
                          (set! (.-value dom/node) ""))))}))
