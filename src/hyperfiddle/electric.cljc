@@ -473,8 +473,8 @@ Quoting it directly is idiomatic as well."
                 ex (dbg/clean-jvm-stack-trace! (dbg/remove-async-stack-trace ex))
                 ex (dbg/add-async-frames! ex async-stack-trace)]
             (if-some [data (not-empty (dissoc (ex-data ex) ::type))]
-              (log/error ex "Uncaugh exception:" (ex-message ex) "\n" data)
-              (log/error ex "Uncaugh exception")))
+              (log/error ex "Uncaught exception:" (ex-message ex) "\n" data)
+              (log/error ex "Uncaught exception")))
      :cljs (js/console.error exception)))
 
 #?(:cljs

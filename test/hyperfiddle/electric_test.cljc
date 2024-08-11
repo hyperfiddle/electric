@@ -646,7 +646,7 @@
     (catch #?(:clj Exception, :cljs :default) _ ::outer))
   := ::outer)
 
-(tests "Reactor crashes on uncaugh exceptions"
+(tests "Reactor crashes on uncaught exceptions"
   (def !x (atom true))
   (with ((l/local (tap (assert (e/watch !x)))) tap tap)
     % := nil                            ; assert returns nil or throws
