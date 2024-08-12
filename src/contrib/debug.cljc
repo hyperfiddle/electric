@@ -59,3 +59,13 @@
                      (throw (second v))
                      v)))))))
 (defmacro instrument [nm & body] `(new (instrument* ~nm (hyperfiddle.electric/fn [] ~@body))))
+
+(defmacro js-measure [nm & body]
+  (if (:js-globals &env)
+    (let [st (str nm "-start"), fn (str nm "-end")]
+      `(let [_# (js/performance.mark ~st)
+             ret# (do ~@body)]
+         (js/performance.mark ~fn)
+         (js/performance.measure ~nm ~st ~fn)
+         ret#))
+    `(do ~@body)))
