@@ -514,10 +514,10 @@ input's value, use `EventListener`."
 
 (e/defn On
   ([event-type]                    ($ On      event-type identity))
-  ([event-type f]                  ($ On      event-type f        {}))
-  ([event-type f opts]             ($ On      event-type f        opts nil))
-  ([event-type f opts init-v]      ($ On node event-type f        opts init-v))
-  ([node event-type f opts init-v] (e/client (e/input (m/reductions {} init-v (listen node event-type ((e/capture-fn) f) opts))))))
+  ([event-type f]                  ($ On      event-type f        nil))
+  ([event-type f init-v]           ($ On      event-type f        init-v {}))
+  ([event-type f init-v opts]      ($ On node event-type f        init-v opts))
+  ([node event-type f init-v opts] (e/client (e/input (m/reductions {} init-v (listen node event-type ((e/capture-fn) f) opts))))))
 
 (defn fork
   ([flow] (fork ##Inf flow))
