@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric-de
-  (:refer-clojure :exclude [fn defn apply letfn])
+  (:refer-clojure :exclude [fn defn apply letfn for])
   (:require [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.incseq :as i]
@@ -152,13 +152,13 @@ Samples and discards `expr` synchronously with changes. Returns nothing.
 (defmacro client [& body] `(check-electric client (::lang/site :client ~@body)))
 (defmacro server [& body] `(check-electric server (::lang/site :server ~@body)))
 
-(defmacro cursor "
+(defmacro for "
 Syntax :
 ```clojure
-(cursor [sym1 table1
-         sym2 table2
-         ,,,  ,,,
-         symN tableN]
+(for [sym1 table1
+      sym2 table2
+      ,,,  ,,,
+      symN tableN]
   & body)
 ```
 For each tuple in the cartesian product of `table1 table2 ,,, tableN`, calls body in an implicit `do` with symbols
@@ -172,6 +172,8 @@ For each tuple in the cartesian product of `table1 table2 ,,, tableN`, calls bod
           ~@(map (clojure.core/fn [expr]
                    `(r/effect (r/fixed-signals (join (i/items (pure ~expr))))))
               exprs))))))
+
+(defmacro cursor [bindings & body] `(for ~bindings ~@body)) ; compat
 
 (defmacro as-vec "
 Syntax :
