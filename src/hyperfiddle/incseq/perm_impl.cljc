@@ -1,8 +1,9 @@
 (ns hyperfiddle.incseq.perm-impl
   (:refer-clojure :exclude [cycle])
-  (:require [hyperfiddle.rcf :refer [tests]]))
+  (:require [hyperfiddle.rcf :refer [tests]]
+            [clojure.set]))
 
-(defn inverse [p] (into {} (map (juxt val key)) p))
+(def inverse clojure.set/map-invert)
 
 (defn cycle
   ([_] {})
