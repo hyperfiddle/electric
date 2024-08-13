@@ -363,12 +363,11 @@
   the context of the new Element."
   ([tag Body] ($ WithElement nil tag Body))
   ([ns tag Body]
-   (e/client
-     (let [mp   (e/mount-point)
-           elem (create-element ns tag mp)]
-       (e/input (attach! node (e/tag) elem))
-       (e/input (m/reductions mount-items elem mp))
-       (binding [node elem] ($ Body))))))
+   (let [mp   (e/client (e/mount-point))
+         elem (e/client (create-element ns tag mp))]
+     (e/client (e/input (attach! node (e/tag) elem)))
+     (e/client (e/input (m/reductions mount-items elem mp)))
+     (binding [node elem] ($ Body)))))
 
 ;; DONE what should `element*` return?
 ;; - nil :: no because we want UI to produce values
