@@ -56,33 +56,27 @@
     (range (unchecked-multiply-int j r) total-card
       (unchecked-multiply-int degree r))))
 
-(defn ensure-capacity [^objects freezers ^objects buffers item grow degree]
+(defn double-upto [n degree]
+  (loop [n n]
+    (let [n (bit-shift-left n 1)]
+      (if (< n degree)
+        (recur n) n))))
+
+(defn ensure-capacity [^objects freezers ^objects buffers item degree]
   (let [^ints freezer (aget freezers item)
-        n (bit-shift-left (alength freezer) 5)]
+        s (alength freezer)
+        n (bit-shift-left s 5)]
     (when (< n degree)
-      (loop [n n]
-        (let [n (bit-shift-left n 1)]
-          (if (< n degree)
-            (recur n)
-            (let [a (int-array (bit-shift-right n 5))
-                  s (-> (unchecked-subtract-int degree grow)
-                      (bit-shift-right 5)
-                      (unchecked-inc-int))]
-              #?(:clj (System/arraycopy freezer 0 a 0 s)
-                 :cljs (dotimes [i s] (aset a i (aget freezer i))))
-              (aset freezers item a)))))))
+      (a/acopy freezer 0
+        (aset freezers item
+          (int-array (bit-shift-right (double-upto n degree) 5)))
+        0 s)))
   (let [^objects buffer (aget buffers item)
         n (alength buffer)]
     (when (< n degree)
-      (loop [n n]
-        (let [n (bit-shift-left n 1)]
-          (if (< n degree)
-            (recur n)
-            (let [a (object-array n)
-                  s (unchecked-subtract-int degree grow)]
-              #?(:clj (System/arraycopy buffer 0 a 0 s)
-                 :cljs (dotimes [i s] (aset a i (aget buffer i))))
-              (aset buffers item a))))))))
+      (a/acopy buffer 0
+        (aset buffers item
+          (object-array (double-upto n degree))) 0 n))))
 
 (defn compute-permutation [l r grow degree shrink permutation]
   (let [lr (unchecked-multiply l r)
@@ -163,7 +157,7 @@
                  item-grow (:grow item-diff)
                  item-shrink (:shrink item-diff)
                  item-degree (:degree item-diff)]
-             (ensure-capacity freezers buffers item item-grow item-degree)
+             (ensure-capacity freezers buffers item item-degree)
              (let [^ints freezer (aget freezers item)
                    ^objects buffer (aget buffers item)
                    size-before (unchecked-subtract-int item-degree item-grow)
