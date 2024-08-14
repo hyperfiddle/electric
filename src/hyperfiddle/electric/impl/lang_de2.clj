@@ -412,7 +412,12 @@
 (defn analyze-cljs-symbol [sym env]
   (if-some [v (cljs-ana/find-var @!a sym (get-ns env))]
     {::type ::var, ::sym (untwin (::cljs-ana/name v))}
-    {::type ::static, ::sym (if (qualified-symbol? sym) (cljs-ana/ns-qualify @!a sym (get-ns env)) sym)}))
+    (if-some [quald (when (qualified-symbol? sym) (cljs-ana/ns-qualify @!a sym (get-ns env)))]
+      {::type ::static, ::sym quald}
+      (if (or (cljs-ana/referred? @!a sym (get-ns env)) (cljs-ana/js-call? @!a sym (get-ns env)))
+        {::type ::static, ::sym sym}
+        (when (cljs-ana/imported? @!a sym (get-ns env))
+          {::type ::static, ::sym sym})))))
 
 (defn resolve-symbol [sym env]
   (if-some [local (-> env :locals (get sym))]
@@ -424,11 +429,15 @@
       (if-some [nd (resolve-node sym env)]
         {::lang nil, ::type ::node, ::node nd}
         (case (get (::peers env) (::current env))
-          :clj (let [v (analyze-clj-symbol sym (get-ns env))] (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
-          :cljs (assoc (analyze-cljs-symbol sym env) ::lang :cljs)
+          :clj (let [v (analyze-clj-symbol sym (get-ns env))]
+                 (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
+          :cljs (let [v (analyze-cljs-symbol sym env)]
+                  (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :cljs)))
           #_unsited (case (->env-type env)
-                      :clj (assoc (or (analyze-clj-symbol sym (get-ns env)) {::type ::var, ::sym `r/cannot-resolve}) :lang :clj)
-                      :cljs (assoc (analyze-cljs-symbol sym env) :lang :cljs)))))))
+                      :clj (assoc (or (analyze-clj-symbol sym (get-ns env)) {::type ::var, ::sym `r/cannot-resolve})
+                             :lang :clj)
+                      :cljs (assoc (or (analyze-cljs-symbol sym env) {::type ::var, ::sym `r/cannot-resolve})
+                              :lang :cljs)))))))
 
 
 (defn ->bindlocal-value-e [ts e] (first (get-children-e ts e)))
