@@ -36,9 +36,9 @@
     % := 1))
 
 (tests "join missionary flow"
-  (def flow (m/ap 1))
-  (with ((l/single {} (tap (e/input flow))) tap tap)
-    % := 1))
+  (let [flow (m/ap 1)]
+    (with ((l/single {} (tap (e/input flow))) tap tap)
+      % := 1)))
 
 (tests "if"
   (with ((l/single {} (tap (if true :yes :no))) tap tap)
@@ -93,9 +93,9 @@
     % := {:a 1}))
 
 (tests "globals lifted"
-  (def a 1)
-  (with ((l/single {} (tap a)) tap tap)
-    % := 1))
+  (let [a 1]
+    (with ((l/single {} (tap a)) tap tap)
+      % := 1)))
 
 (tests
   (with ((l/single {} (tap inc)) tap tap)
@@ -106,66 +106,64 @@
     % := 3))
 
 (tests "introduce foreign atom"
-  (def !x (atom 0))
-  (with ((l/single {} (tap (e/watch !x))) tap tap)                           ; clojure flow derived from atom
-    % := 0
-    (swap! !x inc)
-    % := 1))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap (e/watch !x))) tap tap) ; clojure flow derived from atom
+      % := 0
+      (swap! !x inc)
+      % := 1)))
 
 (tests "introduce foreign missionary signal"
-  (def !x (atom 0))                                         ; atoms model variable inputs
-  (with ((l/single {} (tap (e/input (m/watch !x)))) tap tap)                      ; clojure flow derived from atom
-    % := 0
-    (swap! !x inc)
-    % := 1))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap (e/input (m/watch !x)))) tap tap) ; clojure flow derived from atom
+      % := 0
+      (swap! !x inc)
+      % := 1)))
 
 (tests "reactive closures - call them with $"
   (with ((l/single {} (tap (let [x 1, F (e/fn [] x)] [(number? x) ($ F)]))) tap tap)
     % := [true 1]))
 
 (tests "dataflow diamond - let introduces shared nodes in the dag"
-  (def !x (atom 0))
-  (with ((l/single {} (tap (let [x (e/watch !x)] (+ x x)))) tap tap)
-    % := 0
-    (swap! !x inc)
-    % := 2
-    (swap! !x inc)
-    % := 4))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap (let [x (e/watch !x)] (+ x x)))) tap tap)
+      % := 0
+      (swap! !x inc)
+      % := 2
+      (swap! !x inc)
+      % := 4)))
 
 (tests "broken dataflow diamond (two propagation frames - bad)"
-  (def !x (atom 0))
-  (with ((l/single {} (tap (let [X (m/watch !x)] ; recipe for flow
-                             (+ (e/input X) (e/input X))))) tap tap)                        ; bad - construct flow twice
-    % := 0
-    (swap! !x inc)
-    % := 1                                                  ; glitch due to two watch events,
-    % := 2                                                  ; causing two propagation frames
-    (swap! !x inc)
-    % := 3
-    % := 4))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap (let [X (m/watch !x)] ; recipe for flow
+                               (+ (e/input X) (e/input X))))) tap tap) ; bad - construct flow twice
+      % := 0
+      (swap! !x inc)
+      % := 1                            ; glitch due to two watch events,
+      % := 2                            ; causing two propagation frames
+      (swap! !x inc)
+      % := 3
+      % := 4)))
 
 (tests "reactive function call"
-  (def !f (atom +))
-  (def !x2 (atom 1))
-  (with ((l/single {} (tap ((e/watch !f) 0 (e/watch !x2)))) tap tap)
-    % := 1
-    (swap! !x2 inc)
-    % := 2
-    (reset! !f -)
-    % := -2))
+  (let [!f (atom +), !x (atom 1)]
+    (with ((l/single {} (tap ((e/watch !f) 0 (e/watch !x)))) tap tap)
+      % := 1
+      (swap! !x inc)
+      % := 2
+      (reset! !f -)
+      % := -2)))
 
 (tests "foreign clojure collections. clojure.core/map is not incremental, the arguments are"
-  (def !xs (atom [1 2 3]))
-  (def !f (atom inc))
-  (with
-    ((l/single {} (tap (let [f (e/watch !f)
-                             xs (e/watch !xs)]
-                         (clojure.core/map f xs)))) tap tap)
-    % := [2 3 4]
-    (swap! !xs conj 4)
-    % := [2 3 4 5]
-    (reset! !f dec)
-    % := [0 1 2 3]))
+  (let [!xs (atom [1 2 3]), !f (atom inc)]
+    (with
+      ((l/single {} (tap (let [f (e/watch !f)
+                               xs (e/watch !xs)]
+                           (clojure.core/map f xs)))) tap tap)
+      % := [2 3 4]
+      (swap! !xs conj 4)
+      % := [2 3 4 5]
+      (reset! !f dec)
+      % := [0 1 2 3])))
 
 (tests "common core macros just work"
   (with
@@ -175,16 +173,14 @@
     % := [2 3 4]))
 
 (tests "reactive if"
-  (def !a (atom 1))
-  (def !p (atom :p))
-  (def !q (atom :q))
-  (with ((l/single {} (tap (if (odd? (e/watch !a)) (e/watch !p) (e/watch !q)))) tap tap)
-    % := :p
-    (swap! !a inc)
-    % := :q
-    (reset! !p :pp)
-    (swap! !a inc)
-    % := :pp))
+  (let [!a (atom 1), !p (atom :p), !q (atom :q)]
+    (with ((l/single {} (tap (if (odd? (e/watch !a)) (e/watch !p) (e/watch !q)))) tap tap)
+      % := :p
+      (swap! !a inc)
+      % := :q
+      (reset! !p :pp)
+      (swap! !a inc)
+      % := :pp)))
 
 (tests "lazy"
   (with ((l/single {} (tap (if false (tap :a) (tap :b)))) tap tap)
@@ -206,44 +202,40 @@
           false (e/fn [] b)})
     ($)))
 
-(def !branch (atom false))
 (tests "control flow implemented with lazy signals"
-  (with ((l/single {} (let [x (e/watch !branch)
-                            a (tap :a) ; lazy
-                            b (tap :b)] ; lazy
-                        (tap ($ If2 x a b)))) tap tap)
-    % := :b
-    % := :b
-    (swap! !branch not)
-    % := :a
-    % := :a
-    (swap! !branch not)
-    % := :b))
+  (let [!branch (atom false)]
+    (with ((l/single {} (let [x (e/watch !branch)
+                              a (tap :a) ; lazy
+                              b (tap :b)] ; lazy
+                          (tap ($ If2 x a b)))) tap tap)
+      % := :b
+      % := :b
+      (swap! !branch not)
+      % := :a
+      % := :a
+      (swap! !branch not)
+      % := :b)))
 
 (tests "lazy let"
-  (def !x (atom false))
-  (def !a (atom :a))
-  (def !b (atom :b))
-  (with ((l/single {} (let [x (e/watch !x)
-                            a (tap (e/watch !a))
-                            b (tap (e/watch !b))]
-                        (if x a b))) tap tap)
-    % := :b
-    (swap! !x not)
-    % := :a))
+  (let [!x (atom false), !a (atom :a), !b (atom :b)]
+    (with ((l/single {} (let [x (e/watch !x)
+                              a (tap (e/watch !a))
+                              b (tap (e/watch !b))]
+                          (if x a b))) tap tap)
+      % := :b
+      (swap! !x not)
+      % := :a)))
 
 (tests "reactive case"
-  (def !a (atom 0))
-  (def !p (atom :p))
-  (def !q (atom :q))
-  (with ((l/single {} (tap (case (e/watch !a)
-                         0 (e/watch !p)
-                         (e/watch !q)))) tap tap)
-    % := :p
-    (swap! !a inc)
-    % := :q
-    (reset! !q :qq)
-    % := :qq))
+  (let [!a (atom 0), !p (atom :p), !q (atom :q)]
+    (with ((l/single {} (tap (case (e/watch !a)
+                               0 (e/watch !p)
+                               (e/watch !q)))) tap tap)
+      % := :p
+      (swap! !a inc)
+      % := :q
+      (reset! !q :qq)
+      % := :qq)))
 
 (tests "symbols in electric"
   (with ((l/single {} (tap 'x)) tap tap)
@@ -254,16 +246,15 @@
     % := '[x]))
 
 (tests "case on symbols"
-  (def !x (atom 'foo))
-  (with ((l/single {} (tap (case (e/watch !x) foo 1 2))) tap tap)
-    % := 1))
+  (let [!x (atom 'foo)]
+    (with ((l/single {} (tap (case (e/watch !x) foo 1 2))) tap tap)
+      % := 1)))
 
 (tests "case on vector"
   (with ((l/single {} (tap (case '[a b] [a b] 1 2))) tap tap)
     % := 1))
 
 (tests "case with list"
-  (def !x (atom 'foo))
   (with ((l/single {} (tap (case 'a (a b) 1 2))) tap tap)
     % := 1))
 
@@ -274,18 +265,16 @@
                        (catch #?(:clj Throwable :cljs :default) e (tap [:wrong e])))) tap tap))
   % := [:right "No matching clause: 2"])
 
+(def foo 1)
 (tests "binding"
-  (def foo 1)
   (with ((l/single {} (tap (binding [foo 2] foo))) tap tap)
     % := 2))
 
 (tests "binding - fn"
-  (def foo)
   (with ((l/single {} (binding [foo (partial tap)] (foo 1))) tap tap)
     % := 1))
 
 (tests "binding - e/fn"
-  (def foo)
   (with ((l/single {} (binding [foo (e/fn [x] (tap x))] ($ foo 1))) tap tap)
     % := 1))
 
@@ -294,95 +283,88 @@
     % := 1))
 
 (tests "join captures dynamic scope"
-  (def foo 1)
   (with ((l/single {} (let [Q (e/fn [] foo)]
                     (binding [foo 2]
                       (tap ($ Q))))) tap tap)
     % := 2))
 
 (tests "if with bindings"
-  (def !a (atom true))
-  (def foo 1)
-  (with ((l/single {} (tap (binding [foo 2] (if (e/watch !a) foo (- foo))))) tap tap)
-    % := 2
-    (swap! !a not)
-    % := -2))
+  (let [!a (atom true)]
+    (with ((l/single {} (tap (binding [foo 2] (if (e/watch !a) foo (- foo))))) tap tap)
+      % := 2
+      (swap! !a not)
+      % := -2)))
 
-(def foo4 1)
+(def !a (atom true))
 (tests "if with unwinding binding"
-  (def !a (atom true))
-  (with ((l/single {} (tap ($ (binding [foo4 2] (e/fn [] (if (e/watch !a) foo4 (- foo4))))))) tap tap)
-    % := 1
-    (swap! !a not)
-    % := -1))
-
-(def foo 1)
-(def bar 2)
+  (let [!a (atom true)]
+    (with ((l/single {} (tap ($ (binding [foo 2] (e/fn [] (if (e/watch !a) foo (- foo))))))) tap tap)
+      % := 1
+      (swap! !a not)
+      % := -1)))
 
 (tests "reactive for"
-  (def !xs (atom [1 2 3]))
-  (with ((l/single {} (tap (e/for-by identity [x (e/watch !xs)] (inc x)))) tap tap)
-    % := [2 3 4]
-    (swap! !xs conj 4)
-    % := [2 3 4 5]))
+  (let [!xs (atom [1 2 3])] (with ((l/single {} (tap (e/for-by identity [x (e/watch !xs)] (inc x)))) tap tap)
+     % := [2 3 4]
+     (swap! !xs conj 4)
+     % := [2 3 4 5])))
 
 (tests "reactive for is differential (diff/patch)"
-       (def !xs (atom [1 2 3]))
-       (with ((l/single {} (tap (e/for-by identity [x (e/watch !xs)] (tap x)))) tap tap)
-         (hash-set % % %) := #{1 2 3}   ; concurrent, order undefined
-         % := [1 2 3]
-         (swap! !xs conj 4)
-         % := 4
-         % := [1 2 3 4]
-         (swap! !xs pop)
-         % := [1 2 3] ;; TODO glitch here
-         (swap! !xs assoc 1 :b)
-         % := :b
-         % := [1 :b 3]))
+  (let [!xs (atom [1 2 3])]
+    (with ((l/single {} (tap (e/for-by identity [x (e/watch !xs)] (tap x)))) tap tap)
+      (hash-set % % %) := #{1 2 3}      ; concurrent, order undefined
+      % := [1 2 3]
+      (swap! !xs conj 4)
+      % := 4
+      % := [1 2 3 4]
+      (swap! !xs pop)
+      % := [1 2 3] ;; TODO glitch here
+      (swap! !xs assoc 1 :b)
+      % := :b
+      % := [1 :b 3])))
 
-(def foo 0)
+(def !items (atom ["a"]))
 (tests "Reactive for with bindings"
-  (def !items (atom ["a"]))
-  (with ((l/single {} (binding [foo 1]
-                    (e/for-by identity [item (e/watch !items)]
-                      (tap foo)
-                      item))) tap tap)
+  (let [!items (atom ["a"])]
+    (with ((l/single {} (binding [foo 2]
+                          (e/for-by identity [item (e/watch !items)]
+                            (tap foo)
+                            item))) tap tap)
 
-    % := 1
-    (swap! !items conj "b")
-    % := 1)) ; If 0 -> foo’s binding vanished
+      % := 2
+      (swap! !items conj "b")
+      % := 2))) ; If 1 -> foo’s binding vanished
 
 (tests "reactive for with keyfn"
-  (def !xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}]))
-  (with ((l/single {} (tap (e/for-by :id [x (e/watch !xs)] (tap x)))) tap tap)
-    (hash-set % %) := #{{:id 1 :name "alice"} {:id 2 :name "bob"}}
-    % := [{:id 1 :name "alice"} {:id 2 :name "bob"}]
-    (swap! !xs assoc-in [0 :name] "ALICE")
-    % := {:id 1 :name "ALICE"}
-    % := [{:id 1 :name "ALICE"} {:id 2 :name "bob"}]))
+  (let [!xs (atom [{:id 1 :name "alice"} {:id 2 :name "bob"}])]
+    (with ((l/single {} (tap (e/for-by :id [x (e/watch !xs)] (tap x)))) tap tap)
+      (hash-set % %) := #{{:id 1 :name "alice"} {:id 2 :name "bob"}}
+      % := [{:id 1 :name "alice"} {:id 2 :name "bob"}]
+      (swap! !xs assoc-in [0 :name] "ALICE")
+      % := {:id 1 :name "ALICE"}
+      % := [{:id 1 :name "ALICE"} {:id 2 :name "bob"}])))
 
 (tests "reactive do"
-  (def !x (atom 0))
-  (with ((l/single {} (tap (do (tap :a) (tap (e/watch !x))))) tap tap)
-    ; Currently, do is not monadic sequence.
-    ; It's an incremental computation so only rerun what changed in our opinion
-    (hash-set % %) := #{:a 0}
-    % := 0
-    (swap! !x inc)
-    ; no :a
-    % := 1
-    % := 1))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap (do (tap :a) (tap (e/watch !x))))) tap tap)
+                                        ; Currently, do is not monadic sequence.
+                                        ; It's an incremental computation so only rerun what changed in our opinion
+      (hash-set % %) := #{:a 0}
+      % := 0
+      (swap! !x inc)
+                                        ; no :a
+      % := 1
+      % := 1)))
 
 (tests "do forces evaluation (introduces eagerness)"
   ; Current behavior - do stmts are sampled eagerly, as fast as possible
-  (def !a (atom 0))
-  (def !b (atom 0))
-  (with ((l/single {} (tap @(doto !b (reset! (tap (e/watch !a)))))) tap tap)
-    % := 0
-    % := 0
-    (swap! !a inc)
-    ; the ref !b doesn't change, so we don't see 1 again
-    % := 1))
+  (let [!a (atom 0), !b (atom 0)]
+    (with ((l/single {} (tap @(doto !b (reset! (tap (e/watch !a)))))) tap tap)
+      % := 0
+      % := 0
+      (swap! !a inc)
+                                        ; the ref !b doesn't change, so we don't see 1 again
+      % := 1)))
 
 (comment "entrypoint forces evaluation (introduces eagerness)" ; desired behavior, we think
   ; Alternative - do stmts are sampled (for effect) when result is sampled
@@ -435,8 +417,8 @@
 (e/defn Widget [x] ($ Div [($ Div x) ($ Div :a)]))
 
 (tests "reactive defn"
-                                        ; best example of this is hiccup incremental maintenance
-    (def !x (atom 0))
+  ;; best example of this is hiccup incremental maintenance
+  (let [!x (atom 0)]
     (with ((l/single {} (tap (binding [trace! tap] ($ Widget (e/watch !x))))) tap tap)
       % := 0
       % := :a
@@ -446,84 +428,79 @@
       % := 1
                                         ; no :a
       % := [[:div 1] [:div :a]]
-      % := [:div [[:div 1] [:div :a]]]))
+      % := [:div [[:div 1] [:div :a]]])))
 
 (e/defn G [x] x)                                      ; reactive fn (DAG). Compiler marks dag with meta
+(defn f [x] x)                                            ; This var is not marked with meta
 (tests "node call vs fn call"
-  (defn f [x] x)                                            ; This var is not marked with meta
-  (def !x (atom 0))
-  (with ((l/single {} (tap (let [x (e/watch !x)] [(f x) ($ G x)]))) tap tap)
-    % := [0 0]))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap (let [x (e/watch !x)] [(f x) ($ G x)]))) tap tap)
+      % := [0 0])))
 
-(e/defn G [x] x)
 (tests "higher order dags"
-  (def !x (atom 0))
-  (defn f [x] x)
-  (with
-    ((l/single {}
-       (tap (let [ff (fn [x] x) ; foreign clojure fns are sometimes useful, e.g. DOM callbacks
-                  Gg (e/fn [x] x) ; but you almost always want reactive lambda, not cc/fn
-                  x (e/watch !x)]
-              [(f x)       ; var marked
-               ($ G x)      ; var says node
-               (ff x)      ; Must assume interop, for compat with clojure macros
-               ($ Gg x)     ; Must mark reactive-call
-               ($ (e/fn [x] x) x)]))) tap tap)
-    % := [0 0 0 0 0]))
+  (let [!x (atom 0)]
+    (with
+      ((l/single {}
+         (tap (let [ff (fn [x] x) ; foreign clojure fns are sometimes useful, e.g. DOM callbacks
+                    Gg (e/fn [x] x) ; but you almost always want reactive lambda, not cc/fn
+                    x (e/watch !x)]
+                [(f x)     ; var marked
+                 ($ G x)   ; var says node
+                 (ff x)    ; Must assume interop, for compat with clojure macros
+                 ($ Gg x)  ; Must mark reactive-call
+                 ($ (e/fn [x] x) x)]))) tap tap)
+      % := [0 0 0 0 0])))
 
 (tests "reactive closures"
-  (def !x (atom 1))
-  (def !y (atom 10))
-  (with ((l/single {}
-           (let [x (e/watch !x), y (e/watch !y)]
-             (tap ($ (if (odd? x)
-                       (e/fn [x] (* y x))
-                       (e/fn [x] (* y x)))
-                    x)))) tap tap)
-    % := 10
-    (swap! !x inc)
-    % := 20
-    (swap! !x inc)
-    % := 30
-    (swap! !y inc)
-    % := 33
-    (swap! !y inc)
-    % := 36))
+  (let [!x (atom 1), !y (atom 10)]
+    (with ((l/single {}
+             (let [x (e/watch !x), y (e/watch !y)]
+               (tap ($ (if (odd? x)
+                         (e/fn [x] (* y x))
+                         (e/fn [x] (* y x)))
+                      x)))) tap tap)
+      % := 10
+      (swap! !x inc)
+      % := 20
+      (swap! !x inc)
+      % := 30
+      (swap! !y inc)
+      % := 33
+      (swap! !y inc)
+      % := 36)))
 
 (tests "reactive closures 2"
-      (def !x (atom 0))
-      (def !y (atom 0))
-      (with
-          ((l/single {} (tap (let [x (e/watch !x)
-                                   y (e/watch !y)
-                                   F (e/fn [x] (+ y x)) ; constant signal
-                                   G (if (odd? x) (e/fn [x] (+ y x))
-                                         (e/fn [x] (+ y x)))
-                                   H (e/input (m/seed [(e/fn [x] (+ y x))]))]
-                               [($ F x)
-                                ($ G x)
-                                ($ H x)]))) tap tap)
-          % := [0 0 0]))
+  (let [!x (atom 0), !y (atom 0)]
+    (with
+      ((l/single {} (tap (let [x (e/watch !x)
+                               y (e/watch !y)
+                               F (e/fn [x] (+ y x)) ; constant signal
+                               G (if (odd? x) (e/fn [x] (+ y x))
+                                     (e/fn [x] (+ y x)))
+                               H (e/input (m/seed [(e/fn [x] (+ y x))]))]
+                           [($ F x)
+                            ($ G x)
+                            ($ H x)]))) tap tap)
+      % := [0 0 0])))
 
 (tests "reactive clojure.core/fn"
-  (def !x (atom 0))
-  (def !y (atom 0))
-  (with
-    ((l/single {}
-       (tap (let [x (e/watch !x)
-                  y (e/watch !y)
+  (let [!x (atom 0), !y (atom 0)]
+    (with
+      ((l/single {}
+         (tap (let [x (e/watch !x)
+                    y (e/watch !y)
                                         ; rebuild Clojure closure f when y updates
-                  f (fn [needle] (+ y needle))]
+                    f (fn [needle] (+ y needle))]
                                         ; (value is fully compatible with fn contract)
                                         ; the lambda is as variable as the var it closes over
                                         ; well defined. It's not allowed to use dataflow inside FN. Compiler can never reach it
                                         ; compiler will walk it to detect the free variables only
-              (f x)))) tap tap)
-    % := 0
-    (swap! !y inc)
-    % := 1
-    (swap! !x inc)
-    % := 2))
+                (f x)))) tap tap)
+      % := 0
+      (swap! !y inc)
+      % := 1
+      (swap! !x inc)
+      % := 2)))
 
 (tests "For reference, Clojure exceptions have dynamic scope"
   (try (let [f (try (fn [] (throw (ex-info "boom" {}))) ; this exception will escape
@@ -535,14 +512,14 @@
 
 ;; TODO throw
 (skip "Reactor crashes on uncaugh exceptions"
-  (def !x (atom true))
-  (with ((l/single {} (tap (assert (e/watch !x)))) tap tap)
-    % := nil                            ; assert returns nil or throws
-    (swap! !x not)                      ; will crash the reactor
-    ;; TODO in old tests an ex-info comes out, why? Is this a FailureInfo?
-    (ex-message %) := "Assert failed: (e/watch !x)"
-    (swap! !x not)                      ; reactor will not come back.
-    (tap ::nope), % := ::nope))
+  (let [!x (atom true)]
+    (with ((l/single {} (tap (assert (e/watch !x)))) tap tap)
+      % := nil                          ; assert returns nil or throws
+      (swap! !x not)                    ; will crash the reactor
+      ;; TODO in old tests an ex-info comes out, why? Is this a FailureInfo?
+      (ex-message %) := "Assert failed: (e/watch !x)"
+      (swap! !x not)                    ; reactor will not come back.
+      (tap ::nope), % := ::nope)))
 
 ;; TODO try/catch/throw
 ;; (l/defn Boom [] (assert false))
@@ -596,38 +573,35 @@
          % := 1))
 
 ;; TODO network
-(def foo nil)
 (skip
   (with ((l/single {} (try (tap (binding [foo 1] (e/server (e/client foo))))
                            (catch Pending _))) tap tap)
     % := 1))
 
 (tests
-  (with ((l/single {} (tap (binding [foo 1] (e/server (e/client foo))))) tap tap)
-    % := 1))
+  (with ((l/single {} (tap (binding [foo 2] (e/server (e/client foo))))) tap tap)
+    % := 2))
 
 ;; TODO network
-(def foo nil)
 (skip
   (with ((l/single {} (try (tap (binding [foo 1] (e/server (new (e/fn [] (e/client foo))))))
                        (catch Pending _))) tap tap)
     % := 1))
 
 (tests
-  (with ((l/local {} (tap (binding [foo 1] (e/server ($ (e/fn [] (e/client foo))))))) tap tap)
-    % := 1))
+  (with ((l/local {} (tap (binding [foo 2] (e/server ($ (e/fn [] (e/client foo))))))) tap tap)
+    % := 2))
 
 ;; TODO try/catch
-(def foo1 nil)
 (def Bar1)
 (skip
-  (with ((l/single {} (try (tap (binding [foo1 1] (e/server (Bar1.))))
+  (with ((l/single {} (try (tap (binding [foo 2] (e/server (Bar1.))))
                        (catch Pending _))) tap tap)
-    % := 1))
+    % := 2))
 
 (tests
-  (with ((l/local {} (tap (binding [Bar1 (e/fn [] (e/client foo1)), foo1 1] (e/server ($ Bar1))))) tap tap)
-    % := 1))
+  (with ((l/local {} (tap (binding [Bar1 (e/fn [] (e/client foo)), foo 2] (e/server ($ Bar1))))) tap tap)
+    % := 2))
 
 ;; TODO try/catch
 (skip "reactive pending states"
@@ -662,20 +636,20 @@
   % := :pending-outer)
 
 (tests "object lifecycle"
-  (def !x (atom 0))
-  (let [hook (fn [mount! unmount!]
+  (let [!x (atom 0)
+        hook (fn [mount! unmount!]
                (m/observe (fn [!]
                             (mount!)
                             (! nil)
                             #(unmount!))))
         dispose!
         ((l/single {} (tap
-                    (let [x (e/watch !x)]
-                      (when (even? x)
-                        ($ (e/fn [x]
-                               (e/input (hook (partial tap 'mount) (partial tap 'unmount)))
-                               x)
-                          x))))) tap tap)]
+                        (let [x (e/watch !x)]
+                          (when (even? x)
+                            ($ (e/fn [x]
+                                 (e/input (hook (partial tap 'mount) (partial tap 'unmount)))
+                                 x)
+                              x))))) tap tap)]
 
     % := 'mount
     % := 0
@@ -687,35 +661,28 @@
     (dispose!)
     % := 'unmount))
 
+(defn observer [x tap]
+  (fn mount [f]
+    (f (tap [:up x]))
+    (fn unmount [] (tap [:down x]))))
 (tests "object lifecycle 3"
-  (defn observer [x]
-    (fn mount [f]
-      (f (tap [:up x]))
-      (fn unmount [] (tap [:down x]))))
-
-  (def !state (atom [1]))
-  (with ((l/single {} (e/for-by identity [x (e/watch !state)] (e/input (m/observe (observer x))))) tap tap)
-    % := [:up 1]
-    (swap! !state conj 2)
-    % := [:up 2]
-    (reset! !state [3])
-    (hash-set % % %) := #{[:up 3] [:down 1] [:down 2]})
+  (let [!state (atom [1])]
+    (with ((l/single {} (e/for-by identity [x (e/watch !state)] (e/input (m/observe (observer x tap))))) tap tap)
+      % := [:up 1]
+      (swap! !state conj 2)
+      % := [:up 2]
+      (reset! !state [3])
+      (hash-set % % %) := #{[:up 3] [:down 1] [:down 2]}))
   % := [:down 3])
 
 ;; TODO try/catch
 (skip "object lifecycle 3 with pending state"
-  (def !state (atom [1]))
 
-  (defn observer [tap x]
-    (fn mount [f]
-      (tap [::mount x])
-      (f nil)
-      (fn unmount [] (tap [::unmount x]))))
-
-  (let [dispose ((l/single {} (try
-                            (e/for-by identity [x (e/watch !state)] ; pending state should not trash e/for branches
-                              (new (m/observe (observer tap x)))) ; depends on x, which is pending
-                            (catch Pending _))) tap tap)]
+  (let [!state (atom [1])
+        dispose ((l/single {} (try
+                                (e/for-by identity [x (e/watch !state)] ; pending state should not trash e/for branches
+                                  (new (m/observe (observer tap x)))) ; depends on x, which is pending
+                                (catch Pending _))) tap tap)]
     % := [::mount 1]
     (reset! !state [2])
     (hash-set % %) := #{[::mount 2] [::unmount 1]}
@@ -727,27 +694,26 @@
     % := [::unmount 2]))
 
 (def x2 1)
+(defn up-down [x trace!] (m/observe (fn [!] (trace! :up) (! x) #(trace! :down))))
 (tests "object lifecycle 4"
-  (def !input (atom [1 2]))
-  (defn up-down [x trace!] (m/observe (fn [!] (trace! :up) (! x) #(trace! :down))))
-
-  (with ((l/single {}
-           (tap (e/for-by identity [id (e/watch !input)]
-                  (binding [x2 (do id x2)]
-                    (e/input (up-down x2 tap)))))) tap tap)
-    [% %] := [:up :up]
-    % := [1 1]
-    (swap! !input pop)
-    % := [1]
-    % := :down)
+  (let [!input (atom [1 2])]
+    (with ((l/single {}
+             (tap (e/for-by identity [id (e/watch !input)]
+                    (binding [x2 (do id x2)]
+                      (e/input (up-down x2 tap)))))) tap tap)
+      [% %] := [:up :up]
+      % := [1 1]
+      (swap! !input pop)
+      % := [1]
+      % := :down))
   % := :down)
 
 (tests "reactive metadata"
-  (def !x (atom 0))
-  (with ((l/single {} (tap (meta (let [x (with-meta [] {:foo (e/watch !x)})] x)))) tap tap)
-    % := {:foo 0}
-    (swap! !x inc)
-    (tap ::hi) % := ::hi))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap (meta (let [x (with-meta [] {:foo (e/watch !x)})] x)))) tap tap)
+      % := {:foo 0}
+      (swap! !x inc)
+      (tap ::hi) % := ::hi)))
 
 ;; TODO shows Cannot invoke \"java.lang.Character.charValue()\" because \"x\" is null
 (skip "undefined continuous flow, flow is not defined for the first 10ms"
@@ -757,34 +723,33 @@
 
 ;; TODO try/catch
 (skip
-  (def !x (atom 0))
-  (with ((l/single {} (tap (try (-> (e/watch !x)
-                              (doto (-> even? (when-not (throw (ex-info "odd" {})))))
-                              (/ 2))
-                            (catch #?(:clj Exception, :cljs :default) e (ex-message e))))) tap tap)
-    % := 0
-    (swap! !x inc)
-    % := "odd"
-    (swap! !x inc)
-    % := 1))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap (try (-> (e/watch !x)
+                                    (doto (-> even? (when-not (throw (ex-info "odd" {})))))
+                                    (/ 2))
+                                  (catch #?(:clj Exception, :cljs :default) e (ex-message e))))) tap tap)
+      % := 0
+      (swap! !x inc)
+      % := "odd"
+      (swap! !x inc)
+      % := 1)))
 
 ;; TODO try/catch
+(def e (ex-info "error" {}))
 (skip
-  (def !x (atom 0))
-  (def !f (atom "hello"))
-  (def e (ex-info "error" {}))
-  (with ((l/single {}
-           (tap (try (if (even? (e/watch !x)) :ok (throw e))
-                     (catch #?(:clj Throwable, :cljs :default) _ :caugh)
-                     (finally (tap (e/watch !f)))))) tap tap)
-   % := "hello"
-   % := :ok
-   (swap! !x inc)
-   % := :caugh
-   (reset! !f "world")
-   % := "world"
-   (swap! !x inc)
-   % := :ok))
+  (let [!x (atom 0), !f (atom "hello")]
+    (with ((l/single {}
+             (tap (try (if (even? (e/watch !x)) :ok (throw e))
+                       (catch #?(:clj Throwable, :cljs :default) _ :caugh)
+                       (finally (tap (e/watch !f)))))) tap tap)
+      % := "hello"
+      % := :ok
+      (swap! !x inc)
+      % := :caugh
+      (reset! !f "world")
+      % := "world"
+      (swap! !x inc)
+      % := :ok)))
 
 (def unbound1)
 (def unbound2)
@@ -813,18 +778,18 @@
 )
 
 ;; TODO try/catch
+(def x)
 (skip "In Electric, accessing an unbound var throws a userland exception"
   ;; An unbound var is either:
   ;; - an uninitialized p/def,
   ;; - an unsatisfied reactive fn parameter (reactive fn called with too few arguments).
-  (def x)
   (with ((l/single {} x) prn tap)
     (ex-message %) := "Unbound electric var `hyperfiddle.electric-test/x`"))
 
+(e/defn Documented "doc" [a b c])
 #?(:clj
    (tests ; GG: IDE doc on hover support
     "Vars created with e/defn have the same metas as created with cc/defn"
-    (e/defn Documented "doc" [a b c])
     (select-keys (meta (var Documented)) [:name :doc :arglists])
     := {:name 'Documented
         :doc  "doc"
@@ -841,38 +806,37 @@
   ; updated hence is inconsistent with the new value of X. This inconsistency is temporary (hence the name
   ; "glitch") because I will be updated soon enough and P will achieve consistency with X, but if one's
   ; reactive engine dispatches side effects off state change -- possible trouble.
-  (def !aa (atom 1))
-  (def !a7 (atom 7))
-  (with
-    ((l/single {}
-       (let [aa  (e/watch !aa)
-             a7  (e/watch !a7)
-             a70 (* 10 a7)
-             bb  aa
-             cc  (* 10 aa)
-             dd  (if (even? bb)
-                   (* 10 cc)
-                   42)]
-         (tap (+ a70 bb (* 10000 dd))))) tap tap)
-    % := 420071
-    (swap! !aa inc)
-    % := 2000072
-    (swap! !aa inc)
-    % := 420073))
+  (let [!aa (atom 1), !a7 (atom 7)]
+    (with
+      ((l/single {}
+         (let [aa  (e/watch !aa)
+               a7  (e/watch !a7)
+               a70 (* 10 a7)
+               bb  aa
+               cc  (* 10 aa)
+               dd  (if (even? bb)
+                     (* 10 cc)
+                     42)]
+           (tap (+ a70 bb (* 10000 dd))))) tap tap)
+      % := 420071
+      (swap! !aa inc)
+      % := 2000072
+      (swap! !aa inc)
+      % := 420073)))
 
 (tests "pentagram of death reduced"
   ;; the essence of the problem is:
   ;; 1. if/case switch/change the DAG (imagine a railroad switch between two train tracks)
   ;; 2. to have a conditional where the predicate and the consequent have a common dependency
-  (def !x (atom 1))
-  (with ((l/single {} (tap (let [p (e/watch !x)
-                                 q (tap (str p))
-                                 control (- p)]
-                             (case control -1 p -2 q q)))) tap tap)
-    % := 1                              ; cross
-    (swap! !x inc)
-    % := "2"                            ; q first touched
-    % := "2"))
+  (let [!x (atom 1)]
+    (with ((l/single {} (tap (let [p (e/watch !x)
+                                   q (tap (str p))
+                                   control (- p)]
+                               (case control -1 p -2 q q)))) tap tap)
+      % := 1                            ; cross
+      (swap! !x inc)
+      % := "2"                          ; q first touched
+      % := "2")))
 
 (tests "for with literal input"
   (with ((l/single {} (tap (e/for-by identity [x [1 2 3]] (tap x)))) tap tap)
@@ -880,88 +844,83 @@
     % := [1 2 3]))
 
 (tests "for with literal input, nested"
-  (def !x (atom 0))
-  (with ((l/single {} (tap (when (even? (e/watch !x))
-                         (e/for-by identity [x [1 2 3]]
-                           (tap x))))) tap tap)
-    (hash-set % % %) := #{1 2 3}
-    % := [1 2 3]
-    (swap! !x inc)
-    % := nil))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap (when (even? (e/watch !x))
+                               (e/for-by identity [x [1 2 3]]
+                                 (tap x))))) tap tap)
+      (hash-set % % %) := #{1 2 3}
+      % := [1 2 3]
+      (swap! !x inc)
+      % := nil)))
 
 (tests "nested closure"
-  (def !x (atom 0))
-  (with ((l/single {} (tap ($ (let [x (e/watch !x)]
-                              (if (even? x)
-                                (e/fn [] :even)
-                                (e/fn [] :odd)))))) tap tap)
-    % := :even
-    (swap! !x inc)
-    % := :odd))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap ($ (let [x (e/watch !x)]
+                                  (if (even? x)
+                                    (e/fn [] :even)
+                                    (e/fn [] :odd)))))) tap tap)
+      % := :even
+      (swap! !x inc)
+      % := :odd)))
 
 ;; TODO e/hook?
+(defn hook
+  ([x] (tap [x]))
+  ([x y] (tap [x y])))
 (skip "simultaneous add and remove in a for with a nested hook"
-  (def !xs (atom [1]))
-  (defn hook
-    ([x] (tap [x]))
-    ([x y] (tap [x y])))
-  (with
-    ((l/single {}
-       (tap (new (e/hook hook 0
-                   (e/fn []
-                     (e/for [x (e/watch !xs)]
-                       (new (e/hook hook x
-                              (e/fn [] (str x)))))))))) tap tap)
-    % := [1 nil]
-    % := ["1"]
-    (reset! !xs [2])
-    % := [2 nil]
-    % := ["2"]
-    % := [1] ;; unmount on next frame ???
-    )
+  (let [!xs (atom [1])]
+    (with
+      ((l/single {}
+         (tap (new (e/hook hook 0
+                     (e/fn []
+                       (e/for [x (e/watch !xs)]
+                         (new (e/hook hook x
+                                (e/fn [] (str x)))))))))) tap tap)
+      % := [1 nil]
+      % := ["1"]
+      (reset! !xs [2])
+      % := [2 nil]
+      % := ["2"]
+      % := [1] ;; unmount on next frame ???
+      ))
   % := [2]
   % := [0])
 
 ;; TODO try/catch
 (skip
-  (def !t (atom true))
-  (with ((l/single {}
-           (tap (try (let [t (e/watch !t)]
-                       (when t t (e/server t)))
-                     (catch Pending _ :pending)
-                     #_(catch Cancelled _ :cancelled)))) tap tap)
-    % := :pending
-    % := true
-    (swap! !t not)
-    % := nil))
+  (let [!t (atom true)]
+    (with ((l/single {}
+             (tap (try (let [t (e/watch !t)]
+                         (when t t (e/server t)))
+                       (catch Pending _ :pending)
+                       #_(catch Cancelled _ :cancelled)))) tap tap)
+      % := :pending
+      % := true
+      (swap! !t not)
+      % := nil)))
 
-(def !t (atom true))
 (tests
-  (reset! !t true)
-  (with ((l/single {} (tap (let [t (e/watch !t)] (when t t (e/server t))))) tap tap)
-    % := true
-    (swap! !t not)
-    % := nil))
+  (let [!t (atom true)]
+    (with ((l/single {} (tap (let [t (e/watch !t)] (when t t (e/server t))))) tap tap)
+      % := true
+      (swap! !t not)
+      % := nil)))
 
-(def !state1 (atom true))
 (tests
-  (reset! !state1 true)
-  (with ((l/single {} (when (e/watch !state1) (tap :touch))) tap tap)
-    % := :touch
-    (reset! !state1 true)
-    (tap ::nope) % := ::nope))
+  (let [!state1 (atom true)]
+    (with ((l/single {} (when (e/watch !state1) (tap :touch))) tap tap)
+      % := :touch
+      (reset! !state1 true)
+      (tap ::nope) % := ::nope)))
 
-(def !state2 (atom true))
 (tests "e/for in a conditional"
-  (reset! !state2 true)
-  (with ((l/single {} (tap (if (e/watch !state2) 1 (e/for-by identity [_ []])))) tap tap)
-    % := 1
-    (swap! !state2 not)
-    % := []
-    (swap! !state2 not)
-    % := 1)
-  )
-
+  (let [!state2 (atom true)]
+    (with ((l/single {} (tap (if (e/watch !state2) 1 (e/for-by identity [_ []])))) tap tap)
+      % := 1
+      (swap! !state2 not)
+      % := []
+      (swap! !state2 not)
+      % := 1)))
 
 (comment          ; we are not sure if this test has value. It is not minimized.
   (tests "Hack for e/for in a conditional. Passes by accident" ; PASS
@@ -975,29 +934,28 @@
 
 ;; TODO transfer try/catch
 (skip "Nested e/for with transfer"
-  (def !state (atom [1]))
-  (l/def state (e/watch !state))
-  (with ((l/single {} (try (e/for [x (e/server state)]
-                         (e/for [y (e/server state)]
-                           (tap [x y])))
-                       (catch Cancelled _)
-                       (catch Pending _))) tap tap)
-    % := [1 1]
-    (reset! !state [3])
-    % := [3 3]))
+  (let [!state (atom [1])]
+    (with ((l/single {} (let [state (e/watch !state)]
+                          (try (e/for [x (e/server state)]
+                                 (e/for [y (e/server state)]
+                                   (tap [x y])))
+                               (catch Cancelled _)
+                               (catch Pending _)))) tap tap)
+      % := [1 1]
+      (reset! !state [3])
+      % := [3 3])))
 
-(def !state (atom [1]))
 (def state)
 (tests
-  (reset! !state [1])
   "Nested e/for with transfer"
-  (with ((l/local {} (binding [state (e/watch !state)]
-                        (e/for-by identity [x (e/server state)]
-                          (e/for-by identity [y (e/server state)]
-                            (tap [x y]))))) tap tap)
-    % := [1 1]
-    (reset! !state [3])
-    % := [3 3]))
+  (let [!state (atom [1])]
+    (with ((l/local {} (binding [state (e/watch !state)]
+                         (e/for-by identity [x (e/server state)]
+                           (e/for-by identity [y (e/server state)]
+                             (tap [x y]))))) tap tap)
+      % := [1 1]
+      (reset! !state [3])
+      % := [3 3])))
 
 (tests
   "Static call"
@@ -1049,12 +1007,12 @@
 
 ;; TODO try/catch
 (skip
-  (def !xs (atom [false]))
   (with
-    ((l/single {}
-       (tap (try (e/for [x (e/watch !xs)]
-                   (assert x))
-                 (catch #?(:clj Error :cljs js/Error) _ :error)))) tap tap)
+    (let [!xs (atom [false])]
+      ((l/single {}
+         (tap (try (e/for [x (e/watch !xs)]
+                     (assert x))
+                   (catch #?(:clj Error :cljs js/Error) _ :error)))) tap tap))
     % := :error
     (reset! !xs [])
     % := []))
@@ -1083,71 +1041,69 @@
 
 ;; TODO transfer try/catch
 (skip
-  (def !x (atom true))
-  (with ((l/single {}
-           (try
-             (let [x (e/watch !x)]
+  (let [!x (atom true)]
+    (with ((l/single {}
+             (try
+               (let [x (e/watch !x)]
                                         ; check eager network does not beat the switch
-               (tap (if x (e/server [:server x]) [:client x])))
-             (catch Pending _))) tap tap)
-    % := [:server true]
-    (swap! !x not)
+                 (tap (if x (e/server [:server x]) [:client x])))
+               (catch Pending _))) tap tap)
+      % := [:server true]
+      (swap! !x not)
                                         ; the remote tap on the switch has been removed
-    % := [:client false]))
+      % := [:client false])))
 
-(def !x (atom true))
 (tests
-  (reset! !x true)
-  (with ((l/local {} (let [x (e/watch !x)]
-                        (tap (if x (e/server [:server x]) [:client x])))) tap tap)
-    % := [:server true]
-    (swap! !x not)
+  (let [!x (atom true)]
+    (with ((l/local {} (let [x (e/watch !x)]
+                         (tap (if x (e/server [:server x]) [:client x])))) tap tap)
+      % := [:server true]
+      (swap! !x not)
                                         ; the remote tap on the switch has been removed
-    % := [:client false]))
+      % := [:client false])))
 
 ;; TODO transfer try/catch
 (skip
-  (def !x (atom true))
-  (l/def x (e/server (e/watch !x)))
-  (with ((l/single {}
-           (try
-             (if (e/server x) ; to be consistent, client should see x first and switch
-               (e/server (tap x)) ; but test shows that the server sees x change before client
-               (e/server x))
-             (catch Pending _))) tap tap)
-   % := true
-   (swap! !x not)
-   % := false #_ ::rcf/timeout)
+  (let [!x (atom true)]
+    (with ((l/single {}
+             (let [x (e/server (e/watch !x))]
+               (try
+                 (if (e/server x) ; to be consistent, client should see x first and switch
+                   (e/server (tap x)) ; but test shows that the server sees x change before client
+                   (e/server x))
+                 (catch Pending _)))) tap tap)
+      % := true
+      (swap! !x not)
+      % := false #_ ::rcf/timeout))
   ; we have to choose: consistency or less latency?
   ; current behavior - Dustin likes, Leo does not like
   )
 
-(def !x (atom true))
 (tests
-  (reset! !x true)
-  (with ((l/local {}
-           (let [x (e/watch !x)]
-             (if (e/server x)
-               (e/server (tap x))
-               (e/server x)))) tap tap)
-   % := true
-   (swap! !x not)
-   % := ::rcf/timeout))
+  (let [!x (atom true)]
+    (with ((l/local {}
+             (let [x (e/watch !x)]
+               (if (e/server x)
+                 (e/server (tap x))
+                 (e/server x)))) tap tap)
+      % := true
+      (swap! !x not)
+      % := ::rcf/timeout)))
 
 ;; TODO transfer try/catch
 ;; https://www.notion.so/hyperfiddle/distribution-glitch-stale-local-cache-of-remote-value-should-be-invalidated-pending-47f5e425d6cf43fd9a37981c9d80d2af
 (skip "glitch - stale local cache of remote value should be invalidated/pending"
-  (def !x (atom 0))
-  (def dispose ((l/single {} (tap (try (let [x (new (m/watch !x))]
-                                     ;; pending or both equal
-                                     [x (e/server x)])
-                                   (catch Pending _ ::pending)))) tap tap))
-  % := ::pending
-  % := [0 0]
-  (swap! !x inc)
-  % := ::pending
-  % := [1 1]
-  (dispose))
+  (let [!x (atom 0)
+        dispose ((l/single {} (tap (try (let [x (new (m/watch !x))]
+                                          ;; pending or both equal
+                                          [x (e/server x)])
+                                        (catch Pending _ ::pending)))) tap tap)]
+    % := ::pending
+    % := [0 0]
+    (swap! !x inc)
+    % := ::pending
+    % := [1 1]
+    (dispose)))
 
 (comment
   ; https://www.notion.so/hyperfiddle/p-fn-transfer-d43869c673574390b186ccb4df824b39
@@ -1189,7 +1145,6 @@
 ;; TODO transfer try/catch
 (skip "Today, bindings fail to transfer, resulting in unbound var exception. This will be fixed"
                                         ; https://www.notion.so/hyperfiddle/photon-binding-transfer-unification-of-client-server-binding-7e56d9329d224433a1ee3057e96541d1
-  (l/def foo)
   (with ((l/single {} (try
                     (e/server
                       (binding [foo 1]
@@ -1230,42 +1185,40 @@
                                        (Math/min 3 3))))) tap tap)
     % := [1 2]))
 
-(def !state3 (atom 0))
 (def global)
 (tests "Inline cc/fn support"
-  (reset! !state3 0)
-  (with ((l/single {} (let [state (e/watch !state3)
-                            local [:local state]
-                            f     (binding [global [:global state]]
-                                    (fn ([a] [a local hyperfiddle.electric-de-test/global])
-                                      ([a b] [a b local global])
-                                      ([a b & cs] [a b cs local global])))]
-                        (tap (f state))
-                        (tap (f state :b))
-                        (tap (f state :b :c :d)))) tap tap)
-    (hash-set % % %) :=
-    #{[0 [:local 0] [:global 0]]
-      [0 :b [:local 0] [:global 0]]
-      [0 :b '(:c :d) [:local 0] [:global 0]]}
-    (swap! !state3 inc)
-    (hash-set % % %) :=
-    #{[1 [:local 1] [:global 1]]
-      [1 :b [:local 1] [:global 1]]
-      [1 :b '(:c :d) [:local 1] [:global 1]]}))
+  (let [!state3 (atom 0)]
+    (with ((l/single {} (let [state (e/watch !state3)
+                              local [:local state]
+                              f     (binding [global [:global state]]
+                                      (fn ([a] [a local hyperfiddle.electric-de-test/global])
+                                        ([a b] [a b local global])
+                                        ([a b & cs] [a b cs local global])))]
+                          (tap (f state))
+                          (tap (f state :b))
+                          (tap (f state :b :c :d)))) tap tap)
+      (hash-set % % %) :=
+      #{[0 [:local 0] [:global 0]]
+        [0 :b [:local 0] [:global 0]]
+        [0 :b '(:c :d) [:local 0] [:global 0]]}
+      (swap! !state3 inc)
+      (hash-set % % %) :=
+      #{[1 [:local 1] [:global 1]]
+        [1 :b [:local 1] [:global 1]]
+        [1 :b '(:c :d) [:local 1] [:global 1]]})))
 
-(def !state4 (atom 0))
 (tests
-  (reset! !state4 0)
-  (with ((l/single {}
-           (let [state (e/watch !state4)]
-             (tap [state state])
-             (tap [state state])))
-         tap tap)
-    % := [0 0]
-    % := [0 0]
-    (swap! !state4 inc)
-    % := [1 1]
-    % := [1 1]))
+  (let [!state4 (atom 0)]
+    (with ((l/single {}
+             (let [state (e/watch !state4)]
+               (tap [state state])
+               (tap [state state])))
+           tap tap)
+      % := [0 0]
+      % := [0 0]
+      (swap! !state4 inc)
+      % := [1 1]
+      % := [1 1])))
 
 (tests "cc/fn lexical bindings are untouched"
   (with ((l/single {} (let [a 1
@@ -1321,28 +1274,26 @@
           [false false true true]}
         % := [false false true true]))
 
-(def !state (atom 0))
-(def global)
 (tests "Inline letfn support"
-  (reset! !state 0)
-  (with ((l/single {} (let [state (e/watch !state)
-                        local [:local state]]
-                    (binding [global [:global state]]
-                      (letfn [(f ([a] [a local hyperfiddle.electric-de-test/global])
-                                ([a b] [a b local global])
-                                ([a b & cs] [a b cs local global]))]
-                        (tap (f state))
-                        (tap (f state :b))
-                        (tap (f state :b :c :d)))))) tap tap)
-    (hash-set % % %) :=
-    #{[0 [:local 0] [:global 0]]
-      [0 :b [:local 0] [:global 0]]
-      [0 :b '(:c :d) [:local 0] [:global 0]]}
-    (swap! !state inc)
-    (hash-set % % %) :=
-    #{[1 [:local 1] [:global 1]]
-      [1 :b [:local 1] [:global 1]]
-      [1 :b '(:c :d) [:local 1] [:global 1]]}))
+  (let [!state (atom 0)]
+    (with ((l/single {} (let [state (e/watch !state)
+                              local [:local state]]
+                          (binding [global [:global state]]
+                            (letfn [(f ([a] [a local hyperfiddle.electric-de-test/global])
+                                      ([a b] [a b local global])
+                                      ([a b & cs] [a b cs local global]))]
+                              (tap (f state))
+                              (tap (f state :b))
+                              (tap (f state :b :c :d)))))) tap tap)
+      (hash-set % % %) :=
+      #{[0 [:local 0] [:global 0]]
+        [0 :b [:local 0] [:global 0]]
+        [0 :b '(:c :d) [:local 0] [:global 0]]}
+      (swap! !state inc)
+      (hash-set % % %) :=
+      #{[1 [:local 1] [:global 1]]
+        [1 :b [:local 1] [:global 1]]
+        [1 :b '(:c :d) [:local 1] [:global 1]]})))
 
 #?(:clj
    (tests "e/fn is undefined in clojure-land"
@@ -1402,13 +1353,13 @@
       % := 2
       % := 2)))
 
+(def z 3)
 (tests "letfn body is electric"
-  (def z 3)
-  (def !x (atom 4))
-  (with ((l/single {} (let [y 2] (letfn [(f [x] (g x)) (g [x] [x y z])] (tap (f (e/watch !x)))))) tap tap)
-    % := [4 2 3]
-    (swap! !x inc)
-    % := [5 2 3]))
+  (let [!x (atom 4)]
+    (with ((l/single {} (let [y 2] (letfn [(f [x] (g x)) (g [x] [x y z])] (tap (f (e/watch !x)))))) tap tap)
+      % := [4 2 3]
+      (swap! !x inc)
+      % := [5 2 3])))
 
 ;; currently broken https://www.notion.so/hyperfiddle/cr-macro-internal-mutation-violates-photon-purity-requirement-119c18755ddd466384beb15f1e2317c5
 #_
@@ -1425,29 +1376,29 @@
 
 #?(:clj
    (tests "set!"
-     (def !y (atom 8))
-     (with ((l/single {} (let [pt (java.awt.Point. 1 2)
-                           y (e/watch !y)]
-                       (set! (.-y pt) y)
-                       ;; calling (.-y pt) doesn't work, it's deduped
-                       (tap [y pt]))) tap tap)
-       % := [8 (java.awt.Point. 1 8)]
-       (swap! !y inc)
-       % := [9 (java.awt.Point. 1 9)])))
+     (let [!y (atom 8)]
+       (with ((l/single {} (let [pt (java.awt.Point. 1 2)
+                                 y (e/watch !y)]
+                             (set! (.-y pt) y)
+                             ;; calling (.-y pt) doesn't work, it's deduped
+                             (tap [y pt]))) tap tap)
+         % := [8 (java.awt.Point. 1 8)]
+         (swap! !y inc)
+         % := [9 (java.awt.Point. 1 9)]))))
 
+(defn bypass-rcf-bug [[href a]] [href (str/replace (.-href a) #".*/" "")])
 #?(:cljs
    (do-browser
-     (tests "set!"
-       ;; https://www.notion.so/hyperfiddle/RCF-implicit-do-rewrite-rule-does-not-account-for-let-bindings-61b1ad82771c407198c1f678683bf443
-       (defn bypass-rcf-bug [[href a]] [href (str/replace (.-href a) #".*/" "")])
-       (def !href (atom "href1"))
-       (with ((l/single {} (let [a (.createElement js/document "a")
-                             href (e/watch !href)]
-                         (set! (.-href a) href)
-                         (tap [href a]))) tap tap)
-         (bypass-rcf-bug %) := ["href1" "href1"]
-         (reset! !href "href2")
-         (bypass-rcf-bug %) := ["href2" "href2"]))))
+     (let [!href (atom "href1")]
+       (tests "set!"
+         ;; https://www.notion.so/hyperfiddle/RCF-implicit-do-rewrite-rule-does-not-account-for-let-bindings-61b1ad82771c407198c1f678683bf443
+         (with ((l/single {} (let [a (.createElement js/document "a")
+                                   href (e/watch !href)]
+                               (set! (.-href a) href)
+                               (tap [href a]))) tap tap)
+           (bypass-rcf-bug %) := ["href1" "href1"]
+           (reset! !href "href2")
+           (bypass-rcf-bug %) := ["href2" "href2"])))))
 
 #?(:clj (tests "set! with electric value"
           (with ((l/single {} (tap (let [pt (java.awt.Point. 1 2)]
@@ -1521,20 +1472,20 @@
       % := 2432902008176640000)))
 
 (tests "clojure def inside electric code"
-  (def !x (atom 0))
-  (with ((l/single {} (def --foo (tap (e/watch !x)))) tap tap)
-                    % := 0, --foo := 0
-    (swap! !x inc)  % := 1, --foo := 1))
+  (let [!x (atom 0)]
+    (with ((l/single {} (def --foo (tap (e/watch !x)))) tap tap)
+      % := 0, --foo := 0
+      (swap! !x inc)  % := 1, --foo := 1)))
 
 ;; TODO try/catch
 (skip "catch handlers are work skipped"
-  (def !x (atom 0))
-  (with ((l/single {} (try (e/watch !x)
-                  (throw (ex-info "hy" {}))
-                  (catch ExceptionInfo e (tap e))
-                  (catch Cancelled _ (tap :cancelled)))) tap tap)
-   (ex-message %) := "hy"      ; exception tapped by `ExceptionInfo` catch block
-   (swap! !x inc))              ; same exception, so work skipped
+  (let [!x (atom 0)]
+    (with ((l/single {} (try (e/watch !x)
+                             (throw (ex-info "hy" {}))
+                             (catch ExceptionInfo e (tap e))
+                             (catch Cancelled _ (tap :cancelled)))) tap tap)
+      (ex-message %) := "hy"   ; exception tapped by `ExceptionInfo` catch block
+      (swap! !x inc)))              ; same exception, so work skipped
   % := :cancelled)
 
 ;; TODO try/catch
@@ -1549,16 +1500,16 @@
 
 ;; TODO try/catch
 (skip "catch code reacts to changes"
-  (def !x (atom 0))
-  (with ((l/single {} (tap (try (throw (ex-info "boom" {}))
-                            (catch Throwable _ (e/watch !x))))) tap tap)
-    % := 0
-    (swap! !x inc)
-    % := 1))
+  (let [!x (atom 0)]
+    (with ((l/single {} (tap (try (throw (ex-info "boom" {}))
+                                  (catch Throwable _ (e/watch !x))))) tap tap)
+      % := 0
+      (swap! !x inc)
+      % := 1)))
 
 ;; TODO try/catch, electric binding conveyance
+(def ^:dynamic dynfoo 1)
 (skip "Electric dynamic scope is available in cc/fn"
-  (l/def ^:dynamic dynfoo 1)
   (with ((l/single {}
            (try
              ((fn []
@@ -1580,7 +1531,6 @@
 
 ;; TODO try/catch, electric binding conveyance
 (skip "Injecting an l/def binding in cc/fn respects dynamic scope rules"
-  (def ^:dynamic dynfoo 1)
   (with ((l/single {}
            (try
              (tap dynfoo)               ; electric dynamic context
@@ -1598,18 +1548,16 @@
     % := 2))
 
 (tests "In Clojure, unqualified names first resolves to lexical scope"
-  (def ^:dynamic foo 1)
-  foo := 1 ; no lexical binding shadowing -> resolve to foo var
-  (let [foo 2] ; lexical shadowing
-    foo := 2   ; resolve to lexical scope
-    (binding [#?(:clj foo, :cljs hyperfiddle.electric-de-test/foo) 3] ; always rebind var in clojure. Cljs requires fully qualified name.
-      foo := 2 ; unqualified name resolves to lexical scope
-      hyperfiddle.electric-de-test/foo := 3))) ; qualified name resolves to the var
+  dynfoo := 1 ; no lexical binding shadowing -> resolve to dynfoo var
+  (let [dynfoo 2] ; lexical shadowing
+    dynfoo := 2   ; resolve to lexical scope
+    (binding [#?(:clj dynfoo, :cljs hyperfiddle.electric-de-test/dynfoo) 3] ; always rebind var in clojure. Cljs requires fully qualified name.
+      dynfoo := 2 ; unqualified name resolves to lexical scope
+      hyperfiddle.electric-de-test/dynfoo := 3))) ; qualified name resolves to the var
 
 ;; TODO try/catch, electric binding conveyance
 #?(:clj
    (skip "cc/fn args shadow l/def injections"
-     (def ^:dynamic dynfoo 1)
      (with ((l/single {}
               (try
                 (tap dynfoo)            ; electric dynamic context
@@ -1628,7 +1576,6 @@
 ;; TODO try/catch, electric binding conveyance
 #?(:clj
    (skip "Injected lexical scope respects precedence over injected dynamic scope"
-     (def ^:dynamic dynfoo 1)
      (with ((l/single {}
               (try
                 (tap dynfoo)
@@ -1648,7 +1595,6 @@
 ;; TODO try/catch, electric binding conveyance
 #?(:clj
    (skip "Shadowing injected dynamic scope in cc context respects clojure shadowing rules"
-     (def ^:dynamic dynfoo 1)
      (with ((l/single {}
               (try
                 (tap dynfoo)
@@ -2005,11 +1951,11 @@
   (with ((l/single {} (tap ($ Fib 7))) tap tap)
     % := 13))
 (tests "self-recur by name, e/fn thunk"
-  (def !x (atom 2))
-  (with ((l/single {} ($ (e/fn X [] (if (pos-int? (tap (swap! !x dec))) ($ X) (tap :done))))) tap tap)
-    % := 1
-    % := 0
-    % := :done))
+  (let [!x (atom 2)]
+    (with ((l/single {} ($ (e/fn X [] (if (pos-int? (tap (swap! !x dec))) ($ X) (tap :done))))) tap tap)
+      % := 1
+      % := 0
+      % := :done)))
 (tests "self-recur by name, to different arity"
   (with ((l/single {} (tap ($ (e/fn X ([] ($ X 0)) ([n] (inc n)))))) tap tap)
     % := 1))
@@ -2040,13 +1986,13 @@
 
 #?(:cljs
    (tests "#js"
-     (def !x (atom 0))
-     (with ((l/single {} (let [x (e/watch !x)]
-                           (tap [(.-x #js {:x x})
-                                 (aget #js [:x x] 1)]))) tap tap)
-       % := [0 0]
-       (swap! !x inc)
-       % := [1 1])))
+     (let [!x (atom 0)]
+       (with ((l/single {} (let [x (e/watch !x)]
+                             (tap [(.-x #js {:x x})
+                                   (aget #js [:x x] 1)]))) tap tap)
+         % := [0 0]
+         (swap! !x inc)
+         % := [1 1]))))
 
 #?(:clj
    (tests "jvm interop"
@@ -2113,7 +2059,7 @@
 
 ;; TODO
 #?(:clj
-   (skip "l/def marks the namespace"
+   (skip "e/defn marks the namespace"
      (e/defn Foo [] 1)
      (-> *ns* meta ::lang/has-edef?) := true))
 
@@ -2125,11 +2071,11 @@
        first) := ::lang/ctor))
 
 (tests "set literal"
-  (def !v (atom 1))
-  (with ((l/single {} (tap #{(e/watch !v)})) tap tap)
-    % := #{1}
-    (swap! !v inc)
-    % := #{2}))
+  (let [!v (atom 1)]
+    (with ((l/single {} (tap #{(e/watch !v)})) tap tap)
+      % := #{1}
+      (swap! !v inc)
+      % := #{2})))
 
 (let [x 1] (e/defn XX [] [x x]))
 (tests "let over e/defn"
@@ -2183,47 +2129,16 @@
     % := false))
 
 (tests
-  (def !offset (atom 0))
-  (with ((l/local {}
-           (e/cursor [j (let [o (e/watch !offset)]
-                          (e/diff-by identity
-                            (range o (+ o 2))))]
-             (e/server (tap j))))
-         tap tap)
-    (hash-set % %) := #{0 1}
-    (swap! !offset inc)
-    % := 2))
-
-(comment
-  (defn payT [_] (m/sp (m/? (m/sleep 10)) (rand-int 1000)))
-  (defn task->incseq [T] (m/ap (m/amb (i/empty-diff 0) (assoc (i/empty-diff 1) :grow 1, :change {0 (m/? T)}))))
-
-  (defn uf->is [uf]
-    (m/ap (m/amb (i/empty-diff 0)
-            (let [!first (atom true) v (m/?> uf)]
-              (assoc (i/empty-diff 1) :grow (if @!first (do (swap! !first not) 1) 0), :change {0 v})))))
-
-  (defn event->task [flow]
-    (uf->is (m/ap
-              (let [!busy? (atom false)
-                    v (m/?> (m/eduction (remove (fn [_] @!busy?)) flow))
-                    dfv (m/dfv), done! #(dfv false)]
-                (m/amb
-                  [v done! (reset! !busy? true)]
-                  [v done! (reset! !busy? (m/? dfv))])))))
-
-
-  (def !c (atom nil))
-  (tests
+  (let [!offset (atom 0)]
     (with ((l/local {}
-             (let [[v done!] (e/join (event->task (m/observe (fn [!] (reset! !c !) #()))))]
-               (case (e/server (e/join (task->incseq (payT v))))
-                 (tap (done!))))) tap tap)
-      (@!c 1)
-      % := false
-      (@!c 2)
-      % := false))
-  )
+             (e/cursor [j (let [o (e/watch !offset)]
+                            (e/diff-by identity
+                              (range o (+ o 2))))]
+               (e/server (tap j))))
+           tap tap)
+      (hash-set % %) := #{0 1}
+      (swap! !offset inc)
+      % := 2)))
 
 (defn mount-at [kvs k v]
   (m/observe
@@ -2233,45 +2148,40 @@
       #(kvs/remove! kvs k))))
 
 (tests
-
-  (def !x (atom true))
-  (def !y (atom true))
-
-  (with ((l/single {}
-           (let [mp (e/mount-point)]
-             (tap (e/as-vec (e/join mp)))
-             (if (e/watch !x)
-               (e/join (mount-at mp (e/tag) 0))
-               (if (e/input (m/watch !y))
-                 (e/join (mount-at mp (e/tag) 1))
-                 (e/join (mount-at mp (e/tag) 2))))
-             (e/join (mount-at mp (e/tag) 3))))
-         tap tap)
-    % := [0 3]
-    (swap! !x not)
-    % := [1 3]
-    (swap! !y not)
-    % := [2 3]
-    (swap! !x not)
-    % := [0 3]))
+  (let [!x (atom true), !y (atom true)]
+    (with ((l/single {}
+             (let [mp (e/mount-point)]
+               (tap (e/as-vec (e/join mp)))
+               (if (e/watch !x)
+                 (e/join (mount-at mp (e/tag) 0))
+                 (if (e/input (m/watch !y))
+                   (e/join (mount-at mp (e/tag) 1))
+                   (e/join (mount-at mp (e/tag) 2))))
+               (e/join (mount-at mp (e/tag) 3))))
+           tap tap)
+      % := [0 3]
+      (swap! !x not)
+      % := [1 3]
+      (swap! !y not)
+      % := [2 3]
+      (swap! !x not)
+      % := [0 3])))
 
 (tests
-
-  (def !xs (atom (range 20)))
-
-  (with ((l/single {}
-           (let [mp (e/mount-point)]
-             (tap (e/as-vec (e/join mp)))
-             (e/cursor [x (e/diff-by identity (e/watch !xs))]
-               (e/join (mount-at mp (e/tag) x)))))
-         tap tap)
-    % := (range 20)
-    (reset! !xs (range 10))
-    % := (range 10)
-    (reset! !xs (range 1))
-    % := (range 1)
-    (reset! !xs (reverse (range 2)))
-    % := (reverse (range 2))))
+  (let [!xs (atom (range 20))]
+    (with ((l/single {}
+             (let [mp (e/mount-point)]
+               (tap (e/as-vec (e/join mp)))
+               (e/cursor [x (e/diff-by identity (e/watch !xs))]
+                 (e/join (mount-at mp (e/tag) x)))))
+           tap tap)
+      % := (range 20)
+      (reset! !xs (range 10))
+      % := (range 10)
+      (reset! !xs (range 1))
+      % := (range 1)
+      (reset! !xs (reverse (range 2)))
+      % := (reverse (range 2)))))
 
 (tests
   (with ((l/single {}
@@ -2283,35 +2193,34 @@
     % := [:foo :bar]))
 
 (tests
-  (def !xs (atom [:foo]))
-  (with ((l/single {}
-           (let [mp (e/mount-point)]
-             (e/cursor [k (e/diff-by identity (e/watch !xs))]
-               (e/join (mount-at mp (e/tag) k)))
-             (tap (e/as-vec (e/join mp)))))
-         tap tap)
-    % := []
-    % := [:foo]
-    (reset! !xs [])
-    % := []))
+  (let [!xs (atom [:foo])]
+    (with ((l/single {}
+             (let [mp (e/mount-point)]
+               (e/cursor [k (e/diff-by identity (e/watch !xs))]
+                 (e/join (mount-at mp (e/tag) k)))
+               (tap (e/as-vec (e/join mp)))))
+           tap tap)
+      % := []
+      % := [:foo]
+      (reset! !xs [])
+      % := [])))
 
 (tests
-  (def !xs (atom ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"]))
-  (with ((l/single {}
-           (let [mp (e/mount-point)]
-             (e/cursor [k (e/diff-by identity (e/watch !xs))]
-               (e/join (mount-at mp (e/tag) k)))
-             (tap (e/as-vec (e/join mp)))))
-         tap tap)
-    % := []
-    % := ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"]
-    (reset! !xs ["clojure.basis" "file.encoding" "java.class.path"])
-    % := ["clojure.basis" "file.encoding" "java.class.path"]
-    (reset! !xs ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"])
-    % := ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"]))
+  (let [!xs (atom ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"])]
+    (with ((l/single {}
+             (let [mp (e/mount-point)]
+               (e/cursor [k (e/diff-by identity (e/watch !xs))]
+                 (e/join (mount-at mp (e/tag) k)))
+               (tap (e/as-vec (e/join mp)))))
+           tap tap)
+      % := []
+      % := ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"]
+      (reset! !xs ["clojure.basis" "file.encoding" "java.class.path"])
+      % := ["clojure.basis" "file.encoding" "java.class.path"]
+      (reset! !xs ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"])
+      % := ["apple.awt.UIElement" "clojure.basis" "file.encoding" "java.class.path"])))
 
 (tests
-
   (with ((l/local {}
            (let [mp (e/mount-point)]
              (tap (e/as-vec (e/join mp)))
@@ -2323,20 +2232,18 @@
                       (e/join (mount-at mp (e/tag) :bar))]))))))
          tap tap)
     % := []
-    % := [:foo :bar])
-
-  )
+    % := [:foo :bar]))
 
 (tests
-  (def !xs (atom [0 1]))
-  (with ((l/local {}
-           (let [mp (e/mount-point)
-                 F (e/fn []
-                     (e/client
-                       (e/join (mount-at mp (e/tag) nil))))]
-             (e/join mp)
-             (e/server
-               (e/cursor [_ (e/diff-by identity (e/watch !xs))]
-                 ($ F)))))
-         tap tap)
-    (reset! !xs [1 2])))
+  (let [!ys (atom [0 1])]
+    (with ((l/local {}
+             (let [mp (e/mount-point)
+                   F (e/fn []
+                       (e/client
+                         (e/join (mount-at mp (e/tag) nil))))]
+               (e/join mp)
+               (e/server
+                 (e/cursor [_ (e/diff-by identity (e/watch !ys))]
+                   ($ F)))))
+           tap tap)
+      (reset! !ys [1 2]))))

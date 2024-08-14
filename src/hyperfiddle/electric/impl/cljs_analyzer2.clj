@@ -160,6 +160,18 @@
   (let [o (apply hash-map (next args))]
     (into [(first args)] cat (cond-> (select-keys o [:rename]) (:only o) (assoc :refer (:only o))))))
 
+(letfn [(simple [v] (-> v str (str/split #"\.") peek symbol))]
+  (defn add-1-import [ns$ a v]
+    (let [add (fn add [a v] (update-in a [::nses ns$ ::imports] (fnil conj #{}) v (simple v)))]
+      (if (symbol? v)
+        (add a v)                       ; java.util.X
+        (if (next v)                    ; [java.util X Y]
+          (reduce (fn [a nx] (add a (mksym (first v) "." nx))) a (next v))
+          (add a (first v)))))))        ; [java.util.X]
+
+(defn add-import [!a ns$ args]
+  (swap! !a (fn [a] (reduce (partial add-1-import ns$) a args))))
+
 (defn add-ns-infoT [!a env [_ns ns$ & args]]
   (let [args (-> args skip-docstring skip-attr-map)]
     (run! (fn [[typ & args]]
@@ -169,6 +181,7 @@
               (:use) (add-requiresT !a ns$ env (mapv use->require args))
               (:use-macros) (add-require-macrosT !a ns$ env (mapv use->require args))
               (:refer-clojure) (add-refer-clojure !a ns$ args)
+              (:import) (add-import !a ns$ args)
               #_else nil))
       args)))
 
@@ -270,6 +283,15 @@
       (referred-from-js-require? a ns$ ref))))
 
 (defn ns-qualify [a sym ns$]
-  (if-some [qual-ns (keep-if (-> a ::nses (get ns$) ::requires (get (-> sym namespace symbol))) symbol?)]
-    (symbol (str qual-ns) (name sym))
-    sym))
+  (when-some [qual-ns (keep-if (-> a ::nses (get ns$) ::requires (get (-> sym namespace symbol))) symbol?)]
+    (symbol (str qual-ns) (name sym))))
+
+(def implicit-nses '#{goog goog.object goog.string goog.array Math String})
+
+(defn imported? [a sym ns$]
+  (let [imports (into implicit-nses (-> a ::nses (get ns$) ::imports))
+        dot-access (-> sym str (str/replace #"\.[^.]+$" "") symbol)]
+    (or (get imports dot-access)
+      (and (qualified-symbol? sym) (get imports (-> sym namespace symbol))))))
+
+(defn referred? [a sym ns$] (-> a ::nses (get ns$) ::refers (get sym)))
