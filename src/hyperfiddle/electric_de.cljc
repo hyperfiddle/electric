@@ -27,7 +27,6 @@
     (throw (ex-info (str "Electric code (" fn ") inside a Clojure function") (into {:electric-fn fn} (meta &form))))))
 
 (defmacro ctor [expr] `(::lang/ctor ~expr))
-(defmacro sited-ctor [expr] `(::lang/ctor (::lang/site ~(::lang/current &env) ~expr)))
 (defmacro $ [F & args] `(check-electric $ (lang/$ ~F ~@args)))
 
 (defmacro frame [] `(::lang/frame))
@@ -115,7 +114,7 @@ Syntax :
 (amb table1 table2 ,,, tableN)
 ```
 Returns the concatenation of `table1 table2 ,,, tableN`.
-" [& exprs] `(::lang/call (join (i/fixed ~@(map #(list `r/invariant (list `sited-ctor %)) exprs)))))
+" [& exprs] `(::lang/call (join (i/fixed ~@(map #(list `r/invariant (list `ctor %)) exprs)))))
 
 (defmacro input "
 Syntax :
