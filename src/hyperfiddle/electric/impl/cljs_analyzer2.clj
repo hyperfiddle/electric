@@ -11,7 +11,8 @@
             [clojure.tools.reader.reader-types :as rt]
             [contrib.assert :as ca]
             [contrib.debug]
-            [edamame.core :as ed]))               ; for cljs macroexpansion
+            [edamame.core :as ed]                 ; for cljs macroexpansion
+            [clojure.walk :as walk]))
 
 (defn ns->basename [ns$] (-> ns$ name (.replace \- \_) (.replace \. \/)))
 
@@ -20,14 +21,32 @@
     (or (io/resource (str base ".cljs"))
       (io/resource (str base ".cljc")))))
 
+(defn eval-edamame-read-eval
+  "Edamame, an edn parser, doesn't fully implement read-eval (aka `#=`).
+  Edamame expands `#=(foo bar)` to `(edamame.core/read-eval (foo bar))` and
+  leave the actual eval action's responsibility to the user -
+  `edamame.core/read-eval` does not resolve to any var.
+
+  The current function takes an edamame-parsed form, walk it and eval parsed #=
+  forms. Edamame must be invoked with `{:read-eval true, :quote true}` options
+  to produce a form we can properly eval.
+
+  Doesn't preserve read-time metadata. We don't care about metadata in this
+  specific case, because we only use this to read ns forms and we are not aware
+  of any use case for metadata in ns forms applying to Electric"
+  [form]
+  (walk/prewalk
+    (fn [form] (if (and (seq? form) (= 'edamame.core/read-eval (first form))) (eval (second form)) form))
+    form))
+
 (let [parse-opts
       (ed/normalize-opts {:all true, :row-key :line, :col-key :column, :end-location false
                           :readers cljs.tagged-literals/*cljs-data-readers* :auto-resolve name
-                          :features #{:cljs}, :read-cond :allow, :eof ::done})]
+                          :features #{:cljs}, :read-cond :allow, :read-eval true, :quote true, :eof ::done})]
   (defn resource-forms [rs]
     (with-open [rdr (rt/source-logging-push-back-reader (io/reader rs))]
       (loop [v []]
-        (let [nx (ed/parse-next rdr parse-opts)]
+        (let [nx (eval-edamame-read-eval (ed/parse-next rdr parse-opts))]
           (if (= nx ::done) v (recur (conj v nx))))))))
 
 (defn safe-require [sym]
