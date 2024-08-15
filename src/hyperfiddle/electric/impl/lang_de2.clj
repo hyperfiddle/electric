@@ -100,7 +100,7 @@
     (cond-> o (meta metao) (vary-meta #(merge (meta metao) %)))
     o))
 
-(declare -expand-all)
+(declare -expand-all -expand-all-foreign -expand-all-foreign-try)
 
 (defn traceable [f] (case (namespace f) ("hyperfiddle.electric.impl.runtime-de" "missionary.core" "hyperfiddle.incseq") false #_else true))
 
@@ -119,6 +119,69 @@
 
 (defmacro $ [F & args]
   `(::call ((::static-vars r/dispatch) '~F ~F ~@(map (fn [arg] `(::pure ~arg)) args))))
+
+(defn -expand-let-bindings [bs env]
+  (loopr [bs2 [], env2 env]
+      [[sym v] (eduction (partition-all 2) bs)]
+      (recur (conj bs2 sym (-expand-all-foreign v env2)) (add-local env2 sym))))
+
+(defn -expand-fn-arity [[bs & body :as o] env]
+  (?meta o (list bs (-expand-all-foreign (?meta body (cons 'do body)) (reduce add-local env bs)))))
+
+(defn -expand-all-foreign [o env]
+  (cond
+    (and (seq? o) (seq o))
+    (if (find-local-entry env (first o))
+      (?meta o (list* (first o) (mapv (fn-> -expand-all-foreign env) (rest o))))
+      (case (first o)
+        (do) (if (nnext o)
+               (?meta o (cons 'do (eduction (map (fn-> -expand-all-foreign env)) (next o))))
+               (recur (?meta o (second o)) env))
+
+        (let clojure.core/let cljs.core/let)
+        (let [[_ bs & body] o] (recur (?meta o (list* 'let* (dst/destructure* bs) body)) env))
+
+        (let* loop*) (let [[call bs & body] o, [bs2 env2] (-expand-let-bindings bs env)]
+                       (?meta o (list call bs2 (-expand-all-foreign (?meta body (cons 'do body)) env2))))
+
+        (quote) o
+
+        (fn*) (let [[?name more] (if (symbol? (second o)) [(second o) (nnext o)] [nil (next o)])
+                    arities (cond-> more (vector? (first more)) list)]
+                (?meta o (list* (into (if ?name ['fn* ?name] ['fn*]) (map (fn-> -expand-fn-arity env)) arities))))
+
+        (letfn*) (let [[_ bs & body] o
+                       env2 (reduce add-local env (eduction (take-nth 2) bs))
+                       bs2 (->> bs (into [] (comp (partition-all 2)
+                                              (mapcat (fn [[sym v]] [sym (-expand-all-foreign v env2)])))))]
+                   (?meta o `(letfn* ~bs2 ~(-expand-all-foreign (cons 'do body) env2))))
+
+        (try) (list* 'try (mapv (fn-> -expand-all-foreign-try env) (rest o)))
+
+        (binding clojure.core/binding)
+        (let [[_ bs & body] o]
+          (?meta o (list 'binding (into [] (comp (partition-all 2)
+                                             (mapcat (fn [[sym v]] [sym (-expand-all-foreign v env)]))) bs)
+                     (-expand-all-foreign (cons 'do body) env))))
+
+        #_else (?expand-macro o env -expand-all-foreign)))
+
+    (instance? cljs.tagged_literals.JSValue o)
+    (cljs.tagged_literals.JSValue. (-expand-all-foreign (.-val o) env))
+
+    (map-entry? o) (clojure.lang.MapEntry. (-expand-all-foreign (key o) env) (-expand-all-foreign (val o) env))
+    (coll? o) (?meta (meta o) (into (empty o) (map (fn-> -expand-all-foreign env)) o))
+    :else o))
+
+(defn -expand-all-foreign-try [o env]
+  (if (seq? o)
+    (if (find-local-entry env (first o))
+      (?meta o (list* (first o) (mapv (fn-> -expand-all-foreign env) (rest o))))
+      (case (first o)
+        (catch) (let [[_ typ sym & body] o]
+                  (list* 'catch typ sym (mapv (fn-> -expand-all-foreign (add-local env sym)) body)))
+        #_else (-expand-all-foreign o env)))
+    (-expand-all-foreign o env)))
 
 (defn -expand-all [o env]
   (cond
@@ -175,14 +238,12 @@
 
         (quote) o
 
-        (fn*) (let [[?name more] (if (symbol? (second o)) [(second o) (nnext o)] [nil (next o)])
-                    arities (cond-> more (vector? (first more)) list)]
-                (?meta o (apply list (into (if ?name ['fn* ?name] ['fn*]) arities))))
+        (fn*) (-expand-all-foreign o (dissoc env ::electric))
 
         (letfn*) (let [[_ bs & body] o
                        env2 (reduce add-local env (take-nth 2 bs))
                        bs2 (->> bs (into [] (comp (partition-all 2)
-                                              (mapcat (fn [[sym v]] [sym (-expand-all v env2)])))))]
+                                              (mapcat (fn [[sym v]] [sym (-expand-all-foreign v env2)])))))]
                    (recur (?meta o `(let [~(vec (take-nth 2 bs2)) (::cc-letfn ~bs2)] ~(-expand-all (cons 'do body) env2)))
                      env))
 

@@ -134,7 +134,8 @@ On unmount:
   ([node attribute value]
    (e/client
      (set-property! node attribute value)
-     (e/on-unmount #(set-property! node attribute nil)))))
+     ;; FIXME remove color after compiler fix
+     (e/client (e/on-unmount #(set-property! node attribute nil))))))
 
 ;;;;;;;;;;;;;
 ;; Classes ;;

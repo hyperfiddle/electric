@@ -4,6 +4,7 @@
             #?(:clj [hyperfiddle.electric.impl.lang-de2 :as l])
             #?(:clj [hyperfiddle.electric.impl.runtime-de :as r])
             #?(:clj [hyperfiddle.electric-de :as e])
+            #?(:clj [contrib.test-match :as tm])
             [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred]]
             #?(:clj [hyperfiddle.rcf :as rcf :refer [tests]]))
   #?(:cljs (:require-macros [hyperfiddle.electric.impl.expand-macro :as mac :refer [twice]])))
@@ -19,6 +20,12 @@
 #?(:clj (deftype X []))
 
 #?(:clj (def has-line-meta? (comp number? :line meta)))
+
+(defmacro match [code matcher]
+  `(let [ret# ~code, matcher# ~matcher match# (tm/test-match ret# matcher#)]
+     ret# := match#
+     (when (not= ret# match#) (fipp.edn/pprint match#))
+     match#))
 
 #?(:clj
    (tests
@@ -64,11 +71,37 @@
      (has-line-meta? (all '(fn [x] 1))) := true
      (all '(fn foo [x] 1)) := '(fn* foo ([x] 1))
      (all '(fn foo ([x] 1))) := '(fn* foo ([x] 1))
+     (all '(fn foo ([x] 1 2))) := '(fn* foo ([x] (do 1 2)))
+     (all '(fn foo ([x] (do 1 (-> 2 inc))))) := '(fn* foo ([x] (do 1 (inc 2))))
+     (all '(fn ([x] x) ([x y] [x y]))) := '(fn* ([x] x) ([x y] [x y]))
      (all '(fn [with-open] (with-open 1))) := '(fn* ([with-open] (with-open 1)))
-     (all '(fn [x] (-> x inc))) := '(fn* ([x] (-> x inc)))
+     (all '(fn [x] (-> x inc))) := '(fn* ([x] (inc x)))
+     (all '(fn [x] (let [y 1] [x y]))) := '(fn* ([x] (let* [y 1] [x y])))
+     (all '(fn [] (let [] (-> 1 inc)))) := '(fn* ([] (let* [] (inc 1))))
+     (all '(fn [] (loop [x 1, y (-> 2 inc)] [x y]))) := '(fn* ([] (loop* [x 1, y (inc 2)] [x y])))
+     (all '(fn [] (loop [] (-> x y)))) := '(fn* ([] (loop* [] (y x))))
+     (all '(fn [] (try (x) (catch F -> (-> 1))))) := '(fn* ([] (try (x) (catch F -> (-> 1)))))
+     (all '(fn [] (catch F -> (-> 1)))) := '(fn* ([] (catch F -> 1)))
 
      (all '(fn* [x] x)) := '(fn* ([x] x)) ; fn* can come from elsewhere with a non-wrapped single arity
      (has-line-meta? (all '(fn* [x] x))) := true
+
+     (match (all '(letfn [(foo [with-open] (with-open 1))
+                          (bar [x] (-> x inc))
+                          (baz [x] (->> x))
+                          (->> [x] x)]
+                    (-> (->> x) inc)))
+       '(let* [contrib.test-match/_
+               (::l/cc-letfn
+                [foo (fn* foo ([with-open] (with-open 1)))
+                 bar (fn* bar ([x] (inc x)))
+                 baz (fn* baz ([x] x))
+                 ->> (fn* ->> ([x] x))])
+               foo (clojure.core/nth contrib.test-match/_ 0 nil)
+               bar (clojure.core/nth contrib.test-match/_ 1 nil)
+               baz (clojure.core/nth contrib.test-match/_ 2 nil)
+               ->> (clojure.core/nth contrib.test-match/_ 3 nil)]
+          (inc (->> x))))
 
      (has-line-meta? (all '(letfn [(foo [with-open] (with-open 1))
                                    (bar [x] (-> x inc))
