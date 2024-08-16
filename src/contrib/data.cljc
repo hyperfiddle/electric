@@ -344,3 +344,10 @@
   "directory is omitted if there are no children matching keep?"
   ((treelister [{:dir "x" :children [{:file "a"} {:file "b"}]}] :children (fn [v needle] (-> v :file #{needle}))) "nope")
   (count (vec *1)) := 0)
+
+(defn fn->
+  ([f a] (fn [o] (f o a)))
+  ([f a b] (fn [o] (f o a b)))
+  ([f a b c] (fn [o] (f o a b c)))
+  ([f a b c d] (fn [o] (f o a b c d)))
+  ([f a b c d e] (fn [o] (f o a b c d e))))
