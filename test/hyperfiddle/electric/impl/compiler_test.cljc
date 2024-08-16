@@ -12,7 +12,8 @@
             #?(:clj [contrib.test-match :as tm])
             #?(:cljs [goog.math :as gm])
             [fipp.edn]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana])
   #?(:clj (:import [clojure.lang ExceptionInfo])))
 
 ;; tests that turn electric code into clojure code
@@ -592,6 +593,97 @@
         (fn [~'frame]
           (r/ap (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/free ~'frame 0))))]))
+
+(def ^:dynamic *d* nil)
+(def fenv {:ns {:name 'hyperfiddle.electric.impl.compiler-test}
+           :locals {'e1 {::lang/electric-let 1}
+                    'e2 {::lang/electric-let 2}
+                    'z  {}}})
+(defn fana
+  ([o] (fana o gensym))
+  ([o g] (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv #{} g)))
+
+(defn foreign
+  ([o] (foreign o gensym))
+  ([o gen] (-> (lang/analyze-foreign2 (lang/-expand-all-foreign o fenv) fenv)
+             (lang/emit-foreign))))
+
+(def fenv-js (merge (cljs-ana/->cljs-env) fenv {::lang/peers {:client :cljs} ::lang/curent :client}))
+(defn fana-js
+  ([o] (fana-js o gensym))
+  ([o g] (lang/analyze-foreign (lang/-expand-all-foreign o fenv-js) fenv-js #{} g)))
+
+(tests
+  "foreign walk"
+  (fana 'e1) := #{[:l 'e1 'e1 'e1]}
+  (fana '(do e1 e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana '(foo e1 e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2] [:l 'foo 'foo `r/cannot-resolve]}
+  (fana '(fn* ([e2] (+ e1 e2)))) := #{[:l 'e1 'e1 'e1] [:l '+ '+ `+]}
+  (fana '(let* [e1 1, e2 2] [e1 e2])) := #{}
+  (fana '(fn* ([e1] e1) ([e2 e3] [e1 e2]))) := #{[:l 'e1 'e1 'e1]}
+  (fana '(letfn [(e1 [] (e2))
+                 (e2 [] (inc 1))])) := #{[:l 'inc 'inc `inc]}
+  (fana '(. java.time.Instant (ofEpochMilli e1))) := #{[:l 'e1 'e1 'e1]}
+  (fana '(. java.time.Instant ofEpochMilli e2)) := #{[:l 'e2 'e2 'e2]}
+  (fana '(. e1 (isAfter e2))) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana '(. e1 isAfter e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana '(. e1 x)) := #{[:l 'e1 'e1 'e1]}
+  (fana '(binding [x (inc e1), y (inc e2)] (dec e1))) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2] [:l 'inc 'inc `inc] [:l 'dec 'dec `dec]}
+  (fana '(def inc e1)) := #{[:l 'e1 'e1 'e1]}
+  (fana '(set! inc e1)) := #{[:l 'e1 'e1 'e1]}
+  (fana  '{e1 e2}) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana '#{e1 e2}) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana  '[e1 e2]) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana '(clojure.core/inc e1))
+  (fana '*d* (constantly 'dynamic)) := #{[:d 'dynamic '*d* `*d*]}
+
+  "cljs"
+  (swap! lang/!a cljs-ana/purge-ns (ns-name *ns*))
+  (cljs-ana/analyze-nsT lang/!a fenv-js (ns-name *ns*))
+  (fana-js 'e1) := #{[:l 'e1 'e1 'e1]}
+  (fana-js '(do e1 e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana-js '(foo e1 e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2] [:l 'foo 'foo `r/cannot-resolve]}
+  (fana-js '(fn* ([e2] (+ e1 e2)))) := #{[:l 'e1 'e1 'e1] [:l '+ '+ `+]}
+  (fana-js '(let* [e1 1, e2 2] [e1 e2])) := #{}
+  (fana-js '(fn* ([e1] e1) ([e2 e3] [e1 e2]))) := #{[:l 'e1 'e1 'e1]}
+  (fana-js '(letfn [(e1 [] (e2))
+                    (e2 [] (inc 1))])) := #{[:l 'inc 'inc `inc]}
+  (fana-js '(. e1 (isAfter e2))) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana-js '(. e1 isAfter e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana-js '(. e1 x)) := #{[:l 'e1 'e1 'e1]}
+  (fana-js '(binding [x (inc e1), y (inc e2)] (dec e1))) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2] [:l 'inc 'inc `inc] [:l 'dec 'dec `dec]}
+  (fana-js '(def inc e1)) := #{[:l 'e1 'e1 'e1]}
+  (fana-js '(set! inc e1)) := #{[:l 'e1 'e1 'e1]}
+  (fana-js  '{e1 e2}) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana-js '#{e1 e2}) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana-js  '[e1 e2]) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
+  (fana-js '*d* (constantly 'dynamic)) := #{[:d 'dynamic '*d* `*d*]})
+
+(tests
+  "foreign"
+  (foreign '(let [x 1, y 2] 3)) := '(let* [x 1 y 2] 3)
+  (foreign '(quote foo)) := ''foo
+  (foreign '(fn ([x] 1) ([x y] 2))) := '(fn* ([x] 1) ([x y] 2))
+  (foreign '(letfn [(foo [x] 1) (bar [y] 2)] 3)) := '(letfn* [foo (fn* foo ([x] 1)) bar (fn* bar ([y] 2))] 3)
+  (foreign '(Math/abs -1)) := '(Math/abs -1)
+  (foreign '(. Math abs -1)) := '(Math/abs -1)
+  (foreign '(. Math (abs -1))) := '(Math/abs -1)
+  (foreign '(binding [x 1 y 2] 3)) := '(binding [x 1 y 2] 3)
+  (foreign '(def foo 1)) := '(def foo 1)
+  (foreign '(do (def foo 1) 2)) := '(do (def foo 1) 2)
+  (foreign '{:a 1 :b 2}) := '{:a 1 :b 2}
+  (foreign '[x :y 1]) := '[x :y 1]
+  (foreign '#{x :y 1}) := '#{x :y 1}
+  ;; TODO symbol
+  (foreign '(. pt x)) := '(. pt x)
+  (foreign '(. i1 (isAfter i2))) := '(. i1 isAfter i2)
+  (foreign '(. i1 isAfter i2)) := '(. i1 isAfter i2)
+  (foreign '(set! foo 1)) := '(set! foo 1)
+  (foreign '(let [o (Object.)] (set! (.-x o) 1))) := '(let* [o (new Object)] (set! (. o -x) 1))
+  (foreign '(new X 1 2 3)) := '(new X 1 2 3)
+  (foreign '(println 1 (inc 2))) := '(println 1 (inc 2))
+  ;; (foreign '#js{:x 1})
+  )
 
 (comment
 

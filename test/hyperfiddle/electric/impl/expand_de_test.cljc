@@ -10,9 +10,11 @@
   #?(:cljs (:require-macros [hyperfiddle.electric.impl.expand-macro :as mac :refer [twice]])))
 
 #?(:clj
-   (defmacro all [o] `(l/expand-all ~(if (:js-globals &env)
-                                       (assoc &env ::l/peers {:client :cljs, :server :cljs}, ::l/current :client)
-                                       {:locals &env, ::l/peers {:client :clj, :server :clj}, ::l/current :client})
+   (defmacro all [o] `(l/expand-all ~(assoc
+                                       (if (:js-globals &env)
+                                         (assoc &env ::l/peers {:client :cljs, :server :cljs}, ::l/current :client)
+                                         {:locals &env, ::l/peers {:client :clj, :server :clj}, ::l/current :client})
+                                       :ns '{:name 'hyperfiddle.electric.impl.expand-de-test})
                         ~o)))
 
 #?(:clj (defmacro test-peer-expansion [] (if (:js-globals &env) :cljs :clj)))
@@ -77,6 +79,7 @@
      (all '(fn [with-open] (with-open 1))) := '(fn* ([with-open] (with-open 1)))
      (all '(fn [x] (-> x inc))) := '(fn* ([x] (inc x)))
      (all '(fn [x] (let [y 1] [x y]))) := '(fn* ([x] (let* [y 1] [x y])))
+     (all '(fn [x] (let [y 1, z 2] [x y z]))) := '(fn* ([x] (let* [y 1, z 2] [x y z])))
      (all '(fn [] (let [] (-> 1 inc)))) := '(fn* ([] (let* [] (inc 1))))
      (all '(fn [] (loop [x 1, y (-> 2 inc)] [x y]))) := '(fn* ([] (loop* [x 1, y (inc 2)] [x y])))
      (all '(fn [] (loop [] (-> x y)))) := '(fn* ([] (loop* [] (y x))))
@@ -156,7 +159,7 @@
        `[(test-peer-expansion) (::l/site :client (test-peer-expansion))])
      := `[:clj (::l/site :client :cljs)]
 
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name (ns-name *ns*)}}
        `[(test-peer-expansion) (::l/site :server (test-peer-expansion))])
      := `[:cljs (::l/site :server :clj)]
 
