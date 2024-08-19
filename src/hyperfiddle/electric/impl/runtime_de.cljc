@@ -881,118 +881,124 @@ T T T -> (EXPR T)
   (#?(:clj deref :cljs -deref) [_]
     (channel-transfer state)))
 
-(defn channel-writer-opts [^objects channel]
-  (let [handlers {Slot    (t/write-handler
-                            (fn [_] "slot")
-                            (fn [^Slot slot]
-                              [(.-frame slot) (.-id slot)]))
-                  Frame   (t/write-handler
-                            (fn [_] "frame")
-                            (fn [^Frame frame]
-                              (let [slot (.-slot frame)
-                                    rank (.-rank frame)
-                                    shared (aget channel channel-slot-shared)]
-                                [slot rank
-                                 (when-not (nil? slot)
-                                   (when-not (contains? shared [slot rank])
-                                     (aset channel channel-slot-shared
-                                       (assoc shared [slot rank] frame))
-                                     (.-ctor frame)))])))
-                  Ap      (t/write-handler
-                            (fn [_] "ap")
-                            (fn [^Ap ap]
-                              (.-inputs ap)))
-                  ;; must wrap payload in vector, cf https://github.com/cognitect/transit-cljs/issues/23
-                  Pure    (t/write-handler
-                            (fn [_] "pure")
-                            (fn [^Pure pure]
-                              [(.-value pure)]))
-                  Join    (t/write-handler
-                            (fn [_] "join")
-                            (fn [^Join join]
-                              [(.-input join)]))
-                  Unbound (t/write-handler
-                            (fn [_] "unbound")
-                            (fn [^Unbound unbound]
-                              [(.-key unbound)]))}
+(defn channel-writer-opts [opts ^objects channel]
+  (let [handlers (merge
+                   (::t/write-handlers opts {})
+                   {Slot    (t/write-handler
+                              (fn [_] "slot")
+                              (fn [^Slot slot]
+                                [(.-frame slot) (.-id slot)]))
+                    Frame   (t/write-handler
+                              (fn [_] "frame")
+                              (fn [^Frame frame]
+                                (let [slot (.-slot frame)
+                                      rank (.-rank frame)
+                                      shared (aget channel channel-slot-shared)]
+                                  [slot rank
+                                   (when-not (nil? slot)
+                                     (when-not (contains? shared [slot rank])
+                                       (aset channel channel-slot-shared
+                                         (assoc shared [slot rank] frame))
+                                       (.-ctor frame)))])))
+                    Ap      (t/write-handler
+                              (fn [_] "ap")
+                              (fn [^Ap ap]
+                                (.-inputs ap)))
+                    ;; must wrap payload in vector, cf https://github.com/cognitect/transit-cljs/issues/23
+                    Pure    (t/write-handler
+                              (fn [_] "pure")
+                              (fn [^Pure pure]
+                                [(.-value pure)]))
+                    Join    (t/write-handler
+                              (fn [_] "join")
+                              (fn [^Join join]
+                                [(.-input join)]))
+                    Unbound (t/write-handler
+                              (fn [_] "unbound")
+                              (fn [^Unbound unbound]
+                                [(.-key unbound)]))})
         default (t/write-handler
                   (fn [v] (prn :unserializable v) "unserializable")
                   (fn [_]))]
     #?(:clj  {:handlers handlers :default-handler default}
        :cljs {:handlers (assoc handlers :default default)})))
 
-(defn channel-reader-opts [^objects channel]
-  {:handlers {"slot"           (t/read-handler
-                                 (fn [[frame id]]
-                                   (->Slot frame id)))
-              "frame"          (t/read-handler
-                                 (fn [[slot rank ctor]]
-                                   (let [^objects remote (aget channel channel-slot-remote)
-                                         ^objects peer (aget remote remote-slot-peer)
-                                         shared (aget channel channel-slot-shared)]
-                                     (if (nil? ctor)
-                                       (if (nil? slot)
-                                         (aget peer peer-slot-root)
-                                         (get shared [slot rank]))
-                                       (let [frame (make-frame peer slot rank (port-site (slot-port slot)) ctor)]
-                                         (aset channel channel-slot-shared
-                                           (assoc shared [slot rank] frame)) frame)))))
-              "join"           (t/read-handler
-                                 (fn [[input]]
-                                   (->Join input nil)))
-              "ap"             (t/read-handler
-                                 (fn [inputs]
-                                   (->Ap inputs nil)))
-              "pure"           (t/read-handler
-                                 (fn [[value]]
-                                   (->Pure value nil)))
-              "unbound"        (t/read-handler
-                                 (fn [[key]]
-                                   (->Unbound key nil)))
-              "unserializable" (t/read-handler
-                                 (fn [_]
-                                   (->Failure :unserializable)))}})
+(defn channel-reader-opts [opts ^objects channel]
+  {:handlers (merge
+               (::t/read-handlers opts {})
+               {"slot"           (t/read-handler
+                                   (fn [[frame id]]
+                                     (->Slot frame id)))
+                "frame"          (t/read-handler
+                                   (fn [[slot rank ctor]]
+                                     (let [^objects remote (aget channel channel-slot-remote)
+                                           ^objects peer (aget remote remote-slot-peer)
+                                           shared (aget channel channel-slot-shared)]
+                                       (if (nil? ctor)
+                                         (if (nil? slot)
+                                           (aget peer peer-slot-root)
+                                           (get shared [slot rank]))
+                                         (let [frame (make-frame peer slot rank (port-site (slot-port slot)) ctor)]
+                                           (aset channel channel-slot-shared
+                                             (assoc shared [slot rank] frame)) frame)))))
+                "join"           (t/read-handler
+                                   (fn [[input]]
+                                     (->Join input nil)))
+                "ap"             (t/read-handler
+                                   (fn [inputs]
+                                     (->Ap inputs nil)))
+                "pure"           (t/read-handler
+                                   (fn [[value]]
+                                     (->Pure value nil)))
+                "unbound"        (t/read-handler
+                                   (fn [[key]]
+                                     (->Unbound key nil)))
+                "unserializable" (t/read-handler
+                                   (fn [_]
+                                     (->Failure :unserializable)))})})
 
-(defn remote-handler [^objects peer]
-  (fn [events]
-    (fn [step done]
-      (let [busy (enter peer)
-            ^objects remote (aget peer peer-slot-remote)]
-        (if (nil? (aget remote remote-slot-channel))
-          (let [channel (object-array channel-slots)]
-            (aset remote remote-slot-channel channel)
-            (aset channel channel-slot-remote remote)
-            (aset channel channel-slot-step step)
-            (aset channel channel-slot-done done)
-            (aset channel channel-slot-acks (identity 0))
-            (aset channel channel-slot-toggle
-              (into #{}
-                (comp
-                  (filter #(aget ^objects % input-slot-requested))
-                  (map #(port-slot (aget ^objects % input-slot-port))))
-                (vals (aget remote remote-slot-inputs))))
-            (aset channel channel-slot-freeze #{})
-            (aset channel channel-slot-busy true)
-            (aset channel channel-slot-over false)
-            (aset channel channel-slot-events events)
-            (aset channel channel-slot-alive (identity 1))
-            (aset channel channel-slot-shared {})
-            (aset channel channel-slot-writer-opts (channel-writer-opts channel))
-            (aset channel channel-slot-reader-opts (channel-reader-opts channel))
-            (aset channel channel-slot-ready (aget peer peer-slot-channel-ready))
-            (aset peer peer-slot-channel-ready channel)
-            (aset channel channel-slot-process
-              ((aget remote remote-slot-events)
-               #(let [^objects remote (aget channel channel-slot-remote)]
-                  (channel-ready channel (enter (aget remote remote-slot-peer))))
-               #(let [^objects remote (aget channel channel-slot-remote)]
-                  (aset channel channel-slot-over true)
-                  (channel-ready channel (enter (aget remote remote-slot-peer))))))
-            (reduce channel-output-sub channel (vals (aget remote remote-slot-outputs)))
-            (channel-ready channel busy)
-            (->Channel channel))
-          (do (exit peer busy) (step)
-              (->Failer done (error "Can't connect - remote already up."))))))))
+(defn remote-handler
+  ([^objects peer] (remote-handler {} peer))
+  ([opts ^objects peer]
+   (fn [events]
+     (fn [step done]
+       (let [busy (enter peer)
+             ^objects remote (aget peer peer-slot-remote)]
+         (if (nil? (aget remote remote-slot-channel))
+           (let [channel (object-array channel-slots)]
+             (aset remote remote-slot-channel channel)
+             (aset channel channel-slot-remote remote)
+             (aset channel channel-slot-step step)
+             (aset channel channel-slot-done done)
+             (aset channel channel-slot-acks (identity 0))
+             (aset channel channel-slot-toggle
+               (into #{}
+                 (comp
+                   (filter #(aget ^objects % input-slot-requested))
+                   (map #(port-slot (aget ^objects % input-slot-port))))
+                 (vals (aget remote remote-slot-inputs))))
+             (aset channel channel-slot-freeze #{})
+             (aset channel channel-slot-busy true)
+             (aset channel channel-slot-over false)
+             (aset channel channel-slot-events events)
+             (aset channel channel-slot-alive (identity 1))
+             (aset channel channel-slot-shared {})
+             (aset channel channel-slot-writer-opts (channel-writer-opts opts channel))
+             (aset channel channel-slot-reader-opts (channel-reader-opts opts channel))
+             (aset channel channel-slot-ready (aget peer peer-slot-channel-ready))
+             (aset peer peer-slot-channel-ready channel)
+             (aset channel channel-slot-process
+               ((aget remote remote-slot-events)
+                #(let [^objects remote (aget channel channel-slot-remote)]
+                   (channel-ready channel (enter (aget remote remote-slot-peer))))
+                #(let [^objects remote (aget channel channel-slot-remote)]
+                   (aset channel channel-slot-over true)
+                   (channel-ready channel (enter (aget remote remote-slot-peer))))))
+             (reduce channel-output-sub channel (vals (aget remote remote-slot-outputs)))
+             (channel-ready channel busy)
+             (->Channel channel))
+           (do (exit peer busy) (step)
+               (->Failer done (error "Can't connect - remote already up.")))))))))
 
 (defn local-port-tap [^objects remote ^objects local-port]
   (let [^objects output (output-check-create remote local-port)]
@@ -1320,14 +1326,14 @@ a task managing the lifecycle of the channel.
 
 The remote handler is a function taking a subject and returning a flow. The flow emits outgoing events and reads
 incoming events on the subject.
-" [connector defs main & args]
+" [opts connector defs main & args]
   (let [peer (make-peer :client defs main args)]
     (m/reduce (comp reduced {}) nil
       (m/ap
-        (m/amb= (m/? (connector (remote-handler peer)))
+        (m/amb= (m/? (connector (remote-handler opts peer)))
           (m/? (m/reduce (constantly nil) (peer-root-frame peer))))))))
 
 (defn server "
 Allocates a new server peer and returns its remote handler.
-" [defs main & args]
-  (remote-handler (make-peer :server defs main args)))
+" [opts defs main & args]
+  (remote-handler opts (make-peer :server defs main args)))

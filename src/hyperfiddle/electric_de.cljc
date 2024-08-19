@@ -310,18 +310,20 @@ A mount point can be :
 (defmacro boot-server [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
         source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
-    `(r/server (r/->defs {::Main ~source}) ::Main)))
+    `(r/server ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
+       (r/->defs {::Main ~source}) ::Main)))
 
 (defmacro boot-client [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
         source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
-    `(r/client (hyperfiddle.electric-client-de/connector hyperfiddle.electric-client-de/*ws-server-url*)
-       (r/->defs {::Main ~source}) ::Main)))
+    `(r/client ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
+       (hyperfiddle.electric-client-de/connector hyperfiddle.electric-client-de/*ws-server-url*)
+       (r/->defs {::Main ~source}) ::Main )))
 
 (defmacro boot-single [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
         source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
-    `(r/client (constantly m/never)
+    `(r/client {} (constantly m/never)
        (r/->defs {::Main ~source}) ::Main)))
 
 ;; (cc/defn -snapshot [flow] (->> flow (m/eduction (contrib.data/take-upto (complement #{r/pending})))))
