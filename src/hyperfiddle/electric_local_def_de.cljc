@@ -55,11 +55,11 @@
       (half-conn s->c c->s client-handler))))
 
 (defn run-local [defs main]
-  (r/client
+  (r/client {}
     (fn [handler]
-      (full-conn (r/server defs main) handler)) defs main))
+      (full-conn (r/server {} defs main) handler)) defs main))
 
-(def run-single (partial r/client (fn [_] m/never)))
+(def run-single (partial r/client {} (fn [_] m/never)))
 
 (defmacro local {:style/indent 1} [conf & body]
   `(run-local (main ~conf ~@body) ::Main))
