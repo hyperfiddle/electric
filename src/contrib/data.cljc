@@ -351,3 +351,5 @@
   ([f a b c] (fn [o] (f o a b c)))
   ([f a b c d] (fn [o] (f o a b c d)))
   ([f a b c d e] (fn [o] (f o a b c d e))))
+
+(defn keep-if [v pred] (when (pred v) v))

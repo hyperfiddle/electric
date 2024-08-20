@@ -2248,3 +2248,18 @@
                    ($ F)))))
            tap tap)
       (reset! !ys [1 2]))))
+
+(tests
+  "lenient compilation" ; these just need to compile
+  (l/single {} (fn [^js x] (.foo x)))
+  (l/single {} (fn [^java.util.Date x] (.foo x)))
+
+  (l/single {} (let [^js x (js/Object.)] (.foo x)))
+  (l/single {} (let [x (js/Object.)] (.foo ^js x)))
+  (l/single {} (let [^java.util.Date x (java.util.Date.)] (.foo x)))
+  (l/single {} (let [x (java.util.Date.)] (.foo ^java.util.Date x)))
+
+  (l/single {} (loop [^js x (js/Object.)] (.foo x)))
+  (l/single {} (loop [^java.util.Date x (java.util.Date.)] (.foo x)))
+  :ok := :ok
+  )
