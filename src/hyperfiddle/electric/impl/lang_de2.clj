@@ -4,6 +4,7 @@
             [cljs.env]
             [clojure.string :as str]
             [contrib.assert :as ca]
+            [contrib.data :refer [keep-if]]
             [contrib.debug]
             [clojure.set :as set]
             [contrib.triple-store :as ts]
@@ -123,8 +124,31 @@
       [[sym v] (eduction (partition-all 2) bs)]
       (recur (conj bs2 sym (-expand-all-foreign v env2)) (add-local env2 sym))))
 
+(defn jvm-type? [sym] (try (.getJavaClass (clojure.lang.Compiler$VarExpr. nil sym)) (catch Throwable _)))
+
+(declare analyze-cljs-symbol)
+
+(def base-js-types '#{objects ints longs floats doubles chars shorts bytes booleans
+                      int  long  float  double  char  short  byte
+                      clj-nil any?
+                      js/Object object js/String   string   js/Array   array
+                      js/Number number js/Function function js/Boolean boolean})
+(defn js-type-hint? [sym] (or (= 'js sym) (= "js" (namespace sym))))
+(defn js-type? [sym env] (or (contains? base-js-types sym) (js-type-hint? sym) (analyze-cljs-symbol sym env)))
+
+(defn- replace-incompatible-type-hint [sym]
+  (vary-meta sym update :tag #(keyword "electric.unresolved" (name %))))
+
+(defn ?untag [sym env]
+  (if-some [tag (keep-if (-> sym meta :tag) symbol?)]
+    (case (->env-type env)
+      (:clj)  (cond-> sym (not (jvm-type? tag))    replace-incompatible-type-hint)
+      (:cljs) (cond-> sym (not (js-type? tag env)) replace-incompatible-type-hint))
+    sym))
+
 (defn -expand-fn-arity [[bs & body :as o] env]
-  (?meta o (list bs (-expand-all-foreign (?meta body (cons 'do body)) (reduce add-local env bs)))))
+  (let [bs (mapv #(?untag % env) bs)]
+    (?meta o (list bs (-expand-all-foreign (?meta body (cons 'do body)) (reduce add-local env bs))))))
 
 (defn -expand-all-foreign [o env]
   (cond
@@ -199,11 +223,10 @@
         (let [[_ bs & body] o] (recur (?meta o (list* 'let* (dst/destructure* bs) body)) env))
 
         (let*) (let [[_ bs & body] o
-                     [bs2 env2] (reduce
-                                  (fn [[bs env] [sym v]]
-                                    [(conj bs sym (-expand-all v env)) (add-local env sym)])
-                                  [[] env]
-                                  (partition-all 2 bs))]
+                     [bs2 env2] (loopr [bs2 [] , env2 env]
+                                    [[sym v] (eduction (partition-all 2) bs)]
+                                    (let [sym (?untag sym env2)]
+                                      (recur (conj bs2 sym (-expand-all v env2)) (add-local env2 sym))))]
                  (?meta o (list 'let* bs2 (-expand-all (?meta body (cons 'do body)) env2))))
 
         (loop*) (let [[_ bs & body] o
@@ -257,6 +280,8 @@
 
         (set!) (recur (?meta o `((fn* [v#] (set! ~(nth o 1) v#)) ~(nth o 2))) env)
 
+        (::ctor) (?meta o (list ::ctor (list ::site nil (-expand-all (second o) env))))
+
         (::site) (?meta o (seq (conj (into [] (take 2) o)
                                  (-expand-all (cons 'do (drop 2 o)) (assoc env ::current (second o))))))
 
@@ -281,9 +306,7 @@
 
 (defn expand-all [env o]
   (cljs-ana/analyze-nsT !a env (get-ns env))
-  (let [expanded (-expand-all o (assoc env ::electric true))]
-    (when (::print-expansion env) (fipp.edn/pprint expanded))
-    expanded))
+  (-expand-all o (assoc env ::electric true)))
 
 ;;;;;;;;;;;;;;;;
 ;;; COMPILER ;;;
@@ -475,7 +498,7 @@
 (defn meta-of-key [mp k] (-> mp keys set (get k) meta))
 (defn gensym-with-local-meta [env k]
   (let [g (gensym (if (instance? clojure.lang.Named k) (name k) "o")), mt (meta-of-key (:locals env) k)]
-    (with-meta g (merge mt (meta k)))))
+    (?untag (with-meta g (merge mt (meta k))) env)))
 
 (defn ->obj-method-call [o method method-args pe env {{::keys [->id]} :o :as ts}]
   (let [f (let [[oo & margs] (mapv #(gensym-with-local-meta env %) (cons o method-args))]
@@ -494,6 +517,8 @@
 (defn ?update-meta [env form] (cond-> env (meta form) (assoc ::meta (meta form))))
 
 (defn my-turn? [env] (let [c (get (::peers env) (::current env))] (or (nil? c) (= c (->env-type env)))))
+
+(defn field-access? [sym] (str/starts-with? (str sym) "-"))
 
 (defn analyze [form pe env {{::keys [->id ->uid]} :o :as ts}]
   (let [env (?update-meta env form)]
@@ -519,11 +544,11 @@
         (case) (let [[_ test & brs] form
                      [default brs2] (if (odd? (count brs)) [(last brs) (butlast brs)] [:TODO brs])]
                  (loopr [bs [], mp {}]
-                   [[v br] (partition 2 brs2)]
-                   (let [b (gensym "case-val")]
-                     (recur (conj bs b `(::ctor ~br))
-                       (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq? v) v [v]))))
-                   (recur (?meta form `(let* ~bs (::call (~mp ~test (::ctor ~default))))) pe env ts)))
+                     [[v br] (partition 2 brs2)]
+                     (let [b (gensym "case-val")]
+                       (recur (conj bs b `(::ctor ~br))
+                         (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq? v) v [v]))))
+                     (recur (?meta form `(let* ~bs (::call (~mp ~test (::ctor ~default))))) pe env ts)))
         (quote) (let [e (->id)]
                   (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                     (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})))
@@ -542,9 +567,12 @@
                            (add-ap-literal f arg* pe e env (?add-source-map ts e form))
                            (add-literal ts lfn* e pe))
                          (recur `[~@arg*] pe env ts)))
-        (new) (let [[_ f & args] form, current (get (::peers env) (::current env))]
-                (if (or (nil? current) (= (->env-type env) current))
-                  (let [f (let [gs (repeatedly (count args) gensym)] `(fn [~@gs] (new ~f ~@gs)))]
+        (new) (let [[_ f & args] form]
+                (if (my-turn? env)
+                  (let [f (case (->env-type env)
+                            :clj (if (and (symbol? f) (jvm-type? f)) f 'Object)
+                            :cljs (if (and (symbol? f) (js-type? f env)) f 'js/Object))
+                        f (let [gs (repeatedly (count args) gensym)] `(fn [~@gs] (new ~f ~@gs)))]
                     (add-ap-literal f args pe (->id) env ts))
                   (recur `[~@args] pe env ts)))
         ;; (. java.time.Instant now)
@@ -586,7 +614,9 @@
                       (->obj-method-call o x xs pe env ts)
                       (recur `[~o ~@xs] pe env ts))
                     (if me?             ; (. pt x)
-                      (add-ap-literal `(fn [oo#] (. oo# ~x)) [o] pe (->id) env ts)
+                      (if (field-access? x)
+                        (add-ap-literal `(fn [oo#] (. oo# ~x)) [o] pe (->id) env ts)
+                        (->obj-method-call o x [] pe env ts))
                       (recur nil pe env ts))))))
         (binding clojure.core/binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
                                          (recur (if (seq bs)
@@ -604,7 +634,7 @@
                             (add-ap-literal `(fn [v#] (set! ~sym v#)) [v] pe (->id) env ts))))
         (set!) (let [[_ target v] form] (recur `((fn* ([v#] (set! ~target v#))) ~v) pe env ts))
         (::ctor) (let [e (->id), ce (->id)]
-                   (recur (list ::site nil (second form))
+                   (recur (second form)
                      ce env (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                               (ts/add {:db/id ce, ::parent e, ::type ::ctor, ::uid (->uid)})
                               (?add-source-map e form))))
@@ -850,9 +880,14 @@
                          args))
 
                      (and (empty? (drop 3 form)) (symbol? (nth form 2))) ; (. pt x)
-                     (let [field-u (->u)]
-                       (recur (addf ts field-u p ->i {::t ::field-access, ::field (nth form 2)})
-                         (second form) env field-u (->->id)))
+                     (let [x (nth form 2)]
+                       (if (field-access? x)
+                         (let [field-u (->u)]
+                           (recur (addf ts field-u p ->i {::t ::field-access, ::field (nth form 2)})
+                             (second form) env field-u (->->id)))
+                         (let [method-u (->u)]
+                           (recur (addf ts method-u p ->i {::t ::method-call, ::method x})
+                             (second form) env method-u (->->id)))))
 
                      :else           ; (. i1 isAfter i2) vs. (. i1 (isAfter i2))
                      (let [[method & args] (if (symbol? (nth form 2)) (drop 2 form) (nth form 2))

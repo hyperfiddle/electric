@@ -481,6 +481,7 @@
      ;; 1. We want to cancel native navigation ASAP if needed. We want a synchronous event handler.
      ;;    dom/on! – guarantees the event will be canceled before it bubbles up to the parent
      ;;    dom/on  – callback is async and might cancel the event too late, especially if the reactor is busy
+     ;;    TODO this fails, shouldn't
      ($ dom/On node "click" (fn [^js e] (when (internal-nav-intent? e) (.preventDefault e)))
         nil nil)
      ;; 2. Then we can handle the event asynchronously to perform the navigation (or not)
