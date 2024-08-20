@@ -686,6 +686,7 @@
   (foreign '[x :y 1]) := '[x :y 1]
   (foreign '#{x :y 1}) := '#{x :y 1}
   (foreign '(. pt x)) := '(. pt x)
+  (foreign '(.-x pt)) := '(. pt -x)
   (foreign '(. i1 (isAfter i2))) := '(. i1 isAfter i2)
   (foreign '(. i1 isAfter i2)) := '(. i1 isAfter i2)
   (foreign '(set! foo 1)) := '(set! foo 1)
@@ -710,6 +711,7 @@
   (foreign-js '[x :y 1]) := '[x :y 1]
   (foreign-js '#{x :y 1}) := '#{x :y 1}
   (foreign-js '(. pt x)) := '(. pt x)
+  (foreign-js '(.-x pt)) := '(. pt -x)
   (foreign-js '(. i1 (isAfter i2))) := '(. i1 isAfter i2)
   (foreign-js '(. i1 isAfter i2)) := '(. i1 isAfter i2)
   (foreign-js '(set! foo 1)) := '(set! foo 1)
