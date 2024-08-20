@@ -633,8 +633,10 @@
                 (if (or (nil? current) (= (->env-type env) current))
                   (add-ap-literal f arg* pe (->id) env ts)
                   (recur `[~@arg*] pe env ts)))
-        (::cc-letfn) (let [[_ bs] form, [form refs] (closure env `(letfn* ~bs ~(vec (take-nth 2 bs)))), e (->id)]
-                       (add-ap-literal form refs pe e env (?add-source-map ts e form)))
+        (::cc-letfn) (let [[_ bs] form, e (->id)
+                           [f & arg*] (wrap-foreign-for-electric
+                                        (analyze-foreign2 `(letfn* ~bs ~(vec (take-nth 2 bs))) env))]
+                       (add-ap-literal f arg* pe e env (?add-source-map ts e form)))
         (new) (let [[_ f & args] form, current (get (::peers env) (::current env))]
                 (if (or (nil? current) (= (->env-type env) current))
                   (let [f (let [gs (repeatedly (count args) gensym)] `(fn [~@gs] (new ~f ~@gs)))]
@@ -872,23 +874,29 @@
 (defn addf [{{::keys [->id]} :o :as ts} u p ->i more]
   (ts/add ts (assoc more :db/id (->id), ::u u, ::p p, ::i (->i))))
 
+(defn- add-invoke [{{::keys [->u]} :o :as ts} form env p ->i]
+  (let [ap-u (->u), ->ap-i (->->id)]
+    (reduce (fn [ts nx] (analyze-foreign2 ts nx env ap-u ->ap-i))
+      (addf ts ap-u p ->i {::t ::invoke}) form)))
+
 (defn analyze-foreign2
   ([form env] (analyze-foreign2 (ts/->ts {::->id (->->id), ::->u (->->id)}) form env -1 (->->id)))
   ([{{::keys [->u]} :o :as ts} form env p ->i]
    (cond (and (seq? form) (seq form))
          (case (first form)
-           (let*) (let [[_ bs & body] form, let*-u (->u)
-                        ts (addf ts let*-u p ->i {::t ::let*})
-                        ->sym-i (->->id)
-                        [ts2 env2] (loopr [ts2 ts, env2 env]
-                                       [[sym v] (eduction (partition-all 2) bs)]
-                                       (let [sym-u (->u)]
-                                         (recur (-> ts2 (addf sym-u let*-u ->sym-i {::t ::let*-sym, ::sym sym})
-                                                  (analyze-foreign2 v env2 sym-u (->->id)))
-                                           (add-foreign-local env2 sym))))
-                        body-u (->u), ->body-i (->->id)]
-                    (reduce (fn [ts nx] (analyze-foreign2 ts nx env2 body-u ->body-i))
-                      (addf ts2 body-u let*-u (->->id) {::t ::body}) body))
+           (let* loop*)
+           (let [[l bs & body] form, let*-u (->u)
+                 ts (addf ts let*-u p ->i {::t (case l (let*) ::let* (loop*) ::loop*)})
+                 ->sym-i (->->id)
+                 [ts2 env2] (loopr [ts2 ts, env2 env]
+                                [[sym v] (eduction (partition-all 2) bs)]
+                                (let [sym-u (->u)]
+                                  (recur (-> ts2 (addf sym-u let*-u ->sym-i {::t ::let*-sym, ::sym sym})
+                                           (analyze-foreign2 v env2 sym-u (->->id)))
+                                    (add-foreign-local env2 sym))))
+                 body-u (->u), ->body-i (->->id)]
+             (reduce (fn [ts nx] (analyze-foreign2 ts nx env2 body-u ->body-i))
+               (addf ts2 body-u let*-u (->->id) {::t ::body}) body))
 
            (binding clojure.core/binding)
            (let [[_ bs & body] form, bind-u (->u)
@@ -967,9 +975,36 @@
                    (reduce (fn [ts nx] (analyze-foreign2 ts nx env js*-u ->js*-i))
                      (addf ts js*-u p ->i {::t ::js*}) (next form)))
 
-           #_else (let [ap-u (->u), ->ap-i (->->id)]
-                    (reduce (fn [ts nx] (analyze-foreign2 ts nx env ap-u ->ap-i))
-                      (addf ts ap-u p ->i {::t ::invoke}) form)))
+           (try) (let [try-u (->u), ->try-i (->->id)]
+                   (reduce (fn [ts nx] (analyze-foreign2 ts nx env try-u ->try-i))
+                     (addf ts try-u p ->i {::t ::try}) (next form)))
+
+           (catch) (if (= ::try (::t (ts/->node ts p)))
+                     (let [[_ typ sym & body] form
+                           cu (->u), ->c-i (->->id)]
+                       (reduce (fn [ts nx] (analyze-foreign2 ts nx (add-foreign-local env sym) cu ->c-i))
+                         (addf ts cu p ->i {::t ::catch, ::ex-type typ, ::sym sym}) body))
+                     (add-invoke ts form env p ->i))
+
+           (finally) (if (= ::try (::t (ts/->node ts (ts/find1 ts ::p p))))
+                       (let [fu (->u), ->f-i (->->id)]
+                         (reduce (fn [ts nx] (analyze-foreign2 ts nx env fu ->f-i))
+                           (addf ts fu p ->i {::t ::finally})))
+                       (add-invoke ts form env p ->i))
+
+           (if) (let [if-u (->u), ->if-i (->->id)]
+                  (reduce (fn [ts nx] (analyze-foreign2 ts nx env if-u ->if-i))
+                    (addf ts if-u p ->i {::t ::if}) (next form)))
+
+           (var) (let [u (->u)] (recur (addf ts u p ->i {::t ::builtin-var}) (second form) env u (->->id)))
+
+           (throw) (let [u (->u)] (recur (addf ts u p ->i {::t ::throw}) (second form) env u (->->id)))
+
+           (recur) (let [u (->u), ->id (->->id)]
+                     (reduce (fn [ts nx] (analyze-foreign2 ts nx env u ->id))
+                       (addf ts u p ->i {::t ::recur}) (next form)))
+
+           #_else (add-invoke ts form env p ->i))
 
          (instance? cljs.tagged_literals.JSValue form)
          (let [o (.-val ^cljs.tagged_literals.JSValue form)]
@@ -1050,12 +1085,17 @@
            (? [u k] (get (->node u) k))
            (emit-foreign-arity [u] (cons (? u ::args) (eduction (map emit) (find ::p u))))
            (unname [v] (cond-> v (instance? clojure.lang.Named v) name))
+           (emit-1 [sym u] (list sym (find1 ::p u)))
+           (emit-n [sym u] (list* sym (eduction (map emit) (find ::p u))))
            (emit [u]
              (let [nd (->node u)]
                (case (::t nd)
                  (::let*) (let [{sym* ::let*-sym, body ::body} (group-by #(? % ::t) (find ::p u))]
                             (list* 'let* (into [] (mapcat (fn [u] [(? u ::sym) (emit (find1 ::p u))])) sym*)
                               (eduction (map emit) (find ::p (first body)))))
+                 (::loop*) (let [{sym* ::let*-sym, body ::body} (group-by #(? % ::t) (find ::p u))]
+                             (list* 'loop* (into [] (mapcat (fn [u] [(? u ::sym) (emit (find1 ::p u))])) sym*)
+                               (eduction (map emit) (find ::p (first body)))))
                  (::binding) (let [{sym* ::binding-sym, body ::body} (group-by #(? % ::t) (find ::p u))]
                                (list* 'binding (into [] (mapcat (fn [u] [(? u ::sym) (emit (find1 ::p u))])) sym*)
                                  (eduction (map emit) (find ::p (first body)))))
@@ -1074,10 +1114,17 @@
                  (::method-call) (let [[o & arg*] (find ::p u)]
                                    (list* '. (emit o) (::method nd) (eduction (map emit) arg*)))
                  (::def) (list 'def (? u ::sym) (emit (find1 ::p u)))
-                 (::set!) (list* 'set! (eduction (map emit) (find ::p u)))
-                 (::new) (list* 'new (eduction (map emit) (find ::p u)))
-                 (::do) (list* 'do (eduction (map emit) (find ::p u)))
-                 (::js*) (list* 'js* (eduction (map emit) (find ::p u)))
+                 (::set!) (emit-n 'set! u)
+                 (::new) (emit-n 'new u)
+                 (::do) (emit-n 'do u)
+                 (::try) (emit-n 'try u)
+                 (::catch) (list* 'catch (::ex-type nd) (::sym nd) (eduction (map emit) (find ::p u)))
+                 (::finally) (emit-n 'finally u)
+                 (::throw) (emit-1 'throw u)
+                 (::if) (emit-n 'if u)
+                 (::builtin-var) (emit-1 'var u)
+                 (::recur) (emit-n 'recur u)
+                 (::js*) (emit-n 'js* u)
                  (::invoke) (map emit (find ::p u))
                  (::js-map) (list* 'js-object (eduction (map emit) (map unname) (find ::p u)))
                  (::js-array) (list* 'array (eduction (map emit) (map unname) (find ::p u)))
