@@ -9,9 +9,7 @@
             [contrib.triple-store :as ts]
             [dom-top.core :refer [loopr]]
             [fipp.edn]
-            [missionary.core :as m]
             [hyperfiddle.electric-de :as-alias e]
-            [hyperfiddle.electric.impl.analyzer :as ana]
             [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]
             [hyperfiddle.electric.impl.destructure :as dst]
             [hyperfiddle.electric.impl.runtime-de :as r]
@@ -312,105 +310,6 @@
   (ns-qualify 'foo) := `foo
   (ns-qualify 'a/b) := 'a/b)
 
-(defn qualify-sym-in-var-node "If ast node is `:var`, update :form to be a fully qualified symbol" [env ast]
-  (if (and (= :var (:op ast)) (not (-> ast :env :def-var)))
-    (assoc ast :form (case (or (get (::peers env) (::current env)) (->env-type env))
-                       :clj  (symbol (str (:ns (:meta ast))) (str (:name (:meta ast))))
-                       :cljs (:name (:info ast))))
-    ast))
-
-(defn closure
-  "Analyze a cc/fn form, looking for electric defs and electric lexical bindings references.
-  Rewrites the cc/fn form into a closure over electric dynamic and lexical scopes.
-  Return a pair [closure form, references to close over].
-
-  e.g.:
-  (let [x 1]
-    (binding [y 2]
-      (fn [arg] [x y arg])))
-
-   =>
-  [(fn [x123 y123]
-     (fn [& rest-args123]
-       (binding [y y123]
-         (let [x x123]
-           (apply (fn [arg] [x y arg]) rest-args123)))))
-   [x y]]
-  "
-  [env form]
-  (let [refered-evars   (atom {})
-        refered-lexical (atom {})
-        edef?           (fn [ast] (and (= :var (:op ast)) (not (-> ast :env :def-var))))
-        dynamic?        (fn [ast] (or (:assignable? ast) ; clj
-                                    (:dynamic (:meta (:info ast))) ; cljs
-                                    ))
-        lexical?        (fn [ast] (or (::provided? ast) ; clj
-                                    (::provided? (:info ast)) ;cljs
-                                    ))
-        namespaced?     (fn [ast] (qualified-symbol? (:form ast)))
-        safe-let-name   (fn [sym] (if (qualified-symbol? sym)
-                                    (symbol (str/replace (str (munge sym)) #"\." "_"))
-                                    sym))
-        record-lexical! (fn [{:keys [form]}]
-                          (swap! refered-lexical assoc form
-                            (gensym (name form))))
-        record-edef!    (fn [{:keys [form] :as ast}]
-                          (if (dynamic? ast)
-                            (swap! refered-evars assoc form #_(ana/var-name ast) (gensym (name form)))
-                            (record-lexical! ast)))
-        env             (update env :locals update-vals #(if (map? %) (assoc % ::provided? true) {::provided? true}))
-        rewrite-ast     (fn [ast]
-                          (cond
-                            (edef? ast)    (do (record-edef! ast)
-                                               (cond (dynamic? ast)    (qualify-sym-in-var-node env ast)
-                                                     (namespaced? ast) (update ast :form safe-let-name)
-                                                     :else             ast))
-                            (lexical? ast) (do (record-lexical! ast) ast)
-                            :else          (qualify-sym-in-var-node env ast)))
-        var-set?        (fn [ast] (and (= :set! (:op ast)) (= :var (:op (:target ast)))))
-        rewrite-cljs-ast (fn walk [ast]
-                           (cond
-                             (var-set? ast) (update ast :val walk)
-                             (edef? ast)    (do (record-edef! ast)
-                                                (cond (dynamic? ast)    (qualify-sym-in-var-node env ast)
-                                                      (namespaced? ast) (update ast :form safe-let-name)
-                                                      :else             ast))
-                             (lexical? ast) (do (record-lexical! ast) ast)
-                             :else          (let [quald-ast (qualify-sym-in-var-node env ast)]
-                                              (if-some [cs (:children quald-ast)]
-                                                (reduce (fn [ast k]
-                                                          (update ast k #(if (vector? %) (mapv walk %) (walk %))))
-                                                  quald-ast cs)
-                                                quald-ast))))
-        form            (case (or (get (::peers env) (::current env)) (->env-type env))
-                          :clj  (-> (ana/analyze-clj (update env :ns :name) form)
-                                  (ana/walk-clj rewrite-ast)
-                                  (ana/emit-clj))
-                          :cljs (-> (binding [cljs.analyzer/*cljs-warning-handlers*
-                                              [(fn [_warning-type _env _extra])]]
-                                      (ana/analyze-cljs env form))
-                                  (rewrite-cljs-ast)
-                                  (ana/emit-cljs)))
-        rest-args-sym   (gensym "rest-args")
-        all-syms        (merge @refered-evars @refered-lexical)
-        [syms gensyms]  [(keys all-syms) (vals all-syms)]
-        fn?             (and (seq? form) (#{'fn 'fn* 'clojure.core/fn 'clojure.core/fn* 'cljs.core/fn 'cljs.core/fn*} (first form)))
-        form            (if fn?
-                          `(apply ~form ~rest-args-sym)
-                          form)
-        form            (if (seq @refered-lexical)
-                          `(let [~@(flatten (map (fn [[k v]] [(safe-let-name k) v]) @refered-lexical))]
-                             ~form)
-                          form)
-        form            (if (seq @refered-evars)
-                          `(binding [~@(flatten (seq @refered-evars))]
-                             ~form)
-                          form)
-        form            (if fn?
-                          `(fn [~@gensyms] (fn [~'& ~rest-args-sym] ~form))
-                          `(fn [~@gensyms] ~form))]
-    [form syms]))
-
 (defn bound-js-fn
   "Given a js global resolving to a function (e.g js/alert, js/console.log required-js-ns/js-fn), ensures it
   is called under the correct `this` context."
@@ -631,12 +530,18 @@
         (fn*) (let [current (get (::peers env) (::current env))
                     [f & arg*] (wrap-foreign-for-electric (analyze-foreign2 form env))]
                 (if (or (nil? current) (= (->env-type env) current))
-                  (add-ap-literal f arg* pe (->id) env ts)
+                  (if f
+                    (add-ap-literal f arg* pe (->id) env ts)
+                    (add-literal ts form (->id) pe))
                   (recur `[~@arg*] pe env ts)))
-        (::cc-letfn) (let [[_ bs] form, e (->id)
-                           [f & arg*] (wrap-foreign-for-electric
-                                        (analyze-foreign2 `(letfn* ~bs ~(vec (take-nth 2 bs))) env))]
-                       (add-ap-literal f arg* pe e env (?add-source-map ts e form)))
+        (::cc-letfn) (let [current (get (::peers env) (::current env))
+                           [_ bs] form, lfn* `(letfn* ~bs ~(vec (take-nth 2 bs))), e (->id)
+                           [f & arg*] (wrap-foreign-for-electric (analyze-foreign2 lfn* env))]
+                       (if (or (nil? current) (= (->env-type env) current))
+                         (if f
+                           (add-ap-literal f arg* pe e env (?add-source-map ts e form))
+                           (add-literal ts lfn* e pe))
+                         (recur `[~@arg*] pe env ts)))
         (new) (let [[_ f & args] form, current (get (::peers env) (::current env))]
                 (if (or (nil? current) (= (->env-type env) current))
                   (let [f (let [gs (repeatedly (count args) gensym)] `(fn [~@gs] (new ~f ~@gs)))]
@@ -1161,7 +1066,8 @@
                          (conj arg* lex) (conj val* r) dyn* (assoc seen r lex)))))))
            code (cond->> (emit-foreign ts) (seq dyn*) (list 'binding dyn*))
            e-local* (into [] (comp (map #(? % ::sym)) (distinct)) (find ::t ::electric-local))]
-       (list* (list 'fn* (into arg* e-local*) code) (into val* e-local*))))))
+       (when (or (seq arg*) (seq e-local*))
+         (list* (list 'fn* (into arg* e-local*) code) (into val* e-local*)))))))
 
 (defn find-ctor-e [ts e]
   (let [pe (::parent (get (:eav ts) e))]

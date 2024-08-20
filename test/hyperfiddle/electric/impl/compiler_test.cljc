@@ -771,6 +771,9 @@
   (foreign-electrified (consuming '[a]) '(foo bar baz))
   := '((fn* [a] (a a a)) hyperfiddle.electric.impl.runtime-de/cannot-resolve)
 
+  (foreign-electrified nil '(fn [x] [x x]))
+  := nil                                ; nothing to wrap, signaled as `nil`
+
   "js"
   (foreign-electrified-js (consuming ['plus]) '(clojure.core/+ 2 3))
   := '((fn* [plus] (plus 2 3)) clojure.core/+)
@@ -821,7 +824,12 @@
   (foreign-electrified-js (consuming '[a]) '(foo bar baz))
   := '((fn* [a] (a a a)) hyperfiddle.electric.impl.runtime-de/cannot-resolve)
 
-  (foreign-electrified-js (consuming '[a]) '(set! consuming 1))
+  (foreign-electrified-js (consuming '[a]) '(set! consuming e1))
+  := '((fn* [e1] (set! consuming e1)) e1)
+
+  (foreign-electrified-js nil '(fn [x] [x x]))
+  := nil                                ; nothing to wrap, signaled as `nil`
+
   )
 
 (comment
