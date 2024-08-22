@@ -87,17 +87,13 @@
 
 (defn expand-macro [env o]
   (let [[f & args] o, n (name f), e (dec (count n))]
-    (if (= "." n)
-      o
-      (if (and (not= ".." n) (= \. (nth n e)))
-        `(new ~(symbol (namespace f) (subs n 0 e)) ~@args)
-        (if (some? (re-find #"^\.[^.]" n))
-          (list* '. (first args) (symbol (subs n 1)) (rest args))
-          (if (= :cljs (get (::peers env) (::current env)))
-            (if-some [mac (cljs-ana/find-macro-var @!a f (get-ns env))]
-              (apply mac o (merge (->cljs-env (get-ns env)) env) args)
-              o)
-            (macroexpand-clj o env)))))))
+    (cond (= "." n) o
+          (and (not= ".." n) (= \. (nth n e))) `(new ~(symbol (namespace f) (subs n 0 e)) ~@args)
+          (re-find #"^\.[^.]" n) (list* '. (first args) (symbol (subs n 1)) (rest args))
+          (= :cljs (->peer-type env)) (if-some [mac (cljs-ana/find-macro-var @!a f (get-ns env))]
+                                        (apply mac o (merge (->cljs-env (get-ns env)) env) args)
+                                        o)
+          :else (macroexpand-clj o env))))
 
 (defn find-local-entry [env sym] (contains? (:locals env) sym))
 (defn add-local [env sym] (update env :locals assoc sym ::unknown))
