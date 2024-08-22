@@ -77,6 +77,14 @@
   (cljs-ana/purge-ns !a 'hyperfiddle.electric-de-test)
   )
 
+(defn ->peer-type [env] (get (::peers env) (::current env)))
+
+(defn qualify-sym [sym env]
+  (if (= :cljs (->peer-type env))
+    (some-> (cljs-ana/find-var @!a sym (get-ns env)) ::cljs-ana/name)
+    (do (serialized-require (ns-name *ns*))
+        (some-> (resolve env sym) symbol))))
+
 (defn expand-macro [env o]
   (let [[f & args] o, n (name f), e (dec (count n))]
     (if (= "." n)
@@ -112,7 +120,8 @@
     (let [o2 (?meta o (expand-macro env o))]
       (if (identical? o o2)
         (?meta o (cond->> (?meta o (list* (first o) (mapv (fn-> caller env) (rest o))))
-                   (and (::trace env) (traceable (first o))) (list `r/tracing (list 'quote (trace-crumb o env)))))
+                   (and (::trace env) (some-> (qualify-sym (first o) env) (traceable)))
+                   (list `r/tracing (list 'quote (trace-crumb o env)))))
         (caller o2 env)))
     (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
 

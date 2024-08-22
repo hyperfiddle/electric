@@ -154,6 +154,23 @@
 
      (l/-expand-all '(#{:ok} 1) {:js-globals {}}) := '(#{:ok} 1)
 
+     "tracing"
+     (match
+       (l/expand-all {::l/peers {:client :cljs, :server :clj}
+                      ::l/current :server
+                      :ns {:name (ns-name *ns*)}
+                      ::l/trace true}
+         `(r/cannot-resolve (tm/pair (contrib.test-match/pair 0 (inc 1)) 2)))
+       `(r/cannot-resolve (r/tracing tm/_ (tm/pair (r/tracing tm/_ (tm/pair 0 (r/tracing tm/_ (inc 1)))) 2))))
+
+     (match
+       (l/expand-all {::l/peers {:client :cljs, :server :clj}
+                      ::l/current :client
+                      :ns {:name (ns-name *ns*)}
+                      ::l/trace true}
+         `(r/cannot-resolve (tm/pair (contrib.test-match/pair 0 (inc 1)) 2)))
+       `(r/cannot-resolve (tm/pair (tm/pair 0 (r/tracing tm/_ (inc 1))) 2)))
+
      "expansion is peer-aware"
      (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :server, :ns {:name (ns-name *ns*)}}
        `[(test-peer-expansion) (::l/site :client (test-peer-expansion))])
