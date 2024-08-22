@@ -121,8 +121,8 @@
 
 (defn -expand-let-bindings [bs env]
   (loopr [bs2 [], env2 env]
-      [[sym v] (eduction (partition-all 2) bs)]
-      (recur (conj bs2 sym (-expand-all-foreign v env2)) (add-local env2 sym))))
+    [[sym v] (eduction (partition-all 2) bs)]
+    (recur (conj bs2 sym (-expand-all-foreign v env2)) (add-local env2 sym))))
 
 (defn jvm-type? [sym] (try (.getJavaClass (clojure.lang.Compiler$VarExpr. nil sym)) (catch Throwable _)))
 
@@ -224,9 +224,9 @@
 
         (let*) (let [[_ bs & body] o
                      [bs2 env2] (loopr [bs2 [] , env2 env]
-                                    [[sym v] (eduction (partition-all 2) bs)]
-                                    (let [sym (?untag sym env2)]
-                                      (recur (conj bs2 sym (-expand-all v env2)) (add-local env2 sym))))]
+                                  [[sym v] (eduction (partition-all 2) bs)]
+                                  (let [sym (?untag sym env2)]
+                                    (recur (conj bs2 sym (-expand-all v env2)) (add-local env2 sym))))]
                  (?meta o (list 'let* bs2 (-expand-all (?meta body (cons 'do body)) env2))))
 
         (loop*) (let [[_ bs & body] o
@@ -471,7 +471,7 @@
         #_else (keyword sym)))
     sym))
 
-(declare analyze analyze-foreign analyze-foreign2 wrap-foreign-for-electric)
+(declare analyze analyze-foreign wrap-foreign-for-electric)
 
 (defn add-literal [{{::keys [->id]} :o :as ts} v e pe]
   (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
@@ -544,16 +544,16 @@
         (case) (let [[_ test & brs] form
                      [default brs2] (if (odd? (count brs)) [(last brs) (butlast brs)] [:TODO brs])]
                  (loopr [bs [], mp {}]
-                     [[v br] (partition 2 brs2)]
-                     (let [b (gensym "case-val")]
-                       (recur (conj bs b `(::ctor ~br))
-                         (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq? v) v [v]))))
-                     (recur (?meta form `(let* ~bs (::call (~mp ~test (::ctor ~default))))) pe env ts)))
+                   [[v br] (partition 2 brs2)]
+                   (let [b (gensym "case-val")]
+                     (recur (conj bs b `(::ctor ~br))
+                       (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) mp (if (seq? v) v [v]))))
+                   (recur (?meta form `(let* ~bs (::call (~mp ~test (::ctor ~default))))) pe env ts)))
         (quote) (let [e (->id)]
                   (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                     (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})))
         (fn*) (let [current (get (::peers env) (::current env))
-                    [f & arg*] (wrap-foreign-for-electric (analyze-foreign2 form env))]
+                    [f & arg*] (wrap-foreign-for-electric (analyze-foreign form env))]
                 (if (or (nil? current) (= (->env-type env) current))
                   (if f
                     (add-ap-literal f arg* pe (->id) env ts)
@@ -561,7 +561,7 @@
                   (recur `[~@arg*] pe env ts)))
         (::cc-letfn) (let [current (get (::peers env) (::current env))
                            [_ bs] form, lfn* `(letfn* ~bs ~(vec (take-nth 2 bs))), e (->id)
-                           [f & arg*] (wrap-foreign-for-electric (analyze-foreign2 lfn* env))]
+                           [f & arg*] (wrap-foreign-for-electric (analyze-foreign lfn* env))]
                        (if (or (nil? current) (= (->env-type env) current))
                          (if f
                            (add-ap-literal f arg* pe e env (?add-source-map ts e form))
@@ -720,90 +720,6 @@
 
 (defn add-foreign-local [env sym] (update env :locals update sym assoc ::electric-let nil))
 
-(defn analyze-foreign
-  ([form env] (analyze-foreign form env #{} gensym))
-  ([form env acc] (analyze-foreign form env acc gensym))
-  ([form env acc gen]
-   ((fn rec [form env acc]
-      (cond
-        (and (seq? form) (seq form))
-        (case (first form)
-          (let*) (let [[_ bs & body] form
-                       [acc2 env2] (loopr [acc2 acc, env2 env]
-                                       [[sym v] (eduction (partition-all 2) bs)]
-                                       (recur (rec v env2 acc2) (add-foreign-local env2 sym)))]
-                   (recur (cons 'do body) env2 acc2))
-
-          (quote) acc
-
-          (fn*) (let [[?name arity+] (if (symbol? (second form)) [(second form) (nnext form)] [nil (next form)])
-                      env2 (cond-> env ?name (add-foreign-local ?name))]
-                  (reduce (fn [acc [args & body]]
-                            (rec (cons 'do body)
-                              (reduce add-foreign-local env2 args) acc)) acc arity+))
-
-          (letfn*) (let [[_ bs & body] form
-                         env (reduce add-foreign-local env (eduction (take-nth 2) bs))
-                         acc (loopr [acc2 acc]
-                                 [[_fn _nm & arity+] (eduction (take-nth 2) (next bs))
-                                  [arg* & body] arity+]
-                                 (recur (rec (cons 'do body) (reduce add-foreign-local env arg*) acc2)))]
-                     (recur (cons 'do body) env acc))
-
-          (.) (cond (and (symbol? (second form))
-                      (or (implicit-cljs-nses (second form))
-                        (class? (resolve env (second form)))))
-                    ;; (. Instant (ofEpochMilli 1)) vs. (. Instant ofEpochMilli 1)
-                    (let [arg* (if (seq? (nth form 2)) (next (nth form 2)) (drop 3 form))]
-                      (reduce (fn [acc nx] (rec nx env acc)) acc arg*))
-
-                    (seq? (nth form 2)) ; (. i1 (isAfter i2))
-                    (reduce (fn [acc nx] (rec nx env acc))
-                      (rec (second form) env acc) (next (nth form 2)))
-
-                    :else
-                    (let [[_ o _x & x*] form]
-                      (if (seq x*)      ; (. i1 isAfter i2) vs. (. pt x)
-                        (reduce (fn [acc nx] (rec nx env acc))
-                          (rec o env acc) x*)
-                        (recur o env acc))))
-
-          (binding clojure.core/binding) (let [[_ bs & body] form
-                                               acc (transduce (take-nth 2)
-                                                     (completing (fn [acc nx] (rec nx env acc)))
-                                                     acc
-                                                     (next bs))]
-                                           (recur (cons 'do body) env acc))
-
-          (def set!) (recur (nth form 2) env acc)
-
-          (new) (reduce (fn [acc nx] (rec nx env acc)) acc (nnext form))
-
-          (do) (reduce (fn [acc nx] (rec nx env acc)) acc (next form))
-
-          #_else (reduce (fn [acc nx] (rec nx env acc)) acc form))
-
-        (instance? cljs.tagged_literals.JSValue form)
-        (let [o (.-val ^cljs.tagged_literals.JSValue form)]
-          (reduce (fn [acc nx] (rec nx env acc)) acc (if (map? o) (eduction cat o) o)))
-
-        (map? form) (reduce (fn [acc nx] (rec nx env acc)) acc (eduction cat form))
-        (or (vector? form) (set? form)) (reduce (fn [acc nx] (rec nx env acc)) acc form)
-
-        (symbol? form) (let [ret (resolve-symbol form env)]
-                         (case (::type ret)
-                           (::localref) (conj acc [:l form form form])
-                           (::local ::static) acc
-                           (::self ::node) (throw (ex-info "Cannot pass electric defns to clojure(script) interop"
-                                                    {:var (or (::sym ret) (::node ret))}))
-                           (::var) (conj acc (if (:dynamic (::meta ret))
-                                               [:d (gen form) form (::sym ret)]
-                                               [:l form form (::sym ret)]))
-                           #_else (throw (ex-info (str "unknown symbol type " (::type ret)) (or ret {})))))
-
-        :else acc))
-    form env acc)))
-
 (defn ->->id [] (let [!i (long-array [-1])] (fn [] (aset !i 0 (unchecked-inc (aget !i 0))))))
 
 (defn addf [{{::keys [->id]} :o :as ts} u p ->i more]
@@ -811,11 +727,11 @@
 
 (defn- add-invoke [{{::keys [->u]} :o :as ts} form env p ->i]
   (let [ap-u (->u), ->ap-i (->->id)]
-    (reduce (fn [ts nx] (analyze-foreign2 ts nx env ap-u ->ap-i))
+    (reduce (fn [ts nx] (analyze-foreign ts nx env ap-u ->ap-i))
       (addf ts ap-u p ->i {::t ::invoke}) form)))
 
-(defn analyze-foreign2
-  ([form env] (analyze-foreign2 (ts/->ts {::->id (->->id), ::->u (->->id)}) form env -1 (->->id)))
+(defn analyze-foreign
+  ([form env] (analyze-foreign (ts/->ts {::->id (->->id), ::->u (->->id)}) form env -1 (->->id)))
   ([{{::keys [->u]} :o :as ts} form env p ->i]
    (cond (and (seq? form) (seq form))
          (case (first form)
@@ -824,13 +740,13 @@
                  ts (addf ts let*-u p ->i {::t (case l (let*) ::let* (loop*) ::loop*)})
                  ->sym-i (->->id)
                  [ts2 env2] (loopr [ts2 ts, env2 env]
-                                [[sym v] (eduction (partition-all 2) bs)]
-                                (let [sym-u (->u)]
-                                  (recur (-> ts2 (addf sym-u let*-u ->sym-i {::t ::let*-sym, ::sym sym})
-                                           (analyze-foreign2 v env2 sym-u (->->id)))
-                                    (add-foreign-local env2 sym))))
+                              [[sym v] (eduction (partition-all 2) bs)]
+                              (let [sym-u (->u)]
+                                (recur (-> ts2 (addf sym-u let*-u ->sym-i {::t ::let*-sym, ::sym sym})
+                                         (analyze-foreign v env2 sym-u (->->id)))
+                                  (add-foreign-local env2 sym))))
                  body-u (->u), ->body-i (->->id)]
-             (reduce (fn [ts nx] (analyze-foreign2 ts nx env2 body-u ->body-i))
+             (reduce (fn [ts nx] (analyze-foreign ts nx env2 body-u ->body-i))
                (addf ts2 body-u let*-u (->->id) {::t ::body}) body))
 
            (binding clojure.core/binding)
@@ -840,10 +756,10 @@
                  ts (reduce (fn [ts [sym v]]
                               (let [sym-u (->u)]
                                 (-> ts (addf sym-u bind-u ->sym-i {::t ::binding-sym, ::sym sym})
-                                  (analyze-foreign2 v env sym-u (->->id)))))
+                                  (analyze-foreign v env sym-u (->->id)))))
                       ts (eduction (partition-all 2) bs))
                  body-u (->u), ->body-i (->->id)]
-             (reduce (fn [ts nx] (analyze-foreign2 ts nx env body-u ->body-i))
+             (reduce (fn [ts nx] (analyze-foreign ts nx env body-u ->body-i))
                (addf ts body-u bind-u (->->id) {::t ::body}) body))
 
            (quote) (addf ts (->u) p ->i {::t ::quote, ::v form})
@@ -856,17 +772,17 @@
                              (let [arity-u (->u), ->body-i (->->id)
                                    ts (addf ts arity-u fn*-u ->arity-i {::t ::fn*-arity, ::args args})
                                    env3 (reduce add-foreign-local env2 args)]
-                               (reduce (fn [ts nx] (analyze-foreign2 ts nx env3 arity-u ->body-i)) ts body)))
+                               (reduce (fn [ts nx] (analyze-foreign ts nx env3 arity-u ->body-i)) ts body)))
                      ts arity+))
 
            (letfn*) (let [[_ bs & body] form
                           env (reduce add-foreign-local env (eduction (take-nth 2) bs))
                           letfn*-u (->u), ->fn-i (->->id)
                           ts (addf ts letfn*-u p ->i {::t ::letfn*})
-                          ts (reduce (fn [ts f] (analyze-foreign2 ts f env letfn*-u ->fn-i))
+                          ts (reduce (fn [ts f] (analyze-foreign ts f env letfn*-u ->fn-i))
                                ts (eduction (take-nth 2) (next bs)))
                           body-u (->u), ->body-i (->->id)]
-                      (reduce (fn [ts nx] (analyze-foreign2 ts nx env body-u ->body-i))
+                      (reduce (fn [ts nx] (analyze-foreign ts nx env body-u ->body-i))
                         (addf ts body-u letfn*-u ->i {::t ::body}) body))
 
            (.) (cond (and (symbol? (second form))
@@ -875,7 +791,7 @@
                      ;; (. Instant (ofEpochMilli 1)) vs. (. Instant ofEpochMilli 1)
                      (let [[method & args] (if (symbol? (nth form 2)) (drop 2 form) (nth form 2))
                            class-u (->u), ->class-i (->->id)]
-                       (reduce (fn [ts nx] (analyze-foreign2 ts nx env class-u ->class-i))
+                       (reduce (fn [ts nx] (analyze-foreign ts nx env class-u ->class-i))
                          (addf ts class-u p ->i {::t ::class-method-call, ::class (second form), ::method method})
                          args))
 
@@ -892,7 +808,7 @@
                      :else           ; (. i1 isAfter i2) vs. (. i1 (isAfter i2))
                      (let [[method & args] (if (symbol? (nth form 2)) (drop 2 form) (nth form 2))
                            method-u (->u), ->method-i (->->id)]
-                       (reduce (fn [ts nx] (analyze-foreign2 ts nx env method-u ->method-i))
+                       (reduce (fn [ts nx] (analyze-foreign ts nx env method-u ->method-i))
                          (addf ts method-u p ->i {::t ::method-call, ::method method})
                          (cons (second form) args))))
 
@@ -900,40 +816,40 @@
                    (recur (addf ts u p ->i {::t ::def, ::sym (second form)}) (nth form 2) env u (->->id)))
 
            (set!) (let [set-u (->u), ->set-i (->->id)]
-                    (reduce (fn [ts nx] (analyze-foreign2 ts nx env set-u ->set-i))
+                    (reduce (fn [ts nx] (analyze-foreign ts nx env set-u ->set-i))
                       (addf ts set-u p ->i {::t ::set!}) (next form)))
 
            (new) (let [new-u (->u), ->new-i (->->id)]
-                   (reduce (fn [ts nx] (analyze-foreign2 ts nx env new-u ->new-i))
+                   (reduce (fn [ts nx] (analyze-foreign ts nx env new-u ->new-i))
                      (addf ts new-u p ->i {::t ::new}) (next form)))
 
            (do) (let [do-u (->u), ->do-i (->->id)]
-                  (reduce (fn [ts nx] (analyze-foreign2 ts nx env do-u ->do-i))
+                  (reduce (fn [ts nx] (analyze-foreign ts nx env do-u ->do-i))
                     (addf ts do-u p ->i {::t ::do}) (next form)))
 
            (js*) (let [js*-u (->u), ->js*-i (->->id)]
-                   (reduce (fn [ts nx] (analyze-foreign2 ts nx env js*-u ->js*-i))
+                   (reduce (fn [ts nx] (analyze-foreign ts nx env js*-u ->js*-i))
                      (addf ts js*-u p ->i {::t ::js*}) (next form)))
 
            (try) (let [try-u (->u), ->try-i (->->id)]
-                   (reduce (fn [ts nx] (analyze-foreign2 ts nx env try-u ->try-i))
+                   (reduce (fn [ts nx] (analyze-foreign ts nx env try-u ->try-i))
                      (addf ts try-u p ->i {::t ::try}) (next form)))
 
            (catch) (if (= ::try (::t (ts/->node ts p)))
                      (let [[_ typ sym & body] form
                            cu (->u), ->c-i (->->id)]
-                       (reduce (fn [ts nx] (analyze-foreign2 ts nx (add-foreign-local env sym) cu ->c-i))
+                       (reduce (fn [ts nx] (analyze-foreign ts nx (add-foreign-local env sym) cu ->c-i))
                          (addf ts cu p ->i {::t ::catch, ::ex-type typ, ::sym sym}) body))
                      (add-invoke ts form env p ->i))
 
            (finally) (if (= ::try (::t (ts/->node ts (ts/find1 ts ::p p))))
                        (let [fu (->u), ->f-i (->->id)]
-                         (reduce (fn [ts nx] (analyze-foreign2 ts nx env fu ->f-i))
+                         (reduce (fn [ts nx] (analyze-foreign ts nx env fu ->f-i))
                            (addf ts fu p ->i {::t ::finally})))
                        (add-invoke ts form env p ->i))
 
            (if) (let [if-u (->u), ->if-i (->->id)]
-                  (reduce (fn [ts nx] (analyze-foreign2 ts nx env if-u ->if-i))
+                  (reduce (fn [ts nx] (analyze-foreign ts nx env if-u ->if-i))
                     (addf ts if-u p ->i {::t ::if}) (next form)))
 
            (var) (let [u (->u)] (recur (addf ts u p ->i {::t ::builtin-var}) (second form) env u (->->id)))
@@ -941,7 +857,7 @@
            (throw) (let [u (->u)] (recur (addf ts u p ->i {::t ::throw}) (second form) env u (->->id)))
 
            (recur) (let [u (->u), ->id (->->id)]
-                     (reduce (fn [ts nx] (analyze-foreign2 ts nx env u ->id))
+                     (reduce (fn [ts nx] (analyze-foreign ts nx env u ->id))
                        (addf ts u p ->i {::t ::recur}) (next form)))
 
            #_else (add-invoke ts form env p ->i))
@@ -950,22 +866,22 @@
          (let [o (.-val ^cljs.tagged_literals.JSValue form)]
            (if (map? o)
              (let [map-u (->u), ->map-i (->->id)]
-               (reduce (fn [ts nx] (analyze-foreign2 ts nx env map-u ->map-i))
+               (reduce (fn [ts nx] (analyze-foreign ts nx env map-u ->map-i))
                  (addf ts map-u p ->i {::t ::js-map}) (eduction cat o)))
              (let [vec-u (->u), ->vec-i (->->id)]
-               (reduce (fn [ts nx] (analyze-foreign2 ts nx env vec-u ->vec-i))
+               (reduce (fn [ts nx] (analyze-foreign ts nx env vec-u ->vec-i))
                  (addf ts vec-u p ->i {::t ::js-array}) o))))
 
          (map? form) (let [map-u (->u), ->map-i (->->id)]
-                       (reduce (fn [ts nx] (analyze-foreign2 ts nx env map-u ->map-i))
+                       (reduce (fn [ts nx] (analyze-foreign ts nx env map-u ->map-i))
                          (addf ts map-u p ->i {::t ::map}) (eduction cat form)))
 
          (set? form) (let [set-u (->u), ->set-i (->->id)]
-                       (reduce (fn [ts nx] (analyze-foreign2 ts nx env set-u ->set-i))
+                       (reduce (fn [ts nx] (analyze-foreign ts nx env set-u ->set-i))
                          (addf ts set-u p ->i {::t ::set}) form))
 
          (vector? form) (let [vector-u (->u), ->vector-i (->->id)]
-                          (reduce (fn [ts nx] (analyze-foreign2 ts nx env vector-u ->vector-i))
+                          (reduce (fn [ts nx] (analyze-foreign ts nx env vector-u ->vector-i))
                             (addf ts vector-u p ->i {::t ::vector}) form))
 
          (symbol? form) (let [ret (resolve-symbol form env)]
@@ -985,35 +901,6 @@
 
          :else (addf ts (->u) p ->i {::t ::literal, ::v form}))))
 
-;; NEXT
-;; - write a pass that finds electric locals and vars
-;; - emit a wrapper fn that takes the values and binds them
-;; - lexicals can be bound at fn args
-;; - simple symbol vars too
-;; - qualified symbol vars need a "gensym" rewrite and binding
-;; - dynamic vars need a "gensym" lexical that we bind to the dynamic var
-
-#_(defn wrap-foreign-for-electric
-  ([ts] (wrap-foreign-for-electric ts gensym))
-  ([{{::keys [->u]} :o :as ts} gen]
-   (letfn [(->node [u] (ts/->node ts (ts/find1 ts ::u u)))
-           (e->u [e] (::u (ts/->node ts e)))
-           (order [u*] (sort-by (comp ::i ->node) u*))
-           (find [& kvs] (order (eduction (map e->u) (apply ts/find ts kvs))))
-           (find1 [& kvs] (e->u (apply ts/find1 ts kvs)))
-           (? [u k] (get (->node u) k))]
-     (let [var* (find ::t ::var)
-           {global* nil dyn* true} (group-by #(-> % (? ::meta) :dynamic) var*)
-           {simple true, quald false} (group-by #(-> % (? ::sym) simple-symbol?) global*)
-           rename (into {} (comp (map #(? % ::sym)) (distinct) (map #(vector % (gen (name %))))) quald)
-           e-local* (find ::t ::electric-local)
-           wrapfn-u (->u), arity-u (->u)
-           ts (ts/asc ts (ts/find1 ts ::p -1) ::p arity-u)
-           ts (reduce (fn [ts u] (ts/upd ts (? u :db/id) ::sym rename)) ts quald)
-           ts (addf ts wrapfn-u -1 (->->id) {::t ::fn*})
-           ts (addf ts arity-u wrapfn-u (->->id) {::t ::fn*-arity, ::args (vec (vals rename))})
-           ]
-       ts))))
 (defn emit-foreign
   ([ts] (emit-foreign ts (::u (ts/->node ts (ts/find1 ts ::p -1)))))
   ([ts u]
@@ -1084,21 +971,21 @@
            (? [u k] (get (->node u) k))]
      (let [[ts arg* val* dyn*]
            (loopr [ts ts, arg* [], val* [], dyn* [], seen {}]
-               [u (remove #(let [nd (->node %)] (and (zero? (::i nd))
-                                                  (not= -1 (::p nd))
-                                                  (= ::set! (? (::p nd) ::t))))
-                    (find ::t ::var))]
-               (let [nd (->node u), r (::resolved nd), s (::sym nd)]
-                 (if (:dynamic (::meta nd))
-                   (if (seen r)
-                     (recur ts arg* val* dyn* seen)
-                     (let [lex (gen (name r))]
-                       (recur ts (conj arg* lex) (conj val* r) (into dyn* [s lex]) (assoc seen r true))))
-                   (if-some [lex (seen r)]
-                     (recur (ts/asc ts (:db/id nd) ::sym lex) arg* val* dyn* seen)
-                     (let [lex (gen (name s))]
-                       (recur (ts/asc ts (:db/id nd) ::sym lex)
-                         (conj arg* lex) (conj val* r) dyn* (assoc seen r lex)))))))
+             [u (remove #(let [nd (->node %)] (and (zero? (::i nd))
+                                                (not= -1 (::p nd))
+                                                (= ::set! (? (::p nd) ::t))))
+                  (find ::t ::var))]
+             (let [nd (->node u), r (::resolved nd), s (::sym nd)]
+               (if (:dynamic (::meta nd))
+                 (if (seen r)
+                   (recur ts arg* val* dyn* seen)
+                   (let [lex (gen (name r))]
+                     (recur ts (conj arg* lex) (conj val* r) (into dyn* [s lex]) (assoc seen r true))))
+                 (if-some [lex (seen r)]
+                   (recur (ts/asc ts (:db/id nd) ::sym lex) arg* val* dyn* seen)
+                   (let [lex (gen (name s))]
+                     (recur (ts/asc ts (:db/id nd) ::sym lex)
+                       (conj arg* lex) (conj val* r) dyn* (assoc seen r lex)))))))
            code (cond->> (emit-foreign ts) (seq dyn*) (list 'binding dyn*))
            e-local* (into [] (comp (map #(? % ::sym)) (distinct)) (find ::t ::electric-local))]
        (when (or (seq arg*) (seq e-local*))

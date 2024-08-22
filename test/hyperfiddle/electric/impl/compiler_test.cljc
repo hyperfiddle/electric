@@ -599,76 +599,22 @@
            :locals {'e1 {::lang/electric-let 1}
                     'e2 {::lang/electric-let 2}
                     'z  {}}})
-(defn fana
-  ([o] (fana o gensym))
-  ([o g] (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv #{} g)))
-
 (defn foreign [o]
-  (-> (lang/analyze-foreign2 (lang/-expand-all-foreign o fenv) fenv)
+  (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv)
     (lang/emit-foreign)))
 
 (defn foreign-electrified [gen o]
-  (-> (lang/analyze-foreign2 (lang/-expand-all-foreign o fenv) fenv)
+  (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv)
     (lang/wrap-foreign-for-electric gen)))
 
 (def fenv-js (merge (cljs-ana/->cljs-env) fenv {::lang/peers {:client :cljs} ::lang/curent :client}))
-(defn fana-js
-  ([o] (fana-js o gensym))
-  ([o g] (lang/analyze-foreign (lang/-expand-all-foreign o fenv-js) fenv-js #{} g)))
-
 (defn foreign-js [o]
-  (-> (lang/analyze-foreign2 (lang/-expand-all-foreign o fenv-js) fenv-js)
+  (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv-js) fenv-js)
     (lang/emit-foreign)))
 
 (defn foreign-electrified-js [gen o]
-  (-> (lang/analyze-foreign2 (lang/-expand-all-foreign o fenv-js) fenv-js)
+  (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv-js) fenv-js)
     (lang/wrap-foreign-for-electric gen)))
-
-#_(tests
-  "foreign walk"
-  (fana 'e1) := #{[:l 'e1 'e1 'e1]}
-  (fana '(do e1 e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana '(foo e1 e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2] [:l 'foo 'foo `r/cannot-resolve]}
-  (fana '(fn* ([e2] (+ e1 e2)))) := #{[:l 'e1 'e1 'e1] [:l '+ '+ `+]}
-  (fana '(let* [e1 1, e2 2] [e1 e2])) := #{}
-  (fana '(fn* ([e1] e1) ([e2 e3] [e1 e2]))) := #{[:l 'e1 'e1 'e1]}
-  (fana '(letfn [(e1 [] (e2))
-                 (e2 [] (inc 1))])) := #{[:l 'inc 'inc `inc]}
-  (fana '(. java.time.Instant (ofEpochMilli e1))) := #{[:l 'e1 'e1 'e1]}
-  (fana '(. java.time.Instant ofEpochMilli e2)) := #{[:l 'e2 'e2 'e2]}
-  (fana '(. e1 (isAfter e2))) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana '(. e1 isAfter e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana '(. e1 x)) := #{[:l 'e1 'e1 'e1]}
-  (fana '(binding [x (inc e1), y (inc e2)] (dec e1))) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2] [:l 'inc 'inc `inc] [:l 'dec 'dec `dec]}
-  (fana '(def inc e1)) := #{[:l 'e1 'e1 'e1]}
-  (fana '(set! inc e1)) := #{[:l 'e1 'e1 'e1]}
-  (fana  '{e1 e2}) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana '#{e1 e2}) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana  '[e1 e2]) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana '(clojure.core/inc e1))
-  (fana '*d* (constantly 'dynamic)) := #{[:d 'dynamic '*d* `*d*]}
-
-  "cljs"
-  (swap! lang/!a cljs-ana/purge-ns (ns-name *ns*))
-  (cljs-ana/analyze-nsT lang/!a fenv-js (ns-name *ns*))
-  (fana-js 'e1) := #{[:l 'e1 'e1 'e1]}
-  (fana-js '(do e1 e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana-js '(foo e1 e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2] [:l 'foo 'foo `r/cannot-resolve]}
-  (fana-js '(fn* ([e2] (+ e1 e2)))) := #{[:l 'e1 'e1 'e1] [:l '+ '+ `+]}
-  (fana-js '(let* [e1 1, e2 2] [e1 e2])) := #{}
-  (fana-js '(fn* ([e1] e1) ([e2 e3] [e1 e2]))) := #{[:l 'e1 'e1 'e1]}
-  (fana-js '(letfn [(e1 [] (e2))
-                    (e2 [] (inc 1))])) := #{[:l 'inc 'inc `inc]}
-  (fana-js '(. e1 (isAfter e2))) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana-js '(. e1 isAfter e2)) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana-js '(. e1 x)) := #{[:l 'e1 'e1 'e1]}
-  (fana-js '(binding [x (inc e1), y (inc e2)] (dec e1))) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2] [:l 'inc 'inc `inc] [:l 'dec 'dec `dec]}
-  (fana-js '(def inc e1)) := #{[:l 'e1 'e1 'e1]}
-  (fana-js '(set! inc e1)) := #{[:l 'e1 'e1 'e1]}
-  (fana-js  '{e1 e2}) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana-js '#{e1 e2}) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana-js  '[e1 e2]) := #{[:l 'e1 'e1 'e1] [:l 'e2 'e2 'e2]}
-  (fana-js '*d* (constantly 'dynamic)) := #{[:d 'dynamic '*d* `*d*]})
 
 (tests
   "foreign"
