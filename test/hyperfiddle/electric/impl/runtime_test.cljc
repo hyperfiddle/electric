@@ -169,14 +169,14 @@
   (def server (peer :server (rcf/tap (e/server :foo))))
   (def r-ps ((m/reduce (constantly nil) (r/peer-root-frame client)) {} {}))
   (def c-ps
-    (((r/remote-handler client)
+    (((r/remote-handler {} client)
       (fn [!]
         (def s->c !)
         #(prn :dispose)))
      #(rcf/tap :step-c) #(prn :done-c)))
   % := :step-c
   (def s-ps
-    (((r/remote-handler server)
+    (((r/remote-handler {} server)
       (fn [!]
         (def c->s !)
         #(prn :dispose)))
@@ -194,14 +194,14 @@
   (def server (peer :server (rcf/tap (e/client (e/$ (e/server (e/fn [] :foo)))))))
   (def r-ps ((m/reduce (constantly nil) (r/peer-root-frame client)) {} {}))
   (def c-ps
-    (((r/remote-handler client)
+    (((r/remote-handler {} client)
        (fn [!]
          (def s->c !)
          #(prn :dispose)))
      #(rcf/tap :step-c) #(prn :done-c)))
   % := :step-c
   (def s-ps
-    (((r/remote-handler server)
+    (((r/remote-handler {} server)
        (fn [!]
          (def c->s !)
          #(prn :dispose)))
@@ -219,14 +219,14 @@
   (def server (peer :server (rcf/tap (e/client (e/$ (e/server (let [foo :foo] (e/fn [] foo))))))))
   (def r-ps ((m/reduce (constantly nil) (r/peer-root-frame client)) {} {}))
   (def c-ps
-    (((r/remote-handler client)
+    (((r/remote-handler {} client)
       (fn [!]
         (def s->c !)
         #(prn :dispose)))
      #(rcf/tap :step-c) #(prn :done-c)))
   % := :step-c
   (def s-ps
-    (((r/remote-handler server)
+    (((r/remote-handler {} server)
       (fn [!]
         (def c->s !)
         #(prn :dispose)))
@@ -248,14 +248,14 @@
   (def server (peer :server (rcf/tap (e/join (e/pure (let [x (e/server 2)] x))))))
   (def r-ps ((m/reduce (constantly nil) (r/peer-root-frame client)) {} {}))
   (def c-ps
-    (((r/remote-handler client)
+    (((r/remote-handler {} client)
        (fn [!]
          (def s->c !)
          #(prn :dispose)))
      #(rcf/tap :step-c) #(rcf/tap :done-c)))
   % := :step-c
   (def s-ps
-    (((r/remote-handler server)
+    (((r/remote-handler {} server)
        (fn [!]
          (def c->s !)
          #(prn :dispose)))
