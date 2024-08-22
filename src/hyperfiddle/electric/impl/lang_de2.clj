@@ -205,7 +205,7 @@
         #_else (?expand-macro o env -expand-all-foreign)))
 
     (instance? cljs.tagged_literals.JSValue o)
-    (cljs.tagged_literals.JSValue. (-expand-all-foreign (.-val o) env))
+    (cljs.tagged_literals.JSValue. (-expand-all-foreign (.-val ^cljs.tagged_literals.JSValue o) env))
 
     (map-entry? o) (clojure.lang.MapEntry. (-expand-all-foreign (key o) env) (-expand-all-foreign (val o) env))
     (coll? o) (?meta (meta o) (into (empty o) (map (fn-> -expand-all-foreign env)) o))
@@ -304,7 +304,7 @@
         #_else (?expand-macro o env -expand-all)))
 
     (instance? cljs.tagged_literals.JSValue o)
-    (cljs.tagged_literals.JSValue. (-expand-all (.-val o) env))
+    (cljs.tagged_literals.JSValue. (-expand-all (.-val ^cljs.tagged_literals.JSValue o) env))
 
     (map-entry? o) (clojure.lang.MapEntry. (-expand-all (key o) env) (-expand-all (val o) env))
     (coll? o) (?meta (meta o) (into (empty o) (map (fn-> -expand-all env)) o))
