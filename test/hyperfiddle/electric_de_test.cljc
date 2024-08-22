@@ -2263,3 +2263,13 @@
   (l/single {} (loop [^java.util.Date x (java.util.Date.)] (.foo x)))
   :ok := :ok
   )
+
+(e/defn CallMe ([] 0) ([n] n))
+
+(tests
+  "electric symbolic calling convention"
+  (with ((l/single {} (tap (CallMe))) tap tap)
+    % := 0)
+
+  (with ((l/single {::lang/print-expansion true} (tap ($ CallMe 10))) tap tap)
+    % := 10))
