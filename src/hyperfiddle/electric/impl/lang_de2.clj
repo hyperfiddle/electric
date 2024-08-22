@@ -180,6 +180,10 @@
 
         (try) (list* 'try (mapv (fn-> -expand-all-foreign-try env) (rest o)))
 
+        (set!) (let [[_ t v] o] (list 'set!
+                                  (-expand-all-foreign t (dissoc env ::trace))
+                                  (-expand-all-foreign v env)))
+
         (binding clojure.core/binding)
         (let [[_ bs & body] o]
           (?meta o (list 'binding (into [] (comp (partition-all 2)
