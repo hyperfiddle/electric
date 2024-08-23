@@ -325,7 +325,7 @@
    (let [mp   (e/client (e/mount-point))
          elem (e/client (create-element ns tag mp))]
      (e/client (e/input (attach! node (e/tag) elem)))
-     (e/client (e/input (m/reductions mount-items elem mp)))
+     (e/client (e/input (m/reductions mount-items elem mp)) (e/amb)) ; prevent :unserializable HTMLElement transfer
      (binding [node elem] ($ Body)))))
 
 ;; DONE what should `element*` return?
