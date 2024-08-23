@@ -2276,10 +2276,14 @@
 
 (e/defn CallMe ([] 0) ([n] n))
 
-(tests "electric symbolic calling convention"
+(tests "uppercase call convention"
   (with ((l/single {} (tap (CallMe))) tap tap)
     % := 0))
 
-(tests "electric symbolic calling convention"
+(tests "uppercase call convention"
   (with ((l/single {} (tap (CallMe 10))) tap tap)
     % := 10))
+
+(tests "uppercase call convention on locals"
+  (with ((l/single {} (let [X (e/fn [] 1)] (tap (X)))) tap tap)
+    % := 1))
