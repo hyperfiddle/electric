@@ -111,13 +111,20 @@
   (let [ns (-> env :ns :name), {:keys [line column]} (meta o)]
     (str ns ":" line ":" column " " o)))
 
+(defn electric-sym? [sym]
+  (let [s (name sym)]
+    (and (pos? (.length s))
+      (Character/isUpperCase (.charAt s 0)))))
+
 (defn ?expand-macro [o env caller]
   (if (symbol? (first o))
     (let [o2 (?meta o (expand-macro env o))]
       (if (identical? o o2)
-        (?meta o (cond->> (?meta o (list* (first o) (mapv (fn-> caller env) (rest o))))
-                   (and (::trace env) (some-> (qualify-sym (first o) env) (traceable)))
-                   (list `r/tracing (list 'quote (trace-crumb o env)))))
+        (if (electric-sym? (first o))
+          (recur (?meta o (cons `e/$ o)) env caller)
+          (?meta o (cond->> (?meta o (list* (first o) (mapv (fn-> caller env) (rest o))))
+                     (and (::trace env) (some-> (qualify-sym (first o) env) (traceable)))
+                     (list `r/tracing (list 'quote (trace-crumb o env))))))
         (caller o2 env)))
     (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
 
