@@ -2265,11 +2265,11 @@
   )
 
 (tests "conditional work-skipping"
-  (def !test (atom nil))
-  (with ((l/local {}
-           (when-not (e/watch !test)
-             (tap :mount)))
-         tap tap)
-    % := :mount
-    (reset! !test false)
-    % := ::rcf/timeout))
+  (let [!x (atom 0)]
+    (with ((l/local {}
+             (when (e/watch !x)
+               (tap :mount)))
+           tap tap)
+      % := :mount
+      (swap! !x inc)
+      % := ::rcf/timeout)))
