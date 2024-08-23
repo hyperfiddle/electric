@@ -1227,54 +1227,19 @@ T T T -> (EXPR T)
                 (recur j k) j)))]
     (aset buffer j x) buffer))
 
-;; TODO this is really just ctor instanciation, it could be a latest-product
-(deftype CallPs [^objects call ps ^:unsynchronized-mutable ^:mutable ^objects buffer]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_] (ps))
-  IDeref
-  (#?(:clj deref :cljs -deref) [_]
-    (let [{:keys [grow degree shrink permutation change freeze]} @ps
-          ^objects port (aget call call-slot-port)
-          ^Slot slot (port-slot port)
-          ^Frame parent (.-frame slot)
-          ^objects peer (.-peer parent)
-          site (port-site (slot-port slot))
-          size-after (- degree shrink)
-          ^objects buffer (let [cap (alength buffer)]
-                            (if (< degree cap)
-                              buffer (let [b (object-array (loop [cap cap]
-                                                             (let [cap (bit-shift-left cap 1)]
-                                                               (if (< degree cap)
-                                                                 cap (recur cap)))))]
-                                       #?(:clj  (System/arraycopy buffer 0 b 0 cap)
-                                          :cljs (dotimes [i cap] (aset b i (aget buffer i))))
-                                       (set! buffer b))))]
-      (reduce apply-cycle buffer (i/decompose permutation))
-      (dotimes [i shrink]
-        (let [j (+ size-after i)]
-          (aset buffer j nil)))
-      {:grow        grow
-       :degree      degree
-       :shrink      shrink
-       :permutation permutation
-       :freeze      freeze
-       :change      (reduce-kv (fn [change i ctor]
-                                 (let [rank (aget call call-slot-rank)
-                                       frame (make-frame peer slot rank site ctor)]
-                                   (aset buffer i frame)
-                                   (aset call call-slot-rank (inc rank))
-                                   (assoc change i frame)))
-                      {} change)})))
-
-(defn create-call [slot site expr]
-  (let [call (object-array call-slots)]
+(defn create-call [^Slot slot site expr]
+  (let [^Frame parent (.-frame slot)
+        ^objects peer (.-peer parent)
+        call (object-array call-slots)]
     (aset call call-slot-port
       (make-port slot site
         (deps expr update-inc {} site)
-        (fn [step done]
-          (->CallPs call
-            ((flow expr) step done)
-            (object-array 1)))))
+        (i/latest-product
+          (fn [ctor]
+            (let [rank (aget call call-slot-rank)
+                  frame (make-frame peer slot rank site ctor)]
+              (aset call call-slot-rank (inc rank)) frame))
+          (flow expr))))
     (aset call call-slot-rank (identity 0))
     call))
 

@@ -2263,3 +2263,13 @@
   (l/single {} (loop [^java.util.Date x (java.util.Date.)] (.foo x)))
   :ok := :ok
   )
+
+(tests "conditional work-skipping"
+  (def !test (atom nil))
+  (with ((l/local {}
+           (when-not (e/watch !test)
+             (tap :mount)))
+         tap tap)
+    % := :mount
+    (reset! !test false)
+    % := ::rcf/timeout))
