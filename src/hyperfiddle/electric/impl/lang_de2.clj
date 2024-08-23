@@ -111,10 +111,15 @@
   (let [ns (-> env :ns :name), {:keys [line column]} (meta o)]
     (str ns ":" line ":" column " " o)))
 
+(defn js-uppercase-sym? [sym] (re-matches #"^js/(Math|String).*$" (str sym)))
+
 (defn electric-sym? [sym]
   (let [s (name sym)]
     (and (pos? (.length s))
-      (Character/isUpperCase (.charAt s 0)))))
+      (Character/isUpperCase (.charAt s 0))
+      (not (re-matches #"G__\d+" s))    ; default gensym generated symbols
+      (not (js-uppercase-sym? sym))
+      (not= 'RCF__tap sym))))
 
 (defn ?expand-macro [o env caller]
   (if (symbol? (first o))
@@ -225,7 +230,9 @@
   (cond
     (and (seq? o) (seq o))
     (if (find-local-entry env (first o))
-      (?meta o (list* (first o) (mapv (fn-> -expand-all env) (rest o))))
+      (if (electric-sym? (first o))
+        (recur (?meta o (cons `$ o)) env)
+        (?meta o (list* (first o) (mapv (fn-> -expand-all env) (rest o)))))
       (case (first o)
         ;; (ns ns* deftype* defrecord* var)
 

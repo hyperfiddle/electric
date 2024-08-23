@@ -222,17 +222,17 @@ A mount point can be :
 * watched as an incremental sequence. Values will be sorted according to the relative ordering of tags.
   " [] `(mp/create (r/frame-peer (frame))))
 
-(hyperfiddle.electric-de/defn Dispatch [F static args]
+(hyperfiddle.electric-de/defn Dispatch [eF static args]
   (let [offset (count static)
         arity (+ offset (count args))] ; final count of all args
-    (if-some [ctor (F arity)] ; EFns implement IFn and return a constructor given a arg count
+    (if-some [ctor (eF arity)] ; EFns implement IFn and return a constructor given a arg count
       (loop [args args ; if we find the constructor for the current arity, just call it
              static static]
         (if (< (count static) arity)
           (recur (next args) (conj static (::lang/pure (first args))))
           (cc/apply r/bind-args (r/bind-self ctor) static)))
       ;; search for variadic version
-      (let [[fixed map? ctor] (r/get-variadic "apply" F arity)]
+      (let [[fixed map? ctor] (r/get-variadic "apply" eF arity)]
         (if (< fixed offset) ; if variadic arity has more positional args than provided: pop from rest args
           (loop [args args
                  static static]
