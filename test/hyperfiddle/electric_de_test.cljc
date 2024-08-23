@@ -396,18 +396,18 @@
 
 #?(:clj
    (tests "reactive doto"
-     (defn mutable-map [] (new java.util.HashMap))
-     (defn put-map [!m k v] (.put !m k v))
-     (defn a-ref [] (new Object))
+     (defn MutableMap [] (new java.util.HashMap))
+     (defn PutMap [!m k v] (.put !m k v))
+     (defn Ref [] (new Object))
      (def !z (atom 0))
      (def !xx (atom 0))
      (with ((l/single {}
               #_(doto (element "input")
                   (set-attribute! "type" "text")
                   (set-attribute! "value" x))
-              (tap (doto (mutable-map)            ; the doto is incrementalized
-                     (put-map "a" (swap! !z inc)) ; detect effect
-                     (put-map "b" (tap (e/watch !xx)))))) tap tap)
+              (tap (doto (MutableMap)            ; the doto is incrementalized
+                     (PutMap "a" (swap! !z inc)) ; detect effect
+                     (PutMap "b" (tap (e/watch !xx)))))) tap tap)
        % := 0, % := {"a" 1 "b" 0}
        (swap! !xx inc)
        % := 1))) ; mutable map is clojure.core/=, therefore skipped
@@ -2263,13 +2263,3 @@
   (l/single {} (loop [^java.util.Date x (java.util.Date.)] (.foo x)))
   :ok := :ok
   )
-
-(e/defn CallMe ([] 0) ([n] n))
-
-(tests "electric symbolic calling convention"
-  (with ((l/single {} (tap (CallMe))) tap tap)
-    % := 0))
-
-(tests "electric symbolic calling convention"
-  (with ((l/single {} (tap (CallMe 10))) tap tap)
-    % := 10))
