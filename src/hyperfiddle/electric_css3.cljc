@@ -74,6 +74,7 @@
   (set-property [this key value]))
 
 (defn to-str [x] ((if (keyword? x) name str) x))
+(defn css-compatible-value [x] (if (keyword? x) (name x) x))
 
 #?(:cljs
    (extend-protocol StyleRule
@@ -87,7 +88,8 @@
      (set-property [^js this key value] (set-property (.-style this) key value))
      js/CSSStyleDeclaration
      (set-property [^js this key value]
-       (let [key (to-str key)]
+       (let [key   (to-str key)
+             value (css-compatible-value value)]
          (if (str/starts-with? key "--") ; CSS variable
            (.setProperty this key value)
            (when-some [property (goog.style/getVendorJsStyleName_ js/document.body key)] ; normalize property names
