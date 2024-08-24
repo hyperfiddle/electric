@@ -27,7 +27,8 @@
     (throw (ex-info (str "Electric code (" fn ") inside a Clojure function") (into {:electric-fn fn} (meta &form))))))
 
 (defmacro ctor [expr] `(::lang/ctor ~expr))
-(defmacro $ [F & args] `(check-electric $ (lang/$ ~F ~@args)))
+(defmacro call [F & args] `(check-electric $ (lang/$ ~F ~@args)))
+(defmacro $ [F & args] `(call ~F ~@args)) ; compat
 
 (defmacro frame [] `(::lang/frame))
 
