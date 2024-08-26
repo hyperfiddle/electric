@@ -5,7 +5,8 @@
 ;; #?(:clj (set! *warn-on-reflection* true))
 (defmacro deffields [& fields]
   `(do ~@(for [[fld idx] (mapv vector fields (range))]
-           `(def ~fld (int ~idx)))))
+           `(def ~fld (int ~idx)))
+       ~(count fields)))
 (defn swap
   ([^objects a k f] (aset a k (f (aget a k))))
   ([^objects a k f x] (aset a k (f (aget a k) x)))
