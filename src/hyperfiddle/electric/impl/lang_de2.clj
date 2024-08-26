@@ -128,7 +128,7 @@
         (if (electric-sym? (first o))
           (recur (?meta o (cons `e/$ o)) env caller)
           (?meta o (cond->> (?meta o (list* (first o) (mapv (fn-> caller env) (rest o))))
-                     (and (::trace env) (some-> (qualify-sym (first o) env) (traceable)))
+                     (and (or (::trace env) (::e/trace env)) (some-> (qualify-sym (first o) env) (traceable)))
                      (list `r/tracing (list 'quote (trace-crumb o env))))))
         (caller o2 env)))
     (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
