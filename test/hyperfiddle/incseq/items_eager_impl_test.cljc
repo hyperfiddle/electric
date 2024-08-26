@@ -28,17 +28,49 @@
     (q 2) (q 3) (t/is (= 2 (q))) (t/is (= 3 (q)))
     (t/is (thrown? ExceptionInfo (q)))))
 
+(defn spawn-ps [q]
+  ((items/flow (fn [step done]
+                 (q [step done])
+                 (step)
+                 (reify
+                   IFn (#?(:clj invoke :cljs -invoke) [_] (q :input-cancel))
+                   IDeref (#?(:clj deref :cljs -deref) [_] (q)))))
+   #(q :items-step) #(q :items-done)))
+
 (t/deftest spawn
   (let [q (->mq)
         _ (q (d/empty-diff 0))          ; what input will return on transfer
-        ps ((items/flow (fn [step done]
-                          (q [step done])
-                          (step)
-                          (reify
-                            IFn (#?(:clj invoke :cljs -invoke) [_] (q :input-cancel))
-                            IDeref (#?(:clj deref :cljs -deref) [_] (q)))))
-            #(q :items-step) #(q :items-done))
+        ps (spawn-ps q)
         ;; transfer (fn transfer [diff] (q diff) @ps)
         [_input-step _input-done] (q)
         _ (t/is (= :items-step (q)))
-        _ (t/is (= @ps (d/empty-diff 0)))]))
+        _ (t/is (= (d/empty-diff 0) @ps))]))
+
+(t/deftest one-item
+  (let [q (->mq)
+        _ (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items (spawn-ps q)
+        [_input-step _input-done] (q)
+        _ (t/is (= :items-step (q)))
+        diff @items
+        _ (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0 ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _ (t/is (= :item0-step (q)))
+        _ (t/is (= :foo @item0))]))
+
+(t/deftest one-item-change
+  (let [q (->mq)
+        _ (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items (spawn-ps q)
+        [input-step _input-done] (q)
+        _ (t/is (= :items-step (q)))
+        diff @items
+        _ (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0 ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _ (t/is (= :item0-step (q)))
+        _ (t/is (= :foo @item0))
+        _ (q (assoc (d/empty-diff 1) :change {0 :bar}))
+        _ (input-step)
+        _ (t/is (= :item0-step (q)))
+        _ (t/is (= :bar @item0))
+        ]))
