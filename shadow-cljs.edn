@@ -1,16 +1,4 @@
-{:builds {:dev          {:target      :browser
-                         :devtools    {:watch-dir       "resources-demo/public"    ; live reload CSS
-                                       :hud             #{:errors :progress}
-                                       :ignore-warnings true                  ; warnings don't prevent hot-reload
-                                       :loader-mode     :default              ; faster reload
-                                       }
-                         :output-dir  "resources-demo/public/js"
-                         :asset-path  "/js"
-                         :modules     {:main {:entries [user]
-                                              :init-fn user/start!}}
-                         :build-hooks [(shadow.cljs.build-report/hook {:output-to "target/build_report.html"})
-                                       (user/rcf-shadow-hook)]}
-          :test         {:target           :node-test
+{:builds {:test         {:target           :node-test
                          :output-to        "out/node-tests.js"
                          :ns-regexp        "^(hyperfiddle.electric-(?!dom|fulcro|css|svg)|contrib.(ednish|sexpr-router|missionary-contrib-test|stacktrace)|hyperfiddle.incseq).*$"
                          :build-options    {:cache-level :off}
@@ -35,9 +23,4 @@
                                                              contrib.missionary-contrib-test
                                                              contrib.ednish
                                                              contrib.sexpr-router]}}
-                         :compiler-options {:warnings-as-errors {:warning-types #{:infer-warning}}}}
-          :prod         {:target            :browser
-                         :output-dir        "resources-demo/public/js"
-                         :asset-path        "/js"
-                         :module-hash-names true
-                         :modules           {:main {:entries [prod] :init-fn prod/start!}}}}}
+                         :compiler-options {:warnings-as-errors {:warning-types #{:infer-warning}}}}}}
