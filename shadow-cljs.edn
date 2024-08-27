@@ -1,26 +1,22 @@
 {:builds {:test         {:target           :node-test
                          :output-to        "out/node-tests.js"
-                         :ns-regexp        "^(hyperfiddle.electric-(?!dom|fulcro|css|svg)|contrib.(ednish|sexpr-router|missionary-contrib-test|stacktrace)|hyperfiddle.incseq).*$"
+                         :ns-regexp        "^(hyperfiddle.electric-(?!dom|fulcro|css|svg)|contrib.(ednish|sexpr-router|stacktrace)|hyperfiddle.incseq).*$"
                          :build-options    {:cache-level :off}
-                         :modules          {:main {:entries [hyperfiddle.zero
-                                                             hyperfiddle.electric
-                                                             hyperfiddle.electric-test
+                         :modules          {:main {:entries [#_hyperfiddle.electric
+                                                             #_hyperfiddle.electric-test
                                                              hyperfiddle.electric-de-test
                                                              #_hyperfiddle.missionary-test
-                                                             contrib.missionary-contrib-test
                                                              contrib.ednish
                                                              contrib.sexpr-router]}}
                          :compiler-options {:warnings {:redef-in-file false}}}
           :browser-test {:target           :karma
                          :output-to        "out/karma-tests.js"
-                         :ns-regexp        "^(hyperfiddle.electric-(?!fulcro)|contrib.(ednish|sexpr-router|missionary-contrib-test|stacktrace)|hyperfiddle.incseq).*$"
+                         :ns-regexp        "^(hyperfiddle.electric-(?!fulcro)|contrib.(ednish|sexpr-router|stacktrace)|hyperfiddle.incseq).*$"
                          :build-options    {:cache-level :off}
                          :build-hooks [(hyperfiddle.browser-test-setup/blow-up-tests-on-warnings)]
-                         :modules          {:main {:entries [hyperfiddle.zero
-                                                             hyperfiddle.electric
-                                                             hyperfiddle.electric-test
+                         :modules          {:main {:entries [#_hyperfiddle.electric
+                                                             #_hyperfiddle.electric-test
                                                              #_hyperfiddle.missionary-test
-                                                             contrib.missionary-contrib-test
                                                              contrib.ednish
                                                              contrib.sexpr-router]}}
                          :compiler-options {:warnings-as-errors {:warning-types #{:infer-warning}}}}}}

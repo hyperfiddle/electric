@@ -89,8 +89,8 @@
 ; Readers
 
 (tests
-  "clj #user/uri runtime literal readers are auto-wired in clojure from data_readers.cljc"
-  #?@(:clj ((clojure.core/read-string "#user/uri \"http://localhost:8080/a?b#c\"") := x))
+  ;; "clj #user/uri runtime literal readers are auto-wired in clojure from data_readers.cljc"
+  ;; #?@(:clj ((clojure.core/read-string "#user/uri \"http://localhost:8080/a?b#c\"") := x)) ; no custom data_readers file in this repo
 
   "cljs #user/uri runtime literals are NOT auto-wired in cljs reader (the cljs JS runtime reader is always an
   EDN reader for safety, unlike clj)"

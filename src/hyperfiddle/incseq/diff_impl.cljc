@@ -1,6 +1,5 @@
 (ns hyperfiddle.incseq.diff-impl
   (:require [hyperfiddle.incseq.perm-impl :as p]
-            [contrib.debug]
             [hyperfiddle.rcf :refer [tests]]))
 
 (defn empty-diff [n]

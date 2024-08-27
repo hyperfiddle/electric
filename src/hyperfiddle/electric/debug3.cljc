@@ -1,14 +1,8 @@
-(ns hyperfiddle.electric.debug
+(ns hyperfiddle.electric.debug3
   (:require [clojure.string :as str]
             [contrib.data :as data]
-            [hyperfiddle.electric.impl.ir :as-alias ir]
-            [hyperfiddle.rcf :as rcf :refer [tests]]
             #?(:cljs [contrib.stacktrace :as st])
-            [contrib.str])
-  (:import #?(:clj (clojure.lang ExceptionInfo))
-           (hyperfiddle.electric Failure Pending)
-           (hyperfiddle.electric FailureInfo)
-           (missionary Cancelled)))
+            [contrib.str]))
 
 (defn ->id []
   #?(:clj  (java.util.UUID/randomUUID)
@@ -18,43 +12,6 @@
   PEER-ID
   ;; UUID v4 collision probability assumed insignificant for this use case
   (->id))
-
-(defn ex-info*
-  ([message data] (ex-info* message data nil))
-  ([message data cause] (ex-info* message data (str (->id)) cause))
-  ([message data id cause] (FailureInfo. message (assoc data :hyperfiddle.electric/type ::trace) id cause)))
-
-(tests "2 traces with equal values are ="
-  (let [cause #?(:clj (Throwable.) :cljs (js/Error.))]
-    (ex-info* "" {} cause) := (ex-info* "" {} cause)
-    nil))
-
-(defn ex-id [ex] (.-id ^FailureInfo ex))
-
-(defn add-stack-frame [stack-frame exception]
-  (let [stack-frame (assoc stack-frame ::origin PEER-ID)]
-   (if (instance? FailureInfo exception)
-    (ex-info* (ex-message exception) (update (ex-data exception) ::trace conj stack-frame) (ex-id exception) (or (ex-cause exception) exception))
-    (ex-info* (ex-message exception) {::trace [stack-frame]} exception))))
-
-(defn concat-async-stacks [ex1 ex2]
-  (assert (instance? FailureInfo ex1))
-  (assert (instance? FailureInfo ex2))
-  (ex-info* (ex-message ex1) (update (ex-data ex1) ::trace into (::trace (ex-data ex2))) (or (ex-cause ex1) (ex-cause ex2) ex2)))
-
-(defn error
-  ([debug-info ^Failure failure]
-   (error debug-info failure nil))
-  ([debug-info ^Failure failure ^FailureInfo context]
-   (let [err (.-error failure)]
-     (if (or (instance? Pending err) (instance? Cancelled err))
-       failure
-       (Failure. (cond-> (add-stack-frame debug-info err)
-                   (some? context) (concat-async-stacks context)))))))
-
-(tests "rewrapping keeps same ID"
-  (def ex (ex-info* "x" {}))
-  (ex-id ex) := (ex-id (add-stack-frame {} ex)))
 
 (defn normalize-async-stack-frame [stack-frame]
   (let [meta        (::meta stack-frame)
@@ -71,68 +28,6 @@
     (:file meta) (assoc ::file (:file meta))))
 
 (def fail? '#{hyperfiddle.electric.impl.runtime/fail})
-
-#_ (defn render-frame [frame]
-  (let [{::keys [remote file line macro scope type name params args meta]} frame]
-    (->> ["  in"
-          (when remote "remote")
-          (when macro "macro")
-          (case scope
-            :lexical "lexically bound"
-            :dynamic "dynamically bound"
-            nil)
-
-          (str/join " "
-            (case type
-              :apply (if (fail? name)
-                       ["(throw ...)"]
-                       ["call to" name])
-              :eval  (if (fail? (::fn frame))
-                       ["(throw ...)"]
-                       (let [{::keys [action target method args]} frame]
-                         (case action
-                           :field-access ["(" (str ".-" method) target ")"]
-                           :static-call  [(str target "/" method)]
-                           :call         [(str target "." method)]
-                           :fn-call      (if (some? name)
-                                           `[(clojure.core/fn ~name [~@params] ~'...)]
-                                           `[(clojure.core/fn [~@params] ~'...)])
-                           #_else (let [f (or (::fn frame) (::ir/form frame) "<unknown>")]
-                                    [(str "call to `" f "`")]))))
-              :reactive-fn   ["reactive" (if (some? name)
-                                           `(~'fn ~name ~'...)
-                                           `(~'fn ~'...))]
-              :reactive-defn ["reactive" 'defn (str "`" name "`")]
-              :try           ["(try ...)" ]
-              :catch         [`(~'catch ~'...)]
-              :finally       ["(finally ...)"]
-              :case-clause   [`(~'case ~'...)]
-              :case-default  ["case default branch"]
-              :transfer      ["transfer to" (clojure.core/name name)]
-              :toggle        ["transfer"]
-              `["<unknow frame>" ~(::ir/op frame)]
-              ))
-
-          (when file (str "in " file))
-          (when line (str "line " line))
-          ]
-      (remove nil?)
-      (str/join " "))))
-
-;;; CLJS stack frames
-
-;; #?(:cljs
-;;    (defn- get-running-js-script-location []
-;;      (let [canonical-frame       (->> (.-stack (js/Error.))
-;;                                    (str/split-lines)
-;;                                    (first)
-;;                                    (st/canonicalize))
-;;            [_file url]           (str/split canonical-frame #"\sat\s")
-;;            parsed-url            (js/URL. url)
-;;            origin                (.-origin parsed-url)
-;;            pathname              (.-pathname parsed-url)
-;;            pathname-without-file (str/join "/" (butlast (str/split pathname #"/")))]
-;;        (str origin pathname-without-file))))
 
 (defn file->ns [file]
   (when file
@@ -200,26 +95,11 @@
 
 ;;; -------
 
-(defn add-async-frames! [exception async-trace]
-  #?(:clj (let [exception (if (instance? hyperfiddle.electric.FailureInfo exception) (Throwable. (ex-message exception)) exception)]
-            (.setStackTrace ^Throwable exception (into-array StackTraceElement (concat (.getStackTrace exception) (render-async-stack-trace async-trace))))
-            exception)
-     :cljs (set! (.-stack exception) (str (.-stack exception) "\n" (render-async-stack-trace async-trace)))))
-
-
-
-
 (defn unwrap [exception]
   (if (= ::trace (:hyperfiddle.electric/type (ex-data exception)))
     (or (ex-cause exception) exception)
     exception))
 
-(defn remove-async-stack-trace [ex]
-  (unwrap
-    (cond
-      (instance? ExceptionInfo ex) (ex-info  (ex-message ex) (dissoc (ex-data ex) ::trace) (remove-async-stack-trace (ex-cause ex)))
-      (instance? FailureInfo ex)   (ex-info* (ex-message ex) (dissoc (ex-data ex) ::trace) (remove-async-stack-trace (ex-cause ex)))
-      :else                        ex)))
 
 #?(:clj
    (defn stack-element-matches? [regex ^StackTraceElement elem]
@@ -320,9 +200,3 @@
        (map (fn [line] (str pad line)))
        (str/join "\n")))))
 
-(defn empty-client-exception [exception]
-  #?(:clj
-     (if (instance? FailureInfo exception)
-       (doto (Throwable. (ex-message exception))
-         (.setStackTrace (into-array StackTraceElement [])))
-       exception)))

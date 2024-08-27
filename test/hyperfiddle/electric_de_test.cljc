@@ -2,7 +2,6 @@
   (:require [hyperfiddle.rcf :as rcf :refer [tap with % tests]]
             [hyperfiddle.electric-de :as e :refer [$]]
             [hyperfiddle.electric-local-def-de :as l]
-            [hyperfiddle.electric.impl.io :as electric-io]
             [hyperfiddle.electric.impl.lang-de2 :as lang]
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.incseq :as i]
@@ -13,8 +12,7 @@
             [clojure.string :as str]
             [missionary.core :as m])
   #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip failing]]))
-  (:import [hyperfiddle.electric Pending Failure]
-           [missionary Cancelled]
+  (:import [missionary Cancelled]
            #?(:clj [clojure.lang ExceptionInfo])))
 
 (defmacro skip {:style/indent 0} [& _body] `(print "-"))
@@ -605,7 +603,7 @@
 
 ;; TODO try/catch
 (skip "reactive pending states"
-  ;~(m/reductions {} hyperfiddle.electric.impl.runtime/pending m/none)
+  ;~(m/reductions {} hyperfiddle.electric.impl.runtime-de/pending m/none)
   (with ((l/single {} (tap (try true (catch Pending _ ::pending)))) tap tap)
     % := true))
 
@@ -1017,10 +1015,12 @@
     (reset! !xs [])
     % := []))
 
-(tests "All Pending instances are equal"
+;; TODO try/catch
+(skip "All Pending instances are equal"
   (= (Pending.) (Pending.)) := true)
 
-(tests
+;; TODO try/catch
+(skip
   "Failure instances are equal if the errors they convey are equal"
   (= (Failure. (Pending.)) (Failure. (Pending.))) := true
 
@@ -1029,11 +1029,6 @@
     (= (Failure. err) (Failure. err)) := true
     (= (ex-info "a" {}) (ex-info "a" {})) := false
     (= (Failure. (ex-info "err" {})) (Failure. (ex-info "err" {}))) := false))
-
-(tests          ; temporary test because p/run does not serilize to transit.
-  "Electric transit layer serializes unserializable values to nil"
-  (electric-io/decode (electric-io/encode 1)) := 1
-  (electric-io/decode (electric-io/encode (type 1))) := nil)
 
 ;; HACK sequences cljs async tests. Symptomatic of an RCF issue.
 ;; Ticket: https://www.notion.so/hyperfiddle/cljs-test-suite-can-produce-false-failures-0b3799f6d2104d698eb6a956b6c51e48

@@ -10,7 +10,6 @@
             [clojure.string :as str]
             [clojure.tools.reader.reader-types :as rt]
             [contrib.assert :as ca]
-            [contrib.debug]
             [edamame.core :as ed]                 ; for cljs macroexpansion
             [clojure.walk :as walk]))
 

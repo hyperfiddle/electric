@@ -1,5 +1,5 @@
 // Test that when electric calls scope.fn(), fn is called with `scope` bound as `this`, thus returning `"value"`
-// See `js_calls_test.cljs`
+// See `js_calls_test_de.cljs`
 
 // How to reproduce from JS console:
 
