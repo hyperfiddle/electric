@@ -2,7 +2,7 @@
 
 echo "Running JVM tests"
 clojure -X:test \
-    :dirs "[\"src\" \"src-docs\" \"test\"]"  \
+    :dirs "[\"src\" \"test\"]"  \
     :patterns                                \
     "[\"hyperfiddle.electric.impl.*\"        \
       \"hyperfiddle.incseq.*-test\"          \
