@@ -5,15 +5,27 @@
   (:import #?(:clj [clojure.lang IDeref IFn])
            [missionary Cancelled]))
 
-(def ps-field-count (a/deffields -input-ps -input-stepper -input-doner -diff -item*))
+(def ps-field-count (a/deffields -stepped -cancelled -input-ps -input-stepper -input-doner -diff -item*))
+(declare cleanup-ps)
 (deftype Ps [step done state-]
-  IFn (#?(:clj invoke :cljs -invoke) [_] ((a/get state- -input-ps)) (done))
-  IDeref (#?(:clj deref :cljs -deref) [_] (a/get state- -diff)))
+  IFn (#?(:clj invoke :cljs -invoke) [^Ps this]
+        ((a/get state- -input-ps))
+        (let [cancelled? (a/fgetset this -cancelled true)]
+          (when (not (or (a/fgetset this -stepped true) cancelled?)) (step))))
+  IDeref (#?(:clj deref :cljs -deref) [^Ps this]
+           (a/fset this -stepped false)
+           (if (a/fget this -cancelled)
+             (do (cleanup-ps this done) (throw (Cancelled.)))
+             (a/get state- -diff))))
+(defn cleanup-ps [^Ps ps done]
+  (when-not (identical? ps (a/fgetset ps -diff ps))
+    (a/fset ps -input-ps nil, -input-stepper nil, -input-doner nil, -diff nil, -item* nil)
+    (done)))
 
 (def item-field-count (a/deffields -v -flow -ps* -dead))
 (deftype Item [state-])
 
-(def item-ps-field-count (a/deffields -stepped -cache -cancelled))
+(def item-ps-field-count (a/deffields -stepped -cancelled -cache))
 
 (defn remove-item-ps [^Item item ps] (let [ps* (a/fget item -ps*)] (ps* (disj (ps*) ps))))
 
@@ -97,7 +109,10 @@
   (or (seq (:permutation d)) (pos? (:grow d)) (pos? (:shrink d)) (seq (:freeze d))))
 
 (defn consume-input-step [^Ps ps]
-  (fn [] (when (needed-diff? (a/fswap ps -diff merge (transfer-input ps)))  ((.-step ps)))))
+  (fn []
+    (when (needed-diff? (a/fswap ps -diff merge (transfer-input ps)))
+      (when-not (a/fgetset ps -stepped true)
+        ((.-step ps))))))
 (defn consume-input-done [^Ps ps] (fn []))
 
 (defn flow [input]
@@ -106,4 +121,4 @@
       (a/fset ps -input-stepper #() -input-doner #(), -item* (object-array 8))
       (a/fset ps -input-ps (input (fn [] ((a/fget ps -input-stepper))) (fn [] ((a/fget ps -input-doner)))))
       (a/fset ps -input-stepper (consume-input-step ps), -input-doner (consume-input-done ps))
-      (a/fswap ps -diff merge (transfer-input ps)) (step) ps)))
+      (a/fswap ps -diff merge (transfer-input ps)) (a/fset ps -stepped true) (step) ps)))
