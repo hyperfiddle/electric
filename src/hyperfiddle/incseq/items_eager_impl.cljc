@@ -1,6 +1,7 @@
 (ns hyperfiddle.incseq.items-eager-impl
   (:require [contrib.data :refer [->box]]
-            [hyperfiddle.electric.impl.array-fields :as a])
+            [hyperfiddle.electric.impl.array-fields :as a]
+            [hyperfiddle.incseq.perm-impl :as p])
   #?(:clj (:import [clojure.lang IDeref IFn])))
 
 (def ps-field-count (a/deffields -input-ps -input-stepper -input-doner -diff -item*))
@@ -24,7 +25,7 @@
           (#?(:clj invoke :cljs -invoke) [_ v] (when (not= v (a/get a -cache)) (a/set a -cache v) ((a/get a -step))))
           IDeref (#?(:clj deref :cljs -deref) [_] (a/set a -step step-idle) (a/get a -cache)))))))
 
-(defn grow-input! [^Ps ps diff]
+(defn grow! [^Ps ps diff]
   (run! (fn [i]
           (let [^Item item (->Item (object-array item-field-count))]
             (a/fset item -ps* (->box #{}))
@@ -37,9 +38,14 @@
                                             item-ps))))))
     (range (- (:degree diff) (:grow diff)) (:degree diff))))
 
+(defn permute! [^Ps ps {p :permutation}]
+  (let [rot* (p/decompose conj #{} p)
+        item* (a/fget ps -item*)]
+    (run! (fn [rot] (apply a/rot item* rot)) rot*)))
+
 (defn ->item ^Item [^Ps ps i] (a/get (a/fget ps -item*) i))
 
-(defn change-input! [^Ps ps diff]
+(defn change! [^Ps ps diff]
   (reduce-kv (fn [_ i v]
                (let [^Item item (->item ps i)]
                  (a/fset item -v v)
@@ -49,12 +55,13 @@
 (defn transfer-input [^Ps ps]
   (let [diff @(a/fget ps -input-ps)]
     (a/fset ps -diff {:change {}})
-    (grow-input! ps diff)
-    (change-input! ps diff)
+    (grow! ps diff)
+    (permute! ps diff)
+    (change! ps diff)
     (dissoc diff :change)))
 
 (defn needed-diff? [d]
-  (or (seq (:permutation d)) (seq (:change d)) (pos? (:grow d)) (pos? (:shrink d)) (seq (:freeze d))))
+  (or (seq (:permutation d)) (pos? (:grow d)) (pos? (:shrink d)) (seq (:freeze d))))
 
 (defn consume-input-step [^Ps ps]
   (fn [] (when (needed-diff? (a/fswap ps -diff merge (transfer-input ps)))  ((.-step ps)))))
