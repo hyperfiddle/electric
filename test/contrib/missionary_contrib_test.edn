@@ -1,3 +1,4 @@
+;; FIXME revisit the entire use case/design
 (ns contrib.missionary-contrib-test
   (:require [clojure.core.async :as a]
             [contrib.missionary-core-async :as mc]

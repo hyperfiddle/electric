@@ -5,7 +5,6 @@
             [clojure.string :as str]
             [contrib.assert :as ca]
             [contrib.data :refer [keep-if]]
-            [contrib.debug]
             [clojure.set :as set]
             [contrib.triple-store :as ts]
             [dom-top.core :refer [loopr]]

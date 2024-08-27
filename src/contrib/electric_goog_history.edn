@@ -1,3 +1,4 @@
+;; FIXME revisit under v3
 (ns contrib.electric-goog-history
   #?(:cljs
      (:import goog.history.Html5History

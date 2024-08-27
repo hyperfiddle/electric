@@ -1,7 +1,6 @@
 (ns hyperfiddle.js-calls-test-de
   (:require [hyperfiddle.electric-local-def-de :as l]
             [hyperfiddle.rcf :as rcf :refer [tests tap % with]]
-            [hyperfiddle.electric.impl.lang-de2 :as lang]
             ["./js_calls_test_de" :as call-test]))
 
 ;;; Goal: confirm Electric and CLJS have the same js function call semantics.

@@ -21,7 +21,10 @@
                                  datascript/datascript                {:mvn/version "1.4.1"}
                                  ch.qos.logback/logback-classic       {:mvn/version "1.4.14"}
                                  io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git" :sha "cc75980b43011773162b485f46f939dc5fba91e4"}
-                                 org.clojure/test.check               {:mvn/version "1.1.1"}}}
+                                 org.clojure/test.check               {:mvn/version "1.1.1"}
+                                 com.datomic/local                    {:mvn/version "1.0.285"} ; for hyperfiddle.transaction-test
+                                 com.datomic/client-cloud             {:mvn/version "1.0.130"} ; for hyperfiddle.transaction-test
+                                 }}
            :build {:extra-paths ["src-build"]
                    :ns-default  build
                    :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.9.6"}
