@@ -126,6 +126,27 @@
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
+(t/deftest two-item-processes
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0-ps0          ((-> diff :change (get 0)) #(q :item0-ps0-step) #(q :item0-ps0-done))
+        _                  (t/is (= :item0-ps0-step (q)))
+        item0-ps1          ((-> diff :change (get 0)) #(q :item0-ps1-step) #(q :item0-ps1-done))
+        _                  (t/is (= :item0-ps1-step (q)))
+        _                  (t/is (= :foo @item0-ps1))     ; ps1 reads, ps0 didn't
+        _                  (q (assoc (d/empty-diff 1) :change {0 :bar}))
+        _                  (in-step)
+        _                  (t/is (= :item0-ps1-step (q))) ; ps1 steps because it already transferred
+        _                  (t/is (= :bar @item0-ps0))     ; ps0 transfers latest
+        _                  (t/is (= :bar @item0-ps1))     ; ps1 transfers
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
 ;; missing tests
 ;; - item-ps cancellation
 ;; - 2+ item-ps
