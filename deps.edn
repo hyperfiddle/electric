@@ -3,7 +3,7 @@
          com.cognitect/transit-cljs {:mvn/version "0.8.280"}
          com.hyperfiddle/rcf        {:mvn/version "20220926-202227"}
          missionary/missionary      {:mvn/version "b.35"}
-         dom-top/dom-top            {:mvn/version "1.0.9"}
+         dom-top/dom-top            {:mvn/version "1.0.9"} ; for loopr macro
          fipp/fipp                  {:mvn/version "0.6.26"}
          org.clojure/clojure        {:mvn/version "1.12.0-alpha11"}
          org.clojure/clojurescript  {:mvn/version "1.11.121"}
@@ -18,12 +18,13 @@
                    :exec-fn     cognitect.test-runner.api/test
                    :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true" "-XX:-OmitStackTraceInFastThrow"] ;; https://archive.md/NNt9r
                    :extra-deps  {org.clojure/core.async               {:mvn/version "1.6.681"} ; for interop helpers only
-                                 datascript/datascript                {:mvn/version "1.4.1"}
                                  ch.qos.logback/logback-classic       {:mvn/version "1.4.14"}
                                  io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git" :sha "cc75980b43011773162b485f46f939dc5fba91e4"}
                                  org.clojure/test.check               {:mvn/version "1.1.1"}
                                  com.datomic/local                    {:mvn/version "1.0.285"} ; for hyperfiddle.transaction-test
                                  com.datomic/client-cloud             {:mvn/version "1.0.130"} ; for hyperfiddle.transaction-test
+                                 thheller/shadow-cljs                 {:mvn/version "2.26.2"} ; for hooks tests
+                                 ring/ring-core                       {:mvn/version "1.11.0"}
                                  }}
            :build {:extra-paths ["src-build"]
                    :ns-default  build

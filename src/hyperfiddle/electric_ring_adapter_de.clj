@@ -7,7 +7,7 @@
   (:require [clojure.tools.logging :as log]
             [hyperfiddle.electric-de :as-alias e]
             [hyperfiddle.electric.impl.runtime-de :as r]
-            [hyperfiddle.electric.debug :as dbg]
+            [hyperfiddle.electric.debug3 :as dbg]
             [missionary.core :as m]
             [ring.websocket :as ws])
   (:import missionary.Cancelled
