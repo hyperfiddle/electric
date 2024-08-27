@@ -42,7 +42,7 @@
         _ (q (d/empty-diff 0))          ; what input will return on transfer
         ps (spawn-ps q)
         ;; transfer (fn transfer [diff] (q diff) @ps)
-        [_input-step _input-done] (q)
+        [_input-step _in-done] (q)
         _ (t/is (= :items-step (q)))
         _ (t/is (= (d/empty-diff 0) @ps))]))
 
@@ -50,7 +50,7 @@
   (let [q (->mq)
         _ (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
         items (spawn-ps q)
-        [_input-step _input-done] (q)
+        [_input-step _in-done] (q)
         _ (t/is (= :items-step (q)))
         diff @items
         _ (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
@@ -62,7 +62,7 @@
   (let [q (->mq)
         _ (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
         items (spawn-ps q)
-        [input-step _input-done] (q)
+        [in-step _in-done] (q)
         _ (t/is (= :items-step (q)))
         diff @items
         _ (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
@@ -70,7 +70,7 @@
         _ (t/is (= :item0-step (q)))
         _ (t/is (= :foo @item0))
         _ (q (assoc (d/empty-diff 1) :change {0 :bar}))
-        _ (input-step)
+        _ (in-step)
         _ (t/is (= :item0-step (q)))
         _ (t/is (= :bar @item0))]))
 
@@ -78,7 +78,7 @@
   (let [q (->mq)
         _ (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
         items (spawn-ps q)
-        [input-step _input-done] (q)
+        [in-step _in-done] (q)
         _ (t/is (= :items-step (q)))
         diff @items
         _ (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
@@ -86,7 +86,7 @@
         _ (t/is (= :item0-step (q)))
         _ (t/is (= :foo @item0))
         _ (q (assoc (d/empty-diff 1) :change {0 :foo}))
-        _ (input-step)
+        _ (in-step)
         _ (q ::none)                    ; :foo = :foo, so we skipped
         _ (t/is (= ::none (q)))]))
 
@@ -94,7 +94,7 @@
   (let [q (->mq)
         _ (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
         items (spawn-ps q)
-        [input-step _input-done] (q)
+        [in-step _in-done] (q)
         _ (t/is (= :items-step (q)))
         diff @items
         _ (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
@@ -102,16 +102,31 @@
         _ (t/is (= :item0-step (q)))
         _ (t/is (= :foo @item0))
         _ (q {:grow 1, :degree 2, :shrink 0, :permutation {}, :freeze #{}, :change {1 :bar}})
-        _ (input-step)
+        _ (in-step)
         _ (t/is (= :items-step (q)))
         diff @items
         _ (t/is (= {:grow 1, :degree 2, :shrink 0, :permutation {}, :freeze #{}} (dissoc diff :change)))
         item1 ((-> diff :change (get 1)) #(q :item1-step) #(q :item1-done))
         _ (t/is (= :item1-step (q)))
-        _ (t/is (= :bar @item1))
-        ]))
+        _ (t/is (= :bar @item1))]))
+
+(t/deftest item-is-latest
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0              ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _                  (t/is (= :item0-step (q)))
+        _                  (q (assoc (d/empty-diff 1) :change {0 :bar}))
+        _                  (in-step)
+        _                  (t/is (= :bar @item0))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
 ;; missing tests
-;; - 2+ items
 ;; - item-ps cancellation
 ;; - 2+ item-ps
 ;; - input permutation
