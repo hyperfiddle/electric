@@ -353,3 +353,8 @@
   ([f a b c d e] (fn [o] (f o a b c d e))))
 
 (defn keep-if [v pred] (when (pred v) v))
+
+(defn ->box
+  ([] (->box nil))
+  ([init] (let [o (doto (object-array 1) (aset (int 0) init))]
+            (fn ([] (aget o (int 0)))  ([v] (aset o (int 0) v))))))
