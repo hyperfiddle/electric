@@ -1,8 +1,8 @@
 (ns contrib.triple-store
   (:refer-clojure :exclude [find])
-  (:require [dom-top.core :refer [loopr]]
-            [clojure.set :as set]
-            [contrib.assert :as ca]))
+  (:require [clojure.set :as set]
+            [contrib.assert :as ca]
+            [contrib.data :refer [->box]]))
 
 ;; ts - triple store
 ;; e  - entity    (id of entity)
@@ -18,27 +18,25 @@
 ;; ave :foo 1 -> (sorted-set 1 2) <- sorted so e.g. :parent e is well ordered
 ;; vea 1 1 -> #{:foo :bar}    CURRENTLY NOT USED/FILLED
 
-(defrecord TripleStore [o eav ave vea])
+(defrecord TripleStore [o eav ave])
 
-(defn ->ts ([] (->ts {})) ([o] (->TripleStore o {} {} {})))
+(defn ->ts ([] (->ts {})) ([o] (->TripleStore o {} {})))
 
 (defn add [ts nd]
   (let [e (get nd :db/id)
-        [eav ave vea]
-        (loopr [eav (:eav ts), ave (:ave ts), vea (:vea ts)]
-          [[a v] nd]
-          (recur (update eav e assoc a v)
-            (update ave a update v (fnil conj (sorted-set)) e)
-            vea
-            #_(update vea v update e (fnil conj #{}) a)))]
-    (->TripleStore (:o ts) eav ave vea)))
+        -eav (->box (:eav ts)), -ave (->box (:ave ts))]
+    (reduce-kv (fn [_ a v]
+                 (-eav (update (-eav) e assoc a v))
+                 (-ave (update (-ave) a update v (fnil conj (sorted-set)) e)))
+      nil nd)
+    (->TripleStore (:o ts) (-eav) (-ave))))
 
 (defn del [ts e]
   (let [nd (-> ts :eav (get e))
-        {:keys [o eav ave vea]} ts
+        {:keys [o eav ave]} ts
         eav (dissoc eav e)
         ave (reduce-kv (fn [ave a v] (update ave a update v disj e)) ave nd)]
-    (->TripleStore o eav ave vea)))
+    (->TripleStore o eav ave)))
 
 (defn upd [ts e a f]
   (let [v0 (-> ts :eav (get e) (get a))
@@ -48,25 +46,12 @@
               (:ave ts)
               (let [ave (update (:ave ts) a update v1 (fnil conj (sorted-set)) e)
                     ave (cond-> ave (contains? (get ave a) v0) (update a update v0 disj e))]
-                (cond-> ave (not (seq (-> ave (get a) (get v0)))) (update a dissoc v0))))
-        vea (:vea ts)
-        ;; vea (update (:vea ts) v1 update e (fnil conj #{}) a)
-        ;; vea (cond-> vea (contains? (get vea v0) e) (update v0 update e disj a))
-        ]
-    (->TripleStore (:o ts) eav ave vea)))
+                (cond-> ave (not (seq (-> ave (get a) (get v0)))) (update a dissoc v0))))]
+    (->TripleStore (:o ts) eav ave)))
 
 (defn asc
   ([ts e a v] (upd ts e a (fn [_] v)))
   ([ts e a v & avs] (apply asc (asc ts e a v) e avs)))
-
-(defn get-entity [ts e] (get (:eav ts) e))
-
-(defn ->datoms [ts]
-  (loopr [datoms (transient [])]
-    [[e av] (:eav ts)
-     [a v] av]
-    (recur (conj! datoms [e a v]))
-    (persistent! datoms)))
 
 ;;;;;;;;;;;;;;;
 ;;; HELPERS ;;;
