@@ -23,7 +23,7 @@
 (defmacro fswap [O k f & args] `(swap (.-state- ~O) ~k ~f ~@args))
 (defmacro fget [O k] `(get (.-state- ~O) ~k))
 (defmacro fset [O & kvs] `(set (.-state- ~O) ~@kvs))
-(defn getset [^objects a k v] (let [ret (get a k)] (set a k v) ret))
+(defn getset [^objects a k v] (let [ret (get a k)] (when (not= ret v) (set a k v)) ret))
 (defmacro fgetset [O k v] `(getset (.-state- ~O) ~k ~v))
 (defn getswap [^objects a k f] (let [ret (get a k)] (swap a k f) ret))
 
