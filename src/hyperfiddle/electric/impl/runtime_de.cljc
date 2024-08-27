@@ -1,7 +1,6 @@
 (ns hyperfiddle.electric.impl.runtime-de
   (:refer-clojure :exclude [resolve])
   (:require [hyperfiddle.incseq :as i]
-            [contrib.debug]
             [missionary.core :as m]
             [cognitect.transit :as t])
   (:import missionary.Cancelled

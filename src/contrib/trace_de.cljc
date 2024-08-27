@@ -2,7 +2,6 @@
   (:require
    #?(:clj [contrib.triple-store :as ts])
    [clojure.math :as math]
-   [contrib.debug]
    [contrib.str]
    [hyperfiddle.electric-de :as e :refer [$]]
    [hyperfiddle.electric-dom3 :as dom]

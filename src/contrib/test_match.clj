@@ -1,6 +1,5 @@
 (ns contrib.test-match
-  (:require [contrib.debug :as dbg]
-            [hyperfiddle.rcf :as rcf :refer [tests]]
+  (:require [hyperfiddle.rcf :as rcf :refer [tests]]
             [fipp.ednize]))
 
 (set! *warn-on-reflection* true)
@@ -85,7 +84,6 @@
                   ;; TODO turn into pattern compiler so we don't need `eval`
                   (let [[_ ap subpat] pat, subv (eval (list ap v)), ret (test-match subv subpat)]
                     (if (= subv ret) v ret))
-                  ;; if (contrib.debug/dbgv (instance? (class pat) v))
                   (if (coll? v)
                     (cond
                       (map? v)

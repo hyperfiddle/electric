@@ -40,7 +40,6 @@
   (:require
    [clojure.core :as cc]
    [contrib.assert :as ca]
-   [contrib.debug]
    [contrib.missionary-contrib :as mx]
    [hyperfiddle.electric-de :as e :refer [$]]
    ;; [hyperfiddle.rcf :as rcf :refer [tests]]
