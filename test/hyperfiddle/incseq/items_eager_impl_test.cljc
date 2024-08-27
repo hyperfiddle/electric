@@ -147,10 +147,35 @@
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
+(t/deftest input-permutation
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 2) :grow 2 :change {0 :foo, 1 :bar})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= (assoc (d/empty-diff 2) :grow 2) (assoc diff :change {})))
+        item0              ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _                  (t/is (= :item0-step (q)))
+        _                  (t/is (= :foo @item0))
+        item1              ((-> diff :change (get 1)) #(q :item1-step) #(q :item1-done))
+        _                  (t/is (= :item1-step (q)))
+        _                  (t/is (= :bar @item1))
+        perm               (assoc (d/empty-diff 2) :permutation {0 1, 1 0})
+        _                  (q perm)
+        _                  (in-step)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= perm diff))
+        _                  (q (assoc (d/empty-diff 2) :change {0 :baz}))
+        _                  (in-step)
+        _                  (t/is (= :item1-step (q))) ; change on 0 means item1 after permutation
+        _                  (t/is (= :baz @item1))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
 ;; missing tests
 ;; - item-ps cancellation
-;; - 2+ item-ps
-;; - input permutation
 ;; - input shrink
 ;;   - all item-ps want to terminate
 ;;   - new ps transfers last value and terminates
