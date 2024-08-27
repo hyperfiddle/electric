@@ -39,11 +39,13 @@
 
 (t/deftest spawn
   (let [q                   (->mq)
-        _                   (q (d/empty-diff 0))          ; what input will return on transfer
+        _                   (q (d/empty-diff 0)) ; what input will return on transfer
         ps                  (spawn-ps q)
         [_in-step _in-done] (q)
         _                   (t/is (= :items-step (q)))
-        _                   (t/is (= (d/empty-diff 0) @ps))]))
+        _                   (t/is (= (d/empty-diff 0) @ps))
+        _                   (q ::none)
+        _                   (t/is (= ::none (q)))]))
 
 (t/deftest one-item
   (let [q                   (->mq)
@@ -55,7 +57,9 @@
         _                   (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
         item0               ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
         _                   (t/is (= :item0-step (q)))
-        _                   (t/is (= :foo @item0))]))
+        _                   (t/is (= :foo @item0))
+        _                   (q ::none)
+        _                   (t/is (= ::none (q)))]))
 
 (t/deftest one-item-change
   (let [q                  (->mq)
@@ -71,7 +75,9 @@
         _                  (q (assoc (d/empty-diff 1) :change {0 :bar}))
         _                  (in-step)
         _                  (t/is (= :item0-step (q)))
-        _                  (t/is (= :bar @item0))]))
+        _                  (t/is (= :bar @item0))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
 
 (t/deftest one-item-dedupes
   (let [q                  (->mq)
@@ -107,7 +113,9 @@
         _                  (t/is (= {:grow 1, :degree 2, :shrink 0, :permutation {}, :freeze #{}} (dissoc diff :change)))
         item1              ((-> diff :change (get 1)) #(q :item1-step) #(q :item1-done))
         _                  (t/is (= :item1-step (q)))
-        _                  (t/is (= :bar @item1))]))
+        _                  (t/is (= :bar @item1))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
 
 (t/deftest item-is-latest
   (let [q                  (->mq)
