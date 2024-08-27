@@ -329,6 +329,20 @@
         _                   (q ::none)
         _                   (t/is (= ::none (q)))]))
 
+(t/deftest double-input-step
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        _                  (q (assoc (d/empty-diff 2) :grow 1 :change {1 :bar}))
+        _                  (in-step)
+        diff               @items
+        _                  (t/is (= (assoc (d/empty-diff 2) :grow 2) (assoc diff :change {})))
+        _                  (t/is (= 2 (count (:change diff))))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
 ;; missing tests
 ;; - items reentrant transfer
 ;; - input terminate
@@ -345,4 +359,5 @@
 ;;   - item-ps
 ;;   - dead-item-ps
 ;;   - items
+;; - item* grow
 ;; - thread safety

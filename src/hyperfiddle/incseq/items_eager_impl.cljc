@@ -1,6 +1,7 @@
 (ns hyperfiddle.incseq.items-eager-impl
   (:require [contrib.data :refer [->box]]
             [hyperfiddle.electric.impl.array-fields :as a]
+            [hyperfiddle.incseq.diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p])
   (:import #?(:clj [clojure.lang IDeref IFn])
            [missionary Cancelled]))
@@ -96,29 +97,32 @@
                    (run! (fn [item-ps] (item-ps v)) ((a/fget item -ps*)))))
       nil (:change diff))))
 
-(defn transfer-input [^Ps ps]
-  (let [diff @(a/fget ps -input-ps)]
-    (a/fset ps -diff {:change {}})
-    (grow! ps diff)
-    (permute! ps diff)
-    (shrink! ps diff)
-    (change! ps diff)
-    (dissoc diff :change)))
-
 (defn needed-diff? [d]
   (or (seq (:permutation d)) (pos? (:grow d)) (pos? (:shrink d)) (seq (:freeze d))))
 
-(defn consume-input-step [^Ps ps]
-  (fn []
-    (when (needed-diff? (a/fswap ps -diff merge (transfer-input ps)))
-      (when-not (a/fgetset ps -stepped true)
-        ((.-step ps))))))
+(defn transfer-input [^Ps ps]
+  (let [prev-diff (case (a/fget ps -stepped) true (a/fget ps -diff) #_else nil)
+        in-diff @(a/fget ps -input-ps)]
+    (a/fset ps -diff {:change {}})
+    (grow! ps in-diff)
+    (permute! ps in-diff)
+    (shrink! ps in-diff)
+    (change! ps in-diff)
+    (let [diff (assoc in-diff :change (:change (a/fget ps -diff)))
+          diff (if prev-diff (d/combine prev-diff diff) diff)]
+      (a/fset ps -diff diff)
+      (case (a/fget ps -stepped)
+        ::never (do (a/fset ps -stepped true) ((.-step ps)))
+        true nil
+        false (when (needed-diff? diff) (a/fset ps -stepped true) ((.-step ps)))))))
+
+(defn consume-input-step [^Ps ps] (fn [] (transfer-input ps)))
 (defn consume-input-done [^Ps ps] (fn []))
 
 (defn flow [input]
   (fn [step done]
     (let [ps (->Ps step done (object-array ps-field-count))]
-      (a/fset ps -input-stepper #() -input-doner #(), -item* (object-array 8))
+      (a/fset ps -input-stepper #() -input-doner #(), -item* (object-array 8), -stepped ::never)
       (a/fset ps -input-ps (input (fn [] ((a/fget ps -input-stepper))) (fn [] ((a/fget ps -input-doner)))))
       (a/fset ps -input-stepper (consume-input-step ps), -input-doner (consume-input-done ps))
-      (a/fswap ps -diff merge (transfer-input ps)) (a/fset ps -stepped true) (step) ps)))
+      (transfer-input ps) ps)))
