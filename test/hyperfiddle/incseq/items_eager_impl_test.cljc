@@ -4,8 +4,8 @@
    [contrib.assert :as ca]
    [hyperfiddle.incseq.diff-impl :as d]
    [hyperfiddle.incseq.items-eager-impl :as items])
-  #?(:clj (:import
-           [clojure.lang ExceptionInfo IDeref IFn])))
+  (:import #?(:clj [clojure.lang ExceptionInfo IDeref IFn])
+           [missionary Cancelled]))
 
 (defn ->queue
   ([] #?(:clj clojure.lang.PersistentQueue/EMPTY :cljs #queue []))
@@ -42,7 +42,7 @@
         _ (q (d/empty-diff 0))          ; what input will return on transfer
         ps (spawn-ps q)
         ;; transfer (fn transfer [diff] (q diff) @ps)
-        [_input-step _in-done] (q)
+        [_in-step _in-done] (q)
         _ (t/is (= :items-step (q)))
         _ (t/is (= (d/empty-diff 0) @ps))]))
 
@@ -50,7 +50,7 @@
   (let [q (->mq)
         _ (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
         items (spawn-ps q)
-        [_input-step _in-done] (q)
+        [_in-step _in-done] (q)
         _ (t/is (= :items-step (q)))
         diff @items
         _ (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
@@ -147,7 +147,7 @@
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
-(t/deftest input-permutation
+(t/deftest permutation
   (let [q                  (->mq)
         _                  (q (assoc (d/empty-diff 2) :grow 2 :change {0 :foo, 1 :bar})) ; what input will return on transfer
         items              (spawn-ps q)
@@ -174,11 +174,122 @@
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
+(t/deftest shrink-terminates-idle-item-ps
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0              ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _                  (t/is (= :item0-step (q)))
+        _                  (t/is (= :foo @item0))
+        shrink1            (assoc (d/empty-diff 1) :shrink 1)
+        _                  (q shrink1)
+        _                  (in-step)
+        _                  (t/is (= :item0-step (q)))
+        _                  (t/is (= :items-step (q)))
+        _                  (t/is (= shrink1 @items))
+        _                  (t/is (thrown? Cancelled @item0))
+        _                  (t/is (= :item0-done (q)))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
+(t/deftest shrink-terminates-stepped-item-ps
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0              ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _                  (t/is (= :item0-step (q)))
+        shrink1            (assoc (d/empty-diff 1) :shrink 1)
+        _                  (q shrink1)
+        _                  (in-step)
+        _                  (t/is (= :items-step (q)))
+        _                  (t/is (= shrink1 @items))
+        _                  (t/is (thrown? Cancelled @item0))
+        _                  (t/is (= :item0-done (q)))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
+(t/deftest item-spawned-after-shrink-returns-last-value-and-terminates
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0-flow         (-> diff :change (get 0))
+        shrink1            (assoc (d/empty-diff 1) :shrink 1)
+        _                  (q shrink1)
+        _                  (in-step)
+        _                  (t/is (= :items-step (q)))
+        _                  (t/is (= shrink1 @items))
+        item0              (item0-flow #(q :item0-step) #(q :item0-done))
+        _                  (t/is (= :item0-step (q)))
+        _                  (t/is (= :foo @item0))
+        _                  (t/is (= :item0-done (q)))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
+(t/deftest item-spawned-after-shrink-and-cancelled-throws-and-terminates
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0-flow         (-> diff :change (get 0))
+        shrink1            (assoc (d/empty-diff 1) :shrink 1)
+        _                  (q shrink1)
+        _                  (in-step)
+        _                  (t/is (= :items-step (q)))
+        _                  (t/is (= shrink1 @items))
+        item0              (item0-flow #(q :item0-step) #(q :item0-done))
+        _                  (t/is (= :item0-step (q)))
+        _                  (item0)
+        _                  (t/is (thrown? Cancelled @item0))
+        _                  (t/is (= :item0-done (q)))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
+(t/deftest item-ps-cancellation-idle
+  (let [q                   (->mq)
+        _                   (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items               (spawn-ps q)
+        [_in-step _in-done] (q)
+        _                   (t/is (= :items-step (q)))
+        diff                @items
+        _                   (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0               ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _                   (t/is (= :item0-step (q)))
+        _                   (t/is (= :foo @item0))
+        _                   (item0)
+        _                   (t/is (= :item0-step (q)))
+        _                   (t/is (thrown? Cancelled @item0))
+        _                   (t/is (= :item0-done (q)))]))
+
+(t/deftest item-ps-cancellation-stepped
+  (let [q                   (->mq)
+        _                   (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items               (spawn-ps q)
+        [_in-step _in-done] (q)
+        _                   (t/is (= :items-step (q)))
+        diff                @items
+        _                   (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0               ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _                   (t/is (= :item0-step (q)))
+        _                   (item0)
+        _                   (t/is (thrown? Cancelled @item0))
+        _                   (t/is (= :item0-done (q)))]))
+
 ;; missing tests
-;; - item-ps cancellation
-;; - input shrink
-;;   - all item-ps want to terminate
-;;   - new ps transfers last value and terminates
 ;; - input terminate
 ;; - failures
 ;; - thread safety
