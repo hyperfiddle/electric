@@ -72,5 +72,52 @@
         _ (q (assoc (d/empty-diff 1) :change {0 :bar}))
         _ (input-step)
         _ (t/is (= :item0-step (q)))
-        _ (t/is (= :bar @item0))
+        _ (t/is (= :bar @item0))]))
+
+(t/deftest one-item-dedupes
+  (let [q (->mq)
+        _ (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items (spawn-ps q)
+        [input-step _input-done] (q)
+        _ (t/is (= :items-step (q)))
+        diff @items
+        _ (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0 ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _ (t/is (= :item0-step (q)))
+        _ (t/is (= :foo @item0))
+        _ (q (assoc (d/empty-diff 1) :change {0 :foo}))
+        _ (input-step)
+        _ (q ::none)                    ; :foo = :foo, so we skipped
+        _ (t/is (= ::none (q)))]))
+
+(t/deftest two-items
+  (let [q (->mq)
+        _ (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items (spawn-ps q)
+        [input-step _input-done] (q)
+        _ (t/is (= :items-step (q)))
+        diff @items
+        _ (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0 ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _ (t/is (= :item0-step (q)))
+        _ (t/is (= :foo @item0))
+        _ (q {:grow 1, :degree 2, :shrink 0, :permutation {}, :freeze #{}, :change {1 :bar}})
+        _ (input-step)
+        _ (t/is (= :items-step (q)))
+        diff @items
+        _ (t/is (= {:grow 1, :degree 2, :shrink 0, :permutation {}, :freeze #{}} (dissoc diff :change)))
+        item1 ((-> diff :change (get 1)) #(q :item1-step) #(q :item1-done))
+        _ (t/is (= :item1-step (q)))
+        _ (t/is (= :bar @item1))
         ]))
+;; missing tests
+;; - 2+ items
+;; - item-ps cancellation
+;; - 2+ item-ps
+;; - input permutation
+;; - input shrink
+;;   - all item-ps want to terminate
+;;   - new ps transfers last value and terminates
+;; - input terminate
+;; - failures
+;; - thread safety
