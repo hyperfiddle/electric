@@ -6,23 +6,24 @@
   (:import #?(:clj [clojure.lang IDeref IFn])
            [missionary Cancelled]))
 
-(def ps-field-count (a/deffields -stepped -cancelled -go -input-ps -input-done -diff -item*))
-(declare cleanup-ps)
+(def ps-field-count (a/deffields -stepped -cancelled -go -input-ps -done -diff -item*))
+
+(declare cleanup-then-done)
+(defn call [f] (f))
 (deftype Ps [step done state-]
   IFn (#?(:clj invoke :cljs -invoke) [_]
-        ((a/get state- -input-ps))
+        (some-> (a/get state- -input-ps) call)
+        (a/ncas state- -done ::yes ::requested)
         (let [cancelled? (a/getset state- -cancelled true)]
           (when (not (or (a/getset state- -stepped true) cancelled?)) (step))))
-  IDeref (#?(:clj deref :cljs -deref) [^Ps this]
+  IDeref (#?(:clj deref :cljs -deref) [this]
            (a/set state- -stepped false)
-           (when (a/get state- -input-done) (done))
-           (if (a/get state- -cancelled)
-             (do (cleanup-ps this done) (throw (Cancelled.)))
-             (a/getset state- -diff nil))))
-(defn cleanup-ps [^Ps ps done]
-  (when-not (identical? ps (a/fgetset ps -diff ps))
-    (a/fset ps -input-ps nil, -diff nil, -item* nil)
-    (done)))
+           (when (identical? ::requested (a/get state- -done))  (cleanup-then-done this))
+           (let [diff (a/getset state- -diff nil)]
+             (if (a/get state- -cancelled) (throw (Cancelled.)) diff))))
+(defn cleanup-then-done [^Ps ps]
+  (a/fset ps -input-ps nil, -done ::yes, -item* nil)
+  ((.-done ps)))
 
 (def item-field-count (a/deffields -v -flow -ps* -dead))
 (deftype Item [state-])
@@ -113,7 +114,7 @@
                                        diff (d/combine diff)))]
         (if (a/fgetset ps -go false)
           (case (a/fget ps -stepped)
-            ::never (do (a/fset ps -stepped true) ((.-step ps)))
+            nil (do (a/fset ps -stepped true) ((.-step ps)))
             true nil
             false (when (needed-diff? newdiff) (a/fset ps -stepped true) ((.-step ps))))
           (recur newdiff))))))
@@ -121,9 +122,10 @@
 (defn flow [input]
   (fn [step done]
     (let [ps (->Ps step done (object-array ps-field-count))]
-      (a/fset ps -item* (object-array 8), -stepped ::never, -go true)
+      (a/fset ps -item* (object-array 8), -stepped nil, -go true, -done ::no)
       (a/fset ps -input-ps (input
                              #(when-not (a/fgetset ps -go false) (transfer-input ps))
-                             #(do (a/fset ps -input-done true)
-                                  (when-not (a/fget ps -stepped) (done)))))
+                             #(if (or (a/fget ps -stepped) (a/fget ps -go))
+                                (a/fset ps -done ::requested)
+                                (cleanup-then-done ps))))
       (transfer-input ps) ps)))

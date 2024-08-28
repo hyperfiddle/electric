@@ -383,9 +383,27 @@
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
+(t/deftest input-terminate-when-stepped
+  (let [q                 (->mq)
+        _                 (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items             (spawn-ps q)
+        [in-step in-done] (q)
+        _                 (t/is (= :items-step (q)))
+        diff              @items
+        _                 (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        _                 (t/is (= 1 (count (:change diff))))
+        _                 (q (assoc (d/empty-diff 1) :grow 1 :change {0 :bar}))
+        _                 (in-step)
+        _                 (t/is (= :items-step (q)))
+        _                 (in-done)
+        _                 (q ::none)
+        _                 (t/is (= ::none (q)))
+        _diff             @items
+        _                 (t/is (= :items-done (q)))
+        _                 (q ::none)
+        _                 (t/is (= ::none (q)))]))
+
 ;; missing tests
-;; - input terminate
-;;   - when stepped
 ;; - failures
 ;; - item* grow
 ;; - double cancel before termination
