@@ -4,13 +4,13 @@
 
 {:builds {:test         {:target           :node-test
                          :output-to        "out/node-tests.js"
-                         :ns-regexp        "^(?!contrib.(electric-codemirror|datomic|trace-de)|hyperfiddle.(api|popover|spool|spec|electric-fulcro|electric-css3|router-de|electric.impl.compiler-test|electric.impl.cljs-file-to-analyze|electric.impl.runtime-test)).*"
+                         :ns-regexp        "^(?!contrib.(electric-codemirror|datomic|trace3)|hyperfiddle.(api|popover|spool|spec|electric-fulcro|electric-css3|router3|electric.impl.compiler-test|electric.impl.cljs-file-to-analyze|electric.impl.runtime-test)).*"
                          :build-options    {:cache-level :off}
                          :compiler-options {:reader-features #{:node} ; allow #?(:node …, :cljs …), falls back to :cljs.
                                             :warnings {:redef-in-file false}}}
           :browser-test {:target           :karma
                          :output-to        "out/karma-tests.js"
-                         :ns-regexp        "^(?!contrib.(electric-codemirror|datomic|trace-de)|hyperfiddle.(api|popover|spool|spec|electric-fulcro|electric.impl.compiler-test|electric.impl.cljs-file-to-analyze|electric.impl.runtime-test)).*"
+                         :ns-regexp        "^(?!contrib.(electric-codemirror|datomic|trace3)|hyperfiddle.(api|popover|spool|spec|electric-fulcro|electric.impl.compiler-test|electric.impl.cljs-file-to-analyze|electric.impl.runtime-test)).*"
                          :build-options    {:cache-level :off}
                          :build-hooks      [(hyperfiddle.browser-test-setup/blow-up-tests-on-warnings)]
                          :compiler-options {:warnings-as-errors {:warning-types #{:infer-warning}}}}}}

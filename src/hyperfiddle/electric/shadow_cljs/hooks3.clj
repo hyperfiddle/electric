@@ -1,6 +1,6 @@
-(ns hyperfiddle.electric.shadow-cljs.hooks-de
+(ns hyperfiddle.electric.shadow-cljs.hooks3
   (:require [shadow.build.compiler]
-            [hyperfiddle.electric.impl.lang-de2 :as lang]
+            [hyperfiddle.electric.impl.lang3 :as lang]
             [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]))
 
 ;; Shadow-cljs doesn't expose a way to act before compiling a cljs file.

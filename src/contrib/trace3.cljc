@@ -1,13 +1,13 @@
-(ns contrib.trace-de
+(ns contrib.trace3
   (:require
    #?(:clj [contrib.triple-store :as ts])
    [clojure.math :as math]
    [contrib.str]
-   [hyperfiddle.electric-de :as e :refer [$]]
+   [hyperfiddle.electric3 :as e :refer [$]]
    [hyperfiddle.electric-dom3 :as dom]
-   #?(:cljs [hyperfiddle.electric.impl.runtime-de :refer [Failure]])
+   #?(:cljs [hyperfiddle.electric.impl.runtime3 :refer [Failure]])
    [missionary.core :as m])
-  #?(:clj (:import [hyperfiddle.electric.impl.runtime_de Failure])))
+  #?(:clj (:import [hyperfiddle.electric.impl.runtime3 Failure])))
 
 (def current nil)
 (declare !db db !measure measure !q q)

@@ -1,4 +1,4 @@
-(ns hyperfiddle.electric-de-exceptions-test
+(ns hyperfiddle.electric3-exceptions-test
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-local-def :as l]
             [hyperfiddle.electric.impl.runtime :as r]
