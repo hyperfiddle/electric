@@ -53,15 +53,15 @@
           (do (cleanup-item-ps this a done) (throw (Cancelled.)))
           (a/get a -cache))))))
 
-(let [nul #?(:clj (Object.) :cljs (js/Object.))]
+(let [cancelled #?(:clj (Object.) :cljs (js/Object.))]
   (defn ->dead-item-ps [step done -v]
     (step)
     (let [<s> (->box -v)]
       (reify
-        IFn (#?(:clj invoke :cljs -invoke) [_] (<s> nul))
+        IFn (#?(:clj invoke :cljs -invoke) [_] (<s> cancelled))
         IDeref (#?(:clj deref :cljs -deref) [this]
                  (done)
-                 (if (identical? nul (<s>))  (throw (Cancelled.))  (let [v (<s>)] (<s> this) v)))))))
+                 (if (identical? cancelled (<s>))  (throw (Cancelled.))  (let [v (<s>)] (<s> this) v)))))))
 
 (defn grow! [^Ps ps {d :degree, n :grow}]
   (run! (fn [i]
