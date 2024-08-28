@@ -357,4 +357,7 @@
 (defn ->box
   ([] (->box nil))
   ([init] (let [o (doto (object-array 1) (aset (int 0) init))]
-            (fn ([] (aget o (int 0)))  ([v] (aset o (int 0) v))))))
+            (fn box
+              ([] (aget o (int 0)))
+              ([v] (aset o (int 0) v))
+              ([retf swapf] (let [v (box), ret (retf v)] (box (swapf v)) ret))))))
