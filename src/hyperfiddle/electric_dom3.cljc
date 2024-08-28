@@ -36,7 +36,7 @@
 ;; - `dom/on!` replaced by `EventListener`
 
 (ns hyperfiddle.electric-dom3
-  (:refer-clojure :exclude [comment])
+  (:refer-clojure :exclude [comment time])
   (:require
    [clojure.core :as cc]
    [contrib.assert :as ca]
