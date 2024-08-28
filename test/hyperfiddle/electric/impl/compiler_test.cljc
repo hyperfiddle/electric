@@ -1,10 +1,10 @@
 (ns hyperfiddle.electric.impl.compiler-test
-  (:require [hyperfiddle.electric-de :as e]
+  (:require [hyperfiddle.electric3 :as e]
             [hyperfiddle.incseq :as i]
             #?(:clj [contrib.triple-store :as ts])
-            [hyperfiddle.electric.impl.lang-de2 :as lang]
-            [hyperfiddle.electric.impl.runtime-de :as r]
-            [hyperfiddle.electric-local-def-de :as l]
+            [hyperfiddle.electric.impl.lang3 :as lang]
+            [hyperfiddle.electric.impl.runtime3 :as r]
+            [hyperfiddle.electric-local-def3 :as l]
             #?(:clj [hyperfiddle.electric.impl.compiler-test-clj :refer [cannot-be-unsited]]
                :cljs [hyperfiddle.electric.impl.compiler-test-cljs :refer [cannot-be-unsited]])
             [hyperfiddle.rcf :as rcf :refer [tests]]
@@ -692,7 +692,7 @@
   := '((fn* [e1] [e1 e1]) e1)
 
   (foreign-electrified (consuming ['nope]) 'doesnt-exist)
-  := '((fn* [nope] nope) hyperfiddle.electric.impl.runtime-de/cannot-resolve)
+  := '((fn* [nope] nope) hyperfiddle.electric.impl.runtime3/cannot-resolve)
 
   (foreign-electrified (consuming ['plus]) '(clojure.core/+ e1 3))
   := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
@@ -717,7 +717,7 @@
        clojure.core/+ clojure.core/- e1 e2)
 
   (foreign-electrified (consuming '[a]) '(foo bar baz))
-  := '((fn* [a] (a a a)) hyperfiddle.electric.impl.runtime-de/cannot-resolve)
+  := '((fn* [a] (a a a)) hyperfiddle.electric.impl.runtime3/cannot-resolve)
 
   (foreign-electrified nil '(fn [x] [x x]))
   := nil                                ; nothing to wrap, signaled as `nil`
@@ -745,7 +745,7 @@
   := '((fn* [e1] [e1 e1]) e1)
 
   (foreign-electrified-js (consuming ['nope]) 'doesnt-exist)
-  := '((fn* [nope] nope) hyperfiddle.electric.impl.runtime-de/cannot-resolve)
+  := '((fn* [nope] nope) hyperfiddle.electric.impl.runtime3/cannot-resolve)
 
   (foreign-electrified-js (consuming ['plus]) '(clojure.core/+ e1 3))
   := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
@@ -770,7 +770,7 @@
        clojure.core/+ clojure.core/- e1 e2)
 
   (foreign-electrified-js (consuming '[a]) '(foo bar baz))
-  := '((fn* [a] (a a a)) hyperfiddle.electric.impl.runtime-de/cannot-resolve)
+  := '((fn* [a] (a a a)) hyperfiddle.electric.impl.runtime3/cannot-resolve)
 
   (foreign-electrified-js (consuming '[a]) '(set! consuming e1))
   := '((fn* [e1] (set! consuming e1)) e1)

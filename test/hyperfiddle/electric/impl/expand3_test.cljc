@@ -1,9 +1,9 @@
-(ns hyperfiddle.electric.impl.expand-de-test
+(ns hyperfiddle.electric.impl.expand3-test
   (:require #?(:clj [cljs.env])
             #?(:clj [cljs.analyzer])
-            [hyperfiddle.electric.impl.lang-de2 #?(:clj :as, :cljs :as-alias) l]
-            #?(:clj [hyperfiddle.electric.impl.runtime-de :as r])
-            #?(:clj [hyperfiddle.electric-de :as e])
+            [hyperfiddle.electric.impl.lang3 #?(:clj :as, :cljs :as-alias) l]
+            #?(:clj [hyperfiddle.electric.impl.runtime3 :as r])
+            #?(:clj [hyperfiddle.electric3 :as e])
             #?(:clj [contrib.test-match :as tm])
             [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred]]
             #?(:clj [hyperfiddle.rcf :as rcf :refer [tests]]))
@@ -14,7 +14,7 @@
                                        (if (:js-globals &env)
                                          (assoc &env ::l/peers {:client :cljs, :server :cljs}, ::l/current :client)
                                          {:locals &env, ::l/peers {:client :clj, :server :clj}, ::l/current :client})
-                                       :ns '{:name 'hyperfiddle.electric.impl.expand-de-test})
+                                       :ns '{:name 'hyperfiddle.electric.impl.expand3-test})
                         ~o)))
 
 #?(:clj (defmacro test-peer-expansion [] (if (:js-globals &env) :cljs :clj)))
@@ -181,28 +181,28 @@
      := `[:cljs (::l/site :server :clj)]
 
      "cljs require-macros work in clj expansion"
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(hyperfiddle.electric.impl.expand-macro/twice 1))
      := '[1 1]
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(mac/twice 1))
      := '[1 1]
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(twice 1))
      := '[1 1]
 
      "require referred macros work in cljs"
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(referred))
      := :referred
 
      "required macros work in cljs when fully qualified"
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(hyperfiddle.electric.impl.expand-require-referred/referred))
      := :referred
 
      "required macros work in cljs when alias qualified"
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand-de-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(ref/referred))
      := :referred
 

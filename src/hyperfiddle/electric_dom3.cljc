@@ -41,7 +41,7 @@
    [clojure.core :as cc]
    [contrib.assert :as ca]
    [contrib.missionary-contrib :as mx]
-   [hyperfiddle.electric-de :as e :refer [$]]
+   [hyperfiddle.electric3 :as e :refer [$]]
    ;; [hyperfiddle.rcf :as rcf :refer [tests]]
    [missionary.core :as m]
    [hyperfiddle.electric-dom3-props :as props]
@@ -50,7 +50,7 @@
    [hyperfiddle.incseq :as i]
    [hyperfiddle.incseq.mount-impl :refer [mount]]
    [hyperfiddle.incseq.perm-impl :as p]
-   ;; [hyperfiddle.electric.impl.lang-de2 :as lang]
+   ;; [hyperfiddle.electric.impl.lang3 :as lang]
    )
   #?(:cljs (:require-macros [hyperfiddle.electric-dom3])))
 

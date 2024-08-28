@@ -1,7 +1,7 @@
-(ns hyperfiddle.electric-de
+(ns hyperfiddle.electric3
   (:refer-clojure :exclude [fn defn apply letfn for])
-  (:require [hyperfiddle.electric.impl.lang-de2 :as lang]
-            [hyperfiddle.electric.impl.runtime-de :as r]
+  (:require [hyperfiddle.electric.impl.lang3 :as lang]
+            [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.incseq :as i]
             [hyperfiddle.electric.impl.mount-point :as mp]
             [clojure.core :as cc]
@@ -14,7 +14,7 @@
             [contrib.missionary-contrib :as mx]
             [clojure.math :as math])
   (:import [missionary Cancelled])
-  #?(:cljs (:require-macros hyperfiddle.electric-de)))
+  #?(:cljs (:require-macros hyperfiddle.electric3)))
 
 (def web-config {::lang/peers {:client :cljs, :server :clj}})
 
@@ -88,7 +88,7 @@ Returns the successive states of items described by `incseq`.
 
 ;; mklocal = declare lexical slot
 ;; bindlocal = bind lexical slot to value by name
-;; See compiler walkthrough: electric/impl/lang_de_walkthrough.md
+;; See compiler walkthrough: electric/impl/lang_3_walkthrough.md
 (defmacro fn [& args]
   (let [?nm (first args)]
     `(check-electric fn
@@ -205,11 +205,11 @@ this tuple. Returns the concatenation of all body results as a single vector.
 
 ;; mklocal = declare lexical slot
 ;; bindlocal = bind lexical slot to value by name
-;; See compiler walkthrough: electric/impl/lang_de_walkthrough.md
+;; See compiler walkthrough: electric/impl/lang_3_walkthrough.md
 (defmacro letfn [bs & body]
   (let [sb (reverse bs)]
     (reduce (cc/fn [ac [nm]] `(::lang/mklocal ~nm ~ac))
-      (reduce (cc/fn [ac [nm & fargs]] `(::lang/bindlocal ~nm (hyperfiddle.electric-de/fn ~@fargs) ~ac)) (cons 'do body) sb)
+      (reduce (cc/fn [ac [nm & fargs]] `(::lang/bindlocal ~nm (hyperfiddle.electric3/fn ~@fargs) ~ac)) (cons 'do body) sb)
       sb)))
 
 (defmacro tag "
@@ -223,7 +223,7 @@ A mount point can be :
 * watched as an incremental sequence. Values will be sorted according to the relative ordering of tags.
   " [] `(mp/create (r/frame-peer (frame))))
 
-(hyperfiddle.electric-de/defn Dispatch [eF static args]
+(hyperfiddle.electric3/defn Dispatch [eF static args]
   (let [offset (count static)
         arity (+ offset (count args))] ; final count of all args
     (if-some [ctor (eF arity)] ; EFns implement IFn and return a constructor given a arg count
@@ -248,7 +248,7 @@ A mount point can be :
               (recur (next args) (conj static (::lang/pure (first args))))
               (cc/apply r/bind-args (r/bind (r/bind-self ctor) fixed (::lang/pure (cc/apply (r/varargs map?) args))) static))))))))
 
-(hyperfiddle.electric-de/defn Apply
+(hyperfiddle.electric3/defn Apply
   ([F a]
    (::lang/call ($ Dispatch F [] a)))
   ([F a b]
@@ -262,7 +262,7 @@ A mount point can be :
 
 (defmacro apply [& args] `($ Apply ~@args))
 
-(hyperfiddle.electric-de/defn ; ^:hyperfiddle.electric.impl.lang-de2/print-clj-source
+(hyperfiddle.electric3/defn ; ^:hyperfiddle.electric.impl.lang3/print-clj-source
   Partial
   "Takes an Electric function F and fewer than the normal arguments to F, and
   returns a e/fn that takes a variable number of additional args. When
@@ -274,29 +274,29 @@ A mount point can be :
   ;; We might optimise it later if there are perf issues.
   ([F] F)
   ([F arg1]
-   (hyperfiddle.electric-de/fn
+   (hyperfiddle.electric3/fn
      ([] ($ F arg1))
      ([x] ($ F arg1 x))
      ([x y] ($ F arg1 x y))
      ([x y z] ($ F arg1 x y z))
-     ([x y z & args] (hyperfiddle.electric-de/apply F arg1 x y z args))))
+     ([x y z & args] (hyperfiddle.electric3/apply F arg1 x y z args))))
   ([F arg1 arg2]
-   (hyperfiddle.electric-de/fn
+   (hyperfiddle.electric3/fn
      ([] ($ F arg1 arg2))
      ([x] ($ F arg1 arg2 x))
      ([x y] ($ F arg1 arg2 x y))
      ([x y z] ($ F arg1 arg2 x y z))
-     ([x y z & args] (hyperfiddle.electric-de/apply F arg1 arg2 x y z args))))
+     ([x y z & args] (hyperfiddle.electric3/apply F arg1 arg2 x y z args))))
   ([F arg1 arg2 arg3]
-   (hyperfiddle.electric-de/fn
+   (hyperfiddle.electric3/fn
      ([] ($ F arg1 arg2 arg3))
      ([x] ($ F arg1 arg2 arg3 x))
      ([x y] ($ F arg1 arg2 arg3 x y))
      ([x y z] ($ F arg1 arg2 arg3 x y z))
-     ([x y z & args] (hyperfiddle.electric-de/apply F arg1 arg2 arg3 x y z args))))
+     ([x y z & args] (hyperfiddle.electric3/apply F arg1 arg2 arg3 x y z args))))
   ([F arg1 arg2 arg3 & more]
-   (hyperfiddle.electric-de/fn [& args]
-     (hyperfiddle.electric-de/apply F arg1 arg2 arg3 (concat more args)))))
+   (hyperfiddle.electric3/fn [& args]
+     (hyperfiddle.electric3/apply F arg1 arg2 arg3 (concat more args)))))
 
 (cc/defn on-unmount* [f] (m/observe (cc/fn [!] (! nil) f)))
 
@@ -305,7 +305,7 @@ A mount point can be :
   Standard electric code runs on mount, therefore there is no `on-mount`."
   [f] `(input (on-unmount* ~f))) ; experimental
 
-(hyperfiddle.electric-de/defn OnUnmount [f] (input (on-unmount* f)))
+(hyperfiddle.electric3/defn OnUnmount [f] (input (on-unmount* f)))
 
 (defmacro boot-server [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
@@ -317,7 +317,7 @@ A mount point can be :
   (let [env (merge (lang/normalize-env &env) web-config opts)
         source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
     `(r/client ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
-       (hyperfiddle.electric-client-de/connector hyperfiddle.electric-client-de/*ws-server-url*)
+       (hyperfiddle.electric-client3/connector hyperfiddle.electric-client3/*ws-server-url*)
        (r/->defs {::Main ~source}) ::Main )))
 
 (defmacro boot-single [opts Main & args]
@@ -334,17 +334,17 @@ A mount point can be :
 inhibiting all further reactive updates."
   [x] `(check-electric snapshot (join (-snapshot (pure ~x)))))
 
-(hyperfiddle.electric-de/defn Snapshot [v] (join (-snapshot (pure v))))
+(hyperfiddle.electric3/defn Snapshot [v] (join (-snapshot (pure v))))
 
 (let [->spend-fn  (cc/fn [!spend!] (cc/fn f ([] (f nil)) ([ret] (reset! !spend! nil) ret)))
       step        (cc/fn [!spend! v on?] (when (on? v) (compare-and-set! !spend! nil (->spend-fn !spend!))))]
-  (hyperfiddle.electric-de/defn Token
+  (hyperfiddle.electric3/defn Token
     ([v]     ($ Token v some?))
     ([v on?] (let [!spend! (atom nil)] (step !spend! v on?) (watch !spend!)))))
 
 (let [->spend-fn  (cc/fn [!spend!] (cc/fn f ([] (f nil)) ([ret] (reset! !spend! nil) ret)))
       step        (cc/fn [!spend! _spend! v on?] (when (on? v) (compare-and-set! !spend! nil (->spend-fn !spend!))))]
-  (hyperfiddle.electric-de/defn CyclicToken
+  (hyperfiddle.electric3/defn CyclicToken
     ([v]     ($ CyclicToken v some?))
     ([v on?] (let [!spend! (atom nil), spend! (watch !spend!)] (step !spend! spend! v on?) spend!))))
 
@@ -353,7 +353,7 @@ inhibiting all further reactive updates."
                     (let [[_ spend! :as held] @!held]
                       (when (and (not spend!) (on? v))
                         (compare-and-set! !held held [v (->spend-fn !held)]))))]
-  (hyperfiddle.electric-de/defn StampedToken
+  (hyperfiddle.electric3/defn StampedToken
     ([v] ($ StampedToken v some?))
     ([v on?] (let [!held (atom [nil nil])] (step !held v on?) (watch !held)))))
 
@@ -362,13 +362,13 @@ inhibiting all further reactive updates."
                    (let [[_ next! :as held] @!held]
                      (when (and (not next!) (on? v))
                        (compare-and-set! !held held [v (->spend-fn !held)]))))]
-  (hyperfiddle.electric-de/defn StampedCyclicToken
+  (hyperfiddle.electric3/defn StampedCyclicToken
     ([v] ($ StampedCyclicToken v some?))
     ([v on?] (let [!held (atom [nil nil]), held (watch !held)] (step !held held v on?) held))))
 
 (cc/letfn [(->unlatch-fn [!latched?] (cc/fn f ([] (f nil)) ([v] (reset! !latched? false) v)))
            (->latch-fn   [!latched? unlatch!] (cc/fn f ([] (reset! !latched? unlatch!)) ([_] (f))))]
-  (hyperfiddle.electric-de/defn Latchable [v]
+  (hyperfiddle.electric3/defn Latchable [v]
     (let [!latched? (atom false), unlatch! (->unlatch-fn !latched?)]
       [(if (watch !latched?) ($ Snapshot v) v)  (->latch-fn !latched? unlatch!)])))
 
@@ -418,8 +418,8 @@ inhibiting all further reactive updates."
 
 (def system-time-ms (m/signal (m/sample -get-system-time-ms <clock)))
 
-(hyperfiddle.electric-de/defn SystemTimeMs [] (input system-time-ms))
-(hyperfiddle.electric-de/defn SystemTimeSecs [] (math/floor-div (input system-time-ms) 1000))
+(hyperfiddle.electric3/defn SystemTimeMs [] (input system-time-ms))
+(hyperfiddle.electric3/defn SystemTimeSecs [] (math/floor-div (input system-time-ms) 1000))
 
 (cc/defn uf->is [uf]
   (m/ap (m/amb (i/empty-diff 0)
@@ -428,7 +428,7 @@ inhibiting all further reactive updates."
 
 (cc/letfn [(task->is [t] (uf->is (m/ap (m/? t))))
            (initialized [t init-v] (m/relieve {} (m/ap (m/amb= init-v (m/? t)))))]
-  (hyperfiddle.electric-de/defn Task
+  (hyperfiddle.electric3/defn Task
     ([t] (join (task->is t)))
     ([t init-v] (input (initialized t init-v)))))
 
@@ -437,7 +437,7 @@ inhibiting all further reactive updates."
                              (catch Cancelled _ (m/amb)))))))
 
 
-(hyperfiddle.electric-de/defn Offload
+(hyperfiddle.electric3/defn Offload
   ([f!]          ($ Offload f! m/blk))
   ([f! executor] (server (let [mbx (m/mbx)] (mbx f!) (join (-offload mbx executor))))))
 

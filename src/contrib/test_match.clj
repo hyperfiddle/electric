@@ -159,8 +159,8 @@
   (test-match #{1 2 3} [1 2]) := (->Diff #{1 2 3} [1 2])
   (test-match {:a 1} [:a 1]) := (->Diff {:a 1} [:a 1])
 
-  (require '[hyperfiddle.electric.impl.lang-de :as-alias lang])
-  (require '[hyperfiddle.electric.impl.runtime-de :as-alias r])
+  (require '[hyperfiddle.electric.impl.lang3 :as-alias lang])
+  (require '[hyperfiddle.electric.impl.runtime3 :as-alias r])
   (let [v `(r/peer
              (lang/r-defs
                (lang/r-static 1)

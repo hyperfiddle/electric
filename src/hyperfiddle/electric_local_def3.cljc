@@ -1,13 +1,13 @@
-(ns hyperfiddle.electric-local-def-de
+(ns hyperfiddle.electric-local-def3
   (:refer-clojure :exclude [compile])
-  #?(:cljs (:require-macros hyperfiddle.electric-local-def-de))
+  #?(:cljs (:require-macros hyperfiddle.electric-local-def3))
   (:require [clojure.core :as cc]
             [contrib.assert :as ca]
             #?(:clj [fipp.edn])
             [contrib.cljs-target]
-            [hyperfiddle.electric-de :as e]
-            [hyperfiddle.electric.impl.lang-de2 :as lang]
-            [hyperfiddle.electric.impl.runtime-de :as r]
+            [hyperfiddle.electric3 :as e]
+            [hyperfiddle.electric.impl.lang3 :as lang]
+            [hyperfiddle.electric.impl.runtime3 :as r]
             #?(:clj [contrib.triple-store :as ts])
             #?(:clj [hyperfiddle.rcf.analyzer :as ana]) ; todo remove
             [missionary.core :as m]))

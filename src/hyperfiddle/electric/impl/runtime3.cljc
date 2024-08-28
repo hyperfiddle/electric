@@ -1,4 +1,4 @@
-(ns hyperfiddle.electric.impl.runtime-de
+(ns hyperfiddle.electric.impl.runtime3
   (:refer-clojure :exclude [resolve])
   (:require [hyperfiddle.incseq :as i]
             [missionary.core :as m]

@@ -4,7 +4,7 @@
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
     #?(:clj clojure.tools.logging)
-    [hyperfiddle.electric-de :as e :refer [$]]
+    [hyperfiddle.electric3 :as e :refer [$]]
     [hyperfiddle.electric-dom3 :as dom]
     [missionary.core :as m]
     [hyperfiddle.rcf :as rcf :refer [% tap tests with]]

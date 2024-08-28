@@ -1,4 +1,4 @@
-(ns hyperfiddle.electric.impl.lang-de2
+(ns hyperfiddle.electric.impl.lang3
   (:refer-clojure :exclude [compile])
   (:require [cljs.analyzer]
             [cljs.env]
@@ -9,10 +9,10 @@
             [contrib.triple-store :as ts]
             [dom-top.core :refer [loopr]]
             [fipp.edn]
-            [hyperfiddle.electric-de :as-alias e]
+            [hyperfiddle.electric3 :as-alias e]
             [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]
             [hyperfiddle.electric.impl.destructure :as dst]
-            [hyperfiddle.electric.impl.runtime-de :as r]
+            [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.rcf :as rcf :refer [tests]]))
 
 ;;;;;;;;;;;
@@ -73,7 +73,7 @@
 (def !a (cljs-ana/->!a))
 
 (comment
-  (cljs-ana/purge-ns !a 'hyperfiddle.electric-de-test)
+  (cljs-ana/purge-ns !a 'hyperfiddle.electric3-test)
   )
 
 (defn ->peer-type [env] (get (::peers env) (::current env)))
@@ -104,7 +104,7 @@
 
 (declare -expand-all -expand-all-foreign -expand-all-foreign-try)
 
-(defn traceable [f] (case (namespace f) ("hyperfiddle.electric.impl.runtime-de" "missionary.core" "hyperfiddle.incseq") false #_else true))
+(defn traceable [f] (case (namespace f) ("hyperfiddle.electric.impl.runtime3" "missionary.core" "hyperfiddle.incseq") false #_else true))
 
 (defn trace-crumb [o env]
   (let [ns (-> env :ns :name), {:keys [line column]} (meta o)]
@@ -1179,7 +1179,7 @@
       ts)))
 
 (def pure-fns '#{clojure.core/vector clojure.core/hash-map clojure.core/get clojure.core/boolean
-                 hyperfiddle.electric.impl.runtime-de/incseq})
+                 hyperfiddle.electric.impl.runtime3/incseq})
 
 (defn implode-point [ts e]              ; remove e, reparent child, keep e as id
   (let [nd (ts/->node ts e), ce (get-child-e ts e), cnd (ts/->node ts ce)]

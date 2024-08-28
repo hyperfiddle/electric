@@ -1,6 +1,6 @@
-(ns hyperfiddle.goog-calls-test-de
-  (:require [hyperfiddle.electric-de :as e]
-            [hyperfiddle.electric.impl.lang-de2 :as lang]
+(ns hyperfiddle.goog-calls-test3
+  (:require [hyperfiddle.electric3 :as e]
+            [hyperfiddle.electric.impl.lang3 :as lang]
             #?(:cljs [goog.color])
             #?(:cljs [goog.math :as gm])
             #?(:cljs [goog.string.format])

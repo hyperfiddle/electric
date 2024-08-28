@@ -3,7 +3,7 @@
             [hyperfiddle.incseq.diff-impl :as d]
             [missionary.core :as m]
             [hyperfiddle.kvs :as kvs]
-            [hyperfiddle.electric.impl.runtime-de :as r]
+            [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.electric.impl.mount-point :as mp]
             [clojure.test :refer [deftest is]])
   (:import #?(:clj (java.util LinkedList))

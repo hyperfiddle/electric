@@ -1,7 +1,7 @@
-(ns hyperfiddle.electric-client-de
+(ns hyperfiddle.electric-client3
   (:require [contrib.cljs-target :refer [do-browser]]
             [missionary.core :as m]
-            [hyperfiddle.electric.impl.runtime-de :as r])
+            [hyperfiddle.electric.impl.runtime3 :as r])
   (:import missionary.Cancelled))
 
 (goog-define ELECTRIC_USER_VERSION "hyperfiddle_electric_client__dirty") ; url safe
