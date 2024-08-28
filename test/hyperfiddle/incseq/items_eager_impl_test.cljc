@@ -358,7 +358,6 @@
         _     (t/is (= ::none (q)))]))
 
 ;; missing tests
-;; - items reentrant transfer
 ;; - input terminate
 ;; - failures
 ;; - double cancel before termination
