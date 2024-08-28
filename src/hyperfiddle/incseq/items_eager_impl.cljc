@@ -19,8 +19,10 @@
   IDeref (#?(:clj deref :cljs -deref) [this]
            (a/set state- -stepped false)
            (when (identical? ::requested (a/get state- -done))  (cleanup-then-done this))
-           (let [diff (a/getset state- -diff nil)]
-             (if (a/get state- -cancelled) (throw (Cancelled.)) diff))))
+           (let [?diff (a/getset state- -diff nil)]
+             (cond (a/get state- -cancelled) (throw (Cancelled.))
+                   (map? ?diff)              ?diff
+                   :else                     (throw ?diff)))))
 (defn cleanup-then-done [^Ps ps]
   (a/fset ps -input-ps nil, -done ::yes, -item* nil)
   ((.-done ps)))
@@ -105,19 +107,24 @@
 (defn transfer-input [^Ps ps]
   (loop [diff (a/fgetset ps -diff {:change {}})]
     (a/fset ps -go true)
-    (let [in-diff @(a/fget ps -input-ps)]
-      (grow! ps in-diff)
-      (permute! ps in-diff)
-      (shrink! ps in-diff)
-      (change! ps in-diff)
-      (let [newdiff (a/fset ps -diff (cond->> (assoc in-diff :change (:change (a/fget ps -diff)))
-                                       diff (d/combine diff)))]
-        (if (a/fgetset ps -go false)
-          (case (a/fget ps -stepped)
-            false (when (needed-diff? newdiff) (a/fset ps -stepped true) ((.-step ps)))
-            true nil
-            nil (do (a/fset ps -stepped true) ((.-step ps))))
-          (recur newdiff))))))
+    (let [?in-diff (try @(a/fget ps -input-ps) (catch #?(:clj Throwable :cljs :default) e e))]
+      (if (map? ?in-diff)
+        (do (grow! ps ?in-diff)
+            (permute! ps ?in-diff)
+            (shrink! ps ?in-diff)
+            (change! ps ?in-diff)
+            (let [newdiff (a/fset ps -diff (cond->> (assoc ?in-diff :change (:change (a/fget ps -diff)))
+                                             diff (d/combine diff)))]
+              (if (a/fgetset ps -go false)
+                (case (a/fget ps -stepped)
+                  false (when (needed-diff? newdiff) (a/fset ps -stepped true) ((.-step ps)))
+                  true nil
+                  nil (do (a/fset ps -stepped true) ((.-step ps))))
+                (recur newdiff))))
+        (do (some-> (a/fget ps -input-ps) call)
+            (a/fncas ps -done ::yes ::requested)
+            (a/fset ps -diff ?in-diff)
+            (when-not (a/fgetset ps -stepped true) ((.-step ps))))))))
 
 (defn flow [input]
   (fn [step done]

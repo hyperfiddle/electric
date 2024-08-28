@@ -2,6 +2,7 @@
   (:require
    [clojure.test :as t]
    [contrib.assert :as ca]
+   [contrib.data :refer [->box]]
    [hyperfiddle.incseq.diff-impl :as d]
    [hyperfiddle.incseq.items-eager-impl :as items]
    [missionary.core :as m])
@@ -11,11 +12,6 @@
 (defn ->queue
   ([] #?(:clj clojure.lang.PersistentQueue/EMPTY :cljs #queue []))
   ([& args] (into (->queue) args)))
-
-(defn ->box
-  ([] (->box nil))
-  ([init] (let [o (doto (object-array 1) (aset (int 0) init))]
-            (fn ([] (aget o (int 0)))  ([v] (aset o (int 0) v))))))
 
 (defn ->mq []
   (let [box (->box (->queue))]
@@ -29,14 +25,16 @@
     (q 2) (q 3) (t/is (= 2 (q))) (t/is (= 3 (q)))
     (t/is (thrown? ExceptionInfo (q)))))
 
-(defn spawn-ps [q]
-  ((items/flow (fn [step done]
-                 (q [step done])
-                 (step)
-                 (reify
-                   IFn (#?(:clj invoke :cljs -invoke) [_] (q :input-cancel))
-                   IDeref (#?(:clj deref :cljs -deref) [_] (q)))))
-   #(q :items-step) #(q :items-done)))
+(defn spawn-ps
+  ([q] (spawn-ps q (->box (fn [_step _done] (q)))))
+  ([q <transfer-fn>]
+   ((items/flow (fn [step done]
+                  (q [step done])
+                  (step)
+                  (reify
+                    IFn (#?(:clj invoke :cljs -invoke) [_] (q :input-cancel))
+                    IDeref (#?(:clj deref :cljs -deref) [_] ((<transfer-fn>) step done)))))
+    #(q :items-step) #(q :items-done))))
 
 (t/deftest spawn
   (let [q                   (->mq)
@@ -403,8 +401,22 @@
         _                 (q ::none)
         _                 (t/is (= ::none (q)))]))
 
+(t/deftest failure-on-first-transfer
+  (let [q                   (->mq)
+        items               (spawn-ps q (->box (fn [_step done] (done) (throw (ex-info "boom" {})))))
+        [_in-step _in-done] (q)
+        _                   (t/is (= :input-cancel (q)))
+        _                   (t/is (= :items-step (q)))
+        _                   (t/is (thrown? ExceptionInfo (doto @items prn)))
+        _                   (t/is (= :items-done (q)))
+        _                   (q ::none)
+        _                   (t/is (= ::none (q)))]))
+
 ;; missing tests
 ;; - failures
+;;   - second immediate transfer
+;;   - reentrant transfer
+;;   - after cancellation
 ;; - item* grow
 ;; - double cancel before termination
 ;;   - item-ps
