@@ -9,13 +9,13 @@
 (def ps-field-count (a/deffields -stepped -cancelled -go -input-ps -diff -item*))
 (declare cleanup-ps)
 (deftype Ps [step done state-]
-  IFn (#?(:clj invoke :cljs -invoke) [^Ps this]
+  IFn (#?(:clj invoke :cljs -invoke) [_]
         ((a/get state- -input-ps))
-        (let [cancelled? (a/fgetset this -cancelled true)]
-          (when (not (or (a/fgetset this -stepped true) cancelled?)) (step))))
+        (let [cancelled? (a/getset state- -cancelled true)]
+          (when (not (or (a/getset state- -stepped true) cancelled?)) (step))))
   IDeref (#?(:clj deref :cljs -deref) [^Ps this]
-           (a/fset this -stepped false)
-           (if (a/fget this -cancelled)
+           (a/set state- -stepped false)
+           (if (a/get state- -cancelled)
              (do (cleanup-ps this done) (throw (Cancelled.)))
              (a/getset state- -diff nil))))
 (defn cleanup-ps [^Ps ps done]
@@ -121,5 +121,7 @@
   (fn [step done]
     (let [ps (->Ps step done (object-array ps-field-count))]
       (a/fset ps -item* (object-array 8), -stepped ::never, -go true)
-      (a/fset ps -input-ps (input #(when-not (a/fgetset ps -go false) (transfer-input ps)) #()))
+      (a/fset ps -input-ps (input
+                             #(when-not (a/fgetset ps -go false) (transfer-input ps))
+                             #()))
       (transfer-input ps) ps)))
