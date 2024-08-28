@@ -39,7 +39,7 @@ Mounting a block generates a grow for each active item having this block's frame
             [hyperfiddle.incseq.fixed-impl :as f]
             [hyperfiddle.incseq.diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p]
-            [hyperfiddle.electric.impl.runtime-de :as r])
+            [hyperfiddle.electric.impl.runtime3 :as r])
   #?(:clj (:import (clojure.lang IFn IDeref)
                    (java.util.concurrent.locks ReentrantLock))))
 

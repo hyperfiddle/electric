@@ -1,17 +1,17 @@
-(ns hyperfiddle.electric-de-test
+(ns hyperfiddle.electric3-test
   (:require [hyperfiddle.rcf :as rcf :refer [tap with % tests]]
-            [hyperfiddle.electric-de :as e :refer [$]]
-            [hyperfiddle.electric-local-def-de :as l]
-            [hyperfiddle.electric.impl.lang-de2 :as lang]
-            [hyperfiddle.electric.impl.runtime-de :as r]
+            [hyperfiddle.electric3 :as e :refer [$]]
+            [hyperfiddle.electric-local-def3 :as l]
+            [hyperfiddle.electric.impl.lang3 :as lang]
+            [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.incseq :as i]
             [hyperfiddle.kvs :as kvs]
             [contrib.cljs-target :refer [do-browser]]
-            #?(:cljs [hyperfiddle.goog-calls-test-de])
-            #?(:cljs [hyperfiddle.js-calls-test-de])
+            #?(:cljs [hyperfiddle.goog-calls-test3])
+            #?(:cljs [hyperfiddle.js-calls-test3])
             [clojure.string :as str]
             [missionary.core :as m])
-  #?(:cljs (:require-macros [hyperfiddle.electric-de-test :refer [skip failing]]))
+  #?(:cljs (:require-macros [hyperfiddle.electric3-test :refer [skip failing]]))
   (:import [missionary Cancelled]
            #?(:clj [clojure.lang ExceptionInfo])))
 
@@ -603,7 +603,7 @@
 
 ;; TODO try/catch
 (skip "reactive pending states"
-  ;~(m/reductions {} hyperfiddle.electric.impl.runtime-de/pending m/none)
+  ;~(m/reductions {} hyperfiddle.electric.impl.runtime3/pending m/none)
   (with ((l/single {} (tap (try true (catch Pending _ ::pending)))) tap tap)
     % := true))
 
@@ -1186,7 +1186,7 @@
     (with ((l/single {} (let [state (e/watch !state3)
                               local [:local state]
                               f     (binding [global [:global state]]
-                                      (fn ([a] [a local hyperfiddle.electric-de-test/global])
+                                      (fn ([a] [a local hyperfiddle.electric3-test/global])
                                         ([a b] [a b local global])
                                         ([a b & cs] [a b cs local global])))]
                           (tap (f state))
@@ -1274,7 +1274,7 @@
     (with ((l/single {} (let [state (e/watch !state)
                               local [:local state]]
                           (binding [global [:global state]]
-                            (letfn [(f ([a] [a local hyperfiddle.electric-de-test/global])
+                            (letfn [(f ([a] [a local hyperfiddle.electric3-test/global])
                                       ([a b] [a b local global])
                                       ([a b & cs] [a b cs local global]))]
                               (tap (f state))
@@ -1294,22 +1294,22 @@
    (tests "e/fn is undefined in clojure-land"
      (tap (try (eval '(l/single {} (fn [] (e/fn []))))
                (catch Throwable e (ex-message (ex-cause e)))))
-     % := "Electric code (hyperfiddle.electric-de/fn) inside a Clojure function"))
+     % := "Electric code (hyperfiddle.electric3/fn) inside a Clojure function"))
 
 #?(:clj
    (tests "e/client is undefined in clojure-land"
      (tap (try (eval '(l/single {} (fn [] (e/client [])))) (catch Throwable e (ex-message (ex-cause e)))))
-     % := "Electric code (hyperfiddle.electric-de/client) inside a Clojure function"))
+     % := "Electric code (hyperfiddle.electric3/client) inside a Clojure function"))
 
 #?(:clj
    (tests "e/server is undefined in clojure-land"
      (tap (try (eval '(l/single {} (fn [] (e/server [])))) (catch Throwable e (ex-message (ex-cause e)))))
-     % := "Electric code (hyperfiddle.electric-de/server) inside a Clojure function"))
+     % := "Electric code (hyperfiddle.electric3/server) inside a Clojure function"))
 
 #?(:clj
    (tests "e/watch is undefined in clojure-land"
      (tap (try (eval '(l/single {} (fn [] (e/watch (atom :nomatter))))) (catch Throwable e (ex-message (ex-cause e)))))
-     % := "Electric code (hyperfiddle.electric-de/watch) inside a Clojure function"))
+     % := "Electric code (hyperfiddle.electric3/watch) inside a Clojure function"))
 
 ;; 0 can be skipped because tap and reset! are concurrent
 (skip "cycle"
@@ -1546,9 +1546,9 @@
   dynfoo := 1 ; no lexical binding shadowing -> resolve to dynfoo var
   (let [dynfoo 2] ; lexical shadowing
     dynfoo := 2   ; resolve to lexical scope
-    (binding [#?(:clj dynfoo, :cljs hyperfiddle.electric-de-test/dynfoo) 3] ; always rebind var in clojure. Cljs requires fully qualified name.
+    (binding [#?(:clj dynfoo, :cljs hyperfiddle.electric3-test/dynfoo) 3] ; always rebind var in clojure. Cljs requires fully qualified name.
       dynfoo := 2 ; unqualified name resolves to lexical scope
-      hyperfiddle.electric-de-test/dynfoo := 3))) ; qualified name resolves to the var
+      hyperfiddle.electric3-test/dynfoo := 3))) ; qualified name resolves to the var
 
 ;; TODO try/catch, electric binding conveyance
 #?(:clj
@@ -1838,7 +1838,7 @@
      (tests "goog module calls don't trigger warnings"
        ;; this includes a goog test namespace, so if there are warnings the CI will blow up.
        ;; The blow up is configured as a shadow build hook in `hyperfiddle.browser-test-setup`
-       (with ((l/single {} (tap (case ($ hyperfiddle.goog-calls-test-de/Main) :ok))) tap tap)
+       (with ((l/single {} (tap (case ($ hyperfiddle.goog-calls-test3/Main) :ok))) tap tap)
          % := :ok))))
 
 ;; TODO try/catch

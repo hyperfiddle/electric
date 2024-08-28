@@ -1,16 +1,16 @@
-(ns hyperfiddle.router-de
+(ns hyperfiddle.router3
   "A reactive tree router"
   (:refer-clojure :exclude [set])
   (:require
    [contrib.data]
    [contrib.sexpr-router :as sexpr]
-   [hyperfiddle.electric-de :as e :refer [$]]
+   [hyperfiddle.electric3 :as e :refer [$]]
    [hyperfiddle.electric-dom3 :as dom]
    [hyperfiddle.rcf :refer [tests]]
    [hyperfiddle.history3 :as h]
    [missionary.core :as m])
   #?(:cljs (:import [hyperfiddle.history3.HTML5History]))
-  #?(:cljs (:require-macros hyperfiddle.router-de)))
+  #?(:cljs (:require-macros hyperfiddle.router3)))
 
 (comment
   (hyperfiddle.rcf/enable! false))
@@ -314,10 +314,10 @@
 (defn as-vec [x] (if (vector? x) x [x]))
 
 (e/defn Focus [path Body-fn]
-  (let [paths (conj hyperfiddle.router-de/paths (as-vec path))
+  (let [paths (conj hyperfiddle.router3/paths (as-vec path))
         path (resolve-path (current-path paths))]
-    (binding [hyperfiddle.router-de/paths paths
-              hyperfiddle.router-de/path  path
+    (binding [hyperfiddle.router3/paths paths
+              hyperfiddle.router3/path  path
               route (view (path-lens path) root-route)]
       ($ Body-fn))))
 
@@ -331,7 +331,7 @@
 (e/defn Route-for
   ([path] (e/apply Route-for (split-link-path path)))
   ([path value]
-   (over (path-lens (resolve-path (into hyperfiddle.router-de/path path))) (constantly value) root-route)))
+   (over (path-lens (resolve-path (into hyperfiddle.router3/path path))) (constantly value) root-route)))
 
 
 #_ ;; l/local expects l/def which we should only use in tests
@@ -372,7 +372,7 @@
 ;;   )
 
 (e/defn Route-at [path]
-  (view (path-lens (resolve-path (into hyperfiddle.router-de/path path))) root-route))
+  (view (path-lens (resolve-path (into hyperfiddle.router3/path path))) root-route))
 
 ;; (tests
 ;;   (binding [root-route '{index {foo 1, bar 2}}]
@@ -444,7 +444,7 @@
     (let [[path' value] (split-link-path path)
           value (normalize-route-value value)]
       (dom/a
-        (e/input (link-click-handler dom/node (into hyperfiddle.router-de/path path)))
+        (e/input (link-click-handler dom/node (into hyperfiddle.router3/path path)))
         (dom/props {::dom/href (encode ($ Route-for path' value))})
         (binding [current-route? ($ Current-route? path')]
           ($ Body))))))
@@ -477,7 +477,7 @@
   ([node Callback]
    (e/client
      ;; navigation by link click (also supports keyboard nav)
-     ;; only intercepts internal links. See `hyperfiddle.router-de/Link`.
+     ;; only intercepts internal links. See `hyperfiddle.router3/Link`.
      ;; 1. We want to cancel native navigation ASAP if needed. We want a synchronous event handler.
      ;;    dom/on! – guarantees the event will be canceled before it bubbles up to the parent
      ;;    dom/on  – callback is async and might cancel the event too late, especially if the reactor is busy

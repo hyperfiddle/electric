@@ -97,7 +97,7 @@
         (if-some [mac (find-macro-var a f ns$)]
           (let [sym (symbol mac)]
             (cond (= 'hyperfiddle.rcf/tests sym) nil ; circular, we can skip rcf tests
-                  (= 'hyperfiddle.electric-de/defn sym) `(def ~(first args)) ; circular, don't go deeper
+                  (= 'hyperfiddle.electric3/defn sym) `(def ~(first args)) ; circular, don't go deeper
                   (short-circuit-def sym) `(def ~(first args))
                   (declare? sym) `(do ~@(mapv #(list 'def %) args))
                   (deftype? sym) (let [[nm] args] `(declare ~nm ~(mksym '-> nm)))
