@@ -6,7 +6,7 @@
   (:import #?(:clj [clojure.lang IDeref IFn])
            [missionary Cancelled]))
 
-(def ps-field-count (a/deffields -stepped -cancelled -go -input-ps -input-stepper -input-doner -diff -item*))
+(def ps-field-count (a/deffields -stepped -cancelled -go -input-ps -diff -item*))
 (declare cleanup-ps)
 (deftype Ps [step done state-]
   IFn (#?(:clj invoke :cljs -invoke) [^Ps this]
@@ -20,7 +20,7 @@
              (a/getset state- -diff nil))))
 (defn cleanup-ps [^Ps ps done]
   (when-not (identical? ps (a/fgetset ps -diff ps))
-    (a/fset ps -input-ps nil, -input-stepper nil, -input-doner nil, -diff nil, -item* nil)
+    (a/fset ps -input-ps nil, -diff nil, -item* nil)
     (done)))
 
 (def item-field-count (a/deffields -v -flow -ps* -dead))
@@ -117,13 +117,9 @@
             false (when (needed-diff? newdiff) (a/fset ps -stepped true) ((.-step ps))))
           (recur newdiff))))))
 
-(defn consume-input-step [^Ps ps] (fn [] (when-not (a/fgetset ps -go false) (transfer-input ps))))
-(defn consume-input-done [^Ps ps] (fn []))
-
 (defn flow [input]
   (fn [step done]
     (let [ps (->Ps step done (object-array ps-field-count))]
-      (a/fset ps -input-stepper #() -input-doner #(), -item* (object-array 8), -stepped ::never, -go false)
-      (a/fset ps -input-ps (input (fn [] ((a/fget ps -input-stepper))) (fn [] ((a/fget ps -input-doner)))))
-      (a/fset ps -input-stepper (consume-input-step ps), -input-doner (consume-input-done ps))
+      (a/fset ps -item* (object-array 8), -stepped ::never, -go true)
+      (a/fset ps -input-ps (input #(when-not (a/fgetset ps -go false) (transfer-input ps)) #()))
       (transfer-input ps) ps)))
