@@ -428,13 +428,15 @@
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
+(defn consume-calling [f*]
+  (let [<f*> (->box (seq f*))]
+    (fn [step done]
+      ((ca/is (<f*> first next) some? "overconsumed") step done))))
+
 (t/deftest failure-on-reentrant-transfer
   (let [q                   (->mq)
-        <transfer-fn>       (->box (let [<first?> (->box true)]
-                                    (fn [step done]
-                                      (if (<first?>)
-                                        (do (<first?> false) (step) (d/empty-diff 0))
-                                        (do (done) (throw (ex-info "boom" {})))))))
+        <transfer-fn>       (->box (consume-calling [(fn [step _] (step) (d/empty-diff 0))
+                                                     (fn [_ done] (done) (throw (ex-info "boom" {})))]))
         items               (spawn-ps q <transfer-fn>)
         [_in-step _in-done] (q)
         _                   (t/is (= :input-cancel (q)))
