@@ -114,9 +114,9 @@
                                        diff (d/combine diff)))]
         (if (a/fgetset ps -go false)
           (case (a/fget ps -stepped)
-            nil (do (a/fset ps -stepped true) ((.-step ps)))
+            false (when (needed-diff? newdiff) (a/fset ps -stepped true) ((.-step ps)))
             true nil
-            false (when (needed-diff? newdiff) (a/fset ps -stepped true) ((.-step ps))))
+            nil (do (a/fset ps -stepped true) ((.-step ps))))
           (recur newdiff))))))
 
 (defn flow [input]
