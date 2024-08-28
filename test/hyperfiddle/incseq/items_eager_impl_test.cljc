@@ -463,8 +463,19 @@
         _                   (q ::none)
         _                   (t/is (= ::none (q)))]))
 
+(t/deftest grow
+  (let [q                   (->mq)
+        n                   (inc items/+initial-item-size+)
+        _                   (q (assoc (d/empty-diff n) :grow n :change (zipmap (range n) (repeat :foo)))) ; what input will return on transfer
+        items               (spawn-ps q)
+        [_in-step _in-done] (q)
+        _                   (t/is (= :items-step (q)))
+        diff                @items
+        _                   (t/is (= 9 (count (:change diff))))
+        _                   (q ::none)
+        _                   (t/is (= ::none (q)))]))
+
 ;; missing tests
-;; - item* grow
 ;; - double cancel before termination
 ;;   - item-ps
 ;;   - dead-item-ps

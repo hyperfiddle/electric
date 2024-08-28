@@ -66,6 +66,7 @@
                  (if (identical? cancelled (<s>))  (throw (Cancelled.))  (let [v (<s>)] (<s> this) v)))))))
 
 (defn grow! [^Ps ps {d :degree, n :grow}]
+  (a/fgetset ps -item* (a/ensure-fits (a/fget ps -item*) d))
   (run! (fn [i]
           (let [^Item item (->Item (object-array item-field-count))]
             (a/fset item -ps* (->box #{}))
@@ -126,10 +127,11 @@
             (a/fset ps -diff ?in-diff)
             (when-not (a/fgetset ps -stepped true) ((.-step ps))))))))
 
+(def ^:const +initial-item-size+ 8)
 (defn flow [input]
   (fn [step done]
     (let [ps (->Ps step done (object-array ps-field-count))]
-      (a/fset ps -item* (object-array 8), -stepped nil, -go true, -done ::no)
+      (a/fset ps -item* (object-array +initial-item-size+), -stepped nil, -go true, -done ::no)
       (a/fset ps -input-ps (input
                              #(when-not (a/fgetset ps -go false) (transfer-input ps))
                              #(if (or (a/fget ps -stepped) (a/fget ps -go))
