@@ -11,8 +11,8 @@
          borkdude/edamame           {:mvn/version "1.4.25"}
          }
 
- :aliases { :shadow-cljs {:extra-deps {thheller/shadow-cljs {:mvn/version "2.26.2"}}
-                          :main-opts  ["-m" "shadow.cljs.devtools.cli"]}
+ :aliases {:shadow-cljs {:extra-deps {thheller/shadow-cljs {:mvn/version "2.26.2"}}
+                         :main-opts  ["-m" "shadow.cljs.devtools.cli"]}
 
            :test  {:extra-paths ["test"]
                    :exec-fn     cognitect.test-runner.api/test
