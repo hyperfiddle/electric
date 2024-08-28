@@ -13,7 +13,7 @@
 (deftype Ps [step done state-]
   IFn (#?(:clj invoke :cljs -invoke) [_]
         (some-> (a/get state- -input-ps) call)
-        (a/ncas state- -done ::yes ::requested)
+        (a/set-not= state- -done ::yes ::requested)
         (let [cancelled? (a/getset state- -cancelled true)]
           (when (not (or (a/getset state- -stepped true) cancelled?)) (step))))
   IDeref (#?(:clj deref :cljs -deref) [this]
@@ -122,7 +122,7 @@
                   nil (do (a/fset ps -stepped true) ((.-step ps))))
                 (recur newdiff))))
         (do (some-> (a/fget ps -input-ps) call)
-            (a/fncas ps -done ::yes ::requested)
+            (a/fset-not= ps -done ::yes ::requested)
             (a/fset ps -diff ?in-diff)
             (when-not (a/fgetset ps -stepped true) ((.-step ps))))))))
 
