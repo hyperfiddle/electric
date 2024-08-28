@@ -428,9 +428,24 @@
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
+(t/deftest failure-on-reentrant-transfer
+  (let [q                   (->mq)
+        <transfer-fn>       (->box (let [<first?> (->box true)]
+                                    (fn [step done]
+                                      (if (<first?>)
+                                        (do (<first?> false) (step) (d/empty-diff 0))
+                                        (do (done) (throw (ex-info "boom" {})))))))
+        items               (spawn-ps q <transfer-fn>)
+        [_in-step _in-done] (q)
+        _                   (t/is (= :input-cancel (q)))
+        _                   (t/is (= :items-step (q)))
+        _                   (t/is (thrown? ExceptionInfo @items))
+        _                   (t/is (= :items-done (q)))
+        _                   (q ::none)
+        _                   (t/is (= ::none (q)))]))
+
 ;; missing tests
 ;; - failures
-;;   - reentrant transfer
 ;;   - after cancellation
 ;; - item* grow
 ;; - double cancel before termination
