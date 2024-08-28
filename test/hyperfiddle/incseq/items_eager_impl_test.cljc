@@ -3,7 +3,8 @@
    [clojure.test :as t]
    [contrib.assert :as ca]
    [hyperfiddle.incseq.diff-impl :as d]
-   [hyperfiddle.incseq.items-eager-impl :as items])
+   [hyperfiddle.incseq.items-eager-impl :as items]
+   [missionary.core :as m])
   (:import #?(:clj [clojure.lang ExceptionInfo IDeref IFn])
            [missionary Cancelled]))
 
@@ -342,6 +343,19 @@
         _                  (t/is (= 2 (count (:change diff))))
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
+
+(t/deftest reentrant-transfer
+  (let [q     (->mq)
+        items ((items/flow (m/seed [{:grow 1, :degree 1, :shrink 0, :change {0 :foo}, :permutation {}, :freeze #{}}
+                                    {:grow 1, :degree 2, :shrink 0, :change {1 :bar}, :permutation {}, :freeze #{}}]))
+               #(q :items-step) #(q :items-done))
+        _     (t/is (= :items-step (q)))
+        diff  @items
+        _     (t/is (= {:grow 2, :degree 2, :shrink 0, :change {}, :permutation {}, :freeze #{}}
+                      (assoc diff :change {})))
+        _     (t/is (= 2 (count (:change diff))))
+        _     (q ::none)
+        _     (t/is (= ::none (q)))]))
 
 ;; missing tests
 ;; - items reentrant transfer
