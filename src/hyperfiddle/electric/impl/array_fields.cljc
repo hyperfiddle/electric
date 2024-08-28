@@ -26,10 +26,10 @@
 (defn getset [^objects a k v] (let [ret (get a k)] (when (not= ret v) (set a k v)) ret))
 (defmacro fgetset [O k v] `(getset (.-state- ~O) ~k ~v))
 (defn getswap [^objects a k f] (let [ret (get a k)] (swap a k f) ret))
-(defn cas [^objects a i oldv newv] (if (= oldv (get a i)) (do (set a i newv) true) false))
-(defmacro fcas [O i oldv newv] `(cas (.-state- ~O) ~i ~oldv ~newv))
-(defn ncas [^objects a i oldv newv] (if (not= oldv (get a i)) (do (set a i newv) true) false))
-(defmacro fncas [O i oldv newv] `(ncas (.-state- ~O) ~i ~oldv ~newv))
+(defn set= [^objects a i oldv newv] (if (= oldv (get a i)) (do (set a i newv) true) false))
+(defmacro fset= [O i oldv newv] `(set= (.-state- ~O) ~i ~oldv ~newv))
+(defn set-not= [^objects a i oldv newv] (if (not= oldv (get a i)) (do (set a i newv) true) false))
+(defmacro fset-not= [O i oldv newv] `(set-not= (.-state- ~O) ~i ~oldv ~newv))
 
 (defn rot
   ([^objects a i j] (let [tmp (get a i)] (set a i (get a j) j tmp)))
