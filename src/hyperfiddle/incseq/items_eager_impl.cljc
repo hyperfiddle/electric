@@ -124,5 +124,6 @@
       (a/fset ps -item* (object-array 8), -stepped ::never, -go true)
       (a/fset ps -input-ps (input
                              #(when-not (a/fgetset ps -go false) (transfer-input ps))
-                             #(a/fset ps -input-done true)))
+                             #(do (a/fset ps -input-done true)
+                                  (when-not (a/fget ps -stepped) (done)))))
       (transfer-input ps) ps)))
