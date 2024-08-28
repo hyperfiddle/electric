@@ -6,7 +6,7 @@
   (:import #?(:clj [clojure.lang IDeref IFn])
            [missionary Cancelled]))
 
-(def ps-field-count (a/deffields -stepped -cancelled -go -input-ps -diff -item*))
+(def ps-field-count (a/deffields -stepped -cancelled -go -input-ps -input-done -diff -item*))
 (declare cleanup-ps)
 (deftype Ps [step done state-]
   IFn (#?(:clj invoke :cljs -invoke) [_]
@@ -15,6 +15,7 @@
           (when (not (or (a/getset state- -stepped true) cancelled?)) (step))))
   IDeref (#?(:clj deref :cljs -deref) [^Ps this]
            (a/set state- -stepped false)
+           (when (a/get state- -input-done) (done))
            (if (a/get state- -cancelled)
              (do (cleanup-ps this done) (throw (Cancelled.)))
              (a/getset state- -diff nil))))
@@ -123,5 +124,5 @@
       (a/fset ps -item* (object-array 8), -stepped ::never, -go true)
       (a/fset ps -input-ps (input
                              #(when-not (a/fgetset ps -go false) (transfer-input ps))
-                             #()))
+                             #(a/fset ps -input-done true)))
       (transfer-input ps) ps)))

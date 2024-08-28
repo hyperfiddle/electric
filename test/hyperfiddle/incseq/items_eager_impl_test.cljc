@@ -353,6 +353,7 @@
         diff  @items
         _     (t/is (= (assoc (d/empty-diff 2) :grow 2) (assoc diff :change {})))
         _     (t/is (= 2 (count (:change diff))))
+        _     (t/is (= :items-done (q)))
         _     (q ::none)
         _     (t/is (= ::none (q)))]))
 
@@ -364,13 +365,12 @@
         diff  @items
         _     (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
         _     (t/is (= 1 (count (:change diff))))
-        ;; _     (t/is (= :items-done (q)))
+        _     (t/is (= :items-done (q)))
         _     (q ::none)
         _     (t/is (= ::none (q)))]))
 
 ;; missing tests
 ;; - input terminate
-;;   - during transfer
 ;;   - when idle
 ;;   - when stepped
 ;; - failures
