@@ -31,6 +31,9 @@
 (defn set-not= [^objects a i oldv newv] (if (not= oldv (get a i)) (do (set a i newv) true) false))
 (defmacro fset-not= [O i oldv newv] `(set-not= (.-state- ~O) ~i ~oldv ~newv))
 
+(defn copy [x y n] #?(:clj (System/arraycopy x 0 y 0 n) :cljs (dotimes [i n] (aset y i (aget x i))))  y)
+(defn ensure-fits [^objects a n] (let [l (alength a)] (cond-> a (< l n) (copy (object-array (* 2 l)) l))))
+
 (defn rot
   ([^objects a i j] (let [tmp (get a i)] (set a i (get a j) j tmp)))
   ([^objects a i j k] (let [tmp (get a i)] (set a i (get a j) j (get a k) k tmp)))
