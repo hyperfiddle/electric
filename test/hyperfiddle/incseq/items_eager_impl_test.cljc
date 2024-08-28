@@ -351,15 +351,30 @@
                #(q :items-step) #(q :items-done))
         _     (t/is (= :items-step (q)))
         diff  @items
-        _     (t/is (= {:grow 2, :degree 2, :shrink 0, :change {}, :permutation {}, :freeze #{}}
-                      (assoc diff :change {})))
+        _     (t/is (= (assoc (d/empty-diff 2) :grow 2) (assoc diff :change {})))
         _     (t/is (= 2 (count (:change diff))))
+        _     (q ::none)
+        _     (t/is (= ::none (q)))]))
+
+(t/deftest input-terminate-during-transfer
+  (let [q     (->mq)
+        items ((items/flow (m/seed [{:grow 1, :degree 1, :shrink 0, :change {0 :foo}, :permutation {}, :freeze #{}}]))
+               #(q :items-step) #(q :items-done))
+        _     (t/is (= :items-step (q)))
+        diff  @items
+        _     (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        _     (t/is (= 1 (count (:change diff))))
+        ;; _     (t/is (= :items-done (q)))
         _     (q ::none)
         _     (t/is (= ::none (q)))]))
 
 ;; missing tests
 ;; - input terminate
+;;   - during transfer
+;;   - when idle
+;;   - when stepped
 ;; - failures
+;; - item* grow
 ;; - double cancel before termination
 ;;   - item-ps
 ;;   - dead-item-ps
@@ -368,9 +383,9 @@
 ;;   - item-ps
 ;;   - dead-item-ps
 ;;   - items
-;; - double transfer
+;; - double transfer (optional)
 ;;   - item-ps
 ;;   - dead-item-ps
 ;;   - items
-;; - item* grow
 ;; - thread safety
+;; - freeze
