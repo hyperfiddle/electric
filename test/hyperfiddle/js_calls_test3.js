@@ -1,5 +1,5 @@
 // Test that when electric calls scope.fn(), fn is called with `scope` bound as `this`, thus returning `"value"`
-// See `js_calls_test_de.cljs`
+// See `js_calls_test3.cljs`
 
 // How to reproduce from JS console:
 
@@ -19,5 +19,5 @@ export var scope = {
 };
 
 export function install(){
-    globalThis.hyperfiddle.js_calls_test_de.scope = scope;
+    globalThis.hyperfiddle.js_calls_test3.scope = scope;
 }

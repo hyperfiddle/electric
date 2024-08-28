@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [class?])
   (:require
    [clojure.string :as str]
-   [hyperfiddle.electric-de :as e :refer [$]]
+   [hyperfiddle.electric3 :as e :refer [$]]
    ;; [hyperfiddle.electric-dom3 :as-alias dom]
    [hyperfiddle.electric-css3 :as css]
    [hyperfiddle.rcf :refer [tests]]
@@ -186,7 +186,7 @@ On unmount:
 #_(defmacro for-cseq [[b cseq] & body] `(e/cursor [[i# ~b] (e/diff-by first (map-indexed vector ~cseq))] ~@body))
 #_(for-cseq [x xs] ($ Foo x))
 
-(e/defn ; ^:hyperfiddle.electric.impl.lang-de2/print-clj-source
+(e/defn ; ^:hyperfiddle.electric.impl.lang3/print-clj-source
   Partial ;; TODO move to electric core
   ;; Impl is a mechanical 1 to 1 transaltion of clojure partial.
   ;; generated code is quite large but redundant, so it gzip to 903 bytes.

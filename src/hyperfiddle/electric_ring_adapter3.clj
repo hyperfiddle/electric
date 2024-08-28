@@ -1,12 +1,12 @@
-(ns hyperfiddle.electric-ring-adapter-de
+(ns hyperfiddle.electric-ring-adapter3
   "Provide a `wrap-electric-websocket` Ring middleware, starting and managing an Electric Server.
   This is a Ring 1.11+ compliant, generic implementation. It is compatible with
   ring-jetty out of the box, and can be extended to other servers. See
   `hyperfiddle.electric-httpkit-adapter` for an example of an extension."
   (:refer-clojure :exclude [send])
   (:require [clojure.tools.logging :as log]
-            [hyperfiddle.electric-de :as-alias e]
-            [hyperfiddle.electric.impl.runtime-de :as r]
+            [hyperfiddle.electric3 :as-alias e]
+            [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.electric.debug3 :as dbg]
             [missionary.core :as m]
             [ring.websocket :as ws])

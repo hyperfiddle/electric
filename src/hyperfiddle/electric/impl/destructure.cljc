@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric.impl.destructure
   "Cross-platform (clj/cljs) destructuring. Adapted from clojurescript codebase"
   (:require [cljs.core]
-            [hyperfiddle.electric.impl.runtime-de :as r]))
+            [hyperfiddle.electric.impl.runtime3 :as r]))
 
 (defn destructure* [bindings]
   (let [bents (partition 2 bindings)
