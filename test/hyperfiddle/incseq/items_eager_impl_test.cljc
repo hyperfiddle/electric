@@ -407,14 +407,29 @@
         [_in-step _in-done] (q)
         _                   (t/is (= :input-cancel (q)))
         _                   (t/is (= :items-step (q)))
-        _                   (t/is (thrown? ExceptionInfo (doto @items prn)))
+        _                   (t/is (thrown? ExceptionInfo @items))
         _                   (t/is (= :items-done (q)))
         _                   (q ::none)
         _                   (t/is (= ::none (q)))]))
 
+(t/deftest failure-on-non-first-transfer
+  (let [q                  (->mq)
+        <transfer-fn>      (->box (fn [_step _done] (d/empty-diff 0)))
+        items              (spawn-ps q <transfer-fn>)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        _                  (t/is (= (d/empty-diff 0) @items))
+        _                  (<transfer-fn> (fn [_step done] (done) (throw (ex-info "boom" {}))))
+        _                  (in-step)
+        _                  (t/is (= :input-cancel (q)))
+        _                  (t/is (= :items-step (q)))
+        _                  (t/is (thrown? ExceptionInfo @items))
+        _                  (t/is (= :items-done (q)))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
 ;; missing tests
 ;; - failures
-;;   - second immediate transfer
 ;;   - reentrant transfer
 ;;   - after cancellation
 ;; - item* grow
