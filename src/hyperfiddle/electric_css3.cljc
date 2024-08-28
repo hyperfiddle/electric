@@ -29,7 +29,8 @@
           (recur (inc i)))
         -1))))
 
-#?(:cljs
+#?(:node nil
+   :cljs
    (extend-protocol StyledElement
      js/HTMLStyleElement
      (sheet [^js this] (.-sheet this))
@@ -76,7 +77,8 @@
 (defn to-str [x] ((if (keyword? x) name str) x))
 (defn css-compatible-value [x] (if (keyword? x) (name x) x))
 
-#?(:cljs
+#?(:node nil
+   :cljs
    (extend-protocol StyleRule
      js/HTMLElement
      (set-property [^js this key value] (set-property (.-style this) key value))

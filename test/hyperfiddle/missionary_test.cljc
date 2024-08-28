@@ -12,7 +12,7 @@
                (fn [] (tap ::terminate))))
   % := ::notify
   (!it)
-  @!it thrown? Cancelled
+  @!it :throws Cancelled
   % := ::terminate)
 
 (tests

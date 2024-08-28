@@ -1,22 +1,16 @@
+;; All namespaces are tested by default to encourage tested code.
+;; Use :ns-regexp to blacklist specific namespaces.
+;; ^(?!foo.(bar|baz)).* : includes everything except foo.bar or foo.baz
+
 {:builds {:test         {:target           :node-test
                          :output-to        "out/node-tests.js"
-                         :ns-regexp        "^(hyperfiddle.electric-(?!dom|fulcro|css|svg)|contrib.(ednish|sexpr-router|stacktrace)|hyperfiddle.incseq).*$"
+                         :ns-regexp        "^(?!contrib.(electric-codemirror|datomic|trace-de)|hyperfiddle.(api|popover|spool|spec|electric-fulcro|electric-css3|router-de|electric.impl.compiler-test|electric.impl.cljs-file-to-analyze|electric.impl.runtime-test)).*"
                          :build-options    {:cache-level :off}
-                         :modules          {:main {:entries [#_hyperfiddle.electric
-                                                             #_hyperfiddle.electric-test
-                                                             hyperfiddle.electric-de-test
-                                                             #_hyperfiddle.missionary-test
-                                                             contrib.ednish
-                                                             contrib.sexpr-router]}}
-                         :compiler-options {:warnings {:redef-in-file false}}}
+                         :compiler-options {:reader-features #{:node} ; allow #?(:node …, :cljs …), falls back to :cljs.
+                                            :warnings {:redef-in-file false}}}
           :browser-test {:target           :karma
                          :output-to        "out/karma-tests.js"
-                         :ns-regexp        "^(hyperfiddle.electric-(?!fulcro)|contrib.(ednish|sexpr-router|stacktrace)|hyperfiddle.incseq).*$"
+                         :ns-regexp        "^(?!contrib.(electric-codemirror|datomic|trace-de)|hyperfiddle.(api|popover|spool|spec|electric-fulcro|electric.impl.compiler-test|electric.impl.cljs-file-to-analyze|electric.impl.runtime-test)).*"
                          :build-options    {:cache-level :off}
-                         :build-hooks [(hyperfiddle.browser-test-setup/blow-up-tests-on-warnings)]
-                         :modules          {:main {:entries [#_hyperfiddle.electric
-                                                             #_hyperfiddle.electric-test
-                                                             #_hyperfiddle.missionary-test
-                                                             contrib.ednish
-                                                             contrib.sexpr-router]}}
+                         :build-hooks      [(hyperfiddle.browser-test-setup/blow-up-tests-on-warnings)]
                          :compiler-options {:warnings-as-errors {:warning-types #{:infer-warning}}}}}}

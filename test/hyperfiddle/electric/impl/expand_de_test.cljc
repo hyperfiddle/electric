@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric.impl.expand-de-test
   (:require #?(:clj [cljs.env])
             #?(:clj [cljs.analyzer])
-            #?(:clj [hyperfiddle.electric.impl.lang-de2 :as l])
+            [hyperfiddle.electric.impl.lang-de2 #?(:clj :as, :cljs :as-alias) l]
             #?(:clj [hyperfiddle.electric.impl.runtime-de :as r])
             #?(:clj [hyperfiddle.electric-de :as e])
             #?(:clj [contrib.test-match :as tm])
