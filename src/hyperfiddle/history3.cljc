@@ -221,7 +221,7 @@
 
 (defn history? [h]
   (and (satisfies? IHistory h)
-    (instance? IAtom h)))
+    (#?(:clj instance?, :cljs satisfies?) IAtom h)))
 
 (tests
   (history? (atom-history)) := true)

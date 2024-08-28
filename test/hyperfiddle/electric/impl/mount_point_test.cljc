@@ -6,8 +6,8 @@
             [hyperfiddle.electric.impl.runtime-de :as r]
             [hyperfiddle.electric.impl.mount-point :as mp]
             [clojure.test :refer [deftest is]])
-  #?(:clj (:import (java.util LinkedList)
-                   missionary.Cancelled)))
+  (:import #?(:clj (java.util LinkedList))
+           missionary.Cancelled))
 
 (defn frame [peer slot rank & tags]
   (let [tags-array (object-array (count tags))
