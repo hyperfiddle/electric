@@ -24,21 +24,21 @@
 
 #?(:clj
    (tests
-     (def !it (.iterator (.keySet (java.lang.System/getProperties))))
+     (def !it (.iterator (.keySet {:a 1, :b 2, :c 3, :d 4})))
      (->> (iterator-consumer !it)
           (m/eduction (take 3))
           (m/reduce conj []) m/?)
-     := ["java.specification.version" "sun.jnu.encoding" "java.class.path"]
+     := [:a :b :c]
 
      ; careful, Java iterator is stateful
 
-     (def xs (iterator-seq (.iterator (.keySet (java.lang.System/getProperties)))))
-     (take 3 xs) := ["java.specification.version" "sun.jnu.encoding" "java.class.path"]
+     (def xs (iterator-seq (.iterator (.keySet {:a 1, :b 2, :c 3, :d 4}))))
+     (take 3 xs) := [:a :b :c]
 
      (->> (seq-consumer xs)
           (m/eduction (take 3))
           (m/reduce conj []) m/?)
-     := ["java.specification.version" "sun.jnu.encoding" "java.class.path"]))
+     := [:a :b :c]))
 
 (defn poll-task
   "derive discrete flow from succession of polled values from a task (or mbox)"
