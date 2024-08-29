@@ -32,7 +32,8 @@
 (defmacro fset-not= [O i oldv newv] `(set-not= (.-state- ~O) ~i ~oldv ~newv))
 
 (defn copy [x y n] #?(:clj (System/arraycopy x 0 y 0 n) :cljs (dotimes [i n] (aset y i (aget x i))))  y)
-(defn ensure-fits [^objects a n] (let [l (alength a)] (cond-> a (< l n) (copy (object-array (* 2 l)) l))))
+(defn overfit [k n] (loop [k (* 2 k)] (if (>= k n) k (recur (* 2 k)))))
+(defn ensure-fits [^objects a n] (let [l (alength a)] (cond-> a (< l n) (copy (object-array (overfit l n)) l))))
 
 (defn rot
   ([^objects a i j] (let [tmp (get a i)] (set a i (get a j) j tmp)))
@@ -77,3 +78,7 @@
   (let [a (object-array [:a :b :c :d :e :f :g])]
     (apply rot a (range 7))
     (vec a) := [:b :c :d :e :f :g :a]))
+
+(tests
+  (alength (ensure-fits (object-array 2) 9)) := 16
+  )
