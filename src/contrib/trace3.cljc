@@ -7,7 +7,8 @@
    [hyperfiddle.electric-dom3 :as dom]
    #?(:cljs [hyperfiddle.electric.impl.runtime3 :refer [Failure]])
    [missionary.core :as m])
-  #?(:clj (:import [hyperfiddle.electric.impl.runtime3 Failure])))
+  #?(:clj (:import [hyperfiddle.electric.impl.runtime3 Failure]))
+  #?(:cljs (:require-macros contrib.trace3)))
 
 (def current nil)
 (declare !db db !measure measure !q q)
