@@ -181,7 +181,7 @@
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
-(t/deftest shrink-terminates-idle-item-ps
+(t/deftest shrink-idle-item-ps
   (let [q                  (->mq)
         _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
         items              (spawn-ps q)
@@ -195,15 +195,12 @@
         shrink1            (assoc (d/empty-diff 1) :shrink 1)
         _                  (q shrink1)
         _                  (in-step)
-        _                  (t/is (= :item0-step (q)))
         _                  (t/is (= :items-step (q)))
         _                  (t/is (= shrink1 @items))
-        _                  (t/is (thrown? Cancelled @item0))
-        _                  (t/is (= :item0-done (q)))
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
-(t/deftest shrink-terminates-stepped-item-ps
+(t/deftest shrink-stepped-item-ps
   (let [q                  (->mq)
         _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
         items              (spawn-ps q)
@@ -211,15 +208,13 @@
         _                  (t/is (= :items-step (q)))
         diff               @items
         _                  (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
-        item0              ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _item0             ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
         _                  (t/is (= :item0-step (q)))
         shrink1            (assoc (d/empty-diff 1) :shrink 1)
         _                  (q shrink1)
         _                  (in-step)
         _                  (t/is (= :items-step (q)))
         _                  (t/is (= shrink1 @items))
-        _                  (t/is (thrown? Cancelled @item0))
-        _                  (t/is (= :item0-done (q)))
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
