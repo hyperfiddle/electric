@@ -500,57 +500,61 @@
 #?(:cljs (defn -get-stack [^HTML5History history] (.-!stack history)))
 #?(:cljs (defn -get-position [^HTML5History history] (.-!position history)))
 
-(e/defn HTML5-Navigation-Intents [^HTML5History history]
-  (e/client
-    (let [!idle (atom false)]
-      #_(try)
-      (when-some [^js e ($ dom/On js/window "beforeunload" identity nil nil)] ; refresh or close tab
-        (when-some [done! ($ e/Token e)]
-          (done! (when-not (confirm-navigation? e)
-                   (.preventDefault e)))))
+#?(:node nil
+   :default
+   (e/defn HTML5-Navigation-Intents [^HTML5History history]
+     (e/client
+       (let [!idle (atom false)]
+         #_(try)
+         (when-some [^js e ($ dom/On js/window "beforeunload" identity nil nil)] ; refresh or close tab
+           (when-some [done! ($ e/Token e)]
+             (done! (when-not (confirm-navigation? e)
+                      (.preventDefault e)))))
 
-        ;; ($ OnNavigate (e/fn* [route _event]
-        ;;                  (binding [h/history history] ($ Navigate! route))))
+         ;; ($ OnNavigate (e/fn* [route _event]
+         ;;                  (binding [h/history history] ($ Navigate! route))))
 
 
-      (when-some [e ($ dom/On js/window "popstate" identity nil nil)]   ; previous and next button
-        (when-some [done! ($ e/Token e)]
-          ;; "popstate" event can't be cancelled. We are forced to detect
-          ;; navigation direction (back/forward) and to invert it. History
-          ;; must be idle during this back and forth operation to prevent a
-          ;; page flicker.
-          (when-let [curr-position (some-> e .-state .-position)]
-            (let [stack         @(-get-stack history)
-                  prev-position @(-get-position history)]
-              (reset! (-get-position history) curr-position)
-              (let [delta (h/nav-delta stack prev-position curr-position)]
-                (cond
-                  @!idle (reset! !idle false)
-                  (confirm-navigation? e) ($ OnBeforeNavigate!)
-                  :else (do (reset! !idle true)
-                            (.. js/window -history (go (- delta))))))))))
+         (when-some [e ($ dom/On js/window "popstate" identity nil nil)]   ; previous and next button
+           (when-some [done! ($ e/Token e)]
+             ;; "popstate" event can't be cancelled. We are forced to detect
+             ;; navigation direction (back/forward) and to invert it. History
+             ;; must be idle during this back and forth operation to prevent a
+             ;; page flicker.
+             (when-let [curr-position (some-> e .-state .-position)]
+               (let [stack         @(-get-stack history)
+                     prev-position @(-get-position history)]
+                 (reset! (-get-position history) curr-position)
+                 (let [delta (h/nav-delta stack prev-position curr-position)]
+                   (cond
+                     @!idle (reset! !idle false)
+                     (confirm-navigation? e) ($ OnBeforeNavigate!)
+                     :else (do (reset! !idle true)
+                               (.. js/window -history (go (- delta))))))))))
 
-      #_(catch hyperfiddle.electric.Pending _) ; temporary hack, fixes page reload on click, needs sync on dom/on, hf/branch, and Pending interaction
-      (e/watch !idle))))
+         #_(catch hyperfiddle.electric.Pending _) ; temporary hack, fixes page reload on click, needs sync on dom/on, hf/branch, and Pending interaction
+         (e/watch !idle)))))
 
 ;; (defonce html5-history-singleton (atom nil))
 
-(e/defn HTML5-History []
-  (e/client
-    #_(if-let [history @html5-history-singleton]
-      history
-      (reset! html5-history-singleton))
-    (let [history (h/html5-history)]
-      (when-not ($ HTML5-Navigation-Intents history) ; idles history while user confirms navigation
-        #?(:cljs
-           (e/input (m/observe (fn [!]
-                                 (! nil)
-                                 (let [f (fn [_e]
-                                           (reset! (h/-html5-history-get-state history) (h/html5-path)))]
-                                   (f nil)
-                                   (.addEventListener js/window "popstate" f)
-                                   #(.removeEventListener js/window "popstate" f)))))))
-      history)))
+#?(:node nil
+   :default
+   (e/defn HTML5-History []
+     (e/client
+       #_(if-let [history @html5-history-singleton]
+           history
+           (reset! html5-history-singleton))
+       (let [history (h/html5-history)]
+         (when-not ($ HTML5-Navigation-Intents history) ; idles history while user confirms navigation
+           #?(:cljs
+              (e/input (m/observe (fn [!]
+                                    (! nil)
+                                    (let [f (fn [_e]
+                                              (reset! (h/-html5-history-get-state history) (h/html5-path)))]
+                                      (f nil)
+                                      (.addEventListener js/window "popstate" f)
+                                      #(.removeEventListener js/window "popstate" f)))))))
+         history))))
 
 (e/defn Router [history BodyFn]
   (binding [h/history  history
