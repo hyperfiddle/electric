@@ -94,7 +94,7 @@
     (run! (fn [i]
             (let [^Item item (a/get item* i)]
               (a/fset item -dead true)
-              (run! #(%) ((a/fget item -ps*)))))
+              (a/set item* i nil)))
       (range (- d n) d))))
 
 (defn change! [^Ps ps diff]
