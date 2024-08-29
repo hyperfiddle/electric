@@ -1,10 +1,10 @@
-(ns hyperfiddle.electric.impl.runtime-test
+(ns hyperfiddle.electric.impl.runtime3-test
   (:require [missionary.core :as m]
-            [hyperfiddle.incseq :as i]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric.impl.lang3 :as l]
             [hyperfiddle.electric.impl.runtime3 :as r]
-            [hyperfiddle.rcf :as rcf :refer [tests %]]))
+            [hyperfiddle.rcf :as rcf :refer [tests %]])
+  #?(:cljs (:require-macros [hyperfiddle.electric.impl.runtime3-test :refer [peer]])))
 
 (defn on-diff! [cb incseq]
   ((m/reduce (fn [_ d] (cb d) nil) nil incseq)
