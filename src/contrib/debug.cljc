@@ -2,7 +2,8 @@
   #?(:cljs (:require-macros contrib.debug))
   (:require [clojure.string :as str])
   (:import #?(:clj [clojure.lang IFn IDeref])
-           [hyperfiddle.electric Failure]))
+           #_[hyperfiddle.electric Failure] ; FIXME Update to electric v3
+           ))
 
 (def ^:dynamic *dbg* true)
 
@@ -51,7 +52,7 @@
         IDeref (#?(:clj deref :cljs -deref) [_]
                  (let [v (try @it (catch #?(:clj Throwable :cljs :default) e [::ex e]))]
                    (prn nm id :transferred
-                     (if (instance? Failure v)
+                     (if false #_(instance? Failure v) ; FIXME Update to electric v3
                        (let [e (.-error v)]
                          [(type e) (ex-message e)])
                        v))
