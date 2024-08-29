@@ -32,7 +32,7 @@
 (def item-field-count (a/deffields -v -flow -ps* -dead))
 (deftype Item [state-])
 
-(def item-ps-field-count (a/deffields -stepped -cancelled -cache))
+(def item-ps-field-count (a/deffields _stepped _cancelled -cache)) ; -stepped would warn of redefinition
 
 (defn remove-item-ps [^Item item ps] (let [ps* (a/fget item -ps*)] (ps* (disj (ps*) ps))))
 
