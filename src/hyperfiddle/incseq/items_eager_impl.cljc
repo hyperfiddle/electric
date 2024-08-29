@@ -1,5 +1,6 @@
 (ns hyperfiddle.incseq.items-eager-impl
   (:require [contrib.data :refer [->box]]
+            [contrib.debug :as dbg]
             [hyperfiddle.electric.impl.array-fields :as a]
             [hyperfiddle.incseq.diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p])
@@ -18,7 +19,7 @@
           (when (not (or (a/getset state- -stepped true) cancelled?)) (step))))
   IDeref (#?(:clj deref :cljs -deref) [this]
            (a/set state- -stepped false)
-           (when (identical? ::requested (a/get state- -done))  (cleanup-then-done this))
+           (when (= ::requested (a/get state- -done))  (cleanup-then-done this))
            (let [?diff (a/getset state- -diff nil)]
              (cond (a/get state- -cancelled) (throw (Cancelled.))
                    (map? ?diff)              ?diff
@@ -34,7 +35,7 @@
 
 (defn remove-item-ps [^Item item ps] (let [ps* (a/fget item -ps*)] (ps* (disj (ps*) ps))))
 
-(defn cleanup-item-ps [ps a done] (when-not (identical? ps (a/getset a -cache ps))  (done)))
+(defn cleanup-item-ps [ps a done] (when-not (= ps (a/getset a -cache ps))  (done)))
 
 (defn ->item-ps [^Item item step done]
   (let [a (object-array item-ps-field-count)]
@@ -127,7 +128,7 @@
             (a/fset ps -diff ?in-diff)
             (when-not (a/fgetset ps -stepped true) ((.-step ps))))))))
 
-(def ^:const +initial-item-size+ 8)
+(def +initial-item-size+ 8)
 (defn flow [input]
   (fn [step done]
     (let [ps (->Ps step done (object-array ps-field-count))]
