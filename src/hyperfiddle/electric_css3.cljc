@@ -4,9 +4,8 @@
    - Partial at-rules support (only @keyframes ATM)
   "
   (:require [hyperfiddle.electric3 :as e :refer [$]]
-            ;; [hyperfiddle.electric-dom3 :as-alias dom]
-            [missionary.core :as m]
             [clojure.string :as str]
+            #?(:cljs [missionary.core :as m])
             #?(:cljs [goog.style]))
   #?(:cljs (:require-macros [hyperfiddle.electric-css3]))
   )
