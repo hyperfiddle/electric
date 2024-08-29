@@ -622,6 +622,23 @@
         _                  (item0)
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
+
+(t/deftest change-index-respects-permutation
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        _                  (q {:grow 1, :degree 2, :shrink 1, :permutation {0 1, 1 0}, :change {0 :bar}})
+        _                  (in-step)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= 0 (-> diff :change keys first)))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
 ;; missing tests
 ;; - double transfer (optional)
 ;;   - item-ps
