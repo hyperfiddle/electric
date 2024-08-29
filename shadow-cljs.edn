@@ -4,7 +4,7 @@
 
 {:builds {:test         {:target           :node-test
                          :output-to        "out/node-tests.js"
-                         :ns-regexp        "^(?!contrib.(electric-codemirror|datomic)|hyperfiddle.(api|popover|spool|spec|electric-fulcro|electric-css3|router3|electric.impl.compiler-test|electric.impl.cljs-file-to-analyze|electric.impl.runtime-test)).*"
+                         :ns-regexp        "^(?!contrib.(electric-codemirror|datomic)|hyperfiddle.(api|popover|spool|spec|electric-fulcro|electric.impl.compiler-test|electric.impl.cljs-file-to-analyze|electric.impl.runtime-test)).*"
                          :build-options    {:cache-level :off}
                          :compiler-options {:reader-features #{:node} ; allow #?(:node …, :cljs …), falls back to :cljs.
                                             :warnings {:redef-in-file false}}}
