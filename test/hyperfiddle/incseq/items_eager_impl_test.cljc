@@ -475,15 +475,44 @@
         _                   (q ::none)
         _                   (t/is (= ::none (q)))]))
 
+(t/deftest double-cancellation-stepped
+  (let [q                   (->mq)
+        _                   (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items               (spawn-ps q)
+        [_in-step _in-done] (q)
+        _                   (t/is (= :items-step (q)))
+        _                   (items)
+        _                   (t/is (= :input-cancel (q)))
+        _                   (items)
+        _                   (t/is (= :input-cancel (q)))
+        _                   (t/is (thrown? Cancelled @items))
+        _                   (t/is (= :items-done (q)))
+        _                   (q ::none)
+        _                   (t/is (= ::none (q)))]))
+
+(t/deftest double-cancellation-idle
+  (let [q                   (->mq)
+        _                   (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items               (spawn-ps q)
+        [_in-step _in-done] (q)
+        _                   (t/is (= :items-step (q)))
+        _diff               @items
+        _                   (items)
+        _                   (t/is (= :input-cancel (q)))
+        _                   (t/is (= :items-step (q)))
+        _                   (items)
+        _                   (t/is (= :input-cancel (q)))
+        _                   (t/is (thrown? Cancelled @items))
+        _                   (t/is (= :items-done (q)))
+        _                   (q ::none)
+        _                   (t/is (= ::none (q)))]))
 ;; missing tests
 ;; - double cancel before termination
 ;;   - item-ps
 ;;   - dead-item-ps
-;;   - items
 ;; - double cancel after termination
 ;;   - item-ps
 ;;   - dead-item-ps
-;;   - items
 ;; - double transfer (optional)
 ;;   - item-ps
 ;;   - dead-item-ps
