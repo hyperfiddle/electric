@@ -33,7 +33,7 @@
 
 (defn copy [x y n] #?(:clj (System/arraycopy x 0 y 0 n) :cljs (dotimes [i n] (aset y i (aget x i))))  y)
 (defn overfit [k n] (loop [k (* 2 k)] (if (>= k n) k (recur (* 2 k)))))
-(defn ensure-fits [^objects a n] (let [l (alength a)] (cond-> a (< l n) (copy (object-array (overfit l n)) l))))
+(defn ensure-fits ^objects [^objects a n] (let [l (alength a)] (cond-> a (< l n) (copy (object-array (overfit l n)) l))))
 
 (defn rot
   ([^objects a i j] (let [tmp (get a i)] (set a i (get a j) j tmp)))
