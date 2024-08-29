@@ -1,6 +1,7 @@
 (ns hyperfiddle.incseq.items-eager-impl
   (:require [contrib.data :refer [->box]]
             [contrib.debug :as dbg]
+            [clojure.set :as set]
             [hyperfiddle.electric.impl.array-fields :as a]
             [hyperfiddle.incseq.diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p])
@@ -66,21 +67,22 @@
                  (done)
                  (if (identical? cancelled (<s>))  (throw (Cancelled.))  (let [v (<s>)] (<s> this) v)))))))
 
-(defn grow! [^Ps ps {d :degree, n :grow}]
-  (a/fgetset ps -item* (a/ensure-fits (a/fget ps -item*) d))
-  (run! (fn [i]
-          (let [^Item item (->Item (object-array item-field-count))]
-            (a/fset item -ps* (->box #{}))
-            (a/set (a/fget ps -item*) i item)
-            (a/fswap ps -diff update :change assoc i
-                     (a/fset item -flow (fn [step done]
-                                          (if (a/fget item -dead)
-                                            (->dead-item-ps step done (a/fget item -v))
-                                            (let [item-ps (->item-ps item step done), ps* (a/fget item -ps*)]
-                                              (ps* (conj (ps*) item-ps))
-                                              (item-ps (a/fget item -v))
-                                              item-ps)))))))
-    (range (- d n) d)))
+(defn grow! [^Ps ps {d :degree, n :grow, p :permutation}]
+  (let [idx (set/map-invert p)]
+    (a/fgetset ps -item* (a/ensure-fits (a/fget ps -item*) d))
+    (run! (fn [i]
+            (let [^Item item (->Item (object-array item-field-count))]
+              (a/fset item -ps* (->box #{}))
+              (a/set (a/fget ps -item*) i item)
+              (a/fswap ps -diff update :change assoc (idx i i)
+                       (a/fset item -flow (fn [step done]
+                                            (if (a/fget item -dead)
+                                              (->dead-item-ps step done (a/fget item -v))
+                                              (let [item-ps (->item-ps item step done), ps* (a/fget item -ps*)]
+                                                (ps* (conj (ps*) item-ps))
+                                                (item-ps (a/fget item -v))
+                                                item-ps)))))))
+      (range (- d n) d))))
 
 (defn permute! [^Ps ps {p :permutation}]
   (let [rot* (p/decompose conj #{} p)
