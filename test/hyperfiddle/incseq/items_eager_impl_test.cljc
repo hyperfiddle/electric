@@ -5,6 +5,7 @@
    [contrib.data :refer [->box]]
    [hyperfiddle.incseq.diff-impl :as d]
    [hyperfiddle.incseq.items-eager-impl :as items]
+   [hyperfiddle.incseq.flow-protocol-enforcer :as fpe]
    [missionary.core :as m])
   (:import #?(:clj [clojure.lang ExceptionInfo IDeref IFn])
            [missionary Cancelled]))
@@ -29,12 +30,12 @@
   ([q] (spawn-ps q (->box (fn [_step _done] (q)))))
   ([q <transfer-fn>] (spawn-ps q <transfer-fn> (->box (fn [_step _done] (q :input-cancel)))))
   ([q <transfer-fn> <cancel-fn>]
-   ((items/flow (fn [step done]
-                  (q [step done])
-                  (step)
-                  (reify
-                    IFn (#?(:clj invoke :cljs -invoke) [_] ((<cancel-fn>) step done))
-                    IDeref (#?(:clj deref :cljs -deref) [_] ((<transfer-fn>) step done)))))
+   ((fpe/flow "i/items" (items/flow (fn [step done]
+                            (q [step done])
+                            (step)
+                            (reify
+                              IFn (#?(:clj invoke :cljs -invoke) [_] ((<cancel-fn>) step done))
+                              IDeref (#?(:clj deref :cljs -deref) [_] ((<transfer-fn>) step done))))))
     #(q :items-step) #(q :items-done))))
 
 (t/deftest spawn
