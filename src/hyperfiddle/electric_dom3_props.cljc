@@ -186,44 +186,9 @@ On unmount:
 #_(defmacro for-cseq [[b cseq] & body] `(e/cursor [[i# ~b] (e/diff-by first (map-indexed vector ~cseq))] ~@body))
 #_(for-cseq [x xs] ($ Foo x))
 
-(e/defn ; ^:hyperfiddle.electric.impl.lang3/print-clj-source
-  Partial ;; TODO move to electric core
-  ;; Impl is a mechanical 1 to 1 transaltion of clojure partial.
-  ;; generated code is quite large but redundant, so it gzip to 903 bytes.
-  ;; we could prune this impl to reduce code size (no clear benefit)
-  ;; We keep this impl as a proof that our lambda abstraction is correct
-  ;; We might optimise it later if there are perf issues.
-  "Takes an Electric function F and fewer than the normal arguments to F, and
-  returns a e/fn that takes a variable number of additional args. When
-  called, the returned function calls F with args + additional args."
-  ([F] F)
-  ([F arg1]
-   (e/fn
-     ([] ($ F arg1))
-     ([x] ($ F arg1 x))
-     ([x y] ($ F arg1 x y))
-     ([x y z] ($ F arg1 x y z))
-     ([x y z & args] (e/apply F arg1 x y z args))))
-  ([F arg1 arg2]
-   (e/fn
-     ([] ($ F arg1 arg2))
-     ([x] ($ F arg1 arg2 x))
-     ([x y] ($ F arg1 arg2 x y))
-     ([x y z] ($ F arg1 arg2 x y z))
-     ([x y z & args] (e/apply F arg1 arg2 x y z args))))
-  ([F arg1 arg2 arg3]
-   (e/fn
-     ([] ($ F arg1 arg2 arg3))
-     ([x] ($ F arg1 arg2 arg3 x))
-     ([x y] ($ F arg1 arg2 arg3 x y))
-     ([x y z] ($ F arg1 arg2 arg3 x y z))
-     ([x y z & args] (e/apply F arg1 arg2 arg3 x y z args))))
-  ([F arg1 arg2 arg3 & more]
-   (e/fn [& args] (e/apply F arg1 arg2 arg3 (concat more args)))))
-
 (e/defn ClassList [node classes]
   (e/client
-    ($ MapCSeq ($ Partial Clazz node) (parse-class classes))))
+    ($ MapCSeq ($ e/Partial Clazz node) (parse-class classes))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Inline Styles ;;
