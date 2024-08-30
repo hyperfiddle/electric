@@ -32,15 +32,17 @@
 (def item-field-count (a/deffields -v -flow -ps* -dead))
 (deftype Item [state-])
 
-(def item-ps-field-count (a/deffields _stepped _cancelled -cache)) ; -stepped would warn of redefinition
+(def item-ps-field-count (a/deffields _stepped _cancelled -cache -orphaned)) ; -stepped would warn of redefinition
 
 (defn remove-item-ps [^Item item ps] (let [ps* (a/fget item -ps*)] (ps* (disj (ps*) ps))))
 
 (defn cleanup-item-ps [ps a done] (when-not (= ps (a/getset a -cache ps))  (done)))
 
+(defprotocol Orphanable (orphan [_]))
+
 (defn ->item-ps [^Item item step done]
   (let [a (object-array item-ps-field-count)]
-    (a/set a -cache a, -cancelled false)
+    (a/set a -cache a, -cancelled false, -orphaned false)
     (reify
       IFn
       (#?(:clj invoke :cljs -invoke) [this]
@@ -50,12 +52,15 @@
       (#?(:clj invoke :cljs -invoke) [_ v]
         (when-not (or (= v (a/getset a -cache v)) (a/getset a -stepped true))
           (step)))
+      Orphanable (orphan [this] (a/set a -orphaned true) (when-not (a/get a -stepped) (cleanup-item-ps this a done)))
       IDeref
       (#?(:clj deref :cljs -deref) [this]
         (a/set a -stepped false)
-        (if (a/get a -cancelled)
-          (do (cleanup-item-ps this a done) (throw (Cancelled.)))
-          (a/get a -cache))))))
+        (let [v (a/get a -cache)]
+          (when (a/get a -orphaned) (cleanup-item-ps this a done))
+          (if (a/get a -cancelled)
+            (do (cleanup-item-ps this a done) (throw (Cancelled.)))
+            v))))))
 
 (let [cancelled #?(:clj (Object.) :cljs (js/Object.))]
   (defn ->dead-item-ps [step done -v]
@@ -63,6 +68,7 @@
     (let [<s> (->box -v)]
       (reify
         IFn (#?(:clj invoke :cljs -invoke) [_] (<s> cancelled))
+        Orphanable (orphan [_])
         IDeref (#?(:clj deref :cljs -deref) [this]
                  (done)
                  (if (identical? cancelled (<s>))  (throw (Cancelled.))  (let [v (<s>)] (<s> this) v)))))))
@@ -94,7 +100,8 @@
     (run! (fn [i]
             (let [^Item item (a/get item* i)]
               (a/fset item -dead true)
-              (a/set item* i nil)))
+              (a/set item* i nil)
+              (run! orphan ((a/fget item -ps*)))))
       (range (- d n) d))))
 
 (defn change! [^Ps ps diff]
