@@ -1,27 +1,6 @@
-;; * DONE Replace dom3 by dom3_efn
-;;   G: diffed both files, LGTM
-;; * DONE move event handling to separate ns
-;;   So we can think clearly
-;;   We can always merge back later
-;; * DONE Implement dom/text
-;; * DONE Implement dom/comment
-;; * DONE Implement dom/div
-;; * DONE Implement dom/div nesting
-;; * DONE Implement setting attributes
-;; * DONE Implement setting class
-;; * DONE Implement setting inline style
-;; * DONE Implement event handling
-;; WIP port dom2/Focused?
 ;; TODO port dom2/Hovered?
 ;; TODO port dom2/visibility-state
-;; TODO port dom2/system-time
-;; TODO port dom2/system-time-ms
-;; TODO polish DOM3 API
-;; TODO cleanup dom3-props
-;;   -  [ ] Move MapCSeq out
-;;   -  [ ] Move Partial out
-;; TODO test event handling in v2: port UI5 TodoMVC V2 to dom3 event api.
-;;      copy to another ns, rename $ to new and e/input to new
+;; TODO polish DOM3 API - esp. events
 
 ;;; Breaking changes:
 ;; - `dom/style` now creates a <style> element. It used to set inline CSS style onto a dom node.
@@ -39,18 +18,15 @@
   (:refer-clojure :exclude [comment time])
   (:require
    [clojure.core :as cc]
-   [contrib.assert :as ca]
-   [contrib.missionary-contrib :as mx]
+   #?(:cljs [contrib.missionary-contrib :as mx])
    [hyperfiddle.electric3 :as e :refer [$]]
-   ;; [hyperfiddle.rcf :as rcf :refer [tests]]
-   [missionary.core :as m]
-   [hyperfiddle.electric-dom3-props :as props]
    ;; [hyperfiddle.electric-dom3-events :as events]
-   [hyperfiddle.kvs :as kvs]
+   [hyperfiddle.electric-dom3-props :as props]
    [hyperfiddle.incseq :as i]
    [hyperfiddle.incseq.mount-impl :refer [mount]]
-   [hyperfiddle.incseq.perm-impl :as p]
+   #?(:cljs [hyperfiddle.kvs :as kvs])
    ;; [hyperfiddle.electric.impl.lang3 :as lang]
+   [missionary.core :as m]
    )
   #?(:cljs (:require-macros [hyperfiddle.electric-dom3])))
 
@@ -103,12 +79,6 @@
 ;;;;;;;;;;
 
 ;; NOTE L:we could implement variadic Text with a conditional on first rest and self recursion
-;; DONE decide what text should return
-;; After we decided what `element` should return
-;; - the arg passed in :: yes, the caller can discard freely
-;; - nil :: could be inconvenient if caller wants to render text and return it at the same time.
-;; - ∅   :: same inconvenience as `nil` and no added value over `nil` since caller can already discard
-;; - the dom node :: no because no other dom element does so
 (e/defn Text
   "Mount a DOM TextNode in current `node`, containing stringified `arg`. Return `arg`."
   [arg] ; ^::lang/print-clj-source
@@ -127,7 +97,6 @@
 ;; Comment ;;
 ;;;;;;;;;;;;;
 
-;; DONE what should comment return? See `Text`.
 (e/defn Comment
   "Mount a DOM Comment in current `node`, containing stringified `arg`. Return `arg`."
   [arg] ; ^::lang/print-clj-source
@@ -267,14 +236,13 @@
   (->> (perform-removals! element diff)
     (perform-reorders! element diff)))
 
-;; DONE Understand this with 100% precision.
-;; DONE split into simpler components
-;; CANCELED Generalize over any vector-like datatype.
+
+;; Why we can't generalize over any vector-like datatype:
 ;;      This impl is overspecialized to DOM's NodeList type.
-;;      G argues this could be generalized over any vector.
+;;      G argued this could be generalized over any vector.
 ;;      Pro: having a vector impl would allow us to unit test sooner.
 ;;      an extend protocol would port it to NodeList.
-;;  Cancelled because patching a vector is essentially different than patching a NodeList
+;;  Hypothesis rejected because patching a vector is essentially different than patching a NodeList
 ;;  Patching a vector is simpler:
 ;;   - turn the vector into a transient
 ;;   - grow the vector up to degree by padding it with nils
@@ -286,9 +254,7 @@
 ;;  We can't pad a NodeList with nils and we cannot reorder it before we shrink it.
 ;;  Otherwise there's a risk users might see an inconsistent DOM state.
 ;;  Also while we patch a NodeList, the manipulation API is on the Node class. So we must pass a Node,
-;;  which is not vector-like
-;; Leo says original impl is done – original in `hyperfiddle.incseq`
-;; G rewrote it into smaller, annotated bits.
+;;  which is not vector-like.
 (defn patch-nodelist
   "Take a DOM `element`, an incseq's `diff` and patch the diff over the element's
   children list (a NodeList), applying additions, replacements, removals and reordering of
@@ -523,8 +489,6 @@ input's value, use `EventListener`."
 ;; Sugar ;;
 ;;;;;;;;;;;
 
-;; DONE add remaining sugar
-
 (defmacro a [& body] (element* :a body))
 (defmacro abbr [& body] (element* :abbr body))
 (defmacro address [& body] (element* :address body))
@@ -626,5 +590,3 @@ input's value, use `EventListener`."
 (defmacro video [& body] (element* :video body))
 (defmacro wbr [& body] (element* :wbr body))
 
-;; DONE do a pass/diff over dom2 vs dom3 to see if we missed anything.
-;; DONE rename files
