@@ -1,10 +1,10 @@
-(ns hyperfiddle.electric-httpkit-adapter
+(ns hyperfiddle.electric-httpkit-adapter3
   "Provide a `wrap-electric-websocket` HTTPKit compatible middleware, starting and
   managing an Electric Server. This is a variant of
   `hyperfiddle.electric-ring-adapter` made compatible with HTTPKit."
   (:require
    [clojure.tools.logging :as log]
-   [hyperfiddle.electric-ring-adapter :as ering]
+   [hyperfiddle.electric-ring-adapter3 :as ering]
    [org.httpkit.server :as httpkit]
    [ring.websocket :as ws])
   (:import
