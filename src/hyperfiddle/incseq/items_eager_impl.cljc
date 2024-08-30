@@ -17,7 +17,7 @@
         (some-> (a/get state- -input-ps) call)
         (a/set-not= state- -done ::yes ::requested)
         (let [cancelled? (a/getset state- -cancelled true)]
-          (when (not (or (a/getset state- -stepped true) cancelled?)) (step))))
+          (when (not (or (a/getset state- -stepped true) cancelled? (= ::yes (a/get state- -done)))) (step))))
   IDeref (#?(:clj deref :cljs -deref) [this]
            (a/set state- -stepped false)
            (when (= ::requested (a/get state- -done))  (cleanup-then-done this))
