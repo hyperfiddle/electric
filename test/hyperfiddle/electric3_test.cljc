@@ -347,7 +347,7 @@
     (with ((l/single {} (tap (do (tap :a) (tap (e/watch !x))))) tap tap)
                                         ; Currently, do is not monadic sequence.
                                         ; It's an incremental computation so only rerun what changed in our opinion
-      (hash-set % %) := #{:a 0}
+      (hash-set % %) := #{:a 0} ; order is not guaranteed
       % := 0
       (swap! !x inc)
                                         ; no :a
@@ -1436,17 +1436,13 @@
                        (catch Throwable t (prn t)))) tap tap)
     (ex-message %) := "You called Named with 1 argument but it only supports 2"))
 
-;; TODO e/partial
-(skip "Partial application"
+(tests "Partial application"
   (with ((l/single {}
-           (tap (new (e/partial 0 (e/fn [] :a)) ))
-           (tap (new (e/partial 1 (e/fn [a] a) :a)))
-           (tap (new (e/partial 2 (e/fn [a b] [a b]) :a) :b))
-           (tap (new (e/partial 4 (e/fn [a b c d] [a b c d]) :a :b) :c :d))) tap tap)
-    % := :a
-    % := :a
-    % := [:a :b]
-    % := [:a :b :c :d]))
+           (tap [($ ($ e/Partial (e/fn [] :a)))
+                 ($ ($ e/Partial (e/fn [a] a) :b))
+                 ($ ($ e/Partial (e/fn [a b] [a b]) :a) :b)
+                 ($ ($ e/Partial (e/fn [a b c d] [a b c d]) :a :b) :c :d)])) tap tap)
+    % := [:a :b [:a :b] [:a :b :c :d]]))
 
 (e/defn Factorial-gen [Rec]
   (e/fn [n]
