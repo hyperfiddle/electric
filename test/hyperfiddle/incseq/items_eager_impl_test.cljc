@@ -650,6 +650,17 @@
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
+(t/deftest input-must-be-initialized
+  (let [q                  (->mq)
+        items ((items/flow (fn [step done]
+                             (q [step done])
+                             (reify
+                               IFn (#?(:clj invoke :cljs -invoke) [_] (q :input-cancel))
+                               IDeref (#?(:clj deref :cljs -deref) [_] (q)))))
+               #(q :items-step) #(q :items-done))
+        _ (t/is (= :input-cancel (q)))
+        _ (t/is (thrown? ExceptionInfo @items))]))
+
 ;; missing tests
 ;; - double transfer (optional)
 ;;   - item-ps
