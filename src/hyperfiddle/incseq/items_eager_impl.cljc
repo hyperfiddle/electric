@@ -8,7 +8,7 @@
   (:import #?(:clj [clojure.lang IDeref IFn])
            [missionary Cancelled]))
 
-(def ps-field-count (a/deffields -stepped -cancelled -go -input-ps -done -diff -item*))
+(def ps-field-count (a/deffields -stepped -cancelled -going -input-ps -done -diff -item*))
 
 (declare cleanup-then-done)
 (defn call [f] (f))
@@ -117,16 +117,16 @@
 
 (defn transfer-input [^Ps ps]
   (loop [diff (a/fgetset ps -diff {:change {}})]
-    (a/fset ps -go true)
-    (let [?in-diff (try @(a/fget ps -input-ps) (catch #?(:clj Throwable :cljs :default) e e))]
-      (if (map? ?in-diff)
+    (let [going (a/fgetset ps -going true)
+          ?in-diff (try @(a/fget ps -input-ps) (catch #?(:clj Throwable :cljs :default) e e))]
+      (if (and (map? ?in-diff) (not going))
         (do (grow! ps ?in-diff)
             (permute! ps ?in-diff)
             (shrink! ps ?in-diff)
             (change! ps ?in-diff)
             (let [newdiff (a/fset ps -diff (cond->> (assoc ?in-diff :change (:change (a/fget ps -diff)))
                                              diff (d/combine diff)))]
-              (if (a/fgetset ps -go false)
+              (if (a/fgetset ps -going false)
                 (case (a/fget ps -stepped)
                   false (when (needed-diff? newdiff) (a/fset ps -stepped true) ((.-step ps)))
                   true nil
@@ -134,17 +134,17 @@
                 (recur newdiff))))
         (do (some-> (a/fget ps -input-ps) call)
             (a/fset-not= ps -done ::yes ::requested)
-            (a/fset ps -diff ?in-diff)
+            (a/fset ps -diff (if going (ex-info "uninitialized input process" {}) ?in-diff))
             (when-not (a/fgetset ps -stepped true) ((.-step ps))))))))
 
 (def +initial-item-size+ 8)
 (defn flow [input]
   (fn [step done]
     (let [ps (->Ps step done (object-array ps-field-count))]
-      (a/fset ps -item* (object-array +initial-item-size+), -stepped nil, -go true, -done ::no)
+      (a/fset ps -item* (object-array +initial-item-size+), -stepped nil, -going true, -done ::no)
       (a/fset ps -input-ps (input
-                             #(when-not (a/fgetset ps -go false) (transfer-input ps))
-                             #(if (or (a/fget ps -stepped) (a/fget ps -go))
+                             #(when-not (a/fgetset ps -going false) (transfer-input ps))
+                             #(if (or (a/fget ps -stepped) (a/fget ps -going))
                                 (a/fset ps -done ::requested)
                                 (cleanup-then-done ps))))
       (transfer-input ps) ps)))
