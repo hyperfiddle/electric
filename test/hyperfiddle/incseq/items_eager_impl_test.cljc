@@ -521,6 +521,19 @@
         _                   (q ::none)
         _                   (t/is (= ::none (q)))]))
 
+(t/deftest cancel-after-done-normally
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [_in-step in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        _diff              @items
+        _                  (in-done)
+        _                  (t/is (= :items-done (q)))
+        _                  (items)
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
 (t/deftest item-ps-double-cancellation-idle
   (let [q                   (->mq)
         _                   (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
