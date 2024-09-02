@@ -6,14 +6,14 @@
             [hyperfiddle.incseq.diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p])
   (:import #?(:clj [clojure.lang IDeref IFn])
-           #?(:clj [java.util.concurrent.atomic AtomicInteger AtomicBoolean])
+           #?(:clj [java.util.concurrent.atomic AtomicLong AtomicBoolean])
            [missionary Cancelled]))
 
 (def ps-field-count (a/deffields -stepped -cancelled -input-ps -done -diff -item*))
 
 (declare cleanup-then-done)
 (defn call [f] (f))
-(deftype Ps [step done going state-]
+(deftype Ps [step done going stepped state-]
   IFn (#?(:clj invoke :cljs -invoke) [_]
         (some-> (a/get state- -input-ps) call)
         (a/set-not= state- -done ::yes ::requested)
@@ -29,11 +29,11 @@
 (defn cleanup-then-done [^Ps ps]
   (a/fset ps -input-ps nil, -done ::yes, -item* nil)
   ((.-done ps)))
-(defn going [^Ps ps] #?(:clj (let [^AtomicInteger i (.-going ps)] (.longValue i))
+(defn going [^Ps ps] #?(:clj (let [^AtomicLong i (.-going ps)] (.longValue i))
                         :cljs (.-going ps)))
-(defn ++going [^Ps ps] #?(:clj (let [^AtomicInteger i (.-going ps)] (.incrementAndGet i))
+(defn ++going [^Ps ps] #?(:clj (let [^AtomicLong i (.-going ps)] (.incrementAndGet i))
                           :cljs (set! (.-going ps) (inc (.-going ps)))))
-(defn --going [^Ps ps] #?(:clj (let [^AtomicInteger i (.-going ps)] (.getAndDecrement i))
+(defn --going [^Ps ps] #?(:clj (let [^AtomicLong i (.-going ps)] (.getAndDecrement i))
                           :cljs (set! (.-going ps) (dec (.-going ps)))))
 
 (def item-field-count (a/deffields -v -flow -ps* -dead))
@@ -120,7 +120,7 @@
       nil (:change diff))))
 
 (defn needed-diff? [d]
-  (or (seq (:permutation d)) (pos? (:grow d)) (pos? (:shrink d)) (seq (:freeze d))))
+  (or (= (d/empty-diff 0) d) (seq (:permutation d)) (pos? (:grow d)) (pos? (:shrink d)) (seq (:freeze d))))
 
 (defn transfer-input [^Ps ps]
   (loop [diff (a/fgetset ps -diff {:change {}})]
@@ -134,10 +134,8 @@
             (let [newdiff (a/fset ps -diff (cond->> (assoc ?in-diff :change (:change (a/fget ps -diff)))
                                              diff (d/combine diff)))]
               (if (zero? (going ps))
-                (case (a/fget ps -stepped)
-                  false (when (needed-diff? newdiff) (a/fset ps -stepped true) ((.-step ps)))
-                  true nil
-                  nil (do (a/fset ps -stepped true) ((.-step ps))))
+                (when (and (not (a/fget ps -stepped)) (needed-diff? newdiff))
+                  (a/fset ps -stepped true) ((.-step ps)))
                 (recur newdiff))))
         (do (some-> (a/fget ps -input-ps) call)
             (a/fset-not= ps -done ::yes ::requested)
@@ -147,8 +145,9 @@
 (def +initial-item-size+ 8)
 (defn flow [input]
   (fn [step done]
-    (let [ps (->Ps step done #?(:clj (AtomicInteger. -1) :cljs -1) (object-array ps-field-count))]
-      (a/fset ps -item* (object-array +initial-item-size+), -stepped nil, -done ::no)
+    (let [ps (->Ps step done #?(:clj (new AtomicLong -1) :cljs -1) #?(:clj (new AtomicBoolean false) :cljs false)
+               (object-array ps-field-count))]
+      (a/fset ps -item* (object-array +initial-item-size+), -stepped false, -done ::no)
       (a/fset ps -input-ps (input
                              #(when (= 1 (++going ps)) (transfer-input ps))
                              #(if (or (pos? (going ps)) (a/fget ps -stepped))
