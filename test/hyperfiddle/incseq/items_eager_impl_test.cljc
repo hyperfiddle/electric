@@ -450,7 +450,7 @@
   (let [q                   (->mq)
         <transfer-fn>       (->box (consume-calling [(fn [_ _] (d/empty-diff 0))
                                                      (fn [_ done] (done) (throw (ex-info "boom" {})))]))
-        <cancel-fn>         (->box (fn [step _done] (step)))
+        <cancel-fn>         (->box (fn [_step _done]))
         items               (spawn-ps q <transfer-fn> <cancel-fn>)
         [_in-step _in-done] (q)
         _                   (t/is (= :items-step (q)))
