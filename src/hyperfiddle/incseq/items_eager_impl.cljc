@@ -34,7 +34,7 @@
 
 (def item-ps-field-count (a/deffields _stepped _cancelled -cache -orphaned)) ; -stepped would warn of redefinition
 
-(defn remove-item-ps [^Item item ps] (let [ps* (a/fget item -ps*)] (ps* (disj (ps*) ps))))
+(defn remove-item-ps [^Item item ps] (swap! (a/fget item -ps*) disj ps))
 
 (defn cleanup-item-ps [ps a done] (when-not (= ps (a/getset a -cache ps))  (done)))
 
@@ -78,14 +78,14 @@
     (a/fgetset ps -item* (a/ensure-fits (a/fget ps -item*) d))
     (run! (fn [i]
             (let [^Item item (->Item (object-array item-field-count))]
-              (a/fset item -ps* (->box #{}))
+              (a/fset item -ps* (atom #{}))
               (a/set (a/fget ps -item*) i item)
               (a/fswap ps -diff update :change assoc (idx i i)
                        (a/fset item -flow (fn [step done]
                                             (if (a/fget item -dead)
                                               (->dead-item-ps step done (a/fget item -v))
-                                              (let [item-ps (->item-ps item step done), ps* (a/fget item -ps*)]
-                                                (ps* (conj (ps*) item-ps))
+                                              (let [item-ps (->item-ps item step done)]
+                                                (swap! (a/fget item -ps*) conj item-ps)
                                                 (item-ps (a/fget item -v))
                                                 item-ps)))))))
       (range (- d n) d))))
@@ -101,7 +101,7 @@
             (let [^Item item (a/get item* i)]
               (a/fset item -dead true)
               (a/set item* i nil)
-              (run! orphan ((a/fget item -ps*)))))
+              (run! orphan @(a/fget item -ps*))))
       (range (- d n) d))))
 
 (defn change! [^Ps ps diff]
@@ -109,7 +109,7 @@
     (reduce-kv (fn [_ i v]
                  (let [^Item item (a/get item* i)]
                    (a/fset item -v v)
-                   (run! (fn [item-ps] (item-ps v)) ((a/fget item -ps*)))))
+                   (run! (fn [item-ps] (item-ps v)) @(a/fget item -ps*))))
       nil (:change diff))))
 
 (defn needed-diff? [d]
