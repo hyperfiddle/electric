@@ -662,6 +662,24 @@
         _ (t/is (= :input-cancel (q)))
         _ (t/is (thrown? ExceptionInfo @items))]))
 
+(t/deftest input-transfer-decrements-on-non-needed-diff
+  (let [q                  (->mq)
+        _                  (q (d/empty-diff 0)) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        _                  (t/is (= (d/empty-diff 0) @items))
+        _                  (q (d/empty-diff 0))
+        _                  (in-step)
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo}))
+        _                  (in-step)
+        _                  (t/is (= (-> (d/empty-diff 1) (assoc :grow 1) (dissoc :change)) (dissoc @items :change)))
+        _                  (t/is (= :items-step (q)))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
 ;; missing tests
 ;; - double transfer (optional)
 ;;   - item-ps
