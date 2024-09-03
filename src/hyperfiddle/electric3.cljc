@@ -203,6 +203,14 @@ this tuple. Returns the concatenation of all body results as a single vector.
               ~(rec bindings)) `(do ~@body)))
        (seq bindings))))
 
+(defmacro with-cycle
+  "evaluates body with symbol s bound to the previous result of the body evaluation.
+  the first evaluation binds s to i."
+  {:style/indent 1}
+  [[s i] & body]
+  `(let [a# (atom ~i) ~s (watch a#)]
+     (reset! a# (do ~@body))))
+
 ;; mklocal = declare lexical slot
 ;; bindlocal = bind lexical slot to value by name
 ;; See compiler walkthrough: electric/impl/lang_3_walkthrough.md
