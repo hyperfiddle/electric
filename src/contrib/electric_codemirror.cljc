@@ -1,11 +1,11 @@
 (ns contrib.electric-codemirror
-  #?(:cljs (:require-macros contrib.electric-codemirror))
+  ;; #?(:cljs (:require-macros contrib.electric-codemirror))
   (:require
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
     #?(:clj clojure.tools.logging)
-    [hyperfiddle.electric :as e]
-    [hyperfiddle.electric-dom2 :as dom]
+    [hyperfiddle.electric3 :as e :refer [$]]
+    [hyperfiddle.electric-dom3 :as dom]
     [missionary.core :as m]
     [hyperfiddle.rcf :as rcf :refer [% tap tests with]]
     #?@(:cljs [["@codemirror/language" :as language]
@@ -86,9 +86,9 @@
 
 (e/defn CodeMirror [props readf writef controlled-value]
   (e/client
-    (when-some [[!cm >cm-v] (new (codemirror props))] ; stable through cv changes
+    (when-some [[!cm >cm-v] (e/input (codemirror props))] ; stable through cv changes
       (some-> !cm (cm-set! (writef controlled-value))) ; guard "when true" bug causing NPE in certain tutorials
-      (doto (new (m/relieve {} (m/reductions #(readf %2) controlled-value >cm-v))) ; reduction rebuilt if cv changes, which is fine
+      (doto (e/input (m/relieve {} (m/reductions #(readf %2) controlled-value >cm-v))) ; reduction rebuilt if cv changes, which is fine
         #_(as-> $ (println 'cm-v (hash $)))))))
 
 (defn read-edn [edn-str]
@@ -99,8 +99,8 @@
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 
-(e/defn edn [v] (new CodeMirror {:parent dom/node} read-edn write-edn v))
-(e/defn string [v] (new CodeMirror {:parent dom/node} identity identity v))
+(e/defn edn [v] ($ CodeMirror {:parent dom/node} read-edn write-edn v))
+(e/defn string [v] ($ CodeMirror {:parent dom/node} identity identity v))
 
 #_
 (tests "cm/string"
