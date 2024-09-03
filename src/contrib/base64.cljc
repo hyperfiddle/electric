@@ -1,25 +1,19 @@
 (ns contrib.base64
-  (:require #?(:cljs [goog.crypt.base64 :as base64])
-            [clojure.set :refer [map-invert]]
+  (:require [clojure.set :refer [map-invert]]
             clojure.string
-            [hyperfiddle.rcf :refer [tests]])
+            [hyperfiddle.rcf :refer [tests]]
+            #?(:cljs [goog.crypt.base64 :as base64]))
   #?(:clj (:import (java.util Base64))))
 
-#?(:cljs
-   (when (= *target* "nodejs")
-     (def base64 (js/require "base-64"))))
-
 (defn base64-encode [s]
-  #?(:clj (.encodeToString (Base64/getEncoder) (.getBytes s))
-     :cljs (if (= *target* "nodejs")
-             (.encode base64 s)
-             (base64/encodeString s))))
+  #?(:clj  (.encodeToString (Base64/getEncoder) (.getBytes s))
+     :cljs (base64/encodeString s)
+     :node (.toString (js/Buffer.from s) "base64")))
 
 (defn base64-decode [s]
-  #?(:clj (String. (.decode (Base64/getDecoder) (.getBytes s)))
-     :cljs (if (= *target* "nodejs")
-             (.decode base64 s)
-             (base64/decodeString s))))
+  #?(:clj  (String. (.decode (Base64/getDecoder) (.getBytes s)))
+     :cljs (base64/decodeString s)
+     :node (.toString (js/Buffer.from s "base64"))))
 
 (tests
   (base64-encode "hello world") := "aGVsbG8gd29ybGQ="
