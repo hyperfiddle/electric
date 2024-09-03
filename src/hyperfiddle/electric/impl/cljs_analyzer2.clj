@@ -249,7 +249,7 @@
   (when-not (find-var a sym ns$)
     (-> (cond
           (simple-symbol? sym)
-          (or (do (safe-require ns$)  (some-> (find-ns ns$) (find-ns-var sym)))
+          (or (some-> (find-ns ns$) (find-ns-var sym))
             (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]  (safe-requiring-resolve ref))
             (when-some [ref (-> a ::nses (get ns$) ::refer-macros (get sym))]  (safe-requiring-resolve ref))
             (when-not (get (-> a ::nses (get ns$) ::excludes) sym)  (find-ns-var (find-ns 'clojure.core) sym)))
