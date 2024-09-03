@@ -15,7 +15,7 @@ HYPERFIDDLE_ELECTRIC_BUILD=`git describe --tags --long --always --dirty`
 clojure -T:build jar :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 clojure -T:build install :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 # To test in electric-starter-app:
-clj -A:dev -X dev/-main :replace-deps '{:deps {com.hyperfiddle/electric {:mvn/version "'$HYPERFIDDLE_ELECTRIC_BUILD'"}}}'
+clj -A:dev -X dev/-main -Sdeps '{:deps {com.hyperfiddle/electric {:mvn/version "'$HYPERFIDDLE_ELECTRIC_BUILD'"}}}'
 # No way to test remote clojars version without rm in .m2/repositories/com/hyperfiddle
 # Optional: test electric-starter-app with local maven install
 env $(cat .env | xargs) clojure -T:build deploy :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
