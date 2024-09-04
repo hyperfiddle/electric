@@ -211,6 +211,8 @@ this tuple. Returns the concatenation of all body results as a single vector.
   `(let [a# (atom ~i) ~s (watch a#)]
      (reset! a# (do ~@body))))
 
+(hyperfiddle.electric3/defn Count [xs] (-> xs pure i/count input))
+
 ;; mklocal = declare lexical slot
 ;; bindlocal = bind lexical slot to value by name
 ;; See compiler walkthrough: electric/impl/lang_3_walkthrough.md
