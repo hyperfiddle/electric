@@ -443,6 +443,12 @@ input's value, use `EventListener`."
   ([event-type f init-v opts]      ($ On node event-type f        init-v opts))
   ([node event-type f init-v opts] (e/client (e/input (m/reductions {} init-v (listen node event-type ((e/capture-fn) f) opts))))))
 
+(defmacro on ; experimental - auto-sites the client callback to prevent forgetting in neutral expressions
+  ([event-type]               `($ On ~event-type (e/client identity)))
+  ([event-type f]             `($ On ~event-type (e/client ~f) nil))
+  ([event-type f init-v]      `($ On ~event-type (e/client ~f) ~init-v {}))
+  ([event-type f init-v opts] `($ On ~event-type (e/client ~f) ~init-v ~opts)))
+
 (defn fork
   ([flow] (fork ##Inf flow))
   ([n flow]
