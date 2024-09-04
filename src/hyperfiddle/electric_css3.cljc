@@ -126,16 +126,9 @@
           (str/replace-first selectorB "&" "")
           (str " " selectorB))))))
 
-(def scope "")
-
-(defn scoped [scope selector]
-  (if-not (empty? scope)
-    (concat-selectors (str "." scope)  selector)
-    selector))
-
 (defmacro rule [selector & declarations]
   (let [[selector declarations] (if (map? selector) ["&" (cons selector declarations)] [selector declarations])]
-    `(binding [selector (scoped scope (concat-selectors selector ~selector))]
+    `(binding [selector (concat-selectors selector ~selector)]
        ~@(map #(rule* `hyperfiddle.electric-dom3/node `selector %) (filter map? declarations))
        ~@(remove map? declarations))))
 
@@ -187,11 +180,14 @@
   `(binding [hyperfiddle.electric-dom3/node (e/input (identity stylesheet<))]
      ~@body))
 
+(defn scoped-class [] (munge (gensym "class_")))
+
 (defmacro scoped-style [& body]
-  `(binding [hyperfiddle.electric-dom3/node (e/input (identity stylesheet<))
-             scope (str (munge (gensym "class_")))]
-     ~@body
-     scope))
+  `(let [scope# (scoped-class)] ; TODO revisit if unique class should be generated at runtime or compile time
+     (binding [hyperfiddle.electric-dom3/node (e/input (identity stylesheet<))
+               selector (str "." scope#)]
+       ~@body
+       scope#)))
 
 (defn grid-template
   "Convenient way to build a string compatible with CSS grid-template rule.
