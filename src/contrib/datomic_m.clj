@@ -1,4 +1,4 @@
-(ns contrib.datomic-m
+(ns ^:no-doc contrib.datomic-m
   "datomic compatibility facade"
   (:require contrib.deptector
             [clojure.tools.logging :as log]

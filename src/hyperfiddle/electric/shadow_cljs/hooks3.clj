@@ -1,4 +1,4 @@
-(ns hyperfiddle.electric.shadow-cljs.hooks3
+(ns ^:no-doc hyperfiddle.electric.shadow-cljs.hooks3
   (:require [shadow.build.compiler]
             [hyperfiddle.electric.impl.lang3 :as lang]
             [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]))

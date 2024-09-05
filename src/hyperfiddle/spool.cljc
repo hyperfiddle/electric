@@ -1,4 +1,4 @@
-(ns hyperfiddle.spool
+(ns ^:no-doc hyperfiddle.spool
   #?(:cljs (:require-macros hyperfiddle.spool))
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.incseq :as i]

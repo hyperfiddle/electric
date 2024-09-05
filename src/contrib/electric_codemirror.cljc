@@ -1,4 +1,4 @@
-(ns contrib.electric-codemirror
+(ns ^:no-doc contrib.electric-codemirror
   ;; #?(:cljs (:require-macros contrib.electric-codemirror))
   (:require
     [clojure.edn :as edn]

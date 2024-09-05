@@ -1,4 +1,4 @@
-(ns hyperfiddle.popover
+(ns ^:no-doc hyperfiddle.popover
   #?(:cljs (:require-macros hyperfiddle.popover))
   (:import [hyperfiddle.electric Pending])
   (:require [hyperfiddle.api :as hf]

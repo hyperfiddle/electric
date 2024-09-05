@@ -1,4 +1,4 @@
-(ns contrib.datomic-peer-m
+(ns ^:no-doc contrib.datomic-peer-m
   (:import (datomic.db Datum))
   (:require [clojure.core.protocols :as ccp :refer [nav]]
             [clojure.datafy :refer [datafy]]

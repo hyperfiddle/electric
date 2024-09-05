@@ -1,4 +1,4 @@
-(ns contrib.datomic-contrib
+(ns ^:no-doc contrib.datomic-contrib
   (:require [contrib.data :refer [index-by unqualify]]
             [contrib.datomic-m :as d]
             [hyperfiddle.electric :as e] ; ?

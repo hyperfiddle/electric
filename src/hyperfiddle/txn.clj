@@ -1,4 +1,4 @@
-(ns hyperfiddle.txn
+(ns ^:no-doc hyperfiddle.txn
   (:require [contrib.datomic-contrib-2020 :as dx]
             [clojure.set :as set]
             [hyperfiddle.api :as hf]

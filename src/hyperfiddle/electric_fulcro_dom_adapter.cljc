@@ -1,5 +1,5 @@
 ;; TODO Port to v3 if needed
-(ns hyperfiddle.electric-fulcro-dom-adapter
+(ns ^:no-doc hyperfiddle.electric-fulcro-dom-adapter
   (:require [hyperfiddle.electric :as e]
             [hyperfiddle.electric-dom2]
             #?(:cljs [goog.object :as gobj])
