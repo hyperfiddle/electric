@@ -91,7 +91,7 @@
   "Mount a DOM TextNode in current `node` for each argument in `args`.
    Each TextNode will contain the stringified argument.
    Return last argument as in `do`."
-  [& args] `(do ~@(for [arg args] `($ Text ~arg))))
+  [& args] `(do ~@(for [arg args] `($ Text ~arg)) (e/amb)))
 
 ;;;;;;;;;;;;;
 ;; Comment ;;
