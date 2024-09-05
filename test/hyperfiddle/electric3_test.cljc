@@ -2278,3 +2278,24 @@
 (tests "uppercase call convention on locals"
   (with ((l/single {} (let [X (e/fn [] 1)] (tap (X)))) tap tap)
     % := 1))
+
+(tests
+  "e/Task without an initial value"
+  (def task (m/sp (m/? (m/sleep 100 ::done))))
+  (with ((l/single {} (tap (e/Task task))) tap tap)
+    % := ::done))
+
+(tests
+  "e/Task with an initial value"
+  (def task (m/sp (m/? (m/sleep 100 ::done))))
+  (with ((l/single {} (tap (e/Task task ::init))) tap tap)
+    % := ::init
+    % := ::done))
+
+(tests
+  "e/Task with a failing task"
+  (def task (m/sp (m/? (m/sleep 100)) (throw (ex-info "task crashed" {}))))
+  (with ((l/single {} (tap (e/Task task ::init))) tap tap)
+    % := ::init
+    (ex-message %) := "task crashed" ; TODO exception value comes from l/single's crash callback (last tap). Will fail when we introduce try/catch.
+    ))
