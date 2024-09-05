@@ -72,3 +72,9 @@
   (macroexpand-1 '(maybe-resolve user.demo-reagent-interop/ReagentInterop))
   (macroexpand-1 '(maybe-resolve user.demo-reagent-interop/ReagentInterop))
   )
+
+(defn maybe-resolve-class "Return the Class object named by `full-class-name` or nil if the corresponding class is not available on classpath."
+  [full-class-name]
+  (try (Class/forName full-class-name)
+       (catch ClassNotFoundException ex
+         nil)))
