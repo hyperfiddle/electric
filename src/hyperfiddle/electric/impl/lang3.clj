@@ -984,7 +984,7 @@
      (emit u))))
 
 (defn wrap-foreign-for-electric
-  ([ts] (wrap-foreign-for-electric ts gensym))
+  ([ts] (wrap-foreign-for-electric ts #(gensym (str/replace % #"/" "_"))))
   ([ts gen]
    (letfn [(->node [u] (ts/->node ts (ts/find1 ts ::u u)))
            (e->u [e] (::u (ts/->node ts e)))
