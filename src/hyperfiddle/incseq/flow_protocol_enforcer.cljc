@@ -21,7 +21,8 @@
                   (if (first (swap-vals! !should-step? not)) (cannot-throw nm step) (violated nm "double step")))
            done (fn [] (if (first (reset-vals! !done? true)) (violated nm "done called twice") (cannot-throw nm done)))
            cancel (try (input-flow step done)
-                       (catch #?(:clj Throwable :cljs :default) e (violated "flow process creation threw" e)))]
+                       (catch #?(:clj Throwable :cljs :default) e (violated nm "flow process creation threw" e)))]
+       (when (= ::init @!should-step?) (violated nm "missing initial step"))
        (reify
          IFn (#?(:clj invoke :cljs -invoke) [_] (cannot-throw nm cancel))
          IDeref (#?(:clj deref :cljs -deref) [_]
