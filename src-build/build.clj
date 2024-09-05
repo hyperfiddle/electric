@@ -37,7 +37,7 @@
   (let [jar-file (format "target/%s-%s.jar" (name lib) version)
         opts (assoc defaults
                :version    version
-               :basis      basis #_basis-with-cljdoc-provided-deps
+               :basis      basis-with-cljdoc-provided-deps
                :class-dir  class-dir
                :jar-file   jar-file
                :scm        {:tag version}
