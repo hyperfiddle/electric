@@ -25,3 +25,42 @@ env $(cat .env | xargs) clojure -T:build deploy :version '"'$HYPERFIDDLE_ELECTRI
 - `CLOJARS_PASSWORD` is not your account password, but rather a genareted token granting
 deploy rights to the target coordinates.
 - idea: how to run tests cli? (No need, deployed artifacts already passed CI)
+
+
+# About cljdoc
+
+Cljdoc always try to generate documentation for all clojars deployments.
+It will load and analyze all namespaces on the classpath.
+Namespaces tagged with ^:no-doc will not generate documentation, but they will still be loaded.
+
+Cljdoc requires:
+- that all namespaces on the classpath be loadable (as per clojure.core/require),
+- that all eventual dependencies required in classpath be listed in pom.xml.
+
+Consequently, dependencies for all namespaces on classpath must be listed in the
+**production** release's pom. This is inconvenient because we ship optional
+namespaces in the prod artifact, like `contrib.datomic` and
+`contrib.missionary-core-async` but we don't want to force a dependency on
+datomic or core.async onto users.
+
+To mitigate this issue, [cljdoc advises to list optional dependencies in our
+pom.xml as `<scope>provided</scope>`](https://github.com/cljdoc/cljdoc/blob/94cbf3c357695a5a32e3c81a5f2bcdb77b3e2436/doc/userguide/for-library-authors.adoc#getting-dependencies-right),
+BUT `clojure.deps` and `tools.build` do not support scopes.
+Cljdoc advises to manually edit our pom.xml. We find this too error-prone to be acceptable.
+
+We adapted our build script to generate the correct pom.xml. The generated pom
+will production deps + all deps listed under the `:cljdoc-extra-deps` alias.
+These deps should be tagged with `:pom/scope "provided"`:
+
+```clojure
+{:aliases {:cljdoc-extra-deps {:extra-deps {org.clojure/core.async {:mvn/version "1.6.681", :pom/scope "provided"}}}}}
+```
+
+`:pom/scope` is not supported by clojure.deps nor tools.build. Our build script interprets it.
+
+## cljdoc and clojurescript analyzis
+
+cljdoc analyzes cljs and cljc files with cljs.analyzer to detect all defs after
+macroexpansion. As of today, cljdoc fails to analyze files containing e/defns.
+For now cljdoc do not list cljs namespaces and cljs-only vars.
+

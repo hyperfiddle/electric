@@ -17,17 +17,28 @@
            :test  {:extra-paths ["test"]
                    :exec-fn     cognitect.test-runner.api/test
                    :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true" "-XX:-OmitStackTraceInFastThrow"] ;; https://archive.md/NNt9r
-                   :extra-deps  {org.clojure/core.async               {:mvn/version "1.6.681", :hyperfiddle.electric.cljdoc/include? true} ; for interop helpers only
+                   :extra-deps  {org.clojure/core.async               {:mvn/version "1.6.681"} ; for interop helpers only
                                  ch.qos.logback/logback-classic       {:mvn/version "1.4.14"}
                                  io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git" :sha "cc75980b43011773162b485f46f939dc5fba91e4"}
                                  org.clojure/test.check               {:mvn/version "1.1.1"}
-                                 com.datomic/local                    {:mvn/version "1.0.285", :hyperfiddle.electric.cljdoc/include? true} ; for hyperfiddle.transaction-test
-                                 com.datomic/client-cloud             {:mvn/version "1.0.130", :hyperfiddle.electric.cljdoc/include? true} ; for hyperfiddle.transaction-test
+                                 com.datomic/local                    {:mvn/version "1.0.285"} ; for hyperfiddle.transaction-test
+                                 com.datomic/client-cloud             {:mvn/version "1.0.130"} ; for hyperfiddle.transaction-test
                                  thheller/shadow-cljs                 {:mvn/version "2.26.2"} ; for hooks tests
-                                 ring/ring-core                       {:mvn/version "1.11.0", :hyperfiddle.electric.cljdoc/include? true}
-                                 http-kit/http-kit                    {:mvn/version "2.5.1", :hyperfiddle.electric.cljdoc/include? true}
+                                 ring/ring-core                       {:mvn/version "1.11.0"}
+                                 http-kit/http-kit                    {:mvn/version "2.5.1"}
                                  }}
            :build {:extra-paths ["src-build"]
                    :ns-default  build
                    :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.9.6"}
-                                 slipset/deps-deploy           {:mvn/version "0.2.2"}}}}}
+                                 slipset/deps-deploy           {:mvn/version "0.2.2"}}}
+           ;; cljdoc loads all namespaces (even flagged ^:no-doc) and requires all deps to be listed in pom.xml
+           ;; Our build script will include the following deps.
+           ;; :pom/scope "provided" means it's up to the artifact's consumer to decide if they actually want
+           ;; to load the dep at runtime. :pom/scope is not part of standard clojure deps or tools.build, our
+           ;; build script interprets it.
+           :cljdoc-extra-deps
+           {:extra-deps {org.clojure/core.async   {:mvn/version "1.6.681", :pom/scope "provided"}
+                         com.datomic/local        {:mvn/version "1.0.285", :pom/scope "provided"}
+                         com.datomic/client-cloud {:mvn/version "1.0.130", :pom/scope "provided"}
+                         ring/ring-core           {:mvn/version "1.11.0", :pom/scope "provided"}
+                         http-kit/http-kit        {:mvn/version "2.5.1", :pom/scope "provided"}}}}}

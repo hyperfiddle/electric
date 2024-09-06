@@ -3,7 +3,6 @@
   (:require [clojure.data.xml :as xml]
             [clojure.tools.build.api :as b]
             [clojure.tools.build.tasks.write-pom :as wp]
-            [clojure.tools.deps.util.maven :as maven]
             [deps-deploy.deps-deploy :as dd]))
 
 (def lib 'com.hyperfiddle/electric)
@@ -15,10 +14,7 @@
 (defn extend-basis [basis deps]
   (b/create-basis (update (:basis-config basis) :extra merge {:deps deps})))
 
-(defn cljdoc-deps [deps]
-  (into {} (filter (fn [[_k v]] (contains? v :hyperfiddle.electric.cljdoc/include?)) deps)))
-
-(def basis-with-cljdoc-provided-deps (->> (alias-deps basis :test) cljdoc-deps (extend-basis basis)))
+(def basis-with-cljdoc-provided-deps (extend-basis basis (alias-deps basis :cljdoc-extra-deps)))
 
 (def class-dir "target/classes")
 
@@ -29,9 +25,10 @@
 (xml/alias-uri 'pom "http://maven.apache.org/POM/4.0.0")
 
 (let [original @#'wp/to-dep]
-  (defn to-dep [[lib {:keys [hyperfiddle.electric.cljdoc/include?] :as coord}]]
+  (defn to-dep ; Add <scope> support for tools.build POM <dependency> generation. For cljdoc extra deps.
+    [[lib {:keys [pom/scope] :as coord}]]
     (cond-> (original [lib coord])
-      include? (conj [::pom/scope "provided"]))))
+      scope (conj [::pom/scope "provided"]))))
 
 (defn jar [{:keys [version] :or {version version}}]
   (let [jar-file (format "target/%s-%s.jar" (name lib) version)
@@ -76,20 +73,3 @@
             :basis basis
             :javac-opts ["-source" "8" "-target" "8"]}))
 
-
-;; To run cljdoc analysis locally:
-;; 1 - build jar
-;; 2 - instal
-;; 3 - run next to deps.edn:
-;; mkdir -p .cljdoc-preview
-;; docker run --rm \
-;;   --volume $(pwd) \
-;;   --volume "$HOME/.m2:/root/.m2" \
-;;   --volume ./.cljdoc-preview \
-;;   --platform linux/amd64 \
-;;   --entrypoint clojure \
-;;   cljdoc/cljdoc -Sforce -M:cli ingest \
-;;     --project com.hyperfiddle/electric \
-;;     --version $HYPERFIDDLE_ELECTRIC_BUILD
-;;     --git . \
-;;     --rev $(git rev-parse HEAD)
