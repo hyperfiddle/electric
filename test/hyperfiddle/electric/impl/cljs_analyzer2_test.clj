@@ -117,7 +117,9 @@
 
 (t/deftest imports
   (let [a (ana/add-import (atom {}) 'foo '[Foo [java.util X Y]])]
-    (t/is (= '{::ana/nses {foo {::ana/imports #{java.util.X X Foo java.util.Y Y}}}} a))
-    (t/is (some? (ana/imported? a 'X.XXX 'foo)))
-    (t/is (some? (ana/imported? a 'java.util.X.XXX 'foo)))
-    (t/is (some? (ana/imported? a 'Foo.Bar 'foo)))))
+    (t/is (= '{::ana/nses {foo {::ana/imports {Foo Foo
+                                               X java.util.X java.util.X java.util.X
+                                               Y java.util.Y java.util.Y java.util.Y}}}} a))
+    (t/is (some? (ana/find-import a 'X.XXX 'foo)))
+    (t/is (some? (ana/find-import a 'java.util.X.XXX 'foo)))
+    (t/is (some? (ana/find-import a 'Foo.Bar 'foo)))))

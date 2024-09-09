@@ -161,7 +161,7 @@
 
 (letfn [(simple [v] (-> v str (str/split #"\.") peek symbol))]
   (defn add-1-import [ns$ a v]
-    (let [add (fn add [a v] (update-in a [::nses ns$ ::imports] (fnil conj #{}) v (simple v)))]
+    (let [add (fn add [a v] (update-in a [::nses ns$ ::imports] assoc v v (simple v) v))]
       (if (symbol? v)
         (add a v)                       ; java.util.X
         (if (next v)                    ; [java.util X Y]
@@ -282,15 +282,22 @@
       (referred-from-js-require? a ns$ ref))))
 
 (defn ns-qualify [a sym ns$]
-  (when-some [qual-ns (keep-if (-> a ::nses (get ns$) ::requires (get (-> sym namespace symbol))) symbol?)]
-    (symbol (str qual-ns) (name sym))))
+  (if (= "js" (namespace sym))
+    sym
+    (when-some [qual-ns (keep-if (-> a ::nses (get ns$) ::requires (get (-> sym namespace symbol))) symbol?)]
+      (symbol (str qual-ns) (name sym)))))
+
+(defn from-npm? [a sym ns$] (and (string? (-> a ::nses (get ns$) ::requires (get (-> sym namespace symbol)))) sym))
 
 (def implicit-nses '#{goog goog.object goog.string goog.array Math String})
 
-(defn imported? [a sym ns$]
-  (let [imports (into implicit-nses (-> a ::nses (get ns$) ::imports))
+(defn find-import [a sym ns$]
+  (let [imports (-> a ::nses (get ns$) ::imports)
         dot-access (-> sym str (str/replace #"\.[^.]+$" "") symbol)]
-    (or (get imports dot-access)
-      (and (qualified-symbol? sym) (get imports (-> sym namespace symbol))))))
+    (if-some [sym-ns (some-> (namespace sym) symbol)]
+      (when-some [full-ns (or (get imports sym-ns) (get implicit-nses sym-ns))]
+        (symbol (str full-ns) (name sym)))
+      (when-some [full-ns (or (get imports dot-access) (get implicit-nses dot-access))]
+        (mksym full-ns (subs (name sym) (count (name dot-access))))))))
 
 (defn referred? [a sym ns$] (-> a ::nses (get ns$) ::refers (get sym)))

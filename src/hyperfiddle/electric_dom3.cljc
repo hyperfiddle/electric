@@ -443,6 +443,10 @@ input's value, use `EventListener`."
   ([event-type f init-v opts]      ($ On node event-type f        init-v opts))
   ([node event-type f init-v opts] (e/client (e/input (m/reductions {} init-v (listen node event-type ((e/capture-fn) f) opts))))))
 
+;; TODONEXT
+(e/defn ^:hyperfiddle.electric.impl.lang3/print-expansion FOOOO []
+  (On "click"))
+
 (defn fork
   ([flow] (fork ##Inf flow))
   ([n flow]

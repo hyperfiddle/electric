@@ -5,6 +5,7 @@
             [clojure.string :as str]
             [contrib.assert :as ca]
             [contrib.data :refer [keep-if ->box]]
+            [contrib.debug :as dbg]
             [clojure.set :as set]
             [contrib.triple-store :as ts]
             [fipp.edn]
@@ -12,7 +13,8 @@
             [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]
             [hyperfiddle.electric.impl.destructure :as dst]
             [hyperfiddle.electric.impl.runtime3 :as r]
-            [hyperfiddle.rcf :as rcf :refer [tests]]))
+            [hyperfiddle.rcf :as rcf :refer [tests]])
+  (:import  [clojure.lang ExceptionInfo]))
 
 ;;;;;;;;;;;
 ;;; ENV ;;;
@@ -22,7 +24,8 @@
 (defn electric-env? [env] (contains? env ::peers))
 (defn cljs-env? [env] (and (contains? env :locals) (not (electric-env? env))))
 (defn ->env-type [env] (if (:js-globals env) :cljs :clj))
-(defn normalize-env [env] (if (clj-env? env) {:locals env, :ns {:name (ns-name *ns*)}} env))
+(defn normalize-env [env] (if (clj-env? env) {:locals (update-vals env (constantly {}))
+                                              :ns {:name (ns-name *ns*)}} env))
 (defn get-ns [env] (ca/is (-> env :ns :name) some? "No ns found in environment map" {:env env}))
 
 (defn serialized-require [sym]
@@ -73,6 +76,7 @@
 
 (comment
   (cljs-ana/purge-ns !a 'hyperfiddle.electric3-test)
+  (alter-var-root #'!a (constantly (cljs-ana/->!a)))
   )
 
 (defn ->peer-type [env] (get (::peers env) (::current env)))
@@ -94,7 +98,7 @@
           :else (macroexpand-clj o env))))
 
 (defn find-local-entry [env sym] (contains? (:locals env) sym))
-(defn add-local [env sym] (update env :locals assoc sym ::unknown))
+(defn add-local [env sym] (update env :locals assoc sym ::electric-local))
 
 (defn ?meta [metao o]
   (if (instance? clojure.lang.IObj o)
@@ -122,8 +126,8 @@
     (let [o2 (?meta o (expand-macro env o))]
       (if (identical? o o2)
         (if (electric-sym? (first o))
-          (recur (?meta o (cons `e/$ o)) env caller)
-          (?meta o (cond->> (?meta o (list* (first o) (mapv (fn-> caller env) (rest o))))
+          (caller (?meta o (cons `$ o)) env)
+          (?meta o (cond->> (?meta o (seq (mapv (fn-> caller env) o)))
                      (and (or (::trace env) (::e/trace env)) (some-> (qualify-sym (first o) env) (traceable)))
                      (list `r/tracing (list 'quote (trace-crumb o env))))))
         (caller o2 env)))
@@ -131,6 +135,16 @@
 
 (defmacro $ [F & args]
   `(::call ((::static-vars r/dispatch) '~F ~F ~@(map (fn [arg] `(::pure ~arg)) args))))
+
+(defn electric-call? [form]
+  (and (seq? form)
+    (= ::call (first form))
+    (seq? (second form))
+    (let [call (second form)]
+      (and
+        (= `(::static-vars r/dispatch) (first call))
+        (every? #(and (seq? %) (= ::pure (first %))) (drop 3 call))
+        [(nth call 2) (mapv second (drop 3 call))]))))
 
 (defn -expand-let-bindings [bs env]
   (let [<env> (->box env)
@@ -140,7 +154,7 @@
 
 (defn jvm-type? [sym] (try (.getJavaClass (clojure.lang.Compiler$VarExpr. nil sym)) (catch Throwable _)))
 
-(declare analyze-cljs-symbol)
+(declare analyze-cljs-symbol resolve-symbol cannot-resolve!)
 
 (def base-js-types '#{objects ints longs floats doubles chars shorts bytes booleans
                       int  long  float  double  char  short  byte
@@ -223,13 +237,53 @@
         #_else (-expand-all-foreign o env)))
     (-expand-all-foreign o env)))
 
+(defn cca-form-size [form]
+  (cond (or (seq? form) (vector? form) (set? form)) (transduce (map cca-form-size) + 1 form)
+        (map? form)                                 (transduce (comp cat (map cca-form-size)) + 1 form)
+        :else                                       1))
+
+(letfn [(expand-clj [s ns$] (when-some [it (some-> (find-ns ns$) (ns-resolve s))]
+                              (if (class? it)
+                                (symbol (.getName ^Class it))
+                                (some-> it symbol))))
+        (expand-cljs [s ns$] (let [a @!a]
+                               (or (cljs-ana/find-import a s ns$)
+                                 (::cljs-ana/name (cljs-ana/find-var a s ns$))
+                                 (if (namespace s)
+                                   (or (cljs-ana/ns-qualify a s ns$) (cljs-ana/from-npm? a s ns$))
+                                   (cljs-ana/referred? a s ns$)))))]
+  (defn expand-symbol-for-inline [env s]
+    (if-some [l (-> env :locals (get s))]
+      (if (= ::electric-local l) s (throw (ex-info "local" {::local s})))
+      (if (= '. s) '.
+          (let [ns$ (get-ns env)]
+            (case (->peer-type env)
+              (:clj)  (ca/is (expand-clj s ns$) some? (str "what is this: " s))
+              (:cljs) (ca/is (expand-cljs s ns$) some? (str "what is this: " s))
+              (nil)   (or (expand-clj s ns$) (expand-cljs s ns$) (throw (ex-info (str "what is this: " s) {})))))))))
+
+(comment
+  (cljs-ana/analyze-nsT !a (->cljs-env 'hyperfiddle.electric.impl.lang3) 'hyperfiddle.js-calls-test3)
+  (expand-symbol-for-inline (normalize-env (->cljs-env 'hyperfiddle.js-calls-test3)) 'call-test/scope)
+  (cljs-ana/ns-qualify @!a 'call-test/scope 'hyperfiddle.js-calls-test3)
+  (cljs-ana/from-npm? @!a 'call-test/scope 'hyperfiddle.js-calls-test3)
+  (-> @!a ::cljs-ana/nses (get 'hyperfiddle.js-calls-test3) ::cljs-ana/requires)
+
+  (cljs-ana/analyze-nsT !a (->cljs-env 'hyperfiddle.electric.impl.lang3) 'hyperfiddle.goog-calls-test3)
+  (expand-symbol-for-inline (normalize-env (->cljs-env 'hyperfiddle.electric3-test)) 'goog.color/hslToHex)
+  (-expand-all '(hyperfiddle.goog-calls-test3/Main)
+    (normalize-env (->cljs-env 'hyperfiddle.electric3-test)))
+  )
+
+(defn my-turn? [env] (let [c (get (::peers env) (::current env))] (or (nil? c) (= c (->env-type env)))))
+
 (defn -expand-all [o env]
   (cond
     (and (seq? o) (seq o))
     (if (find-local-entry env (first o))
       (if (electric-sym? (first o))
         (recur (?meta o (cons `$ o)) env)
-        (?meta o (list* (first o) (mapv (fn-> -expand-all env) (rest o)))))
+        (?meta o (list* (-expand-all (first o) env) (mapv (fn-> -expand-all env) (rest o)))))
       (case (first o)
         ;; (ns ns* deftype* defrecord* var)
 
@@ -288,6 +342,8 @@
                    (recur (?meta o `(let [~(vec (take-nth 2 bs2)) (::cc-letfn ~bs2)] ~(-expand-all (cons 'do body) env2)))
                      env))
 
+        (::cc-letfn) o
+
         (try) (throw (ex-info "try is TODO" {:o o})) #_(list* 'try (mapv (fn-> -all-in-try env) (rest o)))
 
         (js*) (let [[_ s & args] o, gs (repeatedly (count args) gensym)]
@@ -295,15 +351,72 @@
 
         (binding clojure.core/binding)
         (let [[_ bs & body] o]
-          (?meta o (list 'binding (into [] (comp (partition-all 2) (mapcat (fn [[sym v]] [sym (-expand-all v env)]))) bs)
+          (?meta o (list 'binding (into [] (comp (partition-all 2)
+                                             (mapcat (fn [[sym v]]
+                                                       [(expand-symbol-for-inline env sym)
+                                                        (-expand-all v env)]))) bs)
                      (-expand-all (cons 'do body) env))))
 
         (set!) (recur (?meta o `((fn* [v#] (set! ~(nth o 1) v#)) ~(nth o 2))) env)
+        (def) (?meta o (list 'def (nth o 1) (-expand-all (nth o 2) env)))
 
         (::ctor) (?meta o (list ::ctor (list ::site nil (-expand-all (second o) env))))
 
         (::site) (?meta o (seq (conj (into [] (take 2) o)
                                  (-expand-all (cons 'do (drop 2 o)) (assoc env ::current (second o))))))
+        (::mklocal) (?meta o (seq (conj (into [] (take 2) o)
+                                    (-expand-all (nth o 2) (add-local env (second o))))))
+
+        ;; (. java.time.Instant now)
+        ;; (. java.time.Instant ofEpochMilli 1)
+        ;; (. java.time.Instant (ofEpochMilli 1))
+        ;; (. java.time.Instant EPOCH)
+        ;; (. java.time.Instant -EPOCH)
+        ;; (. i1 isAfter i2)
+        ;; (. i1 (isAfter i2))
+        ;; (. pt x)
+        ;; (. pt -x)
+        (.) (cond
+              (and (symbol? (second o)) (class? (resolve env (second o))))
+              (if (seq? (nth o 2))      ; (. java.time.Instant (ofEpochMilli 1))
+                (let [[_ clazz [method & method-args]] o]
+                  (?meta o (list* '. clazz method (mapv (fn-> -expand-all env) method-args))))
+                (let [[_ clazz method & method-args] o] ; (. java.time.instant opEpochMilli 1)
+                  (?meta o (list* '. clazz method (mapv (fn-> -expand-all env) method-args)))))
+
+              (seq? (nth o 2))          ; (. i1 (isAfter i2))
+              (let [[_ obj [method & method-args]] o]
+                (?meta o (list* '. (-expand-all obj env) method (mapv (fn-> -expand-all env) method-args))))
+
+              :else                     ; (. i1 isAfter i2) and (. pt x)
+              (let [[_ obj x & xs] o]
+                (?meta o (list* '. (-expand-all obj env) x (mapv (fn-> -expand-all env) xs)))))
+
+        (new) (?meta o (cons 'new (mapv (fn-> -expand-all env) (next o))))
+
+        (::call)
+        (if (::no-inline env)
+          (?expand-macro o env -expand-all)
+          (if-let [[call inlined]
+                   (when-let [[F x*] (electric-call? o)]
+                     (when (and (symbol? F) (not (find-local-entry env F)))
+                       (let [F (expand-symbol-for-inline env F)]
+                         (when (not (get (::inlined env) [F (count x*)]))
+                           (when-some [var-meta
+                                       (case (->peer-type env)
+                                         (:clj) (some-> (find-ns (get-ns env)) (ns-resolve F) meta)
+                                         (:cljs) (some-> (cljs-ana/find-var @!a F (get-ns env)) ::cljs-ana/meta)
+                                         (nil) (or (some-> (find-ns (get-ns env)) (ns-resolve F) meta)
+                                                 (some-> (cljs-ana/find-var @!a F (get-ns env)) ::cljs-ana/meta)))]
+                             (when-some [in (::inlinable var-meta)]
+                               (when-some [[arg* form] (get in (count x*))]
+                                 ;; (prn :inlined-so-far (::inlined env) :inlining [F (count x*)])
+                                 [[F (count x*)] (if (seq arg*) `(let* [~@(interleave arg* x*)] ~form) form)])))))))]
+            (try (-expand-all (?meta o inlined) (update env ::inlined (fnil conj #{}) call))
+                 (catch Throwable e
+                   (prn :failed-to-inline call (ex-message e))
+                   (?expand-macro o env -expand-all)))
+            (?expand-macro o env -expand-all)))
 
         #_else (?expand-macro o env -expand-all)))
 
@@ -312,7 +425,15 @@
 
     (map-entry? o) (clojure.lang.MapEntry. (-expand-all (key o) env) (-expand-all (val o) env))
     (coll? o) (?meta (meta o) (into (empty o) (map (fn-> -expand-all env)) o))
-    :else o))
+    :else (if (symbol? o)
+            (if (find-local-entry env o)
+              (if (= ::electric-local (get (:locals env) o))
+                o
+                (if (::expand-symbol env) (throw (ex-info "local" {::local o})) o))
+              (if-some [expand-sym (::expand-symbol env)]
+                (expand-sym env o)
+                (do (expand-symbol-for-inline env o) o)))
+            o)))
 
 #_(defn -expand-all-in-try [o env]
     (if (seq? o)
@@ -327,6 +448,13 @@
 (defn expand-all [env o]
   (cljs-ana/analyze-nsT !a env (get-ns env))
   (-expand-all o (assoc env ::electric true)))
+
+(defn ?prep-inline [[arg* & body] env]
+  (try (let [env (reduce add-local env arg*)
+             form (expand-all (assoc env ::expand-symbol expand-symbol-for-inline) (cons 'do body))]
+         (when (and (not-any? '#{&} arg*) (< (cca-form-size form) 80))
+           [(count arg*) [arg* form]]))
+       (catch ExceptionInfo e (when-not (::local (ex-data e)) (throw e)))))
 
 ;;;;;;;;;;;;;;;;
 ;;; COMPILER ;;;
@@ -413,13 +541,15 @@
 (def implicit-cljs-nses '#{goog goog.object goog.string goog.array Math String})
 
 (defn analyze-cljs-symbol [sym env]
+  (when (= sym 'dom/node)
+    (prn (get-ns env) 'dom/node====== (cljs-ana/find-var @!a sym (get-ns env))))
   (if-some [v (cljs-ana/find-var @!a sym (get-ns env))]
     {::type ::var, ::sym (untwin (::cljs-ana/name v)), ::meta (::cljs-ana/meta v)}
     (if-some [quald (when (qualified-symbol? sym) (cljs-ana/ns-qualify @!a sym (get-ns env)))]
       {::type ::static, ::sym quald}
       (if (or (cljs-ana/referred? @!a sym (get-ns env)) (cljs-ana/js-call? @!a sym (get-ns env)))
         {::type ::static, ::sym sym}
-        (when (cljs-ana/imported? @!a sym (get-ns env))
+        (when (cljs-ana/find-import @!a sym (get-ns env))
           {::type ::static, ::sym sym})))))
 
 (defn resolve-symbol [sym env]
@@ -535,8 +665,6 @@
   (reduce (fn [ts e] (ts/asc ts e ::parent to-e)) ts (ts/find ts ::parent from-e)))
 
 (defn ?update-meta [env form] (cond-> env (meta form) (assoc ::meta (meta form))))
-
-(defn my-turn? [env] (let [c (get (::peers env) (::current env))] (or (nil? c) (= c (->env-type env)))))
 
 (defn field-access? [sym] (str/starts-with? (str sym) "-"))
 

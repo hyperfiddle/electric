@@ -6,13 +6,14 @@
             [hyperfiddle.electric.impl.mount-point :as mp]
             [clojure.core :as cc]
             [clojure.string :as str]
-            [contrib.data]
+            [contrib.data :refer [fn->]]
             [hyperfiddle.rcf :as rcf :refer [tests]]
             #?(:clj [contrib.triple-store :as ts])
             #?(:clj [fipp.edn])
             [missionary.core :as m]
             [contrib.missionary-contrib :as mx]
-            [clojure.math :as math])
+            [clojure.math :as math]
+            [hyperfiddle.electric.impl.destructure :as dst])
   (:import [missionary Cancelled])
   #?(:cljs (:require-macros hyperfiddle.electric3)))
 
@@ -67,6 +68,12 @@ Returns the successive states of items described by `incseq`.
             (when-some [same (get grouped (-> vararg count dec))]
               (throw-arity-conflict! ?name (conj same vararg))))))
 
+(cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
+
+#?(:clj (tests
+          (ns-qualify 'foo) := `foo
+          (ns-qualify 'a/b) := 'a/b))
+
 (defmacro -fn [& args]
   (let [[?name args2] (if (symbol? (first args)) [(first args) (rest args)] [nil args])
         arities (cond-> args2 (vector? (first args2)) list)
@@ -94,18 +101,21 @@ Returns the successive states of items described by `incseq`.
     `(check-electric fn
        ~(if (symbol? ?nm) `(::lang/mklocal ~?nm (::lang/bindlocal ~?nm (-fn ~@args) ~?nm)) `(-fn ~@args)))))
 
-(cc/defn ns-qualify [sym] (if (namespace sym) sym (symbol (str *ns*) (str sym))))
-
-#?(:clj (tests
-          (ns-qualify 'foo) := `foo
-          (ns-qualify 'a/b) := 'a/b))
-
 (defmacro defn [nm & fdecl]
   (let [[_defn sym] (macroexpand `(cc/defn ~nm ~@fdecl))
         env (merge (meta nm) (lang/normalize-env &env) web-config {::lang/def nm})
-        nm2 (vary-meta nm merge (meta sym) {::lang/node true})
-        source (lang/->source env (-> nm ns-qualify keyword)
-                      `(-fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))]
+        arities (cond-> fdecl (string? (first fdecl)) next)
+        arities (cond-> arities (vector? (first arities)) list)
+        inlinable (into {} (keep
+                             (cc/fn [[arg* :as arity]]
+                               (let [bs (dst/destructure* (interleave arg* (repeat nil)))
+                                     env (assoc env ::lang/inlined #{[(ns-qualify nm) (count arg*)]})
+                                     env (transduce (take-nth 2) (completing lang/add-local) env bs)]
+                                 (lang/?prep-inline arity env)))) arities)
+        nm2 (vary-meta nm merge (meta sym)
+              (cond-> {::lang/node true} (seq inlinable) (assoc ::lang/inlinable (list 'quote inlinable))))
+        source (lang/->source env (-> nm ns-qualify keyword) `(-fn ~nm2 ~@arities))]
+    (run! #(prn :inlinable nm %) inlinable)
     (when-not (::lang/has-edef? (meta *ns*)) (alter-meta! *ns* assoc ::lang/has-edef? true))
     `(def ~nm2 ~source)))
 

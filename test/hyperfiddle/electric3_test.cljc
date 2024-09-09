@@ -1834,7 +1834,7 @@
      (tests "goog module calls don't trigger warnings"
        ;; this includes a goog test namespace, so if there are warnings the CI will blow up.
        ;; The blow up is configured as a shadow build hook in `hyperfiddle.browser-test-setup`
-       (with ((l/single {} (tap (case ($ hyperfiddle.goog-calls-test3/Main) :ok))) tap tap)
+       (with ((l/single {::lang/print-expansion true} (tap (case ($ hyperfiddle.goog-calls-test3/Main) :ok))) tap tap)
          % := :ok))))
 
 ;; TODO try/catch
