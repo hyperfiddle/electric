@@ -70,7 +70,7 @@
       (#?(:clj invoke :cljs -invoke) [this]
         (remove-item-ps item this)
         (let [cancelled? (a/getset a -cancelled true)]
-          (when (not (or (a/getset a -stepped true) cancelled?)) (step))))
+          (when-not (or (a/getset a -stepped true) cancelled? (= this (a/get a -cache))) (step))))
       (#?(:clj invoke :cljs -invoke) [_ v]
         (when-not (or (= v (a/getset a -cache v)) (a/getset a -stepped true))
           (step)))
