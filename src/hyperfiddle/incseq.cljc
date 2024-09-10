@@ -45,7 +45,9 @@ successive sequence diffs. Incremental sequences are applicative functors with `
             [hyperfiddle.incseq.latest-concat-impl :as lc]
             [hyperfiddle.rcf :refer [tests]]
             [clojure.core :as cc]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [hyperfiddle.incseq.flow-protocol-enforcer :as fpe]
+            [contrib.debug :as dbg])
   (:import #?(:clj (clojure.lang IFn IDeref))
            missionary.Cancelled))
 
@@ -224,19 +226,20 @@ Returns a flow producing the successive diffs of given continuous flow of collec
                                 (if (aset state slot-busy (not (aget state slot-busy)))
                                   (recur) nop))))) nop))))
             (scan [ctor flow]
-              (fn [n t]
-                (let [state (object-array slots)]
-                  (aset state slot-notifier n)
-                  (aset state slot-terminator t)
-                  (aset state slot-stepfn (ctor))
-                  (aset state slot-busy false)
-                  (aset state slot-done false)
-                  (aset state slot-process
-                    (flow #(ready state)
-                      #(do (aset state slot-done true)
-                           (ready state))))
-                  (->Ps state cancel transfer))))]
-      (fn [kf flow] (scan #(->seq-differ kf) flow)))))
+              (fpe/incseq 'i/diff-by
+                (fn [n t]
+                  (let [state (object-array slots)]
+                    (aset state slot-notifier n)
+                    (aset state slot-terminator t)
+                    (aset state slot-stepfn (ctor))
+                    (aset state slot-busy false)
+                    (aset state slot-done false)
+                    (aset state slot-process
+                      (flow #(ready state)
+                        #(do (aset state slot-done true)
+                             (ready state))))
+                    (->Ps state cancel transfer)))))]
+      (fn [kf flow] (scan #(->seq-differ kf) (fpe/initialized 'i/diff-by-input flow))))))
 
 
 (def ^{:doc "
@@ -248,24 +251,13 @@ Returns the diff applying given diffs successively.
 "} combine d/combine)
 
 
-(def ^{:doc "
-Returns the incremental sequence defined by the fixed collection of given continuous flows.
-A collection is fixed iff its size is invariant and its items are immobile.
-"} fixed f/flow)
+(defn fixed [& flows] (fpe/incseq 'i/fixed (apply f/flow (into [] (map-indexed (fn [i flow] (fpe/initialized (str "i/fixed input" i) flow))) flows))))
 
+(defn latest-product [f & incseqs]
+  (fpe/incseq 'latest-product
+    (apply lp/flow f (into [] (map-indexed (fn [i flow] (fpe/initialized (str "i/latest-product child " i) flow))) incseqs))))
 
-(def ^{:arglists '([f & incseqs])
-       :doc "
-Returns the incremental sequence defined by applying the cartesian product of items in given incremental sequences,
-combined with given function.
-"} latest-product lp/flow)
-
-
-(def ^{:arglists '([incseq-of-incseqs])
-       :doc "
-Returns the incremental sequence defined by the concatenation of incremental sequences defined by given incremental
-sequence.
-"} latest-concat lc/flow)
+(defn latest-concat [is-of-is] (fpe/incseq 'i/latest-concat (lc/flow (fpe/initialized "i/latest-concat child" is-of-is))))
 
 
 (def ^{:arglists '([] [sentinel] [sentinel compare])
@@ -277,7 +269,7 @@ The map is mutated by calling the port with 3 arguments : a key, a reducing func
 associated with the key will be updated with the result of calling the reducing function with the current state and the
 argument. Absence of entry is indicated by optional `sentinel` value, `nil` by default. Keys must be comparable with
 optional `compare` function, `clojure.core/compare` by default.
-"} spine
+"} spine-
   (let [slot-root 0
         slot-readers 1
         slots 2
@@ -564,7 +556,13 @@ optional `compare` function, `clojure.core/compare` by default.
                              :change      {0 curr}
                              :freeze      #{}})))))))))))))))
 
-(def ^{:arglists '([incseq])} items i/flow)
+(defn spine [& args]
+  (let [s (apply spine- args), fpe (fpe/incseq 'i/spine s)]
+    (fn
+      ([n t] (fpe n t))
+      ([k f arg] (s k f arg)))))
+
+(defn items [incseq] (fpe/incseq 'i/items (i/flow (fpe/incseq "i/items input" incseq))))
 
 (def ^{:arglists '([incseq])
        :doc "
@@ -781,3 +779,5 @@ Returns the size of `incseq` as a continuous flow.
             (recur (i/compose p (i/rotation i j)) i))))
       element))
   )
+
+(defn signal [& xs] (fpe/incseq 'signal (apply m/signal xs)))
