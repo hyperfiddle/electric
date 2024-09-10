@@ -680,6 +680,26 @@
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 
+(t/deftest orphaned-item-ps-doesnt-step-on-cancel
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        items              (spawn-ps q)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        diff               @items
+        _                  (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
+        item0              ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _                  (t/is (= :item0-step (q)))
+        _                  (t/is (= :foo @item0))
+        _                  (q (assoc (d/empty-diff 1) :shrink 1))
+        _                  (in-step)
+        _                  (t/is (= :item0-done (q)))
+        _                  (t/is (= :items-step (q)))
+        _                  (t/is (= (assoc (d/empty-diff 1) :shrink 1) @items))
+        _                  (item0)
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
 ;; missing tests
 ;; - double transfer (optional)
 ;;   - item-ps
