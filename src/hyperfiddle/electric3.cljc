@@ -12,7 +12,8 @@
             #?(:clj [fipp.edn])
             [missionary.core :as m]
             [contrib.missionary-contrib :as mx]
-            [clojure.math :as math])
+            [clojure.math :as math]
+            [hyperfiddle.incseq.flow-protocol-enforcer :as fpe])
   (:import [missionary Cancelled])
   #?(:cljs (:require-macros hyperfiddle.electric3)))
 
@@ -469,9 +470,10 @@ inhibiting all further reactive updates."
 (hyperfiddle.electric3/defn System-time-secs [] (math/floor-div (input system-time-ms) 1000))
 
 (cc/defn uf->is [uf]
-  (m/ap (m/amb (i/empty-diff 0)
-          (let [!first (atom true) v (m/?> uf)]
-            (assoc (i/empty-diff 1) :grow (if @!first (do (swap! !first not) 1) 0), :change {0 v})))))
+  (fpe/incseq 'uf->is
+    (m/ap (m/amb (i/empty-diff 0)
+            (let [!first (atom true) v (m/?> uf)]
+              (assoc (i/empty-diff 1) :grow (if @!first (do (swap! !first not) 1) 0), :change {0 v}))))))
 
 (cc/letfn [(task->is [t] (uf->is (m/ap (m/? t))))
            (initialized [t init-v] (m/relieve {} (m/ap (m/amb= init-v (m/? t)))))]
@@ -480,8 +482,9 @@ inhibiting all further reactive updates."
     ([t init-v] (input (initialized t init-v)))))
 
 #?(:clj (cc/defn -offload [tsk executor]
-          (uf->is (m/ap (try (m/? (m/via-call executor (m/?< (mx/poll-task tsk))))
-                             (catch Cancelled _ (m/amb)))))))
+          (fpe/incseq 'offload
+            (uf->is (m/ap (try (m/? (m/via-call executor (m/?< (mx/poll-task tsk))))
+                               (catch Cancelled _ (m/amb))))))))
 
 
 (hyperfiddle.electric3/defn Offload

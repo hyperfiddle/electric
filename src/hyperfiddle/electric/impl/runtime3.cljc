@@ -4,6 +4,8 @@
             [missionary.core :as m]
             [hyperfiddle.electric.impl.lang3 :as-alias lang]
             [cognitect.transit :as t]
+            [contrib.debug :as dbg]
+            [hyperfiddle.incseq.flow-protocol-enforcer :as fpe]
             [hyperfiddle.incseq.diff-impl :as d])
   (:import missionary.Cancelled
            #?(:clj (clojure.lang IFn IDeref))
@@ -107,6 +109,8 @@
   (deps [_ rf r site])                                      ;; emits ports
   (flow [_]))                                               ;; returns incseq
 
+(defn flow! [expr] (fpe/incseq (str expr) (flow expr)))
+
 (defn expr-deps [rf r site expr]
   (deps expr rf r site))
 
@@ -118,7 +122,7 @@
 (defn failure? [x]
   (instance? Failure x))
 
-(defn invariant [x] (m/cp x))
+(defn invariant [x] (fpe/initialized 'r/invariant (m/cp x)))
 
 (deftype Pure [value
                ^:unsynchronized-mutable ^:mutable hash-memo]
@@ -134,9 +138,9 @@
   Expr
   (deps [_ _ r _] r)
   (flow [_]
-    (if (failure? value)
-      (m/latest #(throw (ex-info "Illegal access." {:info (failure-info value)})))
-      (i/fixed (invariant value)))))
+    (fpe/incseq 'r/pure (if (failure? value)
+       (m/latest #(throw (ex-info "Illegal access." {:info (failure-info value)})))
+       (i/fixed (invariant value))))))
 
 (defn pure "
 -> (EXPR VOID)
@@ -185,7 +189,7 @@ T T T -> (EXPR T)
   (deps [_ rf r site]
     (reduce (fn [r x] (deps x rf r site)) r inputs))
   (flow [_]
-    (apply i/latest-product (invoke-with mt) (map flow inputs))))
+    (fpe/incseq 'r/ap (apply i/latest-product (invoke-with mt) (map flow inputs)))))
 
 (defn ap "
 (EXPR (-> T)) -> (EXPR T)
@@ -209,7 +213,7 @@ T T T -> (EXPR T)
       (= input (.-input ^Join other))))
   Expr
   (deps [_ rf r site] (deps input rf r site))
-  (flow [_] (i/latest-concat (flow input))))
+  (flow [_] (fpe/incseq 'r/join (i/latest-concat (flow! input)))))
 
 (defn join "
 (EXPR (IS T)) -> (EXPR T)
@@ -227,7 +231,7 @@ T T T -> (EXPR T)
 (CF T) -> (IS T)
 (CF T) (CF T) -> (IS T)
 (CF T) (CF T) (CF T) -> (IS T)
-" (comp (partial m/signal i/combine) i/fixed))
+" (comp (partial i/signal i/combine) i/fixed))
 
 (defn drain "
 (IS T) -> (IS VOID)
@@ -260,8 +264,8 @@ T T T -> (EXPR T)
   Expr
   (deps [_ _ r _] r)
   (flow [_]
-    (fn [step done]
-      (step) (->Failer done (error (str "Unbound electric var lookup - " (pr-str key)))))))
+    (fpe/incseq 'r/unbound (fn [step done]
+       (step) (->Failer done (error (str "Unbound electric var lookup - " (pr-str key))))))))
 
 (deftype Cdef [frees nodes calls result build])
 
@@ -524,7 +528,7 @@ T T T -> (EXPR T)
         (port-deps rf r port)
         (rf r port))))
   (flow [this]
-    (port-flow (slot-port this))))
+    (fpe/incseq 'r/slot (port-flow (slot-port this)))))
 
 (defn port-slot
   {:tag Slot}
@@ -606,8 +610,8 @@ T T T -> (EXPR T)
     (aset port port-slot-deps deps)
     (aset port port-slot-flow
       (if (= site (peer-site peer))
-        (m/signal i/combine flow)
-        (input-sub port)))
+        (fpe/incseq 'm/signal (m/signal i/combine (fpe/incseq 'port-flow flow)))
+        (fpe/incseq 'r/input-sub (input-sub port))))
     port))
 
 (defn update-inc [m k]
@@ -1175,17 +1179,18 @@ T T T -> (EXPR T)
     (exit peer busy)))
 
 (defn with-dep [flow ^objects port]
-  (fn [step done]
-    (dep-attach port)
-    (flow step
-      #(do (dep-detach port)
-           (done)))))
+  (fpe/incseq 'r/with-dep
+    (fn [step done]
+      (dep-attach port)
+      ((fpe/incseq "r/with-dep input" flow) step
+       #(do (dep-detach port)
+            (done))))))
 
 ;; is expr always a slot ? if true, we can specialize to ports
 (deftype Incseq [peer expr]
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
-    ((deps expr with-dep (flow expr) (peer-site peer)) step done)))
+    ((fpe/incseq 'r/incseq (deps expr with-dep (flow expr) (peer-site peer))) step done)))
 
 (defn incseq-expr [^Incseq incseq]
   (.-expr incseq))

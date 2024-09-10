@@ -4,7 +4,8 @@
             [clojure.set :as set]
             [hyperfiddle.electric.impl.array-fields :as a]
             [hyperfiddle.incseq.diff-impl :as d]
-            [hyperfiddle.incseq.perm-impl :as p])
+            [hyperfiddle.incseq.perm-impl :as p]
+            [hyperfiddle.incseq.flow-protocol-enforcer :as fpe])
   (:import #?(:clj [clojure.lang IDeref IFn])
            #?(:clj [java.util.concurrent.atomic AtomicLong])
            #?(:clj [java.util.concurrent.locks ReentrantLock])
@@ -106,13 +107,14 @@
               (a/fset item -ps* (atom #{}))
               (a/set (a/fget ps -item*) i item)
               (a/fswap ps -diff update :change assoc (idx i i)
-                       (a/fset item -flow (fn [step done]
-                                            (if (a/fget item -dead)
-                                              (->dead-item-ps step done (a/fget item -v))
-                                              (let [item-ps (->item-ps item step done)]
-                                                (swap! (a/fget item -ps*) conj item-ps)
-                                                (item-ps (a/fget item -v))
-                                                item-ps)))))))
+                       (a/fset item -flow (fpe/initialized (str "i/items child " (idx i i))
+                                            (fn [step done]
+                                              (if (a/fget item -dead)
+                                                (->dead-item-ps step done (a/fget item -v))
+                                                (let [item-ps (->item-ps item step done)]
+                                                  (swap! (a/fget item -ps*) conj item-ps)
+                                                  (item-ps (a/fget item -v))
+                                                  item-ps))))))))
       (range (- d n) d))))
 
 (defn permute! [^Ps ps {p :permutation}]
