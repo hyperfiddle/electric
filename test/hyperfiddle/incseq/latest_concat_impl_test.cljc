@@ -262,3 +262,40 @@
       (q false)
       (step0)
       (is (q) :done))))
+
+(deftest cancel-after-termination
+  (let [q (queue)
+        ps ((flow (fn [step done]
+                    (step)
+                    (->Ps #(q :cancel)
+                      (fn []
+                        (done)
+                        {:grow 1
+                         :degree 1
+                         :shrink 0
+                         :permutation {}
+                         :change {0 (fn [step done]
+                                      (step)
+                                      (->Ps #(q :cancel0)
+                                        (fn []
+                                          (done)
+                                          {:grow 1
+                                           :degree 1
+                                           :shrink 0
+                                           :permutation {}
+                                           :change {0 :foo}
+                                           :freeze #{0}})))}
+                         :freeze #{0}}))))
+            #(q :step) #(q :done))]
+    (is (= (q) :step))
+    (is (= @ps {:grow 1
+                :degree 1
+                :shrink 0
+                :permutation {}
+                :change {0 :foo}
+                :freeze #{0}}))
+    (is (= (q) :done))
+    (ps)
+    (is (= :cancel (q)))
+    (is (= :cancel0 (q)))
+    (is (= (doto :over q) (q)))))

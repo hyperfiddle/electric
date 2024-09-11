@@ -44,7 +44,8 @@
         (do (aset state slot-pending true)
             (unlock state held) (step))
         (if (zero? (aget state slot-alive))
-          (do (unlock state held) (done))
+          (do (aset state slot-pending true)
+              (unlock state held) (done))
           (unlock state held))))))
 
 (defn outer-ready [^objects state]
