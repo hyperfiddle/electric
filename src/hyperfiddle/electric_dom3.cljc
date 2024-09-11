@@ -455,8 +455,10 @@ input's value, use `EventListener`."
    (m/ap
      (let [!id (atom 0), S (i/spine), !running (atom (sorted-set))]
        (m/amb S
-         (let [v (m/?> flow), id @!id, running (swap! !running conj (swap! !id inc))]
-           (S id {} [v #(do (swap! !running disj id) (S id {} nil))])
+         (let [v (m/?> flow), id @!id
+               running (swap! !running conj (swap! !id inc))
+               t #(do (swap! !running disj id) (S id {} nil))]
+           (S id {} [t v])
            (run! #(S % {} nil) (take (- (count running) n) ; NOTE Leo: always return 0 or 1 because we add one event at a time
                                  running))
            (m/amb)))))))
