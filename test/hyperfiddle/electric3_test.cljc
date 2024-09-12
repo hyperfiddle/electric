@@ -2278,3 +2278,13 @@
 (tests "uppercase call convention on locals"
   (with ((l/single {} (let [X (e/fn [] 1)] (tap (X)))) tap tap)
     % := 1))
+
+(tests
+  (let [!x (atom true)]
+    (with ((l/local {} (if (e/watch !x)
+                         (e/server (tap :branch))
+                         (tap :unmount))) tap tap)
+      #_init         % := :branch
+      (swap! !x not) % := :unmount
+      (swap! !x not) % := :branch
+      (swap! !x not) % := :unmount)))
