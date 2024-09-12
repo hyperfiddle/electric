@@ -462,19 +462,20 @@ T T T -> (EXPR T)
         ^objects remote (aget input input-slot-remote)
         ^objects peer (aget remote remote-slot-peer)
         busy (enter peer)]
-    (when-some [^objects prv (aget sub input-sub-slot-prev)]
-      (aset input input-slot-subs
-        (when-not (identical? prv sub)
-          (let [^objects nxt (aget sub input-sub-slot-next)]
-            (aset prv input-sub-slot-next nxt)
-            (aset nxt input-sub-slot-prev prv))))
-      (aset sub input-sub-slot-prev nil)
-      (aset sub input-sub-slot-next nil)
-      (if (nil? (aget sub input-sub-slot-diff))
-        (let [step (aget sub input-sub-slot-step)]
-          (exit peer busy) (step))
-        (do (aset sub input-sub-slot-diff nil)
-            (exit peer busy))))))
+    (if-some [^objects prv (aget sub input-sub-slot-prev)]
+      (do (aset input input-slot-subs
+            (when-not (identical? prv sub)
+              (let [^objects nxt (aget sub input-sub-slot-next)]
+                (aset prv input-sub-slot-next nxt)
+                (aset nxt input-sub-slot-prev prv))))
+          (aset sub input-sub-slot-prev nil)
+          (aset sub input-sub-slot-next nil)
+          (if (nil? (aget sub input-sub-slot-diff))
+            (let [step (aget sub input-sub-slot-step)]
+              (exit peer busy) (step))
+            (do (aset sub input-sub-slot-diff nil)
+                (exit peer busy))))
+      (exit peer busy))))
 
 (defn input-sub-transfer [^objects sub]
   (let [^objects input (aget sub input-sub-slot-input)
