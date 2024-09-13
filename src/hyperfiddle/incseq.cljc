@@ -40,7 +40,7 @@ successive sequence diffs. Incremental sequences are applicative functors with `
   (:require [hyperfiddle.incseq.fixed-impl :as f]
             [hyperfiddle.incseq.perm-impl :as p]
             [hyperfiddle.incseq.diff-impl :as d]
-            [hyperfiddle.incseq.items-impl :as i]
+            [hyperfiddle.incseq.items-eager-impl :as i]
             [hyperfiddle.incseq.latest-product-impl :as lp]
             [hyperfiddle.incseq.latest-concat-impl :as lc]
             [hyperfiddle.rcf :refer [tests]]
