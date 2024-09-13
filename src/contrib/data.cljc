@@ -35,6 +35,18 @@
   (unqualify nil) := nil
   (unqualify "") :throws #?(:clj AssertionError :cljs js/Error))
 
+(defn unqualified-keys [m] (update-keys m unqualify))
+
+(tests
+  (unqualified-keys {::a ::a}) := {:a ::a}
+  (unqualified-keys {:a/x 1 :b/x 2}) := {:x 2} ; gotcha
+  (unqualified-keys {}) := {}
+  (unqualified-keys nil) := {}
+  (unqualified-keys {nil ::a}) := {nil ::a}
+  ;(unqualified-keys {1 ::a}) := {:a ::a} -- Assert failed:  can't unqualify: 1
+  ;(unqualified-keys {{} ::a}) := {:a ::a} -- Assert failed:  can't unqualify: {}
+  )
+
 (defn -omit-keys-ns [ns ?m]
   {:pre [(some? ns)]}
   (when ?m
