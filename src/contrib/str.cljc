@@ -86,7 +86,7 @@
   (clojure.core/not-empty "a") := "a"
   )
 
-(defn blank->nil "Nullify empty strings, identity on all other values." [s]
+(defn blank->nil "Nullify blank whitespace strings, identity on all other values." [s]
   (if-not (string? s)
     s ; don't fail
     (if-not (clojure.string/blank? s) s nil)))
