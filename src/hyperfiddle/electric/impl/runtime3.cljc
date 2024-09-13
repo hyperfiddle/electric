@@ -26,9 +26,8 @@
 (def peer-slot-site 2)
 (def peer-slot-defs 3)
 (def peer-slot-remote 4)
-(def peer-slot-sub-ready 5)
-(def peer-slot-channel-ready 6)
-(def peer-slots 7)
+(def peer-slot-channel-ready 5)
+(def peer-slots 6)
 
 (def remote-slot-peer 0)
 (def remote-slot-events 1)
@@ -95,8 +94,7 @@
 (def input-sub-slot-prev 3)
 (def input-sub-slot-next 4)
 (def input-sub-slot-diff 5)
-(def input-sub-slot-ready 6)
-(def input-sub-slots 7)
+(def input-sub-slots 6)
 
 (def call-slot-port 0)
 (def call-slot-rank 1)
@@ -427,19 +425,10 @@ T T T -> (EXPR T)
 
 (defn exit [^objects peer busy]
   (when-not busy
-    (let [s (aget peer peer-slot-sub-ready)
-          c (aget peer peer-slot-channel-ready)]
-      (aset peer peer-slot-sub-ready nil)
+    (let [c (aget peer peer-slot-channel-ready)]
       (aset peer peer-slot-channel-ready nil)
       #?(:clj  (.unlock ^ReentrantLock (aget peer peer-slot-busy))
          :cljs (aset peer peer-slot-busy false))
-      (loop [^objects sub s]
-        (when-not (nil? sub)
-          (let [s (aget sub input-sub-slot-ready)]
-            (aset sub input-sub-slot-ready nil)
-            ((if-some [step (aget sub input-sub-slot-step)]
-               step (aget sub input-sub-slot-done)))
-            (recur s))))
       (loop [^objects chan c]
         (when-not (nil? chan)
           (let [c (aget chan channel-slot-ready)]
@@ -473,19 +462,20 @@ T T T -> (EXPR T)
         ^objects remote (aget input input-slot-remote)
         ^objects peer (aget remote remote-slot-peer)
         busy (enter peer)]
-    (when-some [^objects prv (aget sub input-sub-slot-prev)]
-      (aset input input-slot-subs
-        (when-not (identical? prv sub)
-          (let [^objects nxt (aget sub input-sub-slot-next)]
-            (aset prv input-sub-slot-next nxt)
-            (aset nxt input-sub-slot-prev prv))))
-      (aset sub input-sub-slot-prev nil)
-      (aset sub input-sub-slot-next nil)
-      (if (nil? (aget sub input-sub-slot-diff))
-        (do (aset sub input-sub-slot-ready (aget peer peer-slot-sub-ready))
-            (aset peer peer-slot-sub-ready sub))
-        (aset sub input-sub-slot-diff nil)))
-    (exit peer busy)))
+    (if-some [^objects prv (aget sub input-sub-slot-prev)]
+      (do (aset input input-slot-subs
+            (when-not (identical? prv sub)
+              (let [^objects nxt (aget sub input-sub-slot-next)]
+                (aset prv input-sub-slot-next nxt)
+                (aset nxt input-sub-slot-prev prv))))
+          (aset sub input-sub-slot-prev nil)
+          (aset sub input-sub-slot-next nil)
+          (if (nil? (aget sub input-sub-slot-diff))
+            (let [step (aget sub input-sub-slot-step)]
+              (exit peer busy) (step))
+            (do (aset sub input-sub-slot-diff nil)
+                (exit peer busy))))
+      (exit peer busy))))
 
 (defn input-sub-transfer [^objects sub]
   (let [^objects input (aget sub input-sub-slot-input)
@@ -495,16 +485,14 @@ T T T -> (EXPR T)
     (if-some [diff (aget sub input-sub-slot-diff)]
       (do (aset sub input-sub-slot-diff nil)
           (if (nil? (aget sub input-sub-slot-prev))
-            (do (aset sub input-sub-slot-step nil)
-                (aset sub input-sub-slot-ready (aget peer peer-slot-sub-ready))
-                (aset peer peer-slot-sub-ready sub))
-            (aset sub input-sub-slot-ready sub))
-          (exit peer busy) diff)
-      (do (aset sub input-sub-slot-step nil)
-          (aset sub input-sub-slot-ready (aget peer peer-slot-sub-ready))
-          (aset peer peer-slot-sub-ready sub)
-          (exit peer busy)
-          (throw (Cancelled. "Remote port cancelled."))))))
+            (let [done (aget sub input-sub-slot-done)]
+              (aset sub input-sub-slot-step nil)
+              (exit peer busy) (done))
+            (exit peer busy)) diff)
+      (let [done (aget sub input-sub-slot-done)]
+        (aset sub input-sub-slot-step nil)
+        (exit peer busy) (done)
+        (throw (Cancelled. "Remote port cancelled."))))))
 
 (deftype InputSub [sub]
   IFn
@@ -595,10 +583,7 @@ T T T -> (EXPR T)
           (do (aset input input-slot-subs sub)
               (aset sub input-sub-slot-prev sub)
               (aset sub input-sub-slot-next sub))))
-      (aset sub input-sub-slot-ready (aget peer peer-slot-sub-ready))
-      (aset peer peer-slot-sub-ready sub)
-      (exit peer busy)
-      (->InputSub sub))))
+      (exit peer busy) (step) (->InputSub sub))))
 
 (defn make-port [^Slot slot site deps flow]
   (let [port (object-array port-slots)
@@ -740,12 +725,9 @@ T T T -> (EXPR T)
     (loop [^objects s sub]
       (if-some [{:keys [grow degree]} (aget s input-sub-slot-diff)]
         (aset s input-sub-slot-diff (reset-diff (- degree grow)))
-        (let [^objects remote (aget input input-slot-remote)
-              ^objects peer (aget remote remote-slot-peer)]
+        (let [step (aget s input-sub-slot-step)]
           (aset s input-sub-slot-diff (reset-diff (:degree (aget input input-slot-diff))))
-          (when (identical? s (aget s input-sub-slot-ready))
-            (aset s input-sub-slot-ready (aget peer peer-slot-sub-ready))
-            (aset peer peer-slot-sub-ready s))))
+          (step)))
       (let [n (aget s input-sub-slot-next)]
         (when-not (identical? n sub) (recur n)))))
   (aset input input-slot-diff (i/empty-diff 0)))
@@ -819,10 +801,8 @@ T T T -> (EXPR T)
       (loop [^objects s sub]
         (if-some [prev (aget s input-sub-slot-diff)]
           (aset s input-sub-slot-diff (i/combine prev diff))
-          (do (aset s input-sub-slot-diff diff)
-              (when (identical? s (aget s input-sub-slot-ready))
-                (aset s input-sub-slot-ready (aget peer peer-slot-sub-ready))
-                (aset peer peer-slot-sub-ready s))))
+          (let [step (aget s input-sub-slot-step)]
+            (aset s input-sub-slot-diff diff) (step)))
         (let [n (aget s input-sub-slot-next)]
           (when-not (identical? n sub) (recur n))))))
   remote)
@@ -836,9 +816,8 @@ T T T -> (EXPR T)
       (aset input input-slot-subs nil)
       (loop [^objects s sub]
         (when (nil? (aget s input-sub-slot-diff))
-          (aset s input-sub-slot-step nil)
-          (aset s input-sub-slot-ready (aget peer peer-slot-sub-ready))
-          (aset peer peer-slot-sub-ready s))
+          (let [done (aget s input-sub-slot-done)]
+            (aset s input-sub-slot-step nil) (done)))
         (let [n (aget s input-sub-slot-next)]
           (aset s input-sub-slot-next nil)
           (aset s input-sub-slot-prev nil)
