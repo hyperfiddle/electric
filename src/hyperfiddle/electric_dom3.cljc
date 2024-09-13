@@ -475,23 +475,23 @@ input's value, use `EventListener`."
 ;; Extras ;;
 ;;;;;;;;;;;;
 
-#?(:cljs
-   (defn focused?> [node]
-     (->> (mx/mix (m/observe (fn [!] (with-listener node "focus" (fn [_] (! true)))))
-            (m/observe (fn [!] (with-listener node "blur" (fn [_] (! false))))))
-       (m/reductions {} (= node (.-activeElement js/document)))
-       (m/relieve {}))))
+#?(:cljs (defn updown [node enter-event leave-event init]
+           (->> (mx/mix
+                  (m/observe (fn [!] (with-listener node enter-event (fn [_] (! true)))))
+                  (m/observe (fn [!] (with-listener node leave-event (fn [_] (! false))))))
+             (m/reductions {} init) (m/relieve {}))))
 
-(e/defn Focused? ([] ($ Focused? node)) ([node] (e/input (focused?> node))))
+(e/defn Mouse-over?
+  ([] (Mouse-over? node))
+  ([node] (e/client (e/input (updown node "mouseenter" "mouseleave" false)))))
 
-#?(:cljs
-   (defn mouse-down?> [node]
-     (->> (mx/mix (m/observe (fn [!] (with-listener node "mousedown" (fn [_] (! true)))))
-            (m/observe (fn [!] (with-listener node "mouseup" (fn [_] (! false))))))
-       (m/reductions {} false)
-       (m/relieve {}))))
+(e/defn Focused?
+  ([] (Focused? node))
+  ([node] (e/client (e/input (updown node "focus" "blur" (= node (.-activeElement js/document)))))))
 
-(e/defn MouseDown? ([] ($ MouseDown? node)) ([node] (e/input (mouse-down?> node))))
+(e/defn Mouse-down?
+  ([] (Mouse-down? node))
+  ([node] (e/client (e/input (updown node "mouseup" "mousedown" false)))))
 
 ;;;;;;;;;;;
 ;; Sugar ;;
