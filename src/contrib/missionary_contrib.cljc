@@ -57,3 +57,7 @@ constant) so we are left with not an entity but a document."
                   (case op
                     ::add (assoc m a v)
                     ::retract (dissoc m a))) {} >txs))
+
+(defn delay-flow [>x]
+  (->> (m/reductions (fn [[_ b] nx] [b nx]) [] >x)
+    (m/eduction (map second))))
