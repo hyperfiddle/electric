@@ -603,18 +603,24 @@
   (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv)
     (lang/emit-foreign)))
 
-(defn foreign-electrified [gen o]
-  (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv)
-    (lang/wrap-foreign-for-electric gen)))
+(defn foreign-electrified
+  ([o] (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv)
+         (lang/wrap-foreign-for-electric)))
+  ([gen o]
+   (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv)
+     (lang/wrap-foreign-for-electric gen))))
 
 (def fenv-js (merge (cljs-ana/->cljs-env) fenv {::lang/peers {:client :cljs} ::lang/curent :client}))
 (defn foreign-js [o]
   (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv-js) fenv-js)
     (lang/emit-foreign)))
 
-(defn foreign-electrified-js [gen o]
-  (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv-js) fenv-js)
-    (lang/wrap-foreign-for-electric gen)))
+(defn foreign-electrified-js
+  ([o] (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv-js) fenv-js)
+         (lang/wrap-foreign-for-electric)))
+  ([gen o]
+   (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv-js) fenv-js)
+     (lang/wrap-foreign-for-electric gen))))
 
 (tests
   "foreign"
@@ -719,6 +725,9 @@
   (foreign-electrified (consuming '[a]) '(foo bar baz))
   := '((fn* [a] (a a a)) hyperfiddle.electric.impl.runtime3/cannot-resolve)
 
+  ;; gensym of name of clojure.core// creates an invalid symbol
+  (-> (foreign-electrified '(fn [x] (/ x 2))) first second first name first) := \_
+
   (foreign-electrified nil '(fn [x] [x x]))
   := nil                                ; nothing to wrap, signaled as `nil`
 
@@ -774,6 +783,9 @@
 
   (foreign-electrified-js (consuming '[a]) '(set! consuming e1))
   := '((fn* [e1] (set! consuming e1)) e1)
+
+  ;; gensym of name of clojure.core// creates an invalid symbol
+  (-> (foreign-electrified-js '(fn [x] (/ x 2))) first second first name first) := \_
 
   (foreign-electrified-js nil '(fn [x] [x x]))
   := nil                                ; nothing to wrap, signaled as `nil`
