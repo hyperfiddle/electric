@@ -2,6 +2,9 @@
 
 `com.hyperfiddle/electric {:mvn/version "v2-alpha-540-ga4699532"}` · 2024 Jan 10 · [Changelog](CHANGELOG.md)
 
+> [!NOTE]  
+> Electric v3 is nearly here! Request early access here: https://www.hyperfiddle.net/early-access.html
+
 Electric is a **reactive and network-aware Clojure/Script DSL** that fully abstracts over client/server state sync at the programming language layer, in order to achieve **strong composition** across the frontend/backend boundary in dynamic web apps. With Electric, backend expressions (i.e. queries) and frontend expressions (i.e. views) compose directly. There is no incidental network divide. The Electric macros will, at compile time, perform deep graph analysis of your hollistic program's data flow in order to transparently partition and distribute it across the client/server distributed system. There is no client/server dichotomy from the programmer's perspective. All IO and effects are managed.
 
 ![](docs/electric-explainer-5.png)
