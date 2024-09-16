@@ -637,10 +637,10 @@
   (foreign '{:a 1 :b 2}) := '{:a 1 :b 2}
   (foreign '[x :y 1]) := '[x :y 1]
   (foreign '#{x :y 1}) := '#{x :y 1}
-  (foreign '(. pt x)) := '(. pt x)
-  (foreign '(.-x pt)) := '(. pt -x)
-  (foreign '(. i1 (isAfter i2))) := '(. i1 isAfter i2)
-  (foreign '(. i1 isAfter i2)) := '(. i1 isAfter i2)
+  (foreign '(. e1 x)) := '(. e1 x)
+  (foreign '(.-x e1)) := '(. e1 -x)
+  (foreign '(. e1 (isAfter e2))) := '(. e1 isAfter e2)
+  (foreign '(. e1 isAfter e2)) := '(. e1 isAfter e2)
   (foreign '(set! foo 1)) := '(set! foo 1)
   (foreign '(let [o (Object.)] (set! (.-x o) 1))) := '(let* [o (new Object)] (set! (. o -x) 1))
   (foreign '(new X 1 2 3)) := '(new X 1 2 3)
@@ -662,10 +662,10 @@
   (foreign-js '{:a 1 :b 2}) := '{:a 1 :b 2}
   (foreign-js '[x :y 1]) := '[x :y 1]
   (foreign-js '#{x :y 1}) := '#{x :y 1}
-  (foreign-js '(. pt x)) := '(. pt x)
-  (foreign-js '(.-x pt)) := '(. pt -x)
-  (foreign-js '(. i1 (isAfter i2))) := '(. i1 isAfter i2)
-  (foreign-js '(. i1 isAfter i2)) := '(. i1 isAfter i2)
+  (foreign-js '(. e1 x)) := '(. e1 x)
+  (foreign-js '(.-x e1)) := '(. e1 -x)
+  (foreign-js '(. e1 (isAfter e2))) := '(. e1 isAfter e2)
+  (foreign-js '(. e1 isAfter e2)) := '(. e1 isAfter e2)
   (foreign-js '(set! foo 1)) := '(set! foo 1)
   (foreign-js '(let [o (Object.)] (set! (.-x o) 1))) := '(let* [o (new Object)] (set! (. o -x) 1))
   (foreign-js '(new X 1 2 3)) := '(new X 1 2 3)
@@ -790,6 +790,58 @@
   (foreign-electrified-js nil '(fn [x] [x x]))
   := nil                                ; nothing to wrap, signaled as `nil`
 
+  )
+
+(def unsited-fenv (assoc fenv ::lang/peers {:client :clj} ::lang/current nil))
+(def unsited-fenv-js (assoc fenv-js ::lang/current nil))
+
+(defn foreign-electrified-unsited
+  ([o] (-> (lang/analyze-foreign (lang/-expand-all-foreign o unsited-fenv) unsited-fenv)
+         (lang/wrap-foreign-for-electric)))
+  ([gen o] (-> (lang/analyze-foreign (lang/-expand-all-foreign o unsited-fenv) unsited-fenv)
+             (lang/wrap-foreign-for-electric gen))))
+
+(defn foreign-electrified-unsited-js
+  ([o] (-> (lang/analyze-foreign (lang/-expand-all-foreign o unsited-fenv-js) unsited-fenv-js)
+         (lang/wrap-foreign-for-electric)))
+  ([gen o] (-> (lang/analyze-foreign (lang/-expand-all-foreign o unsited-fenv-js) unsited-fenv-js)
+             (lang/wrap-foreign-for-electric gen))))
+
+(tests
+  "unsited edge cases"
+
+  (foreign-electrified-unsited (consuming '[cannot-resolve]) '(fn [x] (goog.object/create e1)))
+  := '((fn* [cannot-resolve e1] (fn* ([x] (cannot-resolve e1))))
+       hyperfiddle.electric.impl.runtime3/cannot-resolve e1)
+
+  (foreign-electrified-unsited (consuming '[div]) '(fn [x] (try (/ 1 0) (catch js/Error e e))))
+  := '((fn* [div] (fn* ([x] (try (div 1 0) (catch Throwable e e)))))
+       clojure.core//)
+
+  (foreign-electrified-unsited (consuming '[first obj]) '(set! (.-x (-> [(js/Object.)] first)) 2))
+  := '((fn* [first obj] (set! (. (first [(new obj)]) -x) 2))
+       clojure.core/first hyperfiddle.electric.impl.runtime3/cannot-resolve)
+
+  (foreign-electrified-unsited (consuming '[cannot-resolve]) '(set! (.-title js/document) e1))
+  := '((fn* [cannot-resolve e1] (set! (. cannot-resolve -title) e1))
+       hyperfiddle.electric.impl.runtime3/cannot-resolve e1)
+
+  (foreign-electrified-unsited-js (consuming '[cannot-resolve]) '(fn [x] (Thread/sleep e1)))
+  := '((fn* [cannot-resolve e1] (fn* ([x] (. cannot-resolve sleep e1))))
+       hyperfiddle.electric.impl.runtime3/cannot-resolve e1)
+
+  (foreign-electrified-unsited-js (consuming '[div]) '(fn [x] (try (/ 1 0) (catch Exception e e))))
+  := '((fn* [div] (fn* ([x] (try (div 1 0) (catch :default e e)))))
+       clojure.core//)
+
+  (foreign-electrified-unsited-js (consuming '[div]) '(fn [x] (try (/ 1 0) (catch Exception e e) (catch Throwable e e))))
+  := '((fn* [div] (fn* ([x] (try (div 1 0) (catch :default e e)))))
+       clojure.core//)
+
+  (foreign-electrified-unsited-js (consuming '[first point]) '(set! (.-x (-> [(java.awt.Point. 0 2)] first)) 2))
+  := '((fn* [first point] (set! (. (first [(new point 0 2)]) -x) 2))
+       clojure.core/first
+       hyperfiddle.electric.impl.runtime3/cannot-resolve)
   )
 
 (comment
