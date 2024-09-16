@@ -112,10 +112,8 @@
                                    (->> [x] x)]
                              (-> (->> x) inc)))) := true
 
-     (let [[f v :as x] (all '(set! (.-x (-> [(java.awt.Point. (-> 0 inc) 2)] first)) (-> 2 inc)))]
-       (first f) := 'fn*
-       v := '(inc 2)
-       (has-line-meta? x) := true)
+     (all '(set! (.-x (-> [(java.awt.Point. (-> 0 inc) 2)] first)) (-> 2 inc)))
+     := '(set! (. (first [(new java.awt.Point (inc 0) 2)]) -x) (inc 2))
 
      (all '(new java.awt.Point (-> 0 inc) 1)) := '(new java.awt.Point (inc 0) 1)
      (all '(java.awt.Point. (-> 0 inc) 1)) := '(new java.awt.Point (inc 0) 1)
