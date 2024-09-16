@@ -2,7 +2,8 @@
   (:refer-clojure :exclude [resolve])
   (:require [hyperfiddle.incseq :as i]
             [missionary.core :as m]
-            [cognitect.transit :as t])
+            [cognitect.transit :as t]
+            [hyperfiddle.incseq.diff-impl :as d])
   (:import missionary.Cancelled
            #?(:clj (clojure.lang IFn IDeref))
            #?(:clj (java.io ByteArrayInputStream ByteArrayOutputStream Writer))
@@ -223,10 +224,7 @@ T T T -> (EXPR T)
 (defn drain "
 (IS T) -> (IS VOID)
 " [incseq]
-  (let [signal (m/signal i/combine incseq)]
-    (m/ap
-      (m/amb (i/empty-diff 0)
-        (do (m/?> signal) (m/amb))))))
+  (m/latest (constantly (d/empty-diff 0)) incseq))
 
 (defn error [^String msg]
   #?(:clj (Error. msg)

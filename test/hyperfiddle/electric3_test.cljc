@@ -2288,3 +2288,26 @@
       (swap! !x not) % := :unmount
       (swap! !x not) % := :branch
       (swap! !x not) % := :unmount)))
+
+(tests
+  (let [!x (atom false)]
+    (with ((l/single {}
+             (when-let [x (e/watch !x)]
+               (tap x)
+               (e/OnUnmount #(tap :bye)))) {} {})
+      (reset! !x 1)      % := 1
+      (swap! !x inc)     % := 2
+      (swap! !x inc)     % := 3
+      (reset! !x false)  % := :bye)))
+
+(tests
+  (let [!x (atom false)]
+    (with ((l/single {}
+             (if-let [x (e/watch !x)]
+               (tap x)
+               (tap :not))) {} {})
+      #_init             % := :not
+      (reset! !x 1)      % := 1
+      (swap! !x inc)     % := 2
+      (swap! !x inc)     % := 3
+      (reset! !x false)  % := :not)))
