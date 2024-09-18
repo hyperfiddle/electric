@@ -7,10 +7,11 @@
   #?(:cljs (:import [goog.i18n MessageFormat DateTimeFormat]
                     [goog.i18n.DateTimeFormat Format])))
 
-(defn pprint-str [x]
+(defn pprint-str [x & {:keys [margin miser]
+                       :or {margin 100 miser 40}}]
   (with-out-str
-    (binding [clojure.pprint/*print-right-margin* 100
-              #_#_clojure.pprint/*print-miser-width* 1
+    (binding [clojure.pprint/*print-right-margin* margin
+              clojure.pprint/*print-miser-width* miser
               #_#_clojure.pprint/*print-pprint-dispatch* hyperfiddle.pprint/simple-dispatch]
       (clojure.pprint/with-pprint-dispatch
         clojure.pprint/code-dispatch
