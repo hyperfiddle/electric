@@ -850,15 +850,15 @@
                                                (field-access? x) (->foreign-field-access ts o x env p ->i)
                                                :else (->foreign-method-call ts o x x* env p ->i))
                                          (if (field-access? x)
-                                           (->foreign-field-access ts `r/cannot-resolve x env p ->i)
-                                           (->foreign-method-call ts `r/cannot-resolve x x* env p ->i)))
+                                           (->foreign-field-access ts o x env p ->i)
+                                           (->foreign-method-call ts o x x* env p ->i)))
                                 (:cljs) (if (analyze-cljs-symbol o env)
                                           (cond (implicit-cljs-nses o) (->foreign-class-method-call ts o x x* env p ->i)
                                                 (field-access? x) (->foreign-field-access ts o x env p ->i)
                                                 :else (->foreign-method-call ts o x x* env p ->i))
                                          (if (field-access? x)
-                                           (->foreign-field-access ts (with-meta `r/cannot-resolve {:tag 'js}) x env p ->i)
-                                           (->foreign-method-call ts (with-meta `r/cannot-resolve {:tag 'js}) x x* env p ->i))))))
+                                           (->foreign-field-access ts (with-meta o {:tag 'js}) x env p ->i)
+                                           (->foreign-method-call ts (with-meta o {:tag 'js}) x x* env p ->i))))))
                    (->foreign-method-call ts o x x* env p ->i)))
 
            (def) (let [u (->u)]
@@ -1030,7 +1030,8 @@
            (e->u [e] (::u (ts/->node ts e)))
            (order [u*] (sort-by (comp ::i ->node) u*))
            (find [& kvs] (order (eduction (map e->u) (apply ts/find ts kvs))))
-           (? [u k] (get (->node u) k))]
+           (? [u k] (get (->node u) k))
+           (?cannot-resolve [r s] (if (= `r/cannot-resolve r) `(r/cannot-resolve-fn '~s) r))]
      (let [<arg*> (->box []), <val*> (->box []), <dyn*> (->box []), <seen> (->box {})
            f (fn [ts u]
                (let [nd (->node u), r (::resolved nd), s (::sym nd), seen (<seen>)]
@@ -1038,13 +1039,15 @@
                    (if (seen r)
                      ts
                      (let [lex (gen (name r))]
-                       (<arg*> (conj (<arg*>) lex))     (<val*> (conj (<val*>) r))
+                       (<arg*> (conj (<arg*>) lex))     (<val*> (conj (<val*>) (?cannot-resolve r s)))
                        (<dyn*> (into (<dyn*>) [s lex])) (<seen> (assoc seen r true))
                        ts))
                    (if-some [lex (seen r)]
                      (ts/asc ts (:db/id nd) ::sym lex)
                      (let [lex (with-meta (gen (name s)) (merge (::meta nd) (meta (::sym nd))))]
-                       (<arg*> (conj (<arg*>) lex)) (<val*> (conj (<val*>) r)) (<seen> (assoc seen r lex))
+                       (<arg*> (conj (<arg*>) lex))
+                       (<val*> (conj (<val*>) (?cannot-resolve r s)))
+                       (<seen> (assoc seen r lex))
                        (ts/asc ts (:db/id nd) ::sym lex))))))
            xf (remove #(let [nd (->node %)] (and (zero? (::i nd)) (not= -1 (::p nd)) (= ::set! (? (::p nd) ::t)))))
            ts (transduce xf (completing f) ts (find ::t ::var))
