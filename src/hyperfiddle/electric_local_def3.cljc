@@ -42,27 +42,27 @@
   (ca/is conf map? "provide config map as first argument")
   `(r/->defs {::Main ~(lang/->source (->env &env conf) ::Main `(e/fn [] (do ~@body)))}))
 
-(defn half-conn [in-cb out-cb handler]
+(defn half-conn [out-cb latency events]
   (m/reduce (constantly nil)
-    (m/ap (let [v (m/?> (m/stream (handler (fn [!] (in-cb !) #()))))]
+    (m/ap (let [v (m/?> (m/zip {} latency events))]
             ((m/? out-cb) v)))))
 
-(defn full-conn [server-handler client-handler]
+(defn run-local [[inbound-latency outbound-latency] defs main]
   (let [s->c (m/dfv)
-        c->s (m/dfv)]
+        c->s (m/dfv)
+        client (r/make-peer :client {} (fn [!] (s->c !) #()) defs main nil)
+        server (r/make-peer :server {} (fn [!] (c->s !) #()) defs main nil)]
     (m/join {}
-      (half-conn c->s s->c server-handler)
-      (half-conn s->c c->s client-handler))))
+      (half-conn s->c inbound-latency (r/peer-events server))
+      (r/peer-boot client (partial half-conn c->s outbound-latency)))))
 
-(defn run-local [defs main]
-  (r/client {}
-    (fn [handler]
-      (full-conn (r/server {} defs main) handler)) defs main))
+(defn run-single [defs main]
+  (r/peer-sink (r/make-peer :client {} nil defs main nil)))
 
-(def run-single (partial r/client {} (fn [_] m/never)))
+(def no-latency [(m/seed (repeat nil)) (m/seed (repeat nil))])
 
 (defmacro local {:style/indent 1} [conf & body]
-  `(run-local (main ~conf ~@body) ::Main))
+  `(run-local ~(::lang/remote-latency conf `no-latency) (main ~conf ~@body) ::Main))
 
 (defmacro single {:style/indent 1} [conf & body]
   `(run-single (main ~conf ~@body) ::Main))
