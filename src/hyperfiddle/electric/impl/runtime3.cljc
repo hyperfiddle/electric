@@ -31,7 +31,7 @@
 (def peer-slots 6)
 
 (def remote-slot-peer 0)
-(def remote-slot-events 1)
+(def remote-slot-input 1)
 (def remote-slot-channel 2)
 (def remote-slot-inputs 3)                                  ;; hash map of remote ports currently pushed to local peer, indexed by port slot
 (def remote-slot-outputs 4)                                 ;; hash map of local port subscriptions pushed to remote peer, indexed by port slot
@@ -40,7 +40,8 @@
 (def remote-slot-freeze 7)
 (def remote-slot-acks 8)
 (def remote-slot-toggle 9)
-(def remote-slots 10)
+(def remote-slot-events 10)
+(def remote-slots 11)
 
 (def ack-slot-prev 0)
 (def ack-slot-next 1)
@@ -58,18 +59,17 @@
 (def output-slots 7)
 
 (def channel-slot-remote 0)
-(def channel-slot-events 1)
-(def channel-slot-process 2)
-(def channel-slot-busy 3)
-(def channel-slot-over 4)
-(def channel-slot-step 5)
-(def channel-slot-done 6)
-(def channel-slot-alive 7)
-(def channel-slot-ready 8)
-(def channel-slot-shared 9)
-(def channel-slot-reader-opts 10)
-(def channel-slot-writer-opts 11)
-(def channel-slots 12)
+(def channel-slot-process 1)
+(def channel-slot-busy 2)
+(def channel-slot-over 3)
+(def channel-slot-step 4)
+(def channel-slot-done 5)
+(def channel-slot-alive 6)
+(def channel-slot-ready 7)
+(def channel-slot-shared 8)
+(def channel-slot-reader-opts 9)
+(def channel-slot-writer-opts 10)
+(def channel-slots 11)
 
 (def port-slot-slot 0)
 (def port-slot-site 1)
@@ -313,7 +313,7 @@ T T T -> (EXPR T)
 (defn peer-site [^objects peer]
   (aget peer peer-slot-site))
 
-(defn peer-root [^objects peer key]
+(defn peer-resolve [^objects peer key]
   (let [defs (peer-defs peer)]
     (when-not (contains? defs key) (throw (error (str (pr-str key) " not defined"))))
     (defs key)))
@@ -322,7 +322,7 @@ T T T -> (EXPR T)
   "Returns the cdef of given constructor."
   {:tag Cdef}
   [^objects peer key idx]
-  ((peer-root peer key) idx))
+  ((peer-resolve peer key) idx))
 
 (defn port-flow [^objects port]
   (aget port port-slot-flow))
@@ -405,7 +405,7 @@ T T T -> (EXPR T)
 (defn resolve
   "Returns the root binding of electric var matching given keyword."
   [^Frame frame key]
-  ((peer-root (.-peer frame) key)))
+  ((peer-resolve (.-peer frame) key)))
 
 (defn frame-site
   "Returns the site of given frame."
@@ -800,7 +800,9 @@ T T T -> (EXPR T)
         (if-some [prev (aget s input-sub-slot-diff)]
           (aset s input-sub-slot-diff (i/combine prev diff))
           (let [step (aget s input-sub-slot-step)]
-            (aset s input-sub-slot-diff diff) (step)))
+            (aset s input-sub-slot-diff diff)
+            ;; TODO this can nullify slot-next
+            (step)))
         (let [n (aget s input-sub-slot-next)]
           (when-not (identical? n sub) (recur n))))))
   remote)
@@ -1105,38 +1107,12 @@ T T T -> (EXPR T)
                                    (fn [_]
                                      (->Failure :unserializable)))})})
 
-(defn remote-handler [opts ^objects peer]
-  (fn [events]
-    (fn [step done]
-      (let [busy (enter peer)
-            ^objects remote (aget peer peer-slot-remote)]
-        (if (nil? (aget remote remote-slot-channel))
-          (let [channel (object-array channel-slots)]
-            (aset remote remote-slot-channel channel)
-            (aset channel channel-slot-remote remote)
-            (aset channel channel-slot-step step)
-            (aset channel channel-slot-done done)
-            (aset channel channel-slot-busy true)
-            (aset channel channel-slot-over false)
-            (aset channel channel-slot-events events)
-            (aset channel channel-slot-alive (identity 1))
-            (aset channel channel-slot-shared {})
-            (aset channel channel-slot-writer-opts (channel-writer-opts opts channel))
-            (aset channel channel-slot-reader-opts (channel-reader-opts opts channel))
-            (aset channel channel-slot-ready (aget peer peer-slot-channel-ready))
-            (aset peer peer-slot-channel-ready channel)
-            (aset channel channel-slot-process
-              ((aget remote remote-slot-events)
-               #(let [^objects remote (aget channel channel-slot-remote)]
-                  (channel-ready channel (enter (aget remote remote-slot-peer))))
-               #(let [^objects remote (aget channel channel-slot-remote)]
-                  (aset channel channel-slot-over true)
-                  (channel-ready channel (enter (aget remote remote-slot-peer))))))
-            (reduce channel-output-sub channel (vals (aget remote remote-slot-outputs)))
-            (channel-ready channel busy)
-            (->Channel channel))
-          (do (exit peer busy) (step)
-              (->Failer done (error "Can't connect - remote already up."))))))))
+(defn peer-events [^objects peer]
+  (let [^objects remote (aget peer peer-slot-remote)]
+    (aget remote remote-slot-events)))
+
+(defn peer-root [^objects peer]
+  (aget peer peer-slot-root))
 
 (defn input-toggle-event [^objects input]
   (let [^objects remote (aget input input-slot-remote)]
@@ -1250,41 +1226,59 @@ T T T -> (EXPR T)
   (let [[_ _ free _] (frame-ctor frame)]
     (free id)))
 
-(defn make-remote [^objects peer]
-  (let [^objects remote (object-array remote-slots)]
+(defn make-peer "
+Returns a new peer instance for given site, from given definitions and main key and optional extra arguments to the
+entrypoint.
+" [site opts subject defs main args]
+  (let [^objects peer (object-array peer-slots)
+        ^objects remote (object-array remote-slots)
+        events (m/stream (m/observe subject))]
+    (aset peer peer-slot-busy #?(:clj (ReentrantLock.) :cljs false))
+    (aset peer peer-slot-remote remote)
+    (aset peer peer-slot-site site)
+    (aset peer peer-slot-defs defs)
     (aset remote remote-slot-peer peer)
     (aset remote remote-slot-inputs {})
     (aset remote remote-slot-outputs {})
     (aset remote remote-slot-acks (identity 0))
     (aset remote remote-slot-freeze #{})
-    (aset remote remote-slot-events
-      (m/stream
-        (m/observe
-          (fn [!]
-            (let [^objects channel (aget remote remote-slot-channel)
-                  events (aget channel channel-slot-events)]
-              (aset channel channel-slot-events nil)
-              (events !))))))
-    remote))
-
-(defn make-peer "
-Returns a new peer instance for given site, from given definitions and main key and optional extra arguments to the
-entrypoint.
-" [site defs main args]
-  (let [^objects peer (object-array peer-slots)
-        ^objects remote (make-remote peer)]
-    (aset peer peer-slot-busy #?(:clj (ReentrantLock.) :cljs false))
-    (aset peer peer-slot-site site)
-    (aset peer peer-slot-defs defs)
-    (aset peer peer-slot-remote remote)
     (aset peer peer-slot-root
       (->> args
         (eduction (map pure))
         (apply dispatch "<root>" ((defs main)))
-        (make-frame peer nil 0 :client))) peer))
-
-(defn peer-root-frame [^objects peer]
-  (aget peer peer-slot-root))
+        (make-frame peer nil 0 :client)))
+    (aset remote remote-slot-events
+      (m/stream
+        (fn [step done]
+          (let [busy (enter peer)
+                ^objects remote (aget peer peer-slot-remote)]
+            (if (nil? (aget remote remote-slot-channel))
+              (let [channel (object-array channel-slots)]
+                (aset remote remote-slot-channel channel)
+                (aset channel channel-slot-remote remote)
+                (aset channel channel-slot-step step)
+                (aset channel channel-slot-done done)
+                (aset channel channel-slot-busy true)
+                (aset channel channel-slot-over false)
+                (aset channel channel-slot-alive (identity 1))
+                (aset channel channel-slot-shared {})
+                (aset channel channel-slot-writer-opts (channel-writer-opts opts channel))
+                (aset channel channel-slot-reader-opts (channel-reader-opts opts channel))
+                (aset channel channel-slot-ready (aget peer peer-slot-channel-ready))
+                (aset peer peer-slot-channel-ready channel)
+                (aset channel channel-slot-process
+                  (events
+                   #(let [^objects remote (aget channel channel-slot-remote)]
+                      (channel-ready channel (enter (aget remote remote-slot-peer))))
+                   #(let [^objects remote (aget channel channel-slot-remote)]
+                      (aset channel channel-slot-over true)
+                      (channel-ready channel (enter (aget remote remote-slot-peer))))))
+                (reduce channel-output-sub channel (vals (aget remote remote-slot-outputs)))
+                (channel-ready channel busy)
+                (->Channel channel))
+              (do (exit peer busy) (step)
+                  (->Failer done (error "Can't connect - remote already up."))))))))
+    peer))
 
 (defn subject-at [^objects arr slot]
   (fn [!] (aset arr slot !) #(aset arr slot nil)))
@@ -1369,21 +1363,11 @@ entrypoint.
         (recur (assoc ret k f) (merge (dissoc left k) (f :get :deps))))
       ret)))
 
-(defn client "
-Allocates a new client peer and returns a task consuming its return value using given connector as its server
-communication channel. `connector` must be a function taking the remote handler as an argument and returning
-a task managing the lifecycle of the channel.
+(defn peer-sink [peer]
+  (m/reduce (constantly nil) (peer-root peer)))
 
-The remote handler is a function taking a subject and returning a flow. The flow emits outgoing events and reads
-incoming events on the subject.
-" [opts connector defs main & args]
-  (let [peer (make-peer :client defs main args)]
-    (m/reduce (comp reduced {}) nil
-      (m/ap
-        (m/amb= (m/? (connector (remote-handler opts peer)))
-          (m/? (m/reduce (constantly nil) (peer-root-frame peer))))))))
-
-(defn server "
-Allocates a new server peer and returns its remote handler.
-" [opts defs main & args]
-  (remote-handler opts (make-peer :server defs main args)))
+(defn peer-boot [peer handler]
+  (m/reduce (comp reduced {}) nil
+    (m/ap
+      (m/amb= (m/? (handler (peer-events peer)))
+        (m/? (peer-sink peer))))))

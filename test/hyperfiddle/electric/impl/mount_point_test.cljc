@@ -35,7 +35,7 @@
 
 (deftest sibling-tags
   (let [q (queue)
-        _ (r/make-peer :client
+        _ (r/make-peer :client {} nil
             {:root (fn ([] {0 (r/ctor :root 0)})
                      ([idx]
                       (case idx
@@ -79,7 +79,7 @@
 
 (deftest sibling-tags-insert-after-read
   (let [q (queue)
-        _ (r/make-peer :client
+        _ (r/make-peer :client {} nil
             {:root (fn ([] {0 (r/ctor :root 0)})
                      ([idx]
                       (case idx
@@ -104,8 +104,8 @@
 (deftest cousin-tags-insert-after-read
   (let [q (queue)
         _ ((m/reduce (constantly nil)
-             (r/peer-root-frame
-               (r/make-peer :client
+             (r/peer-root
+               (r/make-peer :client {} nil
                  {:root (fn ([] {0 (r/ctor :root 0)})
                           ([idx]
                            (case idx

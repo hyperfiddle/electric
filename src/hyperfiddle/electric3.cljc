@@ -329,21 +329,22 @@ A mount point can be :
 (defmacro boot-server [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
         source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
-    `(r/server ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
-       (r/->defs {::Main ~source}) ::Main)))
+    `(clojure.core/fn [subject#]
+       (r/peer-events
+         (r/make-peer :server ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
+           subject# (r/->defs {::Main ~source}) ::Main nil)))))
 
 (defmacro boot-client [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
         source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
-    `(r/client ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
-       (hyperfiddle.electric-client3/connector hyperfiddle.electric-client3/*ws-server-url*)
-       (r/->defs {::Main ~source}) ::Main )))
+    `(let [[subject# handler#] (hyperfiddle.electric-client3/connector hyperfiddle.electric-client3/*ws-server-url*)]
+       (r/peer-boot (r/make-peer :client ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
+                      subject# (r/->defs {::Main ~source}) ::Main nil) handler#))))
 
 (defmacro boot-single [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
         source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
-    `(r/client {} (constantly m/never)
-       (r/->defs {::Main ~source}) ::Main)))
+    `(r/peer-sink (r/make-peer :client {} nil (r/->defs {::Main ~source}) ::Main nil))))
 
 ;; (cc/defn -snapshot [flow] (->> flow (m/eduction (contrib.data/take-upto (complement #{r/pending})))))
 (cc/defn -snapshot [flow] (->> flow (m/eduction (contrib.data/take-upto (comp pos-int? :degree)))))
