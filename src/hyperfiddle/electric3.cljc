@@ -221,6 +221,7 @@ this tuple. Returns the concatenation of all body results as a single vector.
 (hyperfiddle.electric3/defn Count [xs] (-> xs pure i/count input))
 (hyperfiddle.electric3/defn Filter [p? xs] (for [x xs] (if (p? x) x (amb)))) ; todo write as product
 (defmacro When [test & body] `(if ~test (do ~@body) (amb)))
+(hyperfiddle.electric3/defn Some? [xs] (pos? (Count xs)))
 
 (hyperfiddle.electric3/defn Tap-diffs
   ([f! x] (doto (input (pure x)) f!))
