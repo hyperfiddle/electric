@@ -2311,3 +2311,13 @@
       (swap! !x inc)     % := 2
       (swap! !x inc)     % := 3
       (reset! !x false)  % := :not)))
+
+#?(:clj (defn clj-only [] :clj))
+#?(:cljs
+   (tests (with ((l/single {} (tap (clj-only))) tap tap)
+            (ex-message %) := "I cannot resolve [clj-only], maybe it's only defined on the other peer?")))
+
+#?(:cljs (defn cljs-only [] :cljs))
+#?(:clj
+   (tests (with ((l/single {} (cljs-only)) tap tap)
+            (ex-message %) := "I cannot resolve [cljs-only], maybe it's only defined on the other peer?")))
