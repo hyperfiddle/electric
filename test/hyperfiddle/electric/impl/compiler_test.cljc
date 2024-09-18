@@ -698,7 +698,7 @@
   := '((fn* [e1] [e1 e1]) e1)
 
   (foreign-electrified (consuming ['nope]) 'doesnt-exist)
-  := '((fn* [nope] nope) hyperfiddle.electric.impl.runtime3/cannot-resolve)
+  := '((fn* [nope] nope) (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'doesnt-exist))
 
   (foreign-electrified (consuming ['plus]) '(clojure.core/+ e1 3))
   := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
@@ -723,7 +723,7 @@
        clojure.core/+ clojure.core/- e1 e2)
 
   (foreign-electrified (consuming '[a]) '(foo bar baz))
-  := '((fn* [a] (a a a)) hyperfiddle.electric.impl.runtime3/cannot-resolve)
+  := '((fn* [a] (a a a)) (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'foo))
 
   ;; gensym of name of clojure.core// creates an invalid symbol
   (-> (foreign-electrified '(fn [x] (/ x 2))) first second first name first) := \_
@@ -754,7 +754,7 @@
   := '((fn* [e1] [e1 e1]) e1)
 
   (foreign-electrified-js (consuming ['nope]) 'doesnt-exist)
-  := '((fn* [nope] nope) hyperfiddle.electric.impl.runtime3/cannot-resolve)
+  := '((fn* [nope] nope) (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'doesnt-exist))
 
   (foreign-electrified-js (consuming ['plus]) '(clojure.core/+ e1 3))
   := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
@@ -779,7 +779,7 @@
        clojure.core/+ clojure.core/- e1 e2)
 
   (foreign-electrified-js (consuming '[a]) '(foo bar baz))
-  := '((fn* [a] (a a a)) hyperfiddle.electric.impl.runtime3/cannot-resolve)
+  := '((fn* [a] (a a a)) (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'foo))
 
   (foreign-electrified-js (consuming '[a]) '(set! consuming e1))
   := '((fn* [e1] (set! consuming e1)) e1)
@@ -812,7 +812,7 @@
 
   (foreign-electrified-unsited (consuming '[cannot-resolve]) '(fn [x] (goog.object/create e1)))
   := '((fn* [cannot-resolve e1] (fn* ([x] (cannot-resolve e1))))
-       hyperfiddle.electric.impl.runtime3/cannot-resolve e1)
+       (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'goog.object/create) e1)
 
   (foreign-electrified-unsited (consuming '[div]) '(fn [x] (try (/ 1 0) (catch js/Error e e))))
   := '((fn* [div] (fn* ([x] (try (div 1 0) (catch Throwable e e)))))
@@ -820,15 +820,15 @@
 
   (foreign-electrified-unsited (consuming '[first obj]) '(set! (.-x (-> [(js/Object.)] first)) 2))
   := '((fn* [first obj] (set! (. (first [(new obj)]) -x) 2))
-       clojure.core/first hyperfiddle.electric.impl.runtime3/cannot-resolve)
+       clojure.core/first (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'js/Object))
 
   (foreign-electrified-unsited (consuming '[cannot-resolve]) '(set! (.-title js/document) e1))
   := '((fn* [cannot-resolve e1] (set! (. cannot-resolve -title) e1))
-       hyperfiddle.electric.impl.runtime3/cannot-resolve e1)
+       (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'js/document) e1)
 
   (foreign-electrified-unsited-js (consuming '[cannot-resolve]) '(fn [x] (Thread/sleep e1)))
   := '((fn* [cannot-resolve e1] (fn* ([x] (. cannot-resolve sleep e1))))
-       hyperfiddle.electric.impl.runtime3/cannot-resolve e1)
+       (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'Thread) e1)
 
   (foreign-electrified-unsited-js (consuming '[div]) '(fn [x] (try (/ 1 0) (catch Exception e e))))
   := '((fn* [div] (fn* ([x] (try (div 1 0) (catch :default e e)))))
@@ -841,7 +841,7 @@
   (foreign-electrified-unsited-js (consuming '[first point]) '(set! (.-x (-> [(java.awt.Point. 0 2)] first)) 2))
   := '((fn* [first point] (set! (. (first [(new point 0 2)]) -x) 2))
        clojure.core/first
-       hyperfiddle.electric.impl.runtime3/cannot-resolve)
+       (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'java.awt.Point))
   )
 
 (comment
