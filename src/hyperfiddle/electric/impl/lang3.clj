@@ -1409,8 +1409,16 @@
         index-calls (fn [ts]
                       (reduce (fn [ts e] (ts/asc ts e ::call-idx (->call-idx (::ctor-call (ts/->node ts e)))))
                         ts (sort-by #(get-program-order ts %) (->> ts :ave ::ctor-call vals (reduce into)))))
+        expand-cannot-resolve (fn [ts]
+                                (reduce (fn [ts e]
+                                          (let [nd (ts/->node ts e), ce (->id)]
+                                            (-> ts (ts/asc e ::type ::ap)
+                                              (ts/add {:db/id ce, ::parent e, ::type ::pure})
+                                              (ts/add {:db/id (->id), ::parent ce, ::type ::literal
+                                                       ::v `(fn* [] (r/cannot-resolve-fn '~(::var nd)))}))))
+                                  ts (ts/find ts ::qualified-var `r/cannot-resolve)))
         ts (-> ts mark-used-calls2 index-calls reroute-local-aliases (optimize-locals (get-root-e ts))
-             inline-locals order-nodes order-frees collapse-ap-with-only-pures)]
+             inline-locals order-nodes order-frees collapse-ap-with-only-pures expand-cannot-resolve)]
     (when (::print-db env) (prn :db) (run! prn (ts->reducible ts)))
     ts))
 

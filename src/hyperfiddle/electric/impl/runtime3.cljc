@@ -1356,6 +1356,8 @@ entrypoint.
     gmap))
 
 (defn cannot-resolve [& args] (throw (ex-info "definition called on a peer that doesn't support it" {:args args})))
+(defn cannot-resolve-fn [sym]
+  (throw (ex-info (str "I cannot resolve [" sym "], maybe it's only defined on the other peer?") {:sym sym})))
 
 (defn tracing [info v] (print "[o_o]" info "=>> ") (prn v) v)
 
