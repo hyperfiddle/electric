@@ -336,17 +336,15 @@
 (defn fail!
   ([env msg] (fail! env msg {}))
   ([env msg data] (throw (ex-info (str "\n" (get-ns env) (when-some [d (::def env)] (str "/" d)) ":" (-> env ::meta :line) ":" (-> env ::meta :column) "\n" msg)
-                           (merge {:in (::def env) :for (or (::current env) ::unsited)} data)))))
+                           (cond-> data (::def env) (assoc :in (::def env), (::current env) (assoc :for (::current env))))))))
 
 (defn get-them [env] (-> env ::peers keys set (disj (::current env)) first))
 
 (defn cannot-resolve! [env form]
-  (fail! env (str "I cannot resolve " "`"form"`"
+  (fail! env (str "I cannot resolve [" form "]"
                (when-let [them (get-them env)]
                  (let [site (name them)]
-                   (str ", maybe it's defined only on the " site "?"
-                     \newline "If `" form "` is supposed to be a macro, you might need to :refer it in the :require-macros clause."))))
-    {:locals (keys (:locals env))}))
+                   (str ", maybe it's only defined on the " site "?"))))))
 
 (defn ns-qualify [node] (if (namespace node) node (symbol (str *ns*) (str node))))
 

@@ -2004,47 +2004,6 @@
                 (tap [(.aPlus o 1) (.-a o)])))  tap tap)
        % := [2 1])))
 
-;; TODO cljs
-#?(:clj
-   (skip "we capture invalid calls"
-     (binding [expand/*electric* true]
-       (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server) '(jjj 1))
-            (throw (Throwable. "shouldn't"))
-            (catch ExceptionInfo e
-              (ex-message e) := "in: (jjj 1)\nI cannot resolve `jjj`, maybe it's defined only on the client?\nIf `jjj` is supposed to be a macro, you might need to :refer it in the :require-macros clause."
-              (:form (ex-data e)) := 'jjj))
-
-       "in cc/fn"
-       (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server) '(fn [] (jjj 1)))
-            (throw (Throwable. "shouldn't"))
-            (catch ExceptionInfo e
-              (ex-message e) := "in: (jjj 1)\nI cannot resolve `jjj`, maybe it's defined only on the client?\nIf `jjj` is supposed to be a macro, you might need to :refer it in the :require-macros clause."
-              (:form (ex-data e)) := 'jjj))
-
-       "named cc/fn"
-       (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server) '(fn foo [] (jjj 1)))
-            (throw (Throwable. "shouldn't"))
-            (catch ExceptionInfo e
-              (ex-message e) := "in: (jjj 1)\nI cannot resolve `jjj`, maybe it's defined only on the client?\nIf `jjj` is supposed to be a macro, you might need to :refer it in the :require-macros clause."
-              (:form (ex-data e)) := 'jjj))
-
-       "in letfn"
-       (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server) '(letfn [(foo [] (jjj 1))]))
-            (throw (Throwable. "shouldn't"))
-            (catch ExceptionInfo e
-              (ex-message e) := "in: (jjj 1)\nI cannot resolve `jjj`, maybe it's defined only on the client?\nIf `jjj` is supposed to be a macro, you might need to :refer it in the :require-macros clause."
-              (:form (ex-data e)) := 'jjj))
-
-       "arbitrary symbols"
-       (try (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server)
-              '(let [x js/document.body]))
-            (catch ExceptionInfo e
-              (ex-message e) := "in: (let* [x js/document.body])\nI cannot resolve `js/document.body`, maybe it's defined only on the client?\nIf `js/document.body` is supposed to be a macro, you might need to :refer it in the :require-macros clause."
-              (:form (ex-data e)) := 'js/document.body))
-
-       "clj static field works"
-       (lang/analyze (assoc (l/->local-config {}) ::lang/current :server ::lang/me :server) 'clojure.lang.PersistentArrayMap/EMPTY))))
-
 (tests "e/server e/client body"
   (with ((l/single {} (tap (e/client 1 2))) tap tap)
     % := 2))
@@ -2312,6 +2271,10 @@
       (swap! !x inc)     % := 3
       (reset! !x false)  % := :not)))
 
+;;;;;;;;;;;;;;;;;;;;
+;; ERROR MESSAGES ;;
+;;;;;;;;;;;;;;;;;;;;
+
 #?(:clj (defn clj-only [] :clj))
 #?(:cljs
    (tests (with ((l/single {} (tap (clj-only))) tap tap)
@@ -2327,3 +2290,20 @@
 #?(:clj
    (tests (with ((l/single {} (#(cljs-only))) tap tap)
             (ex-message %) := "I cannot resolve [cljs-only], maybe it's only defined on the other peer?")))
+
+#?(:clj
+   (tests (let [ex (try (lang/->source (merge (lang/normalize-env {}) e/web-config) `root '(e/fn [] (e/client (clj-only))))
+                        (catch ExceptionInfo e e))]
+            (str/includes? (ex-message ex) "I cannot resolve [clj-only], maybe it's only defined on the server?") := true)))
+#?(:clj
+   (tests (let [ex (try (lang/->source (merge (lang/normalize-env {}) e/web-config) `root '(e/fn [] (e/client #(clj-only))))
+                        (catch ExceptionInfo e e))]
+            (str/includes? (ex-message ex) "I cannot resolve [clj-only], maybe it's only defined on the server?") := true)))
+#?(:clj
+   (tests (let [ex (try (lang/->source (merge (lang/normalize-env {}) e/web-config) `root '(e/fn [] (e/server (cljs-only))))
+                        (catch ExceptionInfo e e))]
+            (str/includes? (ex-message ex) "I cannot resolve [cljs-only], maybe it's only defined on the client?") := true)))
+#?(:clj
+   (tests (let [ex (try (lang/->source (merge (lang/normalize-env {}) e/web-config) `root '(e/fn [] (e/server #(cljs-only))))
+                        (catch ExceptionInfo e e))]
+            (str/includes? (ex-message ex) "I cannot resolve [cljs-only], maybe it's only defined on the client?") := true)))
