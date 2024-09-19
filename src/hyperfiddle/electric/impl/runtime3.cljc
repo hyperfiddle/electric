@@ -160,7 +160,7 @@ T T T -> (EXPR T)
   (try (apply invoke args)
        (catch #?(:clj Throwable :cljs :default) e (#?(:clj prn :cljs js/console.error) e))))
 
-(deftype Ap [inputs
+(deftype Ap [mt inputs
              ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
   #?(:cljs IHash)
@@ -184,8 +184,8 @@ T T T -> (EXPR T)
 (EXPR (A -> T)) (EXPR A) -> (EXPR T)
 (EXPR (A B -> T)) (EXPR A) (EXPR B) -> (EXPR T)
 (EXPR (A B C -> T)) (EXPR A) (EXPR B) (EXPR C) -> (EXPR T)
-" [& inputs]
-  (->Ap inputs nil))
+" [mt & inputs]
+  (->Ap mt inputs nil))
 
 (deftype Join [input ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
@@ -305,7 +305,7 @@ T T T -> (EXPR T)
       (apply bind-args (bind-self ctor) args)
       (let [[fixed map? ctor] (get-variadic nm F arity)]
         (bind (apply bind-args (bind-self ctor) (take fixed args))
-          fixed (apply ap (pure (varargs map?)) (drop fixed args)))))))
+          fixed (apply ap {} (pure (varargs map?)) (drop fixed args)))))))
 
 (defn peer-defs [^objects peer]
   (aget peer peer-slot-defs))
@@ -1096,7 +1096,7 @@ T T T -> (EXPR T)
                                      (->Join input nil)))
                 "ap"             (t/read-handler
                                    (fn [inputs]
-                                     (->Ap inputs nil)))
+                                     (->Ap {} inputs nil)))
                 "pure"           (t/read-handler
                                    (fn [[value]]
                                      (->Pure value nil)))

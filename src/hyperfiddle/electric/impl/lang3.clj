@@ -1085,7 +1085,7 @@
      (let [nd (get (:eav ts) e)]
        (case (::type nd)
          ::literal (::v nd)
-         ::ap (list* `r/ap (mapv rec (get-children-e ts e)))
+         ::ap (list* `r/ap {} (mapv rec (get-children-e ts e)))
          ::var (let [in (::resolved-in nd)]
                  (list* `r/lookup 'frame (keyword (::qualified-var nd))
                    (when (or (nil? in) (= in (->env-type env))) [(list `r/pure (::qualified-var nd))])))
