@@ -49,14 +49,9 @@
   (e/client
     (dom/input (dom/props (assoc props :maxLength maxlength :type type))
       (PendingMonitor
-        (letfn [(read [e] (let [k (.-key e)]
-                            (cond
-                              (= "Escape" k)  [nil (set! (.-value dom/node) v)] ; clear token fixme
-                              () [e (-> e .-target .-value (subs 0 maxlength))])))]
-          ; reuse token as value updates - i.e., singular edit not concurrent
-          (let [[e v'] (dom/On "input" read nil) t (e/Token e)]
-            (when-not (or (dom/Focused?) (some? t)) (set! (.-value dom/node) v))
-            (if t [t v'] (e/amb))))))))
+        (let [e (dom/On "input" identity nil) t (e/Token e)] ; reuse token until commit
+          (when-not (or (dom/Focused?) (some? t)) (set! (.-value dom/node) v))
+          (if t [t ((fn [] (-> e .-target .-value (subs 0 maxlength))))] (e/amb)))))))
 
 (e/defn Checkbox! [checked & {:keys [id label] :as props
                               :or {id (random-uuid)}}]
