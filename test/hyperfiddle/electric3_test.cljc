@@ -2277,19 +2277,23 @@
 
 #?(:clj (defn clj-only [] :clj))
 #?(:cljs
-   (tests (with ((l/single {} (tap (clj-only))) tap tap)
-            (ex-message %) := "I cannot resolve [clj-only], maybe it's only defined on the other peer?")))
+   (tests (with ((l/single {} (clj-only)) tap tap)
+            (str/includes? (ex-message %)
+              "I cannot resolve [clj-only], maybe it's only defined on the other peer?") := true)))
 #?(:cljs
-   (tests (with ((l/single {} (tap (#(clj-only)))) tap tap)
-            (ex-message %) := "I cannot resolve [clj-only], maybe it's only defined on the other peer?")))
+   (tests (with ((l/single {} (#(clj-only))) tap tap)
+            (str/includes? (ex-message %)
+              "I cannot resolve [clj-only], maybe it's only defined on the other peer?") := true)))
 
 #?(:cljs (defn cljs-only [] :cljs))
 #?(:clj
    (tests (with ((l/single {} (cljs-only)) tap tap)
-            (ex-message %) := "I cannot resolve [cljs-only], maybe it's only defined on the other peer?")))
+            (str/includes? (ex-message %)
+              "I cannot resolve [cljs-only], maybe it's only defined on the other peer?") := true)))
 #?(:clj
    (tests (with ((l/single {} (#(cljs-only))) tap tap)
-            (ex-message %) := "I cannot resolve [cljs-only], maybe it's only defined on the other peer?")))
+            (str/includes? (ex-message %)
+              "I cannot resolve [cljs-only], maybe it's only defined on the other peer?") := true)))
 
 #?(:clj
    (tests (let [ex (try (lang/->source (merge (lang/normalize-env {}) e/web-config) `root '(e/fn [] (e/client (clj-only))))

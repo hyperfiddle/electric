@@ -58,6 +58,7 @@
 ;;;;;;;;;;;;;;;
 
 (defn ->node [ts e] (get (:eav ts) e))
+(defn ? [ts e k] (get (->node ts e) k))
 (defn find [ts & kvs]
   (let [ret (reduce set/intersection (into [] (comp (partition-all 2) (map (fn [[k v]] (-> ts :ave (get k) (get v))))) kvs))]
     (when (seq ret) ret)))

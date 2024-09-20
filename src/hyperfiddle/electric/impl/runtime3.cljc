@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [resolve])
   (:require [hyperfiddle.incseq :as i]
             [missionary.core :as m]
+            [hyperfiddle.electric.impl.lang3 :as-alias lang]
             [cognitect.transit :as t]
             [hyperfiddle.incseq.diff-impl :as d])
   (:import missionary.Cancelled
@@ -145,20 +146,27 @@ T T T -> (EXPR T)
 " [value]
   (->Pure value nil))
 
-(defn invoke
-  ([f] (f))
-  ([f a] (f a))
-  ([f a b] (f a b))
-  ([f a b c] (f a b c))
-  ([f a b c d] (f a b c d))
-  ([f a b c d & es] (apply f a b c d es)))
+(defn clean-ex [mt msg]
+  (let [msg (str "in " (::lang/ns mt) (let [d (::lang/def mt)] (when d (str "/" d)))
+              ", line " (::lang/line mt) ", column " (::lang/column mt) "\n\n" msg)]
+    #?(:clj (proxy [Exception] [msg nil false false])
+       :cljs (js/Error msg))))
 
-;; TODO the runtime swallows exceptions somewhere
-;; maybe in latest-product, not sure.
-;; investigate and remove this afterwards
-(defn invoke-print-throws [& args]
-  (try (apply invoke args)
-       (catch #?(:clj Throwable :cljs :default) e (#?(:clj prn :cljs js/console.error) e))))
+(defn ?swap-exception [f mt]
+  (try (f)
+       (catch #?(:clj Throwable :cljs :default) e
+         (let [clean-ex (clean-ex mt (ex-message e))]
+           ;; (println (ex-message clean-ex))
+           (throw clean-ex)))))
+
+(defn invoke-with [mt]
+  (fn
+    ([f] (?swap-exception #(f) mt))
+    ([f a] (?swap-exception #(f a) mt))
+    ([f a b] (?swap-exception #(f a b) mt))
+    ([f a b c] (?swap-exception #(f a b c) mt))
+    ([f a b c d] (?swap-exception #(f a b c d) mt))
+    ([f a b c d & es] (?swap-exception #(apply f a b c d es) mt))))
 
 (deftype Ap [mt inputs
              ^:unsynchronized-mutable ^:mutable hash-memo]
@@ -177,7 +185,7 @@ T T T -> (EXPR T)
   (deps [_ rf r site]
     (reduce (fn [r x] (deps x rf r site)) r inputs))
   (flow [_]
-    (apply i/latest-product invoke (map flow inputs))))
+    (apply i/latest-product (invoke-with mt) (map flow inputs))))
 
 (defn ap "
 (EXPR (-> T)) -> (EXPR T)
