@@ -67,7 +67,7 @@
 
 #?(:cljs
    (defn attach! [parent-node tag e]
-     (assert (instance? js/Node parent-node))
+     (assert (instance? js/Node parent-node) "did you forget to bind `dom/node`?")
      (m/observe (fn [!]
                   (! nil)
                   (if-some [mount-point (get-mount-point parent-node)]
