@@ -373,9 +373,11 @@
 (defn get-child-e [ts e] (ca/is (first (get-children-e ts e)) some? (str "no child for " e) {:e e, :nd (ts/->node ts e)}))
 (defn get-root-e [ts] (get-child-e ts '_))
 
-(defn ?add-source-map [{{::keys [->id]} :o :as ts} pe form]
+(defn ?add-source-map [{{::keys [->id]} :o :as ts} e form env]
   (let [mt (meta form)]
-    (cond-> ts (:line mt) (ts/add {:db/id (->id), ::source-map-of pe, ::line (:line mt), ::column (:column mt)}))))
+    (cond-> ts (:line mt) (ts/add {:db/id (->id), ::source-map-of e
+                                   ::line (:line mt), ::column (:column mt)
+                                   ::def (::def env), ::ns (get-ns env)}))))
 
 (defn untwin [s]
   (if (= "cljs.core" (namespace s))
@@ -496,33 +498,35 @@
   (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
     (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v v})))
 
-(defn add-ap-literal [f args pe e env {{::keys [->id ->uid]} :o :as ts}]
+(defn add-ap-literal [f args pe e env form {{::keys [->id ->uid]} :o :as ts}]
   (let [ce (->id)]
     (reduce (fn [ts form] (analyze form e env ts))
       (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap, ::uid (->uid)})
         #_(add-literal f ce e)
         (ts/add {:db/id ce, ::parent e, ::type ::pure})
-        (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v f}))
+        (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v f})
+        (?add-source-map e form env))
       args)))
 
 (defn ->class-method-call [clazz method method-args pe env form {{::keys [->id]} :o :as ts}]
   (if (seq method-args)
     (let [f (let [margs (repeatedly (count method-args) gensym), meth (symbol (str clazz) (str method))]
               `(fn [~@margs] (~meth ~@margs)))]
-      (add-ap-literal f method-args pe (->id) env ts))
+      (add-ap-literal f method-args pe (->id) env form ts))
     (let [e (->id)]                     ; (. java.time.Instant now)
       (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
-        (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})))))
+        (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})
+        (?add-source-map e form env)))))
 
 (defn meta-of-key [mp k] (-> mp keys set (get k) meta))
 (defn gensym-with-local-meta [env k]
   (let [g (gensym (if (instance? clojure.lang.Named k) (name k) "o")), mt (meta-of-key (:locals env) k)]
     (?untag (with-meta g (merge mt (meta k))) env)))
 
-(defn ->obj-method-call [o method method-args pe env {{::keys [->id]} :o :as ts}]
+(defn ->obj-method-call [o method method-args pe env form {{::keys [->id]} :o :as ts}]
   (let [f (let [[oo & margs] (mapv #(gensym-with-local-meta env %) (cons o method-args))]
             `(fn [~oo ~@margs] (. ~oo ~method ~@margs)))]
-    (add-ap-literal f (cons o method-args) pe (->id) env ts)))
+    (add-ap-literal f (cons o method-args) pe (->id) env form ts)))
 
 (defn def-sym-in-cljs-compiler! [sym ns]
   (swap! @(requiring-resolve 'cljs.env/*compiler*)
@@ -553,7 +557,7 @@
                    pe env ts))
         (::mklocal) (let [[_ k bform] form, e (->id), uid (->uid)
                           ts (-> ts (ts/add {:db/id e, ::parent pe, ::type ::mklocal, ::k k, ::uid uid})
-                               (?add-source-map e form))]
+                               (?add-source-map e form env))]
                       (recur bform e (update-in env [:locals k] assoc ::electric-let uid) ts))
         (::bindlocal) (let [[_ k v bform] form, e (->id)
                             ts (ts/add ts {:db/id e, ::parent pe, ::type ::bindlocal ::k k
@@ -576,7 +580,7 @@
                     [f & arg*] (wrap-foreign-for-electric (analyze-foreign form env))]
                 (if (or (nil? current) (= (->env-type env) current))
                   (if f
-                    (add-ap-literal f arg* pe (->id) env ts)
+                    (add-ap-literal f arg* pe (->id) env form ts)
                     (add-literal ts form (->id) pe))
                   (recur `[~@arg*] pe env ts)))
         (::cc-letfn) (let [current (get (::peers env) (::current env))
@@ -584,7 +588,7 @@
                            [f & arg*] (wrap-foreign-for-electric (analyze-foreign lfn* env))]
                        (if (or (nil? current) (= (->env-type env) current))
                          (if f
-                           (add-ap-literal f arg* pe e env (?add-source-map ts e form))
+                           (add-ap-literal f arg* pe e env form ts)
                            (add-literal ts lfn* e pe))
                          (recur `[~@arg*] pe env ts)))
         (new) (let [[_ f & args] form]
@@ -593,7 +597,7 @@
                             :clj (if (and (symbol? f) (jvm-type? f)) f 'Object)
                             :cljs (if (and (symbol? f) (js-type? f env)) f 'js/Object))
                         f (let [gs (repeatedly (count args) gensym)] `(fn [~@gs] (new ~f ~@gs)))]
-                    (add-ap-literal f args pe (->id) env ts))
+                    (add-ap-literal f args pe (->id) env form ts))
                   (recur `[~@args] pe env ts)))
         ;; (. java.time.Instant now)
         ;; (. java.time.Instant ofEpochMilli 1)
@@ -624,19 +628,19 @@
                 (seq? (nth form 2))     ; (. i1 (isAfter i2))
                 (let [[_ o [method & method-args]] form]
                   (if me?
-                    (->obj-method-call o method method-args pe env ts)
+                    (->obj-method-call o method method-args pe env form ts)
                     (recur `[~(second form) ~@(next (nth form 2))] pe env ts)))
 
                 :else
                 (let [[_ o x & xs] form]
                   (if (seq xs)          ; (. i1 isAfter i2)
                     (if me?
-                      (->obj-method-call o x xs pe env ts)
+                      (->obj-method-call o x xs pe env form ts)
                       (recur `[~o ~@xs] pe env ts))
                     (if me?             ; (. pt x)
                       (if (field-access? x)
-                        (add-ap-literal `(fn [oo#] (. oo# ~x)) [o] pe (->id) env ts)
-                        (->obj-method-call o x [] pe env ts))
+                        (add-ap-literal `(fn [oo#] (. oo# ~x)) [o] pe (->id) env form ts)
+                        (->obj-method-call o x [] pe env form ts))
                       (recur nil pe env ts))))))
         (binding clojure.core/binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
                                          (recur (if (seq bs)
@@ -651,32 +655,32 @@
                 (case (->env-type env)
                   :clj (recur `((fn* ([x#] (def ~sym x#))) ~v) pe env ts)
                   :cljs (do (def-sym-in-cljs-compiler! sym (get-ns env))
-                            (add-ap-literal `(fn [v#] (set! ~sym v#)) [v] pe (->id) env ts))))
+                            (add-ap-literal `(fn [v#] (set! ~sym v#)) [v] pe (->id) env form ts))))
         (set!) (let [[_ target v] form] (recur `((fn* ([v#] (set! ~target v#))) ~v) pe env ts))
         (::ctor) (let [e (->id), ce (->id)]
                    (recur (second form)
                      ce env (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                               (ts/add {:db/id ce, ::parent e, ::type ::ctor, ::uid (->uid)})
-                              (?add-source-map e form))))
+                              (?add-source-map e form env))))
         (::call) (let [e (->id)] (recur (second form) e env
                                    (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid)})
-                                     (?add-source-map e form))))
+                                     (?add-source-map e form env))))
         (::tag) (let [e (->id)] (recur (second form) e env
                                   (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid), ::call-type ::tag})
-                                    (?add-source-map e form))))
+                                    (?add-source-map e form env))))
         (::pure) (let [pure (with-meta (gensym "pure") {::dont-inline true})]
                    (recur `(let* [~pure ~(second form)] (::pure-gen ~pure)) pe env ts))
         (::pure-gen) (let [e (->id)]
                        (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::pure})
-                                                    (?add-source-map e form))))
+                                                    (?add-source-map e form env))))
         (::join) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::join})
-                                                              (?add-source-map e form))))
+                                                              (?add-source-map e form env))))
         (::site) (let [[_ site bform] form, current (::current env), env2 (assoc env ::current site)]
                    (if (or (nil? site) (= site current) (= ::bindlocal (::type (ts/->node ts pe))))
                      (let [e (->id)]
                        (recur bform e env2
                          (-> (ts/add ts {:db/id e, ::parent pe, ::type ::site, ::site site})
-                           (?add-source-map e form))))
+                           (?add-source-map e form env))))
                      ;; Due to an early bad assumption only locals are considered for runtime nodes.
                      ;; Since any site change can result in a new node we wrap these sites in an implicit local.
                      ;; Electric aggressively inlines locals, so the generated code size will stay the same.
@@ -693,11 +697,11 @@
                        (let [js-call? (cljs-ana/js-call? @!a f (get-ns env))]
                          (when (::debug env) (prn :js-call? f '=> js-call?))
                          js-call?))
-                   (add-ap-literal (bound-js-fn f) args pe (->id) env ts)
+                   (add-ap-literal (bound-js-fn f) args pe (->id) env form ts)
                    (let [e (->id), uid (->uid)]
                      (reduce (fn [ts nx] (analyze nx e env ts))
                        (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap, ::uid uid})
-                         (?add-source-map uid form)) form)))))
+                         (?add-source-map e form env)) form)))))
 
       (instance? cljs.tagged_literals.JSValue form)
       (let [o (.-val ^cljs.tagged_literals.JSValue form)]
@@ -730,13 +734,13 @@
                                               (::lang ret) (assoc ::resolved-in (::lang ret)))))
               (::node) (ts/add ts {:db/id e, ::parent pe, ::type ::node, ::node (::node ret)})
               #_else (throw (ex-info (str "unknown symbol type " (::type ret)) (or ret {}))))
-          (?add-source-map e form)))
+          (?add-source-map e form env)))
 
       :else
       (let [e (->id)]
         (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
           (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})
-          (?add-source-map e form))))))
+          (?add-source-map e form env))))))
 
 (defn add-foreign-local [env sym] (update env :locals update sym assoc ::electric-let nil))
 
@@ -1080,12 +1084,18 @@
 
 (defn tag-call? [ts e] (= ::tag (::call-type (ts/->node ts e))))
 
+(defn ->code-meta [ts e]
+  (loop [e e]
+    (if-some [se (first (ts/find ts ::source-map-of e))]
+      (dissoc (ts/->node ts se) :db/id ::source-map-of)
+      (some-> (ts/? ts e ::parent) (recur)))))
+
 (defn emit [ts e ctor-e env nm]
   ((fn rec [e]
      (let [nd (get (:eav ts) e)]
        (case (::type nd)
          ::literal (::v nd)
-         ::ap (list* `r/ap {} (mapv rec (get-children-e ts e)))
+         ::ap (list* `r/ap (list 'quote (or (->code-meta ts e) {})) (mapv rec (get-children-e ts e)))
          ::var (let [in (::resolved-in nd)]
                  (list* `r/lookup 'frame (keyword (::qualified-var nd))
                    (when (or (nil? in) (= in (->env-type env))) [(list `r/pure (::qualified-var nd))])))
@@ -1420,7 +1430,7 @@
                                   ts (ts/find ts ::qualified-var `r/cannot-resolve)))
         ts (-> ts mark-used-calls2 index-calls reroute-local-aliases (optimize-locals (get-root-e ts))
              inline-locals order-nodes order-frees collapse-ap-with-only-pures expand-cannot-resolve)]
-    (when (::print-db env) (prn :db) (run! prn (ts->reducible ts)))
+    (when (::print-db env) (run! prn (ts->reducible ts)))
     ts))
 
 (defn compile* [nm env ts]
