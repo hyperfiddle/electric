@@ -51,7 +51,7 @@
       (PendingMonitor
         (letfn [(read [e] (let [k (.-key e)]
                             (cond
-                              (= "Escape" k)  [nil (set! (.-value dom/node) v)] ; clear token
+                              (= "Escape" k)  [nil (set! (.-value dom/node) v)] ; clear token fixme
                               () [e (-> e .-target .-value (subs 0 maxlength))])))]
           ; reuse token as value updates - i.e., singular edit not concurrent
           (let [[e v'] (dom/On "input" read nil) t (e/Token e)]
@@ -60,6 +60,7 @@
 
 (e/defn Checkbox! [checked & {:keys [id label] :as props
                               :or {id (random-uuid)}}]
+  ; todo esc?
   (e/client
     (e/amb
       (dom/div ; for yellow background
@@ -85,8 +86,38 @@
 ;; Transactional inputs that auto-submit (i.e., builtin submit and cancel)
 ; for forms that don't have an explicit submit button - like settings page.
 
-(e/defn InputSubmit! [v & {:as props}]
-  #_(Stage (Input! v props)))
+(e/defn InputSubmit! [v & {:keys [maxlength type] :as props
+                           :or {maxlength 100 type "text"}}]
+  ; like Input! but with commit/discard affordance at value level
+  ; dirty when you dirty, you can blur and it stays ditry
+  ; submit with enter, tab, or commit button
+  ; discard with esc or discard
+
+  ; event strategy: use "input" because it works on numeric, and also keydown reads
+  ; the value before the node target value is set.
+  ; separately, grab esc/cancel somehow (and it must be checkbox compatible)
+  (e/client
+    (let [!commit-err (atom nil) commit-err (e/watch !commit-err)
+          [t v] (dom/input (dom/props (assoc props :maxLength maxlength :type type))
+                  (PendingMonitor
+                    ; todo also listen for meta keys
+                    (let [e (dom/On "input" identity nil) t (e/Token e)]
+                      (when-not (or (dom/Focused?) (some? t)) (set! (.-value dom/node) v))
+                      (if t [t ((fn [] (-> e .-target .-value (subs 0 maxlength))))] (e/amb))))) ;tricky amb
+          [us _ :as btns]
+          (e/amb ; todo wire to input esc/enter
+            (Button! ::commit :label "commit" :disabled (not (e/Some? t)) :error commit-err) ; todo progress
+            (Button! ::discard :label "discard" :disabled (not (e/Some? t))))]
+
+      (prn 'edit t v) (prn 'btns (e/as-vec btns))
+      (e/for [[u cmd] btns]
+        (case cmd
+          ::discard (case (us (t)) ; clear any in-flight commit yet outstanding
+                      (e/amb)) ; clear edits, controlled form will reset
+          ::commit [(fn token
+                      ([] (u (t))) ; success, burn both commit token and field token
+                      ([err] (reset! !commit-err err) (u))) ; keep uncommited field, present retry
+                    v]))))) ; commit latest value from field
 
 (e/defn CheckboxSubmit! [checked & {:as props}]
   #_(Stage (Checkbox! checked props)))
