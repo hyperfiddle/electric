@@ -82,31 +82,14 @@
         (dom/span (dom/text error) (dom/props {:class "hyperfiddle-error"})))
       (e/When (some? t) [t directive]))))
 
-;; Submit inputs - confused, what are they?
+;; Transactional inputs that auto-submit (i.e., builtin submit and cancel)
+; for forms that don't have an explicit submit button - like settings page.
 
-(e/defn InputSubmit! [v & {:keys [maxlength type] :as props
-                           :or {maxlength 100 type "text"}}]
-  (e/client
-    (dom/input (dom/props (assoc props :maxLength maxlength :type type))
-      (PendingMonitor
-        (letfn [(read! [node] (not-empty (subs (.-value node) 0 maxlength)))
-                (submit! [e] (let [k (.-key e)]
-                               (cond
-                                 (= "Enter" k) (read! (.-target e)) ; no clear
-                                 (= "Escape" k) (do (set! (.-value dom/node) "") nil)
-                                 () nil)))]
-          (dom/OnAll "keydown" submit!))))))
+(e/defn InputSubmit! [v & {:as props}]
+  #_(Stage (Input! v props)))
 
-(e/defn CheckboxSubmit! [checked & {:keys [id label] :as props
-                                    :or {id (random-uuid)}}]
-  (e/client
-    (e/amb
-      (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label))
-        (let [edits (dom/OnAll "change" #(-> % .-target .-checked))] ; concurrent tx processing
-          (when-not (or (dom/Focused?) (pos? (e/Count edits)))
-            (set! (.-checked dom/node) checked))
-          edits))
-      (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
+(e/defn CheckboxSubmit! [checked & {:as props}]
+  #_(Stage (Checkbox! checked props)))
 
 ;; Submit and clear inputs - chat, create-new, etc
 
@@ -123,3 +106,36 @@
                                () nil)))]
         (PendingMonitor
           (dom/OnAll "keydown" submit!))))))
+
+
+;; Graveyard
+
+; these are inline submit inputs but uncancellable and cannot retry on failure
+; because each sequential submit is independent, due to On-all allocating new
+; tokens for each submission
+
+(e/defn InputSubmit!-nocancel-noretry
+  [v & {:keys [maxlength type] :as props
+        :or {maxlength 100 type "text"}}]
+  (e/client
+    (dom/input (dom/props (assoc props :maxLength maxlength :type type))
+      (PendingMonitor
+        (letfn [(read! [node] (not-empty (subs (.-value node) 0 maxlength)))
+                (submit! [e] (let [k (.-key e)]
+                               (cond
+                                 (= "Enter" k) (read! (.-target e)) ; no clear
+                                 (= "Escape" k) (do (set! (.-value dom/node) "") nil)
+                                 () nil)))]
+          (dom/OnAll "keydown" submit!)))))) ; onall is wrong concurrency for this
+
+(e/defn CheckboxSubmit!-nocancel-noretry
+  [checked & {:keys [id label] :as props
+              :or {id (random-uuid)}}]
+  (e/client
+    (e/amb
+      (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label))
+        (let [edits (dom/OnAll "change" #(-> % .-target .-checked))] ; wrong concurrency
+          (when-not (or (dom/Focused?) (pos? (e/Count edits)))
+            (set! (.-checked dom/node) checked))
+          edits))
+      (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
