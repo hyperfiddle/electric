@@ -114,8 +114,33 @@
                       ([err] (reset! !commit-err err) (u))) ; keep uncommited field, present retry
                     v]))))) ; commit latest value from field
 
-(e/defn CheckboxSubmit! [checked & {:as props}]
-  #_(Stage (Checkbox! checked props)))
+(e/defn CheckboxSubmit! [checked & {:keys [id label] :as props
+                                    :or {id (random-uuid)}}]
+  (e/client
+    (let [!commit-err (atom nil) commit-err (e/watch !commit-err)
+          [t v] (dom/div ; for yellow background
+                  (dom/props {:style {:display "inline-block" :width "fit-content"}})
+                  (e/amb
+                    (PendingMonitor
+                      (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label))
+                        (let [e (dom/On "change" identity) t (e/Token e)] ; single txn, no concurrency
+                          (when-not (or (dom/Focused?) (some? t)) (set! (.-checked dom/node) checked))
+                          (if t [t ((fn [] (-> e .-target .-checked)))] (e/amb)))))
+                    (e/When label (dom/label (dom/props {:for id}) (dom/text label)))))
+          [us _ :as btns]
+          (e/amb ; todo wire to input esc/enter
+            (Button! ::commit :label "commit" :disabled (not (e/Some? t)) :error commit-err) ; todo progress
+            (Button! ::discard :label "discard" :disabled (not (e/Some? t))))]
+
+      (prn 'edit t v) (prn 'btns (e/as-vec btns))
+      (e/for [[u cmd] btns]
+        (case cmd
+          ::discard (case (us (t)) ; clear any in-flight commit yet outstanding
+                      (e/amb)) ; clear edits, controlled form will reset
+          ::commit [(fn token
+                      ([] (u (t))) ; success, burn both commit token and field token
+                      ([err] (reset! !commit-err err) (u))) ; keep uncommited field, present retry
+                    v]))))) ; commit latest value from field
 
 ;; Submit and clear inputs - chat, create-new, etc
 
