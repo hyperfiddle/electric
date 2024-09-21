@@ -213,10 +213,10 @@ this tuple. Returns the concatenation of all body results as a single vector.
 
 (defmacro with-cycle* [kf [s s0] & body] ; hacked support for amb cycles, fixme
   `(let [kf# ~kf]
-     (e/diff-by kf#
-       (e/with-cycle [~s (e/as-vec ~s0)]
-         (let [~s (e/diff-by kf# ~s)]
-           (e/as-vec (do ~@body)))))))
+     (diff-by kf#
+       (with-cycle [~s (as-vec ~s0)]
+         (let [~s (diff-by kf# ~s)]
+           (as-vec (do ~@body)))))))
 
 (hyperfiddle.electric3/defn Count [xs] (-> xs pure i/count input))
 (hyperfiddle.electric3/defn Filter [p? xs] (for [x xs] (if (p? x) x (amb)))) ; todo write as product
