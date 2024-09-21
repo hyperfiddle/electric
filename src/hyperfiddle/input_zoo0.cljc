@@ -132,7 +132,7 @@
             (Button! ::commit :label "commit" :disabled (not (e/Some? t)) :error commit-err) ; todo progress
             (Button! ::discard :label "discard" :disabled (not (e/Some? t))))]
 
-      (prn 'edit t v) (prn 'btns (e/as-vec btns))
+      ;(prn 'edit t v) (prn 'btns (e/as-vec btns))
       (e/for [[u cmd] btns]
         (case cmd
           ::discard (case (us (t)) ; clear any in-flight commit yet outstanding
