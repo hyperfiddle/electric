@@ -598,3 +598,30 @@ input's value, use `EventListener`."
 (defmacro video [& body] (element* :video body))
 (defmacro wbr [& body] (element* :wbr body))
 
+#?(:cljs (defn await-element [node selector]
+           (fn [s f]
+             (let [o (js/MutationObserver.
+                       (fn [ms o]
+                         (try (when-let [x (.querySelector js/document selector)] ; todo optimize
+                                #(.disconnect o) (s x)) (catch :default e (f e)))))]
+               (try (.observe o node #js{:subtree true :childList true})
+                 (catch :default e (f e)))))))
+
+(e/defn Await-element [node selector]
+  ; this is expensive, so don't provide the js/document.body default
+  (e/Task (await-element node selector)))
+
+#?(:cljs (defn await-elements [node selector]
+           (m/observe
+             (fn [!]
+               (let [o (js/MutationObserver.
+                         (fn [ms o]
+                           (doseq [x (array-seq (.querySelectorAll js/document selector))]
+                             #_(prn 'mut selector x)
+                             (! x))
+                           #_(try (catch :default e (f e)))))]
+                 (.observe o node #js{:subtree true :childList true})
+                 #_(try (catch :default e (f e))))))))
+
+(e/defn Await-elements [node selector]
+  (e/client (e/join (e/uf->is (await-elements node selector)))))
