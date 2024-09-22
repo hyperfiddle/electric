@@ -106,45 +106,52 @@
   ; dirty when you dirty, you can blur and it stays ditry
   ; submit with enter, tab, or commit button
   ; discard with esc or discard
+  ; todo also listen for meta keys
 
   ; event strategy: use "input" because it works on numeric, and also keydown reads
   ; the value before the node target value is set.
   ; separately, grab esc/cancel somehow (and it must be checkbox compatible)
   (e/client
-    (let [!commit-err (atom nil) commit-err (e/watch !commit-err)
-          [t v] (dom/input (dom/props (assoc props :maxLength maxlength :type type))
-                  (PendingMonitor ; injected RetryToken activates this state
-                    ; todo also listen for meta keys
-                    (let [e (dom/On "input" identity nil) [t err] (e/RetryToken e)]
-                      (when-not (or (dom/Focused?) (some? t)) (set! (.-value dom/node) v))
-                      #_(if t [t ((fn [] (some-> e .-target .-value (subs 0 maxlength))))] (e/amb))
-                      (if-let [t' (or t token)] ; the pending value may have come from create-new !
-                        [t' ((fn [] (cond
-                                      t (some-> e .-target .-value (subs 0 maxlength)) ; local
-                                      token v)))] ; injected
-                        (e/amb))))) ; tricky amb
+    (let [[t v] (dom/input (dom/props (-> props (dissoc :token) (assoc :maxLength maxlength :type type)))
+                  (let [e (dom/On "input" identity nil) [t err] (e/RetryToken e)
+                        editing? (dom/Focused?)
+                        waiting-mine? (some? t)
+                        waiting? (or (some? t) (some? token))
+                        error? (some? err) ; todo route error from original token
+                        dirty? (or editing? waiting-mine? error?)]
+                    (when-not dirty? (set! (.-value dom/node) v))
+                    (when error? (dom/props {:aria-invalid true}))
+                    (when waiting? (dom/props {:aria-busy true}))
+                    (if waiting?
+                      [(or t token) ; absorb foreign token
+                       ((fn [] (cond
+                                 t (some-> e .-target .-value (subs 0 maxlength)) ; local override
+                                 token v)))]
+                      (e/amb)))) ; tricky amb
 
           ; [t v e] - t can be burned but e & v remains = retry ?
 
-          external-submit? (some? token)
-          dirty? (or (e/Some? t) token)
+          external-submit? (some? token) ; inlining this under when causes a glitch NPE in commit
+          dirty? (e/Some? t)
           locally-dirty? (and (e/Some? t) (not= t token)) ; cancel inflight txn in this case - todo
           can-commit? locally-dirty?
 
           [us _ :as btns]
           (e/amb ; todo wire to input esc/enter
-            (Button! ::commit :label "commit" :error commit-err :disabled (not can-commit?)) ; todo progress
-            (Button! ::discard :label "discard" :disabled (not (e/Some? t))))]
+            (Button! ::commit :label "commit" :disabled (not can-commit?)) ; todo progress
+            (Button! ::discard :label "discard" :disabled (not dirty?)))]
+
+      #_(prn 'InputSubmit! 'external-submit? external-submit?)
+      external-submit? ; workaround crash on discard in todos
 
       ;(prn 'edit (e/Some? t) (e/as-vec v)) (prn 'btns (e/as-vec btns))
       (e/for [[u cmd] btns]
         (case cmd
-          ::discard (case ((fn [] (us) (t) (when token (token)))) ; clear any in-flight commit yet outstanding
+          ::discard (case ((fn [] (us) (t) (when external-submit? (token)))) ; clear any in-flight commit yet outstanding
                       (e/amb)) ; clear edits, controlled form will reset
-          ::commit [(fn token
-                      ; double burn is harmless when (= t token)
-                      ([] (u) (t) (token)) ; success, burn both commit token and field token
-                      ([err] (reset! !commit-err err) (u #_err))) ; keep uncommited field, present retry
+          ::commit [(fn token ; double burn is harmless when (= t token)
+                      ([] (u) (t) (when external-submit? (token))) ; success, burn both commit token and field token
+                      ([err] (u err))) ; keep uncommited field, present retry
                     v]))))) ; commit latest value from field
 
 (e/defn CheckboxSubmit! [checked & {:keys [id label #_token] :as props
