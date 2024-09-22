@@ -26,21 +26,23 @@
             debug false}}]
    (e/client
      (let [batch (apply merge-cmds (e/as-vec txs))
-           reset (let [ts (e/as-vec ts)] #(doseq [t ts] (t)))
+           reset (let [ts (e/as-vec ts)]
+                   (fn token
+                     ([] (doseq [t ts] (t)))
+                     #_([err] (doseq [t ts] (t err ::keep))))) ; we could route errors to dirty fields, but it clears dirty state
            n (e/Count edits)
-           !commit-err (atom nil) commit-err (e/watch !commit-err)
-           [ts _ :as btns] (e/amb
-                             (Button! ::commit :label "commit" :disabled (zero? n) :error commit-err) ; todo progress
-                             (Button! ::discard :label "discard" :disabled (zero? n))
-                             (e/When debug (dom/span (dom/text " " n " dirty"))))]
+           [us _ :as btns] (e/amb ; todo progress
+                               (Button! ::commit :disabled (zero? n) :label "commit")
+                               (Button! ::discard :disabled (zero? n) :label "discard")
+                               (e/When debug (dom/span (dom/text " " n " dirty"))))]
        (e/amb
-         (e/for [[t cmd] btns]
-           (case cmd
-             ::discard (case (ts (reset)) ; clear any in-flight commit yet outstanding
+         (e/for [[u cmd] btns]
+           (case cmd ; does order of burning matter?
+             ::discard (case ((fn [] (us) (reset))) ; clear any in-flight commit yet outstanding
                          (e/amb)) ; clear edits, controlled form will reset
              ::commit [(fn token
-                         ([] (t (reset)))
-                         ([err] (reset! !commit-err err) (t)))
+                         ([] (reset) (u))
+                         ([err] (u err) #_(reset err))) ; leave dirty fields dirty, activates retry button
                        batch])) ; commit as atomic batch
 
          (e/When debug
